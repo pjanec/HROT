@@ -106,7 +106,7 @@ The [ROUTES1-DESIGN.md](./ROUTES1-DESIGN.md) is structured as follows:
 
 ```powershell
 # From the workspace root:
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 To run only the relevant test suites:
@@ -120,7 +120,7 @@ dotnet test Hrot.IG.Tests
 To run all tests:
 
 ```powershell
-dotnet test IOS-IG-SimHost.sln
+dotnet test HROT.sln
 ```
 
 ---

@@ -8,21 +8,24 @@ using Fdp.ModuleHost.Abstractions;
 namespace Fdp.Toolkit.Replication.Systems
 {
     [UpdateInPhase(SystemPhase.Export)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class OwnershipEgressSystem : IEcsModuleSystem
     {
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
 
         // Cache to track changes: Entity -> (PackedKey -> OwnerNodeId)
         private readonly Dictionary<Entity, Dictionary<long, int>> _lastKnownOwnership = new();
+        private int _epoch;   // ⭐ CE-3294 — the world the state below describes (the ownership last published)
 
         public OwnershipEgressSystem(
             global::Fdp.Toolkit.Replication.INetworkTopology? topology = null)
         {
-            _localNodeId = topology?.LocalNodeId ?? 0;
+            _localNodeId = (Fdp.Core.NodeId)(topology?.LocalNodeId ?? 0);
         }
 
         public void Execute(ISimulationView view, float dt)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _lastKnownOwnership.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
             if (view is not EntityRepository repo) return;
 
             // Remove destroyed entities from the ownership cache.
@@ -70,8 +73,8 @@ namespace Fdp.Toolkit.Replication.Systems
                         {
                             NetworkId = netId,
                             PackedKey = key,
-                            NewOwnerNodeId = newOwner,
-                            OriginNodeId = originNodeId
+                            NewOwnerNodeId = (Fdp.Core.NodeId)(newOwner),
+                            OriginNodeId = (Fdp.Core.NodeId)(originNodeId)
                         });
                     }
                 }

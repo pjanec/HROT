@@ -128,5 +128,97 @@ namespace Fhsm.Tests.Compiler
 
             Assert.Empty(errors);
         }
+
+        // ── CE-406 — the check RE-AIMED for the auto-bind world (Q74 section 9.5) ──────────
+
+        // The fully-qualified name an editor-authored asset actually holds. The cleanup map
+        // above is keyed on the SHORT name, exactly as HsmActionGenerator emits it (m.Name).
+        private const string MoveActionFqn = "Hrot.AI.Behaviors.Brains.SomeNodes.MoveAction";
+
+        /// <summary>
+        /// CE406_R1 -- a state whose cleanup was bound by the AUTO-BIND must NOT be flagged.
+        ///
+        /// This is the false positive that repairing the key shape alone would have produced,
+        /// and it is why this check could not simply be "wired up". Q74 D-B1/D-D1 bake
+        /// .OnExitId(hash) into ExitActionId and leave OnExitAction null; the original rule
+        /// demanded OnExitAction == required, so it would have reddened every correctly
+        /// auto-bound state -- starting with HsmTwoChannelRegionsDemo, the asset auto-bind fixed.
+        ///
+        /// Red-proof: delete the `if (state.ExitActionId != 0) continue;` guard -> this reddens.
+        /// </summary>
+        [Fact]
+        public void CE406_R1_AutoBoundExitActionId_IsNotFlagged()
+        {
+            var state = new StateNode("Driving")
+            {
+                ActivityAction = MoveActionFqn,
+                OnExitAction   = null,      // the emitter leaves this null...
+                ExitActionId   = 26097,     // ...and bakes the id instead
+            };
+            var graph  = BuildGraph(state);
+            var errors = new List<HsmGraphValidator.ValidationError>();
+
+            HsmGraphValidator.ValidateChannelSafety(graph, CleanupMap, errors);
+
+            Assert.Empty(errors);
+        }
+
+        /// <summary>
+        /// CE406_R2 -- the KEY-SHAPE fix: an activity named by its FQN is now seen.
+        ///
+        /// The cleanup map is keyed on the short method name while assets hold the FQN, so
+        /// requiredExitCleanups.ContainsKey(state.ActivityAction) missed every real state --
+        /// the check was silently inert even once RequiredExitCleanups became non-empty.
+        /// Matching on the short name is what HsmActionDispatcher itself does, so this makes
+        /// the validator agree with runtime rather than loosening it.
+        ///
+        /// Red-proof: revert ShortMemberName to a direct ContainsKey -> no error is produced.
+        /// </summary>
+        [Fact]
+        public void CE406_R2_FullyQualifiedActivityName_IsMatchedAgainstTheShortKeyedMap()
+        {
+            var state = new StateNode("Driving")
+            {
+                ActivityAction = MoveActionFqn,
+                // no OnExitAction and no ExitActionId -- nothing releases the channel
+            };
+            var graph  = BuildGraph(state);
+            var errors = new List<HsmGraphValidator.ValidationError>();
+
+            HsmGraphValidator.ValidateChannelSafety(graph, CleanupMap, errors);
+
+            Assert.Single(errors);
+            Assert.Contains("ExitCleanup_MoveAction", errors[0].Message);
+        }
+
+        /// <summary>
+        /// CE406_R3 -- the ONE hole the auto-bind cannot fill, and the reason this check is
+        /// kept rather than deleted.
+        ///
+        /// HsmEmitCore binds .OnExitId only when the state has no OnExitAction of its own
+        /// (fill-an-empty-slot; HsmFlattener:173 makes the baked id win over the name, so the
+        /// rule has to live at the emit site). A state that authors its own OnExitAction
+        /// therefore silently loses its channel cleanup, and nothing else in the toolchain
+        /// says so. Measured 2026-09-28: zero of the 28 OnExitAction entries across the six
+        /// shipped .hsm.json are non-null, so this is a hole with no occupants yet.
+        /// </summary>
+        [Fact]
+        public void CE406_R3_AnAuthoredOnExitDisplacesTheCleanup_AndIsReported()
+        {
+            var state = new StateNode("Driving")
+            {
+                ActivityAction = MoveActionFqn,
+                OnExitAction   = "PlayDismountAnimation",   // the author's own exit action
+                // ExitActionId stays 0: the emitter will not overwrite an authored name
+            };
+            var graph  = BuildGraph(state);
+            var errors = new List<HsmGraphValidator.ValidationError>();
+
+            HsmGraphValidator.ValidateChannelSafety(graph, CleanupMap, errors);
+
+            Assert.Single(errors);
+            Assert.Contains("PlayDismountAnimation", errors[0].Message);
+            Assert.Contains("ExitCleanup_MoveAction", errors[0].Message);
+        }
     }
 }

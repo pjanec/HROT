@@ -16,6 +16,9 @@ public static class AssetKindIcons
     /// </summary>
     public const string ScenarioIconKey = "asset/scenario";
 
+    /// <summary>⭐ CE-4098 — the icon key for a recording (<see cref="AssetKind.Recording"/>).</summary>
+    public const string RecordingIconKey = "asset/recording";
+
     // Punch-list #9: finer blueprint icon keys (Action / Condition / Function). Blueprints all share
     // AssetKind.Blueprint, so these are surfaced via IAssetIconKeyProvider rather than GetIconKey.
     /// <summary>Icon key for an AiPrimitive blueprint with Action intent.</summary>
@@ -54,6 +57,7 @@ public static class AssetKindIcons
         AssetKind.Blackboard => "asset/blackboard",
         AssetKind.Utility    => "asset/utility",
         AssetKind.Scenario   => ScenarioIconKey,
+        AssetKind.Recording  => RecordingIconKey,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, $"Unknown {nameof(AssetKind)} value: {kind}")
     };
 }

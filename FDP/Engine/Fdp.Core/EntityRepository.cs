@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using Fdp.Core.Internal;
 
 namespace Fdp.Core
@@ -32,6 +33,11 @@ namespace Fdp.Core
         // Provides an unmanaged IntPtr that HSM action delegates (via HsmKernelBridge.WorldHandle)
         // use to recover this EntityRepository through the Fhsm.Kernel unmanaged constraint.
         // See DEBT-007-HSM-ANALYSIS.md for full explanation.
+        // ⭐ CE-3183 — a WEAK handle: it gives access while something holds the world (every reader recovers it inside a
+        //   tick, from a bridge HsmRunner fills from the live repo), and never keeps it alive. ⛔ It was Normal (strong):
+        //   a world nobody disposed was rooted for the life of the process, so its NativeChunkTable finalizers never ran
+        //   and every table's mmap reservation stayed — measured: 484 undisposed test worlds, 56 240 mappings against
+        //   vm.max_map_count 65 530, then OutOfMemoryException wherever the next allocation landed.
         private GCHandle _selfHandle;
         
         // Stage 21: Lifecycle Event Stream
@@ -53,6 +59,8 @@ namespace Fdp.Core
         
         // Flight Recorder Destruction Log
         private readonly List<Entity> _destructionLog = new List<Entity>(128);
+        private long _destructionBase;      // ⭐ CE-3335 — the mark of _destructionLog[0] (every entry ever logged has one mark)
+        private int _destructionKeepFrom;   // ⭐ CE-3335 — where this frame's deaths start; Tick() drops what came before the LAST frame
         
         // Stage 18: Singleton Storage
         // Index = ComponentType<T>.ID
@@ -107,12 +115,67 @@ namespace Fdp.Core
             }
         }
         
+        private static int _liveInstanceCount;
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>QA-004</c> — <b>how many <see cref="EntityRepository"/> instances are alive right now</b>
+        /// (constructed and not yet <see cref="Dispose"/>d).
+        ///
+        /// <para>⛔ A leaked repository is INVISIBLE without this: it throws nothing, logs nothing, and
+        /// fails no assertion — it just holds an <c>int[1_000_000]</c> free list plus one
+        /// <c>NativeChunkTable</c> per registered component until the process dies. 📐 Measured
+        /// 2026-08-26: accumulated leaks exhausted a 16 GB box mid-run and aborted the integration
+        /// test host, which had been read as "flaky tests" for ~40 batches.</para>
+        ///
+        /// <para>⭐ So the count is the INSTRUMENT: a teardown rail asserts it returns to its pre-boot
+        /// value, which turns "did anything leak a world?" from an argument into a number.
+        /// ⚠ Process-wide and therefore only meaningful when read on a serialized path — compare a
+        /// before/after pair inside one test, ⛔ never assert an absolute value.</para>
+        /// </summary>
+        public static int LiveInstanceCount => Volatile.Read(ref _liveInstanceCount);
+
+        // ── QA-004: opt-in leak tracker ───────────────────────────────────────────────────────────
+        // OFF unless FDP_TRACK_REPO_LEAKS=1, so the normal path pays one already-cached bool read.
+        private static readonly bool _trackLeaks =
+            EnvVars.Read(EnvVars.FdpTrackRepoLeaks) == "1";
+
+        // EntityRepository does not override Equals/GetHashCode, so the default comparer IS reference
+        // identity — which is what a per-instance origin table needs.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<EntityRepository, string>
+            _liveOrigins = new();
+
+        /// <summary>
+        /// ⭐⭐ <c>QA-004</c> — with <c>FDP_TRACK_REPO_LEAKS=1</c>, the construction stack of every
+        /// still-live repository.
+        ///
+        /// <para>⛔ <see cref="LiveInstanceCount"/> answers <i>"did something leak?"</i> and stops there
+        /// — 📐 measured 2026-08-26, one harness round-trip leaked <b>ten</b> repositories per node and
+        /// the count alone could not say which ten. ⭐ This answers <i>"leaked from WHERE"</i>, which is
+        /// the difference between a number and a fix.</para>
+        /// </summary>
+        public static string[] DumpLiveOrigins()
+        {
+            if (!_trackLeaks)
+                return new[] { "FDP_TRACK_REPO_LEAKS is not set to 1 — no origins were recorded." };
+
+            var origins = new System.Collections.Generic.List<string>();
+            foreach (var kv in _liveOrigins) origins.Add(kv.Value);
+            return origins.ToArray();
+        }
+
+        /// <summary>⭐ A-1 — this repository's id in the access trace (0 when the switch is off).</summary>
+        internal readonly int TraceId = AccessTrace.On ? AccessTrace.NextRepoId() : 0;
+
         public EntityRepository()
         {
+            Interlocked.Increment(ref _liveInstanceCount);
+            if (_trackLeaks) _liveOrigins[this] = Environment.StackTrace;
             Bus = new FdpEventBus();
-            _selfHandle = GCHandle.Alloc(this, GCHandleType.Normal);
+            if (AccessTrace.On) { AccessTrace.LabelBus(Bus.TraceId, TraceId); AccessTrace.RegisterRepo(TraceId, this); }
+            _selfHandle = GCHandle.Alloc(this, GCHandleType.Weak);   // ⭐ CE-3183 — never roots the world
             _entityIndex = new EntityIndex();
             _componentTables = new Dictionary<Type, IComponentTable>();
+            if (MemoryCensus.On) MemoryCensus.Track(this);   // ⭐ CE-4456 N-1
             _metadata = new ComponentMetadataTable();
             _singletons = new object[64]; // Start with 64 slots, will grow if needed
             _phaseConfig.BuildCache();  // Build ID cache at initialization
@@ -122,7 +185,8 @@ namespace Fdp.Core
         /// Raw unmanaged handle to this repository. Valid for passing through
         /// <c>unmanaged</c>-constrained contexts (e.g. <c>HsmKernelBridge</c>).
         /// Recover via: <c>(EntityRepository)GCHandle.FromIntPtr(handle).Target!</c>
-        /// Remains valid until <see cref="Dispose"/> is called.
+        /// Remains valid until <see cref="Dispose"/> is called, while the repository is reachable — ⭐ <c>CE-3183</c>: the handle
+        /// is weak, so read it only from code that holds the repository (the bridge is filled per tick from the live world).
         /// </summary>
         public IntPtr UnmanagedHandle => GCHandle.ToIntPtr(_selfHandle);
 
@@ -130,6 +194,129 @@ namespace Fdp.Core
         /// Total number of active entities.
         /// </summary>
         public int EntityCount => _entityIndex.ActiveCount;
+
+        private long _structuralChanges;
+
+        // ⭐ CE-2418 — the query-candidate index and its scope (docs/DESIGN_Egress_Change_Detection.md §6)
+        private QueryCandidateIndex? _candidateIndex;
+        private int _queryIndexDepth;
+        private bool _candidatesBuiltInScope;   // at most ONE build per scope: a live enumerator's array is never rewritten under it
+
+        /// <summary>⭐ <c>CE-2418</c> — while the returned scope lives, a query on THIS repository walks only the entities of its rarest included
+        /// type (a candidate index built from the masks in one pass, voided by any structural change) instead of every entity. For a burst of
+        /// queries on one thread (the egress pass). Nests; dispose it.</summary>
+        public QueryIndexScopeHandle QueryIndexScope() { _queryIndexDepth++; return new QueryIndexScopeHandle(this); }
+
+        /// <summary>
+        /// ⭐ CE-3427 N-1 — inside a <see cref="QueryIndexScope"/>: builds the candidate index NOW, so the scope's queries may run on several
+        /// threads at once (each then only reads it). ⚠ Only while nothing changes this repository's structure — the off-frame egress calls it
+        /// on its replica, which nothing writes during the scan. ⛔ The scope's depth counter itself is not thread-safe: open the scope on ONE
+        /// thread around the parallel work.
+        /// </summary>
+        public void PrepareQueryIndex()
+        {
+            if (_queryIndexDepth == 0) return;
+            TryQueryCandidates(default, out _, out _, out _);
+        }
+
+        /// <summary>Ends a <see cref="QueryIndexScope"/>.</summary>
+        public readonly struct QueryIndexScopeHandle : IDisposable
+        {
+            private readonly EntityRepository? _repo;
+            internal QueryIndexScopeHandle(EntityRepository repo) => _repo = repo;
+            public void Dispose()
+            {
+                if (_repo == null || _repo._queryIndexDepth == 0) return;
+                if (--_repo._queryIndexDepth == 0) _repo._candidatesBuiltInScope = false;
+                // ⭐ the build is KEPT across scopes of the same frame: every egress system of the Export phase shares it (📐 a build per
+                //   scope cancelled the saving — CE-2418's first A/B); a new frame, a structural change or a wholesale mask rewrite voids it
+            }
+        }
+
+        /// <summary>Inside a scope: the candidates of <paramref name="include"/>'s rarest type (the index rebuilt when stale). False outside one,
+        /// or when the mask includes nothing — the caller walks every entity.</summary>
+        internal bool TryQueryCandidates(in BitMask512 include, out int[] entities, out int from, out int count)
+        {
+            entities = Array.Empty<int>(); from = 0; count = 0;
+            if (_queryIndexDepth == 0) return false;
+            var index = _candidateIndex ??= new QueryCandidateIndex();
+            if (!index.IsFresh(this))
+            {
+                // a structural change inside the scope: walk everything for the rest of it (an enumerator may still hold the array)
+                if (_candidatesBuiltInScope) return false;
+                index.Build(this);
+                _candidatesBuiltInScope = true;
+            }
+            return index.Rarest(include, out entities, out from, out count);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2411</c> — a counter that moves on every STRUCTURAL change: an entity created, hydrated or destroyed, a component coming
+        /// or going, a lifecycle / DIS-type change (every <c>LastChangeTick</c> stamp, plus destroy). Never on a value write.
+        /// <para>For a per-frame index (<c>FrameEntityGrid</c>, the parts index) to know the world's SHAPE moved within the frame — where the
+        /// entity count cannot tell (a destroy and a create recycle the same index). Monotonic; not recorded, not restored.</para>
+        /// </summary>
+        public long StructuralChanges => _structuralChanges;
+
+        private long[] _addedByType = new long[64];
+
+        private void BumpType(int typeId, int entityIndex)
+        {
+            if ((uint)typeId >= (uint)_addedByType.Length) Array.Resize(ref _addedByType, Math.Max(typeId + 1, _addedByType.Length * 2));
+            _addedByType[typeId]++;
+            if ((uint)typeId < (uint)_addLog.Length && _addLog[typeId] is { } log) log.Note(entityIndex, _globalVersion);
+        }
+
+        // ⭐ CE-4395 — WHICH entities gained a component, for the types a per-frame index asked about (LogAddsOf). Index-keyed, per GlobalVersion.
+        private AddLog?[] _addLog = Array.Empty<AddLog?>();
+
+        private sealed class AddLog
+        {
+            public int[] Indices = new int[16];
+            public int Count;
+            public uint Version;
+            public void Note(int entityIndex, uint version)
+            {
+                if (version != Version) { Version = version; Count = 0; }
+                if (Count == Indices.Length) Array.Resize(ref Indices, Count * 2);   // allocation on growth only
+                Indices[Count++] = entityIndex;
+            }
+        }
+
+        private void ClearAddLogs()
+        {
+            foreach (var log in _addLog) if (log != null) { log.Count = 0; log.Version = uint.MaxValue; }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4395</c> — from now on, note the entity INDEX of every add of a component of type id <paramref name="typeId"/> (the same adds
+        /// <see cref="ComponentsAddedOf"/> counts), so a per-frame index can take the parts added within the frame instead of rebuilding over
+        /// every entity (📐 the parts index: 27 full rebuilds a frame at 3 000 men). Idempotent. Not recorded, not restored.
+        /// </summary>
+        public void LogAddsOf(int typeId)
+        {
+            if ((uint)typeId >= (uint)_addLog.Length) Array.Resize(ref _addLog, Math.Max(typeId + 1, Math.Max(64, _addLog.Length * 2)));
+            _addLog[typeId] ??= new AddLog { Version = _globalVersion };
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4395</c> — the entity indices that gained a component of type id <paramref name="typeId"/> at the current
+        /// <see cref="GlobalVersion"/>, in order (an index may repeat: added, removed, added). Empty for a type nobody asked to log
+        /// (<see cref="LogAddsOf"/>) — ⚠ the caller compares its length with <see cref="ComponentsAddedOf"/>'s delta, never trusts it alone.
+        /// </summary>
+        public ReadOnlySpan<int> AddsThisVersion(int typeId)
+        {
+            if ((uint)typeId >= (uint)_addLog.Length || _addLog[typeId] is not { } log || log.Version != _globalVersion) return default;
+            return new ReadOnlySpan<int>(log.Indices, 0, log.Count);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2412</c> — a counter that moves whenever a component of type id <paramref name="typeId"/> is ADDED to an entity (it was not
+        /// there). For a per-frame index over one component's entities (the parts index over <c>PartMetadata</c>) to learn, cheaply and
+        /// exactly, that a new member may have joined within the frame — removals and destroys need no signal (a reader re-checks every
+        /// hit live). Monotonic; not recorded, not restored.
+        /// </summary>
+        public long ComponentsAddedOf(int typeId) => (uint)typeId < (uint)_addedByType.Length ? _addedByType[typeId] : 0L;
         
         /// <summary>
         /// Highest entity index ever issued (for iteration bounds).
@@ -141,6 +328,14 @@ namespace Fdp.Core
         /// Also incremented alone (without SimulationTick) by BumpMemoryVersion() for sub-tick debug granularity.
         /// </summary>
         public uint GlobalVersion => _globalVersion;
+
+        /// <summary>⭐ M-1 (DESIGN_Parallel_Simulation §8.3) — the component tables, for the write instrument only (allocates; instrument path).</summary>
+        internal List<(Type, IComponentTable)> TablesForStats()
+        {
+            var list = new List<(Type, IComponentTable)>(_componentTables.Count);
+            foreach (var kv in _componentTables) list.Add((kv.Key, kv.Value));
+            return list;
+        }
 
         /// <summary>
         /// Semantic frame clock. Incremented only by Tick() — frozen during a mid-tick debug burst.
@@ -155,6 +350,8 @@ namespace Fdp.Core
         {
             System.Threading.Interlocked.Increment(ref _globalVersion);
             System.Threading.Interlocked.Increment(ref _simulationTick);
+            _lastTickFresh = false;   // ⭐ N-15 — a new tick: the last-tick view must be taken again before a per-entity phase reads it
+            TrimDestructionLog();   // ⭐ CE-3335
         }
 
         /// <summary>
@@ -178,8 +375,10 @@ namespace Fdp.Core
         /// </summary>
         internal void SetGlobalVersion(uint version)
         {
+            ClearAddLogs();   // ⭐ CE-4395 — a version set back must not make an old version's adds read as this one's
             _globalVersion = version;
             _simulationTick = version;
+            _contentEpoch++;   // ⭐ M-4 (CE-4483) — a replica may no longer trust a version match
         }
 
         /// <summary>
@@ -189,8 +388,10 @@ namespace Fdp.Core
         /// </summary>
         public void ResetGlobalVersion(uint version = 1)
         {
+            ClearAddLogs();   // ⭐ CE-4395 — a version set back must not make an old version's adds read as this one's
             _globalVersion = version;
             _simulationTick = version;
+            _contentEpoch++;   // ⭐ M-4 (CE-4483) — a replica may no longer trust a version match
         }
         
         /// <summary>
@@ -241,13 +442,14 @@ namespace Fdp.Core
         /// </summary>
         public Entity HydrateEntity(int id, int generation)
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.EntityCreate, "(entity: hydrate)", TraceId);
              // 1. Delegate to Index to handle allocation/state
              _entityIndex.ForceRestoreEntity(id, true, generation, default);
              
              // 2. Set default metadata
              ref var meta = ref _entityIndex.GetMetadata(id);
              meta.LifecycleState = EntityLifecycle.Active;
-             meta.LastChangeTick = _globalVersion;
+             meta.LastChangeTick = _globalVersion; _structuralChanges++;
              
              var entity = new Entity(id, (ushort)generation);
 
@@ -270,9 +472,14 @@ namespace Fdp.Core
         /// </summary>
         public Entity CreateEntity()
         {
+            // ⭐ N-10 / F-8 — in a phase the creation is DEFERRED: the batch's placeholder (remapped at playback); its components added in the same
+            //   batch ride the same buffer, and it is usable from the next tick
+            if (ParallelReadCheck.Defers(this)) return ParallelReadCheck.CurrentBatch!.Commands.CreateEntity();
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.EntityCreate, "(entity)", TraceId);
             var entity = _entityIndex.CreateEntity();
             ref var meta = ref _entityIndex.GetMetadata(entity.Index);
-            meta.LastChangeTick = _globalVersion;
+            meta.LastChangeTick = _globalVersion; _structuralChanges++;
+            if (EntityCensus.On) EntityCensus.Created(TraceId, entity.Index);   // ⭐ N-1 — a read of it later this frame is counted
             meta.LifecycleState = EntityLifecycle.Active; // Default to Active
             
             // Emit Lifecycle Event
@@ -294,11 +501,12 @@ namespace Fdp.Core
         /// </summary>
         public void SetLifecycleState(Entity entity, EntityLifecycle state)
         {
+            if (AccessTrace.On) AccessTrace.RecordNameE(TraceKind.Write, "(entity lifecycle state)", TraceId, entity.Index);
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
             
             ref var meta = ref _entityIndex.GetMetadata(entity.Index);
             meta.LifecycleState = state;
-            meta.LastChangeTick = _globalVersion;
+            meta.LastChangeTick = _globalVersion; _structuralChanges++;
         }
 
         /// <summary>
@@ -306,20 +514,57 @@ namespace Fdp.Core
         /// </summary>
         public EntityLifecycle GetLifecycleState(Entity entity)
         {
+            if (AccessTrace.On) AccessTrace.RecordNameE(TraceKind.Read, "(entity lifecycle state)", TraceId, entity.Index);
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
             return _entityIndex.GetMetadata(entity.Index).LifecycleState;
         }
 
         /// <summary>
-        /// Returns the list of entities destroyed since the last ClearDestructionLog().
-        /// Used by the Recorder to write the "Destroyed" block.
+        /// ⭐⭐ <c>CE-3335</c> — the destruction log as ONE log with a mark per reader: <see cref="ReadDestructions"/> hands a reader every
+        /// death since ITS mark and moves the mark, so no reader empties the log under another. <see cref="Tick"/> (the start of a frame)
+        /// keeps the last frame's deaths and this one's, so a reader that reads once a frame — anywhere in it, or between frames — misses
+        /// nothing, and the log stays bounded when nothing records. ⛔ SUPERSEDED: the recorder cleared the log inside the tick, so a reader
+        /// after it saw nothing, and with no recorder the log grew forever. 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §12o.
+        /// </summary>
+        public long DestructionMark => _destructionBase + _destructionLog.Count;
+
+        /// <summary>⭐ CE-3335 — the deaths since <paramref name="mark"/> (clamped to what is kept), and the mark moved past them. A new
+        /// reader starts from <see cref="DestructionMark"/>.</summary>
+        public ReadOnlySpan<Entity> ReadDestructions(ref long mark)
+        {
+            long end = DestructionMark;
+            long from = Math.Clamp(mark, _destructionBase, end);
+            mark = end;
+            return CollectionsMarshal.AsSpan(_destructionLog).Slice((int)(from - _destructionBase));
+        }
+
+        /// <summary>
+        /// The deaths the log still holds (this frame's and the last one's, or since the last <see cref="ClearDestructionLog"/>).
+        /// ⚠ A reader on a LIVE world uses <see cref="ReadDestructions"/> with its own mark; this is for a world one owner steps and clears.
         /// </summary>
         public IReadOnlyList<Entity> GetDestructionLog() => _destructionLog;
     
         /// <summary>
-        /// Clears the log. Must be called AFTER the Recorder has run for the frame.
+        /// Empties the log (the marks move on). For a world ONE owner steps frame by frame (a playback sandbox); ⛔ never on a live world —
+        /// another reader would miss the deaths (CE-3335).
         /// </summary>
-        public void ClearDestructionLog() => _destructionLog.Clear();
+        public void ClearDestructionLog()
+        {
+            _destructionBase += _destructionLog.Count;
+            _destructionLog.Clear();
+            _destructionKeepFrom = 0;
+        }
+
+        /// <summary>⭐ CE-3335 — at the start of a frame: drop the deaths from before the last frame.</summary>
+        private void TrimDestructionLog()
+        {
+            if (_destructionKeepFrom > 0)
+            {
+                _destructionLog.RemoveRange(0, _destructionKeepFrom);
+                _destructionBase += _destructionKeepFrom;
+            }
+            _destructionKeepFrom = _destructionLog.Count;
+        }
 
         /// <summary>
         /// Restores an entity from serialized data.
@@ -355,7 +600,7 @@ namespace Fdp.Core
             
             ref var meta = ref _entityIndex.GetMetadata(entity.Index);
             meta.DisType = type;
-            meta.LastChangeTick = _globalVersion;
+            meta.LastChangeTick = _globalVersion; _structuralChanges++;
         }
 
         /// <summary>
@@ -369,8 +614,19 @@ namespace Fdp.Core
             return _entityIndex.GetMetadata(entity.Index).DisType;
         }
 
+        /// <summary>
+        /// ⭐ CE-3329 W1 — moves on every <see cref="Clear"/>: the world was replaced IN PLACE (a keyframe applied — a replay
+        /// seek, a checkpoint / dry-run restore, a review's entry or exit — or the world emptied). Every in-place replacement
+        /// goes through <see cref="Clear"/>, so a consumer that must notice one compares this instead of re-scanning the
+        /// world each frame. 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §12b.
+        /// </summary>
+        public uint ClearGeneration => _clearGeneration;
+        private uint _clearGeneration;
+
         internal void Clear()
         {
+            _clearGeneration++;
+            _contentEpoch++;   // ⭐ M-4 — a replica may no longer trust a version match
             _entityIndex.Clear();
             
             // CRITICAL FIX: We must clear component tables to remove stale references.
@@ -436,6 +692,8 @@ namespace Fdp.Core
         /// </summary>
         public void DestroyEntity(Entity entity)
         {
+            if (ParallelReadCheck.Defers(this)) { ParallelReadCheck.CurrentBatch!.Commands.DestroyEntity(entity); return; }   // ⭐ N-10 / F-6 — deferred, merged in batch order
+            if (AccessTrace.On) AccessTrace.RecordNameE(TraceKind.EntityDestroy, "(entity)", TraceId, entity.Index);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -460,6 +718,7 @@ namespace Fdp.Core
             }
             
             _entityIndex.DestroyEntity(entity);
+            _structuralChanges++;
         }
         
         /// <summary>
@@ -524,6 +783,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool HasComponentByTypeId(Entity entity, int typeId)
         {
+            if (AccessTrace.On) AccessTrace.RecordIdE(TraceKind.Has, typeId, TraceId, entity.Index);
              if (!IsAlive(entity)) return false;
              return _entityIndex.GetComponentMask(entity.Index).IsSet(typeId);
         }
@@ -535,6 +795,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe void* GetComponentPointer(Entity entity, int typeId)
         {
+            if (AccessTrace.On) AccessTrace.RecordIdE(TraceKind.RawRead, typeId, TraceId, entity.Index);
             // Verify component exists? Or assume caller checked?
             // "Internal access" usually implies speed, but let's be safe-ish
             // The table lookup is safe. The pointer is unsafe.
@@ -552,6 +813,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public object GetManagedComponentByTypeId(Entity entity, int typeId)
         {
+            if (AccessTrace.On) AccessTrace.RecordIdE(TraceKind.RawRead, typeId, TraceId, entity.Index);
             var table = _tableCache[typeId];
             if (table == null) throw new InvalidOperationException($"Component type {typeId} is not registered");
             
@@ -565,7 +827,7 @@ namespace Fdp.Core
         /// <list type="bullet">
         /// <item>Structs: Default true (Snapshotable)</item>
         /// <item>Records: Default true (Snapshotable)</item>
-        /// <item>Classes: Default to DataPolicy.NoSnapshot (Safe safety rail)</item>
+        /// <item>Classes: Default to DataPolicy.NoPreview (Safe safety rail)</item>
         /// </list>
         /// </param>
         /// <summary>
@@ -606,9 +868,9 @@ namespace Fdp.Core
                     }
                 }
                 
-                bool snapshot = !effectivePolicy.HasFlag(DataPolicy.NoSnapshot);
-                bool record = !effectivePolicy.HasFlag(DataPolicy.NoRecord);
-                bool save = !effectivePolicy.HasFlag(DataPolicy.NoSave);
+                bool snapshot = !effectivePolicy.HasFlag(DataPolicy.NoPreview);
+                bool record = !effectivePolicy.HasFlag(DataPolicy.NoReplay);
+                bool save = !effectivePolicy.HasFlag(DataPolicy.NoScenario);
                 bool clone = effectivePolicy.HasFlag(DataPolicy.SnapshotViaClone);
                 
                 ComponentTypeRegistry.SetSnapshotable(typeId, snapshot);
@@ -628,9 +890,9 @@ namespace Fdp.Core
                 {
                     DataPolicy policy = policyOverride.Value;
                     
-                    bool snapshot = !policy.HasFlag(DataPolicy.NoSnapshot);
-                    bool record = !policy.HasFlag(DataPolicy.NoRecord);
-                    bool save = !policy.HasFlag(DataPolicy.NoSave);
+                    bool snapshot = !policy.HasFlag(DataPolicy.NoPreview);
+                    bool record = !policy.HasFlag(DataPolicy.NoReplay);
+                    bool save = !policy.HasFlag(DataPolicy.NoScenario);
                     bool clone = policy.HasFlag(DataPolicy.SnapshotViaClone);
                     
                     // If SnapshotViaClone is set, force snapshot=true
@@ -664,19 +926,19 @@ namespace Fdp.Core
                     }
                     else
                     {
-                        // Mutable Class → Auto-default to NoSnapshot
-                        effectivePolicy = DataPolicy.NoSnapshot;
+                        // Mutable Class → Auto-default to NoPreview
+                        effectivePolicy = DataPolicy.NoPreview;
                         
                         #if DEBUG
-                        // Console.WriteLine($"WARNING: Mutable class '{type.Name}' registered without [DataPolicy]. Defaulting to NoSnapshot.");
+                        // Console.WriteLine($"WARNING: Mutable class '{type.Name}' registered without [DataPolicy]. Defaulting to NoPreview.");
                         #endif
                     }
                 }
                 
                 // Apply flags
-                bool finalSnapshot = !effectivePolicy.HasFlag(DataPolicy.NoSnapshot);
-                bool finalRecord = !effectivePolicy.HasFlag(DataPolicy.NoRecord);
-                bool finalSave = !effectivePolicy.HasFlag(DataPolicy.NoSave);
+                bool finalSnapshot = !effectivePolicy.HasFlag(DataPolicy.NoPreview);
+                bool finalRecord = !effectivePolicy.HasFlag(DataPolicy.NoReplay);
+                bool finalSave = !effectivePolicy.HasFlag(DataPolicy.NoScenario);
                 bool finalClone = effectivePolicy.HasFlag(DataPolicy.SnapshotViaClone);
                 
                 // If SnapshotViaClone is set, force snapshot=true
@@ -856,9 +1118,40 @@ namespace Fdp.Core
         /// </summary>
         public bool TryGetComponent<T>(Entity entity, out T component)
         {
+            bool found;
+            if (ThreadedReads.PureReads) found = TryGetComponentPure<T>(entity, out component);
+            else if (HasComponent<T>(entity))
+            {
+                if (AccessTrace.On)
+                {
+                    // ⭐ A-1 — TryGet takes the RW path (it bumps the chunk version): ONE event, kind TryGetRW, the inner write hidden
+                    AccessTrace.RecordE<T>(TraceKind.TryGetRW, TraceId, entity.Index);
+                    AccessTrace.Mute();
+                    try { component = GetComponentRW<T>(entity); } finally { AccessTrace.Unmute(); }
+                }
+                else component = GetComponentRW<T>(entity);
+                found = true;
+            }
+            else { component = default!; found = false; }
+            if (ManagedMutationCheck.On && found && !ComponentTypeHelper.IsUnmanaged<T>()) NoteManagedRead(entity, component);   // ⭐ CE-4445 M-2
+            return found;
+        }
+
+        /// <summary>⭐ CE-4445 M-2 — a managed READ handed out <paramref name="obj"/>: the detector fingerprints it (only while it is on).</summary>
+        internal void NoteManagedRead<T>(Entity entity, T obj)
+        {
+            if (obj is null || !ManagedMutationCheck.On) return;
+            if (_componentTables.TryGetValue(typeof(T), out var table)) ManagedMutationCheck.OnRead(table, entity.Index, obj);
+        }
+
+        /// <summary>POC 2 / P-1 - <see cref="TryGetComponent{T}"/> through the read-only path: a copy, no chunk version stamped.</summary>
+        internal bool TryGetComponentPure<T>(Entity entity, out T component)
+        {
             if (HasComponent<T>(entity))
             {
-                component = GetComponentRW<T>(entity);
+                component = ComponentTypeHelper.IsUnmanaged<T>()
+                    ? UnsafeShim.GetUnmanagedRO<T>(this, entity)
+                    : UnsafeShim.GetManagedROPure<T>(this, entity);
                 return true;
             }
             component = default!;
@@ -901,11 +1194,31 @@ namespace Fdp.Core
         // ================================================
         
         /// <summary>
+        /// ⭐ <c>CE-3243</c> — sets the component bit and stamps <c>LastChangeTick</c> ONLY when the bit was not already set.
+        /// <c>LastChangeTick</c> is the entity's STRUCTURAL clock (create, destroy, a component coming or going, lifecycle): the
+        /// flight recorder rewrites the entity-index chunk and every table chunk holding a structurally changed entity, and
+        /// <c>QueryDelta</c> treats it as "changed in every component". A VALUE write is already in the table's chunk version —
+        /// the rule <see cref="GetComponentRW{T}"/> documents ("over-broad dirtying"). 📐 Value writes through
+        /// <c>SetComponent</c> / the command buffer stamped it on 58–391 entities a frame, so the recorder rewrote ~180–270 whole
+        /// table chunks a frame that had not changed.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void StampIfAdded(ref BitMask512 mask, int typeId, int entityIndex)
+        {
+            if (mask.IsSet(typeId)) return;
+            mask.SetBit(typeId);
+            _entityIndex.GetMetadata(entityIndex).LastChangeTick = _globalVersion; _structuralChanges++;
+            BumpType(typeId, entityIndex);
+        }
+
+        /// <summary>
         /// Adds an unmanaged component (Tier 1) to an entity.
         /// Updates ComponentMask automatically.
         /// </summary>
         internal void AddUnmanagedComponent<T>(Entity entity, in T component) where T : unmanaged
         {
+            if (ParallelReadCheck.Defers(this) && DeferUnmanaged(entity, in component)) return;   // ⭐ N-10 / F-6
+            if (AccessTrace.On) AccessTrace.RecordE<T>(_entityIndex.GetComponentMask(entity.Index).IsSet(ComponentType<T>.ID) ? TraceKind.Write : TraceKind.StructAdd, TraceId, entity.Index);
             ValidateWriteAccess<T>(entity);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
@@ -920,8 +1233,9 @@ namespace Fdp.Core
             
             // Update component mask
             ref var compMask = ref _entityIndex.GetComponentMask(entity.Index);
-            compMask.SetBit(ComponentType<T>.ID);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            // ⭐ CE-3243 — LastChangeTick is STRUCTURAL: stamped when the component COMES, not on every value write (SetComponent
+            //   is this method). The value change is in the table's chunk version (table.Set above). See StampIfAdded.
+            StampIfAdded(ref compMask, ComponentType<T>.ID, entity.Index);
         }
         
         /// <summary>
@@ -931,6 +1245,8 @@ namespace Fdp.Core
         /// </summary>
         internal void RemoveUnmanagedComponent<T>(Entity entity) where T : unmanaged
         {
+            if (ParallelReadCheck.Defers(this)) { ParallelReadCheck.CurrentBatch!.Commands.RemoveComponent<T>(entity); return; }   // ⭐ N-10 / F-6 — deferred
+            if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.StructRemove, TraceId, entity.Index);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -941,7 +1257,7 @@ namespace Fdp.Core
             // Clear component mask bit
             ref var compMask = ref _entityIndex.GetComponentMask(entity.Index);
             compMask.ClearBit(ComponentType<T>.ID);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
             
             // Note: Component data is not cleared for performance
             // It will be overwritten if component is re-added
@@ -952,6 +1268,13 @@ namespace Fdp.Core
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal bool HasUnmanagedComponent<T>(Entity entity) where T : unmanaged
+        {
+            if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Has, TraceId, entity.Index);
+            return HasUnmanagedCore<T>(entity);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool HasUnmanagedCore<T>(Entity entity) where T : unmanaged
         {
             if (!IsAlive(entity))
                 return false;
@@ -967,6 +1290,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ref T GetUnmanagedComponent<T>(Entity entity) where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Write, TraceId, entity.Index);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1010,6 +1334,8 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ref T GetUnmanagedComponentRW<T>(Entity entity) where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Write, TraceId, entity.Index);
+            if (ParallelReadCheck.Compiled && ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) ParallelReadCheck.CheckOtherWrite(this, typeof(T), entity);   // ⭐ N-10 / F-5 — another entity's value only by a command (its own parts excepted)
             ValidateWriteAccess<T>(entity);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1024,6 +1350,8 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ref readonly T GetUnmanagedComponentRO<T>(Entity entity) where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Read, TraceId, entity.Index);
+            if (ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ref ParallelReadCheck.OtherUnmanagedRO<T>(this, entity);   // ⭐ N-10 — another entity, in a phase: the last tick
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
             if (!HasUnmanagedComponent<T>(entity)) throw new InvalidOperationException($"Entity {entity} missing {typeof(T).Name}");
@@ -1039,12 +1367,13 @@ namespace Fdp.Core
         {
             ValidateWriteAccess<T>(entity);
             
-            if (!HasUnmanagedComponent<T>(entity))
+            if (!HasUnmanagedCore<T>(entity))   // ⭐ A-1 — the untraced check: a Set is ONE write event, not a Has + a write
             {
                 AddUnmanagedComponent(entity, component);
             }
             else
             {
+                if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Write, TraceId, entity.Index);
                 var table = GetTable<T>(false);
                 table.Set(entity.Index, component, _globalVersion);
             }
@@ -1080,14 +1409,17 @@ namespace Fdp.Core
             ref var compMask = ref _entityIndex.GetComponentMask(entity.Index);
             ref var metaS    = ref _entityIndex.GetMetadata(entity.Index);
 
+            if (!compMask.IsSet(typeId) && DeferAuthority(entity, typeId, hasAuthority)) return;
             if (!compMask.IsSet(typeId))
                 throw new InvalidOperationException(
                     $"Cannot set authority for component ID {typeId}: component is not present on entity {entity}.");
 
+            if (metaS.AuthorityMask.IsSet(typeId) == hasAuthority) return;   // ⭐ CE-4327 — no change, no stamp
             if (hasAuthority)
                 metaS.AuthorityMask.SetBit(typeId);
             else
                 metaS.AuthorityMask.ClearBit(typeId);
+            StampAuthorityChange(ref metaS);
         }
 
         /// <summary>
@@ -1104,13 +1436,37 @@ namespace Fdp.Core
             ref var metaG     = ref _entityIndex.GetMetadata(entity.Index);
             int typeId = ComponentType<T>.ID;
             
+            if (!compMaskG.IsSet(typeId) && DeferAuthority(entity, typeId, hasAuthority)) return;
             if (!compMaskG.IsSet(typeId))
                  throw new InvalidOperationException($"Cannot set authority for {typeof(T).Name}: Entity does not have component.");
 
+            if (metaG.AuthorityMask.IsSet(typeId) == hasAuthority) return;   // ⭐ CE-4327 — no change, no stamp
             if (hasAuthority)
                 metaG.AuthorityMask.SetBit(typeId);
             else
                 metaG.AuthorityMask.ClearBit(typeId);
+            StampAuthorityChange(ref metaG);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4327</c> (debt <c>D004</c>, 📄 docs/UX/DESIGN_Review_Perspective.md §6.2 M3 / §6.4 I8) — an ownership HANDOVER is recorded: the authority
+        /// mask lives in the entity's COLD metadata, and the recorder writes an entity's index chunks (hot + cold) only when its <c>LastChangeTick</c> moved
+        /// (<c>RecorderSystem.ChunkHasStructuralChanges</c>). So a changed bit stamps that clock — a replay then carries the NEW owner from the handover
+        /// frame, not the old one until the next keyframe. ⛔ <see cref="StructuralChanges"/> is NOT bumped: an owner change is not a change of the
+        /// world's SHAPE, and the per-frame indices keyed on it need not rebuild.
+        /// </summary>
+        private void StampAuthorityChange(ref EntityMetadataCold meta) => meta.LastChangeTick = _globalVersion;
+
+        /// <summary>
+        /// ⭐ CE-4568 (X-6; the per-entity rule, CLAUDE.md "add a component, then write it") — in a per-entity phase a component this job adds is
+        /// deferred into the batch's buffer, so it is not present yet: the authority change on it rides the same buffer, right after the add. ⛔ Outside a
+        /// phase (or with nothing to follow) a missing component stays an error.
+        /// </summary>
+        private bool DeferAuthority(Entity entity, int typeId, bool hasAuthority)
+        {
+            if (!ParallelReadCheck.Defers(this) || ParallelReadCheck.CurrentBatch is not { } batch) return false;
+            batch.Commands.SetAuthority(entity, typeId, hasAuthority);
+            return true;
         }
         
         /// <summary>
@@ -1163,6 +1519,7 @@ namespace Fdp.Core
             Type type = typeof(T);
             if (_componentTables.ContainsKey(type))
                 return;
+            AssertNotRegisteringInPhase(type);
             
             var table = new ManagedComponentTable<T>();
             _componentTables[type] = table;
@@ -1188,14 +1545,46 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool HasManagedComponent<T>(Entity entity) where T : class
         {
+            if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Has, TraceId, entity.Index);
+            return HasManagedCore<T>(entity);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool HasManagedCore<T>(Entity entity) where T : class
+        {
             if (!IsAlive(entity))
                 return false;
             
             if (_entityIndex.GetComponentMask(entity.Index).IsSet(ManagedComponentType<T>.ID))
                 return true;
 
+            // ⭐ E-3 (CE-4509) — in a phase: the job's own pending add (BatchContext.RememberOwnManaged)
+            if (ParallelReadCheck.AnyPhase && ParallelReadCheck.CurrentBatch is { } batch && batch.TryOwnManaged(entity.Index, ManagedComponentType<T>.ID, out var pending))
+                return pending != null;
             return false;
         }
+
+        /// <summary>
+        /// ⭐⭐ E-3 (CE-4509) — inside a per-entity phase: the value THIS job added to its own <paramref name="entity"/> this tick (the add is
+        /// structural, so it is deferred to the merge and <see cref="HasComponent{T}(Entity)"/> still reads false). An "add if absent, else
+        /// mutate" helper builds on it, so two calls in one Execute keep both. False outside a phase or when nothing is pending.
+        /// 📐 Measured before: ReportQueue.Enqueue's second report of a tick replaced the first (a squad's RoomClear lost to its Foothold).
+        /// </summary>
+        public bool TryGetOwnPendingAdd<T>(Entity entity, out T value) where T : unmanaged
+        {
+            if (ParallelReadCheck.AnyPhase && ParallelReadCheck.CurrentBatch is { } batch
+                && batch.TryOwnUnmanaged(entity.Index, ComponentType<T>.ID, out var pending) && pending is T t)
+            { value = t; return true; }
+            value = default;
+            return false;
+        }
+
+        // ⭐ E-3 (CE-4509) — the job's own pending managed add, when the world does not hold the component yet (null: none pending).
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private T? OwnPendingManaged<T>(Entity entity) where T : class
+            => ParallelReadCheck.AnyPhase && ParallelReadCheck.CurrentBatch is { } batch
+               && !_entityIndex.GetComponentMask(entity.Index).IsSet(ManagedComponentType<T>.ID)
+               && batch.TryOwnManaged(entity.Index, ManagedComponentType<T>.ID, out var pending) ? pending as T : null;
         
         /// <summary>
         /// Gets managed component reference (nullable).
@@ -1204,6 +1593,9 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal T GetManagedComponent<T>(Entity entity) where T : class
         {
+            if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Read, TraceId, entity.Index);
+            if (ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ParallelReadCheck.OtherManagedRO<T>(this, entity);   // ⭐ N-10 — another entity, in a phase: the last tick
+            if (ParallelReadCheck.AnyPhase && OwnPendingManaged<T>(entity) is { } ownPending) return ownPending;   // ⭐ E-3 — own pending add
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1218,8 +1610,11 @@ namespace Fdp.Core
         /// Allocates if component doesn't exist yet.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+
         internal ref T GetManagedComponentRW<T>(Entity entity) where T : class
         {
+            if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Write, TraceId, entity.Index);
+            if (ParallelReadCheck.Compiled && ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) ParallelReadCheck.CheckOtherWrite(this, typeof(T), entity);   // ⭐ N-10 / F-5 — another entity's value only by a command (its own parts excepted)
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1230,6 +1625,20 @@ namespace Fdp.Core
             return ref Unsafe.As<T?, T>(ref val);
         }
         
+        /// <summary>POC 2 / P-1 - a managed component read as a REFERENCE that stamps no chunk version and allocates nothing.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref readonly T GetManagedComponentRefRO<T>(Entity entity) where T : class
+        {
+            if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Read, TraceId, entity.Index);   // ⭐ N-1 — the pure managed read (the default since CE-4445) must be seen too
+            if (ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ref ParallelReadCheck.OtherManagedRO<T>(this, entity);   // ⭐ N-10 — another entity, in a phase: the last tick
+            #if FDP_PARANOID_MODE
+            if (!IsAlive(entity))
+                throw new InvalidOperationException($"Entity {entity} is not alive");
+            #endif
+            var table = GetManagedTable<T>(false);
+                        return ref Unsafe.As<T?, T>(ref Unsafe.AsRef(in table.GetRefRO(entity.Index)));
+        }
+
         /// <summary>
         /// Gets managed component for read-only access.
         /// Does not update version or allocate.
@@ -1237,8 +1646,13 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal T GetManagedComponentRO<T>(Entity entity) where T : class
         {
+            if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Read, TraceId, entity.Index);
+            if (ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ParallelReadCheck.OtherManagedRO<T>(this, entity);   // ⭐ N-10 — another entity, in a phase: the last tick
+            if (ParallelReadCheck.AnyPhase && OwnPendingManaged<T>(entity) is { } ownPending) return ownPending;   // ⭐ E-3 — own pending add
             var table = GetManagedTable<T>(false);
-            return table.GetRO(entity.Index)!;
+            var v = table.GetRO(entity.Index)!;
+            if (ManagedMutationCheck.On) ManagedMutationCheck.OnRead(table, entity.Index, v);   // ⭐ CE-4445 M-2
+            return v;
         }
         
         /// <summary>
@@ -1246,6 +1660,8 @@ namespace Fdp.Core
         /// </summary>
         public void SetManagedComponent<T>(Entity entity, T value) where T : class
         {
+            if (ParallelReadCheck.Defers(this) && DeferManaged(entity, value)) return;   // ⭐ N-10 / F-6
+            if (AccessTrace.On) AccessTrace.RecordE<T>(value == null ? TraceKind.StructRemove : _entityIndex.GetComponentMask(entity.Index).IsSet(ManagedComponentType<T>.ID) ? TraceKind.Write : TraceKind.StructAdd, TraceId, entity.Index);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1256,13 +1672,19 @@ namespace Fdp.Core
             
             // Update component mask
             ref var compMaskM = ref _entityIndex.GetComponentMask(entity.Index);
+            bool had = compMaskM.IsSet(ManagedComponentType<T>.ID);
             
             if (value != null)
                 compMaskM.SetBit(ManagedComponentType<T>.ID);
             else
                 compMaskM.ClearBit(ManagedComponentType<T>.ID);
-                
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+
+            // ⭐ CE-3243 — structural stamp only when the component comes or goes (see StampIfAdded)
+            if (had != (value != null))
+            {
+                _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
+                BumpType(ManagedComponentType<T>.ID, entity.Index);
+            }
         }
 
         // ================================================
@@ -1292,9 +1714,11 @@ namespace Fdp.Core
         /// </summary>
         internal void RemoveManagedComponent<T>(Entity entity) where T : class
         {
-            if (!IsAlive(entity) || !HasManagedComponent<T>(entity))
+            if (ParallelReadCheck.Defers(this)) { ParallelReadCheck.CurrentBatch!.Commands.RemoveManagedComponent<T>(entity); return; }   // ⭐ N-10 / F-6 — deferred
+            if (!IsAlive(entity) || !HasManagedCore<T>(entity))
                 return;
             
+            if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.StructRemove, TraceId, entity.Index);
             var table = GetManagedTable<T>(false);
             // CRITICAL FIX: Use Set(null) with version tracking instead of Clear/indexer
             // This ensures the removal is captured by Flight Recorder deltas.
@@ -1303,7 +1727,7 @@ namespace Fdp.Core
             // Update component mask
             ref var compMaskR = ref _entityIndex.GetComponentMask(entity.Index);
             compMaskR.ClearBit(ManagedComponentType<T>.ID);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
         }
         
         /// <summary>
@@ -1317,6 +1741,7 @@ namespace Fdp.Core
             {
                 if (!allowCreate)
                     throw new InvalidOperationException($"Managed component {type.Name} has not been registered. Call RegisterManagedComponent<{type.Name}>() first.");
+                AssertNotRegisteringInPhase(type);
                 
                 var newTable = new ManagedComponentTable<T>();
                 _componentTables[type] = newTable;
@@ -1343,10 +1768,23 @@ namespace Fdp.Core
         // COMPONENT TABLE MANAGEMENT (Internal)
         // ================================================
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ComponentTable<T> GetTable<T>(bool allowCreate) where T : unmanaged
         {
+            // ⭐ CE-2393 (DESIGN_Evaluation_Cost_And_Cadence §5a) — the id-indexed cache every table is already put in (below, and by the
+            //   managed paths): an array read + an exact-type check, where every GetComponentRO / RW / Has-then-Get took a Dictionary<Type>
+            //   lookup. The type check keeps it right if the registry re-numbered (a test's Clear()): a miss falls to the dictionary.
+            //   📐 Crossfire trace: GetComponentRO was the largest part of HasAuthority, the egress scan's common cost.
+            int id = ComponentType<T>.ID;
+            var cache = _tableCache;
+            if ((uint)id < (uint)cache.Length && cache[id] is ComponentTable<T> cached) return cached;
+            return GetTableSlow<T>(allowCreate);
+        }
+
+        private ComponentTable<T> GetTableSlow<T>(bool allowCreate) where T : unmanaged
+        {
             Type type = typeof(T);
-            
+
             // Fast path: table already exists
             if (_componentTables.TryGetValue(type, out var existingTable))
             {
@@ -1358,6 +1796,7 @@ namespace Fdp.Core
                 throw new InvalidOperationException($"Component {type.Name} is not registered. Call RegisterComponent<{type.Name}>() first.");
             }
             
+            AssertNotRegisteringInPhase(type);
             // Slow path: create new table (thread-safe)
             lock (_tableLock)
             {
@@ -1393,6 +1832,7 @@ namespace Fdp.Core
         /// </summary>
         public ComponentTable<T> GetComponentTable<T>() where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.TableAccess, TraceId);
             return GetTable<T>(false);
         }
 
@@ -1403,6 +1843,7 @@ namespace Fdp.Core
         /// </summary>
         public bool TryGetTable(Type type, out IComponentTable table)
         {
+            if (AccessTrace.On) AccessTrace.RecordType(TraceKind.TableAccess, type, TraceId);
             return _componentTables.TryGetValue(type, out table!);
         }
         /// WARNING: Direct access bypasses safety checks!
@@ -1410,6 +1851,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref BitMask512 GetComponentMask(int entityIndex)
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.EntityIndexRead, "(component mask)", TraceId);
             return ref _entityIndex.GetComponentMask(entityIndex);
         }
 
@@ -1420,14 +1862,130 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref EntityMetadataCold GetMetadata(int entityIndex)
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.EntityIndexRead, "(entity metadata)", TraceId);
             return ref _entityIndex.GetMetadata(entityIndex);
         }
         
+        /// <summary>⭐ A-1 — the entity index without a trace record (the query walk records its own).</summary>
+        internal EntityIndex EntityIndexUntraced => _entityIndex;
+
+        /// <summary>⭐ CE-4456 N-1 — what this world holds: entities, native bytes (component chunks + the index), managed slot bytes, tables.</summary>
+        internal (long Entities, long Native, long ManagedSlots, int Tables) MemoryFootprint()
+        {
+            if (_disposed) return default;
+            long native = _entityIndex.NativeBytes, managed = 0; int tables = 0;
+            IComponentTable[] all;
+            lock (_componentTables) { all = new IComponentTable[_componentTables.Count]; _componentTables.Values.CopyTo(all, 0); }
+            foreach (var t in all) if (t is IMemorySized m) { native += m.NativeBytes; managed += m.ManagedSlotBytes; tables++; }
+            return (_entityIndex.ActiveCount, native, managed, tables);
+        }
+
+        // ════ ⭐⭐ N-10 (CE-4472) — the per-entity rule's repository half ════
+
+        private EntityRepository? _lastTick;
+
+        /// <summary>The last-tick view (null until <see cref="CaptureLastTick"/>).</summary>
+        internal EntityRepository? LastTickWorld => _lastTick;
+
+        /// <summary>Has a last-tick view been taken (the kernel takes it every tick once anything is declared)?</summary>
+        public bool HasLastTickView => _lastTick != null;
+
+        /// <summary>
+        /// ⭐ N-10 (R-4214 ④) — takes the LAST-TICK view: a shadow world holding this world's rows of every DECLARED type
+        /// (<see cref="ParallelReadCheck.DeclaredMask"/> — the types some per-entity system writes in the phase and another reads), copied by changed
+        /// chunk (§18.1: 21 types ≈ 2.6 ms on the 1 000-man CGF). Taken SERIALLY at the start of the Simulation phase, so it holds this tick's ingress,
+        /// ghosts, UI jobs and deferred creations; during a per-entity phase a read of ANOTHER entity's declared type is served from it.
+        /// </summary>
+        public void CaptureLastTick()
+        {
+            _lastTick ??= new EntityRepository();
+            _lastTickEpoch = ParallelReadCheck.DeclarationEpoch;   // ⭐ M-7 — before the copy: a declaration made during it retakes next time
+            _lastTick.SyncFrom(this, ParallelReadCheck.DeclaredMask, includeTransient: true);
+            _lastTickFresh = true;
+        }
+
+        private int _lastTickEpoch = -1;
+
+        private bool _lastTickFresh;
+
+        /// <summary>
+        /// ⭐ N-15 (CE-4477) — the view a per-entity phase reads must be THIS tick's: takes it unless it was already taken since the last
+        /// <see cref="Tick"/> (or a world sync replaced this world's content). The kernel takes it before every Simulation dispatch, so on a kernel
+        /// world this costs nothing; a world no kernel captures (the editor's preview copy, a rail) gets it here. 📌 Measured: the phases used to
+        /// capture only when NO view existed — the preview world kept its FIRST view, entities spawned later were missing from it, and their
+        /// reads fell through to the live rows the other threads were writing ⇒ the stepped run's world hash depended on the thread count.
+        /// </summary>
+        public void EnsureLastTickView()
+        {
+            if (!_lastTickFresh || _lastTick == null || _lastTickEpoch != ParallelReadCheck.DeclarationEpoch) CaptureLastTick();   // ⭐ M-7 — a type declared since
+        }
+
+        /// <summary>A live unmanaged row, with no hook (the read check's own fallback).</summary>
+        internal ref readonly T LiveUnmanagedRO<T>(Entity entity) where T : unmanaged => ref GetTable<T>(false).GetRO(entity.Index);
+
+        /// <summary>A live managed reference, with no hook.</summary>
+        internal ref readonly T LiveManagedRefRO<T>(Entity entity) where T : class
+            => ref Unsafe.As<T?, T>(ref Unsafe.AsRef(in GetManagedTable<T>(false).GetRefRO(entity.Index)));
+
+        /// <summary>Has <paramref name="entity"/> an unmanaged <typeparamref name="T"/> (no hook)?</summary>
+        internal bool HasUnmanagedComponentUntraced<T>(Entity entity) where T : unmanaged
+            => entity.Index >= 0 && entity.Index <= _entityIndex.MaxIssuedIndex && _entityIndex.GetComponentMask(entity.Index).IsSet(ComponentType<T>.ID);
+
+        /// <summary>⭐ N-11 — a component table is created only OUTSIDE a per-entity phase: the type tables are read by every batch thread
+        /// without a lock, so registration is structural and belongs before the phase (<c>BrainPhaseTypes</c>). Checks on: a defect, thrown.</summary>
+        private void AssertNotRegisteringInPhase(Type type)
+        {
+            if (ParallelReadCheck.Compiled && ParallelReadCheck.Defers(this))
+                if (ParallelReadCheck.Survey) ParallelReadCheck.Note("register-in-phase", type); else throw new InvalidOperationException($"ParallelReadCheck: component type {type.Name} registered inside a per-entity phase — register it before the phase (BrainPhaseTypes)");
+        }
+
+        /// <summary>
+        /// ⭐ N-11 (CE-4473; §18.1a "own-part") — is <paramref name="index"/> a PART of the entity this thread is processing
+        /// (<c>PartMetadata.ParentEntity</c>: a brain's child sensors) — or ⭐ F-11 an entity the job owns besides it (a squad job's members,
+        /// <see cref="ParallelReadCheck.OwnAlso"/>)? Its own are read and written directly, never served from the last tick.
+        /// </summary>
+        internal unsafe bool IsOwnPartOfCurrent(int index)
+        {
+            int current = ParallelReadCheck.Current;
+            if (current < 0 || index < 0 || index > _entityIndex.MaxIssuedIndex) return false;
+            if (ParallelReadCheck.OwnsAlso(index)) return true;   // ⭐ F-11 — a member of the squad this job runs (ParallelReadCheck.OwnAlso)
+            if (!_entityIndex.GetComponentMask(index).IsSet(GlobalComponentIds.PartMetadata)) return false;
+            var table = _tableCache[GlobalComponentIds.PartMetadata];
+            if (table == null) return false;
+            int owner = ((Entity*)table.GetRawPointer(index))->Index;
+            return owner == current || ParallelReadCheck.OwnsAlso(owner);   // ⭐ M-6 (CE-4485) — owning an entity owns its parts (a station weapon's turret)
+        }
+
+        // F-5 / F-6 — in a phase: a value write on the processed entity's EXISTING component stays direct; a structural change (an add, or anything
+        // on a placeholder) and, with the checks off, a write to another entity are deferred into the batch's buffer (merged in batch order).
+        private bool DeferUnmanaged<T>(Entity entity, in T component) where T : unmanaged
+        {
+            bool other = ParallelReadCheck.IsOther(entity.Index) && !IsOwnPartOfCurrent(entity.Index);
+            bool has = HasUnmanagedComponentUntraced<T>(entity);
+            if (!other && has) return false;
+            if (other && has && ParallelReadCheck.Compiled) ParallelReadCheck.CheckOtherWrite(this, typeof(T), entity);
+            ParallelReadCheck.CurrentBatch!.Commands.AddComponent(entity, in component);
+            if (!other) ParallelReadCheck.CurrentBatch!.RememberOwnUnmanaged(entity.Index, ComponentType<T>.ID, component);   // ⭐ E-3 — TryGetOwnPendingAdd
+            return true;
+        }
+
+        private bool DeferManaged<T>(Entity entity, T value) where T : class
+        {
+            bool other = ParallelReadCheck.IsOther(entity.Index) && !IsOwnPartOfCurrent(entity.Index);
+            bool has = entity.Index >= 0 && entity.Index <= _entityIndex.MaxIssuedIndex && _entityIndex.GetComponentMask(entity.Index).IsSet(ManagedComponentType<T>.ID);
+            if (!other && has) return false;
+            if (other && has && ParallelReadCheck.Compiled) ParallelReadCheck.CheckOtherWrite(this, typeof(T), entity);
+            ParallelReadCheck.CurrentBatch!.Commands.SetManagedComponent(entity, value);
+            if (!other) ParallelReadCheck.CurrentBatch!.RememberOwnManaged(entity.Index, ManagedComponentType<T>.ID, value);   // ⭐ E-3 — read back by this job
+            return true;
+        }
+
         /// <summary>
         /// Gets the EntityIndex for advanced scenarios (iteration, chunk access).
         /// </summary>
         public EntityIndex GetEntityIndex()
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.EntityIndexRead, "(entity index)", TraceId);
             return _entityIndex;
         }
         
@@ -1439,6 +1997,12 @@ namespace Fdp.Core
         {
             return _componentTables;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-2045</c> — the same tables as the CONCRETE dictionary, for the recorder's per-frame walk: <c>foreach</c> over it
+        /// uses the struct enumerator, where the <see cref="IReadOnlyDictionary{TKey,TValue}"/> above boxes one every frame.
+        /// </summary>
+        internal Dictionary<Type, IComponentTable> ComponentTablesForRecording => _componentTables;
         
         // ================================================
         // QUERY API
@@ -1450,7 +2014,33 @@ namespace Fdp.Core
         /// </summary>
         public QueryBuilder Query()
         {
+            // ⭐ CE-2400 (R-2084) — the one reusable builder when it is free (it is returned by Build()); a nested or concurrent Query() gets
+            //   its own. 📐 Each Query().Build() allocated two ~300 B objects, and ~25 systems build their query every frame.
+            if (Interlocked.CompareExchange(ref _queryBuilderBusy, 1, 0) == 0)
+            {
+                var b = _queryBuilder ??= new QueryBuilder(this, pooled: true);
+                b.Reset();
+                return b;
+            }
             return new QueryBuilder(this);
+        }
+
+        private QueryBuilder? _queryBuilder;
+        private int _queryBuilderBusy;
+        private System.Collections.Concurrent.ConcurrentDictionary<EntityQuery.Key, EntityQuery>? _queries;   // made on the first Build()
+
+        internal void ReturnQueryBuilder(QueryBuilder b)
+        {
+            if (ReferenceEquals(b, _queryBuilder)) Volatile.Write(ref _queryBuilderBusy, 0);
+        }
+
+        /// <summary>⭐ CE-2400 — the query this repository built for <paramref name="key"/> (queries are immutable), built on first ask.</summary>
+        internal EntityQuery GetOrCreateQuery(in EntityQuery.Key key)
+        {
+            var map = _queries ?? LazyInitializer.EnsureInitialized(ref _queries, () => new System.Collections.Concurrent.ConcurrentDictionary<EntityQuery.Key, EntityQuery>())!;
+            if (map.TryGetValue(key, out var q)) return q;
+            q = new EntityQuery(this, in key);
+            return map.GetOrAdd(key, q);
         }
         
         /// <summary>
@@ -1459,6 +2049,7 @@ namespace Fdp.Core
         /// </summary>
         public void QueryDelta(EntityQuery query, uint sinceVersion, Action<Entity> action)
         {
+            if (AccessTrace.On) AccessTrace.RecordMask(TraceKind.QueryInclude, query.IncludeMask, TraceId);
             // Iterate component tables inline (no List allocation) so this method is
             // zero-allocation when no entities match (SR-T34 invariant).
             int maxIndex = _entityIndex.MaxIssuedIndex;
@@ -1519,6 +2110,7 @@ namespace Fdp.Core
         /// </summary>
         public void QueryTimeSliced(EntityQuery query, IteratorState state, double budget, TimeSliceMetric metric, Action<Entity> action)
         {
+            if (AccessTrace.On) AccessTrace.RecordMask(TraceKind.QueryInclude, query.IncludeMask, TraceId);
             if (state == null) throw new ArgumentNullException(nameof(state));
             
             // Allow restarting automatically if previously complete
@@ -1626,6 +2218,7 @@ namespace Fdp.Core
         /// </summary>
         internal unsafe void AddComponentRaw(Entity entity, int typeId, IntPtr dataPtr, int size)
         {
+            if (AccessTrace.On) AccessTrace.RecordIdE(TraceKind.RawWrite, typeId, TraceId, entity.Index);
             if (!IsAlive(entity)) return;
             
             Type? componentType = ComponentTypeRegistry.GetType(typeId);
@@ -1643,7 +2236,8 @@ namespace Fdp.Core
             
             // Update component mask
             _entityIndex.GetComponentMask(entity.Index).SetBit(typeId);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
+            BumpType(typeId, entity.Index);
         }
         
         /// <summary>
@@ -1652,6 +2246,7 @@ namespace Fdp.Core
         /// </summary>
         internal unsafe void SetComponentRawFast(Entity entity, int typeId, IntPtr dataPtr, int size)
         {
+            if (AccessTrace.On) AccessTrace.RecordIdE(TraceKind.RawWrite, typeId, TraceId, entity.Index);
             // O(1) array access - NO LOCKS, NO HASHING
             if (typeId >= _tableCache.Length || _tableCache[typeId] == null)
             {
@@ -1671,9 +2266,8 @@ namespace Fdp.Core
             // Direct memory copy
             table.SetRaw(entity.Index, dataPtr, size, _globalVersion);
             
-            // Update component mask
-            _entityIndex.GetComponentMask(entity.Index).SetBit(typeId);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            // Update component mask — ⭐ CE-3243: structural stamp only when the component comes
+            StampIfAdded(ref _entityIndex.GetComponentMask(entity.Index), typeId, entity.Index);
         }
 
         /// <summary>
@@ -1682,6 +2276,7 @@ namespace Fdp.Core
         /// </summary>
         internal unsafe void SetComponentRaw(Entity entity, int typeId, IntPtr dataPtr, int size)
         {
+            if (AccessTrace.On) AccessTrace.RecordIdE(TraceKind.RawWrite, typeId, TraceId, entity.Index);
             // Use fast path if cache available
             if (typeId < _tableCache.Length && _tableCache[typeId] != null)
             {
@@ -1701,22 +2296,60 @@ namespace Fdp.Core
             // Use the raw write interface
             table.SetRaw(entity.Index, dataPtr, size, _globalVersion);
             
-            // Update component mask (in case it wasn't set)
-            _entityIndex.GetComponentMask(entity.Index).SetBit(typeId);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            // Update component mask (in case it wasn't set) — ⭐ CE-3243: structural stamp only when it comes
+            StampIfAdded(ref _entityIndex.GetComponentMask(entity.Index), typeId, entity.Index);
         }
         
+        /// <summary>
+        /// Ruling 14 — writes <paramref name="size"/> bytes at <paramref name="byteOffset"/> inside a
+        /// component and <b>touches nothing else</b>. Used by <see cref="EntityCommandBuffer"/> playback
+        /// for a surgical field edit.
+        ///
+        /// <para>
+        /// ⭐ <b>Why this exists at all:</b> a whole-component write is a read-modify-write whose read
+        /// happened earlier — so it silently carries every OTHER field back to whatever it was at read
+        /// time. On a shared blackboard component that reverts unrelated subsystems' state by a tick.
+        /// </para>
+        /// </summary>
+        internal unsafe void SetComponentFieldRaw(Entity entity, int typeId, int byteOffset, IntPtr src, int size)
+        {
+            if (AccessTrace.On) AccessTrace.RecordIdE(TraceKind.RawWrite, typeId, TraceId, entity.Index);
+            if (!IsAlive(entity)) return;
+
+            IComponentTable? table = null;
+            if (typeId < _tableCache.Length && _tableCache[typeId] != null)
+            {
+                table = _tableCache[typeId]!;
+            }
+            else
+            {
+                Type? componentType = ComponentTypeRegistry.GetType(typeId);
+                if (componentType == null)
+                    throw new InvalidOperationException($"Component type ID {typeId} not registered");
+                if (!_componentTables.TryGetValue(componentType, out table))
+                    throw new InvalidOperationException($"Component {componentType.Name} not registered. Call RegisterComponent first.");
+            }
+
+            table.SetRawAt(entity.Index, byteOffset, src, size, _globalVersion);
+
+            // ⚠ The component mask is NOT set here, deliberately: a field write PATCHES a component
+            //   that must already exist. Adding the bit would make a write to an absent component look
+            //   like an add of a component whose other bytes are whatever the slot happened to hold.
+            // ⭐ CE-3243 — and a patch is never structural, so it does not stamp LastChangeTick (the chunk version carries it).
+        }
+
         /// <summary>
         /// Removes a component by type ID (type-erased).
         /// Used internally by EntityCommandBuffer during playback.
         /// </summary>
         internal void RemoveComponentRaw(Entity entity, int typeId)
         {
+            if (AccessTrace.On) AccessTrace.RecordIdE(TraceKind.RawWrite, typeId, TraceId, entity.Index);
             if (!IsAlive(entity)) return;
             
             // Clear component mask bit
             _entityIndex.GetComponentMask(entity.Index).ClearBit(typeId);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
         }
         
         /// <summary>
@@ -1725,6 +2358,7 @@ namespace Fdp.Core
         /// </summary>
         internal void AddManagedComponentRaw(Entity entity, int typeId, object componentObj)
         {
+            if (AccessTrace.On) AccessTrace.RecordIdE(TraceKind.RawWrite, typeId, TraceId, entity.Index);
             if (!IsAlive(entity)) return;
             
             Type? componentType = ComponentTypeRegistry.GetType(typeId);
@@ -1740,7 +2374,8 @@ namespace Fdp.Core
             // Update component mask
             ref var header2 = ref _entityIndex.GetComponentMask(entity.Index);
             header2.SetBit(typeId);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
+            BumpType(typeId, entity.Index);
         }
         
         /// <summary>
@@ -1749,6 +2384,7 @@ namespace Fdp.Core
         /// </summary>
         internal void SetManagedComponentRaw(Entity entity, int typeId, object componentObj)
         {
+            if (AccessTrace.On) AccessTrace.RecordIdE(TraceKind.RawWrite, typeId, TraceId, entity.Index);
             if (!IsAlive(entity)) return;
             
             Type? componentType = ComponentTypeRegistry.GetType(typeId);
@@ -1764,7 +2400,8 @@ namespace Fdp.Core
             // Update component mask
             ref var header2b = ref _entityIndex.GetComponentMask(entity.Index);
             header2b.SetBit(typeId);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
+            BumpType(typeId, entity.Index);
         }
         
         /// <summary>
@@ -1773,6 +2410,7 @@ namespace Fdp.Core
         /// </summary>
         internal void RemoveManagedComponentRaw(Entity entity, int typeId)
         {
+            if (AccessTrace.On) AccessTrace.RecordIdE(TraceKind.RawWrite, typeId, TraceId, entity.Index);
             if (!IsAlive(entity)) return;
             
             Type? componentType = ComponentTypeRegistry.GetType(typeId);
@@ -1788,7 +2426,7 @@ namespace Fdp.Core
             // Clear component mask bit
             ref var header2c = ref _entityIndex.GetComponentMask(entity.Index);
             header2c.ClearBit(typeId);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
         }
         
         // =========================================================
@@ -1802,6 +2440,7 @@ namespace Fdp.Core
         /// </summary>
         public void SetSingletonUnmanaged<T>(in T value) where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.SingletonSet, TraceId);
             int typeId = ComponentType<T>.ID;  // Will auto-register via ComponentType<T>
             EnsureSingletonCapacity(typeId);
             
@@ -1825,6 +2464,7 @@ namespace Fdp.Core
         /// </summary>
         public void SetSingletonManaged<T>(T value) where T : class
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.SingletonSet, TraceId);
             int typeId = ManagedComponentType<T>.ID;  // Will auto-register via ManagedComponentType<T>
             EnsureSingletonCapacity(typeId);
             
@@ -1848,6 +2488,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref T GetSingletonUnmanaged<T>() where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.SingletonGet, TraceId);
             int typeId = ComponentType<T>.ID;
             
             #if FDP_PARANOID_MODE
@@ -1864,12 +2505,33 @@ namespace Fdp.Core
         }
         
         /// <summary>
+        /// POC 2 / P-1 - a READ-ONLY reference to the unmanaged singleton: stamps nothing and cannot be written through.
+        /// Use it wherever the caller only reads; <see cref="GetSingletonUnmanaged{T}"/> hands out a writable ref, a write through which is never recorded.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref readonly T GetSingletonUnmanagedRO<T>() where T : unmanaged
+        {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.SingletonGet, TraceId);
+            int typeId = ComponentType<T>.ID;
+
+            #if FDP_PARANOID_MODE
+            if (typeId >= _singletons.Length || _singletons[typeId] == null)
+                throw new InvalidOperationException(
+                    $"Singleton {typeof(T).Name} not set. Call SetSingletonUnmanaged<{typeof(T).Name}>() first.");
+            #endif
+
+            var storage = (ComponentTable<T>)_singletons[typeId];
+            return ref storage.GetRW(0, 0);
+        }
+
+        /// <summary>
         /// Gets the global singleton component (managed classes).
         /// Throws if not set.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T? GetSingletonManaged<T>() where T : class
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.SingletonGet, TraceId);
             int typeId = ManagedComponentType<T>.ID;
             
             #if FDP_PARANOID_MODE
@@ -1887,6 +2549,7 @@ namespace Fdp.Core
         /// </summary>
         public bool HasSingletonUnmanaged<T>() where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.SingletonHas, TraceId);
             int typeId = ComponentType<T>.ID;
             if (typeId >= _singletons.Length) return false;
             return _singletons[typeId] != null;
@@ -1897,6 +2560,7 @@ namespace Fdp.Core
         /// </summary>
         public bool HasSingletonManaged<T>() where T : class
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.SingletonHas, TraceId);
             int typeId = ManagedComponentType<T>.ID;
             if (typeId >= _singletons.Length) return false;
             return _singletons[typeId] != null;
@@ -1906,8 +2570,15 @@ namespace Fdp.Core
         /// Returns all active singleton tables.
         /// Used by Flight Recorder.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-2045</c> — the singleton slots as the raw array (null = empty slot), for the recorder's per-frame walk:
+        /// <see cref="GetSingletonTables"/> is a <c>yield</c> iterator and allocates its enumerator every frame.
+        /// </summary>
+        internal object[] SingletonSlotsForRecording => _singletons;
+
         public IEnumerable<IComponentTable> GetSingletonTables()
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.SingletonEnumerate, "(all singletons)", TraceId);
             for (int i = 0; i < _singletons.Length; i++)
             {
                 if (_singletons[i] != null)
@@ -1923,6 +2594,7 @@ namespace Fdp.Core
         /// </summary>
         internal IComponentTable? GetSingletonTable(int typeId)
         {
+            if (AccessTrace.On) AccessTrace.RecordId(TraceKind.SingletonGet, typeId, TraceId);
             if (typeId < 0 || typeId >= _singletons.Length) return null;
             return (IComponentTable?)_singletons[typeId];
         }
@@ -1930,11 +2602,21 @@ namespace Fdp.Core
         /// <summary>
         /// Ensures singleton array has capacity for the given type ID.
         /// </summary>
+        /// <summary>The singleton slot count — the width of <c>_borrowedSingletons</c> (BitMask512).</summary>
+        private const int MaxSingletonSlots = 512;
+
         private void EnsureSingletonCapacity(int typeId)
         {
             if (typeId >= _singletons.Length)
             {
-                int newSize = Math.Max(_singletons.Length * 2, typeId + 1);
+                // ⛔ CE-3016 — the slot array must never outgrow the 512-bit borrowed-singletons mask that
+                //   Dispose (and Sync) index by the same position. `len*2` from an odd length (64→302→604)
+                //   overshot it, and Dispose threw ArgumentOutOfRange on slot 512 under FDP_PARANOID_MODE.
+                //   Component ids are < 512 (BitMask512), so 512 slots always suffice.
+                if (typeId >= MaxSingletonSlots)
+                    throw new ArgumentOutOfRangeException(nameof(typeId),
+                        $"Component id {typeId} is outside the singleton range (0..{MaxSingletonSlots - 1}).");
+                int newSize = Math.Min(Math.Max(_singletons.Length * 2, typeId + 1), MaxSingletonSlots);
                 Array.Resize(ref _singletons, newSize);
             }
         }
@@ -2040,6 +2722,15 @@ namespace Fdp.Core
             }
 
             _disposed = true;
+            Interlocked.Decrement(ref _liveInstanceCount);   // QA-004 — see LiveInstanceCount
+            if (_trackLeaks) _liveOrigins.TryRemove(this, out _);
         }
+
+        /// <summary>
+        /// ⭐ <c>QA-004</c> — <see langword="true"/> once <see cref="Dispose"/> has run. Exposed so a
+        /// teardown rail can assert a specific world was released, rather than inferring it from a
+        /// process-wide count.
+        /// </summary>
+        public bool IsDisposed => _disposed;
     }
 }

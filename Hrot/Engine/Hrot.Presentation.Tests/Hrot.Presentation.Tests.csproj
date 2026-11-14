@@ -13,15 +13,27 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+    <!-- ⭐ CE-1033 S1 — the 3-D map's frame rail skips (not fails) where there is no display -->
+    <PackageReference Include="Xunit.SkippableFact" Version="1.4.13" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Presentation\Hrot.Presentation.csproj" />
-    <ProjectReference Include="..\..\Subsystems\Hrot.IG\Hrot.IG.csproj" />
+    <ProjectReference Include="..\Hrot.Terrain.Random\Hrot.Terrain.Random.csproj" />   <!-- ⭐ T-3 part 2 — the frame rail compiles the town block with its unique houses -->
+    <ProjectReference Include="..\Hrot.Terrain.Import\Hrot.Terrain.Import.csproj" />   <!-- ⭐ CE-4378 — the wizard with the REAL importer -->
+    <ProjectReference Include="..\..\Subsystems\Hrot.Player\Hrot.Player.csproj" />
 
     <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <!-- ⭐ CE-1033 S1 — a real window under Xvfb for the 3-D map's render rail (test support only, R-124) -->
+    <ProjectReference Include="..\..\Editor\Hrot.Editor.UiFrameRail\Hrot.Editor.UiFrameRail.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\..\FDP\TestShared\GizmoLayerProbe.cs" Link="Shared\GizmoLayerProbe.cs" />   <!-- CE-1203: the per-row map layer rail -->
+    <Compile Include="..\..\TestShared\TestEntityCreation.cs" Link="Shared\TestEntityCreation.cs" />   <!-- CE-259ax: a real EntityCreation over a world, for rails on an AUTHOR -->
+    <Compile Include="..\..\..\FDP\TestShared\TestRepo.cs" Link="Shared\TestRepo.cs" />   <!-- CE-3343: the ONE test-side repository-root walk-up (built on ContentLayout.TryFindSourceTree) -->
+    <Compile Include="..\Hrot.Terrain.Import.Tests\MiniSet.cs" Link="Shared\MiniSet.cs" />   <!-- ⭐ CE-4378 — the importer's own tiny input set, written through the shared writers -->
   </ItemGroup>
 </Project>

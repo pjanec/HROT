@@ -1,0 +1,6 @@
+{
+  "$comment": "CE-3139 — a FLAT terrain at Berlin: only a geo origin, no world (an empty world = flat ground, R-211). The origin is the one hard-coded before CE-3126 (R-229 removed the code default: missing geo = zeros), so scenarios authored in Berlin lat/lon name this terrain instead of relying on a default. 🔒 User 2026-10-09: \"let's add a flat terrain 'Berlin' with berlin geo reference used as the default before\".",
+  "schemaVersion": 2,
+  "origin": { "lat": 52.52, "lon": 13.405, "alt": 0.0 },
+  "name": "berlin"
+}

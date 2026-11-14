@@ -6,12 +6,12 @@ namespace Fdp.Examples.DDS
     /// Replicates <c>WeaponChannel</c> to the turret (physics) node.
     /// Used by the DistributedTank and UrbanCombat (new) scenarios.
     /// </summary>
-    [DdsTopic("FDP.Demo_Weapon")]
+    [DdsTopic]
     public partial struct DemoWeaponMsg
     {
         /// <summary>Unique long-lived network identifier for the entity.</summary>
         [DdsKey]
-        public long NetworkId;
+        public int NetworkId;
 
         /// <summary>Currently active weapon action identifier.</summary>
         public ushort ActiveAction;

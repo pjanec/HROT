@@ -1,0 +1,4362 @@
+<!--STATUS
+state: LIVE
+build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k); CE-1071…1073 smooth flying, no frame overflow, the eye in the head BUILT 2026-10-14 (§6l); CE-1081…1084 held figures BUILT (§6m); CE-1085…1094 weapon systems, launchers, guns, drone, attack plane DESIGN 2026-10-14 (§6n), building. ALL leans M1–M22 APPROVED (U21, U22, U23).
+updated: 2026-10-23 (§6ac middle-button pan, the 2-D helper grid, the cursor's flat + lat/long/alt coordinates in the status bar, the scenario name in the window title — CE-1287/1288/1289/1290) · 2026-10-22 (§6aa.CL cloud layers — approved and built, CE-1146) · 2026-10-21 (§6aa.PR-1 precipitation over the 3-D scene + §6aa.next leans CL, MO, NL, SW, CE-1146) · 2026-10-21 (§6ab-i the film director drives it — newest shot per camera update, captions and cards, /film/shot {spec}, CE-4038) · 2026-10-21 (§6ab filming — a director camera and a clean scene capture, CE-3289, R-3032, backend cross-lane) · 2026-10-21 (§6q O-4a — a soldier's side picks his CLOTH, friend woodland / hostile desert, CE-1235, R-1020) · 2026-10-20 (§6z CA-4 — one ground depth bias for the SUMO roads and the draped gizmo fills, CE-1196) · 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + render telemetry; §6aa the weather in first person, CE-1146 simple slice; 2026-10-19 the free camera too) · 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
+  (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
+  areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
+  §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
+  side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
+  camera entity for the map in both modes. Rev 2 — U14: block figures)
+current-answer: ⭐ §6am unit cards hidden behind terrain, one card per unit (CE-4582 — ✅ step 1 BUILT 2026-11-14, as built in §6am.AB; step 2 won't do: the user accepts trees hiding cards — CE-4587) · ⭐ §6ak bodies and doors at scale (instancing, screen-size bands, the pick on input — ✅ BUILT 2026-11-14, as built in §6ak.6; ⛔ its targets NOT met with the gizmos drawn — §6ak.6 correction, CE-4580) · §6ab filming (CE-3289) · §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
+  with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §6m the carried / dragged, wounded, seated riders, the jump down · §6n weapon systems, gunners, launchers, mortars and guns, trails, the drone, the attack plane, rotors · §7 what is NOT verified.
+stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
+known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists…)"* is overtaken: `PipelineTarget.FlatOnly` now exists (AQ93 §12.4, R-4058) — a primitive carrying it is culled by the 3-D triage whatever else it says; `Map2D` itself still means both modes (§7). · earlier: ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
+known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
+  withdrawn (U13: "put godot aside but keep its design as deferred").
+related-designs:
+  - docs/DESIGN_People_Display.md — OWNS the card's mind-state and health rows (§7e U20, §7f U21); §6am here makes every unit text a row of the card and hides the card behind terrain
+  - docs/DESIGN_Map_View_Filter.md — OWNS the map's view filter (CE-4388): what is on screen and close enough to draw, decided ONCE per entity before any gizmo rule, in 2-D and 3-D
+  - docs/DESIGN_Terrain_World.md §10a — the 2-D plan at 5.5 km (CE-4376), the 2-D sibling of §6ah
+  - docs/DESIGN_Scale_Rig.md §5.2 N-5 — OWNS the sim side of the 5.5 km terrain (the per-tile navmesh bake, BuildRegion); hands the editor's whole-soup build to §6ah here
+  - docs/DESIGN_Unit_Camera.md — the Follow camera rides MapCamera3D (its LookAt pinned to a unit) and adds a spring arm (CE-1293)
+  - docs/DESIGN_Geo_Origin.md §4 — OWNS the node's one IGeographicTransform and where its origin comes from (the terrain); §6ac's cursor readout converts through it, from the world singleton
+  - docs/UX/Architect_Question_28_Map_Layers.md E′ — OWNS the ruling that ActiveLayerMask switches whole layer objects and the Config window's Grid tick drives it; §6ac's Grid row follows CE-1227's layer-panel precedent beyond it (reasoned there)
+  - docs/DESIGN_Director_Timeline_Editor.md — OWNS the director timeline editor on every film host; RULES §6b's "ReplayBrowser sets no TKB" finding (R-4069, TE-12) and adds the film-only graphics layer (R-4070)
+  - docs/DESIGN_Film_Director.md — OWNS who holds a camera SCRIPT and when the shot changes (takes, reels, paced real-time play, the /director routes); drives §6ab's FilmStudio
+  - docs/Editor_Headless_Xvfb.md — OWNS the headless launch (Xvfb + Mesa) that §6ab's filming runs under
+  - docs/RUNBOOK_Filming.md — OWNS HOW to film (film.py, plans, finding the moments, the traps); §6ab here is the design
+  - blueprints/Architect_Question_93_Sumo_Traffic_Node.md §12.4 — OWNS the SUMO road layer: a 2-D symbol carrying PipelineTarget.FlatOnly, so the 3-D pass shows only the road meshes (R-4058); §15.8 (CE-4031) OWNS how SUMO's far people and cars (no entities) reach EntityBodyLayer3D's ambient pass — drawn with this design's figures, outfits (§6q) and car kits
+  - docs/designs/weather/DESIGN_Weather_And_Time.md — S3: the sun, the sky, fog and cloud layers come from WeatherField
+  - designs/audio/DESIGN_FPS_Audio.md — OWNS the AudioLayer the pack attaches beside PossessionStation, and the audio files' CC0 licence table (AU-8)
+  - designs/airborne/DESIGN_Airborne_Insertion.md — OWNS the descent (rope, canopy) the map draws (U-1); ⚠ its D-8 keeps §6m C-4 only for a hop ≤ 3 m and SIMULATES rope / parachute descents
+  - designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — OWNS the kits' GEOMETRY half once moved sim-side (HL-1: the hit lands where the part is drawn) and HitMarks, the real hit points §6p asked for
+  - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS the mortars and guns (IF-G) and the fire mission; §6n here draws the tubes, the howitzers, their laid elevation and blast
+  - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — OWNS the drone (type 403, its flight body); §6n here draws it as a quadcopter
+  - docs/DESIGN_Entity_Interactions.md §7.5 — OWNS the team carry (R-2017): the stretcher drawn between the two carriers, a two-man weapon carried by the pair
+  - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the weapon deploy state the map draws (stowed / deployed) and a gunner at his weapon (R-2016)
+  - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the aircraft attitude the map draws (bank, pitch, tilt in SimTransform.Rotation) and the air-assault scenarios that use §6m's riders (R-2015)
+  - docs/DESIGN_Entity_Interactions.md §7.4.8-§7.4.10 — OWNS carrying as embarkation (PassengerBuffer.Modes, IsEmbarkedTag) and seats (CarrierSeats, Exposure); §6m here draws them (C10's "its pose is a later presentation item")
+  - docs/DESIGN_Injury_States.md — OWNS the injury states (derived from Health) and slice I-b (wounded speed), which §6m builds
+  - docs/DESIGN_Orders_Params_Entity_Classes.md §13.12 — the order form's map picks rely on §3.8's unchanged input chain in 3-D
+  - docs/DESIGN_Orders_Params_Entity_Classes.md — C2 (CE-2138): VisualFamilies grows into the shared hard-coded entity class table
+  - docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md — §2.3o (lean): VisualFamilies grows into the hard-coded entity CLASS table (named DIS masks) that the behaviour lookup also uses; units get their own DIS Kind, so the composite special case becomes a DIS match
+  - DESIGN_Visual_Effects.md §7 (R-269 (ui)) — the destroyed look in this map: a near-black wreck, flames and smoke particles, the `Dead` figure posture (VE-N..VE-S).
+  - DESIGN_Weapon_Layers.md — which weapon layer on which node aims the turret (behaviour brain, weapon brain, weapon muscle) and
+    the TurretPose / WeaponTask wire; §3.11 here keeps the part, the pose and the drawing.
+    ⭐ W-13 (R-272) owns the WEAPON POSTURE (at ease / ready / aimed) that §3.5's block figure draws (WL-6).
+  - PLAN_3D_World_And_Realism.md — the programme index (roadmap A1…E2 across this design, effects, turret, aircraft, sound).
+  - blueprints/Architect_Question_88_Soldier_Speed_And_Retreat_Under_Fire.md — R-265: WHO moves crouched and how fast (the crouched run §6j draws)
+  - DESIGN_Building_Interiors.md §3j — OWNS the door ENTITY, its state and its leaf geometry; §6k here only draws it (a hinged slab)
+  - designs/gizmos-1/DESIGN.md §11.11 — CE-1071: the frame buffer refuses hidden layers at emit and never drops its meta primitives
+  - DESIGN_Terrain_Combat_Tuning.md §5d — CE-1065: which gizmo layers and families are ON by default (most off — the 3-D clutter), and the live layer panel
+  - DESIGN_Terrain_Combat_Tuning.md §5e — CE-1203 (R-1011, approved, not built): a layer set PER VIEW (2-D / 3-D), remembered per user, and FL-7 — a 2-D symbol of what 3-D draws itself (the round markers) is FlatOnly, extending R-4058
+  - DESIGN_Map_North_Up.md — CE-1040: the 2-D map north-up at its camera seam, so the 2-D ↔ 3-D swap keeps orientation.
+  - DESIGN_Visual_Effects.md — muzzle fire, explosions and impact decals as TKB-typed temporary entities; the 3-D map draws them
+    (S3b) and places a muzzle flash on the posed barrel (§3.11).
+  - DESIGN_Body_Geometry_And_Ground_Contact.md — owns Body.Geometry: an aircraft's size, box offset and landing-gear points
+    relative to its CG; the kits are placed by it and the gear is drawn at its points (CE-1041).
+  - DESIGN_World_Query_Seam.md — the 3-D map's picking and terrain geometry go through IWorldQuery.Pick and
+    ITerrainRenderGeometry (WQ-G), so the editor is not bound to the stand-in.
+  - DESIGN_Map_Rendering_And_Interaction.md — owns MapCanvas, IMapLayer, the render frame (§2.3) and the input chain
+    (§3) this design extends with a camera subclass and a 3-D draw path; its "dumb terminal" rule holds in 3-D.
+  - DESIGN_Godot_3D_Viewer.md — DEFERRED: the Godot-process alternative, the twenty requirements V-01..V-20 this file
+    answers, and the user rulings U1..U12.
+  - DESIGN_Terrain_World.md — owns TerrainWorld and TerrainWorldMesh; this file adds an optional per-triangle tag
+    output to the mesher (the navmesh output stays byte-identical).
+  - DESIGN_Stride_Node_Modes.md — owns §8, the 3-D gizmo triage in DebugPrimitiveRenderer3D, which this file EXTRACTS
+    into shared code both Stride and the 3-D map use.
+  - UX/UX_Feature_Selection.md — owns UXI-11; picks in 3-D reach the one store through the unchanged input chain.
+  - designs/gizmos-1/DESIGN.md — owns the primitive stream and §10 context menus; both are reused unchanged in 3-D.
+  - DESIGN_Building_Interiors.md — owns wall panels, openings, materials; the 3-D terrain colours by its materials.
+  - DESIGN_Terrain_Height.md — supplies the ground height behind §3.10's two seams (the mesh, level 0).
+  - designs/tkb-1/DESIGN.md — owns §6.6a, the [PerInstanceValue] rule (a TKB default that the per-spawn value beats)
+    that affiliation follows and the entity colour copies (§3.7).
+  - designs/promote-to-3d/3D_Cognitive_Spatial_Awareness_Promotion_Design_v1_1.md — owns Tier 2, the generators that
+    stop flattening Z (EntitiesInArea); §3.9's "area on a level" relies on it.
+  - DESIGN_Ownership_Groups_And_Grants.md — owns descriptor ownership and PARTS (F-6: mount parts never created); §3.11's
+    turret part (M23) is a part of that model — one owner per descriptor instance.
+  - DESIGN_Entity_Control.md — OWNS the FPS view: an ICameraDriver on MapCamera3D that never saves into the scenario camera (M-9, C-1)
+  - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — the CityLib-styled traffic road layer (R-4024) drapes through this mode's ground rule; bridges use the lane height.
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — CV-1: the new civilian family keeps §6q's outfits and child bodies.
+-->
+
+# DESIGN — a 3-D mode for the map
+
+## Headline
+
+⭐ **The existing map gets a 2-D / 3-D switch.** Same window, same `MapCanvas`, same layers, same selection, same
+context menu, same tools — in 3-D the camera is a `MapCamera3D` subclass and each layer draws through an optional 3-D
+path. Built on the Raylib the hosts already run. Godot is deferred.
+
+| in 3-D | |
+|---|---|
+| terrain | lit, colour-shaded polygons from `TerrainWorld` (ground, surfaces, water, roads, buildings by material); textures later |
+| entities | **shape kits** — each kind of entity is a few boxes, cylinders and wedges scaled to its TKB size: tank, APC/IFV, car, truck, helicopter, jet; humans as **Minecraft-style block figures** posed by stance |
+| interaction | click-select, right-click menu, tools — through the **unchanged** input chain |
+| gizmos | the 3-D subset of the gizmo stream (lines, arrows, spheres, semantic shapes) — fire traces and detonations included |
+| camera | Unity-style free camera; an **animated** 2-D ↔ 3-D transition (M12); the camera entity (V-12..V-15, M10) |
+| hosts | ⭐ **every host that has the 2-D map**: Editor, CGF, SimHost, ReplayBrowser, IG — one wiring site, `MapInteractionPack` |
+
+---
+
+## 1. What the user asked — `2026-10-10`
+
+| # | 🔒 user | consequence |
+|---|---|---|
+| **U12** | *"check alternative idea of building own simple in-process 3d viewer … simple planes, boxes, human as cylinder (horizontal if prone, lower if crouched) … with imgui on top for menus?"* | measured in `DESIGN_Godot_3D_Viewer.md` §8 — lean B |
+| **U13** | *"The internal 3d solution could be switchable 2d/3d instead of current 2d only map so no new 3d window would be required. I think we should focus on B … Lets put godot aside (but keep its design as deferred). We need the simple renderer to handle the terrain geometry, use lighting color shaded polygons to give it some usable feeling of a real world, if not some freely available texture pack."* | ⭐ this file: a **mode of the map**, not a window; **lit, colour-shaded terrain**; textures as a later slice |
+| **U15** | *"Every host having the 2d map will get simple 3d, correct? Not just IG. … The current 2d map can be switched to 3d view and back (some camera animation between 2d camera and 3d camera or something)."* | ✅ yes, all five map hosts — by construction since U25 (§6b). ⭐ M12: the switch is an animated camera move, not a cut |
+| **U29** | *"S5 approved. We can build weapons here, no handoff necessary. 1047 approved."* (`2026-10-11`) | ✅ §3.12 Q-S5a..c RULED as leaned (R-260): one camera entity per scenario, owned by the saving node, the eye in `SimTransform`, the mode from the pitch · B1 (the live turret) is built in the ui lane · `CE-1047` (the colour's network half) approved for the backend lane |
+| **U28** | *"M23 - approved · M24 - yes the weapon side (the weapon logic) moves the turret - knows how to aim, brain just specifies the target · M25 - approved · M26 - solved already by multi-instance descriptors in NED/BDC (similar stuff as already used for sensor sub-entities)"* — and the effects: *"fire effect (from the barrel…), explosion effect (at hit position…), decal effect … temporary entities (counting their lifetime…) … so no gizmos as such - pls add those to the plan"* | ✅ §3.11 ruled (R-255); effects planned in [`DESIGN_Visual_Effects.md`](DESIGN_Visual_Effects.md) |
+| **U27** | *"each effect entity has its TKB type of course defining the effect"* | ⚠ recorded as a constraint on S3's effects (§6c) — 📐 today's effect entities carry NO TKB type (`CE-1042`) |
+| **U26** | *"It would be great if you built the heli and jet and cargo plane models including their mapping so we do not need to think about that later."* | ✅ built: three air kits + the SISO-REF-010 platform/air category mapping (§3.5) |
+| **U25** | *"ad 'the 3-D mode on the other four hosts' - this sounds alarming, we should be unifying and sharing from the day zero so something like 'not on all host' can not happen by construction"* | ✅ §6b: one shared attach + one shared menu item + a rail; S6 withdrawn |
+| **U24** | *"the tank models need the turret to be movable left/right as well as the barrel (up/down) as articulated part - tank entity needs a way describing the orientation of its turret+barrel (maybe a sub-entity with component containing turret hull relative azimuth and turret-relative barrel elevation - there used to be a multi-entity tank demo)"* | ✅ articulated kit parts built; ⭐ where the pose lives: §3.11 M23–M26, leans awaiting the user |
+| **U23** | *"Leans accepted. Terrain needs height. Current flat terrain bed is unbearable. never count with terrain being flat, this is just current simplification that should be removed soon."* | ✅ M17–M22 approved; 🔒 `R-248`; ⭐ §3.10 — every rule here reworded for terrain with relief |
+| **U22** | *"What are height 0 gizmos? Maybe some might become height aware? Some 2d only stuff areas might be turned into 3d, like area with height? Approval covered m15, color would be then similar to attribute like affiliation - runtime stuff (i hope affiliation is runtime stuff, nothing tkb static). Pls summarize the 3d editing concepts with gizmos"* | ✅ M15 approved; ⭐ §3.7 colour follows `EntityInfo.ForceId`'s pattern; ⭐ §3.9 + M21–M22 |
+| **U21** | *"Approved. The 3d entities need to support hit tests so clicking entity (some invisible simple oriented box collider on it) can select it - the same raycast machinery as for simulation can be reused maybe … 3d stays mostly rendering only. I think card should remain unclickable. The map tools like measurement and placement tool and area authoring tool should be made 3d aware so same tool can be used in both environments. So gizmo based handle points and hit testing them etc should still be supported just in 3d, rendered in a way clickable and draggable in 3d (draggable to new location using raycast from camera to the terrain...)"* | ✅ M1–M16 approved; ⭐ §3.8 + M17–M20 |
+| **U20** | *"unify the 2d text gizmos and the card gizmos so we use same mechanism for both 2d and 3d. The card concept might work well in 2d as well as 3d, being a small canvas for gizmos. The card would not need any special header, if a gizmo uses card anchor, card will be created if not existing yet … what to allow to be anchored, how to achieve the desired health bar, entity name and card frame colored by affiliation … Still supporting the loose text gizmos for special purposes"* | ⭐ §3.6 rewritten: card = canvas, implicit creation, rows by `ZIndex`, row 0 card-wide, `%` of the card; frame / bar / name are ordinary gizmos; no new shapes (M14) |
+| **U19** | *"The entity 3d mode color needs to be somehow settable (from scenario - special component) with tkb default color. Entity needs to support some label rectangle on top of it, with thin line down to entity model, showing health bar on top of entity name and lines for extra colored text info, all together framed in a rectangle with line colored according entity side … switchable on/off (layer for labels) … maybe the label area is just another mode of anchoring the 2d gizmo graphics?"* | ⭐ §3.6 card = a new anchoring mode (M14); §3.7 colour = a published descriptor under R-136 (M15) |
+| **U18** | *"Vehicles and aircraft should be also composed of multiple pieces to resemble what they are in real world, still cheap."* | ⭐ M7 rewritten: **shape kits** (§3.5), chosen by one visual-family classifier the icons already use |
+| **U16** | *"The 3d entities will need some label system so that we can show various texts provided by gizmos. So far gizmos were using 2d text, how to adapt to text for entities in 3d?"* | ⭐ §3.4 + M13: the same text primitives, projected; one overlay pass |
+| **U17** | *"ok one camera entity."* | ✅ M10 approved |
+| **U14** | *"Human characters as simple as in minecraft would be a bit nicer and still feasible i guess."* | ⭐ M7 rewritten: a **six-box figure**, stance poses blended by the transition, limb swing from speed |
+
+The requirements V-01..V-20 live in `DESIGN_Godot_3D_Viewer.md` §1. ⭐ What changes under U13: **V-09** (own window) →
+the map's own area, switched; **V-17** holds (render only); **V-18** (network) → an IG node with the map in 3-D;
+**V-03/V-04** → primitives (U5/U12).
+
+---
+
+## 2. INVENTORY — measured `2026-10-10`, branch `ui` (graph + grep; `check_index_coverage` not run)
+
+| query | total | what it settled |
+|---|---|---|
+| `search_graph(name_pattern="^(MapCanvas\|MapCamera\|IMapLayer\|…)$")` | **17** | `MapCanvas` (`Fdp.Presentation/Vis2D/MapCanvas.cs:12-265`), `MapCamera` (`…/Components/MapCamera.cs:13-383`), `IMapLayer`, `TerrainWorldMesh` |
+| `search_graph(relationship=IMPLEMENTS, name="IMapLayer")` + grep | **6 / 6** | production layers: `GridMapLayer`, `DebugGizmoLayer`, `SelectionRenderSystem`, `PerceptionMapLayer` (+2 in `FDP/Examples`) |
+| grep `MapInteractionContext` constructors | **5 hosts** | Editor, CGF, SimHost, ReplayBrowser, IG all build the map through `MapInteractionPack` |
+| grep `BeginMode3D\|Camera3D\|DrawCube(` in `Hrot/ FDP/` | **0** | ⛔ no 3-D Raylib code exists yet |
+| restored `Raylib-cs 7.0.2` / `rlImGui-cs 3.2.0` assemblies | — | 3-D API present (`BeginMode3D`, `DrawCylinderEx`, `DrawCubeWires`, `DrawMeshInstanced`, `UploadMesh`, `GetScreenToWorldRay`, `GetRayCollisionBox/Mesh`, `LoadRenderTexture`) |
+| grep TKB dimension fields | **3 types** | `VehicleParametersDto` L/W, `SimVehicleDef` L/W/H, `StaticObstacleDto` L/W/H; ⛔ none for infantry |
+
+---
+
+## 3. THE ARCHITECTURE
+
+### 3.1 Modules — who builds, who ticks, what is dead in 3-D
+
+```mermaid
+graph TD
+  subgraph HOST["any host: Editor / CGF / SimHost / ReplayBrowser / IG"]
+    LOOP["host render loop<br/>(existing) calls canvas.Update + Draw"]
+    MP["MapInteractionPack<br/>(existing) builds the canvas"]
+    MC["MapCanvas<br/>(existing, 2 edits)"]
+    C2["MapCamera (2-D)"]
+    C3["MapCamera3D (new)"]
+    SW["MapViewSwitch + MapViewModeLayer<br/>View > 2-D / 3-D Map (new)"]
+    L1["DebugGizmoLayer"]
+    L2["SelectionRenderSystem"]
+    L3["GridMapLayer"]
+    L4["PerceptionMapLayer"]
+    T3["TerrainLayer3D (new)"]
+    E3["EntityBodyLayer3D (new)"]
+    W[(ECS world)]
+    MP --> MC
+    MP -- "AttachMapLayers (one call, every host)" --> SW
+    MP -- AttachMapLayers --> T3
+    MP -- AttachMapLayers --> E3
+    LOOP --> MC
+    SW -- "swaps Camera" --> MC
+    MC --> C2
+    MC -.-> C3
+    MC --> L1
+    MC --> L2
+    MC --> L3
+    MC --> L4
+    MC --> T3
+    MC --> E3
+    T3 -- TerrainWorld --> W
+    E3 -- SimTransform, stance, velocity --> W
+  end
+  L4 -. "no 3-D path: skipped, counted" .-> MC
+```
+
+*What the picture shows that prose hid:* **no new composition root and no new tick** — the host loop that draws the
+2-D map draws the 3-D one; the pack attaches the gizmo layer, both 3-D layers and the switch in ONE call
+(`MapInteractionPack.AttachMapLayers`), which all five hosts make — so no host can be "2-D only" (§6b).
+`PerceptionMapLayer` has **no 3-D path** in slice 1 — drawn as a dead edge so its absence is visible, not silent.
+
+### 3.2 Classes — existing (with file) vs new
+
+```mermaid
+classDiagram
+  class MapCanvas {
+    <<exists, 2 edits>> Fdp.Presentation
+    MapCamera Camera
+    Draw()  branches on Camera.Is3D
+    ProcessInputPipeline()  deltaWorld via Camera
+  }
+  class MapCamera {
+    <<exists>> virtual Update HandleInput BeginMode EndMode ScreenToWorld WorldToScreen
+    +virtual ScreenDeltaToWorld()  new, 2-D = delta/Zoom
+  }
+  class MapCamera3D {
+    <<new>> Camera3D, yaw, pitch
+    ScreenToWorld()  ray: entity box, else terrain, else ground
+  }
+  class IMapLayer {
+    <<exists>> Draw(RenderContext)
+    +Draw3D(RenderContext3D)  new default no-op
+  }
+  class DebugGizmoLayer { <<exists>> +Draw3D via triage }
+  class SelectionRenderSystem { <<exists>> +Draw3D wire cubes }
+  class GridMapLayer { <<exists>> no Draw3D - 2-D only (see 6ac) }
+  class TerrainLayer3D { <<new>> lit terrain mesh }
+  class EntityBodyLayer3D { <<new>> vehicle boxes, human figures }
+  class ShapeKit { <<new>> parts as fractions of L W H }
+  class VisualFamily { <<extracted>> from EntityTypeCatalog.FallbackIconName }
+  class BlockFigure { <<new>> the person kit, posed by stance }
+  class LogicalStance { <<exists>> the shared stance rule }
+  class LocomotionBlend { <<extracted>> speed to idle/walk/run }
+  class Gizmo3DTriage { <<extracted>> from DebugPrimitiveRenderer3D }
+  class IDebugDrawSink3D { <<extracted>> }
+  class RaylibDrawSink3D { <<new>> }
+  class StrideDrawSink3D { <<exists>> PooledEntityDebugDrawSink3D }
+  class TerrainWorldMesh { <<exists>> +optional per-triangle tag }
+  class LitShader { <<new>> GLSL directional light + fog }
+  class LabelOverlay3D { <<new>> project, LOD, cull }
+  class Picker3D { <<new>> handles, entity boxes, terrain mesh, ground }
+  class PickResult { <<new>> point XYZ, kind, netId, level }
+  class EntityCardFrameGizmo { <<new>> row 0 frame, side colour }
+  class CardBuilder { <<new>> draw.Card(e).Row(n) sugar }
+  class EntityCardRenderer { <<new>> one card, 2-D and 3-D }
+  class EntityAppearance { <<new>> published colour, R-136 4.1 }
+  class GizmoTextDraw { <<extracted>> from DebugPrimitiveRenderer2D }
+  MapCamera <|-- MapCamera3D
+  MapCamera3D --> Picker3D
+  Picker3D ..> TerrainWorldMesh : the drawn mesh
+  Picker3D ..> PickResult
+  MapCanvas --> MapCamera
+  MapCanvas --> IMapLayer
+  IMapLayer <|.. DebugGizmoLayer
+  IMapLayer <|.. SelectionRenderSystem
+  IMapLayer <|.. GridMapLayer
+  IMapLayer <|.. TerrainLayer3D
+  IMapLayer <|.. EntityBodyLayer3D
+  DebugGizmoLayer ..> Gizmo3DTriage
+  Gizmo3DTriage --> IDebugDrawSink3D
+  IDebugDrawSink3D <|.. RaylibDrawSink3D
+  IDebugDrawSink3D <|.. StrideDrawSink3D
+  class ITerrainRenderGeometry { <<new, S1>> Identity, Build(verts, indices, kinds) }
+  class TerrainWorldQuery { <<exists>> +ITerrainRenderGeometry, kinds by slope and height }
+  class MapViewSwitch { <<new, S1>> Set(on), animated, pivots overhead }
+  class CameraPose { <<new, S1>> LookAt, Distance, Yaw, Pitch }
+  TerrainLayer3D ..> ITerrainRenderGeometry : WQ-G, never the stand-in
+  ITerrainRenderGeometry <|.. TerrainWorldQuery
+  TerrainWorldQuery ..> TerrainWorldMesh
+  MapViewSwitch --> MapCamera3D
+  MapViewSwitch ..> MapCanvas : swaps Camera
+  MapCamera3D ..> CameraPose
+  TerrainLayer3D ..> LitShader
+  EntityBodyLayer3D ..> LitShader
+  EntityBodyLayer3D ..> VisualFamily
+  EntityBodyLayer3D ..> ShapeKit
+  ShapeKit <|-- BlockFigure
+  DebugGizmoLayer ..> LabelOverlay3D : text, badges
+  LabelOverlay3D ..> GizmoTextDraw
+  LabelOverlay3D ..> MapCamera3D : WorldToScreen
+  DebugGizmoLayer ..> EntityCardRenderer : card-space primitives
+  EntityCardRenderer ..> MapCamera : WorldToScreen, either mode
+  EntityCardFrameGizmo ..> CardBuilder
+  EntityBodyLayer3D ..> EntityAppearance : colour, else TKB
+  BlockFigure ..> LogicalStance
+  BlockFigure ..> LocomotionBlend
+```
+
+*What it shows:* the 3-D mode is **one camera subclass, two layers, one shader and one sink**; everything else is an
+existing class gaining one method. The gizmo triage gets a **second sink, not a second interpreter** — Stride and the
+map share it.
+
+### 3.3 Sequences
+
+**A 3-D frame — the same frame, a different branch**
+
+```mermaid
+sequenceDiagram
+  participant H as Host loop
+  participant C as MapCanvas
+  participant K as MapCamera3D
+  participant T as TerrainLayer3D
+  participant E as EntityBodyLayer3D
+  participant G as DebugGizmoLayer
+  participant S as SelectionRenderSystem
+  H->>C: Update(dt)
+  C->>K: Update + HandleInput (RMB-drag look, WASD while RMB held)
+  H->>C: Draw()
+  C->>K: BeginMode() = BeginMode3D
+  C->>T: Draw3D (static mesh, lit shader, fog)
+  C->>E: Draw3D (vehicle boxes, human block figures)
+  C->>G: Draw3D (gizmo frame -> triage -> Raylib sink)
+  C->>S: Draw3D (wire cube per selected)
+  C->>K: EndMode()
+```
+
+**A click in 3-D — the input chain is unchanged**
+
+```mermaid
+sequenceDiagram
+  participant C as MapCanvas
+  participant K as MapCamera3D
+  participant L as layers (selection, menu, tools)
+  participant SEL as SelectionRequestSystem
+  C->>K: ScreenToWorld(mouse)
+  K->>K: ray vs entity boxes -> hit: entity ground XY
+  K->>K: else ray vs terrain mesh (with relief), else the terrain's edge -> XY
+  K-->>C: world XY (as 2-D did)
+  C->>L: HandleInput(worldXY, button) - same code as 2-D
+  L->>SEL: SelectionChangeRequest / menu / tool
+```
+
+**Switching 2-D ↔ 3-D — an animated camera move, not a cut (M12)**
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant P as MapInteractionPack switch
+  participant C as MapCanvas
+  participant K as MapCamera3D
+  U->>P: View > 3D map
+  P->>K: start OVERHEAD - look straight down, north up, height so the visible ground = the 2-D view
+  P->>C: Camera = MapCamera3D (the first 3-D frame matches the last 2-D frame)
+  K->>K: animate ~0.6 s eased - tilt to -30 deg and pull back around the same look-at point
+  U->>P: View > 3D map (off)
+  K->>K: animate ~0.6 s eased - back to OVERHEAD, north up, same look-at
+  P->>P: 2-D Target = look-at, Zoom = from height
+  P->>C: Camera = MapCamera (the 2-D frame matches the last 3-D frame)
+```
+
+*What it shows:* the 2-D map **is** a 3-D camera looking straight down. Both swaps happen at that overhead pose, so
+neither one jumps; the tilt in between is ordinary camera animation. The only thing that changes at the swap is what
+is drawn (2-D symbols ↔ 3-D bodies), and the motion masks it.
+
+### 3.4 Labels in 3-D — the same gizmo text, projected *(U16)*
+
+📐 Measured `2026-10-10` in `DebugPrimitiveRenderer2D.cs`: ⭐ **every gizmo text is already a constant-PIXEL label at a
+world point** — *"All gizmo text is rendered at a constant on-screen pixel size regardless of camera zoom"* (`:390`);
+badges are already drawn in screen space after `GetWorldToScreen2D` (`:437-447`); stacked lines use a pixel offset
+(`LineOffsetPx`, `:413-429`); the anchor cache already keeps **Z** (`:58-69`). ⇒ In 3-D only the **world → screen** step
+changes; the text drawing itself is reused.
+
+```mermaid
+sequenceDiagram
+  participant C as MapCanvas (3-D)
+  participant G as DebugGizmoLayer
+  participant B as EntityBodyLayer3D
+  participant O as LabelOverlay3D
+  participant K as MapCamera3D
+  participant T as GizmoTextDraw (extracted)
+  C->>G: Draw3D - triage draws lines, arrows, spheres
+  G->>O: hand over Text / EntityBadge primitives (anchors resolved, Z kept)
+  C->>K: EndMode()
+  C->>O: DrawOverlay()
+  O->>B: body top height for this anchor's network id
+  O->>O: point = anchor XYZ + body height + margin (unanchored text: terrain SurfaceZ + lift)
+  O->>K: WorldToScreen(point) - behind camera or off screen: skip
+  O->>O: LOD - equivalent zoom from distance, the primitive's own MinZoomLod / MaxZoomLod
+  O->>T: draw at that pixel position - same font, size, line stacking, rich-text badge
+```
+
+*What it shows:* gizmo authors change **nothing** — the same `Text` / `EntityBadge` primitives. The 3-D mode adds one
+overlay pass after the 3-D pass; the drawing code is the 2-D renderer's screen-space branch, extracted so both modes call it.
+
+
+### 3.5 Shape kits — what each kind of entity looks like *(U18)*
+
+📐 Measured `2026-10-10`: ⭐ the question *"what kind of thing is this type"* is **already answered once**, for the
+icons — `EntityTypeCatalog.FallbackIconName` (`EntityTypeCatalog.cs:128-143`) maps DIS kind / domain / category (or
+being a composite unit) to a family: person, tank, AFV, wheeled, unit. ⇒ that logic is **extracted** into one
+`VisualFamily.Of(TkbTemplate)`; the icon fallback and the 3-D kit choice both call it.
+⭐ **CE-2138 (2026-10-12):** that one function now reads the shared hard-coded entity class table (named DIS masks, R-279/R-280 (behaviors)) — the family is a property of a class, so the 3-D kit, the icon, the 2-D avatar, the picker folder and the behaviour lookup classify from ONE table ([DESIGN_Orders_Params_Entity_Classes.md](DESIGN_Orders_Params_Entity_Classes.md) §2). The table below still states which DIS values give which family.
+
+| family *(DIS)* | built-in types today | kit — parts, as fractions of the type's L × W × H |
+|---|---|---|
+| **person** *(kind 3)* | Rifleman, InfantrySoldier, Grenadier, MortarTeam, Insurgent, CivilianPedestrian | the block figure; **rifle** part for soldiers (category 1), none for civilians; body in the entity colour (§3.7), side shown by the card frame. ⭐ **WL-6 (`2026-10-11`, R-272):** arms in two segments (elbows); a soldier holds the rifle in the weapon brain's `WeaponPosture` — at ease low, ready at the chest, aimed shouldered with the upper body turned and pitched toward the target — and his arms do not swing; running leans the upper body forward. ⭐ **WL-6c:** legs with knees (thigh + shin, IK); aimed standing = the athletic fighting stance, aimed moving = the combat glide; every walker's knees bend; ⭐ **WL-6d:** a prone figure that moves crawls (elbows and opposite knees, rifle carried); drawing only, the logical stance is unchanged. ⭐ **CE-1064 (§6j):** crouched and still he KNEELS; crouched and moving he runs crouched (legs swinging, upper body leaning). 📄 `DESIGN_Weapon_Layers.md` W-13 / §5h |
+| **tank** *(1.1, cat 1)* | M1 Abrams, T-72 | lower hull · two track blocks (dark) · turret box set back · barrel cylinder forward |
+| **AFV / APC** *(1.1, cat 2)* | Bradley, MilitaryAPC | hull with a sloped front wedge · tracks or wheels (dark) · small turret · thin barrel |
+| **wheeled — car** *(1.1, cat 81)* | CivilianCar | lower body · cabin (glass) · four wheels (roll with speed) |
+| **wheeled — utility** *(1.1, cat 3/6/7)* | HMMWV | wide low body · cab (glass) · rear bed · four wheels |
+| **helicopter** *(1.2, cat 20–25)* | ⛔ none in the built-in TKB | fuselage · cockpit glass · tail boom · swept fin · tail rotor · mast · two crossed main blades (spin: S4) · skids on struts — ✅ built |
+| **jet** *(1.2, cat 1, 2, 6, 7, 40, 47, 50)* | ⛔ none in the built-in TKB | fuselage + nose cone · canopy · swept wings and tailplanes · swept fin · nozzle · gear — ✅ built |
+| **cargo plane** *(1.2, cat 3, 4, 5, 8, 57)* | ⛔ none in the built-in TKB | round fuselage + nose · cockpit glass · straight high wing · four engines · raised tail, fin, tailplane · gear pods — ✅ built |
+| **unit** *(kind 11 — ⭐ CE-2139; was: any composite)* | tank platoon, infantry squad | **no body** — its members are entities and draw themselves; its symbol shows as a label |
+| unknown | — | one box, the TKB size |
+
+⭐ **Cost:** 6–12 parts per vehicle, each one draw of a shared unit mesh through the lit shader — hundreds of vehicles
+stay cheap; instancing per part shape is the later lever. ⭐ **Size:** length / width / height from
+`VehicleParametersDto` / `SimVehicleDef`; a per-family default where the TKB has none. ⭐ **Motion is presentation
+only** — rotor spin from time, wheel roll from speed; the turret follows the hull (no aim component is read).
+✅ **Built-in aircraft, `2026-10-10` (CE-1041):** UH-60A, F-16C and C-130H carry `Body.Geometry` — the kit is placed by its
+box offset from the CG and the gear is drawn at the TKB's contact points (the kit's generic gear, `PartRole.Gear`, steps aside);
+retractable gear is hidden when clearly airborne. 📄 [`DESIGN_Body_Geometry_And_Ground_Contact.md`](DESIGN_Body_Geometry_And_Ground_Contact.md).
+✅ **Air, `2026-10-10`:** the three air kits are built and railed, and the platform/air categories are mapped from the
+IEEE 1278.1 enumerations (JDBE DIS data dictionary, the SISO-REF-010 lineage) — also added to `DisNames.json` for the picker. For
+aircraft the kit's y extent is the **span** (wing or main rotor). ⚠ No built-in type is in the air domain yet; the frame rail
+draws test types on those categories.
+
+### 3.6 The entity CARD — a small canvas for gizmos, the SAME in 2-D and 3-D *(U19, reshaped by U20)*
+
+📐 Measured `2026-10-10`: the card's content **already exists as gizmos drawn as loose text** — `EntityEditorLabelGizmo`
+stacks id / behaviour / `HP:x/y` lines at the entity point (`EntityEditorLabelGizmo.cs:61-100`), `HealthBarGizmo` draws a
+text badge (`HealthBarGizmo.cs:54`). ⭐ **U20: the card is a small canvas any gizmo can draw into; it exists because a
+gizmo drew into it — no header, no special shape.** Loose text keeps working for special purposes.
+
+#### What a card is
+
+```text
+    card for entity #1043 — created this frame because ≥ 1 visible primitive targets it
+    ┌──────────────────────────┐   row 0  (card-wide)  frame + background  ← EntityCardFrameGizmo, side colour
+    │ ███████████████░░░░░░░░░ │   row 10             health bar           ← HealthBarGizmo: two Box2D, widths in % of the card
+    │ T-72 #1043               │   row 20             name                 ← EntityNameGizmo: Text
+    │ Attack (moving)          │   row 40             behaviour            ← EntityEditorLabelGizmo: Text, own layer
+    │ ammo 34/40   [icon]      │   row 50             any other gizmo      ← Text + Icon in one row
+    └────────────┬─────────────┘
+                 │                 leader line, drawn by the card renderer
+               [entity]            2-D: its symbol · 3-D: the top of its body
+```
+
+| rule | carried by | ⭐ why it needs no new field |
+|---|---|---|
+| ⭐ **a card exists iff a visible primitive targets it** — anchor = the entity's network id | `Space = EntityCard` (a 4th value) · `AnchorIndex` = network id | `Space` byte at offset 1 uses values 0–2 today; `AnchorIndex` already is the network id (`DebugPrimitive.cs:24,63`) |
+| ⭐ **rows**: primitives sharing an order key form one row; rows stack top-down by key; ties broken by gizmo type | `ZIndex` | `ZIndex` byte at offset 15 is already *"intra-layer sort"* — in a card the sort is the row order |
+| ⭐ **row 0 is card-WIDE** — not in the flow; drawn over the whole card after layout (frame, background, a badge in a corner) | `ZIndex = 0` | `ZIndex` already says *"0 = background"* |
+| ⭐ **coordinates are card-local pixels**, origin at the row's top-left | the shape's own x/y fields (`TextX/Y`, `BoxCenter/Extent`, `LineStart/End`, `IconWorldPos`) | the same fields the screen space uses |
+| ⭐ **"% of the card"** for widths/heights that should fill (a bar, the frame) | `SizeMode = ScreenPercent` | it already means *"fraction of the container"* (the viewport for screen panels, `ImGuiPropertyTreeAdapter.cs:92`) — the container is now the card |
+| ⭐ **on / off per row** | `DebugLayer` | each gizmo keeps its own layer; a card with no visible rows disappears |
+| card width | the widest row, measured; a minimum width | — |
+
+#### What may be drawn into a card
+
+| ✅ allowed | use |
+|---|---|
+| `Text` | names, values, coloured info lines |
+| `Box2D` (filled / outline) | bars (health, fuel, ammo), swatches, the frame |
+| `Line` | separators, small indicators |
+| `Icon` | status icons |
+| `EntityBadge` (rich text) | coloured runs inside one line |
+| `MilStd2525` | the unit's symbol inside the card |
+| `FilledTriangle` | arrows / markers |
+| ⛔ ignored, counted | `Sphere`, `Arrow`, `SemanticShape`, `SpatialAnchor`, bindings, `StructInspector` — they are world or panel things |
+
+#### How the three things you asked for emerge — all as ordinary gizmos
+
+| wanted | gizmo *(host side, reads ECS)* | emits into the card |
+|---|---|---|
+| **frame coloured by side** | `EntityCardFrameGizmo` *(new; `NetworkIdentity` + `EntityInfo`)* | row 0: an outline `Box2D` 100 % × 100 % in the side colour (one palette, M16) + a translucent filled one behind it |
+| **health bar** | `HealthBarGizmo` *(existing, re-targeted)* | row 10: a dark `Box2D` 100 % wide + a coloured one `Current / Max` wide, both `ScreenPercent` |
+| **entity name** | `EntityNameGizmo` *(new, or split from `EntityEditorLabelGizmo`)* | row 20: `Text` from `EntityInfo.Name` |
+| extra lines | any gizmo | rows 30+ on their own layers |
+
+⭐ The leader line is the **card renderer's**, because only the terminal knows where it placed the card; ⭐ it takes the
+colour of the card's row-0 outline when there is one (so it matches the frame), else grey.
+
+#### One renderer, both modes — only "where is the entity on screen" differs
+
+```mermaid
+sequenceDiagram
+  participant GZ as gizmos (host)
+  participant BUF as primitive frame (in-process or DDS)
+  participant CR as EntityCardRenderer (terminal)
+  participant K as MapCamera or MapCamera3D
+  GZ->>BUF: primitives with Space = EntityCard, AnchorIndex = netId
+  BUF->>CR: frame - layer mask and LOD applied first
+  CR->>CR: group by netId, rows by ZIndex, row 0 card-wide
+  CR->>CR: measure rows - card width, row heights
+  CR->>K: WorldToScreen(entity point) - 2-D anchor / 3-D body top
+  CR->>CR: place card above it, leader line
+  CR->>CR: draw rows in card pixels, then row 0 over the card rect
+```
+
+*What it shows:* the renderer never asks which mode it is in — it asks the camera for a screen point, and the camera
+classes already answer that in both modes (`MapCamera.WorldToScreen` is virtual, `MapCamera.cs:354`). ⭐ So a card gizmo is
+written **once** and appears identically in 2-D and 3-D, in-process and on a remote IG.
+
+#### Gizmo-author API — sugar over existing primitives
+
+```csharp
+var card = draw.Card(entity);                    // sets Space = EntityCard, AnchorIndex = netId on everything below
+card.Row(10).Bar(fraction: hp, fill: Green, back: DarkGrey, heightPx: 4);   // two Box2D, ScreenPercent widths
+card.Row(20).Text("T-72 #1043", White);
+card.Row(0).Frame(sideColour);                   // outline + translucent fill, 100 % x 100 %
+```
+
+⭐ No new primitive kind travels on the wire — only a new `Space` value, so DDS and the IG need nothing extra.
+
+#### Loose text stays
+
+`World` / `EntityLocal` text is untouched: in 2-D it draws as today; in 3-D it is projected (§3.4, M13). ⭐ A gizmo chooses
+per call — card when it describes *the entity*, loose when it marks *a place* (a measurement, a waypoint label).
+
+#### Later, cheap options
+
+- **declutter** overlapping cards; hide cards below a zoom (2-D) or beyond a distance (3-D) — card-level LOD on top of each row's own.
+
+### 3.7 Entity colour — a scenario-settable value with a TKB default *(U19)*
+
+📐 Measured `2026-10-10`: a TKB colour **already exists** — `VisualData.ColorHex`, filled from the TKB visual definition
+at spawn (`PresentationTkbTranslator.cs:65`; e.g. `#2E4057` for the M1, `NedTkbCatalog.cs:30`), already used by IG's 2-D
+style as a tint (`StyleResolutionSystem.cs:103`).
+
+🔒🔒 ⛔ **But it may NOT be overridden in place.** `R-136`: *"entity state has exactly two legal sources: the TKB, or a
+published TransientLocal descriptor; anything in neither must not exist as durable state"*
+(`DESIGN_Entity_State_Sourcing.md` §1). `VisualData` is TKB-derived, and saving TKB-derived components into a scenario is
+an error (§3 ②). ⇒ ⭐ **the user's "special component" is exactly what the rule demands** — and its only legal shape is
+§4.1's recipe, with `SimTransform` → `dtWorldPos` as the worked example:
+
+| step *(§4.1)* | for the colour |
+|---|---|
+| ① classify it as published state | ⭐ a new component `EntityAppearance { ColorRgba }` — authored, so it MAY live in the scenario |
+| ② a descriptor arm | `EDescriptorType` / `EntityDescriptorUnion` |
+| ③ its own topic, `Reliable` + `TransientLocal` | ⭐ what makes a late-joining IG see the colour |
+| ④ egress + ingress translators, gated on authority | the established pattern |
+| resolution at draw time | `EntityAppearance` if present → else `VisualData.ColorHex` (TKB) → else the family default |
+
+✅ **Approved (U22)** — *"color would be then similar to attribute like affiliation - runtime stuff"*.
+
+📐 **Affiliation is exactly that shape already, measured `2026-10-10`** — so the colour copies it field for field and is
+**not** the first of its kind (an earlier revision said it was):
+
+| | affiliation today | the colour |
+|---|---|---|
+| ECS component | `EntityInfo.ForceId`, `[PerInstanceValue]` (`EntityInfo.cs:3-16`) — *"authored PER SPAWN … the template value is a placeholder that must lose"* | `EntityAppearance.ColorRgba`, `[PerInstanceValue]` |
+| TKB default | stamped only if absent: `BehaviorTkbTranslator.cs:61-62`, `PresentationTkbTranslator.cs:70-73` | `VisualData.ColorHex` → stamped only if absent (`PresentationTkbTranslator`) |
+| per-spawn value wins | `NetworkSpawningSystem.cs:207-209` applies `InitialComponents` after the TKB translators | same path, unchanged |
+| saved in the scenario | `"EntityInfo": { "ForceId": "Friend" }` (`scenarios/tests/hill-attack/scenario.json:123-126`) | `"EntityAppearance": { … }` |
+| network | DDS `EntityInfo` descriptor, `Reliable`/`TransientLocal` (`GenericDescriptors.cs:146-171`; translators `EntityInfoEgress/IngressTranslator`) | its own descriptor arm, same QoS, same translator pair |
+| runtime change | attribute `"Affiliation"` → `UpdateEntityAttributeRequest`, authority-checked (`AttributeIds.cs:49`, `UpdateEntityAttributeRequestSystem.cs:24-59`) | attribute `"Color"` through the same path |
+| design basis | `docs/designs/tkb-1/DESIGN.md` §6.6a (`:828`, `:845`) | the same section's `[PerInstanceValue]` rule |
+
+⭐ **Its own descriptor, not a field on `EntityInfo`**: `EntityInfo` is a wire descriptor other nodes already read; a
+separate arm adds a topic and changes no existing message. ⚠ The NED part is the backend lane's area — named, not a stop.
+
+### 3.8 Picking, handles and tools in 3-D — the same tools, the same handles *(U21)*
+
+⭐ **Goal (U21):** click an entity to select it (an invisible oriented box, no new raycast engine); measurement, placement
+and area-authoring tools work in both modes; gizmo handles are clickable and draggable in 3-D, dragged along the
+terrain; **cards are not clickable**; the 3-D map stays mostly rendering.
+
+📐 **What was measured `2026-10-10`, and what it decided**
+
+| question | measured | ⇒ |
+|---|---|---|
+| reuse the simulation's raycasts for picking? | ⛔ `RaycastSolverSystem` is **asynchronous** — a `RaycastRequestEvent` now, its `RaycastResultEvent` on a later tick (`RaycastSolverSystem.cs:13-21`) — and runs in the sim schedule, which is often **paused** while authoring; its entity collider is a **2-D circle + height** (`PhysicsCollider`, `PhysicsComponents.cs`) | ⛔ not for clicks: a click needs its answer in the same frame, paused or not |
+| …the terrain's own segment query? | `TerrainWorld.QuerySight` is synchronous and knows walls, panels, doors, slabs, ramps — ⚠ but for a prism it reports where the ray's **footprint** enters it (`t0 * length`, `TerrainWorld.cs:400-405`), not where it meets a roof from above, and its own doc calls it a **diagnostic** that allocates (R-220) | ⛔ not for the hit POINT; ✅ the sim's `SurfacesAt` / `ResolveLevel` (`:241,283`) say **which floor** a point is on |
+| what geometry to hit? | the terrain we draw **is** `TerrainWorldMesh` — the same soup the navmesh is baked from (`TerrainWorldMesh.cs:31`) | ⭐ ray vs **that mesh** (Raylib `GetRayCollisionMesh`) — exact, allocation-free, the simulation's own geometry |
+| where does height get lost today? | five sites build the 3-D event position with `z = 0`: `DebugGizmoLayer.cs:122`, `GizmoInteractionProxyTool.cs:42,61,75`, `EntityPlacementGizmo.cs:236` — while the interaction API is **already 3-D** (`IGizmoInteractionHandler.OnDragUpdate(Vector3)`, `GizmoDragUpdateEvent.WorldPos`) | ⭐ feed those five from the pick, and every handle and tool gets real height for free |
+
+#### The pick — one function in `MapCamera3D`, nearest hit wins
+
+```mermaid
+sequenceDiagram
+  participant C as MapCanvas
+  participant K as MapCamera3D
+  participant P as Picker3D
+  participant TW as TerrainWorld (sim)
+  C->>K: ScreenToWorld(mouse)
+  K->>P: ray from the camera
+  P->>P: 1 handles with real height - small spheres (GetRayCollisionSphere)
+  P->>P: 2 entities - an oriented box per entity, from its shape kit's bounds
+  P->>P: 3 terrain - the drawn TerrainWorldMesh (GetRayCollisionMesh)
+  P->>P: 4 else (ray misses the terrain) the nearest terrain edge
+  P->>TW: SurfacesAt(hit x, y) - which floor or roof, for placement
+  P-->>K: PickResult(point XYZ, kind, netId?, level?)
+  K-->>C: world XY - the layers hit-test exactly as in 2-D
+  C->>C: LastPick = the PickResult - the five z = 0 sites read its Z
+```
+
+*What it shows:* the layers still receive world X/Y and run their **2-D hit tests unchanged**. ⭐ An entity hit returns the
+entity's own ground position, so its existing 2-D pick box contains it; ⭐ a handle or pick box lying on the ground is found
+because the ray lands on the ground exactly under it. Only height is new, and it reaches the gizmos through one value.
+
+#### The rules
+
+| # | rule | why |
+|---|---|---|
+| **P1** | ⭐ **entity hit volume = an invisible oriented box from the entity's shape-kit bounds** (TKB length / width / height, the entity's heading) — not the sim's collider | the box is **what the user sees**; the sim collider is a bounding circle (a 10 m tank gets a ~5 m radius, so clicking empty ground beside it would select it) and not every entity has one |
+| **P2** | ⭐ **while dragging, the ray hits terrain and ground only** — not entities, not the handle being dragged | a handle follows the terrain under the cursor; `MapCanvas` asks `Camera.ScreenToWorldForDrag` when it routes a drag (2-D: same as `ScreenToWorld`) |
+| **P3** | ⭐ **the dragged point takes the terrain's height** at the cursor; on a building, the roof or floor the ray hit | real `Z` in `GizmoDragUpdateEvent.WorldPos` |
+| **P4** | ⭐ **2-D-authored shapes are draped onto the surface — and FOLLOW it**: a world-space shape whose points all have `z = 0` (a pick box, an area, a measurement line, a route) is drawn on **level 0 at each point** — the ground surface there, `ResolveLevel(x, y, 0)` — plus a few cm. ⭐ Lines and fills are **subdivided** (a segment split every few metres, a fill tessellated) and every vertex draped, so a line crosses a hill instead of cutting through it (§3.10). A shape with real height is drawn as given | handles, areas and lines lie on the terrain in 3-D without touching their gizmos; level 0 keeps a ground shape on the ground under a roof, not on the roof. ⛔ (rev 9 said `SurfaceZ(x, y, zHint = 0)` — a constant hint is wrong once the ground has height, R-248) |
+| **P5** | ⭐ **cards are not pickable** — renderer only | U21 |
+| **P6** | ⭐ hover runs the same pick every frame; clicks reuse it | one code path |
+
+#### The three tools — what changes
+
+| tool | in 3-D | code change |
+|---|---|---|
+| **measurement** | endpoints are pick points with real height; the line drawn in 3-D between them; distance as today (a slant distance can be shown too) | ⚠ corrected rev 9: `MeasureGizmo` stores `Vector3` points but **draws** at `z = 0` (`:122-136`) and measures in 2-D (`:140,172-174`) ⇒ a small edit to draw at the stored Z (§3.9 H1) |
+| **area authoring** | points picked on the terrain; the polygon draped (P4) | ⚠ corrected rev 9: `PointSequenceGizmo` keeps only `Vector2` (`:134`) and `AreaAuthoringArm` forces the anchor to `z = 0` (`:198`) ⇒ an area drawn on a roof would drape to the ground. Fixed by §3.9 M22 step 1 (the anchor keeps the picked height) |
+| **placement** | a translucent **shape-kit ghost** at the pick point instead of the 2-D ghost; ⭐ clicking a **roof or upper floor** chooses that level, through the sim's `SurfacesAt` / `ResolveLevel` and the existing `SpawnHeight` request (CE-1017 S2) | the ghost's 3-D draw; the level from `PickResult.Level` |
+
+⭐ **Gizmo handles generally** — any `IStatefulGizmo` with pick boxes keeps working: its pick boxes and handles drape onto
+the ground (P4), clicking lands under them (the pick), dragging follows the terrain (P2/P3), and `OnDragUpdate` now
+receives real height. ⛔ No gizmo is rewritten; ⚠ the few that should SHOW height get small edits (§3.9).
+
+⚠ **What "the five `z = 0` sites" means** (rev 9): those five build the 3-D position that goes INTO a gizmo. Many more
+gizmos DRAW at `z = 0` — they are §3.9's group B, and draping covers them.
+
+### 3.9 Height — which gizmos have it, which should get it, and areas with height *(U22)*
+
+📐 **Measured `2026-10-10`.** The primitive format mixes kinds that carry a Z for each point (`Line`, `Arrow`, `Sphere`,
+`SpatialAnchor`) and kinds that have **no Z field at all** (`Box2D`, `FilledTriangle`, world `Text`, `Icon`, `MilStd2525`;
+`DebugPrimitive.cs:99-235`). There is no polygon kind (a polygon is lines + filled triangles) and no volume kind. The
+graph lists 73 `*Gizmo` classes (tests and examples included). ⚠ The ground is flat **today only** — `TerrainWorld` has one
+`GroundZ` (`:93`, *"until a heightfield exists"* `:319`). 🔒 **`R-248`: nothing here may rely on that** (§3.10).
+
+```mermaid
+graph LR
+  P[gizmo producer] --> A["A: real height already<br/>(sim data)"]
+  P --> B["B: Z field present,<br/>producer writes 0"]
+  P --> C["C: kind has no Z"]
+  A --> D1[drawn as given]
+  B -->|has a height to give| D1
+  B -->|no height| D2["draped on the surface<br/>(M18)"]
+  C --> D2
+```
+
+*What the picture shows:* only group B is a choice. A is already right, and C cannot carry height without changing the
+64-byte wire struct.
+
+| group | examples, measured | in 3-D |
+|---|---|---|
+| **A — real height already** | fire traces (`FireTraceGizmo.cs:82-94`), detonation bursts (`DetonationGizmo.cs:40-44`), door leaves (`DoorLeafGizmo.cs:47-62`), visibility cones (`VisibilityConeGizmo.cs:40-58`); everything anchored to an entity (bodies, badges, labels, cards) through `SpatialAnchor` | drawn as given |
+| **B — could carry height, writes 0** | measurement (`MeasureGizmo.cs:122-136`), area outline (`PointSequenceGizmo.cs:95-108`), vertex edit (`VertexEditGizmo.cs:122-123`), routes (`AuthoredRouteGizmo.cs:70`, `RouteGizmo.cs:37`), entity-drag marker (`EntityDragGizmo.cs:89`), terrain outlines (`TerrainWorldGizmo.cs:125`), rubber band, pickers; the danger area draws at its centre height and **ignores its own height band** (`DangerAreaGizmo.cs:47-55`) | draped, unless H1 gives it a height |
+| **C — no Z in the kind** | pick boxes and handles (`Box2D`), area and terrain fills (`FilledTriangle`, `MapOverlayGizmo.cs:34-41`), loose world text, icons, 2525 symbols | always draped |
+
+| # | rule |
+|---|---|
+| **H1** | ⭐ a group-B producer becomes height-aware **when it has a real height to give**: tools take it from the pick (measurement endpoints and its slant distance; area points), routes from their waypoints, the danger area from its band. Everything else keeps writing 0 and is draped — **no blanket conversion** |
+| **H2** | ⭐ group C stays draped; the 64-byte primitive is not widened. One cheap exception, to confirm first: `FilledTriangle` seems to leave bytes 48-51 unused, enough for one **flat fill height**, so an area's fill can sit on a roof |
+| **H3** | ⭐ the danger area shows its band in 3-D: bottom outline, top outline and corner edges as `Line`s at `ZFloor` / `ZCeiling` (all already in `DangerAreaDescriptor`, `:44`). In 2-D the extra lines lie on top of each other, so it looks the same |
+
+#### Areas with height
+
+📐 **Measured: no authored area has a height today.** The tactical area (`TacGraphic_Area`) and the terrain zone store
+2-D point offsets (`EditablePolyline`, `List<Vector2>`, `EditablePolyline.cs:39`) around an anchor forced to `z = 0`
+(`AreaAuthoringArm.cs:198`). The "is it inside" test is 2-D (`EntitiesInAreaGenerator.cs:66-107`). The network form
+carries an altitude per point (`GeoPoint`), but the receiver throws it away (`MapVisualOverlayIngressTranslator.cs:196-211`).
+The only height bands in the code are runtime ones: the danger area's `ZFloor`/`ZCeiling`, and a no-fly box used only
+in navigation tests. ⛔ A **terrain zone** is a load window (R-146), not a tactical area — it never gets a height.
+
+| step | what | basis |
+|---|---|---|
+| **1 — an area on a level** *(with S2)* | the area sits on the **level that was clicked** — 0 = the ground, n = the n-th surface above it (a roof, a deck, an upper floor). ⭐ It is a LEVEL, not a height: the anchor keeps the picked height, the level is read back from it (`SurfacesAt` at the anchor), and every point is draped to that level **at its own (x, y)** — so a ground area over a hill follows the hill (R-248). No new field. `EntitiesInArea` stops flattening Z and tests "same level" | `docs/designs/promote-to-3d/3D_Cognitive_Spatial_Awareness_Promotion_Design_v1_1.md` Tier 2 (`:115-122`): *"stop flattening SimTransform's 3D position"*, *"no new vertical-band parameter needed"* |
+| **2 — an area with a height band** *(only when something needs it)* | an optional `{ Floor, Ceiling }` relative to the anchor — the danger area's pattern; drawn as a wire prism (H3); the inside test checks the band | `docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md` §5.2 (`:201-205`): *"2.5D extent — OBB footprint + height band (multi-level: street vs. deck = two areas, same X/Y, disjoint Z)"* — written for danger areas |
+
+⚠ Step 2 has **no consumer yet**. A translucent filled prism would need triangles with height, which the format does
+not have, so the first version is wireframe only. Step 1 is what the 3-D tools need; step 2 waits for a real use
+(airspace for helicopters, a defended rooftop).
+
+### 3.10 Terrain with relief — what the 3-D map assumes *(U23, R-248)*
+
+🔒 **User:** *"never count with terrain being flat, this is just current simplification that should be removed soon."*
+⇒ the 3-D map never reads `GroundZ`. It asks the terrain only these questions, which mean the same thing on a flat bed
+and on hills:
+
+| the 3-D map needs | asked through | over relief |
+|---|---|---|
+| what does the terrain look like | `TerrainWorldMesh`, drawn as-is (M4) | ⭐ the relief is in the mesh the moment the mesher emits it — no renderer change |
+| where did the click land | ray vs that mesh (M17) | ⭐ exact on any shape; nothing assumes a plane |
+| where is the ground at (x, y) | `ResolveLevel(x, y, 0)` — level 0 | ⚠ today returns `GroundZ`; with terrain height it must return the ground height there |
+| which floor or roof is this | `SurfacesAt(x, y)` / `ResolveLevel(x, y, n)` | ⚠ today counts level 0 as `GroundZ`; same change |
+| draping a line or fill | level 0 per vertex, **subdivided** (P4) | ⭐ follows hills; on a flat bed it collapses to the old result |
+| the 2-D ↔ 3-D swap pivot | the look-at point at its ground height | ⭐ pivots on a hilltop correctly |
+| spawning on the clicked spot | the existing `SpawnHeight` + `ResolveLevel` | ⭐ unchanged |
+
+```mermaid
+graph TD
+  M[3-D map: picking, draping, levels, swap] -->|ray| ME[TerrainWorldMesh]
+  M -->|level 0 / level n| RL["TerrainWorld.ResolveLevel / SurfacesAt"]
+  RL --> G["ground height at (x, y)"]
+  G -.->|today| GZ["one GroundZ (temporary)"]
+  G -.->|soon| HF["terrain height (owned by DESIGN_Terrain_World)"]
+  ME -.->|soon| HF
+```
+
+⭐ **`R-250` (`2026-10-10`):** the two seams are **interfaces**, not the stand-in's classes — `IWorldQuery` (pick, level 0) and
+`ITerrainRenderGeometry` (the mesh), [`DESIGN_World_Query_Seam.md`](DESIGN_World_Query_Seam.md) WQ-G — so a production
+engine can stand behind the editor's 3-D view too.
+
+*What the picture shows:* the 3-D map touches the ground through two seams only — the mesh and level 0. Replacing the
+flat bed changes what is behind the dashed edges; nothing on the map side changes. ⭐ **Proven before the flat bed goes**:
+S1/S2 run on a small sloped test terrain, so the map is never built against the simplification.
+
+⚠ Supplying terrain height (file format, mesher, navmesh, sensors, ballistics) is planned in
+[`DESIGN_Terrain_Height.md`](DESIGN_Terrain_Height.md), extending `DESIGN_Terrain_World.md` — not in this file.
+
+### 3.11 Articulated parts — the turret traverses, the gun elevates *(U24)*
+
+🔒 **User, `2026-10-10`:** *"the tank models need the turret to be movable left/right as well as the barrel (up/down) as
+articulated part - tank entity needs a way describing the orientation of its turret+barrel (maybe a sub-entity with component
+containing turret hull relative azimuth and turret-relative barrel elevation - there used to be a multi-entity tank demo)."*
+
+📐 **Measured, `2026-10-10` (graph + grep + a corpus sweep of `docs/`, `.dev/`, `FDP/Docs`):**
+
+| what exists | where | live? |
+|---|---|---|
+| the PART link `PartMetadata { ParentEntity, InstanceId }`, children destroyed with the parent | `Replication/Components/PartMetadata.cs:13` · `SubEntityCleanupSystem` (`NedReplicationModule.cs:467`) | ✅ production (EQS sensors, weapon mounts) |
+| a child entity per extra weapon mount, carrying `PartMetadata` | `CombatTkbTranslator.cs:95-122` | ⚠ **designed, never created in production** — `WeaponMountInfo` is registered only in tests (`DESIGN_Ownership_Groups_And_Grants.md` F-6, re-grepped `2026-10-10`) |
+| the multi-instance wire pattern: key `(EntityId, InstanceId)`, per-instance authority | `MultiInstanceCycloneTranslator.cs:19-151` · `docs/reference/BDC_NED_SST_Descriptor_Rules.md:49` | ⚠ tests only (`Q79` §0.10) |
+| a turret angle anywhere | — | ⛔ **none**: fire computes the shot direction per shot and drops it (`FireProcessingSystem.cs:132-150`); the brain's aim state is a timer |
+| the "multi-entity tank demo" | `.dev/_DONE/demos-1/FDP-demos-all.md:921-1025` (spec: a turret entity with a parent link, yaw 90 vs hull 0) | ⛔ never built as specified — `DistributedTankScenario` has a turret entity with no link and no angle |
+| `TurretState`, `TurretRotation`, "✅ Production" multi-turret | `FDP/Docs/projects/examples/Fdp.Examples.NetworkDemo.md:173` · `Fdp.ModuleHost/docs/UserGuide/08_NetworkIntegration.md:4073` · `FDP.Toolkit.Replication.md:1048` | ⛔ **known-rot**: those types do not exist |
+
+✅ **Built now (map side):** a kit part has a ROLE — hull, turret or gun — and the kit names its turret axis and gun trunnion
+(`KitPivots`). `EntityBodyLayer3D` poses them from an `ArticulationPose` (turret azimuth relative to the hull, gun elevation
+relative to the turret) taken from ONE seam (`poseOf`). ⭐ **WL-1a (`2026-10-11`):** the seam is fed in production by
+`TurretPoseSource` — turret 0's `TurretPose`, wired once in `MapInteractionPack` (DESIGN_Weapon_Layers §5a). ⛔ SUPERSEDED: "null in
+production until M23 is ruled".
+
+| # | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **M23** ✅ *(U28)* | where the pose lives | ⭐ **a part child per turret**: `PartMetadata { Parent = hull, InstanceId = turret index }` + a new `TurretPose { float Azimuth; float Elevation; }` (radians; azimuth counter-clockwise from the hull's forward, elevation up from the turret plane) — the turret and its gun are ONE assembly | a component on the hull — one turret only, and no separate owner for a gunner node (`R-168`) · one entity per joint (turret + gun) — elevation only ever means "relative to its turret" |
+| **M24** ✅ *(U28, reworded)* | who writes it | ⭐ the **weapon side — the weapon logic** turns the turret and gun: it knows how to aim (TKB rates and limits); the brain only names the TARGET, never an angle | the brain writing angles — kinematics in the brain (`R-252`) · fire writing its shot direction back — per shot and dispersed |
+| **M25** ✅ *(U28)* | the TKB | ⭐ a turret descriptor per turret part: pivot offset, traverse and elevation limits, slew rates; weapon mounts name the turret they sit on | angles with no limits — a turret could aim through its own hull |
+| **M26** ✅ *(U28: "solved already")* | the wire | ⭐ the NED/BDC multi-instance descriptor pattern the sensor sub-entities already use in production — 📐 `EqsSensorConfigTopic { ParentNetworkId, LocalChildIndex }` with the child identified by `PartMetadata` (`EqsSensorConfigEgressTranslator.cs:99,237`); a DIS gateway maps it to the articulated parts 4107 (turret 1 azimuth = 4096 + 11) and 4429 (gun 1 elevation = 4416 + 13) | putting the angles into the hull's geo descriptor — breaks the one-descriptor-per-concept rule and multi-turret vehicles |
+
+⚠ **As built (WL-1a, `2026-10-11`) — M23's part id is `2000 + turret index`, not the bare index** (`TurretParts.FirstPartId`):
+on the wire a part id is scoped to its descriptor (`dtTurretPose` cannot collide with the sensor descriptor), so the offset is not
+needed there; it keeps a parent's part ids unique ACROSS part classes locally (mounts `1…N`, TKB sensors `1000 + index`), which costs
+nothing. 🔒 **User, `2026-10-11`:** *"Part ids are usualy scoped to their careying NED descriptor types … But keeping unique ids
+independently on part class of course does not do any harm."* The index is recoverable (`TurretParts.IndexOf`).
+
+✅ **Ruled `2026-10-10` (U28, R-255) ⇒ READY-TO-BUILD.** ⚠ The turret part, the weapon-side slew and the descriptor are the
+combat / network lanes' code; the map reads the pose through `EntityBodyLayer3D`'s one `poseOf` seam once the component exists.
+
+---
+
+### 3.12 The camera entity (S5) — ✅ RULED `2026-10-11` (U29, R-260): all three leans approved *(measured `2026-10-11`)*
+
+📐 **Inventory** (graph `search_graph .*Camera.*` label Class: 20 results, `has_more:false`, plus grep; `check_index_coverage`
+not available through the CLI): no code saves or restores the map view today. The scenario JSON has only `header` +
+`entities` (all 21 scenarios grepped). There is no camera / viewpoint ECS component on any host. The only "camera" a scenario
+carries is ExCon's fake observer slice (`ExConScenarioSaveHandler.cs:63-65`). Stride's `CameraBookmarkStore` is per-user,
+not per-scenario. The requirement record is `DESIGN_Godot_3D_Viewer.md` V-12..V-15, U3, U7 and D7 (`:69-72, :85, :89,
+:445`): one ordinary spatial entity of a camera TKB type per launching host, its pose in the usual position component.
+
+| the question | what the code does | design basis | ⭐ lean |
+|---|---|---|---|
+| **Q-S5a: who owns a saved camera after a reload?** | on load every saved entity is re-spawned through `EntityCreationRequest` (`ScenarioLoadStep.cs:129,152-154`), with ownership stripped (`StagingEntityExtractor.cs:49-60`) ⇒ the LOADING node owns it, not the map host that made it | V-13: *"owned by the host that created"* · 🔒 **R-140**: IG never owns persistable entities | ⭐ **the camera is a SCENARIO entity, owned by the saving node** (Editor / Brain), like a tactical graphic. Every map host READS it when the scenario opens (V-12), and a map host that is not the owner only asks for it to move (`UpdateEntityAttributeRequest`, D7). ⇒ ⚠ **this reads V-13 differently**: the creator asks for the camera, it does not own it. IG never saves one (R-140) |
+| **Q-S5b: one camera per scenario, or one per host?** | nothing exists; any map host can make one (the Editor, CGF, SimHost, IG; never ReplayBrowser) | U3: *"one per launching host"* | ⭐ **one per scenario: "the view the scenario opens in".** Per-host cameras would save N views and leave it unclear which one opens. ⚠ This changes U3 for the map case; Godot's per-viewer camera was a different situation, a separate window per host |
+| **Q-S5c: where do distance and the 2-D / 3-D mode live?** | `SimTransform` has a position + rotation. `CameraPose` is (look-at, distance, yaw, pitch) (`MapCamera3D.cs:13`) | U7: *"usual world position component"* · M10: *"look-at, distance, yaw, pitch and the mode"* | ⭐ **no new component**: `SimTransform.Position` = the EYE, `Rotation` = yaw and pitch. Look-at and distance follow from the eye and the ground. Mode = 2-D iff the pitch is overhead (M10: *"the 2-D map is simply that camera at pitch −90°"*), so an overhead 3-D view reopens as 2-D, the same picture |
+
+⚠ **Also found:** `EntityBodyLayer3D` would draw a camera entity as an "Unknown" box (`EntityBodyLayer3D.cs:249-261`), so a
+camera type must be excluded the way effect types are. And no "camera moved" event exists (grep `CameraMoved|ViewChanged`: 0).
+⭐ **The build shape, once ruled:** a `MapViewModeLayer`-style layer added in `AttachMapLayers` (every host by construction).
+It adopts the camera entity's pose and mode once when the scenario opens (`MapCamera3D.Pose`,
+`MapViewSwitch.Set(on, animate: false)`, `MapViewSwitch.cs:44`) and asks for a move when the user leaves the camera still.
+
+## 4. THE REUSE LEDGER
+
+| piece | verdict | evidence |
+|---|---|---|
+| `MapCanvas` — layers, input routing, right-drag vs right-click | ✅ reused; **2 edits**: `Draw()` branches to `Draw3D` when the camera is 3-D; `deltaWorld` comes from the camera instead of `delta / Zoom` (2-D result unchanged) | `MapCanvas.cs:115-140` (Draw), `:168` (`deltaWorld = delta * (1/Camera.Zoom)`) |
+| `MapCamera` | ✅ reused as the base — its `Update`, `HandleInput`, `BeginMode`, `EndMode`, `ScreenToWorld`, `WorldToScreen` are already `virtual` | `MapCamera.cs:144-354` |
+| `IMapLayer` | ✅ + one **default** method `Draw3D` (no-op) — no existing layer is forced to change | `CoreInterfaces.cs:37-92` |
+| `DebugGizmoLayer`, `SelectionRenderSystem`, `GridMapLayer` | ✅ + a `Draw3D` each — ⚠ **`GridMapLayer` never got one** (measured `2026-10-23`, §6ac: it is absent in 3-D and `LayersWithout3D` counts it) | — |
+| the whole input side: selection store + request, `ContextMenuAdapter`, tools | ✅ **unchanged** — they receive world XY as today | §3.3 |
+| `MapInteractionPack` | ✅ builds the 3-D camera and the two new layers for all five hosts | 5 host call sites |
+| `DebugPrimitiveRenderer3D` triage + `IDebugDrawSink3D` | 🔁 **extract** to a shared net8 assembly; Stride keeps its sink, the map adds a Raylib sink | `Stride/Hrot.Stride.Core/DebugPrimitiveRenderer3D.cs:50-292,373-392` |
+| `TerrainWorldMesh.Build` | ✅ + an **optional** per-triangle tag output (ground / surface / roof / wall / slab + material) — verts and indices unchanged, so the navmesh is unaffected | `TerrainWorldMesh.cs:31` |
+| fire / detonation visuals | ✅ **free in S3** — `FireTraceGizmo` / `DetonationGizmo` already emit 3-D lines and spheres | gizmo sweep 2026-10-10 |
+| vehicle sizes | ✅ `VehicleParametersDto` / `SimVehicleDef` | TKB |
+| stance | ✅ `LogicalStance.Of` for the pose; `StanceStatus.Phase` / `TransitionProgress` to blend into it | `Tkb/Domain/StanceComponents.cs:58,82` |
+| `LocomotionBlend` (speed → idle/walk/run weights, pure `System`) | 🔁 **extract** beside the gizmo triage — drives the limb swing | `Stride/Hrot.Stride.Animation/LocomotionBlend.cs:99-145` |
+| 2-D renderer's screen-space text + badge drawing | 🔁 **extract** to `GizmoTextDraw` — the 2-D screen-space branch and the 3-D overlay both call it | `DebugPrimitiveRenderer2D.cs:388-447` |
+| icon fallback's "what kind of thing is this type" | 🔁 **extract** to `VisualFamily.Of` — the icons and the 3-D kits both call it | `EntityTypeCatalog.cs:128-143` |
+| `MapCamera3D`, `TerrainLayer3D`, `EntityBodyLayer3D`, `LabelOverlay3D`, `ShapeKit` + the kit table, `BlockFigure` (the six-box pose math, unit-tested), `RaylibDrawSink3D`, the lit shader, the switch | 🆕 new | — |
+
+---
+
+## 5. DECISIONS
+
+| # | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **M1** | where 3-D lives | ⭐ a **mode of the existing map** (U13) — camera swap + `Draw3D` | a separate panel/window — a second map, second input chain |
+| **M2** | 3-D input | ⭐ `MapCamera3D.ScreenToWorld` = ray → entity box (→ that entity's ground XY) → terrain → ground plane; every layer keeps its 2-D input code | 3-D-specific input per layer — rewrites selection, menus and tools |
+| **M3** | 3-D drawing | ⭐ `IMapLayer.Draw3D` default no-op; layers opt in; `PerceptionMapLayer` skipped and **counted** | a parallel 3-D layer list — two lists to keep in step |
+| **M4** | terrain mesh | ⭐ extend `TerrainWorldMesh` with optional tags; the renderer adds what navigation does not need (water surface, surface colours, road ribbons) beside it | a second mesher for rendering — duplicates prisms/walls/slabs |
+| **M5** | lighting | ⭐ **one small GLSL shader** (330): vertex colour × (ambient + sun·N), distance fog to a sky colour; flat normals by un-indexing triangles | CPU-baked vertex lighting — entities rotate, so it would need re-baking every frame |
+| **M6** | textures | ⭐ a later slice: **CC0** packs only, mapped in the shader from **world position** (triplanar) so the mesh needs no UVs | UV-unwrapping terrain — work the triplanar trick avoids |
+| **M7** | entities | ⭐ **shape kits** (§3.5): a kit is a short list of parts (box / cylinder / cone / wedge) placed as fractions of the type's length, width and height, each with a colour role (body = the entity colour, §3.7; dark; glass; metal) and an optional cheap motion (rotor spin, wheel roll, limb swing). The kit is chosen by **one visual-family classifier** extracted from the icon fallback. **Humans are the person kit** — the six-box block figure (U14), posed by the shared stance rule `LogicalStance.Of` (`StanceComponents.cs:82`), blended by `StanceStatus.TransitionProgress`, limbs swinging via `LocomotionBlend.FromSpeed`; a rifle part when the entity is a soldier (DIS life form, category 1), none for civilians | one box per vehicle (rev 1) — U18 · real models — U12 · a second classifier for 3-D — the icon fallback already answers "what is this type" · showing `StanceStatus.CurrentStance` alone — would disagree with `LogicalStance` readers |
+| **M8** | free camera | ⭐ Unity scene view: **RMB-drag** look, **WASD/QE only while RMB is held** (so tools keep their keys), wheel dolly, MMB pan, **F** frames the selection; right-**click** stays the context menu (the canvas already tells drag from click) | always-on WASD — collides with tool keyboard input |
+| **M9** | coordinates | ⭐ one transform: HROT `(x, y, z)` → Raylib `(x, z, −y)`, quaternion `(x, y, z, w)` → `(x, z, −y, w)` (det +1, no flip) | — |
+| **M10** | the camera entity (V-12..V-15) — **what it stores** | ✅ **APPROVED (U17): one camera entity for the map, in both modes**: look-at point, distance, yaw, pitch and the mode. The 2-D map is simply that camera at pitch −90°, north up. An ordinary spatial entity (U7), owned by the host, saved with the scenario, created on the first camera move — so a saved scenario reopens the map where it was looking, in the mode it was in | 3-D pose only (rev 2's lean) — two camera states for one map · no entity at all — simpler, but drops V-12's "saveable to scenario" |
+| **M11** | network viewer (V-18) | ⭐ an IG node with the map in 3-D — nothing extra | a dedicated viewer node — IG already is one |
+| **M12** | the 2-D ↔ 3-D switch (U15) | ⭐ an **animated camera move** pivoting at the overhead pose (§3.3): both swaps happen where 2-D and 3-D look the same | a hard cut — the user asked for animation · morphing orthographic into perspective — needless; overhead perspective at matched height is close enough |
+| **M13** | labels in 3-D (U16) | ⚠ **its "drawn always on top" is SUPERSEDED for the default by §6am (CE-4582, 2026-11-14): depth-tested, a toggle restores on-top.** ⭐ a screen-space `LabelOverlay3D` pass after the 3-D pass: the existing `Text` / `EntityBadge` primitives, anchors resolved with Z, lifted to the top of the entity's 3-D body, projected by `MapCamera3D.WorldToScreen`, drawn by the 2-D renderer's screen-space text code (extracted, one implementation). Far labels hide by the primitives' own `MinZoomLod` / `MaxZoomLod`, using an equivalent zoom = pixels per metre at the label's distance. Drawn always on top first (name-tag style); hiding labels behind buildings by a ray test is a later option; decluttering overlaps later | 3-D text meshes (billboarded geometry in the scene) — a second text renderer, unreadable at distance · a new label primitive — every gizmo would have to change |
+| **M14** | the entity card (U19, U20) | ⭐ **a small canvas per entity**: a 4th anchoring mode `CoordinateSpace.EntityCard`; the card **exists iff a visible primitive targets it**; rows by `ZIndex`, row 0 card-wide; card-local pixels, `ScreenPercent` = % of the card; frame, health bar and name are **ordinary gizmos** (`EntityCardFrameGizmo`, re-targeted `HealthBarGizmo`, `EntityNameGizmo`); one `EntityCardRenderer` for 2-D and 3-D asking the camera for the screen point; **no new primitive kind**; loose text unchanged (§3.6) | dedicated `CardHeader` / `CardBar` shapes (rev 6) — U20: a header is not needed and shapes would be card-only · absolute card pixels per gizmo — independent gizmos would collide · a card drawn by the terminal from ECS — not network-capable, not extensible |
+| **M15** | entity colour (U19) | ✅ **APPROVED (U22)**: `EntityAppearance { ColorRgba }`, built **like affiliation** (`EntityInfo.ForceId`, §3.7): `[PerInstanceValue]`, TKB default `VisualData.ColorHex` stamped only if absent, saved in the scenario, its own `Reliable`/`TransientLocal` descriptor arm (`R-136` §4.1), changeable at runtime through the `"Color"` attribute | writing the override into `VisualData` — illegal under R-136 (TKB-derived, §3 ②) · a command to set it — §5: unreconstructible by a late joiner |
+| **M16** | side colours | ⭐ **one palette**: friend / opposing / neutral colours defined once, looked up by `ForceId` (the card frame, placement ghost) and by the 2525 affiliation letter (the symbol renderer) | ⚠ today there are **three** mappings and they disagree: IG's `ResolvedStyleConstants.cs:29-67` (by `ForceId`; its `ResolvedStyle.Tint` is read by no renderer), `EntityPlacementGizmo.cs:278-283` (by the placement JSON) and `MilStd2525Renderer.cs:84-96` (by symbol code). The 2-D map's entity shape ignores side altogether — fixed cyan (`EntityPresentationGizmoShared.cs:247`) |
+| **M17** | picking (U21) | ⭐ one `Picker3D` in `MapCamera3D`: handles (spheres with height) → entities (an **oriented box from the shape-kit bounds**) → terrain (Raylib ray vs the drawn `TerrainWorldMesh`, the sim's own geometry) → ground; the floor from the sim's `SurfacesAt`/`ResolveLevel`; the layers keep their 2-D hit tests | the sim's `RaycastSolverSystem` — asynchronous and tick-driven (`:13-21`), no answer while paused · its `PhysicsCollider` — a bounding circle, too wide for long vehicles, absent on some types · `TerrainWorld.QuerySight` for the hit point — reports the footprint entry for prisms (`:400-405`), allocates (R-220) |
+| **M18** | draping (U21, U23) | ⭐ a world-space shape whose points are all `z = 0` is drawn on **level 0 at each point** (`ResolveLevel(x, y, 0)`), **subdivided** so it follows relief; a shape with height is drawn as given | skipping 2-D shapes in 3-D (Stride's triage) — handles, areas and measurement lines would vanish |
+| **M19** | height into gizmos (U21) | ⭐ `MapCanvas.LastPick` carries the 3-D hit; the five `z = 0` sites read its Z (2-D: 0, byte-identical); dragging hits terrain only (`ScreenToWorldForDrag`) | widening `IMapLayer.HandleInput` to `Vector3` — six implementers changed for one number |
+| **M21** | height in gizmos (U22) | ⭐ §3.9 H1–H3: group B gets a height **only where it has one** (tools from the pick, routes, the danger band); groups B (no height) and C drape; the wire struct unchanged | converting every producer to 3-D — dozens of edits for shapes that mean "on the ground" · widening `Box2D` / `Text` — breaks the 64-byte DDS invariant |
+| **M22** | areas with height (U22) | ⭐ **step 1 now** (the anchor keeps the picked height; same-level inside test); **step 2 on demand** (an optional floor/ceiling band, danger-area pattern, wireframe) | a band on every area now — no consumer; R-150 (complexity an author must understand is a cost) · authored per-point Z — a ramp-shaped area nobody asked for |
+| **M20** | 3-D-aware tools (U21) | ⭐ measurement and area authoring need no code beyond M19; placement shows a **shape-kit ghost** and takes the clicked roof/floor as the spawn level via the existing `SpawnHeight` | per-tool 3-D variants — two tools per concept |
+
+---
+
+## 6. SLICES
+
+| slice | delivers | proves |
+|---|---|---|
+| **S1** | `MapCamera3D` + the animated switch (Editor); `TerrainLayer3D` from `TerrainWorldMesh` as-is, one colour per kind, lit shader + fog; `EntityBodyLayer3D` with `VisualFamily` + the shape kits for every built-in type (static) and block figures in their three stance poses; free camera; **Xvfb screenshot of the editor in 3-D on `test-town`** | the render path, the shader on the cloud's software GL, M8 |
+| **S2** ✅ *(§6d)* | `Picker3D` (handles → entity boxes → terrain mesh → ground, `SurfacesAt` level); `ScreenToWorldForDrag`; `MapCanvas.LastPick` feeding the five `z = 0` sites; draping (M18); `SelectionRenderSystem.Draw3D` wire cubes; the placement ghost + roof/floor level (M20); measurement drawn at its picked height; **areas on a level** (M22 step 1); the danger band (H3); ⭐ every rail also runs on a **sloped test terrain** (R-248) | select, context menu, measurement, area authoring, placement and handle drags work in 3-D — the same tools (U21) |
+| **S3** ✅ *(§6e)* | triage extracted (Stride re-pointed, its compile gate green); `DebugGizmoLayer.Draw3D` with skip counters; **labels**: `GizmoTextDraw` extracted, `LabelOverlay3D` with projection + LOD | gizmos, fire traces, detonations and gizmo text in 3-D (U16) |
+| **S3b** | ⭐ **realism effects** — muzzle fire, explosions, impact decals as temporary TKB-typed entities with two map layers, on every host: [`DESIGN_Visual_Effects.md`](DESIGN_Visual_Effects.md) slices E1–E4 | U27, U28 |
+| **S3c** | ⭐ **the articulated turret, live** — the turret part + `TurretPose` (M23), the weapon-side slew (M24), the TKB turret descriptor (M25), the sensor-style multi-instance descriptor (M26); the map plugs `poseOf` | §3.11, R-255 |
+| **S4** ✅ *(§6f)* | mesh tags; colours by surface and material; water; road ribbons from the road network; **things come alive**: stance blending + limb swing (`LocomotionBlend` extracted), wheel roll, rotor spin | "a usable feeling of a real world" (U13), U14 |
+| **S5** ✅ *(§6i, ruled U29)* | camera entity — ONE per scenario, owned by the saving node, the eye in `SimTransform`, the mode from the pitch; map hosts adopt it on open and request moves | V-12..V-15 |
+| **S5b** ✅ *(§6g)* | **the card**: `CoordinateSpace.EntityCard`; `EntityCardRenderer` (rows by `ZIndex`, row 0 card-wide, `%` of the card, leader line) in 2-D and 3-D; `CardBuilder` sugar; `EntityCardFrameGizmo` + one side palette (M16); `HealthBarGizmo` re-targeted to a bar row; `EntityNameGizmo`; `EntityEditorLabelGizmo` rows moved in; a "Labels" layer default | U19, U20 |
+| **S5c** 🟡 *(§6h)* | **entity colour**: `EntityAppearance` per M15 — local part BUILT; descriptor arm + `"Color"` attribute = backend (`CE-1047`) | U19 colour |
+| ~~**S6**~~ | ⛔ **withdrawn `2026-10-10` (U25)** — every host gets 3-D from the shared attach; see §6b | V-01, V-18 (IG) — met by §6b |
+| **S7** | CC0 textures, triplanar | U13's texture wish |
+
+⭐ Gates per slice: the touched suites + the map's own rails (T-1), a frame rail per R-124, and the Xvfb screenshot.
+
+---
+
+### 6a. S1 — AS-BUILT `2026-10-10`
+
+📸 Rendered on the cloud's Mesa software GL by the frame rail: test-town's terrain (ground green, roofs red-brown, walls lit
+grey) and one entity of every built-in kit — tanks, AFVs, utility truck, car, soldiers standing / crouched / prone, a civilian.
+
+| piece | where | note |
+|---|---|---|
+| `MapCamera3D` + `CameraPose` | `FDP/Engine/Fdp.Presentation/Vis3D/MapCamera3D.cs` | Unity scene-view camera (M8); `ScreenToWorld` = the plane at the look-at height (the mesh pick is S2's `Picker3D`); 2-D `Zoom`/`Target` kept at their equivalents; refuses a non-finite pose |
+| `MapViewSwitch` | `…/Vis3D/MapViewSwitch.cs` | M12: snap overhead at the 2-D centre and scale, swap, tilt to −35° in 0.6 s; back: overhead, then the 2-D camera at the same centre and scale |
+| `LitShader` | `…/Vis3D/LitShader.cs` | M5: GLSL 330, vertex × material colour, ambient + one sun, two-sided, exp² fog; sky gradient drawn by the camera |
+| `HrotToRaylib` | `…/Vis3D/HrotToRaylib.cs` | M9, plus `ModelFromHrot` — a transform written in HROT terms, basis-changed and transposed for Raylib |
+| `TerrainLayer3D` | `…/Vis3D/TerrainLayer3D.cs` | draws `ITerrainRenderGeometry` (WQ-G), never `TerrainWorld`; flat-shaded by un-indexing; rebuilt when `Identity` changes |
+| `ITerrainRenderGeometry` + `TerrainWorldQuery.Build` | `FDP/Toolkits/Fdp.Toolkits/World/`, `…/Terrain/TerrainWorldQuery.cs` | the stand-in hands its navmesh soup unchanged, each triangle classed **wall** (steep), **roof** (> 0.3 m over the ground) or **ground** |
+| `VisualFamily` / `VisualFamilies` | `Hrot/Engine/Hrot.Presentation/Map3D/VisualFamily.cs` | extracted; `EntityTypeCatalog.FallbackIconName` now calls it — output unchanged for every built-in type (railed against the old body). ⭐ **CE-2138 (2026-10-12):** the DIS switches are gone — `Of(dis)` walks the type's chain in the shared `EntityClassTable` (Hrot.Core) from the most specific class up and takes the first class in `FamilyOfClass` (`Tank`, `Afv`, `Car`, `WheeledUtility`, `Helicopter`, `Jet`, `CargoPlane`, `Person`); the composite check stays until C3. Railed: a sweep over the whole DIS space against the old switch, and the built-in golden |
+| `ShapeKits`, `KitPart`, `BlockFigure` | `…/Map3D/ShapeKit.cs` | §3.5 kits for tank, AFV, car, utility, unknown; the six-box person in three stance poses, rifle for soldiers |
+| `EntityBodyLayer3D` | `…/Map3D/EntityBodyLayer3D.cs` | every entity with `SimTransform` + `TkbIdentity`; size from `SimVehicleDef` → `VehicleParametersDto` → `ShapeHeight` → family default; colour from `VisualData.ColorHex` → the TKB visual → family default; units draw nothing · ⭐ **CE-1058 (2026-10-12):** a passenger inside an ENCLOSED vehicle draws nothing and has no box (no pick, no selection cube) — `PhysicalPresence.IsEnclosedPassenger`, the passenger half of the engine's one hidden rule (R-271); an EXPOSED rider (TKB `PassengerExposure = Open`: a motorcycle, a bike, an open-door helicopter) is drawn, at the vehicle's transform (carried), in its own stance — no seat pose or seat offset yet (seats are R-274, later). The 2-D symbol, anchor, pick box and label card follow the same rule (`EntityPresentationGizmo`, `EntityEditorLabelGizmo`). 🔴 Before, nothing in Presentation read embarkation: a squad aboard an APC stood at its centre, through any hull lower than a man |
+| canvas hooks | `MapCanvas.Draw3D`, `IMapLayer.Draw3D`/`Has3D`, `MapCamera.Is3D`/`ScreenDeltaToWorld`, `MapCanvas.LayersWithout3D` | as §4 planned — the 2-D path is byte-identical |
+| editor | `EditorSubsystem`: the switch, both layers, **View › 3D map** (checkable) | ⛔ SUPERSEDED the same day by §6b — every host, one shared call and one shared menu item |
+
+| ⚠ deviation / finding | why |
+|---|---|
+| 🔴 **the 2-D map draws north DOWN** — it is a mirror of the view from above (`MapCamera` maps world Y screen-down and `DebugPrimitiveRenderer2D.cs:273` draws world XY straight). §3.3 and M10 assumed "north up" | a camera above the ground cannot show a mirror ⇒ **3-D is north-up, east-right, and the switch flips north–south** (scale, centre and east-is-right are kept). ⚠ Whether the 2-D map should become north-up is a separate question for the user — it touches every 2-D gizmo |
+| ~~air kits not built~~ | ✅ built the same day (§3.5): helicopter, jet, cargo plane, with the DIS air mapping |
+| **F** (frame the selection) not built | it needs the selection — S2, with picking |
+| the editor's `MapCullingModule` still reads the 2-D camera's rectangle | culling is off by default (`map.entity.cullOffscreen`); in 3-D it would cull by a stale rectangle — S2 |
+| test-town shows a HOLE where its water is | the navmesh soup has no water (M4) — water surfaces are S4 |
+| the frame rail drives the production canvas, switch, shader and layers in a window — **not the whole editor shell** | a full-editor screenshot needs a launch path under Xvfb; the menu item is built but not driven |
+| `UiFrameSession.Screenshot` wrote to the wrong folder | Raylib's `TakeScreenshot` uses its START-UP directory, not the current one — fixed in the harness (read the screen, export to the absolute path) |
+
+**Gates** (feature suites first, T-1): `Map3DTests` + `Map3DFrameRail` **29/29** under Xvfb (the frame rail skips where there is
+no display); `Hrot.Presentation.Tests` **405/405** (the catalog's own suite included); `Hrot.Editor.Tests` **474/476** (2 skips);
+`Fdp.Toolkits.Tests` terrain query / height / mesh **12/12**; the Blueprints frame rails **8/8** on the fixed screenshot harness;
+`Fdp.Presentation.Tests` **563/572** — its 8 reds are the pre-existing set `CE-259aa` names, identical at `2e90e208f`.
+⚠ **Under a display, `Hrot.Presentation.Tests` aborts in about one run in three** (test host crash between tests, no test left
+incomplete — `--blame`); without a display it is clean 3/3. ✅ **Pre-existing:** the base commit `2e90e208f` (no 3-D code, no
+window rail) crashes the same way, 1 run in 5 under Xvfb — filed `CE-1039`.
+
+### 6b. Every host, by construction — AS-BUILT `2026-10-10` *(U25)*
+
+🔒 **User, `2026-10-10`:** *"we should be unifying and sharing from the day zero so something like 'not on all host' can not
+happen by construction."* ⇒ ⛔ S6 ("all five hosts") is **withdrawn as a slice** — there is nothing left to roll out.
+
+| piece | where |
+|---|---|
+| `MapInteractionPack.AttachMapLayers(canvas, buffer, bus, world, tkb?)` — gizmo layer, draw buffer, `TerrainLayer3D`, `EntityBodyLayer3D`, `MapViewSwitch`, `MapViewModeLayer`; returns `MapLayers` | `Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs` |
+| the five hosts' three hand-written lines (`BuildRenderLayer` → `AddLayer` → `DrawBuffer`) replaced by that one call | Editor, CGF, IG, SimHost, ReplayBrowser |
+| **View › 2-D / 3-D Map** in the shared View menu (`LayerControlGizmo`, every host) → `GlobalActionIds.ToggleMap3D` → `ToggleMap3DEvent` on the interaction bus → `MapViewModeLayer` toggles the switch | the editor's own S1 menu item is removed — one menu path for one concept |
+| rail `EveryMapHostAttachesTheSharedLayersTests`: every subsystem that calls `MapInteractionPack.Build(` also calls `AttachMapLayers(`; nothing outside the pack builds a gizmo layer, a 3-D layer, a switch or a mode layer | `Hrot/Engine/Hrot.Presentation.Tests/Map3D/` |
+
+⚠ The TKB the bodies are classified from defaults to the world's `ITkbDatabase` singleton — IG, CGF, SimHost and the editor set
+one; the editor passes its own. ⚠ **ReplayBrowser sets none** (searched its subsystem) ⇒ replayed entities draw as unknown
+boxes until a replay carries or loads its TKB — a finding, not fixed here. ⭐ RULED `2026-10-23` (R-4069): the Replay Browser loads the same TKB as every other host — [`DESIGN_Director_Timeline_Editor.md`](DESIGN_Director_Timeline_Editor.md) TE-12.
+
+**Gates:** `Hrot.Presentation.Tests` **427/428** (1 skip — the frame rail without a display), the frame rail **1/1** under Xvfb;
+`Hrot.Editor.Tests` **474/476**; `Hrot.IG.Tests` **461/462**; `Hrot.ReplayBrowser.Tests` **34/34**; `Hrot.SimHost.Tests`
+**1177/1180** (3 skips); all five hosts build. 📌 The existing pack suites caught one real defect on the way — the new
+`ToggleMap3DEvent` lacked its `[EventId]`, which would have thrown at every host's start-up.
+
+### 6c. Effects come from their TKB type *(U27)* — constraint on S3, measured `2026-10-10`
+
+🔒 **User:** *"each effect entity has its TKB type of course defining the effect."* ⇒ the 3-D map draws an effect (explosion,
+tracer, later smoke and flashes) from the effect entity's **TKB type**, exactly as a vehicle's kit comes from its TKB type.
+
+| 📐 today | where |
+|---|---|
+| effect entities are made by IG's `EventToEffectSystem` with a hard-coded `EffectType` enum (Explosion, Tracer) and constants — **no `TkbIdentity`** | `Hrot.IG/Systems/EventToEffectSystem.cs:72-111`, `VisualEffectState.cs` |
+| the 2-D map draws them from that enum | `EffectPresentationGizmo` |
+| the munition TKB names no effect | `MunitionTkbCatalog.cs` (no match for "effect") |
+
+➡️ **Planned in [`DESIGN_Visual_Effects.md`](DESIGN_Visual_Effects.md) (U28: muzzle fire, explosions, decals — temporary TKB-typed entities, no gizmos).** The original lean, kept for the record —
+⭐ **Lean (`CE-1042`):** an effect entity carries `TkbIdentity`; a TKB descriptor on the
+effect type says what it looks like (kind, duration, colour, size); the munition / warhead type names the effect type it makes;
+both maps draw from the TKB. ⛔ The S3 3-D effects are not built on the enum.
+
+### 6d. S2 — AS-BUILT `2026-10-11` (picking in 3-D)
+
+| piece | where |
+|---|---|
+| `IPicker3D`, `PickResult` (point WITH height, kind, network id), `PickFilter` (P2), `TerrainPicker` (ray vs the drawn `ITerrainRenderGeometry`: uniform grid + Möller–Trumbore, pure C#, no allocation per pick), `RayBox` | `FDP/Engine/Fdp.Presentation/Vis3D/Picking.cs` |
+| `MapCamera3D.Pickers` / `Pick` / `LastPick` / `ScreenToWorld3D(forDrag)` / `ZoomAt`; one pick per pixel per frame (cached) | `Vis3D/MapCamera3D.cs` |
+| `MapCamera.ScreenToWorld3D` / `ScreenToWorldForDrag` / `ZoomAt` — 2-D: the old answer at Z = 0 (byte-identical) | `Vis2D/Components/MapCamera.cs` |
+| `EntityBoxPicker` — the entity's DRAWN box (P1); answers with the entity's own position, so its 2-D pick box contains it; `EntityBodyLayer3D.TryGetBox` (min half-extent 0.4 m) | `Hrot.Presentation/Map3D/` |
+| drags follow the terrain: `MapCanvas` routes `HandleDrag` through `ScreenToWorldForDrag` (P2) | `Vis2D/MapCanvas.cs` |
+| the gizmo input carries height: the inner `DebugGizmoLayer.HandleInput` takes the live camera's `screenToWorld` / `zoomAt` (pick for presses, terrain for drags, pick boxes sized at the hit's distance); `GizmoInteractionProxyTool` reports the Z in Started / DragUpdate / Commit — ⭐ **the five `z = 0` sites of §3.8 are now fed** (four in those two classes; the fifth, placement, below) | `GizmoMap.Presentation/Layers/DebugGizmoLayer.cs`, `Gizmos/GizmoInteractionProxyTool.cs`, `Vis2D/Layers/DebugGizmoLayer.cs` (`CurrentCamera`) |
+| placement on a roof / upper floor: the clicked height → `Levels.LevelOf` → `SpawnHeight(OnLevel, n)`; a 2-D click (Z = 0) stays on the ground (M20) | `Fdp.Toolkits/World/Levels.cs`, `EntityPlacementGizmo.cs` |
+| measurement drawn between the PICKED points with their heights, label adds the slant distance (§3.9 H1) | `MeasureGizmo.cs` |
+| the danger area draws its height band as a wire prism (§3.9 H3) | `DangerAreaGizmo.cs` |
+| selected entities: a wire box (green primary, yellow others) | `EntityBodyLayer3D` |
+
+⚠ **Left for S3 (they need gizmos DRAWN in 3-D first):** draping of 2-D shapes (M18/P4), areas on a level (M22 step 1 — the
+anchor's height + EQS's same-level test), the placement ghost as a translucent shape kit.
+**Gates:** `Map3DPickingTests` 6/6 (roof vs ground with heights, slanted ray stops at the first surface, entity box hit vs a
+miss 2.5 m beside the hull, the camera picks the entity but a drag follows the terrain, the proxy carries Z);
+`Hrot.Presentation.Tests` **443/444**; `Hrot.Editor.Tests` 474/476; `Hrot.IG.Tests` 461/462; `GizmoMap.Presentation.Tests` 41/41;
+`Fdp.Presentation.Tests` 563/572 (the pre-existing 8, `CE-259aa`); all five hosts build.
+
+### 6e. S3 — AS-BUILT `2026-10-11` (gizmos and labels in 3-D)
+
+```mermaid
+classDiagram
+  class DebugPrimitiveTriage3D {
+    <<new, GizmoMap.Contracts, BCL only>>
+    AcceptedTargets, HonourLayerMask, ZoomAt
+    Triage(span, into) int
+    CulledByTarget / Layer / Lod, DanglingAnchors
+  }
+  class TriagedPrimitive3D { <<new>> Primitive (world), Anchored, AnchorId, AnchorZ }
+  class ShapeCounters { <<new>> per-shape skip count }
+  class StrideDebugPrimitiveRenderer3D["Stride DebugPrimitiveRenderer3D"] { <<exists, re-pointed>> Skipped }
+  class GizmoRenderer3D { <<new, Vis3D>> GroundHeight; Draw(triaged, zoomAt, sink); Labels; Panels; Skipped }
+  class IGizmoSink3D { <<new>> Line, Triangle, Sphere }
+  class RaylibGizmoSink3D { <<new>> }
+  class LabelOverlay3D { <<new>> ScreenOf, Draw }
+  class GizmoTextDraw { <<new, extracted from DebugPrimitiveRenderer2D>> Font, PixelSize, DrawScreen }
+  class DebugGizmoLayer { <<exists>> + Has3D, Draw3D, DrawOverlay3D, LabelLift }
+  class EntityBodyLayer3D { <<exists>> + TopAbove(netId) }
+  class IMapLayer { <<exists>> + DrawOverlay3D default }
+  DebugPrimitiveTriage3D ..> TriagedPrimitive3D
+  StrideDebugPrimitiveRenderer3D --> DebugPrimitiveTriage3D
+  StrideDebugPrimitiveRenderer3D --> ShapeCounters
+  DebugGizmoLayer --> DebugPrimitiveTriage3D
+  DebugGizmoLayer --> GizmoRenderer3D
+  GizmoRenderer3D --> ShapeCounters
+  GizmoRenderer3D ..> IGizmoSink3D
+  RaylibGizmoSink3D ..|> IGizmoSink3D
+  DebugGizmoLayer ..> LabelOverlay3D
+  LabelOverlay3D ..> GizmoTextDraw
+  DebugGizmoLayer ..> EntityBodyLayer3D : LabelLift = TopAbove
+  DebugGizmoLayer ..|> IMapLayer
+```
+
+*What the picture shows that prose hid:* ONE triage serves both 3-D consumers (the Stride shell and the map) — Stride keeps
+its own drawing and its filters stay off, so it draws exactly what it drew before; the map turns the filters on. And the
+label path crosses two layers: the gizmo layer knows the label, only the body layer knows how tall the body is.
+
+```mermaid
+sequenceDiagram
+  participant C as MapCanvas.Draw3D
+  participant G as DebugGizmoLayer
+  participant T as DebugPrimitiveTriage3D
+  participant R as GizmoRenderer3D
+  participant B as EntityBodyLayer3D
+  participant O as LabelOverlay3D
+  C->>G: Draw3D (inside the 3-D camera)
+  G->>T: Triage (Map2D or Viewport3D, layer mask, LOD at ZoomAt)
+  G->>R: Draw: drape z = 0 shapes, real heights as given
+  R-->>G: Labels, Panels (StructInspector scheduled as in 2-D)
+  C->>B: Draw3D (records each body's top by network id)
+  C->>C: EndMode (the 3-D pass ends)
+  C->>G: DrawOverlay3D
+  G->>O: Draw labels, lifted by B.TopAbove, projected
+```
+
+*What it shows:* the body layer draws AFTER the gizmo layer, so a label's lift is read in the overlay pass, not while the
+gizmos are triaged.
+
+| built | where |
+|---|---|
+| the shared triage (anchors, `LayerControlMask`, target / layer / LOD filters, `EntityLocal` resolved in 3-D — the 2-D `ApplyAnchor2D` plus the anchor's Z), `TriagedPrimitive3D`, `ShapeCounters` | `FDP/ExtDeps/GizmoMap/GizmoMap.Contracts/Primitives/DebugPrimitiveTriage3D.cs` |
+| Stride re-pointed — its private anchor cache deleted, `Skipped` counters added (DESIGN_Stride_Node_Modes.md §8 Q5) | `Stride/Hrot.Stride.Core/DebugPrimitiveRenderer3D.cs` |
+| the drawer: draping per vertex, subdivided every 3 m (M18, R-248); un-anchored sphere with height = a sphere, ground / anchored = a ring; pixel sizes become metres at the shape's distance; dashes in pixels; gradients along the line; `SemanticShape` and `MilStd2525` counted, not drawn | `FDP/Engine/Fdp.Presentation/Vis3D/GizmoRenderer3D.cs` |
+| the Raylib sink and the label overlay (M13: projected, constant pixel size, lifted to the body top, on top; behind the camera ⇒ not drawn) | `Vis3D/RaylibGizmoSink3D.cs` |
+| `GizmoTextDraw` extracted — the 2-D renderer's screen text goes through it, so both maps draw text one way | `GizmoMap.Presentation/Rendering/GizmoTextDraw.cs` |
+| `IMapLayer.DrawOverlay3D` + `MapCanvas.Draw3D`'s screen pass; `DebugGizmoLayer` 3-D path; `EntityBodyLayer3D.TopAbove`; the pack wires the ground and the lift on every host | `Vis2D/`, `Map3D/`, `MapInteractionPack.AttachMapLayers` |
+| ⭐ M22 step 1 — an area drawn on a roof keeps the roof's height (`PointSequenceGizmo.AreaHeight` → the anchor); a ground area keeps 0 and drapes; `TacticalAreaGizmo` / `MapOverlayGizmo` draw on the level through `LevelHeightOf` (the raw Z only when it is level ≥ 1, so a ground area on a slope never floats flat) | `PointSequenceGizmo.cs`, `AreaAuthoringArm.cs`, `EntityPresentationGizmoShared.cs` |
+| M20 — the placement ghost: a wire box of the type's drawn size standing on the picked surface (in 2-D: its footprint) | `EntityPlacementGizmo.DrawGhostBox` |
+
+⚠ **Deviations, argued:** the ghost is a **wire box**, not the translucent shape kit — a gizmo emits primitives and a kit
+mesh is not one; a kit ghost would need a seam into the body layer for one tool. · Lines are **1 px** in 3-D (a road's metre
+width is not honoured yet). · An area's FILL under a roof still drapes to the ground: `FilledTriangle` has no Z and its bytes
+48–51 are **not free** (§7). · EQS's **same-level inside test** (M22 step 1's second half) is the behaviours lane's code and
+is not built — named in the tracker.
+**Gates:** `Map3DGizmoTests` 10/10 · `AreaAuthoringArmTests` (+ the M22 rail) · frame rail shot ⑦ `map3d-7-gizmos.png`.
+
+⭐ **CE-1160 (`2026-10-16`) — a dashed path draws at most `GizmoRenderer3D.MaxDashesPerPath` (1 024) dashes; a longer one gets longer
+dashes.** 📐 Measured: a selected tank's EQS search ring (12 km radius) is ~3 600 lines from most cameras, but the dash length is taken
+from the zoom at the path's MIDDLE point, so with the camera near that point 8 px became a few centimetres and one ring drew 101 232
+lines. Rail `Map3DGizmoTests.CE1160_AHugeDashedRing_IsCapped_WhereverTheCameraIs`. ⚠ Not shown to be the user's multi-second freeze on
+selection (not reproduced in four scenarios, see the tracker row).
+
+### 6f. S4 — AS-BUILT `2026-10-11` (the world by surface and material, things come alive)
+
+```mermaid
+graph TD
+  TWM["TerrainWorldMesh.Build<br/>+ per-triangle tags (kind, material)"]
+  NAV["navmesh bake<br/>(the untagged overload)"]
+  TWQ["TerrainWorldQuery.BuildTagged<br/>+ water triangles"]
+  TL["TerrainLayer3D<br/>ColourOf(kind, material)"]
+  RG["RoadNetworkGizmo<br/>(metre-wide lines)"]
+  GR["GizmoRenderer3D<br/>ribbon at the true width"]
+  MT["MotionTracker<br/>(per entity, between frames)"]
+  LB["LocomotionBlend<br/>(extracted from Stride to Fdp.Toolkits)"]
+  EB["EntityBodyLayer3D<br/>MotionPose + stance blend"]
+  ST["Stride blend tree"]
+  TWM --> NAV
+  TWM --> TWQ
+  TWQ --> TL
+  RG --> GR
+  MT --> EB
+  LB --> MT
+  LB --> ST
+```
+
+*What the picture shows that prose hid:* the navmesh and the 3-D map still read ONE mesh builder — the tags ride alongside and
+the bake takes the untagged overload, so the walkable soup cannot drift from what is drawn; the road ribbons are not a road
+layer but the road GIZMO's own metre-wide lines, drawn at their width; and the gait rule is shared with Stride, not copied.
+
+| built | where |
+|---|---|
+| `TerrainWorldMesh.Build(…, out TerrainTriangleTag[] tags)` — kind (ground, wall, roof, slab) and material (a prism's material, `"forest"` ground) per triangle; the untagged overload returns the same soup (rail: identical verts and indices) | `Fdp.Toolkits/Terrain/TerrainWorldMesh.cs` |
+| `ITerrainRenderGeometry.BuildTagged` (default: no materials, no water) and `TerrainWorldQuery`'s: materials + water surfaces as flat triangles a little below their lowest bank, filling the hole the soup leaves; `TerrainSurfaceKind.Water` | `Fdp.Toolkits/World/ITerrainRenderGeometry.cs`, `Terrain/TerrainWorldQuery.cs` |
+| `TerrainLayer3D.ColourOf(kind, material)` — forest, water, brick, glass, steel, wood, chain-link, hedge, sandbags, berm, car body; concrete and brick roofs keep the roof colour | `Vis3D/TerrainLayer3D.cs` |
+| road ribbons: `GizmoRenderer3D` draws a `WorldMeters` line ≥ 0.5 m wide as a draped strip at that width | `Vis3D/GizmoRenderer3D.cs` |
+| things come alive: `PartRole.Rotor / WheelSpoke / LegLeft / LegRight / ArmLeft / ArmRight` and `MotionPose`; `MotionTracker` — wheels roll by the distance driven along the body (back in reverse; a teleport does not spin them), limbs swing by `LocomotionBlend`'s walk/run weights, one cycle per 1.6 m, a main rotor turns at 4.3 rev/s of SIM time while airborne; all read from the entity's own position, so every host shows the same and a pause freezes it | `Map3D/ShapeKit.cs`, `Map3D/MotionTracker.cs`, `EntityBodyLayer3D` |
+| stance blend: while `StanceStatus` reports a transition, the figure interpolates from the stance it leaves to the logical one by `TransitionProgress` | `BlockFigure.Blend`, `EntityBodyLayer3D.FigurePose` |
+| `LocomotionBlend` extracted from `Stride/Hrot.Stride.Animation` to `Fdp.Toolkits/Animation` (namespace `Fdp.Toolkit.Animation`); Stride re-pointed by a `using` (its two projects build) | — |
+
+⚠ **Left, named:** the tail rotor is a disc — its spin cannot be seen, so it is not animated · gear up / down still follows the
+airborne guess (no gear-state component exists — PLAN D1) · a road ribbon lies under the 2-D road's centre line, which stays
+a one-pixel line · water and forest come only from the terrain's surfaces; materials only where a prism names one (test-town
+names none — every wall there is concrete).
+**Gates:** `Map3DTests.S4_*` (wheel roll, gait swing, rotor on sim time, stance blend, terrain tags + forest + water) ·
+`Map3DGizmoTests.S4_*` (ribbon width on a slope) · the terrain / navmesh suites in `Fdp.Toolkits.Tests` (336/336) · Stride builds.
+
+### 6g. S5b — AS-BUILT `2026-10-11` (the entity card, 2-D and 3-D)
+
+```mermaid
+classDiagram
+  class CoordinateSpace { <<exists>> + EntityCard = 3 }
+  class EntityCards { <<new, Fdp.Diagnostics.Contracts>> Card(draw, netId, layer) EntityCard }
+  class EntityCardRow { <<new>> Text, Bar, Frame : EmitRaw }
+  class IDebugDrawBuilder { <<exists>> EmitRaw }
+  class EntityCardRenderer { <<new, GizmoMap.Presentation>> Layout(prims, anchorScreen, measure) List~Card~; Draw; CardsDrawn; Skipped }
+  class DebugPrimitiveRenderer2D { <<exists, GizmoMap>> + CardPrimitives (after mask and LOD) }
+  class GizmoRenderer3D { <<exists>> + Cards }
+  class DebugPrimitiveTriage3D { <<exists>> + TryGetAnchor(netId) }
+  class DebugGizmoLayer { <<exists>> + Cards; DrawOverlay; CardAnchor2D; CardAnchor3D }
+  class IMapLayer { <<exists>> DrawOverlay3D renamed DrawOverlay, both modes }
+  class EntityCardFrameGizmo { <<new, Hrot.Common>> row 0 }
+  class HealthBarGizmo { <<exists, re-targeted>> row 10 }
+  class EntityNameGizmo { <<new>> row 20 }
+  class EntityEditorLabelGizmo { <<exists, moved in>> rows 30, 40 }
+  class SidePalette { <<new>> Of(ForceId) }
+  EntityCards ..> EntityCardRow
+  EntityCardRow ..> IDebugDrawBuilder
+  EntityCardFrameGizmo ..> EntityCards
+  HealthBarGizmo ..> EntityCards
+  EntityNameGizmo ..> EntityCards
+  EntityEditorLabelGizmo ..> EntityCards
+  EntityCardFrameGizmo ..> SidePalette
+  DebugGizmoLayer --> EntityCardRenderer
+  DebugGizmoLayer --> DebugPrimitiveRenderer2D
+  DebugGizmoLayer --> GizmoRenderer3D
+  DebugGizmoLayer --> DebugPrimitiveTriage3D
+  DebugGizmoLayer ..|> IMapLayer
+```
+
+*What the picture shows that prose hid:* the four card gizmos never meet each other — they meet only in the renderer, by
+network id and row number, so a fifth line on the card is one more gizmo and touches nothing here. Neither map renderer draws
+a card: each only SETS CARD PRIMITIVES ASIDE after its own layer mask and LOD, and the one card renderer draws them.
+
+```mermaid
+sequenceDiagram
+  participant GZ as card gizmos (any host)
+  participant C as MapCanvas
+  participant G as DebugGizmoLayer
+  participant R as 2-D renderer or 3-D triage+drawer
+  participant CR as EntityCardRenderer
+  GZ->>G: primitives, Space = EntityCard, AnchorIndex = netId, ZIndex = row
+  C->>G: Draw (2-D) or Draw3D (3-D), inside the camera
+  G->>R: mask + LOD, card primitives set aside, not drawn
+  C->>C: EndMode
+  C->>G: DrawOverlay (both modes)
+  G->>CR: Draw(card primitives, anchor of netId)
+  Note over G,CR: 2-D anchor = the SpatialAnchor ground point via the north-up camera, minus 6 px. 3-D anchor = the triage's anchor lifted by the body top, projected.
+  CR->>CR: group by netId, rows by ZIndex, measure, place above, leader line
+```
+
+*What it shows:* the only mode-specific thing is the anchor function the layer hands the renderer; layout and drawing are
+one code path, which is why `Layout` is a pure function railed without a window.
+
+| built | where |
+|---|---|
+| `CoordinateSpace.EntityCard = 3`; the author sugar `draw.Card(netId, layer).Row(n).Text / Bar / Frame` — ordinary primitives through `EmitRaw` | `GizmoMap.Contracts/Primitives/CoordinateSpace.cs`, `Fdp.Diagnostics.Contracts/EntityCards.cs` |
+| `EntityCardRenderer` — rows by `ZIndex`, row 0 card-wide (backgrounds under, outlines over), `ScreenPercent` = fraction of the card (row 0: both axes; a row: the inner width), width = the widest row ≥ 72 px, a 20 px leader in the outline's colour; disallowed shapes counted | `GizmoMap.Presentation/Rendering/EntityCardRenderer.cs` |
+| the 2-D renderer and the 3-D drawer set card primitives aside (`CardPrimitives`, `Cards`); `TryGetAnchor`; `IMapLayer.DrawOverlay` (renamed from `DrawOverlay3D`) called after `EndMode` in BOTH modes; the gizmo layer's card pass | `DebugPrimitiveRenderer2D` (GizmoMap + Fdp wrapper), `GizmoRenderer3D`, `DebugPrimitiveTriage3D`, `MapCanvas`, `DebugGizmoLayer` |
+| the gizmos — frame in the side colour (one `SidePalette`, M16), name `"T-72 #1043"`, the health bar re-targeted from a text badge to row 10, the editor label's hit points (row 30) and behaviour (row 40) moved in; all on the new **Labels** layer (`DebugTraceLayers.Labels = 11`, `LayerControlDto.Labels`, default on) | `Hrot.Common/Diagnostics/Gizmos/EntityCardGizmos.cs`, `HealthBarGizmo.cs`, `ScenarioEditor/Gizmos/EntityEditorLabelGizmo.cs`, `LayerControlGizmo.cs` |
+
+⚠ **Deviations, argued:** the sugar takes the **network id**, not the entity (§3.6 sketched `draw.Card(entity)`) — the draw
+builder is a primitive buffer with no world to resolve an id from, and every card gizmo already reads `NetworkIdentity`.
+· A `MilStd2525` in a card is **counted, not drawn** (§3.6 allows it) — the 2525 renderer draws in world space and has no
+screen-space entry yet; `Icon` draws as a dot. · The editor label's separate **id line is gone** — the id is in the name row.
+· In 2-D the card sits over the symbol's centre (there is no body height in 2-D). · `HealthBarGizmoSettings.BarWidth` is
+now dormant (the card's width governs); kept registered so saved settings stay readable. · `AnchorIndex` is an `int`, as for
+`EntityLocal` — a network id above 2³¹ would wrap there too. · Declutter (§3.6 "later") is not built.
+**Gates:** `Map3DGizmoTests.S5b_*` (6: sugar, layout, skipped shapes + min width, the 3-D hand-off + anchor, the 2-D north-up
+anchor, the gizmos) · `DebugPrimitiveRenderer2DTests.CE1033_S5b_*` (set aside after the mask) · IG `HealthBarGizmoTests` (bar
+row) · `HostOnlyWiringTests.CE3123_*` (hit points row) · frame rails: shot ⑦ and `map2d-north-up.png` each draw one card.
+
+### 6h. S5c — AS-BUILT `2026-10-11` (the entity colour, its local part)
+
+```mermaid
+classDiagram
+  class EntityAppearance { <<new, Fdp.Core, id 348>> ColorRgba 0xRRGGBBAA; HasColour; FromHex; ToHex }
+  class EntityInfo { <<exists, the model>> ForceId }
+  class PresentationTkbTranslator { <<exists>> + stamps EntityAppearance from VisualDefinitionDto.ColorHex if absent }
+  class VisualData { <<exists, TKB-derived>> ColorHex }
+  class HrotSharedComponentRegistry { <<exists>> + registers it beside VisualData }
+  class PresentationComponentRegistry { <<exists>> + registers it (ReplayBrowser) }
+  class EntityBodyLayer3D { <<exists>> ColourOf: own, then TKB, then family }
+  class ScenarioSerializer { <<exists, unchanged>> saves every registered struct }
+  class DescriptorArm["EntityAppearance descriptor + Color attribute"] { <<NOT BUILT, backend, CE-1047>> }
+  PresentationTkbTranslator ..> EntityAppearance : stamps
+  PresentationTkbTranslator ..> VisualData : stamps
+  EntityBodyLayer3D ..> EntityAppearance
+  EntityBodyLayer3D ..> VisualData
+  ScenarioSerializer ..> EntityAppearance : saved and loaded
+  DescriptorArm ..> EntityAppearance
+```
+
+*What the picture shows that prose hid:* the colour reaches the scenario with NO new save code (the serializer saves every
+registered struct), and the network half is a separate box. Until that box exists each node stamps the TKB colour for
+itself, so a replica shows the TKB colour, not the authored one.
+
+| built | where |
+|---|---|
+| `EntityAppearance { ColorRgba }` — `[PerInstanceValue]` like `EntityInfo`; alpha 0 = no colour; `#RRGGBB` / `#RRGGBBAA` in and out | `FDP/Engine/Fdp.Core/Components/EntityAppearance.cs`, `GlobalComponentIds.EntityAppearance = 348` |
+| the TKB default, stamped ONLY IF ABSENT (a per-spawn value wins: `NetworkSpawningSystem` applies `InitialComponents` over the translators) and ALWAYS when the template has a visual, even with no colour — so once its descriptor exists, no ghost waits forever | `PresentationTkbTranslator.Inject`, `GetProducedComponents` |
+| registered on every host — the shared registry (IG, Stride, CGF, SimHost, the Editor via CGF) and the presentation one (the ReplayBrowser) | `HrotSharedComponentRegistry`, `PresentationComponentRegistry` |
+| the 3-D body: its own colour → the TKB's `VisualData.ColorHex` → the family default | `EntityBodyLayer3D.ColourOf` |
+
+⚠ **Left, named ([`CE-1047`](blueprints/Blueprint_Issues_Tracker.md)):** the descriptor arm and the runtime `"Color"`
+attribute (backend lane), plus a latent defect found on the way: the attribute-ack mask is 256 bits and would throw for
+id 348. · No UI sets a colour yet, so an authored colour comes only from a scenario file, until the `"Color"` attribute
+exists (`get_attributes_schema` / `patch_attribute` pick it up by construction). · Child entities do not inherit the
+parent's colour. · The 2-D map does not use it: 2-D tints by side (M16). · ⚠ `VisualData` itself has no `[DataPolicy]`
+and is still saved into scenarios (`scenarios/tests/hill-attack/scenario.json:117-122`), which conflicts with R-136 §3 ②. So a
+reloaded `VisualData.ColorHex` can be stale, and that is why the colour reads `EntityAppearance` first.
+**Gates:** `Map3DTests.S5c_*` (stamp-if-absent + per-spawn wins + always stamped · the colour order · the scenario round trip).
+
+### 6i. S5 — AS-BUILT `2026-10-11` (the scenario's camera entity, R-260)
+
+```mermaid
+classDiagram
+  class MapCameraTkb { <<new, Hrot.Core>> Type = 7201, hidden from the palette }
+  class MapCameraPose { <<new>> ToTransform(CameraPose) SimTransform; FromTransform(tf, ground) CameraPose }
+  class MapCameraLayer { <<new, a map layer>> adopt on open; on the first move REQUEST it unowned; the owner writes when still 0.5 s }
+  class EntityCreationPack { <<exists, shared by every creating host>> + publishes the local request source on the world }
+  class ScenarioEntityCreationRequestSource { <<exists>> + a world singleton, id 349 }
+  class MapViewSwitch { <<exists>> + CurrentPose; ShowPose(pose); IsTwoDPose(pose) }
+  class MapInteractionPack { <<exists>> AttachMapLayers adds the layer, no new argument }
+  class EntityBodyLayer3D { <<exists>> + no body for the camera type }
+  class EntityPresentationGizmo { <<exists>> + no symbol for the camera type }
+  MapInteractionPack ..> MapCameraLayer : adds on every host
+  MapCameraLayer --> MapViewSwitch
+  MapCameraLayer ..> MapCameraPose
+  MapCameraLayer ..> MapCameraTkb
+  EntityCreationPack ..> ScenarioEntityCreationRequestSource : SetSingletonManaged
+  MapCameraLayer ..> ScenarioEntityCreationRequestSource : unowned request
+```
+
+```mermaid
+sequenceDiagram
+  participant U as user
+  participant L as MapCameraLayer (any host)
+  participant P as default processor (Brain, or the editor)
+  participant S as MapViewSwitch
+  participant W as world
+  participant F as scenario file
+  U->>S: pans / zooms / switches 2-D-3-D
+  L->>S: CurrentPose each frame
+  Note over L: changed, then still for 0.5 s
+  L->>P: first time, an UNOWNED creation request (TKB 7201, SimTransform = eye + yaw-pitch)
+  P->>W: creates and OWNS it (R-140, never an IG)
+  L->>W: the owner writes SimTransform on later moves
+  W->>F: saved like any owned entity (U7)
+  F->>W: reload, re-spawned like any entity
+  L->>S: camera appears and the user has not moved, so ShowPose (2-D if straight down, north up)
+```
+
+*What the pictures show that prose hid:* the camera needs NO save or load code — it is saved and re-spawned as any entity, and
+NO host wiring at all: the layer is added by the shared map attach, and it asks through the request source the shared `EntityCreationPack` puts on the world — so every creating host can ask, the replay browser (no creation) can only adopt, and ownership falls where R-140 puts it, on the default processor.
+
+| built | where |
+|---|---|
+| the camera TKB type (7201, `HideFromPalette`), registered in `HrotEnvironment.CreateTkb` | `Hrot.Core/Tkb/MapCameraTkb.cs` |
+| the pose in an ordinary `SimTransform`: position = the EYE, rotation turns +X onto the view direction (+Z = camera up); the look-at and distance come back by casting the view ray onto the ground (bracket + bisect on relief, R-248); looking level or up falls back to 300 m | `Map3D/MapCameraLayer.cs` (`MapCameraPose`) |
+| `MapCameraLayer` on EVERY map host (the shared attach): adopts the scenario's camera when it appears and the user has not moved the map since the world was emptied (a load / New); on the first move with none, REQUESTS one unowned (owner 0, no reliable init) and retries after 5 s if none appears; the owner writes its pose after 0.5 s of stillness; the lowest network id wins if two exist | same file, `MapInteractionPack.AttachMapLayers` |
+| the request path: `EntityCreationPack` (composed by IG, Stride, CGF, SimHost, Editor) publishes its local `ScenarioEntityCreationRequestSource` as a world singleton (id 349) — so the default processor creates and OWNS the camera (R-140), never an IG; zero per-host lines, pinned by a source rail | `Hrot.Common/EntityCreation/EntityCreationPack.cs` |
+| `MapViewSwitch.CurrentPose` / `ShowPose` / `IsTwoDPose` — the 2-D map is the pose straight down, north up (M10) | `Vis3D/MapViewSwitch.cs` |
+| never drawn or picked: no 3-D body, no 2-D symbol / anchor / pick box | `EntityBodyLayer3D.LookOf`, `EntityPresentationGizmo.Draw` |
+| ⭐ `CE-1221` (`2026-10-19`) — a scenario with NO saved camera: once its load settles (the world's entity count unchanged for `LoadSettleSeconds` = 1 s — the same on every host, the networkless editor included, so no cluster-state hook is needed), and the user has not moved the map, the 2-D map frames every placed entity (`FramePose`: the bounding box's middle, filling `FrameFill` = 80 % of the view, at least `FrameMinExtent` = 200 m across; the camera itself, SUMO's traffic — `ReplicationRoute.SumoSharp` — and non-finite positions left out). Framing is not a move: no camera is requested or saved. Rail `Map3DTests.CE1221_AScenarioWithNoSavedCamera_IsFramedIn2D_OnceItsLoadSettles` | `MapCameraLayer.Update` / `FramePose` |
+
+⛔ **Superseded the same day:** the first build had each host pass a `MapCameraOwnership` argument (Editor / CGF saved it). Measured wrong: every host, IG included, registers the SAME scenario save handler and saves what it OWNS (`IgNodeBootstrapper.cs:435-440`, CE-275), so "saves the scenario" is not a host property; and the user ruled out per-host wiring. ⚠ **Left, named:** a host that does not OWN the camera does not move it — a change request would need a pitch path the
+attribute vocabulary lacks (geodetic position + heading only); folded into [`CE-1047`](blueprints/Blueprint_Issues_Tracker.md).
+⛔ *Corrected `2026-10-16` (user):* ~~in a cluster the Brain owns the reloaded camera, so the Editor's own moves are not saved there~~ — the Editor is networkless, and in a cluster the CGF IS the editor, so its moves are saved. The one open case is several CGF nodes ([CE-1149](blueprints/Blueprint_Issues_Tracker.md); lean: the smallest node id owns it). · Moves during
+Live/Preview are written too (the camera is the view, not simulation state). · Field of view stays a viewer setting (D7).
+**Gates:** `Map3DTests.S5_*` (6: pose round trip on a slope and overhead · adopt in 3-D and in 2-D · the first move requests ONE
+unowned camera, the creator owns it, its pose is kept and saved · no request source ⇒ never made, a moved view not taken over ·
+a camera owned elsewhere is not moved · no body, no symbol, hidden type) ·
+`EveryMapHostAttachesTheSharedLayersTests` (no host builds its own camera layer; no host mentions the camera at all).
+
+### 6j. CE-1064 — the crouched figure: a kneel when still, a crouched run on the move — AS-BUILT `2026-10-13` (ui)
+
+🔒 *User, 2026-10-13: "Check how a character in crouched position is animated — first his position look very weird and second
+he does not move his legs when moving in crouched position."* 📐 Measured with a frame rail before the change:
+- **Still:** the crouch was a squat. Its thighs were level, its knees stuck out 0.4 m ahead of the hips, and its upright torso sat behind both feet, so it read as a man sitting on an invisible chair.
+- **Moving:** `CrouchedBody` built its legs with `swings: false`, so no part had a leg role. A crouched mover — R-265's crouched run at the stance's 0.5 speed cap, 3 m/s — slid along with frozen legs.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Still: stance Crouched, stride 0
+  Still --> Running: stride above 0 (speed from the entity's own motion)
+  Running --> Still: stride back to 0 (a sim frame without motion)
+  Running --> Running: a frame with NO sim time keeps the last gait (pause freezes mid-stride)
+  state Still {
+    [*] --> Kneel
+    Kneel: firing-side knee and shin on the ground, support foot planted forward, nothing swings
+  }
+  state Running {
+    [*] --> CrouchRun
+    CrouchRun: kneel blended into the run by stride, hips 0.6 m, short steps with knees bent, upper body leans 26 deg (less when aimed)
+  }
+```
+*What the picture shows that prose hid:* "crouched" is two drawings chosen by the GAIT, not by the stance. Only the stance is
+replicated, so the choice comes from the same motion every host already reads, and a frame with no sim time must not count as
+stopping.
+
+```mermaid
+classDiagram
+  class BlockFigure {
+    <<exists, changed>>
+    CrouchedBody : the kneel
+    CrouchRunBody : new
+    CrouchedMoving(still, soldier, from, to, postureT, weight) KitPart[]
+    CrouchRunDrop, CrouchRunLean, CrouchRunStepCut, CrouchRunHipFraction
+    KneelingLeg(hip, ankle) : new, private
+    PostureMix / PostureLerp : extracted from Parts(stance, from, to, t)
+  }
+  class EntityBodyLayer3D {
+    <<exists, changed>>
+    FigurePose() : Parts, Aimed, CrouchRun
+    FigureMotion(..., crouchRun) : hips to the run's height, lean
+  }
+  class MotionTracker {
+    <<exists, changed>>
+    Advance() : keeps the last gait over a frame with no sim time
+  }
+  EntityBodyLayer3D --> BlockFigure
+  EntityBodyLayer3D --> MotionTracker
+```
+
+| decision | why | rejected (one line each) |
+|---|---|---|
+| still = a **kneel** | its head stays at the crouched stance's 1.1 m eye (`EngineFallbacks.EyeHeightCrouched`) and its upper body is unchanged, so the rifle postures (WL-6), the aim shoulder (`TryAim`, 0.98 m) and the stance blends keep working | a corrected squat with the torso leaning forward (its head drops below the eye perception uses) |
+| moving = the **crouched run**, mixed in by `MotionPose.Stride` like the glide | the stance is the only replicated fact; the gait already comes from each entity's own motion, so every host draws the same | a separate "moving crouched" stance (not on the wire, and R-265 keeps the stance as the sim's single fact) |
+| the run's steps are 35 % shorter (`CrouchRunStepCut`, like the glide's) | the full gait swing from bent knees threw the back shin out flat behind him (a lunge) — seen in the frame rail | the upright gait's swing |
+| the run's lean shrinks while aimed | an aimed rifle is pitched by the aim (`Lean − pitch`), and the run lean would push it into the ground | a lean regardless of posture |
+| a frame with **no sim time** keeps the last gait | it carries no motion information; snapping to the still pose turned a runner into a kneel for a frame, and a pause into a kneel (the design says a pause freezes him, R-143) | gait smoothing over time (it would change every walker's swing timing) |
+| each kneeling leg keeps one `y` from hip to ankle, and the down shin is built foot → knee | no segment has a sideways yaw, so a Standing ↔ Crouched blend turns each leg in its own plane | the IK's free yaw (the blend swept the shin sideways) |
+
+⚠ **Left, named:**
+- The run's head is about 1.2 m, 0.1 m above perception's crouched eye. The drawing approximates the logical stance; it doesn't define it.
+- A crouched runner's Ready rifle points about 50° down: low ready, carried with the lean.
+- Stopping pops from run to kneel in one sim frame. This matches the standing walk's pop from swing to still, which isn't eased either.
+- The Stride shell has its own animation clips and is not changed here.
+
+**Gates:**
+- `Map3DTests.CE1064_*` (3): the kneel has its hips and torso over its feet and nothing swings; the crouched run's legs swing with knees bent and stay low; a frame with no sim time keeps the gait and a stop ends it.
+- `Map3DFrameRail.CE1064_ACrouchedFigure_StillAndRunning` (Xvfb screenshots `crouch-1…4`).
+- `Map3DTests` whole.
+
+### 6k. CE-1068 / CE-1069 — doors as they really are: a hinged leaf, locked tinted, gone when destroyed — AS-BUILT `2026-10-14` (ui)
+
+🔒 *User, 2026-10-14: "The building doors are visualized as weird pink boxes in 3d map and likely also in 2d map (in 2d there was nice
+simple gizmo and the pink box is undesired - doors should not be shown as unknown entity). I would like to see doors in 3d map as in
+reality - rectangle that rotates around hinges and can be destroyed (=missing from view)."*
+
+📐 **Measured cause.** A door is an ENTITY: the load makes one per terrain door with a bare `Door` TKB template, `DoorState`,
+`TerrainObjectKey` and a `SimTransform` at the doorway (`TerrainObjectRequests.cs:51-60`).
+- **3-D:** `EntityBodyLayer3D` drew every `SimTransform`+`TkbIdentity` entity, and a bare template resolves to `VisualFamily.Unknown`: the unknown box.
+- **2-D:** `EntityPresentationGizmo` emitted a semantic shape for it, and the renderer's fallback for an unknown profile is magenta.
+- **Design intent:** both contradict the door design, which says the entity is selectable with *"no symbol, no palette entry"* (`DESIGN_Building_Interiors.md` §3j 5b).
+
+**INVENTORY** *(grep + read, codebase-memory MCP not connected this session)*. Doors are drawn by:
+- `DoorLeafGizmo`, the 2-D line on the Doors layer;
+- `NavmeshGizmo`, the doorway polygons;
+- `EntityPresentationGizmo`, the unknown symbol;
+- `EntityBodyLayer3D`, the unknown box.
+
+The leaf's geometry already exists in `TerrainWorld.DoorLeaves`: hinge → closed tip, sill → head, 5 cm thick (`TerrainWorld.cs:166`). Nothing drew it as a solid.
+
+```mermaid
+classDiagram
+  class DoorLeaf3D {
+    <<new, static>>
+    OpenAngle = 90 deg
+    SwingSeconds = 0.8
+    TargetAngle(state) float?
+    IsDoor(world, e) bool
+    TryLeaf(world, e, out leaf, out state) bool
+    Box(leaf, angle) centre, rotation, half
+    ColourOf(state) wood, locked tinted
+  }
+  class DoorSwing {
+    <<new>>
+    Angle(e, target, simTime) float
+    Current(e, fallback) float
+    EndFrame(drawn)
+  }
+  class EntityBodyLayer3D {
+    <<exists, changed>>
+    DrawDoor() the leaf, wood, selection box
+    TryGetBox() a door's box = its leaf
+    LookOf(Door) no kit
+  }
+  class EntityPresentationGizmo {
+    <<exists, changed>>
+    a TerrainObjectKey entity: anchor + pick box, no symbol
+  }
+  class DoorLeafGizmo {
+    <<exists>>
+    the 2-D door picture: one line per state
+    ColorOf(state) shared with the 3-D tint
+  }
+  DoorLeaf3D ..> DoorLeafGizmo : ColourOf reads ColorOf(Locked)
+  class TerrainWorld { <<exists>> DoorLeaves, DoorIndexOf(key) }
+  EntityBodyLayer3D --> DoorLeaf3D
+  EntityBodyLayer3D *-- DoorSwing
+  DoorLeaf3D ..> TerrainWorld
+  EntityBoxPicker ..> EntityBodyLayer3D : TryGetBox
+```
+*What the picture shows that prose hid:* the door ENTITY stays the one thing the maps draw, pick and select. Its key finds the
+terrain's leaf, so no second door list is kept. The 3-D slab and the 3-D click share one box: `TryGetBox`, which `EntityBoxPicker` already reads.
+
+```mermaid
+sequenceDiagram
+  participant B as EntityBodyLayer3D.Draw
+  participant D as DoorLeaf3D
+  participant S as DoorSwing
+  participant P as EntityBoxPicker
+  B->>D: IsDoor(e)? TryLeaf(e): leaf + DoorState
+  D-->>B: Closed/Locked 0 deg, Open 90 deg, Destroyed none
+  B->>S: Angle(e, target, simTime)
+  S-->>B: eased toward target, a pause holds it
+  B->>D: Box(leaf, angle): turned about the hinge
+  B->>B: draw a wood slab (+ selection wire box)
+  P->>B: TryGetBox(e)
+  B-->>P: the same leaf box (false when destroyed)
+```
+
+| decision | ⭐ lean | rejected (one line each) |
+|---|---|---|
+| what a door is in 3-D | the leaf as a slab, turned about its hinge: shut and locked in the wall, open 90° to the side the 2-D door layer opens it to (`DoorLeafGizmo.OpenTip`), destroyed not drawn | a shape kit for the `Door` type (the leaf is terrain geometry with a real width and height; a kit would be a second, guessed size) |
+| the swing | eased on SIM time, a quarter turn in 0.8 s; first seen = in its state; a pause freezes it (R-143, like `PostureBlend`) | snap (an open order would pop) · replicating an angle (the state is the fact; the picture times itself) |
+| where it is drawn | the body layer, beside the entities, because a door IS an entity: one box for drawing, picking and the selection outline | a separate door layer (a second pick path for the same entity) |
+| 2-D | no symbol for a terrain object (anchor and pick box kept: a door is selectable, §3j 5b); the door layer's line stays the 2-D picture | hiding the door entity entirely (its commands hang off the selection) |
+| the 2-D door line in 3-D | ⛔ **CORRECTED by CE-1069:** it stays — the 3-D pass draws `Map2D` primitives too (§7, `Map3DGizmoTests`), so retargeting it changed nothing; the line lies at the slab's foot and the Doors toggle hides it | a '2-D only' target (none exists; redefining `Map2D` would also drop the contact lines from 3-D) |
+| locked vs closed in 3-D | ⭐ **CE-1069** (🔒 user: *"Maybe we can indicate locked unlocked by color in 3d?"*): a locked leaf's wood is tinted half-way to the 2-D door layer's locked purple (`DoorLeaf3D.ColourOf` reads `DoorLeafGizmo.ColorOf`) — one colour language on both maps; shut and open stay plain wood | ⛔ ~~drawn the same~~ (SUPERSEDED, the user asked for it) · a separate 3-D palette (two legends for one fact) |
+
+⚠ **Left, named:**
+- A host with door entities but no terrain draws no door (there is no leaf to place).
+- A destroyed door vanishes at once (no falling slab).
+- The terrain mesh's doorway is the opening the leaf fills, and the leaf is not part of the terrain picker, so a click on a shut door hits the door entity.
+
+**Rails:**
+- `Map3DTests.CE1068_ADoorLeaf_TurnsOnItsHinge_AndADestroyedDoorIsNotDrawn`, `CE1068_ADoorSwings_OnSimTime_AndIsFirstSeenInItsState` and `CE1068_ADoorEntity_HasNoKit_AndIsPickedByItsLeaf`.
+- `EntityPresentationGizmoTests.CE1068_ADoor_HasAnAnchorAndAPickBox_ButNoSymbol`.
+- `Map3DFrameRail.CE1068_Doors_ShutOpenAndDestroyed` (Xvfb screenshots `door-1…4`: shut, open, the shut one destroyed, the open one shut and locked).
+- CE-1069: `Map3DTests.CE1069_ALockedDoor_IsTintedWithTheTwoDLockedColour`, and `DebugTraceGizmoTests.CE1069_EveryDoorStillDrawsItsStateLine_On2D`, which pins the 2-D open / shut / locked / destroyed picture now that the door entity has no symbol.
+
+### 6l. CE-1071 … CE-1073 — smooth flying, a frame that does not overflow, the eye in the head — AS-BUILT `2026-10-14` (ui)
+
+> 🔒 **User, `2026-10-14`:** *"when i switch to 3d map view and use the wsad camera flying and RMB mouse look, it is far from smooth, even
+> on minimalistic scenes … especially the scroll button based camera moving forwards and backwards jumps with each click instead of being
+> a smooth flight. When i switch to FPS mode … every next shot makes the whole experience way worse … till almost complete freeze. When
+> moving forward the character leans a bit forward basically putting his head in front of the FPS camera so i see nothing — the camera
+> should rather be bound to character's head/eyes position wise."*
+
+📐 **Measured, not guessed — the live editor under Xvfb**, driven by real X input (XTest) and timed by the new opt-in frame log
+(`HROT_FRAME_STATS=1`, `Hrot.ClusterRunner/Presentation/FrameStats.cs`: frame mean / p50 / p95 / max and the update / draw / UI split),
+profiled with `dotnet-trace` while firing:
+
+| finding | where | fix |
+|---|---|---|
+| 🔴 the frame was FULL: 4 096 primitives, 400–700 dropped, rising with every shot; the drops took the layer mask (so the 3-D triage drew EVERY hidden layer — 612 cover spheres, 2 255 draped navmesh lines), the View menu and the RTS tool's input capture | `DebugPrimitiveBuffer` | ⭐ `CE-1071` — hidden layers refused at emit, meta primitives never dropped (📄 [gizmos-1 §11.11](designs/gizmos-1/DESIGN.md)) |
+| 🔴 62 % of a 3-D frame went to gizmos; 13 % to `MapCamera3D.Viewport` asking the window, once PER PRIMITIVE (`ZoomAt`) | profile | ⭐ `CE-1072` — the viewport read once a frame |
+| 🔴 a wheel click set the distance at once (12 %) — a jump | `MapCamera3D.HandleInput` | ⭐ `CE-1072` — the click owes eye travel; `Update` glides it out (τ = `WheelGlideSeconds` 0.12 s); past the pivot the look-at point flies too |
+| ⚠ W/A/S/D went from 0 to full speed in one frame | same | ⭐ `CE-1072` — eased (τ = `FlyEaseSeconds` 0.08 s) |
+| 🔴 in first person the hidden cursor's position wandered: over a docked panel ImGui claimed the mouse and the view froze; the gizmo terminal also took every shot as a map click | `RaylibInputProvider`, `DebugGizmoLayer` | ⭐ `CE-1072` — a locked cursor is never "captured" and ImGui ignores the mouse meanwhile; a camera driver holds the map's input (the terminal skips) |
+| 🔴 the eye was a fixed height above the reference point; a run's forward lean put the drawn head in front of it | `FpsCameraDriver.Update` | ⭐ `CE-1073` — the eyes of the DRAWN head (part `BlockFigure.HeadIndex`), kept in the body frame and put on the unit's CURRENT pose; that head is not drawn; the mouse look shows in the same frame |
+
+```mermaid
+sequenceDiagram
+    participant C as MapCanvas (each frame)
+    participant K as MapCamera3D
+    participant D as FpsCameraDriver
+    participant B as EntityBodyLayer3D
+    C->>K: Update(dt) — the viewport re-read once, a wheel glide step (free camera)
+    K->>D: Update — eye = unit pose ⊗ B.TryGetEyeLocal(unit)
+    C->>K: HandleInput — wheel adds travel, W/A/S/D eased (free) · look, keys, frame, Place again (driver)
+    C->>B: Draw3D — figures, head part HeadIndex ⇒ the eye (body frame), FirstPerson's head skipped
+```
+
+*What the picture shows that prose hid:* the driver's `Update` runs BEFORE the input of the same frame — so the look was a frame late until
+`HandleInput` placed the camera again — and the eye read in `Update` comes from the PREVIOUS draw, which is why it is kept in the body's
+frame and put on the current transform (a running man moves ~8 cm a frame).
+
+| after, same machine and scenario | |
+|---|---|
+| primitives / dropped | 238–361 / **0**, firing included |
+| 3-D draw (software GL) | ~45–65 ms, was ~195 ms |
+| View menu | *Tactical Map Layers… · 2-D / 3-D Map · RTS Command Mode* back |
+| first person | eye in the drawn head standing, crouched and prone (screenshots below) |
+
+![FPS, standing — the eye in the drawn head](assets/map-3d/fps-eye-standing.png)
+
+⚠ **Stated:** the absolute times are a software renderer's (no GPU in the container); the shares and the drop counts are what carry over.
+The free camera's feel was not seen with a real mouse — the wheel glide and the eased fly are railed by their numbers.
+
+**Rejected — one line each:**
+- *Smoothing the mouse look* — adds lag to the one input that must not have it.
+- *A bigger primitive buffer* — moves the cliff (gizmos-1 §11.11).
+- *Keeping the eye above the reference point and hiding the whole upper body* — the eye would still not crouch or crawl with the figure.
+
+📐 Rails: `Map3DTests.CE1072_*` ×3 (the wheel glides, keeps flying at the pivot, the fly eases) + `CE1044_FlySpeed_*` (re-read once the ease
+has settled — the speeds are unchanged) · `Map3DTests.CE1073_*` ×2 (the head is part `HeadIndex` in every pose; the eye follows a lean, a
+crouch and prone) · `PossessionStationTests.CE1073_*` (the eye on the current pose, the head hidden while held, the look the same frame).
+
+### 6m. CE-1081 … CE-1084 — the carried and the dragged, the wounded, riders in their seats, the jump down — DESIGN + AS-BUILT `2026-10-14` (ui)
+
+🔒 **User, `2026-10-14`:** *"the soldiers now can drag or carry another soldier (wounded one), using pick and drop action. can you pls render
+in 3d map the carried/dragged one? Also when soldier is wounded his motion pattern could be degraded (limping, bent etc.) also vehicles got
+seats (slots) to be occupied and some helicopters might not have side doors (existing setting in tkb) so passenger soldiers can be shown
+there (and when dismounting they could jump down to ground)"* — the four leans and the 0.6× wounded speed: *"Approved"*.
+
+📐 **INVENTORY** *(an Explore sweep of `docs/`, `.dev/` and the code, then the load-bearing lines re-read by hand)*:
+
+| fact | where | so |
+|---|---|---|
+| carrying IS embarking: the carrier is the "vehicle", the casualty its passenger; `PassengerBuffer.Modes` (2 bits a seat) says Seated / Carried / Dragged; the casualty's `IsEmbarkedTag { VehicleEntity, Exposed, Seat, Mode }` is re-derived on EVERY node (map hosts too) | `InteractionComponents.cs:14-80`, `EmbarkedStateSystem.cs:48-70` | ⭐ the renderer can read who carries whom on any host — no new wire |
+| the casualty's transform = the carrier's position − its forward × (carried: `CarryBehindMetres` 0 m · dragged: 1 m), the carrier's heading; Z not lifted | `EmbarkedStateSystem.cs:115-123`, `CarrierDefDto.cs:53-63` | a carried man stands INSIDE his carrier today; the pose must lift and turn him (presentation only — C10: *"its pose is a later presentation item"*) |
+| a person is drawn in his logical stance, his gait from his own position change | `EntityBodyLayer3D.FigurePose`, `MotionTracker` | a carried / dragged man would WALK; his figure must replace the stance pose |
+| injury is DERIVED: `Injury.StateOf` from replicated `Health` + `InjuryThresholds` (type data) | `Injury.cs:8-56`, `DESIGN_Injury_States.md` I1 | every host knows wounded / incapacitated — no new wire |
+| speed = `StanceSpeed × CarryLoad`; the wounded factor is slice **I-b**, open | `CarKinematicsSystem.cs:149-153`, Injury §I-b | ⭐ the 0.6× is ONE more factor there, its value a TKB field beside the thresholds |
+| a seat knows its role and whether it is exposed — **no position** | `CarrierSeats`, `SeatDto { Role, Exposed }`, `DESIGN_Map_3D_Mode.md:817` | `SeatDto` grows a place, a facing and a pose |
+| "no side doors" = `CarrierDefDto.Exposure = Open` → `IsEmbarkedTag.Exposed`; ⚠ no production type is Open but the person carrier; the UH-60 has no `Gen.Carrier` at all | `CarrierTkbTranslator.cs:64-82`, `NedTkbCatalog.cs:376` | a new type **UH-60A (doors off)**, 8 door seats |
+| an exposed rider is drawn at the vehicle's reference point in his stance; an enclosed one not at all | `EntityBodyLayer3D.cs:101`, `PhysicalPresence.IsEnclosedPassenger` | the seat's place puts him where he sits |
+| dismount: a column beside the vehicle at the vehicle's Z; the pedestrian clamp then puts him on the surface | `Embarkation.DismountPoint`, `CarKinematicsSystem.cs:464` | the jump is a DRAWING of that drop, from the seat he left |
+
+```mermaid
+classDiagram
+    direction LR
+    class EntityBodyLayer3D { <<existing, grows>> Draw3D · FigurePose · FigureMotion · + Carriage(world, e) }
+    class Carriage { <<NEW static, Map3D>> Of(world, e, tkb) FigureCarriage · Placement(...) Matrix4x4 }
+    class FigureCarriage { <<NEW record struct>> Kind : Free · Carried · Dragged · Carrying · Dragging · Seated · Jumping · Downed · Wounded ; Vehicle ; Seat }
+    class BlockFigure { <<existing, grows>> + Draped · Towed · CarrierArms(drag) · Seated(legsOut) · Downed — 10/11 parts, the shared order }
+    class DismountDrop { <<NEW, beside DeathFall>> Riding(e, seatWorld, now) · Left(e, now) (t, height) }
+    class DeathFall { <<existing>> a second instance: the incapacitated collapse }
+    class Injury { <<existing, grows>> + SpeedFactor(world, e) }
+    class InjuryThresholds { <<existing, grows>> + WoundedSpeedFactor }
+    class InjuryDefDto { <<TKB, grows>> + WoundedSpeedFactor = 0.6 }
+    class SeatDto { <<TKB, grows>> + X Y Z · FacingDegrees · Pose (Sit · SitLegsOut) }
+    class CarKinematicsSystem { <<existing>> × Injury.SpeedFactor }
+    class IsEmbarkedTag { <<existing, every node>> VehicleEntity · Exposed · Seat · Mode }
+    class NedTkbCatalog { <<existing, grows>> + UH-60A (doors off), 8 open door seats }
+    EntityBodyLayer3D ..> Carriage
+    Carriage ..> IsEmbarkedTag : reads
+    Carriage ..> SeatDto : the seat's place
+    Carriage ..> Injury : wounded / down
+    EntityBodyLayer3D ..> BlockFigure
+    EntityBodyLayer3D *-- DismountDrop
+    EntityBodyLayer3D *-- DeathFall
+    CarKinematicsSystem ..> Injury
+    InjuryDefDto ..> InjuryThresholds : stamped
+    NedTkbCatalog ..> SeatDto
+```
+
+*What the picture shows that prose hid:* ONE classifier (`Carriage`) answers "how is this man held?" from facts every host already has, and
+every answer is a figure + a placement — so no new wire, no new simulation state, and the only sim change is one speed factor.
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D (each frame, each person)
+    participant C as Carriage
+    participant F as BlockFigure
+    participant D as DismountDrop
+    L->>C: Of(world, e)
+    alt carried (tag Mode Carried, a person carrier)
+        C-->>L: Carried, the carrier
+        L->>F: Draped
+        L->>L: placed across the carrier's shoulders, no gait
+    else dragged
+        C-->>L: Dragged
+        L->>F: Towed (on his back, arms up to the carrier)
+    else he carries / drags someone
+        C-->>L: Carrying or Dragging
+        L->>F: CarrierArms, the body leaning under the load
+    else in an exposed seat with a place
+        C-->>L: Seated, the vehicle and seat
+        L->>F: Seated (legs in, or out over the sill)
+        L->>D: Riding(e, the seat in the world)
+    else just left a raised seat
+        L->>D: Left(e, now)
+        D-->>L: t, the height he dropped from
+        L->>L: drawn that much higher, landing crouched
+    else incapacitated
+        L->>F: Downed (fallen into it over 0.6 s)
+    else wounded
+        L->>L: the limp: one stiff leg, shorter steps, bent 15 deg
+    end
+```
+
+```mermaid
+graph TD
+    CAN[MapCanvas, every 3-D frame] --> EBL[EntityBodyLayer3D.Draw3D, every map host]
+    ESS[EmbarkedStateSystem, every node with Interactions] -->|IsEmbarkedTag| EBL
+    DMG[EntityDamage ingress] -->|Health| EBL
+    TKB[CarrierTkbTranslator / InjuryTkbTranslator, every node] -->|CarrierSeats, InjuryThresholds| EBL
+    KIN[CarKinematicsSystem, the muscle] -->|0.6x when wounded| POS[SimTransform, replicated]
+    POS --> EBL
+```
+
+*Caption:* every input the drawing needs already reaches every map host each frame; the one simulation edit sits where speed is already
+scaled, on the node that moves the man.
+
+| decision (✅ user, `2026-10-14`) | rule |
+|---|---|
+| **C-1 carried / dragged** | DRAWING only. Carried: limp across the carrier's shoulders, crosswise, head to his left; the carrier leans forward, both hands on the load, rifle slung. Dragged: on his back ~1 m behind (the sim's place), head to the carrier, arms up to the carrier's hand; the carrier reaches back with his right arm. Neither casualty plays a gait |
+| **C-2 wounded** | WOUNDED: a limp (right leg stiff, steps shorter, upper body bent ~15°, also standing still). INCAPACITATED: lying on his back, one knee up, a hand on his chest, fallen into it over 0.6 s. ⭐ **+ slice I-b**: a wounded man moves at `WoundedSpeedFactor` (TKB `Gen.Injury`, default **0.6**) |
+| **C-3 seats** | `SeatDto` gains a place (`X, Y, Z` from the reference point), `FacingDegrees` and a `Pose`; a rider in an EXPOSED seat with a place is drawn sitting there. New type **UH-60A (doors off)** (`Heli_UH60_DoorsOff`, 404): 8 seats, 4 in each door, legs out over the sill |
+| **C-3b the open cabin** ⭐ *(`CE-1209`, `2026-10-19`)* | 🔒 user: *"no problem if you draw uh60 without side door always"* — the ONE `Helicopter` kit (only the two UH-60s use it) is drawn doors-off: a closed rear section and a short closed front behind the cockpit, the cabin between them only a floor and a roof, so it is seen through from the side and the door riders and door gunners sit in its openings. The sim's boxes are regenerated from it (`VehicleBody.Tables.g.cs`, CE-3214 parity; part ids rear / front / floor / roof = Fuselage) — rounds pass the open doors. Frames `held-3-doors-off.png`, `stream-3-door-gun.png` |
+| **C-4 the jump** | DRAWING only: a rider who leaves a seat more than 0.5 m above the ground drops over 0.5 s from it and lands crouched. ⚠ **Amended `2026-10-16` (§6w AB-V6, Airborne D-8):** only for a hop ≤ 3 m — a rope or parachute descent is SIMULATED and drawn from its `Descent`, never as a jump |
+
+**Rejected — one line each:**
+- *A `Carrying` / `CarriedBy` component* — rejected before (Entity_Interactions §7.4.8): embarkation already says it, on every node.
+- *Lifting the casualty in the SIMULATION* — his true place is the carrier's; the shoulder is a look (C10).
+- *A limp in the gait SOLVER* — the gait is the muscle's; the limp is a drawing over the same stride.
+- *Doors-off on the existing UH-60* — it would make every Black Hawk open; a type per configuration keeps scenarios explicit.
+- *A jump in the simulation* — the dismount already lands him; only the drop between seat and ground is missing, and it is a look.
+
+#### 6m as-built `2026-10-14` (ui)
+
+⭐ **Built as the three diagrams above draw it** — `Carriage` (+ `FigureCarriage`, `CarriageKind`), `DismountDrop` (in `Carriage.cs`), the
+`BlockFigure` poses, `EntityBodyLayer3D.HeldFigure` / `Burdened`, `Injury.SpeedFactor`, `SeatDto` place / facing / pose, the new type. No
+box moved. The details the diagrams do not carry:
+
+| as-built detail | why |
+|---|---|
+| a man dying while held (carried, dragged, seated, down) falls from a LYING figure (`DeathFall.Alive(…, Prone)` / `Crouched` for a rider) | the death fall blends from his last stance; he would otherwise stand up to fall |
+| the downed collapse is a second `DeathFall` instance (`_down`) and `BlockFigure.Collapse` (the same blend as a death fall) | one blend mechanism, two meanings |
+| the wounded limp and the carrier's arms apply to a STANDING man only | a crouched / prone man keeps his stance's figure (a limp on a crawl reads as noise) |
+| the jump: `DismountDrop` — a rider seen riding within 0.5 s whose seated hips were more than 0.5 m above his standing hips now; the lift falls as 1 − t² over the free-fall time (min 0.3 s), then 0.3 s crouched | measured on the doors-off Black Hawk: its door hips sit 0.9 m above the tyres — standing hips — so a LANDED helicopter's dismount is a step, a hovering one a jump |
+| `Heli_UH60_DoorsOff` = **404** (401 is the F-16); the UH-60's geometry moved into `Uh60Geometry()`, shared by both | ⚠ the design said 401 — corrected before building |
+| ⚠ the wounded factor scales the person's TOP speed (the 6 m/s sprint), like the stance and carry factors: asked 5 m/s, a wounded man makes 3.6 | one rule for every speed factor (`CarKinematicsSystem`) |
+| the type golden (`EntityTypeCatalogTests.BuiltInGolden`) gained the 404 line | a deliberate new type |
+| ⚠ the carried figure reads BULKY side-on (his torso crosses the carrier's shoulders, his legs and arms hang either side) — legible, not pretty | block figures; a rounder look waits for the mesh kits |
+
+📐 **Rails:** `Map3DTests.CE1081_*` ×3 + `CE1082_*` + `CE1083_*` + `CE1084_*` (the classifier; the shoulders; the part order; the
+limp and the carrier's lean; the door seats, legs out; the jump) · `CarKinematicsSystemTests.CE1082_*` ×3 · `InjuryTests.CE1082_*` ·
+`Map3DFrameRail.CE1081_V_*` (the real frame, below).
+
+✅ **(V) — a real frame under Xvfb** (`Map3DFrameRail.CE1081_V_*`):
+
+| | |
+|---|---|
+| ![carried and dragged](assets/map-3d/held-1-carried-dragged.png) | ![carried, close](assets/map-3d/held-1b-carried-close.png) |
+| ![wounded and down](assets/map-3d/held-2-wounded-down.png) | ![doors off](assets/map-3d/held-3-doors-off.png) |
+| ![the jump](assets/map-3d/held-4-jump.png) | *the forward left rider, 0.23 s after leaving his seat in a Black Hawk hovering 2 m up: crouched, about 1.7 m in the air below the door* |
+
+### 6n. CE-1085 … CE-1094 — weapon systems, launchers, mortars and guns, the drone, the attack plane — DESIGN `2026-10-14` (ui)
+
+🔒 **User, `2026-10-14`:** *"new type of missile system like NLAW or LAW or Javelin, and new type of weapons like heavy machine gun M2 and the
+minigun … mounted to a vehicle with a gunner position … located on the ground, placeable standalone with an operator, or we can carry those
+weapons by one or multiple men … two soldiers carrying a stretcher … new types of bombs and aircraft types that can drop bombs and fire the
+cannon or a mounted minigun. All those would need map 3d visualization. Pls check and suggest."* → the plan → *"The stuff before approved"*;
+the indirect-fire part (R-2018) and its barrel-elevation lean → *"Approved"* → *"Ok go"*.
+
+📐 **INVENTORY** *(graph `search_graph` `.*WeaponSystem.*` Class = 10, `.*ShapeKit.*` = 2, `.*VisualFamil.*` = 1, `.*(Trail|Blast).*` = 7 —
+none in Presentation; three Explore sweeps of `docs/` + `.dev/`; the load-bearing lines re-read by hand)*:
+
+| fact | where | so |
+|---|---|---|
+| a weapon system is an ENTITY (class `WeaponSystem` 1.1.*.50, subclasses HMG .1 · Minigun .2 · ATGM .3 · Launcher .4 · Sentry .5); a mortar is class `Mortar` 1.1.*.10, a towed gun `TowedArtillery` 1.1.*.5, an SP gun `SelfPropelledArtillery` 1.1.*.4 | `EntityClassTable.cs:130-145`, Indirect Fire IF-G | none has a visual family ⇒ an unknown purple box today |
+| its deploy state `WeaponSystemState { Deploy, Until }` is replicated to every node | `WeaponSystemComponents.cs` (WS-1) | the drawing reads it on any host — no wire |
+| a STATION weapon's transform is placed at its seat by the sim; a CARRIED one sits at the carrier's feet (carry-station place 0,0,0); a gunner in a weapon's own `Gunner` seat stands AT the weapon's origin | `EmbarkedStateSystem.CarryAndKill` (WS-2) | ⭐ station weapons draw where they are; a carried weapon and a gunner need a drawn placement (as §6m's casualty did) |
+| ⛔ `Carriage.Of` reads `ModeOf(0)` whenever the carrier's list is not empty — a man with only a weapon in his carry station (seat 1) is drawn CARRYING a casualty | `Carriage.cs:74` (CE-1081, mine) | fix: the casualty seat and the carry station are read separately |
+| a weapon system turns on its OWN turret part; its fire is the weapon entity's (`WeaponFireNotification.Shooter` = the weapon) | WS-3, `f656cb38b` | the kits articulate (§3.11) with `_poseOf`; the muzzle flash finds the weapon |
+| no replicated "which mount is in his hands"; `WeaponFireNotification { Shooter, WeaponIndex }` reaches every map host (NED ingress on the IG) | `WeaponPosture.cs` (Kind, Target, Point), `WeaponFireIngressTranslator.cs` | ⭐ the launcher in hands follows the LAST SHOT |
+| the FPV drone (403) is class `Uav` (1.2.*.50) ⇒ family Jet ⇒ a 15 m F-16; its body is 0.3 m (`Gen.Flight` body radius / height) | `NedTkbCatalog.DefineFpvDrone`, `EntityBodyLayer3D.Resolve` | a `Drone` family for a ROTORCRAFT Uav, sized from its flight body |
+| the A-10 (405) is class `AttackAircraft` (1.2.*.2) ⇒ family Jet; its bombs count down in the replicated `WeaponAmmo` mirror | `NedTkbCatalog.DefineAttackPlane`, CE-1079 | an attack-plane kit with pylons; the bombs drawn = rounds left |
+| a bomb release goes through the ordinary fire path ⇒ a muzzle flash at the nose | `EffectSpawnSystem.cs:63-74` | skip the flash for a `Bomb` mount |
+| a smoke trail runs STRAIGHT back to the muzzle (combat node) or along the velocity (viewer) | `ProjectileLayer.TrailOf`, `:130` | a remembered path ⇒ a curved trail on every host |
+| a rotor turns only while ≥ 5 m above its resting height | `EntityBodyLayer3D.IsAirborne`, `MotionTracker` | the rotor follows movement too, and spins up / down |
+| on the combat node a round knows its `Shooter`; a viewer's round does not | `BallisticProjectile.Shooter`, LR-3 | the gun's laid elevation is exact where combat runs, a default elsewhere (until backend's IF-1 field) |
+
+```mermaid
+classDiagram
+    direction LR
+    class EntityBodyLayer3D { <<existing, grows>> Draw3D · + a second pass for carried weapons · + gunner placement }
+    class VisualFamilies { <<existing, grows>> + WeaponSystem · SpArtillery · Drone · AttackJet }
+    class WeaponKits { <<NEW static, Map3D>> KindOf(dis) WeaponKind · Stowed(kind) · Deployed(kind) · Blend(t) · GunnerSpot(kind) · OnBack(...) }
+    class WeaponKind { <<NEW enum>> Hmg · Minigun · Atgm · Launcher · Sentry · Mortar · TowedGun }
+    class ShapeKits { <<existing, grows>> + SpArtillery · Drone · AttackJet (+ pylon bombs, gun) }
+    class Carriage { <<existing, FIXED>> Of: casualty seat and carry station apart · + Manning (at his weapon) }
+    class FigureCarriage { <<existing, grows>> + Load (the weapon he carries) }
+    class BlockFigure { <<existing, grows>> + AtWeapon(kneel) · Shouldered (a tube on the shoulder) · Seated + Stand / Kneel }
+    class SeatPose { <<TKB, this lane's CE-1083, grows>> Sit · SitLegsOut · + Stand · Kneel }
+    class RecentShots { <<NEW managed singleton>> Last(shooter) (mount, at) }
+    class EffectSpawnSystem { <<existing, grows>> writes RecentShots · no flash for a Bomb · + backblast / blast }
+    class ProjectileLayer { <<existing, grows>> + RoundTrails (a remembered path) }
+    class MotionTracker { <<existing, grows>> rotor spin-up / down, tail rotor, drone rotors }
+    class WeaponSystemState { <<existing, replicated>> Deploy · Until }
+    class WeaponAmmo { <<existing, replicated>> AmmoOf(mount) }
+    EntityBodyLayer3D ..> WeaponKits
+    EntityBodyLayer3D ..> VisualFamilies
+    EntityBodyLayer3D ..> Carriage
+    EntityBodyLayer3D ..> RecentShots : the launcher in hands
+    EntityBodyLayer3D ..> WeaponSystemState : stowed / deployed
+    EntityBodyLayer3D ..> WeaponAmmo : bombs left
+    EntityBodyLayer3D *-- MotionTracker
+    WeaponKits ..> WeaponKind
+    Carriage --> FigureCarriage
+    EffectSpawnSystem --> RecentShots
+    BlockFigure ..> SeatPose
+```
+
+*What the picture shows that prose hid:* every new look is a KIT or a POSE chosen from facts every host already has (class, deploy state,
+seats, ammo mirror, fire notifications) — the only new state is presentation memory (`RecentShots`, `RoundTrails`, the rotor's spin), and
+the only TKB change is two more seat poses in the enum this lane added.
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D (each frame)
+    participant K as WeaponKits
+    participant C as Carriage
+    participant S as RecentShots
+    L->>L: pass 1, every entity
+    alt a weapon system on the ground or in a station
+        L->>K: Stowed / Deployed / Blend(deploy state, Until)
+        L->>L: drawn at its own transform, turret posed (§3.11)
+    else a weapon system carried by a man
+        L->>L: deferred to pass 2
+    else a man in a weapon's Gunner seat
+        L->>C: Of = Manning, the weapon
+        L->>K: GunnerSpot(kind), turned with the weapon's turret
+        L->>L: AtWeapon (kneeling or standing, hands on the grips)
+    else a soldier
+        L->>S: Last(him) a launcher within 4 s and aimed?
+        L->>L: Shouldered (the tube replaces the rifle), else the rifle
+    end
+    L->>L: pass 2, carried weapons
+    L->>K: OnBack(carrier as drawn) — or hidden while he shoulders it
+```
+
+```mermaid
+graph TD
+    CAN[MapCanvas, every 3-D frame] --> EBL[EntityBodyLayer3D, every map host]
+    CAN --> PL[ProjectileLayer, every map host]
+    CAN --> EL[EffectLayer, every map host]
+    WDS[WeaponDeploySystem, the weapon's owner] -->|WeaponSystemState, replicated| EBL
+    ESS[EmbarkedStateSystem, every node] -->|IsEmbarkedTag, station transforms| EBL
+    MIR[WeaponAmmoMirrorSystem, the brain] -->|WeaponAmmo, replicated| EBL
+    FIRE[FireProcessingSystem, the muscle] -->|WeaponFireNotification, NED to every host| ESP[EffectSpawnSystem, every map host]
+    ESP -->|RecentShots| EBL
+    ESP -->|flash, backblast, blast entities| EL
+    LR[LightweightRound ingress, every host] --> PL
+```
+
+*Caption:* nothing here runs on the simulation side — every input already reaches every map host; ⚠ `EffectSpawnSystem` is skipped during a
+replay (`IsReplayActive`), so in a replay the launcher stays slung and no backblast is drawn (the recorded effects still are).
+
+| decision (✅ user, `2026-10-14`) | rule |
+|---|---|
+| **N-1 weapon systems** (CE-1087) | one family `WeaponSystem`; the kind from the class chain (HMG, Minigun, ATGM, Launcher, Sentry; + `Mortar`, `TowedArtillery`); each kind a STOWED and a DEPLOYED kit with the same parts in the same order, blended over `Deploying` / `Packing` by `Until`; a station weapon is drawn where the sim put it; its turret and gun articulate |
+| **N-2 gunners** (CE-1088) | a man in a weapon's `Gunner` seat is drawn at the kind's operator spot (behind a tripod HMG / ATGM, beside a mortar, left of a howitzer's breech), turned with the weapon's traverse, kneeling or standing with his hands on it, rifle on his back; a seat that declares a place wins. `SeatPose` gains `Stand` (a pickup's pintle gunner) and `Kneel` | ⭐ **As built `CE-1202` (`2026-10-21`)** — 🔒 user, live: *"the gun operator on a mounted weapon is not moving when the weapon turns"*. Measured: the gunner of a VEHICLE STATION (the technical's bed pintle, the HMMWV ring — a `Gunner` seat with its own place, `CarriageKind.Seated`) was placed by his seat alone, and a weapon's own seat with a place ignored the traverse too; only the kit's gunner spot turned. Now both are swung about the weapon's traverse pivot (the kit's, placed by the weapon's transform) by its published azimuth once deployed — `EntityBodyLayer3D.StationTurn` / `TurnedWithStation`, the station found by `SeatSwitch.StationOf` (the seat that OPERATES it). Rails `Map3DTests.CE1202_*`, frame `Map3DFrameRail.CE1202_V_*` (`docs/assets/map-3d/ce1202-gunner-turns.png`).
+| **N-3 carried** (CE-1085) | the classifier fix; a carried stowed weapon is drawn slung across the back |
+| **N-4 launcher in hands** (CE-1090) | a soldier AIMED within 4 s of firing a launcher (an ATGM mount, or a carried ATGM / Launcher weapon) holds the tube on his shoulder instead of the rifle (the carried weapon is not drawn twice); the flash leaves the tube's front; a recoilless launcher throws a BACKBLAST cone behind it; a mortar / gun throws a ground BLAST ring |
+| **N-5 indirect** (CE-1089) | mortar tube at 60°; towed / SP howitzer at 25°; after a shot, on the node running combat, the newest round fired by that gun sets the elevation for 60 s (its launch direction). ✅ `2026-10-15` backend P2 (`b6ad14c83`): mortars 609–611 and the towed 612 have a laying turret, and every indirect gun is LAID (W-9 `TurretPose`) before it fires — `LaidPose` already reads the turret pose first, so a laid tube shows the mission's azimuth and elevation on every node before its first round; the defaults are only for a gun nobody has laid. ⭐ **CE-1114 (`2026-10-15`, user: "the barrel elevation needs to be read and used")** — ⛔ it read the elevation only when NON-ZERO and otherwise guessed it from the gun's newest round on the combat node (60 s): a published level gun (a ZU-23 on the horizon) drew at the default, and the guess existed only where combat runs. Now `ArticulationPose.Published` (set by `TurretPoseSource`) ⇒ the replicated pose is used as is, azimuth and elevation, a 0 included; only a gun with NO turret part gets the default. The round guess (`UpdateLaid`, `RememberLaid`, `LaidSeconds`) is retired — SUPERSEDED by W-9's replicated pose, as this row foresaw. Rail `Map3DTests.CE1114_*`. SP howitzer: a tank hull, a big boxy turret, a long barrel |
+| **N-6 trails** (CE-1091) | the smoke trail follows the round's REMEMBERED path (sim time, every host), so a top-attack climb and dive shows; a shell or mortar bomb draws a faint thin streak of its last 2 s |
+| **N-7 drone** (CE-1086) | family `Drone` = a `Uav` that flies as a `Rotorcraft`: an X frame, four motor pods, four rotors spinning; sized 2·radius × 2·radius × height from `Gen.Flight` |
+| **N-8 attack plane** (CE-1092) | family `AttackJet` (class `AttackAircraft`): straight wings, two engines on the rear fuselage, twin fins, the nose gun, pylons; a bomb per round left on its `Bomb` mount (`WeaponAmmo`) |
+| **N-9 rotors** (CE-1093) | a rotor runs while airborne OR moved within the last 20 s, and spins up / down over 3 s; the tail rotor spins about its axle. ⭐ `CE-1353` (`2026-10-25`): its ANGLE advances by the frame time × the sim's pace eased over 0.25 s (`MotionTracker.PaceSeconds`), not by each frame's sim dt — the sim's fixed steps (0/1/2 a frame) made four blades jump 0°/26°/52° and seem to flick back and forth; a pause still stops it |
+| **N-10 bomb release** (CE-1094) | no muzzle flash for a `Bomb` mount |
+
+**Rejected — one line each:**
+- *A per-weapon `VisualFamily` (seven new families)* — the families key the icon and size fallbacks; one family + a kind keeps those tables short.
+- *Drawing the carried weapon from the figure's parts list* — the weapon is its own entity (picked, selected, killed); it stays its own draw.
+- *A replicated "active mount" for the hands* — a wire change (backend's); the last shot is on every host already. ⏭ asked of backend as an improvement.
+- *Matching a viewer's new shell to the nearest muzzle for the elevation* — two guns side by side break it (approved lean).
+- *A trail in the SIMULATION* — a look; the round's own positions over time are enough.
+
+#### 6n as-built `2026-10-14` (ui)
+
+⭐ **Built as the three diagrams draw it** — `WeaponKits` / `WeaponKind` / `FiringBlast` (`Map3D/WeaponKits.cs`), `RecentShots`
+(`Effects/RecentShots.cs`), the four families, `ShapeKits.Drone` / `SpArtillery` / `AttackJet` (+ `AttackJetBombs` / `AttackJetPylons`),
+`BlockFigure.AtWeapon` / `Shouldered`, `Carriage` (fixed, + `Manning`, + `Load`), `ProjectileLayer.RoundPath` / `TrailOf(r, path)` /
+`StreakOf`, `MotionTracker`'s spool, `PartRole.TailRotor`, `SeatPose.Stand` / `Kneel`. The details the diagrams do not carry:
+
+| as-built detail | why |
+|---|---|
+| ⚠ `RecentShots` lives BESIDE the world (a `ConditionalWeakTable<EntityRepository, …>`), not as a managed singleton in it | ⛔ a managed singleton needs a central component id (FDP `GlobalComponentIds`) — for one host's drawing memory that must never be saved, recorded or replicated. ⭐ The class diagram's «managed singleton» is SUPERSEDED by this |
+| the backblast and gun blast are two new built-in EFFECT TYPES of the existing `Explosion` kind (**7161** Backblast — a 2.6 m dust cloud, **7162** Gun blast — 6 m), no new effect kind; the backblast sits 2.2 m behind the shooter on the line of fire, 1.3 m up | the effect layer already draws a world-fixed expanding cloud; a type is data |
+| a gunner at his weapon is drawn at the kind's GUNNER SPOT scaled to the weapon's size and turned with its traverse; a gunner seat that declares a place wins (`Kneel` / `Stand` ⇒ the place is his feet) | ⚠ the spot is the KIT's, not the TKB's: the WS-4 weapon types may later give their gunner seat a place, and then it wins |
+| a carried weapon is drawn in a SECOND pass, on its bearer's figure frame as drawn (`OnBack`: its length from the right hip to the left shoulder) | the bearer may be drawn after the weapon in the query order |
+| the launcher-on-the-shoulder rule: AIMED and a launcher shot (an `Atgm` mount, or one firing a `Rocket` / `Missile` round — the RPG) by him or by the launcher he carries within **4 s** | ✅ `2026-10-15` CE-1107: ALSO the replicated `WeaponPosture.ActiveMount` (backend P4) — a launcher SELECTED (his own mount, or a carried launcher by its controlled index 32 + k) is shouldered while he aims, before the first shot, on every node |
+| the shouldered tube's front is the weapon tip (the muzzle flash), and also the CARRIED weapon's tip — its shot is the weapon entity's (WS-3) | the flash would otherwise leave the weapon at his feet |
+| a laid gun: ⭐ CE-1114 — its turret part's replicated pose, as published (a level gun included); with no turret part, **60°** mortar / **25°** howitzer. ⛔ SUPERSEDED: *"else the elevation its newest round left at (seen on this node, 60 s)"* | N-5 |
+| ⚠ the A-10's bombs read the `WeaponAmmo` mirror (CE-1079) — present only where a brain mirrors it; elsewhere the full load | an editor's placed plane shows four |
+| the rotor: spools over **3 s**; runs while airborne or for **20 s** after it last moved (> 2 cm a frame); a helicopter first seen airborne is at speed. The tail rotor: two crossed blades at **4.7×** the main rotor; the tail-rotor DISC is gone (a spinning disc shows nothing) | ⚠ the old S4 rail's "parked ⇒ rotor 0 at once" moved to "parked ⇒ it runs on, spools down, stands" |
+| ⭐ CE-2172 fixed in ALL THREE route gizmos (`RouteWaypointGizmo`, `RouteGizmo`, `AuthoredRouteGizmo`), not only the one the row named — the same Z-as-north read; one helper `RouteGizmo.PointOf` (a flyer's waypoint at ground + `HeightAgl`, else its own Z — 0 drapes) | three copies of one rule had one bug; now one rule |
+| the type golden moved on exactly two lines (403 Jet → Drone, 405 Jet → AttackJet) and the class-table sweep on the five classes that now have a family | deliberate |
+| ⚠ **finding for backend (WS-4):** a weapon type's `Gen.Carrier` must be `Exposure = Open` (and a pickup's bed station / gunner seat exposed) — the engine's one rule hides an ENCLOSED passenger, so a gunner at a tripod, or the M2 in a bed, of a type left enclosed is neither drawn nor seen | `PhysicalPresence.IsEnclosedPassenger` |
+
+📐 **Rails:** `Map3DTests.CE1085_*` · `CE1086_*` · `CE1087_*` · `CE1088_*` · `CE1090_*` · `CE1091_*` · `CE1092_*` · `CE1093_*` ·
+`EffectTests.CE1094_*` · `RouteWaypointGizmoTests.CE2172_*` (+ RWG-002 / RWG-003 and `AuthoredRouteGizmoTests` re-pinned Z-up) ·
+`Map3DFrameRail.CE1085_V_*` (the real frame, below).
+
+✅ **(V) — a real frame under Xvfb** (`Map3DFrameRail.CE1085_V_*`):
+
+| | |
+|---|---|
+| ![weapon systems](assets/map-3d/ws-1-weapons.png) | ![HMG stowed / deployed, Kornet](assets/map-3d/ws-2-hmg-kornet-mortar.png) |
+| *the row: kneeling gunners at an HMG, a Kornet and a mortar, a towed howitzer with its trails spread, a sentry gun; the Javelin shooter's tube; the drone; the technical's gunner at its bed M2 (front)* | *an HMG stowed (lying) beside one deployed, its gunner at the grips* |
+| ![carried, shouldered, drone](assets/map-3d/ws-3-carried-shouldered-drone.png) | ![the technical](assets/map-3d/ws-4-technical.png) |
+| *a Javelin slung across a back; a launcher on the shoulder just after firing; an FPV drone* | *the M2 in the bed's station, its gunner kneeling behind it* |
+| ![laid guns](assets/map-3d/ws-4b-laid-guns.png) | ![top attack](assets/map-3d/ws-5-top-attack-trail.png) |
+| *the howitzer laid at 25°, a man at its breech; the mortar at 60°, its gunner beside it* | *a missile's top-attack trail arcing onto the SP howitzer* |
+| ![A-10](assets/map-3d/ws-6-a10.png) | *the A-10's own airframe: straight wing, engines on the rear fuselage, twin fins, the nose gun* |
+| ![route heights](assets/map-3d/ws-7-route-heights.png) | *a flyer's route drawn Z-up (CE-2172): from its ground start it climbs to each waypoint's height above the ground (CE-1096)* |
+
+⏭ **Built in their OWN designs, not here:** the route gizmo Z-up and the waypoint heights (air hand-off U1 / U2 — CE-2172 / CE-2173,
+[DESIGN_Air_Operations.md](designs/air-attack/DESIGN_Air_Operations.md) §5), the pilot station (U3, §6 there and
+[DESIGN_Entity_Control.md](DESIGN_Entity_Control.md)), placing a weapon into a station in the editor (weapon-systems hand-off U2, CE-2174). ⏸ **Blocked on
+other lanes:** the stretcher / two-man carry poses (team carry T-a), the attack helicopter, door guns, minigun / GAU-8 tracer streams, Hydra
+salvoes (air weapons F1–F4), the fire mission's aim points (IF-2), real gun types (IF-1 / WS-4).
+⭐ **`2026-10-15` — after merging `behaviors` (T-a, F1–F4, IF-1, WS-4 landed):** UNBLOCKED — the stretcher and the two-man weapon (T-b:
+a casualty with `IsEmbarkedTag.Mode == Stretcher` and the `IsAssistingTag` second man), the attack helicopter 406's own kit (it resolves
+to the generic helicopter), the door gunners (404's seats 8–11 — ✅ CHECKED `2026-10-15` in `CE1105_V`: they draw through the station path, but the gunner's seat sat inside the fuselage; CE-1106 moved it into the door, §6u), a dense
+stream for the M134 / GAU-8 (the clients see only every 5th M134 round, at the behaviour's cadence), the real gun types (600–612 resolve to
+the weapon-system kits, 107 to the SP-artillery kit — verified in the picker golden). ~~STILL BLOCKED — the sheaf aim points and the
+fire-mission form (behaviors' IF-2).~~ ✅ **DONE `2026-10-16` — §6x** (CE-1121). ⭐ HANDED TO BACKEND (`CE-1102`, handoff): the laid elevation (P2), pitch and roll (P3), the active weapon (P4), and the weapon presets that replace the editor placement (P1, 🔒 R-1001). ✅ **DELIVERED `2026-10-15` (`b6ad14c83`, merged into ui `103c9903a`)**: P1 / P2 / P3 need no ui change (the HMMWV and the new technicals 108 / 109 draw through the station path; the laid tube through `LaidPose`; the attitude arrives in `SimTransform.Rotation`); ✅ **P3 live-verified `2026-10-16`** (CE-1123: an A-10 in a −60° turn, the same roll and pitch on the IG node as on SimHost); P4 is CE-1107. ⚠ Left: a heading-only attribute patch still levels a banked body (steer row 7).
+
+⭐ **CE-1108 — found checking P1 in a frame (`CE1102_V`):** the technicals' gunner seat (104 / 105 / 108 / 109) had **no place**, so its
+rifleman was drawn at the pickup's reference point, inside the body; the HMMWV's ring gunner sat at 1.2 m and only his head cleared the roof.
+Now the pickup gunner KNEELS in the bed behind his pintle (x −2.0, feet at 0.85 m) and the HMMWV's STANDS in the hatch (feet at 0.7 m) — the
+gun's pivot at his chest. A gunner seat's place and pose are read only by the 3-D drawing (the sim reads a STATION's place, unchanged). ⚠ A
+cross-lane data edit to backend's `NedTkbCatalog` (`Pickup`, `HmmwvSeats`). Rails `Map3DTests.CE1108_*` (×5), `CE1107_*`; frame rail
+`CE1102_V` crews each preset from its own catalogue seats:
+
+![](assets/map-3d/presets-1.png)
+
+### 6o. CE-1097 — a face: skin, eyes, nose and mouth, a soldier's helmet — DESIGN + AS-BUILT `2026-10-14` (ui)
+
+🔒 **User, `2026-10-14`:** *"give the soldiers some face, now it is just a green expressionless cube, there should be some skin color and
+symbolic eyes and nose and mouth and green helmet on the top"*.
+
+📐 **INVENTORY** *(graph `search_graph .*(BlockFigure|ShapeKit|PartColour|KitPart).*` = 7; grep `BlockFigure.|ColourRole.|PartColour(` = 5
+files)*: the head is ONE `ColourRole.Body` box in every pose (`BlockFigure`, `ShapeKit.cs` — standing, athletic, crouched, crouched run,
+prone, crawl, dead, downed, draped, towed, seated); `EntityBodyLayer3D` is the ONLY renderer of the kits; every pose keeps one part ORDER
+(`HeadIndex` 5, `WeaponIndex` 10) that the blends, the first-person eye and the muzzle tip rely on. ⛔ No design in `docs/` or `.dev/`
+covers a face (searched `helmet`, `face`, `skin`; the TKB `Accessory` idea is a data idea, not a drawing).
+
+```mermaid
+classDiagram
+    direction LR
+    class KitPart { <<existing, grows>> + Face FaceOn }
+    class FaceOn { <<NEW enum>> None · Front · Up · Down }
+    class ColourRole { <<existing, grows>> + Skin }
+    class BlockFigure { <<existing, grows>> every pose's head Skin with its FaceOn · FaceParts · FaceFrame }
+    class FacePart { <<NEW>> Centre · Extent in the head box · Shade }
+    class FaceShade { <<NEW enum>> Eye · Nose · Mouth · Helmet · Hair }
+    class EntityBodyLayer3D { <<existing, grows>> draws the face on the head part · FaceDetailsDrawn }
+    KitPart --> FaceOn
+    BlockFigure ..> FacePart
+    FacePart --> FaceShade
+    EntityBodyLayer3D ..> BlockFigure
+    EntityBodyLayer3D ..> KitPart
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant F as BlockFigure
+    participant H as the head part
+    L->>H: BodyTransform, with lean, twist, stance blend
+    L->>L: draw the head box in skin
+    L->>F: FaceFrame of the head's FaceOn, FaceParts soldier or civilian
+    L->>L: draw each face part in the head box's frame, then the head's transform
+```
+
+*Caption:* the face is drawn ON the head part, in the head box's own frame, so it follows every lean, twist, stance blend and fall for
+free, and the shared part order does not move (no new kit part). The only new fact a pose states is WHICH side of its head box is the face.
+
+| decision | rule |
+|---|---|
+| **F-1 skin** | every head is `ColourRole.Skin`, one fixed tone |
+| **F-2 the features** | two dark eyes, a nose a shade darker than the skin and a dark red mouth, standing a little proud of the face so they read at a distance |
+| **F-3 the helmet** | a soldier wears a helmet over the top of the head, a little wider than it, in his UNIFORM colour a step darker — green for the default soldier; a civilian has dark hair instead |
+| **F-4 which side is the face** | `FaceOn` on the head part: `Front` (upright, prone, seated), `Up` (on his back — dead, downed, dragged), `Down` (draped over a shoulder); a fall or blend switches it halfway |
+| **F-5 the first-person head** | the face is not drawn for the possessed unit's own head (it is not drawn now) |
+
+**Rejected — one line each:** *new kit parts for the eyes and helmet* — every pose's part order (the blends, `HeadIndex`, `WeaponIndex`)
+would move; *a fixed olive helmet* — from above the helmet is most of what is seen of a man, and a fixed colour would hide his side;
+*rotating the head box in the lying poses instead of a tag* — face-up with the top of the head away from the body needs a turn of 180°
+about a diagonal, and the fall blends yaw and pitch linearly, so the head would spin as he falls.
+
+**AS-BUILT** — as drawn above. Rails `Map3DTests.CE1097_*` ×2 (every pose's head and its face side; the face's place, the helmet's colour),
+frame rail `Map3DFrameRail.CE1097_V` (`face-*.png`). ⚠ `TkbEntityTypes.CivilianPedestrian` (501) is drawn as a box, not a person —
+the civilian figure is `UrbanCombatTkbCatalog.TkbCivilianPedestrian` (1001).
+
+| | |
+|---|---|
+| ![faces](assets/map-3d/face-1-front.png) | ![close](assets/map-3d/face-2-close.png) |
+| *a civilian (hair), riflemen crouched, aimed and ready (helmets in the uniform darker), a dead soldier looking up* | *close: eyes, nose, mouth, the helmet's brim over the brow* |
+
+### 6p. CE-1098 — blood: spots on a hurt man, more as his health drops — DESIGN + AS-BUILT `2026-10-14` (ui)
+
+🔒 **User, `2026-10-14`:** *"Some red blood stains where soldier was hit would also be great … or just repeatably random spots based on
+health level"*.
+
+| the choice rests on | code — how it is | design basis |
+|---|---|---|
+| the sim knows where a bullet struck | ✅ `HitEvent` carries the bullet segment and `HitT` (`FDP/Toolkits/Fdp.Toolkits/Combat/HitEvent.cs`) | ⛔ searched `docs/`, `.dev/` for blood / wound marks: none found |
+| …but no node is told where | ✅ the wire carries the damage (`EntityHitDamage`: id + HP) and the health (`EntityDamage`: `Current`, `Max`), no point | `docs/DESIGN_Injury_States.md` owns the injury states (from health), not marks |
+| every node has the health | ✅ `EntityDamage` → `Health{Current, Max}` | — |
+
+⇒ the user's second option, which needs nothing new on the wire: **repeatably random spots by health.** The real hit point is a
+follow-up if backend ever puts it on the hit message.
+
+```mermaid
+classDiagram
+    direction LR
+    class BlockFigure { <<existing, grows>> MaxStains · StainCount · StainOf · StainDetail }
+    class Stain { <<NEW>> Part · Centre · Extent · Fresh }
+    class Health { <<existing, replicated>> Current · Max }
+    class EntityBodyLayer3D { <<existing, grows>> Bloodied · draws each spot on its part · StainsDrawn }
+    BlockFigure ..> Stain
+    EntityBodyLayer3D ..> Health
+    EntityBodyLayer3D ..> BlockFigure
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant F as BlockFigure
+    L->>F: StainCount of his health
+    L->>F: StainOf his network id, k, for k below the count
+    L->>L: draw the figure part by part
+    L->>L: after each part, its spots, carried by that part's transform
+```
+
+*Caption:* a spot belongs to a PART (by the shared part order) and sits in that part's own frame, so it moves with the limb through every
+gait, blend and fall; its place comes only from the man's network id and its number, so every node draws the same spots and a spot never
+jumps when another appears.
+
+| decision | rule |
+|---|---|
+| **B-1 where** | on the torso (three times as often; there the chest twice as often as the back, a side or the shoulders) or a thigh, shin, upper arm or forearm; never the head or the rifle |
+| **B-2 how many** | none unhurt, one after any hit, up to 8 at no health left (a dead man shows them all) |
+| **B-3 the same everywhere** | seeded by the network id (the entity index where there is none); spot k never changes |
+| **B-4 colour** | a fresh red or a dried darker red, half and half |
+
+**Rejected — one line each:** *spots where he was hit* — no node but the one that resolved the hit knows where (a wire change, backend's);
+*a random draw per frame* — the spots would flicker; *more spots the longer he is hurt* — health is what every node shares, time since the
+hit is not.
+
+**AS-BUILT** — as drawn. Rails `Map3DTests.CE1098_*` ×2 (how many; repeatable, per man, on the body), frame rail `Map3DFrameRail.CE1098_V`
+(`blood-*.png`).
+
+| | |
+|---|---|
+| ![blood front](assets/map-3d/blood-1-front.png) | ![blood above](assets/map-3d/blood-2-above.png) |
+| *health 15, 50, 85, 100 (left to right) — the more hurt, the more spots* | *from above; the dead man shows all 8 (some on the sides he lies on)* |
+
+### 6q. CE-1099 — what people wear: civilians in varied clothes, children, a soldier's camouflage by his side — DESIGN + AS-BUILT `2026-10-15` (ui)
+
+🔒 **User, `2026-10-15`:** *"Pedestrians body should not be green, color should vary, derived from tkb type, also some variation of dresses,
+short sleeves, skirts, shorts, suits etc. Children also needed. Soldiers also need to differ a bit based on their affiliation, maybe by
+different texture of their body uniform?"*
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| a pedestrian is green because his TYPE has no colour | ✅ `CivilianPedestrian` (1001) has no `VisualDefinitionDto` (`UrbanCombatTkbCatalog.cs`), so `Resolve` falls to `DefaultColour(Person)` = green | ⛔ searched `docs/`, `.dev/` for clothing / camouflage / children: none found |
+| a figure's height comes from its type | ✅ `Resolve` scales the figure by `StrideRenderModelDefDto.ShapeHeight` | — |
+| every node knows a man's side | ✅ `EntityInfo.ForceId` (Neutral / Friend / Hostile) crosses the wire (`EntityInfoIngressTranslator`) | §3.7 M15 / M16 (the side palette) |
+| a soldier is told from a civilian by his type | ✅ `VisualFamilies.IsSoldier`: DIS 3.x.x.1 | — |
+| per-man detail can be repeatable on every node | ✅ the blood (§6p) seeds by the network id | §6p B-3 |
+
+```mermaid
+classDiagram
+    direction LR
+    class Outfits { <<NEW static>> For seed, soldier, child, type colour, side · ColourOfPart · Details }
+    class Outfit { <<NEW>> Top · Sleeve · Bottom · Shin · Skin · Hair · HairStyle · Legwear · Suit · Camo · Child }
+    class PartDetail { <<NEW>> Part · Centre · Extent · Colour · Frame }
+    class TypeLook { <<existing, grows>> + TypeColoured · Child }
+    class EntityBodyLayer3D { <<existing, grows>> each part in its outfit colour · the outfit's details · DetailsDrawn }
+    class UrbanCombatTkbCatalog { <<existing, grows>> + CivilianChild 1003 }
+    class EntityInfo { <<existing, replicated>> ForceId }
+    Outfits ..> Outfit
+    Outfits ..> PartDetail
+    EntityBodyLayer3D ..> Outfits
+    EntityBodyLayer3D ..> TypeLook
+    EntityBodyLayer3D ..> EntityInfo
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant O as Outfits
+    L->>O: For his network id, soldier or not, child or not, his type's colour, his side
+    O-->>L: the outfit, every choice drawn from the seed
+    L->>L: draw each part in its outfit colour
+    L->>O: Details of the outfit
+    L->>L: after each part, its details in that part's frame
+```
+
+*Caption:* the outfit (and a car's paint, O-6) is one value computed from facts every node already has, so a man looks the same everywhere and from frame to frame; the
+kit and its part order do not change — the outfit only colours the parts and adds details in their frames (as the face and the blood do).
+
+| decision (⭐ lean, built) | rule |
+|---|---|
+| **O-1 a civilian's colours** | his TYPE's colour when it has one (each man a little lighter or darker, the hue nudged); a type with none picks from a palette of everyday clothes — tops in many colours, trousers in jeans blue, khaki, grey, black, brown |
+| **O-2 what a civilian wears** | per man: long or short sleeves (short = skin-coloured forearms); trousers, shorts (skin shins) or — for a woman — a skirt to the knee; sometimes a dark suit with a white shirt and a tie; hair short, long or none, in a natural colour; skin in one of several tones |
+| **O-3 children** | a new type `CivilianChild` (1003): a pedestrian 1.25 m tall, slower; drawn smaller with a larger head, in brighter clothes |
+| **O-4 a soldier's side** | the uniform keeps its type's colour (or the authored one); trousers the same cloth a shade darker (were black); his SIDE adds a camouflage pattern of patches: Friend — woodland (large brown, dark green and black blotches); Hostile — ~~fleck (many small tan, brown and green spots)~~ ⛔ SUPERSEDED by O-4a: desert; Neutral — plain |
+| **O-4a the side picks the CLOTH** (`CE-1235`, `2026-10-21`, R-1020, R-1021) | with no colour of his own (none authored on HIM — ⭐ R-1021: a TYPE colour no longer counts for a soldier), a soldier's cloth is his SIDE's: Friend green-olive `(96,110,72)` + woodland (denser than O-4's), Hostile desert khaki `(190,170,125)` + a desert pattern (large tan, brown and pale-sand patches), Neutral plain olive. A colour authored on him still wins; police keep navy (Civilians U-1). See the note below the table |
+| **O-5 the same everywhere** | every choice is seeded by the network id (the entity index where there is none) and the type id |
+| **O-6 personal cars** (`CE-1100`, user *"And we need personal car with similar color variety"*) | a car (the `WheeledCar` family) with no colour of its own gets a street paint by its seed — mostly white, black, silver and grey, then blue and red, a few green, beige, yellow, brown; one with its own colour keeps its hue, lighter or darker per car. Glass and wheels keep their shades |
+
+**Rejected — one line each:** *a real texture on the uniform* — the bodies are lit flat-coloured cubes with no texture binding in the shader;
+patches in the block style need no shader change and read the same at every distance the boxes do; *colour by side for the whole uniform* —
+the side palette is the 2-D map's symbol code, and a red or blue soldier stops reading as a soldier *(⚠ narrowed by O-4a, not
+reversed: the side now picks a real uniform's cloth — woodland or desert — never the map's blue or red)*; *the outfit stored as a component* —
+nothing would write it on a replica, and the seed already makes it the same everywhere.
+
+**AS-BUILT (`CE-1099`, `CE-1100`)** — as drawn above. Measured on the first frames and changed: dark camouflage patches on olive vanished
+under the shading, and a patch on ONE side of a part mostly faced away from the camera ⇒ each pattern mixes light and dark tones, a patch goes
+THROUGH its part (it shows on two opposite sides) and a woodland patch on a limb is a band round it; Friend 18 woodland patches, Hostile 30
+sand-heavy fleck (a hostile reads paler). ⚠ The fleck stays subtler than the woodland. The blood (§6p) and the camouflage share one
+placement of a box on a part's side (`BlockFigure.SpotOnSide`) for the blood; the camouflage places its own through-boxes. Cross-lane:
+`Hrot.Core` `UrbanCombatTkbCatalog` gains `CivilianChild` (1003); `UrbanCombatCatalogRails` (SimHost) counts 10 types; the picker golden
+lists 1003. Rails `Map3DTests.CE1099_*` ×4, `CE1100_*`; frame rail `CE1099_V` (`dress-*.png`); red-proved 6 ways.
+
+| | |
+|---|---|
+| ![dress front](assets/map-3d/dress-1-front.png) | ![soldiers](assets/map-3d/dress-2-soldiers.png) |
+| *civilians (suits, skirts, shorts, short sleeves, varied hair and skin), three children, soldiers behind, three cars* | *soldiers by side, right to left: two friends (woodland), two hostiles (sand fleck), a neutral (plain)* |
+| ![above](assets/map-3d/dress-3-above.png) | |
+
+#### 6q.1 O-4a — the side picks the cloth (`CE-1235`, `2026-10-21`, ui) — DESIGN + AS-BUILT
+
+🔒 **User, `2026-10-21`:** *"In the PC House Defend demo, there are two teams, blue one and red one. They are identified by the label card on
+top of their head, but their uniforms looks pretty same. … Maybe one team could have a European uniform and the other could have desert
+uniforms or something. This could be made generic, like by affiliation. Enemies could could wear a desert uniform?"* — on the lean: *"Yes"*.
+
+📐 **Why they looked alike** (measured): `pc-defend-house` is 18 Friend + 18 Hostile, all soldiers type 2002 with no colour of their own
+(`UrbanCombatTkbCatalog.cs:222`), so both wore the default olive; only the pattern differed, and the hostile fleck (S-2: *"small and
+sparse"*) covered ~10 % of the cloth in ~6 cm spots — invisible at room distance. O-4 changed the PATTERN by side, never the CLOTH.
+
+```mermaid
+graph TD
+  EI["EntityInfo.ForceId (scenario)"] --> L3["EntityBodyLayer3D.SideOf"]
+  OWN["own colour: entity VisualData / EntityAppearance, or the TKB type"] --> OF
+  L3 --> OF["Outfits.For (soldier)"]
+  OF -->|"own ?? side cloth"| TOP["Outfit.Top / Bottom"]
+  OF -->|"Friend Woodland · Hostile Desert · Neutral None"| CAMO["Outfit.Camo"]
+  CAMO --> BS["BodySurface.Camouflage: SurfaceKind.Woodland / Desert (bodyPattern 1 / 4)"]
+```
+
+*Caption:* the one input that changed is the cloth's default — `own ?? side cloth` — so an authored or type colour (and the police kit) is
+untouched, and a scenario that wants a desert-clad friendly force names the colour on the type or the entity.
+
+| as built | |
+|---|---|
+| cloth | `Outfits.WoodlandCloth (96,110,72)` for Friend and Neutral, `Outfits.DesertCloth (190,170,125)` for Hostile; trousers ×0.85 as before |
+| pattern | `CamoPattern.Desert` / `SurfaceKind.Desert` (shader `bodyPattern 4`): tan / pale sand / brown at a 4.5 per-metre scale (larger than woodland's 5.5); woodland's thresholds lowered 0.60/0.62/0.64 → 0.56/0.58/0.60 (denser). `Fleck` stays a pattern, no longer any side's |
+| rails | `Map3DTests.CE1235_ASoldiersSide_PicksHisCloth_*` (cloth gap > 90, trousers > 70, own colour wins, police navy); `CE1099_ASoldiersSide_*` now expects Desert |
+| not measured | ⚠ the look in a real dim room — a Windows visual check is owed |
+| ~~⚠ found while building~~ ✅ resolved `2026-10-21` (R-1021) | the BDC catalogue's soldier types carry a TYPE colour, olive `#556B2F` (`NedTkbCatalog.cs:105,281,313`) ⇒ under "the type's colour wins" their men kept olive cloth. A type colour is per type, never per side (one type serves both sides), so it can only make the sides alike. 🔒 User, `2026-10-21`, on the lean to let the side beat it: *"Yes. Another topic."* ⇒ **a SOLDIER's cloth ignores his type's colour; only a colour HE names wins** (`EntityBodyLayer3D.OwnColourOf`). ⚠ The type's colour is stamped onto every spawned entity (`PresentationTkbTranslator.cs:59-69`, `VisualData` + `EntityAppearance`), so "his own" is an entity colour that DIFFERS from his type's. Civilians (O-1) and police keep their type's colour. Rail `Map3DTests.CE1235_ASoldiersTypeColour_*` |
+
+### 6r. CE-1101 — camouflage and faces drawn by the SHADER, not by boxes — DESIGN + AS-BUILT `2026-10-15` (ui)
+
+🔒 **User, `2026-10-15`:** *"Isnt the camouflage build from geometry? Isnt this performance unfriendly? Wouldnt a procedurally generated
+texture work better?"* · *"Same for the human faces a guess texture can add same variety and remove unnecessary geometries"*.
+⛔ **SUPERSEDES** §6q's camouflage PATCHES (O-4's drawing, and its rejected line *"a real texture … patches need no shader change"*) and
+§6o's face FEATURE boxes (F-2). The helmet, the hair and the outfit details (tie, skirt, long hair) stay boxes: they change the outline.
+
+| the change rests on | code — how it is | design basis |
+|---|---|---|
+| every patch and feature was its own draw call | ✅ `EntityBodyLayer3D` draws each with its own `DrawMesh` (no instancing): a soldier was 11 parts + 5 face + 18 / 30 patches | §6q counted none of it |
+| the shader sampled no texture | ✅ `LitShader.cs`: no texture coordinates in, colour = vertex × material | M5: one shader for the 3-D map |
+| a part's own frame reaches the shader | ✅ the mesh's local axes are HROT axes behind a fixed basis change (`HrotToRaylib.ModelFromHrot`: raylib-local → HROT-local is `(x, −z, y)`), and a part's size is the length of each model-matrix column | — |
+| a texture on the cube would stretch | the cube's texture coordinates run 0–1 on every face; a limb face is 0.12 × 0.44 m | — |
+
+```mermaid
+classDiagram
+    direction LR
+    class LitShader { <<existing FDP, grows>> UseSurface glsl · passes each fragment its part-local unit position, metres and normal · default surface returns the colour }
+    class BodySurface { <<NEW Hrot.Presentation>> Glsl · Woodland · Fleck · Face · Plain · uniforms set only on change }
+    class FaceLook { <<NEW>> EyeSpacing · MouthWidth · Beard · Brow · EyeColour · Lips }
+    class Outfit { <<existing, grows>> + Face FaceLook }
+    class EntityBodyLayer3D { <<existing, shrinks>> sets the surface per part · no patches, no feature boxes }
+    LitShader ..> BodySurface : the host's surface function
+    EntityBodyLayer3D ..> BodySurface
+    Outfit --> FaceLook
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant S as BodySurface
+    participant G as the GPU
+    L->>S: a uniform part of a soldier: his pattern, its tones, his seed
+    L->>G: draw the part, one call
+    G->>G: each fragment: noise in the part's own metres picks a tone
+    L->>S: his head: the face side, his face look, hair, eyes, lips
+    L->>G: draw the head, one call
+    L->>S: anything else: plain
+```
+
+*Caption:* the pattern is computed per fragment from the part's OWN frame in metres, so a patch is the same size on a torso and a forearm, it
+moves with the limb, and it covers every side; a soldier is back to ~16 draw calls. With the surface plain the shader's output is unchanged,
+so the terrain and every other body draw exactly as before.
+
+| decision | rule |
+|---|---|
+| **S-1 where the code lives** | `LitShader` (FDP) stays generic: a host registers ONE surface function (`UseSurface`); the body patterns are Hrot's (`BodySurface`) |
+| **S-2 camouflage** | 3-D value noise in the part's metres, three tones over the uniform: woodland large (a ~0.18 m feature), fleck small and sparse, seeded per man |
+| **S-3 faces** | on the head's face side (its `FaceOn`): eye whites with a coloured iris, brows in the hair colour, a nose shade, a mouth; per man the eye spacing, mouth width, brow weight, eye colour, lips, and a moustache or a beard for some men |
+| **S-4 what stays geometry** | the helmet, the hair, a skirt, a tie, long hair, the blood spots (≤ 8, only on the hurt) |
+
+**Rejected — one line each:** *a small image on the cube's texture coordinates* — it stretches on limbs and needs the shader changed anyway;
+*a texture projected by world position* — the pattern would slide over a walking man; *keep the boxes and skip them far away* — the layer does
+not know the camera, and a crowd close up pays in full.
+
+**AS-BUILT (`CE-1101`)** — as drawn above. The pattern runs in the part's own frame in METRES (`LitShader`'s vertex stage passes the
+mesh-local position, its size from the model-matrix column lengths, and the normal, all in HROT axes), so a patch keeps its size from torso to
+forearm. Measured: the face pass leaves terrain, vehicles and weapons pixel-identical in the existing frame rails (`ws-*`, 15 of 16 green; the
+red one, `CE3174_V`, was CE-1079's HUD renumbering, a display-only rail that had not run since — its expectation now reads the HUD as numbered).
+A frame rail asserts the shader compiled AND carries the body surface, since otherwise the C# counters would count paint the GPU never did.
+Rails `Map3DTests.CE1101_*` (faces vary, only grown men wear beards), `CE1097_*` / `CE1099_*` rewritten for painted features and patterns,
+frame rails `CE1097_V` / `CE1099_V` (`FacesPainted`, `CamoPainted`).
+
+| | |
+|---|---|
+| ![camouflage](assets/map-3d/surface-1-camo.png) | ![faces](assets/map-3d/surface-2-faces.png) |
+| *painted by the shader, right to left: two friends (woodland), two hostiles (sand fleck), a neutral (plain)* | *eyes with irises, brows, the nose's shade and the mouth, per man* |
+
+### 6s. CE-1103 — the AH-64: an attack helicopter's own body, its chin gun turning with its aim — DESIGN + AS-BUILT `2026-10-15` (ui)
+
+🔒 **User, `2026-10-15`:** *"Maybe also an attack helicopter ah64 might be needed"* → the plan *"APPROVED"*.
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| the type exists, drawn as the generic helicopter | ✅ 406 `Heli_AH64`, DIS 1.2.225.20 (`NedTkbCatalog.DefineAttackHelicopter`); the class table names `AttackHelicopter` 1.2.*.20 (`EntityClassTable.cs:159`) but the map maps no family to it | Air Operations §7a AW-5 |
+| its body is CG-referenced | ✅ `Body.Geometry` 17.73 × 14.63 × 3.87, `BodyCentreX = −1.5`, `BodyCentreZ = 0.6` | G4 (Body Geometry) |
+| its chin gun is turret 0 / mount 0 | ✅ `TurretDto` pivot (4.3, 0, −1.0), trunnion +0.2; mount 0 the M134, muzzle +0.8 | AW-5 |
+| ⛔ `KitFromTkb` reads the TKB pivot as a box-frame offset | ✅ `KitFromTkb.cs:24` — `turret.PivotX / size.X`, no reference-point shift: right for a ground-referenced tank (offset 0), **wrong for a CG body** (1.5 m aft, 1.3 m low on the AH-64) | — |
+
+```mermaid
+classDiagram
+    direction LR
+    class VisualFamily { <<existing, grows>> + AttackHelicopter }
+    class VisualFamilies { <<existing, grows>> AttackHelicopter class to the AttackHelicopter family }
+    class ShapeKits { <<existing, grows>> + AttackHelicopter kit, its size }
+    class KitFromTkb { <<existing, fixed>> the TKB pivot shifted from the body reference to the kit box }
+    class MotionTracker { <<existing, grows>> the attack helicopter's rotor spools like a helicopter's }
+    class EntityBodyLayer3D { <<existing>> poseOf, the chin turret's TurretPose }
+    VisualFamilies ..> VisualFamily
+    ShapeKits ..> VisualFamily
+    EntityBodyLayer3D ..> KitFromTkb
+    EntityBodyLayer3D ..> MotionTracker
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant K as KitFromTkb
+    participant P as TurretPoseSource
+    L->>K: the AH-64 kit, its template, its size
+    K-->>L: turret and barrel at the TKB pivot, shifted into the kit box
+    L->>P: the chin turret's azimuth and elevation
+    L->>L: draw: the gun turns and lifts with its aim, the rotors spin while it lives
+```
+
+*Caption:* nothing new reaches the map — the family, a kit, and one fix that makes a CG-referenced turret land where the TKB puts it.
+
+| decision | rule |
+|---|---|
+| **H-1 the body** | a slim fuselage with a stepped tandem canopy (gunner low in front, pilot raised behind), a nose sensor ball, engine nacelles either side of the mast, stub wings with a rocket pod and a missile rail each side, a long tail boom with a swept fin, a horizontal stabiliser and a tail rotor on the left, a four-blade main rotor |
+| **H-2 the chin gun** | an articulated turret + barrel under the nose, placed by the TKB turret and turned by the replicated `TurretPose` (as a tank's) |
+| **H-3 rotors** | spin while it lives, as the helicopter's (S4 spool) |
+
+**Rejected — one line each:** *the UH-60 kit for the AH-64* — wide cabin, no wings, no chin gun, so an attack helicopter reads as a
+transport; *a turret fix only for this type* — every CG-referenced body with a turret would carry the same error.
+
+**AS-BUILT** — as drawn. The kit is authored in the AH-64's own centre-of-gravity metres and put into its box by the geometry's offsets, so
+it agrees with the TKB's wheels and turret. `KitFromTkb` now shifts the TKB pivot by the box offset (zero for every ground-referenced type,
+so tanks are unchanged — the E4b rail still holds them). ⭐ The E4b rail (the drawn barrel tip within 5 cm of `Muzzle.TryOf`) gained the
+AH-64 AND the renderer's box offset (`kitToBody`) — without it the rail could never have seen this class of error. Rails
+`Map3DTests.CE1103_*`, `E4b_*` (+ AH-64), frame rail `CE1103_V` (`ah64-*.png`).
+
+| | |
+|---|---|
+| ![AH-64 side](assets/map-3d/ah64-1-side.png) | ![AH-64 close](assets/map-3d/ah64-2-close.png) |
+| *one hovering with its rotors turning, one on its wheels, a UH-60 in front for scale* | *the tandem canopy, the nose sensor, the stub wing's pod and rail, the tail rotor on the left* |
+
+### 6t. CE-1104 — the stretcher and the two-man weapon: two men carry one load (team carry T-b) — DESIGN + AS-BUILT `2026-10-15` (ui)
+
+🔒 **User, `2026-10-14`:** *"we might need aomething like that for medics carrying stretcher with wounded soldier"* · *"Approwed"* (R-2017) →
+`2026-10-15` the plan *"APPROVED"*. The sim half is T-a (backend, built); this is its drawing ([Entity Interactions
+§7.5](DESIGN_Entity_Interactions.md) T-b).
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| a stretcher is a CARRY MODE, not an entity | ✅ `CarryMode.Stretcher = 3` in `PassengerBuffer.Modes`; the casualty's `IsEmbarkedTag.Mode == Stretcher`, his holder the front carrier | §7.5 T2 |
+| the second man is named by the carrier | ✅ `PassengerBuffer.Assistant`; he carries `IsAssistingTag { Carrier }`, derived on every node | §7.5 T1 |
+| the sim already places all three | ✅ the assistant `AssistantBehindMetres` (2 m) behind the carrier, the casualty half way | §7.5 T3 |
+| a two-man weapon is a `TwoMan` weapon system in the carry station with an assistant | ✅ `Embarkation.IsTwoManWeapon` | §7.5 |
+| ⛔ the map does not know any of it | ✅ `Carriage.Of`: a `Stretcher` casualty falls to `Free` (drawn standing), the carrier to `Carrying` (the shoulder pose); nothing reads `IsAssistingTag` | — |
+
+```mermaid
+classDiagram
+    direction LR
+    class CarriageKind { <<existing, grows>> + OnStretcher · StretcherFront · StretcherRear · TeamFront · TeamRear }
+    class FigureCarriage { <<existing, grows>> + Partner, the other man of the pair }
+    class Carriage { <<existing, grows>> reads the Stretcher mode and IsAssistingTag · LitterFrame }
+    class BlockFigure { <<existing, grows>> OnLitter, the casualty and the litter · HandleArms, both hands on the handles }
+    class ColourRole { <<existing, grows>> + Canvas }
+    class EntityBodyLayer3D { <<existing, grows>> the litter frame for the casualty · a two-man weapon between the pair }
+    Carriage ..> CarriageKind
+    Carriage ..> FigureCarriage
+    EntityBodyLayer3D ..> Carriage
+    EntityBodyLayer3D ..> BlockFigure
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant C as Carriage
+    participant F as BlockFigure
+    L->>C: the casualty: OnStretcher, his carrier, the assistant
+    C-->>L: the litter frame, midway between the pair at hand height, facing the carrier's way
+    L->>F: OnLitter: him on his back on the litter, poles and canvas
+    L->>C: the carrier: StretcherFront · the assistant: StretcherRear
+    L->>F: HandleArms: hands behind him on the front handles, or ahead of him on the rear ones
+    L->>L: a two-man weapon: drawn between the pair, at the same height
+```
+
+*Caption:* the three are found from facts every node has (the carrier's list, the derived tags); the drawing only moves the casualty onto a
+litter between the two men and their hands onto its handles — the sim's places are kept.
+
+| decision | rule |
+|---|---|
+| **T-b1 the casualty** | on his back on the litter, head toward the front man, arms along his sides (a soldier's rifle on his chest); the litter midway between the pair at 0.80 m, facing the front man's way |
+| **T-b2 the litter** | two poles 1.7 m long and a canvas between them |
+| **T-b3 the carriers** | the front man's hands behind his hips on the front handles, the rear man's ahead of him on the rear ones; both walk with their gait; a soldier's rifle slung |
+| **T-b4 a two-man weapon** | stowed, between the pair at hand height, both men's hands on it |
+
+**Rejected — one line each:** *a stretcher entity* — the sim ruled it a carry mode (T2), so the drawing needs none; *the litter at the casualty's
+own place and height* — he is placed on the ground by the sim, the litter belongs in the men's hands.
+
+**AS-BUILT** — as drawn. A two-man weapon's stowed kit is centred on the hands by its own height (measured: a fixed share of its size
+left a stowed 120 mm mortar on the ground). ⚠ A carried weapon must carry `IsEmbarkedTag.Exposed = 1` to be drawn at all (the enclosed-
+passenger rule hides `Exposed = 0`) — true of the sim's carry station; the rail sets it. Rails `Map3DTests.CE1104_*` (the classifier and the
+team frame; the litter and the hands), frame rail `CE1104_V` (`team-*.png`).
+
+| | |
+|---|---|
+| ![team side](assets/map-3d/team-1-side.png) | ![team above](assets/map-3d/team-2-above.png) |
+| *behind: two medics carry a wounded soldier on a stretcher; in front: a mortar team carries a 120 mm mortar between them* | *from above* |
+
+### 6u. CE-1105 — a burst you can see: automatic fire draws a stream from the muzzle — DESIGN + AS-BUILT `2026-10-15` (ui)
+
+🔒 **User, `2026-10-15`:** the plan (*"minigun / GAU-8 streams … build after the AH-64"*) *"APPROVED"*.
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| a node sees only some rounds of a fast gun | ✅ only rounds whose munition has a look replicate (`FireProcessingSystem.cs`, `LightweightRound`): the M134 fires 7.62 ball with one tracer in five, so four in five rounds are invisible on every node | Visual Effects §8.5 LR-1 / LR-4 |
+| …and at the behaviour's cadence, not the gun's | ✅ one intent per shot at the action's `CooldownSeconds`; the catalogue's `RateOfFire` (3000 / 3900) reaches no mount (`WeaponMountDto` has none) | — |
+| every map host hears every shot | ✅ `WeaponFireNotification` (shooter, target, mount) reaches every map host; `EffectSpawnSystem` already writes `RecentShots` from it (CE-1090) | §6n N-4 |
+| where a muzzle is | ✅ `Muzzle.TryOf(world, shooter, mount, out muzzle, out forward)` — the round's own origin (E4b holds the drawing to it) | VE-L |
+
+```mermaid
+classDiagram
+    direction LR
+    class RecentShots { <<existing, grows>> + where the shot was aimed · Recent }
+    class FireStreams { <<NEW Hrot.Presentation.Effects>> IsAutomatic · Dashes · Window · Spacing · Speed }
+    class EffectSpawnSystem { <<existing>> records the aim point with the shot }
+    class ProjectileLayer { <<existing, grows>> draws the streams · StreamsDrawn }
+    EffectSpawnSystem ..> RecentShots
+    ProjectileLayer ..> RecentShots
+    ProjectileLayer ..> FireStreams
+```
+
+```mermaid
+sequenceDiagram
+    participant S as EffectSpawnSystem
+    participant R as RecentShots
+    participant P as ProjectileLayer
+    S->>R: a shot: shooter, mount, time, aim point
+    P->>R: shots within the window
+    P->>P: an automatic mount only, its muzzle from Muzzle.TryOf
+    P->>P: dashes from the muzzle toward the aim point, running outward at bullet speed, fading
+```
+
+*Caption:* the stream is drawn from what every node already hears — no entity, no wire; the real tracer rounds still fly as before.
+
+| decision | rule |
+|---|---|
+| **B-1 which guns** | a mount whose category is `MachineGun` or `Autocannon` (M134, M2, DShK, a coax, the Bradley's 25 mm, the GAU-8); rifles, launchers and big guns keep their single round |
+| **B-2 the stream** | for 0.35 s after each shot: dashes 1.8 m long every 5 m from the muzzle toward the aim point (its target, else where its posture aims, else straight out of the muzzle), running outward at 900 m/s, fading; at most 500 m |
+| **B-3 the look** | the tracer colour (additive), as wide as a tracer on screen |
+
+**Rejected — one line each:** *spawn the missing rounds on every node* — the wire carries one in five on purpose (LR-1); *read the catalogue's
+rate of fire* — no mount carries it; *a stream for every weapon* — a rifle shot or a tank round is one round, and a stream would lie.
+
+**As-built `2026-10-15`** — matches the diagrams. `FireStreams` (`Hrot.Presentation/Effects/FireStreams.cs`) is pure (`IsAutomatic`, `Dashes`);
+`RecentShots.Record` gained the aim point (`EffectSpawnSystem`: the target's position, else `AimPointOf` the shooter's posture) and `Recent(now,
+seconds)`; `ProjectileLayer.DrawStreams` runs after the rounds, skips a dead shooter or a non-automatic mount, and draws each dash as an additive
+cone in tracer orange whose alpha falls with the window. A station weapon (a door gun, a pintle M2) streams from ITS OWN muzzle — the shooter is
+the weapon entity. Rails `EffectTests.CE1105_*` ×3, frame rail `Map3DFrameRail.CE1105_V` (an AH-64's chin gun at a T-72, and a doors-off UH-60's
+right door gun):
+
+⭐ **CE-1106 — found by this rail:** the doors-off UH-60's door gunner (seats 8 / 10) sat 0.95 m off the centreline, INSIDE the fuselage box —
+only his legs and arms showed, below his gun. His seat moved into the door like the riders' (|Y| 1.05, `SitLegsOut`), and his station in front
+of him with its pivot at his lap — ⭐ `2026-10-30` lowered 40 cm (station Z −0.7 → −1.1) at the user's ruling: at his chest it blocked a possessed gunner's view (`NedTkbCatalog.DoorSeats`; a cross-lane edit to Air Ops F4's catalogue data). Rail `Map3DTests.CE1106_*`.
+
+| ![](assets/map-3d/stream-1-side.png) | ![](assets/map-3d/stream-2-behind.png) | ![](assets/map-3d/stream-3-door-gun.png) |
+|---|---|---|
+
+⭐ **`2026-10-25` (ui, `CE-1357`) — a stream with no target unit follows its rounds.** 🔴 A weapon SYSTEM fired at a point (a UH-60 door
+M134: no target, no aim posture of its own) recorded its stream toward `AimPointOf(shooter)` = (0,0,0), so the bright stream ran from
+the door to the map's corner while only the real tracers flew to the aim. `EffectSpawnSystem.StreamToward`: target → posture → along the
+round's launch (`WeaponFireNotification.Origin`/`Velocity`, × the weapon's range); `FireStreams.Dashes` draws a zero aim along the gun.
+Measured live first (`ua-fast-rope-roof`, `GET /combat/shots`: all rounds aimed right). Rail `EffectTests.CE1357_*` (both halves red-proved).
+
+### 6v. CE-1112 / CE-1113 — air defence drawn: the MANPADS, the ZU-23-2, their gunners and technical; no scorch under an air burst — DESIGN `2026-10-15` (ui)
+
+🔒 **User, `2026-10-15`:** *"pls implement the visualization of new weapons ammos vehicles and effects"* — backend's air defence (CE-2187,
+CE-2190; Weapon Systems §5c) added launchers 613 / 614 (DIS 1.1.*.50.6), the ZU-23-2 615 (1.1.*.50.7), gunners 202 / 203 and technical 110.
+
+**INVENTORY** (`git diff e5b108c89..HEAD` over the TKB catalogues; `search_graph` / grep for the drawing seams):
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| a weapon system's look is chosen by its CLASS chain | ✅ `WeaponKits.KindOf` walks `EntityClassTable.Chain` (`WeaponKits.cs:37`) | §6n N-1 |
+| 50.6 / 50.7 have no class row ⇒ they draw as an HMG | ✅ `EntityClassTable.cs:140-145` stops at 50.5; `KindOf` falls back to `Hmg` | — |
+| …so a Stinger gunner never shoulders it, and wears an HMG on his back | ✅ `EntityBodyLayer3D.Shouldering` (`:659`, `:667`) and `BlastOf` key on `Launcher or Atgm` | §6n N-3, N-4 |
+| the missiles and 23 mm rounds already have looks (smoke trail, tracer) and the ZU-23 streams | ✅ `MunitionTkbCatalog` visuals 6030–6033 (backend); `FireStreams.IsAutomatic` takes `MachineGun` | §6u B-1 |
+| a proximity burst has no target ⇒ the hit draws a ground decal under it, however high | ✅ `BallisticsSystem.cs:237` `Target = Entity.Null`; `EffectSystems.cs:107-111` | VE-M |
+| a pickup's station puts the weapon's ORIGIN at 1.6 m (an HMG pivot at 1.9 m) and its gunner kneels behind | ✅ `NedTkbCatalog.Pickup` (`PintleZ`, the CE-1108 seat) | §6n CE-1108 |
+
+```mermaid
+classDiagram
+    direction LR
+    class EntityClassTable { <<existing, grows>> + ManpadsWeaponSystem 1.1.*.50.6 · + AaGunWeaponSystem 1.1.*.50.7 }
+    class WeaponKind { <<existing, grows>> Hmg · Minigun · Atgm · Launcher · Sentry · Mortar · TowedGun · + Manpads · + AaGun }
+    class WeaponKits { <<existing, grows>> KindOf · Kit · GunnerSpot (+ pose) · + IsShoulderFired(kind) · BlastOf }
+    class EntityBodyLayer3D { <<existing>> GunnerFrame (+ pose: a seated gunner) · Shouldering }
+    class EffectSpawnSystem { <<existing>> + a decal only for a burst near the ground }
+    WeaponKits ..> EntityClassTable
+    WeaponKits --> WeaponKind
+    EntityBodyLayer3D ..> WeaponKits
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant K as WeaponKits
+    participant C as EntityClassTable
+    L->>K: TypeOf(weapon) for a 615
+    K->>C: Chain(1.1.*.50.7)
+    C-->>K: WeaponSystem, AaGunWeaponSystem
+    K-->>L: AaGun: the ZU-23 kit (stowed on its wheels / deployed on its jacks)
+    L->>K: GunnerSpot(AaGun)
+    K-->>L: the left seat, SITTING
+    L->>L: the gunner drawn seated on it, turning with its traverse
+```
+
+*Caption:* nothing new reaches the wire — the class row alone routes every existing drawing (kit, gunner, carry, shoulder, backblast) to the
+new kinds.
+
+| decision | rule |
+|---|---|
+| **AD-V1 classes** | `ManpadsWeaponSystem` (1.1.*.50.6) and `AaGunWeaponSystem` (1.1.*.50.7) in the class table; `KindOf` maps them to `Manpads` / `AaGun` |
+| **AD-V2 the MANPADS** | a slim 1.5 m tube with a grip stock, a battery unit under the front and a folded antenna — the same lying kit stowed and deployed, like a Launcher; shouldered and back-blasting like one (`IsShoulderFired`: Launcher, Atgm, Manpads — one helper for the three copies) |
+| **AD-V3 the ZU-23-2** | two 2.6 m barrels with flash hiders above a cradle with an ammunition box each side, a turret ring, two seats; STOWED on its two wheels with the barrels level forward, DEPLOYED lowered onto three jacks with the wheels lifted — the same 17 parts, so a deploy blends |
+| **AD-V4 a seated gunner** | `GunnerSpot` returns a POSE (kneel / stand / sit); the ZU-23's gunner SITS on its left seat (hips at the seat), turning with its traverse |
+| **AD-V5 technical 110** | the bed holds the ZU-23 ON its floor (its origin at the bed, not at the HMG pintle height) and its gunner sits on the gun's seat — a cross-lane edit to backend's `Pickup` preset data (as CE-1108) |
+| **AD-V6 no scorch in the air** | a hit with no body leaves a decal only when it burst within 2 m of the ground |
+
+**Rejected — one line each:** *a ZU-23 per-type override in the drawing* — the class chain already routes every weapon (N-1); *the MANPADS as
+a plain Launcher* — a 1.5 m Stinger with a grip stock is not a 1.1 m Javelin tube, and the class row is needed anyway for the picker folder;
+*skip decals for SAM ammo only* — any burst in the air (a bomb's airburst later) has the same problem.
+
+**As-built `2026-10-15`** — matches the diagrams, plus one finding from the frame. `EntityClassTable` rows 50.6 / 50.7; `WeaponKind.Manpads` /
+`AaGun` with their kits (`WeaponKits.Manpads`, `AaGun`: 17 parts, stowed on its wheels / deployed on its jacks); `GunnerSpot` returns a
+`SeatPose` and `EntityBodyLayer3D`'s manning branch draws `Sit` as `BlockFigure.Seated` with the hips at the spot (its `GunnerFrame` gives the
+pose); `WeaponKits.IsShoulderFired` replaces the three `Launcher or Atgm` copies (`Shouldering` ×2, `BlastOf`). `EffectSpawnSystem` scorches
+only for a burst within `DecalMaxBurstHeight` (2 m). Technical 110: `NedTkbCatalog.Pickup` gained `stationZ` and `gunnerSeat` (defaults
+unchanged for 104–109), and 110 passes the bed floor (`BedFloorZ` 0.85 m) and a `Sit` seat on the gun's left seat.
+⭐ **Found by the frame:** on the technical the deployed gun's lifted wheels stood out of the bed ⇒ **AD-V5b** `WeaponKits.Mounted`: a weapon
+embarked in a vehicle's station draws without its ground carriage (the ZU-23's jacks and wheels; every other kind keeps all parts). Rails
+`Map3DTests.CE1112_*`, the class rows folded into `CE1087_*`, `EffectTests.CE1113_*`; frame rail `Map3DFrameRail.CE1112_V`:
+
+| ![](assets/map-3d/ad-1-zu23-stinger.png) | ![](assets/map-3d/ad-2-manpads-gunners.png) | ![](assets/map-3d/ad-3-technical.png) |
+|---|---|---|
+
+### 6w. CE-1119 — airborne drawn: the fast rope, the round and ram-air canopies, a pose for every descent phase — DESIGN + AS-BUILT `2026-10-16` (ui)
+
+📄 Owning design: [Airborne Insertion](designs/airborne/DESIGN_Airborne_Insertion.md) item **U-1** (approved with it, R-1003); this section is
+the drawing's own design. 🔒 User, `2026-10-16`: *"Approved, go autonomously"*. Backend built the engine half (B-1…B-5, §7a / §7b there).
+
+**INVENTORY** (`search_graph` Map3D classes — 40, `BlockFigure`, `Carriage`, `DismountDrop`; `scripts/find.sh Descent` — no reader outside the
+engine and the NED translators):
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| a body coming down carries a replicated `Descent` (Kind, Phase, Canopy, PhaseSince, Anchor, AnchorIndex) | ✅ `Fdp.Toolkits/Motion/Descent.cs`; egress / ingress `EntityDescentTranslators.cs` | Airborne D-1, §7a |
+| the canopy's bank IS the body's roll in `SimTransform.Rotation` | ✅ `ParachuteModel` writes it; P3 put pitch / roll on the wire (CE-1102) | Airborne D-5 |
+| the rope's top is a world point the slide snaps to | ✅ `DescentRules.TryAnchor` / `DoorPoint` (`DescentModels.cs:46-87`), `CarrierDefDto.RopeAnchors` (404: one over each door) | Airborne §7a, §7b |
+| the helicopter says it is roping, on every node | ✅ `NavigationStatus.Phase == Roping` — `NavigationStatus` is a replicated descriptor | Airborne B-3 |
+| a figure in a held state skips the gait and the jump | ✅ `EntityBodyLayer3D.HeldFigure` (`:439`) → parts with `MotionPose.Still` | §6m |
+| a man who leaves a raised seat is drawn JUMPING from its height | ✅ `DismountDrop.Riding` / `Free` (`Carriage.cs:203-252`) | §6m C-4 |
+| every figure is the shared part order (legs, torso, head, arms, weapon), so poses blend | ✅ `BlockFigure` (`TorsoIndex`, `HeadIndex`, `WeaponIndex`) | §6j |
+| the 11 hit-location poses must not change | ✅ `PersonBodyParityTests` pin `BlockFigure.Parts(stance…)`; descent poses are NEW functions | Airborne §9 |
+
+```mermaid
+classDiagram
+    direction LR
+    class EntityBodyLayer3D { <<existing>> HeldFigure · + DescentFigure · + DrawRopes · + DrawCanopy }
+    class DescentDraw { <<NEW pure>> Pose(phase, t, soldier) · Canopy(kind, phase, t, chute) · RopeTop · RopeBottom · Open(t) }
+    class BlockFigure { <<existing, grows>> + RopeSlide · + Tuck · + FreeFall · + UnderCanopy · + Flare · + Rolled · + SittingOut }
+    class Descent { <<existing, backend>> Kind Phase Canopy PhaseSince Anchor AnchorIndex }
+    class DescentRules { <<existing, backend>> TryAnchor · DoorPoint · RopeLength }
+    class ParachuteModel { <<existing, backend>> Of(world, jumper, canopy): OpenSeconds, FlareHeightM }
+    class NavigationStatus { <<existing, replicated>> Phase Roping }
+    class DismountDrop { <<existing>> Riding · Free }
+    EntityBodyLayer3D ..> Descent : reads
+    EntityBodyLayer3D ..> DescentDraw
+    DescentDraw ..> BlockFigure : the poses
+    DescentDraw ..> ParachuteModel : how long it opens
+    EntityBodyLayer3D ..> DescentRules : the rope's top
+    EntityBodyLayer3D ..> NavigationStatus : ropes out
+    EntityBodyLayer3D ..> DismountDrop : riding while he comes down
+```
+
+*Caption:* everything the drawing needs is already on the wire (`Descent`, the banked transform, `NavigationStatus`) — no new component. The
+rope's top is the SAME rule the slide snaps him to (`DescentRules.TryAnchor`), so the man is drawn on his rope by construction, not by a second
+copy of the anchor arithmetic.
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant D as DescentDraw
+    participant R as DescentRules
+    L->>L: a person with a Descent (not Landed long ago)
+    L->>D: Pose(phase, time in phase)
+    D-->>L: the figure's parts (shared order), MotionPose.Still
+    L->>L: DismountDrop.Riding(his hips now): no jump drawn when he lands
+    alt a parachute phase with a canopy
+      L->>D: Canopy(kind, phase, opening, chute)
+      D-->>L: canopy parts + line ends, in his BODY frame (banks with his roll)
+    end
+    L->>L: pass 3: each carrier roping, or with a man on its rope
+    L->>R: TryAnchor(carrier, index) per rope
+    R-->>L: the rope's top (world)
+    L->>L: a rope from it down to the surface (its length at most), cut ropes lie where they fell
+```
+
+```mermaid
+graph TD
+    subgraph every map host - MapInteractionPack.AttachMapLayers
+      BL[EntityBodyLayer3D] --> DF[DescentFigure NEW]
+      BL --> RP[DrawRopes NEW, pass 3]
+    end
+    subgraph replicated - nothing new
+      DS[Descent · EntityDescent] --> DF
+      TF[SimTransform with roll] --> DF
+      NS[NavigationStatus Roping] --> RP
+      DS --> RP
+    end
+```
+
+*Caption:* who calls it each frame — the canvas draws `EntityBodyLayer3D` on every map host; the descent branch runs before the held-figure
+branch, the ropes after every body (they hang from the helicopter's drawn frame). A host without the `EntityDescent` translator (none today)
+would draw a jumper as a standing man falling.
+
+| decision | rule |
+|---|---|
+| **AB-V1 one pure helper** | `DescentDraw` (Hrot.Presentation/Map3D) turns a `Descent` into a pose, canopy parts and rope ends; the layer only places them — the rails test the helper without a window |
+| **AB-V2 a pose per phase** | `Exit` / `Deploying` (first half) — the TUCK (knees up, chin down, hands on the reserve); `Grip` / `Slide` / `Brake` — the ROPE SLIDE (hands above the head on the rope, legs wrapped, feet together; rifle slung); `FreeFalling` and `Falling` — the ARCH (belly down, arms forward and out, lower legs up); `Canopy` — UNDER CANOPY (hanging, hands up on the toggles, legs together a little forward); `Flare` — toggles pulled to the hips, legs forward, knees bent; `Landing` — the PLF, rolled onto his side (blended from the flare over the phase's first 0.6 s); `Landed` — sitting up on the ground out of the harness. Each a NEW `BlockFigure` pose in the shared order, so phases blend (0.3 s) |
+| **AB-V3 the canopies** | ROUND (T-11 class): a dome 10 m across (a flat cone) with a skirt, 6 m above his shoulders, eight lines to his shoulders; RAM-AIR (MC-4 class): a wing 8.5 m span × 3.4 m chord in three cells arched down at the tips, 4.5 m above him, four line groups. Drawn in his BODY frame ⇒ it banks with him (D-5). Olive drab (round), dark grey (ram-air) |
+| **AB-V4 opening and collapse** | `Deploying`: the canopy grows from a 0.6 m streamer to full over `OpenSeconds` (the type's `Gen.Parachute`, `ParachuteModel.Of`); `Landing` / `Landed`: it collapses and lies flat on the ground behind him (downwind of his heading) |
+| **AB-V5 the rope** | for each rope anchor of a carrier whose `NavigationStatus.Phase` is `Roping`, or that a man's `Descent` names: a rope 5 cm thick from `DescentRules.TryAnchor` straight down to the highest surface under it, at most `RopeLength`; the spare length lies coiled at its foot. When the carrier stops roping the ropes are CUT: they lie on the surface where they hung for 30 s |
+| **AB-V6 C-4 amended** | a body with a `Descent` is never drawn as a jump: while he comes down the drop tracker is told he is RIDING at his hips' height, so when the descent ends no fall from the seat is drawn. A step-out from a low hover (≤ 3 m, Airborne D-8) still jumps as §6m C-4 |
+
+**Rejected — one line each:** *drawing the canopy as its own entity* — no such entity exists and it would need a spawn on every node for a
+purely visual part; *a rope component* — the anchors and the roping phase already say where every rope is; *posing from the motion model's
+inputs (toggle u, brake b)* — they are not replicated; the bank (on the wire) and the phase carry what a viewer sees.
+
+**As-built `2026-10-16`** — matches the diagrams. `DescentDraw` (`Map3D/DescentDraw.cs`: `PoseOf`, `Before`, `Figure`, `Opening`, `Collapse`,
+`Canopy`, `Rope`, `Stick`), the seven poses in `Map3D/BlockFigureDescent.cs` (`BlockFigure.Descending`, `BlendDescent`), and in
+`EntityBodyLayer3D` `DescentFigure` (before `HeldFigure`), `DrawCanopy` and pass 3 `DrawRopes`. Where it went further than the table:
+
+| as built | why |
+|---|---|
+| ⚠ the poses live in a NESTED class (`BlockFigure.DescentPoses`) | C# does not order static initialisers across the files of a partial class: built as plain fields they read `S` and the shoulders as zeros (found by the rope rail — the hands drew at his feet) |
+| a canopy coming down SHRINKS and drops `CollapsedBehind` (6 m) behind him over the landing, then lies as a low heap at the end of a strip of fabric — never a full-size dome on the ground | the first frame drew a 10 m flat disc (a pond) and a dome hovering over the rolled man |
+| a cut rope lies in a loose S from where it hung, with a small heap at its end | a heap under the rope read as a pedestal under the men who had just come down it |
+| the jump tracker is fed whenever he has a `Descent`, even in a rope's `Landed` (no figure then) | the hold's last frame has him on the surface, so its end is a step of nothing |
+| `Falling` (anchor lost) draws the arch; a man killed under his canopy keeps the descent figure and canopy until he is down | no slumped-under-canopy pose yet — noted, not built |
+
+Rails `Map3DTests.CE1119_*` (the figures per phase and the opening blend, the canopy's size / lines / collapse, the rope) and the frame rail
+`Map3DFrameRail.CE1119_V` (2 ropes hanging while roping, every phase drawn, canopies counted, the ropes cut when the hold ends, no jump):
+
+| ![](assets/map-3d/airborne-1-ropes.png) | ![](assets/map-3d/airborne-2-the-stick.png) |
+|---|---|
+| ![](assets/map-3d/airborne-3-landing.png) | ![](assets/map-3d/airborne-4-ropes-cut.png) |
+
+#### 6w.U2 — the ejection seat (`CE-1119` U-2, `2026-10-21`, ui) — AS-BUILT
+
+Backend B-7…B-9 landed (`EjectionSystem` spawns the pilot 206 with a `Descent { Kind = Ejection, Phase = Exit }`; after `SeatSeconds`
+1.5 s the canopy deploys). Drawn: the Exit phase's figure is **sitting** (`DescentDraw.PoseOf(Ejection, Exit)` = SittingOut, blended into
+the canopy pose while it deploys); `DescentDraw.EjectionSeat` (pure) puts the seat in his frame — the pan under him, the back and headrest
+behind — and the rocket's flame under it for `RocketSeconds` 1 s, a cone that shrinks and flickers as it burns out; from the canopy's
+deployment the EMPTY seat falls away beneath and behind him, tumbling, for `SeatAwaySeconds` 1.2 s. `EntityBodyLayer3D.DrawEjectionSeat`
+draws it (seat grey, flame `RocketFlame`). The abandoned jet's fall is the existing crash drawing. Rails `Map3DTests.CE1119_U2_*` (red-proved:
+a flame after burn-out), frame `Map3DFrameRail.CE1119_V_U2_*` (`docs/assets/map-3d/airborne-5-ejection.png`).
+
+### 6x. §6n's last blocked items — the fire mission's aim points on the map, the fire-mission form — DESIGN + AS-BUILT `2026-10-16` (ui)
+
+🔒 User, `2026-10-16`: *"Approved, go autonomously"*. These were blocked on behaviors' IF-2, now built
+([Indirect Fire §3.7](designs/indirect-fire/DESIGN_Indirect_Fire.md)).
+
+**INVENTORY** (grep + graph: `BatteryFireMissionPlay`, `FireAtPointExecutor`, `WeaponPostureOf`, the order form):
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| each gun of a battery mission runs `FireAtPoint` on ITS OWN aim point (the sheaf), and holds laid until its fire time | ✅ `IndirectFireBehaviors.cs:100` `AimPoint`; `FireAtPointExecutor` holds with `AwaitingFireTime` | Indirect Fire §3.4, FM-3 |
+| while it holds or fires, the gun's replicated `WeaponPosture` is AIMED at that POINT | ✅ `WeaponPostureOf.For` (`AwaitingFireTime`, `Firing` ⇒ Aimed) and `Report` (`Point` when no target), called from `FireAtPointExecutor.Say` (`:277`) | Weapon Layers W-13b, R-272 |
+| an indirect weapon is a mount with an `IndirectArc` | ✅ `WeaponMountDto.Arc` (`CombatTkb.MountOf`); a controlled weapon by its index 32 + k (`WeaponSystems.ControlledAt`) | IF-1 I2 |
+| the order form is the ONE reflected form over the order struct | ✅ `OrderForm` + `OrderMenu.FieldsOf`; `StrikeOrder` carries Method · Rounds · Sheaf · SheafWidthM · Control · ImpactInS · DangerClose | §13.12 (Orders design), IF-2 |
+| a passive overlay on every map host has a home | ✅ `DesignationOverlayGizmo` registered by `MapInteractionPack` | §13.12 O8 |
+
+```mermaid
+classDiagram
+    direction LR
+    class FireMissionOverlayGizmo { <<NEW passive global gizmo>> AimsOf(world) · UpdateAndDraw }
+    class WeaponPosture { <<existing, replicated>> Kind Point Target ActiveMount }
+    class CombatTkb { <<existing>> MountOf · WarheadOf }
+    class WeaponSystems { <<existing>> ControlledAt }
+    class SidePalette { <<existing>> Of(force) }
+    class DesignationOverlayGizmo { <<existing, the pattern>> }
+    class MapInteractionPack { <<existing>> registers both }
+    FireMissionOverlayGizmo ..> WeaponPosture : aimed at a point
+    FireMissionOverlayGizmo ..> CombatTkb : an indirect arc? the burst radius
+    FireMissionOverlayGizmo ..> WeaponSystems : a manned tube
+    FireMissionOverlayGizmo ..> SidePalette
+    MapInteractionPack ..> FireMissionOverlayGizmo
+    MapInteractionPack ..> DesignationOverlayGizmo
+```
+
+```mermaid
+sequenceDiagram
+    participant B as battery (Brain)
+    participant G as gun (FireAtPoint)
+    participant W as WeaponPosture (replicated)
+    participant O as FireMissionOverlayGizmo (every map host)
+    B->>G: FireAtPoint(aim i, fireAt)
+    G->>W: Aimed, Point = aim i (laid, waiting)
+    O->>W: every gun Aimed at a POINT with an indirect mount
+    O->>O: a ring of the round's burst radius + a cross at each aim point, in the gun's side colour
+    O->>O: a selected gun: a dashed line from it to its aim point
+    G->>W: rounds gone: Ready, then AtEase - its mark goes
+```
+
+*Caption:* nothing new on the wire or in the Brain — the sheaf is drawn from what each gun already publishes about its own aim, so a CGF, IG or
+editor map shows the same pattern, and a gun that has fired its rounds drops its mark by itself.
+
+| decision | rule |
+|---|---|
+| **FX-1 what** | at each aim point of a gun laid or firing on a POINT with an INDIRECT mount: a ring the size of its round's blast injury radius (20 m when the round names none) and a small cross, in the gun's side colour — the parallel / open / converged sheaf reads from the rings' pattern |
+| **FX-2 the line** | only for a SELECTED gun (or a selected battery's members): a dashed line from the gun to its aim point — a battery 10 km away drawing a line per gun all the time would cross the whole map |
+| **FX-3 layer** | the Entities layer (on by default): a mark exists only during a mission, so it adds nothing to a quiet map (CE-1065's complaint was standing clutter) |
+| **FX-4 the form** | no fire-mission screen: the reflected order form already carries every Strike field, and a battery and an SP gun are offered Strike and "Order with options › Strike…" — measured by a rail, built by construction |
+
+**Rejected — one line each:** *drawing the battery's plan from the Brain's play params* — they are not replicated, so only the Brain node
+could draw it; *a new layer bit* — the layer panel, its persistence and its rails for a mark that only exists during a mission;
+*a Strike-specific form* — a second form for one order is what §13.12 retired.
+
+**As-built `2026-10-16`** — matches the diagrams: `Hrot.Presentation/Orders/FireMissionOverlayGizmo.cs` (`AimsOf`, `IndirectMount` — its own
+mount or the controlled weapon's at 32 + k; the ring from `CombatTkb.WarheadOf`'s blast injury radius, else its fragment radius, else 20 m),
+registered in `MapInteractionPack` BEFORE the live-only order block so a replay draws the marks too. Measured on the way: every tactical-brain
+unit carries a `WeaponPosture` (`BehaviorTkbTranslator.cs:144-146`), so an M109 or a mortar's gunner publishes its aim with no new component.
+Rails `MenuOrdersTests.FX1_*` and `IF2_ABatteryAndAnSpGun_*` (the form, measured); red-proved by five breaks. ⚠ Not screenshotted: the marks
+are ordinary gizmo spheres and lines, drawn in 2-D and draped in 3-D by the existing renderers (§6e).
+
+### 6y. CE-1122 — blood where he was hit: the replicated hit marks drawn on the part (hit location S1c) — DESIGN + AS-BUILT `2026-10-16` (ui)
+
+📄 Owning design: [Body Parts and Hit Location](designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md) HL-8 and slice **S1c** (ui). Backend's
+S1b (CE-3210) built `HitMarks`. This supersedes §6p's *"the real hit point is a follow-up if backend ever puts it on the hit message"*.
+
+**INVENTORY** (grep + graph):
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| every node gets the last 24 marks of a body: part id, a part-local point, the face, the kind, a sequence | ✅ `HitMarks` (`Physics/BodyParts/BodyPartComponents.cs:55`), `dtHitMarks` translators (`EntityBodyPartTranslators.cs`) | HL-8 |
+| the point is in the hit BOX's unit frame (−0.5 … 0.5 per axis), on the face it entered | ✅ `BodyPartHit.Segment` (`BodyPartHit.cs:53`) | HL-2 |
+| a person's part ids are the drawn figure's part order (thighs, shins, torso, head, upper arms, forearms) | ✅ `PersonPart` 0–9 (`BodyParts.cs:19`) = `BlockFigure`'s shared order | HL-1 |
+| the sim's boxes ARE the drawn parts (11 poses, generated from the figure) | ✅ `PersonBodyParityTests` | HL-1 |
+| a stain is a flat box in its part's unit frame, carried by the part's own transform | ✅ `BlockFigure.StainDetail`, `EntityBodyLayer3D.Bloodied` | §6p |
+
+```mermaid
+classDiagram
+    direction LR
+    class HitMarks { <<existing, replicated>> NextSeq · TryGet(seq): part, local, face, kind }
+    class BlockFigure { <<existing, grows>> StainOf(seed, k) · + MarkStain(part, local, kind, fresh, partMetres) }
+    class Stain { <<existing, grows>> Part Centre Extent Fresh · + Char }
+    class EntityBodyLayer3D { <<existing>> Bloodied: the marks, else the seeded spots }
+    EntityBodyLayer3D ..> HitMarks : the last 24
+    EntityBodyLayer3D ..> BlockFigure
+    BlockFigure --> Stain
+```
+
+```mermaid
+sequenceDiagram
+    participant M as Muscle (hit resolution)
+    participant W as HitMarks (replicated)
+    participant L as EntityBodyLayer3D (every node)
+    M->>W: Add(part, unit point, face, kind) on each hit
+    L->>W: the marks it holds, oldest first
+    L->>L: MarkStain: flat on the face the point is on, sized in metres by kind
+    L->>L: drawn on the part, so it moves with the arm, falls with the body
+    Note over L: no marks yet (a hit from before marks, a dead man loaded) - the seeded spots by health, as before
+```
+
+| decision | rule |
+|---|---|
+| **HM-1 where** | the mark's part is the drawn part of the same index; the point stays where it is on the box, pushed just proud of the face it lies on (the axis at ±0.5) |
+| **HM-2 what** | a bullet: a blood spot 9 cm across; a fragment: 6 cm; a burn: a 16 cm char patch (near-black); the three newest are fresh red, older ones darker — sizes in METRES, so a spot on a forearm is not stretched along it |
+| **HM-3 fallback** | a man with no marks but lost health keeps §6p's seeded spots |
+| **HM-4 the geometry source** | ⛔ NOT switched: `BlockFigure` stays the source and the sim's table is generated from it (HL-1's interim, kept) — the drawn figure has ~20 more poses (seated, carried, the descents) than the sim's 11, so reading the 11 from `PersonBody` would split one description in two |
+
+**Rejected — one line each:** *accumulating marks past the ring's 24* — a man with 24 hits is a casualty, and a late joiner sees only the
+24 anyway, so two viewers would draw different men; *a hole as well as the blood* — at block-figure scale a hole and its blood are one dark
+spot.
+
+**As-built `2026-10-16`** — matches the diagrams: `BlockFigure.MarkStain` + `Stain.Char`, `EntityBodyLayer3D.Bloodied` reads `HitMarks` first
+(the parts and the figure's size give each part's metres). Rails `Map3DTests.CE1122_*`; frame rail `Map3DFrameRail.CE1122_V` (`hit-marks.png`).
+
+![](assets/map-3d/hit-marks.png)
+
+*Three hit men and a dead one, facing the camera: a chest, upper-arm and shin hit; a fragment in the side and the face; a bullet in the chest of a man burned on his back; the dead man's marks where he fell.*
+
+### 6z. CE-1136 · CE-1138 · CE-1142 · CE-1145 — the 3-D marquee, a wheel and keys that accelerate, the FPS counter and render telemetry — AS-BUILT `2026-10-16` (ui)
+
+🔒 User, manual test `2026-10-16` ([tracker](blueprints/Blueprint_Issues_Tracker.md) CE-1136, CE-1138, CE-1142, CE-1145): *"the 3d map has no
+multi-selection marquee"* · *"mouse scroll zoom makes big jump, i would like acceleration"* · *"ASWD too fast at high zoom … slow start with
+acceleration … modifiers weak … need long-distance travel"* · *"small FPS indicator top-left of the 3D view … graphics telemetry including view
+location/direction/zoom via the AI debug HTTP"*.
+
+**INVENTORY** (graph `search_graph` Class `.*RubberBand.*`, `.*Telemetry.*`, `.*Overlay.*`; grep): the band state `RubberBandState` and the
+one selection writer `SelectionInteractionSystem` existed (2-D only, a ground rectangle); no render telemetry, no FPS counter, no per-world
+UI-state holder (world managed singletons need a `[ComponentId]`, so the pack could not use them — measured: 20 presentation rails red).
+
+```mermaid
+classDiagram
+    direction LR
+    class RubberBandState { <<existing, grows>> Start Current · + Projector: world→screen? · + InScreen ScreenStart ScreenCurrent }
+    class SelectionInteractionSystem { <<existing, grows>> ExecuteBoxSelection → + ExecuteScreenBoxSelection(band, projector) }
+    class RubberBandOverlay3D { <<NEW IMapLayer>> Update: lends the projector in 3-D, free camera only · DrawOverlay: the screen rectangle }
+    class MapUiStates { <<NEW>> per-world RubberBandState, RtsModeState (ConditionalWeakTable) }
+    class MapCamera3D { <<existing, grows>> WheelStepGrowth(streak) · FlySpeed(height, held, shift, ctrl) · EyeHeightAboveGround() }
+    class RenderTelemetry { <<NEW static>> Frame(dt) · Camera(mode, eye, forward, yaw, pitch, distance, height, viewport) · ToJson() }
+    class MapStatsOverlay { <<NEW IMapLayer>> feeds RenderTelemetry · draws FPS top-left of OpenMapArea · RTS legend }
+    class OpenMapArea { <<NEW static>> the dockspace's central node rect (the map's visible area) }
+    class DebugApiHost { <<existing, grows>> GET /diagnostics/render }
+    RubberBandOverlay3D ..> MapUiStates
+    RubberBandOverlay3D ..> RubberBandState : sets Projector
+    SelectionInteractionSystem ..> RubberBandState
+    MapStatsOverlay ..> RenderTelemetry
+    MapStatsOverlay ..> OpenMapArea
+    DebugApiHost ..> RenderTelemetry
+```
+
+*What the picture shows that prose hid: the marquee adds no second selection path — the 3-D view only LENDS the one system a projection, and
+`SelectionInteractionSystem` still writes the one `SelectionChangeRequest`.*
+
+| decision | rule |
+|---|---|
+| **MQ-1 the marquee** | in 3-D, free camera, a drag selects what PROJECTS inside the screen rectangle (a click — under 4 px — is a click); ⛔ not in first person (the driver owns the mouse) |
+| **CA-1 the wheel** | ⭐ **AS-BUILT `2026-11-11` (`CE-4408`, 🔒 user: *"I would expect it will just move the camera forward in the direction where the camera is looking … the keyboard really moves slower close to the ground, but the wheel doesn't follow this convention"*):** a click flies the EYE along the view by the **keys' speed rule** (CA-2's basis at the eye's height above the GROUND) × `WheelStepSeconds` (0.1 s); streaks (0.35 s apart) still grow the step 0.6× per click up to 8×. The pivot is re-anchored on the ground along the view each glide frame, so `Distance` follows the real height. The level of detail (entity-card rows, doors) reads `MapCamera3D.LodMetresPerPixel` — the nearer of the pivot's distance and the distance to the ground along the view — via `MapViewSnapshot`, so a card that collapsed far out returns when the camera flies back in (the keys leave `Distance` alone). ⛔ *SUPERSEDED (CE-1138):* a lone click moved 4 % of the PIVOT's distance, which drifted from the real height. |
+| **CA-2 the keys** | speed = 0.4 m/s per metre of eye height above the ground (min 0.6 m/s) — close to the ground a tap moves centimetres whatever the look distance; it starts at 25 % and reaches full in 1 s, then up to 5× by 5 s held; Shift ×4, Ctrl ×20, both ×100 (long-distance travel) |
+| **CA-3 the near clip** ⛔ *(`CE-1196` 2026-10-19 — REVERTED 2026-10-20 by `R-1014`)* | 🔒 user, 2026-10-20: *"the near plane seems to be too far probably maybe as a result of trying to fix teh z-fight of the roads; i need near plane as it was before"*. ⇒ `NearClipShare` is back to **0.1 %** (0.5 % put the near plane at 1 m from 200 m out and clipped near geometry). ⚠ The road flicker from afar is open again (`CE-1196` reopened): fix it WITHOUT moving the near plane (a polygon offset / depth bias on the road pass, or a lift that grows with distance). ⛔ HISTORY of the reverted row follows. |
+| ⛔ *(history, reverted)* CA-3 *(`CE-1196`, `2026-10-19`)* | 🔒 user, live: *"sumo roads (black) z-fight heavily with artificial terrain if looked at from distance"*. 📐 The near clip was 0.1 % of the look-at distance; a 24-bit depth step at distance d is d² / (near · 2²⁴), so from 2 km the step was ~12 cm while `TrafficLayer3D.Style` lifts the road kinds only 3–6 cm over the ambient ground. ⇒ `MapCamera3D.NearClip` = `NearClipShare` (0.5 %) of the distance, never under 5 cm: the step from 2 km is ~2.4 cm, inside the lift. ⭐ First person is untouched — it sits at `MinDistance` 2 m, so its near clip stays on the 5 cm floor. ⛔ Not a polygon offset (the tracker's first lean): one camera-wide constant serves every thin layer, not the road pass only (decals and area clouds should gain too — not measured). Rail `TrafficLayer3DTests.CE1196_FromTwoKilometresTheRoadsLiftIsWithinTheDepthBuffersReach` (`MapCamera3D.DepthStepAt`) |
+| **CA-4 things lying ON the ground** *(`CE-1196`, `2026-10-20`, ui — the fix CA-3 was reverted for; ⭐ BUILT)* | 🔒 user: *"sumo roads (black) z-fight heavily with artificial terrain if looked at from distance"* · *"same flicker is for multiple gizmos showing filled circle on the ground in 3d."* ⭐ **One depth bias, for what lies on the ground, never the near plane** (`R-1014`): `MapCamera3D.GroundBiasSteps` = **4 depth steps**, as `GroundBiasNdc` (a constant in clip depth is a constant number of steps at every distance — ~0.5 m from 2 km, ~1 cm from 50 m — `GroundBiasMetresAt`). ① **SUMO's roads** (`TrafficLayer3D`) draw with `LitShader.SetDepthBias(GroundBiasNdc)`; the ambient ground is its own mesh, UNBIASED (it lies under everything; AQ93 V8-b already keeps it off our terrain). ② **Gizmo fills** (`RaylibGizmoSink3D`): kept until `Flush`, drawn FIRST with the `LitShader.Flat` program (unlit, Raylib's look) biased the same, **with depth writes off** — overlapping fills blend in draw order, the 2-D map's painter's rule (gizmos-1 §2.6) — then the lines. 📐 The measured causes: the roads' 3–6 cm lift is under one depth step (12 cm) from 2 km; two draped fills lie on the SAME surface (the same `Drape` heights) through different triangles, so with depth writes on they fought pixel by pixel at any distance. ⛔ Rejected: a near plane move (`R-1014`) · `glPolygonOffset` (not in rlgl; a native GL import per platform) · a lift grown with distance (the road mesh is static, built once). Rails `TrafficLayer3DTests.CE1196_*`, `Map3DFrameRail.CE1196_V_*`. ⚠ **`2026-10-27` CE-1384:** the rail builds its canvas terrain-first, but the production attach (`MapInteractionPack.AttachMapLayers`) added the gizmo layer BEFORE the 3-D terrain, so on every host the depth-write-free fills were painted over by the terrain — fixed by attaching the gizmos after it ([Director Timeline §11t F6](DESIGN_Director_Timeline_Editor.md); rail `FilmFrameRail.CE1379_*`) |
+| **TM-1 telemetry** | fps and frame ms over a 2 s window, the camera's mode / eye / forward / yaw / pitch / distance / height above ground / viewport — `GET /diagnostics/render` (`get_render_diagnostics`); the counter sits top-left of the map's visible area (`OpenMapArea`, so it never hides under a docked panel) |
+
+**Rejected — one line each:** *a 3-D ground-rectangle marquee* — tilted, a ground rectangle is a trapezoid on screen and selects what the user
+did not box; *world managed singletons for the band* — they need a `[ComponentId]`, so every world without one threw.
+
+Rails: `SelectionInteractionSystemTests.CE1136_*`, `Map3DTests.CE1138_*` / `CE1142_*` ×2, `EveryRouteIsDocumentedTests` (the new route).
+
+### 6aa. CE-1146 — the weather and the time of day in first person: sun, sky, light that never goes below twilight, fog — DESIGN + AS-BUILT `2026-10-16` (ui; the simple slice)
+
+📄 Owning design: [Weather and Time](designs/weather/DESIGN_Weather_And_Time.md) §5 **S3** (ui) — *"the 3D map: sun direction and sky colour, fog
+from the extinction, cloud layers; smoke drifts on the wind"* — and the backend → ui handoff's **U5** (`WeatherField.At(world, point)` is the
+one call). 🔒 User, `2026-10-16`: *"especially for the FPS mode; but not in the usual free camera 3d map mode … never full darkness, just
+twilight instead of night … weapon flashes and flares and explosions … should stay bright no matter the ambient light … what is simple and
+relatively cheap"*; `2026-10-16`: *"take the weather rendering where it is clear or simple"*.
+
+**INVENTORY** (graph `search_graph` `.*(Atmosphere|Sky|Fog|Lighting|Ambient).*` and Class `.*Weather.*`; grep `LitShader`):
+
+| the slice rests on | code — how it is | design basis |
+|---|---|---|
+| the world's lit look is ONE shader: ambient + sun·N, distance fog into the sky colour | ✅ `LitShader` (`Vis3D/LitShader.cs`), its sun fixed at creation, fog per frame from the camera distance | §3 |
+| the sky is a gradient behind the world | ✅ `MapCamera3D.BeginMode` | §3 |
+| one pure, allocation-free call gives the sun, light band, relative light, extinction/visibility, cloud cover above the point | ✅ `WeatherField.At` (`FDP/Toolkits/Fdp.Toolkits/Weather/WeatherField.cs:261`) | weather §4, §6.3 |
+| effects (flashes, explosions, flares, fire) draw WITHOUT the lit shader | ✅ only terrain and bodies use `LitShader.Shared` (grep) | Visual Effects |
+| nothing else models a sky or an atmosphere | ⛔ searched (graph above) — none | — |
+
+```mermaid
+classDiagram
+    direction LR
+    class WeatherField { <<existing, backend>> At(world, point): WeatherSample }
+    class WeatherSky { <<NEW, pure>> Of(sample): SceneAtmosphere · TwilightFloor 0.35 }
+    class WeatherSkyLayer { <<NEW IMapLayer>> Update: camera.Atmosphere = FPS ? Of(At(eye)) : null }
+    class SceneAtmosphere { <<NEW value>> SkyTop SkyHorizon ToSun Ambient SunLight VisibilityM SunDisc · Default · FogFor(V) }
+    class MapCamera3D { <<existing, grows>> + Atmosphere? · FogDensityFor(a) · BeginMode: sky, sun disc, shader }
+    class LitShader { <<existing, grows>> + sunLight uniform · ApplyAtmosphere(a) }
+    class FpsCameraDriver { <<existing>> }
+    WeatherSkyLayer ..> WeatherField
+    WeatherSkyLayer ..> WeatherSky
+    WeatherSkyLayer ..> FpsCameraDriver : only while it drives
+    WeatherSkyLayer --> MapCamera3D : sets Atmosphere
+    MapCamera3D ..> SceneAtmosphere
+    MapCamera3D ..> LitShader : ApplyFrame + ApplyAtmosphere
+```
+
+```mermaid
+sequenceDiagram
+    participant L as WeatherSkyLayer (every map host)
+    participant F as WeatherField
+    participant C as MapCamera3D
+    participant S as LitShader
+    L->>L: 3-D and the FPS driver drives?
+    alt first person
+        L->>F: At(world, eye)
+        F-->>L: sun el/az, relative light, cloud above, visibility
+        L->>C: Atmosphere = WeatherSky.Of(sample)
+    else free camera / 2-D
+        L->>C: Atmosphere = null (the clear day)
+    end
+    C->>C: BeginMode: sky gradient, sun disc + glow
+    C->>S: ApplyFrame(eye, fog for the visibility) · ApplyAtmosphere(sun, light, fog colour)
+    Note over S: terrain and bodies are lit by it - effects are not, so they stay bright
+```
+
+```mermaid
+graph TD
+    P[MapInteractionPack.AttachMapLayers - every map host] --> W[WeatherSkyLayer]
+    P --> R[RubberBandOverlay3D]
+    W -->|Update, each frame, before the draw| C[MapCamera3D.Atmosphere]
+    C -->|BeginMode| S[LitShader]
+    E[EffectLayer - unlit] -.->|never reads it| S
+    style E stroke-dasharray: 4 4
+```
+
+*What the pictures show that prose hid: the weather enters through ONE nullable property, set by one layer that every host attaches, so the free
+camera is unchanged by construction (null = the old look); and the effects' independence from the light is not a rule to keep but a fact of
+the draw path — they never touch the shader.*
+
+| decision | rule |
+|---|---|
+| **WS-1 where** ⭐ *(superseded `2026-10-19`)* | ~~only in first person~~ ⇒ 🔒 user, `2026-10-19`: *"I'm not asking for much more than just showing the same weather as in FPS as the first slice"* — first person reads the weather at the EYE (fog from the eye); the FREE camera reads it at the point it LOOKS AT and starts the fog there (`MapCamera3D.FogStart` = 0.9 × the look-at distance, the shader's `fogStart`), so what is looked at stays clear and the world beyond fades by the visibility; the 2-D map and any other driver get none |
+| **WS-2 the light** | shown light = 0.35 + 0.65 × `RelativeLight` (the field's, cloud-dimmed) ⇒ ambient 0.30 at the darkest night … 0.42 at day; the sun's share 0.58 × sin(el)/0.25 (capped) × the field's own cloud cut `1 − 0.75·(octas/8)^3.4`, 0 below the horizon — the darkest night is a dusk, never black |
+| **WS-3 the sky** | day blue → dusk blue with the light; greyed toward overcast with the cloud cover above; a warm glow on the horizon with the sun within ±8° of it (thinned by cloud); the sun disc and its glow where the field puts the sun (azimuth clockwise from north), hidden under ≥ 7 octas; in fog or mist (visibility under 2 km) the sky takes the fog's grey, fully by ~200 m, and the disc goes |
+| **WS-4 the fog** | `exp(−(d·k)²)` with `k = 1.73 / V` — 5 % contrast at the visibility (Koschmieder, the field's own σ = 3.912 / V); never thinner than a fog that has faded fully by 90 % of the far clip, so the world never ends at an edge |
+| **WS-5 the bright things** | effects stay unlit, so a muzzle flash, an explosion or a flare keeps its colour at night (the user's ⑤) |
+
+**Not in this slice — each needs the discussion the item asks for (CE-1146 stays open):** cloud LAYERS (flat, translucent, procedural — a
+noise texture per layer: the cost question), the MOON (the field has no lunar position), precipitation, smoke drifting on the wind, lights that
+light their surroundings at night (a flare lighting the ground).
+
+**Rejected — one line each:** *a skybox / dome mesh* — a screen gradient plus a disc costs nothing and shows the same at FPS scale; *darkening the
+effects with the scene and adding them back* — they never pass through the shader, so leaving them alone IS the rule; ~~*weather in the free
+camera* — the user ruled it out (it would obstruct the view)~~ — superseded `2026-10-19` (WS-1): the fog starting at the look-at is what keeps it from obstructing; *the fog from the eye in the free camera* — from hundreds of metres up a 500 m mist would grey out the whole map.
+
+**As-built `2026-10-16`** — matches the diagrams. Rails `WeatherSkyTests.CE1146_*` ×5 (noon, night floor, overcast, sunrise glow, fog) and
+`PossessionStationTests.CE1146_TheWeathersSky_OnlyInFirstPerson`; frame rail `Map3DFrameRail.CE1146_V` (Mesa under Xvfb: the shader
+compiles and lights; the night is darker than noon and brighter than a quarter of it). ⚠ Not yet seen on the Windows GL.
+
+| clear noon | sunset (south-west) |
+|---|---|
+| ![](assets/map-3d/weather-noon.png) | ![](assets/map-3d/weather-sunset.png) |
+| **the darkest night — still a dusk** | **fog, 150 m visibility** |
+| ![](assets/map-3d/weather-night.png) | ![](assets/map-3d/weather-fog.png) |
+
+**As-built `2026-10-19` — the free camera (WS-1):** `WeatherSkyLayer` samples at the look-at with no driver; `LitShader` gained `fogStart` (`ApplyFrame`'s third argument), set from `MapCamera3D.FogStart` only when the weather states a visibility. Rails `PossessionStationTests.CE1146_TheWeathersSky_InTheFreeCameraAtWhatItLooksAt_AndInFirstPersonAtTheEye` and the frame rail's free-camera fog shot (the centre of a 150 m fog seen from 120 m is the ground, not the fog colour — red-proved with the fog from the eye).
+
+| the free camera in a 150 m fog, 120 m from what it looks at |
+|---|
+| ![](assets/map-3d/weather-free-camera-fog.png) |
+
+*Eye height over the test town, looking south. In the fog the sky takes the fog's grey and the sun is gone (WS-3).*
+
+#### 6aa.PR-1 — precipitation over the 3-D scene — DESIGN + AS-BUILT `2026-10-21` (ui, overnight #35)
+
+🔒 User, `2026-10-19`: *"depending from what place the 3d map camera is looking, the weather effects should be shown (fog density/distance,
+precipitation overlay...)"* — the overlay is named, so it is the uncontroversial slice; the rest of the item stays a discussion (below).
+
+| the slice rests on | code — how it is | design basis |
+|---|---|---|
+| the sample already carries the precipitation kind and rate | ✅ `WeatherSample.Precipitation` / `PrecipitationMmPerHour` (`WeatherField.cs:73`, set at `:313`) | Weather §4 (R-3012, user-approved precipitation) |
+| the wind is the direction it blows TOWARD, X east, Y north | ✅ `WeatherSample.Wind` (`WeatherField.cs:57`) | Weather §4 |
+| screen-right on the ground is `(sin yaw, −cos yaw)` | ✅ `MapCamera3D.Forward`/`Right` (`MapCamera3D.cs:110,126`, `Right = Forward × Up`) | §3 |
+| a 3-D layer's overlay draws only if it says `Has3D` | ✅ `MapCanvas.Draw` (`MapCanvas.cs:156`) | §3.6 |
+| nothing else draws precipitation | ⛔ searched (`scripts/find.sh Precipitation`, graph `.*Precip.*`) — only the field, its conditions, their replication (`EntityWeatherTranslators`) and perception (`PerceptionWeather`) touch it; ⚠ coverage not checkable through the CLI | — |
+
+```mermaid
+classDiagram
+    direction LR
+    class WeatherSkyLayer { <<existing, grows>> Update: keeps the sample · DrawOverlay: the drops · Has3D · DropsDrawn }
+    class Precipitation { <<NEW, pure>> MaxDrops 700 · CountOf(kind, rate) · Drops(kind, rate, windAcross, time, screen, into) · Colour(kind) }
+    class WeatherField { <<existing, backend>> At(world, point): WeatherSample }
+    class MapCamera3D { <<existing>> Yaw · Viewport }
+    WeatherSkyLayer ..> WeatherField : the same sample as the sky
+    WeatherSkyLayer ..> Precipitation
+    WeatherSkyLayer ..> MapCamera3D : the wind across the view
+```
+
+*What the picture shows that prose hid: the drops come from the SAME sample the sky and fog already read (at the eye in first person, at the
+look-at point in the free camera), so the overlay can never disagree with the fog about where the camera is; and `Precipitation` takes no
+world and keeps no state — a drop is a hash of its index moved by the time, so the field is identical on every frame at a time.*
+
+| decision | rule |
+|---|---|
+| **PR-1a the look** | rain, sleet and hail as short streaks falling fast (1100 px/s), drizzle as faint fine streaks (700 px/s), snow as flakes drifting down (70 px/s) with a small sway |
+| **PR-1b how many** | 100 + 45 × mm/h for rain (80 + 40 × for drizzle, 120 + 60 × for snow), at most 700 — a cloudburst is a cap, not a frame-rate cliff |
+| **PR-1c the wind** | the component of the sample's wind ACROSS the view slants the streaks (run per unit of fall = wind / 12 m/s, at most 0.8) and drifts the flakes |
+| **PR-1d where** | only in 3-D; the 2-D map draws none (the layer's own rule since the first slice) |
+
+**Rejected — one line each:** *3-D particle drops in the world* — hundreds of billboards near the eye cost a draw each and read the same at FPS
+scale; *a scrolling rain texture* — needs an asset and cannot slant with the wind without a shader; *a particle system with state* — a pause,
+a replay jump or a second view would each need it kept in step.
+
+**As-built `2026-10-21`** — matches the diagram. Rail `WeatherSkyTests.CE1146_PR1_Rain_AsStreaksWithTheWind_Snow_AsFlakes_AsManyAsTheRate`
+(none when dry · more for a heavier rate · capped · streaks fall with the wind and flip with it · flakes · same field at the same time, moving
+with time) — ✅ red-proved: the slant's sign flipped ⇒ 280 / 280 streaks fail. Frame rail `Map3DFrameRail.CE1146_V_PR1_RainAndSnow_FromTheWorldsWeather`
+through the PRODUCTION path (a World Environment entity raining 6 mm/h with an 8 m/s wind, `WeatherSkyLayer.Update` sampling it): dry ⇒ 0
+drops, rain ⇒ exactly `CountOf` and the frame differs from the dry one, then snow.
+
+| rain, 6 mm/h, the wind blowing to screen-right | snow, 2 mm/h |
+|---|---|
+| ![](assets/map-3d/weather-rain.png) | ![](assets/map-3d/weather-snow.png) |
+
+#### 6aa.next — the rest of CE-1146: leans for the discussion (taken overnight `2026-10-21`, NOT built — the user decides)
+
+| # | what | ⭐ lean | cost | what would change the lean |
+|---|---|---|---|---|
+| **CL** ✅ *approved* | cloud LAYERS — 🔒 user, `2026-10-22`: *"yes exactly that"* ⇒ built, §6aa.CL below | one flat, translucent quad per deck at its base height (`WeatherSample.Clouds`, the field's strongest deck), textured by ONE procedural noise texture made at start-up (256², tiled, scrolled by the wind at that height), its alpha from the octas; seen from below and from above (a helicopter) | ⭐ one draw per deck (≤ 3), one texture | the user wanting volume (puffy cumulus) — that is a raymarch, an order of magnitude more |
+| **MO** | the MOON | ⛔ the field has no lunar position ⇒ **a backend ask**: `MoonElevationDeg`, `MoonAzimuthDeg`, `MoonIllumination` on `WeatherSample` (a low-precision ephemeris, ~40 lines); ui then draws a disc and lifts the twilight floor by up to +0.1 under a full moon | backend ~½ day, ui an hour | the user content with the twilight floor alone (the scene is already never dark) |
+| **NL** | lights that light their SURROUNDINGS at night (a flare lighting the ground) | up to 8 nearest point lights from the live light-emitting effects (flare, fire, explosion, muzzle flash) as a uniform array in `LitShader`, added with a 1/(1+d²) fall-off, only while the light is under 0.5 | one loop of 8 in the fragment shader | Mesa / the Windows GL measuring too slow on the frame-rate telemetry (§6z) — then flares only |
+| **SW** | smoke drifting on the WIND | the effect smoke column's fixed breeze (`EffectLayer.Puffs`, *"a fixed light breeze until weather exists"*) reads `WeatherField.WindAt` at the column | ⭐ trivial | — ✅ built as PR-2, below, because the code itself named it as waiting on the weather |
+
+#### 6aa.PR-2 — a wreck's smoke drifts on the world's wind — AS-BUILT `2026-10-21` (ui, overnight #35)
+
+Owning design for the column itself: [Visual Effects](DESIGN_Visual_Effects.md) W3 (VE-P, the stateless puffs); the weather design's S3 names
+*"smoke drifts on the wind"*. `EffectLayer.Resolve` reads `WeatherField.WindAt` half way up a smoke column (it rises six sizes) into
+`Resolved.Wind`; `Puffs` drifts the column by `SmokeDrift(wind)` = wind / 4 m/s, at most 3 — so a 4 m/s breeze is exactly the old look, calm
+rises straight, a gale leans three times as far. ⚠ **A world that models no weather** (`WeatherConditions` unregistered) keeps the old fixed
+north-east breeze — `Wind` is null there, never zero, so an old host does not silently change. The area clouds (CE-1165) are untouched: their
+owner already drifts them on the wind (CE-3219).
+
+Rail `EffectTests.CE1146_PR2_TheSmokeColumn_DriftsOnTheWorldsWind` through `Resolve` (a World Environment blowing 8 m/s west ⇒ the column's
+top leans west; calm ⇒ straight; no weather ⇒ the old breeze; a gale capped) — ✅ red-proved: `Resolve` not passing the wind ⇒ fails.
+
+#### 6aa.CL — cloud layers — DESIGN + AS-BUILT `2026-10-22` (ui, CE-1146)
+
+🔒 User, `2026-10-22`, on lean CL (*"one flat, translucent quad per deck at its base height, textured by ONE procedural noise texture…"*):
+*"yes exactly that"*. Owning data: [Weather §6.3](designs/weather/DESIGN_Weather_And_Time.md) — `WeatherSample.Clouds` (`CloudDeck`, ≤ 4
+layers: base m MSL, thickness, octas, kind) *"is what S3's renderer draws"*.
+
+**INVENTORY** (`2026-10-22`): graph `search_graph name_pattern=".*(Cloud|Noise|Perlin).*" label=Class` → 13, every one the gas / smoke AREA
+cloud (`AreaEffectCloud`, CE-1165) or the weather data (`CloudDeck`, `CloudCovers`) — ⛔ no sky-cloud renderer, no noise generator;
+`scripts/find.sh "GenImagePerlinNoise|Fbm|ValueNoise|PerlinNoise"` → none (graph and grep agree; coverage not checkable through the CLI).
+
+| the build rests on | code — how it is | design basis |
+|---|---|---|
+| the scene's Z is metres above sea level, like a deck's base | ✅ `WeatherField.WindAt` reads *"the height is the point's Z above sea level"* (`WeatherField.cs:250-252`) | Weather §4 |
+| `BeginMode` draws the BACKGROUND (sky gradient, sun) before the 3-D pass, and a film frame runs the same `BeginMode` | ✅ `MapCamera3D.BeginMode` (`MapCamera3D.cs:568`), `MapCanvas.DrawScene` → `DrawLayers3D` → `Camera.BeginMode` | §6ab |
+| the far clip at eye height is 2 km — a deck 1.5 km up would be a small clipped patch | ✅ `FarClip => Max(2000, Distance·60)` (`MapCamera3D.cs:532`) | §6z |
+| HROT (x, y, z) is Raylib (x, z, −y) | ✅ `HrotToRaylib.Position` | §3 |
+
+```mermaid
+classDiagram
+    direction LR
+    class SceneAtmosphere { <<existing, grows>> + Clouds: SceneCloudLayer[]? }
+    class SceneCloudLayer { <<NEW value, FDP Vis3D>> HeightZ · Coverage 0..1 · Look · TileM · Drift · Tint }
+    class CloudLook { <<NEW enum>> Puffy · Sheet · Streaks }
+    class CloudDeckRenderer { <<NEW, FDP Vis3D>> Alpha(look, coverage, u, v) pure · TextureFor(look, coverage) cached · Draw(camera, layers) }
+    class MapCamera3D { <<existing, grows>> BeginMode: sky, sun, then the clouds as background }
+    class WeatherSky { <<existing, grows>> CloudsOf(sample, drift) }
+    class WeatherSkyLayer { <<existing, grows>> Update: drift = wind at each base x sim time }
+    class WeatherField { <<existing, backend>> At · WindAt }
+    SceneAtmosphere *-- "0..4" SceneCloudLayer
+    SceneCloudLayer --> CloudLook
+    MapCamera3D ..> CloudDeckRenderer
+    WeatherSky ..> SceneCloudLayer : maps the CloudDeck
+    WeatherSkyLayer ..> WeatherField
+    WeatherSkyLayer ..> WeatherSky
+```
+
+```mermaid
+sequenceDiagram
+    participant L as WeatherSkyLayer.Update
+    participant F as WeatherField
+    participant C as MapCamera3D.BeginMode
+    participant R as CloudDeckRenderer
+    L->>F: At(world, eye or look-at) - the deck
+    L->>F: WindAt(base of each layer) - its drift x sim time
+    L->>C: Atmosphere = WeatherSky.Of(sample) with Clouds
+    C->>C: sky gradient, sun disc (2-D, behind everything)
+    C->>R: Draw(camera, clouds) - inside BeginMode3D
+    R->>R: depth test OFF, no depth write, both faces
+    R->>R: per layer, farthest first - a grid around the eye, scaled toward the eye into the far clip
+    Note over C: then every layer draws the world OVER the clouds
+```
+
+```mermaid
+graph TD
+    P[MapInteractionPack.AttachMapLayers - every map host] --> W[WeatherSkyLayer]
+    W -->|Update| A[MapCamera3D.Atmosphere.Clouds]
+    D[MapCanvas.Draw3D] --> B[MapCamera3D.BeginMode]
+    S[MapCanvas.DrawScene - a film frame] --> B
+    B -->|background, before the world| R[CloudDeckRenderer.Draw]
+    T[the 2-D map] -.->|never| R
+    style T stroke-dasharray: 4 4
+```
+
+*What the pictures show that prose hid: the clouds are BACKGROUND like the sky — drawn in `BeginMode`, before any layer, with no depth — so
+the world is always drawn over them: a hill rising into a deck hides it, and a deck BELOW a free camera never covers the map (the user's
+2026-10-16 worry: weather must not obstruct the view). Because `BeginMode` also runs for a film frame, films get clouds for free.*
+
+| decision | rule |
+|---|---|
+| **CL-1 the texture** | one tileable fbm value-noise image per (look, coverage) — 128², made on the CPU once and cached (≤ 4 decks ⇒ ≤ 4 alive); its alpha is a soft step at the noise's own (1 − coverage) quantile, so the covered share of the sky IS the octas / 8 |
+| **CL-2 the looks** | cumulus, cumulonimbus, stratocumulus ⇒ **Puffy** (crisp edges; tile 3 km, 2 km for stratocumulus); stratus ⇒ **Sheet** (soft, tile 6 km); cirrus ⇒ **Streaks** (the noise stretched six-fold along one axis, faint, tile 8 km); cumulonimbus greyer, stratus a little greyer |
+| **CL-3 where** | a deck ABOVE the eye: its base; BELOW the eye: its top (base + thickness); inside it: none (the fog of the visibility is the cloud). As background it never hides the world — from above it shows only past the ground's edge |
+| **CL-4 the extent** | a 24 × 24 grid centred under the eye, radius 10 × the height above or below (6–30 km), fading to nothing over its outer half; every vertex moved toward the eye by one factor so all of it lies inside half the far clip — a uniform scale about the eye changes nothing on screen |
+| **CL-5 the drift and the light** | the texture moves with the wind AT THE LAYER'S BASE (`WeatherField.WindAt`) × the SIM time (paused ⇒ still, as the effects); white lit by the scene's ambient + sun, so a night deck is a dark grey |
+
+**Rejected — one line each:** *a cloud shader* — the fixed-function texture × vertex colour does it, and a second shader is one more thing
+the Windows GL must compile; *depth-tested clouds in the world* — at eye height the far clip would cut a 1.5 km deck to a patch, and from above
+it would cover the map; *one texture with the coverage in a shader* — needs that shader.
+
+**As-built `2026-10-22`** — matches the diagrams. `CloudDeckRenderer` + `SceneCloudLayer` + `CloudLook` (FDP `Vis3D`, cross-lane FDP
+engine), `SceneAtmosphere.Clouds`, the hook in `MapCamera3D.BeginMode`; `WeatherSky.LookOf` / `CloudsOf` and `Of(sample, drift)`;
+`WeatherSkyLayer` passes each layer's drift. ⚠ **One trap, measured:** flushing rlgl's batch (`DrawRenderBatchActive`) resets the bound texture
+to the default white one ⇒ the texture is bound again for every grid row (the first build drew a solid white deck).
+Rails `WeatherSkyTests.CE1146_CL_*` ×3 (the covered share IS the coverage ±6 % for every look; tiles; cirrus varies > 2.5× faster across than
+along · base from below, top from above, none inside, inside the far clip, the rim fade · the deck → looks, coverage, drift, a dark Cb, a
+grey night) — ✅ red-proved: the quantile taken at the coverage instead of its complement ⇒ out of range. Frame rail
+`Map3DFrameRail.CE1146_V_CL_CloudLayers_FromBelow_AndTheMapStaysVisibleFromAbove` (Mesa under Xvfb) — ✅ red-proved: the clouds drawn WITH
+the depth test ⇒ the deck covers the map from above (grey 131,133,135 where the ground is). ⚠ Not yet seen on the Windows GL.
+
+| scattered cumulus (4 octas, 1.5 km) | an overcast stratus (600 m) — the dim light under it is WS-2 |
+|---|---|
+| ![](assets/map-3d/weather-clouds-scattered-cumulus.png) | ![](assets/map-3d/weather-clouds-overcast-stratus.png) |
+| **cirrus streaks (3 octas, 7 km)** | **a free camera 3 km up over an overcast at 600 m: the map stays in view (CL-3)** |
+| ![](assets/map-3d/weather-clouds-cirrus.png) | ![](assets/map-3d/weather-clouds-from-above-overcast.png) |
+
+### 6ab. CE-3289 — filming the 3-D map: a director camera and a clean capture of the scene — DESIGN + AS-BUILT `2026-10-21` (backend, cross-lane into ui's map)
+
+🔒 User, `2026-10-21`: *"I would like to make short videos demonstrating the engine features"* · *"videos of the 3d map content, not the imgui
+necessarily. Actually the imgui panels are clutter so they would rather be turned off during the filming"* · *"Yes pls implement the
+necessary engine additions yourself and lets take a short testing video."* (R-3032)
+
+**INVENTORY** *(measured `2026-10-21`)*
+
+| query | total | what it found |
+|---|---|---|
+| `search_graph name_pattern=".*(Capture\|Screenshot\|Camera\|Film\|Director).*" label=Class` | 49 | ⛔ no runtime capture, no director. Camera: `MapCamera3D` + `CameraPose`, `MapViewSwitch`, `MapCameraLayer`; Stride's `CameraBookmarkStore` (Windows app, not the map) |
+| grep `TakeScreenshot\|LoadImageFromScreen\|ExportImage` (non-test) | 0 | the only PNG writer is the rail harness `UiFrameSession.Screenshot` (the whole window) |
+| grep production writers of `Camera3D.Pose` / `ShowPose` | `MapCameraLayer` (the scenario camera, adopted ONCE at load, `MapCameraLayer.cs:177`), `PossessionStation` (via `Driver`) | ⇒ nothing outside can place the camera; writing the camera ENTITY does not move the view after load |
+| grep `ICameraDriver` implementers | 2 | `FpsCameraDriver` (first person), `FallScreen` — ⭐ the seam that places the camera every frame (`MapCamera3D.cs:225`) and is never saved to the scenario (`MapCameraLayer.cs:165`) |
+| the layer list `MapInteractionPack.AttachMapLayers:476-551` | 18 layers | **scene** (the world): `TerrainLayer3D`, `TrafficLayer3D`, `EntityBodyLayer3D`, `EffectLayer`, `ProjectileLayer` · **not scene**: the gizmo layer (cards, rings, lines), `RubberBandOverlay3D`, `MapStatsOverlay`, `PossessionStation` (HUD), the rest draw nothing |
+| effects' clock | — | `EffectLayer` draws by `SimClock.TotalTime` and keeps no wall-clock state (`Update` empty) ⇒ a PAUSED, STEPPED sim films the same frame every time |
+
+```mermaid
+classDiagram
+  class IMapLayer { <<EXISTS>> }
+  class ISceneLayer { <<NEW marker>> draws the world itself }
+  class MapCanvas {
+    <<EXISTS, grows>>
+    +Draw() unchanged
+    +DrawScene() NEW scene layers only, no overlays
+    -DrawLayers3D(include) NEW, Draw3D and DrawScene share it
+  }
+  class ICameraDriver {
+    <<EXISTS, grows>>
+    +Update(camera, dt)
+    +HandleInput(camera, input)
+    +ViewsFromEye bool NEW, default true
+  }
+  class FpsCameraDriver { <<EXISTS>> }
+  class FilmDirector {
+    <<NEW ICameraDriver>>
+    +Shot FilmShot
+    +Place(camera)
+  }
+  class FilmShot { <<NEW record>> a fixed pose, or follow a networkId at distance / yaw / pitch / lift }
+  class FilmStudio {
+    <<NEW static mailbox, any thread>>
+    +Direct(shot) / Release()
+    +Capture(request) Task~FilmFrame~
+    +TryTake(out request)
+  }
+  class FilmCaptureLayer {
+    <<NEW IMapLayer, one per map>>
+    +Update(dt) sync the director, serve a capture
+    +Draw3D() marks drawn
+  }
+  class WeatherSkyLayer { <<EXISTS, reads ViewsFromEye>> }
+  class DebugApiHost { <<EXISTS, +3 routes>> }
+  IMapLayer <|-- ISceneLayer
+  ISceneLayer <|.. TerrainLayer3D
+  ISceneLayer <|.. TrafficLayer3D
+  ISceneLayer <|.. EntityBodyLayer3D
+  ISceneLayer <|.. EffectLayer
+  ISceneLayer <|.. ProjectileLayer
+  ICameraDriver <|.. FpsCameraDriver
+  ICameraDriver <|.. FilmDirector
+  FilmDirector --> FilmShot
+  FilmCaptureLayer --> FilmStudio : takes shots and requests
+  FilmCaptureLayer --> FilmDirector : sets as Camera3D.Driver
+  FilmCaptureLayer --> MapCanvas : DrawScene into a render texture
+  DebugApiHost --> FilmStudio : POST/DELETE /film/shot, POST /film/capture
+```
+
+*Caption:* what the picture shows that prose hid — the director is the SAME seam first person uses (one way to place the camera), and the
+capture is the SAME layer loop the window draws with, filtered by a marker (one way to draw the scene). Nothing new draws anything.
+
+```mermaid
+sequenceDiagram
+  participant S as film script (HTTP)
+  participant H as DebugApiHost (HTTP thread)
+  participant St as FilmStudio
+  participant C as MapCamera3D.Update (frame N)
+  participant L as FilmCaptureLayer.Update (frame N)
+  participant M as MapCanvas
+  S->>H: POST /sim/pause, then POST /film/shot {follow or pose}
+  H->>St: Direct(shot)
+  L->>L: Driver = FilmDirector(shot), the view in 3-D
+  S->>H: POST /film/capture {path, width, height}
+  H->>St: Capture(request) — awaits
+  C->>C: Driver.Update places the camera
+  L->>St: TryTake (only a map DRAWN last frame)
+  L->>L: Place the camera again (the shot may be new)
+  L->>M: BeginTextureMode, DrawScene (sky, scene layers), EndTextureMode
+  L->>St: PNG written, complete the request
+  St-->>H: FilmFrame {path, simTime}
+  H-->>S: 200
+  S->>H: POST /sim/step {count: 2} (one 30 fps frame)
+  S->>S: ... repeat, then ffmpeg the PNGs into an MP4
+```
+
+*Caption:* the sim is PAUSED and STEPPED, so a frame is a moment of sim time, not of the (slow, software-GL) wall clock — the video is
+smooth at any render speed and the same run films the same every time.
+
+```mermaid
+graph TD
+  LOOP["runner frame loop"] --> UPD["orchestrator.Update"]
+  UPD --> HOST["every map host (Editor, CGF, SimHost, ReplayBrowser, IG)"]
+  HOST -->|AttachMapLayers| FCL["FilmCaptureLayer, one per map"]
+  HTTP["DebugApiHost, HTTP thread"] --> ST["FilmStudio (static)"]
+  FCL -->|TryTake| ST
+  FCL --> DS["MapCanvas.DrawScene into a render texture"]
+  LOOP --> DRAW["BeginDrawing: DrawWorldAll, ImGui"]
+  DRAW -.->|"marks drawn"| FCL
+  HIDDEN["a map not drawn last frame"] -.->|"never serves a capture"| ST
+  style HIDDEN fill:#fdd,stroke:#c00
+```
+
+*Caption:* in `--mode all` several hosts each own a map in one process; only a map the window DREW last frame takes a capture (the dead
+edge, red) — so the film is of what is on screen, and a hidden host's map never answers. The capture runs in `Update`, outside
+`BeginDrawing` (`Program.cs:660-668`), so the offscreen pass never disturbs the window's frame.
+
+| ⭐ decision | rejected (one line) |
+|---|---|
+| **the scene layers are MARKED** (`ISceneLayer`) — opt-in, so a new overlay stays out of films by default | *an exclusion list of overlays* — every future overlay leaks into films until someone remembers |
+| **the director is an `ICameraDriver`** — first person's seam; never saved to the scenario camera (`MapCameraLayer.cs:165`); it holds the view until released | *write the camera entity* — adopted once at load, ignored after · *set `Camera3D.Pose` per frame from the layer* — a second way to place the camera, and it would be saved as a user move |
+| **`ViewsFromEye`** on the driver: a director looks AT a point like the free camera — weather read there, fog starting part way (as the free camera) | *treat any driver as first person* — fog from the lens and no weather (`WeatherSkyLayer` reads at the eye only for `FpsCameraDriver`) |
+| **capture = a render texture at the asked size** (default 1280×720), the sky by the camera's own `BeginMode`, then the scene layers' `Draw3D`, NO `DrawOverlay` | *grab the window* — panels, overlays and the window's size in every frame · *x11grab live* — choppy on software GL, no re-shoot |
+| **a frame = a paused sim stepped N frames** (`POST /sim/step {count}`, 1/60 s each); the script asks one capture per film frame | *film the running sim* — the frame rate is the renderer's, not the story's |
+| **follow** resolves the network id every frame (`NetworkIdResolver.ResolveNetworkId`, per-tick safe) | *the script computes every pose* — still possible (a pose shot); follow is the common case and saves a round trip per frame |
+
+| shot (`POST /film/shot`) | meaning |
+|---|---|
+| `{lookAt:[x,y,z], distance, yawDeg, pitchDeg}` | the free camera's pose (yaw from east, counter-clockwise; pitch negative looks down) |
+| `{eye:[x,y,z], target:[x,y,z]}` | a camera at `eye` looking at `target` |
+| `{follow: networkId, distance, yawDeg, pitchDeg, lift}` | looks at the unit's position + `lift` metres, from that distance and angle, every frame |
+| `DELETE /film/shot` | releases the view (the free camera keeps the last pose) |
+| `POST /film/capture {path, width?, height?}` | the next drawn frame's scene to `path` (PNG); answers `{path, width, height, simTime}`; 504 after 30 s (no map drawn) |
+
+#### 6ab-i As built `2026-10-21` — matches the diagrams above; two additions, measured on the first films
+
+📄 **How to film:** [`RUNBOOK_Filming.md`](RUNBOOK_Filming.md).
+
+| | |
+|---|---|
+| code | `Fdp.Presentation`: `ISceneLayer` (`Vis2D/Abstractions/CoreInterfaces.cs`), `MapCanvas.DrawScene` / `DrawLayers3D`, `ICameraDriver.ViewsFromEye`, `MapCamera3D.FogStart` · `Hrot.Presentation/Map3D/Film.cs`: `FilmShot`, `FilmStudio`, `FilmDirector`, `FilmCaptureLayer`; `WeatherSkyLayer` reads a look-AT driver at its point; `MapInteractionPack` adds the layer last · `DebugApiHost`: `/film/shot`, `/film/capture` · `scripts/film.py` |
+| ⭐ added: **the lens** | a shot may carry `fovDeg` (a telephoto): 📐 the first take, over the M1's shoulder, showed the T-72 at 240 m as a speck. The director sets `FovyDegrees` and gives the camera's own back in `Detached` |
+| ⭐ added: **cuts** | `film.py --plan` — segments at sim times; between them the sim PLAYS in real time to the next one. ⚠ real-time play overshoots by up to ~0.1 s, and the AI is not frame-identical between runs ⇒ 📐 the second take's cut landed just after the T-72 shot it was meant to catch. Aim a cut ≥ 0.5 s before the event |
+| ⚠ the first frame of a new shot | `WeatherSkyLayer` updates BEFORE the film layer, so the frame a shot first takes effect has the previous pose's atmosphere (📐 the first frame of the first take was the default sky, brighter). `film.py` throws that frame away |
+| 📐 cost | `--mode all`, 1280×720, Xvfb + llvmpipe: **~1.85 s per film frame** at 30 fps (2 sim steps + 1 capture; each step is a gated frame of the whole editor window) ⇒ 13 s of film in 12 min, 7 s in 7 min — run in the background |
+| rails | `FilmTests` ×6 (shot geometry, follow, fog, mailbox, layer takes / gives back the camera + undrawn map films nothing, the lens) · `FilmFrameRail` (Xvfb: the scene alone at the asked size, no clutter, sky on top) · the shared-layers pin · `EveryRouteIsDocumented` — 7/7 mutants caught |
+| ⭐ **`--mode editor` — the demo host** *(user, `2026-10-21`)* | a cut STEPS to the next segment (frame-exact, the same every run — CE-202); 📐 ~0.8 s per film frame (vs 1.85 on the cluster); the first editor film caught the T-72 impact on the planned frame. `RUNBOOK_Filming.md` §0 |
+| ⏭ not built | a smaller window while filming (the window's own frame is most of the cost) · `--mode all` only films the perspective on screen (the default, Scenario) |
+| ⭐ **CE-4038 (ui, `2026-10-21`) — the film director drives this** | 📄 [DESIGN_Film_Director.md §8](DESIGN_Film_Director.md). Three changes HERE: ① `FilmDirector.Update` takes the NEWEST `FilmStudio.Shot` when the camera updates, so a cut lands in the same frame, before the layers read the camera — ⛔ SUPERSEDES the "first frame of a new shot" row above for every shot after the first (film.py's one throwaway settle capture is kept for the first) · ② `FilmCaptureRequest` gained `Caption` (burned in under the scene) and `Card` (a title card instead of the scene, served in 2-D too), drawn by `FilmText` · ③ `POST /film/shot {spec, t}` — a take's shot evaluated by the director's `ShotEvaluator`, so `film.py` keeps no shot math (D-9) |
+
+### 6ac. CE-1287 · CE-1288 · CE-1289 · CE-1290 — middle-button pan, the helper grid, the cursor's coordinates, the scenario in the window title — DESIGN + AS-BUILT `2026-10-23` (ui)
+
+🔒 User, `2026-10-23` (the first visual pass over the Brain View work, [`CE-1270`](blueprints/Blueprint_Issues_Tracker.md)'s children):
+*"2d map need to support also middle button to drag map to be consistent with the 3d map"* · *"the 2d map is missing any aux grid system with thicker gray lines for larger step grid and thinner gray lines for fines step grid, with auto selection of the grid stepping based on zoom"* · *"in status bar we should see the coordinates of point under cursor (2d map as well 3d map) - both flat coordinates, lat/long coordinates with altitude"* · *"i need to see currently loaded scenario name in the title of the clusterrunner as editors usually do"*.
+The status-bar half folds in backend's [`CE-3151`](blueprints/Blueprint_Issues_Tracker.md) (`2026-10-09`: *"I would like to see map cursor coordinates (the local flat ones) in the status bar when cursor moves over map area"*).
+
+**INVENTORY** *(measured `2026-10-23`, branch `ui`; `check_index_coverage` is not available through the CLI, so every "none" below is "none found by these queries")*
+
+| query | total | what it found |
+|---|---|---|
+| `search_graph name_pattern=".*(Grid\|Cursor\|Readout).*" label=Class` | 40 | the only 2-D map one is **`GridMapLayer`** (in-degree 1: `EditorSubsystem`). ⭐ it was a grid all along: one weight, a fixed 1 000 m base, bounds taken **around the mouse** (`ctx.MouseWorldPos`), `MapViewConfig.ShowGrid` default **off**, added AFTER the gizmo layer so drawn **over** the entities. The rest is unrelated (`SpatialGrid*`, `PerceptionGrid*`, the node editor's `GridRenderer`). **No cursor-coordinate class exists** |
+| `search_graph name_pattern=".*StatusBar.*" label=Class` | 6 | `StatusBarManager` (the seam, `RegisterSection(id, sortOrder, render, perspective?)`), `ClusterTimeControlStatusBarSection`, `MessageLogStatusBarSection`, `TimeControlStatusBarSection` + 2 test classes. Sections registered today: `system_health`(0), `msg_log_notify`(90), `*_time_controls`(100) |
+| grep `PanButton` | 4 | `Vis2DInputMap.PanButton = Right` is the 2-D map's ONLY pan binding; `MapCamera3D.HandleInput` hard-codes `MapMouseButton.Middle` for its pan (`MapCamera3D.cs:349`) |
+| grep `SetWindowTitle` / `InitWindow(` in the runner | 0 / 1 | the title is set ONCE, `"HROT Cluster Runner"`, at `LocalWindowController.OpenLocalWindow` — nothing renames it |
+| grep `LoadedScenarioName` (non-test) | 12 | `IScenarioSession.LoadedScenarioName` (`EditorScenarioSession`) is the one source: set by every load (`ScenarioLoadSequence.beforeLoad`) and `SaveAs`, nulled by `ClearWorld` (⇒ New Exercise). The editor reads it via `_editorLogic`, CGF via `_scenarioSession` |
+| grep `Mouse World` | 1 | `IgApplication.cs:1707` — the standalone IG's raylib text overlay (`Mouse World: (x, y) m`); ⚠ left as it is (see "Not done") |
+
+**Design basis** *(R-129 — `docs/` first, then `.dev/`)*
+
+| doc | does it settle this? |
+|---|---|
+| [UX/Architect_Question_28_Map_Layers.md](UX/Architect_Question_28_Map_Layers.md) E′ (ruled `2026-08-12`) | ⚠ **applies in part.** It keeps `ActiveLayerMask` as the "which renderers run" switch and calls the `ConfigPanel` Grid tick *"the right UI"* for it. Since then **`CE-1227` (`TerrainLayer2D`) put a retained 2-D layer behind the layer panel's own row** (the buffer's `Terrain2D` bit), and that panel — View ▸ Tactical Map Layers, a set per view, remembered in the user's file — is where the user looks. ⇒ the grid follows the newer precedent (a `Grid (2-D)` row), and the Config window's tick is KEPT honest (it forces the grid on) rather than deleted: that duplicate's removal is Q28's, not this slice's |
+| [DESIGN_Map_North_Up.md](DESIGN_Map_North_Up.md) | applies: the 2-D camera draws world Y up; screen-down is world-south — so the grid's view rectangle folds both corners into min/max and the pan sign comes from `MapCamera.FlipY` |
+| §3.8 (M17–M20) / `MapCamera3D.Pick` | applies to the cursor: the 3-D point is `ScreenToWorld3D` — an entity's own position when its box is hit, else the terrain, else the look-at plane — the same call the click and hover already make |
+| [DESIGN_Geo_Origin.md](DESIGN_Geo_Origin.md) §4 | applies to lat/long: the origin comes from the loaded terrain and is held by the node's ONE `IGeographicTransform`, which the world singleton exposes (Editor, SimHost, CGF, Stride — ⚠ not IG, see below) |
+| [UX/UX_Feature_Modal_Surfaces.md](UX/UX_Feature_Modal_Surfaces.md) · `UXI-27` | the status-bar surface (progress half only) — nothing here conflicts |
+| searched `docs/` and `.dev/` for a cursor readout, a map grid design and a window-title design | **none found** — no owning design existed for any of the four; this section is it |
+
+**Decisions** *(each with the fact that settled it)*
+
+| # | decision | rejected |
+|---|---|---|
+| **MMB pan** | `Vis2DInputMap.SecondaryPanButton = Middle`; `MapCamera.IsPanDown` = either pan button down. The right button still pans, and `MapCanvas`'s drag-vs-click guard (`_rightButtonDragged`) is untouched | hard-coding `Middle` in `HandleInput` — the bindings are configuration (`PanButton` already was), and the rail reassigns it |
+| **grid, rebuilt in place** | `GridMapLayer` keeps its class and its place in `Fdp.Presentation` (the seam law: it was the grid), and gains `GridSteps` — the 1-2-5 × 10ⁿ ladder: the minor step is the first rung ≥ 18 px on screen, the major step is the rung two above it (×5, ×5, ×4 — always a whole number of minor steps, so every major line lies on a minor one). Lines sit on multiples of the step from the local origin. Minor 1 px translucent grey, major 2 px | a new layer beside the old one (two grids); a fixed ladder per zoom band (a step table to keep in sync) |
+| **grid: where in the stack** | after `TerrainLayer2D`, before the gizmo layer — the terrain's fills are opaque and would hide a grid beneath them; the entities draw over it. It was added by `EditorSubsystem` after the gizmos (over them): the shared attach now adds it, so **every host with a 2-D map has it by construction** (rail `NoHostBuildsAMapLayerOfItsOwn`) | one per host (what made "not on every host" possible) |
+| **grid: the toggle, and its default** | the `Grid (2-D)` row of the layer panel = `DebugTraceLayers.Grid` = bit 27, **on by default** (the user found no grid because it was off); `LayerControlDto.FirstUntoggledLayer` 27 → 28; the Config window's `MapViewConfig.ShowGrid` tick also forces it on (`gridAlsoWhen`) | a ConfigPanel-only toggle (the panel the user does not use, no per-view memory) |
+| **cursor: one measurement** | `MapCursorLayer.Update` asks the camera for the point under the mouse (`ScreenToWorld3D`) once a frame, in both views, and writes a `MapCursorReadout` held as a **`MapCanvas` resource** (`canvas.Get<MapCursorReadout>()`), so a host that swaps its canvas keeps the section | a per-host reader (five), a `MapUiStates` entry (needs the world the status bar does not have) |
+| **cursor: the altitude** | 3-D: the pick's own height. **2-D: the terrain's ground height at that spot** (`viewSwitch.Camera3D.GroundHeight`, the cached one), 0 with no terrain — the flat map has no height of its own | showing 0 in 2-D |
+| **cursor: lat/long** | `IGeographicTransform.ToGeodetic(local)` from the world singleton, resolved each frame (a terrain commit changes the origin); with no transform the section shows the flat point alone | a second transform per section (`CE-236`: one per node) |
+| **cursor: off the map** | **the last reading HOLDS.** While the mouse belongs to a UI surface (`IsMouseCaptured` — a panel, or the status bar itself) nothing is measured. *Reason:* the status bar is not the map, so blanking on the way to read it would make it unreadable. Before the cursor has ever been over the map the section reads `Cursor: -` | blanking off-map |
+| **cursor: where it shows** | `MapCursorStatusBarSection.Register(statusBar, () => canvas, perspective)`, one call per host in `RegisterWindows`: Editor + CGF `"Scenario"`, SimHost, IG, ReplayBrowser their own; sort order 50 (between `system_health` and the message-log icon). Pinned: every host that calls `AttachMapLayers` must call `Register` (rail) | a runner-level section (the runner does not know the canvases) |
+| **title** | `IWindowTitleSource.WindowTitleDetail` (next to `IAppExitGuard`): the Editor and CGF offer `LoadedScenarioName`; `LocalWindowController.UpdateWindowTitle()` (once a frame, from the render loop) composes `HROT Cluster Runner — <name>` and calls `IPresentationShell.SetWindowTitle` only when the text changed. New Exercise / clear nulls the name ⇒ the base title | polling the session from the runner (it cannot see it); renaming on the load event (a second path to forget) |
+
+```mermaid
+classDiagram
+  direction LR
+  class Vis2DInputMap { <<exists, changed>> PanButton = Right
+    SecondaryPanButton = Middle }
+  class MapCamera { <<exists, changed>> +HandleInput(input)
+    +IsPanDown(input, map) }
+  class MapCanvas { <<exists>> +Input
+    +Camera
+    +AddResource~T~()
+    +Get~T~() }
+  class GridMapLayer { <<exists, rebuilt>> +Draw(ctx)
+    +ViewBounds(camera, w, h) }
+  class GridSteps { <<new, pure>> +For(zoom) Steps
+    +Lines(min, max, steps) }
+  class MapCursorLayer { <<new>> +Update(dt)
+    +Measure(camera, screen, ground) }
+  class MapCursorReadout { <<new>> +Set(sample)
+    +Text }
+  class MapCursorStatusBarSection { <<new>> +Register(bar, canvas, perspective)
+    +Render() }
+  class StatusBarManager { <<exists>> +RegisterSection() }
+  class IGeographicTransform { <<exists>> +ToGeodetic(local) }
+  class LayerControlDto { <<exists, changed>> Map.Grid = on
+    FirstUntoggledLayer = 28 }
+  class MapInteractionPack { <<exists, changed>> +AttachMapLayers() }
+  class IWindowTitleSource { <<new>> +WindowTitleDetail }
+  class LocalWindowController { <<exists, changed>> +UpdateWindowTitle()
+    +TitleFor(detail) }
+  class IPresentationShell { <<exists, changed>> +SetWindowTitle(title) }
+  class EditorScenarioSession { <<exists>> +LoadedScenarioName }
+  MapCamera --> Vis2DInputMap : reads both pan buttons
+  MapCanvas o-- MapCamera
+  MapCanvas "1" o-- "1" MapCursorReadout : resource
+  GridMapLayer ..> GridSteps : step + line set
+  GridMapLayer ..> LayerControlDto : visible = buffer bit Grid
+  MapCursorLayer ..> MapCanvas : Input + Camera
+  MapCursorLayer ..> IGeographicTransform : world singleton
+  MapCursorLayer --> MapCursorReadout : Set
+  MapCursorStatusBarSection --> MapCursorReadout : Text
+  MapCursorStatusBarSection ..> StatusBarManager : registered on
+  MapInteractionPack ..> GridMapLayer : adds, under the gizmos
+  MapInteractionPack ..> MapCursorLayer : adds + the readout resource
+  LocalWindowController ..> IWindowTitleSource : first with a detail
+  LocalWindowController ..> IPresentationShell : SetWindowTitle on change
+  EditorScenarioSession <.. IWindowTitleSource : EditorSubsystem and CgfSubsystem offer its name
+```
+*What the picture shows that the prose hides: the cursor has ONE measurement and ONE store (the canvas resource) with five readers of the registration, not five measurements; and the title seam is the exit-guard's twin — the subsystems offer, the runner composes.*
+
+```mermaid
+sequenceDiagram
+  participant H as host frame
+  participant C as MapCanvas
+  participant K as MapCamera / MapCamera3D
+  participant L as MapCursorLayer
+  participant G as IGeographicTransform
+  participant R as MapCursorReadout
+  participant S as status bar
+  H->>C: Update(dt)
+  C->>K: HandleInput - RMB or MMB held ⇒ pan
+  C->>L: Update(dt)
+  alt mouse captured by a panel or the status bar
+    L-->>R: nothing - the last reading holds
+  else over the map
+    L->>K: ScreenToWorld3D(mouse)
+    K-->>L: point (3-D: the pick incl. height)
+    Note over L: 2-D: z = ground height at (x, y)
+    L->>G: ToGeodetic(point)
+    G-->>L: lat, lon, alt
+    L->>R: Set(sample)
+  end
+  H->>S: Render()
+  S->>R: Text (via canvas.Get)
+```
+
+```mermaid
+graph TD
+  subgraph per frame
+    LOOP[ClusterRunner render loop] -->|"orchestrator.Update(dt)"| SUB[Editor / CGF / SimHost / IG / ReplayBrowser subsystems]
+    SUB -->|Update| CANVAS[MapCanvas]
+    CANVAS -->|Update + Draw| GRID[GridMapLayer]
+    CANVAS -->|Update| CUR[MapCursorLayer]
+    LOOP -->|UpdateWindowTitle| LWC[LocalWindowController]
+    LOOP -->|"WindowManager.Render"| SB[StatusBarManager]
+    SB --> SEC[MapCursorStatusBarSection]
+  end
+  PACK[MapInteractionPack.AttachMapLayers] -.->|registers once| GRID
+  PACK -.->|registers once| CUR
+  HOSTREG[each host RegisterWindows] -.->|"Register(...)"| SEC
+  GRID -.-x|"no Draw3D: absent in 3-D (LayersWithout3D counts it)"| V3[3-D view]
+  IGOV[IgApplication raylib 'Mouse World' overlay]:::dead
+  classDef dead stroke-dasharray: 4 4,stroke:#c00,color:#c00
+```
+*Caption — the dead edges: the grid has no 3-D path (it was documented above as "+ a `Draw3D` each" — it never had one; corrected here), and the standalone IG's own `Mouse World` text overlay is still a second, unrouted readout of the same fact.*
+
+**As built `2026-10-23`**
+
+| item | code | rails |
+|---|---|---|
+| `CE-1287` | `Vis2DInputMap.SecondaryPanButton`, `MapCamera.IsPanDown` (`Fdp.Presentation`) | `MapCameraTests`: `MapCamera_MiddleButtonDrag_PansTheMap_LikeTheRightButton`, `…_LeftButtonDrag_DoesNotPan`, `…_SecondaryPanButton_IsConfigurable` |
+| `CE-1288` | `GridMapLayer` + `GridSteps` (`Fdp.Presentation/Vis2D/Layers`); `DebugTraceLayers.Grid`, `LayerControlDto.Map.Grid` (`Hrot.Common`); `MapInteractionPack.AttachMapLayers` (+ `gridAlsoWhen`); `EditorSubsystem` no longer adds its own | `GridStepsTests` (ladder, step per zoom, spacing floor/ceiling over a zoom sweep, lines on multiples + major flags, view-edge, degenerate/huge views, the view is the camera's); `LayerControlGizmoTests.CE1288_TheGridIsALayerPanelRow_…`; `EveryMapHostAttachesTheSharedLayersTests` (`GridMapLayer` may not be built outside the pack) |
+| `CE-1289` | `MapCursor.cs` (`MapCursorSample`, `MapCursorReadout`, `MapCursorFormat`, `MapCursorLayer`), `Panels/MapCursorStatusBarSection.cs` (`Hrot.Presentation`); the readout is a canvas resource; five `Register` calls; `SimHostVisualization.Canvas`, `IgApplication.Canvas` accessors | `MapCursorTests` (text in a decimal-comma locale, hemispheres, 2-D point + terrain altitude, 3-D centre pixel, non-finite camera, the layer's geodetic reading + hold off-map + no-transform, the section's placeholder); `EveryHostThatAttachesTheSharedLayers_ShowsTheCursorInItsStatusBar` |
+| `CE-1290` | `IWindowTitleSource` (`Fdp.Toolkits/Runner`), `EditorSubsystem.WindowTitleDetail`, `CgfSubsystem.WindowTitleDetail`, `LocalWindowController.TitleFor/UpdateWindowTitle`, `IPresentationShell.SetWindowTitle`, one call in `Program.cs`'s render loop | `CE1290_WindowTitleTests` (the text, base title on open, follows load → reload → clear and sets only on change, first source with a detail wins, headless renames nothing) |
+
+⚠ **Not seen:** nothing here was looked at on a display. The grid's pixel look (colours, widths, whether 18 px is the right floor), the status-bar text's width and the title bar are un-eyeballed — the rails prove the steps, the lines, the numbers and the text, not the picture. The first look may want the alpha or the floor tuned (`GridMapLayer` constants, `GridSteps.MinMinorPixels`).
+
+⏭ **Not done:** the standalone IG's `Mouse World` raylib overlay is not routed through the status-bar section (it has no status bar of its own outside the cluster window, and `ruling 9`'s "one readout" is satisfied only inside `ClusterRunner`; IG's world singleton also carries no `IGeographicTransform`, so its status-bar section shows the flat point alone — `DESIGN_Geo_Origin.md` §1) · the Config window's `Grid` tick is a duplicate of the layer row (Q28 E′ deletes the duplicate `ConfigPanel` — not this slice) · a grid in the 3-D view · the title names the Editor's/CGF's loaded scenario only — a SimHost-only or IG-only run has no session to ask.
+
+### 6ad. CE-1328 — grass on the open ground, so walking reads as moving — AS-BUILT `2026-10-25` (ui)
+
+🔒 User, `2026-10-25`: *"The green ground on the terrain needs some simple texture (grass?) so we see that we are moving (the solid green
+colour looks the same and not giving much feeling of movement when we are looking down while walking in FPS mode)."*
+
+```mermaid
+graph LR
+  T[TerrainLayer3D.Draw3D] -->|SetGroundDetail 1| S[LitShader fragment]
+  S --> G{"normal up AND green base?"}
+  G -->|yes| N["value noise on WORLD x,y: ~12 m patches, ~1 m tufts, fine streaks fading out by 90 m"]
+  G -->|no| P[colour as before]
+  T -->|SetGroundDetail 0 after the draw| S
+```
+*What the picture shows that prose hid:* the grass is anchored to the WORLD, not the screen or the mesh, so it slides past a moving eye; and
+it is one uniform the terrain sets for its own draw only — the bodies, roads and effects drawn through the same program stay plain.
+
+| piece | where |
+|---|---|
+| `grass()` in the fragment program (`grassNoise`, value noise; 12 m patches toward a drier tint, 1 m tufts, streaks that fade by 90 m so nothing shimmers far away); `uniform groundDetail`; `SetGroundDetail(float)` | `FDP/Engine/Fdp.Presentation/Vis3D/LitShader.cs` |
+| the terrain sets it for its draw and puts it back to 0 | `TerrainLayer3D.Draw3D` |
+| only faces pointing up whose base colour is GREEN (ground, forest, a hedge's top) — a flat roof, water, roads stay plain | the shader's `flat_` gate |
+
+📷 `Map3DFrameRail` shots `posture-1-side.png` (first-person height) and `map3d-2-tilted.png`. ⚠ Looked at in the frame rail only, not in the
+live editor; the strength (`0.80 + 0.30·tufts`) may want tuning on a real screen.
+
+![grass at first-person height](assets/map3d/grass-first-person.png)
+
+### 6ad-1. The APRON — fake ground round the terrain — AS-BUILT `2026-10-30` (ui)
+
+🔒 User, `2026-10-30`: *"The empty space around our terrain is now shown really empty. Which looks extra weird when the cars are placed there and
+moving there … draw there some fake terrain surface, in some cheap and fast way"* · *"there needs to be some basic texture on it so when we move the
+camera we see that something is moving"*.
+
+| decision | why |
+|---|---|
+| `TerrainWorldMesh.BuildApron`: a ring of quads from the ground grid's own edge vertices out to 4 km, every vertex at `GroundHeightAt` | outside the grid `GroundHeightAt` clamps to the edge (`TerrainHeightGrid.Sample`), the height a car out there is clamped to ⇒ cars sit on it by construction; the shared `GroundLayout` makes its inner edge the ground's edge (no crack). Built once with the terrain mesh, on the worker |
+| drawn ONLY: appended in `TerrainWorldQuery.BuildTagged` (material `apron`) | ⛔ the navmesh is baked from `TerrainWorldMesh.Build`, so units never path onto it. ~~the 3-D picker reads `Build` too, so it is not pickable~~ ⛔ SUPERSEDED `2026-11-08` (CE-4341, backend) — see the row below |
+| ⭐ **CE-4341 (`2026-11-08`, backend): the 3-D picker reads `BuildTagged` — what is DRAWN is what is clicked** (`Picking.cs` `PickGrid.Build`) | 📐 measured: with the picker on `Build`, a click or drag on the hilly band (§6ad-2) MISSED and `MapCamera3D.Pick` fell back to the plane at the look-at height (≈ 0, `PickKind.Ground`) — the placement ghost and the drag point sat under the drawn hills, behind them. Every sim height query (`GroundHeightAt`, `SurfaceZ`, `SurfacesAt`, `ResolveLevel`) already answered the band (CE-4122), so the pick was the one source that did not. Water is pickable too now (also drawn). Rail: `Map3DPickingTests.CE4341_APickOnTheOuterBand_LandsOnTheDrawnGround_AndPlacementResolvesToIt` (red on `Build`) |
+| the grass pattern (code 250, world-space noise) on a duller green `ApronColor` | the camera sees it slide past; the real terrain's edge stays visible |
+
+Rejected: real terrain (the navmesh and physics would grow) · a flat colour (the user: nothing would show the camera moving). Rails:
+`TerrainHeightTests.TheApron_SitsOnTheClampedGround_MeetsTheGroundEdge_AndIsDrawnOnly` (sloped + flat) · `Map3DFrameRail.TheApron_BeyondTheTerrainsEdge_IsTexturedGround_NotEmptySky` (red without it: "0 of 9000 green").
+⚠ It does not read the SUMO network's extent: 4 km past the terrain on every side.
+
+### 6ad-2. The apron, HILLY — one ground function beyond the terrain, meeting our edge and the SUMO ground *(ui, `2026-10-30`; build-state: BUILT — see the as-built paragraph below the rails)*
+
+🔒 User, `2026-10-30`: *"could it be made a bit hilly? … some simple wave function … but still smoothly connected to our and SUMO terrain"* · lean
+approved (*"go"*): one function, three zones.
+
+**INVENTORY** *(graph + grep)*: `search_graph name_pattern=.*(TerrainMesh|GroundMesh|Skirt|GroundPlane|Backdrop|Horizon|OutsideTerrain|FarGround).* label=Class`
+→ 0 (no existing beyond-ground) · `grep TerrainField` → `Sim.Scene.TerrainField` (SumoSharp, the SUMO lanes' heights as a smooth deterministic field,
+clamped outside its lattice) and `AmbientGroundBuilder` (its mesh) · `TrafficRoadScene.Build:89` already draws that AMBIENT GROUND over the net's
+bounds minus our terrain's footprint (`TrafficLayer3D.ShowAmbientGround`) · `grep "\.GroundHeightAt("` → 32 production readers (the ONE clamp).
+
+```mermaid
+classDiagram
+  direction LR
+  class TerrainWorld { <<exists, grown>> GroundHeightAt(x,y) · Beyond NEW (set once) }
+  class TerrainHeightGrid { <<exists>> Sample — clamps outside }
+  class BeyondGround { <<NEW, Fdp.Toolkits>> HeightAt(x,y) · Excludes(x,y) · Hills(x,y) }
+  class TerrainWorldMesh { <<exists, grown>> BuildApron — a coarse grid + a collar }
+  class SumoNetTerrainLoader { <<exists, grown>> Prepare: the field in LOCAL metres · Commit: world.AttachBeyond }
+  class TerrainField { <<exists, SumoSharp>> HeightAt(sumoX, sumoY) }
+  class TrafficRoadScene { <<exists>> the SUMO ambient ground mesh }
+  TerrainWorld --> TerrainHeightGrid : inside the grid
+  TerrainWorld --> BeyondGround : outside the grid
+  BeyondGround ..> TerrainField : via the placement (optional)
+  TerrainWorldMesh --> TerrainWorld : GroundHeightAt
+  SumoNetTerrainLoader --> BeyondGround : builds
+  TrafficRoadScene ..> TerrainField : draws its own ground
+```
+*What the picture shows that prose hid:* the clamp (32 readers) and the apron mesh read ONE function, `GroundHeightAt`; SUMO's ground stays its own mesh
+from the SAME field, so where the apron meets it both evaluate `TerrainField` and agree by construction.
+
+```mermaid
+graph TD
+  P["outside our grid: GroundHeightAt(x, y)"] --> B{"Beyond set?"}
+  B -->|no: no SUMO net| E["edge clamp + Hills · ramp(dTerrain)"]
+  B -->|yes| F["lerp(edge clamp, SUMO field, ramp(dTerrain)) + Hills · ramp(dTerrain) · ramp(dSumo)"]
+  F --> Z1["at our edge: dTerrain = 0 ⇒ the edge height (seamless)"]
+  F --> Z2["at / inside the SUMO bounds: dSumo = 0 ⇒ the SUMO field (meets SUMO's ground)"]
+  F --> Z3["far from both: the field's level + hills"]
+```
+
+**Claim table**
+
+| the build rests on | code — how it IS | design |
+|---|---|---|
+| outside the grid the clamp is the edge height | ✅ `TerrainHeightGrid.cs:48` | ✅ §6ad-1 |
+| SUMO's field is defined everywhere (clamped) and smooth | ✅ `TerrainField.cs:332-337` | ✅ its header (§7.2) |
+| SUMO's ground is drawn over the net bounds minus our footprint | ✅ `TrafficRoadScene.cs:88-97` | — |
+| SUMO cars take the lanes' own heights (unchanged by this) | ✅ `TrafficMirror.cs:73` | — |
+| the content loader may attach to the world before it is used | ⚠ `ITerrainContentLoader.Prepare(…, TerrainWorld world)` runs before commit — ⛔ the publish ORDER is not measured: the builder measures it and says where `AttachBeyond` must happen | ⛔ none |
+| the navmesh is unaffected | ✅ it covers the grid only (`TerrainWorldMesh.Build`) | ✅ §6ad-1 |
+
+**Decisions**
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **HB1** | `BeyondGround` (Fdp.Toolkits, pure, deterministic): `HeightAt(x,y)` per the graph above; `ramp(d) = smoothstep(0, 300 m, d)`; `Hills` = 3 octaves of smooth value noise / sines, amplitude ~10 m total, wavelengths ~250–900 m, seeded by nothing (a fixed function of x, y) | hills drawn only — units clamped out there would float or sink |
+| **HB2** | `TerrainWorld.GroundHeightAt` outside the grid = `Beyond?.HeightAt(x,y)`, else edge clamp + hills (no SUMO). Set ONCE (`AttachBeyond`, a second call throws) by `SumoNetTerrainLoader` when the net loads; a terrain without a net builds its own at parse | a mutable provider — the world is immutable after commit; set-once keeps that true |
+| **HB3** | the apron becomes a coarse GRID (40 m — SUMO's own lattice) out to 4 km, cells skipped inside our footprint and inside the SUMO bounds' interior; a COLLAR strip zips our fine edge vertices to the first coarse line (no crack); cells reaching under SUMO's ground are drawn 0.3 m lower so SUMO's mesh wins without a gap (its rectangle may be rotated by the placement) | flat strips (no hills possible) · zipping to SUMO's rotated lattice — the overlap is cheaper and invisible |
+| **HB4** | the apron rebuilds when `Beyond` is attached (the render geometry's `Identity` includes it) | — |
+
+**Rails:** `TerrainHeightTests` — at our edge the apron equals the edge (no crack, the collar's shared vertices); far away it is hilly (spread > 3 m);
+with a SUMO field, at the SUMO bounds `GroundHeightAt` equals the field; `GroundHeightAt` = the apron vertex heights everywhere (one function); a
+second `AttachBeyond` throws · `Map3DFrameRail` — the apron view shows relief (the horizon line is not straight) · red-proof each.
+
+⭐ **AS-BUILT `2026-10-30` (ui, `CE-4122`)** — built as designed, with these exact points (cross-lane edit: backend's `TerrainWorld`, `TerrainWorldMesh`, `StaticObstacles` in `Fdp.Toolkits/Terrain`):
+- **`BeyondGround`** (`Fdp.Toolkits/Terrain/BeyondGround.cs`): `HeightAt(x, y, edge, dTerrain)` = `lerp(edge, field, ramp(dTerrain)) + Hills·ramp(dTerrain)·ramp(dField)` (no field: `edge + Hills·ramp(dTerrain)`); `Hills` = six travelling sines in three octaves (wavelengths ~900/760, ~480/410, ~260/290 m; amplitudes 5 + 3 + 2 m), a fixed function of (x, y). The SUMO field arrives as a `Func<float,float,float>` in LOCAL metres plus its footprint as a convex quad (the net's bounds through the placement, so a UTM rotation is honoured); no SUMO types in Fdp.Toolkits.
+- **`TerrainWorld`**: `AttachBeyond` (set once; a second call throws), `Beyond`, `GroundRect`. `GroundHeightAt` is unchanged inside the ground rectangle (the bounds, the minimum snapped to the grid's cells — the same rule `GroundLayout` lays the ground out by); outside it `edge` = the height at the NEAREST point of that rectangle and `dTerrain` the distance to it. A world with degenerate bounds (built in code, no rectangle) keeps the old behaviour, so a code-built flat world is not hilly everywhere. Without an attach the world uses `BeyondGround.Default` (edge + hills) — nothing is built lazily, the default is a shared constant.
+- ⚠ **Where the SUMO field is exactly the ground**: `ramp(dTerrain)` pulls the level from the edge to the field over 300 m, so `GroundHeightAt` equals the field inside the SUMO footprint only where that point is ≥ 300 m from our terrain; nearer, it is the blend (still continuous, still inside the footprint's own ground mesh's reach). The rails place their points accordingly.
+- **Where it is attached** (the claim the design left open): `SumoNetTerrainLoader.Prepare` (`AttachBeyond`), which `TerrainResidency` runs at :268 — BEFORE the world is published (:307) and committed. ⛔ Two traps found and closed: (1) a terrain with no world file handed the loader one `new TerrainWorld()` and published ANOTHER — `Staged.PreparedEmptyWorld` is now both; (2) the obstacle bake builds a NEW world (`TerrainObstacles.With`, :491), which now carries `Beyond` over. `:439` (replay copies the reference) keeps it as is. The loader builds its own `TerrainField.FromNetwork` (the road scene builds one too inside SumoSharp; both are deterministic and identical — sharing would mean an API change in the ExtDeps).
+- **HB4**: `ITerrainRenderGeometry.Identity` is the `TerrainWorld` object (`TerrainWorldQuery.cs:145`), the attach happens before the world is published, so a loaded terrain is always a NEW identity ⇒ the apron rebuilds with it; nothing was added to `Identity`.
+- **Mesh (HB3)**: coarse 40 m lattice out to 4 km (global multiples of 40 m); the collar rectangle sits 20–60 m clear of our edge; the collar is four trapezoids zipped from the terrain's own `GroundLayout` edge vertices to that rectangle's coarse vertices (triangles auto-oriented counter-clockwise); cells whose four corners AND four neighbours' corners are inside the SUMO footprint are skipped, every other cell is drawn and the vertices inside the footprint are sunk 0.3 m (per VERTEX, not per cell — a per-cell drop would open a 0.3 m wall against its neighbours). Every other vertex is exactly `GroundHeightAt`.
+- Rails: `TerrainHeightTests.Beyond_*` (edge, 2 km relief, SUMO field, set-once + `With`, apron = one function + watertight + navmesh soup unchanged) and `Map3DFrameRail.TheApron_…` (the far ground's horizon rows, projected through the picture's own camera, span ≥ 3 px — ⚠ not a pixel scan: the haze made a pixel scan pass with the hills OFF) · `TrafficRoadSceneTests.CE4122_…` (the loader attaches the net's field to the PUBLISHED world) — ⭐ existing rails that assumed Z = 0 beyond the bounds now ask the ground itself (`H4_BasicDesert…`, `RotorcraftModelTests.CE2184_…`), and `H5d_HighwayRest` steps until the (now bigger) mesh lands — screenshots `map3d-apron.png` / `map3d-apron-seam.png` under `HROT_RAIL_SHOTS`, not in git.
+
+### 6ad-3. Traffic cars as what they are — a body style per type, a paint per car *(ui, `2026-10-30`; build-state: BUILT — as-built paragraph below the rails)*
+
+🔒 User, `2026-10-30`: *"The cars used as SUMO are one same model just scaled differently (for example a bus is a heavily scaled personal car).
+Could we rather have several different car shapes like a bus, a combi personal car, a van, a small car like nissan micra, SUV etc and assign them to
+sumo car classes somehow deterministically yet still looking randomly - different colors etc?"* · lean approved (*"go"*).
+
+**INVENTORY** *(graph + grep)*: SUMO's types = every TKB template with `TrafficVehicleDto` (`TrafficVehicleCatalog.From`): CivilianCar 6 · Hatchback 4 ·
+DeliveryVan 1.5 · CityBus 0.4 · BoxTruck 0.6 (`UrbanCombatTkbCatalog.cs:191, 197-200`) — all DIS 1.1.81 ⇒ `VisualFamily.WheeledCar` ⇒ ONE kit
+(`ShapeKits.For:492`) scaled to the type's size (`EntityBodyLayer3D.cs:1740-1747`). Colour: `TrafficSession.cs:68` hands SUMO `Color: 0u` ⇒ a car is its
+type's colour (`TrafficReplicas.cs:285` paints only a non-zero one). The presentation descriptor `VisualDefinitionDto` (`ColorHex`, `IconName`, …) exists.
+
+```mermaid
+classDiagram
+  direction LR
+  class VisualDefinitionDto { <<exists, grown>> ColorHex · BodyStyle NEW (string, null = the family's kit) }
+  class CarBodyStyle { <<NEW enum>> Sedan · Estate · SmallHatch · Suv · Van · Bus · BoxTruck }
+  class CarKits { <<NEW>> For(style) : ShapeKit }
+  class ShapeKits { <<exists>> For(family) — WheeledCar }
+  class EntityBodyLayer3D { <<exists>> TypeLook: the kit = CarKits.For(style) when the type names one }
+  class TrafficPaint { <<NEW, Hrot.Traffic>> Of(vehicleId, tkbType) : uint — a weighted palette, FNV-1a of the id }
+  class TrafficMirror { <<exists>> the pose's Color = tag.Color, else TrafficPaint.Of }
+  class UrbanCombatTkbCatalog { <<exists, grown>> + Sedan, Estate, Suv (passenger) · every traffic type names its BodyStyle }
+  VisualDefinitionDto --> CarBodyStyle
+  EntityBodyLayer3D --> CarKits : style named
+  EntityBodyLayer3D --> ShapeKits : otherwise
+  TrafficMirror --> TrafficPaint
+```
+*What the picture shows that prose hid:* the STYLE is type data (every node reads the same TKB) and the PAINT is a function of the vehicle's id in the
+ONE place a pose is made — so the 3-D body, the 2-D map, a replica and a replay all agree with no new state on the wire.
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **TC1** | `VisualDefinitionDto.BodyStyle` (a `CarBodyStyle` name); `EntityBodyLayer3D`'s kit = `CarKits.For(style)` when a WheeledCar type names one, else `ShapeKits.For(family)` as today. The size stays the type's (`VehicleParametersDto` / `SimVehicleDef`), so the sim footprint is unchanged | the style from the type's NAME — names are labels, not data · a separate DIS subcategory table — `EntityClassTable` models categories, not car subcategories |
+| **TC2** | `CarKits`: seven block kits in the `ShapeKit` vocabulary (fractions of the size, the existing `Box`/`Cyl` parts): **Sedan** (three-box: bonnet, cabin, boot) · **Estate** (long roof to the tail) · **SmallHatch** (short, tall, a steep tail) · **Suv** (high body, upright, big wheels) · **Van** (one box, a short bonnet) · **Bus** (long box, a window band, a flat front, four wheels per side spaced long) · **BoxTruck** (a cab and a separate cargo box). Wheels, glass (`ColourRole.Glass`) and lights as the WheeledCar kit has them | one kit with scaled proportions — the bus would still read as a stretched car |
+| **TC3** | catalogue: add **Sedan**, **Estate**, **Suv** traffic types (`passenger`, weights so the passenger mix is ~ Sedan 3 · Estate 2 · Hatchback 3 · Suv 2 · CivilianCar → Sedan), each with its size; every traffic type names its `BodyStyle` (CivilianCar Sedan, Hatchback SmallHatch, DeliveryVan Van, CityBus Bus, BoxTruck BoxTruck). SUMO's weighted vType draw picks a car's type (deterministic per run) | a second, ui-side random type per car — it would disagree with SUMO's own vType (its length) |
+| **TC4** | `TrafficPaint.Of(id, type)`: FNV-1a of the SUMO vehicle id → a weighted palette (white 22 · black 18 · grey 18 · silver 14 · blue 9 · red 8 · dark green 3 · beige 3 · yellow 2 · orange 1 · brown 2); a Bus / BoxTruck takes a fleet palette (a few livery colours). Applied in `TrafficMirror` where the pose is built when SUMO gave no colour | `Random` per car — differs per node and per replay · colour per TYPE — every hatchback the same |
+
+**Rails:** `Map3DTests` — each style's kit differs from the others (part count / silhouette), a type naming a style gets that kit, a type naming none keeps
+WheeledCar · `TrafficPaint` — the same id gives the same colour, 1 000 ids spread over the palette in its proportions (±5 %), a bus takes a fleet colour ·
+`TrafficVehicleCatalog` — the passenger mix includes the new types · a frame rail renders one of each side by side (to `HROT_RAIL_SHOTS`, not git) ·
+red-prove each. **Cross-lane:** `UrbanCombatTkbCatalog` and `VisualDefinitionDto` are backend's — name it in the commit.
+
+⭐ **AS-BUILT `2026-10-30` (ui, `CE-1457`)** — as designed, with: `CarBodyStyle` (Fdp.Toolkits `Tkb/Domain`) · `VisualDefinitionDto.BodyStyle` · `CarKits` (Hrot.Presentation `Map3D`, `ShapeKits.Box/Cyl` made `internal` to share the idioms; wheels stay 0.42 of the height so the roll animation is the car kit's; **two axles** on the bus and truck, not four) · `EntityBodyLayer3D.TypeLook.Style` + `KitOf(look)` (both draw sites: entities and SUMO's ambient bodies) · catalogue: `TkbTrafficSedan 1054`, `Estate 1055`, `Suv 1056`; weights Sedan 3 · Estate 2 · Hatchback 3 (was 4; now 3.7 × 1.66 × 1.5) · Suv 2 · CivilianCar 6 (a Sedan); every traffic type carries a `VisualDefinitionDto` with `ColorHex = ""` (⚠ NOT the default `#FFFFFF`, which would make every car type-coloured white) and its `BodyStyle`. ⚠ The catalogue's cars had NO `VisualDefinitionDto` before, so `PresentationTkbTranslator` now has one to project for them. `TrafficPaint.Of(id, type)` (Hrot.Traffic): FNV-1a + an avalanche → the TC4 palette (cars), livery sets for a bus / a truck, 0xRRGGBB never 0; `TrafficMirror` uses it when SUMO's colour is 0. The existing `CE-1100` per-car paint (`Outfits.CarColour`, from the entity's seed) still runs: a car with a pose colour scales THAT paint ±18 % per car, so the same id still gives one family of colours on every node. Rails: `Map3DTests.CE1457_EachBodyStyle…` (red-proved: `KitOf` ignoring the style) · `TrafficPaintTests` · `Map3DFrameRail.CE1457_OneOfEachTrafficStyle…` → `map3d-ce1457-traffic-styles.png` (HROT_RAIL_SHOTS, not git).
+
+### 6ae. CE-1333 — the terrain's materials: brick, concrete panels, sandbags, roof tiles, planks, earth, hedge — AS-BUILT `2026-10-25` (ui)
+
+🔒 User, `2026-10-25`: *"the grass texture looks great, pls add also textures to different materials (like the house walls from bricks,
+sandbag walls, concrete walls, building roofs)"*.
+
+```mermaid
+graph LR
+  T[TerrainLayer3D.BuildVertexData] -->|"colour.A = MaterialCode(kind, material)"| V[vertex colour]
+  V --> F["LitShader: materialDetail(code, world, normal)"]
+  F --> P["pattern on the face's own frame: level along it, up its slope"]
+```
+*What the picture shows that prose hid:* no new vertex attribute — the material rides in the ALPHA of the colour the terrain already
+sends, read only while the terrain draws (`groundDetail` on), so every other layer through the same program is untouched.
+
+| code | material | pattern |
+|---|---|---|
+| 250 / 249 | open ground / forest floor | §6ad's grass |
+| 248 | brick (walls) | 25 × 8.5 cm courses, half-bond, mortar, per-brick tint |
+| 247 | concrete, a wall with no material | 3 m × 2.9 m panel joints, stains, rain streaks |
+| 246 | sandbags | rows of 55 × 14 cm bulging bags, staggered |
+| 245 / 241 | a roof (concrete / brick) — and a storey's FLOOR (the same upward faces, CE-1341) | ~~tiles on its top~~ ⭐ `2026-10-30` a grey noisy SCREED on its top (~3 m blotches, fine grain, a speckle near the eye — user: tiles read wrong on a floor; `LitShader` `screed`); its sides concrete / brick |
+| 244 | fence-wood, door-wood | planks with grain |
+| 243 / 242 | earth berm / hedge | mottled noise |
+| 255 | water, glass, metal, a car body | none |
+
+Small courses (bricks, bags, planks) fade out by 70 m so nothing shimmers. 📷 `Map3DFrameRail` — `door-2-open.png` (brick walls, a
+tiled roof, grass) and `fps-1-station.png` (concrete panels at first-person height). ⚠ bt-range tags some vertical faces as ROOF with no
+material: they get the faint concrete pattern. 📐 `Map3DTests.S4_TheTerrainTags_*` asserts the codes.
+
+![brick, roof tiles and grass](assets/map3d/materials-brick-roof.png)
+
+⭐ **`2026-10-25` (ui, `CE-1341`)** — the roof colour is SLATE GREY (112,114,118), not terracotta: a building's floors arrive as the same
+upward `Roof` triangles as its roof, and a red floor read as the brick walls (🔒 user: *"change the roof texture to something non-red what can
+work as the floor as well"*). ⚠ A floor material of its own needs the terrain producer to tag floors. ⚠ The screenshot above predates it.
+⭐ **`CE-1340`** — the free fly reaches its 5× in 3 s (was 5) and is ×2 near the ground, fading to ×1 by 30 m eye height (`MapCamera3D.FlySpeed`).
+
+### 6af. CE-4084 — the map's centre is the centre of the VISIBLE area, not of the window — DESIGN `2026-10-28`, ⭐ AS-BUILT `2026-10-28` (ui)
+
+🔒 User (CE-4084): *"usually the panels are placed all around with the map in the center of the space surrounded by docked panels. the map
+zoom center and camera turn center stays in the center of [the screen]"*. ⭐ Frame: `HANDOFF_Coordinator_To_Ui_Editor_Fixes.md` task 3.
+
+**INVENTORY** (graph + grep, `2026-10-28`; ⚠ `check_index_coverage` is not available through the CLI):
+`search_graph .*(OpenMapArea|VisibleArea|LayoutEvaluator|ViewCentre).*` → one: `OpenMapArea` (CE-1140), its readers `PossessionStation.cs:734`,
+`MapStatsOverlay.cs:85,99` (corners only). Grep for every "centre = viewport / 2" site in `Hrot/ FDP/Engine FDP/Toolkits Stride/`:
+
+| site | what it centres | after CE-4084 |
+|---|---|---|
+| `MapCamera3D.WorldToScreen` :505, `RayDirection` :518, `BeginMode` (Raylib's symmetric `BeginMode3D`) | the projection's principal point = `Viewport / 2` | ⭐ the principal point = `ViewCentre` (the ONE change) |
+| `MapCamera3D.HandleInput` wheel / orbit (look-around the eye) | travel along `Forward` ⇒ toward whatever the projection draws at its principal point | follows from the projection — **no edit** |
+| `PossessionStation.cs:1821` (`camera.Pick(camera.Viewport / 2f, PickFilter.Aim)`) | the crosshair / aim pick | `camera.ViewCentre` |
+| `MapCamera3D.OverheadMatching` :169, `MapViewSwitch.MatchTwoD` :114 | the 2-D ↔ 3-D hand-over point | `ViewCentre` on both sides |
+| `MapCamera.Offset` (2-D; the screen point where `Target` is drawn) | ⚠ **the editor never sets it** — `new MapCamera()` (`EditorSubsystem.cs:2440`) leaves `Offset = (0,0)` ⇒ code-read: a 2-D *Center View* puts the entity at the window's TOP-LEFT (not run live); CGF / SimHost hard-code `(640, 360)` (`CgfSubsystem.cs:1523`, `SimHostVisualization.cs:300`) | ⭐ `Offset` = `ViewCentre` each frame, the picture kept still |
+| `MapCamera.ProcessInput` wheel | zooms at the MOUSE (`MapCamera.cs:261`) | unchanged (not the defect) |
+| `Film.cs:350` | a clean film frame (its own target size) | ⛔ unchanged — a film frame has no docked panels |
+
+```mermaid
+classDiagram
+    class OpenMapArea { <<existing static, CE-1140>> +Current (X,Y,W,H)? · +Corner() · ⭐ +Centre(viewport) Vector2 }
+    class MapCamera { <<existing, 2-D>> +Offset · +Target · ⭐ +ViewCentreSource Func~Vector2,Vector2~ · ⭐ +ViewCentre · ⭐ AnchorAt(screen) keeps the picture still }
+    class MapCamera3D { <<existing>> +LookAt · +Viewport · ⭐ +ViewCentre (read once a frame) · WorldToScreen · RayDirection · BeginMode }
+    class MapViewSwitch { <<existing>> MatchTwoD() }
+    class PossessionStation { <<existing>> aim pick at ViewCentre }
+    class ProgramFrameLoop { <<existing, ClusterRunner Program.cs:749>> ReportCentralNodeOf() after the dockspace }
+    MapCamera <|-- MapCamera3D
+    ProgramFrameLoop --> OpenMapArea : reports each frame
+    MapCamera ..> OpenMapArea : default ViewCentreSource
+    MapViewSwitch --> MapCamera3D : ViewCentre
+    PossessionStation --> MapCamera3D : Pick(ViewCentre)
+```
+
+*What the picture shows that prose hid:* ONE new notion (`ViewCentre`) on the camera BASE class, read from the ONE existing rectangle; every
+consumer reads the camera, never `OpenMapArea` directly — so a test (or a host without a dockspace) sets one source, and `null` ⇒ `Viewport / 2`.
+
+```mermaid
+sequenceDiagram
+    participant L as frame loop (Program.cs)
+    participant A as OpenMapArea
+    participant C as MapCamera3D
+    participant R as Raylib / rlgl
+    Note over L,R: frame N draws the map BEFORE ImGui lays the dockspace ⇒ it uses frame N−1's rectangle (one frame late, harmless)
+    C->>A: ViewCentre = Centre(Viewport) (cached for the frame, like _frameViewport)
+    C->>R: BeginMode3D(cam) then replace the projection: rlFrustum shifted so LookAt lands at ViewCentre
+    C->>C: WorldToScreen / RayDirection use the same principal point (pick = draw)
+    L->>A: ReportCentralNodeOf(dockspace) — for frame N+1
+```
+
+⭐ **Decision — 3-D: an OFF-CENTRE PROJECTION (a lens shift), not a moved pivot.** The principal point moves from `Viewport/2` to `ViewCentre`; the
+field of view's SCALE stays tied to the full viewport height, so `MetresPerPixel` / `ZoomAt` / the wheel step are unchanged. Frustum at the near
+plane `n`, `t = tan(fovy/2)`, `a = vp.X/vp.Y`, `c = ViewCentre`: `left = −n·t·a·(2c.X/vp.X)`, `right = n·t·a·(2(vp.X−c.X)/vp.X)`,
+`top = n·t·(2c.Y/vp.Y)`, `bottom = −n·t·(2(vp.Y−c.Y)/vp.Y)`; `WorldToScreen` = `c + (nx·vp.X/2, −ny·vp.Y/2)`, `RayDirection` the inverse.
+With `c = vp/2` every formula reduces to today's ⇒ **no dockspace, no change** (the rails pin it). Everything that travels along `Forward`
+(wheel, look-around, fly, the director's shots) is untouched and now heads for the visible centre.
+⭐ **2-D:** `Offset = ViewCentre` each frame through `AnchorAt(c)`, which also moves `Target` by `flipY((c − Offset)/Zoom)` so the PICTURE does not
+jump when a panel is docked; *Center View* (`FocusOn`) then lands in the visible centre. ⭐ A dock change in 3-D re-centres the view on its
+look-at point (the lens shift moves the picture) — accepted: rare, and the pivot is what the user asked to follow.
+
+Rejected (one line each): **move the pivot** — every input path (wheel, orbit, fly, focus, director, follow camera) would need the offset ·
+**a second "layout evaluator"** — `OpenMapArea` already is the answer (handoff fence) · **read `OpenMapArea` at each consumer** — a test could not
+drive it per camera and two consumers could disagree within a frame.
+
+Build (Sonnet, then reviewed): `OpenMapArea.Centre` · `MapCamera.ViewCentreSource` / `ViewCentre` / `AnchorAt` · the lens shift in
+`MapCamera3D` (`BeginMode` via `Rlgl` after `BeginMode3D`, `WorldToScreen`, `RayDirection`) · `PossessionStation` aim · `OverheadMatching` /
+`MatchTwoD` · CGF / SimHost / IG drop their hard-coded `Offset` for the same source. Rails in `Fdp.Presentation.Tests` (the cameras) and
+`PossessionStationTests` (the aim): pick-equals-draw at an off-centre `c`; `LookAt` projects to `c`; the wheel's travel heads for the world
+point under `c`; `c = null` byte-identical to today; 2-D `AnchorAt` keeps a world point's screen position and `FocusOn` lands at `c`.
+
+⭐ **AS-BUILT `2026-10-28`** — built as designed (the class diagram above is TRUE), with these differences, each with its reason:
+
+| deviation | why |
+|---|---|
+| ⭐ `Viewport` / `ViewportOverride` / `FallbackViewport` / the once-a-frame cache moved from `MapCamera3D` to the base `MapCamera` (nothing new written beside them) | the 2-D camera needs the window size to anchor; one implementation (`MapCamera.cs`). `ResetFrameCache()` (protected) clears the window-size and centre caches; `MapCamera3D.Update` calls it, the base `Update` does too |
+| ⭐ the centre cache is also keyed on the viewport it was read for, and setting `ViewCentreSource` clears it | a film frame (`Film.Serve`) sets `ViewportOverride` to its own size mid-frame; a cache read for the screen would be wrong for it |
+| `Film.cs` changed after all (3 lines): `Serve` sets `camera.ViewCentreSource = vp => vp / 2f` for the capture and restores it | the §6af table said "unchanged", but its 3-D camera reads `ViewCentre`, and the dockspace rectangle is in SCREEN pixels — a film frame has no panels. The 2-D film path never runs `Update`, so it needed nothing |
+| `MapCamera3D.FrustumBounds(vp, centre, fovy, near)` is a PUBLIC static (the design said internal) | `Hrot.Presentation.Tests` has no `InternalsVisibleTo` to `Fdp.Presentation`; it is pure, so the rail checks the numbers `BeginMode` hands to `Rlgl.Frustum` without a GL context |
+| the three hosts' initial `Offset` is `camera.ViewCentre` (CGF, SimHost, IG), not deleted | `AnchorAt` keeps the PICTURE still, so it cannot centre a target a host sets before the first frame; one direct write at boot, the per-frame anchor does the rest. No hard-coded `1280 / 2` remains |
+| the crosshair DRAW site (`PossessionStation.DrawHud`, `cx`/`cy`) also reads `camera.ViewCentre` | the pick and the drawn crosshair must be one point; the compass, use prompt and wheel hang off the same `cx` and follow it. HUD text that centres on `size.X / 2` (the fall screen, the peek hint) stays at the window's middle — not map-centre things |
+
+⚠ **Not covered by a rail (needs a GL context):** the `Rlgl.MatrixMode / LoadIdentity / Frustum` calls in `MapCamera3D.BeginMode` themselves — the numbers they are given are pinned (`FrustumBounds`), the call is not. ⚠ **Race:** `OpenMapArea.Current` is a static that one existing test (`PossessionStationTests.CE1140_*`) sets briefly; any camera test using the DEFAULT source can see it in that window — the new rails set `ViewCentreSource` explicitly, bar the two that set and restore `Current` themselves.
+
+Rails: `Map3DTests.CE4084_*` (off-centre projection / pick = draw / frustum NDC; centred = the old formulas; the wheel keeps the point under c; 2-D ↔ 3-D keeps it) · `MapCameraTests.CE4084_*` (`AnchorAt` keeps every world point; `FocusOn` lands at c, with and without smoothing; no area ⇒ the window's middle) · `PossessionStationTests.CE4084_*` (the aim pick is at c; `OpenMapArea.Centre` and the camera's default source).
+
+### 6ag. CE-1462 — the 2-D map frames its terrain when it is loaded — AS-BUILT `2026-11-03` (ui, W-B1; backend's note §3 ②)
+
+**Measured:** nothing framed a terrain on load — `GET /view`'s `rect2D` stayed at the pixel default `[0, −1200, 2200, 0]` (Zoom 1, Target 0); `demo-city` only looked framed because it falls inside that rectangle, `cqb-village` (330 × 232 m) did not. The 3-D camera has no terrain framing of its own (no terrain use in `MapCamera3D`); it takes the 2-D camera's pose when the map is switched to 3-D (`OverheadMatching`), so a framed 2-D map frames the first 3-D view too — a map STARTED in 3-D (e.g. `mapInLoad`) is not framed: left as it is.
+
+| | as built |
+|---|---|
+| the fit | `MapFraming.Fit(rectMin, rectMax, area, viewCentre, margin = 5 %, minZoom, maxZoom)` (`Fdp.Presentation/Vis2D/Components`): centre = target, the largest zoom that shows the rectangle plus the margin in the visible area (`OpenMapArea.Current`, else the viewport), clamped to the camera's limits. ⚠ `Film.cs:354` is NOT a fit (it rescales the same picture to a frame's size), so there is no second fit computation to unify |
+| when | `MapFraming.Framer` (pure): the first frame a terrain is resident and drawable, and whenever `TerrainDefinition.ResidentName` changes; an unload forgets it, so the next load frames again; ⛔ never otherwise — the user's pans and zooms win |
+| who | `TerrainFramingLayer` (`Hrot.Presentation/Map2D`), added by `MapInteractionPack.AttachMapLayers` — so the editor, CGF, SimHost, IG and the Replay Browser all get it by construction. Reads the terrain's bounds from the `TerrainWorld` singleton (the one `TerrainLayer2D` draws); a roads-only terrain has none and is not framed. `MapViewSwitch.Camera2D` is the camera it moves |
+| left alone | the 3-D map on screen, any 3-D camera driver (a followed unit, a possession station, the film director) or a station in first person: that terrain is CONSUMED unframed (not framed later behind the user's back); a switch in flight waits one more frame |
+
+Rails: `MapFramingTests` (the fit for a small and a big terrain, the margin, the framer: once, on change, after an unload, and left-alone) · `TerrainFramingLayerTests` (over a real world and camera: frames cqb-village's bounds with the margin, a pan is never undone, a change re-frames, a driven or 3-D camera is untouched). Red-proof: the framer not remembering what it framed ⇒ the "never re-frames" rail red.
+
+### 6ah. CE-3423 / CE-4377 — the LARGE terrain in 3-D: the ground by level of detail, per chunk; the picker per chunk *(ui, `2026-11-10`; build-state: D-1 BUILT — as-built below the table)*
+
+🔒 Handoff [HANDOFF_Coordinator_To_Ui_Large_Terrain_Drawing.md](blueprints/batches/HANDOFF_Coordinator_To_Ui_Large_Terrain_Drawing.md) D-1 / D-3. 📌 **Why:** `TerrainLayer3D`
+and `TerrainPicker` each take the WHOLE soup (`ITerrainRenderGeometry.BuildTagged`) — on scale-1 (5.5 km, a 1 m height grid) that is **61.4 M triangles, 2.2 GB, peak 7.0 GB,
+9.4 s** ([DESIGN_Scale_Rig.md](DESIGN_Scale_Rig.md) §5.2 N-5, which hands this to ui). The navmesh already left the soup (§5.2: `TerrainWorldMesh.BuildRegion`); the 3-D view
+follows it.
+
+**INVENTORY** *(`search_graph`, `2026-11-10`, index `home-user-HROT` 314 k nodes; ⚠ coverage not checkable through the CLI)*: `.*TerrainWorld.*` Class — **9** (`TerrainWorld`,
+`TerrainWorldMesh` *(Build · BuildRegion · BuildApron · the ONE `AddGroundCell` / `AddPrism` / `AddWalkable`)*, `TerrainWorldQuery` *(the only `ITerrainRenderGeometry`)*,
+`TerrainWorldParser`, the Recast / LOS / spatial sources) · `.*TerrainLayer(3D|2D).*|.*TerrainPlan.*` — **4** · `.*TerrainHeight.*` — **3** (`TerrainHeightGrid`,
+`TerrainHeightTiles`) · `.*(Lod|LOD|Chunk).*` — **16**, none a terrain LOD (`PedLodManager` is SUMO's pedestrians) ⇒ ⭐ the LOD is new; every TRIANGLE it draws still comes
+from `TerrainWorldMesh`'s builders. Reused: `BackgroundMeshBuild` *(one per chunk mesh, unchanged)* · `PickGrid` *(one per chunk)* · `LitShader` · `TerrainLayer3D.BuildVertexData`.
+
+```mermaid
+classDiagram
+  class ITerrainRenderGeometry { <<existing>> Identity · Build · BuildTagged (the whole soup) }
+  class ITerrainChunkedGeometry { <<NEW>> Chunks : TerrainChunkLayout · BuildChunk(cx, cy, lod, part) · BuildOutside() }
+  class TerrainChunkLayout { <<NEW record>> Origin · ChunkSize · Cell · Nx · Ny · MinZ · MaxZ · Lods }
+  class TerrainWorldQuery { <<existing>> implements both }
+  class TerrainWorldMesh { <<existing>> AddGroundCell · AddPrism · AddWalkable · BuildApron · BuildChunkGround NEW · ChunkIndex NEW }
+  class TerrainLayer3D { <<existing>> the old whole-mesh path for a plain source · a TerrainChunks3D for a chunked one }
+  class TerrainChunks3D { <<NEW>> per chunk: ground mesh per LOD + objects mesh · LOD choice · frustum cull · build queue · GPU budget }
+  class TerrainPicker { <<existing>> the old grid for a plain source · ChunkPickGrids for a chunked one }
+  class ChunkPickGrids { <<NEW>> a PickGrid per chunk (LOD 0 + objects), built on demand on a worker · the ray walks the chunk grid }
+  class BackgroundMeshBuild~T~ { <<existing>> one per chunk mesh }
+  class PickGrid { <<existing>> one per chunk }
+  ITerrainRenderGeometry <|-- ITerrainChunkedGeometry
+  ITerrainChunkedGeometry <|.. TerrainWorldQuery
+  ITerrainChunkedGeometry ..> TerrainChunkLayout
+  TerrainWorldQuery ..> TerrainWorldMesh
+  TerrainLayer3D *-- "0..1" TerrainChunks3D
+  TerrainChunks3D *-- "many" BackgroundMeshBuild~T~
+  TerrainPicker *-- "0..1" ChunkPickGrids
+  ChunkPickGrids *-- "many" PickGrid
+```
+*What the picture shows that prose hid: the soup's three consumers (3-D, picker, navmesh) now all take the terrain BY REGION from the same builders; a source that is not chunked
+(a test double) keeps the old whole-mesh path, so nothing else changes.*
+
+```mermaid
+sequenceDiagram
+  participant F as frame (Map3DBuild.Update → layer.PumpBuild · Draw3D)
+  participant C as TerrainChunks3D
+  participant W as worker (Task.Run)
+  participant G as TerrainWorldQuery (BuildChunk)
+  F->>C: RequestBuild (load): every chunk at the COARSEST level + the outside (apron)
+  C->>W: one BackgroundMeshBuild per mesh, at most 2 running
+  W->>G: BuildChunk(cx, cy, lod, Ground | Objects) — reads the immutable TerrainWorld
+  F->>C: PumpBuild: ≤ 2 uploads a frame
+  F->>C: Draw3D: eye + frustum from rlgl's matrices
+  loop every chunk (index loop, no allocation)
+    C->>C: cull by its box · wanted level by distance · ask for it if not built (queued, nearest first)
+    C->>F: DrawMesh(the finest BUILT level ≤ … the wanted one, else the coarsest) + its objects mesh
+  end
+  C->>C: over the GPU budget ⇒ unload the least recently drawn finer levels
+```
+*What the picture shows: a frame never builds — it asks, and draws the best level it already has; the whole terrain is up at the coarsest level before the load step reports
+"built", and finer levels arrive near the camera after.*
+
+```mermaid
+graph TD
+  MAP["MapCanvas.Draw (every frame, 3-D)"] -->|Draw3D| L3[TerrainLayer3D]
+  M3B["Map3DBuild.Update (every frame, 2-D too)"] -->|"RequestBuild · PumpBuild"| L3
+  L3 -->|chunked source| CH[TerrainChunks3D]
+  CH -->|worker| Q["TerrainWorldQuery.BuildChunk"]
+  Q --> TM["TerrainWorldMesh: AddGroundCell / AddPrism / AddWalkable (the soup's own builders)"]
+  PK["MapCamera3D pick (on hover / click)"] --> TP[TerrainPicker]
+  TP -->|chunked source| CPG[ChunkPickGrids]
+  CPG -->|worker| Q
+  NAV["RecastNavmeshFactory (load, sim nodes)"] -->|BuildRegion| TM
+  SOUP["TerrainWorldMesh.Build (whole soup)"]
+  classDef dead stroke:#c33,stroke-dasharray:4 3,color:#c33;
+  class SOUP dead;
+```
+*What the picture shows: after this, NOTHING on the editor's frame path asks for the whole soup (red) — `Build` stays for the small-terrain tools and the tests that compare
+against it.*
+
+| # | decision | why |
+|---|---|---|
+| L-1 | chunks of ≈ 256 m, aligned to the ground layout's cells (size = cell × round(256 / cell)) | a chunk edge is a cell edge ⇒ level 0 of a chunk is EXACTLY the soup's cells there (`AddGroundCell`, same cut, same forest tag) |
+| L-2 | level k = cell × 2^k, k = 0…3 (1 → 8 m on a 1 m grid); wanted level from the eye's distance to the chunk's box: < 1.5 · chunk → 0, < 3 → 1, < 6 → 2, else 3 | near the camera it looks as today; far simplifies (the handoff's "far may simplify") |
+| L-3 | a level > 0 cuts ground only under WATER (not under buildings) | a coarse cell cut under a house leaves a hole bigger than the house; the house hides the ground under it |
+| L-4 | skirts: every chunk hangs a strip down its INTERIOR edges, 2 · step + 1 m deep, ground-coloured | closes the cracks between levels whichever side is higher; invisible where both sides agree (level 0 next to level 0) |
+| L-5 | prisms, walkables and water belong to ONE chunk (their footprint's centre) — one "objects" mesh per chunk, built once | drawn once; D-3 adds the far simplification of buildings and the trees over this |
+| L-6 | the apron (`BuildApron`) and anything outside the chunk grid: ONE mesh, as today | small, already coarse (40 m) |
+| L-7 | builds on workers (≤ 2 running), nearest wanted first; ≤ 2 uploads a frame; the coarsest level of every chunk first — the load step's "built" | never block a frame; the whole terrain visible early |
+| L-8 | the frame: index loops over fixed arrays, eye and frustum from `Rlgl.GetMatrixModelview` / `GetMatrixProjection` (works in a film pass too) | 0 B a steady frame (CLAUDE.md hot path) |
+| L-9 | GPU budget for finer levels (default 1.5 GB of vertex data): over it, unload the least recently drawn | ≤ 4 GB a process (R-4192) |
+| L-10 | the picker: one `PickGrid` per chunk from level 0 + objects, built on a worker for chunks the ray crosses (and the ring round the camera's look-at, asked each frame — so a click finds it ready); a pick walks the chunk grid along the ray, testing built ones | a pick never builds; what you click is the triangles drawn near the camera |
+| L-11 | a source that is not `ITerrainChunkedGeometry` keeps today's whole-mesh path | test doubles and any other geometry unchanged |
+
+**As-built (D-1, `2026-11-10`)** — as designed, with three things the build settled:
+- ⚠ the chunk-part enum's members are `ChunkGround` / `ChunkObjects`, not `Ground` / `Objects`: the DDS code generator emits IDL for every enum in `ITerrainRenderGeometry.cs`, and a second `Ground` collides with `TerrainSurfaceKind.Ground`.
+- the water builder moved into `TerrainWorldMesh.AppendWater` and the triangle classification into `TerrainWorldQuery.Classify` — ONE copy each for the whole build and the chunks (the equality rail `TerrainChunkTests` holds them together on demo-city, test-town, highway-rest and bt-range).
+- `TerrainPicker.Update()` / `IsBuilt` on a chunked terrain: `Update` asks for every chunk (the rails' wait on a small terrain); `IsBuilt` = bound to this terrain and at least one chunk grid built. The frame never calls `Update` — a pick asks only for the chunks its ray crosses.
+
+**Measured on Windows (CE-4385, handoff L-3, `2026-11-10`)** — the user's machine, Release, the editor **hidden** (`HROT_HIDDEN_WINDOW=1`: the frame drawn into
+an off-screen target, so **no vsync and no compositor** — GPU-honest, not what a visible window's pacing adds) and **uncapped** (`--target-fps 0`), a blank scenario on
+the terrain, paused in edit mode, viewport 2200 × 1200. fps = min / avg of five 2 s windows over 10 s; triangles / meshes (= draw calls) = the chunked terrain's own
+(`TerrainDrawStats`); garbage = bytes allocated per frame, WHOLE process (`/diagnostics/render`). Driver: `/film/shot` (a held shot — `twoD:true` for the 2-D views).
+
+| terrain | view | fps min / avg | ms mean / p95 | terrain tris / meshes | working set | garbage / frame |
+|---|---|---|---|---|---|---|
+| osm-kolin-test | 3-D near 40 m | 31.9 / 35.3 | 27.0 / 33.0 | 2.2 M / 50 | 3.1 GB | 2.0 MB |
+| | 3-D mid 400 m | 33.9 / 34.8 | 29.5 / 35.4 | 3.0 M / 84 | 3.1 GB | 2.0 MB |
+| | 3-D far 3 km | 31.0 / 32.3 | 31.7 / 36.8 | 3.4 M / 202 | 3.1 GB | 2.0 MB |
+| | 3-D flight 15 m/s | ⛔ 28.7 / 31.7 | 34.9 / 39.5 | 1.6 M / 59 | 3.1 GB | 2.0 MB |
+| | 2-D whole terrain | ⛔ 15.9 / 17.0 | 54.2 / 68.7 | — | 3.3 GB | 14.1 MB |
+| | 2-D close 150 m | 31.4 / 32.9 | 29.2 / 35.1 | — | 3.1 GB | 5.2 MB |
+| scale-1 | 3-D near 40 m | ⛔ 20.0 / 20.8 | 47.0 / 52.7 | 2.1 M / 268 | 4.3 GB | 2.3 MB |
+| | 3-D mid 400 m | ⛔ 19.3 / 21.0 | 45.6 / 50.7 | 2.2 M / 278 | 4.6 GB | 2.3 MB |
+| | 3-D far 3 km | ⛔ 18.2 / 19.7 | 49.0 / 58.3 | 2.1 M / 930 | 4.6 GB | 2.3 MB |
+| | 3-D flight 15 m/s | ⛔ 19.3 / 20.4 | 46.6 / 51.2 | 2.2 M / 311 | 4.7 GB | 2.3 MB |
+| | 2-D whole terrain | ⛔ 20.0 / 21.9 | 43.0 / 49.7 | — | 3.9 GB | 8.8 MB |
+| | 2-D close 150 m | ⛔ 29.7 / 35.0 | 27.1 / 34.8 | — | 3.9 GB | 5.8 MB |
+| real-1 | 3-D near 40 m | 30.1 / 31.6 | 32.5 / 43.1 | 2.3 M / 186 | 4.4 GB | 2.0 MB |
+| | 3-D mid 400 m | ⛔ 29.3 / 31.7 | 30.1 / 38.0 | 2.6 M / 174 | 4.7 GB | 2.0 MB |
+| | 3-D far 3 km | ⛔ 26.8 / 29.3 | 33.4 / 38.2 | 3.4 M / 953 | 4.9 GB | 1.9 MB |
+| | 3-D flight 15 m/s | ⛔ 29.1 / 30.5 | 32.1 / 37.1 | 2.5 M / 313 | 4.6 GB | 2.0 MB |
+| | 2-D whole terrain | ⛔ 25.3 / 27.4 | 38.0 / 44.0 | — | 4.6 GB | 7.2 MB |
+| | 2-D close 150 m | ⛔ 28.1 / 32.1 | 28.9 / 36.4 | — | 4.5 GB | 5.1 MB |
+
+Loads (first open, the navmesh bake included): osm-kolin-test 57 s · scale-1 140 s · real-1 154 s; the 3-D map ready 6.4 s (scale-1) / 5.2 s (real-1) after the first 3-D request.
+
+**Where the frame goes** (`HROT_FRAME_STATS=1`, scale-1, the editor idle): **update 17–24 ms + 1.55 MB / frame · world draw 18–21 ms · UI 4–5 ms + 0.7 MB**.
+⭐ The 3-D world draw makes **2 KB / frame** — this section's chunked terrain is zero-garbage, as built; ⛔ the 2-D world draw makes **6.3 MB / frame**. ⭐ The frame time
+barely moves with the terrain's triangles (2.2 → 3.4 M on osm-kolin-test: 27 → 32 ms) ⇒ ⭐⭐ **the budget is lost OFF the terrain**, mostly in the update:
+
+| cost (scale-1, idle editor) | ms / frame | garbage / frame | state |
+|---|---|---|---|
+| `StatelessGizmoSystem` — ~20 rules × **6 912 matched entities**, each rule 0.2–1.1 ms (`GizmoRuleTimings`, new, under `HROT_FRAME_STATS`) | **11.4** | 608 KB | ⏳ the next cost — every rule walks every match every frame (CE-2402's hold only spreads the redraw); off-screen entities are not skipped. → render-under-load R-2 (CE-4388), the same system at 1 000 men |
+| ↳ a family rule (the per-rule log blamed `MissionPresentationGizmo`): its policy's `GizmoFamilies.ScopeOf` built `"map.scope." + family` to hash it, per entity per frame — the 6 912 matched entities are **doors** (`DoorState`, `TerrainObjectKey`) | — | **540 KB** | ✅ fixed: each family's hash made once (rail `CE4385_TheFamilyPolicy_AnswersWithNoGarbage_OnceWarm`, red-proved) |
+| ↳ `MissionPresentationGizmo` — a legacy `"target"` task parsed from JSON per draw (for a unit with such a plan; ⚠ not the 540 KB above — first suspected, measured not) | — | per unit with a legacy plan | ✅ fixed: parsed once per plan (rail `CE4385_ALegacyTargetRoute_DrawsWithNoGarbage_OnceWarm`, red-proved) |
+| ⭐ after the two fixes (re-measured, scale-1 3-D mid) | — | update garbage **1 551 → 1 013 KB / frame**; fps unchanged (~21) — the TIME is the rules' walk, row 1 | ✅ measured |
+| the 2-D map's world draw | ~20 | **6.3 MB** | ⏳ not yet attributed to a layer — R-3 (CE-4389) |
+| `StyleResolutionSystem` | 1.3 | 221 KB | ⏳ R-2 |
+
+Numbers and frames: [STATUS_Ui_Large_Terrain_Drawing.md](blueprints/batches/STATUS_Ui_Large_Terrain_Drawing.md) §2–§3 (scale-1: the load's 3-D picture 0.8 s / 640 MB peak, where the whole soup needed 9.4 s / 7.0 GB and is killed at 6 GB on this VM).
+
+### 6ai. CE-4377 — buildings and trees at scale: the trees' 3-D look by distance, pitched roofs, facades *(ui, `2026-11-10`; build-state: BUILT — trees, then pitched roofs (R-1…R-3); facades need no change (R-4))*
+
+🔒 R-4195 (user): *"if there is new stuff like trees or different roofs the ui lane is free to design their 3d look with respect to performance"*. Handoff D-3.
+📐 **Measured first:** a LONE tree is already a world prism (an octagon trunk, material `tree-trunk`, 0.3 m × 10 m — `TerrainWorldParser.cs:195`), so §6ah's objects
+mesh draws ≈ 11 000 bare poles on scale-1; the trees INSIDE a wood are not objects (R-4190 T-1) — the wood is `TerrainWoods`, a 25 m grid of density and canopy height,
+and nothing draws it in 3-D but the ground's forest colour. ⚠ Pitched roofs (the importer's cap prism, UTM I-h) and imported facades exist on no terrain yet — the
+importer (CE-4368) is not on the tree ⇒ those two parts wait with D-4; the 85 000 template prisms are batched per chunk already (§6ah L-5, 1.1 M triangles on scale-1).
+
+**INVENTORY** *(`search_graph` `2026-11-10`)*: `.*(Tree|Wood|Canopy|Forest|Vegetation).*` Class — 344 matches, the terrain ones are `TerrainWoods` (the grid) and the
+parser's lone-tree prism; ⇒ no 3-D tree drawing exists. Reused: §6ah's chunks and builds, `TerrainWoods.DensityAt` / its canopy, `LitShader`'s leaf pattern (code 242,
+the hedge's) and wood pattern (244).
+
+![the trees by distance](UX/terrain-trees-3d.svg)
+
+```mermaid
+classDiagram
+  class ITerrainChunkedGeometry { <<existing, §6ah>> BuildChunk(cx, cy, level, part) }
+  class TerrainChunkPart { <<existing enum>> ChunkGround · ChunkObjects · ChunkTrees NEW · ChunkCanopy NEW }
+  class TerrainWorldMesh { <<existing>> BuildChunkTrees NEW · BuildChunkCanopy NEW · AddCrown NEW }
+  class TerrainWoods { <<existing>> the 25 m grid: DensityAt · canopy per cell }
+  class TerrainChunks3D { <<existing, §6ah>> + a trees mesh and a canopy mesh per chunk; draws trees at levels 0–1, the canopy beyond }
+  class TerrainLayer3D { <<existing>> ColourOf / MaterialCode: tree-trunk, tree-crown, canopy NEW }
+  TerrainWorldMesh ..> TerrainWoods
+  ITerrainChunkedGeometry ..> TerrainChunkPart
+  TerrainChunks3D ..> ITerrainChunkedGeometry
+  TerrainChunks3D ..> TerrainLayer3D
+```
+*What the picture shows: the trees are two more PARTS of the same chunks — no new layer, no new build path, no new draw loop.*
+
+```mermaid
+sequenceDiagram
+  participant D as TerrainChunks3D.Draw (every 3-D frame)
+  participant S as its schedule (Pump)
+  participant W as worker
+  S->>W: with the coarse picture: every chunk's ChunkCanopy (lone crowns + the wood's sheet)
+  S->>W: when a chunk wants level ≤ 1: its ChunkTrees (lone crowns + one tree per density cell)
+  D->>D: level ≤ 1 and ChunkTrees built ⇒ draw it · else ChunkCanopy
+```
+*What the picture shows: the far form is part of what the load waits for, so a wood is never bare; the near form replaces it only once built.*
+
+| # | decision | why |
+|---|---|---|
+| T-1 | a lone tree = its trunk prism (unchanged, now bark-brown) + a 16-triangle crown at 0.72 × its height, radius 0.3 × height | a pole is not a tree; the trunk stays THE world's (sight, fire, the navmesh) — the crown is drawn only |
+| T-2 | a wood NEAR (levels 0–1): per 25 m cell, round(density × 0.0625 ha) trees placed by a hash of the cell, height = the cell's canopy × (0.8 … 1.2), a 4-sided trunk + the crown — ≈ 24 triangles a tree | reads as trees where it matters; on scale-1 the near ring is ≈ 10 k trees ≈ 250 k triangles |
+| T-3 | a wood FAR (levels 2–3): a sheet at ground + canopy over each wood cell (corners from the ground at the corner, so it follows the hill) + walls down to the crown base where the neighbour cell is not wood | ≈ 2 triangles a cell; the wood's mass and edge read from a kilometre |
+| T-4 | colours: bark (96, 72, 52) with the wood pattern; crowns and canopy in two forest greens with the leaf pattern (242) — `TerrainLayer3D.ColourOf` | the house's one colour language (R-4139): the ground's forest green family |
+| T-5 | ⛔ presentation only — no prism, no sight or fire change; the woods grid stays the simulation's wood | R-4195: the look must not change the simulation |
+
+**As-built (trees, `2026-11-10`)** — as designed: `TerrainChunkPart.ChunkTrees` / `ChunkCanopy`, `TerrainWorldMesh.Trees.cs` (`BuildChunkTrees`), two slots per chunk in
+`TerrainChunks3D` (the canopy is part of the coarse picture; the near trees are built when the chunk wants level ≤ 1 and count against the finer-level budget). `TerrainWoods`
+gained `Origin` and `CellAt` (read-only). Rails `TerrainChunkTreesTests` (counts, determinism, edges only, not in the ground or objects). scale-1 with trees: 2.0–2.6 M
+triangles drawn a frame, 517–534 MB resident.
+
+**Pitched roofs and facades** *(designed and built `2026-11-10`, after the importer landed)*. 📐 Measured on `imported-tiny` (the importer's own mini set): a pitched
+roof arrives as the house's flat roof + a CAP — a building prism with `Floors == 0`, labelled `<id>-roof`, from the eaves (`BaseZ`) to the ridge (`TopZ`)
+(UTM I-h, `TerrainFolderWriter`) — and was drawn as a flat-topped box. Facades are wall panels with door and window openings (UTM Q-U8), which §6ah's objects mesh
+already cuts.
+
+![the cap drawn as a gable](UX/terrain-roofs-3d.svg)
+
+| # | decision | why |
+|---|---|---|
+| R-1 | the cap is drawn as a GABLE: the ridge along the footprint's longest edge at mid-width, at `TopZ`; the eaves at `BaseZ`. Each footprint triangle is clipped at the ridge line and its corners lifted — a plane on each side, on ANY footprint (L, T, many-sided); the gable ends close it in the house's own wall material, one triangle per half (split at the ridge) | the source gives only a cap height, no roof shape; a gable over the longest edge is the commonest house roof and costs ≈ 2× the footprint's triangles — less than the box it replaces |
+| R-2 | its material `roof-pitched`: dark **anthracite** (64, 66, 74) — ⛔ SUPERSEDED `2026-11-10`: dark clay (118, 58, 46), which the user found *"very similar to the brick wall"* (same hue as brick 172, 96, 72, only darker); anthracite differs in hue AND value from brick, and is darker than the slate flat roofs — with a TILE pattern: rows of 30 × 24 cm tiles up the slope, staggered, the lower lip shaded, fading out by 160 m (`LitShader` code **240**, new) | a slope is never a floor, so CE-1341's grey screed (which made roofs double as floors) does not apply; the red reads as a roof against the slate flat roofs |
+| R-3 | ⛔ presentation only — the world keeps the cap prism (sight and fire, the navmesh) | R-4195: the look must not change the simulation |
+| R-4 | facades: **no change** — the imported houses' wall panels already draw their openings in the chunk's objects mesh, batched per chunk (§6ah L-5) | the frames below show the window rows; nothing new to batch |
+| R-5 | ⭐ *(`2026-11-10`; user: "what about at least fake some in the textures of the walls?")* a SOLID building (one prism, no panels — R-4193) with storeys and ≥ **40 m²** is drawn with PAINTED windows: one row per storey (height ÷ floors), sill 0.9 m over each floor, 1.1 × 1.3 m panes spaced ≈ 2.8 m along every wall, 0.8 m clear of the corners, 2 cm outside the face, material `painted-window` (dark glass 46, 60, 78). Smaller ones (garages, sheds), roof caps and panel pieces stay plain | geometry, not a shader pattern: a texture cannot know where the building's storeys start; ≈ 50 triangles for a two-storey house. ⛔ presentation only — drawn by the chunks alone, never in the world's tagged soup (the navmesh and sight keep the solid prism) ⇒ §6ah's equality rail skips the `painted-window` triangles |
+
+*As-built:* `TerrainWorldMesh.Roofs.cs` (`IsRoofCap`, `AddGable`, `ClipSide`), routed from `BuildChunkObjects`; `TerrainLayer3D` colour + code 240; `LitShader.tiles`.
+Rail `TerrainChunkRoofsTests` (ridge at the cap's top along the long side, eaves at its base, the two gable ends, no flat cap top, the house's own roof kept, the
+world still blocks at the cap; 🔴 red-proved with `IsRoofCap` off). The shipped terrains have no caps ⇒ §6ah's equality rail and their frames are unchanged.
+R-5: `TerrainWorldMesh.Windows.cs` (`HasPaintedWindows`, `AddPaintedWindows`), routed from `BuildChunkObjects` after `AddPrism`; rail `TerrainChunkWindowsTests` (80 pane
+triangles on a 20 × 10 m two-storey house at z 0.9–2.2 / 3.9–5.2, on the faces, clear of the corners; none on a 20 m² shed or the cap; the world still blocks). ⚠ It
+changes the SHIPPED look: demo-city's, test-town's, bt-range's and highway-rest's big solid houses gain window rows.
+📷 `TheTerrainChunksLookTests.AnImportedTerrainsHouses_UpClose` (opt-in `HROT_MEASURE=1`, `HROT_RAIL_SHOTS=<dir>`) renders the before / after; never in git.
+
+
+### 6aj. CE-4392 — building destruction drawn on the 2-D and 3-D maps *(ui, `2026-11-10`; build-state: BUILT — as-built below the table)*
+
+Handoff HANDOFF_Coordinator_To_Ui_Destruction_Drawing.md. 🔒 R-4196: the display node's terrain is
+not changed — the damage is DRAWN from the replicated `BuildingDamage` entities (`BuildingDamageTable.Of`). R-4195: the look is ours, for performance.
+Related: [DESIGN_Terrain_Import_UTM.md](DESIGN_Terrain_Import_UTM.md) §8.2 (what the damage is, B-9 / B-12) · [DESIGN_Terrain_World.md](DESIGN_Terrain_World.md) §10a (the 2-D plan).
+
+**INVENTORY** *(`search_graph` `.*(Breach|Damage|Rubble|Collapse).*` Class — see the as-built for the total; grep `BuildingDamageTable|WallBreach`: 13 production files)*:
+the table and its reader (`BuildingDamageTable`, carried on `DoorStates.Damage`) · the ONE panel → prisms function `TerrainBuildingExpander.ExpandPanelPieces` · the
+muscle's navmesh overlay `TerrainObstacles.With(world, obstacles, damage)` with its private gap merge `WithGaps` (passages only) · the 3-D chunk objects build
+(`TerrainWorldMesh.BuildChunkObjects`) and slots (`TerrainChunks3D`) · the 2-D plan (`TerrainPlan2D.Emit`, `TerrainLayer2D.PlanOf`). ⇒ ⛔ no second cutting algorithm:
+the drawing re-cuts a breached wall with the SAME two functions, holes and passages alike.
+
+![the breach and the heap](UX/terrain-destruction-3d.svg)
+
+```mermaid
+classDiagram
+  class BuildingDamageTable { <<existing, S-1/S-2>> BreachesOf(panel) · Collapsed(b) · CollapsedBuildings · RubbleOf(world, b) }
+  class DamagedBuildings { <<NEW, Fdp.Toolkits>> Keeps(prism) · RecutPanel(panel, into) · Touched(before, after) }
+  class TerrainBuildingExpander { <<existing>> ExpandPanelPieces(panel, openings, into) }
+  class TerrainObstacles { <<existing>> With(world, obstacles, damage) · WithGaps — made shared }
+  class TerrainWorldMesh { <<existing>> BuildChunkObjects(…, damage) · AddHeap NEW }
+  class ITerrainChunkedGeometry { <<existing>> Damage (opaque) NEW · BuildChunk(…, damage) NEW · ChunksOf(building) NEW }
+  class TerrainChunks3D { <<existing>> marks the touched chunks' objects slots stale }
+  class TerrainPlan2D { <<existing>> Emit(world, draw, marks) · EmitBuilding(world, b, damage, draw) NEW }
+  class TerrainLayer2D { <<existing>> hides the damaged buildings' strokes / fills; draws their overlay }
+  DamagedBuildings ..> BuildingDamageTable
+  DamagedBuildings ..> TerrainBuildingExpander
+  DamagedBuildings ..> TerrainObstacles : WithGaps (one gap merge)
+  TerrainWorldMesh ..> DamagedBuildings
+  TerrainPlan2D ..> DamagedBuildings
+  TerrainChunks3D ..> ITerrainChunkedGeometry
+  TerrainLayer2D ..> TerrainPlan2D
+```
+*What the picture shows that prose hid: 2-D and 3-D ask the SAME helper which pieces a damaged building is drawn with — they cannot disagree; and the muscle's navmesh
+overlay and the drawing share one gap merge.*
+
+```mermaid
+sequenceDiagram
+  participant S as render source (every frame)
+  participant L as TerrainLayer3D
+  participant C as TerrainChunks3D
+  participant W as worker
+  S->>L: WorldQuery.RenderGeometryOf(view) = TerrainWorldQuery.ForView (doors + damage of this view)
+  L->>C: geometry.Damage (the table, a new instance only when the damage changed)
+  C->>C: same instance ⇒ nothing (0 B) · new ⇒ Touched(before, after) → those buildings' chunks: objects slot stale
+  C->>W: BuildChunk(cx, cy, 0, Objects, damage) — Keeps / RecutPanel / AddHeap
+  W-->>C: the chunk's new objects mesh (the old one drawn until it uploads)
+```
+*What the picture shows: a breach costs one or two chunk rebuilds off the frame thread — never the terrain; an unchanged table does nothing.*
+
+```mermaid
+graph TD
+  NED["BuildingDamage entities — ingressed on EVERY node (SharedTranslatorPack)"] --> T["BuildingDamageTable.Of(view, world) — per thread, cached"]
+  T --> Q["TerrainWorldQuery.ForView — DoorStates.Damage"]
+  Q -->|"MapInteractionPack's render source (every host: editor, Player, observer) — unchanged code"| L3["TerrainLayer3D / TerrainChunks3D"]
+  T -->|"TerrainLayer2D (its own repository read)"| L2["the 2-D plan + overlay"]
+  M["muscle only: TerrainResidency.BakeObstacles(…, damage)"] -.->|"a derived world (passages cut, rubble prism) — the drawing is idempotent over it"| L3
+```
+*What the picture shows: the drawing reads only the replicated entities, on every host by construction (the one render source); the muscle's rebake is a separate path the
+drawing must tolerate, not use.*
+
+| # | decision | why |
+|---|---|---|
+| X-1 | 3-D: a prism of a collapsed building, a resident `rubble` prism, and every piece of a breached panel are skipped; the breached panel is re-cut from its own openings + ALL its breaches (holes and passages, `WithGaps`) through `ExpandPanelPieces`, emitted in the chunk of the panel's midpoint | one cutting rule; idempotent over the muscle's rebaked world (the resident pieces of that panel are all replaced) |
+| X-2 | a collapsed building's rubble = `RubbleOf(world, b)` drawn as a HEAP: the footprint at the base, the footprint shrunk to 55 % round its centroid at the top (⅓ height), dusty grey-brown (128, 118, 104), the earth pattern (code 243) | a box of rubble reads as a low building; a heap reads as debris; no new shader |
+| X-3 | rebuild only the objects slot of each chunk holding a piece of a building whose damage changed (before ∪ after); the old mesh drawn until the new one uploads | the handoff's "never the terrain"; no flicker |
+| X-4 | the damage crosses the render seam OPAQUE (`ITerrainChunkedGeometry.Damage : object?`) | R-250/252: the map sees triangles and a kind, never how the terrain is modelled |
+| X-5 | 2-D: the plan records which building each fill triangle and stroke belongs to; a damaged building's are hidden (a bit per stroke in the cull, fill alpha 0 re-uploaded once) and the building re-emitted damaged into a small overlay plan; rubble a grey-brown fill with a dashed outline | a whole-plan rebuild on scale-1 (482 k strokes) per breach is too slow; this costs the damaged buildings only |
+| X-6 | ⛔ door leaves are drawn by `DoorLeafGizmo` (the gizmo pipeline, another session's area this week) — they already read `DoorStates`, which reports a collapsed building's doors Destroyed | out of scope here; noted for the as-built |
+| X-7 | ⭐ *(added at the user's ask: "black explosion marks all around the hole")* a ragged SOOT ring on both faces of the wall round every breach: a black ring at the opening's edge, a lighter streaked ring past it (every other point a streak), 0.25–0.9 m by the breach's size, 1.5 cm off the face, placed by a hash of the breach; 2-D: soot each side of the gap | an opening alone looked cut, not blown; the hash keeps every node's picture the same |
+| X-8 | ⭐ *(added at the user's ask: "teeth, like missing bricks or bricks extending into the hole")* the breach's rim BROKEN (`TerrainWorldMesh.AddBrokenRim`): along every edge, brick-sized stubs (0.25 m × two courses) in the wall's own material reach into the opening by a jittered depth, staggered course by course, about a third of the slots empty; never past 18 % of the opening's smaller side; ⭐ BURNT (user: "shouldn't the bricks inside the hole be also scorched?") — `<material>-scorched` (38 % of its colour, 70 % of them) or `-singed` (62 %), the material's own pattern kept (`TerrainLayer3D.Burnt`), so any wall material burns; presentation only | a clean rectangle read as cut; ~0.5 k triangles a breach, built with its chunk |
+
+**As-built (`2026-11-10`)** — as designed, plus three things learned building it:
+- ⭐ **2-D cut height** — re-cutting a HOLE leaves the strips under and over it, and in plan their footprint IS the wall line, so the gap would not show. ⇒ the plan is cut at
+  `TerrainPlan2D.PlanCutHeight` (1 m over the floor): a re-cut piece lying in a breach open at that height is not drawn. Undamaged windows draw as before.
+- ⭐ **the heap needed debris** — a frustum read as a low platform; `AddDebris` lays one yawed block per ~6 m² (6–40) on it, by a hash of the building.
+- ⚠ **a muscle's rebake replaces the world singleton** (`TerrainResidency.BakeObstacles` → a derived `TerrainWorld`), so on the muscle and all-in-one hosts the 3-D layer's identity changes and
+  the WHOLE terrain is rebuilt on each rebake — as it already was for obstacles before this work; display nodes rebuild only the touched chunks. A finding for the coordinator, not changed here.
+- Rails: `TerrainChunkDamageTests` (breach both sides, soot both faces, the broken rim, heap, idempotent over a rebake, touched chunks) · `TheBuildingDamageDrawsTests` (the real 3-D layer through
+  the hosts' render source on a view that only received the damage: breach, heap, 0 B and no rebuild on an unchanged table) · `TheBuildingDamagePlanTests` (the plan's building marks,
+  the overlay, the hidden strokes; the production 2-D attach: gap and rubble). Frames under `HROT_RAIL_SHOTS` (never git).
+
+### 6ak. CE-4554 — drawing bodies and doors at scale: by screen size, instanced; the pick on input *(coordinator, `2026-11-13`; build-state: BUILT `2026-11-14` (Windows session, `exp/render-perf`, CE-4555 … CE-4562) — approved by the user `2026-11-13` (R-4226); ⭐ the as-built in §6ak.6, the classes below as built)*
+
+🔒 User, `2026-11-13`: *"that scenario has very poor rendering framerate when all terrain in frustum. some graphical performance optimization is a
+must"* · *"the terrain is still ridiculously small and characters are made of few boxes. there must be huge performance improvement opportunities"* ·
+*"we need to do design not any building lane"*. ⚠ A cross-lane edit (this file is the ui lane's): the coordinator writes the design, a build lane
+builds it.
+
+**Measured** (Windows, Release, `scale-rig-scale-1-1000-2s`, the editor, uncapped — [`STATUS_Windows_Core_Utilisation.md`](https://github.com/pjanec/HROT/blob/exp/windows-threaded-measure/docs/blueprints/batches/STATUS_Windows_Core_Utilisation.md) §8):
+
+| pose | frame | CPU / GPU | where the UI thread goes |
+|---|---|---|---|
+| the whole terrain in view | **148 ms** | UI thread 94 %, GPU 23 % — CPU-bound | ⭐ `EntityBodyLayer3D.Draw3D` **68 %**: one `Raylib.DrawMesh` per body PART (48 %) and per DOOR leaf (15 %); the terrain 3 % |
+| a street | 26.5 ms | CPU-bound | the hover pick **21 %** every frame (`EntityBoxPicker.TryPick` 11, `DoorLeaf3D.TryLeaf` 7.4) |
+
+**Why it is slow — read in the code** (`EntityBodyLayer3D.cs`): every body in the frustum (CE-4388's 40 m sphere test, `:147-151`) is POSED and drawn
+part by part — per part a pose transform (`part.BodyTransform`, `:453`), the surface paint uniforms (`Paint`, `:455`), the tint uniform
+(`shader.Tinted`), one `DrawMesh` (`:456`), then the face, the outfit's details and the stains as more `DrawMesh` calls (`:458-472`); every one of
+the 6 912 doors is one more (`DrawDoor`, `:1430-1436`). ⇒ tens of thousands of draw calls and uniform changes per frame, most of them for figures
+a few pixels tall — or less than one — at that distance.
+
+**The proven solution for this problem class** (CLAUDE.md *"START FROM THE PROVEN SOLUTION"*): ① **screen-size level of detail** — what is
+smaller than a pixel is not drawn; what is a few pixels tall is drawn as one primitive; full detail only where it can be seen; ② **GPU
+instancing** — every copy of one mesh in one draw call, the per-copy data (transform, colour, paint) in an instance buffer; ③ **pick on input
+through a spatial index** — never a scan of every box every frame. Each piece is justified below by what it removes here.
+
+## INVENTORY *(2026-11-13)*
+
+| query | result |
+|---|---|
+| `scripts/cbm.sh search_graph '{"name_pattern":".*(BodyLayer\|BoxPicker\|DoorLeaf\|ShapeKit\|LitShader\|BodySurface\|BlockFigure\|FigurePose\|Instanc\|Impostor\|Billboard\|SpatialIndex).*","label":"Class"}'` | the draw path: `EntityBodyLayer3D`, `ShapeKit` / `ShapeKits`, `BlockFigure` (four partials), `BodySurface`, `LitShader`, `DoorLeaf3D`, `EntityBoxPicker`; ⛔ no impostor / billboard class, no spatial index for bodies on the UI side (`LaneSpatialIndex` is SUMO's) |
+| grep `DrawMeshInstanced\|Instanced` (exp/threaded-build, production) | ⛔ **0** — nothing in the engine draws instanced today |
+| the binding | `Raylib-cs 7.0.2` (raylib 5.5): `Raylib.DrawMeshInstanced(mesh, material, Matrix4x4[], count)` (per-instance transform) and `Rlgl` vertex-buffer / attribute-divisor calls (per-instance colour and paint) |
+| the existing far looks | trees by distance (§6ai: per-chunk meshes, trunks near, canopy far); the terrain by chunk level (§6ah L-2); people: the card / label rows "far" (People Display U16 / U21a) |
+
+⚠ Coverage could not be checked (`check_index_coverage` is not in the CLI).
+
+### 6ak.1 Classes *(as built `2026-11-14`; the designed diagram is in HISTORY at the end)*
+
+```mermaid
+classDiagram
+  class EntityBodyLayer3D {
+    <<existing - changed>>
+    Draw3D(ctx)
+    BandFor(scale, position, size) ScreenBand
+    FarBox(stance, soldier, size)
+    FarColour(outfit, fallback)
+    ForcePerDraw
+    PickIndex
+  }
+  class LitInstanceBatch {
+    <<NEW - Fdp.Presentation Vis3D>>
+    Register(mesh) bucket
+    Begin()
+    Add(bucket, model, colour, data)
+    Flush(lit, perDrawSurface)
+    grown never shrunk - 0 B steady
+  }
+  class LitShader {
+    <<existing - changed>>
+    Shader : per-draw program
+    Instanced : the instanced program
+    FragmentSource(surface, instanced)
+    ApplyAtmosphere / ApplyFrame : both programs
+  }
+  class BodySurface {
+    <<existing - changed>>
+    Glsl : uniforms, or instData under INSTANCED
+    FaceData / CamouflageData / PlainData
+    Apply(lit, data) : the per-draw path
+  }
+  class ScreenScale {
+    <<NEW - ViewFrustum>>
+    PixelsOf(point, metres)
+    CurrentScale() : the pass's matrices
+  }
+  class BodyPickIndex {
+    <<NEW>>
+    Begin / Add / End : the window frame's boxes
+    TryPick(ray) : the grid cells under it
+  }
+  class EntityBoxPicker {
+    <<existing - changed>>
+    TryPick : index once a frame was drawn, else the scan
+  }
+  class MapCamera3D {
+    <<existing - changed>>
+    Pick : 4 cached entries per pose
+    InvalidatePicks() : a press or release
+  }
+  EntityBodyLayer3D --> LitInstanceBatch : fills, flushes once
+  EntityBodyLayer3D --> BodyPickIndex : records the drawn boxes
+  EntityBodyLayer3D ..> ScreenScale : bands
+  LitInstanceBatch ..> LitShader : draws with Instanced
+  LitInstanceBatch ..> BodySurface : per-draw fallback Apply
+  LitShader ..> BodySurface : one surface text, both programs
+  EntityBoxPicker ..> BodyPickIndex : queries
+  MapCamera3D ..> EntityBoxPicker : on input only
+```
+*What the as-built picture shows that the designed one did not: the instanced program is a second program of `LitShader` (it must take the same
+per-frame atmosphere and eye), the batch is a generic Vis3D class beside it, and the camera's pick cache is the "on input" half of D-6 — the index
+makes the pick cheap, the cache makes it rare.*
+
+### 6ak.2 One frame
+
+```mermaid
+sequenceDiagram
+  participant L as EntityBodyLayer3D
+  participant B as BodyBatch
+  participant G as GPU
+  participant P as EntityBoxPicker
+  L->>B: Begin()
+  loop every body in the frustum
+    L->>L: screen height in px (distance, size, camera)
+    alt Hidden band
+      L->>L: skip (no pose)
+    else Far band
+      L->>B: Add(cube, plain, one box, its main colour)
+    else Full band
+      L->>L: pose (as today)
+      L->>B: Add(part mesh, paint, model, tint, paint) per part, face, detail, stain
+    end
+  end
+  L->>B: doors, by the same bands
+  B->>G: one DrawMeshInstanced per (mesh, paint mode) bucket
+  L->>P: the drawn boxes (only when the pick index is due)
+  P->>P: TryPick only if the mouse or the camera moved
+```
+*What it shows: the pose — the per-body CPU cost — runs only in the full band; the GPU gets a handful of calls whatever the count.*
+
+### 6ak.3 Who draws what each frame
+
+```mermaid
+graph TD
+  W[the UI frame, main thread] --> MC[MapCamera3D / the 3-D map]
+  MC --> TL[TerrainLayer3D - unchanged]
+  MC --> BL[EntityBodyLayer3D]
+  BL --> BB[BodyBatch - flushed once]
+  BL --> DL[DoorLeaf3D - into the same batch]
+  BB --> GPU[GPU: a few instanced calls]
+  MC --> PK[EntityBoxPicker - on input only]
+  PK --> PI[BodyPickIndex]
+  OLD[one DrawMesh per part / per door]:::dead
+  OLD2[TryPick every frame over every box]:::dead
+  classDef dead stroke:#c00,color:#c00,stroke-dasharray: 5 5
+```
+*What it shows: the two per-frame costs removed (red, dashed); the terrain layer is untouched — it was 3 % of the slow frame.*
+
+### 6ak.4 The decisions — a lean each, for the user
+
+| # | question | ⭐ lean | why | what would change it |
+|---|---|---|---|---|
+| D-1 | the bands, by the body's height ON SCREEN | **Hidden < 1.5 px · Far 1.5 – 12 px (one box) · Full ≥ 12 px** | below ~1.5 px a figure is not seen; up to ~12 px a soldier is a coloured stick whose limbs cannot be told apart; ⭐ by screen size, not metres, so a zoomed film shot or a far vehicle (bigger) keeps detail where it shows | a frame rail at the band edges shows a visible pop ⇒ widen Full |
+| D-2 | the Far look | **one box at the body's size, in its side / outfit main colour, lit** | the same silhouette and colour at a distance; one instance | the user wants the 2-D unit icon far instead |
+| D-3 | doors | **Hidden < 2 px; else one instanced box each (as today, but batched)** | 6 912 doors are most of the far draw calls; a door 2 px wide is invisible | — |
+| D-4 | faces, outfit details, stains | **Full band only** (as today, but batched) | they are detail; at Far there is no face to see | — |
+| D-5 | the instance data | **transform (mat4) + colour (vec4) + paint (vec4: surface code, camo seed, face kind, mood)** in a per-instance buffer, grown never shrunk | covers every per-part uniform `Paint` / `Tinted` set today (`:455-456`) | a paint parameter that does not fit ⇒ a second vec4 |
+| D-6 | the pick | **only when the mouse or the camera moved; a uniform grid of the drawn boxes, rebuilt in the frame it is needed** | at a street it was 21 % of the frame while the mouse was still; the boxes are already known from the draw | — |
+| D-7 | selection boxes, labels, weapon tips, eyes (first person) | **unchanged, computed only for bodies in the Full band** (a selected body is ALWAYS Full) | they need the pose; a selected unit must show | — |
+| D-8 | the target | **the whole-terrain pose ≤ 33 ms (30 fps) on the user's machine, the street ≤ 16.7 ms** | the user's two complaints | — |
+
+**Rejected — one line each:**
+- *Merging static figures into per-chunk meshes* — bodies move every frame; doors swing. Instancing gives the same call count without rebuilds.
+- *A GPU compute / indirect-draw pipeline* — raylib 5.5 has no indirect draw; instancing already removes the CPU's per-part calls.
+- *Lower detail by METRES* — a film close-up and a far vehicle would be wrong; screen size is what is seen.
+- *Drawing far men as the 2-D icon* — a lean against (D-2): the 3-D view's look stays 3-D; the user may choose it.
+
+**Design docs checked:** §6ah / §6ai — apply: the terrain's and the trees' by-distance looks are the precedent; the terrain is not the cost (3 %).
+People Display — applies: the figure's look (parts, faces, camouflage) must survive batching unchanged at the Full band. CE-4388 (§6ah area, the
+40 m frustum sphere) — kept: it is the coarse test before the screen-size bands.
+
+### 6ak.5 Acceptance
+
+1. The whole-terrain pose ≤ 33 ms and the street ≤ 16.7 ms on the user's machine (the Windows rerun of `STATUS_Windows_Core_Utilisation.md` §8).
+2. A draw-call counter on the body layer (beside `TerrainDrawStats`): at the whole-terrain pose a few calls, not tens of thousands.
+3. The Full band's look unchanged — a frame rail compares a street frame before / after (scratch render, no screenshot in git).
+4. The pick: 0 work while the mouse and camera are still (a counter); the pick rails green.
+5. 0 B per steady frame in the layer and the batch.
+
+### 6ak.6 As built *(Windows session, `2026-11-14`, `exp/render-perf` — CE-4555 … CE-4562; the auto-decisions with their reasons in [`STATUS_Render_Performance.md`](blueprints/batches/STATUS_Render_Performance.md) DECISIONS)*
+
+| | as built | ⚠ against §6ak |
+|---|---|---|
+| G-1 the batch | `LitInstanceBatch`: one instance buffer per mesh (cube, cylinder, cone), attributes 6–15 (transform, colour, five data vectors), one `glDrawElementsInstanced` per mesh; `LitShader.Instanced` from the SAME fragment text | ⚠ D-5's "one paint vec4" → five (a face needs ~20 floats); the face axes come from a table generated out of `BodySurface.AxesOf` |
+| G-2 the layer | every part, face box, outfit detail, stain and door leaf is an `Add`; a driver that refuses the program (and `ForcePerDraw`) draws each instance with the per-draw program and the paint as uniforms (`BodySurface.Apply`) — the old picture | — the rail compares the two pictures (equal; red-proved) |
+| G-3 the bands | Hidden < 1.5 px · Far < 12 px · Full; by the body's LARGEST extent; doors < 2 px (a 3 m pre-test on the door's position before its leaf is looked up); SUMO's ambient bodies too | ⚠ D-2's "a box at the body's size" read thin at the edge → the FIGURE'S OWN part bounds in that stance × 0.5 across, its outfit's colour with the camouflage averaged in (measured at the edge: area 0.94 of the expected, colour 19 levels apart) |
+| G-4 the pick | `BodyPickIndex` (the window frame's boxes, a ground grid built when a pick needs it, walked under the ray); the FREE camera keeps 4 cached picks across frames until its pose changes or a mouse press / release; a DRIVEN camera (first person, follow, film) re-picks every frame | ⚠ D-6 "only on input" holds for the free camera; a station's crosshair must follow what changes ahead of it (CE1158) |
+| the UI thread's other pieces (G-5 … G-7, G-8) | the 2-D plan from a cached render texture; sound sources searched at 20 Hz, distance first, each type's reach learned from its bodies; the message log's rows kept while unchanged | — |
+
+⛔⛔ **CORRECTED 2026-11-14 — the targets are NOT met in real use** (CE-4580). The table after this one was measured with the map's gizmo frame
+EMPTY under the threaded node (CE-4579, the published frame never leased — no unit symbols, cards, labels or layers menu) and with the street camera
+under the terrain. With the gizmos drawn:
+
+| pose | reported overnight | ⭐ real use — gizmos drawn (`fixed`, the lease fix) | target |
+|---|---|---|---|
+| whole terrain (centre, 7 500 m, pitch −60) | 22 ms | **39.5 · 41.8 · 39.9 ms** (p95 57) | ≤ 33 ms ❌ |
+| street — a soldier followed, 30 m, pitch −8 (Blue 1-1, #1004) | 15.4 ms — ⛔ the camera was UNDER the ground (`[2750, 2750, 1.7]`, the terrain is ~550 m there) | **31.9 · 32.0 · 34.3 ms** (p95 61) | ≤ 16.7 ms ❌ |
+| 2-D map (the start view) | 12 ms | **23.3 · 21.7 · 20.5 ms** (p95 42) | — |
+
+⛔ SUPERSEDED — as first reported (keep for the like-for-like comparison only; the baseline lacked the gizmos too):
+
+**Measured** (Windows, Release, `scale-rig-scale-1-1000-2s` live and playing, the editor hidden, uncapped; mean of three 2-s windows):
+
+| pose | before | after | target |
+|---|---|---|---|
+| the whole terrain (centre, 7 500 m, pitch −60) | 88 – 91 ms | **22 ms** (1 draw call, 29 far boxes, 1 091 hidden, 6 911 doors hidden) | ≤ 33 ms ✅ |
+| a street (`[2750, 2750, 1.7]`, 30 m, pitch −8) | 31 – 42 ms | **15.4 – 15.9 ms** | ≤ 16.7 ms ✅ |
+| the 2-D map | 23 – 43 ms | **12 ms** | — |
+
+The frame is still CPU-bound (UI thread ≈ 97 %); what is left is spread thin — the staged pull with the gizmo system, the effects' sphere draws, ImGui.
+
+### 6al. CE-6007 — the bulldozer *(showcase world, `2026-11-13`; build-state: BUILT — as-built below)*
+
+Owner of the TYPE: [DESIGN_City_Battle_Showcase.md](designs/group-maneuvers/DESIGN_City_Battle_Showcase.md) §6 `Bulldozer` / D-6 (🔒 user: *"just new bulldozer model … no need to look armored"*); armour in
+[DESIGN_Armour_Hit_Model.md](designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md) (CE-6006).
+
+**INVENTORY** *(`search_graph` `.*(Bulldozer|Dozer|Engineer).*` Class: none before this; `.*VisualFamil.*`: `VisualFamily`, `VisualFamilies`; `scripts/find.sh ShapeKit`)*: a new family, because no existing
+one draws a tracked machine with a blade — Tank / Afv / SpArtillery all carry a turret and a gun, the wheeled kits roll on wheels. ⇒ ⛔ not a re-skinned tank (a
+bulldozer that looks like one is the opposite of the user's *"not armoured-looking"*).
+
+| what | as built |
+|---|---|
+| class | `EntityClassTable` `Bulldozer` = DIS `1.1.*.9.1` (a large tracked utility vehicle, subcategory 1; HROT) ⇒ `VisualFamilies.FamilyOfClass["Bulldozer"] = VisualFamily.Bulldozer` (more specific than `LargeTrackedUtilityVehicle`, which has no family) |
+| size | `ShapeKits.DefaultSize` 8.0 × 4.3 × 4.0 m — a D9: 8 m with the blade, the blade 4.3 m, 4 m to the ROPS roof (the TKB's `Body.Geometry` states the same) |
+| kit | `ShapeKits.Bulldozer`, ~45 parts from METRES (`Dz`, `DzCyl`): two track units (run, front idler, HIGH rear sprocket, slope, top run, fender), the hull with the hood in FRONT (a dozer's engine is forward, behind the radiator grille; the handoff said *"at the back"* — the ripper and final-drive deck are there), exhaust stack and pre-cleaner, an open ROPS cab (floor, seat, four pillars, roof, glass in the upper half only), the blade (mould-board leaning 8°, cutting edge, back brace, end wings) on two push arms outside the tracks with two lift rams, a rear ripper. Construction yellow `#E3B01C` (the TKB colour; `DefaultColour` the same). No articulated part: blade and ripper are drawn lowered (a lift pose would be a part role of its own) |
+| not done | the 2-D family icon (`IconName` null ⇒ the tool glyph; the 2-D symbol is the TKB's `SFGPEVEE-------`); a hit-location kit (`VehicleBody` is generated from the kits for the families in `VehicleBodyParityTests.Families`; the dozer is deliberately outside it — no `bodies.json` profile, so its whole hull is hit) |
+
+Rails: `BulldozerModelRail` — the type resolves to the family, kit and size (red-proof: the family mapping removed ⇒ `Unknown`); every part lies inside the 8 × 4.3 × 4 m box;
+the real frame under `xvfb-run -a` draws side, front and rear three-quarter and top views beside a T-72 and a rifleman for scale, then the dozer alone for the gallery
+(`HROT_RAIL_SHOTS`, never git). The thumbnail is `scripts/thumbnails.py --add-image … --name "Bulldozer (D9-class)"` (atlas page 1, slot 4/1; `EntityTypeCatalogTests` pin the picker line
+and the atlas count).
+
+### 6am. CE-4582 — unit cards hidden behind terrain; one card per unit, every unit text a row of it *(coordinator, `2026-11-14`; build-state: BUILT step 1 `2026-11-14` — ⭐ read **6am.AB** first: D-1's mechanism, D-7's rows and D-9's mask are SUPERSEDED there; step 2 WON'T DO — the user accepts trees hiding cards, CE-4587)*
+
+🔒 User, `2026-11-14`: *"option A with drawing trees after the cards. Selected unit card always visible is ok. toggle is ok if it could be added to
+layers panel"* · *"the whole label needs to be handled like that"* · *"the layer panel offers 'Entities' checkbox but has no effect in 3d map"* ·
+*"why stress goes from separate gizmo that makes no sense it should be optional part of the label card"* · *"no stress only floating bars and
+similar free floating stuff; this should be part of the entity card … check also other gizmos"* · *"no the design must happen here"* (the
+coordinator). Task: [CE-4582](blueprints/Blueprint_Issues_Tracker.md). Mockup: [labels-behind-terrain.svg](UX/labels-behind-terrain.svg)
+(`scripts/gen-labels-behind-terrain-mockup.py`).
+
+![unit cards behind terrain](UX/labels-behind-terrain.svg)
+
+#### INVENTORY *(2026-11-14, `coordinator`)*
+
+| query | total | found |
+|---|---|---|
+| `scripts/cbm.sh search_graph '{"name_pattern":".*(EntityCard\|LabelOverlay\|CardRenderer\|TreeLayer\|Forest\|Vegetation\|DepthTest\|RenderTexture\|MapCanvas3D\|Scene3D).*","label":"Class"}'` | 6 | `EntityCard`, `EntityCardRow`, `EntityCards` (Fdp.Diagnostics.Contracts — the card API), `EntityCardFrameGizmo`, `EntityCardRenderer` (GizmoMap — layout + draw, 0 B warm, CE-1478 P4), `LabelOverlay3D` (`RaylibGizmoSink3D.cs:83`) |
+| grep the frame: `MapCanvas.Draw` → `DrawLayers3D` (every layer's `Draw3D` between ONE `BeginMode` / `EndMode`) → `DrawOverlays` (each layer's `DrawOverlay`, in layer order) | — | `MapCanvas.cs:121-205`; the cards and place labels are drawn in `DebugGizmoLayer.DrawOverlay` (`:213-240`): `LabelOverlay3D.Draw`, then `Cards.Draw(Renderer3D.Cards, CardAnchor3D)` — raylib 2-D after `EndMode3D`, depth test off, the depth buffer of the 3-D pass still bound (nothing clears it before the next frame) |
+| grep the trees: `TerrainChunks3D.Draw` (`:358-385`) | — | per visible chunk: ground (`:377`), objects = buildings and walls (`:378`), then the vegetation part — `ChunkTrees` near, `ChunkCanopy` far (`:380-381`, §6ai) — each its OWN mesh |
+| grep the binding (Raylib-cs 7.0.2): depth, stencil, framebuffer entry points | — | ✅ `rlEnableDepthTest` / `rlDisableDepthMask`, `rlColorMask`, `rlLoadFramebuffer`, `rlLoadTextureDepth`, `rlFramebufferAttach`, `rlBlitFramebuffer` · ⛔ **no stencil, no depth function, no GL proc address** |
+| grep the card rows: `draw.Card(net, layer)` | 8 gizmos | frame row 0, `BOUNTY` / health row 10, mind state 11–12, name 20, overhead mark 45, concealed 46, effect 50, editor label (`EntityCardGizmos`, `HealthBarGizmo`, `MindStateGizmo`, `OverheadMarkGizmo`, `ConcealedItemGizmo`, `EffectStateGizmo`, `EntityEditorLabelGizmo`) — each row on its OWN layer |
+| grep free text at a unit (`DrawText` with no `Card`) | 8 sites | `ActionStatusGizmo:57`, `UtilityDecisionGizmo:30`, `StanceGizmo:30`, `EntityRotationGizmo:60`, `PeekAndFireGizmo:60`, `SquadGizmo:40` / `:54`, `CommandPictureGizmo:46` / `:93`, `EffectStateGizmo:39` (its fallback) — re-verified on `coordinator` |
+| grep the body pass and the Entities row | — | `EntityBodyLayer3D` reads no layer mask; the Entities row is mask bit 0 (`LayerControlGizmo.cs:104`); the selection is `SelectionState.IsSelected` (`EntityBodyLayer3D.cs:160`) |
+⚠ Graph coverage not checkable through the CLI.
+
+#### Classes
+
+```mermaid
+classDiagram
+  class EntityCards {
+    <<existing, Fdp.Diagnostics.Contracts>>
+    Card(draw, netId, layer) EntityCard
+    LabelsLayer : byte NEW (= DebugTraceLayers.Labels, 11)
+  }
+  class EntityCard {
+    <<existing>>
+    Row(order)
+    inert when layer != LabelsLayer and LabelsLayer is off NEW
+  }
+  class EntityCardRenderer {
+    <<existing, GizmoMap>>
+    Layout(...) / Draw(...)
+    Occlusion : CardOcclusion NEW
+    AlwaysOnTop : Func~long,bool~ NEW
+  }
+  class LabelOverlay3D {
+    <<existing>>
+    Draw(labels, camera, lift)
+  }
+  class CardOcclusion {
+    <<NEW, Fdp.Presentation Vis3D>>
+    Begin(camera, view) / End()
+    DepthOf(anchor) float
+    Mode : Off / SceneDepth / Occluders
+  }
+  class OccluderDepthPass {
+    <<NEW, step 2>>
+    depth texture, half size
+    Draw(chunks ground + objects)
+  }
+  class TerrainChunks3D {
+    <<existing>>
+    Draw() ground, objects, trees
+    DrawOccluders() NEW
+  }
+  class DebugGizmoLayer {
+    <<existing>>
+    DrawOverlay() labels + cards
+  }
+  class EntityBodyLayer3D {
+    <<existing>>
+    honours Units.Entities NEW
+  }
+  class LayerControlGizmo {
+    <<existing>>
+    Units.HideLabelsBehindTerrain NEW
+  }
+  EntityCards --> EntityCard
+  DebugGizmoLayer --> LabelOverlay3D
+  DebugGizmoLayer --> EntityCardRenderer
+  EntityCardRenderer ..> CardOcclusion : wraps the draw
+  LabelOverlay3D ..> CardOcclusion : wraps the draw
+  CardOcclusion ..> OccluderDepthPass : step 2 samples
+  OccluderDepthPass ..> TerrainChunks3D : DrawOccluders
+  LayerControlGizmo ..> CardOcclusion : the toggle
+```
+*What it shows that prose hid: the occlusion is ONE wrapper both overlay drawers pass through (cards and place text), not a change to either
+drawer; and the orphan fix lives in the card API every gizmo already calls (`EntityCards.Card`), so no gizmo can forget it — by construction, on
+every host, in 2-D and 3-D, in-process and on a remote IG.*
+
+#### One 3-D frame
+
+```mermaid
+sequenceDiagram
+  participant M as MapCanvas
+  participant T as TerrainChunks3D
+  participant O as OccluderDepthPass (step 2)
+  participant G as DebugGizmoLayer.DrawOverlay
+  participant X as CardOcclusion
+  participant R as EntityCardRenderer / LabelOverlay3D
+  M->>T: Draw3D - ground, objects, trees (unchanged)
+  Note over O,T: step 2 only, when the toggle is on and a card is drawn
+  O->>T: DrawOccluders - ground + objects, depth only, half size
+  M->>G: DrawOverlay (after EndMode3D)
+  G->>X: Begin(camera) - step 1 depth test on / step 2 the occluder shader
+  G->>R: place labels, then cards - each at its anchor's depth
+  R->>X: DepthOf(anchor) per card / label
+  Note over R: the selected unit's card is drawn after End(), test off
+  G->>X: End() - depth test off, shader off
+```
+*What it shows: nothing in the 3-D pass moves in step 1 — the cards test against the depth buffer the pass left behind; step 2 adds ONE
+depth-only draw of the occluders, and the cards then test against it instead, so trees never take part.*
+
+#### Who draws what, each frame
+
+```mermaid
+graph TD
+  PACK[MapInteractionPack - composes the canvas] --> CAN[MapCanvas.Draw - every frame]
+  CAN --> TER[TerrainLayer3D.Draw3D - TerrainChunks3D]
+  CAN --> BOD[EntityBodyLayer3D.Draw3D - reads Units.Entities NEW]
+  CAN --> GZ[DebugGizmoLayer.DrawOverlay]
+  GZ --> OCC[CardOcclusion]
+  OCC -.step 2.-> OP[OccluderDepthPass - DrawOccluders]
+  GZ --> LBL[LabelOverlay3D - place text]
+  GZ --> CRD[EntityCardRenderer - cards]
+  HOST[host gizmos - every node] --> API[EntityCards.Card - orphan rule NEW]
+  API --> FRAME[primitive frame - in-process or DDS]
+  FRAME --> GZ
+  FLAT[2-D map - MapCanvas.DrawLayers2D]:::nodepth -.no occlusion in 2-D.-> CRD
+  classDef nodepth stroke:#c80,color:#c80,stroke-dasharray: 5 5
+```
+*What it shows: the orphan rule and the moved rows act on the HOST, so 2-D and 3-D and a remote IG get them by construction; the occlusion acts
+only in the 3-D overlay — the dashed edge: the 2-D map has no terrain in front of anything and is unchanged.*
+
+#### Decisions — the user's (CE-4582), and how each is carried
+
+| # | decision | how | why / rejected |
+|---|---|---|---|
+| **D-1** | **a card / place label is depth-tested at its ANCHOR's depth, per pixel** (the user's A) | `CardOcclusion.DepthOf(anchor)` = the anchor's window depth under the 3-D projection; the card is drawn in 2-D with `rlPushMatrix` + a z translate that maps the 2-D ortho depth to that value, `rlEnableDepthTest`, `rlDisableDepthMask`; the leader line the same | ⛔ B (a ray per label, CPU — the UI thread is the bottleneck, §6ak); ⛔ C (read-back — no GL interop; it stalls) |
+| **D-2** | **the whole stack hides together** | one card per unit (it already is, keyed by network id): every row is drawn at the card's ONE anchor depth ⇒ the frame, the bar, the stress rows are cut by the same line | — |
+| **D-3** | **trees never hide a card** (the user's "trees after the cards") | ⛔ a draw-order change cannot do it: with no stencil and no depth function in the binding, a card drawn before the trees is painted over by any tree nearer than the ground behind it (even a tree BEHIND the unit). ⭐ **step 2: an occluder depth pass** — ground + objects only (no vegetation), depth-only into a half-size depth texture (`rlLoadFramebuffer` + `rlLoadTextureDepth` + `rlFramebufferAttach`), the coarsest ground level; the card shader samples it and discards a fragment whose anchor depth is behind it; the hardware depth test is OFF in step 2 | ⭐ **step 1 (D-1 alone) ships first**: trees in FRONT of a unit cut its card like any obstacle. ⭐ Step 2 is built behind a MEASURED budget: ≤ 1.0 ms added on the user's Windows machine at §6ak.5's whole-terrain and street views. Over budget ⇒ the builder keeps step 1, reports the numbers, and the user decides |
+| **D-4** | **the selected unit's card is always visible** | `EntityCardRenderer.AlwaysOnTop(netId)` — the host's selection (`SelectionState`, as §6ak D-7's Full body) passed as a delegate like `LabelLift`; those cards are drawn after `CardOcclusion.End()` | — |
+| **D-5** | **a toggle**: Units ▸ *Hide labels behind terrain*, ON by default; OFF = today (M13, on top) | `LayerControlGizmo` Units row (`DebugTraceLayers.HideLabelsBehindTerrain`, the next free bit), read by `CardOcclusion.Mode` | supersedes M13's "on top" for the default only |
+| **D-6** | **no orphan card**: a row on any layer but Labels draws only while Labels is on | `EntityCards.Card(net, layer)` returns an INERT card when `layer != LabelsLayer && !draw.IsLayerActive(LabelsLayer)` — ONE rule, in the API every gizmo calls; `LabelsLayer` defined once in Contracts, `DebugTraceLayers.Labels` = it | ⛔ filtering in the renderer: the renderer is in GizmoMap and would need the layer meaning; ⛔ per gizmo: eight copies |
+| **D-7** | **no free per-unit text: each becomes a row of ITS unit's card, on its own layer** | the 8 sites of the INVENTORY → `draw.Card(net, <its layer>).Row(n)`; a line ABOUT a member is drawn on the member's card (`SquadGizmo:54` E/R, `CommandPictureGizmo:93` progress), the leader's own lines on his; `EffectStateGizmo:39`'s fallback stays only for an entity with no network id (it has no card) | rows: Squad command 60–61, Actions 70–71, Utility 72, Unit details 80–81 (after the existing 10–50), mockup B |
+| **D-8** | **text at a PLACE stays free, but is depth-tested the same way** | the place labels go through `LabelOverlay3D`, inside the same `CardOcclusion` scope (anchor = the place) | the CE-4582 list (cover-slot heat, slot numbers, contacts, requests, waypoints, EQS scores, exposure, fuze, charge, named points, sectors, danger areas, grid, shape-done) — unchanged gizmos |
+| **D-9** | **the 3-D bodies honour Units ▸ Entities**; a hidden body is not pickable | `EntityBodyLayer3D.Draw3D` reads `ctx.VisibleLayersMask` bit 0; the pick index records only drawn boxes (§6ak D-6) ⇒ not pickable by construction | — |
+| **D-10** | **0 B per steady frame** (R-2084) | `DepthOf` is arithmetic; the occluder pass reuses its framebuffer (re-created only on a resize or a new window, as `EnsureWireSphere`) | rail: `GC.GetAllocatedBytesForCurrentThread` across a steady frame |
+
+#### Acceptance
+
+1. A frame rail (`xvfb-run -a`): a unit beyond a ridge — its card's pixels below the ridge line are not drawn, above it they are; a unit in
+   front — whole; the selected unit beyond the ridge — whole; toggle OFF — whole (today).
+2. Labels off + Mind state on ⇒ no card (rail on the host frame: zero `EntityCard` primitives for that unit).
+3. Each moved row appears on the right card with its layer: the leader's `SQUAD n ph` on the leader, a member's `E… R…` on the member; its
+   layer off ⇒ the row gone, the card stays.
+4. Entities off ⇒ no body drawn, a click there picks nothing.
+5. A place label behind the ridge is cut the same way.
+6. Step 2 (if within budget): a unit inside a wood keeps its whole card; the numbers in the report; the fallback (a framebuffer that is not
+   complete) draws step 1 and logs once.
+7. 0 B steady frame; language-neutral (R-4221) on every moved row.
+
+#### 6am.AB — as built *(`2026-11-14`, built on `exp/threaded-build` from the handoff dispatched at `af9b916ed`; build-state: BUILT — step 1; step 2 see D-3 below)*
+
+The diagrams above hold, with the deviations below. Each one is argued; the prior wording stays above and is SUPERSEDED where a row says so.
+
+```mermaid
+classDiagram
+  class ICardOcclusion {
+    <<NEW, GizmoMap.Presentation>>
+    Active : bool
+    Push(networkId) bool
+    Pop()
+    End()
+  }
+  class CardOcclusion {
+    <<NEW, Fdp.Presentation Vis3D>>
+    Enabled : Func~bool~
+    AnchorOf : Func~long,Vector3~
+    Begin(camera) bool
+    Push(world) bool
+    DepthOf(camera, world)$ float
+    DepthScale$ : float
+  }
+  class EntityCardRenderer {
+    <<existing, GizmoMap>>
+    Occlusion : ICardOcclusion NEW
+    AlwaysOnTop : Func~long,bool~ NEW
+  }
+  class DebugGizmoLayer {
+    <<existing>>
+    Occlusion3D : CardOcclusion NEW
+  }
+  class EntityCards {
+    <<existing, Contracts>>
+    LabelsLayer$ : byte
+    Card(draw, net, layer) EntityCard
+  }
+  class EntityCardRows {
+    <<NEW, Fdp.Toolkits>>
+    SquadCommand rows : 60-63
+    Actions rows : 70-73
+    Utility rows : 74-79
+    UnitDetails rows : 80-81
+    CardIdOf(view, entity)$ int
+  }
+  class EntityBodyLayer3D {
+    <<existing>>
+    Visible : Func~bool~ NEW
+    Hidden : bool NEW
+    IsSelectedNet(world, net)$ NEW
+  }
+  ICardOcclusion <|.. CardOcclusion
+  EntityCardRenderer ..> ICardOcclusion
+  DebugGizmoLayer --> CardOcclusion
+  DebugGizmoLayer --> EntityCardRenderer
+```
+*What it shows that prose hid: the card renderer lives in GizmoMap, which cannot see the 3-D camera, so it asks an INTERFACE; the one implementation sits in Vis3D with the camera. The row numbers live in one class beside the layer bits, not in eight gizmos.*
+
+| § | as designed | as built | why |
+|---|---|---|---|
+| **D-1** | the card drawn in 2-D with a z translate mapping the 2-D ortho depth to the anchor's, depth test on | ✅ the per-card z translate (rlgl's matrix stack, so no draw call per card), but **decoded by a small program** (`CardOcclusion.Vertex` / `.Fragment`) that writes the anchor depth as `gl_FragDepth` and places the vertex on the 2-D plane; depth test on, depth writes off | ⛔ rlgl adds 1/20 000 to its 2-D depth after every shape within a batch (up to ~0.4 of the range); a perspective depth needs ~1e-7. Carried as `depth × 1e7` in z, the drift is ≤ 0.4 / 1e7 ≈ one 24-bit step. The window depth is computed (`DepthOf` = `f(z−n)/((f−n)z)` from the camera's clip planes), never read back |
+| **D-3** | step 2, the occluder depth pass, behind a ≤ 1.0 ms budget | ⛔ **NOT BUILT** — see *step 2* below | the budget measured |
+| **D-4** | `AlwaysOnTop` on the renderer | ✅ as designed; the host's predicate is `EntityBodyLayer3D.IsSelectedNet` (the same `SelectionState` that keeps the body Full) | — |
+| **D-5** | Units ▸ *Hide labels behind terrain*, bit 29 | ✅ `DebugTraceLayers.HideLabelsBehindTerrain = 29`, `FirstUntoggledLayer` 29 → 30, on by default, read through the buffer (`MapInteractionPack`) | — |
+| **D-6** | an inert card unless Labels is on | ✅ `EntityCards.Card` (`IsInert`); every row method returns at once when inert (no `Substring` for nothing) | — |
+| **D-7** | rows 60–61 / 70–71 / 72 / 80–81 (mockup B) | ✅ **one line = one row, so a gizmo that writes several lines owns a RANGE**: Squad command 60 (leader's `SQUAD n ph`), 61 (member `E#R#`, on the member's card), 62 (subordinate progress, on his card), 63 (*no picture on this node yet*); Actions 70–72 (L, W, I), 73 (peek-and-fire phase); Utility 74–79 (one per decision); Unit details 80 (stance), 81 (heading). Mockup B regenerated to these numbers | ⛔ two lines in one row are drawn over each other (`EntityCardRenderer` stacks by row, not by text). ⚠ A unit with no network id has no card, so its moved lines are no longer drawn (they were free text); only `EffectStateGizmo` keeps its fallback, as designed. The two squad rows are teal on the card (the old near-black was for the light 2-D map) |
+| **D-7** | (heading allocation) | ✅ `EntityCardRow.Text(ReadOnlySpan<char>)` + a span constructor on GizmoMap's `FixedString32` | the heading kept its 0 B (CE-4432, R-2084) |
+| **D-8** | place labels through the same scope | ✅ `LabelOverlay3D.Draw(…, occlusion)` | — |
+| **D-9** | `EntityBodyLayer3D` reads `ctx.VisibleLayersMask` bit 0 | ⛔ **SUPERSEDED**: reads the GIZMO BUFFER's bit 0 (`Visible = () => buffer.IsLayerActive(0)`, as `TerrainLayer2D` reads Terrain2D) — window pass AND film pass; the window pass empties the pick index, and `EntityBoxPicker.HasBody` answers false | 📐 `ctx.VisibleLayersMask` is `MapCanvas.ActiveLayerMask`, the OLDER per-kind mask (`ScenarioMapConfigAdapter` — ground, air, vehicles…), not the layer panel. A film draws its layer set intersected with the screen's, and Units ▸ Entities is a film row ⇒ hidden there too |
+
+**Step 2 (D-3) — measured, not built.** Measured on the user's Windows machine, `2026-11-14`, scale-rig-scale-1-1000-2s live and playing, uncapped, hidden window, the threaded node on (the default), Units ▸ Labels on; the frame proved (gizmo frame 3 310 – 5 380 primitives, the eye 7.3 – 7.9 m and 5 888 m above the ground, a capture per state viewed); 5 frame-stats windows (2 s) per state. ⚠ The user's own editor was running beside it (from Visual Studio), so the absolute frame times carry its load; the on / off comparison is within one run.
+
+| view | cards drawn | the `cards` part, toggle off → on (step 1's cost) | whole frame off / on | one terrain draw (`Terrain (3-D)`: ground + objects + trees) |
+|---|---|---|---|---|
+| street — soldier #1004 followed, 30 m, pitch −8 | ~190 | 1.72 → **1.98 ms (+0.26)** | 21.6 / 22.1 ms | 0.8 ms |
+| whole terrain — 7 500 m, pitch −60 | ~955 | 4.18 → **4.44 ms (+0.26)** | 34.1 / 33.5 ms (noise) | **4.7 ms** |
+
+⇒ ⭐ **step 1 costs ~0.26 ms** at both views (the per-card anchor lookup and depth; no extra draw call). ⛔ **Step 2 is over its budget by construction**: its occluder pass re-submits the visible ground and building chunks — the same draw calls the terrain layer makes, minus the vegetation — and the whole terrain layer is 4.7 ms on the CPU-bound UI thread at the whole-terrain view (0.8 ms in the street). Half-size and depth-only cut GPU fill, not that CPU submission. ⚠ Inferred from the terrain layer's own cost, not from a built occluder pass (the ground / objects / trees split of the 4.7 ms is not measured). ⇒ per §6am D-3, **step 1 ships; trees in front of a unit cut its card.** ✅ **DECIDED `2026-11-14`** — 🔒 user: *"I accept that the trees can hide the cards, so you can close it."* ⇒ step 2 is NOT built (CE-4587 won't do); D-3's "trees never hide a card" is SUPERSEDED.
+
+**The rails** (each red-proved by one compiling mutation):
+
+| acceptance | rail | red-proof |
+|---|---|---|
+| 1, 5 | `Map3DFrameRail.CE4582_TheCardsHideBehindTheRidge_TheSelectedOneAndTheToggleOff_DoNot` — a ridge in the 3-D pass: the card beyond it cut at the ridge line (above drawn, below 0 px), the card in front whole, the selected card beyond it whole, a place label over the ridge's face hidden, the toggle unticked through the real layer gizmo ⇒ all whole | `Occlusion3D.Begin` not called ⇒ 128 px below the line; `AlwaysOnTop` not consulted ⇒ the yellow card cut |
+| 2, 3 | `DebugTraceGizmoTests.CE4582_LabelsOff_NoOrphanCard_AndARowsOwnLayerOff_RemovesTheRowNotTheCard`; the moved rows on the right card in `CE3121_TheUtilityGizmo…`, `CE3136_TheActionsGizmo…`, `CE3121_TheSquadGizmo…` (the member's E/R on the member's card), `EntityRotationGizmoTests.SC_GZ021_ROT_2…` | `inert: false` ⇒ the Actions row survives Labels off; the utility line back to free text ⇒ red |
+| 4 | `EveryMapHostAttachesTheSharedLayersTests.CE4582_TheSharedAttach_WiresTheEntitiesRow_TheOcclusionSwitch_AndTheSelection` (the forwarding rail: the three switches wired on the constructed objects, read from the buffer) | the wiring line dropped ⇒ null |
+| 7 | the frame rail's tail: the overlay pass allocates no more with the scope than without (R-2084); `SC_GZ021_ROT_2b` keeps the heading at 0 B; the moved rows format with the invariant culture (R-4221) | — |
+
+## 7. NOT VERIFIED — say so before it is built on
+
+| claim | how it is settled |
+|---|---|
+| ✅ **cloud's software GL: VERIFIED `2026-10-10`** (S1 frame rail, Mesa under Xvfb — compiles, lights, fogs). ⚠ the hosts' GL (Windows) is not yet run | the user's Windows run of `Map3DFrameRail` |
+| ⚠ 3-D frame cost inside the host frame (terrain mesh + a few hundred entities) | S1, measured on Windows and in the cloud |
+| ⚠ an entity box hit returning that entity's ground XY lands inside its 2-D pick box for every entity kind | S2 rail per kind |
+| ⚠ M18's `z = 0` test stays a convention: once the ground has height, a real point at exactly 0 m is rare, and where it happens it is drawn on the ground at that spot — the same place. A gizmo that means "on the roof" must give the roof's height | S2 rail |
+| ⚠ draping subdivision cost — a few metres per step over a long route or a large area fill, every frame | S2, measured; cache per primitive while the terrain is unchanged |
+| ⚠ door leaves move (open/closed) but the terrain mesh is built once — picking through a door that opened after load | S2: doors as separate dynamic boxes, or accepted |
+| ⚠ hover picking every frame: entity boxes + one mesh ray per frame | S2, measured |
+| ⚠ which CC0 texture pack — ambientCG / Poly Haven are CC0 by their own terms; specific textures and repo size not chosen | S7, with a licence table |
+| ✅ **VERIFIED `2026-10-11`**: the 3-D pass accepts `Map2D \| Viewport3D` (`Map3DGizmoTests`) — every gizmo today targets `Map2D` only · ⭐ `2026-10-17` (R-4058): except a primitive carrying `PipelineTarget.FlatOnly` — a 2-D symbol of something this map draws as its own model (the SUMO road layer); the triage always culls it (`Map3DGizmoTests.FlatOnly_IsCulledBy3D_AndPlainMap2D_IsNot`) | — |
+| ⚠ the overhead perspective camera at matched height looks close enough to the 2-D map at the swap (tall buildings lean slightly at the edges — seen in S1's overhead shot) — ⚠ and north flips at the swap (§6a) | the user, in the editor |
+| ✅ **VERIFIED `2026-10-10`**: every placeable built-in type has a family, and the icon fallback is unchanged for every built-in type (`Map3DTests`) | — |
+| ⚠ DIS air categories for helicopter / fixed wing | when the first air type is added |
+| ⚠ a terminal that does not know `CoordinateSpace.EntityCard` (an old build on the wire) must skip card primitives, not draw them as world text — the 2-D renderer treats every non-`EntityLocal` space as world today | S5b rail on the 2-D renderer |
+| ⛔ **MEASURED `2026-10-11`: `FilledTriangle` bytes 48-51 are NOT free** — `BoxAnchorId` is a `long` at 44 (44-51), and the hit-test treats ANY primitive with `BoxAnchorId != 0` as pickable (`DebugGizmoLayer.LogCanvasFallback` counts it; the terminal's pick skip keys on it). A fill height there would make every raised fill a phantom pick target ⇒ H2's flat fill height needs another route (an anchored fill, `EntityLocal`) | open |
+| ⚠ route waypoint axes: `RouteWaypoint.Position` is documented as ENU (`RoutePlan.cs:11-20`), yet every route gizmo reads **Z as north** (`RouteWaypointGizmo.cs:18-21,111-128`, `AuthoredRouteGizmo.cs:70`) — one of the two is wrong, and a route in 3-D needs to know which is up | before routes get height (H1) |
+| ⚠ until `TerrainWorld` gets terrain height (`:319`), S1's screenshot shows flat ground — 🔒 `R-248`: the 3-D map is built for relief regardless (§3.10), and a test fixture with relief proves it | S1–S2, a sloped test terrain |
+| ✅ **BUILT `2026-10-16` (CE-1139)**: the IG ingests stance — it registers `StanceIntent`/`StanceStatus` and runs both stance ingress translators (`AnimationReplicationModule.RegisterStanceViewerOn`), so IG humans crouch and lie down | `StanceWireTests.CE1139_*`, `IgRoleComponentRegistryTests.CE1139_*` |
+| ⚠ `LogicalStance.Of` and `StanceStatus` are present on every host's entities (they are `NoScenario` runtime components; the Editor may not run the stance systems) — no stance ⇒ standing, as the rule itself says | S1 rail |
+
+## ⛔ HISTORY — superseded the same day, do NOT quote
+
+- **§6ak.1 as designed (`2026-11-13`), superseded by the as-built diagram `2026-11-14`:** `BodyBatch` (in the body layer) and a separate `InstancedLitShader` class; one paint vec4 per instance; the pick on input with no cache detail.
+
+#### (history) 6ak.1 Classes as designed
+
+```mermaid
+classDiagram
+  class EntityBodyLayer3D {
+    <<existing — changed>>
+    Draw3D(ctx)
+    per body: LodBand(screenHeightPx)
+    Full: pose + parts into the batch
+    Far: one box into the batch
+    Hidden: nothing
+  }
+  class BodyBatch {
+    <<NEW>>
+    Begin()
+    Add(meshKind, paintMode, model, colour, paint)
+    Flush(shader) : one instanced draw per bucket
+    buffers grown, never shrunk : 0 B steady
+  }
+  class InstancedLitShader {
+    <<NEW — a variant of LitShader>>
+    in mat4 instanceTransform
+    in vec4 instanceColour
+    in vec4 instancePaint
+    the same lighting, fog and BodySurface
+  }
+  class LitShader {
+    <<existing>>
+    uniform colDiffuse, matModel
+  }
+  class BodySurface {
+    <<existing>>
+    camouflage, faces : GLSL
+  }
+  class DoorLeaf3D {
+    <<existing — changed>>
+    leaves into the batch, by screen size
+  }
+  class BodyPickIndex {
+    <<NEW>>
+    Rebuild(drawn boxes) : once per drawn frame
+    Query(ray) : the cells the ray crosses
+  }
+  class EntityBoxPicker {
+    <<existing — changed>>
+    TryPick only on mouse / camera move
+    through BodyPickIndex
+  }
+  EntityBodyLayer3D --> BodyBatch : fills
+  DoorLeaf3D ..> BodyBatch : fills
+  BodyBatch ..> InstancedLitShader : draws with
+  InstancedLitShader ..> BodySurface : same surface code
+  InstancedLitShader ..> LitShader : same lighting code
+  EntityBodyLayer3D --> BodyPickIndex : the drawn boxes
+  EntityBoxPicker ..> BodyPickIndex : queries
+```
+*What it shows that prose hid: nothing in the figure model changes (`ShapeKit`, `BlockFigure`, poses, outfits) — the change is only WHERE a part
+goes: into a batch instead of a draw call. One new shader variant reuses the existing lighting and surface code rather than copying it.*
+
+
+
+- **rev 6 card:** dedicated `CardHeader` and `CardBar` primitive shapes and a mandatory `EntityCardGizmo` header. Superseded by U20 — the card is created by any primitive that targets it; frame, bar and name are ordinary gizmos; no new shapes.

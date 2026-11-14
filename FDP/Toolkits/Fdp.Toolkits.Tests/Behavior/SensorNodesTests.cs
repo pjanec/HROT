@@ -1,0 +1,168 @@
+using Fbt;
+using Fdp.Core;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Perception;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Spatial.Eqs;
+using Fdp.Toolkit.Tests.Utility;
+using Xunit;
+
+namespace Fdp.Toolkit.Tests.Behavior
+{
+    /// <summary>⭐ <c>CE-3054</c> D — the shared sensor / threat-memory nodes (docs/DESIGN_Sensors_And_Doctrine.md §7.8a).</summary>
+    public sealed class SensorNodesTests : System.IDisposable
+    {
+        private readonly UtilityTestWorld _w = new();
+
+        public void Dispose() => _w.Dispose();
+
+        private Entity Sensor(Entity unit, SensorModality kind, float topScore, int count, int part = 1000)
+        {
+            if (!_w.Repo.IsComponentTypeRegistered<SensorTag>()) _w.Repo.RegisterComponent<SensorTag>();
+            var child = _w.SpawnEqsSensor(unit, 1u, topScore, count, part);
+            _w.Repo.AddComponent(child, new SensorTag { Kind = kind });
+            return child;
+        }
+
+        [Fact]
+        public void CE3054_Sees_ReadsTheUnitsSensorOfTheKind_AndItsThresholds()
+        {
+            var unit = _w.SpawnAgent(1f, 1f);
+            Sensor(unit, SensorModality.Visual, topScore: 0.8f, count: 3);
+            Sensor(unit, SensorModality.Thermal, topScore: 0.2f, count: 1, part: 1001);
+
+            var p = new SensorReadParams { Kind = SensorModality.Visual, MinCount = 2, MinTopScore = 0.5f };
+            Assert.True(SensorNodes.Sees(ref p, unit, _w.Repo));
+            p.MinCount = 4;
+            Assert.False(SensorNodes.Sees(ref p, unit, _w.Repo));
+
+            var t = new SensorReadParams { Kind = SensorModality.Thermal, MinTopScore = 0.5f };
+            Assert.False(SensorNodes.Sees(ref t, unit, _w.Repo));   // the thermal top is too weak
+            var a = new SensorReadParams { Kind = SensorModality.Acoustic };
+            Assert.False(SensorNodes.Sees(ref a, unit, _w.Repo));   // no acoustic sensor
+        }
+
+        [Fact]
+        public void CE3054_Read_WritesTheCountTopAndStamp_AndClearsWithoutAnAnswer()
+        {
+            var unit = _w.SpawnAgent(1f, 1f);
+            Sensor(unit, SensorModality.Visual, topScore: 0.9f, count: 2);
+
+            var p = new SensorReadParams { Kind = SensorModality.Visual };
+            var ws = default(SensorReading);
+            Assert.Equal(NodeStatus.Running, SensorNodes.Read(ref p, ref ws, unit, _w.Repo));
+            Assert.Equal(2, ws.Count);
+            Assert.Equal(0.9f, ws.TopScore, precision: 4);
+            Assert.Equal(1u, ws.AnswerTick);
+
+            var r = new SensorReadParams { Kind = SensorModality.Radar };
+            SensorNodes.Read(ref r, ref ws, unit, _w.Repo);
+            Assert.Equal(default, ws);
+        }
+
+        [Fact]
+        public void CE3054_ThreatsAtLeast_CountsByDanger_AndLiveOnly()
+        {
+            var unit = _w.SpawnAgent(1f, 1f);
+            var armed = _w.Repo.CreateEntity();
+            _w.Repo.AddComponent(armed, new WeaponState { Ammo = 30, MaxAmmo = 30 });
+            var unarmed = _w.Repo.CreateEntity();
+            _w.SeedContact(unit, armed, 50f, 1f, -1f, true);
+            _w.SeedContact(unit, unarmed, 60f, 0.1f, -1f, true);   // faded
+
+            var two = new ThreatCountParams { Count = 2 };
+            Assert.True(SensorNodes.ThreatsAtLeast(ref two, unit, _w.Repo));
+            var twoArmed = new ThreatCountParams { Count = 2, MinDanger = 1f };
+            Assert.False(SensorNodes.ThreatsAtLeast(ref twoArmed, unit, _w.Repo));
+            var oneArmed = new ThreatCountParams { Count = 1, MinDanger = 1f };
+            Assert.True(SensorNodes.ThreatsAtLeast(ref oneArmed, unit, _w.Repo));
+            var twoLive = new ThreatCountParams { Count = 2, LiveOnly = true };
+            Assert.False(SensorNodes.ThreatsAtLeast(ref twoLive, unit, _w.Repo));   // the faded one is not live
+        }
+
+        /// <summary>A unit that runs a behaviour (so a fault has a run to latch on) with a DangerArea sensor child.</summary>
+        private Entity UnitWithADangerSensor()
+        {
+            var r = _w.Repo;
+            if (!r.IsComponentTypeRegistered<SensorTag>()) r.RegisterComponent<SensorTag>();
+            if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()) r.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            if (!r.IsComponentTypeRegistered<EqsSensor>()) r.RegisterComponent<EqsSensor>();
+            if (!r.IsComponentTypeRegistered<EqsCognitiveBuffer>()) r.RegisterComponent<EqsCognitiveBuffer>();
+            if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>()) r.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();
+            if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>()) r.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();
+            if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>()) r.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>();
+            if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>()) r.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>();
+            if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorState>()) r.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+            if (!r.Bus.IsRegisteredManaged<Fdp.Toolkit.Behavior.Events.BehaviorFaultNotification>()) r.Bus.RegisterManaged<Fdp.Toolkit.Behavior.Events.BehaviorFaultNotification>();
+            var unit = _w.SpawnAgent(1f, 1f);
+            r.AddComponent(unit, new Fdp.Toolkit.Behavior.Components.BehaviorState { ActiveBehaviorHash = 1234, InstanceId = 7 });
+            Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure(r, unit, 7, Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.Default);
+            return unit;
+        }
+
+        private Fdp.Toolkit.Behavior.Events.BehaviorFaultCode FaultOf(Entity unit)
+            => _w.Repo.HasComponent<Fdp.Toolkit.Behavior.Events.BehaviorFaultLatch>(unit)
+                ? _w.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Events.BehaviorFaultLatch>(unit).Code
+                : Fdp.Toolkit.Behavior.Events.BehaviorFaultCode.None;
+
+        /// <summary>
+        /// 🔴 <c>CE-3078</c> H3 (§10.4 guard, R-133) — the RANKED <c>Read</c> bound to a <c>DangerArea</c> sensor FAILS with a
+        /// <c>WrongSensorFamily</c> behaviour fault, instead of Running for ever on a buffer that sensor never carries.
+        /// </summary>
+        [Fact]
+        public void CE3078_Read_OnADangerAreaSensor_FailsWithAFault_NotRunningForEver()
+        {
+            var unit = UnitWithADangerSensor();
+            var p = new SensorReadParams { Kind = SensorModality.DangerArea };
+            var ws = default(SensorReading);
+            Assert.Equal(NodeStatus.Failure, SensorNodes.Read(ref p, ref ws, unit, _w.Repo));
+            Assert.Equal(default, ws);
+            Assert.Equal(Fdp.Toolkit.Behavior.Events.BehaviorFaultCode.WrongSensorFamily, FaultOf(unit));
+        }
+
+        /// <summary>🔴 <c>CE-3078</c> H3 — the same for the <c>Sees</c> condition: false AND a fault, not a silent false.</summary>
+        [Fact]
+        public void CE3078_Sees_OnADangerAreaSensor_IsFalse_AndFaults()
+        {
+            var unit = UnitWithADangerSensor();
+            var p = new SensorReadParams { Kind = SensorModality.DangerArea };
+            Assert.False(SensorNodes.Sees(ref p, unit, _w.Repo));
+            Assert.Equal(Fdp.Toolkit.Behavior.Events.BehaviorFaultCode.WrongSensorFamily, FaultOf(unit));
+        }
+
+        /// <summary>🔴 <c>CE-3079</c> H1 (§10.5) — <c>WithinMetres</c> counts only contacts whose REMEMBERED position is within the
+        /// distance of the unit; 0 keeps every distance (the rail above, unchanged).</summary>
+        [Fact]
+        public void CE3079_ThreatsAtLeast_WithinMetres_CountsOnlyContactsInsideTheRadius()
+        {
+            var unit = _w.SpawnAgent(1f, 1f);                       // at the origin
+            var armed = _w.Repo.CreateEntity();
+            _w.Repo.AddComponent(armed, new WeaponState { Ammo = 30, MaxAmmo = 30 });
+            _w.SeedContact(unit, armed, 120f, 1f, -1f, true);      // remembered 120 m away
+
+            var any = new ThreatCountParams { Count = 1, MinDanger = 0.5f };
+            Assert.True(SensorNodes.ThreatsAtLeast(ref any, unit, _w.Repo), "0 = any distance");
+            var near = new ThreatCountParams { Count = 1, MinDanger = 0.5f, WithinMetres = 90f };
+            Assert.False(SensorNodes.ThreatsAtLeast(ref near, unit, _w.Repo), "120 m is outside 90 m");
+            var far = new ThreatCountParams { Count = 1, MinDanger = 0.5f, WithinMetres = 130f };
+            Assert.True(SensorNodes.ThreatsAtLeast(ref far, unit, _w.Repo));
+
+            _w.Repo.GetComponentRW<SimTransform>(unit).Position = new System.Numerics.Vector3(60f, 0f, 0f);   // the unit closes in
+            Assert.True(SensorNodes.ThreatsAtLeast(ref near, unit, _w.Repo), "measured from where the unit is NOW: 60 m");
+        }
+
+        /// <summary>⭐ <c>CE-3063</c> ② — a HEARD contact counts by its sound class's danger (K3): a heard tank is a dangerous
+        /// threat, heard footsteps are not.</summary>
+        [Fact]
+        public void CE3063_ThreatsAtLeast_CountsAHeardContactByItsClass()
+        {
+            var unit = _w.SpawnAgent(1f, 1f);
+            _w.SeedHeard(unit, 100f, 0f, 20f, (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Footsteps);
+            var dangerous = new ThreatCountParams { Count = 1, MinDanger = 0.9f };
+            Assert.False(SensorNodes.ThreatsAtLeast(ref dangerous, unit, _w.Repo), "footsteps read 0.6");
+            _w.SeedHeard(unit, -300f, 0f, 20f, (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.TrackedEngine);
+            Assert.True(SensorNodes.ThreatsAtLeast(ref dangerous, unit, _w.Repo), "a heard tracked engine reads 1");
+        }
+    }
+}

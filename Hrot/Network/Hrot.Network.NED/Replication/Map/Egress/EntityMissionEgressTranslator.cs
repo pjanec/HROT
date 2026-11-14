@@ -25,11 +25,20 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public class EntityMissionEgressTranslator : IDescriptorTranslator
     {
+        // ⭐ CE-2407 (DESIGN_Egress_Change_Detection §5, E1) — skips the entities none of these inputs changed for; NetworkIdentity is implied
+        private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(MissionPlanQueue), typeof(ActiveMissionPlan));
+
         private readonly DdsWriter<EntityMission> _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly BehaviorRegistry? _behaviorRegistry;
 
-        public string TopicName => "EntityMission";
+        // ⭐ CE-483 (egress half, W2): the progress last SENT per net id. A reliable descriptor is published once and then
+        // only when dirtied, and the only MarkDirty of this ordinal is the operator-command path — MissionDirectorSystem
+        // advancing, recording an outcome or halting dirtied nothing, so the wire never saw a phase change.
+        private readonly Dictionary<long, (ulong Outcomes, int Head)> _lastSentProgress = new();
+        private int _worldEpoch;
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityMission>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEntityMission;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -40,7 +49,7 @@ namespace Hrot.Map.Common.Replication.Egress
             NetworkEntityMap entityMap,
             BehaviorRegistry? behaviorRegistry = null)
         {
-            _writer           = new DdsWriter<EntityMission>(participant, "EntityMission");
+            _writer           = new DdsWriter<EntityMission>(participant);
             _entityMap        = entityMap;
             _behaviorRegistry = behaviorRegistry;
         }
@@ -56,27 +65,33 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
+            if (WorldEpoch.Moved(view, ref _worldEpoch)) _lastSentProgress.Clear();   // ⭐ R-3039 S3 — a world replacement (a load, a restore): republish every mission (R-3041)
             var query = view.Query()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .With<MissionPlanQueue>()
                 // Include Constructing entities so remote nodes receive mission data immediately.
-                .WithLifecycle(EntityLifecycle.All)
+                .WithLifecycle(EntityLifecycle.AllButTearDown)
                 .Build();
 
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
+            _gate.Begin(view);
             foreach (var entity in query)
             {
+                if (!_gate.Visit(entity)) continue;   // ⭐ CE-2407 E1 — nothing this translator reads has changed since its last scan
                 // Authority check: only publish if we own the mission descriptor for this entity.
                 if (!view.HasAuthority(entity, packedKey))
                     continue;
 
-                // Smart egress: EntityMission is RELIABLE â€” publish only on dirty.
-                if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))
-                    continue;
-
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
                 ref readonly var queue = ref view.GetComponentRO<MissionPlanQueue>(entity);
+
+                // Smart egress: EntityMission is RELIABLE — publish on dirty, ⭐ or when the plan's progress moved
+                // (CE-483 W2: every writer is covered without each one having to remember MarkDirty).
+                var progress = MissionProgressWire.ProgressOf(in queue);
+                bool progressMoved = !_lastSentProgress.TryGetValue(netId.Value, out var sent) || sent != progress;
+                if (!progressMoved && !SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))
+                    continue;
 
                 // Read BehaviorParams from the managed ActiveMissionPlan companion component.
                 ActiveMissionPlan? activePlan = view.HasManagedComponent<ActiveMissionPlan>(entity)
@@ -90,6 +105,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 });
 
                 SentSampleCount++;
+                _lastSentProgress[netId.Value] = progress;
                 SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
             }
         }
@@ -101,11 +117,11 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         private MissionPlan BuildDdsPlan(in MissionPlanQueue queue, ActiveMissionPlan? activePlan)
         {
-            var tasks = new List<MissionTask>(queue.PhaseCount);
+            var tasks = new List<MissionTask>(queue.TaskCount);
 
-            for (int i = 0; i < queue.PhaseCount; i++)
+            for (int i = 0; i < queue.TaskCount; i++)
             {
-                var phase = queue.Phases[i];
+                var phase = queue.Tasks[i];
 
                 string triggerType = phase.Trigger switch
                 {
@@ -139,7 +155,9 @@ namespace Hrot.Map.Common.Replication.Egress
                             Params = phase.TriggerParam.ToString(System.Globalization.CultureInfo.InvariantCulture)
                         }
                     },
-                    State = i == queue.CurrentPhase ? eTaskState.TASK_ACTIVE : eTaskState.TASK_PLANNED
+                    // ⭐ CE-483 W1: the recorded outcome first (✓ / ✗), then ACTIVE for the running phase of a plan that is
+                    //   not halted. ⛔ Was `i == CurrentPhase ? ACTIVE : PLANNED` — a finished task was sent as PLANNED.
+                    State = MissionProgressWire.StateOf(in queue, i)
                 });
             }
 
@@ -158,9 +176,17 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>
         /// Sends a DDS dispose for the named entity's mission topic instance.
         /// </summary>
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
+            _lastSentProgress.Remove(networkEntityId);
             _writer.DisposeInstance(new EntityMission { EntityId = networkEntityId });
+        }
+
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
+        public void ReleaseInstance(int networkEntityId, long instanceId)
+        {
+            _lastSentProgress.Remove(networkEntityId);
+            _writer.UnregisterInstance(new EntityMission { EntityId = networkEntityId });
         }
     }
 }

@@ -28,18 +28,17 @@ namespace Fdp.Toolkit.Physics.Systems
     ///     </description>
     ///   </item>
     ///   <item>
-    ///     <term>LOS ray (<see cref="PhysicsConstants.IsBulletRay"/> == false)</term>
+    ///     <term>Any other ray (<see cref="PhysicsConstants.IsBulletRay"/> == false)</term>
     ///     <description>
-    ///       Publishes <see cref="TargetVisibleEvent"/> (owned by <c>FDP.Toolkit.Perception</c>;
-    ///       consumed by <c>ThreatEvaluationSystem</c>).
+    ///       Nothing — the requester reads its own result (the EQS accurate-LOS test, the BTree raycast query).
+    ///       ⛔ <c>CE-3052</c>: it used to publish <c>TargetVisibleEvent</c> for every such hit; with the toolkit's
+    ///       LOS chain retired the only non-bullet rays left were EQS cover rays, where a hit means BLOCKED.
     ///     </description>
     ///   </item>
     /// </list>
     /// </para>
     /// <para>
     /// <b>Cross-toolkit dependency approach (BATCH-08 Q3):</b>
-    /// <c>FDP.Toolkit.Physics</c> references <c>FDP.Toolkit.Perception</c> directly so it
-    /// can publish <see cref="TargetVisibleEvent"/> without duplicating the type.
     /// <see cref="HitEvent"/> is now defined in <c>Fdp.Core</c> (BATCH-10: moved from
     /// <c>FDP.Toolkit.Combat.Events</c> to break the circular dependency introduced in
     /// BATCH-09 when Combat systems started needing Physics types).
@@ -54,10 +53,14 @@ namespace Fdp.Toolkit.Physics.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class HitResolutionSystem : IEcsModuleSystem
     {
+        private readonly System.Collections.Generic.HashSet<Entity> _resolved = new();   // ⭐ CE-2204 — the rounds resolved this frame
+
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(HitResolutionSystem)} requires direct EntityRepository access " +
@@ -66,6 +69,7 @@ namespace Fdp.Toolkit.Physics.Systems
             var events = view.ReadEvents<RaycastResultEvent>();
             if (events.IsEmpty) return;
 
+            _resolved.Clear();
             for (int i = 0; i < events.Length; i++)
             {
                 ref readonly var hit = ref events[i].Hit;
@@ -73,8 +77,12 @@ namespace Fdp.Toolkit.Physics.Systems
 
                 if (PhysicsConstants.IsBulletRay(hit.RayId))
                 {
-                    int bulletIndex = (int)(hit.RayId & 0x7FFF_FFFF_FFFF_FFFFL);
-                    var bulletEntity = repo.GetEntityByIndex(bulletIndex);
+                    // ⭐⭐ CE-2204 — a round hits ONCE: the bullet the ray names (index AND generation — a slot reused by a newer round is
+                    //   not it), still in flight (not torn down by an earlier hit), and not already resolved this frame. Its other
+                    //   segments' results (they often cross the same body) are dropped.
+                    if (!PhysicsConstants.TryBulletOf(repo, hit.RayId, out var bulletEntity)) continue;
+                    if (repo.IsAlive(bulletEntity)
+                        && (repo.GetLifecycleState(bulletEntity) == EntityLifecycle.TearDown || !_resolved.Add(bulletEntity))) continue;
 
                     // Bullet hit -> emit HitEvent (Combat toolkit will consume in Phase 5).
                     repo.Bus.Publish(new HitEvent
@@ -83,6 +91,8 @@ namespace Fdp.Toolkit.Physics.Systems
                         BulletEntity = bulletEntity,
                         HitT         = hit.T,
                     });
+                    // ⭐ AQ85 E (R-216) — a hit suppresses the unit struck (its own aim is spoiled for a while).
+                    Fdp.Toolkit.Combat.HitModel.StampUnderFire(repo, hit.HitEntity, Fdp.Toolkit.Combat.HitModel.Now(repo));
 
                     // PACK-P003: Always emit DetonationNotification with local ECS Entity handles.
                     // The shooter entity is hit.IgnoreEntity (set to the bullet's Shooter by
@@ -92,14 +102,86 @@ namespace Fdp.Toolkit.Physics.Systems
                     // NetworkEntityMap dependency.
                     var hitPos = hit.Start + hit.T * (hit.End - hit.Start);
 
+                    // ⭐ CE-3071 — carry the bullet's munition to the damage step (same assembly; the bullet is still alive
+                    //   here — its TearDown is queued below).
+                    float penetration = 0f, damage = 0f;
+                    long ammo = 0;   // ⭐ CE-1032 W-2 — the round's munition type, for the area effect
+                    Entity originalShooter = Entity.Null;   // ⭐ CE-4155 (SR-82) — a rethrown round's first thrower
+                    System.Numerics.Vector3? muzzle = null;   // ⭐ M1 — for a zero-length segment's travel
+                    if (repo.IsAlive(bulletEntity)
+                        && repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.BallisticProjectile>()
+                        && repo.HasComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>(bulletEntity))
+                    {
+                        ref readonly var bp = ref repo.GetComponentRO<Fdp.Toolkit.Combat.Components.BallisticProjectile>(bulletEntity);
+                        // ⭐ CE-1032 — a warhead round that already burst (a terrain stop) is kept only so late raycasts resolve; it
+                        //   must not burst again on one of them.
+                        if ((bp.Warhead & Fdp.Toolkit.Combat.Components.WarheadRound.Spent) != 0) continue;
+                        penetration = bp.Penetration;
+                        damage      = bp.Damage;
+                        ammo        = bp.Ammo;
+                        originalShooter = bp.OriginalShooter;
+                        if ((bp.TerrainFlags & 1) != 0) muzzle = bp.Muzzle;
+                        // ⭐ Buildings §3d P2 (R-217) — the walls/fences/floors between the MUZZLE and the struck unit: the round is
+                        //   carried from where it was fired (its Damage/Penetration are the muzzle values), so this is exact however many
+                        //   ticks the segment's raycast took (three). A unit in FRONT of a fence takes the full round. A round built
+                        //   without a muzzle (older tests, examples) is carried from this segment's start.
+                        var shot = Fdp.Toolkit.Combat.ShotLog.Peek(repo)?.Of(bulletEntity);   // ⭐ T-4
+                        if (Fdp.Toolkit.World.WorldQuery.Of(repo) is { } terrain)   // ⭐ CE-1035 Q1 — bound to this view's doors (R-219)
+                        {
+                            shot?.Crossings.Clear();
+                            Fdp.Toolkit.Combat.TerrainPenetration.Carry(terrain, (bp.TerrainFlags & 1) != 0 ? bp.Muzzle : hit.Start, hitPos,
+                                ref damage, ref penetration, out _, shot?.Crossings);
+                        }
+                        if (shot != null)
+                        {
+                            shot.HitEntity = hit.HitEntity;
+                            if (hit.HasBodyPart != 0)   // ⭐ CE-3209 — the part and the face, for /combat/shots
+                            {
+                                shot.HitPart = Fdp.Toolkit.Physics.BodyParts.VehicleBody.Of(repo, hit.HitEntity) switch   // ⭐ CE-3211 — a vehicle's parts
+                                {
+                                    { Stowed: not null } => Fdp.Toolkit.Physics.BodyParts.WeaponPart.NameOf(hit.BodyPart),   // ⭐ CE-3214 — a weapon's
+                                    { } air when Fdp.Toolkit.Physics.BodyParts.AircraftPart.IsAircraft(air.Plan)
+                                        => Fdp.Toolkit.Physics.BodyParts.AircraftPart.NameOf(hit.BodyPart),   // ⭐ CE-3215 — an aircraft's
+                                    not null => Fdp.Toolkit.Physics.BodyParts.VehiclePart.NameOf(hit.BodyPart),
+                                    _ => Fdp.Toolkit.Physics.BodyParts.PersonPart.NameOf(hit.BodyPart),
+                                };
+                                shot.HitFace = ((Fdp.Toolkit.Combat.Facing)hit.Face).ToString();
+                            }
+                            shot.ArrivingDamage = damage;
+                            shot.ArrivingPenetration = penetration;
+                            Fdp.Toolkit.Combat.ShotLog.End(shot, Fdp.Toolkit.Combat.ShotOutcome.Hit,
+                                repo.HasSingleton<GlobalTime>() ? (uint)repo.GetSingleton<GlobalTime>().FrameNumber : 0u, hitPos);
+                        }
+                    }
+
+                    // ⭐ M1 (D-A) — the way the round was travelling: this swept segment (an arc's too); a zero-length first segment
+                    //   falls back to the line from the muzzle. Born here, dies at the face choice — never stored on the round.
+                    var travel = hit.End - hit.Start;
+                    if (travel.LengthSquared() < 1e-8f && muzzle is { } m) travel = hitPos - m;
+
                     repo.Bus.Publish(new DetonationNotification
                     {
-                        Shooter = hit.IgnoreEntity,
-                        Target  = hit.HitEntity,
-                        HitX    = hitPos.X,
-                        HitY    = hitPos.Y,
-                        HitZ    = hitPos.Z,
+                        TravelX     = travel.X,
+                        TravelY     = travel.Y,
+                        TravelZ     = travel.Z,
+                        Shooter     = hit.IgnoreEntity,
+                        Target      = hit.HitEntity,
+                        HitX        = hitPos.X,
+                        HitY        = hitPos.Y,
+                        HitZ        = hitPos.Z,
+                        Penetration = penetration,
+                        Damage      = damage,
+                        Ammo        = ammo,
+                        OriginalShooter = originalShooter,   // ⭐ CE-4155
+                        HasBodyPart = hit.HasBodyPart,   // ⭐ CE-3209 (HL-5) — the part met and the face entered
+                        BodyPart    = hit.BodyPart,
+                        Face        = hit.Face,
                     });
+
+                    // ⭐ CE-3210 (HL-8) — the mark the round left on the part, written here because this node resolved the hit (the
+                    //   Muscle owns HitMarks). Added on the first hit; a body never struck carries none.
+                    if (hit.HasBodyPart != 0) BodyParts.HitMarksWriter.Mark(repo, hit.HitEntity, hit.BodyPart, hit.LocalPoint, hit.Face,
+                        BodyParts.HitMarkKind.Bullet);
 
                     // Transition the bullet to TearDown so BallisticsSystem's Active-filtered
                     // query drops it (preventing further raycasts), while its component memory
@@ -110,19 +192,6 @@ namespace Fdp.Toolkit.Physics.Systems
                         var cmd = view.GetCommandBuffer();
                         cmd.SetLifecycleState(bulletEntity, EntityLifecycle.TearDown);
                     }
-                }
-                else
-                {
-                    // LOS hit -- emit TargetVisibleEvent (Perception toolkit consumes it).
-                    // Full Entity handles propagated from RaycastRequest -- no index-only recovery needed.
-                    // IsAlive checks are intentionally deferred to ThreatEvaluationSystem (the consumer),
-                    // since a one-frame entity destruction between solve and emit is possible but does not
-                    // warrant a check here -- the consumer applies the generational guard.
-                    repo.Bus.Publish(new TargetVisibleEvent
-                    {
-                        Observer = hit.Observer,
-                        Target   = hit.Target,
-                    });
                 }
             }
         }

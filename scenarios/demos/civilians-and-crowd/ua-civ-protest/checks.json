@@ -1,0 +1,57 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CV-13 (CE-2240): a peaceful protest crowd with gestures. From the header's Judge (1)-(3). The 'on CGF, SimHost and IG' and the '>= 3 members' counts collapse to one world and 'a member' (a gesture cue is 'any unit'); the crowd is checked as >= 10 men with a CrowdId set (the id's equality is not readable).",
+  "runFor": 150,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "every protester reaches Protest",
+      "on": "field",
+      "who": "*Protester",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Protest",
+      "quantifier": "all"
+    },
+    {
+      "name": "at least ten stand in a crowd (CrowdId set)",
+      "on": "field",
+      "who": "*Protester",
+      "path": "CivilianState.CrowdId",
+      "op": "!=",
+      "value": 0,
+      "quantifier": "atLeast:10"
+    },
+    {
+      "name": "a member raises a fist",
+      "on": "gesture",
+      "who": "*Protester",
+      "is": "FistRaised"
+    },
+    {
+      "name": "a member holds a sign",
+      "on": "gesture",
+      "who": "*Protester",
+      "is": "HoldSign"
+    },
+    {
+      "name": "nobody riots",
+      "never": {
+        "on": "field",
+        "who": "*Protester",
+        "path": "CivilianState.Mode",
+        "op": "==",
+        "value": "Riot"
+      }
+    },
+    {
+      "name": "nobody turns Hostile",
+      "never": {
+        "on": "side",
+        "who": "*Protester",
+        "is": "Hostile"
+      }
+    }
+  ]
+}

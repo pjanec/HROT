@@ -104,14 +104,14 @@ public sealed class AiGraphCanvasWindowTabBarTests
     // ── Tab label / glyph mapping ──────────────────────────────────────────────
 
     [Fact]
-    public void GetTabLabel_ContainsGlyph_Name_AndStableAssetIdSuffix()
+    public void GetTabLabel_IsTheName_AndAStableAssetIdSuffix_NoGlyphPrefix()
     {
         var asset = new FakeAsset(AssetKind.BTree, "MyTree");
         var doc   = new AiDocument(asset, AssetKind.BTree);
 
         var label = AiGraphCanvasWindow.GetTabLabel(doc);
 
-        Assert.StartsWith(IconsFontAwesome6.Sitemap + " MyTree", label);
+        Assert.StartsWith("MyTree###", label);                          // ⭐ U-3: the coloured icon is painted by IconTab, not typed into the label
         Assert.EndsWith("###" + asset.AssetId, label);
     }
 

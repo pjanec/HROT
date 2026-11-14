@@ -1,0 +1,87 @@
+{
+  "title": "Into the room",
+  "caption": "Stack beside the door, breach, entry one man at a time",
+  "clip": "F-62",
+  "chapter": 8,
+  "state": "ready",
+  "endAt": "m+8",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Insurgent 1",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-15",
+      "follow": "Blue Leader",
+      "distance": 60,
+      "yaw": 20,
+      "pitch": -60,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Blue Rifleman 4",
+      "toward": "Insurgent 1",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Blue Rifleman 4",
+      "toward": "Insurgent 1",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Insurgent 1",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-15",
+      "to": "m-4",
+      "speed": 2
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+8"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-15",
+      "until": "m-4",
+      "text": "The squad stacks beside the door and breaches"
+    },
+    {
+      "at": "m-4",
+      "until": "m+8",
+      "text": "The entry team goes in"
+    }
+  ]
+}

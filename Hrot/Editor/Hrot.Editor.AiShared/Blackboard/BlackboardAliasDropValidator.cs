@@ -36,10 +36,11 @@ public static class BlackboardAliasDropValidator
             
             if (existingRegion != newRegion)
             {
-                // Conflict! Let's check suppression. The writerPairKey pairs the two requiring element IDs.
-                var a = newBinding.RequiringElementId.ToString("N");
-                var c = b.RequiringElementId.ToString("N");
-                var writerPairKey = a.CompareTo(c) < 0 ? $"{a}_{c}" : $"{c}_{a}";
+                // Conflict! Check suppression. ⭐ W7a: the key is built by BlackboardConflictKey so
+                //    this surface and HsmValidator's rule 9 cannot key the same pair differently —
+                //    which would silence one and not the other, with nothing failing anywhere.
+                var writerPairKey = BlackboardConflictKey.ForWriterPair(
+                    newBinding.RequiringElementId, b.RequiringElementId);
                 if (asset.IsConflictSuppressed(variableName, writerPairKey))
                     continue;
 

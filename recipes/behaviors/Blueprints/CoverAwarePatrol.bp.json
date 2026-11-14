@@ -1,0 +1,174 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000000-aaaa-0001-0000-000000000001",
+  "Name": "CoverAwarePatrol",
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Declarations": [
+    {
+      "Kind": "Variable",
+      "Id": "a1000001-0001-0001-0001-000000000001",
+      "Name": "CoverQuery",
+      "Type": {
+        "TypeId": "FDP.Eqs.EqsSensorHandle",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "a1000001-0002-0002-0002-000000000002",
+      "Name": "Initialized",
+      "Type": {
+        "TypeId": "System.Boolean",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "a1000001-0003-0003-0003-000000000003",
+      "Name": "PatrolTarget",
+      "Type": {
+        "TypeId": "System.Numerics.Vector2",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "b1000001-0001-0001-0001-000000000001",
+      "Name": "Tick",
+      "Kind": "Event",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "c1000001-0001-0001-0001-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SpawnEqsSensor",
+          "TemplateAssetId": "00000000-cccc-0001-0000-000000000001",
+          "Id": "c1000001-0002-0002-0002-000000000002",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "When",
+          "Mode": "EqsResult",
+          "Edges": "RisingEdge",
+          "ValueChanged": null,
+          "EventFired": null,
+          "ConditionMet": null,
+          "EqsResult": {
+            "SensorVariableName": "CoverQuery",
+            "Trigger": "TopChanged",
+            "ScoreThreshold": 0,
+            "MaxAgeSeconds": 0
+          },
+          "Id": "c1000001-0003-0003-0003-000000000003",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ReadEqsResult",
+          "SensorVariableName": "CoverQuery",
+          "Id": "c1000001-0004-0004-0004-000000000004",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "MoveTo",
+          "Id": "c1000001-0005-0005-0005-000000000005",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": {
+      "DisplayName": "Cover-aware Patrol",
+      "Category": "Combat",
+      "Description": "Complete end-to-end EQS pipeline demonstration. First-tick branch gates one-shot sensor setup; WhenNode observes the sensor for top-result changes; ReadEqsResultNode extracts position; MoveTo channel command issued. Demonstrates all three new nodes.",
+      "Difficulty": "Beginner",
+      "ConceptsTaught": [
+        "Declaring an EqsSensorHandle variable",
+        "First-tick pattern: using an Initialized boolean to gate one-shot setup",
+        "SpawnEqsSensorNode with SearchRadius and FactionFilter pins",
+        "WhenNode in EQS Result mode (TopChanged trigger)",
+        "ReadEqsResultNode for downstream data extraction",
+        "The complete spawn - observe - read - act pipeline"
+      ]
+    }
+  }
+}

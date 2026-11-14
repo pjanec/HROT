@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Fdp.Presentation.Icons;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 
 namespace Hrot.UI.Common.Panels;
 
@@ -13,7 +14,7 @@ namespace Hrot.UI.Common.Panels;
 public static class TransportIcons
 {
     /// <summary>Icon shapes understood by the transport drawing helpers.</summary>
-    public enum BtnShape { Play, Pause, Step, Stop }
+    public enum BtnShape { Play, Pause, Step, Stop, Eject, Rewind }
 
     /// <summary>Ordered list of choosable time-rate values shown in rate-selector popups.</summary>
     public static readonly float[] TimeRates = { 0.1f, 0.5f, 1.0f, 1.5f, 2.0f, 5.0f, 10.0f };
@@ -26,7 +27,10 @@ public static class TransportIcons
     /// is clicked. When <paramref name="enabled"/> is <c>false</c> the icon is rendered
     /// dimmed and the hit area is replaced by a passive <c>Dummy</c> widget.
     /// </summary>
-    public static bool DrawTransportButton(string id, float size, BtnShape shape, bool enabled)
+    public static bool DrawTransportButton(string id, float size, BtnShape shape, bool enabled) => DrawTransportButton(id, size, shape, enabled, null);
+
+    /// <summary>⭐ L-11 / CE-4319 — the same button, ▶ drawn in <paramref name="playTint"/> (the colour of the mode a press plays; null = the default green).</summary>
+    public static bool DrawTransportButton(string id, float size, BtnShape shape, bool enabled, Vector4? playTint)
     {
         // Capture the top-left screen position BEFORE the hit-area widget so we can
         // draw at that position via the ImDrawList regardless of cursor movement.
@@ -52,7 +56,7 @@ public static class TransportIcons
 
         // Icon shape — shift 1 px down-right when pressed for tactile feedback.
         var drawPos = pressed ? pos + new Vector2(1f, 1f) : pos;
-        DrawShape(dl, shape, drawPos, size, dim: !enabled, hovered: hovered);
+        DrawShape(dl, shape, drawPos, size, dim: !enabled, hovered: hovered, playTint: playTint);
 
         // Shared chrome: inset white hover frame on top (transport has no persistent toggle).
         IconButtonChrome.DrawHoverFrame(dl, pos, new Vector2(size, size), hovered);
@@ -68,7 +72,7 @@ public static class TransportIcons
     /// </summary>
     public static void DrawShape(
         ImDrawListPtr dl, BtnShape shape, Vector2 pos, float size,
-        bool dim, bool hovered)
+        bool dim, bool hovered, Vector4? playTint = null)
     {
         float alpha = dim ? 0.28f : (hovered ? 1.0f : 0.85f);
         float pad   = MathF.Round(size * 0.22f);
@@ -77,8 +81,9 @@ public static class TransportIcons
         {
             case BtnShape.Play:
             {
-                // Green filled triangle pointing right.
-                uint col = ImGui.GetColorU32(new Vector4(0.20f, 0.78f, 0.20f, alpha));
+                // A filled triangle pointing right — in the mode's colour (L-11), green by default.
+                var tint = playTint ?? new Vector4(0.20f, 0.78f, 0.20f, 1f);
+                uint col = ImGui.GetColorU32(new Vector4(tint.X, tint.Y, tint.Z, alpha));
                 var p0 = pos + new Vector2(pad, pad);
                 var p1 = pos + new Vector2(size - pad, size * 0.5f);
                 var p2 = pos + new Vector2(pad, size - pad);
@@ -88,8 +93,9 @@ public static class TransportIcons
 
             case BtnShape.Pause:
             {
-                // Two white vertical bars.
-                uint col  = ImGui.GetColorU32(new Vector4(1f, 1f, 1f, alpha));
+                // Two vertical bars — white, or ⭐ CE-3409 the run's colour (D27: the glyph wears the indicator's colour)
+                var pt = playTint ?? new Vector4(1f, 1f, 1f, 1f);
+                uint col  = ImGui.GetColorU32(new Vector4(pt.X, pt.Y, pt.Z, alpha));
                 float bw  = MathF.Round(size * 0.18f);
                 float bx  = pos.X + pad;
                 float by  = pos.Y + pad;
@@ -121,6 +127,26 @@ public static class TransportIcons
                 break;
             }
 
+            case BtnShape.Eject:
+            {
+                // ⭐ R-8 / CE-3412 (D30, ind.png) — ⏏ is the FA "right-from-bracket" (arrow leaving a bracket), light on the button: "Close the session" in Live · ended, "back to live" in a DAR.
+                //   ⛔ was a green eject triangle. The glyph is the UI font's merged FontAwesome; 0 B (a const string).
+                uint col = ImGui.GetColorU32(new Vector4(0.84f, 0.90f, 1f, alpha));
+                const string glyph = Fdp.Presentation.Fonts.IconsFontAwesome6.RightFromBracket;
+                var sz = ImGui.CalcTextSize(glyph);
+                dl.AddText(new Vector2(pos.X + MathF.Round((size - sz.X) / 2f), pos.Y + MathF.Round((size - sz.Y) / 2f)), col, glyph);
+                break;
+            }
+
+            case BtnShape.Rewind:
+            {
+                // ⭐ CE-4321 (L-5) — ⏪ two amber left-pointing triangles: "Review" (DAR's colour).
+                uint col = ImGui.GetColorU32(new Vector4(0.96f, 0.70f, 0.18f, alpha));
+                float mid = size * 0.5f, half = (size - 2 * pad) * 0.5f;
+                dl.AddTriangleFilled(pos + new Vector2(pad, mid), pos + new Vector2(pad + half, pad), pos + new Vector2(pad + half, size - pad), col);
+                dl.AddTriangleFilled(pos + new Vector2(pad + half, mid), pos + new Vector2(size - pad, pad), pos + new Vector2(size - pad, size - pad), col);
+                break;
+            }
             case BtnShape.Stop:
             {
                 // Red filled square.
@@ -142,10 +168,15 @@ public static class TransportIcons
     public static string FormatRate(float rate)
     {
         int rounded = (int)MathF.Round(rate * 10f);
-        return (rounded % 10 == 0)
+        // ⭐ CE-3409 — the toolbar reads this every frame: the text is built only when the SHOWN value changes (0 B steady)
+        if (rounded == _rateShown && _rateText is not null) return _rateText;
+        _rateShown = rounded;
+        return _rateText = (rounded % 10 == 0)
             ? $"{rounded / 10}x"
             : $"{rate.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}x";
     }
+    private static int _rateShown;
+    private static string? _rateText;
 
     /// <summary>
     /// Formats a duration in seconds as <c>HH:MM:SS.mmm</c>.
@@ -154,6 +185,12 @@ public static class TransportIcons
     public static string FormatTime(double totalSeconds)
     {
         var ts = TimeSpan.FromSeconds(totalSeconds);
-        return $"{(int)ts.TotalHours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}.{ts.Milliseconds:D3}";
+        // ⭐ CE-3409 — built only when the shown value (to the millisecond) changes: a paused clock, a greyed ended Live, an idle toolbar allocate nothing
+        long shown = (long)(ts.Ticks / TimeSpan.TicksPerMillisecond);
+        if (shown == _timeShown && _timeText is not null) return _timeText;
+        _timeShown = shown;
+        return _timeText = $"{(int)ts.TotalHours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}.{ts.Milliseconds:D3}";
     }
+    private static long _timeShown;
+    private static string? _timeText;
 }

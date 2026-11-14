@@ -95,7 +95,7 @@ All task IDs use the prefix **CS** (Commander-Subordinate).
 **NOT included:** Populating the component.
 
 **Constraints:**
-- Must carry `[DataPolicy(DataPolicy.NoSave)]` — the serializer must not save it.
+- Must carry `[DataPolicy(DataPolicy.NoScenario)]` — the serializer must not save it.
 - Must carry `[StructLayout(LayoutKind.Sequential)]` and `[ComponentId(HrotComponentIds.UnitRoster)]`.
 - `public const int Capacity = 16` must appear inside the struct definition.
 - Fixed buffers must use the named constant: `fixed long SubordinateEntities[Capacity]` and
@@ -108,8 +108,8 @@ All task IDs use the prefix **CS** (Commander-Subordinate).
    `sizeof(UnitRoster)` == `4 + 16*8 + 16*2` == `4 + 128 + 32` == 164 bytes.
    (Verify with `Unsafe.SizeOf<UnitRoster>()` in a unit test.)
 
-2. *DataPolicy is NoSave:*
-   `typeof(UnitRoster).GetCustomAttribute<DataPolicyAttribute>().Value & DataPolicy.NoSave != 0`.
+2. *DataPolicy is NoScenario:*
+   `typeof(UnitRoster).GetCustomAttribute<DataPolicyAttribute>().Value & DataPolicy.NoScenario != 0`.
 
 3. *Capacity constant is 16:*
    `UnitRoster.Capacity == 16`.

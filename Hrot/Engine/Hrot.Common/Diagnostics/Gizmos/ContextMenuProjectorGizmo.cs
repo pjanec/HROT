@@ -6,8 +6,9 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Common.Constants;
-using Hrot.IG.Components;
+using Fdp.Toolkit.Combat.Components;
 using Hrot.Map.Common.Components;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Common.Diagnostics.Gizmos
 {
@@ -33,96 +34,30 @@ namespace Hrot.Common.Diagnostics.Gizmos
         // ---- Pre-serialised menu permutations (built once at class-load time) ----
 
         private static readonly JsonSerializerOptions SerializerOptions =
-            new JsonSerializerOptions
-            {
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
-            };
+            // CE-3187 (R-2005): the shared options; every ContextMenuItemDto member carries its own ignore condition.
+            FdpJsonOptionsRegistry.DefaultRelaxed;
 
-        /// <summary>Menu for a combat-effective (healthy) unit.</summary>
-        private static readonly string MenuJsonHealthy = JsonSerializer.Serialize(
-            new ContextMenuItemDto[]
-            {
-                new ContextMenuItemDto { Id = GlobalActionIds.MoveHere,       Label = "Move Here",    Shortcut = "M" },
-                new ContextMenuItemDto { Id = GlobalActionIds.Engage,          Label = "Engage",       Shortcut = "E" },
-                new ContextMenuItemDto { Id = GlobalActionIds.Stop,            Label = "Stop",         Shortcut = "S" },
-                new ContextMenuItemDto { IsSeparator = true },
-                new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity,  Label = "Center View",  Shortcut = "C" },
-                new ContextMenuItemDto { Id = GlobalActionIds.Select,          Label = "Select",       Shortcut = "Space" },
-                new ContextMenuItemDto { IsSeparator = true },
-                new ContextMenuItemDto { Id = GlobalActionIds.Rotate,          Label = "Rotate",       Shortcut = "R" },
-            }, SerializerOptions);
-
-        /// <summary>Menu for a significantly damaged unit (health &lt; 50 %).</summary>
-        private static readonly string MenuJsonDegraded = JsonSerializer.Serialize(
-            new ContextMenuItemDto[]
-            {
-                new ContextMenuItemDto { Id = GlobalActionIds.MoveHere, Label = "Move Here",  Enabled = false,
-                    Tooltip = "Cannot move: Unit is heavily damaged" },
-                new ContextMenuItemDto { Id = GlobalActionIds.Engage,   Label = "Engage",     Enabled = false,
-                    Tooltip = "Cannot engage: Unit is heavily damaged" },
-                new ContextMenuItemDto { Id = GlobalActionIds.Stop,           Label = "Stop",       Shortcut = "S" },
-                new ContextMenuItemDto { IsSeparator = true },
-                new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity, Label = "Center View", Shortcut = "C" },
-                new ContextMenuItemDto { Id = GlobalActionIds.Select,         Label = "Select",      Shortcut = "Space" },
-                new ContextMenuItemDto { IsSeparator = true },
-                new ContextMenuItemDto { Id = GlobalActionIds.Rotate,         Label = "Rotate",      Shortcut = "R" },
-            }, SerializerOptions);
-
-        /// <summary>Menu for a tactical graphics area overlay.</summary>
-        private static readonly string MenuJsonArea = JsonSerializer.Serialize(
-            new ContextMenuItemDto[]
-            {
-                new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity, Label = "Center View",  Shortcut = "C" },
-                new ContextMenuItemDto { Id = GlobalActionIds.Select,         Label = "Select",       Shortcut = "Space" },
-                new ContextMenuItemDto { IsSeparator = true },
-                new ContextMenuItemDto { Id = GlobalActionIds.EditOverlay,    Label = "Edit Shape",   Shortcut = "E" },
-                new ContextMenuItemDto { IsSeparator = true },
-                new ContextMenuItemDto { Id = GlobalActionIds.Delete,         Label = "Delete",       Style = "destructive" },
-            }, SerializerOptions);
-
-        /// <summary>Menu for a tactical route graphic.</summary>
-        private static readonly string MenuJsonRoute = JsonSerializer.Serialize(
-            new ContextMenuItemDto[]
-            {
-                new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity, Label = "Center View",  Shortcut = "C" },
-                new ContextMenuItemDto { Id = GlobalActionIds.Select,         Label = "Select",       Shortcut = "Space" },
-                new ContextMenuItemDto { IsSeparator = true },
-                new ContextMenuItemDto { Id = GlobalActionIds.EditRoute,      Label = "Edit Route",   Shortcut = "E" },
-                new ContextMenuItemDto { IsSeparator = true },
-                new ContextMenuItemDto { Id = GlobalActionIds.Delete,         Label = "Delete",       Style = "destructive" },
-            }, SerializerOptions);
+        /// <summary>⭐ B-11 A1 — forwards to <see cref="Hrot.Common.Actions.MapMenuActions.OrderItem"/> (the order rows are the catalogue's now).</summary>
+        public static ContextMenuItemDto? OrderItem(Hrot.Common.Orders.OrderInfo o, bool degraded, bool form)
+            => Hrot.Common.Actions.MapMenuActions.OrderItem(o, degraded, form);
 
         // ---- IStatelessGizmo --------------------------------------------------
 
-        public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
-        {
-            ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
-            long networkId = netId.Value;
-            if (networkId == 0) return;
+        /// <summary>
+        /// ⭐ CE-2387 (T6; docs/DESIGN_Evaluation_Cost_And_Cadence.md §5 C3, R-2083) — draws NOTHING any more. 📐 It built and hashed every entity's menu
+        /// JSON every frame (≈ 6 % of a Crossfire frame) for a menu almost never opened. 🔒 User, <c>2026-08-10</c>: <i>"Serialise on right-click, not per
+        /// <c>Draw</c>"</i> (UX_Feature_Cross_Surface_Actions.md:158, :225). ⭐ The map now asks <see cref="MenuJsonFor"/> for the ONE entity right-clicked
+        /// (<c>MapInteractionPack.BuildRenderLayer</c> → the terminal's <c>MenuResolver</c>), the same builder the inspector and the ORBAT already call.
+        /// </summary>
+        public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw) { }
 
-            string menuJson;
-
-            if (view.HasManagedComponent<EditablePolyline>(entity))
-            {
-                menuJson = MenuJsonArea;
-            }
-            else if (view.HasManagedComponent<RoutePlan>(entity))
-            {
-                menuJson = MenuJsonRoute;
-            }
-            else
-            {
-                // Select the menu permutation based on health state when available.
-                menuJson = MenuJsonHealthy;
-                if (view.HasComponent<IgHealthState>(entity))
-                {
-                    ref readonly var health = ref view.GetComponentRO<IgHealthState>(entity);
-                    if (health.Damage >= 50f)
-                        menuJson = MenuJsonDegraded;
-                }
-            }
-
-            draw.DrawContextMenuBinding(networkId, menuJson);
-        }
+        /// <summary>
+        /// The menu permutation for <paramref name="entity"/> — what <see cref="Draw"/> binds. ⭐ CE-3024: factored out so a
+        /// rail can assert WHICH menu an entity gets (the zone menu is the only one carrying "Load zone").
+        /// </summary>
+        public static string MenuJsonFor(ISimulationView view, Entity entity)
+            // ⭐⭐ B-11 A1 (docs/UX/DESIGN_Action_Catalogue.md §6) — the catalogue composes it; ⛔ SUPERSEDED: the hand-built if chain, the three
+            //    static graphic menus and the per-flag unit builder (TheMenusAreGoldenTests holds the output byte-identical).
+            => Hrot.Common.Actions.MapMenuActions.JsonFor(view, entity);
     }
 }

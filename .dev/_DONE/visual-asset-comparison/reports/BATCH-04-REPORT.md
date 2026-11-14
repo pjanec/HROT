@@ -155,7 +155,7 @@ Parametrized `[Theory]` test `Parse_Fixture_ProducesExpectedCounts` added at the
 dotnet test "Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj" -c Debug
 Passed!  - Failed: 0, Passed: 451, Skipped: 0, Total: 451, Duration: 10 s
 
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4
   9 Warning(s)
   0 Error(s)
   Time Elapsed 00:02:39.06
@@ -215,5 +215,5 @@ Edge case: a Blackboard file that is valid C# but lacks the `// OwningAssetId:` 
 - [x] TASK-C-17: `ComparisonSessionState` + `ComparisonSessionRegistry` with 7 tests
 - [x] TASK-C-20: 9 fixture files + 1 parametrized Theory test with 9 cases
 - [x] `dotnet test` passes -- 451/451
-- [x] `dotnet build "IOS-IG-SimHost.sln"` -- 0 errors
+- [x] `dotnet build "HROT.sln"` -- 0 errors
 - [x] Report submitted

@@ -24,3 +24,14 @@
 - *.txt
 - *.log
 
+
+- **/*.btree.json
+- **/*.btree.v1.json
+- **/*.hsm.json
+- **/*.hsm.v1.json
+- **/*.bp.json
+- **/*.params.json
+
+# JSON assets live in dmp-Assets.dumpfilter, the terrain and building definitions in dmp-Scenarios.dumpfilter (no file twice)
+- Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Terrain
+- Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Buildings

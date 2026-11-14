@@ -11,6 +11,9 @@ public interface IOrbatController
     /// <param name="entityId">The network entity ID to select.</param>
     void SelectEntity(int entityId);
 
+    /// <summary>⭐ <c>CE-1350</c> — a double-clicked row: centre the map's view on the entity (Center View). A host with no map ignores it.</summary>
+    void CenterOn(int entityId) { }
+
     /// <summary>Creates a new unplaced unit of the specified TKB type.</summary>
     /// <param name="tkbType">The TKB entity type constant.</param>
     void CreateUnit(long tkbType);

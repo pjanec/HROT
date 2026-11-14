@@ -141,12 +141,12 @@ namespace Fdp.Tests
             var keyframeMetadata = controller.GetFrameMetadata(0);
             var deltaMetadata = controller.GetFrameMetadata(1);
             
-            // Delta should be MORE than just header (17 bytes)
-            // Header: Tick(8) + Type(1) + DestroyCount(4) + ChunkCount(4) = 17 bytes
-            // With data: Should include chunk data (at least 64KB of component data)
-            
-            Assert.True(deltaMetadata.CompressedSize > 100, 
-                $"Delta frame size {deltaMetadata.CompressedSize} is too small - likely contains no component data");
+            // Delta should be MORE than just its header: Tick(8) + Type(1) + WallClock(8) + DestroyCount(4) + EventCounts(8)
+            // + SingletonCount(4) + ChunkCount(4) = 37 bytes, plus one chunk record (4 × int = 16) carrying the component's 12 bytes.
+            // ⭐ CE-2392 — a delta writes a chunk's USED PREFIX (here one 12-byte slot), no longer the whole 64 KB chunk, so the size
+            //   is checked uncompressed against that floor. ⛔ SUPERSEDED: CompressedSize > 100 (it assumed 64 KB of chunk data).
+            Assert.True(deltaMetadata.UncompressedSize >= 37 + 16 + 12,
+                $"Delta frame size {deltaMetadata.UncompressedSize} is too small - likely contains no component data");
                 
             // Verify the delta actually applied the change
             using var targetRepo = new EntityRepository();

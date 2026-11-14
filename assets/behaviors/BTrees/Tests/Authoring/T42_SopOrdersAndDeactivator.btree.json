@@ -1,0 +1,170 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 2
+  },
+  "AssetId": "a4200000-0000-0000-0000-000000000001",
+  "Name": "T42_SopOrdersAndDeactivator",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "b4200000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "b4200000-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 0,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Selector",
+      "VisualId": "b4200000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [
+        "b4200000-0000-0000-0000-000000000010",
+        "b4200000-0000-0000-0000-000000000020",
+        "b4200000-0000-0000-0000-000000000030"
+      ],
+      "DisplayLabel": "Rows",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 120,
+        "Comment": "CE-1413 (CE-1410): the generator corpus's SOP-order and deactivator fixture — the shipped SOPs and tactics are C# now, so this asset keeps the JSON emit of an SopOrder node, a managed SOP blackboard and a deactivator-paired stateful node pinned.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "b4200000-0000-0000-0000-000000000010",
+      "ChildVisualIds": [
+        "b4200000-0000-0000-0000-000000000011",
+        "b4200000-0000-0000-0000-000000000012"
+      ],
+      "DisplayLabel": "Hit → react",
+      "EditorMetadata": {
+        "X": 0,
+        "Y": 260,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Behavior.SopConditions.SensedFresh",
+        "ExpressionTargetField": "hitSense"
+      },
+      "VisualId": "b4200000-0000-0000-0000-000000000011",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Hit (fresh, 3 s)",
+      "EditorMetadata": {
+        "X": -80,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "FightFromCover",
+        "Urgency": "Hit"
+      },
+      "VisualId": "b4200000-0000-0000-0000-000000000012",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: FightFromCover",
+      "EditorMetadata": {
+        "X": 80,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.EqsTacticsNodes.TakeCover",
+        "ExpressionTargetField": "tactics",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsState"
+      },
+      "VisualId": "b4200000-0000-0000-0000-000000000020",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Take cover (a deactivator-paired stateful node)",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 260,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "DoWhenIdle",
+        "BehaviorName": "Idle"
+      },
+      "VisualId": "b4200000-0000-0000-0000-000000000030",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Idle: Idle",
+      "EditorMetadata": {
+        "X": 600,
+        "Y": 260,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "ParamsDtoTypeId": "Hrot.Map.Definitions.Behavior.NoParams",
+  "Pills": [],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "SubtreeSyncBindings": {},
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "hitSense",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Behavior.SopSenseParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Kind\":\"Hit\",\"Seconds\":3}",
+        "Comment": "A hit on the unit, fresh for 3 s."
+      },
+      {
+        "Name": "tactics",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"SearchRadius\":60,\"MinRepositionMetres\":5,\"Speed\":2.5,\"ArrivalRadius\":1,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}",
+        "Comment": "The take-cover tuning."
+      }
+    ]
+  }
+}

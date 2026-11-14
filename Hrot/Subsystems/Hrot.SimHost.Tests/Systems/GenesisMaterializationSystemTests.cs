@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
@@ -26,8 +27,10 @@ namespace Hrot.SimHost.Tests
         public GenesisMaterializationSystemTests()
         {
             _repo = new EntityRepository();
+            _repo.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();   // O1: GenesisMaterializationSystem provisions it for commanders
             _repo.RegisterComponent<PassengerBuffer>();
             _repo.RegisterComponent<IsEmbarkedTag>();
+            _repo.RegisterComponent<ActorCapabilityState>();   // ⭐ CE-3110 I-2a — boarding strips CanMove / CanShoot
             _repo.RegisterComponent<VisHierarchyNode>();
             _repo.RegisterComponent<PersonalRouteRef>();
             _repo.RegisterComponent<NetworkIdentity>();
@@ -52,7 +55,7 @@ namespace Hrot.SimHost.Tests
 
         // â”€â”€ Helper: create an entity with NetworkIdentity and register in map â”€â”€
 
-        private Entity CreateNetworkedEntity(long netId)
+        private Entity CreateNetworkedEntity(int netId)
         {
             var e = _repo.CreateEntity();
             _repo.SetComponent(e, new NetworkIdentity { Value = netId });
@@ -67,7 +70,7 @@ namespace Hrot.SimHost.Tests
         {
             var vehicle = _repo.CreateEntity();
             var intent = new InitialPassengersIntent();
-            intent.PassengerNetworkIds.Add(99L); // not in map yet
+            intent.PassengerNetworkIds.Add(new EntityRef(99)); // not in map yet
             _repo.RegisterManagedComponent<InitialPassengersIntent>();
             _repo.SetManagedComponent(vehicle, intent);
 
@@ -84,11 +87,12 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Passengers_MaterializedOnceEntityAppearsInMap()
         {
-            var passenger = CreateNetworkedEntity(42L);
+            var passenger = CreateNetworkedEntity(42);
 
             var vehicle = _repo.CreateEntity();
+            _repo.AddComponent(vehicle, new PassengerBuffer());   // ⭐ CE-2151 — a carrier (its type declares Gen.Carrier)
             var intent = new InitialPassengersIntent();
-            intent.PassengerNetworkIds.Add(42L);
+            intent.PassengerNetworkIds.Add(new EntityRef(42));
             _repo.SetManagedComponent(vehicle, intent);
 
             var sys = CreateAndStartSystem();
@@ -106,10 +110,11 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Vehicle_MaterializesIsEmbarkedTagOnceVehicleInMap()
         {
-            var vehicle = CreateNetworkedEntity(77L);
+            var vehicle = CreateNetworkedEntity(77);
+            _repo.AddComponent(vehicle, new PassengerBuffer());   // ⭐ CE-2151 — a carrier
 
             var soldier = _repo.CreateEntity();
-            _repo.SetManagedComponent(soldier, new InitialVehicleIntent { VehicleNetworkId = 77L });
+            _repo.SetManagedComponent(soldier, new InitialVehicleIntent { VehicleNetworkId = new EntityRef(77) });
 
             var sys = CreateAndStartSystem();
             sys.Execute(_repo, 0.016f);
@@ -119,20 +124,69 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(vehicle, _repo.GetComponent<IsEmbarkedTag>(soldier).VehicleEntity);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3110</c> I-2a — a soldier LOADED aboard boards through the one set of rules: it is on the vehicle's list, tagged,
+        /// and CANNOT walk away or shoot. 🔴 Red before: genesis wrote the list and the tag itself and never stripped a capability.
+        /// </summary>
+        [Fact]
+        public void CE3110_APassengerLoadedAboard_IsOnTheList_Tagged_AndCannotMoveOrShoot()
+        {
+            var vehicle = CreateNetworkedEntity(77);
+            _repo.AddComponent(vehicle, new PassengerBuffer());   // ⭐ CE-2151 — a carrier
+            var soldier = CreateNetworkedEntity(42);
+            _repo.AddComponent(soldier, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
+            var intent = new InitialPassengersIntent();
+            intent.PassengerNetworkIds.Add(new EntityRef(42));
+            _repo.SetManagedComponent(vehicle, intent);
+            _repo.SetManagedComponent(soldier, new InitialVehicleIntent { VehicleNetworkId = new EntityRef(77) });   // both sides say so
+
+            var sys = CreateAndStartSystem();
+            sys.Execute(_repo, 0.016f);
+
+            var buf = _repo.GetComponent<PassengerBuffer>(vehicle);
+            Assert.Equal(1, buf.Count);                                       // once, though two intents named it
+            Assert.Equal(soldier, buf.Passengers[0]);
+            Assert.Equal(vehicle, _repo.GetComponent<IsEmbarkedTag>(soldier).VehicleEntity);
+            var caps = _repo.GetComponent<ActorCapabilityState>(soldier).Capabilities;
+            Assert.False(caps.HasFlag(ActorCapabilities.CanMove), "a passenger loaded aboard cannot walk away");
+            Assert.False(caps.HasFlag(ActorCapabilities.CanShoot), "nor shoot from inside");
+        }
+
         // â”€â”€ Test 4: VisHierarchyNode written from InitialHierarchyIntent â”€â”€â”€â”€â”€â”€â”€
+
+        /// <summary>
+        /// ⭐ <c>CE-2151</c> B-b (R-2009 B3) — a scenario naming passengers for a vehicle whose type carries nobody (no <c>Gen.Carrier</c>, so
+        /// no list) does NOT make it a carrier: the boarding is refused, counted, and the intent is still consumed.
+        /// ✅ Red-proof: restore <c>EnsureBuffer</c> ⇒ the vehicle gains a list ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2151_ANonCarrierNamedAsAVehicle_IsNotMadeACarrier()
+        {
+            var tank = CreateNetworkedEntity(77);
+            var soldier = CreateNetworkedEntity(42);
+            _repo.SetManagedComponent(soldier, new InitialVehicleIntent { VehicleNetworkId = new EntityRef(77) });
+
+            var sys = CreateAndStartSystem();
+            sys.Execute(_repo, 0.016f);
+
+            Assert.False(_repo.HasComponent<PassengerBuffer>(tank));
+            Assert.False(_repo.HasComponent<IsEmbarkedTag>(soldier));
+            Assert.False(_repo.HasManagedComponent<InitialVehicleIntent>(soldier));
+            Assert.Equal(1, sys.RefusedBoardings);
+        }
 
         [Fact]
         public void Hierarchy_MaterializesVisHierarchyNodeOnceAllEntitiesInMap()
         {
-            var parent     = CreateNetworkedEntity(10L);
-            var firstChild = CreateNetworkedEntity(20L);
+            var parent     = CreateNetworkedEntity(10);
+            var firstChild = CreateNetworkedEntity(20);
 
             var entity = _repo.CreateEntity();
             _repo.SetManagedComponent(entity, new InitialHierarchyIntent
             {
-                ParentNetworkId     = 10L,
-                FirstChildNetworkId = 20L,
-                NextSiblingNetworkId = 0L, // null
+                ParentNetworkId     = new EntityRef(10),
+                FirstChildNetworkId = new EntityRef(20),
+                NextSiblingNetworkId = new EntityRef(0), // null
             });
 
             var sys = CreateAndStartSystem();
@@ -151,10 +205,10 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Route_MaterializesPersonalRouteRefOnceRouteInMap()
         {
-            var route = CreateNetworkedEntity(55L);
+            var route = CreateNetworkedEntity(55);
 
             var vehicle = _repo.CreateEntity();
-            _repo.SetManagedComponent(vehicle, new InitialRouteIntent { RouteNetworkId = 55L });
+            _repo.SetManagedComponent(vehicle, new InitialRouteIntent { RouteNetworkId = new EntityRef(55) });
 
             var sys = CreateAndStartSystem();
             sys.Execute(_repo, 0.016f);
@@ -170,13 +224,13 @@ namespace Hrot.SimHost.Tests
         public void Targets_PartialMaterialization_UnresolvedEntriesDropped_IntentAlwaysRemoved()
         {
             // Only entity 111 is registered; 222 is not
-            var target1 = CreateNetworkedEntity(111L);
+            var target1 = CreateNetworkedEntity(111);
             _repo.RegisterComponent<TargetMemory>();
 
             var entity = _repo.CreateEntity();
             var intent = new InitialTargetsIntent();
-            intent.Entries.Add(new TargetEntry { NetworkId = 111L, PosX = 1f, PosY = 2f, Score = 0.5f });
-            intent.Entries.Add(new TargetEntry { NetworkId = 222L, PosX = 3f, PosY = 4f, Score = 0.9f });
+            intent.Entries.Add(new TargetEntry { NetworkId = new EntityRef(111), PosX = 1f, PosY = 2f, Score = 0.5f });
+            intent.Entries.Add(new TargetEntry { NetworkId = new EntityRef(222), PosX = 3f, PosY = 4f, Score = 0.9f });
             _repo.SetManagedComponent(entity, intent);
 
             var sys = CreateAndStartSystem();
@@ -191,6 +245,33 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, mem.Count);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2232</c> / CE-4035 G-5 — the authored list is MERGED into what the unit already knows: an attack order's target seeded on
+        /// the first tick survives the file's (here empty, then one-entry) list. 📐 Live <c>ua-technical-scoot</c>: the write replaced the
+        /// memory and the technicals never knew the tank. 🔴 Red-proof: start from a fresh memory ⇒ the seeded target is gone.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2232_TheAuthoredTargets_MergeIntoWhatTheUnitAlreadyKnows()
+        {
+            var seeded = CreateNetworkedEntity(111);
+            var authored = CreateNetworkedEntity(222);
+            _repo.RegisterComponent<TargetMemory>();
+            var unit = _repo.CreateEntity();
+            var mem = new TargetMemory();
+            TargetMemory.AddOrUpdateTarget(ref mem, (long)seeded.PackedValue, 5f, 6f, 1f, 1);
+            _repo.AddComponent(unit, mem);
+            var intent = new InitialTargetsIntent();
+            intent.Entries.Add(new TargetEntry { NetworkId = new EntityRef(222), PosX = 3f, PosY = 4f, Score = 0.9f });
+            _repo.SetManagedComponent(unit, intent);
+
+            CreateAndStartSystem().Execute(_repo, 0.016f);
+
+            var after = _repo.GetComponent<TargetMemory>(unit);
+            Assert.Equal(2, after.Count);
+            Assert.Equal((long)seeded.PackedValue, after.EntityIds[0]);
+            Assert.Equal((long)authored.PackedValue, after.EntityIds[1]);
+        }
+
         // ── CS014-T01: UnitSubordinate + UnitRoster written when commander in map ──
 
         [Fact]
@@ -199,13 +280,14 @@ namespace Hrot.SimHost.Tests
             var commander  = _repo.CreateEntity();
             var subordinate = _repo.CreateEntity();
 
-            const long commanderNetId = 100L;
+            const int commanderNetId = 100;
             _entityMap.Register(commanderNetId, commander);
 
             _repo.SetManagedComponent(subordinate, new InitialUnitSubordinateIntent
             {
-                CommanderNetworkId = commanderNetId,
+                CommanderNetworkId = new EntityRef(commanderNetId),
                 Designation        = TacticalDesignation.SquadLeader,
+                FireTeam           = FireTeam.A,   // ⭐ CE-2281 / R-3019
             });
 
             var sys = CreateAndStartSystem();
@@ -216,10 +298,39 @@ namespace Hrot.SimHost.Tests
             var sub = _repo.GetComponent<UnitSubordinate>(subordinate);
             Assert.Equal(commander, sub.Commander);
             Assert.Equal(TacticalDesignation.SquadLeader, sub.Designation);
+            Assert.Equal(FireTeam.A, sub.FireTeam);   // ⭐ CE-2281 / R-3019 — the scenario's team reaches the component
 
             Assert.True(_repo.HasComponent<UnitRoster>(commander));
             var roster = _repo.GetComponent<UnitRoster>(commander);
             Assert.Equal(1, roster.Count);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4137</c> — the roster is in network-id order whatever order the members are created in: a Live load after Edit
+        /// reuses freed entity slots in reverse, so Bravo (1007) was created before Alpha (1002) and took slot 1 — <c>PlatoonBound</c>
+        /// (support = slot 2) sent ALPHA to the support point. 🔴 Red-proof: append in query order ⇒ Bravo is slot 0.
+        /// </summary>
+        [Fact]
+        public void CE4137_TheRosterIsInNetworkIdOrder_WhateverOrderTheMembersAreCreatedIn()
+        {
+            var commander = _repo.CreateEntity();
+            _entityMap.Register(1001, commander);
+            var bravo = _repo.CreateEntity();   // created FIRST (the lower entity index), but listed second in the file
+            _entityMap.Register(1007, bravo);
+            var alpha = _repo.CreateEntity();
+            _entityMap.Register(1002, alpha);
+            var charlie = _repo.CreateEntity();
+            _entityMap.Register(1009, charlie);
+            foreach (var e in new[] { bravo, alpha, charlie })
+                _repo.SetManagedComponent(e, new InitialUnitSubordinateIntent { CommanderNetworkId = new EntityRef(1001), Designation = TacticalDesignation.Wingman });
+
+            CreateAndStartSystem().Execute(_repo, 0.016f);
+
+            var roster = _repo.GetComponent<UnitRoster>(commander);
+            Assert.Equal(3, roster.Count);
+            Assert.Equal(alpha, roster.SubordinateEntities[0]);
+            Assert.Equal(bravo, roster.SubordinateEntities[1]);
+            Assert.Equal(charlie, roster.SubordinateEntities[2]);
         }
 
         // -- CS014-T02: Intent preserved when commander not yet in map --------------------
@@ -233,7 +344,7 @@ namespace Hrot.SimHost.Tests
 
             _repo.SetManagedComponent(subordinate, new InitialUnitSubordinateIntent
             {
-                CommanderNetworkId = 999L,
+                CommanderNetworkId = new EntityRef(999),
                 Designation        = TacticalDesignation.Wingman,
             });
 
@@ -253,7 +364,7 @@ namespace Hrot.SimHost.Tests
 
             _repo.SetManagedComponent(subordinate, new InitialUnitSubordinateIntent
             {
-                CommanderNetworkId = 0L,
+                CommanderNetworkId = new EntityRef(0),
                 Designation        = TacticalDesignation.SquadLeader,
             });
 
@@ -274,13 +385,13 @@ namespace Hrot.SimHost.Tests
             roster.Count  = UnitRoster.Capacity;
             _repo.SetComponent(commander, roster);
 
-            const long commanderNetId = 200L;
+            const int commanderNetId = 200;
             _entityMap.Register(commanderNetId, commander);
 
             var subordinate = _repo.CreateEntity();
             _repo.SetManagedComponent(subordinate, new InitialUnitSubordinateIntent
             {
-                CommanderNetworkId = commanderNetId,
+                CommanderNetworkId = new EntityRef(commanderNetId),
                 Designation        = TacticalDesignation.Support,
             });
 

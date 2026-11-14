@@ -240,7 +240,7 @@ Actually, the window registration may need to follow the existing pattern in `Si
 ```powershell
 # Build the full solution
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln 2>&1 | Select-Object -Last 40
+dotnet build HROT.sln 2>&1 | Select-Object -Last 40
 
 # Run unit tests (should still be 255+)
 cd FDP\Toolkits

@@ -25,7 +25,11 @@ namespace Fdp.Core
             PublishUnmanagedEvent = 8,
             PublishManagedEvent = 9,
             SetLifecycleState = 10,
-            AddEmptyComponentUnmanaged = 11
+            AddEmptyComponentUnmanaged = 11,
+            // Ruling 14 — a surgical field write: Entity + TypeID + ByteOffset + Size + Data.
+            SetUnmanagedComponentField = 12,
+            // ⭐ CE-4568 (X-6) — an authority bit on a component added in the same batch: Entity + TypeID + 1 byte (has authority)
+            SetAuthority = 13
         }
         
         // Simple byte buffer for command stream
@@ -243,6 +247,37 @@ namespace Fdp.Core
             _position += size;
         }
 
+        /// <summary>
+        /// Ruling 14 — records a SURGICAL field write: `size` bytes at `byteOffset` inside an
+        /// existing component, and nothing else.
+        ///
+        /// ⚠ The bound is re-checked at playback against the real component size (ComponentTable
+        /// .SetRawAt): this buffer knows the byte count but not the component's layout, so a check
+        /// here alone would be a check against the caller's own arithmetic.
+        /// </summary>
+        public void SetComponentFieldRaw(Entity entity, int typeId, int byteOffset, void* ptr, int size)
+        {
+            if (size > MaxComponentSize)
+                throw new ArgumentException($"Field size {size} exceeds maximum {MaxComponentSize}");
+            if (byteOffset < 0 || size < 0)
+                throw new ArgumentOutOfRangeException(nameof(byteOffset),
+                    $"Field write [{byteOffset}, {byteOffset + size}) is not a valid range.");
+
+            EnsureCapacity(1 + 8 + 4 + 4 + 4 + size); // OpCode + Entity + TypeID + Offset + Size + Data
+
+            _buffer[_position++] = (byte)OpCode.SetUnmanagedComponentField;
+            WriteEntity(entity);
+            WriteInt(typeId);
+            WriteInt(byteOffset);
+            WriteInt(size);
+
+            fixed (byte* dest = &_buffer[_position])
+            {
+                Unsafe.CopyBlock(dest, ptr, (uint)size);
+            }
+            _position += size;
+        }
+
         public void SetManagedComponentRaw(Entity entity, int typeId, object obj)
         {
             int objectIndex = _managedObjects.Count;
@@ -264,7 +299,7 @@ namespace Fdp.Core
         {
             if (evt == null) throw new ArgumentNullException(nameof(evt));
             
-            int typeId = typeof(T).FullName!.GetHashCode() & 0x7FFFFFFF;
+            int typeId = FdpEventBus.ManagedTypeId<T>.Id;   // ⭐ CE-3302 — the bus's one id, not a second copy of its formula
             int objectIndex = _managedObjects.Count;
             _managedObjects.Add(evt);
             
@@ -275,6 +310,33 @@ namespace Fdp.Core
             WriteInt(objectIndex);
         }
         
+        /// <summary>⭐ N-10 / F-2 — a managed event whose bus id the caller already has (a publish deferred from <see cref="FdpEventBus.PublishManaged{T}"/>).</summary>
+        internal void PublishManagedEventRaw(int typeId, object evt)
+        {
+            if (evt == null) throw new ArgumentNullException(nameof(evt));
+            int objectIndex = _managedObjects.Count;
+            _managedObjects.Add(evt);
+            EnsureCapacity(1 + 4 + 4);
+            _buffer[_position++] = (byte)OpCode.PublishManagedEvent;
+            WriteInt(typeId);
+            WriteInt(objectIndex);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4568 (X-6) — records an authority change on <paramref name="typeId"/> (unmanaged or managed: one id space), played after the ops before it
+        /// (so after the add it follows). 📐 Rule code adds its control components and takes their authority in one call
+        /// (<c>ObjectiveHost.Enter</c>); in a per-entity phase the add is deferred into the batch, so the direct authority write threw
+        /// "component is not present" — a trigger created at run time (the instructor's End, a game-master rule) never ran.
+        /// </summary>
+        public void SetAuthority(Entity entity, int typeId, bool hasAuthority)
+        {
+            EnsureCapacity(1 + 8 + 4 + 1);
+            _buffer[_position++] = (byte)OpCode.SetAuthority;
+            WriteEntity(entity);
+            WriteInt(typeId);
+            _buffer[_position++] = hasAuthority ? (byte)1 : (byte)0;
+        }
+
         /// <summary>
         /// Records a SetLifecycleState command.
         /// </summary>
@@ -300,10 +362,13 @@ namespace Fdp.Core
             if (repo == null)
                 throw new ArgumentNullException(nameof(repo));
             
+            if (_position == 0) { Clear(); return; }   // ⭐ P-0 (parallel sim): an empty buffer plays back with no work and no allocation
             int readPos = 0;
             
             // Map placeholder entities (negative indices) to real entities
-            var entityRemap = new System.Collections.Generic.Dictionary<int, Entity>();
+            // ⭐ P-0 (DESIGN_Parallel_Simulation §7.1): one map per buffer, reused — a playback per batch per tick must allocate nothing (R-2084)
+            var entityRemap = _entityRemap ??= new System.Collections.Generic.Dictionary<int, Entity>();
+            entityRemap.Clear();
             
             while (readPos < _position)
             {
@@ -390,6 +455,25 @@ namespace Fdp.Core
                         break;
                     }
                     
+                    case OpCode.SetUnmanagedComponentField:
+                    {
+                        Entity entity   = ReadEntity(ref readPos, entityRemap);
+                        int typeId      = ReadInt(ref readPos);
+                        int byteOffset  = ReadInt(ref readPos);
+                        int size        = ReadInt(ref readPos);
+
+                        if (repo.IsAlive(entity))
+                        {
+                            fixed (byte* dataPtr = &_buffer[readPos])
+                            {
+                                repo.SetComponentFieldRaw(entity, typeId, byteOffset, (IntPtr)dataPtr, size);
+                            }
+                        }
+
+                        readPos += size;
+                        break;
+                    }
+
                     case OpCode.RemoveUnmanagedComponent:
                     {
                         Entity entity = ReadEntity(ref readPos, entityRemap);
@@ -478,6 +562,15 @@ namespace Fdp.Core
                         break;
                     }
                     
+                    case OpCode.SetAuthority:
+                    {
+                        Entity entity = ReadEntity(ref readPos, entityRemap);
+                        int typeId = ReadInt(ref readPos);
+                        bool has = _buffer[readPos++] != 0;
+                        if (repo.IsAlive(entity)) repo.SetAuthority(entity, typeId, has);
+                        break;
+                    }
+
                     default:
                         throw new InvalidOperationException($"Unknown opcode: {op}");
                 }
@@ -490,6 +583,8 @@ namespace Fdp.Core
         /// <summary>
         /// Clears all recorded commands without executing them.
         /// </summary>
+        private System.Collections.Generic.Dictionary<int, Entity>? _entityRemap;
+
         public void Clear()
         {
             _position = 0;

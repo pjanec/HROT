@@ -21,7 +21,7 @@ disabled for both projects because neither defines DDS topic types.
 | `Hrot.Diagnostics.Tuning` | `Hrot/Diagnostics/Hrot.Diagnostics.Tuning/` |
 | `Hrot.Diagnostics.Tuning.Tests` | `Hrot/Diagnostics/Hrot.Diagnostics.Tuning.Tests/` |
 
-Both projects were added to `IOS-IG-SimHost.sln` under the existing `Diagnostics` solution folder
+Both projects were added to `HROT.sln` under the existing `Diagnostics` solution folder
 (GUID `{5E4C52BA-6213-E083-B735-5DDE0CCE6DA3}`).
 
 ---

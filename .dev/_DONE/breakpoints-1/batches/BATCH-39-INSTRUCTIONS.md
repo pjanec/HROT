@@ -290,7 +290,7 @@ syncing, but this is not required.
 
 ## Build and Test Requirements
 
-1. Run: `dotnet build IOS-IG-SimHost.sln -c Debug` from `d:\Work\IOS-IG-SimHost-FDP-2\`
+1. Run: `dotnet build HROT.sln -c Debug` from `d:\Work\IOS-IG-SimHost-FDP-2\`
    - Must complete with 0 errors, 0 warnings (TreatWarningsAsErrors is active).
 
 2. Run the test project:

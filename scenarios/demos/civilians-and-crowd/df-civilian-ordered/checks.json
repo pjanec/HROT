@@ -1,0 +1,51 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — AQ97 D: an ordered civilian reacts on top of his order, an InertSop one does not. Judge (1) the gunfire frightens both (Fear > 0.3, the live check's threshold), (2) Ordered's task becomes CivilianReact, (3) Inert civilian keeps his Idle task. Left out: 'he stops and crouches or flees' (an OR across the mode and the stance).",
+  "runFor": 45,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the hostile rifleman fires",
+      "on": "shot",
+      "by": "Hostile"
+    },
+    {
+      "name": "the gunfire frightens Ordered",
+      "on": "field",
+      "who": "Ordered",
+      "path": "CivilianState.Fear",
+      "op": ">",
+      "value": 0.3
+    },
+    {
+      "name": "the gunfire frightens Inert civilian",
+      "on": "field",
+      "who": "Inert civilian",
+      "path": "CivilianState.Fear",
+      "op": ">",
+      "value": 0.3
+    },
+    {
+      "name": "Ordered reacts on top of his order: CivilianReact",
+      "on": "task",
+      "who": "Ordered",
+      "is": "CivilianReact"
+    },
+    {
+      "name": "Inert civilian never reacts",
+      "never": {
+        "on": "task",
+        "who": "Inert civilian",
+        "is": "CivilianReact"
+      }
+    },
+    {
+      "name": "Inert civilian keeps standing on his order (Idle)",
+      "on": "task",
+      "who": "Inert civilian",
+      "is": "Idle",
+      "atEnd": true
+    }
+  ]
+}

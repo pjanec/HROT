@@ -18,5 +18,5 @@ public interface ISimHostMissionSender : IDisposable
     /// <param name="destination">2-D Cartesian destination in local simulation space.</param>
     /// <param name="speed">Target movement speed in m/s.</param>
     /// <param name="arrivalRadius">Radius in metres at which the entity considers itself arrived.</param>
-    void SendNavigateToPoint(long entityNetworkId, Vector2 destination, float speed, float arrivalRadius);
+    void SendNavigateToPoint(int entityNetworkId, Vector2 destination, float speed, float arrivalRadius);
 }

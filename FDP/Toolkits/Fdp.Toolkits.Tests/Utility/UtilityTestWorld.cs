@@ -2,7 +2,6 @@ using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
-using Fdp.Modules.Geographic.Components;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Perception;
@@ -49,8 +48,10 @@ namespace Fdp.Toolkit.Tests.Utility
             Repo.RegisterComponent<EqsCognitiveBuffer>();
             Repo.RegisterComponent<UnitRoster>();
             Repo.RegisterComponent<UnitSubordinate>();
-            Repo.RegisterComponent<Blackboard1024>();
-            Repo.RegisterComponent<Position>();
+            Repo.RegisterComponent<SquadCognitiveState>();
+            Repo.RegisterComponent<SquadMemberSense>();   // ⭐ R-3039 S1 — the squad sense's memory, as HrotSharedComponentRegistry registers it
+            Repo.RegisterComponent<SquadUnitSense>();
+            Repo.RegisterComponent<SimTransform>();
             Repo.RegisterComponent<UtilityDebugFlags>();
             Repo.RegisterComponent<UtilityTraceWorkingMemory1024>();
             Repo.RegisterComponent<UtilityResultBuffer>();
@@ -89,7 +90,7 @@ namespace Fdp.Toolkit.Tests.Utility
                 MuzzleVelocity = 800f
             });
 
-            Repo.AddComponent(entity, new Position { Value = Vector3.Zero });
+            Repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
             Repo.AddComponent(entity, new TargetMemory());
             Repo.AddComponent(entity, new UtilityResultBuffer());
             Repo.AddComponent(entity, new UtilityDebugFlags { TraceEnabled = 1 });
@@ -97,6 +98,63 @@ namespace Fdp.Toolkit.Tests.Utility
 
             return entity;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3071</c> — publishes a TKB holding <paramref name="templates"/> as the world's <c>ITkbDatabase</c> (as SimHost,
+        /// CGF and the editor do) so the combat numbers can be read by type; stamp a unit's type with <see cref="SetType"/>.
+        /// </summary>
+        public void UseTkb(params Fdp.Interfaces.TkbTemplate[] templates)
+        {
+            if (!Repo.IsComponentTypeRegistered<TkbIdentity>()) Repo.RegisterComponent<TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            foreach (var t in templates) db.Register(t);
+            Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+        }
+
+        /// <summary>⭐ <c>CE-3071</c> — TKB types of the ammunition-vs-armour fixtures (design §9 calibration).</summary>
+        public const long BradleyType = 101, TankType = 103, InfantryType = 2002;
+
+        /// <summary>A Bradley: mount 0 the 25 mm (2500 m, 60 mm, 60), mount 1 the TOW (3750 m, 800 mm, 2000).</summary>
+        public static Fdp.Interfaces.TkbTemplate BradleyTemplate()
+        {
+            var t = new Fdp.Interfaces.TkbTemplate("Bradley", BradleyType);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 500, ArmorFront = 100, ArmorSide = 60, ArmorRear = 40 });
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { InitialAmmunition = 300, Range = 2500, Penetration = 60,  DamagePerHit = 60 },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { InitialAmmunition = 7,   Range = 3750, Penetration = 800, DamagePerHit = 2000 },
+            } });
+            return t;
+        }
+
+        /// <summary>A T-72: armour 500 / 250 / 150, 2500 HP.</summary>
+        public static Fdp.Interfaces.TkbTemplate TankTemplate()
+        {
+            var t = new Fdp.Interfaces.TkbTemplate("T-72", TankType);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 2500, ArmorFront = 500, ArmorSide = 250, ArmorRear = 150 });
+            return t;
+        }
+
+        /// <summary>An infantry soldier: no armour, 100 HP.</summary>
+        public static Fdp.Interfaces.TkbTemplate InfantryTemplate()
+        {
+            var t = new Fdp.Interfaces.TkbTemplate("Infantry", InfantryType);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 100 });
+            return t;
+        }
+
+        /// <summary>A unit of <paramref name="tkbType"/> at (<paramref name="x"/>, 0) facing −X (towards the origin).</summary>
+        public Entity SpawnTypedTarget(long tkbType, float x, float maxHealth)
+        {
+            var e = Repo.CreateEntity();
+            Repo.AddComponent(e, new SimTransform { Position = new Vector3(x, 0f, 0f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI) });
+            Repo.AddComponent(e, new Health { Current = maxHealth, Max = maxHealth });
+            SetType(e, tkbType);
+            return e;
+        }
+
+        /// <summary>⭐ <c>CE-3071</c> — gives <paramref name="e"/> the TKB type <paramref name="tkbType"/>.</summary>
+        public void SetType(Entity e, long tkbType) => Repo.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(tkbType) });
 
         /// <summary>
         /// Creates a child weapon-mount entity linked to <paramref name="owner"/>.
@@ -124,11 +182,10 @@ namespace Fdp.Toolkit.Tests.Utility
             {
                 ParentEntity      = owner,
                 InstanceId        = mountIndex,
-                DescriptorOrdinal = 0
             });
 
-            // WeaponRangeBandFit reads Position from the mount entity.
-            Repo.AddComponent(child, new Position { Value = Vector3.Zero });
+            // WeaponRangeBandFit reads the world position (SimTransform) — CE-3070.
+            Repo.AddComponent(child, new SimTransform { Position = Vector3.Zero });
 
             return child;
         }
@@ -167,6 +224,15 @@ namespace Fdp.Toolkit.Tests.Utility
         /// Seeds a contact into <paramref name="self"/>'s TargetMemory using real
         /// <see cref="TargetMemory.AddOrUpdateTarget"/>.
         /// </summary>
+        /// <summary>⭐ <c>CE-3063</c> — a HEARD contact in <paramref name="self"/>'s memory (no entity): heard at (x, y) within
+        /// <paramref name="radius"/>, sounding like <paramref name="sourceClass"/>, at <paramref name="freshness01"/>. Returns its id.</summary>
+        public long SeedHeard(Entity self, float x, float y, float radius, byte sourceClass, float freshness01 = 1f)
+        {
+            ref var mem = ref Repo.GetComponentRW<TargetMemory>(self);
+            return TargetMemory.HearContact(ref mem, x, y, 0f, radius, sourceClass,
+                                            freshness01 * PerceptionConstants.FreshnessSaturation, ++Tick);
+        }
+
         public void SeedContact(Entity self, Entity contact, float distanceM, float threatBoost,
             float contactHealth01, bool hasLos)
         {
@@ -178,7 +244,8 @@ namespace Fdp.Toolkit.Tests.Utility
                 entityId:   entityId,
                 posX:       distanceM,
                 posY:       0f,
-                scoreBoost: threatBoost,
+                // ⭐ CE-3054 — threatBoost is the contact's FRESHNESS in [0, 1]; the memory stores the score that reads as it.
+                scoreBoost: threatBoost * PerceptionConstants.FreshnessSaturation,
                 tick:       ++Tick,
                 modality:   modality);
 
@@ -195,9 +262,9 @@ namespace Fdp.Toolkit.Tests.Utility
                 }
             }
 
-            if (!Repo.HasComponent<Position>(contact))
+            if (!Repo.HasComponent<SimTransform>(contact))
             {
-                Repo.AddComponent(contact, new Position { Value = new Vector3(distanceM, 0f, 0f) });
+                Repo.AddComponent(contact, new SimTransform { Position = new Vector3(distanceM, 0f, 0f) });
             }
         }
 
@@ -237,7 +304,6 @@ namespace Fdp.Toolkit.Tests.Utility
             {
                 ParentEntity      = owner,
                 InstanceId        = instanceId,
-                DescriptorOrdinal = 0
             });
 
             return child;
@@ -250,9 +316,9 @@ namespace Fdp.Toolkit.Tests.Utility
         {
             var entity = Repo.CreateEntity();
             Repo.AddComponent(entity, new UnitRoster());
-            Repo.AddComponent(entity, new Blackboard1024());
+            Repo.AddComponent(entity, default(SquadCognitiveState));
             Repo.AddComponent(entity, new TargetMemory());
-            Repo.AddComponent(entity, new Position { Value = Vector3.Zero });
+            Repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
             return entity;
         }
 
@@ -272,7 +338,7 @@ namespace Fdp.Toolkit.Tests.Utility
             });
 
             ref var roster = ref Repo.GetComponentRW<UnitRoster>(leader);
-            UnitRoster.Add(ref roster, (long)member.PackedValue);
+            UnitRoster.Add(ref roster, member);
 
             if (asLauncher)
                 SpawnWeaponMount(member, mountIndex: 1, weaponGuid: Weapons.LauncherGuid,
@@ -288,10 +354,9 @@ namespace Fdp.Toolkit.Tests.Utility
         /// </summary>
         public long AssignmentFor(Entity leader, Entity member)
         {
-            ref var bb = ref Repo.GetComponentRW<Blackboard1024>(leader);
-            ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
+            ref var state = ref Repo.GetComponentRW<SquadCognitiveState>(leader).Assignment;
             ref var roster = ref Repo.GetComponentRW<UnitRoster>(leader);
-            int idx = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
+            int idx = UnitRoster.IndexOf(ref roster, member);
             return idx >= 0 ? state.GetAssignedTarget(idx) : -1L;
         }
 
@@ -312,47 +377,29 @@ namespace Fdp.Toolkit.Tests.Utility
         }
 
         /// <summary>
-        /// Adjusts the entity's TargetMemory ThreatScores so that
-        /// <see cref="StandardInputs.EnemyStrengthRatio"/> returns approximately
-        /// <paramref name="ratio"/> (clamped to [0,1]).
-        /// If no contacts exist, seeds a synthetic entity with the required score.
+        /// ⭐ CE-3054 — makes <see cref="StandardInputs.EnemyStrengthRatio"/> (Σ danger ÷ (Σ danger + own strength)) read
+        /// approximately <paramref name="ratio"/> (capped at 0.95) by adding ARMED dummy contacts to the memory. The danger
+        /// is integral per contact, so the result is the nearest reachable value.
+        /// ⛔ SUPERSEDED: scaling the memory scores — the ratio no longer reads them (hidden is not harmless).
         /// </summary>
         public unsafe void SetEnemyStrengthRatio(Entity entity, float ratio)
         {
-            float healthFraction = 1f;
-            if (Repo.HasComponent<Health>(entity))
-            {
-                ref readonly var h = ref Repo.GetComponentRO<Health>(entity);
-                if (h.Max > 0f)
-                    healthFraction = Math.Clamp(h.Current / h.Max, 0f, 1f);
-            }
-            float targetSum = ratio * healthFraction * PerceptionConstants.MaxTrackedTargets;
-
+            float v = Math.Clamp(ratio, 0f, 0.95f);
+            float own = Fdp.Toolkit.Perception.ThreatDanger.OwnStrength(Repo, entity);
             ref var tm = ref Repo.GetComponentRW<TargetMemory>(entity);
-            if (tm.Count == 0)
+            float enemy = 0f;
+            for (int i = 0; i < tm.Count; i++)
+                enemy += Fdp.Toolkit.Perception.ThreatDanger.Of(Repo, entity, new Entity((ulong)tm.EntityIds[i]));
+            float wanted = v * own / (1f - v);
+            int add = (int)MathF.Round(wanted - enemy);
+            for (int k = 0; k < add && tm.Count < PerceptionConstants.MaxTrackedTargets; k++)
             {
-                // Seed one synthetic contact with the required aggregate threat score.
                 var dummy = Repo.CreateEntity();
-                Repo.AddComponent(dummy, new Position { Value = new Vector3(100f, 0f, 0f) });
+                Repo.AddComponent(dummy, new SimTransform { Position = new Vector3(100f + k, 0f, 0f) });
+                Repo.AddComponent(dummy, new WeaponState { Ammo = 30, MaxAmmo = 30, MuzzleVelocity = 800f });
                 TargetMemory.AddOrUpdateTarget(ref tm, (long)dummy.PackedValue,
-                    posX: 100f, posY: 0f, scoreBoost: targetSum, tick: ++Tick,
+                    posX: 100f + k, posY: 0f, scoreBoost: PerceptionConstants.FreshnessSaturation, tick: ++Tick,
                     modality: SensorModality.Visual);
-            }
-            else
-            {
-                // Scale existing ThreatScores proportionally.
-                float currentSum = 0f;
-                for (int i = 0; i < tm.Count; i++) currentSum += tm.ThreatScores[i];
-                if (currentSum > 0f)
-                {
-                    float scale = targetSum / currentSum;
-                    for (int i = 0; i < tm.Count; i++) tm.ThreatScores[i] *= scale;
-                }
-                else
-                {
-                    float perContact = targetSum / Math.Max(1, tm.Count);
-                    for (int i = 0; i < tm.Count; i++) tm.ThreatScores[i] = perContact;
-                }
             }
         }
 
@@ -364,7 +411,7 @@ namespace Fdp.Toolkit.Tests.Utility
         {
             var t = Repo.CreateEntity();
             Repo.AddComponent(t, new Health { Current = 100f, Max = 100f });
-            Repo.AddComponent(t, new Position { Value = new Vector3(100f, 0f, 0f) });
+            Repo.AddComponent(t, new SimTransform { Position = new Vector3(100f, 0f, 0f) });
             return t;
         }
 

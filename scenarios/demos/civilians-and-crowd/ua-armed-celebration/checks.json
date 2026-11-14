@@ -1,0 +1,53 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — AW-17 escalation of force: a volley into the air is warned, an aim is shot. From the header's Judge (1)-(3). 'He aims at the patrol' = his side flips to Hostile (the act flips it); the Warning cue is the patrol's Gesture.",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the Celebrant fires eight rounds into the air",
+      "on": "shot",
+      "by": "Celebrant's rifle",
+      "n": 8
+    },
+    {
+      "name": "the patrol warns him",
+      "on": "gesture",
+      "who": "Police patrol",
+      "is": "Warning",
+      "before": "he aims at the patrol (turns Hostile)"
+    },
+    {
+      "name": "he aims at the patrol (turns Hostile)",
+      "on": "side",
+      "who": "Celebrant",
+      "is": "Hostile"
+    },
+    {
+      "name": "the patrol spends no round while he fires into the air",
+      "never": {
+        "on": "shot",
+        "by": "Patrol rifle"
+      },
+      "before": "he aims at the patrol (turns Hostile)"
+    },
+    {
+      "name": "once he aims, the patrol's rifle fires at him",
+      "on": "shot",
+      "by": "Patrol rifle",
+      "at": "Celebrant",
+      "after": "he aims at the patrol (turns Hostile)"
+    },
+    {
+      "name": "no guest is hurt",
+      "never": {
+        "on": "field",
+        "who": "*Guest",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    }
+  ]
+}

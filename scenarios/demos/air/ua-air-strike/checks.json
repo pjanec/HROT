@@ -1,0 +1,18 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — air ops: the A-10's level bomb. From the header's Judge (1)-(4). 'Within 25 m of (600,300)' is four one-sided burst.0/burst.1 bounds (a where key takes one operator); the 'exactly one bomb' is a blast plus a never on a 2nd.",
+  "runFor": 40,
+  "golden": {"every": 10},
+  "expect": [
+    {"name": "the A-10 releases a bomb", "on": "shot", "by": "A-10"},
+    {"name": "a bomb bursts", "on": "blast", "by": "A-10"},
+    {"name": "it bursts no more than 25 m east of the target", "on": "blast", "by": "A-10", "where": {"burst.0": ["<=", 625]}},
+    {"name": "it bursts no more than 25 m west of the target", "on": "blast", "by": "A-10", "where": {"burst.0": [">=", 575]}},
+    {"name": "it bursts no more than 25 m north of the target", "on": "blast", "by": "A-10", "where": {"burst.1": ["<=", 325]}},
+    {"name": "it bursts no more than 25 m south of the target", "on": "blast", "by": "A-10", "where": {"burst.1": [">=", 275]}},
+    {"name": "never a second bomb", "never": {"on": "blast", "by": "A-10", "n": 2}},
+    {"name": "the target technical is hit", "on": "field", "who": "Target Technical", "path": "Health.Current", "op": "<", "value": 100},
+    {"name": "the far technical is not destroyed", "on": "field", "who": "Far Technical", "path": "Health.Current", "op": ">", "value": 0, "atEnd": true},
+    {"name": "the A-10 flies on, still above 100 m", "on": "field", "who": "A-10", "path": "SimTransform.Position.2", "op": ">", "value": 100, "atEnd": true},
+    {"name": "the A-10 is past the target", "on": "field", "who": "A-10", "path": "SimTransform.Position.0", "op": ">", "value": 700, "atEnd": true}
+  ]
+}

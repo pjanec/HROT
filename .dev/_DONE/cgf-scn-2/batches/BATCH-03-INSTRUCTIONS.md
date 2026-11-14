@@ -430,7 +430,7 @@ Complete tasks in this exact order (each has a hard dependency):
 6. **Task 6 (S406):** TargetMemoryTranslator → Intent — depends on S401+S404 (run concurrently with S405 is OK).
 
 After each task:
-- Run `dotnet build IOS-IG-SimHost.sln --no-restore 2>&1 | Select-String "error CS"` to verify no compile errors.
+- Run `dotnet build HROT.sln --no-restore 2>&1 | Select-String "error CS"` to verify no compile errors.
 - Run affected test projects with `--no-build`.
 - Fix any failures before moving on.
 
@@ -472,7 +472,7 @@ Minimum **18 new unit tests** across all 6 tasks.
 
 ## Common Pitfalls
 
-- `DataPolicy.Transient` is a combined flag (`NoSave | NoRecord`). Do not use `NoSave`
+- `DataPolicy.Transient` is a combined flag (`NoScenario | NoReplay`). Do not use `NoScenario`
   only for Intent DTOs — they must also be excluded from checkpoints.
 - `NetworkEntityMap.TryGetEntity(long, out Entity)` may have a different parameter name
   than expected. Read the actual source before writing code.

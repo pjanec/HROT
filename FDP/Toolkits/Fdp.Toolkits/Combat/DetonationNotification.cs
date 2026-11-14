@@ -40,5 +40,45 @@ namespace Fdp.Toolkit.Combat.Contracts
 
         /// <summary>True when this notification originated from network ingress.</summary>
         public bool IsRemote;
+
+        /// <summary>⭐ <c>CE-3071</c> — the round's armour penetration, mm RHA, copied from the bullet. 0 = unknown munition
+        /// (an external detonation carries none): the flat default damage applies.</summary>
+        public float Penetration;
+
+        /// <summary>⭐ <c>CE-3071</c> — the round's damage per penetrating hit, copied from the bullet. 0 = unknown munition.</summary>
+        public float Damage;
+
+        /// <summary>⭐ Stage 6 (<c>CE-1032</c>, W-2) — the TKB type id of the munition (0 = unknown); its warhead decides the area
+        /// effect. <see cref="Target"/> is <see cref="Entity.Null"/> for a round that detonated on the terrain (W-3).</summary>
+        public long Ammo;
+
+        /// <summary>⭐ M1 (D-A) — the direction the round was TRAVELLING when it struck (any length; its last swept segment),
+        /// world X. <b>All three 0 = unknown</b> (a detonation published by hand, an ingress one): the damage step then takes the
+        /// face from the shooter's position, as before. 📄 <c>DESIGN_Armour_Hit_Model.md</c> §3.</summary>
+        public float TravelX;
+
+        /// <summary>⭐ M1 — the travel direction, world Y. See <see cref="TravelX"/>.</summary>
+        public float TravelY;
+
+        /// <summary>⭐ M1 — the travel direction, world Z (negative = descending). See <see cref="TravelX"/>.</summary>
+        public float TravelZ;
+
+        /// <summary>⭐⭐ <c>CE-3209</c> (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-5) — APPENDED: 1 when the round met
+        /// a body PART (<see cref="BodyPart"/>, <see cref="Face"/> set). The damage step then reads the face ENTERED, not the arrival angle.</summary>
+        public byte HasBodyPart;
+
+        /// <summary>⭐ <c>CE-3209</c> — the part id within the target's body plan (<c>PersonPart</c>).</summary>
+        public byte BodyPart;
+
+        /// <summary>⭐ <c>CE-3209</c> — the face entered (<see cref="Facing"/>), in the target's frame.</summary>
+        public byte Face;
+        /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-3) — the round that burst, on the node that flew it (never sent: <see cref="Entity.Null"/>
+        /// off the wire): the cloud request reads its burn and its network id (the cloud's source).</summary>
+        public Entity Round;
+
+        /// <summary>⭐ <c>CE-4155</c> (SR-82) — APPENDED: the first thrower of a rethrown round (<see cref="Entity.Null"/> = <see cref="Shooter"/>
+        /// threw it first). Copied from <c>BallisticProjectile.OriginalShooter</c>; the damage steps put it on <c>DamageAssessedEvent.OriginalSource</c>.
+        /// Local to the node that flew the round (the area effect and the hit run there) — not on the munition-detonation wire.</summary>
+        public Entity OriginalShooter;
     }
 }

@@ -6,6 +6,7 @@ using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Squad.Command;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Descriptors;
@@ -27,12 +28,11 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class TacticalIntentEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "TacticalIntentRequest";
 
         private readonly IDdsWriter<TacticalIntentRequest> _writer;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<TacticalIntentRequest>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtTacticalIntentRequest;
         public long   ReceivedSampleCount { get; private set; }
         public long   SentSampleCount     { get; private set; }
@@ -40,7 +40,7 @@ namespace Hrot.Network.NED.SimHost
 
         /// <summary>Production constructor — creates a live DDS writer.</summary>
         public TacticalIntentEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
-            : this(new DdsWriterAdapter<TacticalIntentRequest>(participant, DdsTopicName), entityMap)
+            : this(new DdsWriterAdapter<TacticalIntentRequest>(participant), entityMap)
         {
         }
 
@@ -61,7 +61,11 @@ namespace Hrot.Network.NED.SimHost
         {
             if (view is not EntityRepository repo) return;
 
-            var events = repo.Bus.ReadManaged<AssignTacticalIntentEvent>();
+            var events = repo.ReadManagedEvents<AssignTacticalIntentEvent>();
+            // ⭐ CE-3167 — the egress now runs on EVERY node (an order may be issued anywhere); a node with no brain state
+            //   registered owns no brain, so it forwards everything. 🔴 HasAuthority on an unregistered type THROWS — that is
+            //   what the cross-node rail (EntityOrdersAcrossNodesTests) caught on SimHost.
+            bool brainHere = repo.IsComponentTypeRegistered<BehaviorState>();
 
             foreach (var evt in events)
             {
@@ -69,9 +73,9 @@ namespace Hrot.Network.NED.SimHost
 
                 // Authority gate: locally-owned entities are resolved by
                 // TacticalIntentResolutionSystem in the same frame.
-                if (repo.HasAuthority<BehaviorState>(evt.Entity)) continue;
+                if (brainHere && repo.HasAuthority<BehaviorState>(evt.Entity)) continue;
 
-                if (!_entityMap.TryGetNetworkId(evt.Entity, out long networkId))
+                if (!_entityMap.TryGetNetworkId(evt.Entity, out int networkId))
                 {
                     FdpLog<TacticalIntentEgressTranslator>.Warn(
                         "[TacticalIntentEgress] Entity #{0} not in NetworkEntityMap — skipping intent.",
@@ -84,6 +88,97 @@ namespace Hrot.Network.NED.SimHost
                     TargetEntityId = networkId,
                     IntentId       = evt.IntentId,
                     JsonParams     = evt.JsonParams,
+                    Origin         = (byte)evt.Origin,   // ⭐ CE-3034 — the origin crosses the wire
+                    Kind           = (byte)evt.Kind,     // ⭐ CE-3167 — assign or clear
+                    Flags          = evt.ClearsPriorIntent ? TacticalIntentFlags.ClearsPriorIntent : (byte)0,
+                    RequestId      = evt.RequestId,      // ⭐ CE-4306 (F5) — the order's edit id crosses
+                });
+                SentSampleCount++;
+            }
+
+            ForwardRoe(repo, brainHere);
+            ForwardReporting(repo, brainHere);
+            ForwardEngagementArea(repo, brainHere);
+        }
+
+        /// <summary>⭐ <c>CE-3251</c> (BR-13) — a <see cref="SetRoeEvent"/> about a unit whose brain runs on another node goes there on
+        /// the order's road (<see cref="TacticalIntentWireKind.SetRoe"/>); the owner raises it again and its <c>RoeSystem</c> applies
+        /// it through the origin gate. Written AFTER this frame's orders, on the same writer, so an order and its ROE arrive in that
+        /// order. ⛔ Before this, the ROE was applied to the local replica only and the owner never heard of it.</summary>
+        private void ForwardRoe(EntityRepository repo, bool brainHere)
+        {
+            if (!repo.Bus.IsRegistered<SetRoeEvent>()) return;
+            foreach (var evt in repo.ReadEvents<SetRoeEvent>())
+            {
+                if (brainHere && repo.HasAuthority<BehaviorState>(evt.Entity)) continue;   // RoeSystem applies it here
+                if (!_entityMap.TryGetNetworkId(evt.Entity, out int networkId))
+                {
+                    FdpLog<TacticalIntentEgressTranslator>.Warn(
+                        "[TacticalIntentEgress] Entity #{0} not in NetworkEntityMap — skipping its ROE.", evt.Entity.Index);
+                    continue;
+                }
+                _writer.Write(new TacticalIntentRequest
+                {
+                    TargetEntityId = networkId,
+                    IntentId       = string.Empty,
+                    JsonParams     = RoeDirectiveJson.Encode(in evt),
+                    Origin         = (byte)evt.Origin,
+                    Kind           = TacticalIntentWireKind.SetRoe,
+                });
+                SentSampleCount++;
+            }
+        }
+
+        /// <summary>⭐ <c>CE-3251</c> (BR-13) — the <see cref="ForwardRoe"/> twin for behaviors' <see cref="SetReportingEvent"/> (CE-2291
+        /// CC-2): a superior's reporting requirements for a subordinate whose brain runs on another node go there
+        /// (<see cref="TacticalIntentWireKind.SetReporting"/>) and its <c>ReportingRequirementsSystem</c> applies them.</summary>
+        private void ForwardReporting(EntityRepository repo, bool brainHere)
+        {
+            if (!repo.Bus.IsRegistered<SetReportingEvent>()) return;
+            foreach (var evt in repo.ReadEvents<SetReportingEvent>())
+            {
+                if (brainHere && repo.HasAuthority<BehaviorState>(evt.Entity)) continue;   // ReportingRequirementsSystem applies it here
+                if (!_entityMap.TryGetNetworkId(evt.Entity, out int networkId))
+                {
+                    FdpLog<TacticalIntentEgressTranslator>.Warn(
+                        "[TacticalIntentEgress] Entity #{0} not in NetworkEntityMap — skipping its reporting requirements.", evt.Entity.Index);
+                    continue;
+                }
+                _writer.Write(new TacticalIntentRequest
+                {
+                    TargetEntityId = networkId,
+                    IntentId       = string.Empty,
+                    JsonParams     = ReportingDirectiveJson.Encode(in evt),
+                    Origin         = (byte)evt.Origin,
+                    Kind           = TacticalIntentWireKind.SetReporting,
+                });
+                SentSampleCount++;
+            }
+        }
+
+        /// <summary>⭐ <c>CE-3261</c> — the <see cref="ForwardRoe"/> twin for behaviors' <see cref="SetEngagementAreaEvent"/> (CE-2282
+        /// DA-26): a superior's sector for a man or a commander whose brain runs on another node goes there
+        /// (<see cref="TacticalIntentWireKind.SetEngagementArea"/>) and its <c>EngagementAreaSystem</c> applies it. ⛔ Before, a superior on
+        /// another node set a sector with no effect (its <c>EngagementAreaSystem</c> left the replica to an owner that never heard of it).</summary>
+        private void ForwardEngagementArea(EntityRepository repo, bool brainHere)
+        {
+            if (!repo.Bus.IsRegistered<SetEngagementAreaEvent>()) return;
+            foreach (var evt in repo.ReadEvents<SetEngagementAreaEvent>())
+            {
+                if (brainHere && repo.HasAuthority<BehaviorState>(evt.Entity)) continue;   // EngagementAreaSystem applies it here
+                if (!_entityMap.TryGetNetworkId(evt.Entity, out int networkId))
+                {
+                    FdpLog<TacticalIntentEgressTranslator>.Warn(
+                        "[TacticalIntentEgress] Entity #{0} not in NetworkEntityMap — skipping its sector.", evt.Entity.Index);
+                    continue;
+                }
+                _writer.Write(new TacticalIntentRequest
+                {
+                    TargetEntityId = networkId,
+                    IntentId       = string.Empty,
+                    JsonParams     = EngagementAreaDirectiveJson.Encode(in evt),
+                    Origin         = (byte)evt.Origin,
+                    Kind           = TacticalIntentWireKind.SetEngagementArea,
                 });
                 SentSampleCount++;
             }
@@ -93,6 +188,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

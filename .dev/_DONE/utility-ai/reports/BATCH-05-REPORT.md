@@ -162,7 +162,7 @@ Fix:
    (next free slot in the 140-159 ModuleHost network block; 149 and 150 were already taken by
    `UtilityDebugFlags` and `UtilityTraceWorkingMemory`).
 2. Added `[ComponentId(UtilityApplicationComponentIds.UtilityResultBuffer)]` and
-   `[DataPolicy(DataPolicy.NoSave)]` to the `UtilityResultBuffer` struct declaration.
+   `[DataPolicy(DataPolicy.NoScenario)]` to the `UtilityResultBuffer` struct declaration.
 
 **Hysteresis test value correction (SC-SP-04)**
 
@@ -197,7 +197,7 @@ applied to AA: 0.243 > 0.170 — AA retained).
 | File | Change |
 |------|--------|
 | `FDP/Toolkits/Fdp.Toolkits/Utility/Core/UtilityApplicationComponentIds.cs` | Added `UtilityResultBuffer = 151` |
-| `FDP/Toolkits/Fdp.Toolkits/Utility/Core/UtilityResultBuffer.cs` | Added `[ComponentId]` + `[DataPolicy(NoSave)]` |
+| `FDP/Toolkits/Fdp.Toolkits/Utility/Core/UtilityResultBuffer.cs` | Added `[ComponentId]` + `[DataPolicy(NoScenario)]` |
 | `FDP/Toolkits/Fdp.Toolkits/Utility/Core/UtilityDecisionBuilderInfra.cs` | NEW |
 | `FDP/Toolkits/Fdp.Toolkits/Utility/Core/UtilityDecisionCatalog.cs` | NEW |
 | `FDP/Toolkits/Fdp.Toolkits/Utility/Core/UtilityCore.cs` | `Debug.Assert` for D-05 |

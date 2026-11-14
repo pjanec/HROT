@@ -1,7 +1,21 @@
+using System.Linq;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.Diagnostics.Breakpoints;
 
 namespace Hrot.Editor.AiShared.Windows;
+
+/// <summary>⭐ <c>U-obs-5</c> — the whole of what <see cref="AiBreakpointsWindow"/> shows, this frame.</summary>
+public sealed record AiBreakpointsPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    int ActiveCount,
+    int TotalCount) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Per-perspective Breakpoints window for the AI editor.
@@ -17,7 +31,12 @@ namespace Hrot.Editor.AiShared.Windows;
 /// </summary>
 public sealed class AiBreakpointsWindow : ManagedWindow
 {
+    /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⛔ Single-host: stays a local literal.</summary>
+    internal const string Kind = "ai-breakpoints";
+
     private readonly IDataBreakpointManager _manager;
+    /// <summary>⭐⭐ <c>CE-1285</c> (Q44-A, R-97) — THE one breakpoint list, the same panel the editor's global window draws.</summary>
+    private readonly Hrot.Presentation.Panels.Breakpoints.DataBreakpointManagerPanel _panel;
 
     /// <summary>
     /// Constructs the window.
@@ -32,20 +51,36 @@ public sealed class AiBreakpointsWindow : ManagedWindow
         : base(id, "Breakpoints", owningPerspective, WindowScope.PerspectiveBound)
     {
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
+        _panel = new Hrot.Presentation.Panels.Breakpoints.DataBreakpointManagerPanel(_manager, new TemporalStatusBannerState());
         IsOpen = false;
+
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     /// <summary>Exposes the manager for test verification (shared-instance check).</summary>
     public IDataBreakpointManager Manager => _manager;
 
+    /// <summary>⭐⭐⭐ BUILD · CAPTURE. ⛔⛔ No ImGui — pure counting, published before any render call.</summary>
+    private AiBreakpointsPanelViewModel BuildAndPublish()
+    {
+        int total  = _manager.AllBreakpoints.Count;
+        int active = _manager.AllBreakpoints.Count(bp => bp.Enabled);
+
+        var vm = new AiBreakpointsPanelViewModel(Id, Kind, active, total);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+    internal AiBreakpointsPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
     protected override void DrawClientArea()
     {
         // Headless-safe: DrawClientArea is only called by the window manager when
         // an ImGui frame is active, so no ImGui guard is needed here.
-        // A future iteration can render a full breakpoint grid; for now we render
-        // a minimal count banner so the window is visually useful.
-        int count = _manager.AllBreakpoints.Count(bp => bp.Enabled);
-        ImGuiNET.ImGui.TextDisabled($"{count} active breakpoint(s). " +
-            "Open the global Data Breakpoints window for full management.");
+        BuildAndPublish();
+        // ⭐⭐ CE-1285 (Q44-A, R-97) — the list itself, not a count with "open the other window": ⛔ the banner and its dead end are gone
+        _panel.DrawContent();
     }
 }

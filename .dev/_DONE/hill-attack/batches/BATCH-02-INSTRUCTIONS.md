@@ -56,13 +56,13 @@ multi-node EQS network translators (TASK-HA004) and the scenario integration tes
 
 ```bat
 :: Full solution build
-dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln
+dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln
 
 :: Run SimHost tests
 dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot\Subsystems\Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj --no-build
 
 :: Run all tests
-dotnet test d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln --no-build
+dotnet test d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln --no-build
 ```
 
 ### Report Submission
@@ -379,7 +379,7 @@ the commander node definitions (in `HillAttackCommanderNodes.cs` or a dedicated
 - [ ] TASK-HA014: TKB blueprints updated; loader tests pass
 - [ ] TASK-HA016: JSON DTO + ParseParams implemented + tested
 - [ ] All 35+ new tests pass
-- [ ] `dotnet build IOS-IG-SimHost.sln` — zero errors, zero warnings
+- [ ] `dotnet build HROT.sln` — zero errors, zero warnings
 - [ ] Total failing tests across the whole solution is now <= 6 (pre-existing failures only)
 - [ ] Report written to `.dev/hill-attack/reports/BATCH-02-REPORT.md`
 

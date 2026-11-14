@@ -1,0 +1,451 @@
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
+using System.Text;
+
+namespace Fdp.Toolkit.Behavior.Analyzers
+{
+    /// <summary>
+    /// CE-373 -- emits <c>CuratedBehaviorRegistrar</c>, the generated replacement for the
+    /// hand-written <c>CgfCuratedBehaviorRegistrar</c>.
+    /// See DESIGN_Behavior_Self_Registration.md §4-§7.
+    ///
+    /// <para>
+    /// DISCOVERY DOES NOT CHANGE. The emitted class carries <c>[BlueprintRegistrar]</c>, so
+    /// <c>BlueprintRegistrarScanner</c> finds it exactly as it finds the 30 generated JSON
+    /// registrars, and hot reload works by construction because generated code is compiled INTO the
+    /// assembly (the scanner already handles collectible ALCs). A runtime reflective sweep was
+    /// rejected: it would be a SECOND discovery mechanism, not AOT-friendly and not breakpointable.
+    /// </para>
+    ///
+    /// <para>
+    /// WHAT IT REGISTERS is an explicit opt-in, <c>Curated = true</c>, and that is measured rather
+    /// than assumed: Hrot.AI.Behaviors carries nine <c>[BTreeDefinition]</c> methods and only five
+    /// are curated topologies. <c>HideInCover_BT</c>/<c>_v2</c> are registered as behaviours nowhere,
+    /// and <c>PlatoonHillAttack</c>/<c>HullDownAttackRun</c> have their topology owned by generated
+    /// JSON registrars -- registering those here would hard-error on a duplicate name. (⛔ HISTORY — since
+    /// CE-1410 (R-1042) every shipped library tree, those two included, is a curated C# tree; this generator
+    /// also publishes what their JSON registrars did: CarriesSopOrders, WritesChannels, BakeDefaults —
+    /// DESIGN_Behavior_Self_Registration.md §10d.)
+    /// </para>
+    ///
+    /// <para>
+    /// RESOLVERS bind by name through <c>RegisterResolver</c> and are order-independent, so a
+    /// resolver may name a behaviour whose topology a generated registrar owns. R-132 rules that a
+    /// curated overlay WINS; the <c>[BehaviorResolver]</c> attribute is now that declaration.
+    /// </para>
+    /// </summary>
+    [Generator]
+    public class CuratedBehaviorGenerator : IIncrementalGenerator
+    {
+        private static readonly DiagnosticDescriptor InvalidResolver = new DiagnosticDescriptor(
+            id: "BEH001",
+            title: "Invalid BehaviorResolver method",
+            messageFormat: "Method '{0}' annotated with [BehaviorResolver] must be static and take (string, byte*, int), the full 5-parameter ParseParamsDelegate shape, or the typed block shape (in TAuthored, ref TBlock, EntityRepository, Entity)",
+            category: "BehaviorSourceGen",
+            defaultSeverity: DiagnosticSeverity.Warning,
+            isEnabledByDefault: true);
+
+        // ⭐⭐ CE-2134 (docs/DESIGN_Orders_Params_Entity_Classes.md §5b) — a behaviour's DECLARED params DTO ([Behavior(Params =
+        //   …)]) must be what it really parses, so a published contract can never again differ from the parsed type (CE-2128).
+        //   Checkable here for two shapes; a raw (string, byte*, …) resolver deserializes inside its body and stays unverifiable.
+        private static readonly DiagnosticDescriptor DeclaredParamsNotResolverSource = new DiagnosticDescriptor(
+            id: "BEH002",
+            title: "Declared params DTO is not what the resolver takes",
+            messageFormat: "Behaviour '{0}' declares Params = {1} but its typed resolver takes {2}; the published contract must be what the behaviour parses (CE-2128)",
+            category: "BehaviorSourceGen",
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        private static readonly DiagnosticDescriptor DeclaredParamsNotIdentityParsed = new DiagnosticDescriptor(
+            id: "BEH003",
+            title: "Declared params DTO is not the type the curated registrar parses",
+            messageFormat: "Behaviour '{0}' declares Params = {1} but has no resolver, so its JSON is parsed straight into its ParamsType {2}; declare that type (P3: a stored params DTO is that unmanaged struct)",
+            category: "BehaviorSourceGen",
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        /// <summary>⭐ CE-2134 — the <c>[Behavior(name, Params = …)]</c> on <paramref name="symbol"/> for <paramref name="name"/>, as a
+        /// fully-qualified type name, or null. Matched by the attribute's simple name, like the others here.</summary>
+        private static string? DeclaredParams(IMethodSymbol symbol, string name)
+        {
+            foreach (var a in symbol.GetAttributes())
+            {
+                if (a.AttributeClass?.Name != "BehaviorAttribute") continue;
+                if (a.ConstructorArguments.Length == 0 || a.ConstructorArguments[0].Value as string != name) continue;
+                var p = a.NamedArguments.FirstOrDefault(kv => kv.Key == "Params");
+                if (p.Key != null && p.Value.Value is ITypeSymbol t) return t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            }
+            return null;
+        }
+
+        public void Initialize(IncrementalGeneratorInitializationContext context)
+        {
+            var topologies = context.SyntaxProvider
+                .CreateSyntaxProvider(
+                    predicate: static (node, _) => node is MethodDeclarationSyntax m && m.AttributeLists.Count > 0,
+                    transform: static (ctx, _) => GetTopology(ctx))
+                .Where(static m => m != null);
+
+            var resolvers = context.SyntaxProvider
+                .CreateSyntaxProvider(
+                    predicate: static (node, _) => node is MethodDeclarationSyntax m && m.AttributeLists.Count > 0,
+                    transform: static (ctx, _) => GetResolver(ctx))
+                .Where(static m => m != null);
+
+            var combined = context.CompilationProvider
+                .Combine(topologies.Collect())
+                .Combine(resolvers.Collect());
+
+            context.RegisterSourceOutput(
+                combined,
+                static (spc, src) => Execute(spc, src.Left.Left, src.Left.Right, src.Right));
+        }
+
+        // ---- collection -------------------------------------------------------
+
+        private static CuratedTopology? GetTopology(GeneratorSyntaxContext context)
+        {
+            var method = (MethodDeclarationSyntax)context.Node;
+            if (context.SemanticModel.GetDeclaredSymbol(method) is not IMethodSymbol symbol) return null;
+
+            foreach (var attr in symbol.GetAttributes())
+            {
+                string? attrName = attr.AttributeClass?.Name;
+                bool isBTree = attrName == "BTreeDefinitionAttribute";
+                bool isHsm   = attrName == "HsmDefinitionAttribute";
+                if (!isBTree && !isHsm) continue;
+
+                // The explicit opt-in. Absent or false => not a curated behaviour.
+                var curated = attr.NamedArguments.FirstOrDefault(kv => kv.Key == "Curated");
+                if (curated.Key == null || curated.Value.Value is not bool c || !c) return null;
+
+                string? name = attr.ConstructorArguments.Length > 0
+                    ? attr.ConstructorArguments[0].Value as string
+                    : null;
+                if (string.IsNullOrEmpty(name)) return null;
+
+                var paramsArg = attr.NamedArguments.FirstOrDefault(kv => kv.Key == "ParamsType");
+                string? paramsType = paramsArg.Key != null && paramsArg.Value.Value is INamedTypeSymbol pt
+                    ? pt.ToDisplayString()
+                    : null;
+
+                // CE-3164 (R-268): the pickers' folder, from the attribute.
+                var groupArg = attr.NamedArguments.FirstOrDefault(kv => kv.Key == "Group");
+                string? group = groupArg.Key != null ? groupArg.Value.Value as string : null;
+
+                return new CuratedTopology
+                {
+                    Name       = name!,
+                    IsHsm      = isHsm,
+                    ParamsType = paramsType,
+                    ParamsTypeFq = paramsArg.Key != null && paramsArg.Value.Value is INamedTypeSymbol ptq
+                        ? ptq.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
+                    DeclaredParams = DeclaredParams(symbol, name!),
+                    Group      = string.IsNullOrEmpty(group) ? null : group,
+                };
+            }
+            return null;
+        }
+
+        private static CuratedResolver? GetResolver(GeneratorSyntaxContext context)
+        {
+            var method = (MethodDeclarationSyntax)context.Node;
+            if (context.SemanticModel.GetDeclaredSymbol(method) is not IMethodSymbol symbol) return null;
+
+            var attr = symbol.GetAttributes()
+                .FirstOrDefault(a => a.AttributeClass?.Name == "BehaviorResolverAttribute");
+            if (attr == null) return null;
+
+            string? name = attr.ConstructorArguments.Length > 0
+                ? attr.ConstructorArguments[0].Value as string
+                : null;
+            if (string.IsNullOrEmpty(name)) return null;
+
+            var paramsArg = attr.NamedArguments.FirstOrDefault(kv => kv.Key == "ParamsType");
+            string? paramsType = paramsArg.Key != null && paramsArg.Value.Value is INamedTypeSymbol pt
+                ? pt.ToDisplayString()
+                : null;
+
+            // Two accepted shapes. The 3-param one is wrapped; the hand-written registrar spelled
+            // that wrapper out by hand, twice.
+            int argc = symbol.Parameters.Length;
+            // ⭐⭐ CE-427 — a THIRD shape: the typed block resolver
+            //   (in TAuthored authored, ref TBlock block, EntityRepository, Entity).
+            //   Recognised by the ref-kinds of its first two parameters, never by a name.
+            // ⭐ CE-445: `IHostVariableAccess host` is retired, so the full delegate is 5 params and the typed one 4.
+            bool isBlock = argc == 4
+                && symbol.Parameters[0].RefKind == RefKind.In
+                && symbol.Parameters[1].RefKind == RefKind.Ref;
+            bool valid = symbol.IsStatic && (argc == 3 || argc == 5 || isBlock);
+
+            return new CuratedResolver
+            {
+                Name        = name!,
+                MethodRef   = symbol.ContainingType.ToDisplayString() + "." + symbol.Name,
+                MethodName  = symbol.Name,
+                ParamCount  = argc,
+                ParamsType  = paramsType,
+                IsValid     = valid,
+                DeclaredParams = DeclaredParams(symbol, name!),
+                AuthoredType = isBlock ? symbol.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
+                BlockType    = isBlock ? symbol.Parameters[1].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
+            };
+        }
+
+        // ---- emission ---------------------------------------------------------
+
+        private static void Execute(
+            SourceProductionContext context,
+            Compilation compilation,
+            ImmutableArray<CuratedTopology?> topologies,
+            ImmutableArray<CuratedResolver?> resolvers)
+        {
+            var tops = new List<CuratedTopology>();
+            foreach (var t in topologies) if (t != null) tops.Add(t);
+
+            var res = new List<CuratedResolver>();
+            foreach (var r in resolvers)
+            {
+                if (r == null) continue;
+                if (!r.IsValid)
+                {
+                    context.ReportDiagnostic(
+                        Diagnostic.Create(InvalidResolver, Location.None, r.MethodName));
+                    continue;
+                }
+                res.Add(r);
+            }
+
+            // ⭐ CE-2134 — the declared params DTO against what each curated behaviour really parses.
+            foreach (var t in tops)
+            {
+                var r = res.FirstOrDefault(x => x.Name == t.Name);
+                string? declared = t.DeclaredParams ?? r?.DeclaredParams;
+                if (declared == null) continue;
+                if (r?.AuthoredType != null && declared != r.AuthoredType)
+                    context.ReportDiagnostic(Diagnostic.Create(DeclaredParamsNotResolverSource, Location.None, t.Name, declared, r.AuthoredType));
+                else if (r == null && t.ParamsTypeFq != null && declared != t.ParamsTypeFq)
+                    context.ReportDiagnostic(Diagnostic.Create(DeclaredParamsNotIdentityParsed, Location.None, t.Name, declared, t.ParamsTypeFq));
+            }
+            foreach (var r in res)
+                if (r.DeclaredParams != null && r.AuthoredType != null && r.DeclaredParams != r.AuthoredType && !tops.Any(t => t.Name == r.Name))
+                    context.ReportDiagnostic(Diagnostic.Create(DeclaredParamsNotResolverSource, Location.None, r.Name, r.DeclaredParams, r.AuthoredType));
+
+            // Nothing curated in this assembly => emit nothing at all, so an assembly that has no
+            // curated behaviour keeps byte-identical generated output.
+            if (tops.Count == 0 && res.Count == 0) return;
+
+            // Deterministic order: the emitted source must not move because Roslyn visited files in a
+            // different order. A golden that moves for a reason nobody changed trains everyone to
+            // regenerate, and a gate that is routinely regenerated is not a gate.
+            tops.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
+            res.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
+
+            string assemblyName  = compilation.AssemblyName ?? "Generated";
+            string namespaceName = assemblyName + ".Generated";
+
+            context.AddSource("CuratedBehaviorRegistrar.g.cs", Generate(tops, res, namespaceName));
+        }
+
+        private static string Q(string s) => "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+
+        private static string Generate(
+            List<CuratedTopology> tops, List<CuratedResolver> res, string namespaceName)
+        {
+            string catalogNs = "global::" + namespaceName + ".";
+
+            var sb = new StringBuilder();
+            sb.AppendLine("// <auto-generated/>");
+            sb.AppendLine("#nullable enable");
+            sb.AppendLine();
+            sb.AppendLine("namespace " + namespaceName);
+            sb.AppendLine("{");
+            sb.AppendLine("    /// <summary>");
+            sb.AppendLine("    /// CE-373 -- generated replacement for the hand-written CgfCuratedBehaviorRegistrar.");
+            sb.AppendLine("    /// Discovered and invoked by BlueprintRegistrarScanner exactly like the generated");
+            sb.AppendLine("    /// per-asset registrars; see DESIGN_Behavior_Self_Registration.md.");
+            sb.AppendLine("    /// </summary>");
+            sb.AppendLine("    [global::Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]");
+            sb.AppendLine("    public static class CuratedBehaviorRegistrar");
+            sb.AppendLine("    {");
+            // `unsafe` because ParseParamsDelegate takes a byte* -- the 3-param wrapper lambdas
+            // cannot be expressed without it, and the hand-written registrar was unsafe for the
+            // same reason.
+            sb.AppendLine("        public static unsafe void Register(");
+            sb.AppendLine("            global::Fdp.Toolkit.Behavior.BehaviorRegistry beh,");
+            sb.AppendLine("            global::Fbt.Runtime.ActionRegistry<byte, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry)");
+            sb.AppendLine("        {");
+
+            if (tops.Any(t => !t.IsHsm))
+            {
+                sb.AppendLine("            // Bake the resource-owning bit off the action registry so branch-abort");
+                sb.AppendLine("            // deactivators fire -- the same seam the hand-written registrar used.");
+                sb.AppendLine("            global::System.Func<string, bool> isResourceOwning =");
+                sb.AppendLine("                name => actionRegistry.TryGetDeactivator(name, out _);");
+                sb.AppendLine();
+            }
+
+            foreach (var t in tops)
+            {
+                string safe = SanitizeIdentifier(t.Name);
+                if (!t.IsHsm)
+                {
+                    // E6 / CE-364 -- the blob must be a LOCAL: PlanFor walks it for hosting sites,
+                    // and the resulting Slots must be on the definition before it is constructed
+                    // (StatefulWorkingSlots is `init`). HostedSubtree.Tick THROWS on a slot the
+                    // manifest never declared, so the plan and the Bind ship together or neither.
+                    // ⭐ CE-504 slice 3 — the runtime overload: the shared-node verbs' byte thunks land in actionRegistry.
+                    sb.AppendLine("            var __blob" + safe + " = " + catalogNs + "FbtTreeCatalog.Get" + safe + "(isResourceOwning, actionRegistry);");
+                    sb.AppendLine("            var __plan" + safe + " = global::Fdp.Toolkit.Behavior.BTreeHostedSites.PlanFor(__blob" + safe + ", " + Q(t.Name) + ");");
+                    sb.AppendLine("            var __interp" + safe + " = new global::Fbt.Runtime.Interpreter<byte, global::Fdp.Toolkit.Behavior.BTreeContext>(__blob" + safe + ", actionRegistry);");
+                    // Hosting is opt-in per interpreter; without this a Subtree node returns Failure.
+                    sb.AppendLine("            __interp" + safe + ".SubtreeHost = global::Fdp.Toolkit.Behavior.OccurrenceSubtreeHost.Instance;");
+                }
+                sb.AppendLine("            beh.Register(" + Q(t.Name) + ", new global::Fdp.Toolkit.Behavior.BehaviorDefinition");
+                sb.AppendLine("            {");
+                sb.AppendLine("                Name      = " + Q(t.Name) + ",");
+                if (t.Group != null) sb.AppendLine("                Group     = " + Q(t.Group) + ",");
+                if (t.IsHsm)
+                {
+                    sb.AppendLine("                BrainTier = global::Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierHsm,");
+                    sb.AppendLine("                HsmDefinition = " + catalogNs + "FhsmMachineCatalog.Get" + safe + "(),");
+                    // CE-370: metadata beside the blob, so HSM traces symbolicate for every machine.
+                    sb.AppendLine("                HsmMetadata   = " + catalogNs + "FhsmMachineCatalog.Get" + safe + "Metadata(),");
+                }
+                else
+                {
+                    sb.AppendLine("                BrainTier = global::Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree,");
+                    sb.AppendLine("                BTreeInterpreter = __interp" + safe + ",");
+                    sb.AppendLine("                StatefulWorkingSlots = __plan" + safe + ".Slots,");
+                    // ⭐ CE-1410 (R-1042) — what the JSON registrar publishes for an asset, read off the compiled blob here: an SOP is a
+                    //   tree that carries SOP orders (CE-1019), and its channel set is the union of its bound methods' [WritesChannel].
+                    sb.AppendLine("                CarriesSopOrders = global::Fdp.Toolkit.Behavior.SharedNodeBinder.CarriesSopOrders(__blob" + safe + "),");
+                    sb.AppendLine("                WritesChannels = global::Fdp.Toolkit.Behavior.SharedNodeBinder.WritesChannelsOf(__blob" + safe + "),");
+                }
+                // ⭐⭐ CE-1431 — EVERY curated BTree publishes its variables manifest, as a JSON asset's registrar always did: the block's
+                //   fields (CE-1412, derived in ONE place from the block and the compiled blob) when it names a ParamsType, else an EMPTY
+                //   manifest (it declares no variables). ⛔ Not an opt-in any more (R-3065: the same tree whatever surface authored it); the
+                //   hosting rules read the declared contract and the block, never the manifest's presence. An HSM has no BTree blob to read working state from ⇒ no manifest.
+                if (!t.IsHsm)
+                {
+                    if (t.ParamsType != null)
+                        sb.AppendLine("                ManagedBlackboardVariables = global::Fdp.Toolkit.Behavior.SharedNodeBinder.VariablesOf(__blob" + safe
+                                      + ", typeof(global::" + t.ParamsType + ")),");
+                    else
+                        sb.AppendLine("                ManagedBlackboardVariables = global::System.Array.Empty<global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable>(),");
+                }
+                if (t.ParamsType != null)
+                {
+                    sb.AppendLine("                BlackboardLayoutType = typeof(global::" + t.ParamsType + "),");
+                    // ⭐ CE-1410 (R-3002) — stage 1: the params struct's own default (its constructor), composed in front of a resolver.
+                    sb.AppendLine("                BakeDefaults = global::Fdp.Toolkit.Behavior.BehaviorParams.BakeNew<global::" + t.ParamsType + ">(),");
+                    // ⭐⭐ CE-416 ② / Q75 decision D, state ② — a curated behaviour whose JSON contract IS its layout
+                    //   needs no resolver: the IDENTITY parse is generated. ⛔ Decided HERE, at generation time, and
+                    //   only when no [BehaviorResolver] names this behaviour (Q75 D.1, R-132/R-149) — never by
+                    //   "whoever registers ParseParams last", the shape R-132 was filed against.
+                    bool hasResolver = false;
+                    foreach (var r in res) if (r.Name == t.Name) { hasResolver = true; break; }
+                    if (!hasResolver)
+                    {
+                        string P = "global::" + t.ParamsType;
+                        sb.AppendLine("                ParseParams = global::Fdp.Toolkit.Behavior.BehaviorParams.FromBlockResolver<" + P + ", " + P + ">(");
+                        sb.AppendLine("                    static (in " + P + " authored, ref " + P + " block, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) => block = authored),");
+                    }
+                }
+                sb.AppendLine("            });");
+                // E6 / CE-364 -- bind AFTER Register, because HostedChildren resolves the CHILD
+                // through the registry and registrars run in an arbitrary order. An unresolvable
+                // child is skipped and surfaces at the hosting site as Require's named exception.
+                if (!t.IsHsm)
+                    sb.AppendLine("            global::Fdp.Toolkit.Behavior.BTreeHostedSites.Bind(beh, __blob" + safe + ", __plan" + safe + ");");
+                sb.AppendLine();
+            }
+
+            if (res.Count > 0)
+            {
+                sb.AppendLine("            // Named resolver overlays. Bound by NAME and order-independent, so a resolver");
+                sb.AppendLine("            // may name a behaviour whose topology a generated registrar owns.");
+                sb.AppendLine("            // R-132: a curated overlay WINS -- the [BehaviorResolver] attribute is that");
+                sb.AppendLine("            // declaration. R-149: two curated bindings for one name THROW, never race.");
+                foreach (var r in res)
+                {
+                    string tail = r.ParamsType != null
+                        ? ", typeof(global::" + r.ParamsType + ")"
+                        : "";
+
+                    if (r.BlockType != null)
+                    {
+                        // CE-427: SUPPLY + RESOLVE through BehaviorParams.FromBlockResolver; the registry
+                        // composes the behaviour's BAKE in front of it (ApplyResolverOverlay).
+                        sb.AppendLine("            beh.RegisterResolver(" + Q(r.Name) + ",");
+                        sb.AppendLine("                global::Fdp.Toolkit.Behavior.BehaviorParams.FromBlockResolver<" + r.AuthoredType + ", " + r.BlockType + ">(");
+                        sb.AppendLine("                    global::" + r.MethodRef + ")" + tail + ");");
+                        // CE-443/CE-438: and its FROM-BYTES arm, so a HOSTED child can run it with its host
+                        // variable as the source. null (class-typed TAuthored) registers nothing.
+                        sb.AppendLine("            {");
+                        sb.AppendLine("                var __src = global::Fdp.Toolkit.Behavior.BehaviorParams.FromBlockResolverSource<" + r.AuthoredType + ", " + r.BlockType + ">(");
+                        sb.AppendLine("                    global::" + r.MethodRef + ");");
+                        // S8 / CE-2022: with its SOURCE type, so a host knows what to bind (TryGetHostedInputType).
+                        sb.AppendLine("                if (__src != null) beh.RegisterSourceResolver(" + Q(r.Name) + ", __src, typeof(" + r.AuthoredType + "));");
+                        sb.AppendLine("            }");
+                    }
+                    else if (r.ParamCount == 5)
+                    {
+                        sb.AppendLine("            beh.RegisterResolver(" + Q(r.Name) + ", global::" + r.MethodRef + tail + ");");
+                    }
+                    else
+                    {
+                        // The 3-param shape takes only (json, memory, capacity); world/self/host are
+                        // discarded, exactly as the hand-written lambdas did.
+                        // NOTE the params type is RegisterResolver's THIRD ARGUMENT -- it must attach
+                        // to the call, never to the wrapped invocation.
+                        sb.AppendLine("            beh.RegisterResolver(" + Q(r.Name) + ",");
+                        sb.AppendLine("                (json, memory, capacity, world, self) =>");
+                        sb.AppendLine("                    global::" + r.MethodRef + "(json, memory, capacity)" + tail + ");");
+                    }
+                }
+                sb.AppendLine();
+            }
+
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
+            sb.AppendLine("}");
+            return sb.ToString();
+        }
+
+        private static string SanitizeIdentifier(string name)
+            => global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.ReplaceInvalid(name, "");
+    }
+
+    internal class CuratedTopology
+    {
+        public string Name { get; set; } = "";
+        public bool IsHsm { get; set; }
+        public string? ParamsType { get; set; }
+        /// <summary>CE-3164 (R-268): the attribute's <c>Group</c> — the pickers' folder — or null.</summary>
+        public string? Group { get; set; }
+        /// <summary>CE-2134: <see cref="ParamsType"/> fully qualified (global::), for the BEH003 comparison.</summary>
+        public string? ParamsTypeFq { get; set; }
+        /// <summary>CE-2134: the <c>[Behavior(Params = …)]</c> on this method (global::), or null.</summary>
+        public string? DeclaredParams { get; set; }
+    }
+
+    internal class CuratedResolver
+    {
+        public string Name { get; set; } = "";
+        public string MethodRef { get; set; } = "";
+        public string MethodName { get; set; } = "";
+        public int ParamCount { get; set; }
+        /// <summary>CE-427: the typed block resolver's authored type (FQN), or null for the byte-level shapes.</summary>
+        public string? AuthoredType { get; set; }
+        /// <summary>CE-427: the typed block resolver's block type (FQN), or null for the byte-level shapes.</summary>
+        public string? BlockType { get; set; }
+        public string? ParamsType { get; set; }
+        public bool IsValid { get; set; }
+        /// <summary>CE-2134: the <c>[Behavior(Params = …)]</c> on this method (global::), or null.</summary>
+        public string? DeclaredParams { get; set; }
+    }
+}

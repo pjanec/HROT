@@ -40,16 +40,29 @@
   <ItemGroup>
     <!-- Hrot data model and map types -->
     <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
+    <ProjectReference Include="..\..\Engine\Hrot.EcsNode\Hrot.EcsNode.csproj" />    <!-- CE-4015: the code every ECS host composes (no host-to-host reference) -->
+    <ProjectReference Include="..\..\Engine\Hrot.Traffic\Hrot.Traffic.csproj" />    <!-- AQ93 N6: TrafficPack.Mirroring() -->
     <!-- FDP Kernel and Toolkits -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <!-- W6 (docs/DESIGN_Terrain_World.md §4.1): SimHost solves navigation over a navmesh baked from the terrain world. -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Navigation.Recast\Fdp.Toolkits.Navigation.Recast.csproj" />
     <!-- Scenario serialization toolkit for ScenarioLoadClusterStateHandler (CGF1-S0307) -->
     <!-- Orchestration toolkit (contracts, StatusCode, TkClusterStateChangedEvent) -->
 
     <!-- Visualization / UI (graphical window support) -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
-    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />    <!-- NED protocol references required for EntityAttributeSchema and related network systems. -->
+    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
+    <!-- ⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — the shared Details panel every ECS host builds -->
+    <ProjectReference Include="..\..\Editor\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
+    <!-- CE-1017: the Add Entity picker (PickerRegistry). -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />    <!-- NED protocol references required for EntityAttributeSchema and related network systems. -->
     <!-- NOTE: GZ045 gizmo interaction translators are now routed through INetworkFactory. -->
-    <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />    <!-- GZ057: source generator for [GizmoProjector] attribute on SimHostEntityPresentationGizmo. -->
+    <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
+    <!-- ⭐ CE-2121 — the body-stance Muscle (AnimationMuscleModule over the fake backend). -->
+    <ProjectReference Include="..\Hrot.MuscleCharacter.Animation\Hrot.MuscleCharacter.Animation.csproj" />
+    <ProjectReference Include="..\Hrot.MuscleCharacter.Animation.Fake\Hrot.MuscleCharacter.Animation.Fake.csproj" />
+    <!-- ⭐ CE-2121 slice ② — the body-stance wire (StanceIntent in, StanceStatus out). -->
+    <ProjectReference Include="..\Hrot.Animation.Replication\Hrot.Animation.Replication.csproj" />    <!-- GZ057: source generator for [GizmoProjector] attribute on SimHostEntityPresentationGizmo. -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />  </ItemGroup>
 

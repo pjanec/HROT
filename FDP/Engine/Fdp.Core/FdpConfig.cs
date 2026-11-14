@@ -1,3 +1,4 @@
+using System;
 namespace Fdp.Core
 {
     /// <summary>
@@ -48,8 +49,18 @@ namespace Fdp.Core
         /// PositionZ (24→32 B); TargetMemory gained PositionsZ; NavigationIntent/NavState/MoveToParams
         /// destinations and TrajectoryWaypoint.Position widened to Vector3. Pre-v6 recordings are
         /// rejected fast by PlaybackController/PlaybackSystem (version-mismatch), not mis-deserialized.
+        /// v7 (⭐ CE-3329 P0, R1): the frame's outer header grew <c>SimTime</c> + <c>Flags</c> (25 → 34 bytes,
+        /// <c>FrameOuterHeader</c>); the frame BODY is unchanged, so a v6 recording is still read — its index carries no sim time
+        /// (<see cref="MIN_READABLE_FORMAT_VERSION"/>).
+        ///
+        /// v8 (⭐ CE-1478 P6, DESIGN_Replay_Playback_Performance §3): a delta may carry an unmanaged chunk as BLOCK RUNS — a component record whose type id has
+        /// <c>RecorderSystem.BlockRecordFlag</c> set holds only the 64-byte blocks that differ from the chunk's last recorded bytes. A v8 reader reads v6–v8; a v7
+        /// build rejects a v8 file (version mismatch) rather than mis-applying a block run as a whole chunk.
         /// </summary>
-        public const uint FORMAT_VERSION = 6;
+        public const uint FORMAT_VERSION = 8;
+
+        /// <summary>⭐ CE-3329 P0 — the oldest format a reader still opens: v6 differs from v7 only in the outer header.</summary>
+        public const uint MIN_READABLE_FORMAT_VERSION = 6;
         
         /// <summary>
         /// Calculate chunk capacity for a given element size.
@@ -69,6 +80,24 @@ namespace Fdp.Core
             return CHUNK_SIZE_BYTES / elementSize;
         }
         
+        /// <summary>
+        /// ⭐ <c>CE-2044</c> — <see cref="GetChunkCapacity{T}"/> for a runtime <see cref="System.Type"/>: the SAME formula over the same
+        /// managed size, so a tool walking a table by type (the flight recorder) lands on the chunks the table really has.
+        /// ⛔ The recorder divided by <c>Marshal.SizeOf</c> — the interop size — and so walked the wrong entity range per chunk
+        /// for any component whose interop size differs (a <c>char</c>, or a <c>bool</c> inside a nested struct).
+        /// </summary>
+        public static int GetChunkCapacity(System.Type type)
+        {
+            int elementSize = TypeLayout.SizeOf(type);
+            if (elementSize > CHUNK_SIZE_BYTES)
+            {
+                throw new System.InvalidOperationException(
+                    $"Type {type.Name} ({elementSize} bytes) exceeds chunk size ({CHUNK_SIZE_BYTES} bytes). " +
+                    $"Consider using multi-part descriptors or managed components.");
+            }
+            return CHUNK_SIZE_BYTES / elementSize;
+        }
+
         /// <summary>
         /// Calculate the number of chunks needed for MAX_ENTITIES of type T.
         /// </summary>
@@ -102,6 +131,60 @@ namespace Fdp.Core
         /// Set to true in production entry-points to guarantee all events are known to the schema.
         /// </summary>
         public static bool EnforceExplicitEventRegistration { get; set; } = false;
+
+        /// <summary>
+        /// ⭐⭐ CE-3293 S5 (R-3036 rules 2 and 5; docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md §10 F12) — the tick-mode
+        /// gate and the step windows: a <c>[TickMode(WhenTimeAdvances)]</c> system (and module) is not run on a frame that does not
+        /// advance, and reads every event since its own last run. ON by default; turn it off only to bisect a red to this change.
+        /// ⚠ Off is not byte-for-byte the old behaviour: the eight hand-written <c>deltaTime &lt;= 0</c> returns it replaced are gone.
+        /// The environment variable <c>FDP_TICKMODE_GATE=0</c> turns it off for a whole process (an editor or a node).
+        /// </summary>
+        public static bool TickModeGate { get; set; } =
+            EnvVars.Read(EnvVars.FdpTickmodeGate) != "0";   // ⭐ FDP_TICKMODE_GATE=0 bisects a LIVE run too
+
+        /// <summary>
+        /// When <c>true</c>, the module host RETHROWS any exception a module or system raises during a
+        /// frame instead of catching and reporting it. The node dies at the first fault, with the
+        /// original stack.
+        /// </summary>
+        /// <remarks>
+        /// <para><b>Why this exists.</b> The kernel catches per-module exceptions so one faulty module
+        /// cannot take down a distributed simulation — correct for production, and exactly wrong while
+        /// debugging: a system that throws on its first frame keeps "running" forever, every system
+        /// after it in the same phase group is skipped, and the node still answers healthy. Measured:
+        /// <c>StatelessGizmoSystem</c> threw on every frame of every editor run and nothing failed
+        /// (<c>CE-188</c>).</para>
+        ///
+        /// <para>⭐ <b>Default <c>TRUE</c>.</b> 🔒 User ruling, <c>2026-09-04</c>: <i>"the fail fast should
+        /// be on by default as we are still in a wild development phase, not even close to
+        /// production."</i> A module fault is a bug to fix now, not a condition to survive — and the
+        /// resilience this suspends only ever bought the ability to keep running past one.</para>
+        ///
+        /// <para><b>Turning it OFF without a rebuild:</b> set <c>FDP_FAIL_FAST=0</c> (or
+        /// <c>false</c>/<c>off</c>) at process start, or assign the property in a host that genuinely
+        /// must survive a faulty module. ⛔ Flip this back to <c>false</c> as a default only when the
+        /// project is actually near production — the switch exists so that decision is explicit and
+        /// dated, not inherited.</para>
+        ///
+        /// <para>⚠ <b>This is not a substitute for the fault being visible.</b> Fail-fast only helps when
+        /// you are watching. The kernel therefore also records every fault against the module's circuit
+        /// breaker and reports repeats as a COUNT rather than a line each — a fault printed ten thousand
+        /// times is hidden just as effectively as one that was never printed.</para>
+        /// </remarks>
+        public static bool FailFastOnModuleException { get; set; } =
+            EnvVars.Read(EnvVars.FdpFailFast) is not ("0" or "false" or "FALSE" or "off" or "OFF");
+
+        /// <summary>
+        /// ⭐ CE-3427 C-1 (user, <c>2026-11-10</c>) — in live play a slow module (below 60 Hz) runs every <c>1/Hz</c> s of WALL CLOCK
+        /// counted from its last DISPATCH, not every <c>60/Hz</c> rendered frames counted from its harvest. 🔒 User, <c>2026-10-21</c>:
+        /// <i>"the 10Hz and such were meant to be wall clock to ease the CPU"</i>. 📐 Measured: a 120 ms EQS run waited 230 ms more
+        /// frame-counted (2.9 runs/s for a 10 Hz policy); wall clock gave 7.1 runs/s (docs/DESIGN_Scale_Rig.md §7.2).
+        /// <para>The default each new <c>ModuleHostKernel</c> takes. OFF here so a test that drives frames unpaced keeps a cadence
+        /// that does not depend on machine speed; the live process (<c>Hrot.ClusterRunner</c> <c>Program.Main</c>, every node and the
+        /// editor) turns it ON. ⛔ Stepped mode is untouched — it counts sim-time slots (R-3035). <c>FDP_SLOW_WALLCLOCK=0</c> turns it
+        /// off for a whole process (to bisect a live red to this change).</para>
+        /// </summary>
+        public static bool SlowModulesByWallClock { get; set; } = false;
 
         /// <summary>
         /// Global switch to control CPU usage for parallel operations.

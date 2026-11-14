@@ -45,7 +45,11 @@ namespace Fdp.ModuleHost
     /// </summary>
     public sealed class ModuleHostKernel : IDisposable
     {
-        private readonly EntityRepository _liveWorld;
+        /// <summary>⭐ CE-4456 N-2 — a diagnostic probe run at every node frame's start over the live world (the world as the last frame left it).
+        /// Null unless an instrument registers itself (an opt-in switch); process-wide.</summary>
+        public static Action<EntityRepository>? FrameStartProbe;
+
+        private EntityRepository _liveWorld;   // ⭐ POC 2 (CE-4439): not readonly — RetargetLiveWorld moves the kernel onto World S
         private readonly EventAccumulator _eventAccumulator;
         private readonly List<ModuleEntry> _modules = new();
         private SnapshotPool? _snapshotPool;
@@ -75,6 +79,7 @@ namespace Fdp.ModuleHost
         /// background monitors. Only accessed on the main thread; no locking required.
         /// </summary>
         private readonly List<ModuleEntry> _drainingModules = new();
+        private readonly List<Task> _tasksToWait = new();   // ⭐ POC 4 J-2 — the frame-synced runs this frame waits on
 
         /// <summary>
         /// Serializes topology compilation tasks so at most one background compile
@@ -101,14 +106,68 @@ namespace Fdp.ModuleHost
         private ITimeController? _timeController;
         private float _initialTimeScale = 1.0f;
         private volatile bool _globalTimePushSuspended;
+
+        // ⭐ CE-3292 (R-3035; DESIGN_Time_Architecture.md §17) — stepped mode is deterministic: per-frame facts the scheduler reads.
+        private bool   _steppedFrame;      // the clock is Deterministic (stepping) this frame
+        private bool   _advancingFrame;    // sim time moves this frame (dt > 0) — a step, not a paused frame
+        private double _frameSimTime;
+        private double _lastFrameSimTime = double.NegativeInfinity;
+        private int    _timelineEpoch;     // + 1 whenever sim time goes back (a load, a preview Stop) or the clock snaps
+        private object? _stepReadersFor;         // ⭐ CE-3293 — the topology whose step-only systems' readers are registered
+        private ITimeController? _epochClock;   // ⭐ CE-3293 — whose TimelineEpoch _clockEpochSeen is
+        private long   _clockEpochSeen;
+        private volatile bool _resumeSlotsOnSnap;   // ⭐ CE-3316 — the next clock snap is a checkpoint restore
+        private FdpEventBus? _unconsumedOnSnap;     // ⭐ CE-3316 — the checkpoint's unconsumed events, published at that snap
+
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> (restore design §1l) — the next snap of the clock puts back a CHECKPOINT: every slow module counts as having run
+        /// the restored time's slot (the checkpoint was written at a frame with no slot run in flight — <see cref="SlotRunInFlight"/>), so
+        /// the restored run dispatches on the same steps the straight one did. ⛔ A load or a dry-run exit does not call it: those worlds
+        /// had run nothing at the time they return to, and every module runs on the first step (<see cref="long.MinValue"/>).
+        /// </summary>
+        public void ResumeSlotsAfterRestore() => _resumeSlotsOnSnap = true;
+
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> (restore design §1l, D2) — <see cref="ResumeSlotsAfterRestore"/>, and the checkpoint's UNCONSUMED events
+        /// (<paramref name="unconsumed"/>'s current buffers): published into the live bus's pending buffers at the snap, AFTER the event
+        /// history restarts — so that frame's swap and capture hand them to every reader once, as the straight run's next frame did.
+        /// </summary>
+        public void ResumeAfterRestore(FdpEventBus unconsumed)
+        {
+            _unconsumedOnSnap = unconsumed;
+            _resumeSlotsOnSnap = true;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> — in stepped mode, a slot-paced background run (a slow asynchronous module) is in flight: dispatched on a snapshot
+        /// of an earlier frame, to be applied at the next step. A checkpoint written now could not be continued exactly (nothing in it is that
+        /// run's input), so a checkpoint waits for a frame where this is false. False in continuous play (nothing there repeats, R-3035) and
+        /// for a module run every step (it can never be idle).
+        /// </summary>
+        public bool SlotRunInFlight
+        {
+            get
+            {
+                if (!_steppedFrame) return false;
+                var topology = _initialized ? _activeTopology : null;
+                if (topology == null) return false;
+                foreach (var entry in topology.Modules)   // a stepped run's task stays until the next step harvests it
+                    if (entry.CurrentTask != null && entry.Module.Policy.Mode == RunMode.Asynchronous && SlotOf(entry) != long.MinValue)
+                        return true;
+                return false;
+            }
+        }
         
         // Public Accessor for GlobalTime
         public GlobalTime CurrentTime { get; private set; }
 
         public ModuleHostKernel(EntityRepository liveWorld, EventAccumulator eventAccumulator)
         {
+            _modeSlot = Fdp.Core.Jobs.SimulationModeSelector.Register();   // ⭐ R-4218 — this kernel's vote on the process's simulation mode
             _liveWorld = liveWorld ?? throw new ArgumentNullException(nameof(liveWorld));
             _eventAccumulator = eventAccumulator ?? throw new ArgumentNullException(nameof(eventAccumulator));
+            // ⭐⭐ CE-3293 (R-3036 rule 5) — the live world's step windows read this history
+            _liveWorld.AttachEventHistory(_eventAccumulator);
         }
 
         /// <summary>
@@ -132,6 +191,17 @@ namespace Fdp.ModuleHost
 
         /// <summary>Resumes normal simulation-time propagation after replay ends.</summary>
         public void ResumeGlobalTimePush() => _globalTimePushSuspended = false;
+
+        /// <summary>
+        /// Is the kernel currently pushing the <c>GlobalTime</c> singleton into the world?
+        ///
+        /// <para>Suspend/Resume were already public; only the READ was missing, which is why anything
+        /// wanting to know had to infer it. While this is false the world's clock is frozen at its
+        /// last value and may still carry a non-zero delta — so a reader that trusts the singleton
+        /// will believe time is advancing while replay preparation holds the world still. Anything
+        /// deciding "is the simulation running" must consult this BEFORE the clock.</para>
+        /// </summary>
+        public bool IsPublishingGlobalTime => !_globalTimePushSuspended;
         
         /// <summary>
         /// Phases that are actually executed for global systems by the kernel's Update loop.
@@ -139,6 +209,7 @@ namespace Fdp.ModuleHost
         /// </summary>
         private static readonly HashSet<SystemPhase> _validGlobalPhases = new()
         {
+            SystemPhase.PreFrame,
             SystemPhase.Input,
             SystemPhase.BeforeSync,
             SystemPhase.PostSimulation,
@@ -196,6 +267,9 @@ namespace Fdp.ModuleHost
         /// After <see cref="Initialize"/> this always reflects the live execution topology,
         /// including any dynamically installed modules.
         /// </summary>
+        /// <summary>⭐ Node Features F-13 — the gate every <c>[NodeFeature]</c> system is checked against; set before <c>Initialize</c>.</summary>
+        public IFeatureGate? FeatureGate { get; set; }
+
         public SystemScheduler SystemScheduler => _initialized ? _activeTopology.Scheduler
             : throw new InvalidOperationException("Kernel not yet initialized. Call Initialize() first.");
 
@@ -224,6 +298,24 @@ namespace Fdp.ModuleHost
         /// Initialize kernel: build execution orders, validate dependencies.
         /// Must be called after all modules/systems registered, before Update().
         /// </summary>
+        /// <summary>
+        /// ⭐ EXPERIMENT — POC 2 of the threaded editor (CE-4439, <c>HROT_THREADED_KERNEL=2</c>; 📄 DESIGN_Threaded_Simulation_Presentation.md §12 / §14):
+        /// the kernel ticks <paramref name="world"/> from now on (World S; the presentation keeps the world it was built on). Every module's automatic
+        /// provider is re-made over the new world (the old ones read the old world). ⚠ Systems that CAPTURED the old world at construction still use it —
+        /// <see cref="Fdp.Core.WorldGuard"/> lists them. Call it between frames, on the thread that runs <see cref="Update"/>.
+        /// </summary>
+        public void RetargetLiveWorld(EntityRepository world)
+        {
+            if (ReferenceEquals(world, _liveWorld)) return;
+            _liveWorld = world ?? throw new ArgumentNullException(nameof(world));
+            _liveWorld.AttachEventHistory(_eventAccumulator);
+            foreach (var entry in _modules) if (!entry.HasManualProvider) entry.Provider = null!;
+            foreach (var entry in _modules) if (entry.Provider == null) AssignProviderForDynamicInstall(_modules, entry);
+        }
+
+        /// <summary>The world the kernel ticks (POC 2: S while threaded).</summary>
+        public EntityRepository LiveWorld => _liveWorld;
+
         public void Initialize()
         {
             if (_initialized)
@@ -295,7 +387,7 @@ namespace Fdp.ModuleHost
         /// <para>
         /// Safe to call from background threads. Uses the same reflection-based generic
         /// invocation pattern found in <c>EntityRepository.SyncFrom</c>.
-        /// Silently skips types that are already registered globally.
+        /// Silently skips types this world already registered (⭐ CE-3205 — this world, not the process).
         /// </para>
         /// </summary>
         private void EnsureComponentsRegistered(IEcsModule module)
@@ -305,8 +397,10 @@ namespace Fdp.ModuleHost
 
             foreach (var type in requiredComponents)
             {
-                if (ComponentTypeRegistry.GetId(type) >= 0)
-                    continue; // Already registered globally — nothing to do.
+                // ⭐ CE-3205 — registered in THIS world, not merely known to the process-wide registry: another world in the same
+                //   process (--mode all, a test host) may have registered the type while this one never did.
+                if (_liveWorld.TryGetTable(type, out _))
+                    continue;
 
                 // Register the component on the live EntityRepository via reflection.
                 // Once registered here, EntityRepository.SyncFrom auto-propagates it
@@ -407,6 +501,7 @@ namespace Fdp.ModuleHost
             var entry = new ModuleEntry
             {
                 Module = module,
+                TickPolicy = TickModes.OfModule(module.GetType()),   // CE-3293 (R-3036): no default
                 Provider = provider!, 
                 HasManualProvider = provider != null,
                 FramesSinceLastRun = 0,
@@ -416,7 +511,7 @@ namespace Fdp.ModuleHost
                 FailureThreshold = policy.FailureThreshold,
                 CircuitResetTimeoutMs = policy.CircuitResetTimeoutMs,
                 
-                CircuitBreaker = new ModuleCircuitBreaker(
+                CircuitBreaker = NewBreaker(module,
                     failureThreshold: policy.FailureThreshold,
                     resetTimeoutMs: policy.CircuitResetTimeoutMs
                 )
@@ -471,6 +566,24 @@ namespace Fdp.ModuleHost
         
         private void UpdateInternal(float deltaTime, GlobalTime globalTime)
         {
+            long whole = KernelFrameTimings.Start();   // ⭐ CE-4433
+            using var traceFrame = Fdp.Core.AccessTrace.Scope("kernel:frame (outside systems)", Fdp.Core.TraceContext.Tick);   // ⭐ A-1 — the node frame's own steps (swap, time push, dispatch); each system pushes its own scope
+            if (Fdp.Core.EntityCensus.On) { Fdp.Core.EntityCensus.NextFrame(); Fdp.Core.EntityCensus.ResetThread(); }   // ⭐ N-1
+            if (LastTickProbe.On) LastTickProbe.BeforeFrame(_liveWorld);   // ⭐ N-5 — the last-tick view's cost (HROT_LASTTICK_TYPES)
+            FrameStartProbe?.Invoke(_liveWorld);   // ⭐ CE-4456 N-2 — a diagnostic probe that sees the world as the last frame left it (null unless one registered)
+            try { UpdateInternalCore(deltaTime, globalTime); }
+            finally
+            {
+                KernelFrameTimings.Stop("(kernel Update, whole)", whole);
+                if (Fdp.Core.ManagedMutationCheck.On) Fdp.Core.ManagedMutationCheck.EndFrame();
+                if (Fdp.Core.StampTrace.On) Fdp.Core.StampTrace.EndFrame();   // ⭐ CE-4445 M-4   // ⭐ CE-4445 M-2 — the frame's managed reads vs their baseline
+            }
+            if (Fdp.Core.Diagnostics.ContentVersioning.On) Fdp.Core.Diagnostics.ContentVersioning.EndFrame(_liveWorld);   // ⭐ D-5 — before the sample
+            if (Fdp.Core.Diagnostics.TableWriteStats.On) Fdp.Core.Diagnostics.TableWriteStats.EndFrame(_liveWorld);   // ⭐ M-1 — the write instrument
+        }
+
+        private void UpdateInternalCore(float deltaTime, GlobalTime globalTime)
+        {
             if (!_initialized)
                 throw new InvalidOperationException("Must call Initialize() before Update()");
             
@@ -489,8 +602,57 @@ namespace Fdp.ModuleHost
             CurrentTime = globalTime;
             _currentFrame = (uint)globalTime.FrameNumber;
             
+            // ⭐⭐ CE-3292 (R-3035) — STEPPED MODE IS DETERMINISTIC (DESIGN_Time_Architecture.md §17). How many frames are drawn between
+            //   two steps is the wall clock's; nothing a step computes may depend on it. ⇒ in stepped mode a slow or asynchronous module
+            //   is dispatched only on a step (on a sim-time slot), and a background job is applied only at the next step, after waiting
+            //   for it. Live (continuous) play keeps its frame-counted, CPU-easing cadence.
+            _steppedFrame   = _timeController?.GetMode() == TimeMode.Deterministic;
+            // ⭐ R-4218 (CE-4481) — the simulation mode from what is running: this clock stepped (stepping, Run-to, filming, the regression)
+            //   ⇒ Deterministic; continuous play ⇒ Throughput — one value for the process (every kernel votes; any Deterministic vote or pin wins)
+            Fdp.Core.Jobs.SimulationModeSelector.Vote(_modeSlot, _steppedFrame);
+            _advancingFrame = deltaTime > 0f;
+            _frameSimTime   = globalTime.TotalTime;
+            // ⭐ CE-3293 (R-3036 rule 7) — the explicit discontinuity is the clock's SnapAndPause (TimelineEpoch); sim time going
+            //   back stays as the backstop (a slave sees only the master's snapped time). Decided BEFORE this frame's capture, so
+            //   the event history forgets the old timeline and keeps this frame's events (a load publishes as it lands).
+            bool clockSnapped = false;
+            if (_timeController != null)
+            {
+                long clockEpoch = _timeController.TimelineEpoch;
+                if (!ReferenceEquals(_epochClock, _timeController)) { _epochClock = _timeController; _clockEpochSeen = clockEpoch; }
+                else if (clockEpoch != _clockEpochSeen) { _clockEpochSeen = clockEpoch; clockSnapped = true; }
+            }
+            if (clockSnapped || _frameSimTime < _lastFrameSimTime - 1e-9)
+            {
+                // a load or a preview Stop snapped the clock back: a new timeline. Nothing of the old one may land in it.
+                _timelineEpoch++;
+                _eventAccumulator.Restart();
+                // ⭐ CE-3316 — a checkpoint put back: each slow module has run the slot it stands in (a load / dry-run exit: none has)
+                bool resumed = _resumeSlotsOnSnap;
+                _resumeSlotsOnSnap = false;
+                if (resumed && _unconsumedOnSnap is { } unconsumed) _liveWorld.Bus.PublishCurrentOf(unconsumed);   // before this frame's swap
+                _unconsumedOnSnap = null;
+                foreach (var entry in topology.Modules)
+                {
+                    entry.LastRunSlot          = resumed ? SlotOf(entry) : long.MinValue;
+                    entry.AccumulatedDeltaTime = 0f;
+                    entry.FramesSinceLastRun   = 0;
+                }
+            }
+            _lastFrameSimTime = _frameSimTime;
+
+            // ═══════════ PHASE: PreFrame ═══════════
+            // Runs before Input, and after the GlobalTime singleton above — so a system here sees
+            // this frame's delta and a world nothing has mutated yet. That is what the staged-write
+            // drain needs: apply the designer's edit, then let Input run against the edited state.
+            long kt = KernelFrameTimings.Start(), kb = KernelFrameTimings.StartBytes();   // ⭐ CE-4433 — the kernel's frame by part (HROT_FRAME_STATS)
+            topology.Scheduler.ExecutePhase(SystemPhase.PreFrame, _liveWorld, deltaTime);
+            KernelFrameTimings.Stop("phase PreFrame", kt, kb);
+
             // ═══════════ PHASE: Input ═══════════
+            kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
             topology.Scheduler.ExecutePhase(SystemPhase.Input, _liveWorld, deltaTime);
+            KernelFrameTimings.Stop("phase Input", kt, kb);
             
             // ═══════════════════════════════════════════════════════════
             // RCU TOPOLOGY SWAP — O(1) atomic pointer swap
@@ -516,10 +678,25 @@ namespace Fdp.ModuleHost
                 pendingOp.SwapCompletion.TrySetResult();
             }
 
+            // ⭐ CE-3293 S5 — every step-only system holds its step window from the timeline's start, registered before it first
+            //   runs (a new or swapped topology). The PreFrame/Input phases above ran on the previous topology's readers.
+            if (!ReferenceEquals(_stepReadersFor, topology))
+            {
+                _stepReadersFor = topology;
+                var direct = new List<IEcsModuleSystem>();
+                foreach (var entry in topology.Modules)
+                    if (entry.Module.Policy.Strategy == DataStrategy.Direct && entry.SimulationSystems != null)
+                        direct.AddRange(entry.SimulationSystems);
+                topology.Scheduler.RegisterStepReaders(_eventAccumulator, direct);
+            }
+
             // ═══════════ PHASE: BeforeSync ═══════════
+            kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
             topology.Scheduler.ExecutePhase(SystemPhase.BeforeSync, _liveWorld, deltaTime);
-            
+            KernelFrameTimings.Stop("phase BeforeSync", kt, kb);
+
             // FLUSH LIVE WORLD BUFFERS
+            kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
             if (_liveWorld._perThreadCommandBuffer != null)
             {
                 foreach (var cmdBuffer in _liveWorld._perThreadCommandBuffer.Values)
@@ -531,28 +708,46 @@ namespace Fdp.ModuleHost
                 }
             }
             
+            KernelFrameTimings.Stop("live command buffers playback", kt, kb);
+
             // 3. EVENT SWAP (Critical: Make Input events visible)
+            kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
             _liveWorld.Bus.SwapBuffers();
-            
+            KernelFrameTimings.Stop("event bus swap", kt, kb);
+
             // 4. SYNC & CAPTURE
             // Capture event history
             // Use GlobalVersion to align with SnapshotProvider logic which tracks GlobalVersion
+            kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
             _eventAccumulator.CaptureFrame(_liveWorld.Bus, _liveWorld.GlobalVersion);
-            
+            KernelFrameTimings.Stop("event history capture", kt, kb);
+
             // Update Sync-Point Providers
             foreach (var entry in topology.Modules)
             {
                 // Only update provider if it exists (Direct strategy has null)
-                entry.Provider?.Update();
+                if (entry.Provider == null) continue;
+                kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
+                entry.Provider.Update();
+                if (kt != 0) KernelFrameTimings.Stop(entry.TimingSyncPoint ??= "sync point " + entry.Module.Name + " (" + entry.Provider.GetType().Name + ")", kt, kb);
             }
             
             // ═══════════ HARVEST PHASE (active modules) ═══════════
             foreach (var entry in topology.Modules)
             {
-                // Harvest completed async tasks
-                if (entry.CurrentTask != null && entry.CurrentTask.IsCompleted)
+                if (entry.CurrentTask == null) continue;
+                if (_steppedFrame && entry.Module.Policy.Mode == RunMode.Asynchronous)
                 {
+                    // ⭐ CE-3292 — held over paused frames, applied at the step: the step it lands on cannot depend on the pause.
+                    if (!_advancingFrame) continue;
+                    WaitForRun(entry.CurrentTask);
+                }
+                // Harvest completed async tasks
+                if (entry.CurrentTask.IsCompleted)
+                {
+                    kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
                     HarvestEntry(entry);
+                    if (kt != 0) KernelFrameTimings.Stop(entry.TimingHarvest ??= "harvest " + entry.Module.Name, kt, kb);
                 }
             }
 
@@ -564,8 +759,9 @@ namespace Fdp.ModuleHost
             {
                 var drainingEntry = _drainingModules[i];
 
-                bool taskDone = drainingEntry.CurrentTask == null
-                             || drainingEntry.CurrentTask.IsCompleted;
+                bool taskDone = (drainingEntry.CurrentTask == null
+                             || drainingEntry.CurrentTask.IsCompleted)
+                             && ReleaseFinishedZombie(drainingEntry);   // CE-3066 — never dispose under a running zombie
 
                 if (taskDone)
                 {
@@ -606,8 +802,13 @@ namespace Fdp.ModuleHost
                 }
             }
             
+            // ⭐⭐ N-10 (CE-4472; R-4214 ④) — the LAST-TICK view, taken SERIALLY before the Simulation phase dispatches: it holds this tick's ingress,
+            //   ghosts, UI jobs and the previous phase's merged commands; every per-entity job of the phase reads another entity's declared type
+            //   from it. ⛔ Nothing declared ⇒ nothing taken (zero cost: the default today).
+            if (Fdp.Core.ParallelReadCheck.HasDeclarations) _liveWorld.CaptureLastTick();
+
             // ═══════════ DISPATCH PHASE ═══════════
-            var tasksToWait = new List<Task>();
+            var tasksToWait = _tasksToWait; tasksToWait.Clear();   // ⭐ POC 4 J-2 — a field reused every frame (⛔ was a new List per frame, R-2084)
             
             foreach (var entry in topology.Modules)
             {
@@ -617,6 +818,30 @@ namespace Fdp.ModuleHost
                 // If still running, let it continue (accumulating time for next run)
                 if (entry.CurrentTask != null)
                 {
+                    continue;
+                }
+
+                // ⭐⭐ CE-3293 S5 (R-3036 rule 2; §10 F5, F11) — a step-only module is not dispatched on a frame that does not advance,
+                //   in every mode (time scale 0 included). A module on a SNAPSHOT has one mode — its own — so its whole dispatch is
+                //   gated here and its next flush carries the pause's events. A DIRECT (live-world) module keeps running its
+                //   simulation systems, each gated by its OWN mode; only its Tick follows the module's. A held frame is not a frame
+                //   since the last run.
+                bool moduleHeld = Fdp.Core.FdpConfig.TickModeGate && !_advancingFrame
+                                  && entry.TickPolicy == TickPolicy.WhenTimeAdvances;
+                bool directModule = entry.Module.Policy.Strategy == DataStrategy.Direct;
+                if (moduleHeld && !directModule) continue;
+
+                // ⭐ CE-3066 — never a second run beside an abandoned one: they share the module's state. ⚠ A run that is
+                //   DUE but blocked by the zombie counts as a failure, so a module that hangs for good still opens its
+                //   circuit (it used to, by timing out over and over) instead of reading as one old timeout.
+                if (!ReleaseFinishedZombie(entry))
+                {
+                    if (ShouldRunThisFrame(entry))
+                    {
+                        entry.CircuitBreaker?.RecordFailure("StillRunning");
+                        entry.FramesSinceLastRun = 0;   // once per scheduling period, like the timed-out run it replaces
+                    }
+                    else entry.FramesSinceLastRun++;
                     continue;
                 }
                 
@@ -645,7 +870,9 @@ namespace Fdp.ModuleHost
                         // By capturing here we guarantee that LeasedProvider always matches the
                         // provider that actually created the view, regardless of any concurrent write.
                         var acquireProvider = entry.Provider;
+                        kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
                         view = acquireProvider.AcquireView();
+                        if (kt != 0) KernelFrameTimings.Stop(entry.TimingAcquire ??= "acquire view " + entry.Module.Name, kt, kb);
                         entry.LeasedProvider = acquireProvider;
                     }
                     
@@ -660,15 +887,17 @@ namespace Fdp.ModuleHost
                     if (entry.Module.Policy.Mode == RunMode.Synchronous)
                     {
                         // Synchronous run (main thread)
+                        kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
                         try
                         {
                             // Auto-execute and profile the module's simulation systems
                             if (entry.SimulationSystems != null)
                             {
                                 foreach (var sys in entry.SimulationSystems)
-                                    topology.Scheduler.ExecuteSystem(sys, view, moduleDelta);
+                                    topology.Scheduler.ExecuteSystem(sys, view, moduleDelta, _advancingFrame, moduleGoverns: !directModule);
                             }
-                            entry.Module.Tick(view, moduleDelta);
+                            using (Fdp.Core.AccessTrace.Scope(entry.Module, "module: ", Fdp.Core.TraceContext.Tick))   // ⭐ A-1
+                            if (!moduleHeld) entry.Module.Tick(view, moduleDelta);
                             System.Threading.Interlocked.Increment(ref entry.ExecutionCount);
                             
                             // Playback commands immediately for sync modules
@@ -676,7 +905,7 @@ namespace Fdp.ModuleHost
                         }
                         catch (Exception ex)
                         {
-                            Console.Error.WriteLine($"[ModuleHost] Sync Module '{entry.Module.Name}' exception: {ex}");
+                            ReportModuleFault(entry, ex, "Sync");
                         }
                         
                         // Release view — use LeasedProvider (captured at acquire time) so the
@@ -689,14 +918,20 @@ namespace Fdp.ModuleHost
                         entry.LeasedView     = null;
                         entry.LeasedProvider = null;
                         entry.CurrentTask = null; // No task
+                        if (kt != 0) KernelFrameTimings.Stop(entry.TimingRun ??= "run " + entry.Module.Name + " (synchronous: systems + Tick + playback)", kt, kb);
                     }
                     else
                     {
                         // Safe Execution (Async/FrameSynced)
-                        entry.CurrentTask = ExecuteModuleSafe(entry, view, moduleDelta, topology);
+                        kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
+                        entry.CurrentTask = ExecuteModuleSafe(entry, view, moduleDelta, topology, deterministic: _steppedFrame);
+                        if (kt != 0) KernelFrameTimings.Stop("dispatch background runs", kt, kb);
                     }
                     
                     entry.FramesSinceLastRun = 0;
+                    entry.LastDispatchTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+                    entry.LastRunSlot   = SlotOf(entry);   // ⭐ CE-3292 — the sim-time slot this run covers
+                    entry.DispatchEpoch = _timelineEpoch;
                     entry.LastRunTick = _liveWorld.GlobalVersion > 0 ? _liveWorld.GlobalVersion - 1 : 0; 
                     
                     // Check Policy: If FrameSynced, we must wait
@@ -715,7 +950,16 @@ namespace Fdp.ModuleHost
             // ═══════════ SYNC WAIT (Fast Modules) ═══════════
             if (tasksToWait.Count > 0)
             {
-                Task.WaitAll(tasksToWait.ToArray());
+                kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
+                // ⭐ POC 4 J-2 — WaitAll without the array per frame: every run is waited for, then the faults (a fail-fast report) are thrown together
+                List<Exception>? waitFaults = null;
+                for (int w = 0; w < tasksToWait.Count; w++)
+                {
+                    try { tasksToWait[w].Wait(); }
+                    catch (AggregateException ex) { (waitFaults ??= new List<Exception>()).AddRange(ex.InnerExceptions); }
+                }
+                if (waitFaults != null) throw new AggregateException(waitFaults);
+                KernelFrameTimings.Stop("frame-synced wait", kt, kb);
                 
                 // Harvest immediately
                 foreach (var entry in topology.Modules)
@@ -728,19 +972,48 @@ namespace Fdp.ModuleHost
             }
             
             // ═══════════ PHASE: PostSimulation ═══════════
+            kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
             topology.Scheduler.ExecutePhase(SystemPhase.PostSimulation, _liveWorld, deltaTime);
-            
+            KernelFrameTimings.Stop("phase PostSimulation", kt, kb);
+
             // ═══════════ PHASE: Export ═══════════
+            kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
             topology.Scheduler.ExecutePhase(SystemPhase.Export, _liveWorld, deltaTime);
+            KernelFrameTimings.Stop("phase Export", kt, kb);
             
             _currentFrame++;
+        }
+
+        /// <summary>
+        /// ⭐ CE-3032 — a breaker that SAYS when it opens and closes. 🔴 An open circuit skips the module for
+        /// <c>resetTimeoutMs</c> (10 s for a background module) and nothing reported it: perception went dark with
+        /// only per-tick timeout lines to show. One line per transition — never per skipped tick.
+        /// </summary>
+        private static ModuleCircuitBreaker NewBreaker(IEcsModule module, int failureThreshold, int resetTimeoutMs)
+        {
+            var breaker = new ModuleCircuitBreaker(failureThreshold, resetTimeoutMs);
+            string name = module.Name;
+            breaker.StateChanged = (from, to, why) =>
+            {
+                if (to == CircuitState.Open)
+                    Console.Error.WriteLine(
+                        $"[ModuleHost][CIRCUIT-OPEN] Module '{name}' is SKIPPED for {resetTimeoutMs} ms " +
+                        $"after {(from == CircuitState.HalfOpen ? "a failed recovery attempt" : $"{failureThreshold} consecutive failures")} " +
+                        $"(last: {why}).");
+                else if (to == CircuitState.Closed)
+                    Console.Error.WriteLine($"[ModuleHost][CIRCUIT-CLOSED] Module '{name}' recovered and runs again.");
+            };
+            return breaker;
         }
 
         /// <summary>
         /// Safely executes a module with timeout and exception handling.
         /// Integrates with circuit breaker for resilience.
         /// </summary>
-        private async Task ExecuteModuleSafe(ModuleEntry entry, ISimulationView view, float dt, KernelExecutionTopology topology)
+        /// <param name="deterministic">⭐ F-3 (CE-4503) — the run was dispatched on a STEPPED frame: it is waited for to its end, never abandoned
+        /// on the wall-clock timeout — a step's result may not depend on how fast the machine is (the stepped harvest already waits,
+        /// <see cref="WaitForRun"/>; the timeout used to discard the output underneath it). Continuous play keeps the hang guard.</param>
+        private async Task ExecuteModuleSafe(ModuleEntry entry, ISimulationView view, float dt, KernelExecutionTopology topology, bool deterministic = false)
         {
             // 1. Check Circuit Breaker
             if (entry.CircuitBreaker != null && !entry.CircuitBreaker.CanRun())
@@ -777,9 +1050,12 @@ namespace Fdp.ModuleHost
                     if (entry.SimulationSystems != null)
                     {
                         foreach (var sys in entry.SimulationSystems)
-                            topology.Scheduler.ExecuteSystem(sys, view, dt);
+                            topology.Scheduler.ExecuteSystem(sys, view, dt, advancing: dt > 0f,
+                                // ⭐ CE-3293 (§10 F5) — on a snapshot the module's mode, applied at its dispatch, is the only one
+                                moduleGoverns: entry.Module.Policy.Strategy != DataStrategy.Direct);
                     }
-                    entry.Module.Tick(view, dt);
+                    using (Fdp.Core.AccessTrace.Scope(entry.Module, "module(background): ", Fdp.Core.TraceContext.Tick))   // ⭐ A-1
+                        entry.Module.Tick(view, dt);
                     System.Threading.Interlocked.Increment(ref entry.ExecutionCount);
                     return null; // Success
                 }
@@ -789,8 +1065,20 @@ namespace Fdp.ModuleHost
                 }
             }, cts.Token);
             
-            var delayTask = Task.Delay(timeout);
-            var completedTask = await Task.WhenAny(tickTask, delayTask);
+            // ⭐⭐ F-3 (CE-4503) — 📌 measured: a stepped 1 000-man run at 8 threads logged "NavigationSolver timed out after 100ms. Task
+            //   abandoned" and its world differed from the 1-thread run's — the output a step depends on was thrown away by the wall clock.
+            //   ⇒ a stepped run is awaited whole; an overrun is reported once per module, never a failure for the circuit breaker.
+            long started = deterministic ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+            var completedTask = deterministic
+                ? await Task.WhenAny(tickTask).ConfigureAwait(false)
+                : await Task.WhenAny(tickTask, Task.Delay(timeout)).ConfigureAwait(false); // ⭐ CE-4158 — never post back to the caller's context: WaitForRun blocks on this task
+            if (deterministic && !entry.SteppedOverrunReported
+                && System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds > timeout)
+            {
+                entry.SteppedOverrunReported = true;
+                Console.Error.WriteLine(FormattableString.Invariant(
+                    $"[ModuleHost][STEPPED] Module '{entry.Module.Name}' ran past its {timeout} ms budget on a stepped frame: waited for it (a step never discards a run; reported once)."));
+            }
             
             // 5. Check Result
             if (completedTask == tickTask)
@@ -799,7 +1087,7 @@ namespace Fdp.ModuleHost
                 Exception? result = null;
                 try
                 {
-                    result = await tickTask;
+                    result = await tickTask.ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
@@ -821,15 +1109,10 @@ namespace Fdp.ModuleHost
                 }
                 else
                 {
-                    // Exception occurred
-                    Exception ex = result;
-                    Console.Error.WriteLine($"[ModuleHost] Module '{entry.Module.Name}' threw exception: {ex.Message}");
-                    Console.Error.WriteLine(ex.StackTrace);
-                    
-                    entry.CircuitBreaker?.RecordFailure(ex.GetType().Name);
-                    
-                    Console.Error.WriteLine(
-                        $"[ModuleHost][CRASH] Module '{entry.Module.Name}' crashed: {ex.Message}");
+                    // Exception occurred. Routed through the shared handler so the async path gets the
+                    // same fail-fast switch and the same de-duplication the sync path now has — three
+                    // near-identical stderr writes per fault was the async half of CE-189.
+                    ReportModuleFault(entry, result, "Async");
                 }
             }
             else
@@ -841,6 +1124,9 @@ namespace Fdp.ModuleHost
                     $"[ModuleHost][TIMEOUT] Module '{entry.Module.Name}' timed out after {timeout}ms. " +
                     $"Task abandoned (may continue running in background as zombie).");
                 
+ // ⭐ CE-3066 — remember it: HarvestEntry parks the view with it, and the module is not re-run until it ends.
+                entry.ZombieTask = tickTask;
+
                 // Prevent unobserved task exception if the zombie task eventually faults
                 _ = tickTask.ContinueWith(t => 
                 {
@@ -851,8 +1137,27 @@ namespace Fdp.ModuleHost
 
         private void HarvestEntry(ModuleEntry entry)
         {
-            // 1. Playback commands
-            PlaybackCommands(entry);
+            // ⭐ CE-3066 — the run timed out and is STILL executing: do not play back the buffers it is writing, and do not
+            //   release the view it is reading. Park both with the zombie; ReleaseFinishedZombie ends them.
+            //   🔴 Measured before: the view went back to the pool under the running zombie (AccessViolation in
+            //   EntityIndex.IsAlive from VisionBroadphase.Rebuild) and the next run started beside it on shared module state
+            //   (NullReferenceException in ColliderIndex.Build, every frame).
+            if (entry.ZombieTask != null && entry.ZombieView == null && !entry.ZombieTask.IsCompleted)
+            {
+                entry.ZombieView     = entry.LeasedView;
+                entry.ZombieProvider = entry.LeasedProvider;
+                entry.LeasedView     = null;
+                entry.LeasedProvider = null;
+                entry.CurrentTask    = null;
+                return;
+            }
+
+            // 1. Playback commands — ⭐ CE-3292: unless the run belongs to an older timeline (dispatched before a load or a Stop
+            //    snapped the clock back): its answers are about a world that no longer exists, so they are discarded.
+            if (entry.DispatchEpoch == _timelineEpoch) PlaybackCommands(entry);
+            else if (entry.LeasedView is EntityRepository staleRepo && staleRepo._perThreadCommandBuffer != null)
+                foreach (var cmdBuffer in staleRepo._perThreadCommandBuffer.Values)
+                    cmdBuffer.Clear();
             
             // 2. Release view — always use the provider that issued the view (LeasedProvider),
             //    NOT entry.Provider. The two can diverge when AssignProviderForDynamicInstall
@@ -873,6 +1178,93 @@ namespace Fdp.ModuleHost
             
             // 4. Cleanup
             entry.CurrentTask = null;
+            if (entry.ZombieTask != null && entry.ZombieView == null) entry.ZombieTask = null;   // it finished inside the harvest
+        }
+
+        /// <summary>
+        /// ⭐ CE-3066 — once an abandoned run has really ended: DISCARD what it wrote (its answers are for a snapshot several
+        /// frames old, and it was declared failed) and give its view back to the provider that issued it. Returns true when
+        /// the module may run again.
+        /// </summary>
+        private static bool ReleaseFinishedZombie(ModuleEntry entry)
+        {
+            if (entry.ZombieTask == null) return true;
+            if (!entry.ZombieTask.IsCompleted) return false;
+
+            if (entry.ZombieView is EntityRepository repo && repo._perThreadCommandBuffer != null)
+                foreach (var cmdBuffer in repo._perThreadCommandBuffer.Values)
+                    cmdBuffer.Clear();
+            if (entry.ZombieView != null) entry.ZombieProvider?.ReleaseView(entry.ZombieView);
+
+            Console.Error.WriteLine(
+                $"[ModuleHost][TIMEOUT] Module '{entry.Module.Name}': the abandoned run has ended; its output was discarded.");
+            entry.ZombieTask     = null;
+            entry.ZombieView     = null;
+            entry.ZombieProvider = null;
+            return true;
+        }
+
+        /// <summary>
+        /// The one place a per-module fault is handled: fail fast if configured, otherwise record it
+        /// against the module's circuit breaker and report it <b>once per distinct signature</b>.
+        /// </summary>
+        /// <remarks>
+        /// <para><b>Three things this fixes (<c>CE-189</c>).</b></para>
+        ///
+        /// <para>① <b>Fail-fast.</b> With <see cref="FdpConfig.FailFastOnModuleException"/> (or
+        /// <c>FDP_FAIL_FAST=1</c>) the exception is rethrown with its original stack, so a debug run dies
+        /// at the first fault instead of limping on. The catch exists to keep one bad module from taking
+        /// down a distributed simulation — right in production, wrong while debugging.</para>
+        ///
+        /// <para>② <b>The synchronous path never recorded a failure.</b> It printed to stderr and did
+        /// nothing else — no <c>RecordFailure</c>, so the circuit never opened and
+        /// <c>GetExecutionStats</c> showed a healthy module. That contradicted this component's own
+        /// design (<c>docs/projects/FDP/Core/Fdp.ModuleHost.md</c> §5: <i>"After FailureThreshold
+        /// consecutive failures the circuit opens and the module is skipped"</i>), which the async path
+        /// implements and this one did not.</para>
+        ///
+        /// <para>③ <b>Volume is a form of hiding.</b> <c>StatelessGizmoSystem</c> threw on every frame of
+        /// every editor run and printed a full stack each time — 8 000 to 16 000 lines per run — and it
+        /// read as background noise for an entire working session (<c>CE-188</c>). Repeats are now a
+        /// counter, and a periodic reminder carries the running total.</para>
+        /// </remarks>
+        private void ReportModuleFault(ModuleEntry entry, Exception ex, string path)
+        {
+            if (FdpConfig.FailFastOnModuleException)
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw();
+
+            entry.CircuitBreaker?.RecordFailure(ex.GetType().Name);
+            System.Threading.Interlocked.Increment(ref entry.TotalFaults);
+
+            // Signature = type + top frame. Two different bugs in one module stay distinguishable;
+            // the same bug on frame 2 and frame 20 000 does not print twice.
+            string signature = ex.GetType().FullName + "|" + (ex.StackTrace?.Split('\n')[0]?.Trim() ?? "");
+
+            if (entry.LastFaultSignature != signature)
+            {
+                entry.LastFaultSignature = signature;
+                System.Threading.Interlocked.Exchange(ref entry.LastFaultRepeats, 0);
+
+                Console.Error.WriteLine(
+                    $"[ModuleHost] {path} module '{entry.Module.Name}' FAULT (frame {_currentFrame}, " +
+                    $"{entry.TotalFaults} total for this module). FDP_FAIL_FAST=0 keeps the node alive instead.{Environment.NewLine}{ex}");
+                return;
+            }
+
+            int repeats = System.Threading.Interlocked.Increment(ref entry.LastFaultRepeats);
+
+            // Powers of ten: 10th, 100th, 1000th … so a persistent fault stays visible without
+            // drowning everything else in the log.
+            if (repeats >= 10 && IsPowerOfTen(repeats))
+                Console.Error.WriteLine(
+                    $"[ModuleHost] {path} module '{entry.Module.Name}' has now faulted {repeats:N0} times " +
+                    $"with the same {ex.GetType().Name} (frame {_currentFrame}). FDP_FAIL_FAST=0 keeps the node alive.");
+        }
+
+        private static bool IsPowerOfTen(int n)
+        {
+            while (n >= 10 && n % 10 == 0) n /= 10;
+            return n == 1;
         }
 
         private void PlaybackCommands(ModuleEntry entry)
@@ -969,6 +1361,8 @@ namespace Fdp.ModuleHost
                 {
                     if (entry.RegisteredSystems != null && SearchSystemList(entry.RegisteredSystems, targetSystem))
                         return entry.Module.Name;
+                    if (entry.ManualSystems != null && SearchSystemList(entry.ManualSystems, targetSystem))
+                        return entry.Module.Name;
                 }
             }
 
@@ -989,9 +1383,18 @@ namespace Fdp.ModuleHost
             return false;
         }
         
+        /// <summary>⭐ CE-3427 C-1 — live play: a slow module's cadence is wall clock from its last dispatch (true) or <c>60/Hz</c>
+        /// rendered frames from its harvest (false). Taken from <see cref="FdpConfig.SlowModulesByWallClock"/> at construction.</summary>
+        public bool SlowModulesByWallClock { get; set; } = FdpConfig.SlowModulesByWallClock;
+
         private bool ShouldRunThisFrame(ModuleEntry entry)
         {
             var policy = entry.Module.Policy;
+
+            // ⭐ CE-3292 (R-3035) — stepped mode: a slow or asynchronous module runs only on a step, and a slow one only when the step
+            //   enters a new sim-time slot. ⛔ Not on a paused frame: the number of those is the wall clock's.
+            bool steppedRule = _steppedFrame && IsSlowOrAsync(policy);
+            if (steppedRule && !_advancingFrame) return false;
             
             // 1. Reactive Check (Batch-02)
             bool triggered = false;
@@ -1027,13 +1430,41 @@ namespace Fdp.ModuleHost
             if (targetHz <= 0) targetHz = 60; // 0 means every frame
             
             if (targetHz >= 60) return true;
+
+            // ⭐ CE-3292 — a slot of 1/targetHz s of SIM time, anchored at t = 0: the same steps run it in every run of a timeline.
+            if (steppedRule) return SlotOf(entry) != entry.LastRunSlot;
             
+            // ⭐ CE-3427 C-1 — the user's intent (2026-10-21, DESIGN_Time_Architecture §17): "the 10Hz and such were meant to be
+            //   wall clock to ease the CPU". Measured frame-counted: a 120 ms EQS run then waited 230 ms more (2.9 runs/s, not 10).
+            if (SlowModulesByWallClock)
+                return System.Diagnostics.Stopwatch.GetElapsedTime(entry.LastDispatchTimestamp).TotalSeconds >= 1.0 / targetHz;
+
             int framesToSkip = 60 / targetHz;
             if (framesToSkip < 1) framesToSkip = 1;
             
             return (entry.FramesSinceLastRun + 1) >= framesToSkip;
         }
         
+        /// <summary>⭐ CE-3292 — slow (below 60 Hz) or asynchronous: the modules whose timing stepped mode pins to sim time.</summary>
+        private static bool IsSlowOrAsync(ExecutionPolicy policy)
+            => policy.Mode == RunMode.Asynchronous || policy.TargetFrequencyHz is > 0 and < 60;
+
+        /// <summary>⭐ CE-3292 — which 1/Hz-second slot of sim time this frame is in (<see cref="long.MinValue"/> for a 60 Hz+ module).</summary>
+        private long SlotOf(ModuleEntry entry)
+        {
+            int hz = entry.Module.Policy.TargetFrequencyHz;
+            if (hz <= 0 || hz >= 60) return long.MinValue;
+            return (long)Math.Floor(_frameSimTime * hz + 1e-6);
+        }
+
+        /// <summary>⭐ CE-3292 — waits for a background run to its end: a run dispatched on a stepped frame has no timeout (F-3, CE-4503), any other
+        /// is bounded by its own (<c>ExecuteModuleSafe</c> always completes).</summary>
+        private static void WaitForRun(Task task)
+        {
+            try { task.Wait(); }
+            catch (AggregateException) { /* a faulted run is reported by HarvestEntry */ }
+        }
+
         private Action<EntityRepository>? _schemaSetup;
 
         /// <summary>
@@ -1129,16 +1560,23 @@ namespace Fdp.ModuleHost
         /// background drain thread when their in-flight tasks complete.
         /// </para>
         /// </summary>
+        private readonly int _modeSlot;
+
         public void Dispose()
         {
+            Fdp.Core.Jobs.SimulationModeSelector.Unregister(_modeSlot);
             // Collect all in-flight tasks: active + draining modules
             var allModules = _initialized
                 ? _activeTopology.Modules.Concat(_drainingModules)
                 : _modules.AsEnumerable();
 
+            // ⭐ CE-3077 — a timed-out run parked as a ZOMBIE (CE-3066) is in flight too: the park nulls CurrentTask, so
+            //   this wait used to skip it and the providers below freed the snapshot it was still reading
+            //   (AccessViolation in EntityIndex.IsAlive from VisionBroadphase.Rebuild, at editor teardown).
             var pendingTasks = allModules
-                .Where(m => m.CurrentTask != null && !m.CurrentTask.IsCompleted)
-                .Select(m => m.CurrentTask!)
+                .SelectMany(m => new[] { m.CurrentTask, m.ZombieTask })
+                .Where(t => t != null && !t.IsCompleted)
+                .Select(t => t!)
                 .ToArray();
             
             if (pendingTasks.Length > 0)
@@ -1153,6 +1591,19 @@ namespace Fdp.ModuleHost
 
             // Dispose providers — deduplicate to avoid double-dispose on shared providers
             var disposedProviders = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            // ⭐ CE-3077 — a zombie STILL running after the wait keeps its provider (and the snapshot it reads) alive: leaking
+            //   one provider at teardown is safe, freeing native memory under a running reader is a process crash.
+            foreach (var entry in allModules)
+            {
+                if (entry.ZombieTask is { IsCompleted: false })
+                {
+                    if (entry.Provider != null)       disposedProviders.Add(entry.Provider);
+                    if (entry.ZombieProvider != null) disposedProviders.Add(entry.ZombieProvider);
+                    Console.Error.WriteLine(
+                        $"[ModuleHost][TIMEOUT] Module '{entry.Module.Name}': the abandoned run is still executing at shutdown; " +
+                        "its snapshot provider is left undisposed rather than freed under it.");
+                }
+            }
             foreach (var entry in allModules)
             {
                 if (entry.Provider is IDisposable disposable && disposedProviders.Add(entry.Provider))
@@ -1162,6 +1613,10 @@ namespace Fdp.ModuleHost
             }
             
             _timeController?.Dispose();
+            // QA-006: the snapshot pool this kernel built in Initialize() owns TEN EntityRepository
+            // instances (warmupCount: 10). Disposing the providers above does not reach them, so until
+            // this line every kernel teardown leaked ten worlds' worth of native chunk tables.
+            _snapshotPool?.Dispose();
             _topologyChangeSemaphore.Dispose();
             _modules.Clear();
             _drainingModules.Clear();
@@ -1213,12 +1668,13 @@ namespace Fdp.ModuleHost
                 var newEntry = new ModuleEntry
                 {
                     Module = module,
+                    TickPolicy = TickModes.OfModule(module.GetType()),   // CE-3293 (R-3036): no default
                     Provider = null!,
                     FramesSinceLastRun = 0,
                     MaxExpectedRuntimeMs = policy.MaxExpectedRuntimeMs > 0 ? policy.MaxExpectedRuntimeMs : 1000,
                     FailureThreshold = policy.FailureThreshold > 0 ? policy.FailureThreshold : 3,
                     CircuitResetTimeoutMs = policy.CircuitResetTimeoutMs > 0 ? policy.CircuitResetTimeoutMs : 5000,
-                    CircuitBreaker = new ModuleCircuitBreaker(
+                    CircuitBreaker = NewBreaker(module,
                         failureThreshold: policy.FailureThreshold > 0 ? policy.FailureThreshold : 3,
                         resetTimeoutMs: policy.CircuitResetTimeoutMs > 0 ? policy.CircuitResetTimeoutMs : 5000),
                     LifecycleState = ModuleLifecycleState.Loading
@@ -1386,12 +1842,13 @@ namespace Fdp.ModuleHost
                     newEntries.Add(new ModuleEntry
                     {
                         Module = m,
+                        TickPolicy = TickModes.OfModule(m.GetType()),   // CE-3293 (R-3036): no default
                         Provider = null!,
                         FramesSinceLastRun = 0,
                         MaxExpectedRuntimeMs  = policy.MaxExpectedRuntimeMs  > 0 ? policy.MaxExpectedRuntimeMs  : 1000,
                         FailureThreshold      = policy.FailureThreshold      > 0 ? policy.FailureThreshold      : 3,
                         CircuitResetTimeoutMs = policy.CircuitResetTimeoutMs > 0 ? policy.CircuitResetTimeoutMs : 5000,
-                        CircuitBreaker = new ModuleCircuitBreaker(
+                        CircuitBreaker = NewBreaker(m,
                             failureThreshold:    policy.FailureThreshold      > 0 ? policy.FailureThreshold      : 3,
                             resetTimeoutMs:      policy.CircuitResetTimeoutMs > 0 ? policy.CircuitResetTimeoutMs : 5000),
                         LifecycleState = ModuleLifecycleState.Loading
@@ -1553,7 +2010,7 @@ namespace Fdp.ModuleHost
         /// </summary>
         private KernelExecutionTopology BuildTopology(List<ModuleEntry> modules)
         {
-            var scheduler = new SystemScheduler();
+            var scheduler = new SystemScheduler { FeatureGate = FeatureGate };
 
             // Static global systems always come first in every topology
             foreach (var sys in _registeredGlobalSystems)
@@ -1566,7 +2023,7 @@ namespace Fdp.ModuleHost
                 {
                     // Re-register the same instances (no new objects created)
                     foreach (var sys in entry.RegisteredSystems)
-                        scheduler.RegisterSystem(sys);
+                        scheduler.RegisterSystem(sys, entry.Module.GetType());
 
                     // Backward-compat safety for entries created before SimulationSystems existed.
                     if (entry.SimulationSystems == null)
@@ -1584,10 +2041,11 @@ namespace Fdp.ModuleHost
                 else
                 {
                     // First time: capture system instances via CapturingSystemRegistry
-                    var capturing = new CapturingSystemRegistry(scheduler);
+                    var capturing = new CapturingSystemRegistry(scheduler, entry.Module.GetType());
                     entry.Module.RegisterSystems(capturing);
                     entry.RegisteredSystems = capturing.Captured;
                     entry.SimulationSystems = capturing.SimulationCaptured;
+                    entry.ManualSystems     = capturing.ManualCaptured;
                 }
             }
 
@@ -1672,6 +2130,8 @@ namespace Fdp.ModuleHost
                                 // Point all convoy members (+ new entry) at the new provider.
                                 // Old provider will be unreferenced and eligible for GC once
                                 // any in-flight views from the previous frame are released.
+                                // ⭐ CE-3293 S4 — it stops holding the event history now.
+                                (existingGdb as Fdp.ModuleHost.Providers.IEventHistoryReader)?.ReleaseEventReader();
                                 foreach (var e in allInConvoy)
                                 {
                                     e.Provider = newGdbProvider;
@@ -1738,6 +2198,8 @@ namespace Fdp.ModuleHost
                                 // Reroute all convoy members (+ new entry) to the new provider.
                                 // The old provider will naturally drain as in-flight views are
                                 // released back to it by the still-running harvest loop.
+                                // ⭐ CE-3293 S4 — it stops holding the event history now.
+                                existingShared.ReleaseEventReader();
                                 foreach (var e in allInConvoy)
                                 {
                                     e.Provider = newSharedProvider;
@@ -1755,6 +2217,8 @@ namespace Fdp.ModuleHost
 
                             foreach (var e in groupPlusnew)
                             {
+                                // ⭐ CE-3293 S4 — each member's own provider stops holding the event history
+                                (e.Provider as Fdp.ModuleHost.Providers.IEventHistoryReader)?.ReleaseEventReader();
                                 e.Provider = sharedProvider;
                                 e.HasExclusiveProvider = false;
                             }
@@ -1774,13 +2238,27 @@ namespace Fdp.ModuleHost
         internal class ModuleEntry
         {
             public IEcsModule Module { get; set; } = null!;
+            /// <summary>⭐ CE-4433 — this module's part labels for <see cref="KernelFrameTimings"/>, built once.</summary>
+            internal string? TimingSyncPoint, TimingHarvest, TimingAcquire, TimingRun;
+            /// <summary>⭐ CE-3293 (R-3036) — when the module's own Tick runs (and, for a background module, its dispatch). Read at
+            /// registration; gated from S5 on.</summary>
+            public TickPolicy TickPolicy { get; set; }
             public ISnapshotProvider Provider { get; set; } = null!;
             public int FramesSinceLastRun { get; set; }
+            /// <summary>⭐ CE-3427 C-1 — the Stopwatch timestamp of the last dispatch (the live wall-clock cadence).</summary>
+            public long LastDispatchTimestamp { get; set; }
             public ISimulationView? LastView { get; set; }
             public int ExecutionCount; // Field for Interlocked
             
             // Async State (NEW - for World C)
             public Task? CurrentTask { get; set; }
+
+            /// <summary>⭐ CE-3066 — a run that TIMED OUT and was abandoned but is still executing: it keeps reading its view and
+            /// writing its command buffers and the module's own state. While it lives the module is NOT re-dispatched and its
+            /// view is NOT released (the pool would recycle a snapshot the run is still reading).</summary>
+            public Task? ZombieTask { get; set; }
+            public ISimulationView? ZombieView { get; set; }
+            public ISnapshotProvider? ZombieProvider { get; set; }
             public ISimulationView? LeasedView { get; set; }
 
             /// <summary>
@@ -1793,13 +2271,28 @@ namespace Fdp.ModuleHost
 
             public float AccumulatedDeltaTime { get; set; }
             public uint LastRunTick { get; set; }  // For reactive scheduling prep
+
+            /// <summary>⭐ CE-3292 — the sim-time slot of the last run (stepped mode decides the next by it); reset with a new timeline.</summary>
+            public long LastRunSlot { get; set; } = long.MinValue;
+            /// <summary>⭐ CE-3292 — the timeline the current run was dispatched in; a run from an older one is discarded at harvest.</summary>
+            public int DispatchEpoch { get; set; }
             
             // Caching
             public BitMask512 ComponentMask; 
             
             // NEW for BATCH-04: Resilience
+            // Fault de-duplication (CE-189). A module that throws every frame used to print a full
+            // stack every frame; ten thousand identical lines hide a fault as effectively as silence.
+            // The first occurrence of each distinct signature is reported in full, repeats are counted,
+            // and the running total is surfaced through GetExecutionStats.
+            public string? LastFaultSignature { get; set; }
+            public int     LastFaultRepeats;      // Field for Interlocked
+            public int     TotalFaults;           // Field for Interlocked
+
             public ModuleCircuitBreaker? CircuitBreaker { get; set; }
             public int MaxExpectedRuntimeMs { get; set; }
+            /// <summary>⭐ F-3 (CE-4503) — a stepped run past <see cref="MaxExpectedRuntimeMs"/> was reported (once per module).</summary>
+            public bool SteppedOverrunReported;
             public int FailureThreshold { get; set; }
             public int CircuitResetTimeoutMs { get; set; }
 
@@ -1826,6 +2319,10 @@ namespace Fdp.ModuleHost
             /// and losing any accumulated state (e.g. profiling counters, cached queries).
             /// </summary>
             public List<IEcsModuleSystem>? RegisteredSystems { get; set; }
+            /// <summary>⭐ CE-3427 — the systems the module ticks itself (<c>RegisterManualSystem</c>): kept apart from
+            /// <see cref="RegisteredSystems"/> (never dispatched by the kernel), recorded only so diagnostics name their module — they read
+            /// "Unknown" before, and the scale rig could not tell an off-frame run (EqsSolverSystem) from frame work.</summary>
+            public List<IEcsModuleSystem>? ManualSystems { get; set; }
 
             /// <summary>
             /// Subset of <see cref="RegisteredSystems"/> containing only
@@ -1902,10 +2399,14 @@ namespace Fdp.ModuleHost
             private readonly SystemScheduler _scheduler;
             public List<IEcsModuleSystem> Captured { get; } = new();
             public List<IEcsModuleSystem> SimulationCaptured { get; } = new();
+            public List<IEcsModuleSystem> ManualCaptured { get; } = new();
 
-            public CapturingSystemRegistry(SystemScheduler scheduler)
+            private readonly Type _ownerModule;
+
+            public CapturingSystemRegistry(SystemScheduler scheduler, Type ownerModule)
             {
                 _scheduler = scheduler;
+                _ownerModule = ownerModule;
             }
 
             public void RegisterSystem<T>(T system) where T : IEcsModuleSystem
@@ -1923,13 +2424,14 @@ namespace Fdp.ModuleHost
                     SimulationCaptured.Add(system);
                 }
 
-                _scheduler.RegisterSystem(system);
+                _scheduler.RegisterSystem(system, _ownerModule);
             }
 
             public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem
             {
                 // Do NOT add to Captured! Manual systems are meant to be ticked 
-                // explicitly by the module's own Tick() method.
+                // explicitly by the module's own Tick() method. ManualCaptured only names their module in diagnostics.
+                ManualCaptured.Add(system);
                 return _scheduler.RegisterManualSystem(system);
             }
         }

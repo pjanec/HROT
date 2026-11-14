@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Hrot.NED.Descriptors;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Replication.Utils;
+using Hrot.Map.Common.Components;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -20,16 +21,14 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// Applies overlay geometry by creating or updating <see cref="EditablePolyline"/>.
     /// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
-    public class MapVisualOverlayIngressTranslator : IDescriptorTranslator
+    public class MapVisualOverlayIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "MapVisualOverlay";
         private const long OrdinalValue = (long)EDescriptorType.dtMapVisualOverlay;
 
         private readonly DdsReader<MapVisualOverlay>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly IGeographicTransform? _geoTransform;
         private readonly GhostCreationSystem _ghostCreationSystem;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         /// <summary>
         /// Overlays deferred because the entity's <see cref="SimTransform"/> had not yet been
@@ -38,8 +37,9 @@ namespace Hrot.Map.Common.Replication.Ingress
         /// <see cref="PollIngress"/> calls once <c>SimTransform</c> becomes visible.
         /// </summary>
         private readonly Dictionary<Entity, MapVisualOverlay> _pendingOverlays = new();
+        private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MapVisualOverlay>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -48,19 +48,21 @@ namespace Hrot.Map.Common.Replication.Ingress
         public MapVisualOverlayIngressTranslator(
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
-            IGeographicTransform? geoTransform,
             GhostCreationSystem ghostCreationSystem,
-            long localNodeId)
+            int localNodeId)
         {
             _reader = participant is not null ? new DdsReader<MapVisualOverlay>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _geoTransform = geoTransform;
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            if (WorldEpoch.Moved(view, ref _worldEpoch)) _pendingOverlays.Clear();   // ⭐ R-3039 S3 — a world replacement (a load, a restore): the handles named the old world (R-3041: lost)
             var repo = view as EntityRepository;
 
             // Re-process deferred overlays from previous frames whose entity now has SimTransform.
@@ -69,7 +71,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 var resolved = new List<Entity>(_pendingOverlays.Count);
                 foreach (var (entity, overlay) in _pendingOverlays)
                 {
-                    if (!repo.IsAlive(entity)) { resolved.Add(entity); continue; }
+                    if (!repo.IsAlive(entity) || IsOwnedHere(repo, entity)) { resolved.Add(entity); continue; }   // S8 / F-5
                     if (!repo.HasComponent<SimTransform>(entity)) continue;
                     ref readonly var t = ref repo.GetComponentRO<SimTransform>(entity);
                     cmd.SetManagedComponent(entity, BuildPolyline(overlay, t.Position));
@@ -114,11 +116,15 @@ namespace Hrot.Map.Common.Replication.Ingress
             repo.SetComponent(entity, MapOverlayStyle.FromJson(overlay.StyleOverrideJson));
         }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
+
+        private static bool IsOwnedHere(EntityRepository repo, Entity entity)
+            => Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(
+                repo, entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(OrdinalValue, 0));
 
         internal void ProcessSample(in MapVisualOverlay data, IEntityCommandBuffer cmd, EntityRepository? repo)
         {
-            long netId = data.EntityId;
+            int netId = data.EntityId;
             if (!_entityMap.TryGetEntity(netId, out var entity))
             {
                 if (repo == null)
@@ -131,8 +137,13 @@ namespace Hrot.Map.Common.Replication.Ingress
                 entity = _ghostCreationSystem.CreateGhost(repo, netId);
             }
 
-            // Pass the entity's Cartesian position so BuildPolyline can correctly
-            // reconstruct absolute Cartesian from relative geodetic offsets.
+            // ⭐ S8 / F-5 — skip our OWN sample looping back: the recorded owner of this descriptor (the creator — CREATOR
+            //   group) edits it, and the value it last published must not overwrite a newer local edit. ⛔ Recorded owner
+            //   only: a ghost still being built takes the sample. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §3 F-5, §5.6 S8.
+            if (repo != null && IsOwnedHere(repo, entity))
+                return;
+
+            // Pass the entity's position so BuildPolyline can make the wire's ABSOLUTE local points entity-relative.
             Vector3? entityPos = null;
             if (repo != null && repo.IsAlive(entity) && repo.HasComponent<SimTransform>(entity))
             {
@@ -143,7 +154,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             // When SimTransform is not yet in the live repo (same-frame ordering race with
             // GeoSpatialIngressTranslator), defer the polyline rebuild to the next frame.
             // Always apply MapOverlayStyle immediately since it is position-independent.
-            if (entityPos == null && _geoTransform != null && data.Points != null && data.Points.Count > 0)
+            if (entityPos == null && data.Points != null && data.Points.Count > 0)
             {
                 _pendingOverlays[entity] = data;
             }
@@ -154,55 +165,26 @@ namespace Hrot.Map.Common.Replication.Ingress
             cmd.SetComponent(entity, MapOverlayStyle.FromJson(data.StyleOverrideJson));
         }
 
-        /// <param name="entityCartesianPos">
-        /// The entity's world-space position from <see cref="SimTransform.Position"/>, used to
-        /// reconstruct absolute geodetic coordinates from the stored relative offsets before
-        /// converting back to relative Cartesian.  When <c>null</c> (entity SimTransform not
-        /// yet available), falls back to the legacy behaviour that treats delta-geo as absolute
-        /// geo — accurate only when the geo-transform origin matches the entity centroid.
+        /// <param name="entityPos">
+        /// The entity's position (<see cref="SimTransform.Position"/>). ⭐ AQ107 B — the wire's points are ABSOLUTE local ENU metres and
+        /// the ECS polyline is entity-relative, so each point becomes <c>point.XY − entityPos.XY</c>. When <c>null</c> (SimTransform not
+        /// yet available — only the descriptor-apply path), the entity is taken to sit at the local origin and the points are the offsets.
         /// </param>
-        private EditablePolyline BuildPolyline(in MapVisualOverlay overlay, Vector3? entityCartesianPos = null)
+        private EditablePolyline BuildPolyline(in MapVisualOverlay overlay, Vector3? entityPos = null)
         {
             var polyline = new EditablePolyline();
             if (overlay.Points == null || overlay.Points.Count == 0)
                 return polyline;
 
-            polyline.Points = new List<Vector2>(overlay.Points.Count);
+            var reference = entityPos ?? Vector3.Zero;
+            var points = new List<Vector2>(overlay.Points.Count);
             for (int i = 0; i < overlay.Points.Count; i++)
             {
-                var geo = overlay.Points[i];
-                if (_geoTransform != null && entityCartesianPos.HasValue)
-                {
-                    // Correct path: reconstruct absolute Cartesian from (entityRefGeo + deltaGeo),
-                    // then express as relative offset from the entity's SimTransform origin.
-                    // This avoids the cos(refLat) scale error that arises when delta-geo values
-                    // are passed directly to ToCartesian as if they were absolute coordinates.
-                    var refGeo = _geoTransform.ToGeodetic(entityCartesianPos.Value);
-                    var absCart = _geoTransform.ToCartesian(
-                        refGeo.lat + geo.Latitude,
-                        refGeo.lon + geo.Longitude,
-                        refGeo.alt + geo.Altitude);
-                    var relCart = absCart - entityCartesianPos.Value;
-                    polyline.Points.Add(new Vector2(relCart.X, relCart.Y));
-                }
-                else if (_geoTransform != null)
-                {
-                    // Fallback (entity position unavailable): treat delta-geo as absolute geo
-                    // and compute displacement from the geo-transform Cartesian origin.
-                    // Legacy behaviour — accurate only when the transform origin ≈ entity centroid.
-                    Vector3 origin = _geoTransform.ToCartesian(0.0, 0.0, 0.0);
-                    var absCart = _geoTransform.ToCartesian(geo.Latitude, geo.Longitude, geo.Altitude);
-                    var relCart = absCart - origin;
-                    polyline.Points.Add(new Vector2(relCart.X, relCart.Y));
-                }
-                else
-                {
-                    // No geo transform: treat lat/lon as Y/X directly.
-                    polyline.Points.Add(new Vector2((float)geo.Longitude, (float)geo.Latitude));
-                }
+                var abs = EnuWire.FromWire(overlay.Points[i]);
+                points.Add(new Vector2(abs.X - reference.X, abs.Y - reference.Y));
             }
 
-            return polyline;
+            return polyline with { Points = points };   // CE-4046 — immutable record
         }
     }
 }

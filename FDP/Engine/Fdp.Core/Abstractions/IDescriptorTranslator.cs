@@ -18,6 +18,77 @@ namespace Fdp.Interfaces
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b>Which traffic class a translator carries — the one genuinely new artefact of
+    /// <c>DQ30-C</c>.</b>
+    ///
+    /// <para>📄 <c>docs/UX/Design_Question_30_Debug_Pause_Resume.md</c> §C ·
+    /// <c>docs/UX/UX_Feature_Cgf_Brain_Diagnostics.md</c> §4.</para>
+    ///
+    /// <para>⛔⛔ <b>Why a per-translator category and not a per-system switch.</b> While a debugger
+    /// holds a node's world frozen, world-state ingress must stop — brain state at tick T read
+    /// against replicated state at T+k is the exact confusion a debugger exists to prevent — but
+    /// control-plane ingress must keep polling, because <b>this node's own resume arrives through
+    /// it</b>. 📐 Measured: a single ingress system can hold both classes at once (the auxiliary
+    /// pack carries combat and mission-control traffic), so gating whole systems cannot express the
+    /// split. Gating the control plane by accident is <c>DQ30-A</c>'s deadlock.</para>
+    ///
+    /// <para>🔒 <b><see cref="WorldState"/> is 0, i.e. the default, and that is the fail-safe
+    /// direction.</b> A control-plane translator left unmarked fails LOUDLY and immediately —
+    /// *"resume does not work"* — whereas the opposite default would leak live world data into a
+    /// frozen snapshot SILENTLY.</para>
+    /// </summary>
+    public enum TranslatorClass : byte
+    {
+        /// <summary>Entity/component replication, descriptor, mission and intent ingress. Stops with the sim.</summary>
+        WorldState   = 0,
+
+        /// <summary>Time-mode, lockstep, time-sync and orchestration traffic. ⭐ Keeps polling while frozen.</summary>
+        ControlPlane = 1,
+
+        /// <summary>
+        /// ⭐⭐ <c>R-4007</c> (Q91 §4-M) — a one-shot world EVENT on a <c>Volatile + KeepAll</c> topic (a shot, a detonation, a
+        /// hit, a request). Held like world state while a debugger freezes the node; ⭐ DISCARDED while the node is frozen for a
+        /// join, so no stale burst follows the opening. ⛔ A translator declaring it MUST implement
+        /// <see cref="IDiscardableIngress"/>.
+        /// </summary>
+        WorldEvent   = 2,
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>R-4007</c> — a translator's way to throw away what arrived while the node could not use it: take every pending
+    /// sample and drop it. ⛔ Never applies anything to the world.
+    /// <para>⭐⭐ CE-3329 W5 (DESIGN_Replay_Time_Axis_And_Review §12u) — EVERY translator that takes ingress and is not
+    /// <see cref="TranslatorClass.ControlPlane"/> implements it (a join drops the events, a replay's exit drops state and events);
+    /// <c>EveryIngressTranslatorCanDiscardRail</c> sweeps the translator assemblies for one that does not. Each reader it owns goes
+    /// through <c>DdsReaderDiscard.DiscardAll</c>; a translator that must KEEP its samples says so here, explicitly.</para>
+    /// </summary>
+    public interface IDiscardableIngress
+    {
+        /// <summary>Takes and discards every pending ingress sample. Returns how many were discarded.</summary>
+        int DiscardIngress();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>R-4012</c> (Q91 §4-P) — an ingress system that stops taking in the world while this node RESTORES a replay
+    /// from its own recording (the recording holds everything, Plan A). Same treatment as a join: world state left in DDS,
+    /// world events discarded, the control plane still polled. Wired by the node's record/replay controller when a replay
+    /// is prepared; left unset the system behaves exactly as before.
+    /// </summary>
+    public interface IReplayRestoreGated
+    {
+        /// <summary>True while the node restores its own recording for the current replay moment.</summary>
+        System.Func<bool>? IsReplayRestoring { get; set; }
+
+        /// <summary>
+        /// ⭐⭐ CE-3329 W5 (DESIGN_Replay_Time_Axis_And_Review §12u) — the exit of a replay or a review is RELEASED: before this system
+        /// takes anything in again it throws away the world STATE and EVENTS its readers hold — the replay-era samples and the entry's
+        /// disposes. The node already has its world (its checkpoint, or the replay it branches from); the owners republish.
+        /// ⭐ Called by the record/replay controller at the exit's release; the drain runs on the system's own next Execute.
+        /// </summary>
+        void DiscardAtReplayExit() { }
+    }
+
+    /// <summary>
     /// Translates between network descriptors and ECS components.
     /// </summary>
     public interface IDescriptorTranslator : INetworkTranslator
@@ -50,6 +121,24 @@ namespace Fdp.Interfaces
         /// </summary>
         void ApplyToEntity(Entity entity, object data, EntityRepository repo);
 
-        void Dispose(long networkEntityId);
+        void Dispose(int networkEntityId);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4079</c> ② — this node's writer lets go of an instance it wrote <b>without disposing it</b>: the descriptor is now
+        /// owned by another node, which keeps it alive (a dispose would delete it for every reader at once).
+        /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.3 (the giver's unregister after the grantee confirmed, F7).
+        ///
+        /// <para>Called by <c>CycloneNetworkCleanupSystem</c> on the translators whose <see cref="DescriptorOrdinal"/> matches a
+        /// <c>DescriptorHandedOver</c> event — the creator, once the grantee's <c>OwnershipUpdate</c> arrived. ⭐ The grantee is then the
+        /// SOLE writer, so its crash shows on the descriptor (<c>NotAliveNoWriters</c>). ⚠ It only means "released, not deleted" because
+        /// every descriptor topic sets <c>[DdsQos(AutodisposeUnregisteredInstances = false)]</c>.</para>
+        ///
+        /// <para>An implementation unregisters its DDS instance AND forgets what it last published for the entity, so that a reclaim
+        /// (the grantee leaves; the entity's primary owner takes the descriptor back) republishes instead of skipping an "unchanged"
+        /// value. <paramref name="instanceId"/> 0 names the entity's root instance and, for a multi-instance descriptor (turret
+        /// pose, weapon task), every instance this node wrote for the entity. Default: nothing to release (an ingress translator, a
+        /// message topic).</para>
+        /// </summary>
+        void ReleaseInstance(int networkEntityId, long instanceId) { }
     }
 }

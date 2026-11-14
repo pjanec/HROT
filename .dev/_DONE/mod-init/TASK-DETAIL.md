@@ -17,7 +17,7 @@
 - Add `<ProjectReference>` entries to: `Hrot.Common`, `Hrot.Map.Common`, `FDP.Toolkit.Behavior`
 - Add `Hrot.Network` project reference to `Hrot.SimHost.csproj`, `Hrot.IG.csproj`, `Hrot.CGF.csproj`, and `Hrot.ClusterRunner.csproj`
 - Create stub directory structure: `Replication/`, `Translators/`, `Infrastructure/`
-- Add `Hrot.Network` to `IOS-IG-SimHost.sln`
+- Add `Hrot.Network` to `HROT.sln`
 
 **NOT in scope:**
 - Adding any code files — directories and project files only
@@ -30,13 +30,13 @@
 
 **Success Conditions:**
 
-1. **Compilation:** `dotnet build IOS-IG-SimHost.sln` succeeds with the new empty project in the graph.
+1. **Compilation:** `dotnet build HROT.sln` succeeds with the new empty project in the graph.
 
 2. **Project file valid:** `Hrot.Network/Hrot.Network.csproj` contains `<ProjectReference>` to `Hrot.Common`, `Hrot.Map.Common`, and `FDP.Toolkit.Behavior`; none to `Hrot.SimHost` or `Hrot.IG`.
 
 3. **No reverse references:** `Select-String "<ProjectReference.*Hrot.Network" Hrot.Common/Hrot.Common.csproj, Hrot.Map.Common/Hrot.Map.Common.csproj` returns zero matches.
 
-4. **Solution includes project:** `dotnet sln IOS-IG-SimHost.sln list` includes `Hrot.Network/Hrot.Network.csproj`.
+4. **Solution includes project:** `dotnet sln HROT.sln list` includes `Hrot.Network/Hrot.Network.csproj`.
 
 ---
 
@@ -65,7 +65,7 @@
 
 **Success Conditions:**
 
-1. **Compilation:** `dotnet build IOS-IG-SimHost.sln` succeeds with zero `error CS` entries after the move.
+1. **Compilation:** `dotnet build HROT.sln` succeeds with zero `error CS` entries after the move.
 
 2. **Namespace resolution:** A search for `Hrot.IG.Systems.DeadReckoningSyncSystem` or `using Hrot.IG.Systems` (where the only purpose was `DeadReckoningSyncSystem`) yields zero results. All consumers now reference `Hrot.Common.Systems`.
 
@@ -104,7 +104,7 @@
 
 **Success Conditions:**
 
-1. **Compilation:** `dotnet build IOS-IG-SimHost.sln` succeeds after the move.
+1. **Compilation:** `dotnet build HROT.sln` succeeds after the move.
 
 2. **File in correct location:** `Hrot.Map.Common/Translators/SharedTranslatorPack.cs` exists; no copy remains in `Hrot.SimHost/Network/`.
 
@@ -136,7 +136,7 @@
 
 **Success Conditions:**
 
-1. **Compilation:** `dotnet build IOS-IG-SimHost.sln` succeeds.
+1. **Compilation:** `dotnet build HROT.sln` succeeds.
 
 2. **Yields correct translators:** `KinematicTranslatorPack.Create(participant, entityMap, geoTransform)` returns an enumerable containing `GeoSpatialEgressTranslator` and `NavigationStatusEgressTranslator` instances.
 
@@ -172,7 +172,7 @@
 
 **Success Conditions:**
 
-1. **Compilation:** `dotnet build IOS-IG-SimHost.sln` succeeds after the move.
+1. **Compilation:** `dotnet build HROT.sln` succeeds after the move.
 
 2. **Yields correct translators:** `CognitiveTranslatorPack.Create(...)` returns an enumerable containing `NavigationIntentEgressTranslator`, `EntityMissionEgressTranslator`, `GeoSpatialIngressTranslator`, and `NavigationStatusIngressTranslator` instances.
 
@@ -234,7 +234,7 @@ Update all callers to use the new namespaces.
 
 1. **Files relocated:** All four `.cs` files exist in their target paths; none remain in `Hrot.SimHost/Network/`.
 
-2. **Compilation:** `dotnet build IOS-IG-SimHost.sln` succeeds.
+2. **Compilation:** `dotnet build HROT.sln` succeeds.
 
 3. **No old namespace references:** `grep -r "Hrot.SimHost.Network" --include="*.cs"` returns zero hits for any of the four translator names.
 
@@ -270,7 +270,7 @@ Update all callers to use the new namespaces.
 
 **Success Conditions:**
 
-1. **Compilation:** `dotnet build IOS-IG-SimHost.sln` succeeds with zero `error CS`.
+1. **Compilation:** `dotnet build HROT.sln` succeeds with zero `error CS`.
 
 2. **Namespace clean:** `grep -r "Hrot.ClusterRunner.Replication.NedReplicationModule\|using Hrot.ClusterRunner.Replication" --include="*.cs"` returns zero results (except any legacy alias that will be cleaned in Stage 4).
 
@@ -369,7 +369,7 @@ Update all callers to use the new namespaces.
 
 3. **Module wired via builder:** `SimHostApp.cs` contains `.WithReplication(` in the `HrotNodeBuilder` chain; there is no standalone `new NedReplicationModule(` call.
 
-4. **Compilation:** `dotnet build IOS-IG-SimHost.sln` succeeds.
+4. **Compilation:** `dotnet build HROT.sln` succeeds.
 
 5. **Behavioral preservation:** `dotnet test Hrot.SimHost.Integration.Tests --no-build` and `dotnet test Hrot.ClusterRunner.Integration.Tests --no-build` pass 100%.
 
@@ -410,7 +410,7 @@ Update all callers to use the new namespaces.
 
 3. **Module wired via builder:** `IgApplication.cs` contains `.WithReplication(NodeRole.ImageGenerator)` in the `HrotNodeBuilder` chain.
 
-4. **Compilation:** `dotnet build IOS-IG-SimHost.sln` succeeds.
+4. **Compilation:** `dotnet build HROT.sln` succeeds.
 
 5. **Behavioral preservation:** `dotnet test Hrot.IG.Tests --no-build` passes 100%.
 
@@ -442,7 +442,7 @@ Update all callers to use the new namespaces.
 
 1. **No old namespace references:** `grep -rn "using Hrot.ClusterRunner.Replication" Hrot.ClusterRunner/Services/CgfSubsystem.cs Hrot.CGF/` returns zero results.
 
-2. **Compilation:** `dotnet build IOS-IG-SimHost.sln` succeeds.
+2. **Compilation:** `dotnet build HROT.sln` succeeds.
 
 3. **Role contract preserved:** A test initializing `CgfSubsystem` confirms `NedReplicationModule` is registered with `NodeRole.Brain` (e.g., via `InstalledModuleNames` property if available, or by verifying `CognitiveTranslatorPack` is in the module's translators).
 
@@ -483,7 +483,7 @@ Update all callers to use the new namespaces.
 
 4. **`Hrot.CGF` builds in isolation:** Same for `Hrot.CGF.csproj`.
 
-5. **Full suite:** `dotnet test IOS-IG-SimHost.sln --no-build` passes.
+5. **Full suite:** `dotnet test HROT.sln --no-build` passes.
 
 6. **Executable readiness documented:** A comment or note in the task completion confirms that each application class can be wrapped in a standalone `Program.cs` with no further refactoring needed.
 

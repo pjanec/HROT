@@ -9,6 +9,7 @@ using PositionGeodetic = Fdp.Modules.Geographic.Components.PositionGeodetic;
 namespace Fdp.Modules.Geographic.Systems
 {
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class CoordinateTransformSystem : IEcsModuleSystem
     {
         private readonly IGeographicTransform _geo;
@@ -20,6 +21,7 @@ namespace Fdp.Modules.Geographic.Systems
         
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (!_geo.HasFrame) return;   // CE-4396: a local-only terrain has no geodetic position to publish
             var cmd = view.GetCommandBuffer();
             
             // Outbound: Physics → Geodetic (for locally-owned entities only).
@@ -27,13 +29,13 @@ namespace Fdp.Modules.Geographic.Systems
             // check that broke split-authority deployments (MOD1-P1T3).
             var outbound = view.Query()
                 .WithOwned<Position>()
-                .WithManaged<PositionGeodetic>()
+                .With<PositionGeodetic>()
                 .Build();
             
             foreach (var entity in outbound)
             {
                 var localPos = view.GetComponentRO<Position>(entity);
-                var geoPos = view.GetManagedComponentRO<PositionGeodetic>(entity);
+                var geoPos = view.GetComponentRO<PositionGeodetic>(entity);
                 
                 var (lat, lon, alt) = _geo.ToGeodetic(localPos.Value);
                 
@@ -48,7 +50,7 @@ namespace Fdp.Modules.Geographic.Systems
                         Longitude = lon,
                         Altitude = alt
                     };
-                    cmd.SetManagedComponent(entity, newGeo);
+                    cmd.SetComponent(entity, newGeo);
                 }
             }
         }

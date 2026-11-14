@@ -62,6 +62,25 @@ namespace Hrot.Diagnostics.Tuning.Tests
             Assert.Equal(0.8f, t!.Read(), 4);
         }
 
+        /// <summary>⭐ <c>CE-2271</c> (R-2075) — tuning a MODIFIER row (its weight, every curve field) keeps it a modifier: the binder
+        /// rebuilds the row and must carry the flag it holds (the silent-default rule — a caller that has the value passes it).</summary>
+        [Fact]
+        public void CE2271_TuningAModifierRow_KeepsItAModifier()
+        {
+            var reg = new TuningRegistry();
+            var def = MakeDecision();
+            var row = def.Options[0].Considerations[0];
+            def.Options[0].Considerations[0] = new UtilityConsideration(row.InputId, row.Context, row.Weight, row.Curve, row.Params, ConsiderationFlags.Modifier);
+            UtilityTuningBinder.RegisterDecision(reg, def);
+            string prefix = "utility.TestDecision.7.0";
+            foreach (var (field, value) in new[] { ("weight", 0.3f), ("slope", 2f), ("exponent", 1.5f), ("xShift", 0.1f) })
+            {
+                reg.Apply(new TuningKey($"{prefix}.{field}"), value);
+                reg.BeginFrame();
+                Assert.Equal(ConsiderationFlags.Modifier, def.Options[0].Considerations[0].Flags);
+            }
+        }
+
         [Fact]
         public void RegisterDecision_Write_UpdatesConsiderationInPlace()
         {

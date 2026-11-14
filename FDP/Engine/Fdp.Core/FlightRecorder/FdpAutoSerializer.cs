@@ -148,14 +148,39 @@ namespace Fdp.Core.FlightRecorder
             var result = Expression.Variable(type, "result");
             var block = new List<Expression>();
             
-            // result = new T();
-            // Note: This requires a parameterless constructor!
-            // If custom object lacks it, this throws.
-            block.Add(Expression.Assign(result, Expression.New(type)));
+            // result = new T(); — ⭐ CE-4046: a positional record has no parameterless constructor, so it is created UNINITIALISED and
+            //   every recorded member (its init properties included) is assigned below, as for any other object.
+            block.Add(Expression.Assign(result, type.IsValueType || type.GetConstructor(Type.EmptyTypes) != null
+                ? Expression.New(type)
+                : Expression.Convert(Expression.Call(
+                    typeof(System.Runtime.CompilerServices.RuntimeHelpers).GetMethod(nameof(System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject))!,
+                    Expression.Constant(type, typeof(Type))), type)));
             
             // Find ordered properties/fields
             var members = GetSortedMembers(type);
-            
+
+            // ⭐ CE-4267 (found by the director's reel) — a public READONLY field (a `readonly struct` such as EntityLink, held by
+            //   RouteWaypoint since S9') cannot be the left side of an Assign: the read threw "Expression must be writeable" and a
+            //   preview's exit (WorldKeyframes restore) killed the editor. Such a type is filled through ONE box and reflection
+            //   (FieldInfo/PropertyInfo.SetValue mutate the boxed copy, a struct included), then unboxed. Only these types pay it.
+            if (members.Any(m => m is FieldInfo { IsInitOnly: true }))
+            {
+                var box = Expression.Variable(typeof(object), "box");
+                var boxed = new List<Expression> { block[0], Expression.Assign(box, Expression.Convert(result, typeof(object))) };
+                var fieldSet = typeof(FieldInfo).GetMethod(nameof(FieldInfo.SetValue), new[] { typeof(object), typeof(object) })!;
+                var propSet = typeof(PropertyInfo).GetMethod(nameof(PropertyInfo.SetValue), new[] { typeof(object), typeof(object) })!;
+                foreach (var member in members)
+                {
+                    var memberType = (member is PropertyInfo pi) ? pi.PropertyType : ((FieldInfo)member).FieldType;
+                    var set = Expression.Call(Expression.Constant(member, member is PropertyInfo ? typeof(PropertyInfo) : typeof(FieldInfo)),
+                                              member is PropertyInfo ? propSet : fieldSet,
+                                              box, Expression.Convert(GenerateReadExpression(memberType, reader), typeof(object)));
+                    boxed.Add(memberType.IsValueType ? set : Expression.IfThen(CallRead(reader, typeof(bool)), set));
+                }
+                boxed.Add(Expression.Convert(box, type));
+                return Expression.Lambda<Func<BinaryReader, T>>(Expression.Block(new[] { result, box }, boxed), reader).Compile();
+            }
+
             foreach (var member in members)
             {
                 var memberAccess = Expression.MakeMemberAccess(result, member);
@@ -478,6 +503,7 @@ namespace Fdp.Core.FlightRecorder
         private static bool IsBuiltInType(Type type)
         {
             if (type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(Fdp.Core.Entity)) return true;
+            if (type == typeof(Guid) || type == typeof(DateTime) || type == typeof(TimeSpan)) return true;   // ⭐ CE-3305
             if (type.IsArray) return true;
             if (type.IsGenericType)
             {
@@ -504,6 +530,25 @@ namespace Fdp.Core.FlightRecorder
                 return Expression.Call(writer, enumWriteMethod!, castExpr);
             }
 
+            // ⭐ CE-4200 — a SEMANTIC value type (NodeId, TkbTypeId, WorldPoint …) is its STORAGE type on the recording: the same bytes the plain
+            //   int / long / Vector3 wrote. ⛔ Not the recursive case below — these are readonly structs, whose members cannot be assigned on read.
+            if (Fdp.Core.SemanticValueTypes.IsSemantic(type))
+            {
+                var storage = Fdp.Core.SemanticValueTypes.StorageTypeOf(type);
+                return GenerateWriteExpression(storage, Expression.Convert(valueAccess, storage), writer);
+            }
+
+            // ⭐ CE-4326 — a NULLABLE value type (double?, int? …) as [bool HasValue][value]. ⛔ It fell to the recursive struct case, which writes the
+            //   settable members of Nullable<T> — none — so every T? came back null (measured: VariantForms.Presence lost through a dry run's keyframe).
+            //   📐 No recorded component or event carried one when this was added (a scan, 2026-11-08), so no recording's bytes change.
+            if (Nullable.GetUnderlyingType(type) is { } nullableOf)
+            {
+                var has = Expression.Property(valueAccess, "HasValue");
+                return Expression.Block(
+                    CallWrite(writer, typeof(bool), has),
+                    Expression.IfThen(has, GenerateWriteExpression(nullableOf, Expression.Property(valueAccess, "Value"), writer)));
+            }
+
             // CASE A3: Entity Handle (8-byte blit)
             if (type == typeof(Fdp.Core.Entity))
             {
@@ -511,6 +556,18 @@ namespace Fdp.Core.FlightRecorder
                 var packedAccess = Expression.PropertyOrField(valueAccess, "PackedValue");
                 return Expression.Call(writer, entityWriteMethod!, packedAccess);
             }
+
+            // ⭐ CE-3305 — BCL value types with no public settable member: written whole (the recursive case below wrote NOTHING for
+            //   them, so a Guid read back as Guid.Empty — measured on SensorCapability.Default.Template in a dry-run keyframe).
+            if (type == typeof(Guid))
+                return Expression.Call(writer, typeof(BinaryWriter).GetMethod("Write", new[] { typeof(byte[]) })!,
+                    Expression.Call(valueAccess, typeof(Guid).GetMethod(nameof(Guid.ToByteArray), Type.EmptyTypes)!));
+            if (type == typeof(DateTime))
+                return Expression.Call(writer, typeof(BinaryWriter).GetMethod("Write", new[] { typeof(long) })!,
+                    Expression.Call(valueAccess, typeof(DateTime).GetMethod(nameof(DateTime.ToBinary))!));
+            if (type == typeof(TimeSpan))
+                return Expression.Call(writer, typeof(BinaryWriter).GetMethod("Write", new[] { typeof(long) })!,
+                    Expression.Property(valueAccess, nameof(TimeSpan.Ticks)));
 
             // CASE A: Primitive (int, float, string, etc.)
             var writeMethod = typeof(BinaryWriter).GetMethod("Write", new[] { type });
@@ -567,6 +624,30 @@ namespace Fdp.Core.FlightRecorder
                 return GenerateConcurrentBagWrite(type, valueAccess, writer);
             }
             
+            // ⭐ CE-4046 — the read-only collections an IMMUTABLE record holds: on the wire exactly like their mutable twins
+            //   (a list / array as count + items, a dictionary as count + pairs), read back as an array / Dictionary.
+            if (ReadOnlyListItem(type) is { } roItem)
+                return GenerateArrayWrite(roItem.MakeArrayType(),
+                    Expression.Call(typeof(Enumerable).GetMethod(nameof(Enumerable.ToArray))!.MakeGenericMethod(roItem), valueAccess), writer);
+            if (ImmutableArrayItem(type) is { } iaItem)
+            {
+                // a value type with a DEFAULT state (IsDefault) distinct from empty: [bool isDefault] [count + items]
+                var isDefault = Expression.Property(valueAccess, "IsDefault");
+                return Expression.Block(
+                    CallWrite(writer, typeof(bool), isDefault),
+                    Expression.IfThen(Expression.Not(isDefault),
+                        GenerateArrayWrite(iaItem.MakeArrayType(),
+                            Expression.Call(typeof(System.Runtime.InteropServices.ImmutableCollectionsMarshal)
+                                .GetMethod(nameof(System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsArray))!.MakeGenericMethod(iaItem),
+                                valueAccess), writer)));   // the backing array itself — no copy
+            }
+            if (ReadOnlyDictionaryTypes(type) is { } roDict)
+            {
+                var dictType = typeof(Dictionary<,>).MakeGenericType(roDict.Key, roDict.Value);
+                var pairs = typeof(IEnumerable<>).MakeGenericType(typeof(KeyValuePair<,>).MakeGenericType(roDict.Key, roDict.Value));
+                return GenerateDictionaryWrite(dictType, Expression.New(dictType.GetConstructor(new[] { pairs })!, valueAccess), writer);
+            }
+
             // CASE Z: Recursive nested object
             var recurseMethod = typeof(FdpAutoSerializer)
                 .GetMethod("Serialize", BindingFlags.Public | BindingFlags.Static)!
@@ -586,6 +667,17 @@ namespace Fdp.Core.FlightRecorder
                 return Expression.Convert(readExpr, type);
             }
 
+            // ⭐ CE-4200 — see the write side: a semantic value type is read as its storage type and converted in.
+            if (Fdp.Core.SemanticValueTypes.IsSemantic(type))
+                return Expression.Convert(GenerateReadExpression(Fdp.Core.SemanticValueTypes.StorageTypeOf(type), reader), type);
+
+            // ⭐ CE-4326 — see the write side: [bool HasValue][value].
+            if (Nullable.GetUnderlyingType(type) is { } nullableOf)
+                return Expression.Condition(
+                    Expression.Call(reader, typeof(BinaryReader).GetMethod("ReadBoolean")!),
+                    Expression.Convert(GenerateReadExpression(nullableOf, reader), type),
+                    Expression.Default(type));
+
             // CASE A3: Entity Handle (8-byte blit)
             if (type == typeof(Fdp.Core.Entity))
             {
@@ -594,6 +686,17 @@ namespace Fdp.Core.FlightRecorder
                 var ctor = typeof(Fdp.Core.Entity).GetConstructor(new[] { typeof(ulong) });
                 return Expression.New(ctor!, readExpr);
             }
+
+            // ⭐ CE-3305 — see the write side.
+            if (type == typeof(Guid))
+                return Expression.New(typeof(Guid).GetConstructor(new[] { typeof(byte[]) })!,
+                    Expression.Call(reader, typeof(BinaryReader).GetMethod("ReadBytes")!, Expression.Constant(16)));
+            if (type == typeof(DateTime))
+                return Expression.Call(typeof(DateTime).GetMethod(nameof(DateTime.FromBinary))!,
+                    Expression.Call(reader, typeof(BinaryReader).GetMethod("ReadInt64")!));
+            if (type == typeof(TimeSpan))
+                return Expression.Call(typeof(TimeSpan).GetMethod(nameof(TimeSpan.FromTicks), new[] { typeof(long) })!,
+                    Expression.Call(reader, typeof(BinaryReader).GetMethod("ReadInt64")!));
 
             // CASE A: Primitive
             var readMethod = typeof(BinaryReader).GetMethod($"Read{type.Name}");
@@ -656,6 +759,22 @@ namespace Fdp.Core.FlightRecorder
                 return GenerateConcurrentBagRead(type, reader);
             }
             
+            // ⭐ CE-4046 — see the write side.
+            if (ReadOnlyListItem(type) is { } roItem)
+                return Expression.Convert(GenerateArrayRead(roItem.MakeArrayType(), reader), type);
+            if (ImmutableArrayItem(type) is { } iaItem)
+            {
+                var create = typeof(System.Collections.Immutable.ImmutableArray).GetMethods()
+                    .Single(m => m.Name == nameof(System.Collections.Immutable.ImmutableArray.Create) && m.IsGenericMethodDefinition
+                              && m.GetParameters() is { Length: 1 } ps && ps[0].ParameterType.IsArray)
+                    .MakeGenericMethod(iaItem);
+                return Expression.Condition(CallRead(reader, typeof(bool)),
+                    Expression.Default(type),
+                    Expression.Call(create, GenerateArrayRead(iaItem.MakeArrayType(), reader)));
+            }
+            if (ReadOnlyDictionaryTypes(type) is { } roDict)
+                return Expression.Convert(GenerateDictionaryRead(typeof(Dictionary<,>).MakeGenericType(roDict.Key, roDict.Value), reader), type);
+
             // CASE Z: Recursive nested object
             var recurseMethod = typeof(FdpAutoSerializer)
                 .GetMethod("Deserialize", BindingFlags.Public | BindingFlags.Static)!
@@ -1605,12 +1724,31 @@ namespace Fdp.Core.FlightRecorder
             throw new NotSupportedException($"No read method for type {t.Name}");
         }
         
+        // ⭐ CE-4046 — the read-only collection shapes an immutable record may hold.
+        private static Type? ReadOnlyListItem(Type t)
+            => t.IsInterface && t.IsGenericType
+               && (t.GetGenericTypeDefinition() == typeof(IReadOnlyList<>) || t.GetGenericTypeDefinition() == typeof(IReadOnlyCollection<>))
+                ? t.GetGenericArguments()[0] : null;
+
+        private static Type? ImmutableArrayItem(Type t)
+            => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(System.Collections.Immutable.ImmutableArray<>) ? t.GetGenericArguments()[0] : null;
+
+        private static (Type Key, Type Value)? ReadOnlyDictionaryTypes(Type t)
+            => t.IsInterface && t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IReadOnlyDictionary<,>)
+                ? (t.GetGenericArguments()[0], t.GetGenericArguments()[1]) : null;
+
         internal static List<MemberInfo> GetSortedMembers(Type t)
         {
             var members = t.GetFields(BindingFlags.Public | BindingFlags.Instance)
                 .Cast<MemberInfo>()
                 .Concat(t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                     .Where(p => p.GetIndexParameters().Length == 0 && p.CanRead && p.CanWrite))
+                // ⭐ CE-3305 — a non-public field the component opts in ([RecordedMember]): state kept behind a read-only view.
+                .Concat(t.GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
+                    .Where(f => f.GetCustomAttribute<Fdp.Core.RecordedMemberAttribute>() != null)
+                    .Select(f => f.IsInitOnly
+                        ? throw new InvalidOperationException($"{t.Name}.{f.Name} is [RecordedMember] and readonly — a read could not assign it")
+                        : (MemberInfo)f))
                 .Where(m => m.GetCustomAttribute<JsonIgnoreAttribute>() == null)
                 .OrderBy(m => m.Name, StringComparer.Ordinal)
                 .ToList();

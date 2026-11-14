@@ -1,0 +1,50 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-2284 U-1: UrbanMovement along two legs, no enemy. DEMO (16 units). Judge (1) every squad marches (twin: SquadMarch), the lead reaches the route's end (within 16 m of (200,120), the twin's radius), (3) the task ends (platoon Idle at the end). Left out: the 30 m / 60 m file spacing and 'a follower never walks with the lead' (a distance between two units, not a field). runFor 300 is the cap; the twin allowed 400 s.",
+  "runFor": 300,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the platoon runs UrbanMovement",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "UrbanMovement",
+      "before": 10
+    },
+    {
+      "name": "Squad 1 marches (SquadMarch)",
+      "on": "task",
+      "who": "Blue Squad 1",
+      "is": "SquadMarch"
+    },
+    {
+      "name": "Squad 2 marches (SquadMarch)",
+      "on": "task",
+      "who": "Blue Squad 2",
+      "is": "SquadMarch"
+    },
+    {
+      "name": "Squad 3 marches (SquadMarch)",
+      "on": "task",
+      "who": "Blue Squad 3",
+      "is": "SquadMarch"
+    },
+    {
+      "name": "the lead squad reaches the route's end",
+      "on": "near",
+      "who": "*Blue Squad 1 ",
+      "point": [
+        200,
+        120
+      ],
+      "within": 16,
+      "atEnd": true
+    },
+    {
+      "name": "the task ends",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "Idle",
+      "atEnd": true
+    }
+  ]
+}

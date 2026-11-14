@@ -25,7 +25,7 @@ All P1 and P2 items from the CGF-1-BATCH-24 review have been resolved:
 
 ### Build
 ```
-dotnet build IOS-IG-SimHost.sln --nologo
+dotnet build HROT.sln --nologo
   → 0 Error(s)
 ```
 
@@ -38,7 +38,7 @@ dotnet test Hrot.ClusterRunner.Tests --nologo --no-build
 
 ### Solution-wide regression check
 ```
-dotnet test IOS-IG-SimHost.sln --nologo --no-build
+dotnet test HROT.sln --nologo --no-build
 ```
 
 All passing suites (no regressions introduced):
@@ -126,7 +126,7 @@ Per the BATCH-25 instructions, the struct is already in `OrchestratorActionHandl
 
 **Chosen policy:**
 - Add `[Trait("Category", "DsmE2e")]` to the test class in a future batch as a signal to CI filtering.
-- Until then: `DsmE2eScriptTests` failures in `dotnet test IOS-IG-SimHost.sln` are **expected** and are documented as requiring a dedicated integration stage (or manual trigger).
+- Until then: `DsmE2eScriptTests` failures in `dotnet test HROT.sln` are **expected** and are documented as requiring a dedicated integration stage (or manual trigger).
 - The existing `Hrot.ClusterRunner.Integration.Tests` project already has DDS domain isolation settings; integrating it into a separate CI stage (e.g., `--filter "Category!=DsmE2e"`) for PR builds is the recommended next step.
 
 This constitutes lead-level sign-off on "S0310 verified in CI = requires dedicated integration run; PR builds exclude `DsmE2e` category."

@@ -27,7 +27,7 @@ file sealed class FakeSchemaExporter : IActionSchemaExporter
     private static readonly Type _stubDtoType = typeof(int);
 
     public static ActionSchemaEntry Make(string fqn) =>
-        new ActionSchemaEntry(fqn, _stubDtoType, ActionHosting.BTree, BlackboardAccess.Unknown, null);
+        new ActionSchemaEntry(fqn, _stubDtoType, ActionHosting.BTree, BlackboardAccess.Unknown);
 }
 
 // ---------------------------------------------------------------------------

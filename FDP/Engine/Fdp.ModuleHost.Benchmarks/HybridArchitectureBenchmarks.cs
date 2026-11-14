@@ -80,6 +80,7 @@ namespace Fdp.ModuleHost.Benchmarks
     {
         static void Main(string[] args)
         {
+            if (args.Length > 0 && args[0] == "crowd") { BenchmarkRunner.Run<CrowdRaycastBenchmark>(); return; }   // ⭐ CE-3209
             BenchmarkRunner.Run<CarKinemPerformance>();
         }
     }

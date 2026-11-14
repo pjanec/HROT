@@ -14,13 +14,12 @@ namespace Hrot.Animation.Replication.Translators.Events;
 internal sealed class AnimNotifyEventTranslator
     : CycloneNativeEventTranslator<AnimNotifyEvent, DdsAnimNotifyEvent>
 {
-    private const string TopicNameConst = "hrot/anim/AnimNotify";
 
     public override TranslatorDirection Direction { get; }
 
     internal AnimNotifyEventTranslator(
         DdsParticipant participant, NetworkEntityMap entityMap, TranslatorDirection direction)
-        : base(participant, TopicNameConst, entityMap)
+        : base(participant, entityMap, CycloneDDS.Schema.DdsTopicName.Of(typeof(DdsAnimNotifyEvent).Namespace, new[] { nameof(DdsAnimNotifyEvent) }))
     {
         Direction = direction;
     }
@@ -28,7 +27,7 @@ internal sealed class AnimNotifyEventTranslator
     protected override bool TryEncode(
         in AnimNotifyEvent ecs, out DdsAnimNotifyEvent dds)
     {
-        if (!EntityMap.TryGetNetworkId(ecs.Target, out long netId))
+        if (!EntityMap.TryGetNetworkId(ecs.Target, out int netId))
         {
             dds = default;
             return false;

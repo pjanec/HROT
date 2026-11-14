@@ -1,0 +1,262 @@
+﻿#nullable enable
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Fdp.Core;
+using Fdp.Interfaces;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.NetworkSpawning;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.NetworkSpawning.Systems;
+using Fdp.Toolkit.Replication.Abstractions;
+using Fdp.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;   // ⭐ P2 — GhostPromotionSystem; see the Build() note
+using Hrot.Common.Systems;
+using Hrot.Core.Network;
+using Hrot.Core.Tkb;
+
+namespace Hrot.Common.EntityCreation
+{
+    /// <summary>
+    /// ⭐⭐⭐ Everything a node needs to CREATE entities, constructed once, as a unit.
+    ///
+    /// <para>🔒 <b>User ruling, <c>2026-08-30</c>:</b> <i>"Basic concepts like entity creation should be
+    /// shared across subsystems, not relying on that all subsystem do it right and the same way."</i>
+    /// 📐 That reliance failed <b>five times in one week</b>, always identically: an optional constructor
+    /// argument, a host that held the value and did not pass it, and no error.</para>
+    ///
+    /// <para>🔒 <b>User ruling, <c>2026-08-31</c> — the governing one:</b> <i>"the shared code for entity
+    /// creation support should not restrict any ECS enabled node from creating own networked entities …
+    /// no exceptions, not removing capabilities by design, and only concrete authoring code picks the way
+    /// it needs."</i> ⇒ ⛔⛔ <b><see cref="Build"/> has NO flag, and no <c>NodeRole</c>, that omits the
+    /// request system or the spawn system.</b> A node that never creates entities locally simply never
+    /// enqueues a self-targeted request; the capability stays present and costs an idle system.</para>
+    ///
+    /// <para>⭐⭐ <b>Pack constructs, host schedules.</b> <see cref="EntityCreationContext"/> carries no
+    /// <c>ModuleHostKernel</c> — the same structural enforcement <c>MapInteractionContext</c> uses
+    /// (<c>UXI-23 S2b</c>), which is what stopped hosts half-composing that pack.</para>
+    ///
+    /// <para>⚠ <b>What this pack does NOT own</b> — measured, and deliberate:
+    /// <list type="bullet">
+    ///   <item>⭐⭐ <b>Ghost CREATION</b> — <c>GhostCreationSystem</c> stays on
+    ///     <c>IReplicationModule</c>: *"a wire sample arrived, make a shell"* is genuinely a network
+    ///     concern, and the interface puts it on every implementation.
+    ///     <para>⛔⛔ <b>Ghost PROMOTION IS NO LONGER IN THIS LIST — it MOVED HERE, <c>P2</c>,
+    ///     <c>2026-09-11</c>.</b> ⚠ An earlier version of this bullet said registering it here *"would
+    ///     create a SECOND registrar — the duplicate-implementation trap."* 📐 **That reasoning assumed
+    ///     `NedReplicationModule` is THE registrar; it was one of THREE modules and two never registered
+    ///     it** *(BDC — since removed, R-4095 — created ghosts and never promoted them; Offline returns a
+    ///     `NullReplicationModule`)*. ⇒ this is a MOVE: the pack became the registrar and the NED module
+    ///     stopped, in one commit. 📄 <c>DESIGN_Role_Affinity_Ownership.md</c> §3.7.</para></item>
+    ///   <item><b>The TKB catalogue.</b> <see cref="EntityCreationContext.TkbDb"/> is required input,
+    ///     never built here — that is what keeps the four <c>HrotEnvironment.CreateTkb()</c> sites from
+    ///     diverging.</item>
+    ///   <item><b>Component registration.</b> That stays the host's <c>*ComponentRegistry</c>, which is
+    ///     the narrowing lever (<c>tkb-1/DESIGN.md</c> §6.5b gate ②).</item>
+    /// </list></para>
+    ///
+    /// <para>⭐⭐⭐ <b>THE AUTHORING AFFORDANCE SHIPPED —
+    /// <see cref="EntityCreation.RequestEntityCreation"/>, ONE method.</b> ⚠ An earlier version of this
+    /// remark said <i>"the two authoring affordances are not here yet"</i>, naming
+    /// <c>RequestFromDefaultProcessor</c> / <c>CreateLocallyOwned</c> and blocking them on
+    /// <c>CE-143</c>. ⛔ <b>That TWO-METHOD shape is SUPERSEDED</b> (<c>CE-143</c> is resolved, and the
+    /// routing input turned out to be ONE field with THREE legal values, so two verbs named the
+    /// argument rather than the behaviour). 📄 <c>docs/DESIGN_Entity_Authoring_Surface.md</c> §4, §4b.</para>
+    ///
+    /// <para>📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §3, §3.4, UML §4 ·
+    /// <c>docs/DESIGN_Entity_Authoring_Surface.md</c> ·
+    /// <c>docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md</c> §0, §4.</para>
+    /// </summary>
+    public static class EntityCreationPack
+    {
+        /// <summary>
+        /// Builds the node's entity-creation assembly. ⛔ Does not schedule anything — the caller
+        /// registers <see cref="EntityCreation.RequestSystem"/>, <see cref="EntityCreation.SpawnSystem"/>
+        /// and <see cref="EntityCreation.FinalizationSystem"/> with its own kernel, then calls
+        /// <see cref="EntityCreation.Unserviceable"/> to make any omission loud.
+        /// </summary>
+        public static EntityCreation Build(EntityCreationContext ctx)
+        {
+            if (ctx == null) throw new ArgumentNullException(nameof(ctx));
+            ctx.Validate();
+
+            // ⭐ ONE list instance for the whole node — tkb-1/DESIGN.md §6.3: "identical for all three
+            //   systems within the same node". Handing the SAME instance to the ELM and the spawn system
+            //   is what makes that true BY CONSTRUCTION rather than by convention.
+            // ⛔ Both forms are ADD-ONLY: there is no way to pass a narrower list. Per-component
+            //   narrowing is gate ② (IsComponentTypeRegistered), never the list.
+            // ⭐⭐ CE-146 — TranslatorPlacements is the ORDER-SENSITIVE form, for the one host that has a
+            //   positional contract (the Stride editor's InfantryVehicleStateStrip, which must follow
+            //   VehicleKinematicsTkbTranslator). ⛔ Setting both is a composition mistake, not a merge:
+            //   two ways to say one thing is the duplicate-mechanism trap, so it throws.
+            bool hasExtras     = ctx.ExtraTranslators     is { Count: > 0 };
+            bool hasPlacements = ctx.TranslatorPlacements is { Count: > 0 };
+            if (hasExtras && hasPlacements)
+            {
+                throw new ArgumentException(
+                    "EntityCreationContext: set ExtraTranslators OR TranslatorPlacements, not both. " +
+                    "ExtraTranslators is the append-only shorthand; express every addition as a " +
+                    "TranslatorPlacement when any one of them is order-sensitive.");
+            }
+
+            IReadOnlyList<ITkbEntityTranslator> translators =
+                hasPlacements ? TkbTranslatorSet.BaseWith(ctx.TranslatorPlacements!.ToArray())
+              : hasExtras     ? TkbTranslatorSet.BasePlus(ctx.ExtraTranslators!.ToArray())
+                              : TkbTranslatorSet.Base();
+
+            ctx.Elm.SetTranslators(translators);   // ⚠ must precede the kernel's Initialize
+
+            // ⭐⭐ CE-3136 P-7a (R-243) — a static obstacle is held Constructing until THIS node's terrain holds it: the rule here, the
+            //   participant that acks below (ObstacleBakeSystem). Both in the pack, so no node can have one without the other.
+            //   📄 docs/DESIGN_Peek_And_Fire.md §9.
+            ctx.Elm.RegisterTemplateRequirement(
+                t => t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.StaticObstacleDto>() != null,
+                Fdp.Toolkit.Terrain.TerrainObstacles.LifecycleModuleId);
+            // ⭐ CE-3304 — the bake (wall-clock quiet period + an off-thread build) can outlive 300 frames where frames run unthrottled
+            //   (a headless load), and a timeout DESTROYS the obstacle. The bake always acks in the end, even when it fails.
+            ctx.Elm.WaitWithoutTimeout(Fdp.Toolkit.Terrain.TerrainObstacles.LifecycleModuleId);   // ⭐ CE-4419 — the bake always acks; a frame budget (18 000, CE-3304) was outlived by a slow bake and destroyed its entities
+            var obstacleBake = new Hrot.Map.Common.Services.StaticObstacleBakeSystem { Lifecycle = ctx.Elm };   // ⭐ CE-4427 R-5 — it acks what it can never bake
+
+            // ⭐⭐ The LOCAL request source. This is what makes path 2 (a node creating an entity it
+            //   OWNS) possible without a DDS round trip: an author PUBLISHES a request on this world's FDP bus and the
+            //   request system below reads it on the next tick. ⭐⭐⭐ CE-3228 (§3.4d) — the bus, not a queue singleton:
+            //   every local author runs on the frame thread, and the request type is the wire's own.
+            ctx.World.RegisterManagedEvent<EntityCreationRequest>();
+            var localRequests = new BusEntityCreationRequestSource(ctx.World.Bus);
+
+            // ⭐⭐⭐ D1 — when the host can reach the cluster, the LOCAL source is WRAPPED so a request
+            //   addressed to another node is sent there instead of being silently dropped by the
+            //   Level-1 guard. 📄 docs/DESIGN_Entity_Creation_Unification.md §3.4b
+            //
+            //   ⛔⛔ The wrap goes INSIDE the composite, around the LOCAL source only. Wrapping the
+            //   composite would put the forwarder on the merged stream, where it cannot distinguish a
+            //   locally-authored request from one that ARRIVED from a peer — and it would re-forward
+            //   the latter, bouncing it between nodes forever. Wrapping here makes a wire-originated
+            //   request structurally unreachable to the forwarder.
+            //
+            //   ⚠ A null egress is a LEGITIMATE optional, not the silent-default defect: it states
+            //   "this host does not forward", which is true of every host that materialises entities
+            //   itself. ⭐ The rail EntityCreationPack_WiresTheForwarder_WhenAnEgressIsSupplied is the
+            //   control that a host which HAS an egress actually gets one.
+            // ⭐⭐⭐ S2b — every network seam comes from ONE place: the adapters object a production host passes,
+            //   or the per-seam fields a test fakes (Validate forbids both). 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6.
+            var adapters             = ctx.NetworkAdapters;
+            var requestEgress        = adapters != null ? adapters.RequestEgress     : ctx.RequestEgress;
+            var networkRequestSource = adapters != null ? adapters.RequestSource     : ctx.NetworkRequestSource;
+            var jsonCompiler         = adapters != null ? adapters.JsonCompiler      : ctx.JsonAttributeCompiler;
+            var ownershipStrategy    = adapters != null ? adapters.OwnershipStrategy : ctx.OwnershipStrategy;
+
+            IEntityCreationRequestSource localTier = requestEgress == null
+                ? localRequests
+                : new ForwardingEntityCreationRequestSource(
+                    localRequests, requestEgress, ctx.NodeId, ctx.IsBroadcastArbiter);
+
+            var sources = new List<IEntityCreationRequestSource> { localTier };
+            if (networkRequestSource != null) sources.Add(networkRequestSource);
+            var requestSource = new CompositeEntityCreationRequestSource(sources);
+
+            // ⭐ Edit framework F2 — every ack is ALSO the one edit outcome (EntityEditOutcome), on every host by construction.
+            IEntityAckSink ackSink = new EditOutcomeEntityAckSink(ctx.World, ctx.NodeId, adapters != null ? null : ctx.AckSink);
+
+            var finalization = new EntityRequestFinalizationSystem(ackSink, ctx.EntityMap);
+
+            // ⭐⭐⭐ isDefaultProcessor is a BROADCAST TIEBREAKER, not an authority gate — a request
+            //   targeted at THIS node is processed regardless of it (CreateEntityRequestSystem:151-156,
+            //   and the comment above that guard says so). ⇒ this bool is the ONLY value that differs
+            //   between nodes, and exactly one node in the cluster sets it true, for Owner == 0
+            //   broadcasts from non-ECS clients like ExCon.
+            var requestSystem = new CreateEntityRequestSystem(
+                requestSource:         requestSource,
+                ackSink:               ackSink,
+                tkbDb:                 ctx.TkbDb,
+                idAllocator:           ctx.IdAllocator,
+                localNodeId:           ctx.NodeId,
+                jsonAttributeCompiler: jsonCompiler,
+                finalizationSystem:    finalization,
+                isDefaultProcessor:    ctx.IsBroadcastArbiter,
+                ownershipStrategy:     ownershipStrategy);
+
+            var spawnSystem = new NetworkSpawningSystem(
+                ctx.TkbDb,
+                ctx.Elm,
+                ctx.EntityMap,
+                ctx.IdAllocator,
+                ctx.NodeId,
+                // ⭐⭐⭐ CE-147 step 4 — no onEntitySpawned. It was the pack's LAST per-host hole:
+                //   an OPTIONAL Action that exactly ONE production host ever passed, carrying AX-011's
+                //   egress-shadow attach. That attach now lives in GeoSpatialEgressTranslator, where it is
+                //   true for every owning host by construction, so the parameter has nothing left to carry.
+                //   ⛔ Do not reintroduce it to move an invariant into a composition root — that is the
+                //   SILENT-DEFAULT shape: an optional dependency one caller happens to pass and the next
+                //   host forgets. 📄 docs/DESIGN_Cgf_AxisB_Rotation_Slice.md §13.7.
+                translators: translators,
+                // ⛔ S4 — no role-affinity policy any more: the creator claims all and yields what it grants
+                //   (push-only, D-7). 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S4.
+                // CE-283 (reliable-init barrier §3a.4): the creator's peer-set resolver — a POLICY the pack hands
+                // its consumer, not a per-host invariant. null keeps
+                // today's behaviour (a reliable entity acks immediately, no cross-node wait).
+                expectedPeers: ctx.ExpectedPeers);
+
+            // ⭐⭐⭐ P2 — GHOST PROMOTION IS BUILT HERE NOW. 📄 DESIGN_Role_Affinity_Ownership.md §3.7,
+            //   §6 step 0a. It was registered by NedReplicationModule.RegisterSystems — ONE network
+            //   implementation — and the concerns had been bundled by LIFECYCLE ADJACENCY, not by subject:
+            //   ghost CREATION is genuinely a network concern (a wire sample arrived, make a shell) and
+            //   stays on IReplicationModule; ghost PROMOTION applies the TKB template and consumes the
+            //   translator list, neither of which is networked.
+            //
+            //   🔴 It was already a defect independent of that design: the BDC replication module (removed since,
+            //     R-4095) registered GhostCreationSystem and NO promotion, so a BDC node's ghosts were never promoted — they
+            //     kept only their replicated components and stayed in EntityLifecycle.Ghost forever. ⭐ That
+            //     closes here as a side effect rather than as separate work.
+            //
+            // ⭐⭐ THE SAME `translators` INSTANCE the ELM and the spawn system get — which is
+            //   tkb-1/DESIGN.md §6.3's "identical for all three systems within the same node", now true BY
+            //   CONSTRUCTION for all three rather than for two of them. ⚠ Passing it explicitly is
+            //   equivalent to the system's own `?? _lifecycleModule.Translators` fallback (the pack set that
+            //   list at `ctx.Elm.SetTranslators` above); explicit matches how SpawnSystem is wired.
+            //
+            // ⭐⭐⭐ AND THE PER-HOST SILENT LEVER IS GONE, which is a real gain, not tidying. The old site
+            //   read `if (_tkbDb != null && _lifecycleModule != null)` and its own comment called that
+            //   "the real (and silent) per-host lever — a role that supplies no TKB database still skips
+            //   promotion with no diagnostic", adding "which hosts pass null has not been measured".
+            //   ⇒ here TkbDb and Elm are REQUIRED inputs (ctx.Validate throws), so the guard cannot exist
+            //   and the question cannot recur.
+            // ⛔ S4 — the promote leg claims nothing (push-only); the role-affinity policy it took is gone.
+            // ⭐⭐⭐ §2.1m step 1 — the replay gate: 📄 mgmt-1/DESIGN.md §8.10 — a ghost restored from the log is the LOG's, not
+            //   ours to promote (CE-259ap). ⭐ CE-3329 P2 — the system reads the world's ReplayState; nothing to wire here.
+            var promotionSystem = new GhostPromotionSystem(
+                ctx.TkbDb, ctx.Elm, translators);
+
+            // ⭐⭐ S2b — the systems that only exist with a live network, built ONCE here for every host.
+            //   ⚠ Before S2b only CGF built the delete system, and only SimHost/Stride registered the poll
+            //   (CGF and IG called PollNetwork from their app loops). Every host ticks its kernel every frame,
+            //   so the Input-phase poll runs exactly as often as those loops did.
+            var networkSystems = adapters == null
+                ? Array.Empty<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>()
+                : new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[]
+                {
+                    new NetworkPollingSystem(adapters.PollNetwork),
+                    // ⭐ The SAME finalization instance the create side uses — a second one would give delete
+                    //   its own ACK bookkeeping, the class of split this pack exists to prevent.
+                    new DeleteEntityRequestSystem(adapters.DeleteSource, ackSink, ctx.EntityMap, finalization, ctx.NodeId),
+                    // ⭐ LR-2 (DESIGN_Visual_Effects.md §8.5, R-271) — a visible round (a shell, a grenade, a rocket, a tracer…) gets its
+                    //   network id and local ownership here, so the existing egress replicates it as EntityMaster (Lightweight) +
+                    //   WorldPos — no lifecycle, no acks. Only with a network: a standalone host's rounds stay local.
+                    new Fdp.Toolkit.Replication.Systems.LightweightRoundIdentitySystem(ctx.IdAllocator, ctx.EntityMap, ctx.NodeId),
+                };
+
+            // ⭐ CE-1033 S5 (R-260) / ⭐⭐ CE-3228 — shared code that only holds the world (a map layer asking for the scenario's camera
+            //   entity) REQUESTS an entity by publishing on that world's bus — no singleton: every host that creates entities composes THIS
+            //   pack, so its bus has the reader.
+
+            return new EntityCreation(
+                translators, ctx.Elm, requestSystem, finalization, spawnSystem,
+                promotionSystem, ctx.NodeId, networkSystems, ctx.World, obstacleBake,
+                new SeatPresetSystem(ctx.EntityMap),   // ⭐ WS-4 (W-I) — boards the presets CreateEntityRequestSystem spawns
+                new Fdp.Toolkit.NetworkSpawning.Systems.SpawnLevelSystem(),
+                new Hrot.Common.Macros.MacroExpansionSystem(ctx.Macros, ctx.EntityMap, ctx.IdAllocator, ctx.NodeId, ctx.TkbDb),
+                ctx.IdAllocator);   // ⭐ macros S3a ④   // ⭐ CE-3271 (Q94 D) — the birth level, on the position's owner
+        }
+    }
+}

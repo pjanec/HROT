@@ -87,13 +87,13 @@ From the workspace root:
 
 ```powershell
 # Build the whole solution
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Or build just the FDP toolkits
 dotnet build FDP/
 
 # Run all tests
-dotnet test IOS-IG-SimHost.sln --logger "console;verbosity=minimal"
+dotnet test HROT.sln --logger "console;verbosity=minimal"
 
 # Run a specific test project
 dotnet test FDP/Toolkits/FDP.Toolkit.Behavior.Tests/ --logger "console;verbosity=minimal"

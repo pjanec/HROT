@@ -51,7 +51,22 @@ public sealed class EditorFontService
         0x1E00, 0x1EFF, // Latin Extended Additional (Vietnamese)
         0x2000, 0x206F, // General Punctuation (dashes, quotes, ellipsis)
         0x20A0, 0x20BF, // Currency symbols (€ etc.)
-        0x2190, 0x21FF, // Arrows (used by some UI labels)
+        0,
+    };
+    // ⭐ CE-1063 — the symbol blocks Roboto does NOT carry (measured: its cmap has no arrow, no geometric shape, no ⚠ or ✓;
+    // only • and ◊). Merged from the DejaVu Sans subset under the UI face, so "→", "●", "▶", "⚠", "✓" in any label draw
+    // instead of "?". Merge mode never overwrites a glyph Roboto already has (√, ≈, ∞ stay Roboto's).
+    private static readonly ushort[] UiSymbolRanges =
+    {
+        0x2070, 0x209F, // Superscripts and Subscripts (v₀)
+        0x2150, 0x218F, // Number Forms (⅓)
+        0x2190, 0x21FF, // Arrows (→ ⇒ ↻ ↔)
+        0x2200, 0x22FF, // Mathematical Operators (⋯)
+        0x2300, 0x23FF, // Miscellaneous Technical
+        0x2460, 0x24FF, // Enclosed Alphanumerics (① ② ③)
+        0x25A0, 0x25FF, // Geometric Shapes (● ■ ▶ ◀ ▾ ▸)
+        0x2600, 0x26FF, // Miscellaneous Symbols (⚠)
+        0x2700, 0x27BF, // Dingbats (✓ ✗ ✕)
         0,
     };
     // Canvas ladder: lighter — Latin + Cyrillic (node titles / pins are almost always
@@ -63,14 +78,41 @@ public sealed class EditorFontService
         0x0400, 0x052F,
         0,
     };
+    // Canvas ladder symbols — narrower than the UI's (six faces): the arrows, shapes and marks node drawers put on buttons
+    // and status lines (PlayMontageChain's ↑ ↓ ✕ ✓, a pin editor's ▾, a ⚠ line).
+    private static readonly ushort[] CanvasSymbolRanges =
+    {
+        0x2190, 0x21FF, // Arrows
+        0x25A0, 0x25FF, // Geometric Shapes
+        0x26A0, 0x26A0, // ⚠
+        0x2713, 0x2718, // ✓ ✔ ✕ ✖ ✗ ✘
+        0,
+    };
     private static readonly ushort[] FaRanges =
     {
         IconsFontAwesome6.IconMin, IconsFontAwesome6.IconMax, 0,
     };
+    // Canvas ladder Font Awesome — only the NAMED icons of IconsFontAwesome6 (one (c, c) pair each), not the whole PUA: node
+    // badges (an attachment pill's glyph) draw with the canvas faces, and six faces × ~1400 icons would swell the atlas.
+    private static readonly ushort[] CanvasFaRanges = NamedIconRanges();
+
+    private static ushort[] NamedIconRanges()
+    {
+        var codes = new SortedSet<ushort>();
+        foreach (var f in typeof(IconsFontAwesome6).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static))
+            if (f.IsLiteral && f.FieldType == typeof(string) && f.GetRawConstantValue() is string { Length: 1 } s) codes.Add(s[0]);
+        var ranges = new List<ushort>(codes.Count * 2 + 1);
+        foreach (var c in codes) { ranges.Add(c); ranges.Add(c); }
+        ranges.Add(0);
+        return ranges.ToArray();
+    }
 
     private static GCHandle _uiRangesHandle;
     private static GCHandle _canvasRangesHandle;
     private static GCHandle _faRangesHandle;
+    private static GCHandle _uiSymbolRangesHandle;
+    private static GCHandle _canvasSymbolRangesHandle;
+    private static GCHandle _canvasFaRangesHandle;
     private static bool _rangesPinned;
 
     private static void EnsureRangesPinned()
@@ -79,6 +121,9 @@ public sealed class EditorFontService
         _uiRangesHandle     = GCHandle.Alloc(UiRanges, GCHandleType.Pinned);
         _canvasRangesHandle = GCHandle.Alloc(CanvasRanges, GCHandleType.Pinned);
         _faRangesHandle     = GCHandle.Alloc(FaRanges, GCHandleType.Pinned);
+        _uiSymbolRangesHandle     = GCHandle.Alloc(UiSymbolRanges, GCHandleType.Pinned);
+        _canvasSymbolRangesHandle = GCHandle.Alloc(CanvasSymbolRanges, GCHandleType.Pinned);
+        _canvasFaRangesHandle     = GCHandle.Alloc(CanvasFaRanges, GCHandleType.Pinned);
         _rangesPinned = true;
     }
 
@@ -88,6 +133,27 @@ public sealed class EditorFontService
     private bool  _pendingRebuild;
     private string? _robotoPath;
     private string? _faPath;
+    private string? _symbolsPath;
+
+    // ── Coverage (CE-1063 rail) ───────────────────────────────────────────────
+
+    /// <summary>The codepoint ranges baked for the UI face from Roboto, as inclusive (first, last) pairs.</summary>
+    public static IReadOnlyList<(int First, int Last)> UiFaceRanges => Pairs(UiRanges);
+    /// <summary>The ranges merged into the UI face from the symbol fallback.</summary>
+    public static IReadOnlyList<(int First, int Last)> UiSymbolFaceRanges => Pairs(UiSymbolRanges);
+    /// <summary>The ranges baked for each canvas ladder face from Roboto.</summary>
+    public static IReadOnlyList<(int First, int Last)> CanvasFaceRanges => Pairs(CanvasRanges);
+    /// <summary>The ranges merged into each canvas ladder face from the symbol fallback.</summary>
+    public static IReadOnlyList<(int First, int Last)> CanvasSymbolFaceRanges => Pairs(CanvasSymbolRanges);
+    /// <summary>The Font Awesome icons merged into each canvas ladder face: the named ones only.</summary>
+    public static IReadOnlyList<(int First, int Last)> CanvasIconFaceRanges => Pairs(CanvasFaRanges);
+
+    private static List<(int First, int Last)> Pairs(ushort[] ranges)
+    {
+        var list = new List<(int, int)>();
+        for (int i = 0; i + 1 < ranges.Length && ranges[i] != 0; i += 2) list.Add((ranges[i], ranges[i + 1]));
+        return list;
+    }
 
     /// <summary>Monitor content scale reported by the platform (autodetected DPI).</summary>
     public float DpiScale { get; private set; } = 1f;
@@ -166,6 +232,8 @@ public sealed class EditorFontService
             EmbeddedFontResources.GetRobotoRegularTtfBytes);
         string faPath = EnsureExtracted("fa-solid-900.ttf", ref _faPath,
             EmbeddedFontResources.GetFontAwesomeSolidTtfBytes);
+        string symbolsPath = EnsureExtracted("DejaVuSans-Symbols.ttf", ref _symbolsPath,
+            EmbeddedFontResources.GetSymbolFallbackTtfBytes);
 
         var io = ImGui.GetIO();
         io.Fonts.Clear();
@@ -178,7 +246,8 @@ public sealed class EditorFontService
             .NativePtr;
 
         // 2) Merge Font Awesome solid icons onto the UI face (same logical font).
-        MergeFontAwesome(io, faPath, uiPx);
+        MergeFontAwesome(io, faPath, uiPx, _faRangesHandle.AddrOfPinnedObject());
+        MergeSymbols(io, symbolsPath, uiPx, _uiSymbolRangesHandle.AddrOfPinnedObject());
 
         // 3) Canvas ladder — one Roboto face per (scaled) ladder size, keyed by baked px.
         var ladder = new Dictionary<float, nint>(LadderBaseSizes.Length);
@@ -190,6 +259,8 @@ public sealed class EditorFontService
             nint ptr = (nint)io.Fonts
                 .AddFontFromFileTTF(robotoPath, px, default, _canvasRangesHandle.AddrOfPinnedObject())
                 .NativePtr;
+            MergeSymbols(io, symbolsPath, px, _canvasSymbolRangesHandle.AddrOfPinnedObject());
+            MergeFontAwesome(io, faPath, px, _canvasFaRangesHandle.AddrOfPinnedObject());
             ladder[px] = ptr;
         }
 
@@ -219,7 +290,7 @@ public sealed class EditorFontService
         EditorFontRegistry.Publish(defaultFont, ladder, scale);
     }
 
-    private static unsafe void MergeFontAwesome(ImGuiIOPtr io, string faPath, float uiPx)
+    private static unsafe void MergeFontAwesome(ImGuiIOPtr io, string faPath, float uiPx, nint ranges)
     {
         var cfgNative = ImGuiNative.ImFontConfig_ImFontConfig();
         var cfg = new ImFontConfigPtr(cfgNative);
@@ -229,7 +300,24 @@ public sealed class EditorFontService
             cfg.PixelSnapH       = true;
             cfg.GlyphMinAdvanceX = uiPx;   // monospace the icons so they align in menus/toolbars
             // Icons render a touch smaller than text baseline reads best; keep at uiPx for crispness.
-            io.Fonts.AddFontFromFileTTF(faPath, uiPx, cfg, _faRangesHandle.AddrOfPinnedObject());
+            io.Fonts.AddFontFromFileTTF(faPath, uiPx, cfg, ranges);
+        }
+        finally
+        {
+            ImGuiNative.ImFontConfig_destroy(cfgNative);
+        }
+    }
+
+    /// <summary>CE-1063 — fold the symbol fallback's <paramref name="ranges"/> into the font just added, at its size.</summary>
+    private static unsafe void MergeSymbols(ImGuiIOPtr io, string path, float px, nint ranges)
+    {
+        var cfgNative = ImGuiNative.ImFontConfig_ImFontConfig();
+        var cfg = new ImFontConfigPtr(cfgNative);
+        try
+        {
+            cfg.MergeMode  = true;
+            cfg.PixelSnapH = true;
+            io.Fonts.AddFontFromFileTTF(path, px, cfg, ranges);
         }
         finally
         {

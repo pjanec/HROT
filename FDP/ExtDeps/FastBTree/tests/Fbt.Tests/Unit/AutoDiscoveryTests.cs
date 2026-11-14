@@ -9,6 +9,14 @@ namespace Fbt.Tests.Unit
 {
     public class AutoDiscoveryTests
     {
+        // CE-2049: the shipped generator (Fdp.Toolkits.Analyzers BTreeActionGenerator) keys an action by its FULLY
+        //   QUALIFIED method name — the convention every HROT binding resolves by (E6(A)). The deleted Fbt.SourceGen
+        //   keyed it by the short name, which is why these rails were red once it was gone.
+        private static readonly string ActionKey =
+            typeof(AnnotatedTestActions).FullName + "." + nameof(AnnotatedTestActions.AlwaysSuccessAction);
+        private static readonly string ConditionKey =
+            typeof(AnnotatedTestActions).FullName + "." + nameof(AnnotatedTestActions.AlwaysSuccessCondition);
+
         [Fact]
         public void ScanAndRegister_FindsGeneratedRegistrar_InTestAssembly()
         {
@@ -16,7 +24,7 @@ namespace Fbt.Tests.Unit
 
             FbtAutoDiscovery.ScanAndRegister<TestBlackboard, MockContext>(registry);
 
-            Assert.True(registry.TryGetAction("AlwaysSuccessAction", out _));
+            Assert.True(registry.TryGetAction(ActionKey, out _));
         }
 
         [Fact]
@@ -26,8 +34,8 @@ namespace Fbt.Tests.Unit
 
             FbtAutoDiscovery.ScanAndRegister<TestBlackboard, MockContext>(registry);
 
-            Assert.True(registry.TryGetAction("AlwaysSuccessAction", out _));
-            Assert.True(registry.TryGetAction("AlwaysSuccessCondition", out _));
+            Assert.True(registry.TryGetAction(ActionKey, out _));
+            Assert.True(registry.TryGetAction(ConditionKey, out _));
         }
 
         [Fact]
@@ -36,7 +44,7 @@ namespace Fbt.Tests.Unit
             var registry = new ActionRegistry<TestBlackboard, MockContext>();
             FbtAutoDiscovery.ScanAndRegister<TestBlackboard, MockContext>(registry);
 
-            Assert.True(registry.TryGetAction("AlwaysSuccessAction", out var action));
+            Assert.True(registry.TryGetAction(ActionKey, out var action));
 
             unsafe
             {

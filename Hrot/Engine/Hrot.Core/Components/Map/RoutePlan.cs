@@ -30,6 +30,23 @@ public struct RouteWaypoint
     /// Nullable.
     /// </summary>
     public string? ExtensionJson;
+
+    // ⭐⭐ Air Ops B1 / B7 (docs/designs/air-attack/DESIGN_Air_Operations.md §5) — a ground unit ignores these; a flyer reads them.
+
+    /// <summary>Passed through, or a point on the ground a flyer lands on.</summary>
+    public Fdp.Toolkit.Navigation.RouteWaypointKind Kind;
+
+    /// <summary>&gt; 0 ⇒ a flyer holds this height ABOVE THE TERRAIN here (m); 0 ⇒ <see cref="Position"/>'s Z, as before.</summary>
+    public float HeightAgl;
+
+    /// <summary>How long a flyer stays on a Ground waypoint (Seconds — timed by the motion side; Unload / Pickup — released by its brain).</summary>
+    public Fdp.Toolkit.Navigation.RouteHold Hold;
+
+    /// <summary>The hold for <see cref="Fdp.Toolkit.Navigation.RouteHold.Seconds"/> (s).</summary>
+    public SimDuration HoldSeconds;
+
+    /// <summary>The unit whose members a <see cref="Fdp.Toolkit.Navigation.RouteHold.Pickup"/> waits for; None = none. S9': a reference a person authors is an <c>EntityLink</c> (the file holds the unit's GUID; the loader fills <c>.Ref</c>).</summary>
+    public Fdp.Toolkit.Replication.EntityLink HoldUnit;
 }
 
 /// <summary>
@@ -43,45 +60,40 @@ public struct RouteWaypoint
 /// </para>
 ///
 /// <para>
-/// <b>Mutation contract:</b> waypoints must only be modified via
-/// <see cref="Mutate"/>, which automatically increments <see cref="Version"/>
-/// so reactive systems (e.g. <c>RouteTrajectorySyncSystem</c>) always detect
-/// the change without manual bookkeeping.
+/// <b>Immutable record:</b> a change is a NEW value (<see cref="WithWaypoints"/>, which
+/// increments <see cref="Version"/>) written back with SetManagedComponent, so the
+/// flight recorder sees it.
 /// </para>
 /// </summary>
 [ComponentId(HrotComponentIds.RoutePlan)]
-public sealed class RoutePlan
+[DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
+public sealed record RoutePlan
 {
-    private readonly List<RouteWaypoint> _waypoints = new();
-
-    /// <summary>
-    /// Read-only view of the ordered waypoint list.
-    /// Use <see cref="Mutate"/> to add, remove, or replace waypoints.
-    /// </summary>
-    public IReadOnlyList<RouteWaypoint> Waypoints => _waypoints;
+    /// <summary>Ordered waypoints (immutable; build a new plan via <see cref="WithWaypoints"/>). Recorded as <c>Waypoints</c>
+    /// (CE-4046: it was the private <c>_waypoints</c> — old recordings lose the route).</summary>
+    public IReadOnlyList<RouteWaypoint> Waypoints { get; init; } = System.Array.Empty<RouteWaypoint>();
 
     /// <summary>
     /// When true, the vehicle loops back to waypoint 0 upon reaching the last waypoint.
     /// </summary>
-    public bool IsLoop { get; set; }
+    public bool IsLoop { get; init; }
 
     /// <summary>
     /// Monotonically-incremented version stamp. Reactive systems
     /// (e.g. <c>RouteTrajectorySyncSystem</c>) compare against their cached
-    /// version to detect mutations without polling every field.
-    /// Incremented automatically by <see cref="Mutate"/>.
+    /// version to detect changes without polling every field.
+    /// Incremented by <see cref="WithWaypoints"/>.
     /// </summary>
-    public int Version { get; private set; }
+    public int Version { get; init; }
 
     /// <summary>
-    /// Mutates the waypoint list and automatically increments <see cref="Version"/>.
-    /// All callers that wish to modify waypoints must go through this method so that
-    /// reactive systems always see a version bump.
+    /// Returns a NEW plan: this plan's waypoints after <paramref name="mutation"/> edited a copy,
+    /// <see cref="Version"/> + 1. This instance is unchanged - the caller must Set the result.
     /// </summary>
-    /// <param name="mutation">Delegate that receives the mutable backing list.</param>
-    public void Mutate(Action<List<RouteWaypoint>> mutation)
+    public RoutePlan WithWaypoints(Action<List<RouteWaypoint>> mutation)
     {
-        mutation(_waypoints);
-        Version++;
+        var list = new List<RouteWaypoint>(Waypoints);
+        mutation(list);
+        return this with { Waypoints = list, Version = Version + 1 };
     }
 }

@@ -27,6 +27,7 @@ using Fdp.Core.Orchestration;
 using Fdp.Core.Diagnostics;
 using Fdp.Core.Serialization.Migrations;
 using Hrot.Common.Diagnostics;
+using Hrot.Common.EntityCreation;
 using Hrot.Common.Infrastructure;
 using Hrot.Core.Diagnostics;
 using Hrot.Core.Network;
@@ -49,13 +50,25 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     private readonly string _localTempRoot;
     private readonly IDiagnosticEventHistoryService? _eventHistoryService;
     private readonly HrotNodeConfig _hrotConfig;
-    private readonly string? _roadNetworkBlobPath;
     private readonly float _simulationRateHz;
 
     private NodeBootstrapper? _nodeBootstrapper;
     private ITkbDatabase? _tkbDb;
-    private IReadOnlyList<ITkbEntityTranslator>? _translators;
     private EngineBackedNavigationModule? _navModule;
+
+    /// <summary>
+    /// ⭐⭐ W6 — THE node's navmesh (docs/DESIGN_Terrain_World.md §4.1): the <c>INavmeshProvider</c> singleton, the
+    /// path solver's navmesh, and what a terrain commit publishes its bake into — one instance, so the background
+    /// solver sees a terrain load. Straight lines until a terrain is baked.
+    /// </summary>
+    public Fdp.Toolkit.Navigation.SwitchableNavmeshProvider Navmesh { get; } = new();
+
+    /// <summary>
+    /// ⭐ W6 — bakes the navmesh from each loaded terrain (DotRecast by default — this host composes the solver, so
+    /// it must bake; silent-default rule). Null ⇒ no bake: the solver keeps straight lines (a test that wants no bake).
+    /// </summary>
+    public Fdp.Toolkit.Navigation.INavmeshFactory? NavmeshFactory { get; set; } =
+        new Fdp.Toolkit.Navigation.Recast.RecastNavmeshFactory();
 
     /// <summary>
     /// Core simulation systems pack. Valid after <see cref="SharedApplicationBootstrapper.BootstrapNode"/> returns.
@@ -67,20 +80,11 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// </summary>
     public ISlaveOrchestrationTranslator? SlaveTranslator { get; private set; }
 
-    /// <summary>
-    /// Checkpoint I/O worker. Valid after <see cref="SharedApplicationBootstrapper.BootstrapNode"/> returns.
-    /// </summary>
-    public CheckpointIOWorker? CheckpointWorker { get; private set; }
 
     /// <summary>
     /// Physics toolkit module. Valid after <see cref="SharedApplicationBootstrapper.BootstrapNode"/> returns.
     /// </summary>
     public PhysicsToolkitModule? PhysicsModule { get; private set; }
-
-    /// <summary>
-    /// Perception module. Valid after <see cref="SharedApplicationBootstrapper.BootstrapNode"/> returns.
-    /// </summary>
-    public CognitiveSpatialModule? PerceptionModule { get; private set; }
 
     /// <summary>
     /// Behavior registry. Valid after <see cref="SharedApplicationBootstrapper.BootstrapNode"/> returns.
@@ -96,31 +100,83 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     public CarKinem.Road.RoadNetworkBlob? RoadNetwork { get; private set; }
 
     /// <summary>
-    /// Optional callback invoked during Phase 6d (after network translators, before Initialize).
-    /// SimHostApp sets this to register gizmo modules and event-history capture systems that must
-    /// be part of the initialized kernel topology but are not part of the domain core.
+    /// The node's trajectory-pool owner — the first resource this host takes from a provider rather
+    /// than from whichever module happened to default it (<c>B4b</c>).
     /// </summary>
-    public Action<HrotNodeContext>? ApplicationSystemsRegistrar { get; set; }
+    /// <remarks>
+    /// <para><b>What changed and why it matters.</b> The pool used to be created inside
+    /// <c>GroundKinematicsModule</c> (as a <c>??=</c> default) and then threaded by hand from
+    /// <c>CoreLogicPack.TrajectoryPool</c> into <c>EngineBackedNavigationModule</c>. That worked, but
+    /// only because the single production caller remembered to do it: the solver writes resolved
+    /// routes into the pool by handle and the kinematics systems read them back by that handle, so a
+    /// consumer handed a different pool produces <b>routes that resolve and vehicles that never
+    /// follow them</b> — silently (<c>CE-180</c>).</para>
+    ///
+    /// <para>Now the node allocates it <b>once</b>, up front, and hands the same instance to every
+    /// consumer. Sharing is by construction instead of by care, and the pool finally has an owner with
+    /// a lifetime: this bootstrapper disposes the provider, which nothing did before.</para>
+    /// </remarks>
+    public Hrot.Common.Infrastructure.TrajectoryPoolProvider TrajectoryPool { get; } = new();
 
-    /// <inheritdoc/>
-    protected override void RegisterApplicationSystems(HrotNodeContext context)
-        => ApplicationSystemsRegistrar?.Invoke(context);
+    /// <summary>
+    /// CE-199 — the DECLARATION half of the resource seam: the keys this role will allocate.
+    /// </summary>
+    /// <remarks>
+    /// <para>⭐ Read when the boot step is BUILT, before <c>BuildContext</c>, so it may depend on
+    /// nothing but the role. That is why it is a static role-to-keys map and not
+    /// <c>plan.RequiredResources(...)</c>: this node's <c>NodeCompositionPlan</c> cannot exist until
+    /// <c>PopulateSystems</c>, which needs the context and the loaded road network.</para>
+    ///
+    /// <para>⛔ It is not a second source of truth. <c>PopulateSystems</c> cross-checks it against the
+    /// capabilities' own declared <c>Needs</c> and throws if they disagree — see
+    /// the base bootstrapper's `capabilities` step (CE-4013 D10).</para>
+    ///
+    /// <para>📐 <c>MuscleGround</c> is the role whose kinematics borrow the trajectory pool the
+    /// navigation solver writes; a node without it allocates no pool.</para>
+    /// </remarks>
+    protected override System.Collections.Generic.IReadOnlyList<string> DeclaredResourceKeys(NodeRole role)
+        => MuscleRoleInputs.DeclaredResourceKeys(role);   // ⭐ CE-4270 B7b — the ONE Muscle-role implementation (CGF's fused boot calls it too)
+
+    /// <summary>
+    /// CE-199 — the INSTANCE half: the providers that satisfy <see cref="DeclaredResourceKeys"/>.
+    /// </summary>
+    /// <remarks>
+    /// Runs inside the <c>node-resources</c> step, so <see cref="TrajectoryPool"/>'s
+    /// <c>Allocate</c> may legally publish into the plan's values. The base frees them
+    /// (<c>DisposeResources</c>); this class no longer carries its own copy of that loop.
+    /// </remarks>
+    protected override System.Collections.Generic.IReadOnlyList<Hrot.Common.Infrastructure.INodeResourceProvider>
+        ResolveResources(HrotNodeContext context, NodeRole role)
+        => MuscleRoleInputs.ResolveResources(role, TrajectoryPool);
+
+
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Calls <see cref="EngineBackedNavigationModule.RegisterProviders"/> here (post-Initialize)
+    /// <para>Calls <see cref="EngineBackedNavigationModule.RegisterProviders"/> here (post-Initialize)
     /// because RegisterProviders requires <c>_navmesh</c>/<c>_registry</c> which are
-    /// created by <c>RegisterSystems</c> during <c>Kernel.Initialize()</c> (Phase 7).
+    /// created by <c>RegisterSystems</c> during <c>Kernel.Initialize()</c> (Phase 7).</para>
+    ///
+    /// <para>⛔⛔ <b>CE-197 — GUARDED on the capability actually being composed.</b> This used to call
+    /// <c>_navModule!.RegisterProviders</c> unconditionally, which was safe only because
+    /// <c>PopulateSystems</c> composed <c>NavigationSolver</c> from a hard-coded constant. 📐 The moment
+    /// the set is resolved from the declared role, a node without that flag never registers the module,
+    /// <c>RegisterSystems</c> never runs, and this throws
+    /// <i>"Call RegisterSystems before RegisterProviders."</i> — measured: it reddened five SimHost boot
+    /// tests.</para>
+    ///
+    /// <para>⚠ The unconditional call was an assumption about composition made by a step that does not
+    /// control it. Asking the resolved set is what makes a narrower role a supported configuration rather
+    /// than a crash.</para>
     /// </remarks>
     protected override void PostInitialize(HrotNodeContext context)
-        => _navModule!.RegisterProviders(context.World);
+        => MuscleRoleInputs.RegisterNavigationProviders(Capabilities, _navModule, context.World);   // ⭐ CE-4270 B7b — shared with CGF's fused boot
 
     /// <param name="networkFactory">Optional network factory for DDS setup.</param>
     /// <param name="role">Node role controlling which simulation modules are activated.</param>
     /// <param name="localTempRoot">Root directory for checkpoints and temporary files.</param>
     /// <param name="eventHistoryService">Optional diagnostic event history service.</param>
     /// <param name="hrotConfig">Hrot node configuration.</param>
-    /// <param name="roadNetworkBlobPath">Optional path to road network blob file.</param>
     /// <param name="simulationRateHz">Simulation rate in Hz for GlobalTime singleton.</param>
     public SimHostNodeBootstrapper(
         INetworkFactory? networkFactory,
@@ -128,7 +184,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         string localTempRoot,
         IDiagnosticEventHistoryService? eventHistoryService,
         HrotNodeConfig hrotConfig,
-        string? roadNetworkBlobPath = null,
         float simulationRateHz = 20.0f)
     {
         _networkFactory = networkFactory;
@@ -136,30 +191,28 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         _localTempRoot = localTempRoot;
         _eventHistoryService = eventHistoryService;
         _hrotConfig = hrotConfig;
-        _roadNetworkBlobPath = roadNetworkBlobPath;
         _simulationRateHz = simulationRateHz;
     }
 
     /// <inheritdoc/>
     protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
     {
-        _translators = new List<ITkbEntityTranslator>
-        {
-            new SpatialCoreTkbTranslator(),
-            new VehicleKinematicsTkbTranslator(),
-            new BehaviorTkbTranslator(),
-            new CombatTkbTranslator(),
-            new PerceptionTkbTranslator(),
-            new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),  // behav-diag-1: auto-enable AI tracing
-        }.AsReadOnly();
-
-        var ctx = new HrotNodeBuilder(config)
-            .WithRole(config.SubsystemName, role)
-            .WithNetworkFactory(networkFactory)
-            .WithReplication(role)
-            .WithBehaviorRegistry(GetBehaviorRegistry())
-            .WithTranslators(_translators)   // TKB-022 -- threads through to NedReplicationModule
-            .Build();
+        // ⭐⭐⭐ CE-140 step 3, host (b) — the translator list is no longer BUILT HERE.
+        //    EntityCreationPack owns it (RegisterSpawningPipeline below): it composes
+        //    TkbTranslatorSet.Base() + ExtraTranslators, hands that ONE instance to the ELM and to
+        //    NetworkSpawningSystem, and GhostPromotionSystem reads it back off the ELM.
+        //
+        // ⛔ `.WithTranslators(...)` is DELIBERATELY GONE. It fed NedReplicationModule's
+        //    `tkbEntityTranslators`, whose ONLY consumer is GhostPromotionSystem — and that system now
+        //    falls back to EntityLifecycleModule.Translators when no explicit list is given. Keeping the
+        //    call would hand promotion a SECOND, equal-but-distinct list instance, which is exactly the
+        //    thing tkb-1/DESIGN.md §6.3 asks not to happen ("identical for all three systems within the
+        //    same node"). ⭐ Dropping it makes that true by CONSTRUCTION rather than by two copies
+        //    agreeing.
+        //
+        // 📐 Measured before removing: `_tkbEntityTranslators` has exactly one read site,
+        //    NedReplicationModule.cs:413's GhostPromotionSystem construction.
+        var ctx = Hrot.Network.Infrastructure.HrotNodeBuilderReplicationExtensions.BuildReplicatedNode(config, role, networkFactory, GetBehaviorRegistry());   // ⭐ CE-4013 D17
 
         _tkbDb = ctx.TkbDb;
         return ctx;
@@ -176,47 +229,109 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     protected override void RegisterDomainComponents(EntityRepository world)
     {
         SimHostComponentRegistry.RegisterAll(world);
-        world.SetSingletonManaged<ITkbDatabase>(_tkbDb!);  // TKB-015
+        // TKB-015 — the world's ITkbDatabase is the context's (_tkbDb); HrotNodeBuilder publishes it (CE-4013 D4).
     }
 
     /// <inheritdoc/>
     protected override ScenarioSerializer BuildSerializer(BehaviorRegistry? registry)
     {
-        return HrotScenarioSerializerFactory.Build(registry ?? new BehaviorRegistry());
+        // ⭐ A live-cluster node loads LENIENTLY: a component the registry cannot resolve is
+        //   skipped with a warning, never a hard failure. Measured 2026-09-28 — P4 retired
+        //   BrainBlackboard without a migrator and every shipped scenario became unloadable,
+        //   the 2PC PrepareLive faulting so an exercise could not start at all. The editor and
+        //   CI keep the strict default so a typo still fails loudly. See UnknownComponentPolicy.
+        return HrotScenarioSerializerFactory.Build(
+            registry ?? new BehaviorRegistry(),
+            unknownComponentPolicy: Fdp.Toolkit.Scenario.UnknownComponentPolicy.WarnAndSkip);
     }
 
     /// <inheritdoc/>
+    /// <remarks>⭐ CE-4013 — the plan is built here, in the base's <c>capabilities</c> step (after <c>node-resources</c>, before
+    /// <c>system-groups</c>): the first point where the context and the allocated pool exist, as before. The base walks the result.</remarks>
+    protected override IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> ResolveCapabilities(HrotNodeContext context, NodeRole role)
+    {
+        // ⭐ CE-3127 (R-230) — no boot-time road file: the road graph is part of the TERRAIN (terrain.json `roadNetworks`),
+        //   published by TerrainResidency.Commit as ZoneEnvironmentData + the RoadNetworkHolder, which every consumer below
+        //   already prefers. The packs get an empty blob as their "no terrain loaded" value, as they did whenever the old
+        //   NodeConfiguration.RoadNetworkBlobPath was empty — which no config ever set.
+        var roadNetwork = default(CarKinem.Road.RoadNetworkBlob);
+        RoadNetwork = roadNetwork;
+
+        // B4b: the pool comes from the node's provider, not from whichever module defaults one.
+        // Every consumer below receives THIS instance, so the solver's routes and the kinematics
+        // systems' lookups address the same memory by construction (CE-180).
+        // ⭐ CE-4270 B7b — the pack, the navigation module and the solver factory are built by the ONE Muscle-role step (MuscleRoleInputs), which
+        //   CGF's bootstrapper also calls when it is booted as the fused server.
+        var muscle = MuscleRoleInputs.Build(context.EntityMap, roadNetwork, TrajectoryPool, Navmesh, () => _nodeBootstrapper);
+        CoreLogicPack = muscle.CoreLogicPack;
+
+        // ⭐ S2b — the owner-side edit-request handlers moved to the base bootstrapper's input group, so
+        //   every host applies another node's edit (F-10). ⛔ This host used to call ConfigureForNode a
+        //   SECOND time here just to build them — a second factory with its own cluster cache.
+
+        // B4b step 2: the node's units come from a declared plan rather than a hand-written list.
+        // ⚠ Resolved once; the base walks the SAME instances at every composition step (CE-4013).
+        // ⭐ W6 — the SOLVER shares the navmesh, the pool and (once orchestration built it) the road holder (inside MuscleRoleInputs.Build).
+        _navModule = muscle.NavigationModule;
+
+        // ⭐⭐⭐ CE-4270 B10 (§4.1ag, R-3077): the ONE role table, the same one CGF, the fused server and the editor resolve. SimHost's row: the Muscle, no brain
+        //   (so the report inbox comes as a capability, CE-2301), SUMO cars mirrored (AQ93 §12 N6, R-4056: rounds, sensors and avoidance see them; idle without a net).
+        var plan = RoleCapabilityTable.Plan(new RoleTableInputs
+        {
+            Muscle         = muscle,
+            TrajectoryPool = TrajectoryPool,
+            Traffic        = Hrot.Traffic.TrafficPack.Mirroring(),
+        });
+
+        // ⭐⭐⭐ B4b step 3 — THE NODE COMPOSES BY ITS DECLARED ROLE, not by a hard-coded constant.
+        //
+        // ⚠⚠ This replaces `const NodeRole composed = MuscleGround | Perception | NavigationSolver`, and
+        //    the measurement the old comment asked for is what made the swap safe — and it did NOT say
+        //    what was assumed: 📐 SimHostSubsystem.cs:101 declared `MuscleGround | Perception`,
+        //    WITHOUT NavigationSolver, while this host unconditionally composed all three. Resolving by
+        //    the declared role as it stood would have SILENTLY DROPPED EngineBackedNavigationModule and
+        //    EqsModule — a regression dressed as a refactor.
+        //
+        // ⇒ ⭐ The fix is to make the DECLARATION true rather than keep overriding it: this host runs the
+        //    navigation solver, so its role now says so (SimHostSubsystem.cs:101, SimHostApp.cs:154).
+        //    The composed set is then identical to the retired constant BY MEASUREMENT, and the role
+        //    flags stop being decorative.
+        //
+        // ⚠ NodeRole.NavigationSolver is tested in exactly ONE place repo-wide —
+        //   NedSimHostPathfindingTranslators.cs:35 — so the blast radius of the honest declaration is
+        //   fully enumerated. 📄 See §4.1v for what that pack does and why it stays inert.
+        NodeRole composed = _role;
+
+        var capabilities = plan.Resolve(composed);
+
+        // ⭐ CE-199 — every selected Need must have a provider (RequiredResources throws, naming it); the declared-vs-needed cross-check
+        //   is the base's now (CE-4013 D10).
+        plan.RequiredResources(composed);
+
+        return capabilities;
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ CE-4013 — the capabilities' systems are added by the base, right after this hook.</remarks>
     protected override void PopulateSystems(
         HrotNodeContext context,
         List<IEcsModuleSystem> input,
         List<IEcsModuleSystem> sim,
         List<IEcsModuleSystem> postSim)
     {
-        // Load road network
-        var roadNetwork = SimHostApp.LoadRoadNetwork(_roadNetworkBlobPath, localNodeId: context.NodeId);
-        RoadNetwork = roadNetwork;
-
-        CoreLogicPack = new SimHostCoreLogicPack(context.EntityMap, roadNetwork);
-
-        // Configure factory for this node and create attribute update systems
-        var nodeFactory = _networkFactory?.ConfigureForNode(context, _role, GetBehaviorRegistry());
-        foreach (var sys in nodeFactory?.CreateSimHostAttributeUpdateSystems()
-                             ?? System.Linq.Enumerable.Empty<IEcsModuleSystem>())
-            input.Add(sys);
-
-        foreach (var s in CoreLogicPack.InputSystems)          input.Add(s);
-        foreach (var s in CoreLogicPack.SimulationSystems)     sim.Add(s);
-        foreach (var s in CoreLogicPack.PostSimulationSystems) postSim.Add(s);
-
-        // Seed GlobalTime singleton
-        context.World.SetSingletonUnmanaged(new GlobalTime
-        {
-            DeltaTime = 1.0f / _simulationRateHz,
-            TimeScale = 1.0f
-        });
+        // Seed GlobalTime singleton (⭐ CE-4270 B7b — the ONE Muscle-role seed, shared with CGF's fused boot)
+        MuscleRoleInputs.SeedGlobalTime(context.World, _simulationRateHz);
     }
 
-    /// <inheritdoc/>
+
+    /// <summary>⭐ Node Features F-17 — this host supplies a 3-D map status, so it declares `map3d.in-load` (default false here).</summary>
+    // ⭐ CE-4305 (R-4164, Seats and hats §2.2a) — this server station takes the shared default seat, AUTHOR (Author ⊇ Instructor in Preview / Live);
+    //   an Instructor (cannot author) is chosen per node in its config / --feature station.seat. ⛔ SUPERSEDED: DefaultSeat => Seat.Instructor.
+
+    protected override System.Collections.Generic.IEnumerable<Hrot.Common.Infrastructure.FeatureDeclaration> HostFeatures
+        => new[] { Hrot.Common.Infrastructure.Map3dInLoadFeature.Declaration(onByDefault: false) }
+           .Concat(Hrot.Common.Infrastructure.HudFeatures.Declarations(playerDefault: false));   // ⭐ CE-4148 — the gameplay HUD aids (hud.*), default ON for the Player only
+
     protected override ClusterSlave BuildOrchestration(
         HrotNodeContext context,
         TogglableSimulationGroup simGroup,
@@ -235,28 +350,23 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         var diagHandler = new DiagnosticsDumpClusterOpHandler(
             _eventHistoryService!, archService, entityService, logService, _hrotConfig);
 
-        var checkpointPath = System.IO.Path.Combine(_localTempRoot, "checkpoints");
-        CheckpointWorker = new CheckpointIOWorker(checkpointPath, context.NodeId);
-
         _nodeBootstrapper = new NodeBootstrapper(_networkFactory);
+        // ⭐ W6 — the terrain this node loads bakes into the shared navmesh (silent-default rule: we hold it, so pass it).
+        if (NavmeshFactory != null) _nodeBootstrapper.AttachNavmesh(NavmeshFactory, Navmesh);
         MigrationServices = _nodeBootstrapper.RegisterMigrationServices(
             _role,
-            writerIdentifier: _role.HasFlag(NodeRole.Brain) ? "Hrot.CGF" : "Hrot.SimHost");
-        var slave = _nodeBootstrapper.BuildOrchestration(
-            _role, context.Kernel, context.World, context.NodeId,
-            participant:          context.Participant,
-            subsystemName:        "SimHost",
-            eventBus:             context.EventBus,
-            scenarioSerializer:   null,
-            localTempRoot:        _localTempRoot,
-            tkbDb:                _tkbDb,         // TKB-020
-            checkpointWorker:     CheckpointWorker,
-            simGroup:             simGroup,
-            lifecycleGroup:       context.NedReplication?.NetworkLifecycleGroup,
-            ghostCreationSystem:  context.GhostCreationSystem,
-            eventAccumulator:     context.EventAccumulator,
-            afterSeek:            (context.NedReplication as Hrot.Common.Abstractions.INedReplicationModule)?.AfterSeekCallback,
-            diagnosticsDumpHandler: diagHandler);
+            writerIdentifier: _role.HasFlag(NodeRole.Brain) ? Hrot.Common.Scenario.HrotSubsystemTypes.Cgf : Hrot.Common.Scenario.HrotSubsystemTypes.SimHost);
+        // ⭐ CE-4270 B11 — the ONE orchestration step (HostOrchestration). ⚠ No input or post-simulation group (as before, §4.1ag B11 drift table).
+        var slave = Hrot.EcsNode.Hosting.HostOrchestration.Build(_nodeBootstrapper, _role, context,
+            new Hrot.EcsNode.Hosting.OrchestrationSpec
+            {
+                SubsystemName   = "SimHost",
+                LocalTempRoot   = _localTempRoot,
+                Serializer      = serializer,
+                SimGroup        = simGroup,
+                DiagnosticsDump = diagHandler,
+                MapBuildStatus  = MapBuildStatus,   // ⭐ CE-3354 ③ — this host HAS a map when it shows one (SimHostApp wires it)
+            });   // ⭐ CE-3354 ③ — this host HAS a map when it shows one (SimHostApp wires it), so it passes it
 
         SlaveTranslator = _nodeBootstrapper.SlaveTranslator;
         return slave;
@@ -265,58 +375,23 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// <inheritdoc/>
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
     {
-        // Toolkit modules - Physics
+        // The physics toolkit's raycast batch first: the spawn pipeline and the muscle capabilities raycast through it.
         PhysicsModule = new PhysicsToolkitModule();
         PhysicsModule.Initialize(context.World);
 
-        // elm reference for spawning (BaseModules[0] == EntityLifecycleModule)
-        var elm = (EntityLifecycleModule)context.BaseModules[0];
-        elm.SetTranslators(_translators!);   // TKB-022: set before kernel Initialize
-
-        var spawningSystem = new NetworkSpawningSystem(
-            context.TkbDb!,
-            elm,
-            context.EntityMap,
-            context.IdAllocator!,
-            context.NodeId,
-            translators:      _translators,       // TKB-022
-            onEntitySpawned: (world, entity, isLocalAuthority) =>
+        // ⭐ CE-4270 B4 (§4.1ag) — the ONE shared spawning step: the pack (AI diagnostics + animation TKB translators; not the broadcast
+        //   arbiter — the Brain is), then the capabilities, then the genesis tail — the order every host takes after D5 (R-3077).
+        EntityCreation = Hrot.EcsNode.Hosting.HostSpawning.Register(context, ConfiguredNetworkFactory,
+            new Hrot.EcsNode.Hosting.SpawningSpec
             {
-                if (isLocalAuthority && world.HasComponent<SimTransform>(entity))
+                IsBroadcastArbiter = false,
+                ExtraTranslators   = new ITkbEntityTranslator[]
                 {
-                    world.SetAuthority<SimTransform>(entity, true);
-                    if (world.HasComponent<NetworkTransform>(entity))
-                        world.SetAuthority<NetworkTransform>(entity, true);
-                    if (world.HasComponent<NetworkVelocity>(entity))
-                        world.SetAuthority<NetworkVelocity>(entity, true);
-                }
-            });
-
-        context.Kernel.RegisterModule(new SimHostModule(spawnSystem: spawningSystem));
-        context.Kernel.RegisterModule(CoreLogicPack!);
-        context.Kernel.RegisterModule(new EqsModule());
-
-        // Register engine-backed navigation module (road-graph + direct-line stubs).
-        // RegisterProviders is deferred to PostInitialize (after Kernel.Initialize) because
-        // EngineBackedNavigationModule.RegisterProviders requires _navmesh/_registry which
-        // are created by RegisterSystems — run during Kernel.Initialize (Phase 7).
-        _navModule = new EngineBackedNavigationModule(
-            RoadNetwork ?? default(CarKinem.Road.RoadNetworkBlob),
-            CoreLogicPack!.TrajectoryPool);
-        context.Kernel.RegisterModule(_navModule);
-
-        context.Kernel.RegisterGlobalSystem(new AreaQueryResultMaterializationSystem());
-
-        PerceptionModule = new CognitiveSpatialModule(
-            context.World,
-            colliderRadiusReader: static (view, e) => view.HasComponent<PhysicsCollider>(e)
-                ? view.GetComponentRO<PhysicsCollider>(e).Radius
-                : 0f);
-        context.Kernel.RegisterModule(PerceptionModule);
-
-        // GenesisMaterializationSystem - Input phase, registered after togglable groups
-        context.Kernel.RegisterGlobalSystem(
-            new GenesisMaterializationSystem(context.EntityMap));
+                    new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
+                    new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
+                },
+            },
+            () => RegisterCapabilities(context));
     }
 
     /// <inheritdoc/>
@@ -324,10 +399,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         HrotNodeContext context,
         INetworkFactory? configuredFactory)
     {
-        if (context.Participant == null || configuredFactory == null) return;
-
-        configuredFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(context.Kernel);
-        configuredFactory.CreateSimHostPerceptionTranslators(context.GhostCreationSystem).RegisterOn(context.Kernel);
-        configuredFactory.CreateSimHostPathfindingTranslators(CoreLogicPack!.TrajectoryPool).RegisterOn(context.Kernel);
+        // ⭐ CE-4270 B7b — the ONE SimHost translator set (MuscleRoleInputs), shared with CGF's fused boot.
+        // ⭐ CE-2121 slice ② — the body's half of the stance wire: the Brain's request in, the body's report out (gated on the
+        //   MuscleGround group's descriptor, not on the entity's owner). 📄 docs/DESIGN_Decision_Layer.md §3.3g.
+        MuscleRoleInputs.RegisterTranslators(context, configuredFactory, CoreLogicPack!.TrajectoryPool, NodeRole.MuscleGround);
     }
 }

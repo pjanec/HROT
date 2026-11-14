@@ -1,0 +1,142 @@
+using System;
+using System.Collections.Generic;
+using Fdp.Core;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Utilities;
+
+namespace Fdp.Toolkit.Replication.Services
+{
+    /// <summary>
+    /// ⭐⭐ <b>The ONE way a node applies "descriptor key K of entity E is now owned by node N".</b>
+    /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.1, §5.6 S5.
+    ///
+    /// <para>Extracted from <see cref="Systems.OwnershipIngressSystem"/>'s loop so every path that moves ownership
+    /// shares it: the ingress of an <c>OwnershipUpdate</c>, the transfer initiation (CE-276), and the partial-owner
+    /// reclaim of S7 (R-167, a direct call, no network message). It writes the record and the claim together:</para>
+    /// <list type="number">
+    ///   <item>the record: <c>DescriptorOwnership.Map[K] = N</c>;</item>
+    ///   <item>the claim: the descriptor's components present on E are claimed iff N is this node;</item>
+    ///   <item>for the master descriptor, the primary owner (<c>NetworkAuthority.PrimaryOwnerId</c>) follows, and
+    ///     ⭐ every OTHER descriptor that has no record entry is first pinned to the OLD primary owner. Without an
+    ///     entry a descriptor's owner is read from the primary owner, so moving only the master would silently
+    ///     move all of them in the record while their claims stayed put. Pinning keeps them where they were, as
+    ///     <c>DESIGN_Entity_Ownership_Transfer.md</c> §3 requires for <c>MasterOnly</c> ("leave every other
+    ///     descriptor where it is"), and every node computes the same pins from the same update;</item>
+    ///   <item>when N is this node, a <see cref="Messages.DescriptorAuthorityChanged"/> event.</item>
+    /// </list>
+    /// <para>Idempotent: applying the same (E, K, N) again changes nothing — ⭐ and WRITES nothing (CE-4519: no table version moves on a repeat).</para>
+    /// </summary>
+    public sealed class OwnershipApplier
+    {
+        private readonly NodeId                     _localNodeId;
+        private readonly DescriptorOwnershipMap? _descriptorMap;
+
+        public OwnershipApplier(int localNodeId, DescriptorOwnershipMap? descriptorMap)
+        {
+            _localNodeId   = (Fdp.Core.NodeId)(localNodeId);
+            _descriptorMap = descriptorMap;
+        }
+
+        /// <summary>Applies "<paramref name="packedKey"/> of <paramref name="entity"/> is owned by
+        /// <paramref name="newOwnerNodeId"/>". See the class remarks for what it writes.</summary>
+        public void Apply(EntityRepository repo, Entity entity, long packedKey, int newOwnerNodeId)
+        {
+            if (repo == null) throw new ArgumentNullException(nameof(repo));
+            if (!repo.IsAlive(entity)) return;
+
+            DescriptorOwnership ownership;
+            bool hadRecord = repo.HasManagedComponent<DescriptorOwnership>(entity);
+            if (hadRecord)
+                ownership = repo.GetComponent<DescriptorOwnership>(entity);
+            else
+                ownership = new DescriptorOwnership();
+
+            // CE-4046: DescriptorOwnership is an immutable record — edit a copy of the map, Set the new value once (below).
+            var map = new Dictionary<long, int>(ownership.Map);
+
+            var (typeId, instanceId) = OwnershipExtensions.UnpackKey(packedKey);
+            bool isMaster = instanceId == 0 &&
+                            _descriptorMap?.PrimaryOwnerDescriptorOrdinal is long masterOrdinal && masterOrdinal == typeId;
+
+            // ── 3a. A master move first pins every un-recorded descriptor to the OLD primary owner ──────
+            if (isMaster && _descriptorMap != null && repo.HasComponent<NetworkAuthority>(entity))
+            {
+                int oldPrimary = repo.GetComponentRO<NetworkAuthority>(entity).PrimaryOwnerId;
+                if (oldPrimary != newOwnerNodeId)
+                {
+                    foreach (long ordinal in _descriptorMap.RegisteredDescriptors)
+                    {
+                        if (ordinal == typeId) continue;
+                        long key = OwnershipExtensions.PackKey(ordinal, 0);
+                        if (!map.ContainsKey(key))
+                            map[key] = oldPrimary;
+                    }
+                }
+            }
+
+            // ── 0. Who owned it until now: the record, else the primary owner (CE-4079 ② — to tell a GAIN from a repeat) ──────────
+            int previousOwner = map.TryGetValue(packedKey, out int recorded) ? recorded
+                : repo.HasComponent<NetworkAuthority>(entity) ? repo.GetComponentRO<NetworkAuthority>(entity).PrimaryOwnerId : -1;
+
+            // ── 1. The record ──────────────────────────────────────────────────────────────────────────
+            //    ⭐ CE-3442 / CE-4519 (X-4) — a REPEAT (the record already says so, and 3a pinned nothing) writes nothing: every Set moves the
+            //    table's version, and the egress visit gate read any move as "authority arrived somewhere" ⇒ a full scan of every gated
+            //    translator. 📐 Measured on the 1 000-man CGF: ~5 updates a frame, repeats included ⇒ 5 205 of 5 281 full scans, 0 skipped.
+            bool same = hadRecord && map.Count == ownership.Map.Count && previousOwner == newOwnerNodeId && ownership.Map.ContainsKey(packedKey);
+            map[packedKey] = newOwnerNodeId;
+            if (!same) repo.SetManagedComponent(entity, ownership with { Map = map });
+
+            // ── 2. The claim, on the exact component ids the descriptor maps to (translator targets + group links).
+            //    No map ⇒ the claim is not touched (safe default).
+            //    ⭐ S6: an INSTANCE key (d,i), i ≠ 0, names a part, never the root — the root's components are not
+            //    touched. The part's own claim follows its record in OwnershipRecomputeSystem's parts pass, which runs
+            //    after this on every frame (Q79 §0.10 ③). 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S6.
+            bool isAuth = _localNodeId != 0 && newOwnerNodeId == _localNodeId;
+            if (_descriptorMap != null && instanceId == 0)
+            {
+                foreach (int componentId in _descriptorMap.GetComponentIdsForDescriptor(typeId))
+                {
+                    if (repo.HasComponentByTypeId(entity, componentId))
+                        repo.SetAuthority(entity, componentId, isAuth);
+                }
+            }
+
+            // ── 2b. ⭐ CE-4079 ② — a node that GAINS a descriptor publishes it once: the spec's "the new owner writes the descriptor to
+            //    confirm". It matters most to a creator that took a grant BACK (the grantee left): its writer had let go of the instance
+            //    when the grantee confirmed, so without a write the instance would stay unwritten — NoWriters, and nothing for a late
+            //    joiner — until the value next changed. Only a descriptor published through SmartEgress needs the mark (the others
+            //    forgot what they sent when they released); an entity with no publication state publishes anyway.
+            if (isAuth && previousOwner != newOwnerNodeId && instanceId == 0 && repo.HasManagedComponent<EgressPublicationState>(entity))
+                SmartEgressUtil.MarkDirty(repo, entity, typeId);
+
+            // ── 3b. Primary-owner mirror (BDC compliance, OQ12 / CE-275 ④). The master descriptor DEFINES entity /
+            //    save ownership; it is named network-agnostically through PrimaryOwnerDescriptorOrdinal. Written on
+            //    every node (gaining and losing alike), each deriving HasAuthority from PrimaryOwnerId == LocalNodeId.
+            //    📄 docs/DESIGN_Distributed_Scenario_Persistence.md §6c.
+            if (isMaster)
+            {
+                if (repo.HasComponent<NetworkAuthority>(entity))
+                {
+                    ref readonly var was = ref repo.GetComponentRO<NetworkAuthority>(entity);
+                    if (was.PrimaryOwnerId != newOwnerNodeId)   // ⭐ CE-4519 — a repeat writes nothing (as the record above)
+                        repo.SetComponent(entity, new NetworkAuthority(newOwnerNodeId, was.LocalNodeId));
+                }
+                else
+                {
+                    repo.AddComponent(entity, new NetworkAuthority(newOwnerNodeId, _localNodeId));
+                }
+            }
+
+            if (isAuth)
+            {
+                repo.Bus.Publish(new Messages.DescriptorAuthorityChanged
+                {
+                    Entity          = entity,
+                    PackedKey       = packedKey,
+                    IsAuthoritative = true
+                });
+            }
+        }
+    }
+}

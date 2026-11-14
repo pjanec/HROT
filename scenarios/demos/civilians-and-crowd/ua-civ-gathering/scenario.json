@@ -1,0 +1,391 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: A hurt civilian (Casualty, health 40) lies at the crossroads (200,200); twelve calm Onlookers stand 30-60 m up the four streets (CV-5, CE-2237). Demonstrates onlookers drawn to an incident and standing as one crowd on a ring. Judge: (0) the hurt man is a Casualty (1) every onlooker enters Gather (2) their mean distance to him falls below 15 m within 60 s (3) one crowd holds at least 8 of them (4) all arrive within 11 m and stand on a ring 2.5-11 m round him, not on top of him. Fail: some onlookers stay put, or they pile on the casualty. Check: python3 scripts/utility-demo-check.py --launch ua-civ-gathering"
+  },
+  "entities": {
+    "c2370001-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          200,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 40,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Casualty",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          170,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 1",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          155,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 2",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          140,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1103
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 3",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          230,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1104
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 4",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          245,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 5",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          260,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 6",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          200,
+          170,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1103
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 7",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000009": {
+      "SimTransform": {
+        "Position": [
+          200,
+          155,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1104
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 8",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          200,
+          140,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 9",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          200,
+          230,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 10",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          200,
+          245,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1103
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 11",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          200,
+          260,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1104
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 12",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}

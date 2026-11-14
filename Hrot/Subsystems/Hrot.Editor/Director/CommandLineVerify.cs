@@ -1,0 +1,192 @@
+using Fdp.Core;
+using System;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Hrot.UI.Common.Map3D.Director;
+
+namespace Hrot.Editor.Director
+{
+    /// <summary>
+    /// ⭐ <c>CE-4042</c> (docs/DESIGN_Scenario_Regression.md §2a) — the editor's half of <c>--verify</c>: the runner sets
+    /// <see cref="ScenariosVariable"/>; once the editor is ready this starts a verify run on the director, prints the verdict, writes the report
+    /// and leaves through the ordered teardown with exit code 0 (every scenario passes) or 1. Called once per frame after the director's tick.
+    /// </summary>
+    public sealed class CommandLineVerify
+    {
+        public const string ScenariosVariable = "HROT_VERIFY";
+        public const string CaptureVariable = "HROT_VERIFY_CAPTURE";
+        public const string ReportVariable = "HROT_VERIFY_REPORT";
+        /// <summary>⭐ <c>CE-3299</c> B5 — this child is one half of R1: a <see cref="RestoreCheck"/> as JSON (restore design §1k).</summary>
+        public const string RestoreCheckVariable = "HROT_VERIFY_R1";
+        /// <summary>⭐ <c>CE-4045</c> H1a — "1": the run is LIVE and compared with its own recording (Scenario Regression §10-1).</summary>
+        public const string ReplayVariable = "HROT_VERIFY_REPLAY";
+        /// <summary>⭐ <c>CE-4045</c> H3 — with the replay check: branch the replay live at this run time (s) and run on (§10-7).</summary>
+        public const string BranchAtVariable = "HROT_VERIFY_BRANCH_AT";
+        /// <summary>⭐ <c>CE-4045</c> H5 — this child is one half of the review check: a <see cref="ReviewCheck"/> as JSON.</summary>
+        public const string ReviewVariable = "HROT_VERIFY_REVIEW";
+        /// <summary>Frames to wait in Idle before the first load (the editor's own start-up settles first).</summary>
+        private const int SettleFrames = 30;
+        /// <summary>The editor never reaching Idle is a failure, not a wait forever.</summary>
+        private const int ReadyLimitFrames = 60 * 120;
+
+        private readonly string[] _scenarios;
+        private readonly bool _capture;
+        private readonly string? _report;
+        private readonly RestoreCheck? _r1;
+        private readonly bool _replay;
+        private readonly ReviewCheck? _review;
+        private readonly double? _branchAt;
+        private int _frames, _idleFrames;
+        private bool _started, _done;
+
+        private CommandLineVerify(string[] scenarios, bool capture, string? report, RestoreCheck? r1, bool replay, ReviewCheck? review, double? branchAt)
+        {
+            _branchAt = branchAt;
+            _replay = replay;
+            _review = review;
+            _scenarios = scenarios;
+            _capture = capture;
+            _report = report;
+            _r1 = r1;
+        }
+
+        /// <summary>⭐ B5 — the R1 half this child runs, from <see cref="RestoreCheckVariable"/>; null when it is a plain verify.</summary>
+        public static RestoreCheck? RestoreCheckFromEnvironment()
+            => EnvVars.Read(EnvVars.HrotVerifyR1) is { Length: > 0 } json
+                ? JsonSerializer.Deserialize<RestoreCheck>(json, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)
+                : null;
+
+        /// <summary>⭐ H5 — the review half this child runs, from <see cref="ReviewVariable"/>; null when it is not one.</summary>
+        public static ReviewCheck? ReviewCheckFromEnvironment()
+            => EnvVars.Read(EnvVars.HrotVerifyReview) is { Length: > 0 } json
+                ? JsonSerializer.Deserialize<ReviewCheck>(json, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)
+                : null;
+
+        /// <summary>The request the runner left in the environment; null when this is not a verify run.</summary>
+        public static CommandLineVerify? FromEnvironment()
+        {
+            var s = EnvVars.Read(EnvVars.HrotVerify);
+            if (string.IsNullOrWhiteSpace(s)) return null;
+            return new CommandLineVerify(s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                EnvVars.Read(EnvVars.HrotVerifyCapture) == "1", EnvVars.Read(EnvVars.HrotVerifyReport),
+                RestoreCheckFromEnvironment(), EnvVars.Read(EnvVars.HrotVerifyReplay) == "1", ReviewCheckFromEnvironment(),
+                double.TryParse(EnvVars.Read(EnvVars.HrotVerifyBranchAt), System.Globalization.NumberStyles.Float,
+                                System.Globalization.CultureInfo.InvariantCulture, out var b) && b > 0 ? b : null);
+        }
+
+        /// <param name="ready">The editor can load a scenario now (its cluster is Idle).</param>
+        /// <param name="exit">Leaves the frame loop through the ordered teardown (<c>SubsystemConfig.RequestAppExit</c>).</param>
+        public void Tick(DirectorRunner director, bool ready, Action exit)
+        {
+            if (_done) return;
+            _frames++;
+            if (!_started)
+            {
+                _idleFrames = ready ? _idleFrames + 1 : 0;
+                if (_idleFrames < SettleFrames)
+                {
+                    if (_frames > ReadyLimitFrames) Finish(2, $"the editor did not become ready to load in {ReadyLimitFrames} frames", null, exit);
+                    return;
+                }
+                var reel = new Reel
+                {
+                    Name = "verify",
+                    Items = _scenarios.Select(s => new ReelItem { Scenario = s, Take = "_verify" }).ToList(),
+                };
+                var refused = director.Play(new PlayRequest(reel, Plan: new VerifyOptions(_capture, _r1, _replay, _review, _branchAt)));
+                if (refused.Count > 0) { Finish(2, "not started: " + string.Join("; ", refused), null, exit); return; }
+                _started = true;
+                return;
+            }
+            if (director.Phase is not (DirectorPhase.Done or DirectorPhase.Stopped)) return;
+            var items = director.Reports.Select(r => (JsonNode?)Item(r)).ToArray();
+            bool passed = director.Reports.Count > 0 && director.Reports.All(r => r.Status == "pass");
+            Finish(passed ? 0 : 1, director.Error, new JsonArray(items), exit);
+        }
+
+        private static JsonObject Item(ItemReport r)
+        {
+            var o = r.Verify()?.ToJson() ?? new JsonObject();
+            o["scenario"] = r.Scenario;
+            o["status"] = r.Status;
+            o["steps"] = r.Steps;
+            o["simEnd"] = Math.Round(r.SimEnd, 3);
+            o["wallSeconds"] = Math.Round(r.WallSeconds, 1);
+            if (r.Problems.Count > 0) o["runProblems"] = new JsonArray(r.Problems.Select(p => (JsonNode?)p).ToArray());
+            return o;
+        }
+
+        private void Finish(int code, string? error, JsonArray? items, Action exit)
+        {
+            _done = true;
+            var report = new JsonObject { ["passed"] = code == 0, ["error"] = error, ["scenarios"] = items ?? new JsonArray() };
+            Console.WriteLine($"[Verify] {(code == 0 ? "PASS" : "FAIL")}{(error != null ? " — " + error : "")}");
+            foreach (var item in report["scenarios"]!.AsArray().OfType<JsonObject>()) PrintItem(item, Console.Out, "  ");
+            if (!string.IsNullOrWhiteSpace(_report))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_report))!);
+                File.WriteAllText(_report, report.ToJsonString(Fdp.Core.Serialization.FdpJsonOptionsRegistry.Indented));
+            }
+            Environment.ExitCode = code;
+            exit();
+        }
+
+        /// <summary>
+        /// ⭐ How this binary starts ANOTHER copy of itself with <paramref name="args"/> — the one place both the command line's parent
+        /// (a child per scenario) and the HTTP <c>fresh</c> verify (a child per request) do it. Under <c>dotnet X.dll</c> the dll is the first
+        /// argument; a published executable starts itself.
+        /// </summary>
+        public static System.Diagnostics.ProcessStartInfo SelfStartInfo(System.Collections.Generic.IEnumerable<string> args)
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!)
+            {
+                UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+            };
+            if (string.Equals(Path.GetFileNameWithoutExtension(Environment.ProcessPath), "dotnet", StringComparison.OrdinalIgnoreCase))
+                psi.ArgumentList.Add(Environment.GetCommandLineArgs()[0]);
+            foreach (var a in args) psi.ArgumentList.Add(a);
+            psi.Environment.Remove("HROT_DEBUG_API_PORT");   // a child takes a free port of its own
+            psi.Environment.Remove(ScenariosVariable);
+            psi.Environment.Remove(RestoreCheckVariable);   // ⭐ B5 — set per child by the parent that wants one
+            psi.Environment.Remove(ReplayVariable);   // ⭐ H1a — a child's own --verify-replay sets it
+            psi.Environment.Remove(BranchAtVariable);   // ⭐ H3 — a child's own --verify-branch-at sets it
+            psi.Environment.Remove(ReviewVariable);   // ⭐ H5 — set per child by the parent that wants one
+            return psi;
+        }
+
+        /// <summary>One scenario's report as lines: each verdict, the golden, what went wrong.</summary>
+        public static void PrintItem(JsonObject? item, TextWriter w, string indent)
+        {
+            if (item is null) return;
+            w.WriteLine($"{indent}{item["scenario"]}: {item["status"]} — {item["steps"]} steps, sim {item["simEnd"]} s, wall {item["wallSeconds"]} s");
+            foreach (var v in (item["verdicts"] as JsonArray ?? new JsonArray()).OfType<JsonObject>())
+                w.WriteLine($"{indent}  {(v["kind"]?.ToString() == "skipped" ? "SKIP" : (bool?)v["ok"] == true ? "PASS" : "FAIL")}  {v["name"]}{(v["t"] is { } t ? $"  (t {t} s)" : "")}{(v["kind"]?.ToString() == "never" && (bool?)v["ok"] != true ? "  ← broken" : "")}{(v["heldOutsideItsWindowAt"] is { } o ? $"  ← held at {o} s, outside its window" : "")}");
+            if (item["golden"] is { } g) w.WriteLine($"{indent}  GOLDEN {g}");
+            foreach (var d in (item["goldenDiff"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    {d}");
+            if (item["replay"] is { } rp) w.WriteLine($"{indent}  REPLAY {rp} ({item["replaySnapshots"]} snapshots matched to the recording)");
+            foreach (var d in (item["replayDiff"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    {d}");
+            foreach (var d in (item["replayNotCarried"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    (not recorded, by the manifest) {d}");
+            PrintLookBack(item["review"] as JsonObject, "REVIEW", w, indent);
+            foreach (var d in (item["returnDiff"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    RETURN {d}");
+            PrintLookBack(item["playback"] as JsonObject, "PLAYBACK", w, indent);   // ⭐ H1b — the product's replay of the run
+            PrintLookBack(item["seek"] as JsonObject, "SEEK", w, indent);           // ⭐ H2 — the replay sought in a shuffled order
+            if (item["branch"] is JsonObject br)                                     // ⭐ H3 — the replay branched live at T, run on
+                PrintLookBack(br, $"BRANCH at {item["branchAt"]} s (came live on clock {item["branchClock"]} s)", w, indent);
+            foreach (var p in (item["written"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  wrote {p}");
+            foreach (var p in (item["problems"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  PROBLEM {p}");
+            foreach (var p in (item["runProblems"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  PROBLEM {p}");
+        }
+
+        /// <summary>⭐ One look-back (<see cref="LookBackResult"/> as JSON): its verdict, what it differs in, what it could not do.</summary>
+        private static void PrintLookBack(JsonObject? look, string label, TextWriter w, string indent)
+        {
+            if (look is null) return;
+            w.WriteLine($"{indent}  {label} {look["verdict"]} ({look["snapshots"]} snapshots looked back at)");
+            foreach (var d in (look["diff"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    {d}");
+            foreach (var d in (look["notCarried"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    (not recorded, by the manifest) {d}");
+            foreach (var d in (look["problems"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    PROBLEM {d}");
+        }
+    }
+}

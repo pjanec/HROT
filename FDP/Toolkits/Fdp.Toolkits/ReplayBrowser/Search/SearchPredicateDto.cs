@@ -16,8 +16,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             if (string.IsNullOrEmpty(name))
                 return null;
 
-            return ComponentTypeRegistry.GetAllRegistered().FirstOrDefault(t => t.Name == name)
-                ?? EventType.GetAllRegistered().FirstOrDefault(t => t.Name == name);
+            // ⭐ The short name or the full one (measured `2026-10-23`: the route doc's own example used the full name and matched nothing).
+            return ComponentTypeRegistry.GetAllRegistered().FirstOrDefault(t => t.Name == name || t.FullName == name)
+                ?? EventType.GetAllRegistered().FirstOrDefault(t => t.Name == name || t.FullName == name);
         }
 
         public override void Write(Utf8JsonWriter writer, Type value, JsonSerializerOptions options)
@@ -43,14 +44,99 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     [JsonDerivedType(typeof(TraceBufferScanPredicateDto),    "TraceBufferScan")]
     [JsonDerivedType(typeof(BlueprintVariablePredicateDto),  "BlueprintVariable")]
     [JsonDerivedType(typeof(ExternalHitTagPredicateDto),     "ExternalHitTag")]
-    public abstract class SearchPredicateDto { }
+    [JsonDerivedType(typeof(BehaviourStepPredicateDto),      "BehaviourStep")]
+    [JsonDerivedType(typeof(RingEntryPredicateDto),          "RingEntry")]
+    [JsonDerivedType(typeof(ValueChangePredicateDto),        "ValueChange")]
+    // ⭐ CE-4164 (S2-b) — the leaves a trigger's `when` needs beyond a single entity's data; compiled in BOTH modes.
+    [JsonDerivedType(typeof(OnEntityPredicateDto),           "OnEntity")]
+    [JsonDerivedType(typeof(ScenarioTimePredicateDto),       "ScenarioTime")]
+    [JsonDerivedType(typeof(CountMatchingPredicateDto),      "CountMatching")]
+    // ⭐ rules S4 E-2 (SR-20) — a registered [UtilityInput] over a threshold; compiled in BOTH modes (it is a component-ish read).
+    [JsonDerivedType(typeof(InputAbovePredicateDto),         "InputAbove")]
+    // ⭐ condition editor C1 (docs/UX/DESIGN_Condition_Editor.md §5, R-4142) — "this unit or anyone under it", "in the fight"; compiled in BOTH modes.
+    [JsonDerivedType(typeof(InUnitPredicateDto),             "InUnit")]
+    [JsonDerivedType(typeof(InTheFightPredicateDto),         "InTheFight")]
+    // ⭐ mission plan D6 (docs/UX/DESIGN_Mission_Plan_Editor.md §5.2, R-4160) — "when <unit> finishes task N"; compiled in BOTH modes.
+    [JsonDerivedType(typeof(TaskFinishedPredicateDto),       "TaskFinished")]
+    // ⭐ SR-160 — every predicate node may bind its own properties to macro / scenario params (Bind); the trigger's do entries share the base.
+    public abstract class SearchPredicateDto : Fdp.Toolkit.Scenario.BindableNode { }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // ⭐ CE-4164 — new leaves (DESIGN_Scenario_Rules §00.9 S2-b)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Evaluates <see cref="Predicate"/> on the entity <see cref="Ref"/> resolves to (not on the entity being asked about); unresolved or dead ⇒ false.</summary>
+    [StructEdit.Core.Attributes.EditDisplayName("On one thing"), StructEdit.Core.Attributes.EditIcon("kind/on-entity")]   // ⭐ U-7 — condition-expert-visual.svg
+    public sealed class OnEntityPredicateDto : SearchPredicateDto
+    {
+        [StructEdit.Core.Attributes.EditDisplayName("Thing")]   // ⭐ U-8 — condition-expert-visual.svg: "Thing", the chip beside it
+        public Fdp.Toolkit.Replication.EntityLink Ref { get; set; }
+        public SearchPredicateDto Predicate { get; set; } = null!;
+    }
+
+    /// <summary>True while the sim time (seconds since the start) is in <c>[FromSeconds, ToSeconds)</c>.</summary>
+    [StructEdit.Core.Attributes.EditDisplayName("Time"), StructEdit.Core.Attributes.EditIcon("kind/time")]   // ⭐ U-7 — condition-expert-visual.svg
+    public sealed class ScenarioTimePredicateDto : SearchPredicateDto
+    {
+        public double FromSeconds { get; set; } = 0;
+        public double ToSeconds { get; set; } = double.MaxValue;
+    }
+
+    /// <summary>True when <c>Min ≤ n ≤ Max</c>, n = the entities matching <see cref="Predicate"/> — among those with <see cref="WithComponent"/>,
+    /// else every entity with a <c>SimTransform</c>.</summary>
+    [StructEdit.Core.Attributes.EditDisplayName("At least N of"), StructEdit.Core.Attributes.EditIcon("kind/count")]   // ⭐ U-7 — condition-expert-visual.svg
+    public sealed class CountMatchingPredicateDto : SearchPredicateDto
+    {
+        public SearchPredicateDto Predicate { get; set; } = null!;
+        public int Min { get; set; } = 1;
+        public int Max { get; set; } = int.MaxValue;
+        [JsonConverter(typeof(TypeNameJsonConverter))]
+        public Type? WithComponent { get; set; }
+    }
+
+    /// <summary>⭐ rules S4 E-2 (SR-20) — true when the registered <c>[UtilityInput]</c> named <see cref="Input"/>, read on the entity being asked about, is ABOVE <see cref="Threshold"/>
+    /// (the same reader a utility consideration evaluates — <c>UtilityInputReaderStore.TryRead</c>; ⛔ no fourth registry). An input with no registered reader reads 0.</summary>
+    public sealed class InputAbovePredicateDto : SearchPredicateDto
+    {
+        public string Input { get; set; } = string.Empty;
+        public float Threshold { get; set; }
+    }
+
+    /// <summary>⭐ condition editor C1 (📄 docs/UX/DESIGN_Condition_Editor.md §5, R-4142) — true when the entity being asked about IS <see cref="Unit"/>
+    /// (when <see cref="IncludeSelf"/>) or is anywhere under it down its <c>UnitRoster</c> (<c>UnitTree.Contains</c>, the objectives' S1-d walk lifted).
+    /// An unresolved or dead unit ⇒ false.</summary>
+    public sealed class InUnitPredicateDto : SearchPredicateDto
+    {
+        public Fdp.Toolkit.Replication.EntityLink Unit { get; set; }
+        public bool IncludeSelf { get; set; } = true;
+    }
+
+    /// <summary>⭐⭐ <c>CE-4298</c> — mission plan D6 (📄 docs/UX/DESIGN_Mission_Plan_Editor.md §5.2, R-4160) — true when <see cref="Unit"/>'s mission task
+    /// <see cref="Task"/> has ENDED (its replicated outcome, <c>MissionPlanQueue.Outcomes</c>, is Done or Failed). ⭐ Defaults read as the plan's own
+    /// <i>when done</i>: no <see cref="Unit"/> ⇒ the entity being asked about; <see cref="Task"/> 0 ⇒ that unit's CURRENT task (1, 2, … = that task).
+    /// ⭐ The director records the outcome BEFORE it asks, and only for the TASK ending — a reaction or a possession ending is not (CE-2078,
+    /// CE-3172) — so it is the exact <c>BehaviorFinished</c> trigger, as a condition. A unit with no plan, or a task it does not have ⇒ false.</summary>
+    [StructEdit.Core.Attributes.EditDisplayName("A task finished")]
+    public sealed class TaskFinishedPredicateDto : SearchPredicateDto
+    {
+        public Fdp.Toolkit.Replication.EntityLink Unit { get; set; }
+        /// <summary>1-based task number; 0 = the unit's current task.</summary>
+        public int Task { get; set; }
+    }
+
+    /// <summary>⭐ condition editor C1 (R-4142) — true when the entity being asked about is IN THE FIGHT (<c>CombatEffective.IsInTheFight</c>: a man by his
+    /// injury state, a unit by its roster). ⛔ Not <see cref="LifecyclePredicateDto"/>: a dead man still exists.</summary>
+    public sealed class InTheFightPredicateDto : SearchPredicateDto { }
 
     // ──────────────────────────────────────────────────────────────────────────
     // Compound
     // ──────────────────────────────────────────────────────────────────────────
 
-    public enum LogicalOperator { And, Or }
+    /// <summary>How a <see cref="CompoundPredicateDto"/> joins its children. ⭐ <see cref="None"/> (condition editor C1, R-4142): true when NO child holds —
+    /// so a one-child <c>None</c> is NOT (⛔ never a separate Not kind). ⚠ Appended: the stored numbers of And / Or do not move.</summary>
+    public enum LogicalOperator { And, Or, None }
 
+    [StructEdit.Core.Attributes.EditDisplayName("All of these"), StructEdit.Core.Attributes.EditIcon("kind/all")]   // ⭐ U-7 — condition-expert-visual.svg
     public sealed class CompoundPredicateDto : SearchPredicateDto
     {
         public LogicalOperator Operator { get; set; } = LogicalOperator.And;
@@ -69,6 +155,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
     public enum SearchOperator { Equals, Contains, GreaterThan, LessThan, Changed, StartsWith }
 
+    [StructEdit.Core.Attributes.EditDisplayName("A property"), StructEdit.Core.Attributes.EditIcon("kind/property")]   // ⭐ U-7 — condition-expert-visual.svg
     public sealed class PropertyMatchDto : SearchPredicateDto
     {
         [JsonConverter(typeof(TypeNameJsonConverter))]
@@ -78,6 +165,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         public string PropertyPath { get; set; } = string.Empty;
         public SearchOperator Operator { get; set; } = SearchOperator.Equals;
         /// <summary>Value sub-predicate (NumericPredicateDto, StringPredicateDto, etc.).</summary>
+        [PredicateValue]
         public SearchPredicateDto Predicate { get; set; } = null!;
     }
 
@@ -161,8 +249,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
     public sealed class SpatialBoundingPredicateDto : SearchPredicateDto
     {
-        [MapPickableBoundingBox]
-        public BoundingBox2D Bounds { get; set; }
+        public Fdp.Toolkit.Replication.AreaLink Bounds { get; set; }
 
         public BoundaryEvent TriggerEvent { get; set; } = BoundaryEvent.EntryOrExit;
 
@@ -207,7 +294,29 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
     public sealed class BehaviorParamPredicateDto : SearchPredicateDto
     {
-        public BlackboardTarget TargetBlackboard { get; set; } = BlackboardTarget.BrainBlackboard;
+        /// <summary>
+        /// ⭐⭐⭐ <b>WHICH occurrence slot this predicate reads.</b> <c>0</c> means the behaviour's
+        /// ROOT PARAMS slot; any other value is the <c>SlotKey</c> of one of the behaviour's
+        /// <c>StatefulWorkingSlots</c>.
+        ///
+        /// <para>🔴 <b><c>CE-308</c> — this REPLACES the <c>BlackboardTarget</c> enum</b>, which named
+        /// two COMPONENTS: <c>BrainBlackboard</c> and <c>Blackboard1024</c>. Both are retired, and the
+        /// <c>Blackboard1024</c> arm never worked — it resolved through <c>HeavyDtoType</c>, which is
+        /// <c>null</c> at every production site, so the compiler short-circuited to
+        /// <c>(_, _) =&gt; false</c> before it could run.</para>
+        ///
+        /// <para>⭐⭐ <b>Why a slot KEY and not a renamed enum.</b> Occurrence storage keys everything —
+        /// root params and every working state — in ONE key space. ⇒ the question *"which region does
+        /// this predicate read?"* has exactly one honest answer shape, and it is a key. ⛔ A two-member
+        /// enum could not name WHICH working state on a behaviour that has several, which is precisely
+        /// the case worth searching.</para>
+        ///
+        /// <para>⚠ <c>0</c> is safe as the root sentinel: a real slot key is an FNV hash and the
+        /// allocator never issues <c>0</c>, and the root key is computed from the behaviour hash
+        /// rather than stored.</para>
+        /// </summary>
+        [WorkingSlotPicker]
+        public int WorkingSlotKey { get; set; }
 
         [BehaviorHashPicker]
         public int BehaviorId { get; set; }
@@ -217,13 +326,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         public SearchOperator Operator { get; set; } = SearchOperator.Equals;
 
+        [PredicateValue]
         public SearchPredicateDto Predicate { get; set; } = null!;
-    }
-
-    public enum BlackboardTarget
-    {
-        BrainBlackboard,
-        Blackboard1024
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -317,17 +421,66 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         /// Value sub-predicate: <see cref="NumericPredicateDto"/> or
         /// <see cref="StringPredicateDto"/> (same as <see cref="PropertyMatchDto.Predicate"/>).
         /// </summary>
+        [PredicateValue]
         public SearchPredicateDto Predicate { get; set; } = null!;
     }
 
     // ──────────────────────────────────────────────────────────────────────────    // Result types
     // ──────────────────────────────────────────────────────────────────────────
 
+    /// <param name="Payload">⭐ R-4077 extension (§9c ③) — what a <see cref="ResultProjectionDto"/> kept; null without one.</param>
+    /// <param name="NodeId">⭐ G-7 S5 (I6) — the participant file the hit came from (-1: a single-file search).</param>
+    /// <param name="NetworkId">⭐ G-7 S5 (I6) — the hit entity's network id when it has one (0: none / a single-file search); a federated hit is selected by it, its <see cref="Entity"/> being a handle in ONE node's file.</param>
     public sealed record SearchResultDto(
         int FrameIndex,
         long WallClockTicks,
         Entity Entity,
-        string ContextMessage);
+        string ContextMessage,
+        SearchResultPayload? Payload = null,
+        int NodeId = -1,
+        long NetworkId = 0);
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Ring entries — R-4077 extension (docs/DESIGN_Director_Timeline_Editor.md §9c ③, TE-22 ② / R-4076)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ One result per NEW entry of a recorded ring or history (a fixed <c>[InlineArray]</c> list on a component): an entry is new when its
+    /// key was not among the entity's entries on the previous frame — so two entries in one frame are two results, a ring's eviction never
+    /// loses one, and an entry whose counted field ticks (an order repeated) is new again. ⛔ The first frame an entity is seen is its
+    /// BASELINE: its ring holds the past, and nothing is reported for it.
+    /// </summary>
+    public sealed class RingEntryPredicateDto : SearchPredicateDto
+    {
+        [JsonConverter(typeof(TypeNameJsonConverter))]
+        public Type ComponentType { get; set; } = null!;
+        /// <summary>The component's <c>[InlineArray]</c> field holding the entries.</summary>
+        public string ItemsPath { get; set; } = "Items";
+        /// <summary>An int field: the valid entries are <c>[0, Count)</c>. Empty = every slot.</summary>
+        public string? CountPath { get; set; }
+        /// <summary>The entry fields that identify it (its own counter, or time + counterpart).</summary>
+        public List<string> KeyPaths { get; set; } = new();
+        /// <summary>Optional: only entries whose field compares true (e.g. a switch count above 0).</summary>
+        public string? FilterPath { get; set; }
+        public SearchOperator FilterOperator { get; set; } = SearchOperator.Equals;
+        public string FilterValue { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4117</c> (docs/DESIGN_Director_Timeline_Editor.md §9c) — a component's VALUE CHANGES, as a lane: one result per alive entity per
+    /// frame on which its state differs from the previous frame's, where the state is what the lane's <see cref="ResultProjectionDto"/> reads
+    /// from <see cref="ComponentType"/> (the projection's <c>SourceComponent</c> is that type; null = it). Unlike <see cref="RingEntryPredicateDto"/>
+    /// there is NO baseline: the first frame an entity is seen WITH the component is a change (frame 0 counts), so a state cue such as
+    /// "side is Red" holds from the unit's first frame. The component being REMOVED while the entity lives is one more change (payload Value 0,
+    /// Other 0, message "removed"); an entity that dies or leaves reports nothing (the Life lanes cover it).
+    /// <para>⭐ <b>An empty <c>ValuePath</c> means "present"</b>: the lane's Value is 1 while the component is present (and 0 on removal) — for a
+    /// tag-like component that has no number worth keeping (<c>IsEmbarkedTag</c>).</para>
+    /// </summary>
+    public sealed class ValueChangePredicateDto : SearchPredicateDto
+    {
+        [JsonConverter(typeof(TypeNameJsonConverter))]
+        public Type ComponentType { get; set; } = null!;
+    }
 
     public sealed record LifecycleSearchResultDto(
         Entity Entity,
@@ -349,11 +502,17 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     // Custom attributes
     // ──────────────────────────────────────────────────────────────────────────
 
-    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
-    public sealed class MapPickableBoundingBoxAttribute : Attribute { }
+    // ⛔ CE-4206 R3: MapPickableBoundingBoxAttribute is GONE — its last reader (the agent schema's "boundingBox" hint) now reads the TYPE (AreaLink ⇒ "area"), as the drawer does.
 
     [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
     public sealed class BehaviorHashPickerAttribute : Attribute { }
+
+    /// <summary>
+    /// Marks an <c>int</c> field as an occurrence-SLOT selector: the drawer offers the sibling
+    /// behaviour's root params plus each of its stateful working-state slots, by label and scope.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
+    public sealed class WorkingSlotPickerAttribute : Attribute { }
 
     // ──────────────────────────────────────────────────────────────────────────
     // External-hit tag predicate
@@ -376,5 +535,86 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         /// future Slice 1 surfaces may use other prefixes.
         /// </summary>
         public string Tag { get; set; } = string.Empty;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Behaviour step (CE-1323)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>⭐ <c>CE-1323</c> (Hrot DESIGN_Behaviour_Debugging §9, DBG-10) — what a behaviour breakpoint waits for.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum BehaviourStepKind
+    {
+        /// <summary>A BTree node runs (<see cref="BehaviourStepPredicateDto.Node"/>).</summary>
+        NodeRuns,
+        /// <summary>An HSM state is entered (<see cref="BehaviourStepPredicateDto.State"/>).</summary>
+        StateEnter,
+        /// <summary>An HSM state is left.</summary>
+        StateExit,
+        /// <summary>Any state INSIDE a composite state is entered — or inside one region (<see cref="BehaviourStepPredicateDto.Region"/>)
+        /// of a parallel state.</summary>
+        InsideEnter,
+        /// <summary>A transition fires: <see cref="BehaviourStepPredicateDto.From"/> → <see cref="BehaviourStepPredicateDto.To"/>, narrowed
+        /// by <see cref="BehaviourStepPredicateDto.Event"/>; no From = a global transition (from any state).</summary>
+        TransitionFires,
+        /// <summary>The machine takes an event off its queue (consumed or deferred), in whatever state.</summary>
+        EventHandled,
+    }
+
+    /// <summary>⭐ <c>CE-1324</c> — which run of a BTree node a <see cref="BehaviourStepKind.NodeRuns"/> step stops on.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum BehaviourNodeOutcome
+    {
+        /// <summary>Any evaluation of the node (what the Properties "Breakpoint" flag means).</summary>
+        Any,
+        /// <summary>The node is evaluated and is still running — its activation (Enter).</summary>
+        Running,
+        /// <summary>The node finishes: Success or Failure (Exit).</summary>
+        Completes,
+        /// <summary>The tree pops a scope — a running branch was interrupted (Abort). ⚠ The trace's scope record names no node: it stops on ANY scope pop of this behaviour.</summary>
+        Aborted,
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1323</c> (DBG-9) — a BEHAVIOUR BREAKPOINT: a step of a running BTree / HSM, named by NAMES (a state, a transition's two ends,
+    /// an event) or by the element's id, so it works on a behaviour built in C# that has no document. ⛔ Not evaluated by the component
+    /// path: the editor's evaluator reads the units' trace records written since its last look and reports a hit
+    /// (<c>IDataBreakpointManager.OnBehaviourStepHit</c>) — which is why a continue does not stop on the same arrival again (the whole-ring
+    /// <see cref="TraceBufferScanPredicateDto"/> did). Inside an AND <see cref="CompoundPredicateDto"/> the other conditions are checked on
+    /// the unit at the hit; the breakpoint's unit filter scopes it to one unit.
+    /// </summary>
+    public sealed class BehaviourStepPredicateDto : SearchPredicateDto
+    {
+        /// <summary>The behaviour's registered name (the unit's running BTree / HSM).</summary>
+        public string Behaviour { get; set; } = string.Empty;
+
+        public BehaviourStepKind Kind { get; set; }
+
+        /// <summary>The state's name (StateEnter / StateExit / InsideEnter).</summary>
+        public string? State { get; set; }
+
+        /// <summary>InsideEnter on a parallel state: which region (0-based); -1 = anything under the state.</summary>
+        public int Region { get; set; } = -1;
+
+        /// <summary>TransitionFires: the source state's name; empty = a global transition.</summary>
+        public string? From { get; set; }
+
+        /// <summary>TransitionFires: the target state's name.</summary>
+        public string? To { get; set; }
+
+        /// <summary>EventHandled: the event's name; TransitionFires: narrows to the transition on this event.</summary>
+        public string? Event { get; set; }
+
+        /// <summary>NodeRuns: the BTree node's id (its VisualId).</summary>
+        public Guid Node { get; set; }
+
+        /// <summary>⭐ CE-1324 — NodeRuns: which run of the node (default <see cref="BehaviourNodeOutcome.Any"/>).</summary>
+        public BehaviourNodeOutcome Outcome { get; set; }
+
+        /// <summary>The element's id when known (a state's StableId, a transition's VisualId) — preferred over the names.</summary>
+        public Guid Element { get; set; }
+
+        /// <summary>For a person: what the element is called ("Withdrawing", "Engaging → Withdrawing").</summary>
+        public string Label { get; set; } = string.Empty;
     }
 }

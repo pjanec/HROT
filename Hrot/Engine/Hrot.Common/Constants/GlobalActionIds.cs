@@ -27,24 +27,144 @@ namespace Hrot.Common.Constants
         public const int Reinforce      = 22;
         public const int Resupply       = 23;
         public const int Transfer       = 24;
+        /// <summary>⭐ CE-1230 (canvas context menu §11 OM-3, R-1019) — the unit boards a vehicle the operator then picks on the map.</summary>
+        public const int Embark         = 25;
+        /// <summary>⭐ CE-1230 (OM-2) — the unit leaves the vehicle it is aboard.</summary>
+        public const int Disembark      = 26;
 
         // --- Editor / overlay actions ---
         public const int EditOverlay       = 100;
         public const int EditRoute         = 101;
         public const int EditPersonalRoute = 102;
+        /// <summary>⭐ CE-3024 (E2) — load a TERRAIN ZONE across the cluster. Always enabled (design §9.7 ③b).</summary>
+        public const int LoadZone          = 103;
 
         // --- Canvas-level tools ---
         public const int Measure       = 200;
         public const int PlaceEntity   = 201;
         public const int PlaceObstacle = 202;
 
+        // --- Add Entity (CE-1017 S3, docs/DESIGN_Add_Entity_Picker.md D6) ---
+        // The empty-map menu's "Add Entity" submenu: each opens the type picker, then arms the picked type's tool.
+        public const int AddEntityFriendly = 203;
+        public const int AddEntityHostile  = 204;
+        public const int AddEntityNeutral  = 205;
+        public const int AddMapGraphic     = 206;
+
         // --- Layer control ---
         public const int OpenLayerControl = 250;
+        /// <summary>⭐ CE-1033 — View › 2-D / 3-D map: the animated switch, on every map host (<c>DESIGN_Map_3D_Mode.md</c> M12).</summary>
+        public const int ToggleMap3D      = 253;
+        /// <summary>⭐ CE-3171 — View › RTS Command Mode: arms the RTS command tool (LMB select, RMB move / attack, Esc leaves),
+        /// on every LIVE map host (docs/DESIGN_Entity_Control.md §8a).</summary>
+        public const int ToggleRtsCommand = 254;
+        /// <summary>⭐ CE-3174 — the unit menu's "Possess (FPS)": this station takes the unit in first person (docs/DESIGN_Entity_Control.md
+        /// §8d). ⚠ 255 measured free on backend, ui and behaviors 2026-10-11.</summary>
+        public const int Possess          = 255;
+        /// <summary>⭐ CE-1201 — View › First Person: Over the Shoulder (docs/DESIGN_Entity_Control.md §8p OS-1), on every map host.
+        /// ⚠ 256 measured free on backend, ui and behaviors 2026-10-21.</summary>
+        public const int ToggleShoulderView = 256;
+        /// <summary>⭐ CE-1150 (canvas-context-menu-design §12 HA-7) — View › Details › Float current view: the current perspective's
+        /// Details panel opens its shown view in a floating window. ⚠ 257–258 measured free on backend, ui and behaviors 2026-10-22.</summary>
+        public const int FloatDetailsView   = 257;
+        /// <summary>⭐ CE-1150 (HA-7) — View › Details › Pin current view: the same, pinned to the context it shows now.</summary>
+        public const int PinDetailsView     = 258;
 
         // --- AI Diagnostics (behav-diag-1) ---
         /// <summary>Toggle <c>DebugState.Behavior.EnableTraceBuffer</c> on the target entity.</summary>
         public const int ToggleAiTrace    = 251;
         /// <summary>Toggle <c>DebugState.Behavior.EmitToLog</c> on the target entity.</summary>
         public const int ToggleAiTraceLog = 252;
+
+        // --- Gizmo pins (CE-3120, R-227) — toggle a gizmo family on ONE unit (DebugState.Ai) ---
+        public const int PinGizmosPath       = 260;
+        public const int PinGizmosPerception = 261;
+        public const int PinGizmosContacts   = 262;
+        public const int PinGizmosEqs        = 263;
+        public const int PinGizmosUtility    = 264;
+        public const int PinGizmosSquad      = 265;
+        public const int PinGizmosAll        = 266;
+        public const int UnpinGizmosAll      = 267;
+        /// <summary>⭐ <c>CE-3136</c> — pin the action-status family (Channels). 268 free on backend, behaviors and ui, <c>2026-10-09</c>.</summary>
+        public const int PinGizmosActions    = 268;
+        /// <summary>⭐ <c>CE-1317</c> (BV-50) — pin the command-picture / units'-contacts families. 269, 270 measured free on ui, behaviors
+        /// and backend <c>2026-10-25</c>.</summary>
+        public const int PinGizmosCommandPicture = 269;
+        public const int PinGizmosSquadContacts  = 270;
+
+        // --- Designations (CE-2149, docs/DESIGN_Orders_Params_Entity_Classes.md §13.3) — the unit menu's Designate submenu: one pick
+        //     each, stored per unit for a later order's missing [Required] field. ⚠ 470–474 measured free 2026-10-13 (orders use 400–463).
+        public const int DesignateTarget = 470;
+        public const int DesignatePoint  = 471;
+        public const int DesignateRoute  = 472;
+        public const int DesignateArea   = 473;
+        public const int DesignateClear  = 474;
+        /// <summary>⭐ <c>CE-1257</c> — "Debug this unit" on / off (the AI trace submenu; <c>UnitDebugController</c>). ⚠ 475 measured free on
+        /// backend, ui and behaviors 2026-10-23.</summary>
+        public const int DebugThisUnit   = 475;
+
+        /// <summary>⭐ <c>CE-1293</c> (docs/DESIGN_Unit_Camera.md UC-2) — "Follow with the camera": the 3-D camera follows the unit (watching,
+        /// not possessing). ⚠ 476 measured free on backend, behaviors and coordinator 2026-10-23.</summary>
+        public const int FollowUnit      = 476;
+
+        // --- Order with options (CE-1059, §13.12 O5) — the unit menu's submenu opening the ORDER FORM for an order, prefilled:
+        //     id = OrderWithOptionsBase + the order's index (OrderMenu.ActionBase + index ⇒ +80). ⚠ 480–543 measured free 2026-10-13.
+        public const int OrderWithOptionsBase = 480;
+
+        // --- ⭐ CE-4210 MA-9 — Save selection as macro… (the editor registers it; a host with no handler offers no such item). ⚠ 544 measured free 2026-11-03 (480–543 are the order-form range).
+        public const int SaveSelectionAsMacro = 544;
+        public const int OrderWithOptionsMax  = 64;
+
+        // --- ⭐ CE-4308 (RX6, DESIGN_Rule_Editor_UX §2.5) — rules reachable from where the author is: the Rules gallery opened with the unit / area filled in
+        //     (the rules bundle binds them on every host that composes it). ⚠ 545 / 546 measured free 2026-11-07.
+        public const int AddRuleAboutUnit = 545;
+        public const int AddRuleForArea   = 546;
+
+        // --- ⭐ L-14 / CE-4314 (LC-6, DESIGN_Scenario_Lifecycle_Review) — a unit's mission plan copied onto others (each gets its own copy, new task ids).
+        //     ⚠ 547 / 548 measured free 2026-11-07.
+        public const int CopyPlan  = 547;
+        public const int PastePlan = 548;
+
+        // --- ⭐ A5 / LC-3 (DESIGN_Entity_Copy_Paste) — the entities themselves copied, pasted (the placement gesture), duplicated. ⚠ 549–551 measured free 2026-11-07.
+        public const int CopyEntities      = 549;
+        public const int PasteEntities     = 550;
+        public const int DuplicateEntities = 551;
+
+        // --- ⭐ A6 / W-3 (DESIGN_Action_Catalogue §9) — the run-mode moves on a moment (timeline, mode indicator), declared once by RunModeActions.
+        //     ⭐ behaviors' own block 2400–2499 (lanes allocate ids from their own thousand; ⛔ never 552+, the shared low range other lanes take).
+        public const int DarFromHere        = 2401;
+        public const int DarFromEvent       = 2402;
+        public const int AarFromHere        = 2403;
+        public const int GoLiveFromHere     = 2404;
+        public const int TakeCheckpointHere = 2405;
+        public const int DarLastWindow      = 2406;   // the mode indicator's "DAR — the last N" (one declaration, one row per window)
+        public const int DarFromStart       = 2407;
+        public const int RunTo              = 2408;
+        public const int EditPlan           = 2409;   // ⭐ W-1 / P-8 8d-2 — a unit's plan edited on the map (the Plan tool)
+
+        // --- ⭐ B-17 P2 (DESIGN_Map_Interaction §2.5, D11) — the drawing menu: three catalogue actions whose target is the armed drawing tool (DrawingActions)
+        public const int FinishDrawing      = 2410;
+        public const int RemoveLastPoint    = 2411;
+        public const int CancelDrawing      = 2412;
+
+        // --- ⭐ CE-2423 / A6b (DESIGN_Action_Catalogue §9) — the RULE target (a rule row / track): the instructor's controls, the edit-mode rows, show on map / history (RuleMenuActions)
+        public const int RuleFire        = 2413;
+        public const int RuleDisarm      = 2414;
+        public const int RuleRearm       = 2415;
+        public const int RuleReset       = 2416;
+        public const int RuleActivate    = 2417;
+        public const int RuleDeactivate  = 2418;
+        public const int RuleEdit        = 2419;
+        public const int RuleDisable     = 2420;
+        public const int RuleDelete      = 2421;
+        public const int RuleShowOnMap   = 2422;
+        public const int RuleShowHistory = 2423;
+
+        // --- ⭐ Terrain authoring U-3 (docs/DESIGN_Terrain_Authoring.md §15a) — a placed terrain block's menu. ⚠ 2430–2434 measured free on every lane 2026-11-11.
+        public const int TerrainReroll        = 2430;
+        public const int TerrainRotate        = 2431;
+        public const int TerrainUnpack        = 2432;
+        public const int TerrainChangeRecipe  = 2433;
+        public const int TerrainMove          = 2434;   // an informational row: a block moves by drag (never runs)
     }
 }

@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Comparison;
 using AiCatalog = Hrot.Editor.AiShared.Catalog.IAssetCatalog;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Blueprints.Editor.Comparison;
 
@@ -95,8 +96,7 @@ public sealed class BlueprintComparisonSanitizer : IAssetComparisonSanitizer
 
         // Step 8: sort and re-serialize.
         JsonNode sorted = SortPropertiesRecursive(rootObj);
-        var serializerOptions = new JsonSerializerOptions { WriteIndented = true };
-        string sanitizedText = sorted.ToJsonString(serializerOptions);
+        string sanitizedText = sorted.ToJsonString(FdpJsonOptionsRegistry.Indented);
 
         // Extract metadata.
         AssetMetadataBlock metadata = BuildMetadata(request, rootObj, migrationNotice);

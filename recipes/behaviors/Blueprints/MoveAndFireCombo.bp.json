@@ -1,0 +1,141 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000000-aaaa-0001-0000-000000000004",
+  "Name": "MoveAndFireCombo",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction",
+      "HsmAction"
+    ]
+  },
+  "Declarations": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "b4000001-0001-0001-0001-000000000001",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "c4000001-0001-0001-0001-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "MoveTo",
+          "Id": "c4000001-0002-0002-0002-000000000002",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "WaitForChannel",
+          "ChannelType": "LocomotionChannel",
+          "Id": "c4000001-0003-0003-0003-000000000003",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "WeaponChannel",
+          "ActionId": "AimAndFire",
+          "Id": "c4000001-0004-0004-0004-000000000004",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "WaitForChannel",
+          "ChannelType": "WeaponChannel",
+          "Id": "c4000001-0005-0005-0005-000000000005",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "c4000001-0006-0006-0006-000000000006",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Failure",
+          "Id": "c4000001-0007-0007-0007-000000000007",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": {
+      "DisplayName": "Move and Fire Combo",
+      "Category": "Combat",
+      "Description": "Sequential AiPrimitive: move to position then fire. Demonstrates ChannelCommand \u002B WaitForChannel pattern (imperative, not reactive). Use this for BTree/HSM actions where A-B-C sequencing is needed.",
+      "Difficulty": "Beginner",
+      "ConceptsTaught": [
+        "AiPrimitive with multi-hosting (BTreeAction \u002B HsmAction)",
+        "ChannelCommand \u002B WaitForChannel for sequential coordination",
+        "When NOT to use WhenNode (AiPrimitives stay imperative)"
+      ]
+    }
+  }
+}

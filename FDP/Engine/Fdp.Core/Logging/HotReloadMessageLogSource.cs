@@ -84,7 +84,7 @@ namespace Fdp.Core.Logging
                     DateTime.Now, sev, "Compiler", line,
                     LogSyntaxHighlighter.Parse(line),
                     filePath, lineNum);
-                lock (_lock) _messages.Add(entry);
+                lock (_lock) MessageLogLimits.Add(_messages, entry);   // ⭐ W-P1 — bounded
                 OnMessageAdded?.Invoke(entry);
                 return;
             }
@@ -111,6 +111,12 @@ namespace Fdp.Core.Logging
             lock (_lock) return _messages.ToArray();
         }
 
+        /// <summary>⭐ CE-2403 — copied under the lock into the caller's list, no snapshot array (the Message Log asks every frame).</summary>
+        public void CopyMessagesTo(List<MessageLogEntry> into)
+        {
+            lock (_lock) { into.Clear(); into.AddRange(_messages); }
+        }
+
         public void Clear()
         {
             lock (_lock) _messages.Clear();
@@ -122,7 +128,7 @@ namespace Fdp.Core.Logging
             var entry = new MessageLogEntry(
                 DateTime.Now, severity, "HotReload", message,
                 LogSyntaxHighlighter.Parse(message));
-            lock (_lock) _messages.Add(entry);
+            lock (_lock) MessageLogLimits.Add(_messages, entry);   // ⭐ W-P1 — bounded
             OnMessageAdded?.Invoke(entry);
         }
     }

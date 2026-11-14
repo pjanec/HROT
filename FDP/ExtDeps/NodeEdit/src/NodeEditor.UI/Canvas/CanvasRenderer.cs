@@ -38,6 +38,11 @@ public sealed class CanvasRenderer
     private readonly ContainerRenderer       _containers     = new();
     private readonly AttachmentRenderer      _attachments    = new();
     private readonly CanvasRenderContextImpl _renderCtx      = new();
+    // BP-19: the overview minimap. Off by default; toggled by editor.toggle-minimap.
+    private readonly MinimapRenderer         _minimap        = new();
+
+    /// <summary>BP-19 — the overview minimap overlay. Visibility is toggled via the view commands.</summary>
+    public MinimapRenderer Minimap => _minimap;
 
     // Per-renderer perf accumulators (keyed by renderer Id).
     private readonly Dictionary<string, MutablePerfRecord> _perfRecords = new();
@@ -51,6 +56,9 @@ public sealed class CanvasRenderer
     private string? _pendingVariableDropId;
     private string? _pendingVariableDropName;
     private Vector2 _pendingVariableDropPos;
+    private NodeId? _pendingRenameNodeId;
+    private string  _nodeRenameText = "";
+    private bool    _showNodeRenameModal;
     private PinId? _pendingPromotePinId;
     private bool _pendingPromoteIsLocal;
     private bool _showPromoteVariableModal;
@@ -166,7 +174,14 @@ public sealed class CanvasRenderer
                     var dropPos = view.Viewport.ScreenToGraph(ImGui.GetMousePos());
 
                     var kind = new NodeKindKey("Event.CallCustom");
-                    var props = new Dictionary<string, object?> { ["EventName"] = evtName };
+                    // The item id is the authoritative identity (the host resolves it to the
+                    // declaration); the display name is a fallback for hosts that key by name.
+                    // Shipping only the name left the host with nothing precise to bind to.
+                    var props = new Dictionary<string, object?>
+                    {
+                        ["EventId"]   = evtId,
+                        ["EventName"] = evtName,
+                    };
                     var cb = new CommandBuilder(view.Model);
                     var (fwd, inv) = cb.AddNode(kind, dropPos, props);
                     view.Execute(fwd, inv, "Call Custom Event");
@@ -244,7 +259,7 @@ public sealed class CanvasRenderer
         // Prepare the custom-renderer context before hit-testing so hit-testers
         // have access to the current viewport and visible sets.
         _renderCtx.BeginFrame(view, dl, visibleNodeIds, visibleLinkIds, _layout);
-        _hitTester.UpdateHover(view, _spatialIndex, _layout.PinScreenPositions, _layout.AttachmentScreenRects, _layout.NodeScreenRects, _renderCtx);
+        _hitTester.UpdateHover(view, _spatialIndex, _layout.PinScreenPositions, _layout.AttachmentScreenRects, _layout.NodeScreenRects, _layout.LinkScreenPaths, _renderCtx);
 
         // ── Draw phases ───────────────────────────────────────────────────
 
@@ -262,7 +277,7 @@ public sealed class CanvasRenderer
         _containers.DrawBackground(view, dl, _layout, visibleNodeIds);
 
         // 7. Wires — only those whose endpoints or waypoints are in the visible rect.
-        _wires.DrawAll(view, dl, _layout.PinScreenPositions, visibleNodeIds, visibleGraphRect);
+        _wires.DrawAll(view, dl, _layout.PinScreenPositions, _layout.LinkScreenPaths, visibleNodeIds, visibleGraphRect);
 
         // 7b. Custom: AfterWires pass — after wires, before regular/child nodes.
         InvokeCustomRenderers(view, CanvasRenderPass.AfterWires);
@@ -279,6 +294,17 @@ public sealed class CanvasRenderer
             && view.Interaction.Hover.Kind == HoverKind.Link)
         {
             ImGui.SetMouseCursor(ImGuiMouseCursor.NotAllowed);
+        }
+        // CE-1004 (R1): resize cursors over a band divider / the container grip, and while dragging one.
+        else if (view.Interaction.ContainerResize is { } resize)
+        {
+            ImGui.SetMouseCursor(ResizeCursor(view, resize.Container, resize.RegionIndex));
+        }
+        else if (view.Interaction.Hover is { Kind: HoverKind.Container } ch
+                 && ch.ContainerZone is ContainerHoverZone.RegionDivider or ContainerHoverZone.ResizeEdge)
+        {
+            ImGui.SetMouseCursor(ResizeCursor(view, ch.Node,
+                ch.ContainerZone == ContainerHoverZone.RegionDivider ? ch.ContainerRegionIndex : -1));
         }
 
         // 8c. Hover tooltip: show the model-supplied tooltip for the hovered node/pin.
@@ -331,13 +357,13 @@ public sealed class CanvasRenderer
         {
             ImGui.TextDisabled("Variable Action");
             ImGui.Separator();
-            if (ImGui.MenuItem("Get"))
+            if (LoggedMenuItem("Get"))
             {
                 PlaceVariableNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, isGet: true);
                 _pendingVariableDropId = null;
                 _pendingVariableDropName = null;
             }
-            if (ImGui.MenuItem("Set"))
+            if (LoggedMenuItem("Set"))
             {
                 PlaceVariableNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, isGet: false);
                 _pendingVariableDropId = null;
@@ -351,25 +377,25 @@ public sealed class CanvasRenderer
         {
             ImGui.TextDisabled("Dispatcher Action");
             ImGui.Separator();
-            if (ImGui.MenuItem("Call"))
+            if (LoggedMenuItem("Call"))
             {
                 PlaceDispatcherNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, "Event.CallDispatcher");
                 _pendingVariableDropId = null;
                 _pendingVariableDropName = null;
             }
-            if (ImGui.MenuItem("Bind"))
+            if (LoggedMenuItem("Bind"))
             {
                 PlaceDispatcherNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, "Event.BindDispatcher");
                 _pendingVariableDropId = null;
                 _pendingVariableDropName = null;
             }
-            if (ImGui.MenuItem("Unbind"))
+            if (LoggedMenuItem("Unbind"))
             {
                 PlaceDispatcherNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, "Event.UnbindDispatcher");
                 _pendingVariableDropId = null;
                 _pendingVariableDropName = null;
             }
-            if (ImGui.MenuItem("Unbind All"))
+            if (LoggedMenuItem("Unbind All"))
             {
                 PlaceDispatcherNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, "Event.UnbindAllDispatcher");
                 _pendingVariableDropId = null;
@@ -384,7 +410,12 @@ public sealed class CanvasRenderer
             _pendingVariableDropName = null;
         }
 
+        // BP-19: drawn last so it sits above the graph, and before the modals so a popup is not
+        // covered by it.
+        _minimap.Draw(view, dl);
+
         DrawPromoteVariableModal(view);
+        DrawNodeRenameModal(view);
         ImGui.PopStyleVar();
     }
 
@@ -452,6 +483,24 @@ public sealed class CanvasRenderer
         var pw = view.Interaction.PendingWire;
         if (pw == null || view.Interaction.Mode != InteractionMode.PendingWire) return;
 
+        // CE-1000: a whole-node link previews border to border (or border to cursor), with an arrowhead.
+        if (pw.SourceNode is { } srcNode && _layout.NodeScreenRects.TryGetValue(srcNode, out var srcRect))
+        {
+            float z = view.Viewport.Zoom;
+            var cursor = view.Viewport.GraphToScreen(pw.CursorGraph);
+            var preview = pw.CandidateNode is { } cand && _layout.NodeScreenRects.TryGetValue(cand, out var candRect)
+                ? (cand == srcNode ? LinkPathBuilder.SelfLoop(srcRect, 0, z) : LinkPathBuilder.NodeToNode(srcRect, candRect, 0, z))
+                : LinkPathBuilder.ToPoint(srcRect, cursor, z);
+            uint col = pw.CandidateNode.HasValue
+                ? pw.CandidateValid
+                    ? ImGui.GetColorU32(new Vector4(0.3f, 1f, 0.3f, 1f))
+                    : ImGui.GetColorU32(new Vector4(1f, 0.3f, 0.3f, 1f))
+                : ImGui.GetColorU32(new Vector4(0.8f, 0.8f, 0.8f, 0.85f));
+            float th = MathF.Max(0.75f, view.Host.Theme.WireThicknessData * z);
+            WireRenderer.DrawPath(dl, preview, col, th, isExec: false, z);
+            return;
+        }
+
         _layout.PinScreenPositions.TryGetValue(pw.SourcePin, out var a);
         if (a == default) a = view.Host.Input.MousePosition;
 
@@ -472,7 +521,7 @@ public sealed class CanvasRenderer
         float zoom = view.Viewport.Zoom;
         float thickness = MathF.Max(0.75f,
             (isExec ? view.Host.Theme.WireThicknessExec : view.Host.Theme.WireThicknessData) * zoom);
-        var (c1, c2) = HitTester.WireTangents(a, b, view.Model.Kind.Orientation, zoom);
+        var (c1, c2) = LinkPathBuilder.PinWireTangents(a, b, view.Model.Kind.Orientation, zoom);
 
         if (isExec)
             dl.AddBezierWithArrow(a, c1, c2, b, wireColor, thickness, thickness * 2.5f);
@@ -488,6 +537,16 @@ public sealed class CanvasRenderer
     /// renderer stays case-agnostic — the host injects the actual text via its model projection.
     /// Suppressed while interacting (wiring, marquee, picker) so it never fights an active gesture.
     /// </summary>
+    // CE-1004: a band divider moves along the container's stack axis; the grip moves both edges.
+    private static ImGuiMouseCursor ResizeCursor(GraphView view, NodeId container, int regionIndex)
+    {
+        if (regionIndex < 0) return ImGuiMouseCursor.ResizeNWSE;
+        return view.Model.FindNode(container) is IContainerNodeModel c
+               && c.RegionOrientation == RegionLayoutOrientation.HorizontalStack
+            ? ImGuiMouseCursor.ResizeEW
+            : ImGuiMouseCursor.ResizeNS;
+    }
+
     private void DrawHoverTooltip(GraphView view)
     {
         if (view.Interaction.Mode != InteractionMode.Idle) { _tooltipKey = null; return; }
@@ -530,14 +589,17 @@ public sealed class CanvasRenderer
         dl.AddRect(min, max, ImGui.GetColorU32(theme.SelectionAccent), 0f, ImDrawFlags.None, 1.5f);
     }
 
-    private void DrawContextMenu(GraphView view)
+    internal void DrawContextMenu(GraphView view)
     {
         var target = view.Interaction.ContextMenuTarget;
         switch (target.Kind)
         {
             case HoverKind.None:
             {
-                if (ImGui.MenuItem("Add Node...", "Tab"))
+              // ⭐ CE-1276 — a read-only graph offers none of the authoring items (Add / Comment / Collapse / Paste), only the view ones.
+              if (!view.IsReadOnly)
+              {
+                if (LoggedMenuItem("Add Node...", "Tab"))
                 {
                     view.Interaction.Mode = InteractionMode.PickerOpen;
                     var graphPos = _contextMenuGraphPos;
@@ -553,7 +615,7 @@ public sealed class CanvasRenderer
                         () => view.Interaction.ResetToIdle());
                 }
 
-                if (ImGui.MenuItem("Add Return Node"))
+                if (LoggedMenuItem("Add Return Node"))
                 {
                     var cb = new CommandBuilder(view.Model);
                     var (fwd, inv) = cb.AddNode(new NodeKindKey("Function.Return"), _contextMenuGraphPos, null);
@@ -561,16 +623,42 @@ public sealed class CanvasRenderer
                 }
 
                 bool hasSelection = view.Selection.Nodes.Any();
-                if (ImGui.MenuItem("Add Comment", "C", false, hasSelection))
+                if (LoggedMenuItem("Add Comment", "C", false, hasSelection))
                 {
                     CanvasCommands.AddCommentAroundSelection(view);
                 }
 
-                ImGui.Separator();
-                ImGui.MenuItem("Paste", "Ctrl+V", false, false);
-                ImGui.Separator();
+                // BP-74 — refactor a selection into a new graph.
+                //
+                // ⭐ Enablement is "is anything selected", and NOTHING else. Whether the selection is
+                // legal to collapse is a host concern (latency, exec-entry count, graph kind), it is
+                // decided when the command is invoked, and the host reports it with a message naming
+                // the offending nodes. Q26-B2.
+                //
+                // ⛔ Do NOT grey these for illegality "to be helpful". A greyed item does not say
+                // why, and doing so would require blueprint rules HERE — in a component the BTree
+                // and HSM editors also render. That is exactly BP-76, which is still visible a few
+                // hundred lines below (`node.Title == "ScaleBy"`), rendering two items permanently
+                // greyed for every host.
+                //
+                // The items are hidden outright for a host that registered no handler, rather than
+                // shown-and-greyed, for the same reason: a permanently dead item is a defect this
+                // tracker has filed twice (BP-76, BP-77).
+                DrawRefactorItem(CommandCatalog.CollapseToFunction, "Collapse to Function", hasSelection);
+                DrawRefactorItem(CommandCatalog.CollapseToMacro,    "Collapse to Macro",    hasSelection);
 
-                if (ImGui.MenuItem("Frame All", "Home"))
+                ImGui.Separator();
+                // BP-23a: Paste was hard-disabled (the trailing `false, false` = unselected,
+                // DISABLED) because no host implemented it. It is live whenever a host registers
+                // editor.paste, and pastes at the cursor rather than at the copy's origin.
+                bool canPaste = IsCommandEnabled(CommandCatalog.Paste);
+                if (LoggedMenuItem("Paste", "Ctrl+V", false, canPaste))
+                    _editorCommands?.Invoke(CommandCatalog.Paste, new EditorCommandContext(
+                        ScreenPos: null, CanvasPos: _contextMenuGraphPos, Args: null));
+                ImGui.Separator();
+              }
+
+                if (LoggedMenuItem("Frame All", "Home"))
                 {
                     if (view.Model.Nodes.Count > 0)
                     {
@@ -588,17 +676,31 @@ public sealed class CanvasRenderer
                     }
                 }
 
-                if (ImGui.MenuItem("Reset Zoom", "Ctrl+0"))
+                // BP-19: discoverability — the toggle is also on editor.toggle-minimap, but nothing
+                // in the UI pointed at it.
+                if (LoggedMenuItem("Show Minimap", null, view.Viewport.ShowMinimap))
+                    view.Viewport.ShowMinimap = !view.Viewport.ShowMinimap;
+
+                if (LoggedMenuItem("Reset Zoom", "Ctrl+0"))
                 {
                     view.Viewport.Reset();
+                }
+
+                // ⭐ CE-1368 — the host's own empty-canvas items (the BTree editor's "Reset layout")
+                var canvasItems = view.Host.CanvasContextMenu?.GetItems();
+                if (canvasItems is { Count: > 0 })
+                {
+                    ImGui.Separator();
+                    RenderItems(canvasItems);
                 }
                 break;
             }
 
             case HoverKind.Pin:
             {
+                if (view.IsReadOnly) break;   // ⭐ CE-1276 — every pin item is an edit (break link, promote, reset default)
                 var pinId = target.Pin;
-                if (ImGui.MenuItem("Break Link(s)"))
+                if (LoggedMenuItem("Break Link(s)"))
                 {
                     var linksToRemove = view.Model.Links
                         .Where(l => l.FromPin == pinId || l.ToPin == pinId)
@@ -623,22 +725,30 @@ public sealed class CanvasRenderer
                 }
 
                 ImGui.Separator();
-                if (ImGui.MenuItem("Promote to Variable..."))
+                if (LoggedMenuItem("Promote to Variable..."))
                     OpenPromoteToVariableModal(pinId, false);
-                if (ImGui.MenuItem("Promote to Local Variable..."))
+                if (LoggedMenuItem("Promote to Local Variable..."))
                     OpenPromoteToVariableModal(pinId, true);
 
                 ImGui.BeginDisabled();
-                ImGui.MenuItem("Split Struct Pin");
-                ImGui.MenuItem("Recombine Struct Pin");
-                ImGui.MenuItem("Watch this Value");
+                LoggedMenuItem("Split Struct Pin");
+                LoggedMenuItem("Recombine Struct Pin");
+                LoggedMenuItem("Watch this Value");
                 ImGui.EndDisabled();
 
-                if (ImGui.MenuItem("Reset to Default"))
-                    view.Commands.Apply(new Core.Commands.GraphCommand.SetPinDefault(pinId, null));
+                if (LoggedMenuItem("Reset to Default"))
+                {
+                    // BP-02: snapshot the current value first so the reset is reversible; this
+                    // previously discarded the old value with no way back.
+                    var oldDefault = view.Model.FindPin(pinId)?.Default?.Value;
+                    view.Execute(
+                        new Core.Commands.GraphCommand.SetPinDefault(pinId, null),
+                        new Core.Commands.GraphCommand.SetPinDefault(pinId, oldDefault),
+                        "Reset Pin to Default");
+                }
 
                 ImGui.BeginDisabled();
-                ImGui.MenuItem("Convert to Reroute Node");
+                LoggedMenuItem("Convert to Reroute Node");
                 ImGui.EndDisabled();
                 break;
             }
@@ -646,7 +756,8 @@ public sealed class CanvasRenderer
             case HoverKind.Link:
             {
                 var linkId = target.Link;
-                if (ImGui.MenuItem("Break Link"))
+                bool ro = view.IsReadOnly;   // ⭐ CE-1276 — no Break / Insert Reroute on a read-only graph
+                if (!ro && LoggedMenuItem("Break Link"))
                 {
                     var link = view.Model.FindLink(linkId);
                     if (link != null)
@@ -657,7 +768,7 @@ public sealed class CanvasRenderer
                     }
                 }
 
-                if (ImGui.MenuItem("Select Connected Nodes"))
+                if (LoggedMenuItem("Select Connected Nodes"))
                 {
                     var link = view.Model.FindLink(linkId);
                     if (link != null)
@@ -671,7 +782,7 @@ public sealed class CanvasRenderer
                     }
                 }
 
-                if (ImGui.MenuItem("Insert Reroute Node Here"))
+                if (!ro && LoggedMenuItem("Insert Reroute Node Here"))
                 {
                     var link = view.Model.FindLink(linkId);
                     if (link != null)
@@ -683,8 +794,15 @@ public sealed class CanvasRenderer
                 }
 
                 ImGui.BeginDisabled();
-                ImGui.MenuItem("Hide Wire");
+                LoggedMenuItem("Hide Wire");
                 ImGui.EndDisabled();
+
+                // ⭐ CE-1323 — the host's items (an HSM transition's breakpoint)
+                if (view.Host.LinkContextMenu?.GetItemsFor(linkId) is { Count: > 0 } linkItems)
+                {
+                    ImGui.Separator();
+                    RenderItems(linkItems);
+                }
                 break;
             }
 
@@ -698,69 +816,123 @@ public sealed class CanvasRenderer
                 var targetNodes = isHoveredSelected ? selectedNodes : new List<NodeId> { target.Node };
                 var node = view.Model.FindNode(target.Node);
 
-                bool canNavigate = node != null &&
-                                   (node.Kind.Id == "Function.Call" ||
-                                    node.Kind.Id == "Macro.Call" ||
-                                    node.Kind.Id == "Event.CallCustom");
+                // ⭐⭐ BP-76 — both items go through the host command seam, gated ONLY on "a node is
+                // selected". What was here instead:
+                //
+                //   bool canNavigate = node.Kind.Id == "Function.Call" || "Macro.Call" || "Event.CallCustom";
+                //   bool canExpand   = … || node.Title == "ScaleBy";
+                //
+                // Blueprint kind ids are "FunctionCall"/"CallCustomEvent", so nothing ever matched and
+                // both items rendered permanently greyed for the one host that has these concepts —
+                // and `Title == "ScaleBy"` matched a DEMO node by its display title. Shared UI cannot
+                // know one host's vocabulary; Q26-B2 says offer the item and let the host refuse on
+                // invoke, naming what it refused. Collapse proved that out in Batch 34.
+                //
+                // ⛔⛔ The Expand item additionally built its own "exact inverse" here, predicting the
+                // ids the backend would mint as `{node}_exp1`/`{node}_exp2` — a scheme that exists
+                // ONLY in NodeEditor.Demo's FakeCommandSink. For any real backend, expansion produces
+                // N nodes with entirely different ids, so undo removed two nodes that never existed
+                // and left the spliced body in place. The forward, meanwhile, reached the blueprint
+                // sink's `default:` arm and reported success while doing nothing. ⭐ The undo belongs
+                // to whoever performs the expansion, because only it knows what it created.
+                DrawHostCommandItem(CommandCatalog.GoToDefinition, "Go to Definition", "F12",
+                                    view, target.Node, isHoveredSelected);
+                if (!view.IsReadOnly)   // ⭐ CE-1276 — expanding a node rewrites the graph
+                    DrawHostCommandItem(CommandCatalog.ExpandNode, "Expand Node", null,
+                                        view, target.Node, isHoveredSelected);
 
-                if (ImGui.MenuItem("Go to Definition", "F12", false, canNavigate))
+                ImGui.Separator();
+
+                // ⭐ CE-1001: in a node-to-node graph a link can be started from the menu — the arrow then follows
+                //    the cursor and a left-click on the target finishes it (Esc / right-click cancels).
+                if (!view.IsReadOnly   // ⭐ CE-1276
+                    && view.Model.Kind.Routing == LinkRouting.NodeToNode
+                    && view.Model.NodeLinkPin(target.Node, PinDirection.Output) is not null
+                    && LoggedMenuItem("Add " + view.Model.Kind.LinkDisplayName))
                 {
-                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
-                    _editorCommands?.Invoke(CommandCatalog.GoToDefinition);
+                    CanvasInput.BeginNodeWire(view, view.Host.Input, target.Node,
+                        addToSelectionOnClick: false, sticky: true);
                 }
 
-                bool canExpand = node != null &&
-                                 (node.Kind.Id == "Function.Call" ||
-                                  node.Kind.Id == "Macro.Call" ||
-                                  node.Title == "ScaleBy");
-
-                if (ImGui.MenuItem("Expand Node", null, false, canExpand))
+                // BP-17: a custom header. The generated title becomes the subtitle, so renaming a
+                // node never costs the only indication of what it actually is.
+                if (!view.IsReadOnly && LoggedMenuItem("Rename\u2026", "F2"))
                 {
                     if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    OpenNodeRenameModal(target.Node, node?.Title ?? "");
+                }
 
-                    var callNode = view.Model.FindNode(target.Node);
-                    if (callNode != null)
-                    {
-                        // 1. Snapshot the external links attached to the call node before destruction.
-                        var externalLinks = view.Model.Links
-                            .Where(l => view.Model.FindPin(l.FromPin)?.OwnerNodeId == target.Node ||
-                                        view.Model.FindPin(l.ToPin)?.OwnerNodeId == target.Node)
-                            .ToList();
-
-                        var invs = new List<Core.Commands.GraphCommand>();
-
-                        // 2. Predict IDs of internal nodes the backend will spawn.
-                        var n1Id = IdGenerator.DeterministicNodeId(target.Node.Value.ToString() + "_exp1");
-                        var n2Id = IdGenerator.DeterministicNodeId(target.Node.Value.ToString() + "_exp2");
-                        invs.Add(new Core.Commands.GraphCommand.RemoveNodes(new[] { n1Id, n2Id }));
-
-                        // 3. Restore the original call node with precise pin IDs.
-                        var props = new Dictionary<string, object?> { ["PinIds"] = callNode.Pins.Select(p => p.Id).ToList() };
-                        invs.Add(new Core.Commands.GraphCommand.AddNode(callNode.Id, callNode.Kind, callNode.Position, props));
-
-                        // 4. Restore external wires.
-                        foreach (var l in externalLinks)
-                        {
-                            invs.Add(new Core.Commands.GraphCommand.AddLink(l.Id, l.FromPin, l.ToPin));
-                        }
-
-                        // 5. Dispatch command with exact inverse.
-                        var fwd = new Core.Commands.GraphCommand.ExpandNode(target.Node);
-                        view.Execute(fwd, new Core.Commands.GraphCommand.Batch("Undo Expand", invs), "Expand Node");
-                    }
+                // BP-18: IsCollapsed was hardcoded false, so the flag NodeRenderer already honours
+                // could never be set.
+                bool isCollapsed = node?.IsCollapsed == true;
+                if (!view.IsReadOnly && LoggedMenuItem(isCollapsed ? "Expand Node" : "Collapse Node"))
+                {
+                    foreach (var id in targetNodes)
+                        view.Execute(
+                            new Core.Commands.GraphCommand.SetNodeCollapsed(id, !isCollapsed),
+                            new Core.Commands.GraphCommand.SetNodeCollapsed(id, isCollapsed),
+                            isCollapsed ? "Expand Node" : "Collapse Node");
                 }
 
                 ImGui.Separator();
 
-                if (ImGui.MenuItem(targetNodes.Count > 1 ? $"Delete {targetNodes.Count} Nodes" : "Delete Node", "Del"))
+                // BP-13: nine alignment commands that CommandCatalog declared and nothing
+                // implemented. Grouped in a submenu so the node menu does not grow by nine rows.
+                if (ImGui.BeginMenu("Align"))
                 {
-                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
-                    view.Commands.Apply(new Core.Commands.GraphCommand.RemoveNodes(targetNodes));
+                    DrawAlignItem("Left",                CommandCatalog.AlignLeft);
+                    DrawAlignItem("Right",               CommandCatalog.AlignRight);
+                    DrawAlignItem("Top",                 CommandCatalog.AlignTop);
+                    DrawAlignItem("Bottom",              CommandCatalog.AlignBottom);
+                    ImGui.Separator();
+                    DrawAlignItem("Center Horizontally", CommandCatalog.AlignCenterH);
+                    DrawAlignItem("Center Vertically",   CommandCatalog.AlignCenterV);
+                    ImGui.Separator();
+                    DrawAlignItem("Distribute Horizontally", CommandCatalog.DistributeH);
+                    DrawAlignItem("Distribute Vertically",   CommandCatalog.DistributeV);
+                    ImGui.Separator();
+                    DrawAlignItem("Straighten Connection",   CommandCatalog.StraightenConn);
+                    ImGui.EndMenu();
                 }
 
                 ImGui.Separator();
 
-                if (ImGui.MenuItem("Add Comment", "C"))
+                // BP-23a: the three clipboard actions a designer reaches for first. Right-clicking
+                // an unselected node targets just that node, matching Delete below.
+                bool hasClipboardHost = IsCommandEnabled(CommandCatalog.Copy);
+                if (LoggedMenuItem("Copy", "Ctrl+C", false, hasClipboardHost))
+                {
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    _editorCommands?.Invoke(CommandCatalog.Copy);
+                }
+
+                if (!view.IsReadOnly && LoggedMenuItem("Cut", "Ctrl+X", false, hasClipboardHost))
+                {
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    _editorCommands?.Invoke(CommandCatalog.Cut);
+                }
+
+                if (!view.IsReadOnly && LoggedMenuItem("Duplicate", "Ctrl+D", false, hasClipboardHost))
+                {
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    _editorCommands?.Invoke(CommandCatalog.Duplicate);
+                }
+
+                ImGui.Separator();
+
+                if (!view.IsReadOnly && LoggedMenuItem(targetNodes.Count > 1 ? $"Delete {targetNodes.Count} Nodes" : "Delete Node", "Del"))
+                {
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    // Route through the same undoable path as the Del key (BP-59). A raw
+                    // Commands.Apply(RemoveNodes) records no inverse, so the nodes were
+                    // unrecoverable; DeleteSelectedUndoable also removes the implicitly
+                    // orphaned links, which the raw command left dangling.
+                    EditCommands.DeleteSelectedUndoable(view);
+                }
+
+                ImGui.Separator();
+
+                if (!view.IsReadOnly && LoggedMenuItem("Add Comment", "C"))
                 {
                     if (!isHoveredSelected)
                     {
@@ -771,12 +943,17 @@ public sealed class CanvasRenderer
                 }
 
                 ImGui.Separator();
-                if (ImGui.MenuItem("Toggle Breakpoint", "F9"))
+                // CE-1010: greyed (not a silent no-op) when the host registered no handler — BTree and HSM set breakpoints
+                // from their own node gutter, not through this command.
+                bool canToggle = ToggleBreakpointEnabled(_editorCommands, isHoveredSelected);
+                if (LoggedMenuItem("Toggle Breakpoint", "F9", false, canToggle))
                 {
                     if (!isHoveredSelected)
                         view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
                     _editorCommands?.Invoke(CommandCatalog.ToggleBreakpoint);
                 }
+                if (!canToggle && _editorCommands?.Get(CommandCatalog.ToggleBreakpoint) is null)
+                    ImGui.SetItemTooltip("This editor does not set breakpoints from here — see the node's own breakpoint menu");
 
                 var nodeMenuProvider = view.Host.NodeContextMenu;
                 if (nodeMenuProvider != null)
@@ -795,54 +972,88 @@ public sealed class CanvasRenderer
             {
                 var commentId = target.Comment;
                 var comment = view.Model.Comments.FirstOrDefault(c => c.Id == commentId);
-                if (comment == null) break;
+                if (comment == null || view.IsReadOnly) break;   // ⭐ CE-1276 — every comment item is an edit
 
-                if (ImGui.MenuItem("Rename", "F2"))
+                if (LoggedMenuItem("Rename", "F2"))
                 {
                     view.Interaction.RenamingComment = commentId;
                 }
 
+                // BP-02: every comment mutation below goes through view.Execute with an explicit
+                // inverse snapshotted from the CURRENT model state, so Ctrl+Z reverses it. These
+                // previously called view.Commands.Apply directly and were silently un-undoable.
+                var oldColor = comment.Color;
+                var oldZ     = comment.ZOrder;
+                var oldMwc   = comment.MoveWithContents;
+
+                // Inverse restoring only the colour channel.
+                Core.Commands.GraphCommand ColorInverse() =>
+                    new Core.Commands.GraphCommand.UpdateComment(
+                        commentId, null, null, null, oldColor, null, null);
+
+                void SetColor(Vector4 c) =>
+                    view.Execute(
+                        new Core.Commands.GraphCommand.UpdateComment(
+                            commentId, null, null, null, c, null, null),
+                        ColorInverse(),
+                        "Set Comment Color");
+
                 ImGui.Separator();
                 if (ImGui.BeginMenu("Color"))
                 {
-                    if (ImGui.MenuItem("Blue"))   view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.29f, 0.56f, 0.88f, 1f), null, null));
-                    if (ImGui.MenuItem("Green"))  view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.49f, 0.82f, 0.13f, 1f), null, null));
-                    if (ImGui.MenuItem("Yellow")) view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.97f, 0.90f, 0.11f, 1f), null, null));
-                    if (ImGui.MenuItem("Orange")) view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.96f, 0.65f, 0.14f, 1f), null, null));
-                    if (ImGui.MenuItem("Red"))    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.81f, 0.01f, 0.11f, 1f), null, null));
-                    if (ImGui.MenuItem("Purple")) view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.56f, 0.07f, 0.99f, 1f), null, null));
-                    if (ImGui.MenuItem("Cyan"))   view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.31f, 0.89f, 0.76f, 1f), null, null));
-                    if (ImGui.MenuItem("Brown"))  view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.54f, 0.34f, 0.16f, 1f), null, null));
+                    if (LoggedMenuItem("Blue"))   SetColor(new Vector4(0.29f, 0.56f, 0.88f, 1f));
+                    if (LoggedMenuItem("Green"))  SetColor(new Vector4(0.49f, 0.82f, 0.13f, 1f));
+                    if (LoggedMenuItem("Yellow")) SetColor(new Vector4(0.97f, 0.90f, 0.11f, 1f));
+                    if (LoggedMenuItem("Orange")) SetColor(new Vector4(0.96f, 0.65f, 0.14f, 1f));
+                    if (LoggedMenuItem("Red"))    SetColor(new Vector4(0.81f, 0.01f, 0.11f, 1f));
+                    if (LoggedMenuItem("Purple")) SetColor(new Vector4(0.56f, 0.07f, 0.99f, 1f));
+                    if (LoggedMenuItem("Cyan"))   SetColor(new Vector4(0.31f, 0.89f, 0.76f, 1f));
+                    if (LoggedMenuItem("Brown"))  SetColor(new Vector4(0.54f, 0.34f, 0.16f, 1f));
                     ImGui.EndMenu();
                 }
 
                 ImGui.Separator();
-                if (ImGui.MenuItem("Bring to Front"))
+                if (LoggedMenuItem("Bring to Front"))
                 {
                     int maxZ = view.Model.Comments.Count > 0 ? view.Model.Comments.Max(c => c.ZOrder) : 0;
-                    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, maxZ + 1, null));
+                    view.Execute(
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, maxZ + 1, null),
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, oldZ, null),
+                        "Bring Comment to Front");
                 }
-                if (ImGui.MenuItem("Send to Back"))
+                if (LoggedMenuItem("Send to Back"))
                 {
                     int minZ = view.Model.Comments.Count > 0 ? view.Model.Comments.Min(c => c.ZOrder) : 0;
-                    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, minZ - 1, null));
+                    view.Execute(
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, minZ - 1, null),
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, oldZ, null),
+                        "Send Comment to Back");
                 }
 
                 ImGui.Separator();
                 ImGui.BeginDisabled();
-                ImGui.MenuItem("Resize to Fit Contents");
+                LoggedMenuItem("Resize to Fit Contents");
                 ImGui.EndDisabled();
 
-                bool mwc = comment.MoveWithContents;
-                if (ImGui.MenuItem("Move with Contents", null, ref mwc))
+                bool mwc = oldMwc;
+                if (LoggedMenuItem("Move with Contents", null, ref mwc))
                 {
-                    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, null, mwc));
+                    view.Execute(
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, null, mwc),
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, null, oldMwc),
+                        "Toggle Move with Contents");
                 }
 
                 ImGui.Separator();
-                if (ImGui.MenuItem("Delete", "Del"))
+                if (LoggedMenuItem("Delete", "Del"))
                 {
-                    view.Commands.Apply(new Core.Commands.GraphCommand.RemoveComment(commentId));
+                    // Inverse re-adds the comment with its original id and every property, so undo
+                    // restores it intact rather than leaving a hole.
+                    view.Execute(
+                        new Core.Commands.GraphCommand.RemoveComment(commentId),
+                        new Core.Commands.GraphCommand.AddComment(
+                            commentId, comment.Text, comment.Position, comment.Size, oldColor, oldMwc),
+                        "Delete Comment");
                 }
                 break;
             }
@@ -882,7 +1093,7 @@ public sealed class CanvasRenderer
             }
             else
             {
-                if (ImGui.MenuItem(item.Label, "", false, item.Enabled))
+                if (LoggedMenuItem(item.Label, "", false, item.Enabled))
                     item.Execute();
             }
         }
@@ -928,6 +1139,147 @@ public sealed class CanvasRenderer
         }
     }
 
+    /// <summary>
+    /// One row of the Align submenu. Greyed out (rather than hidden) when the selection is too
+    /// small, so the menu shape is stable and the requirement is discoverable.
+    /// </summary>
+    private void DrawAlignItem(string label, string commandId)
+    {
+        bool enabled = IsCommandEnabled(commandId);
+        if (LoggedMenuItem(label, null, false, enabled))
+            _editorCommands?.Invoke(commandId);
+        if (!enabled && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip(commandId.Contains("distribute")
+                ? "Select at least three nodes"
+                : "Select at least two nodes");
+    }
+
+    /// <summary>⭐ CE-1276 test seam — when set, every context-menu item the canvas draws appends its label here (a rail asserts what a
+    /// read-only graph's menu does and does not offer). Null in production.</summary>
+    internal static List<string>? MenuLog;
+
+    private static bool LoggedMenuItem(string label) { MenuLog?.Add(label); return ImGui.MenuItem(label); }
+    private static bool LoggedMenuItem(string label, string? shortcut) { MenuLog?.Add(label); return ImGui.MenuItem(label, shortcut); }
+    private static bool LoggedMenuItem(string label, string? shortcut, bool selected) { MenuLog?.Add(label); return ImGui.MenuItem(label, shortcut, selected); }
+    private static bool LoggedMenuItem(string label, string? shortcut, bool selected, bool enabled) { MenuLog?.Add(label); return ImGui.MenuItem(label, shortcut, selected, enabled); }
+    private static bool LoggedMenuItem(string label, string? shortcut, ref bool selected) { MenuLog?.Add(label); return ImGui.MenuItem(label, shortcut, ref selected); }
+
+    /// <summary>
+    /// True when a host has registered <paramref name="commandId"/> and it is currently enabled.
+    /// Menu items for host-owned actions (BP-23a's clipboard set) grey out rather than disappear,
+    /// so the canvas menu keeps a stable shape whichever host it is embedded in.
+    /// </summary>
+    private bool IsCommandEnabled(string commandId)
+        => _editorCommands?.Get(commandId)?.IsEnabled() == true;
+
+    /// <summary>
+    /// CE-1010 — the node menu's "Toggle Breakpoint": enabled only when a host registered the command. On a node that is already
+    /// selected the host's own predicate decides (Blueprint: a breakpointable exec node); on an unselected one the selection only
+    /// moves on click, so a registered command is offered and the handler decides.
+    /// </summary>
+    internal static bool ToggleBreakpointEnabled(IEditorCommands? commands, bool targetSelected)
+        => commands?.Get(CommandCatalog.ToggleBreakpoint) is { } d && (!targetSelected || d.IsEnabled());
+
+    /// <summary>
+    /// BP-76 — draws a node-scoped item that a HOST command implements, selecting the node first so
+    /// the handler sees it. Hidden entirely when no host registered a handler, so a host without the
+    /// concept shows no dead item; enabled purely on the host's own predicate, which for these two is
+    /// "exactly one node selected" — no vocabulary from any host appears here.
+    /// </summary>
+    private void DrawHostCommandItem(
+        string commandId, string label, string? shortcut,
+        GraphView view, NodeId node, bool isHoveredSelected)
+    {
+        if (_editorCommands?.Get(commandId) is null) return;
+
+        if (!LoggedMenuItem(label, shortcut, false, IsCommandEnabled(commandId))) return;
+
+        if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(node));
+        _editorCommands.Invoke(commandId);
+    }
+
+    /// <summary>
+    /// BP-74 — draws one refactor menu item, or nothing at all when the host has not registered a
+    /// handler for it. <paramref name="enabled"/> carries the <b>kind-agnostic</b> precondition
+    /// (something is selected); legality is the host's to decide on invoke.
+    /// </summary>
+    private void DrawRefactorItem(string commandId, string label, bool enabled)
+    {
+        if (_editorCommands?.Get(commandId) is null) return;
+
+        if (LoggedMenuItem(label, null, false, enabled))
+            _editorCommands.Invoke(commandId);
+    }
+
+    private void OpenNodeRenameModal(NodeId nodeId, string currentTitle)
+    {
+        _pendingRenameNodeId = nodeId;
+        _nodeRenameText      = currentTitle;
+        _showNodeRenameModal = true;
+    }
+
+    /// <summary>
+    /// BP-17 — the node-title prompt. Clearing the field restores the generated title rather than
+    /// storing an empty header, so a rename is always reversible without undo.
+    /// </summary>
+    private void DrawNodeRenameModal(GraphView view)
+    {
+        if (_showNodeRenameModal)
+        {
+            ImGui.OpenPopup("##canvas_rename_node");
+            _showNodeRenameModal = false;
+        }
+
+        bool open = true;
+        if (!ImGui.BeginPopupModal("##canvas_rename_node", ref open, ImGuiWindowFlags.AlwaysAutoResize))
+            return;
+
+        if (_pendingRenameNodeId is null)
+        {
+            ImGui.CloseCurrentPopup();
+            ImGui.EndPopup();
+            return;
+        }
+
+        if (ImGui.IsWindowAppearing()) ImGui.SetKeyboardFocusHere();
+
+        ImGui.TextDisabled("Node title");
+        ImGui.SetNextItemWidth(240f);
+        bool entered = ImGui.InputText("##node_title", ref _nodeRenameText, 128,
+            ImGuiInputTextFlags.AutoSelectAll | ImGuiInputTextFlags.EnterReturnsTrue);
+        ImGui.TextDisabled("Leave blank to restore the generated title.");
+
+        ImGui.Separator();
+
+        if (ImGui.Button("Rename", new Vector2(110, 0)) || entered)
+        {
+            var nodeId = _pendingRenameNodeId.Value;
+            // The inverse needs the value the node had before this edit — the sink no longer
+            // snapshots for the caller (BP-11).
+            var previous = view.Model.FindNode(nodeId) is { } current && current.Subtitle is not null
+                ? current.Title          // already renamed: the custom title is what shows
+                : null;                  // generated title: the override was unset
+
+            var next = string.IsNullOrWhiteSpace(_nodeRenameText) ? null : _nodeRenameText.Trim();
+            view.Execute(
+                new Core.Commands.GraphCommand.SetNodeProperty(nodeId, "Title", next),
+                new Core.Commands.GraphCommand.SetNodeProperty(nodeId, "Title", previous),
+                "Rename Node");
+
+            _pendingRenameNodeId = null;
+            ImGui.CloseCurrentPopup();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Cancel", new Vector2(110, 0)))
+        {
+            _pendingRenameNodeId = null;
+            ImGui.CloseCurrentPopup();
+        }
+
+        ImGui.EndPopup();
+    }
+
     private void OpenPromoteToVariableModal(PinId pinId, bool isLocal)
     {
         _pendingPromotePinId = pinId;
@@ -957,8 +1309,15 @@ public sealed class CanvasRenderer
         ImGui.Separator();
 
         var inputFlags = ImGuiInputTextFlags.AutoSelectAll | ImGuiInputTextFlags.EnterReturnsTrue;
-        bool inputEnter = ImGui.InputText("Name", ref _promoteVariableName, 128, inputFlags);
-        ImGui.InputText("Category", ref _promoteVariableCategoryPath, 256);
+        bool inputEnter = false;
+        if (NodeEditor.Core.Widgets.FormGrid.Begin("promote.form"))
+        {
+            NodeEditor.Core.Widgets.FormGrid.Row("Name");
+            inputEnter = ImGui.InputText("##promotename", ref _promoteVariableName, 128, inputFlags);
+            NodeEditor.Core.Widgets.FormGrid.Row("Category");
+            ImGui.InputText("##promotecategory", ref _promoteVariableCategoryPath, 256);
+            NodeEditor.Core.Widgets.FormGrid.End();
+        }
 
         bool canPromote = !string.IsNullOrWhiteSpace(_promoteVariableName);
         bool globalEnter = ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter);
@@ -967,11 +1326,38 @@ public sealed class CanvasRenderer
         if (ImGui.Button("Promote", new Vector2(120, 0)) || ((inputEnter || globalEnter) && canPromote))
         {
             string? categoryPath = string.IsNullOrWhiteSpace(_promoteVariableCategoryPath) ? null : _promoteVariableCategoryPath.Trim();
-            view.Commands.Apply(new Core.Commands.GraphCommand.PromoteToVariable(
-                _pendingPromotePinId.Value,
-                _promoteVariableName.Trim(),
-                _pendingPromoteIsLocal,
-                categoryPath));
+
+            // BP-60: prefer a host handler for editor.promote-to-variable when one is registered.
+            //
+            // Promotion is not a single primitive — it declares a variable, places a node and links
+            // it — and GraphCommand.PromoteToVariable hides all three behind one opaque command
+            // whose new-node id the sink allocates internally. That is why this site could not build
+            // an inverse and was left on Commands.Apply by BP-02, and why in the Blueprint editor it
+            // reached a sink with no case for it: the `default:` arm, which returns success and does
+            // nothing. A host that composes the gesture from primitives owns every id in it and can
+            // record one proper undo entry.
+            //
+            // The single-command path remains for hosts whose sink implements it directly
+            // (NodeEditor.Demo's FakeCommandSink).
+            var promoted = _editorCommands?.Invoke(
+                CommandCatalog.PromoteToVariable,
+                new EditorCommandContext(
+                    ScreenPos: null,
+                    CanvasPos: null,
+                    Args: new Dictionary<string, object?>
+                    {
+                        ["pinId"]        = _pendingPromotePinId.Value,
+                        ["name"]         = _promoteVariableName.Trim(),
+                        ["isLocal"]      = _pendingPromoteIsLocal,
+                        ["categoryPath"] = categoryPath,
+                    }));
+
+            if (promoted is not { Success: true })
+                view.Commands.Apply(new Core.Commands.GraphCommand.PromoteToVariable(
+                    _pendingPromotePinId.Value,
+                    _promoteVariableName.Trim(),
+                    _pendingPromoteIsLocal,
+                    categoryPath));
             _pendingPromotePinId = null;
             ImGui.CloseCurrentPopup();
         }

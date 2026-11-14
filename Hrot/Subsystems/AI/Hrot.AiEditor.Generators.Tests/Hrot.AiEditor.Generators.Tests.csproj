@@ -35,9 +35,27 @@
          instantiate the generator classes and drive them via CSharpGeneratorDriver. -->
     <ProjectReference Include="..\Hrot.AiEditor.Generators\Hrot.AiEditor.Generators.csproj" />
     <!-- Roslyn in-memory compiler for PU-203 integration tests (compiles bridge C# + loads ALC). -->
+    <!-- ⚠⚠ CE-380 (2026-09-27) — ORDINARY REFERENCE. DO **NOT** ADD SetTargetFramework HERE.
+         ⭐ There is no analyzer load context for an ordinary reference, so nearest-TFM picking the
+            net8.0 flavour for this net8.0 consumer is CORRECT. Pinning it to netstandard2.0 would
+            strip net8.0 APIs from this project's compile surface — a real regression to guard a
+            hypothetical. (CE-380 was filed against this very line and REFUTED for that reason.)
+         🔒 **IF THIS IS EVER CHANGED TO `OutputItemType="Analyzer"`**, it becomes a CE-379 site and
+            needs BOTH: SetTargetFramework="TargetFramework=netstandard2.0" (this project is
+            multi-targeted netstandard2.0;net8.0) AND the System.Text.Json closure shipped as
+            <Analyzer Include="$(Pkg...)"/> items. ⭐ `scripts/analyzer-wiring-check.py` enforces
+            both and will fail the moment the attribute is added. -->
     <ProjectReference Include="..\..\Blueprints\Hrot.Blueprints.Compiler\Hrot.Blueprints.Compiler.csproj" />
     <!-- FDP Toolkits: BehaviorRegistry, BrainBlackboard, AiHotReloadCoordinator, BehaviorConstants. -->
     <ProjectReference Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- W5 (Batch 61): referenced as an ORDINARY LIBRARY, not OutputItemType="Analyzer".
+         BehaviorParameterSizeAnalyzer inlines a copy of BehaviorConstants.MaxBehaviorParamByteSize
+         because it targets netstandard2.0 and cannot reference the net8.0 runtime assembly; the
+         mirror is forced, so the DRIFT is the defect. Tests are net8.0 and can see both sides. -->
+    <ProjectReference Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\..\..\..\FDP\TestShared\TestRepo.cs" Link="Shared\TestRepo.cs" />   <!-- CE-3343: the ONE test-side repository-root walk-up (built on ContentLayout.TryFindSourceTree) -->
+  </ItemGroup>
 </Project>

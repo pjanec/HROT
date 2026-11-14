@@ -1,5 +1,11 @@
 # Hrot.Presentation
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135). Current model: ../../../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
+> ⛔ **SUPERSEDED IN PART `2026-10-12` — [DESIGN_Sensors_And_Doctrine §7.6b](../../../DESIGN_Sensors_And_Doctrine.md) (`CE-1023`):** `BehaviorUiCompiler`, `BehaviorUiRegistry` and `BehaviorUiSetup` are DELETED. Every screen draws behaviour params with THE one form, `Hrot.Presentation.Behavior.BehaviorParamsForm` (StructEdit + `ComponentEditDrawer`, picks by field type through a `ScopedMapPickContext` over the broker); `MissionPanel(localNodeId, paramsTypeOf)` keeps a `BehaviorParamsEditor` per task. Every mention of the compiler below is history.
+
+> ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](../../../blueprints/DESIGN_Map_Picking_Unification.md):** `IPickInteractionContext` is deleted: `BehaviorUiCompiler` draws against `IMapPickContext` with `$.tasks[i].Prop` paths, and `MissionPanel` owns a `MapPickBroker` (THE broker) instead of implementing a pick state machine. `CanvasMapPickAdapter` is the only map-pick adapter (geodetic location picks).
+
 **Project file:** `Hrot/Engine/Hrot.Presentation/Hrot.Presentation.csproj`
 **Target framework:** net8.0
 **Date:** 2026-05-23
@@ -111,7 +117,7 @@ Design goals:
 +--------------------+                 +------------------------+
 
 +----------------------------------+   uses   +--------------------+
-| ClusterTimeControlStatusBarSection+-------->| ITimeTransportFacade|
+| MainToolbarTimeControlSection    +-------->| ITimeTransportFacade|
 +----------------------------------+          +--------------------+
 ```
 
@@ -189,8 +195,8 @@ All source files are under `Hrot/Engine/Hrot.Presentation/`.
 
 | File | Namespace | Type | Description |
 |---|---|---|---|
-| `BehaviorSchemaDiscovery.cs` | `Hrot.Presentation.Behavior` | `static class` | Scans `Hrot.Core` assembly for `[BehaviorContractAttribute]`-decorated types and auto-registers them with `BehaviorUiRegistry` and `ScenarioBehaviorRemapper` via reflection. |
-| `BehaviorUiCompiler.cs` | `Hrot.Presentation.Behavior` | `static class` + `sealed class` | Expression-tree-based compilation of ImGui draw delegates for behavior-parameter DTOs. `BehaviorUiRegistry` stores the per-ID cache; `BehaviorUiCompiler.Compile<TDto>()` performs one-time reflection and returns a cached `BehaviorUiDrawDelegate`. |
+| `BehaviorSchemaDiscovery.cs` | `Hrot.Presentation.Behavior` | `static class` | Reads every behaviour's declared params DTO (`[Behavior(Params = …)]` / the asset's `ParamsDtoTypeId`) through `ParamsDtoRegistry` (CE-2134) and registers each with `ScenarioBehaviorRemapper` and the `BehaviorRegistry` (`JsonParamsDtoType`). ⛔ *Was:* scanned for `[BehaviorContractAttribute]` (deleted) and fed `BehaviorUiRegistry` (deleted, CE-1023). |
+| ⛔ ~~`BehaviorUiCompiler.cs`~~ *(deleted, CE-1023 — every screen draws `BehaviorParamsForm` from the params type)* | `Hrot.Presentation.Behavior` | `static class` + `sealed class` | Expression-tree-based compilation of ImGui draw delegates for behavior-parameter DTOs. `BehaviorUiRegistry` stores the per-ID cache; `BehaviorUiCompiler.Compile<TDto>()` performs one-time reflection and returns a cached `BehaviorUiDrawDelegate`. |
 | `BehaviorUiSetup.cs` | `Hrot.Presentation.Behavior` | `static class` | Composition-root helper. `CreateRegistry()` returns a `BehaviorUiRegistry` pre-populated via `BehaviorSchemaDiscovery.AutoRegister`. |
 | `IPickInteractionContext.cs` | `Hrot.Presentation.Behavior` | `interface` | Per-field pick coordination for behavior parameter editors. Implemented by `MissionPanel`. |
 
@@ -236,7 +242,7 @@ All source files are under `Hrot/Engine/Hrot.Presentation/`.
 
 | File | Namespace | Type | Description |
 |---|---|---|---|
-| `ClusterTimeControlStatusBarSection.cs` | `Hrot.UI.Common.Panels` | `sealed class` | Status-bar section: play/pause, step, stop buttons and sim-time / time-rate display. Backed by `ITimeTransportFacade`. Renders `HH:MM:SS.SSS` and a time-rate popup. |
+| ~~`ClusterTimeControlStatusBarSection.cs`~~ | | | REMOVED `2026-10-29` (CE-4083, AQ108 D13) — the transport is the main toolbar's `MainToolbarTimeControlSection` (registered by `ShellTimeControlToolbar`) on every host. |
 | `ConfigPanel.cs` | `Hrot.UI.Common.Panels` | `sealed class` | Seven layer-visibility toggle checkboxes and an icon-scale slider. `HandleSendConfigPatch` builds a `MapLayerState` and calls `IMapConfigController.ApplyConfig`. |
 | `MissionPanel.cs` | `Hrot.UI.Common.Panels` | `sealed class` | Implements `IPickInteractionContext`. Displays selected entity mission plan, handles JUMP/ABORT control commands, task editing, and async map picks for `MoveToLocation` / `FollowRoute` tasks. Uses `BehaviorUiRegistry` to render behavior-parameter DTOs. |
 | `PanelConstants.cs` | `Hrot.UI.Common.Panels` | `static class` | Shared constants: icon scale range, filter text max length, behavior params buffer size, move-to defaults, error messages. |
@@ -251,12 +257,13 @@ All source files are under `Hrot/Engine/Hrot.Presentation/`.
 |---|---|---|---|
 | `ActivePerspectiveRenderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(ActivePerspective))]`. Summary shows perspective name; `RenderValue` returns `false` to let `ImGuiPropertyTree` render `Name` as an editable leaf. |
 | `BehaviorStateRenderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(BehaviorState))]`. Summary: behavior name + brain tier. Renders `ActiveBehaviorHash`, `InstanceId`, `BrainTier`. Uses static `BehaviorRegistryAccessor`. |
-| `Blackboard1024Renderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(Blackboard1024))]`. Entity-aware. Deserializes 1024-byte heavy blackboard as `HeavyDtoType` when registered; falls back to raw-bytes label. |
-| `Blackboard1024ViewProvider.cs` | `Hrot.Presentation.Renderers` | `sealed class` | StructEdit `IBufferViewProvider`. Projects `$.Memory` of `Blackboard1024` as the active behavior's `HeavyDtoType`. Zero-allocation writes via `NativeFieldBinding`. |
-| `BrainBlackboardRenderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(BrainBlackboard))]`. Entity-aware. Interprets `BehaviorParameters` fixed buffer as `ParamsDtoType`; renders typed or raw-hex fallback. Also shows `ExpectedThreatLevel` and interrupt flags. |
-| `BrainBlackboardViewProvider.cs` | `Hrot.Presentation.Renderers` | `sealed class` | StructEdit `IBufferViewProvider`. Projects `$.BehaviorParameters` of `BrainBlackboard` as the active behavior's `ParamsDtoType`. |
+| `BlueprintBlackboardRendererBase.cs` | `Hrot.Presentation.Renderers` | `abstract class` | Shared base for `BlueprintBlackboard{256,1024,4096,16384}Renderer.cs`. Entity-aware. Summarizes the tier's attached occurrence-slot count via `BlueprintBlackboardPartitions`, then renders four sections in order: root params via `RootParamsProjection`, AiPrimitive working state via `StatefulWorkingStateProjection.RenderWorkingState` (typed by the slot's `StatefulSlotInfo.WorkingStateType`), the BTree execution path via `RootTreeStateProjection.RenderRootTree`, and the `BrainInterrupts` tail — falling back to raw bytes when the type is unknown. Each tier subclass supplies only its own component type via `[ImGuiRenderer(typeof(BlueprintBlackboard{Tier}))]`. |
+| `BlueprintBlackboard1024Renderer.cs` (and its `256`/`4096`/`16384` siblings) | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(BlueprintBlackboard1024))]`. Thin per-tier subclass of `BlueprintBlackboardRendererBase`; supplies the tier's component type, the base class does the rendering. |
+| `RootParamsViewProvider.cs` | `Hrot.Presentation.Renderers` | `sealed class` | StructEdit `IBufferViewProvider`. One occurrence-slot-offset-based provider for both slot kinds: the caller resolves the slot first — root params via `RootParamsAccess.TryGetRootBytesInView` keyed by `OccurrenceSlotKey.ComputeRootParamsKey(BehaviorState.ActiveBehaviorHash)`, or working state via `BlueprintTierTable.Ascending` → `BytesInView` → the slot's `PayloadOffset` — then hands this provider the resolved base offset, which projects it as the slot's DTO type (`ParamsDtoType` or `WorkingStateType`). Zero-allocation writes via `NativeFieldBinding`. |
+| `RootParamsProjection.cs` | `Hrot.Presentation.Renderers` | `static class` | Typed projection helper for the **root params occurrence slot** — the root-params counterpart to `StatefulWorkingStateProjection`; used by `BlueprintBlackboardRendererBase` to decode and render a behavior's `ParamsDtoType` at its resolved offset. |
+| `RootTreeStateProjection.cs` | `Hrot.Presentation.Renderers` | `static class` | The entry point for the **BTree execution-path section**. Resolves the root tree-state slot through `RootStateAccess` and hands the cursor to `BTreeVisualizerRenderer`; called by `BlueprintBlackboardRendererBase` after root params and working state. |
 | `BTreeTraceWorkingMemoryRenderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(BTreeTraceWorkingMemory1024))]`. Entity-aware ring-buffer renderer. Decodes 16-byte trace records into a 4-column ImGui table. Node-index symbolication via `BehaviorTreeBlob.DebugMetadata`. |
-| `BTreeVisualizerRenderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(BrainBTreeState))]`. Entity-aware. Renders the full behavior-tree hierarchy with color-coded active-path highlighting (green = running, yellow = ancestral, gray = inactive). Source-location tooltips from `NodeDebugMetadata`. |
+| `BTreeVisualizerRenderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | **Not attribute-keyed on a component.** It is a *section* of `BlueprintBlackboardRendererBase`, entered through `RootTreeStateProjection.RenderRootTree` and reading the cursor through `RootStateAccess`. Renders the full behavior-tree hierarchy with color-coded active-path highlighting (green = running, yellow = ancestral, gray = inactive). Source-location tooltips from `NodeDebugMetadata`. |
 | `HrotSingletonRenderers.cs` | `Hrot.Presentation.Renderers` | Contains `ActivePerspectiveRenderer` | (see above) |
 | `HsmTraceWorkingMemoryRenderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(HsmTraceWorkingMemory1024))]`. Entity-aware ring-buffer renderer for HSM execution traces. Decodes records using `MachineMetadata` to symbolicate state/event/action IDs. |
 | `MissionPlanQueueRenderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(MissionPlanQueue))]`. Renders `CurrentPhase`, `PhaseCount`, `PhaseElapsedSeconds`, and per-phase `BehaviorId` / `Trigger` / `TriggerParam` in a two-column ImGui table. |
@@ -619,15 +626,9 @@ public sealed class ConfigPanel
 }
 ```
 
-#### `ClusterTimeControlStatusBarSection`
+#### `ClusterTimeControlStatusBarSection` — removed `2026-10-29` (CE-4083)
 
-```csharp
-public sealed class ClusterTimeControlStatusBarSection
-{
-    public ClusterTimeControlStatusBarSection(ITimeTransportFacade facade);
-    public void Render();   // call each frame inside status-bar window
-}
-```
+The status bar carries no time control; use `ShellTimeControlToolbar.Register(toolbar, facade, runChoice)`.
 
 #### `PreviewPanel`
 
@@ -931,9 +932,9 @@ public static class SelectionRenderConstants
 
 | Assembly | Role |
 |---|---|
-| `Hrot.Core` | HROT domain types: `GeoPoint`, `MissionPlan`, `MissionTask`, `eMissionCommandType`, `eTaskState`, `BrainBlackboard`, `ActiveMissionPlan`, `IgHealthState`, etc. |
+| `Hrot.Core` | HROT domain types: `GeoPoint`, `MissionPlan`, `MissionTask`, `eMissionCommandType`, `eTaskState`, `ActiveMissionPlan`, `IgHealthState`, etc. |
 | `Fdp.Core` | ECS engine: `EntityRepository`, `Entity`, `EntityQuery`, `FdpEventBus`, `GlobalTime`, `FixedString32`. |
-| `Fdp.Toolkits` | Cross-cutting toolkits: behavior (`BehaviorRegistry`, `BehaviorState`, `BehaviorDefinition`, `MissionPlanQueue`, `BrainBTreeState`, `HsmTraceWorkingMemory1024`, `BTreeTraceWorkingMemory1024`, `Blackboard1024`), time (`MasterSyncController`, `SwitchTimeModeEvent`, `ClusterStateUpdateEvent`), replication (`NetworkIdentity`), spawning (`SpawnEntityCommand`, `CreateEntityRequestSystem`), scenario (`ScenarioSerializer`), vis2D (`MapCanvas`), orchestration (`FdpEventBus`, `ClusterState`). |
+| `Fdp.Toolkits` | Cross-cutting toolkits: behavior (`BehaviorRegistry`, `BehaviorState`, `BehaviorDefinition`, `MissionPlanQueue`, `RootStateAccess` / `RootParamsAccess`, `HsmTraceWorkingMemory1024`, `BTreeTraceWorkingMemory1024`, `BlueprintBlackboardPartitions`), time (`MasterSyncController`, `SwitchTimeModeEvent`, `ClusterStateUpdateEvent`), replication (`NetworkIdentity`), spawning (`SpawnEntityCommand`, `CreateEntityRequestSystem`), scenario (`ScenarioSerializer`), vis2D (`MapCanvas`), orchestration (`FdpEventBus`, `ClusterState`). |
 | `Fdp.Presentation` | ImGui/Raylib window manager: `ManagedWindow`, `WindowManager`, `WindowScope`, `EntityInspectorPanel`, `EntityWatchPanel`, `ArchitectureDiagnosticsPanel`, `EventBrowserPanel`, `StatusBarManager`, `IContextMenuBuilder`, `IImGuiRenderer`, `IEntityAwareImGuiRenderer`, `ImGuiRenderer` attribute, `ImGuiPropertyTree`, `RepositoryAdapter`, `IInspectableSession`. |
 | `Fdp.Toolkits.Analyzers` (Analyzer) | Source generator for `[GizmoProjector]` attribute. Generates `IStatelessGizmo` registration code. Output assembly not referenced at runtime. |
 
@@ -968,9 +969,8 @@ The assembly grants internal access to:
 var timeFacade = new ClusterTimeTransportAdapter(eventBus, () => simEngine.CurrentTime);
 // Call timeFacade.Update() each frame before SwapBuffers.
 
-// 2. Time-control status bar
-var timeStatusBar = new ClusterTimeControlStatusBarSection(timeFacade);
-statusBarManager.Register(() => timeStatusBar.Render());
+// 2. Time control: the main toolbar (CE-4083 removed the status-bar copy)
+ShellTimeControlToolbar.Register(windowManager.MainToolbar, timeFacade, timeFacade.RunChoice);
 
 // 3. ORBAT panel
 var orbatPanel = new SharedOrbatPanel();
@@ -999,6 +999,8 @@ windowManager.RegisterWindow(new ManagedWindow("spawner", "Spawner", perspective
 ```
 
 ### Example 2: Registering Behavior Parameter UI at Startup
+
+> ⛔ **HISTORY — this example no longer compiles:** `BehaviorUiRegistry`, `BehaviorUiCompiler` and `[BehaviorContractAttribute]` are deleted (CE-1023, CE-2134). A behaviour's parameter form is `BehaviorParamsForm`, drawn from the params DTO type that `ParamsDtoRegistry` lists.
 
 ```csharp
 // At application startup, create and populate the behavior UI registry.
@@ -1060,10 +1062,10 @@ var fileService = new ScenarioFileService(
 fileService.RegisterWorldResetObserver(() => selectionManager.ClearAll());
 
 // Load a scenario.
-fileService.LoadScenario(entityRepo, "scenarios/hill-attack/scenario.json");
+fileService.LoadScenario(entityRepo, "scenarios/tests/hill-attack/scenario.json");
 
 // Save current state.
-fileService.SaveScenario(entityRepo, "scenarios/hill-attack/autosave.json");
+fileService.SaveScenario(entityRepo, "scenarios/tests/hill-attack/autosave.json");
 
 // Create a blank scenario.
 fileService.NewScenario(entityRepo);
@@ -1178,9 +1180,9 @@ them in this callback to avoid dangling entity references after the repository i
 
 ### Renderer Static Accessors
 
-`BehaviorStateRenderer.BehaviorRegistryAccessor`, `BrainBlackboardRenderer.BehaviorRegistryAccessor`,
+`BehaviorStateRenderer.BehaviorRegistryAccessor`,
 `BTreeVisualizerRenderer.BehaviorRegistryAccessor`, `HsmTraceWorkingMemoryRenderer.BehaviorRegistryAccessor`,
-and `Blackboard1024Renderer.BehaviorRegistryAccessor` are static properties that must be set
+and `StatefulWorkingStateProjection.BehaviorRegistryAccessor` are static properties that must be set
 once at the composition root before any ImGui rendering occurs. Set them to the same
 `BehaviorRegistry` instance used by the ECS behavior system.
 
@@ -1190,7 +1192,7 @@ once at the composition root before any ImGui rendering occurs. Set them to the 
 
 | Project | Relationship |
 |---|---|
-| `Hrot.Core` | Provides domain types (`MissionPlan`, `GeoPoint`, `BrainBlackboard`, etc.) consumed throughout this assembly. |
+| `Hrot.Core` | Provides domain types (`MissionPlan`, `GeoPoint`, etc.) consumed throughout this assembly. |
 | `Hrot.UI.Common` | **Note:** `Hrot.UI.Common.*` namespaces are compiled inside this assembly (`Hrot.Presentation.csproj`), not a separate project. There is no standalone `Hrot.UI.Common.csproj` at this layer. |
 | `Hrot.IG` | Image Generator subsystem. Uses `IgEntityPresentationGizmo`, `CullingState`, `IgHealthState`, `SelectionState`, and entity presentation infrastructure from this assembly. |
 | `Hrot.ExCon` | Exercise Control subsystem. Depends on panels, facades, and behavior UI infrastructure. Granted `InternalsVisibleTo`. |

@@ -13,6 +13,29 @@ namespace NodeEditor.UI.Picker;
 public sealed record CategoryNode(string Name, IReadOnlyList<CategoryNode> Children);
 
 /// <summary>
+/// ⭐ CE-4142 (GL3) — a GROUP sidebar for the Grid layout (the thumbnail gallery): the groups to list in the request's own order, each with a
+/// count, empty ones faded. Entries belong to a group by the first segment of <see cref="PickerEntry.Category"/>
+/// (<c>"Ground vehicles/Tank"</c> = group + chip); the second segment is the chip row on top of the grid.
+/// </summary>
+/// <param name="Order">Group names, top to bottom.</param>
+/// <param name="RecentGroup">The name of the VIRTUAL first group that holds no category: it lists the entries that are recent or starred
+/// (G10); null ⇒ no such group.</param>
+public sealed record PickerGroupSidebar(IReadOnlyList<string> Order, string? RecentGroup = null)
+{
+    /// <summary>⭐ Terrain authoring (mockup 2) — an optional coloured icon per group name (key of <see cref="NodeEditor.Core.Widgets.Icons"/> or a literal glyph); a group without one draws as before. <see cref="DimmedIcons"/> draws them at half strength (the mockup's unchanged context groups).</summary>
+    public IReadOnlyDictionary<string, NodeEditor.Core.Widgets.IconGlyph>? Icons { get; init; }
+
+    /// <summary>Group names whose icon draws at half strength (the groups this feature did not touch, as the mockup draws them).</summary>
+    public IReadOnlySet<string>? DimmedIcons { get; init; }
+}
+
+/// <summary>
+/// ⭐ Task picker (CE-4359) — a tick that reveals entries the picker hides by default (the task picker's <i>Show tests and demos (43)</i>): <paramref name="Hides"/> says which
+/// entries are hidden while it is off; the label is shown beside the search box with the count of hidden entries appended.
+/// </summary>
+public sealed record PickerHideToggle(string Label, Func<PickerEntry, bool> Hides);
+
+/// <summary>
 /// Caller-supplied input to open a picker via <see cref="PickerRegistry.OpenPicker"/>.
 /// Fully data-driven — the picker window renders items and emits the choice.
 /// </summary>
@@ -23,6 +46,13 @@ public sealed class PickerRequest
 
     /// <summary>Window title shown to the user.</summary>
     public required string Title { get; init; }
+
+    /// <summary>
+    /// <see cref="PickerEntry.Id"/> of the entry to pre-select when the picker opens — the host's default,
+    /// so Enter/OK takes it without a click. Its category folders are expanded and it is scrolled into view.
+    /// <see langword="null"/> (or an id not in the list, or a disabled entry) ⇒ no pre-selection.
+    /// </summary>
+    public string? InitialSelectionId { get; init; }
 
     /// <summary>Layout to use for rendering items.</summary>
     public PickerLayout Layout { get; init; } = PickerLayout.Standard;
@@ -41,4 +71,66 @@ public sealed class PickerRequest
 
     /// <summary>Optional category tree for Wide/Tree layouts. Null = built from Category strings.</summary>
     public CategoryNode? CategoryRoot { get; init; }
+
+    /// <summary>Tree layout: merge a folder whose only content is one sub-folder into a single row
+    /// ("Platform › Land › Tank"). Default off, so existing pickers are unchanged.</summary>
+    public bool FoldSingleChildFolders { get; init; }
+
+    /// <summary>Tree layout: show a preview pane under the tree for the focused entry — a large icon
+    /// (its <see cref="PickerEntry.IconKey"/>), the name, the category and the description.</summary>
+    public bool ShowPreview { get; init; }
+
+    // ── CE-4168 (AQ108 D26) — five opt-in extensions; unset ⇒ the picker looks and behaves as before ──
+
+    /// <summary>⭐ P1 — show a resizable pane to the RIGHT of the list/tree/grid for the focused entry (default content: its
+    /// <see cref="PickerEntry.ImageKey"/> image scaled to the pane width, then name, category, description). Implied by <see cref="DrawPane"/>.
+    /// Replaces the Tree's under-tree <see cref="ShowPreview"/> strip.</summary>
+    public bool ShowSidePane { get; init; }
+
+    /// <summary>⭐ CE-4141 — the window's size when it opens (applied once, <c>ImGuiCond.Appearing</c>); <see langword="null"/> ⇒ the layout's own rule. A source with a side pane asks for a wide window
+    /// (the scenario picker: about 1000 × 640) so the preview picture is big enough to read.</summary>
+    public System.Numerics.Vector2? DefaultSize { get; init; }
+
+    /// <summary>⭐ P1 — initial side-pane width in pixels (a dragged width is remembered per <see cref="ContextKey"/>).</summary>
+    public float SidePaneWidth { get; init; } = 280f;
+
+    /// <summary>⭐ P1/P2 — draws the side pane's content for the focused entry (any ImGui widgets; their state lives in a host object —
+    /// hand it back through <see cref="CapturePaneState"/>). Replaces the default content unless <see cref="DrawPaneAfterDefault"/>.</summary>
+    public Action<PickerEntry, PickerPaneContext>? DrawPane { get; init; }
+
+    /// <summary>⭐ P1 — draw the default content first and <see cref="DrawPane"/> below it, instead of replacing it.</summary>
+    public bool DrawPaneAfterDefault { get; init; }
+
+    /// <summary>⭐ CE-3392 (presets §5b) — drawn INSIDE the default content, right under the image and the name, before the description (the load dialog's preset combo).</summary>
+    public Action<PickerEntry, PickerPaneContext>? DrawUnderHeader { get; init; }
+
+    /// <summary>⭐ P2 — called at confirm with the entry chosen (null if none); its result is <see cref="PickerResult.PaneState"/>.</summary>
+    public Func<PickerEntry?, object?>? CapturePaneState { get; init; }
+
+    /// <summary>⭐ P3 — footer buttons that REPLACE OK; the confirming one is returned in <see cref="PickerResult.ActionId"/>.
+    /// Enter / double-click take the default action. Cancel stays.</summary>
+    public IReadOnlyList<PickerAction>? Actions { get; init; }
+
+    /// <summary>⭐ P4 — layouts the user may toggle between (e.g. Tree ⇄ Grid); the choice is remembered per <see cref="ContextKey"/>
+    /// in the registry's <see cref="PickerViewStore"/>. Null/empty ⇒ no toggle. <see cref="Layout"/> is the first-use layout.</summary>
+    public IReadOnlyList<PickerLayout>? LayoutChoices { get; init; }
+
+    /// <summary>⭐ CE-4142 (GL3) — show the group sidebar (and chips, tile-size slider) in the Grid layout. Null ⇒ the classic Grid.</summary>
+    public PickerGroupSidebar? GroupSidebar { get; init; }
+
+    /// <summary>The sidebar group the gallery opens on (a name in <see cref="PickerGroupSidebar.Order"/>); null or empty ⇒ <i>All</i>. ⭐ Terrain authoring U-1 — a rail (and a caller) can open the picker on one group.</summary>
+    public string? InitialGroup { get; init; }
+
+    /// <summary>⭐ CE-4359 — Tree layout: the root folders in this order (a name not listed follows, alphabetical). Null ⇒ alphabetical.</summary>
+    public IReadOnlyList<string>? FolderOrder { get; init; }
+
+    /// <summary>⭐ CE-4359 — entries keep the order <see cref="ItemsProvider"/> gave them (within a folder, among equal matches) instead of name order: the task picker's fixed
+    /// <i>Move · Hold · Attack · Observe and fire</i>.</summary>
+    public bool KeepEntryOrder { get; init; }
+
+    /// <summary>⭐ CE-4359 — Tree layout: the folders (by full path) that start open; the others start closed.</summary>
+    public IReadOnlyList<string>? InitiallyOpenFolders { get; init; }
+
+    /// <summary>⭐ CE-4359 — a tick that reveals hidden entries (off by default); null ⇒ none.</summary>
+    public PickerHideToggle? HideToggle { get; init; }
 }

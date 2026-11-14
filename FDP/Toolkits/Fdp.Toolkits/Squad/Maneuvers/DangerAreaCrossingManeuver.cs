@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Squad.Maneuvers
     /// Phases:
     ///   0 SetSecurity     - security element occupies overwatch positions (DefiladeReached)
     ///   1 CrossElement    - first element crosses the danger area (FarSideReached)
-    ///   2 FarSideCover    - first-across reassigned to covering role; signals ready (ShotFired)
+    ///   2 FarSideCover    - first-across reassigned to covering role; signals ready (DefiladeReached — CE-2159 D2, was ShotFired)
     ///   3 CollapseSecurity- second element crosses, security follows (FarSideReached)
     ///   4 Reform          - terminal phase; all members on far side
     ///
@@ -35,6 +35,8 @@ namespace Fdp.Toolkit.Squad.Maneuvers
         public const ushort PhaseFarSideCover     = 2;
         public const ushort PhaseCollapseSecurity = 3;
         public const ushort PhaseReform           = 4;
+        /// <summary>⭐ <c>CE-2159</c> X-b — the play stopped short (the runner's abort phase).</summary>
+        public const ushort PhaseAborted          = 5;
 
         // Role IDs.
         public const byte RoleUnassigned = 0;
@@ -55,8 +57,15 @@ namespace Fdp.Toolkit.Squad.Maneuvers
             {
                 new PhaseTransitionEntry { FromPhaseId = PhaseSetSecurity,      EventKind = PhaseEventKind.DefiladeReached, ToPhaseId = PhaseCrossElement    },
                 new PhaseTransitionEntry { FromPhaseId = PhaseCrossElement,     EventKind = PhaseEventKind.FarSideReached,  ToPhaseId = PhaseFarSideCover    },
-                new PhaseTransitionEntry { FromPhaseId = PhaseFarSideCover,     EventKind = PhaseEventKind.ShotFired,       ToPhaseId = PhaseCollapseSecurity },
+                // ⭐ CE-2159 (R-2014 D2) — the far side is SET (every crosser at his spot), not "a shot fired": overwatch watches, and
+                //   before contact nobody fires. ⛔ SUPERSEDED: ShotFired, which would stall the drill until someone shot.
+                new PhaseTransitionEntry { FromPhaseId = PhaseFarSideCover,     EventKind = PhaseEventKind.DefiladeReached, ToPhaseId = PhaseCollapseSecurity },
                 new PhaseTransitionEntry { FromPhaseId = PhaseCollapseSecurity, EventKind = PhaseEventKind.FarSideReached,  ToPhaseId = PhaseReform          },
+                new PhaseTransitionEntry { FromPhaseId = PhaseSetSecurity,      EventKind = PhaseEventKind.Abort,           ToPhaseId = PhaseAborted         },
+                new PhaseTransitionEntry { FromPhaseId = PhaseCrossElement,     EventKind = PhaseEventKind.Abort,           ToPhaseId = PhaseAborted         },
+                new PhaseTransitionEntry { FromPhaseId = PhaseFarSideCover,     EventKind = PhaseEventKind.Abort,           ToPhaseId = PhaseAborted         },
+                new PhaseTransitionEntry { FromPhaseId = PhaseCollapseSecurity, EventKind = PhaseEventKind.Abort,           ToPhaseId = PhaseAborted         },
+                new PhaseTransitionEntry { FromPhaseId = PhaseReform,           EventKind = PhaseEventKind.Abort,           ToPhaseId = PhaseAborted         },
             };
 
         // --- Element partition ---

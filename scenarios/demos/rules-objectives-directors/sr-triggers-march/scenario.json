@@ -1,0 +1,389 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: rules S2 on test-town - the sr-objectives-march squad march with three TRIGGERS: Briefing (scenario time 5 s -> a message), Phase 2 (Reach the crossroads Achieved -> switch Hold the crossroads ON + a message; Hold starts OFF), End (Hold Achieved -> a message + EndExercise). Judge: (1) Hold is Inactive until Reach is Achieved, then Active; (2) Hold Achieved ~20 s later; (3) End fires: every objective Closed - Reach and Hold Achieved, the far line Failed (deadline 60 s), No harm Achieved (judged at the end), the composite final; ExerciseResult Phase Ended with a per-side outcome; (4) the cluster pauses (exercise.pause-on-end)."
+  },
+  "entities": {
+    "a2159f00-0000-4000-8000-0000000000c0": {
+      "SimTransform": {
+        "Position": [
+          72,
+          58,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "SquadMarch",
+        "Params": {"Objective": [175, 60, 0], "Shape": 0, "Spacing": 4},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a2159f00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          60,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2159f00-0000-4000-8000-0000000000c0",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a2159f00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          64,
+          46,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2159f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2159f00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          68,
+          52,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2159f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2159f00-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          72,
+          58,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2159f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2159f00-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          76,
+          64,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2159f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2159f00-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          80,
+          70,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 5",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2159f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2159f00-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          84,
+          76,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 6",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2159f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "5a110000-0000-4000-8000-000000000001": {
+      "TkbIdentity": {
+        "TkbType": 8860
+      },
+      "EntityInfo": {
+        "Name": "Squad mission",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "WeightedMean",
+        "Params": {"common": {"title": "Squad mission", "subject": "a2159f00-0000-4000-8000-0000000000c0"}, "passScore": 0.5},
+        "Origin": "Superior"
+      }
+    },
+    "5a110000-0000-4000-8000-000000000002": {
+      "TkbIdentity": {
+        "TkbType": 8860
+      },
+      "EntityInfo": {
+        "Name": "Reach the crossroads",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "ReachArea",
+        "Params": {"common": {"title": "Reach the crossroads", "subject": "a2159f00-0000-4000-8000-0000000000c0", "parent": "5a110000-0000-4000-8000-000000000001", "deadlineSeconds": 300, "weight": 1}, "area": {"circle": {"center": [175, 60, 0], "radius": 15}}, "minMen": 4},
+        "Origin": "Superior"
+      }
+    },
+    "5a110000-0000-4000-8000-000000000003": {
+      "TkbIdentity": {
+        "TkbType": 8860
+      },
+      "EntityInfo": {
+        "Name": "Hold the crossroads",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "HoldArea",
+        "Params": {"common": {"title": "Hold the crossroads", "subject": "a2159f00-0000-4000-8000-0000000000c0", "parent": "5a110000-0000-4000-8000-000000000001", "required": true, "startActive": false}, "area": {"circle": {"center": [175, 60, 0], "radius": 15}}, "minMen": 4, "maxEnemy": 0, "holdSeconds": 20},
+        "Origin": "Superior"
+      }
+    },
+    "5a110000-0000-4000-8000-000000000004": {
+      "TkbIdentity": {
+        "TkbType": 8860
+      },
+      "EntityInfo": {
+        "Name": "Reach the far line",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "ReachArea",
+        "Params": {"common": {"title": "Reach the far line", "subject": "a2159f00-0000-4000-8000-0000000000c0", "parent": "5a110000-0000-4000-8000-000000000001", "deadlineSeconds": 60}, "area": {"circle": {"center": [400, 400, 0], "radius": 10}}, "minMen": 1},
+        "Origin": "Superior"
+      }
+    },
+    "5a110000-0000-4000-8000-000000000005": {
+      "TkbIdentity": {
+        "TkbType": 8860
+      },
+      "EntityInfo": {
+        "Name": "No harm to civilians",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "NoHarm",
+        "Params": {"common": {"title": "No harm to civilians", "subject": "a2159f00-0000-4000-8000-0000000000c0", "parent": "5a110000-0000-4000-8000-000000000001"}, "protected": "Neutral", "maxCount": 0},
+        "Origin": "Superior"
+      }
+    },
+    "5a110000-0000-4000-8000-000000000011": {
+      "TkbIdentity": {
+        "TkbType": 8861
+      },
+      "EntityInfo": {
+        "Name": "Briefing",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "Trigger",
+        "Params": {"common": {"title": "Briefing", "subject": "a2159f00-0000-4000-8000-0000000000c0"}, "when": {"$type": "ScenarioTime", "fromSeconds": 5}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Move to the crossroads and hold it", "seconds": 8}}]},
+        "Origin": "Superior"
+      }
+    },
+    "5a110000-0000-4000-8000-000000000012": {
+      "TkbIdentity": {
+        "TkbType": 8861
+      },
+      "EntityInfo": {
+        "Name": "Phase 2: hold",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "Trigger",
+        "Params": {"common": {"title": "Phase 2: hold", "subject": "a2159f00-0000-4000-8000-0000000000c0"}, "when": {"$type": "OnEntity", "ref": "5a110000-0000-4000-8000-000000000002", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "State", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, "do": [{"act": "SetObjectiveActive", "args": {"target": "5a110000-0000-4000-8000-000000000003", "active": true}}, {"act": "Message", "args": {"toKind": "All", "text": "Crossroads reached - hold it", "seconds": 6}}]},
+        "Origin": "Superior"
+      }
+    },
+    "5a110000-0000-4000-8000-000000000013": {
+      "TkbIdentity": {
+        "TkbType": 8861
+      },
+      "EntityInfo": {
+        "Name": "End",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "Trigger",
+        "Params": {"common": {"title": "End", "subject": "a2159f00-0000-4000-8000-0000000000c0"}, "when": {"$type": "OnEntity", "ref": "5a110000-0000-4000-8000-000000000003", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "State", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Exercise complete", "seconds": 6}}, {"act": "EndExercise", "args": {"reason": "the crossroads is held"}}]},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

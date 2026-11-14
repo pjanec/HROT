@@ -1,0 +1,308 @@
+using CycloneDDS.Schema;
+
+namespace Hrot.NED.Messages
+{
+    /// <summary>
+    /// ⭐ R-221 (📄 docs/DESIGN_Entity_Interactions.md) — the kinds of interaction an actor can request of an entity it does not own.
+    /// The discriminator of <see cref="InteractionPayload"/>. ⛔ Values are wire format: append only, never renumber or reuse.
+    /// <para>⭐ CE-3110 I-2a — Embark/Disembark/EjectPassengers (reserved by I-1) now have their union cases (§7).</para>
+    /// </summary>
+    public enum EInteractionKind : int
+    {
+        None            = 0,
+        Door            = 1,
+        Embark          = 2,   // ⭐ CE-3110 I-2a — target = the vehicle, actor = the passenger
+        Disembark       = 3,   // ⭐ CE-3110 I-2a — target = the vehicle, actor = the passenger
+        EjectPassengers = 4,   // ⭐ CE-3110 I-2a — target = the vehicle
+        // ⭐ CE-3172 S4e (docs/DESIGN_Entity_Control.md §8c) — possession: a station's request, release and control frames, applied by
+        //   the unit's brain owner.
+        Possess         = 5,
+        ReleasePossession = 6,
+        ControlFrame    = 7,
+        // ⭐ Airborne insertion B-4 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §1) — target = the man, actor = the carrier;
+        //   applied by the node owning the man's POSITION.
+        StartDescent    = 8,
+        // ⭐ CE-3235 (B-13, docs/DESIGN_Civilians_And_Crowd_Control.md §7.10) — picking a lying round up: the ask (target = the round,
+        //   actor = the man; applied by the node that flies the round) and the grant (target = the man; applied by his brain's owner).
+        PickUpRound     = 9,
+        PickUpGrant     = 10,
+        // ⭐ CE-3233 (civilians B-11, §7.13 ST-4) — put a carried thing in another of the man's stations (target = the man, actor = the
+        //   thing; applied by the node that owns his passenger list).
+        Restation       = 11,
+        // ⭐ CE-3233 (B-11b, §7.13 ST-8) — set a charge off (target = the charge, actor = who; applied by its position owner).
+        DetonateCharge  = 12,
+        // ⭐ CE-3256 (BR-4, Building Clearing CB-19; docs/DESIGN_Entity_Interactions.md §7.6) — search / detain / restrain / release a man (target =
+        //   the man, actor = the soldier; applied by the node that owns his dtCustody).
+        Custody         = 13,
+        // ⭐ B-5 S3 (R-4137; docs/UX/DESIGN_Initial_State.md §3a) — make a unit know of another (target = the perceiver, actor = the seeded unit; applied by
+        //   the node that owns the perceiver's TargetMemory).
+        SeedTarget      = 14,
+    }
+
+    /// <summary>⭐ The <see cref="EInteractionKind.Door"/> case: what the actor does to the door.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct DoorInteractionPayload
+    {
+        /// <summary><c>DoorVerb</c>: 0 Open · 1 Close · 2 Lock · 3 Unlock · 4 Breach.</summary>
+        public byte Verb;
+    }
+
+    /// <summary>⭐ CE-3172 — the <see cref="EInteractionKind.Possess"/> case: which station asks, and how (<c>PossessionMode</c>).</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct PossessInteractionPayload
+    {
+        public int StationNodeId;
+        public byte Mode;
+        /// <summary>⭐ Edit framework F4 — the user's request id (empty = nobody asked); the applying node answers with <c>EntityEditOutcome</c>. APPENDED (R-169).</summary>
+        public System.Guid RequestId;
+    }
+
+    /// <summary>⭐ CE-3172 — the <see cref="EInteractionKind.ReleasePossession"/> case: which station lets go.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct ReleasePossessionInteractionPayload
+    {
+        public int StationNodeId;
+        /// <summary>⭐ Edit framework F4 — the user's request id (empty = nobody asked); the applying node answers with <c>EntityEditOutcome</c>. APPENDED (R-169).</summary>
+        public System.Guid RequestId;
+    }
+
+    /// <summary>⭐ CE-3172 / CE-3173 — the <see cref="EInteractionKind.ControlFrame"/> case: one frame of the station's controls (M-6:
+    /// the brain keeps the newest <see cref="Seq"/>).</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct ControlFrameInteractionPayload
+    {
+        public int StationNodeId;
+        public uint Seq;
+        public float Forward;
+        public float Lateral;
+        public float Steer;
+        public float Yaw;
+        public byte Gait;
+        public byte Trigger;
+        public byte Mount;
+        public float AimX;
+        public float AimY;
+        public float AimZ;
+        public float Vertical;   // ⭐ CE-2168 (MD-D) — the station's climb axis, carried to the brain with the frame (appended)
+        /// <summary>⭐ CE-1074 — (appended after CE-2168's Vertical) the operator's stance request (StanceId + 1; 0 = none).</summary>
+        public byte Stance;
+        /// <summary>⭐ CE-1078 / CE-1079 (appended) — the press counters and the shot's target network id (DESIGN_Entity_Control §8e).</summary>
+        public byte ShotSeq;
+        public byte CancelSeq;
+        public byte AmmoSeq;
+        public int ShotTarget;
+        /// <summary>⭐ CE-1151 (appended after ShotTarget; DESIGN_Entity_Control §8h U-2) — the use press counter, its verb (0 = primary)
+        /// and the network id of what the crosshair rested on.</summary>
+        public byte UseSeq;
+        public byte UseVerb;
+        public int UseTarget;
+        /// <summary>⭐ CE-1212 (appended after UseTarget; DESIGN_Entity_Control §8j L-1) — the lean the operator holds (LeanSide).</summary>
+        public byte Lean;
+        /// <summary>⭐ CE-1219 (appended after Lean; §8k B-1) — 1 while his binoculars are held up.</summary>
+        public byte Binoculars;
+        /// <summary>⭐ CE-4143 (appended after Binoculars; DESIGN_Entity_Control §8r) — the look ray: origin (the camera eye) …</summary>
+        public float LookFromX, LookFromY, LookFromZ;
+        /// <summary>… and its unit direction (the crosshair ray a SIGHT shot on a turret follows).</summary>
+        public float LookDirX, LookDirY, LookDirZ;
+        /// <summary>⭐ CE-4143 (R-2) — the fire-mode preference: 0 default, 1 SIGHT, 2 LOCK.</summary>
+        public byte FirePref;
+    }
+
+    /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.Embark"/> case. Nothing beyond the header (target = the vehicle, actor =
+    /// the passenger); one reserved byte so the case is never an empty struct.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct EmbarkInteractionPayload
+    {
+        public byte Reserved;
+
+        /// <summary>⭐ <c>CE-2151</c> B-b (R-2009 B4) — the seat role asked for (<c>SeatRole</c>; 0 = Passenger, a plain boarding).</summary>
+        public byte Role;
+
+        /// <summary>⭐ <c>CE-2152</c> C-a (R-2011 C5) — carried or dragged onto a person carrier (<c>CarryMode</c>; 0 = seated).</summary>
+        public byte Mode;
+
+        /// <summary>⭐ Team carry T-a (R-2017 T1) — the team load's second man, network id (0 = none); mapped by the codec. APPENDED (R-169).</summary>
+        public int Assistant;
+        /// <summary>⭐ Edit framework F4 — the user's request id (empty = nobody asked); the applying node answers with <c>EntityEditOutcome</c>. APPENDED (R-169).</summary>
+        public System.Guid RequestId;
+    }
+
+    /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.Disembark"/> case (target = the vehicle, actor = the passenger).</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct DisembarkInteractionPayload
+    {
+        public byte Reserved;
+
+        /// <summary>⭐ Airborne insertion B-4 — <c>ExitKind</c> (0 = step out beside the hull) and the rope / door index. APPENDED (R-169).</summary>
+        public byte Exit;
+        public byte AnchorIndex;
+
+        /// <summary>⭐ H-1 (design §6.5 D-18) — a jumper's landing point (zero = none). APPENDED (R-169).</summary>
+        public float TargetX;
+        public float TargetY;
+        public float TargetZ;
+        /// <summary>⭐ Edit framework F4 — the user's request id (empty = nobody asked); the applying node answers with <c>EntityEditOutcome</c>. APPENDED (R-169).</summary>
+        public System.Guid RequestId;
+    }
+
+    /// <summary>⭐ Airborne insertion B-4 — the <see cref="EInteractionKind.StartDescent"/> case (target = the man, actor = the carrier).</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct StartDescentInteractionPayload
+    {
+        public byte Exit;
+        public byte AnchorIndex;
+
+        /// <summary>⭐ H-1 (D-18) — his landing point (zero = none). APPENDED (R-169).</summary>
+        public float TargetX;
+        public float TargetY;
+        public float TargetZ;
+    }
+
+    /// <summary>⭐ CE-3235 — the <see cref="EInteractionKind.PickUpRound"/> case (target = the round, actor = the man): nothing more.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct PickUpRoundInteractionPayload
+    {
+        public byte Reserved;
+    }
+
+    /// <summary>⭐ CE-3233 — the <see cref="EInteractionKind.Restation"/> case (target = the man, actor = the thing): the station.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct RestationInteractionPayload
+    {
+        /// <summary>The seat (a carry station) of the man to put it in.</summary>
+        public byte Seat;
+    }
+
+    /// <summary>⭐ CE-3233 — the <see cref="EInteractionKind.DetonateCharge"/> case (target = the charge, actor = who): nothing more.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct DetonateChargeInteractionPayload
+    {
+        public byte Reserved;
+    }
+
+    /// <summary>⭐ CE-3256 — the <see cref="EInteractionKind.Custody"/> case (target = the man, actor = the soldier): the verb.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct CustodyInteractionPayload
+    {
+        /// <summary><c>Fdp.Toolkit.Civilians.CustodyVerb</c>.</summary>
+        public byte Verb;
+    }
+
+    /// <summary>⭐ B-5 S3 — the <see cref="EInteractionKind.SeedTarget"/> case (target = the perceiver, actor = the seeded unit): the score boost and the request id.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct SeedTargetInteractionPayload
+    {
+        public float ScoreBoost;
+        /// <summary>⭐ Edit framework F4 — the user's request id (empty = nobody asked); the applying node answers with <c>EntityEditOutcome</c>.</summary>
+        public System.Guid RequestId;
+    }
+
+    /// <summary>⭐ CE-3235 — the <see cref="EInteractionKind.PickUpGrant"/> case (target = the man): what he now holds.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct PickUpGrantInteractionPayload
+    {
+        /// <summary>The munition type.</summary>
+        public long Ammo;
+        /// <summary>How many.</summary>
+        public int Rounds;
+        /// <summary>The fuze it had left (s); 0 = inert.</summary>
+        public float FuzeSeconds;
+        /// <summary>⭐ CE-3236 (B-14, VC-5) — a venting canister's burn left (s); 0 = none (APPENDED, R-169).</summary>
+        public float BurnSeconds;
+    }
+
+    /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.EjectPassengers"/> case (target = the vehicle).</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct EjectPassengersInteractionPayload
+    {
+        public byte Reserved;
+    }
+
+    /// <summary>
+    /// ⭐ R-221 — the kind-specific part of an interaction: one case per <see cref="EInteractionKind"/>. A new kind is a new case
+    /// (the data model grows; the topic and the translators do not). ⛔ No entity handles in a case: target and actor ride the header
+    /// as network ids, and any further entity is an explicit network-id field its codec maps.
+    /// </summary>
+    [DdsUnion]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct InteractionPayload
+    {
+        [DdsDiscriminator]
+        public EInteractionKind Kind;
+
+        [DdsCase(EInteractionKind.Door)]
+        public DoorInteractionPayload Door;
+
+        [DdsCase(EInteractionKind.Embark)]
+        public EmbarkInteractionPayload Embark;
+
+        [DdsCase(EInteractionKind.Disembark)]
+        public DisembarkInteractionPayload Disembark;
+
+        [DdsCase(EInteractionKind.EjectPassengers)]
+        public EjectPassengersInteractionPayload EjectPassengers;
+
+        [DdsCase(EInteractionKind.Possess)]
+        public PossessInteractionPayload Possess;
+
+        [DdsCase(EInteractionKind.ReleasePossession)]
+        public ReleasePossessionInteractionPayload ReleasePossession;
+
+        [DdsCase(EInteractionKind.ControlFrame)]
+        public ControlFrameInteractionPayload ControlFrame;
+
+        [DdsCase(EInteractionKind.StartDescent)]
+        public StartDescentInteractionPayload StartDescent;
+
+        [DdsCase(EInteractionKind.PickUpRound)]
+        public PickUpRoundInteractionPayload PickUpRound;   // ⭐ CE-3235
+
+        [DdsCase(EInteractionKind.PickUpGrant)]
+        public PickUpGrantInteractionPayload PickUpGrant;   // ⭐ CE-3235
+
+        [DdsCase(EInteractionKind.Restation)]
+        public RestationInteractionPayload Restation;   // ⭐ CE-3233
+
+        [DdsCase(EInteractionKind.DetonateCharge)]
+        public DetonateChargeInteractionPayload DetonateCharge;   // ⭐ CE-3233 (B-11b)
+
+        [DdsCase(EInteractionKind.Custody)]
+        public CustodyInteractionPayload Custody;   // ⭐ CE-3256 (BR-4)
+
+        [DdsCase(EInteractionKind.SeedTarget)]
+        public SeedTargetInteractionPayload SeedTarget;   // ⭐ B-5 S3
+    }
+
+    /// <summary>
+    /// ⭐ R-221 — "actor wants to do this to target": sent by a node that does not own the target, applied by the one that does. The
+    /// result reaches every node as the target's own replicated state — there is no reply message.
+    /// </summary>
+    // Reliable + KeepAll: requests are events — a KeepLast reader drops one of two taken together (CE-3095).
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-msgs")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    public partial struct EntityInteractionRequest
+    {
+        /// <summary>Network entity id of what is acted on.</summary>
+        public int TargetId;
+
+        /// <summary>Network entity id of who acts, or 0 (an operator / unknown).</summary>
+        public int ActorId;
+
+        public InteractionPayload Payload;
+    }
+}

@@ -8,9 +8,10 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(BranchNode),              "Branch")]
 [JsonDerivedType(typeof(SequenceNode),            "Sequence")]
 [JsonDerivedType(typeof(GetVariableNode),         "GetVariable")]
-[JsonDerivedType(typeof(GetParameterNode),        "GetParameter")]
 [JsonDerivedType(typeof(GetAllParametersNode),     "GetAllParameters")]
 [JsonDerivedType(typeof(SetVariableNode),         "SetVariable")]
+[JsonDerivedType(typeof(GetAllVariablesNode),     "GetAllVariables")]
+[JsonDerivedType(typeof(SetVariablesNode),        "SetVariables")]
 [JsonDerivedType(typeof(LiteralNode),             "Literal")]
 [JsonDerivedType(typeof(EventEntryNode),          "EventEntry")]
 [JsonDerivedType(typeof(ReturnNode),              "Return")]
@@ -28,14 +29,14 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(WhenNode),           "When")]           // NEW
 [JsonDerivedType(typeof(ReadEqsResultNode),  "ReadEqsResult")]  // NEW
 [JsonDerivedType(typeof(SpawnEqsSensorNode), "SpawnEqsSensor")] // NEW
+[JsonDerivedType(typeof(ReadSensorResultNode), "ReadSensorResult")]   // ⭐ CE-3078 N2
+[JsonDerivedType(typeof(SpawnSensorNode), "SpawnSensor")]             // ⭐ CE-3078 N3
 [JsonDerivedType(typeof(ScoreDecisionNode),    "ScoreDecision")]
 [JsonDerivedType(typeof(ReadRankedResultNode), "ReadRankedResult")]
 [JsonDerivedType(typeof(PartitionElementsNode), "PartitionElements")]
 [JsonDerivedType(typeof(AssignRolesNode),        "AssignRoles")]
 [JsonDerivedType(typeof(AdvancePhaseNode),       "AdvancePhase")]
 [JsonDerivedType(typeof(AcquireSlotNode),        "AcquireSlot")]
-[JsonDerivedType(typeof(GetSharedNode),          "GetShared")]
-[JsonDerivedType(typeof(SetSharedNode),          "SetShared")]
 [JsonDerivedType(typeof(GetComponentNode),       "GetComponent")]
 [JsonDerivedType(typeof(SetComponentNode),       "SetComponent")]
 [JsonDerivedType(typeof(PublishEventNode),       "PublishEvent")]
@@ -45,13 +46,26 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(ComponentItemCountNode), "ComponentItemCount")]
 [JsonDerivedType(typeof(ComponentContainsNode),  "ComponentContains")]
 [JsonDerivedType(typeof(ComponentFindNode),      "ComponentFind")]
+[JsonDerivedType(typeof(CollectionWriteNode),    "CollectionWrite")]
+[JsonDerivedType(typeof(ListWriteNode),          "ListWrite")]
 [JsonDerivedType(typeof(CompareNode),            "Compare")]
 [JsonDerivedType(typeof(BinaryOpNode),           "BinaryOp")]
 [JsonDerivedType(typeof(BooleanOpNode),          "BooleanOp")]
 [JsonDerivedType(typeof(NotNode),                "Not")]
+[JsonDerivedType(typeof(GetTimeNode),            "GetTime")]
+[JsonDerivedType(typeof(SendIntentNode),         "SendIntent")]
+[JsonDerivedType(typeof(ToJsonNode),             "ToJson")]
+[JsonDerivedType(typeof(FromJsonNode),           "FromJson")]
+[JsonDerivedType(typeof(PrintStringNode),        "PrintString")]
+[JsonDerivedType(typeof(FormatStringNode),       "FormatString")]
 [JsonDerivedType(typeof(MakeStructNode),         "MakeStruct")]
 [JsonDerivedType(typeof(BreakStructNode),        "BreakStruct")]
 [JsonDerivedType(typeof(SetMembersNode),         "SetMembers")]
+[JsonDerivedType(typeof(MacroCallNode),          "MacroCall")]
+[JsonDerivedType(typeof(RunBehaviorNode),        "BehaviorTask")]   // ⭐ S7a — was "RunBehavior" (still read, BehaviorTaskMigration)
+[JsonDerivedType(typeof(BehaviorTaskAbortNode),  "BehaviorTaskAbort")]   // compile-time only (Stage 2.6); never authored
+[JsonDerivedType(typeof(BehaviorTaskStartNode),  "BehaviorTaskStart")]   // ⭐ S7b — compile-time only (Stage 2.6); never authored
+[JsonDerivedType(typeof(SopOrderNode),           "SopOrder")]   // ⭐ CE-2083 — an SOP order (DESIGN_Decision_Layer §4.10)
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -65,6 +79,77 @@ public abstract class Node
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, string>? PinDefaults { get; set; }
+
+    /// <summary>
+    /// BP-81 — for a node synthesized by <c>Stage2_5_ExpandMacros</c>, the id of the AUTHORED node in
+    /// the macro body it was cloned from. Null on every authored node.
+    ///
+    /// <para>
+    /// ⚠⚠ <b><c>[JsonIgnore]</c> is the whole point, not a detail.</b> This is a compile-time-only
+    /// annotation: it is set after the clone, consumed by <c>Stage5_Schedule.DebugOf</c>, and must
+    /// never reach disk. Persisting it would break the macro design's central claim that
+    /// <c>ExecOutDecl</c> + <c>Graph.ExecOutputs</c> + <c>MacroCallNode</c> are "the entire on-disk
+    /// change", and would make every existing asset's round-trip move. <c>MacroCloningTests</c> locks
+    /// that it does not serialise.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Why a field on <see cref="Node"/> rather than a side map in the compile context.</b>
+    /// <c>DebugOf(Node)</c> is <c>static</c> and called at <b>55</b> sites in <c>Stage5_Schedule</c>
+    /// alone; a side map forces it to become an instance method or grow a parameter at every one of
+    /// them — a large mechanical diff whose only purpose is to avoid one nullable Guid.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>The precedence downstream is deliberate and must not be "fixed".</b>
+    /// <c>CSharpEmitter:45,53</c> read <c>debug?.NodeId ?? debug?.OriginNodeId</c>, so the CLONE's own
+    /// id wins and each expansion site gets its own <c>DebugMapEntry</c>. That is what makes one
+    /// authored node yield two rows at two call sites: <b>line→node stays 1:1, node→line becomes
+    /// one-to-many.</b> That asymmetry is BP-83's subject.
+    /// </para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Guid? OriginNodeId { get; set; }
+
+    /// <summary>
+    /// BP-83 — the id of the MACRO GRAPH <see cref="OriginNodeId"/> lives in. Compile-time only, same
+    /// as its partner.
+    /// <para>
+    /// ⚠ <b>Both ids are needed, and the second is not redundant.</b> A <c>DebugMapEntry</c>'s
+    /// <c>GraphId</c> is the HOST graph the clone was spliced into, while the authored node the
+    /// designer sees lives in the macro. Without the graph id, an authored node id is ambiguous the
+    /// moment two macros are involved — the debugger could not tell which macro a back-reference
+    /// points into.
+    /// </para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Guid? OriginGraphId { get; set; }
+}
+
+/// <summary>
+/// BP-80 — a call site for a <see cref="GraphKind.Macro"/> graph. <c>Stage2_5_ExpandMacros</c> splices
+/// the target's body in here and deletes this node; it is never lowered.
+///
+/// <para>
+/// ⚠⚠ <b>Exactly one field, and that is a structural decision, not minimalism.</b> Pin names, types,
+/// counts and arity are ALL derived by projection from the target graph
+/// (<c>NodePinSchema.MacroCallPins</c> / <c>Stage0_Rehydrate.EnrichMacroCallPins</c>). Baking any of
+/// them onto the node reproduces <c>CallablePeers</c> (BP-116) and <c>ArgTypes</c> (BP-201) — the same
+/// shape twice already: <em>a property the compiler needs that the editor never writes</em>, invisible
+/// because every fixture hand-writes the JSON. A call node with no baked metadata cannot have that bug.
+/// </para>
+///
+/// <para>
+/// ⚠ <b>A distinct type, not <see cref="FunctionCallNode"/> with a macro target</b>, so that every
+/// <c>OfType&lt;FunctionCallNode&gt;()</c> site (the Stage 5 lowering switch, BP1650-54) cannot see a
+/// macro call — and so an unexpanded one hits its own fail-loud arm (<c>BP1668</c>) rather than the
+/// generic unknown-kind path.
+/// </para>
+/// </summary>
+public sealed class MacroCallNode : Node
+{
+    /// <summary>GUID string of the <see cref="GraphKind.Macro"/> graph this node calls.</summary>
+    public string TargetGraphId { get; set; } = "";
 }
 
 public sealed class FunctionCallNode : Node
@@ -123,23 +208,10 @@ public sealed class SetVariableNode : Node
 }
 
 /// <summary>
-/// Reads a declared AiPrimitive/Instance <b>Parameter</b> (the host-BTree/HSM data-IN contract)
-/// into the graph. Pure-data node (data-out "Value", type from the referenced Parameter). Lowers
-/// in Stage5 to the pre-existing <c>IrOp_ReadParam</c> (emits <c>p.{ParamName}</c>). Closes GAP-11:
-/// before this node, graphs could only read Variables/WorkingState, forcing read-only inputs to be
-/// mis-stashed in WorkingState.
-/// </summary>
-public sealed class GetParameterNode : Node
-{
-    /// <summary>Guid (string) of the Parameter to read, resolved against the asset's Parameters list.</summary>
-    public string ParameterId { get; set; } = "";
-}
-
-/// <summary>
 /// Reads ALL of the asset's declared Parameters at once: one data-OUT pin per
 /// <see cref="BlueprintAsset.Parameters"/> entry (name = <see cref="ParameterDecl.Name"/>, type from
-/// <see cref="ParameterDecl.Type"/>), instead of chaining one <see cref="GetParameterNode"/> per
-/// Parameter. Pure-data node (no exec pins, no fields -- it covers the WHOLE Parameters list, so
+/// <see cref="ParameterDecl.Type"/>), instead of one node per Parameter (⭐ CE-2135 P4 / steer 2: Get Parameter RETIRED — this is the one
+/// Parameter read; an asset that names a params DTO gets one pin per DTO field). Pure-data node (no exec pins, no fields -- it covers the WHOLE Parameters list, so
 /// there is nothing to bake per-instance). Mirrors <see cref="EventEntryNode"/>'s dynamic
 /// one-data-out-per-<c>Graph.Inputs</c> pin projection exactly, retargeted at
 /// <c>asset.Parameters</c>; each pin lowers in Stage5 to the pre-existing <c>IrOp_ReadParam</c>
@@ -147,6 +219,43 @@ public sealed class GetParameterNode : Node
 /// how EventEntryNode's data-out pins are matched by name against <c>Graph.Inputs</c>).
 /// </summary>
 public sealed class GetAllParametersNode : Node { }
+
+/// <summary>
+/// ⭐ <c>CE-433</c> — reads the WHOLE blackboard at once: one data-OUT pin per declared
+/// <see cref="DeclarationKind.Variable"/> (name, type), instead of chaining one
+/// <see cref="GetVariableNode"/> per field. The <see cref="GetAllParametersNode"/> twin for the
+/// block's STATE half. Pure; each pin lowers to the same <c>IrOp_ReadVariable</c> a
+/// <see cref="GetVariableNode"/> does, resolved by the pin's NAME — so the subject routing
+/// (<c>EmissionContext.ContainerFor</c>) is inherited for every dispatch.
+/// ⚠ Fixed-list variables (<c>Type.Capacity &gt; 0</c>) get no pin: a list is read through the
+/// <c>List*</c> nodes, never as a whole value on a pin (<c>BP1506</c>). 📄 Q76 §12.22.
+/// </summary>
+public sealed class GetAllVariablesNode : Node
+{
+    /// <summary>
+    /// ⭐⭐ The ONE answer to <i>"which variables get a pin?"</i> on this node and on
+    /// <see cref="SetVariablesNode"/> — every declared <see cref="DeclarationKind.Variable"/> that is
+    /// not a fixed-capacity list, in declaration order. ⛔ Stage 0, Stage 5, the <c>BP1670</c> rail and
+    /// the editor's pin projection all read it, so the four cannot drift (<c>R-132</c>).
+    /// </summary>
+    public static IEnumerable<BlueprintDeclaration> PinnedVariablesOf(BlueprintAsset? asset)
+        => asset is null
+            ? Enumerable.Empty<BlueprintDeclaration>()
+            : asset.Declarations.Of(DeclarationKind.Variable).Where(IsPinned);
+
+    /// <summary>The per-declaration half of <see cref="PinnedVariablesOf"/>: not a fixed-capacity list.</summary>
+    public static bool IsPinned(BlueprintDeclaration variable) => variable.Type is not { Capacity: > 0 };
+}
+
+/// <summary>
+/// ⭐ <c>CE-433</c> — writes the blackboard's variables from one node: exec in/out plus one data-IN
+/// pin per declared <see cref="DeclarationKind.Variable"/> (same set and order as
+/// <see cref="GetAllVariablesNode"/>). ⭐⭐ An UNWIRED pin leaves its variable UNTOUCHED — the node
+/// lowers to one <c>IrOp_WriteVariable</c> per WIRED pin, in declaration order (the
+/// <see cref="SetMembersNode"/> precedent). Side-effecting exactly as <see cref="SetVariableNode"/>
+/// is, and shares its resolver-purity exemption. 📄 Q76 §12.22.
+/// </summary>
+public sealed class SetVariablesNode : Node { }
 
 public sealed class LiteralNode : Node
 {
@@ -173,10 +282,158 @@ public sealed class EventEntryNode : Node
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? TargetFieldName { get; set; }
+
+    /// <summary>
+    /// ⭐ S6b (<c>DESIGN_Unified_Behaviour_Run</c> U-6) — what a behaviour's waiting Event graph does when its event
+    /// arrives again before the handler finished. Never silent. Default Parallel ⇒ omitted from JSON.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public EventFiberPolicy Policy { get; set; }
+
+    /// <summary>⭐ CE-2015 — the largest <see cref="Capacity"/> (a fixed layout needs a bounded N, BP1681). The ONE home of
+    /// the number: the compiler's fiber lowering and the editor's Details clamp both read it.</summary>
+    public const int MaxCapacity = 16;
+
+    /// <summary>⭐ S6b — how many handlers may run at once (Parallel) or wait in line (Queue). 0 = 1. Limit 16 (BP1660).</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int Capacity { get; set; }
+
+    /// <summary>
+    /// ⭐ CE-2012 (<c>DESIGN_Typed_Event_Nodes</c> T-1) — the event's payload fields (name + pin TypeId), baked by the
+    /// editor exactly like <see cref="PublishEventNode.PayloadFields"/>. One data-out pin each; they are the handler's
+    /// inputs. ⇒ an Event graph can hold several event nodes, each with its own payload shape.
+    /// <para>
+    /// Null ⇒ the node has no payload of its own and is the graph's ONE entry, whose payload is
+    /// <see cref="Graph.Inputs"/> — a Function, Macro or custom-event body, and a legacy bus-event graph until
+    /// <see cref="EventPayload.MigrateLegacyInputs"/> moves its inputs here. Omitted from JSON when null.
+    /// </para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<PublishEventFieldDecl>? Fields { get; set; }
+}
+
+/// <summary>
+/// ⭐ CE-2012 (<c>DESIGN_Typed_Event_Nodes</c> T-1, T-7) — the ONE owner of "what payload does this event node carry",
+/// shared by the compiler (Stage 0 pins, the handler split) and the editor (its pin projection), so the two halves
+/// cannot drift.
+/// </summary>
+public static class EventPayload
+{
+    /// <summary>A node that subscribes to a bus event (it names one); an empty id is the entry of a Function, Macro or
+    /// custom-event body (T-7).</summary>
+    public static bool IsTyped(EventEntryNode node) => !string.IsNullOrWhiteSpace(node.EventTypeId);
+
+    /// <summary>
+    /// The payload of <paramref name="node"/>, in pin order: its own <see cref="EventEntryNode.Fields"/>, or — when it
+    /// has none and <paramref name="graph"/> holds no OTHER event node — the graph's <see cref="Graph.Inputs"/>.
+    /// Otherwise empty.
+    /// </summary>
+    public static IReadOnlyList<ParameterDecl> FieldsOf(Graph graph, EventEntryNode node)
+    {
+        if (node.Fields is { } fields)
+            return fields.Select(f => new ParameterDecl
+            {
+                Id   = Compiler.DeterministicIds.FromString($"event-field:{node.Id:N}:{f.Name}"),
+                Name = f.Name,
+                Type = new BlueprintTypeRef { TypeId = f.TypeId },
+            }).ToList();
+        // ⚠ "the only one" counts the OTHER event nodes: the editor projects a node's pins before it is added to the graph.
+        foreach (var n in graph.Nodes)
+            if (n is EventEntryNode && !ReferenceEquals(n, node) && n.Id != node.Id) return Array.Empty<ParameterDecl>();
+        return graph.Inputs;
+    }
+
+    /// <summary>
+    /// ⭐ CE-2014 (T-6) — the handler input that carries the WHOLE event struct, read by the node's whole-event pin. A
+    /// reserved name, so it can never collide with a payload field; the thunk passes the event itself for it.
+    /// </summary>
+    public const string WholeEventInput = "__event";
+
+    /// <summary>
+    /// ⭐ CE-2014 (T-6) — the name of <paramref name="node"/>'s whole-event data-out pin, or null when it has none. Only a
+    /// typed node with its own <see cref="EventEntryNode.Fields"/> has one (a legacy graph-carried payload keeps exactly
+    /// its old pins). Named <c>Event</c>, or <c>WholeEvent</c> when a field already is.
+    /// </summary>
+    public static string? WholeEventPinName(EventEntryNode node)
+    {
+        if (!IsTyped(node) || node.Fields is not { } fields) return null;
+        return fields.Any(f => string.Equals(f.Name, "Event", StringComparison.OrdinalIgnoreCase)) ? "WholeEvent" : "Event";
+    }
+
+    /// <summary>
+    /// ⭐ CE-2014 — the whole-event pin's TypeId: a project type, spelled with the <c>global::</c> sentinel the type
+    /// registry accepts for one (the same convention a struct-typed variable uses).
+    /// </summary>
+    public static string WholeEventTypeId(EventEntryNode node)
+        => node.EventTypeId.StartsWith("global::", StringComparison.Ordinal) ? node.EventTypeId : "global::" + node.EventTypeId;
+
+    /// <summary>
+    /// ⭐ CE-2012 — the load-time migration (T-1): a bus-event Event graph that keeps its payload on the GRAPH (one
+    /// typed event node, no <see cref="EventEntryNode.Fields"/>, not a custom-event body) has it moved onto its node.
+    /// The generated code does not change: the handler's inputs are the same names, types and order. Returns whether
+    /// anything moved.
+    /// </summary>
+    public static bool MigrateLegacyInputs(BlueprintAsset asset)
+    {
+        bool moved = false;
+        foreach (var graph in asset.Graphs)
+        {
+            if (graph.Kind != GraphKind.Event || graph.Inputs.Count == 0) continue;
+            var entries = graph.Nodes.OfType<EventEntryNode>().ToList();
+            if (entries.Count != 1 || entries[0].Fields is not null || !IsTyped(entries[0])) continue;
+            if (asset.CustomEvents.Any(e => string.Equals(e.Name, graph.Name, StringComparison.Ordinal))) continue;
+            entries[0].Fields = graph.Inputs
+                .Select(i => new PublishEventFieldDecl { Name = i.Name, TypeId = i.Type?.TypeId ?? "" })
+                .ToList();
+            graph.Inputs = new List<ParameterDecl>();
+            moved = true;
+        }
+        return moved;
+    }
+}
+
+/// <summary>⭐ S6b (U-6) — an Event graph's policy for an arrival while its handler still waits.</summary>
+public enum EventFiberPolicy
+{
+    /// <summary>One handler per arrival, up to <c>Capacity</c> at once; one more ⇒ <c>EventOverflow</c> fault.</summary>
+    Parallel = 0,
+    /// <summary>The newest arrival wins: the waiting handler (and every behaviour it hosts) is abandoned and restarted.</summary>
+    Restart = 1,
+    /// <summary>Arrivals wait in line (up to <c>Capacity</c>) and run one after another (S6b-2).</summary>
+    Queue = 2,
 }
 
 public sealed class ReturnNode : Node
 {
+    /// <summary>
+    /// BP-131 — the name of the <c>bool</c> data-IN pin that drives an <b>AiPrimitive</b>'s returned
+    /// <c>NodeStatus</c> at runtime. Projected by <c>NodePinSchema.ReturnNodePins</c> (editor) and
+    /// <c>Stage0_Rehydrate.EnrichReturnPins</c> (compiler), and excluded BY NAME from
+    /// <c>Stage5_Schedule.BuildReturnTerminator</c>'s <c>valuePins</c>.
+    ///
+    /// <para>
+    /// ⚠⚠ <b>The exclusion is not tidiness.</b> <c>valuePins</c> is "every non-exec pin on the Return
+    /// node", and two unrelated shapes branch on its COUNT: <c>== 0</c> selects the zero-output-Library
+    /// NodeStatus return, and <c>&gt; 1</c> selects BP-73 tuple packing. A <c>Success</c> pin counted
+    /// among them silently moves both. Containment is primarily the projection gate (the pin exists
+    /// for AiPrimitive only); excluding it by name here is defence in depth, because the two
+    /// mechanisms fail independently.
+    /// </para>
+    ///
+    /// <para>
+    /// One shared constant rather than two string literals: the projections live in two assemblies
+    /// that must agree, and every past divergence between them (BP-69, BP-116, BP-201) was two copies
+    /// of one fact drifting apart.
+    /// </para>
+    /// </summary>
+    public const string SuccessPinName = "Success";
+
+    /// <summary>
+    /// The author-time status. ⭐ BP-131: still the fallback, and deliberately so — an unwired
+    /// <see cref="SuccessPinName"/> pin resolves to this rather than to <c>default(bool)</c>, which is
+    /// <c>false</c> = Failure and would have flipped every AiPrimitive Return already shipped. That is
+    /// what makes the feature need no asset migration.
+    /// </summary>
     public NodeStatus Status { get; set; } = NodeStatus.Success;
 }
 
@@ -196,6 +453,181 @@ public sealed class ArrayMakeNode : Node
 public sealed class ArrayGetNode : Node { }
 
 public sealed class LatentDelayNode : Node { }
+
+/// <summary>
+/// ⭐⭐ <b>Behaviour Task</b> (U-11; S5d's Run Behaviour grown by S7a/S7b, <c>DESIGN_Unified_Behaviour_Run</c>): this behaviour
+/// HOSTS another behaviour of any tier (BTree, HSM, blueprint) at this site. The child runs in this node's own hosted slot,
+/// under this run's occurrence key, so the same child at two nodes keeps two runs.
+/// <list type="bullet">
+/// <item>Run and wait (only Start + completion pins wired) — latent: <c>Succeeded</c> / <c>Failed</c> when the child ends
+/// (Q#13 — Failed unwired ⇒ a Tick returns Failure), <c>While Running</c> on each frame it is still running.</item>
+/// <item>⭐ S7b — <c>Started</c> wired: the task runs ALONGSIDE in a task fiber of its own (Stage 2.6), and the graph
+/// continues on Started at once; a second Start while it runs restarts it.</item>
+/// <item><c>Abort</c> — from its own While Running, or (Started wired) from the chain after Started ⇒ <c>Failed</c>.</item>
+/// </list>
+/// </summary>
+public sealed class RunBehaviorNode : Node
+{
+    /// <summary>The child behaviour's REGISTRY name.</summary>
+    public string BehaviorName { get; set; } = "";
+
+    /// <summary>
+    /// ⭐ S8 / <c>CE-2022</c> (<c>DESIGN_Unified_Behaviour_Run</c> "S8 design" P1) — the child's hosted INPUT type (unprefixed
+    /// FQN), baked when the child is picked. Set ⇒ the node projects a <see cref="ParamsPin"/> data-in typed as it.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsTypeId { get; set; }
+
+    /// <summary>
+    /// ⭐ S8 / <c>CE-2022</c> (P2/P3) — the id of the HOST variable whose bytes seed the child at its start
+    /// (<c>DESIGN_Parameter_Model</c> §P.2; the BTree/HSM field of the same name). Authored directly, or set by Stage 2.6
+    /// for a wired <see cref="ParamsPin"/> (a hidden variable written on the Start path).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsVariable { get; set; }
+
+    /// <summary>⭐ S8 — the data-in pin carrying the child's parameters (present when <see cref="ParamsTypeId"/> is set).</summary>
+    public const string ParamsPin = "Params";
+
+    /// <summary>The pin type for <see cref="ParamsTypeId"/> (project types carry the <c>global::</c> prefix).</summary>
+    public static string ParamsPinTypeId(string paramsTypeId)
+        => paramsTypeId.StartsWith("global::", StringComparison.Ordinal) ? paramsTypeId : "global::" + paramsTypeId;
+
+    // ⭐⭐ S7a (DESIGN_Unified_Behaviour_Run "S7 design", U-11) — the BEHAVIOUR TASK node's pins. "Run and wait" is only
+    //   Start + the completion pins wired. ⚠ The S5d names (In / Out / OnFailure) still route, so a graph built against
+    //   them is read the same (BehaviorTaskMigration renames them on load).
+    public const string StartPin        = "Start";
+    public const string AbortPin        = "Abort";
+    public const string StartedPin      = "Started";
+    public const string WhileRunningPin = "WhileRunning";
+    public const string SucceededPin    = "Succeeded";
+    public const string FailedPin       = "Failed";
+
+    /// <summary>True for the pin that continues on the child's Failure (its S5d name included).</summary>
+    public static bool IsFailedPin(string name) => name is FailedPin or "OnFailure";
+
+    /// <summary>True for an exec-OUT pin that is NOT the success continuation.</summary>
+    public static bool IsNonSuccessOut(string name) => IsFailedPin(name) || name is StartedPin or WhileRunningPin;
+}
+
+/// <summary>⭐ <c>CE-2083</c> — which of the two SOP actions a <see cref="SopOrderNode"/> performs (the BTree payload's
+/// <c>SopOrderKindDto</c>; this assembly cannot see that one).</summary>
+public enum SopOrderKind
+{
+    /// <summary>The unit's idle choice — an assignment at origin Sop (the lowest rank).</summary>
+    DoWhenIdle = 0,
+    /// <summary>Answer an event — an assignment at origin Reaction, which pauses the task (R-199).</summary>
+    React = 1,
+}
+
+/// <summary>⭐ <c>CE-2083</c> — <c>Fdp.Toolkit.Behavior.Components.ReactionUrgency</c>, mirrored by NAME and VALUE because this
+/// assembly is also netstandard2.0 (the same reason the BTree payload has <c>SopUrgencyDto</c>); a rail pins all three.</summary>
+public enum SopOrderUrgency : byte
+{
+    NotAReaction = 0,
+    Alert = 1,
+    Contact = 2,
+    UnderFire = 3,
+    Hit = 4,
+    /// <summary>⭐ CE-2360 — mirrors <c>ReactionUrgency.Grenade</c> (appended there; the mirror rail found it missing).</summary>
+    Grenade = 5,
+    /// <summary>⭐ CE-2272 — mirrors <c>ReactionUrgency.Break</c>.</summary>
+    Break = 6,
+}
+
+/// <summary>
+/// ⭐⭐ <c>CE-2083</c> — <b>SOP order</b> ("Do when idle" / "React"): starts <see cref="BehaviorName"/> in the unit's TASK slot
+/// through the gate, instantly, by calling <c>Fdp.Toolkit.Behavior.SopActions</c> — the one implementation the BTree node and
+/// the HSM state also call. <c>Accepted</c> is false when the gate refused it (a Branch on it is the BTree Selector's "try the
+/// next row"). 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.10 (D4–D6), §4.6.
+/// </summary>
+public sealed class SopOrderNode : Node
+{
+    public SopOrderKind Kind { get; set; }
+
+    /// <summary>The behaviour's REGISTRY name.</summary>
+    public string BehaviorName { get; set; } = "";
+
+    /// <summary>The behaviour's AUTHORED params type (unprefixed FQN, <c>BehaviorDefinition.JsonParamsDtoType</c>), baked when it
+    /// is picked. Set ⇒ the node projects a <see cref="ParamsPin"/> typed as it; unset or unwired ⇒ the authored defaults.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsTypeId { get; set; }
+
+    /// <summary>For <see cref="SopOrderKind.React"/>: how urgent (a running reaction yields only to a more urgent one).</summary>
+    public SopOrderUrgency Urgency { get; set; } = SopOrderUrgency.Alert;
+
+    public const string ParamsPin   = "Params";
+    public const string AcceptedPin = "Accepted";
+}
+
+/// <summary>
+/// ⭐ S7a — compile-time only: Stage 2.6 retargets every exec link into a Behaviour Task's <c>Abort</c> pin to one of
+/// these (the scheduler walks node to node and cannot see which input pin was entered). Lowers to
+/// <c>IrOp_AbortTask</c>. Never authored, never saved.
+/// </summary>
+public sealed class BehaviorTaskAbortNode : Node
+{
+    /// <summary>The id of the Behaviour Task node this aborts (in the same graph — or, with <see cref="FiberGraph"/>, the
+    /// task's clone in its task fiber).</summary>
+    public Guid TaskNodeId { get; set; }
+
+    /// <summary>⭐ S7b — set when the task runs ALONGSIDE (Started wired): the name of the task fiber graph it was lifted
+    /// into. The abort then stops that fiber (<c>IrOp_AbortStartedTask</c>) instead of the graph's own wait.</summary>
+    public string? FiberGraph { get; set; }
+}
+
+/// <summary>
+/// ⭐ S7b (<c>DESIGN_Unified_Behaviour_Run</c> "S7b design" B1) — compile-time only: what a Behaviour Task whose
+/// <c>Started</c> pin is wired becomes in the graph that starts it, once Stage 2.6 has lifted the task and its
+/// completion chains into a task fiber. Start in, Started out: it (re)starts the fiber (Restart, B2) and continues at
+/// once. Lowers to <c>IrOp_StartTask</c>. Never authored, never saved.
+/// </summary>
+public sealed class BehaviorTaskStartNode : Node
+{
+    /// <summary>The authored task's id (this node keeps it, so a breakpoint on the task pauses here).</summary>
+    public Guid TaskNodeId { get; set; }
+    public string BehaviorName { get; set; } = "";
+
+    /// <summary>The task fiber graph this starts.</summary>
+    public string FiberGraph { get; set; } = "";
+}
+
+/// <summary>⭐ S7a — the load-time migration of a pre-S7 Run Behaviour node: the kind and the three S5d pin names.</summary>
+public static class BehaviorTaskMigration
+{
+    private static readonly (string Old, string New, string Dir)[] Renames =
+    {
+        ("In", RunBehaviorNode.StartPin, "In"), ("Out", RunBehaviorNode.SucceededPin, "Out"), ("OnFailure", RunBehaviorNode.FailedPin, "Out"),
+    };
+
+    /// <summary>Rewrites the retired kind name in raw JSON (before it is deserialized).</summary>
+    public static string MigrateKind(string json)
+        => json.IndexOf("\"RunBehavior\"", StringComparison.Ordinal) < 0
+            ? json
+            : System.Text.RegularExpressions.Regex.Replace(json, "(\"kind\"\\s*:\\s*)\"RunBehavior\"", "$1\"BehaviorTask\"");
+
+    /// <summary>Renames a migrated node's S5d pins (stored pins, and the link ends that name them by deterministic id).</summary>
+    public static void MigratePins(BlueprintAsset asset)
+    {
+        foreach (var graph in asset.Graphs)
+            foreach (var node in graph.Nodes.OfType<RunBehaviorNode>())
+                foreach (var (oldName, newName, dir) in Renames)
+                {
+                    var oldId = Compiler.DeterministicIds.PinId(node.Id, oldName, dir);
+                    var newId = Compiler.DeterministicIds.PinId(node.Id, newName, dir);
+                    foreach (var pin in node.Pins.Where(p => p.Name == oldName && p.Direction == dir))
+                    {
+                        if (pin.Id == oldId) pin.Id = newId;
+                        pin.Name = newName;
+                    }
+                    foreach (var link in graph.Links)
+                    {
+                        if (link.FromNodeId == node.Id && link.FromPinId == oldId) link.FromPinId = newId;
+                        if (link.ToNodeId == node.Id && link.ToPinId == oldId) link.ToPinId = newId;
+                    }
+                }
+    }
+}
 
 public sealed class CallEventDispatcherNode : Node
 {
@@ -271,9 +703,34 @@ public sealed class WhenNode : Node
     public EventFiredPayload? EventFired { get; set; }
     public ConditionMetPayload? ConditionMet { get; set; }
     public EqsResultPayload? EqsResult { get; set; }
+    /// <summary>⭐ <c>CE-3078</c> N4 — <see cref="WhenMode.SensorResult"/>'s payload (omitted from JSON otherwise, so every existing
+    /// When node persists byte-identically).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SensorResultPayload? SensorResult { get; set; }
 }
 
-public enum WhenMode { ValueChanged, EventFired, ConditionMet, EqsResult }
+/// <summary>⚠ Persisted by value — append only.</summary>
+public enum WhenMode { ValueChanged, EventFired, ConditionMet, EqsResult, SensorResult }
+
+/// <summary>
+/// ⭐ <c>CE-3078</c> N4 — <c>When SensorResult(kind, trigger)</c> on the unit's sensor of a kind. Decided by the baked trigger's
+/// SHAPE (D4), never by its name: Header (<c>FirstReady</c> / <c>Changed</c> = the answer's stamp moved / <c>BecomesStale</c>),
+/// <c>FieldChanged</c> (entry 0's field differs from last seen — from the field's default, so the first area seen fires),
+/// <c>FieldCrossed</c> (entry 0's field crossed <see cref="Threshold"/> — up fires OnFired, down OnEnded; it starts "below",
+/// so an area already over the threshold when first seen fires). No area ⇒ the field reads as its default (0). ⚠ Field triggers compare EVERY tick, not once per answer: the area
+/// family is re-rated between answers (§7.10b).
+/// </summary>
+public sealed class SensorResultPayload
+{
+    /// <summary>The kind's baked types and triggers.</summary>
+    public SensorKindDecl? Decl { get; set; }
+    /// <summary>The trigger's name — one of <see cref="SensorKindDecl.Triggers"/>.</summary>
+    public string Trigger { get; set; } = "";
+    /// <summary>The FieldCrossed threshold.</summary>
+    public float Threshold { get; set; }
+    /// <summary>The BecomesStale age (s).</summary>
+    public float MaxAgeSeconds { get; set; }
+}
 
 [Flags]
 public enum WhenEdge { None = 0, RisingEdge = 1, FallingEdge = 2 }
@@ -327,6 +784,14 @@ public enum ArithmeticOperator
     Multiply,
     Divide,
     Modulo,
+    // ⭐ CE-471 — bitwise/shift, integer operands only (BP1678). Appended: the enum is persisted by value.
+    // BitAnd/BitOr/BitXor also accept a [Flags] enum (C# defines & | ^ on enums); shifts need an integer.
+    // ⚠ No unary BitNot: BinaryOp is A/B-shaped; `A ^ AllOnes` covers it (see BinaryOp_And_Boolean_Nodes_Design.md).
+    BitAnd,
+    BitOr,
+    BitXor,
+    ShiftLeft,
+    ShiftRight,
 }
 
 /// <summary>Boolean logic operator for the native <see cref="BooleanOpNode"/>.</summary>
@@ -350,6 +815,13 @@ public sealed class ConditionMetPayload
 public sealed class EqsResultPayload
 {
     public string SensorVariableName { get; set; } = "";
+    /// <summary>
+    /// ⭐ <c>CE-3054</c> D — read the UNIT's own sensor of this kind instead of a sensor variable (the <c>SensorModality</c>
+    /// value: 1 Visual, 2 Radar, 4 Thermal, 8 Acoustic; 0 = use <see cref="SensorVariableName"/>). Resolved each read by
+    /// <c>UnitSensors.Of</c>, so a TKB sensor the blueprint never spawned is readable.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]   // 0 = the variable: the persisted shape of every existing asset is unchanged
+    public byte UnitSensorKind { get; set; }
     public EqsTrigger Trigger { get; set; }
     public float ScoreThreshold { get; set; }
     public float MaxAgeSeconds { get; set; }
@@ -364,6 +836,128 @@ public enum EqsTrigger { FirstReady, TopChanged, ScoreCrossed, BecomesStale }
 public sealed class ReadEqsResultNode : Node
 {
     public string SensorVariableName { get; set; } = "";
+    /// <summary>⭐ <c>CE-3054</c> D — as <see cref="EqsResultPayload.UnitSensorKind"/>: the unit's sensor of this kind (0 = the variable).</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]   // 0 = the variable: the persisted shape of every existing asset is unchanged
+    public byte UnitSensorKind { get; set; }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// ⭐ CE-3078 (N1–N4) — the per-KIND sensor nodes. docs/DESIGN_Sensors_And_Doctrine.md §7.10a.
+// The editor BAKES a SensorKindDecl from the toolkit's SensorKindRegistry into the node (the compiler is
+// netstandard2.0 and cannot read the registry — the GetComponent CA-01 precedent); the compiler lowers only
+// from the baked decl, so an asset compiles the same on any host.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>⭐ <c>CE-3078</c> — one sensor kind's types, baked by the editor from <c>SensorKindRegistry</c> (D1).</summary>
+public sealed class SensorKindDecl
+{
+    /// <summary>The kind (<c>SensorModality</c> value; 0 = an EQS query sensor).</summary>
+    public byte Kind { get; set; }
+    /// <summary>Display name of the kind (e.g. "DangerArea") — editor text only.</summary>
+    public string KindName { get; set; } = "";
+    /// <summary>Its result family ("Ranked" / "Area") — editor text only; the lowering never branches on it.</summary>
+    public string Family { get; set; } = "";
+    /// <summary>FQN of the component holding the answer on the sensor child (Q1: <c>Count</c>, <c>IsReady</c>,
+    /// <c>LastUpdateTick</c>, <c>GetSpanRO()</c>).</summary>
+    public string ResultComponentFqn { get; set; } = "";
+    /// <summary>FQN of one entry of the answer.</summary>
+    public string ElementTypeFqn { get; set; } = "";
+    /// <summary>The element's public fields — one out-pin each on <see cref="ReadSensorResultNode"/> (D2).</summary>
+    public List<ComponentFieldDecl> ElementFields { get; set; } = new();
+
+    /// <summary>⭐ N3 — FQN of what configures the kind; null when a behaviour does not spawn it (<see cref="EnsureMethodFqn"/>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SettingsTypeFqn { get; set; }
+    /// <summary>⭐ N3 — the settings' public fields — one in-pin each on <see cref="SpawnSensorNode"/> (D3).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<ComponentFieldDecl>? SettingsFields { get; set; }
+    /// <summary>⭐ N3 — FQN of the settings' public static <c>Default</c>, the base an unwired pin keeps; null = <c>default(T)</c>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SettingsDefaultFqn { get; set; }
+    /// <summary>⭐ N3 (Q2) — FQN of the static <c>Entity Ensure(EntityRepository, Entity owner, int site, in TSettings, long key)</c>;
+    /// null = the kind is not spawned by a behaviour (not offered by <see cref="SpawnSensorNode"/>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? EnsureMethodFqn { get; set; }
+
+    /// <summary>⭐ N4 (Q3) — the kind's <c>When SensorResult</c> triggers, as DATA (name, element field, shape).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<SensorTriggerDecl>? Triggers { get; set; }
+    /// <summary>⭐ N4 — the result component carries <c>float LastUpdateTimeSeconds</c> (the answer's TIME — not one of Q1's four
+    /// members); a <c>BecomesStale</c> trigger needs it (BP2076 otherwise).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool HasAnswerTime { get; set; }
+}
+
+/// <summary>⭐ <c>CE-3078</c> N4 (Q3) — one trigger of a kind: how it is decided, never a name the compiler knows.</summary>
+public sealed class SensorTriggerDecl
+{
+    /// <summary>What the node offers (e.g. "ThreatCrossed").</summary>
+    public string Name { get; set; } = "";
+    /// <summary>The element field it watches (entry 0's); null for a header trigger.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ElementField { get; set; }
+    /// <summary>"Header" (from the answer's header: FirstReady / Changed / BecomesStale), "FieldChanged" or "FieldCrossed".</summary>
+    public string Shape { get; set; } = "Header";
+}
+
+/// <summary>
+/// ⭐ <c>CE-3078</c> N2 — read entry <c>Index</c> of the unit's sensor of a kind (<c>UnitSensors.Of</c>): header pins
+/// <c>IsReady</c> / <c>Count</c> / <c>AnswerTick</c>, then one out-pin per element field (D2). Pure. The ranked
+/// <see cref="ReadEqsResultNode"/> is unchanged (D5).
+/// </summary>
+public sealed class ReadSensorResultNode : Node
+{
+    /// <summary>The kind's baked types; null = not baked (BP2074).</summary>
+    public SensorKindDecl? Decl { get; set; }
+
+    /// <summary>The header out-pins, in order — reserved names (an element field of the same name is prefixed).</summary>
+    public static readonly IReadOnlyList<(string Name, string TypeId)> HeaderPins = new[]
+    {
+        ("IsReady", "System.Boolean"),
+        ("Count", "System.Int32"),
+        ("AnswerTick", "System.UInt32"),
+    };
+
+    /// <summary>The ONE pin projection — Stage0 and the editor both build pins from it, so the canvas and the compiler
+    /// cannot disagree. <c>Member</c> is the read path on the helper's result struct.</summary>
+    public static IReadOnlyList<(string Name, string Direction, string TypeId, string Member)> DataPins(SensorKindDecl? decl)
+    {
+        var pins = new List<(string, string, string, string)> { ("Index", "In", "System.Int32", "") };
+        foreach (var (name, type) in HeaderPins) pins.Add((name, "Out", type, name));
+        if (decl is null) return pins;
+        foreach (var f in decl.ElementFields)
+        {
+            if (string.IsNullOrEmpty(f.Name) || f.IsCollection) continue;
+            bool reserved = false;
+            foreach (var (h, _) in HeaderPins) if (h == f.Name) { reserved = true; break; }
+            pins.Add((reserved ? "Element" + f.Name : f.Name, "Out", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId, "Element." + f.Name));
+        }
+        return pins;
+    }
+}
+
+/// <summary>
+/// ⭐ <c>CE-3078</c> N3 — create (find-or-create) this behaviour run's sensor of a kind, configured from one in-pin per
+/// settings field, through the kind's own Ensure method (Q2, D3); out <c>Sensor</c> (the child entity). One sensor per
+/// <c>Key</c> from a single node (CE-485). Unwired settings keep the settings type's <c>Default</c>.
+/// </summary>
+public sealed class SpawnSensorNode : Node
+{
+    /// <summary>The kind's baked types; null = not baked (BP2074).</summary>
+    public SensorKindDecl? Decl { get; set; }
+
+    /// <summary>The ONE data-pin projection (after the exec In / Out) — Stage0 and the editor both use it.</summary>
+    public static IReadOnlyList<(string Name, string Direction, string TypeId)> DataPins(SensorKindDecl? decl)
+    {
+        var pins = new List<(string, string, string)>();
+        if (decl?.SettingsFields is { } fields)
+            foreach (var f in fields)
+                if (!string.IsNullOrEmpty(f.Name) && !f.IsCollection && f.Name != "Key" && f.Name != "Sensor")
+                    pins.Add((f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        pins.Add(("Key", "In", "Fdp.Core.Entity"));
+        pins.Add(("Sensor", "Out", "Fdp.Core.Entity"));
+        return pins;
+    }
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -448,53 +1042,9 @@ public sealed class AcquireSlotNode : Node
     public int TotalSlots { get; set; } = 1;
 }
 
-// ──────────────────────────────────────────────────────────────────────────
-// GetShared / SetShared (Slice 2a-2 -- entity-scoped Blueprint shared state)
-// Compile to calls into Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState
-// (Slice 2a-1). Same-entity (self) only -- no target-Entity pin, no cross-entity
-// (that is Slice 2b). No Scope field -- Entity scope is implied for 2a.
-//
-// Slice 2b adds an OPTIONAL "Target" data-in Entity pin to GetShared ONLY (see
-// NodePinSchema.GetSharedPins / Stage0_Rehydrate.EnrichGetSharedPins). When wired, the graph
-// author supplies a target Entity (any Entity-valued pin) instead of self, so a member entity
-// can read a coordinator entity's Entity-scoped shared slot directly (≤1-frame staleness,
-// TryGetShared -> false when the target hasn't provisioned yet -- never throws). SetShared
-// remains self-only by construction -- cross-entity WRITE is a separate future slice (a
-// deferred-event bus), not built here.
-// ──────────────────────────────────────────────────────────────────────────
-
-/// <summary>
-/// Reads the ENTITY-scoped shared working-state slot named <see cref="VariableId"/> off
-/// <c>self</c> (or off an explicit target Entity -- Slice 2b, see "Target" pin), via
-/// <c>BlueprintSharedState.TryGetShared&lt;SharedTypeId&gt;</c>. Pure-data node (no exec pins):
-/// OPTIONAL data-in "Target" (<c>Fdp.Core.Entity</c> -- unwired = self, byte-identical to Slice
-/// 2a-2), data-out "Value" (typed by <see cref="SharedTypeId"/>) + data-out "Found"
-/// (<c>System.Boolean</c>).
-/// </summary>
-public sealed class GetSharedNode : Node
-{
-    /// <summary>Entity-scoped slot name (matches the manifest-provisioned variable name).</summary>
-    public string VariableId { get; set; } = "";
-
-    /// <summary>
-    /// FQN of the standalone Category-1 shared struct (a hand-written blittable struct, NOT a
-    /// generated <c>_Bp+WorkingState</c>). Used to type the "Value" pin directly and as the
-    /// generic argument of <c>BlueprintSharedState.TryGetShared&lt;T&gt;</c>.
-    /// </summary>
-    public string SharedTypeId { get; set; } = "";
-
-    /// <summary>
-    /// Q#14 multi-pin: baked per-field decls the editor reflects from the shared struct. When non-null,
-    /// GetShared projects one data-out pin PER FIELD (read the struct once, expose each field) instead of a
-    /// single whole-struct "Value" pin. Null (and omitted from JSON) = legacy whole-struct path — existing
-    /// assets round-trip byte-identically.
-    /// </summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public List<SharedFieldDecl>? Fields { get; set; }
-}
-
-/// <summary>One baked shared-struct field: name + pin TypeId + byte offset within the struct (for the
-/// per-field write). Mirrors <see cref="PublishEventFieldDecl"/> plus <see cref="Offset"/>.</summary>
+/// <summary>One reflected struct field: name + pin TypeId + byte offset within the struct. Produced by the
+/// editor's struct reflector for the Make/Break/SetMembers palette. ⛔ HISTORY — named for GetShared/SetShared,
+/// its first consumer, removed by <c>CE-440</c> (decision <c>A</c>, <c>Q76</c> §12.24).</summary>
 public sealed class SharedFieldDecl
 {
     public string Name { get; set; } = "";
@@ -503,40 +1053,12 @@ public sealed class SharedFieldDecl
     public int Offset { get; set; }
 }
 
-/// <summary>
-/// Writes <c>Value</c> into the ENTITY-scoped shared working-state slot named
-/// <see cref="VariableId"/> on <c>self</c>, via <c>BlueprintSharedState.TrySetShared&lt;SharedTypeId&gt;</c>.
-/// Exec node: exec-In + exec-Out, data-in "Value" (typed by <see cref="SharedTypeId"/>), plus an
-/// optional data-out "Written" (<c>System.Boolean</c>).
-/// </summary>
-public sealed class SetSharedNode : Node
-{
-    /// <summary>Entity-scoped slot name (matches the manifest-provisioned variable name).</summary>
-    public string VariableId { get; set; } = "";
-
-    /// <summary>
-    /// FQN of the standalone Category-1 shared struct (a hand-written blittable struct, NOT a
-    /// generated <c>_Bp+WorkingState</c>). Used to type the "Value" pin directly and as the
-    /// generic argument of <c>BlueprintSharedState.TrySetShared&lt;T&gt;</c>.
-    /// </summary>
-    public string SharedTypeId { get; set; } = "";
-
-    /// <summary>
-    /// Q#14 multi-pin: baked per-field decls the editor reflects from the shared struct. When non-null,
-    /// SetShared exposes one data-in pin PER FIELD; each WIRED field lowers to a per-field write
-    /// (<c>BlueprintSharedState.TrySetSharedField</c>) at that field's offset — unwired fields are
-    /// preserved. Null (and omitted from JSON) = legacy whole-struct "Value" path — existing assets
-    /// round-trip byte-identically.
-    /// </summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public List<SharedFieldDecl>? Fields { get; set; }
-}
 
 // ──────────────────────────────────────────────────────────────────────────
 // GetComponent (Hill-attack -> Blueprints migration P2 -- reads an ECS component field)
 //
 // Reflection-free by construction: ComponentTypeFqn/FieldName/FieldTypeFqn are baked strings
-// authored at edit time (mirrors GetShared/SetShared's SharedTypeId and the P7.1
+// authored at edit time (as the removed GetShared/SetShared's SharedTypeId was, and the P7.1
 // FunctionCallNode.TrailingContext bake -- see that type's doc comment for why the Roslyn
 // incremental generator, running as a netstandard2.0 analyzer, can never load game assemblies
 // to inspect a real CLR type). Lowers in Stage5_Schedule to the SAME three existing IR ops
@@ -546,8 +1068,7 @@ public sealed class SetSharedNode : Node
 
 /// <summary>
 /// Reads a field off an ECS component on <c>self</c> (or an explicit target Entity -- OPTIONAL
-/// "Target" data-in pin, cross-entity read, mirrors <see cref="GetSharedNode"/>'s Slice 2b
-/// "Target" pin; unwired = self). Pure-data node (no exec pins): OPTIONAL data-in "Target"
+/// "Target" data-in pin, cross-entity read; unwired = self). Pure-data node (no exec pins): OPTIONAL data-in "Target"
 /// (<c>Fdp.Core.Entity</c>), data-out "Value" (typed by <see cref="FieldTypeFqn"/> when set,
 /// else the Stage4-resolved pin type). Compiles to
 /// <c>{world}.GetComponentRO&lt;global::ComponentTypeFqn&gt;(entity).FieldName</c> -- see
@@ -568,7 +1089,7 @@ public sealed class GetComponentNode : Node
     /// non-null, GetComponent projects one data-out pin PER FIELD (read the component once, expose
     /// each field) instead of the single legacy "Value" pin (<see cref="FieldName"/>/<see
     /// cref="FieldTypeFqn"/>). Null (and omitted from JSON) = legacy single-field path -- existing
-    /// assets round-trip byte-identically. Mirrors <see cref="GetSharedNode.Fields"/> exactly, EXCEPT
+    /// assets round-trip byte-identically. Mirrors the removed GetSharedNode.Fields exactly, EXCEPT
     /// no byte <c>Offset</c> -- component reads are typed member access (<c>__c.{Name}</c>), not a
     /// blittable-struct byte read, so there is nothing to offset into.
     /// </summary>
@@ -628,6 +1149,8 @@ public enum CollectionKind
     CuratedStatic = 0,
     /// <summary>Native managed member (<c>List&lt;T&gt;</c>/<c>IReadOnlyList&lt;T&gt;</c>/<c>T[]</c>) on a class component -- no curated accessors.</summary>
     ManagedMember = 1,
+    /// <summary>FC-2/LV-2 (Q#19-A): a fixed-capacity LIST VARIABLE in the blueprint's State/WorkingState -- the consumer's "Collection" resolves to a `ref` onto the state field (no entity, no component re-read); <c>CollectionFieldName</c> carries the VARIABLE name; accessor FQNs are empty. Emit renders <c>__ref.Count</c>/<c>__ref.Items[i]</c> with the F2 min(Count, N) clamp.</summary>
+    BlackboardFixedList = 2,
 }
 
 public sealed class ComponentFieldDecl
@@ -772,7 +1295,7 @@ public sealed class CompareNode : Node
 /// </summary>
 public sealed class BinaryOpNode : Node
 {
-    /// <summary>Which arithmetic operation to perform (Add/Subtract/Multiply/Divide/Modulo).</summary>
+    /// <summary>Which arithmetic operation to perform (Add/Subtract/Multiply/Divide/Modulo, and the CE-471 bit/shift operators).</summary>
     public ArithmeticOperator Operator { get; set; }
 }
 
@@ -815,6 +1338,149 @@ public sealed class BooleanOpNode : Node
 /// </summary>
 public sealed class NotNode : Node
 {
+}
+
+/// <summary>⭐ <c>CE-470</c> — which clock a <see cref="GetTimeNode"/> reads.</summary>
+public enum TimeKind
+{
+    /// <summary>Simulation time in seconds (the emitted method's <c>time</c>).</summary>
+    SimTime,
+    /// <summary>This frame's step in seconds (the emitted method's <c>deltaTime</c>).</summary>
+    DeltaTime,
+}
+
+/// <summary>
+/// ⭐ <c>CE-470</c> — <i>Get Sim Time</i> / <i>Get Delta Time</i>: a pure data node with one <c>System.Single</c>
+/// "Value" out-pin, lowered to the existing <c>IrOp_Time</c> / <c>IrOp_DeltaTime</c> (the ops the <c>Wait</c>
+/// lowering already emits). Refused with <c>BP1679</c> where the value is not in scope — see
+/// <c>docs/blueprints/Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md</c> §8.
+/// </summary>
+public sealed class GetTimeNode : Node
+{
+    public TimeKind Kind { get; set; }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// ⭐ CE-472 — typed Send Intent + To JSON / From JSON.
+// 📄 docs/blueprints/DESIGN_Typed_Intent_And_Json_Nodes.md (§3 diagrams, §4 decisions A–F).
+// All three carry the DTO's FQN + its baked members (the editor reflects the [Behavior(Params = …)] class; the
+// compiler only reads these strings). The DTO value never appears on a wire — decision B.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Exec node: builds the intent's parameter DTO from one data-in pin per member, serialises it with the shared
+/// JSON settings and publishes <c>AssignTacticalIntentEvent { Entity = Target (default self), IntentId, JsonParams }</c>.
+/// Keyed by the INTENT id (decision A) — the receiver's mapper picks the behaviour.
+/// </summary>
+public sealed class SendIntentNode : Node
+{
+    /// <summary>The intent id published as <c>AssignTacticalIntentEvent.IntentId</c> (== the DTO's <c>[Behavior(Params = …)]</c> id).</summary>
+    public string IntentId { get; set; } = "";
+    /// <summary>FQN of the <c>[Behavior(Params = …)]</c> parameter DTO.</summary>
+    public string DtoTypeFqn { get; set; } = "";
+    /// <summary>The DTO members exposed as pins (name + pin TypeId).</summary>
+    public List<StructFieldDecl> Fields { get; set; } = new();
+}
+
+/// <summary>Pure: one data-in per DTO member → a <c>System.String</c> "Json" out (the shared JSON settings).</summary>
+public sealed class ToJsonNode : Node
+{
+    public string DtoTypeFqn { get; set; } = "";
+    public List<StructFieldDecl> Fields { get; set; } = new();
+}
+
+/// <summary>Pure: a <c>System.String</c> "Json" in → one data-out per DTO member + "Ok" (false on bad input,
+/// members then default — decision E; it never throws in a tick).</summary>
+public sealed class FromJsonNode : Node
+{
+    public string DtoTypeFqn { get; set; } = "";
+    public List<StructFieldDecl> Fields { get; set; } = new();
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// BP-108 -- Print String / Format String (Unreal's Print String + Format Text)
+//
+
+/// <summary>
+/// BP-108 -- the log level a <see cref="PrintStringNode"/> writes at. Mirrors the NLog levels the
+/// AI.Behavior logger family exposes, so each maps to one level probe on the sink helper.
+/// </summary>
+public enum BlueprintLogLevel
+{
+    Trace,
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+/// <summary>
+/// BP-108 -- <b>Print String</b>: formats <see cref="Format"/> and writes it to the <c>AI.Behavior</c>
+/// logger family, which the editor surfaces in its "AI Behaviors" message-log tab.
+///
+/// <para>
+/// ⭐ <b>The pins are derived from <see cref="Format"/>, not declared.</b> One data-in pin per
+/// <c>{Name}</c> placeholder, in first-appearance order -- see
+/// <see cref="Hrot.Blueprints.Core.Compiler.Format.BlueprintFormatString"/>. There is deliberately no
+/// <c>ArgCount</c> property: an unwired data-in pin is a guaranteed <c>BP4001</c>, so a speculative pin
+/// is never harmless.
+/// </para>
+///
+/// <para>
+/// ⚠ Renaming a placeholder renames a pin, which can drop a link (the class BP-113 hit). Acceptable, but
+/// the drawer must make the pin set visibly follow the text so it is never a surprise.
+/// </para>
+/// </summary>
+public sealed class PrintStringNode : Node
+{
+    /// <summary>
+    /// The message template. <c>{Name}</c> placeholders become data-in pins; <c>{{</c>/<c>}}</c> are
+    /// literal braces. A malformed format is a Stage 2 diagnostic, never a silent drop.
+    /// </summary>
+    public string Format { get; set; } = "";
+
+    /// <summary>
+    /// Level to log at. Emitted behind the matching level probe, so a disabled level costs nothing --
+    /// the formatting is never evaluated.
+    /// </summary>
+    public BlueprintLogLevel Level { get; set; } = BlueprintLogLevel.Info;
+
+    /// <summary>
+    /// Per-placeholder declared type, keyed by placeholder name (values are <c>TypeId</c> strings from
+    /// the editor's type picker). ⚠ We have no wildcard-pin mechanism, so each placeholder must carry a
+    /// declared type; a name missing here falls back to <c>System.Object</c>.
+    /// </summary>
+    public Dictionary<string, string> ArgTypes { get; set; } = new();
+}
+
+/// <summary>
+/// BP-108 -- <b>Format String</b>: the same formatting as <see cref="PrintStringNode"/>, but the result
+/// goes to a data-out pin instead of the log. Unreal's <c>Format Text</c>. <b>Pure</b> -- no exec pins.
+///
+/// <para>
+/// ⭐ The two nodes compose with no new mechanism: the result is a <c>FixedString</c>, and a
+/// <c>FixedString</c> is a legal argument type, so wiring one into a Print String placeholder prints a
+/// computed message. That is why Print String needs no special string-input case.
+/// </para>
+///
+/// <para>
+/// ⚠ <b>Truncation is silent.</b> A formatted result longer than <see cref="ResultTypeId"/> is cut at
+/// runtime with no diagnostic -- Stage 2 cannot know a runtime length. Say so in the node's tooltip.
+/// </para>
+/// </summary>
+public sealed class FormatStringNode : Node
+{
+    /// <summary>Message template; same grammar as <see cref="PrintStringNode.Format"/>.</summary>
+    public string Format { get; set; } = "";
+
+    /// <summary>
+    /// Type of the "Result" data-out pin -- one of the <c>Fdp.Core.FixedString32/64/128</c> family.
+    /// Sizes the <c>stackalloc</c> buffer the formatted text is written into.
+    /// </summary>
+    public string ResultTypeId { get; set; } = "Fdp.Core.FixedString128";
+
+    /// <summary>Per-placeholder declared type. See <see cref="PrintStringNode.ArgTypes"/>.</summary>
+    public Dictionary<string, string> ArgTypes { get; set; } = new();
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -944,9 +1610,9 @@ public sealed class FlowForEachNode : Node
 {
     /// <summary>FQN of the ECS component read off self that holds the collection (e.g. "Fdp.Core.CommandHierarchy.UnitRoster").</summary>
     public string SourceComponentFqn { get; set; } = "";
-    /// <summary>FQN of a static <c>int Count(in T)</c> helper giving the element count (e.g. "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count").</summary>
+    /// <summary>FQN of a static <c>int Count(in T)</c> helper giving the element count (e.g. "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count").</summary>
     public string CountAccessorFqn { get; set; } = "";
-    /// <summary>FQN of a static <c>Entity Item(in T, int i)</c> helper giving the i-th element (e.g. "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate").</summary>
+    /// <summary>FQN of a static <c>Entity Item(in T, int i)</c> helper giving the i-th element (e.g. "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Item").</summary>
     public string ItemAccessorFqn { get; set; } = "";
 }
 
@@ -1082,6 +1748,94 @@ public sealed class ComponentContainsNode : Node
     /// <summary>CA-07d-2: for <see cref="CollectionKind.ManagedMember"/>, the managed collection field name; accessor FQNs are empty. Null (omitted) for curated.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? CollectionFieldName { get; set; }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// CollectionWrite (FC-1, Q#20 -- component collection element WRITE, CuratedStatic + self only)
+//
+// The write-side sibling of the CA-07 consumers above. Same author-time "Collection" in-pin binding
+// (wired FROM a GetComponent collection out-pin -- G4 kept the Unreal pin-composability for writes
+// too), but the ENTITY IS NEVER TAKEN FROM THE WIRE: writes are self-only (Q#16/Q#20 inherited
+// ruling), so Stage5 binds GetComponentRW to the resolved `self` unconditionally, and Stage2's
+// V_ComponentAccessRules rejects a producer GetComponent whose "Target" is wired (BP2070) as well
+// as any "Target" pin on this node itself (BP2069). Mutation goes through a curated
+// [BlueprintCollectionWrite] static accessor baked as WriteAccessorFqn (Q#5-C: raw buffer access
+// stays off-graph; the Span<T> write pattern lives INSIDE the accessor), called on the guarded
+// GetComponentRW ref: `__t = Has<T>(self); if (__t) { ref var __wc = ref GetComponentRW<T>(self);
+// __t = global::{WriteAccessorFqn}(ref __wc, ...); }`. ManagedMember collections are NOT
+// element-writable (Q#20-C, snapshot aliasing) -- BP2068.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// FC-1 -- the mutation verb a <see cref="CollectionWriteNode"/> performs. Mirrors
+/// <c>Fdp.Core.BlueprintCollectionOp</c> (the compiler cannot reference game assemblies -- the
+/// editor bakes the discovered accessor's op into this asset-side enum at wire time).
+/// </summary>
+public enum CollectionWriteOp
+{
+    /// <summary><c>bool Add(ref C, Elem)</c> -- append; false on full.</summary>
+    Add = 0,
+    /// <summary><c>bool SetAt(ref C, int, Elem)</c> -- overwrite within [0, Count); never grows Count.</summary>
+    SetAt = 1,
+    /// <summary><c>bool InsertAt(ref C, int, Elem)</c> -- shift up; false on full or i &gt; Count.</summary>
+    InsertAt = 2,
+    /// <summary><c>bool RemoveAt(ref C, int)</c> -- shift down, vacated slot zeroed.</summary>
+    RemoveAt = 3,
+    /// <summary><c>void Clear(ref C)</c> -- zero used slots, Count = 0. Cannot fail.</summary>
+    Clear = 4,
+    /// <summary><c>bool Resize(ref C, int)</c> -- set logical length; shrink zeroes dropped tail.</summary>
+    Resize = 5,
+}
+
+/// <summary>
+/// FC-1 (Q#20) -- mutates one element / the length of a fixed-capacity component collection on
+/// <c>self</c> via a baked curated write accessor (see the section doc comment above). Exec node:
+/// exec-in "In", exec-out "Out", data-in "Collection" (<c>IsArray</c>, element-typed -- wired FROM a
+/// GetComponent collection out-pin; used for author-time binding + validation ONLY, never as the
+/// write entity), per-<see cref="Op"/> operand data-ins ("Index"/"Length" <c>System.Int32</c>,
+/// "Value" element-typed), and data-out "Ok" (<c>System.Boolean</c>: component present AND the op
+/// applied). Write-if-present -- absent component ⇒ Ok=false, never an implicit add; a refused op
+/// (full / out-of-range) ⇒ Ok=false + a <c>DebugProbe.CollectionWriteFailed</c> diagnostic in
+/// non-Release mode (never silent). See <c>Stage5_Schedule</c>'s <c>CollectionWriteNode</c> case and
+/// <c>StatementEmitter</c>'s <c>IrOp_CollectionWrite</c> case.
+/// </summary>
+public sealed class CollectionWriteNode : Node
+{
+    /// <summary>FQN of the ECS component carrying the collection (write target on self). Baked string -- no reflection.</summary>
+    public string ComponentTypeFqn { get; set; } = "";
+
+    /// <summary>The mutation verb -- drives the operand pin set (Stage0) and the accessor call arity (Stage5/emit).</summary>
+    public CollectionWriteOp Op { get; set; }
+
+    /// <summary>FQN of the <c>[BlueprintCollectionWrite]</c> static accessor for <see cref="Op"/> (e.g. "Hrot.AI.Behaviors.Brains.BpFixedListDemoOps.SetAt"), baked at wire time. Emitted as <c>global::{Fqn}(ref __wc, ...)</c>.</summary>
+    public string WriteAccessorFqn { get; set; } = "";
+
+    /// <summary>FQN of the collection's element type -- types the "Collection"/"Value" pins. Empty until baked (pins fall back to System.Object).</summary>
+    public string ElementTypeFqn { get; set; } = "";
+
+    /// <summary>Must stay <c>CuratedStatic</c> -- a <c>ManagedMember</c> collection is not element-writable (Q#20-C; Stage2 BP2068). Present so a hand-authored/legacy managed bake is REJECTED rather than silently mis-emitted. Omitted from JSON when default.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public CollectionKind CollectionKind { get; set; }
+}
+
+/// <summary>
+/// FC-2/LV-3 (Q#19-C/D) -- mutates a FIXED-LIST VARIABLE in place, bound BY VARIABLE ID (the
+/// SetVariable lvalue pattern -- the list is NEVER routed through a by-value data pin; Q#19-D hard
+/// requirement: writing one element must not copy the array). Exec node: exec In/Out, per-<see
+/// cref="Op"/> operand data-ins ("Index"/"Length" int, "Value" element-typed), and -- for the
+/// fallible ops -- a data-out "Ok" (<c>System.Boolean</c>; the settled overflow contract: false +
+/// a Debug-mode <c>DebugProbe.CollectionWriteFailed</c> diagnostic on full/out-of-range, never
+/// silent, never throw). Clear cannot fail and has no "Ok". Emit is the amended Span form (the
+/// naive <c>s.f.Items[i]=</c> is the R3 write-loss shape) with the F2 clamp and the G6
+/// tail-always-default invariant -- see <c>StatementEmitter</c>'s <c>IrOp_ListWrite</c> case.
+/// </summary>
+public sealed class ListWriteNode : Node
+{
+    /// <summary>The target fixed-list variable's id (GUID string, "var:"-prefix tolerated) -- Variables or WorkingState.</summary>
+    public string VariableId { get; set; } = "";
+
+    /// <summary>The mutation verb -- drives the operand pin set and emit arity (shares the component write's vocabulary, Q#19-C).</summary>
+    public CollectionWriteOp Op { get; set; }
 }
 
 /// <summary>

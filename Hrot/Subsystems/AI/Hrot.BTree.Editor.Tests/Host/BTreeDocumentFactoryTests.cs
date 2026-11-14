@@ -224,6 +224,106 @@ public sealed class BTreeDocumentFactoryTests : IDisposable
             ctx.View.Model.FindPin(pin.Id).Should().NotBeNull($"pin {pin.Id} must be findable");
     }
 
+    // ── CE-361: the factory RESOLVES the subtree references ───────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-361</c> — the forwarding rail for step 0.</b> 📄
+    /// <c>BTree_Editor_NodeEditor_Host_Design.md</c> §S1 ②.
+    ///
+    /// <para>🔴 <b>What was broken, measured <c>2026-09-26</c>:</b> <c>BTreeSubtreeResolver</c> had
+    /// <b>zero production callers</b> — only tests — so the heal rule never ran on a real document.
+    /// ⇒ renaming a hosted tree left every referencing asset dangling for ever, with Rule 6
+    /// reporting it and nothing able to repair it.</para>
+    ///
+    /// <para>🔒 The silent-default control: <b>asserted on the CONSTRUCTED object</b>, not on the
+    /// composition root's source. ⭐ The two arms differ ONLY by the catalogue, so the control arm
+    /// is the red-proof.</para>
+    /// </summary>
+    [Fact]
+    public void BTreeDocumentFactory_ResolvesSubtreeReferences_HealingARenamedTree()
+    {
+        var renamed = MakeAsset();                       // the hosted tree, now under a new name
+        var host    = MakeAsset();
+        var node    = new BTreeEditorNode
+        {
+            VisualId        = Guid.NewGuid(),
+            KernelType      = NodeType.Subtree,
+            KernelBlobIndex = -1,
+            Subtree = new BTreeSubtreePayload
+            {
+                SubtreeName    = "TheOldName",           // stale — the file's name
+                SubtreeAssetId = renamed.AssetId,        // the rename survivor
+                IsResolved     = false,
+            },
+        };
+        host.AddNode(node);
+        host.ClearDirty();
+
+        // ⛔ WITHOUT the catalogue — step 0 is skipped. That WAS the state before this change.
+        BTreeDocumentFactory.Build(host, MakeBundle());
+        node.Subtree!.IsResolved.Should().BeFalse(
+            "with no catalogue the resolve is skipped — the control arm");
+        node.Subtree.SubtreeName.Should().Be("TheOldName");
+
+        // ⭐ WITH it — the same asset, the same factory, one argument different.
+        BTreeDocumentFactory.Build(host, MakeBundle(), assetCatalog: new StubCatalog(renamed));
+
+        var payload = node.Subtree!;
+        payload.IsResolved.Should().BeTrue();
+        payload.SubtreeName.Should().Be(renamed.Name, "the name must be healed from the Guid");
+        payload.SubtreeAssetId.Should().Be(renamed.AssetId);
+        host.IsDirty.Should().BeTrue("a heal is a real edit — unsaved, it is redone every load");
+    }
+
+    /// <summary>
+    /// ⛔⛔ <b>NEVER ERASE.</b> A reference resolving by neither name nor Guid keeps <b>both</b>
+    /// fields through the factory. 🔒 The asset may be absent from THIS session's catalogue
+    /// (unloaded project, partial checkout) and present in the next.
+    /// </summary>
+    [Fact]
+    public void BTreeDocumentFactory_LeavesADanglingReferenceIntact()
+    {
+        var strangerId = Guid.NewGuid();
+        var host       = MakeAsset();
+        var node       = new BTreeEditorNode
+        {
+            VisualId        = Guid.NewGuid(),
+            KernelType      = NodeType.Subtree,
+            KernelBlobIndex = -1,
+            Subtree = new BTreeSubtreePayload
+            {
+                SubtreeName    = "Vanished",
+                SubtreeAssetId = strangerId,
+                IsResolved     = true,        // ⭐ stale-true: the resolve must CLEAR it
+            },
+        };
+        host.AddNode(node);
+        host.ClearDirty();
+
+        BTreeDocumentFactory.Build(host, MakeBundle(), assetCatalog: new StubCatalog());
+
+        var payload = node.Subtree!;
+        payload.IsResolved.Should().BeFalse();
+        payload.SubtreeName.Should().Be("Vanished");
+        payload.SubtreeAssetId.Should().Be(strangerId);   // ⛔ NOT Guid.Empty — the shipped defect
+        host.IsDirty.Should().BeFalse("nothing was healed, so nothing needs saving");
+    }
+
+    /// <summary>Minimal catalogue for the step-0 forwarding rails.</summary>
+    private sealed class StubCatalog : Hrot.Editor.AiShared.Catalog.IAssetCatalog
+    {
+        private readonly IEditableAsset[] _a;
+        public StubCatalog(params IEditableAsset[] assets) => _a = assets;
+        public System.Collections.Generic.IReadOnlyList<IEditableAsset> All => _a;
+        public IEditableAsset? FindByAssetId(Guid id) => _a.FirstOrDefault(x => x.AssetId == id);
+        public IEditableAsset? FindByName(string n)   => _a.FirstOrDefault(x => x.Name == n);
+        public System.Collections.Generic.IReadOnlyList<IEditableAsset> WhereDependsOn(Guid id)
+            => Array.Empty<IEditableAsset>();
+#pragma warning disable CS0067
+        public event Action<AssetKind>? Changed;
+#pragma warning restore CS0067
+    }
+
     // ── Fake asset (wrong type) ────────────────────────────────────────────────
 
     private sealed class FakeHsmAsset : IEditableAsset

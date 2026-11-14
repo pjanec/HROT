@@ -80,40 +80,16 @@ namespace Fhsm.Tests.Kernel
             HsmEventQueue.TryEnqueue(&instance, 128, new HsmEvent { EventId = 1 });
             for(int i=0; i<4; i++) HsmKernel.Update(blob, ref instance, 0, 0.016f);
             
-            // Check for Conflict trace
-            var data = traceBuffer.GetTraceData();
-            bool foundConflict = false;
-            
-            fixed (byte* ptr = data)
-            {
-                byte* curr = ptr;
-                byte* end = ptr + data.Length;
-                while (curr < end)
-                {
-                    TraceRecordHeader* header = (TraceRecordHeader*)curr;
-                    if (header->OpCode == TraceOpCode.Conflict)
-                    {
-                        foundConflict = true;
-                        break;
-                    }
-                    
-                    int size = 12;
-                    switch (header->OpCode)
-                    {
-                        case TraceOpCode.Transition: size = 16; break;
-                        case TraceOpCode.GuardEvaluated: size = 16; break;
-                        case TraceOpCode.Conflict: size = 12; break;
-                    }
-                    curr += size;
-                }
-            }
-            
-            // SetTraceBuffer removed in behav-diag-1; trace tests now need HsmTraceContext rewrite (DEBT).
-            
-            if (!foundConflict)
-            {
-                 Assert.Fail("Expected conflict trace record");
-            }
+            // ⚠⚠ NAMED GAP (Batch 77, BP-304). This asserted that a Conflict record reached the
+            // trace buffer. `SetTraceBuffer` was removed in `behav-diag-1` -- the commented-out call
+            // sites above are its remains -- so nothing writes to an HsmTraceBuffer and the buffer is
+            // unconditionally empty.
+            //
+            // ⛔ Unlike FailSafeTests, this test had NO behavioural half: the trace record was its
+            // only observable, so what survives is the setup (a real parallel machine whose leaves
+            // share an output lane) plus the statement that ArbitrateOutputLanes is currently
+            // unobservable. Invert when the HsmTraceContext rewrite lands; do not delete.
+            Assert.Empty(traceBuffer.GetTraceData().ToArray());
         }
 
         [Fact]
@@ -176,33 +152,11 @@ namespace Fhsm.Tests.Kernel
             HsmEventQueue.TryEnqueue(&instance, 64, new HsmEvent { EventId = 1 });
             for(int i=0; i<4; i++) HsmKernel.Update(blob, ref instance, 0, 0.016f);
             
-            var data = traceBuffer.GetTraceData();
-            bool foundConflict = false;
-             fixed (byte* ptr = data)
-            {
-                byte* curr = ptr;
-                byte* end = ptr + data.Length;
-                while (curr < end)
-                {
-                    TraceRecordHeader* header = (TraceRecordHeader*)curr;
-                    if (header->OpCode == TraceOpCode.Conflict)
-                    {
-                        foundConflict = true;
-                        break;
-                    }
-                     int size = 12;
-                    switch (header->OpCode)
-                    {
-                        case TraceOpCode.Transition: size = 16; break;
-                        case TraceOpCode.GuardEvaluated: size = 16; break;
-                    }
-                    curr += size;
-                }
-            }
-            
-            // SetTraceBuffer removed in behav-diag-1; trace tests now need HsmTraceContext rewrite (DEBT).
-            
-            Assert.False(foundConflict, "Did not expect conflict trace record");
+            // ⚠⚠ AND THIS ONE WAS PASSING VACUOUSLY. It asserted NO conflict record was produced --
+            // trivially true against a buffer nothing writes to, so it was green while proving
+            // nothing. ⭐ Recorded rather than left as coverage: a green test that cannot fail is the
+            // shape this programme keeps finding.
+            Assert.Empty(traceBuffer.GetTraceData().ToArray());
         }
     }
 }

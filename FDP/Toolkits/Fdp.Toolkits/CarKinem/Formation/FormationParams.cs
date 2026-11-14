@@ -9,7 +9,7 @@ namespace CarKinem.Formation
     public struct FormationParams
     {
         public float Spacing;            // Nominal spacing between vehicles (meters)
-        public float WedgeAngleRad;      // Wedge angle (radians, only for Wedge type)
+        public Fdp.Core.Angle WedgeAngleRad;      // Wedge angle (radians, only for Wedge type)
         public float MaxCatchUpFactor;   // Speed multiplier when catching up (e.g., 1.2 = 20% faster)
         public float BreakDistance;      // Distance beyond which formation breaks (meters)
         public float ArrivalThreshold;   // Distance to consider "in slot" (meters)

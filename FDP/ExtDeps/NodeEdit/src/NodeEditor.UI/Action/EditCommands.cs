@@ -62,6 +62,7 @@ public static class EditCommands
     /// </summary>
     internal static void DeleteSelectedUndoable(GraphView view)
     {
+        if (view.IsReadOnly) return;   // ⭐ CE-1276 — nothing is deleted from a read-only graph
         var sel = view.Selection;
         if (sel.IsEmpty) return;
 

@@ -57,7 +57,7 @@ namespace Hrot.SimHost.Tests
             return (translator, writer);
         }
 
-        private Entity SpawnShooter(long netId, bool authoritative = true)
+        private Entity SpawnShooter(int netId, bool authoritative = true)
         {
             var entity = _world.CreateEntity();
             if (authoritative)
@@ -74,7 +74,7 @@ namespace Hrot.SimHost.Tests
             return entity;
         }
 
-        private Entity SpawnTarget(long netId)
+        private Entity SpawnTarget(int netId)
         {
             var entity = _world.CreateEntity();
             _entityMap.Register(netId, entity);
@@ -105,8 +105,8 @@ namespace Hrot.SimHost.Tests
         {
             var (translator, writer) = BuildTranslator();
 
-            var shooter = SpawnShooter(netId: 1L, authoritative: true);
-            var target  = SpawnTarget(netId: 2L);
+            var shooter = SpawnShooter(netId: 1, authoritative: true);
+            var target  = SpawnTarget(netId: 2);
             PublishIntent(shooter, target, weaponIndex: 0);
 
             translator.ScanAndPublish(_world);
@@ -116,6 +116,45 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1L, msg.ShooterEntityId);
             Assert.Equal(2L, msg.TargetEntityId);
             Assert.Equal(0,  msg.WeaponIndex);
+        }
+
+        /// <summary>⭐ M8 (D-I, R-169) — the LOADED round crosses the wire: the intent's <c>AmmoGuid</c> is written on the request, and
+        /// the Muscle's ingress turns it back into the same intent field (the per-shot path's half of
+        /// <c>M8_TheLoadedRound_ReachesTheMuscle</c>; the turret path rides <c>EntityWeaponTask.AmmoGuid</c>).</summary>
+        [Fact]
+        public void M8_TheLoadedRound_RoundTripsTheWire()
+        {
+            var (translator, writer) = BuildTranslator();
+            var shooter = SpawnShooter(netId: 1, authoritative: true);
+            var target  = SpawnTarget(netId: 2);
+            var firstThrower = SpawnTarget(netId: 3);   // ⭐ CE-4155 — a thrown-back round's first thrower
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = shooter, Target = target, AmmoGuid = 9003, RaisedAt = (SimInstant)12.5, BurnSeconds = 37.25f, RequestId = 77u, BodyStance = 2,
+                                                      OriginalShooter = firstThrower });
+            _world.Bus.SwapBuffers();
+
+            translator.ScanAndPublish(_world);
+
+            var msg = Assert.Single(writer.Written);
+            Assert.Equal(9003L, msg.AmmoGuid);
+            Assert.Equal(12.5, msg.RaisedAt);   // ⭐ CE-2180 (R-169 appended) — when the brain raised it crosses too
+            Assert.Equal(37.25f, msg.BurnSeconds);   // ⭐ CE-3236 (B-14, VC-7) — a thrown-back canister's burn left
+            Assert.Equal(77u, msg.RequestId);          // ⭐ Q94 A-1 (R-3018) — the brain's request id crosses
+            Assert.Equal(2, msg.BodyStance);           // ⭐ CE-2326 (R-3030) — the remembered body's stance crosses
+            Assert.Equal(3, msg.OriginalShooterEntityId);   // ⭐ CE-4155 (SR-82) — a thrown-back round's first thrower crosses
+
+            var ingress = new WeaponFireRequestIngressTranslator(participant: null, _entityMap);
+            var cmd = (EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).GetCommandBuffer();
+            ingress.ProcessSample(in msg, cmd, _world);
+            cmd.Playback(_world);
+            _world.Bus.SwapBuffers();
+            var back = Assert.Single(_world.Bus.Read<WeaponFireIntent>().ToArray());
+            Assert.Equal(9003L, back.AmmoGuid);
+            Assert.Equal(12.5, back.RaisedAt);
+            Assert.Equal(37.25f, (float)(back.BurnSeconds));
+            Assert.Equal(77u, back.RequestId);
+            Assert.Equal(2, back.BodyStance);
+            Assert.Equal(firstThrower, back.OriginalShooter);   // ⭐ CE-4155
+            Assert.True(back.IsRemote);
         }
 
         // ── SC-2: No authority → no publish ──────────────────────────────────
@@ -129,8 +168,8 @@ namespace Hrot.SimHost.Tests
         {
             var (translator, writer) = BuildTranslator();
 
-            var shooter = SpawnShooter(netId: 1L, authoritative: false);
-            var target  = SpawnTarget(netId: 2L);
+            var shooter = SpawnShooter(netId: 1, authoritative: false);
+            var target  = SpawnTarget(netId: 2);
             PublishIntent(shooter, target);
 
             translator.ScanAndPublish(_world);
@@ -172,7 +211,7 @@ namespace Hrot.SimHost.Tests
             // Shooter entity has authority but is NOT in NetworkEntityMap.
             var unmappedShooter = _world.CreateEntity();
             _world.AddComponent(unmappedShooter, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            var target = SpawnTarget(netId: 2L);
+            var target = SpawnTarget(netId: 2);
 
             PublishIntent(unmappedShooter, target);
 

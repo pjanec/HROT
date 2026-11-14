@@ -1,3 +1,27 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-18
+current-answer: the whole file. This is THE design record for what the Inspector's
+  "STATIC PARAMETERS" panel belongs to - the action-parameter BINDING model. Section 2
+  is the ruling (per-field REJECTED, whole-DTO APPROVED); section 3 is node-owned
+  variables; section 4 is the runtime.
+stale-below: nothing.
+known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+  section 4 step 3 says the scenario/mission JSON overlay wins. TRUE, and it
+  was NOT true of the generated managed-asset path until BP-275 (Batch 70, BTree) and
+  BP-292 (Batch 74, HSM). See DESIGN_Parameter_Model.md section 3.2, whose own
+  correction on that point is now folded as HISTORY. The document is correct today.
+known-rot: (2026-10-13, P7) §2.2's ruling "whole-DTO APPROVED, per-field REJECTED" (an action node binds its
+  WHOLE param DTO to ONE variable) is overtaken by CE-3182: a binding's target may be `Variable.Field` (e.g.
+  `Params.walk`; offset = the variable's + the field's, build-time) —
+  docs/DESIGN_Orders_Params_Entity_Classes.md §5d. The node still binds ONE params bundle (the leaf field's type
+  must equal the method's params type, §5d D3); what changed is that the bundle may sit in a FIELD of a block
+  variable.
+known-conflict: section 3.4 names auto variables `_auto_{VisualId:N}`; that is what
+  B-2's Promote gesture does (BTreePickerDrawers.cs:246). The LATER composed-AiPrimitive
+  path (E2) names its pair `bpParams` / `bpWorkingState` instead - a different gesture,
+  not a drift.
+-->
 # Blackboard Authoring — Addendum v3: Action-Parameter Authoring & Node-Owned Variables
 
 > **Status:** Addendum to `Blackboard_Authoring_Detailed_Design.md` (the "DD"). Architect-reviewed + approved
@@ -90,8 +114,8 @@ Auto-name as **`_auto_{VisualId:N}`** (BTree) or **`_auto_{StableId:N}`** (HSM):
 
 ### 3.5 Lifecycle — auto-delete with the node
 When the owning action node is **deleted**, the command sink (`BTreeCommandSink` / `HsmCommandSink`) **removes the
-node-owned variable** from the blackboard list and triggers a **re-pack** (so its 100-byte inline memory isn't
-orphaned). This mirrors the Subtree-allocation lifecycle ("adding/removing a Subtree node adds/removes its
+node-owned variable** from the blackboard list and triggers a **re-pack** (so its bytes in the params
+region aren't orphaned). This mirrors the Subtree-allocation lifecycle ("adding/removing a Subtree node adds/removes its
 allocation").
 
 ### 3.6 Presentation (Variables panel)
@@ -102,7 +126,8 @@ vars" toggle). The designer experiences "values on the node"; the panel stays cl
 ### 3.7 Interactions with existing machinery (all handled)
 - **Unused-variable diagnostics (DD §12):** never false-positives — the node's `ExpressionTargetField` gives the
   auto-var a reference count of 1 while the node lives, and §3.5 deletes it when the node dies.
-- **Bin-packing (DD §6):** identical to any master variable (inline tier, spill to heavy as needed).
+- **Bin-packing (DD §6):** identical to any master variable — it joins the asset's params region, which is
+  seated in whichever occurrence tier fits.
 - **Approach-A aliasing (DD §7):** **EXCLUDE** node-owned variables from the "Defined Variables" **drop-target**
   list — a sub-tree must not alias a node-private variable. (UI filter only.)
 - **Cross-region conflict validator (DD §9):** no false positives — a node-owned var has exactly one writer (its

@@ -45,6 +45,12 @@ namespace Hrot.Map.Definitions.Tkb
         public float MaxSpeedRev { get; set; } // m/s
         
         /// <summary>
+        /// ⭐ CE-1208 — a person's WALK in meters per second (the operator's walking gait; <see cref="MaxSpeed"/> is his run). 0 = the
+        /// engine's default walk (<c>HumanGait.WalkSpeed</c>).
+        /// </summary>
+        public float WalkSpeed { get; set; } // m/s
+
+        /// <summary>
         /// Acceleration in meters per second squared.
         /// </summary>
         public float Acceleration { get; set; } // m/s²
@@ -58,6 +64,13 @@ namespace Hrot.Map.Definitions.Tkb
         /// Terrain mobility type.
         /// </summary>
         public TerrainMobility Mobility { get; set; }
+
+        /// <summary>⭐ <c>CE-2336</c> (R-2065) — how far it keeps from others it walks round (m); 0 = the class preset's.</summary>
+        public float AvoidanceRadius { get; set; }
+
+        /// <summary>⭐ M9 (DESIGN_Vehicle_Exposure_Cycle §6) — the kinematics preset when <see cref="Mobility"/>'s mapping is not the one
+        /// (a pickup is wheeled but drives like a car, not a truck); null = by mobility.</summary>
+        public CarKinem.Core.VehicleClass? Preset { get; set; }
         
         /// <summary>
         /// Fuel capacity in liters (0 = unlimited).

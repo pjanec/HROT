@@ -237,21 +237,21 @@ namespace Fhsm.Demo.Visual
         // ==================== GUARDS ====================
         
         [HsmGuard(Name = "HasTarget")]
-        public static bool HasTarget(void* instance, void* context, ushort eventId)
+        public static bool HasTarget(void* instance, void* context, ushort eventId, HsmCommandWriter* writer)
         {
             var ctx = (AgentContext*)context;
             return ctx->HasTarget;
         }
         
         [HsmGuard(Name = "IsAtTarget")]
-        public static bool IsAtTarget(void* instance, void* context, ushort eventId)
+        public static bool IsAtTarget(void* instance, void* context, ushort eventId, HsmCommandWriter* writer)
         {
             var ctx = (AgentContext*)context;
             return ctx->DistanceToTarget < 10f;
         }
         
         [HsmGuard(Name = "IsAtBase")]
-        public static bool IsAtBase(void* instance, void* context, ushort eventId)
+        public static bool IsAtBase(void* instance, void* context, ushort eventId, HsmCommandWriter* writer)
         {
             var ctx = (AgentContext*)context;
             return ctx->DistanceToBase < 20f;

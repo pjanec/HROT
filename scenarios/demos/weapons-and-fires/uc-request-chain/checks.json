@@ -1,0 +1,36 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Urban Battle L7: the unfaked request chain. Judge (1) mortar rounds land, (4) the HQ sends the Apache on an AirArmedSearch. NOT expressible: (2) 'a squad SPOTs IndirectFire' and (3) 'the platoon sends REQUEST FireSupport' (the squad report log is an HTTP route, not a component), hence '(4) only after the request' and the Fail 'an aircraft with no request' are left out. DEMO: no golden.",
+  "runFor": 120,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the HQ runs SupportCommand",
+      "on": "task",
+      "who": "Blue HQ",
+      "is": "SupportCommand"
+    },
+    {
+      "name": "the platoon defends (PlatoonDefend)",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "PlatoonDefend"
+    },
+    {
+      "name": "the spotter runs SpotForFire",
+      "on": "task",
+      "who": "Spotter",
+      "is": "SpotForFire"
+    },
+    {
+      "name": "mortar rounds land",
+      "on": "blast",
+      "by": "*Mortar"
+    },
+    {
+      "name": "the HQ sends the Apache on an armed search (AirArmedSearch)",
+      "on": "task",
+      "who": "Apache",
+      "is": "AirArmedSearch"
+    }
+  ]
+}

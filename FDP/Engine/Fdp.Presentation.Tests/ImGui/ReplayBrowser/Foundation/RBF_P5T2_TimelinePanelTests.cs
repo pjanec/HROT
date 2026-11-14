@@ -54,7 +54,7 @@ public sealed class RBF_P5T2_TimelinePanelTests : IDisposable
     {
         var path = Path.Combine(_tempDir, $"node{nodeId}.fdp");
         var exerciseId = Guid.NewGuid();
-        var meta = new RecordingMetadata { ExerciseId = exerciseId, NodeId = nodeId };
+        var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(exerciseId), NodeId = (Fdp.Core.NodeId)(nodeId) };
         using var repo = new EntityRepository();
         using var recorder = new Fdp.Core.FlightRecorder.AsyncRecorder(path, meta);
         recorder.CaptureKeyframe(repo, 1_000_000L, blocking: true, eventBus: repo.Bus);
@@ -65,7 +65,7 @@ public sealed class RBF_P5T2_TimelinePanelTests : IDisposable
     private static ReplayTimelinePanel MakePanel(FederatedReplayManager? manager, Func<int>? getNodeId = null)
     {
         return new ReplayTimelinePanel(
-            manager,
+            manager is null ? null : InlineReviewChannel.OverManager(manager),
             getNodeId ?? (() => manager?.LocalEntitiesProviderNodeId ?? 0),
             new StubExportService(),
             new StubFileDialogService(),

@@ -21,10 +21,11 @@ namespace Hrot.Diagnostics.Breakpoints;
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
 [UpdateAfter(typeof(RecorderTickSystem))]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class DataBreakpointSystem : IEcsModuleSystem
 {
     private readonly IDataBreakpointManager _manager;
-    private readonly FdpEventBus? _bus;
+    private readonly bool _eventPath;
     private readonly List<Entity> _pendingHitsBuffer = new();
 
     /// <summary>
@@ -40,12 +41,13 @@ public sealed class DataBreakpointSystem : IEcsModuleSystem
     /// </summary>
     /// <param name="manager">The breakpoint manager that owns breakpoint state.</param>
     /// <param name="bus">
-    /// The live event bus. Required for event-scanner breakpoints; pass null to disable the event path.
+    /// The live event bus. Non-null enables event-scanner breakpoints; pass null to disable the event path. ⭐ CE-3293 S3 — only the
+    /// switch: the scanners read the world's events through its repository reads (rule 4 — this system is step-only).
     /// </param>
     public DataBreakpointSystem(IDataBreakpointManager manager, FdpEventBus? bus)
     {
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
-        _bus     = bus;
+        _eventPath = bus != null;
     }
 
     /// <inheritdoc/>
@@ -66,6 +68,8 @@ public sealed class DataBreakpointSystem : IEcsModuleSystem
                 $"DataBreakpointSystem requires EntityRepository, got {view?.GetType().Name ?? "null"}.");
 
         // ---- Component-data path ----------------------------------------
+        // ⭐ CE-1258 (BV-28) — a Changed condition compares each entity with the start-of-tick copy, so it is exact per entity.
+        using var baseline = Fdp.Toolkit.ReplayBrowser.Search.PredicateChangeBaseline.Use(_manager.ChangeBaseline);
 
         foreach (var (bp, compiled) in _manager.MountedComponentPredicates)
         {
@@ -98,11 +102,11 @@ public sealed class DataBreakpointSystem : IEcsModuleSystem
 
         // ---- Event path -------------------------------------------------
 
-        if (_bus != null)
+        if (_eventPath)
         {
             foreach (var (bp, scanner) in _manager.MountedEventScanners)
             {
-                if (scanner.Evaluate(_bus, repo))
+                if (scanner.Evaluate(repo))
                     _manager.OnHit(bp, Entity.Null);
             }
         }

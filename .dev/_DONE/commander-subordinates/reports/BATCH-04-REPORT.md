@@ -66,7 +66,7 @@
 
 ## Build
 
-`Build succeeded. 0 Error(s)` — `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet`
+`Build succeeded. 0 Error(s)` — `dotnet build HROT.sln --no-restore -v quiet`
 
 ---
 

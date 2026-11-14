@@ -37,7 +37,7 @@ namespace Fdp.Toolkit.Tests
 
             Assert.True(w.Repo.HasComponent<Health>(agent));
             Assert.True(w.Repo.HasComponent<WeaponState>(agent));
-            Assert.True(w.Repo.HasComponent<Fdp.Modules.Geographic.Components.Position>(agent));
+            Assert.True(w.Repo.HasComponent<SimTransform>(agent));
             Assert.True(w.Repo.HasComponent<TargetMemory>(agent));
 
             // WeaponState values
@@ -73,12 +73,13 @@ namespace Fdp.Toolkit.Tests
             var self    = w.SpawnAgent(1f, 1f);
             var contact = w.Repo.CreateEntity();
 
-            w.SeedContact(self, contact, distanceM: 50f, threatBoost: 100f, contactHealth01: 1f, hasLos: true);
+            // ⭐ CE-3054 — threatBoost is a freshness: 0.2 × 500 = a score of 100.
+            w.SeedContact(self, contact, distanceM: 50f, threatBoost: 0.2f, contactHealth01: 1f, hasLos: true);
 
             ref readonly var mem = ref w.Repo.GetComponentRO<TargetMemory>(self);
             Assert.Equal(1, mem.Count);
             Assert.Equal((long)contact.PackedValue, mem.EntityIds[0]);
-            Assert.Equal(100f, mem.ThreatScores[0]);
+            Assert.Equal(100f, mem.Freshness[0]);
         }
 
         // SC-P0-06-5: SpawnEqsSensor sets BlueprintId and seeds buffer correctly
@@ -123,7 +124,6 @@ namespace Fdp.Toolkit.Tests
             var leader = w.SpawnLeader();
 
             Assert.True(w.Repo.HasComponent<UnitRoster>(leader));
-            Assert.True(w.Repo.HasComponent<Blackboard1024>(leader));
             Assert.True(w.Repo.HasComponent<TargetMemory>(leader));
         }
 
@@ -139,7 +139,7 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal(leader, w.Repo.GetComponentRO<UnitSubordinate>(member).Commander);
 
             ref var roster = ref w.Repo.GetComponentRW<UnitRoster>(leader);
-            int slot = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
+            int slot = UnitRoster.IndexOf(ref roster, member);
             Assert.True(slot >= 0, "Member should be in roster.");
         }
     }

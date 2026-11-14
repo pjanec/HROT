@@ -6,6 +6,7 @@ using Hrot.Core.Network;
 using Hrot.Map.Common.Replication.Utils;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.Network.NED.CGF;
 
@@ -22,12 +23,10 @@ namespace Hrot.Network.NED.CGF;
 public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSource
 {
     private readonly DdsReader<CreateEntityRequest> _reader;
-    private readonly IGeographicTransform?          _geoTransform;
 
-    public NedEntityCreationRequestSource(DdsParticipant participant, IGeographicTransform? geoTransform = null)
+    public NedEntityCreationRequestSource(DdsParticipant participant)
     {
         _reader       = new DdsReader<CreateEntityRequest>(participant);
-        _geoTransform = geoTransform;
     }
 
     public void ProcessRequests(Action<EntityCreationRequest> handler)
@@ -41,6 +40,7 @@ public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSourc
             // Extract TkbType and DisType from EntityMaster descriptor only.
             long  tkbType = 0;
             ulong disType = 0;
+            int  preAllocated = 0;   // ⭐ CE-4024 — the master's EntityId: an id the author fixed (0 = allocate here)
 
             if (msg.InitialDescriptors != null)
             {
@@ -49,6 +49,7 @@ public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSourc
                     if (desc._d == EDescriptorType.dtEntityMaster)
                     {
                         tkbType = desc.EntityMaster.TkbType;
+                        preAllocated = desc.EntityMaster.EntityId;
                         var d = desc.EntityMaster.DisType;
                         disType = ((ulong)d.Kind        << 56)
                                 | ((ulong)d.Domain      << 48)
@@ -67,19 +68,33 @@ public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSourc
             List<object>? initialComponents = null;
             if (msg.InitialDescriptors != null && msg.InitialDescriptors.Count > 0)
             {
-                var mapped = DescriptorMapper.MapToComponents(msg.InitialDescriptors, _geoTransform);
+                var mapped = DescriptorMapper.MapToComponents(msg.InitialDescriptors);
                 if (mapped.Count > 0)
                     initialComponents = mapped;
             }
 
+            // ⭐⭐⭐ TRANSLATOR — constructing the DTO directly here is CORRECT, not a bypass of
+            //   EntityCreation.RequestEntityCreation. 📄 DESIGN_Entity_Authoring_Surface.md §2: a
+            //   TRANSLATOR maps in an EXISTING representation — here a DDS sample authored on another
+            //   node, which already fixed the owner, the request id and the components. ⛔ It has no
+            //   authoring CHOICE to express, so routing it through the affordance would add a defaulting
+            //   layer over fields that are already fully determined.
             handler(new EntityCreationRequest
             {
                 RequestId             = msg.RequestId,
                 OwnerAppInstanceId    = msg.Owner.AppInstanceId,
-                TkbType               = tkbType,
+                TkbType               = (Fdp.Core.TkbTypeId)(tkbType),
+                PreAllocatedNetworkId = preAllocated,
                 DisType               = disType,
                 InitialAttributesJson = msg.InitialAttributesJson,
                 InitialComponents     = initialComponents,
+                // D2 across the node boundary: a forwarded sketch must stay unsaveable on the node that
+                // materialises it. See EntityCreationRequestFlags.Transient for why the wire needed a
+                // carrier at all -- IsTransient previously reached only the LOCAL spawn path.
+                IsTransient           = EntityCreationRequestFlags.IsTransient(msg.Flags),
+                IsScenarioLoad        = EntityCreationRequestFlags.IsScenarioLoad(msg.Flags),   // ⭐ CE-3324
+                // ⭐ CE-1017 S2 — the birth-height request (0 = Absolute ⇒ null, today's behaviour).
+                SpawnHeight           = Fdp.Toolkit.NetworkSpawning.SpawnHeight.FromWire(msg.SpawnHeightMode, msg.SpawnLevel),
             });
         }
     }
@@ -114,24 +129,3 @@ public sealed class NedEntityDeletionRequestSource : IEntityDeletionRequestSourc
     public void Dispose() => _reader.Dispose();
 }
 
-/// <summary>
-/// DDS-backed ACK sink for entity lifecycle operations.
-/// Writes <c>CreateUpdateDeleteEntityAck</c> for both creation and deletion ACKs.
-/// </summary>
-public sealed class NedEntityAckSink : IEntityAckSink
-{
-    private readonly DdsWriter<CreateUpdateDeleteEntityAck> _writer;
-
-    public NedEntityAckSink(DdsParticipant participant)
-        => _writer = new DdsWriter<CreateUpdateDeleteEntityAck>(participant);
-
-    public void WriteAck(Guid requestId, long entityId, EntityOperationStatus status)
-        => _writer.Write(new CreateUpdateDeleteEntityAck
-        {
-            RequestId  = requestId,
-            EntityId   = (int)entityId,
-            StatusCode = (int)status,
-        });
-
-    public void Dispose() => _writer.Dispose();
-}

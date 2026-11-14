@@ -20,6 +20,14 @@ public static class ViewCommands
     {
         var reg = new CommandRegistration(cmds);
 
+        // BP-19: the overview minimap. CommandCatalog has declared this id all along with no
+        // implementation; the flag lives on ViewportState so this registrar can reach it.
+        reg.Add(
+            CommandCatalog.ToggleMinimap, "Toggle Minimap", "View",
+            _ => view.Viewport.ShowMinimap = !view.Viewport.ShowMinimap,
+            isChecked: () => view.Viewport.ShowMinimap,
+            description: "Shows or hides the graph overview minimap.");
+
         reg.Add(
             CommandCatalog.ZoomIn, "Zoom In", "View",
             _ => view.Viewport.ZoomAt(view.Viewport.CanvasScreenOrigin + view.Viewport.CanvasScreenSize * 0.5f, ZoomStep),

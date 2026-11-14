@@ -12,6 +12,7 @@ using Fbt.Runtime;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Replication.Services;
 using Fhsm.Kernel;
 using Fhsm.Kernel.Data;
@@ -53,16 +54,7 @@ namespace Hrot.Editor
     // ---- Registrar discovery types ------------------------------------------
 
     /// <summary>One parameter of a discovered registrar entry-point method.</summary>
-    public record RegistrarParameter(string Name, Type ParameterType, int OrdinalIndex);
-
-    /// <summary>
-    /// Metadata for a registrar class discovered by
-    /// <see cref="AiHotReloadCoordinator.ScanForRegistrars"/>.
-    /// </summary>
-    public record ResolvedRegistrar(
-        Type DeclaringType,
-        MethodInfo RegisterMethod,
-        IReadOnlyList<RegistrarParameter> Parameters);
+    // ⭐ CE-4109 — `RegistrarParameter` / `ResolvedRegistrar` are Fdp.Toolkit.Behavior's (the ONE pair); this file kept its own copies.
 
     // =========================================================================
 
@@ -139,7 +131,10 @@ namespace Hrot.Editor
         private readonly NetworkEntityMap?             _entityMap;
         private readonly global::Fdp.Toolkit.ReplayBrowser.Search.IPredicateCompiler? _predicateCompiler;
         private readonly global::Hrot.Blueprints.Core.Compiler.ISearchPredicateRegistry? _dtoRegistry;
-        private readonly HotReloadManager              _hotReloadManager = new();
+        // ⛔ O7c-④d: the HotReloadManager field is gone with the chunk walk. Its whole job here was
+        //   to remember a blob per machine id so it could spot a structure change; the INSTANCE
+        //   carries that fact in Header.MachineId, so the walk needs no memory at all.
+        //   📄 ReloadHsmInstancesInSlots.
 
         // ---- File-system watch / debounce ----
         private readonly FileSystemWatcher _watcher;
@@ -227,7 +222,7 @@ namespace Hrot.Editor
         ///   <item>Invoke all discovered registrars with resolved staging parameters.</item>
         ///   <item>Commit <see cref="BlueprintRegistry"/> staging atomically.</item>
         ///   <item>Apply staging behavior registry to <see cref="_liveRegistry"/>.</item>
-        ///   <item>Hot-reload live HSM instances via <see cref="HotReloadManager"/>.</item>
+        ///   <item>Hot-reload live HSM instances via <see cref="ReloadHsmInstancesInSlots"/>.</item>
         ///   <item>Swap <c>_currentAlc</c> and release old ALC (success path only).</item>
         ///   <item>Fire <see cref="OnReloadCompleted"/> with <see cref="ReloadSource.FullRebuildViaFileWatcher"/>.</item>
         /// </list>
@@ -288,6 +283,18 @@ namespace Hrot.Editor
                 // Step 3: atomic commit of BlueprintRegistry.
                 _blueprintRegistry.CommitStaging(blueprintStaging);
 
+                // ⭐ CE-3186 (P2, R-2001 — design §13.8): bind the declared params DTOs FROM THE NEW COPY into the staging registry, so
+                //   the merge carries the rebuilt [Behavior(Params = …)] — a retargeted declaration too — instead of the declarations
+                //   CgfBehaviorSetup bound from the old copy at load (MergeFrom re-bases same-named types; a retarget needs this).
+                if (pending.Registrars.Count > 0)
+                {
+                    Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindJsonParamsDtoTypes(behaviorStaging,
+                        Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Pinning(pending.Registrars[0].DeclaringType.Assembly));
+                    // ⭐ CE-2377 — and the rebuilt copy's [BehaviorValidator] statics.
+                    Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindValidators(behaviorStaging, pending.Registrars[0].DeclaringType.Assembly);
+                    Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindKeepers(behaviorStaging, pending.Registrars[0].DeclaringType.Assembly);   // ⭐ rules ② R4
+                }
+
                 // Step 4: apply staging behavior registry -> live registry via MergeFrom (overwrite).
                 // A reload legitimately re-registers already-present behavior names with fresh-ALC
                 // definitions; a Register loop would hit the Phase-1e duplicate-name hard error and
@@ -296,22 +303,10 @@ namespace Hrot.Editor
                 // live definitions/thunks/resolvers in place, matching the Fdp.Toolkit coordinator.
                 _liveRegistry.MergeFrom(behaviorStaging);
 
-                // Step 5: hot-reload live HSM instances per-chunk.
-                foreach (var name in behaviorStaging.GetRegisteredNames())
-                {
-                    if (!behaviorStaging.TryGetId(name, out int docId))
-                        continue;
-                    if (!behaviorStaging.TryGetDefinition(docId, out var def))
-                        continue;
-                    if (def.BrainTier != BehaviorConstants.BrainTierHsm)
-                        continue;
-                    if (def.HsmDefinition == null)
-                        continue;
-
-                    var blob = def.HsmDefinition;
-                    ReloadHsmChunks<BrainHsm64>(blob);
-                    ReloadHsmChunks<BrainHsm128>(blob);
-                }
+                // Step 5: hot-reload live HSM instances — ONE slot walk over every entity, AFTER the
+                //   merge above, so the live registry already carries the rebuilt definitions.
+                //   📄 O7c-④d / DESIGN_Occurrence_Scoped_Storage.md §31.19.
+                ReloadHsmInstancesInSlots();
 
                 // Step 5.5: notify before the swap so pending mutations are flushed.
                 OnReloadBegin?.Invoke();
@@ -369,18 +364,8 @@ namespace Hrot.Editor
                 // are caught by Register during QuickReloadService's staging scan.
                 _liveRegistry.MergeFrom(behaviorStaging);
 
-                // Step 3: hot-reload live HSM instances per-chunk (same as file-watcher path).
-                foreach (var name in behaviorStaging.GetRegisteredNames())
-                {
-                    if (!behaviorStaging.TryGetId(name, out int docId)) continue;
-                    if (!behaviorStaging.TryGetDefinition(docId, out var def)) continue;
-                    if (def.BrainTier != BehaviorConstants.BrainTierHsm) continue;
-                    if (def.HsmDefinition == null) continue;
-
-                    var blob = def.HsmDefinition;
-                    ReloadHsmChunks<BrainHsm64>(blob);
-                    ReloadHsmChunks<BrainHsm128>(blob);
-                }
+                // Step 3: hot-reload live HSM instances (same slot walk as the file-watcher path).
+                ReloadHsmInstancesInSlots();
 
                 // Step 3.5: notify before the swap so pending mutations are flushed.
                 OnReloadBegin?.Invoke();
@@ -495,49 +480,7 @@ namespace Hrot.Editor
         /// sorted deterministically by declaring type full name.
         /// </summary>
         internal IReadOnlyList<ResolvedRegistrar> ScanForRegistrars(Assembly assembly)
-        {
-            var validAttributeNames = new[]
-            {
-                "BlueprintRegistrarAttribute",
-            };
-
-            var registrars = new List<ResolvedRegistrar>();
-            Type[] types;
-
-            try
-            {
-                types = assembly.GetTypes();
-            }
-            catch (ReflectionTypeLoadException ex)
-            {
-                // Gracefully handle partial assembly loads.
-                types = ex.Types.Where(t => t != null).ToArray()!;
-            }
-
-            foreach (var type in types)
-            {
-                bool isRegistrar = type.GetCustomAttributes().Any(attr =>
-                    Array.IndexOf(validAttributeNames, attr.GetType().Name) >= 0);
-
-                if (!isRegistrar) continue;
-
-                // Find the public static entry point (prefer "Register", fall back to "RegisterAll").
-                var method =
-                    type.GetMethod("Register",    BindingFlags.Public | BindingFlags.Static) ??
-                    type.GetMethod("RegisterAll", BindingFlags.Public | BindingFlags.Static);
-
-                if (method == null) continue;
-
-                var parameters = method.GetParameters()
-                    .Select((p, i) => new RegistrarParameter(p.Name ?? string.Empty, p.ParameterType, i))
-                    .ToArray();
-
-                registrars.Add(new ResolvedRegistrar(type, method, parameters));
-            }
-
-            // Sort deterministically to ensure reproducible registration order.
-            return registrars.OrderBy(r => r.DeclaringType.FullName).ToList();
-        }
+            => BlueprintRegistrarScanner.Discover(assembly);   // ⭐ CE-4109 ① — the ONE discovery, by attribute TYPE (it matched the attribute by NAME here)
 
         // ---- Private: parameter resolution ----
 
@@ -547,24 +490,24 @@ namespace Hrot.Editor
         /// <c>new Interpreter(blob, registry)</c> and require a non-null registry; without this the
         /// editor crashes at startup with ArgumentNullException ('registry').
         /// </summary>
-        private static ActionRegistry<BrainBlackboard, BTreeContext> BuildBTreeActionRegistry(
+        private static ActionRegistry<byte, BTreeContext> BuildBTreeActionRegistry(
             IReadOnlyList<ResolvedRegistrar> registrars)
         {
             var asm = registrars.Count > 0 ? registrars[0].DeclaringType.Assembly : null;
             return asm != null
                 ? BTreeActionRegistryFactory.BuildFromAssembly(asm)
-                : new ActionRegistry<BrainBlackboard, BTreeContext>();
+                : new ActionRegistry<byte, BTreeContext>();
         }
 
         private object? ResolveRegistrarParam(
             Type paramType,
             BehaviorRegistry behaviorStaging,
             BlueprintRegistryStaging blueprintStaging,
-            ActionRegistry<BrainBlackboard, BTreeContext> btreeActionRegistry)
+            ActionRegistry<byte, BTreeContext> btreeActionRegistry)
         {
             if (paramType == typeof(BehaviorRegistry))         return behaviorStaging;
             if (paramType == typeof(BlueprintRegistryStaging)) return blueprintStaging;
-            if (paramType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>)) return btreeActionRegistry;
+            if (paramType == typeof(ActionRegistry<byte, BTreeContext>)) return btreeActionRegistry;
             if (paramType == typeof(IGeographicTransform))     return _geoTransform;
             if (typeof(IGeographicTransform).IsAssignableFrom(paramType)) return _geoTransform;
             if (paramType == typeof(NetworkEntityMap))         return _entityMap;
@@ -585,20 +528,105 @@ namespace Hrot.Editor
             _pendingFailures.Enqueue(() => OnReloadFailed?.Invoke(capturedPath, capturedEx));
         }
 
-        private void ReloadHsmChunks<T>(HsmDefinitionBlob blob)
-            where T : unmanaged
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>O7c</c>-④d — THE HOT RELOAD IS A SLOT WALK.</b>
+        /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.19; the problem it closes is
+        /// <c>.dev/_DONE/btree-hsm-unif/DESIGN.md</c> §Q6.
+        ///
+        /// <para>🔴 <b>Why the chunk walk could not survive.</b> <c>ReloadHsmChunks&lt;T&gt;</c> asked the
+        /// ECS for <c>BrainHsm128</c>'s component table and handed each chunk's <c>Span&lt;T&gt;</c> to
+        /// <c>HotReloadManager.TryReload</c>. ⛔ After ④a the instance is a PAYLOAD inside an entity's
+        /// occurrence store, at an offset and a width that differ per entity — <b>there is no span of
+        /// instances to hand anybody</b>, in a chunk or anywhere else. ⇒ §Q6 asked for a chunk-aware
+        /// <c>TryReload</c>; the occurrence model makes the question moot instead of answering it.</para>
+        ///
+        /// <para>⭐⭐ <b>What replaces it is the mismatch test <c>TryReload</c> was performing, applied per
+        /// instance.</b> That method compared the new blob against a remembered one and hard-reset every
+        /// instance whose <c>Header.MachineId</c> still equalled the OLD <c>StructureHash</c>. ⭐ The
+        /// instance already carries that fact: <c>MachineId</c> IS the blob identity it was bound to (⭐ <c>CE-2001</c>:
+        /// <c>HsmDefinitionBlob.MachineId</c>, identity + shape), so <c>MachineId != blob.MachineId</c> is the same predicate with no remembered
+        /// state — and it is the mismatch test <c>BlueprintTickSystem</c>'s slot walk already uses.</para>
+        ///
+        /// <para>⛔⛔ <b>That also removes a real defect, and it is worth naming.</b>
+        /// <c>HotReloadManager</c> cached the blob per machine id and updated the cache on the FIRST
+        /// call, so the SECOND chunk for the same machine compared new-against-new, answered
+        /// <c>NoChange</c> and reset nothing. ⚠ Harmless while one chunk held every instance; fatal for
+        /// a per-entity walk, where every entity after the first would have been skipped. ⇒ the
+        /// stateless predicate is not a simplification, it is the only correct shape here.</para>
+        ///
+        /// <para>⭐ <b>A width change RE-ATTACHES rather than reusing the slot</b> —
+        /// <see cref="RootHsmAccess.ResolveOrAttachRoot"/>'s own rule (§31.15.4): a machine edited from
+        /// two regions to three moves from the 128-byte tier to the 256-byte one, and initialising the
+        /// new definition into the old allocation is precisely the out-of-bounds write §9.4 describes.
+        /// ⚠ The running state is lost in that case, which is correct — it referred to state ids the
+        /// rebuild renumbered, and a hard reset is what the chunk walk did here too.</para>
+        ///
+        /// <para>⚠ <b><c>Initialize</c>, not <c>HotReloadManager.HardReset</c>.</b> The two differ in one
+        /// visible way: <c>HardReset</c> left <c>Phase = Idle</c>, and <c>CE-322</c> measured that an
+        /// <c>Idle</c> instance with an empty queue never advances — a hot-reloaded machine would have
+        /// sat inert until something external enqueued an event. ⇒ routing through the kernel's own
+        /// <c>Initialize</c> (§31.18's ruling) makes a reloaded machine enter its initial state, which
+        /// is what a reload is for.</para>
+        /// </summary>
+        private unsafe void ReloadHsmInstancesInSlots()
         {
-            // Guard: the component may not be registered in this world (e.g. in tests).
-            if (!_world.TryGetTable(typeof(T), out _))
-                return;
-            var table      = _world.GetComponentTable<T>();
-            var chunkTable = table.GetChunkTable();
-            for (int c = 0; c < chunkTable.TotalChunks; c++)
+            // Built per reload rather than cached: a reload is rare, and the set of registered tiers
+            // can legitimately differ between the worlds this coordinator is constructed against.
+            var tierQueries = BlueprintTierTable.BuildTierQueries(
+                _world, q => q.With<BehaviorState>());
+
+            for (int t = 0; t < tierQueries.Length; t++)
             {
-                if (chunkTable.GetPopulationCount(c) == 0)
-                    continue;
-                var span = table.GetSpan(c);
-                _hotReloadManager.TryReload(blob.Header.StructureHash, blob, span);
+                var query = tierQueries[t];
+                if (query is null) continue;          // tier not registered on this world
+
+                foreach (var entity in query)
+                {
+                    // ⭐ CE-3137 U-0: a multi-block unit sits in several tier queries — reload it once.
+                    if (!OccurrenceStoreAccess.IsFirstVisit(_world, entity, t)) continue;
+
+                    var state = _world.GetComponent<BehaviorState>(entity);
+                    if (state.BrainTier != BehaviorConstants.BrainTierHsm) continue;
+                    if (!_liveRegistry.TryGetDefinition(state.ActiveBehaviorHash, out var def)) continue;
+
+                    var blob = def.HsmDefinition;
+                    if (blob is null) continue;
+
+                    if (!RootHsmAccess.TryGetInstance(_world, entity, out byte* instance, out int size))
+                        continue;                     // no machine on this entity — nothing to reload
+
+                    if (((InstanceHeader*)instance)->MachineId == blob.MachineId)   // ⭐ CE-2001
+                        continue;                     // this machine was not rebuilt
+
+                    int width = RootHsmAccess.InstanceBytes(blob);
+                    if (width != size)
+                    {
+                        // ⭐⭐ CE-3137 U-0 (R-236): no pre-growth any more. §31.19.2's hazard was that the re-attach
+                        //   DETACHES first and the old single store might not hold the wider instance, leaving NO
+                        //   machine. ResolveOrAttachRoot now attaches into any block with room or APPENDS one, and
+                        //   nothing already allocated moves — so the only failure left is the whole ladder being
+                        //   full, which the warning below reports. `O7_R54` is the rail.
+                        instance = RootHsmAccess.ResolveOrAttachRoot(
+                            _world, entity, state.ActiveBehaviorHash, width,
+                            OccurrenceKind.Hsm, out _);
+
+                        if (instance == null)
+                        {
+                            // ⛔ Never silent: even the largest tier could not hold it, so this
+                            //   entity's machine is unbound and will not tick until it is
+                            //   re-assigned. A silent skip here is the CE-315 shape.
+                            Console.WriteLine(
+                                $"[AiHotReload] WARNING: entity {entity.Index} runs behaviour " +
+                                $"'{def.Name}', whose reloaded machine needs {width} bytes and no " +
+                                $"longer fits its occurrence store (the slot was {size}). The " +
+                                "machine is unbound until the behaviour is re-assigned.");
+                            continue;
+                        }
+                        size = width;
+                    }
+
+                    HsmInstanceManager.Initialize(instance, size, blob);
+                }
             }
         }
 

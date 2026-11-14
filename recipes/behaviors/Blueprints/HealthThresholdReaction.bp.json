@@ -1,0 +1,108 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000000-aaaa-0001-0000-000000000002",
+  "Name": "HealthThresholdReaction",
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Declarations": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "b2000001-0001-0001-0001-000000000001",
+      "Name": "Tick",
+      "Kind": "Event",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "c2000001-0001-0001-0001-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "When",
+          "Mode": "ConditionMet",
+          "Edges": "RisingEdge",
+          "ValueChanged": null,
+          "EventFired": null,
+          "ConditionMet": {
+            "Condition": {
+              "$type": "Compound",
+              "Operator": "And",
+              "Conditions": [
+                {
+                  "$type": "Numeric",
+                  "MinValue": 0.0,
+                  "MaxValue": 0.3
+                }
+              ],
+              "ReadOnlyChildIndices": []
+            }
+          },
+          "EqsResult": null,
+          "Id": "c2000001-0002-0002-0002-000000000002",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "FollowRoute",
+          "Id": "c2000001-0003-0003-0003-000000000003",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": {
+      "DisplayName": "Health-threshold Reaction",
+      "Category": "Combat",
+      "Description": "Reacts when a condition is met (e.g., low health in combat) by issuing a channel command. Demonstrates WhenNode Condition Met mode with edge-triggered behavior changes.",
+      "Difficulty": "Beginner",
+      "ConceptsTaught": [
+        "WhenNode Condition Met mode",
+        "Edge-triggered behavior changes",
+        "Connecting OnFired to channel commands"
+      ]
+    }
+  }
+}

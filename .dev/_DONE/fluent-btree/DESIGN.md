@@ -333,4 +333,4 @@ No circular dependencies introduced. `Fbt.SourceGen` is consumed only as an anal
 | **Created** | `Hrot/Engine/Hrot.Presentation/Behavior/BrainBlackboardRenderer.cs` |
 | **Created** | `Hrot/Engine/Hrot.Presentation/Behavior/BTreeVisualizerRenderer.cs` |
 | **Modified** | `FDP/ExtDeps/FastBTree/FastBTree.sln` — add new projects |
-| **Modified** | `IOS-IG-SimHost.sln` — add `Fbt.Compiler`, `Fbt.SourceGen`, sample project |
+| **Modified** | `HROT.sln` — add `Fbt.Compiler`, `Fbt.SourceGen`, sample project |

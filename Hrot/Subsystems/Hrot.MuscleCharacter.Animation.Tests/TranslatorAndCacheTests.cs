@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Xunit;
@@ -8,7 +8,7 @@ using Fdp.Interfaces;
 using Hrot.MuscleCharacter.Animation.Baking;
 using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Contracts;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Hashing;
 using Hrot.MuscleCharacter.Animation.Translators;
 using Hrot.Editor.AiShared.Catalog;
@@ -25,7 +25,9 @@ namespace Hrot.MuscleCharacter.Animation.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<AnimationChannel>();
+            repo.RegisterComponent<AnimationChannelStatus>();
             repo.RegisterComponent<LookAtChannel>();
+            repo.RegisterComponent<LookAtChannelStatus>();
             repo.RegisterComponent<StanceIntent>();
             repo.RegisterComponent<StanceStatus>();
             repo.RegisterComponent<AnimationMontageQueue>();
@@ -128,7 +130,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
         }
 
         [Fact]
-        public void Inject_WithoutAimConfig_DoesNotAddLookAtComponents()
+        public void CE3252_Inject_WithoutAimConfig_StillAddsLookAtComponents()
         {
             using var repo = CreateRepo();
             var entity = repo.CreateEntity();
@@ -139,8 +141,10 @@ namespace Hrot.MuscleCharacter.Animation.Tests
 
             translator.Inject(repo, entity, template);
 
-            Assert.False(repo.HasComponent<LookAtChannel>(entity));
-            Assert.False(repo.HasComponent<LookAtExecutorState>(entity));
+            // ⭐ CE-3252 (LD-F, G2) — every person can be told where to look; ⛔ before, no AimConfig ⇒ no channel, and the shipped
+            //   mannequin has no AimConfig, so the look-at path was inert on every unit.
+            Assert.True(repo.HasComponent<LookAtChannel>(entity));
+            Assert.True(repo.HasComponent<LookAtExecutorState>(entity));
         }
     }
 

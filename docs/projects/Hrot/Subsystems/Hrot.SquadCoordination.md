@@ -1,8 +1,18 @@
 # Hrot.SquadCoordination
 
-**Design reference:** `.dev/group-maneuvers/Squad_Coordination_Design_v1_1.md`
+<!--STATUS
+state: LIVE
+updated: 2026-10-02
+current-answer: the API reference below; for WHERE it runs read DESIGN_Squad_Wiring.md
+known-rot: "Fully implemented" was true of the library only — until CE-454 (2026-10-02) no node ran any of it. The code lives in FDP/Toolkits/Fdp.Toolkits/Squad/ (no Hrot.SquadCoordination project exists); SquadInputs is at Fdp.Toolkits/Utility/Inputs/. The .dev/group-maneuvers/ path is now .dev/_DONE/group-maneuvers/
+related-designs:
+  - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — WHAT the layer is
+  - docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md — WHERE it runs (CE-454) and what is still unwired (CE-507 (behaviors))
+-->
+
+**Design reference:** `docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md` (the `.dev/_DONE/` copy is older)
 **Date:** 2026-05-30
-**Implementation status:** Fully implemented. All phases (P0-P7) complete.
+**Implementation status:** library complete (P0-P7). **Runtime:** perception merge + `ForceManeuver` order wired on every Brain host (`CE-454`); maneuver execution, `ManeuverSelect` and the movement-mode broadcast are NOT run (`CE-507 (behaviors)`).
 
 ---
 
@@ -50,15 +60,15 @@ All Brain-resident, all on the commander entity, all unit-type-agnostic.
 
 ## Architecture
 
-### 3.1 State on the Blackboard — `SquadCognitiveState`
+### 3.1 State in its own component — `SquadCognitiveState`
 
-All squad working state projects as a **single** `SquadCognitiveState` struct
-onto the commander's `Blackboard1024`. A single contiguous offset claim; one
-collision check rather than competing projections.
+All squad working state lives in a **single** `SquadCognitiveState` component,
+attached to the commander by `SquadStateProvisioning.EnsureForCommander`. One
+component, one `[ComponentId]`; no offset claim or projection collision to reason about.
 
 ```csharp
 [StructLayout(LayoutKind.Sequential)]
-public struct SquadCognitiveState   // single projection onto Blackboard1024 (= 1024 B)
+public struct SquadCognitiveState   // the commander's own ECS component (1024 B, [ComponentId] = 270)
 {
     // --- maneuver scalars (16 B) ---
     public ushort ManeuverKind;        // catalog entry; 0 = none
@@ -103,15 +113,16 @@ projection is removed; call sites read `SquadCognitiveState.Project(ref bb).Assi
 
 ### Substrate Reuse
 
-The squad layer adds **no new hierarchy or blackboard component**. It reuses:
+The squad layer adds its own `SquadCognitiveState` component; it otherwise adds
+**no new hierarchy**. It reuses:
 
 ```
 UnitRoster (capacity 16) + UnitSubordinate.Commander
     maintained by UnitHierarchySystem
 
-Commander Blackboard1024
-    projected via Unsafe.As into SquadCognitiveState
-    [DataPolicy.NoSave] -- transient cognitive state
+Commander SquadCognitiveState
+    its own [ComponentId], provisioned by SquadStateProvisioning.EnsureForCommander
+    [DataPolicy.NoScenario] -- transient cognitive state
 
 AssignTacticalIntentEvent rail
     --> TacticalIntentResolutionSystem
@@ -318,7 +329,7 @@ behavior — including the "resume-trap" avoidance.
 FDP/Toolkits/Fdp.Toolkits/Squad/
     SquadHsmShell.cs                     -- lightweight HSM authoring shell over PhaseSequencer
     State/
-        SquadCognitiveState.cs           -- single 1024 B projection onto Blackboard1024
+        SquadCognitiveState.cs           -- single 1024 B ECS component, own [ComponentId]
     Primitives/
         ElementPartitionPrimitive.cs     -- hysteresis-guarded member->element mapping
         TacticalFeatureHandles.cs        -- handles on danger areas / tactical features
@@ -341,7 +352,7 @@ FDP/Toolkits/Fdp.Toolkits/Squad/
     Mappers/
         ForceManeuverMapper.cs           -- ITacticalOrderMapper for mission override
     StarterPack/
-        ManeuverSelectStarterDecision.cs -- worked example ManeuverSelect decision
+        (ManeuverSelectStarterDecision.cs -- retired 2026-10-14; superseded by Utility/StarterPack/SquadCrossingDecision.cs)
     Maneuvers/
         DangerAreaCrossingManeuver.cs    -- §8.1 danger-area crossing
         BoundingOverwatchManeuver.cs     -- §8.2 bounding overwatch (open-field + urban)
@@ -362,7 +373,7 @@ FDP/Toolkits/Fdp.Toolkits.Tests/Squad/
     AssignmentSlotLayoutTests.cs         -- AssignmentSlot 16 B size check
     SquadPhase0IntegrationTests.cs       -- P0 integration gate
     Phase2IntegrationTests.cs            -- P2 perception-merge + sensor gate
-    Phase3IntegrationTests.cs            -- P3 maneuver-selection gate
+    (Phase3IntegrationTests.cs           -- retired 2026-10-14 with the starter decision; see SquadManeuverTests.CE2159_*)
     DangerAreaProviderTests.cs
     DedicatedScriptParityTests.cs        -- P6 dedicated-script / PlatoonHillAttack parity
     SquadHsmShellTests.cs
@@ -392,8 +403,8 @@ FDP/Toolkits/Fdp.Toolkits.Tests/Squad/
         HillCrestHullDownManeuverTests.cs
         BrieferCatalogManeuverTests.cs   -- StackAndRoomEntry + TravellingOverwatch
 
-Hrot/Diagnostics/Hrot.Diagnostics.Overlays/
-    SquadCoordinationOverlaySource.cs    -- §10 overlay (extends SquadAssignmentOverlaySource)
+Hrot/Engine/Hrot.Presentation/ScenarioEditor/Gizmos/
+    SquadGizmo.cs                        -- §10 overlay, as a map gizmo (CE-3121; the Hrot.Diagnostics.Overlays sources were folded in and deleted)
 ```
 
 The `SquadState` / `SquadAwareEngagement` Blueprint recipes live in
@@ -413,7 +424,7 @@ primitives co-located in the toolkit layer alongside the Utility AI machinery th
 | `UnitRoster` (commander; capacity 16) | `FDP/Engine/Fdp.Core/CommandHierarchy/UnitRoster.cs` |
 | `UnitSubordinate` (back-pointer) | `FDP/Engine/Fdp.Core/CommandHierarchy/UnitSubordinate.cs` |
 | `UnitHierarchySystem` | `Hrot/Subsystems/Hrot.SimHost/Systems/UnitHierarchySystem.cs` |
-| `Blackboard1024` + `Project<T>()` | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorComponents.cs` |
+| `SquadCognitiveState` (own ECS component) + `SquadStateProvisioning` | `FDP/Toolkits/Fdp.Toolkits/Squad/State/SquadCognitiveState.cs` |
 | `AssignTacticalIntentEvent` rail | `FDP/Toolkits/Fdp.Toolkits/Behavior/Events/AssignTacticalIntentEvent.cs` |
 | `TacticalIntentResolutionSystem` | `Hrot/Subsystems/Hrot.CGF/Systems/TacticalIntentResolutionSystem.cs` |
 | `ITacticalOrderMapper` | `FDP/Toolkits/Fdp.Toolkits/Behavior/TacticalOrderMapper/ITacticalOrderMapper.cs` |
@@ -469,12 +480,12 @@ distinguishes altitude-separated contacts.
 
 | Project | Role |
 |---|---|
-| `Fdp.Toolkits` | `ThreatMatrixAssignmentSystem`, `Blackboard1024`, `TargetMemory`, `EqsComponents`, `UnitRoster`, Utility scoring core |
+| `Fdp.Toolkits` | `ThreatMatrixAssignmentSystem`, `SquadCognitiveState`, `TargetMemory`, `EqsComponents`, `UnitRoster`, Utility scoring core |
 | `Fdp.Core` | `Entity`, `EntityRepository` |
 | `Hrot.Core` | Entity type constants |
 | `Hrot.AI.Behaviors` | Maneuver HSM shells, Blueprint recipe prototypes |
 | `Hrot.CGF` | `TacticalIntentResolutionSystem`, `BehaviorIngressSystem` |
-| `Hrot.Diagnostics.Overlays` | `SquadCoordinationOverlaySource` consumer |
+| `Hrot.Presentation` | `SquadGizmo` consumer (CE-3121 — replaced the deleted `Hrot.Diagnostics.Overlays` source) |
 
 ---
 

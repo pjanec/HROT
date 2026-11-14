@@ -10,6 +10,7 @@ namespace Hrot.Common.Systems
     // The bus is injected at construction so this system is not coupled to any
     // particular view implementation.
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class GlobalActionDispatchSystem : IEcsModuleSystem
     {
         private readonly GlobalActionRegistry _registry;
@@ -25,7 +26,7 @@ namespace Hrot.Common.Systems
         {
             foreach (ref readonly var evt in _interactionBus.Read<GlobalActionRequestedEvent>())
             {
-                if (_registry.TryGetHandler(evt.ActionId, out var handler))
+                if (_registry.TryGetHandler(evt.ActionId, evt.Relayed != 0, out var handler))
                     handler(view, evt.Target);
             }
         }

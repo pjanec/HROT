@@ -30,56 +30,116 @@ namespace Hrot.SimHost
         public static void RegisterAll(EntityRepository world)
         {
             world.RegisterComponent<BehaviorState>();
+            world.RegisterComponent<Roe>();            // CE-2074 — rules of engagement (R-200)
+            world.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandPicture>();          // ⭐ CE-2291 CC-A — what subordinates reported
+            world.RegisterComponent<Fdp.Toolkit.Squad.Command.ReportingRequirements>();
+            // (⭐ CE-3268 — EngagementArea (CE-2282 DA-L) is registered by HrotSharedComponentRegistry: replicated since CE-3261, every node takes it.)
+            world.RegisterComponent<Fdp.Toolkit.Squad.Command.ReportOutbox>();            // ⭐ CE-2291 CC-A — reports waiting to go up
+            world.RegisterComponent<RecentSenses>();   // CE-2076 — when each sensing change last happened
+            world.RegisterComponent<UnderFireMove>();  // ⭐ CE-2319 / CE-2320 (AQ96) — a soldier's move under fire, kept by UnderFireMoveSystem
+            world.RegisterComponent<Restless>();       // ⭐ CE-2368 (AQ103) — a stationary person's idle life, kept by RestlessSystem
+            world.RegisterComponent<Stress>();         // ⭐ CE-2270 (TS-B) — a combatant's live stress, kept by StressSystem
+            world.RegisterComponent<Fdp.Toolkit.Perception.Components.Alerted>();   // ⭐ CE-2371 (AQ104 D) — the enemies he must not forget (leases)
+            world.RegisterManagedComponent<PendingUnitCommand>();   // ⭐ CE-2375 (AQ104 A-1) — a lone man waiting for the squad his area order asked for
+            world.RegisterComponent<Fdp.Toolkit.Squad.CalloutState>();   // ⭐ CE-2372 (AQ105) — a man's last squad call and the edges his calls watch
+            world.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();   // ⭐ CE-2235 — a civilian's fear and mode (brain-local, never replicated)
+            world.RegisterComponent<Fdp.Toolkit.Civilians.Crowd>();           // ⭐ CE-2237 — a crowd of civilians (brain-local, never replicated)
+            world.RegisterComponent<SopState>();       // CE-3035 — the SOP slot (R-189, R-198)
+            world.RegisterComponent<BehaviorFaultLatch>();   // CE-482
             world.RegisterComponent<SimTier>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();   // ⭐ CE-3136 — the channels' status (T1)
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>();   // ⭐ CE-1249 — the brain journal (BV-9)
+            world.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandReportHistory>();   // ⭐ CE-1319 — a commander's report history (BV-57)
+            world.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandOrderHistory>();    // ⭐ CE-1319 — a commander's order history (BV-58)
+            world.RegisterManagedComponent<Fdp.Toolkit.Squad.SquadDrillTrace>();   // ⭐ N-11 — registered with its headline (was lazy, mid-tick), so a commander is PROVISIONED with it (SquadStateProvisioning)
+            world.RegisterComponent<Fdp.Toolkit.Squad.SquadDrillState>();               // ⭐ CE-4047 — a commander's squad-drill headline, recorded (the Brain tab's Squad section in replay)
             world.RegisterComponent<InteractionChannel>();
-            world.RegisterComponent<ActorCapabilityState>();
+            // ⭐ MOVED 2026-09-12 to CombatComponentRegistry (CE-259bf slice 2): ActorCapabilityState
+            //   is stamped by BehaviorTkbTranslator alongside EntityInfo — which ALREADY lives in the
+            //   combat registry — and is read by HealthApplicationSystem / DamageSystem, both of which
+            //   SimHost runs via CombatModule. ⛔ PreviousCapabilities stays HERE: its only readers are
+            //   CognitiveInterruptSystem (Brain) and the Stride animation reactor (design §3.9a).
             world.RegisterComponent<PreviousCapabilities>();
-            world.RegisterComponent<BrainBTreeState>();
-            world.RegisterComponent<BrainBlackboard>();
-            world.RegisterComponent<Blackboard1024>();
-            world.RegisterComponent<BrainHsm128>();
-            world.RegisterComponent<BrainHsm64>();
-            world.RegisterComponent<MissionPlanQueue>();
-            world.RegisterComponent<PassengerBuffer>();
-            world.RegisterComponent<IsEmbarkedTag>();
+            // ⭐⭐⭐ CE-323 (2026-09-23) — THE INTERRUPT TAIL, AND ITS ABSENCE WAS A PRODUCTION
+            //   REGRESSION, NOT A TIDINESS GAP.
+            //   🔴 P4 deleted `RegisterComponent<BrainBlackboard>()` from this method and added no
+            //   replacement, but O2 had already moved the interrupt byte OUT of that component and
+            //   into BrainInterrupts. ⇒ from P4 until now, BrainInterrupts was registered NOWHERE in
+            //   production — every single registration in the tree was in a test.
+            //   ⛔⛔ AND IT FAILS SILENTLY, THREE TIMES OVER: BehaviorTkbTranslator attaches it only
+            //   `if (IsComponentTypeRegistered<BrainInterrupts>())`; CognitiveInterruptSystem's query
+            //   requires it, so it matched nothing; and BrainTickSystem's MobilityLost enqueue is
+            //   guarded by `HasComponent<BrainInterrupts>`. Nothing throws, nothing logs — the
+            //   MobilityLost interrupt simply never fires and a disabled vehicle's HSM never leaves
+            //   its cruising state. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.21.
+            world.RegisterComponent<BrainInterrupts>();
+            // ⛔ O7c-② (2026-09-22): BrainBTreeState is RETIRED — the root tree cursor is an
+            //    occurrence slot now (§31). Its id 29 stays RESERVED.
+            // ⛔ P4-① (2026-09-22): Blackboard1024 is RETIRED. Its three tenants all left by a named
+            //    decision — AiPrimitive working state to the Blueprint tier ladder (SLICE2), squad
+            //    state to its own component (O1), and the HeavyDtoType overflow path was never
+            //    adopted. 📄 DESIGN_Occurrence_Scoped_Storage.md §30.13.
+            // ⛔ O7c-① (2026-09-22): BrainHsm64 is RETIRED — zero production attach sites, so its
+            //   tick query could never match. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.5.
+            // ⛔ O7c-④d (2026-09-23): BrainHsm128 is RETIRED — the LAST root brain component. The
+            //   HSM instance is an occurrence slot sized by SelectTier, so what this host must
+            //   register for a brain is the tier ladder, which BlueprintComponentRegistry already
+            //   does. ⚠ Its id 36 stays RESERVED. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.19.
+            // ⭐ MOVED 2026-09-12 to MissionComponentRegistry (CE-259bf slice 2) — ActiveMissionPlan
+            //   already lives there, and MissionPlanQueue is the same tier's queue. SimHost READS it:
+            //   EntityMissionIngressTranslator writes it over the wire and MissionPlanTranslator
+            //   persists it (design §3.9a).
+            // ⭐ MOVED 2026-09-12 to EmbarkationComponentRegistry (CE-259bf slice 3a): embarkation
+            //   runtime state spans SimHost (GenesisMaterializationSystem), the Brain (EmbarkExecutor)
+            //   and the Editor (EditorCargoSystem) — it belongs to no single role and was parked here.
 
             // CQRS navigation command — written by the Brain tier (MoveToExecutor)
             // and read by the Muscle tier (NavigationIntentBridgeSystem).
             world.RegisterComponent<NavigationIntent>();
+            world.RegisterComponent<NavigationApplied>();   // ⭐ R-3039 S1 — what the bridge already applied to each mover
 
             // BTree/HSM diagnostic tracing — opt-in 1024-byte ring buffers per entity,
             // plus the generic transient DebugState driving them, and the patch event.
+            // ⚠ The ring buffers STAY: written only by TraceBufferLifecycleSystem (Brain), and their
+            //   SimHost readers are extract-only translators gated on BehaviorState (design §3.9a).
             world.RegisterComponent<BTreeTraceWorkingMemory1024>();
             world.RegisterComponent<HsmTraceWorkingMemory1024>();
-            world.RegisterComponent<DebugState>();
-            world.RegisterManagedEvent<PatchDebugStateCommand>();
+            // ⭐ CE-3069 G2 — the utility record an observed unit carries (GET /entities/{id}/utility); attached and removed
+            //   by TraceBufferLifecycleSystem with the BTree/HSM rings above.
+            world.RegisterComponent<Fdp.Toolkit.Utility.UtilityDecisionLog>();
+            world.RegisterComponent<Fdp.Toolkit.Utility.UtilityDebugFlags>();
+            world.RegisterComponent<Fdp.Toolkit.Utility.UtilityTraceWorkingMemory1024>();
+            // ⭐ DebugState + PatchDebugStateCommand MOVED 2026-09-12 to
+            //   BehaviorDiagnosticsComponentRegistry — SimHost's OWN ToggleAiTrace action writes them.
 
             // Embarkation commands (edit-1/EDIT1-E001)
-            world.RegisterEvent<EmbarkEntityCommand>();
-            world.RegisterEvent<DisembarkEntityCommand>();
+            // ⭐ Embark/Disembark commands MOVED with their components (see above).
             world.RegisterEvent<CognitiveInterruptEvent>();
             world.RegisterEvent<ClearBehaviorEvent>();
             world.RegisterEvent<BehaviorFinishedEvent>();
+            world.RegisterManagedEvent<BehaviorFaultNotification>();   // CE-482 — fail loud
+            world.RegisterManagedEvent<Fdp.Toolkit.Squad.Command.SquadReportNotification>();   // CE-3250 — a report up the chain (BR-3), envelope over CommandReport
+            world.RegisterEvent<Fdp.Toolkit.ScenarioRules.ExerciseEndedEvent>();            // ⭐ rules S2-e — the exercise ended (once per node)
+            world.RegisterEvent<Fdp.Toolkit.ScenarioRules.ObjectiveCapturedEvent>();        // ⭐ rules S7 P-4 — a capture point changed hands (one frame; Count captures reads it)
+            world.RegisterManagedEvent<Fdp.Toolkit.ScenarioRules.PlayerMessageEvent>();     // ⭐ rules S2-f — a message to the players (SR-121)
             world.RegisterEvent<AssignBehaviorHashEvent>();
+            world.RegisterEvent<SetRoeEvent>();        // CE-2074
+            world.RegisterEvent<Fdp.Toolkit.Squad.Command.SetReportingEvent>();
+            world.RegisterEvent<Fdp.Toolkit.Behavior.Components.SetEngagementAreaEvent>();   // ⭐ CE-2282 DA-L   // ⭐ CE-2291 CC-A
+            world.RegisterEvent<ClearSopEvent>();      // CE-3035
+            world.RegisterManagedEvent<AssignSopEvent>();   // CE-3035
             world.RegisterManagedEvent<AssignTacticalIntentEvent>();
             world.RegisterManagedEvent<AssignBehaviorEvent>();
 
-            // EQS Brain-tier components and update event.
-            world.RegisterComponent<EqsSensor>();
-            world.RegisterComponent<EqsCognitiveBuffer>();
-            world.RegisterManagedEvent<EqsResultUpdateEvent>();
-
-            // EQS Phase 5: per-sensor cross-tick evaluation state.
-            world.RegisterComponent<SensorEvalState>();
-
-            // EQS Phase 5: EqsSolverSystem submits RaycastRequestEvents via command buffer
-            // playback.  RaycastSolverSystem (Combat/Input) resolves them and publishes
-            // RaycastResultEvents.  Both must be registered in every world that hosts these
-            // systems so that FdpEventBus.PublishRaw does not throw during harvest/flush.
-            world.RegisterEvent<RaycastRequestEvent>();
-            world.RegisterEvent<RaycastResultEvent>();
+            // ⭐⭐⭐ MOVED 2026-09-12 to PerceptionRoleComponentRegistry (CE-259bf, design §3.9a/§3.9b).
+            //   The EQS trio + the raycast events are the PERCEPTION role's, not the Brain's:
+            //   SimHostCapabilities.cs:79 registers EqsModule and EqsSolverSystem is SimHost's own.
+            //   ⛔ They lived here under a "Brain-tier" comment, which is why SimHost — a node that
+            //   runs NO cognitive system — had to call this registry to get its own role's components.
+            //   ⚠ Both hosts now call PerceptionRoleComponentRegistry, so the registered set per host
+            //   is unchanged by that move.
         }
     }
 }

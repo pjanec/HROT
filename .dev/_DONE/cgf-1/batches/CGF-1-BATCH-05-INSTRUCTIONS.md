@@ -23,7 +23,7 @@
 
 ## Mandatory workflow
 
-Complete **Part A** (debt + correctness) **before** large S0202 surface area. Full **`dotnet test IOS-IG-SimHost.sln`** green before report.
+Complete **Part A** (debt + correctness) **before** large S0202 surface area. Full **`dotnet test HROT.sln`** green before report.
 
 ---
 

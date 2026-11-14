@@ -25,6 +25,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class AnimationBackendCleanupSystem : IEcsModuleSystem
     {
         private readonly IAnimationBackend _backend;

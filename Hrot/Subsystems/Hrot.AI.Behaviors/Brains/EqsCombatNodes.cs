@@ -8,6 +8,8 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Spatial.Eqs;
+using Fbt.Kernel;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -37,19 +39,16 @@ namespace Hrot.AI.Behaviors.Brains
         /// Returns Success if the entity's <see cref="TargetMemory"/> contains at least one
         /// entry with a positive threat score; Failure otherwise.
         /// </summary>
-        [BTreeCondition]
-        public static NodeStatus Condition_HasTarget(
-            ref MoveToOptimalCoverParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiCondition]
+        public static NodeStatus Condition_HasTarget(ref MoveToOptimalCoverParams p, Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<TargetMemory>(ctx.Self))
+            if (!world.HasComponent<TargetMemory>(self))
                 return NodeStatus.Failure;
-            ref readonly var mem = ref ctx.World.GetComponentRO<TargetMemory>(ctx.Self);
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
             unsafe
             {
                 for (int i = 0; i < mem.Count; i++)
-                    if (mem.ThreatScores[i] > 0f) return NodeStatus.Success;
+                    if (mem.Freshness[i] > 0f && !TargetMemory.IsBurst(in mem, i)) return NodeStatus.Success;   // R-2071 E-1 — a burst is no target
             }
             return NodeStatus.Failure;
         }
@@ -58,38 +57,31 @@ namespace Hrot.AI.Behaviors.Brains
         /// Reads the top-ranked entry from <see cref="EqsCognitiveBuffer"/> and drives
         /// <see cref="LocomotionChannel"/> with a MoveTo action toward that position.
         /// </summary>
-        [BTreeAction]
-        public static unsafe NodeStatus Action_MoveToOptimalCover(
-            ref MoveToOptimalCoverParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_MoveToOptimalCover(ref MoveToOptimalCoverParams p, Entity self, EntityRepository world)
         {
             // 1. Resolve the entity to read the buffer from.
-            Entity bufferEntity = p.SensorHandle.IsValid && ctx.World.IsAlive(p.SensorHandle.ChildId)
+            Entity bufferEntity = p.SensorHandle.IsValid && world.IsAlive(p.SensorHandle.ChildId)
                 ? p.SensorHandle.ChildId
-                : ctx.Self;
+                : self;
 
-            // 2. Guard: require both components (LocomotionChannel stays on ctx.Self).
-            if (!ctx.World.HasComponent<EqsCognitiveBuffer>(bufferEntity) ||
-                !ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
+            // 2. Guard: require both components (LocomotionChannel stays on self).
+            if (!world.HasComponent<EqsCognitiveBuffer>(bufferEntity) ||
+                !world.HasComponent<LocomotionChannel>(self))
                 return NodeStatus.Failure;
 
             // 3. Buffer must be ready and non-empty
-            ref readonly var buffer = ref ctx.World.GetComponentRO<EqsCognitiveBuffer>(bufferEntity);
+            ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(bufferEntity);
             if (!buffer.IsReady || buffer.Count == 0)
                 return NodeStatus.Failure;
 
             var bestCover = buffer.GetTop();
             var targetPos = new Vector3(bestCover.PositionX, bestCover.PositionY, bestCover.PositionZ);
 
-            ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
+            ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);
 
             // 4. Propagate behavior instance ID to prevent channel arbitration stomping
-            if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
-            {
-                var behavior = ctx.World.GetComponent<BehaviorState>(ctx.Self);
-                channel.BehaviorInstanceId = behavior.InstanceId;
-            }
+            LocomotionMoveTo.StampOwner(world, self, ref channel);
 
             // 5. Forward terminal status from the executor
             if (channel.ActiveAction == NavigationConstants.ActionIdMoveTo)
@@ -98,29 +90,12 @@ namespace Hrot.AI.Behaviors.Brains
                 if (channel.Status == NodeStatus.Failure) return NodeStatus.Failure;
             }
 
-            // 6. Activate or update the locomotion channel
+            // 6. Activate the locomotion channel (⭐ CE-2092: the one channel write, LocomotionMoveTo)
             bool needsActivation = channel.ActiveAction != NavigationConstants.ActionIdMoveTo ||
                                    channel.Status == NodeStatus.Failure;
 
             if (needsActivation)
-            {
-                unchecked { channel.ActionInstanceId++; }
-                channel.ActiveAction = NavigationConstants.ActionIdMoveTo;
-                channel.Status = NodeStatus.Running;
-
-                var moveToParams = new MoveToParams
-                {
-                    Destination   = targetPos,
-                    ArrivalRadius = p.ArrivalRadius,
-                    Speed         = p.Speed,
-                    ReverseAllowed = 0,
-                };
-
-                fixed (byte* dst = channel.Params)
-                {
-                    *(MoveToParams*)dst = moveToParams;
-                }
-            }
+                LocomotionMoveTo.Issue(world, self, targetPos, p.Speed, p.ArrivalRadius, source: MoveSource.CoverSearch);
 
             return NodeStatus.Running;
         }
@@ -129,11 +104,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// Stub: holds entity in place. Always returns Running.
         /// Full locomotion integration is deferred to Phase 7.
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_HoldPosition(
-            ref MoveToOptimalCoverParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_HoldPosition(ref MoveToOptimalCoverParams p, Entity self, EntityRepository world)
         {
             return NodeStatus.Running;
         }
@@ -142,11 +114,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// Stub: wanders indefinitely. Always returns Running.
         /// Full locomotion integration is deferred to Phase 7.
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_Wander(
-            ref MoveToOptimalCoverParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_Wander(ref MoveToOptimalCoverParams p, Entity self, EntityRepository world)
         {
             return NodeStatus.Running;
         }

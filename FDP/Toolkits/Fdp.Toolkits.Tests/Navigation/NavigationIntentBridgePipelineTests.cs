@@ -33,7 +33,14 @@ namespace Fdp.Toolkit.Navigation.Tests
             _repo.RegisterEvent<PathfindingRequestEvent>();
         }
 
-        // ── Test 1: MoveTo publishes exactly one PathfindingRequestEvent ───────────
+        /// <summary>⭐ CE-3026 — what MoveToExecutor writes (and what crosses the wire to SimHost on a cluster).</summary>
+        private static NavigationIntent PathToPoint(uint id, Vector3 dest, uint layerMask = 0) => new NavigationIntent
+        {
+            Mode = NavigationMode.PathToPoint, IntentId = id, FinalDestination = dest,
+            ArrivalRadius = 1f, TargetSpeed = 5f, LayerMask = layerMask,
+        };
+
+        // ── Test 1: a PathToPoint intent publishes exactly one PathfindingRequestEvent ─
 
         [Fact]
         public void MoveTo_PublishesExactlyOnePathRequest()
@@ -42,23 +49,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
             _repo.AddComponent(entity, new NavState());
             _repo.AddComponent(entity, new NavigationStatus());
-
-            var ch = new LocomotionChannel
-            {
-                ActiveAction     = NavigationConstants.ActionIdMoveTo,
-                ActionInstanceId = 1,
-            };
-            unsafe
-            {
-                LocomotionChannel* pCh = &ch;
-                *(MoveToParams*)pCh->Params = new MoveToParams
-                {
-                    Destination   = new Vector3(10f, 20f, 0f),
-                    ArrivalRadius = 1f,
-                    Speed         = 5f,
-                };
-            }
-            _repo.AddComponent(entity, ch);
+            _repo.AddComponent(entity, PathToPoint(1, new Vector3(10f, 20f, 0f)));
 
             _system.Execute(_repo, 0f);
             _repo.Bus.SwapBuffers();
@@ -67,6 +58,243 @@ namespace Fdp.Toolkit.Navigation.Tests
             Assert.Equal(1, events.Length);
             Assert.Equal(10f, events[0].End.X);
             Assert.Equal(20f, events[0].End.Y);
+            // ⭐ No straight-line start while the path is being planned.
+            Assert.Equal(KinematicsMode.None, _repo.GetComponent<NavState>(entity).Mode);
+            // ⭐ CE-3176 — and None alone did not mean "wait": CarKinematicsSystem drives Mode None like Direct whenever it has a
+            //   speed, so this rail stayed green while the vehicle drove straight at its goal. The wait holds at speed 0.
+            Assert.Equal(0f, _repo.GetComponent<NavState>(entity).TargetSpeed);
+        }
+
+        /// <summary>⭐ CE-3176 (Navigation_Design_v2_0.md §3.1: "wait, no straight start") — a vehicle given a MoveTo does not move
+        /// while its path is pending (the muscle runs every frame meanwhile), and drives at the REQUESTED speed once the path comes
+        /// back.</summary>
+        [Fact]
+        public void CE3176_APendingMoveTo_HoldsItsGround_ThenFollowsThePathAtTheRequestedSpeed()
+        {
+            _repo.RegisterComponent<VehicleState>();
+            _repo.RegisterComponent<VehicleParams>();
+            _repo.RegisterComponent<global::CarKinem.Spatial.SpatialGridData>();
+            _repo.RegisterEvent<PathfindingResultEvent>();
+            _repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1f });
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = SimMath.FacingNorth });
+            _repo.SetAuthority<SimTransform>(entity, true);
+            _repo.AddComponent(entity, new SimVelocity());
+            _repo.AddComponent(entity, new VehicleState());
+            _repo.AddComponent(entity, new VehicleParams
+            {
+                WheelBase = 2.7f, MaxSpeedFwd = 30f, MaxAccel = 3f, MaxDecel = 6f, MaxSteerAngle = (Fdp.Core.Angle)(0.6f),
+                LookaheadTimeMin = 2f, LookaheadTimeMax = 10f, AccelGain = 2.0f, AvoidanceRadius = 2.5f,
+            });
+            _repo.AddComponent(entity, new NavState());
+            _repo.AddComponent(entity, new NavigationStatus());
+            _repo.AddComponent(entity, PathToPoint(1, new Vector3(0f, 100f, 0f)));
+
+            var grid = new global::CarKinem.Systems.SpatialHashSystem();
+            var kinematics = new global::CarKinem.Systems.CarKinematicsSystem(_pool);
+            void Muscle() { grid.Execute(_repo, 0.016f); kinematics.Execute(_repo, 0.016f); }
+            _system.Execute(_repo, 0.016f);
+            for (int i = 0; i < 30; i++) Muscle();   // the solver has not answered yet
+            Assert.InRange(((System.Numerics.Vector3)_repo.GetComponent<SimTransform>(entity).Position).Length(), 0f, 0.01f);
+            Assert.Equal(0, _repo.GetComponent<NavState>(entity).HasArrived);
+
+            _pool.RegisterTrajectoryWithKey(new[] { new Vector2(0f, 0f), new Vector2(0f, 100f) }, 7);
+            _repo.Bus.Publish(new PathfindingResultEvent
+            {
+                RequestId = ((long)entity.Index << 32) | 1L, IsReachable = true, RouteHandle = 7, TotalDistanceMeters = 100f,
+            });
+            _repo.Bus.SwapBuffers();
+            new Fdp.Toolkit.Navigation.EngineBacked.EngineBackedPathResponseSystem(
+                new Fdp.Toolkit.Navigation.EngineBacked.EngineBackedPathRegistry(_pool)).Execute(_repo, 0.016f);
+
+            var nav = _repo.GetComponent<NavState>(entity);
+            Assert.Equal((KinematicsMode.CustomTrajectory, 7, 5f), (nav.Mode, nav.TrajectoryId, nav.TargetSpeed));
+            for (int i = 0; i < 30; i++) Muscle();
+            Assert.True(_repo.GetComponent<SimTransform>(entity).Position.Y > 0.05f, "drives once the path is in");
+        }
+
+        /// <summary>⭐ CE-2245 — a MoveTo STOPPED while its path is pending stays stopped when the late path comes back: the answer
+        /// must not revive the cancelled move (measured on a cluster: a casualty crawling 2 m along the walk he was shot out of).</summary>
+        [Fact]
+        public void CE2245_AMoveToStoppedWhileItsPathIsPending_StaysStopped_WhenThePathArrives()
+        {
+            _repo.RegisterComponent<VehicleState>();
+            _repo.RegisterComponent<VehicleParams>();
+            _repo.RegisterComponent<global::CarKinem.Spatial.SpatialGridData>();
+            _repo.RegisterEvent<PathfindingResultEvent>();
+            _repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1f });
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = SimMath.FacingNorth });
+            _repo.SetAuthority<SimTransform>(entity, true);
+            _repo.AddComponent(entity, new SimVelocity());
+            _repo.AddComponent(entity, new VehicleState());
+            _repo.AddComponent(entity, new VehicleParams
+            {
+                WheelBase = 2.7f, MaxSpeedFwd = 30f, MaxAccel = 3f, MaxDecel = 6f, MaxSteerAngle = (Fdp.Core.Angle)(0.6f),
+                LookaheadTimeMin = 2f, LookaheadTimeMax = 10f, AccelGain = 2.0f, AvoidanceRadius = 2.5f,
+            });
+            _repo.AddComponent(entity, new NavState());
+            _repo.AddComponent(entity, new NavigationStatus());
+            _repo.AddComponent(entity, PathToPoint(1, new Vector3(0f, 100f, 0f)));
+            _system.Execute(_repo, 0.016f);
+
+            var stop = _repo.GetComponent<NavigationIntent>(entity);
+            stop.IntentId = 2;
+            stop.Mode = NavigationMode.None;
+            stop.TargetSpeed = 0f;
+            _repo.SetComponent(entity, stop);
+            _system.Execute(_repo, 0.016f);
+
+            _pool.RegisterTrajectoryWithKey(new[] { new Vector2(0f, 0f), new Vector2(0f, 100f) }, 7);
+            _repo.Bus.Publish(new PathfindingResultEvent
+            {
+                RequestId = ((long)entity.Index << 32) | 1L, IsReachable = true, RouteHandle = 7, TotalDistanceMeters = 100f,
+            });
+            _repo.Bus.SwapBuffers();
+            new Fdp.Toolkit.Navigation.EngineBacked.EngineBackedPathResponseSystem(
+                new Fdp.Toolkit.Navigation.EngineBacked.EngineBackedPathRegistry(_pool)).Execute(_repo, 0.016f);
+
+            Assert.Equal(KinematicsMode.None, _repo.GetComponent<NavState>(entity).Mode);
+            var grid = new global::CarKinem.Systems.SpatialHashSystem();
+            var kinematics = new global::CarKinem.Systems.CarKinematicsSystem(_pool);
+            for (int i = 0; i < 30; i++) { grid.Execute(_repo, 0.016f); kinematics.Execute(_repo, 0.016f); }
+            Assert.InRange(((System.Numerics.Vector3)_repo.GetComponent<SimTransform>(entity).Position).Length(), 0f, 0.01f);
+        }
+
+        /// <summary>⭐ CE-3026 — DirectPoint means STRAIGHT: no path request, the vehicle drives at once.</summary>
+        [Fact]
+        public void DirectPoint_DrivesStraight_PublishesNoPathRequest()
+        {
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
+            _repo.AddComponent(entity, new NavState());
+            _repo.AddComponent(entity, new NavigationStatus());
+            var intent = PathToPoint(1, new Vector3(10f, 20f, 0f));
+            intent.Mode = NavigationMode.DirectPoint;
+            _repo.AddComponent(entity, intent);
+
+            _system.Execute(_repo, 0f);
+            _repo.Bus.SwapBuffers();
+
+            Assert.Equal(0, _view.ReadEvents<PathfindingRequestEvent>().Length);
+            Assert.Equal(KinematicsMode.Direct, _repo.GetComponent<NavState>(entity).Mode);
+        }
+
+        /// <summary>⭐ CE-3026 — the Brain's LocomotionChannel no longer drives the bridge: a MoveTo on the channel ALONE
+        /// (no intent) plans nothing. On a cluster the channel never reaches this node (R-180), so planning from it was an
+        /// editor-only path.</summary>
+        [Fact]
+        public void MoveTo_OnTheChannelAlone_IsNotPlanned()
+        {
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
+            _repo.AddComponent(entity, new NavState());
+            var ch = new LocomotionChannel { ActiveAction = NavigationConstants.ActionIdMoveTo, ActionInstanceId = 1 };
+            unsafe
+            {
+                LocomotionChannel* pCh = &ch;
+                *(MoveToParams*)pCh->Params = new MoveToParams { Destination = new Vector3(10f, 20f, 0f), Speed = 5f };
+            }
+            _repo.AddComponent(entity, ch);
+
+            _system.Execute(_repo, 0f);
+            _repo.Bus.SwapBuffers();
+
+            Assert.Equal(0, _view.ReadEvents<PathfindingRequestEvent>().Length);
+        }
+
+        /// <summary>⭐ CE-3026 — the explicit layer and backend ride the intent (they used to ride only the channel).</summary>
+        [Fact]
+        public void PathToPoint_CarriesExplicitLayerAndBackend()
+        {
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
+            _repo.AddComponent(entity, new NavState());
+            var intent = PathToPoint(1, new Vector3(10f, 20f, 0f), (uint)NavLayerMask.Naval);
+            intent.BackendForce = (byte)NavigationBackend.Navmesh;
+            intent.RouteHandle  = 7;
+            _repo.AddComponent(entity, intent);
+
+            _system.Execute(_repo, 0f);
+            _repo.Bus.SwapBuffers();
+
+            var events = _view.ReadEvents<PathfindingRequestEvent>();
+            Assert.Equal(1, events.Length);
+            Assert.Equal((int)NavLayerMask.Naval, events[0].NavLayerMask);
+            Assert.Equal(NavigationBackend.Navmesh, events[0].BackendForce);
+            Assert.Equal(7, events[0].RouteHandle);
+        }
+
+        // ── The layer a request plans on (live run 2026-10-03) ───────────────────────
+
+        /// <summary>
+        /// 🔴 Found by the 2026-10-03 live run: every request left with <c>NavLayerMask = 0</c> ("all layers"), and the
+        /// provider took the FIRST layer that found a path — the infantry mesh — so a tank hugged a building at infantry
+        /// clearance. ⭐ A MoveTo with no explicit mask now plans on Vehicle for a <see cref="VehicleState"/> entity and on
+        /// Infantry otherwise (design: one bit, defaulting from the agent profile).
+        /// </summary>
+        [Theory]
+        [InlineData(true,  NavLayerMask.Vehicle)]
+        [InlineData(false, NavLayerMask.Infantry)]
+        public void MoveTo_WithNoExplicitLayer_PlansOnTheEntitysOwnLayer(bool isVehicle, NavLayerMask expected)
+        {
+            if (!_repo.IsComponentTypeRegistered<VehicleState>()) _repo.RegisterComponent<VehicleState>();
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
+            _repo.AddComponent(entity, new NavState());
+            _repo.AddComponent(entity, new NavigationStatus());
+            if (isVehicle) _repo.AddComponent(entity, new VehicleState());
+
+            _repo.AddComponent(entity, PathToPoint(1, new Vector3(10f, 20f, 0f)));
+
+            _system.Execute(_repo, 0f);
+            _repo.Bus.SwapBuffers();
+
+            var events = _view.ReadEvents<PathfindingRequestEvent>();
+            Assert.Equal(1, events.Length);
+            Assert.Equal((int)expected, events[0].NavLayerMask);
+        }
+
+        /// <summary>The rule's precedence: an explicit mask wins, then the agent profile's preferred layer, then the kind.</summary>
+        [Fact]
+        public void NavLayerSelection_Precedence_ExplicitThenProfileThenKind()
+        {
+            if (!_repo.IsComponentTypeRegistered<VehicleState>()) _repo.RegisterComponent<VehicleState>();
+            if (!_repo.IsComponentTypeRegistered<NavAgentProfile>()) _repo.RegisterComponent<NavAgentProfile>();
+            var e = _repo.CreateEntity();
+            _repo.AddComponent(e, new VehicleState());
+            Assert.Equal(NavLayerMask.Vehicle, NavLayerSelection.For(_repo, e, 0));
+            _repo.AddComponent(e, new NavAgentProfile { PreferredLayerMask = (uint)NavLayerMask.Naval });
+            Assert.Equal(NavLayerMask.Naval, NavLayerSelection.For(_repo, e, 0));
+            Assert.Equal(NavLayerMask.Infantry, NavLayerSelection.For(_repo, e, (uint)NavLayerMask.Infantry));
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3112 (🔒 user, 2026-10-08: "Approved, go with class mapping") — the kind is the TKB's locomotion CLASS on
+        /// <see cref="VehicleParams"/>, not the presence of <see cref="VehicleState"/>: SimHost infantry carries both, and the old
+        /// rule planned every soldier on the 1.8 m vehicle mesh (no doorway admitted it — the bt-doors live run).
+        /// </summary>
+        [Fact]
+        public void NavLayerSelection_MapsTheLocomotionClass_ASoldierWithVehicleStateIsInfantry()
+        {
+            if (!_repo.IsComponentTypeRegistered<VehicleState>()) _repo.RegisterComponent<VehicleState>();
+            if (!_repo.IsComponentTypeRegistered<VehicleParams>()) _repo.RegisterComponent<VehicleParams>();
+            var soldier = _repo.CreateEntity();
+            _repo.AddComponent(soldier, new VehicleState());
+            _repo.AddComponent(soldier, new VehicleParams { Class = VehicleClass.Pedestrian });
+            Assert.Equal(NavLayerMask.Infantry, NavLayerSelection.For(_repo, soldier, 0));
+
+            foreach (var cls in new[] { VehicleClass.PersonalCar, VehicleClass.Truck, VehicleClass.Tank })
+            {
+                var v = _repo.CreateEntity();
+                _repo.AddComponent(v, new VehicleState());
+                _repo.AddComponent(v, new VehicleParams { Class = cls });
+                // ⭐ CE-4369 — a tracked class (Tank) plans on the same vehicle layer, carrying the tracked modifier (woods priced, not closed)
+                var expected = cls == VehicleClass.Tank
+                    ? (NavLayerMask)((uint)NavLayerMask.Vehicle | NavLayerSelection.TrackedModifier) : NavLayerMask.Vehicle;
+                Assert.Equal(expected, NavLayerSelection.For(_repo, v, 0));
+            }
+            Assert.Equal(NavLayerMask.Vehicle, NavLayerSelection.For(_repo, soldier, (uint)NavLayerMask.Vehicle));   // an explicit order still wins
         }
 
         // ── Test 2: PlanRoute carries the Brain-allocated RouteHandle ──────────────
@@ -132,30 +360,16 @@ namespace Fdp.Toolkit.Navigation.Tests
             Assert.Equal(NavigationResult.FailedInvalidHandle, status.Result);
         }
 
-        // ── Test 4: Same ActionInstanceId on consecutive ticks → no new event ─────
+        // ── Test 4: Same IntentId on consecutive ticks → no new event ─────────────
 
         [Fact]
-        public void IdempotencyOnUnchangedActionInstanceId()
+        public void IdempotencyOnUnchangedIntentId()
         {
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
             _repo.AddComponent(entity, new NavState());
             _repo.AddComponent(entity, new NavigationStatus());
-
-            var ch = new LocomotionChannel
-            {
-                ActiveAction     = NavigationConstants.ActionIdMoveTo,
-                ActionInstanceId = 1,
-            };
-            unsafe
-            {
-                LocomotionChannel* pCh = &ch;
-                *(MoveToParams*)pCh->Params = new MoveToParams
-                {
-                    Destination = new Vector3(1f, 1f, 0f),
-                };
-            }
-            _repo.AddComponent(entity, ch);
+            _repo.AddComponent(entity, PathToPoint(1, new Vector3(1f, 1f, 0f)));
 
             // First tick: should publish event.
             _system.Execute(_repo, 0f);
@@ -163,7 +377,9 @@ namespace Fdp.Toolkit.Navigation.Tests
             // Drain the first-tick event so it does not bleed into the second read.
             _view.ReadEvents<PathfindingRequestEvent>();
 
-            // Second tick: ActionInstanceId unchanged — bridge must NOT publish again.
+            // Second tick: IntentId unchanged (even with the intent re-written) — bridge must NOT publish again.
+            _repo.Tick();
+            _repo.SetComponent(entity, PathToPoint(1, new Vector3(1f, 1f, 0f)));
             _system.Execute(_repo, 0f);
             _repo.Bus.SwapBuffers();
 
@@ -195,22 +411,15 @@ namespace Fdp.Toolkit.Navigation.Tests
 
         public void Dispose() => _repo.Dispose();
 
-        private unsafe LocomotionChannel MoveToChannel(uint instanceId, Vector2 dest, float speed = 5f)
+        /// <summary>⭐ CE-3026 — a MoveTo reaches the vehicle side as a PathToPoint intent (what MoveToExecutor writes).</summary>
+        private static NavigationIntent MoveToIntent(uint intentId, Vector2 dest, float speed = 5f) => new NavigationIntent
         {
-            var ch = new LocomotionChannel
-            {
-                ActiveAction     = NavigationConstants.ActionIdMoveTo,
-                ActionInstanceId = instanceId,
-            };
-            LocomotionChannel* pCh = &ch;
-            *(MoveToParams*)pCh->Params = new MoveToParams
-            {
-                Destination   = new Vector3(dest.X, dest.Y, 0f),
-                ArrivalRadius = 1f,
-                Speed         = speed,
-            };
-            return ch;
-        }
+            Mode             = NavigationMode.PathToPoint,
+            IntentId         = intentId,
+            FinalDestination = new Vector3(dest.X, dest.Y, 0f),
+            ArrivalRadius    = 1f,
+            TargetSpeed      = speed,
+        };
 
         // ── Test 1: Humanoid MoveTo adds CrowdAgent tag ───────────────────────────
 
@@ -220,7 +429,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
             _repo.AddComponent(entity, new NavigationStatus());
-            _repo.AddComponent(entity, MoveToChannel(1, new Vector2(10f, 0f)));
+            _repo.AddComponent(entity, MoveToIntent(1, new Vector2(10f, 0f)));
 
             _system.Execute(_repo, 0f);
 
@@ -236,7 +445,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
             _repo.AddComponent(entity, new NavigationStatus());
-            _repo.AddComponent(entity, MoveToChannel(1, new Vector2(10f, 0f)));
+            _repo.AddComponent(entity, MoveToIntent(1, new Vector2(10f, 0f)));
 
             _system.Execute(_repo, 0f);
 
@@ -253,7 +462,8 @@ namespace Fdp.Toolkit.Navigation.Tests
             _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
             _repo.AddComponent(entity, new NavigationStatus());
             _repo.AddComponent(entity, default(VehicleState)); // marks entity as wheeled
-            _repo.AddComponent(entity, MoveToChannel(1, new Vector2(10f, 0f)));
+            _repo.AddComponent(entity, new NavState());
+            _repo.AddComponent(entity, MoveToIntent(1, new Vector2(10f, 0f)));
 
             _system.Execute(_repo, 0f);
 
@@ -393,23 +603,24 @@ namespace Fdp.Toolkit.Navigation.Tests
             Assert.Equal(KinematicsMode.Direct, nav.Mode);
         }
 
-        // ── Test 15: Changed ActionInstanceId triggers re-routing ────────────────
+        // ── Test 15: Changed IntentId triggers re-routing ────────────────
 
         [Fact]
-        public void ActionInstanceIdMismatch_TriggersRouting()
+        public void IntentIdChange_TriggersRouting()
         {
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
             _repo.AddComponent(entity, new NavigationStatus());
-            _repo.AddComponent(entity, MoveToChannel(1, new Vector2(10f, 0f)));
+            _repo.AddComponent(entity, MoveToIntent(1, new Vector2(10f, 0f)));
 
             // First tick publishes one event.
             _system.Execute(_repo, 0f);
             _repo.Bus.SwapBuffers();
             _view.ReadEvents<PathfindingRequestEvent>(); // drain first event
 
-            // Change ActionInstanceId to trigger new routing on second tick.
-            _repo.SetComponent(entity, MoveToChannel(2, new Vector2(20f, 0f)));
+            // Change IntentId to trigger new routing on second tick.
+            _repo.Tick();
+            _repo.SetComponent(entity, MoveToIntent(2, new Vector2(20f, 0f)));
 
             _system.Execute(_repo, 0f);
             _repo.Bus.SwapBuffers();

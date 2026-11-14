@@ -19,12 +19,17 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
         /// <inheritdoc/>
         public int GetCoverPointsInRadius(Vector2 center, float radius, Span<CoverPoint> results)
+            => GetCoverPointsInRadius(center, radius, results, CoverKind.Cover);
+
+        /// <inheritdoc/>
+        public int GetCoverPointsInRadius(Vector2 center, float radius, Span<CoverPoint> results, CoverKind kind)
         {
             float radiusSq = radius * radius;
             int count = 0;
             foreach (var point in _points)
             {
                 if (count >= results.Length) break;
+                if (point.Kind != kind) continue;   // ⭐ Stage 7a — one kind per query
                 float dx = point.PositionX - center.X;
                 float dy = point.PositionY - center.Y;
                 if (dx * dx + dy * dy <= radiusSq)

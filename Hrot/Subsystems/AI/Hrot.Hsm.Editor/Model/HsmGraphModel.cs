@@ -15,13 +15,44 @@ namespace Hrot.Hsm.Editor.Model;
 public sealed class HsmGraphModel : IGraphModel
 {
     private readonly HsmAsset _asset;
+    private readonly Func<Guid, bool>? _isStatefulSubtree;
+
+    /// <summary>⭐ Rule 8b's resolver — see the constructor. ⛔ Nullable for the same reason as
+    /// <see cref="_isStatefulSubtree"/>: a hand-built model in a test has no catalogue.</summary>
+    private readonly Func<Guid, IReadOnlyCollection<int>>? _sharedScopeKeys;
+    private readonly Hrot.Editor.AiShared.Catalog.IAssetCatalog? _catalog;
 
     // Cache for link adapters keyed by VisualId.
     private readonly Dictionary<LinkId, HsmTransitionLink> _linkCache = new();
 
-    public HsmGraphModel(HsmAsset asset)
+    /// <summary>
+    /// ⭐ <c>E4</c>: <paramref name="isStatefulSubtree"/> is the SAME resolver the composition root
+    /// gives <c>HsmAssetValidator</c>. ⛔ Two entry points validate the same asset — this one drives
+    /// the node badges, that one the Diagnostics window — and a resolver on only one of them would
+    /// make a state light up in one surface and not the other.
+    /// </summary>
+    /// <param name="sharedScopeKeys">
+    /// ⭐⭐ <b>Rule 8b's resolver, added <c>2026-09-26</c> so the canvas asks the SAME two questions
+    /// the Diagnostics window does.</b> ⛔ Threading only <paramref name="isStatefulSubtree"/> would
+    /// have left rule 8b inert on this surface alone — the very split this class's remarks warn
+    /// about, half-fixed.
+    /// </param>
+    /// <param name="catalog">
+    /// ⭐⭐ <b><c>E5</c> item 7's dependency — the asset catalogue, for the <c>A</c> hosts <c>B</c>
+    /// hosts <c>A</c> cycle rule.</b> 📄 §32.16. ⛔ Without it that rule is skipped, exactly as
+    /// <c>BTreeValidator</c> skips its dangling-reference check; ⭐ the forwarding rail is what keeps
+    /// that from being a silent default.
+    /// </param>
+    public HsmGraphModel(
+        HsmAsset asset,
+        Func<Guid, bool>? isStatefulSubtree = null,
+        Func<Guid, IReadOnlyCollection<int>>? sharedScopeKeys = null,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
     {
         _asset = asset;
+        _isStatefulSubtree = isStatefulSubtree;
+        _sharedScopeKeys   = sharedScopeKeys;
+        _catalog           = catalog;
         // Rebuild caches when asset changes.
         _asset.Changed += OnAssetChanged;
         BuildCaches();
@@ -40,7 +71,11 @@ public sealed class HsmGraphModel : IGraphModel
         _linkCache.Clear();
 
         // Run validation once (include blackboard for region-conflict checks).
-        var diagnostics = new HsmValidator().Validate(_asset, _asset as IBlackboardManagedAsset);
+        var diagnostics = new HsmValidator(
+                isStatefulSubtree: _isStatefulSubtree,
+                sharedScopeKeys:   _sharedScopeKeys,
+                catalog:           _catalog)
+            .Validate(_asset, _asset as IBlackboardManagedAsset);
 
         // Map StableId -> worst (Error-wins) severity + message.
         var perState = new Dictionary<Guid, (NodeState State, string Tooltip)>();
@@ -85,8 +120,22 @@ public sealed class HsmGraphModel : IGraphModel
 
     public GraphId Id          => new GraphId(_asset.AssetId);
     public string  DisplayName => _asset.Name;
+    // ⭐ CE-1000: transitions are drawn state border to state border and started from a state's border band
+    //    (or Shift-drag) — the pins stay as the link's identity only. 📄 DESIGN_Hsm_Canvas_Authoring.md §2 D1.
     public GraphKindDescriptor Kind { get; } =
-        new("HsmGraph", "State Machine", AllowsLatent: false, RequiresEntryNode: false);
+        new("HsmGraph", "State Machine", AllowsLatent: false, RequiresEntryNode: false)
+        {
+            Routing = LinkRouting.NodeToNode,
+            LinkDisplayName = "Transition",
+        };
+
+    /// <summary>
+    /// CE-1000/1001 — a state's hidden pins derive from its StableId, so this answers for a state that is about to
+    /// be created too (the "drop on empty canvas" batch links to it in the same undo step).
+    /// </summary>
+    public PinId? NodeLinkPin(NodeId node, PinDirection direction) => new PinId(direction == PinDirection.Output
+        ? StateNode.DeriveOutputPinId(node.Value)
+        : StateNode.DeriveInputPinId(node.Value));
 
     // Nodes: all non-root states (RootState is synthetic and never shown).
     public IReadOnlyCollection<INodeModel> Nodes => _asset.AllStates;

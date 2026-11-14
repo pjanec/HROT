@@ -70,7 +70,7 @@ See `AssignBehaviorEvent` (a sealed class with no `[EventId]`, no registration) 
 cd d:\Work\IOS-IG-SimHost-FDP-2
 
 # Build
-dotnet build IOS-IG-SimHost.sln 2>&1 | Select-String "error CS" | Select-Object -Last 5
+dotnet build HROT.sln 2>&1 | Select-String "error CS" | Select-Object -Last 5
 
 # Tests
 dotnet test Hrot.Map.Common.Tests --no-build

@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior.Attributes;
-using Fdp.Toolkit.Behavior.Params;
+using Fdp.Toolkit.Replication;
+using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior
 {
@@ -11,34 +12,30 @@ namespace Hrot.Map.Definitions.Behavior
     /// <c>HillAttackCommanderNodes.ParsePlatoonHillAttackParams</c> at ingress time;
     /// never referenced from BTree hot-path nodes.</para>
     /// </summary>
-    [BehaviorContract(BehaviorId, BehaviorCategory.Commander)]
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public sealed class PlatoonHillAttackParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.PlatoonHillAttack;
 
         /// <summary>Start of the firing-line segment.</summary>
         [JsonPropertyName("firingLineStart")]
-        [MapPickableWorldLocation]
-        public PickableGeoPoint FiringLineStart { get; set; }
+        public PointLink FiringLineStart;
 
         /// <summary>End of the firing-line segment.</summary>
         [JsonPropertyName("firingLineEnd")]
-        [MapPickableWorldLocation]
-        public PickableGeoPoint FiringLineEnd { get; set; }
+        public PointLink FiringLineEnd;
 
         /// <summary>Start of the baseline retreat segment.</summary>
         [JsonPropertyName("baselineStart")]
-        [MapPickableWorldLocation]
-        public PickableGeoPoint BaselineStart { get; set; }
+        public PointLink BaselineStart;
 
         /// <summary>End of the baseline retreat segment.</summary>
         [JsonPropertyName("baselineEnd")]
-        [MapPickableWorldLocation]
-        public PickableGeoPoint BaselineEnd { get; set; }
+        public PointLink BaselineEnd;
 
         /// <summary>Spacing (metres) between adjacent firing-line slots. Defaults to 30 m.</summary>
         [JsonPropertyName("tankSpacing")]
-        public float TankSpacing { get; set; } = 30f;
+        public float TankSpacing = 30f;
 
         /// <summary>
         /// Network-stable ID of the target area polygon entity.
@@ -46,8 +43,7 @@ namespace Hrot.Map.Definitions.Behavior
         /// Resolved to a local ECS entity via <c>NetworkEntityMap</c> at parse time.
         /// </summary>
         [JsonPropertyName("targetAreaNetworkId")]
-        [RemapNetworkId]
-        [MapPickableEntity("tactical_graphics")]
-        public long TargetAreaNetworkId { get; set; }
+        [MapPickableEntity("tactical_graphics")]   // ⭐ narrows the picker; the TYPE makes it pickable and remapped
+        public EntityLink TargetAreaNetworkId;
     }
 }

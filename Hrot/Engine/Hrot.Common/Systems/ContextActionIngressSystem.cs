@@ -9,7 +9,7 @@ using Hrot.Common.Events;
 namespace Hrot.Common.Systems
 {
     // Bridges the managed ContextActionTriggered event (forwarded by the IG over DDS or
-    // published locally by JsonEntityContextMenuHandler) into the typed, unmanaged
+    // published locally by an inspector menu — ⭐ CE-1134: MapEntityMenuHandler now publishes GlobalActionRequestedEvent directly) into the typed, unmanaged
     // GlobalActionRequestedEvent that GlobalActionDispatchSystem consumes.
     //
     // ContextActionTriggered is read from the isolated _interactionBus (not the global
@@ -18,19 +18,37 @@ namespace Hrot.Common.Systems
     // GlobalActionDispatchSystem can read it in the same GizmoInteractionModule.Tick().
     [UpdateInPhase(SystemPhase.Input)]
     [UpdateBefore(typeof(GlobalActionDispatchSystem))]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class ContextActionIngressSystem : IEcsModuleSystem
     {
-        private readonly NetworkEntityMap _entityMap;
+        private readonly System.Func<NetworkEntityMap?> _entityMap;
         private readonly FdpEventBus _interactionBus;
 
         public ContextActionIngressSystem(NetworkEntityMap entityMap, FdpEventBus interactionBus)
+        {
+            if (entityMap == null) throw new System.ArgumentNullException(nameof(entityMap));
+            _entityMap      = () => entityMap;
+            _interactionBus = interactionBus ?? throw new System.ArgumentNullException(nameof(interactionBus));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3179</c> — for a host whose world CHANGES (the ReplayBrowser rebinds to the active recording's world, each with
+        /// its own <see cref="NetworkEntityMap"/>): the map is read each frame. A null map leaves every target <see cref="Entity.Null"/>
+        /// — the action still runs (a main-menu item has no target).
+        /// </summary>
+        public ContextActionIngressSystem(System.Func<NetworkEntityMap?> entityMap, FdpEventBus interactionBus)
         {
             _entityMap      = entityMap      ?? throw new System.ArgumentNullException(nameof(entityMap));
             _interactionBus = interactionBus ?? throw new System.ArgumentNullException(nameof(interactionBus));
         }
 
+        private static bool IsSelected(EntityRepository world, Entity e)
+            => !e.IsNull && world.IsAlive(e) && world.IsComponentTypeRegistered<Hrot.Map.Common.Components.SelectionState>()
+               && world.HasComponent<Hrot.Map.Common.Components.SelectionState>(e) && world.GetComponentRO<Hrot.Map.Common.Components.SelectionState>(e).IsSelected;
+
         public void Execute(ISimulationView view, float deltaTime)
         {
+            var entityMap = _entityMap();
             // Read from the isolated interaction bus, NOT the global world view.
             foreach (var evt in _interactionBus.ReadManaged<ContextActionTriggered>())
             {
@@ -46,12 +64,13 @@ namespace Hrot.Common.Systems
 
                 Entity target = Entity.Null;
                 if (evt.EntityNetworkId != 0)
-                    _entityMap.TryGetEntity((long)evt.EntityNetworkId, out target);
+                    entityMap?.TryGetEntity(evt.EntityNetworkId, out target);
 
                 _interactionBus.Publish(new GlobalActionRequestedEvent
                 {
                     ActionId = actionId,
                     Target   = target,
+                    Relayed  = evt.Relayed ? (byte)1 : (byte)0,
                 });
             }
 
@@ -60,8 +79,19 @@ namespace Hrot.Common.Systems
             foreach (ref readonly var evt in _interactionBus.Read<GizmoMenuActionEvent>())
             {
                 Entity target = Entity.Null;
-                if (evt.AnchorId > 0)
-                    _entityMap.TryGetEntity(evt.AnchorId, out target);
+                if (evt.AnchorId > 0 && evt.AnchorId <= int.MaxValue)   // ⭐ CE-4200: the gizmo anchor id is 64-bit; above int.MaxValue it is no network id (see NetworkIdResolver.ResolveAnchorId)
+                    entityMap?.TryGetEntity((int)evt.AnchorId, out target);
+
+                // ⭐ A4 (R-4162) — a click on a SELECTED entity runs a per-entity action for EVERY selected one ("doesn't matter which one was right
+                //   clicked"); a click outside the selection, or an action that reads the selection itself, runs once. Local clicks only: a relayed click
+                //   (ContextActionTriggered above) was made against ANOTHER station's selection.
+                if (Hrot.Common.Actions.ActionCatalogue.Shared.RunsPerEntity(evt.ActionId) && view is EntityRepository world && IsSelected(world, target))
+                {
+                    foreach (var e in world.Query().With<Hrot.Map.Common.Components.SelectionState>().Build())
+                        if (world.IsAlive(e) && world.GetComponentRO<Hrot.Map.Common.Components.SelectionState>(e).IsSelected)
+                            _interactionBus.Publish(new GlobalActionRequestedEvent { ActionId = evt.ActionId, Target = e });
+                    continue;
+                }
 
                 _interactionBus.Publish(new GlobalActionRequestedEvent
                 {

@@ -23,7 +23,7 @@ Additional setup completed:
 - `Hrot.Editor.AiShared.csproj` created (`net8.0`, `TreatWarningsAsErrors`, `InternalsVisibleTo`)
 - `Hrot.Editor.AiShared.Tests.csproj` created (xunit 2.9.0, xunit.runner.visualstudio 2.8.2, Microsoft.NET.Test.Sdk 17.11.1)
 - `GlobalUsings.cs` added to test project (`global using Xunit;`)
-- Both projects added to `IOS-IG-SimHost.sln` (project entries, build configurations, NestedProjects under `Hrot` solution folder)
+- Both projects added to `HROT.sln` (project entries, build configurations, NestedProjects under `Hrot` solution folder)
 
 ---
 

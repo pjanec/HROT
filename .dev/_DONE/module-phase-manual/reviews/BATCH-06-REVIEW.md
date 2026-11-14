@@ -11,7 +11,7 @@
 
 | Check | Result |
 |-------|--------|
-| `dotnet build IOS-IG-SimHost.sln` | Build succeeded. 0 Error(s), 0 Warning(s) |
+| `dotnet build HROT.sln` | Build succeeded. 0 Error(s), 0 Warning(s) |
 | Fdp.Core.Tests (718 + Hrot tests) | All non-integration tests pass |
 | Integration tests | 10 pre-existing failures unchanged |
 

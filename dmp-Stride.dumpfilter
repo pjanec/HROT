@@ -1,0 +1,4 @@
+- *
++ Stride/**/*.cs
++ Stride/**/*.csproj
++ Stride/**/*.sln

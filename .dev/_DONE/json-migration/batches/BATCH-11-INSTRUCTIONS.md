@@ -18,7 +18,7 @@
 
 **Build command (run before and after changes):**
 ```powershell
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 8
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 8
 ```
 
 **Known pre-existing build failure:** `Hrot.Blueprints.Tests` has compile errors
@@ -265,7 +265,7 @@ Get-ChildItem "Hrot/Subsystems/Blueprints" -Recurse -Filter "*.Tests.csproj" | S
 Before writing the report:
 
 ```powershell
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 8
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 8
 dotnet test "Hrot/Subsystems/Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj" -c Debug --no-build 2>&1 | Select-Object -Last 5
 ```
 
@@ -304,7 +304,7 @@ Structure:
 ## 7. Autonomous Guidance
 
 - If `Hrot.Blueprints.Compiler.Tests` does not exist, create it with proper `.csproj` and
-  add it to the `IOS-IG-SimHost.sln` solution.
+  add it to the `HROT.sln` solution.
 - If `BlueprintAsset`'s JSON deserializer silently ignores `$meta` (no `[JsonExtensionData]`,
   default behavior in System.Text.Json), then `Deserialize` needs no change. Document this
   finding in the report's "Developer Insights" section.

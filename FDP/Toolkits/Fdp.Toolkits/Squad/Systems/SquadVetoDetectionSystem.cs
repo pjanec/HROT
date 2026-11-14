@@ -57,10 +57,9 @@ namespace Fdp.Toolkit.Squad.Systems
             IList<(int memberSlot, PhaseEvent evt)> vetoEvents)
         {
             if (!repo.HasComponent<UnitRoster>(commander)) return;
-            if (!repo.HasComponent<Blackboard1024>(commander)) return;
+            if (!repo.HasComponent<SquadCognitiveState>(commander)) return;
 
-            ref readonly var state = ref SquadCognitiveState.Project(
-                ref repo.GetComponentRW<Blackboard1024>(commander));
+            ref readonly var state = ref repo.GetComponentRO<SquadCognitiveState>(commander);
 
             var roleSpan = MemoryMarshal.CreateReadOnlySpan(
                 ref Unsafe.As<RoleAssignmentArray, RoleSlot>(
@@ -82,7 +81,7 @@ namespace Fdp.Toolkit.Squad.Systems
 
                 int expectedHash = expectedHashByRole[roleId];
 
-                var member = new Entity((ulong)roster.SubordinateEntities[m]);
+                var member = roster.SubordinateEntities[m];
                 if (!repo.HasComponent<BehaviorState>(member)) { counterSpan[m] = 0; continue; }
 
                 int actualHash = repo.GetComponentRO<BehaviorState>(member).ActiveBehaviorHash;

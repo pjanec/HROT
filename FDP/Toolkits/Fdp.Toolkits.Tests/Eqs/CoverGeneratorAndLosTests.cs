@@ -15,10 +15,21 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
     {
         private readonly EntityRepository _repo;
 
-        // LOS stub: always returns true (clear = exposed).
+        // LOS stubs (the 3-D seam — CE-210): always clear (exposed) / always blocked (occluded).
         private sealed class ExposedLosService : ILosService
         {
-            public bool HasCheapLineOfSight(Vector2 from, Vector2 to) => true;
+            public bool HasLineOfSight(Vector3 eye, Vector3 aim) => true;
+        }
+
+        private sealed class BlockedLos : ILosService
+        {
+            public bool HasLineOfSight(Vector3 eye, Vector3 aim) => false;
+        }
+
+        private sealed class RecordingLos : ILosService
+        {
+            public Vector3 LastEye;
+            public bool HasLineOfSight(Vector3 eye, Vector3 aim) { LastEye = eye; return true; }
         }
 
         public CoverGeneratorAndLosTests()
@@ -85,8 +96,8 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             var candidates = new EqsResult[]
             {
-                new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f, Score = 1f },
-                new EqsResult { EntityId = 0L, PositionX = 2f, PositionY = 0f, Score = 1f },
+                new EqsResult { EntityId = 0, PositionX = 1f, PositionY = 0f, Score = 1f },
+                new EqsResult { EntityId = 0, PositionX = 2f, PositionY = 0f, Score = 1f },
             };
 
             var sensor = new EqsSensor { ThreatThreshold = 50f, ContextSlot1 = targetEntity };
@@ -106,7 +117,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         {
             var observer = _repo.CreateEntity();
             var mem = new TargetMemory();
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1L, posX: 10f, posY: 0f, scoreBoost: 10f, tick: 1);
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1, posX: 10f, posY: 0f, scoreBoost: 10f, tick: 1);
             _repo.AddComponent(observer, mem);
 
             // Context slot entity -- needed to reach the threshold bypass gate.
@@ -119,11 +130,11 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             var candidates = new EqsResult[]
             {
-                new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f },
-                new EqsResult { EntityId = 0L, PositionX = 2f, PositionY = 0f },
+                new EqsResult { EntityId = 0, PositionX = 1f, PositionY = 0f },
+                new EqsResult { EntityId = 0, PositionX = 2f, PositionY = 0f },
             };
 
-            // ThreatScores[0] = 10f < ThreatThreshold = 50f  => bypass.
+            // Freshness[0] = 10f < ThreatThreshold = 50f  => bypass.
             var sensor = new EqsSensor { ThreatThreshold = 50f, ContextSlot1 = targetEntity };
             var test = new CheapLineOfSightTest(new ExposedLosService());
             test.ExecuteBatch(observer, ref sensor, _repo, candidates.AsSpan());
@@ -139,7 +150,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         {
             var observer = _repo.CreateEntity();
             var mem = new TargetMemory();
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1L, posX: 10f, posY: 0f, scoreBoost: 100f, tick: 1);
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1, posX: 10f, posY: 0f, scoreBoost: 100f, tick: 1);
             _repo.AddComponent(observer, mem);
 
             // Context slot 1 entity provides threat position for the LOS test.
@@ -152,10 +163,10 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             var candidates = new EqsResult[]
             {
-                new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f },
+                new EqsResult { EntityId = 0, PositionX = 1f, PositionY = 0f },
             };
 
-            // ThreatScores[0] = 100f > ThreatThreshold = 50f => LOS test active.
+            // Freshness[0] = 100f > ThreatThreshold = 50f => LOS test active.
             var sensor = new EqsSensor { ThreatThreshold = 50f, ContextSlot1 = targetEntity };
             var test = new CheapLineOfSightTest(new ExposedLosService()); // always clear
             test.ExecuteBatch(observer, ref sensor, _repo, candidates.AsSpan());
@@ -164,13 +175,13 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(-1L, candidates[0].EntityId);
         }
 
-        // T-LOS4: CheapLineOfSightTest keeps occluded candidates and sets flag bit 0.
+        // T-LOS4: CheapLineOfSightTest keeps occluded candidates; §4.2 bit 1 (HasLOSToContext1) is judged and clear.
         [Fact]
-        public unsafe void CheapLineOfSightTest_KeepsOccludedCandidates_SetsFlagBit0()
+        public unsafe void CheapLineOfSightTest_KeepsOccludedCandidates_JudgesHasLosBitClear()
         {
             var observer = _repo.CreateEntity();
             var mem = new TargetMemory();
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1L, posX: 10f, posY: 0f, scoreBoost: 100f, tick: 1);
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1, posX: 10f, posY: 0f, scoreBoost: 100f, tick: 1);
             _repo.AddComponent(observer, mem);
 
             // Context slot 1 entity provides threat position for the LOS test.
@@ -183,16 +194,42 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             var candidates = new EqsResult[]
             {
-                new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f, Flags = 0 },
+                new EqsResult { EntityId = 0, PositionX = 1f, PositionY = 0f, Flags = 0 },
             };
 
             var sensor = new EqsSensor { ThreatThreshold = 50f, ContextSlot1 = targetEntity };
-            var test = new CheapLineOfSightTest(new BlockedLosService()); // always blocked
+            var test = new CheapLineOfSightTest(new BlockedLos()); // always blocked
             test.ExecuteBatch(observer, ref sensor, _repo, candidates.AsSpan());
 
-            // Occluded: candidate kept, flag bit 0 set.
+            // Occluded: candidate kept; HasLOSToContext1 judged (meaningful) and false. ⛔ SUPERSEDED (EQS §19.5): bit 0 = "covered".
             Assert.Equal(0L, candidates[0].EntityId);
-            Assert.Equal(1, candidates[0].Flags & 1);
+            Assert.Equal(2, candidates[0].FlagsMeaningful & 2);
+            Assert.Equal(0, candidates[0].Flags & 2);
+        }
+
+        /// <summary>⭐ <c>CE-3063</c> ③ — with NO entity in slot 1 the sensor's context POINT is the other side (a heard contact):
+        /// the sight is judged from that point at the default eye height, so a candidate it sees is dropped. Without the point
+        /// (mask clear) the test has nothing to judge against and keeps the candidate unjudged, as before.</summary>
+        [Fact]
+        public void CE3063_CheapLineOfSight_JudgesFromTheContextPoint_WhenSlotOneIsEmpty()
+        {
+            var observer = _repo.CreateEntity();
+            var los = new RecordingLos();
+            var test = new CheapLineOfSightTest(los) { Viewer = EqsLosViewer.Slot };
+
+            var withPoint = new EqsSensor { ContextPoint1 = new Vector3(40f, 5f, 0f), ContextPointMask = EqsSensor.Point1Bit };
+            var seen = new[] { new EqsResult { EntityId = 0, PositionX = 1f, PositionY = 0f } };
+            test.ExecuteBatch(observer, ref withPoint, _repo, seen.AsSpan());
+            Assert.Equal(-1L, seen[0].EntityId);   // seen from the heard point ⇒ not cover
+            Assert.Equal(40f, los.LastEye.X);
+            Assert.Equal(5f, los.LastEye.Y);
+            Assert.True(EqsContext.AnchorPosition(_repo, observer, withPoint, 1, out var anchor) && anchor == withPoint.ContextPoint1);
+
+            var noPoint = new EqsSensor { ContextPoint1 = new Vector3(40f, 5f, 0f) };   // mask clear ⇒ no point
+            var kept = new[] { new EqsResult { EntityId = 0, PositionX = 1f, PositionY = 0f } };
+            test.ExecuteBatch(observer, ref noPoint, _repo, kept.AsSpan());
+            Assert.Equal(0L, kept[0].EntityId);
+            Assert.Equal(0, (int)kept[0].FlagsMeaningful);
         }
     }
 }

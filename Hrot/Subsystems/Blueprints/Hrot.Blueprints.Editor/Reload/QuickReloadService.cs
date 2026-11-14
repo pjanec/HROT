@@ -55,7 +55,18 @@ public sealed class QuickReloadService
         // Step 1: Build sibling signatures from catalog + in-memory overrides.
         var siblings = BuildSiblingSignatures(asset);
 
-        // Step 2: Compile in memory with embedded PDB for debugger support.
+        // Step 2: Emit C# source. ⛔ NOT a PE/PDB.
+        //
+        // ⭐ This asked for `EmitPdbWithEmbeddedSource: true` "for debugger support" and then never
+        // read `result.PortablePe` or `result.PortablePdb` — measured Batch 52: those two properties
+        // have NO production reader anywhere in the tree. The debugger support actually comes from
+        // `TriggerFromSourcesAsync` below, which Roslyn-compiles `result.GeneratedSource` itself with
+        // `DebugInformationFormat.PortablePdb`. ⇒ every quick reload ran TWO full Roslyn compilations
+        // of the same generated source and discarded the first one's output.
+        //
+        // ⚠ Also the reason BP1672 is safe to make an error: with the request dropped, the only
+        // production caller of the PDB path is gone, so a diagnostic about an unavailable finalizer
+        // cannot break a reload that never wanted the bytes.
         var options = new CompileOptions(
             Mode:                      asset.EditorMetadata.CompilerMode,
             NodeRegistry:              BuiltInNodeRegistry.Instance,
@@ -64,7 +75,7 @@ public sealed class QuickReloadService
             ChannelCommands:           BuiltInChannelCommandCatalog.Instance,
             WaitPrimitives:            BuiltInWaitPrimitiveCatalog.Instance,
             SiblingSignatures:         siblings,
-            EmitPdbWithEmbeddedSource: true);
+            EmitPdbWithEmbeddedSource: false);
 
         var result = _compiler.Compile(asset, options);
         if (!result.Succeeded)

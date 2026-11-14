@@ -61,7 +61,7 @@ Before doing anything else, perform this step.
    // via the Hrot.Map.Common project reference.
    ```
 
-3. Run `dotnet build IOS-IG-SimHost.sln --no-incremental` to confirm the move compiled cleanly
+3. Run `dotnet build HROT.sln --no-incremental` to confirm the move compiled cleanly
    before proceeding.
 
 **Note:** `ForceId` is already in `Hrot.Map.Common/Components/ForceId.cs`. No action needed.  
@@ -144,7 +144,7 @@ push-based); registration will be formalized in a later composition-root task.
 
 After implementation:
 
-1. `dotnet build IOS-IG-SimHost.sln --no-incremental` → 0 errors.
+1. `dotnet build HROT.sln --no-incremental` → 0 errors.
 2. Write `Hrot.ScenarioEditor.Tests/ToolPresenceTests.cs` with reflection tests:
    ```csharp
    [Fact]
@@ -240,7 +240,7 @@ Update usings to the new ScenarioEditor namespaces:
 
 ### 2.6 — Success criteria (E003)
 
-1. `dotnet build IOS-IG-SimHost.sln --no-incremental` → 0 errors.
+1. `dotnet build HROT.sln --no-incremental` → 0 errors.
 2. Dependency check: `Hrot.ScenarioEditor` assembly must not directly reference `Hrot.NED`
    (check .csproj — no direct `Hrot.NED` reference allowed in the moved files).
 3. Write a render round-trip smoke test (can be minimal — no actual rendering canvas needed):
@@ -264,7 +264,7 @@ Update usings to the new ScenarioEditor namespaces:
 
 Before writing the batch report:
 
-- [ ] `dotnet build IOS-IG-SimHost.sln --no-incremental` → **0 errors**
+- [ ] `dotnet build HROT.sln --no-incremental` → **0 errors**
 - [ ] `dotnet test Hrot.IG.Tests --no-build` → same pass/fail counts as pre-BATCH-04
 - [ ] `dotnet test Hrot.ScenarioEditor.Tests --no-build` → all pass (including new reflection tests)
 - [ ] `dotnet test Hrot.Map.Common.Tests --no-build` → all 99 pass (SelectionState move not breaking)

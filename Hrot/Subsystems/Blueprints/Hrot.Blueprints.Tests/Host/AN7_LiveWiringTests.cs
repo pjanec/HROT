@@ -45,7 +45,7 @@ public sealed class AN7_LiveWiringTests
     private static ActionSchemaEntry MakeSharedEntry() =>
         new(ActionFqn, typeof(LiveSharedParams),
             ActionHosting.BTree | ActionHosting.Hsm | ActionHosting.Shared,
-            BlackboardAccess.Unknown, null);
+            BlackboardAccess.Unknown);
 
     /// <summary>Builds the real catalog the same way EditorSubsystem does (channel + exporter).</summary>
     private static BehaviorActionCatalog BuildLiveCatalog()

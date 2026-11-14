@@ -8,9 +8,10 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// ECS component; ComponentId = <see cref="NavFakeIds.FakeCrowdAgentState"/>.
     /// </summary>
     [ComponentId(NavFakeIds.FakeCrowdAgentState)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct FakeCrowdAgentState
     {
-        public Vector3 Target;
+        public WorldPoint Target;
         public Vector3 Velocity;
         public bool    HasTarget;
         public bool    ReachedTarget;
@@ -21,6 +22,7 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// ECS component; ComponentId = <see cref="NavFakeIds.FakeCrowdGlobalState"/>.
     /// </summary>
     [ComponentId(NavFakeIds.FakeCrowdGlobalState)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct FakeCrowdGlobalState
     {
         public int AgentCount;

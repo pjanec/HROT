@@ -16,6 +16,9 @@ namespace Fdp.Toolkit.Utility
         /// <summary>Fall back to a safe position.</summary>
         Flee             = 4,
         /// <summary>Maintain current position.</summary>
-        Hold             = 5
+        Hold             = 5,
+        /// <summary>⭐ <c>CE-3090</c> — stay put lying down and return fire: a WOUNDED unit with no cover (fleeing in the open would make it
+        /// an easy target — 🔒 user <c>2026-10-07</c>).</summary>
+        HoldProne        = 6
     }
 }

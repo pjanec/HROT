@@ -8,6 +8,8 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Modules;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
+using Fdp.Toolkit.Blueprints.Systems;
+using System.Linq;
 using Fdp.Toolkit.CarKinem.Systems;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
@@ -36,10 +38,6 @@ namespace Hrot.SimHost.Tests
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.InteractionChannel>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
-            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBTreeState>();
-            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBlackboard>();
-            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm64>();
-            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm128>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PreviousCapabilities>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
@@ -66,7 +64,7 @@ namespace Hrot.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
-            repo.RegisterComponent<NetworkOwnership>();
+            repo.RegisterComponent<NetworkAuthority>();
             repo.RegisterComponent<TkbIdentity>();
             repo.RegisterComponent<GhostStateTracker>();
             repo.RegisterEvent<Fdp.Toolkit.Lifecycle.Events.ConstructionOrder>();
@@ -79,11 +77,73 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = C003LocalNodeId,
-                TkbType            = C003ValidTkbType,
+                TkbType            = (Fdp.Core.TkbTypeId)(C003ValidTkbType),
                 DisType            = C003ValidDisType,
             };
 
         // -- Tests (PACK2-P001 existing, updated for new scenarioSource param) --
+
+        /// <summary>
+        /// ⭐⭐ <b>CE-454 W4 — the squad layer runs through the REAL CGF pack.</b>
+        /// 📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §2.3.
+        /// <para>A commander with two members: a <c>ForceManeuver</c> intent reaches the commander's
+        /// <c>SquadCognitiveState</c> through the production mapper list (W3), and the members' perception is merged
+        /// into the commander's contact pool by the pack's own system list (W2) — nothing is called by hand.
+        /// ✅ Red-proofs: drop <c>SquadCoordinationSystem</c> from the pack ⇒ the pool stays empty; drop the
+        /// <c>ForceManeuver</c> mapper from <c>DefaultTacticalMappers</c> ⇒ the maneuver stays 0.</para>
+        /// </summary>
+        [Fact]
+        public void CE454_TheSquadLayerRunsThroughTheRealCgfPack()
+        {
+            using var world = CreateEmptyWorld();
+            world.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
+            world.RegisterComponent<Fdp.Toolkit.Squad.SquadMemberSense>();   // ⭐ R-3039 S1 — as HrotSharedComponentRegistry registers them
+            world.RegisterComponent<Fdp.Toolkit.Squad.SquadUnitSense>();
+            world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+            world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            world.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
+
+            var commander = world.CreateEntity();
+            world.AddComponent(commander, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+            world.SetAuthority<Fdp.Toolkit.Behavior.Components.BehaviorState>(commander, true);
+            world.AddComponent(commander, new Fdp.Core.CommandHierarchy.UnitRoster());
+            world.AddComponent(commander, default(Fdp.Toolkit.Squad.SquadCognitiveState));
+
+            // ⭐ the contacts are LIVE entities: since CE-3046 the pack's threat evaluation forgets a remembered target that does not exist
+            //   (📐 raw ids 100 / 200 were forgotten before the squad merge ran, so the pool came out empty)
+            long[] seen = { (long)world.CreateEntity().PackedValue, (long)world.CreateEntity().PackedValue };
+            foreach (long contact in seen)
+            {
+                var m = world.CreateEntity();
+                world.AddComponent(m, new Fdp.Toolkit.Perception.Components.TargetMemory());
+                world.AddComponent(m, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
+                Fdp.Core.CommandHierarchy.UnitRoster.Add(
+                    ref world.GetComponentRW<Fdp.Core.CommandHierarchy.UnitRoster>(commander), m);
+                Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(
+                    ref world.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(m), contact, 10f, 0f, 5f, tick: 1);   // above the forget line (0.5), which a frame of decay crosses
+            }
+
+            // ⭐ the production mapper list and the CGF gate, as CgfSubsystem builds them
+            var pack = new CgfLogicPack(new BehaviorRegistry(), new NetworkEntityMap(),
+                Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create(), new Fdp.Toolkit.Blueprints.BlueprintRegistry(),
+                gateOnAuthority: true);
+
+            world.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent
+            {
+                Entity = commander, IntentId = "ForceManeuver", JsonParams = "{\"maneuverKind\":2,\"featureId\":7}",
+            });
+            world.Bus.SwapBuffers();
+
+            var view = (ISimulationView)world;
+            foreach (var s in pack.InputSystems)      s.Execute(view, 0.016f);
+            foreach (var s in pack.SimulationSystems) s.Execute(view, 0.016f);
+
+            var state = world.GetComponentRO<Fdp.Toolkit.Squad.SquadCognitiveState>(commander);
+            Assert.Equal((ushort)2, state.ManeuverKind);          // W3: ForceManeuver mapped
+            Assert.Equal(1u, state.Flags & 1u);                    //     mission override held
+            Assert.Equal(7u, state.ActiveFeatureId);
+            Assert.Equal(2, state.Contacts.Count);                 // W2: both members' contacts merged
+        }
 
         /// <summary>
         /// All three sub-module system sets register without error and run on an
@@ -91,16 +151,28 @@ namespace Hrot.SimHost.Tests
         /// </summary>
         // A (Stale Test TH-3): DebugStatePatchSystem removed from CognitiveRuntimeModule.InputSystems;
         // InputSystems count dropped from 3 to 2; total from 21 to 20.
+        /// <summary>⭐ CE-2068 — a Brain host's pack fills the decision catalog (nothing in production did: every
+        /// ScoreDecision found no decision). The starter pack's ThreatRanking is there, with its asset id.</summary>
+        [Fact]
+        public void CE2068_BuildingThePack_FillsTheUtilityDecisionCatalog()
+        {
+            _ = new CgfLogicPack(new BehaviorRegistry(), new NetworkEntityMap(),
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
+            const string threatRanking = "1a4f7c20-3b9e-4d18-8a01-threat0000001";
+            var reference = Fdp.Toolkit.Utility.UtilityDecisionRef.FromAssetId(threatRanking);
+            Assert.True(Fdp.Toolkit.Utility.UtilityDecisionCatalog.Shared.TryGet(reference.Id, out var def, out _));
+            Assert.Equal(threatRanking, def!.AssetId);
+            Assert.Equal(threatRanking, reference.AssetIdIn(Fdp.Toolkit.Utility.UtilityDecisionCatalog.Shared));
+        }
+
         [Fact]
         public void CgfLogicPack_EmptyWorld_AllSystemsRegisterAndRunWithoutException()
         {
             using var world   = CreateEmptyWorld();
             var behaviorRegistry = new BehaviorRegistry();
             var entityMap        = new NetworkEntityMap();
-            var scenarioSource   = new ScenarioEntityCreationRequestSource();
-
-            var pack    = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
-                new TacticalIntentMapperRegistry());
+            var pack    = new CgfLogicPack(behaviorRegistry, entityMap,
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
             var view = (ISimulationView)world;
             var ex = Record.Exception(() =>
             {
@@ -112,8 +184,61 @@ namespace Hrot.SimHost.Tests
             // InputSystems: MissionControlExecutionSystem (1), BehaviorIngressSystem (1) = 2
             // (DebugStatePatchSystem removed from CognitiveRuntimeModule — TH-3/A)
             // SimulationSystems: 18 (unchanged)
-            Assert.Equal(2,  pack.InputSystems.Count);
-            Assert.Equal(18, pack.SimulationSystems.Count);
+            // ⭐ CE-2074 / CE-2076 (2026-10-04) — 2 MORE: RoeSystem (MissionControlModule) and RecentSensesSystem
+            //   (CognitiveRuntimeModule's input phase).
+            // ⭐ CE-3172 (2026-10-11) — 1 MORE: PossessionSystem (the brain owner's side of possession), first.
+            // ⭐ CE-3110 (2026-10-12) — the interaction appliers are NOT pack content (CoreInfrastructureCapabilities.Interactions, every host's plan).
+            // ⭐ CE-2291 (2026-10-19) — 1 MORE: ReportingRequirementsSystem (MissionControlModule, after RoeSystem — its twin).
+            Assert.Equal(8,  pack.InputSystems.Count);   // ⭐ F-3 (CE-4503): +1 (UnitCentroidSystem moved here from Simulation) · ⭐ CE-2282: +1 (EngagementAreaSystem)
+            Assert.DoesNotContain(pack.InputSystems, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem);
+            // ⭐ SimulationSystems: 19. ⚠ Was 18 and RED since `2026-08-19` — Batch 94b added
+            //   `BehaviorFrameSystem` to `CognitiveRuntimeModule` (`:57`), which flows in here.
+            //   📌 A hard-coded count is a tripwire for exactly this, and it fired; nobody read it.
+            // ⭐⭐ CE-221 — 2 fewer: UnitHierarchySystem and EqsResultUpdateSystem left this pack.
+            //    They are cross-role infrastructure (no role selects them; every carrier appended them
+            //    at the tail of Simulation), and carrying them in BOTH the Brain and Muscle packs made
+            //    every fusing node register each twice. They now come from the infrastructure
+            //    capabilities, declared once per plan, so the NODE still runs exactly one of each.
+            // ⭐⭐ A4/O0 (2026-09-20) — 1 MORE: BlueprintTickSystem. CgfLogicPack now splices it
+            //    before its own action dispatchers, so CGF ticks blueprint Instances too and not
+            //    only the Editor (CE-161's defect shape, one level up: the tier COMPONENTS moved
+            //    to a shared path, the SCHEDULING stayed in Hrot.Blueprints.Editor).
+            // ⛔ O7c-① (2026-09-22) — 1 FEWER: HsmTickSystem<BrainHsm64> is gone with its
+            //    component. 📐 Nothing in production ever attached BrainHsm64, so that system
+            //    ticked an always-empty query every frame. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.5.
+            // ⛔ O7c-④b (2026-09-23) — 1 FEWER again: BTreeTickSystem and
+            //    HsmTickSystem<BrainHsm128> merged into ONE BrainTickSystem. 📄 §31.14 / §31.16.
+            // ⭐ CE-454 (2026-10-02) — 1 MORE: SquadCoordinationSystem, the squad layer's frame driver.
+            //    📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §3 W2.
+            // ⭐ CE-3064 (2026-10-05) — 1 MORE: NearMissSensingSystem (a near miss → SensorChange.NearMiss, R-206).
+            // ⭐ CE-3104 5d-1 (2026-10-08) — 1 MORE: DoorCommandSystem (the door's owner applies door commands).
+            // ⭐ CE-3174 (2026-10-11) — 1 MORE: WeaponAmmoMirrorSystem (the ammunition every station's HUD reads).
+            // ⭐ CE-2125 (2026-10-11) — 1 MORE: UnitCentroidSystem (a unit's owner places it at its members' centre, R-272 (behaviors)).
+            // ⛔ CE-3110 (2026-10-12) — EmbarkationSystem joined the pack in I-2a and LEFT it the same day, and DoorCommandSystem (5d-1)
+            //   left with it: the interaction appliers are cross-role infrastructure (CoreInfrastructureCapabilities.Interactions, every
+            //   host's plan) — a door or a vehicle can be owned by a node of any role.
+            // ⛔ CE-2144 (2026-10-13, R-2008) — 1 FEWER: HealthApplicationSystem left the pack for the shared plan head
+            //   (CoreInfrastructureCapabilities.HealthApplication, declared FIRST by LiveSimulationPlan on every host).
+            // ⭐ CE-2176 IF-3 (2026-10-15) — 1 MORE: DetonationMemorySystem (the bursts a fire-mission observer judges).
+            // ⭐ CE-2189 (2026-10-15) — 1 MORE: MissileWarningSensingSystem (a missile launched at an aircraft → SensorChange.MissileWarning).
+            Assert.Equal(35, pack.SimulationSystems.Count);   // ⭐ F-3 (CE-4503): −1 (UnitCentroidSystem → Input) · ⭐ CE-2383: +1 (RuleWakeSystem) · rules ②: +1 (RuleEditSystem — 611684de3 left this count behind) · ⭐ rules V-3: +1 (RuleLeafSampler) · ⭐ rules S2 ⑨: +1 (ExercisePauseOnEndSystem) · ⭐ CE-2372: +1 (CalloutSystem) · ⭐ CE-2375: +1 (OneManCommandSystem) · ⭐ CE-2270: +1 (StressSystem) · ⭐ CE-2368: +1 (RestlessSystem) · ⭐ CE-2360: +1 (GrenadeDangerSystem) · ⭐ AQ96: +1 (UnderFireMoveSystem) · ⭐ CE-2273: +1 (ProficiencyFillSystem) · ⭐ CE-2293: +2 (StaffComposerSystem, StaffInboxSystem) · ⭐ CE-2235: +1 (CivilianFearSystem) · CE-2237: +1 (CrowdSystem)
+            Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Perception.Systems.MissileWarningSensingSystem);
+            Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.DetonationMemorySystem);
+            Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);
+            Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Behavior.Systems.EmbarkationSystem);
+            Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Terrain.DoorCommandSystem);
+            Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem);
+            Assert.Contains(pack.InputSystems, x => x is Fdp.Toolkit.Squad.Systems.UnitCentroidSystem);   // ⭐ CE-2125 / CE-514; F-3 (CE-4503): Input, first
+            // ⭐ CE-3088 — the silent-default rail: the driver's fire assignment is an optional dependency, and the pack (every
+            //   Brain host) must PASS it. ✅ Red-proof: drop the argument in CgfLogicPack ⇒ null ⇒ red.
+            Assert.NotNull(((Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem)System.Linq.Enumerable.First(pack.SimulationSystems,
+                x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem)).FireAssignment);
+            Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Perception.Systems.NearMissSensingSystem);
+
+            // ⛔ Assert the REMOVAL too — a count alone is the kind of thing a later session
+            //    re-baselines without reading why it moved.
+            Assert.DoesNotContain(pack.SimulationSystems, x => x is Hrot.Common.Systems.UnitHierarchySystem);
+            Assert.DoesNotContain(pack.SimulationSystems, x => x is Hrot.SimHost.Systems.EqsResultUpdateSystem);
         }
 
         /// <summary>
@@ -126,17 +251,15 @@ namespace Hrot.SimHost.Tests
             using var world      = CreateEmptyWorld();
             var behaviorRegistry = new BehaviorRegistry();
             var entityMap        = new NetworkEntityMap();
-            var scenarioSource   = new ScenarioEntityCreationRequestSource();
-
-            var pack     = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
-                new TacticalIntentMapperRegistry());
+            var pack     = new CgfLogicPack(behaviorRegistry, entityMap,
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
             // MissionControlModule systems in InputSystems + SimulationSystems
             Assert.Contains(pack.InputSystems,      s => s is BehaviorIngressSystem);
             Assert.Contains(pack.SimulationSystems, s => s is MissionDirectorSystem);
 
             // CognitiveRuntimeModule systems
             Assert.Contains(pack.SimulationSystems, s => s is ChannelArbitrationSystem);
-            Assert.Contains(pack.SimulationSystems, s => s is BTreeTickSystem);
+            Assert.Contains(pack.SimulationSystems, s => s is BrainTickSystem);   // O7c-④b: was BTreeTickSystem
 
             // ActionDispatchModule systems
             Assert.Contains(pack.SimulationSystems, s => s is LocomotionDispatcherSystem);
@@ -152,28 +275,14 @@ namespace Hrot.SimHost.Tests
             var pack = new CgfLogicPack(
                 new BehaviorRegistry(),
                 new NetworkEntityMap(),
-                new ScenarioEntityCreationRequestSource(),
-                new TacticalIntentMapperRegistry());
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
             Assert.Equal("CgfLogicPack", pack.Name);
         }
 
         // -- Tests (TASK-C003) --
 
-        /// <summary>
-        /// C003 success condition 4: CgfLogicPack rejects null scenarioSource.
-        /// </summary>
-        [Fact]
-        public void CgfLogicPack_NullScenarioSource_ThrowsArgumentNullException()
-        {
-            var ex = Assert.Throws<ArgumentNullException>(() =>
-                new CgfLogicPack(
-                    new BehaviorRegistry(),
-                    new NetworkEntityMap(),
-                    scenarioSource: null!,
-                    mapperRegistry: new TacticalIntentMapperRegistry()));
-
-            Assert.Equal("scenarioSource", ex.ParamName);
-        }
+        // ⛔ CE-3228 — "C003 success condition 4: CgfLogicPack rejects null scenarioSource" is GONE with the parameter: the pack holds no
+        //   request queue (it never read it), requests ride the world's bus (docs/DESIGN_Entity_Creation_Unification.md §3.4d).
 
         /// <summary>
         /// C003 success condition 1: requests from the NED stub source reach
@@ -185,7 +294,7 @@ namespace Hrot.SimHost.Tests
             var repo    = CreateWorldForRequestSystem();
             var tkb     = CreateTkb();
             var nedStub = new StubRequestSource();
-            var scenarioSource = new ScenarioEntityCreationRequestSource();
+            var scenarioSource = new BusEntityCreationRequestSource(repo.Bus);   // ⭐ CE-3228 — the local intake is the bus
 
             var composite = new CompositeEntityCreationRequestSource(
                 new IEntityCreationRequestSource[] { nedStub, scenarioSource });
@@ -213,7 +322,7 @@ namespace Hrot.SimHost.Tests
             var repo    = CreateWorldForRequestSystem();
             var tkb     = CreateTkb();
             var nedStub = new StubRequestSource();
-            var scenarioSource = new ScenarioEntityCreationRequestSource();
+            var scenarioSource = new BusEntityCreationRequestSource(repo.Bus);   // ⭐ CE-3228 — the local intake is the bus
 
             var composite = new CompositeEntityCreationRequestSource(
                 new IEntityCreationRequestSource[] { nedStub, scenarioSource });
@@ -222,7 +331,8 @@ namespace Hrot.SimHost.Tests
                 composite, new StubAckSink(), tkb,
                 new StubIdAllocator(startId: 200), C003LocalNodeId);
 
-            scenarioSource.Enqueue(MakeValidRequest());
+            repo.Bus.PublishManaged(MakeValidRequest());
+            repo.Bus.SwapBuffers();   // ⭐ CE-3228 — read after the frame's swap
 
             system.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
@@ -241,7 +351,7 @@ namespace Hrot.SimHost.Tests
             var repo    = CreateWorldForRequestSystem();
             var tkb     = CreateTkb();
             var nedStub = new StubRequestSource();
-            var scenarioSource = new ScenarioEntityCreationRequestSource();
+            var scenarioSource = new BusEntityCreationRequestSource(repo.Bus);   // ⭐ CE-3228 — the local intake is the bus
 
             var composite = new CompositeEntityCreationRequestSource(
                 new IEntityCreationRequestSource[] { nedStub, scenarioSource });
@@ -251,7 +361,8 @@ namespace Hrot.SimHost.Tests
                 new StubIdAllocator(startId: 300), C003LocalNodeId);
 
             nedStub.Enqueue(MakeValidRequest());
-            scenarioSource.Enqueue(MakeValidRequest());
+            repo.Bus.PublishManaged(MakeValidRequest());
+            repo.Bus.SwapBuffers();   // ⭐ CE-3228 — read after the frame's swap
 
             system.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
@@ -275,10 +386,8 @@ namespace Hrot.SimHost.Tests
             using var world      = CreateEmptyWorld();
             var behaviorRegistry = new BehaviorRegistry();
             var entityMap        = new NetworkEntityMap();
-            var scenarioSource   = new ScenarioEntityCreationRequestSource();
-
-            var pack       = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
-                new TacticalIntentMapperRegistry());
+            var pack       = new CgfLogicPack(behaviorRegistry, entityMap,
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
             // SC1: MissionControlExecutionSystem is in InputSystems.
             Assert.Contains(pack.InputSystems, s => s is MissionControlExecutionSystem);
             // SC2: BehaviorIngressSystem is in InputSystems.
@@ -290,9 +399,51 @@ namespace Hrot.SimHost.Tests
 
             // InputSystems: MissionControlExecutionSystem + BehaviorIngressSystem = 2
             // (DebugStatePatchSystem removed from CognitiveRuntimeModule — TH-3/A)
-            Assert.Equal(2,  pack.InputSystems.Count);
-            // SimulationSystems: 18 (unchanged)
-            Assert.Equal(18, pack.SimulationSystems.Count);
+            // ⭐ CE-2074 / CE-2076 (2026-10-04) — 2 MORE: RoeSystem (MissionControlModule) and RecentSensesSystem
+            //   (CognitiveRuntimeModule's input phase).
+            // ⭐ CE-3172 (2026-10-11) — 1 MORE: PossessionSystem (the brain owner's side of possession), first.
+            // ⭐ CE-3110 (2026-10-12) — the interaction appliers are NOT pack content (CoreInfrastructureCapabilities.Interactions, every host's plan).
+            // ⭐ CE-2291 (2026-10-19) — 1 MORE: ReportingRequirementsSystem (MissionControlModule, after RoeSystem — its twin).
+            Assert.Equal(8,  pack.InputSystems.Count);   // ⭐ F-3 (CE-4503): +1 (UnitCentroidSystem moved here from Simulation) · ⭐ CE-2282: +1 (EngagementAreaSystem)
+            Assert.DoesNotContain(pack.InputSystems, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem);
+            // ⭐ SimulationSystems: 19. ⚠ Was 18 and RED since `2026-08-19` — Batch 94b added
+            //   `BehaviorFrameSystem` to `CognitiveRuntimeModule` (`:57`), which flows in here.
+            //   📌 A hard-coded count is a tripwire for exactly this, and it fired; nobody read it.
+            // ⭐⭐ CE-221 — 2 fewer: UnitHierarchySystem and EqsResultUpdateSystem left this pack.
+            //    They are cross-role infrastructure (no role selects them; every carrier appended them
+            //    at the tail of Simulation), and carrying them in BOTH the Brain and Muscle packs made
+            //    every fusing node register each twice. They now come from the infrastructure
+            //    capabilities, declared once per plan, so the NODE still runs exactly one of each.
+            // ⭐⭐ A4/O0 (2026-09-20) — 1 MORE: BlueprintTickSystem. CgfLogicPack now splices it
+            //    before its own action dispatchers, so CGF ticks blueprint Instances too and not
+            //    only the Editor (CE-161's defect shape, one level up: the tier COMPONENTS moved
+            //    to a shared path, the SCHEDULING stayed in Hrot.Blueprints.Editor).
+            // ⛔ O7c-① (2026-09-22) — 1 FEWER: HsmTickSystem<BrainHsm64> is gone with its
+            //    component. 📐 Nothing in production ever attached BrainHsm64, so that system
+            //    ticked an always-empty query every frame. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.5.
+            // ⛔ O7c-④b (2026-09-23) — 1 FEWER again: BTreeTickSystem and
+            //    HsmTickSystem<BrainHsm128> merged into ONE BrainTickSystem. 📄 §31.14 / §31.16.
+            // ⭐ CE-454 (2026-10-02) — 1 MORE: SquadCoordinationSystem, the squad layer's frame driver.
+            //    📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §3 W2.
+            // ⭐ CE-3064 (2026-10-05) — 1 MORE: NearMissSensingSystem (a near miss → SensorChange.NearMiss, R-206).
+            // ⭐ CE-3104 5d-1 (2026-10-08) — 1 MORE: DoorCommandSystem (the door's owner applies door commands).
+            // ⭐ CE-3174 (2026-10-11) — 1 MORE: WeaponAmmoMirrorSystem (the ammunition every station's HUD reads).
+            // ⭐ CE-2125 (2026-10-11) — 1 MORE: UnitCentroidSystem (a unit's owner places it at its members' centre, R-272 (behaviors)).
+            // ⛔ CE-3110 (2026-10-12) — EmbarkationSystem joined the pack in I-2a and LEFT it the same day, and DoorCommandSystem (5d-1)
+            //   left with it: the interaction appliers are cross-role infrastructure (CoreInfrastructureCapabilities.Interactions, every
+            //   host's plan) — a door or a vehicle can be owned by a node of any role.
+            // ⛔ CE-2144 (2026-10-13, R-2008) — 1 FEWER: HealthApplicationSystem left the pack for the shared plan head
+            //   (CoreInfrastructureCapabilities.HealthApplication, declared FIRST by LiveSimulationPlan on every host).
+            // ⭐ CE-2176 IF-3 (2026-10-15) — 1 MORE: DetonationMemorySystem (the bursts a fire-mission observer judges).
+            // ⭐ CE-2189 (2026-10-15) — 1 MORE: MissileWarningSensingSystem (a missile launched at an aircraft → SensorChange.MissileWarning).
+            Assert.Equal(35, pack.SimulationSystems.Count);   // ⭐ F-3 (CE-4503): −1 (UnitCentroidSystem → Input) · ⭐ CE-2383: +1 (RuleWakeSystem) · rules ②: +1 (RuleEditSystem — 611684de3 left this count behind) · ⭐ rules V-3: +1 (RuleLeafSampler) · ⭐ rules S2 ⑨: +1 (ExercisePauseOnEndSystem) · ⭐ CE-2372: +1 (CalloutSystem) · ⭐ CE-2375: +1 (OneManCommandSystem) · ⭐ CE-2270: +1 (StressSystem) · ⭐ CE-2368: +1 (RestlessSystem) · ⭐ CE-2360: +1 (GrenadeDangerSystem) · ⭐ AQ96: +1 (UnderFireMoveSystem) · ⭐ CE-2273: +1 (ProficiencyFillSystem) · ⭐ CE-2293: +2 (StaffComposerSystem, StaffInboxSystem) · ⭐ CE-2235: +1 (CivilianFearSystem) · CE-2237: +1 (CrowdSystem)
+            Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Perception.Systems.MissileWarningSensingSystem);
+            Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.DetonationMemorySystem);
+            Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);
+            Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Behavior.Systems.EmbarkationSystem);
+            Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Terrain.DoorCommandSystem);
+            Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem);
+            Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Perception.Systems.NearMissSensingSystem);
         }
 
         /// <summary>
@@ -307,12 +458,207 @@ namespace Hrot.SimHost.Tests
             using var world      = CreateEmptyWorld();
             var behaviorRegistry = new BehaviorRegistry();
             var entityMap        = new NetworkEntityMap();
-            var scenarioSource   = new ScenarioEntityCreationRequestSource();
+            var pack     = new CgfLogicPack(behaviorRegistry, entityMap,
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
+            // Total systems across both phases equals 21 (2 input + 19 sim) — see the note above.
+            // ⭐⭐ CE-221 — 2 fewer: UnitHierarchySystem and EqsResultUpdateSystem left this pack.
+            //    They are cross-role infrastructure (no role selects them; every carrier appended them
+            //    at the tail of Simulation), and carrying them in BOTH the Brain and Muscle packs made
+            //    every fusing node register each twice. They now come from the infrastructure
+            //    capabilities, declared once per plan, so the NODE still runs exactly one of each.
+            // ⭐⭐ A4/O0 (2026-09-20) — 1 MORE: BlueprintTickSystem. CgfLogicPack now splices it
+            //    before its own action dispatchers, so CGF ticks blueprint Instances too and not
+            //    only the Editor (CE-161's defect shape, one level up: the tier COMPONENTS moved
+            //    to a shared path, the SCHEDULING stayed in Hrot.Blueprints.Editor).
+            // ⛔ O7c-① (2026-09-22): 20 → 19 — HsmTickSystem<BrainHsm64> deleted (§31.5).
+            // ⛔ O7c-④b (2026-09-23): 19 → 18 — the two brain ticks merged (§31.14 / §31.16).
+            // ⭐ CE-454 (2026-10-02): 18 → 19 — SquadCoordinationSystem (DESIGN_Squad_Wiring.md §3 W2).
+            Assert.Equal(43, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⭐ CE-2383: +1 (RuleWakeSystem) · rules ②: +1 (RuleEditSystem — 611684de3 left this count behind) · ⭐ rules V-3: +1 (RuleLeafSampler) · ⭐ rules S2 ⑨: +1 (ExercisePauseOnEndSystem) · ⭐ CE-2372: +1 (CalloutSystem) · ⭐ CE-2375: +1 (OneManCommandSystem) · ⭐ CE-2270: +1 (StressSystem) · ⭐ CE-2368: +1 (RestlessSystem) · ⭐ CE-2360: +1 (GrenadeDangerSystem) · ⭐ AQ96: +1 (UnderFireMoveSystem) · ⭐ CE-2282: +1 (EngagementAreaSystem) · ⭐ CE-2273: +1 (ProficiencyFillSystem) · ⭐ CE-2293: +2 (the staff) · ⭐ CE-2291: +1 (ReportingRequirementsSystem) · ⭐ CE-2237: +1 (CrowdSystem) · ⭐ CE-2235: +1 (CivilianFearSystem) · ⭐ CE-2189: +1 (MissileWarningSensingSystem) · ⭐ CE-2176 IF-3: +1 (DetonationMemorySystem) · ⛔ CE-2144: −1 (HealthApplicationSystem → the shared plan head) · ⭐ CE-3110: the interaction appliers (embarkation, and 5d-1's DoorCommandSystem) left the pack for the cross-role capability · CE-2125: +1 (UnitCentroidSystem) · CE-2074 + CE-2076: +2 · CE-3064: +1 (NearMissSensingSystem) · CE-3172: +1 (PossessionSystem) · CE-3174: +1 (WeaponAmmoMirrorSystem)
+        }
 
-            var pack     = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
-                new TacticalIntentMapperRegistry());
-            // Total systems across both phases equals 20 (2 input + 18 sim).
-            Assert.Equal(20, pack.InputSystems.Count + pack.SimulationSystems.Count);
+        // ── CE-200: CGF composes from the capability seam (B4b step 2, host (c)) ──────
+        //
+        // ⭐⭐ These pin the SEQUENCE, because resolution order is registration order is EXECUTION
+        // order (ModuleHostKernel.RegisterModule appends to a plain list the frame loop walks). A
+        // switchover from a hand-written block is behaviour-preserving only if the order matches.
+
+        private static CgfLogicPack NewPack()
+            => new CgfLogicPack(
+                new BehaviorRegistry(),
+                new NetworkEntityMap(),
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
+
+        private static System.Collections.Generic.IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability>
+            ResolveBrain(CgfLogicPack pack)
+            => new Hrot.Common.Infrastructure.NodeCompositionPlan()
+                .Capability(CgfSubsystem.DefaultRole, new CgfCapabilities.Brain(pack))
+                .Resolve(CgfSubsystem.DefaultRole);
+
+        [Fact]
+        public void BrainCapability_ProvidesModules_InTheOrderTheRootRegisteredThemByHand()
+        {
+            var pack = NewPack();
+            var modules = new System.Collections.Generic.List<IEcsModule>();
+            foreach (var capability in ResolveBrain(pack))
+                modules.AddRange(capability.ProvideModules());
+
+            // Verbatim from the block this replaced: diagnostics first, then the pack.
+            // ⛔ HISTORY — A4/O0 (2026-09-20) added a THIRD module, the BeforeSync blueprint maintenance
+            //    system (a SingleSystemModule); CE-3137 U-0 (R-236) RETIRED it — the store never moves a
+            //    slot, so there is no promotion to run. Rail A4_R3 pins that it stays gone.
+            Assert.Equal(2, modules.Count);
+            Assert.IsType<BehaviorDiagnosticsModule>(modules[0]);
+            Assert.Same(pack, modules[1]);
+        }
+
+        [Fact]
+        public void BrainCapability_HandsOutBothPhaseLists_AndContributesNoPostSimulationSystem()
+        {
+            var pack    = NewPack();
+            var input   = new System.Collections.Generic.List<IEcsModuleSystem>();
+            var sim     = new System.Collections.Generic.List<IEcsModuleSystem>();
+            var postSim = new System.Collections.Generic.List<IEcsModuleSystem>();
+
+            foreach (var capability in ResolveBrain(pack))
+                capability.PopulateSystems(null!, input, sim, postSim);
+
+            Assert.Equal(pack.InputSystems,      input);
+            Assert.Equal(pack.SimulationSystems, sim);
+
+            // ⛔ CGF builds NO post-simulation group. If this ever stops being empty the root throws
+            //    rather than dropping the systems — this rail says the root's guard is not dead code.
+            Assert.Empty(postSim);
+        }
+
+        [Fact]
+        public void BrainCapability_DeclaresTheBrainKey_AndNeedsNoSharedResource()
+        {
+            var capability = Assert.Single(ResolveBrain(NewPack()));
+
+            Assert.Equal(Hrot.Common.Infrastructure.CapabilityKeys.Brain, capability.Key);
+
+            // ⭐ Measured, not assumed: the pack takes a behaviour registry, an entity map, a scenario
+            //   source and a mapper registry — no pool, no grid. The trajectory pool belongs to
+            //   MuscleGround. CE-199's cross-check makes a future Need loud rather than silent.
+            Assert.Empty(capability.Needs);
+        }
+
+        [Fact]
+        public void ARoleWithoutBrain_ResolvesNoCapability()
+        {
+            // The selection must actually SELECT — a plan returning its declarations regardless of role
+            // would make the flags decorative, which is the defect CE-197 measured on SimHost.
+            var resolved = new Hrot.Common.Infrastructure.NodeCompositionPlan()
+                .Capability(CgfSubsystem.DefaultRole, new CgfCapabilities.Brain(NewPack()))
+                .Resolve(NodeRole.Map2D);
+
+            Assert.Empty(resolved);
+        }
+
+        // ══ A4 / O0 — the blueprint runtime reaches EVERY Brain host, not only the Editor ═════════
+        //
+        // 📐 CE-161 (2026-09-03) measured a --mode all cluster aborting on CGF with "Component
+        //    BlueprintBlackboard1024 is not registered", because the only code registering the tiers
+        //    lived in Hrot.Blueprints.Editor. Its fix moved the COMPONENTS to a shared path. The
+        //    SCHEDULING stayed behind, so no host but the Editor ever ticked a blueprint Instance.
+        // ⇒ these rails pin the fix at the seam, so a future composition change cannot quietly undo it.
+
+        /// <summary>
+        /// ⭐⭐ A4-R1 — the pack carries EXACTLY ONE <see cref="BlueprintTickSystem"/>.
+        ///
+        /// <para>⛔ "Exactly one" is the load-bearing half. The Editor used to splice its own instance at
+        /// the composition root; with the pack splicing one too, a root that kept its splice would put
+        /// TWO in a single group — and <c>DistinctByType</c> runs BEFORE the root splice, so it cannot
+        /// catch it. Every slot would then tick twice per frame.</para>
+        /// </summary>
+        [Fact]
+        public void A4_R1_ThePack_CarriesExactlyOneBlueprintTickSystem()
+        {
+            var pack = NewPack();
+
+            Assert.Single(pack.SimulationSystems, s => s is BlueprintTickSystem);
+            Assert.DoesNotContain(pack.InputSystems, s => s is BlueprintTickSystem);
+        }
+
+        /// <summary>
+        /// 🔴 A4-R2 — the tick sits BEFORE the action dispatchers it declares <c>[UpdateBefore]</c> on.
+        ///
+        /// <para>Module-group execution order is ARRAY POSITION — the kernel does not re-apply ordering
+        /// attributes inside a module's system list. ⛔ An APPENDED tick runs after the dispatchers, so
+        /// an intent written by a blueprint is dispatched a tick late: the <c>Q#16-B</c> "intent is read
+        /// the same tick" contract, silently downgraded. That is exactly what both real compositions did
+        /// before <c>FC-1·G2</c>, and moving the splice into the pack is a chance to reintroduce it.</para>
+        /// </summary>
+        [Fact]
+        public void A4_R2_TheTick_IsSplicedBeforeTheActionDispatchers()
+        {
+            var pack = NewPack();
+            var sim  = pack.SimulationSystems;
+
+            int tickAt = -1, firstDispatcherAt = -1;
+            for (int i = 0; i < sim.Count; i++)
+            {
+                if (tickAt < 0 && sim[i] is BlueprintTickSystem) tickAt = i;
+                if (firstDispatcherAt < 0 &&
+                    (sim[i] is LocomotionDispatcherSystem || sim[i] is WeaponDispatcherSystem))
+                    firstDispatcherAt = i;
+            }
+
+            // anti-vacuity: an empty list, or one with no dispatcher, would make the ordering assert
+            // below trivially true — and "appended at the end" is the degenerate case it must not pass.
+            Assert.True(tickAt >= 0, "the pack must carry a BlueprintTickSystem at all");
+            Assert.True(firstDispatcherAt >= 0,
+                "the pack must carry an action dispatcher, or this rail asserts nothing");
+
+            Assert.True(tickAt < firstDispatcherAt,
+                $"BlueprintTickSystem is at {tickAt} but the first dispatcher is at {firstDispatcherAt} — " +
+                "an appended tick dispatches blueprint intent one tick late (Q#16-B).");
+        }
+
+        /// <summary>
+        /// ⭐ A4-R3 — re-expressed by <c>CE-3137</c> U-0 (<c>R-236</c>): the Brain capability provides NO tier-maintenance
+        /// module any more. ⛔ HISTORY: it used to carry the BeforeSync <c>BlueprintMaintenanceSystem</c> (copy-promotion);
+        /// the store never moves a slot now, and a resurrected promotion would copy away every grown unit's blocks.
+        /// </summary>
+        [Fact]
+        public void A4_R3_TheBrainCapability_ProvidesNoTierMaintenance()
+        {
+            var pack = NewPack();
+            var modules = new System.Collections.Generic.List<IEcsModule>();
+            foreach (var capability in ResolveBrain(pack))
+                modules.AddRange(capability.ProvideModules());
+
+            Assert.Empty(modules.OfType<Fdp.ModuleHost.Scheduling.SingleSystemModule>());
+        }
+
+        /// <summary>Minimal <see cref="ISystemRegistry"/> that records what a module registers.</summary>
+        private sealed class CapturingSystemRegistry : ISystemRegistry
+        {
+            public System.Collections.Generic.List<IEcsModuleSystem> Systems { get; } = new();
+
+            public void RegisterSystem<T>(T system) where T : IEcsModuleSystem => Systems.Add(system);
+
+            public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem
+            {
+                Systems.Add(system);
+                return system;
+            }
+        }
+
+        /// <summary>
+        /// ⭐ CE-3167 forwarding rail (the silent-default rule: a production caller that HAS a dependency must pass it) — the pack's
+        /// resolution system holds the pack's <see cref="IntentClearRegistry"/>, and that registry holds the mission plan's clear,
+        /// so an order with ClearsPriorIntent really clears the plan on every brain host.
+        /// </summary>
+        [Fact]
+        public void CE3167_TheResolutionSystem_HoldsThePacksClearRegistry_WithTheMissionPlanProvider()
+        {
+            var pack = new CgfLogicPack(new BehaviorRegistry(), new NetworkEntityMap(),
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
+
+            var resolution = pack.SimulationSystems.OfType<TacticalIntentResolutionSystem>().Single();
+            Assert.Same(pack.IntentClears, resolution.ClearRegistry);
+            Assert.Contains(pack.IntentClears.Providers, p => p is MissionControlExecutionSystem);
         }
     }
 }

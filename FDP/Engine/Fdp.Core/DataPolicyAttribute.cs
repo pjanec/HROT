@@ -23,7 +23,7 @@ namespace Fdp.Core
         /// Accessing this component in background modules returns null/default.
         /// Safe for mutable classes.
         /// </summary>
-        NoSnapshot = 1 << 0,
+        NoPreview = 1 << 0,
         
         /// <summary>
         /// Include in background snapshots via Deep Clone.
@@ -38,15 +38,26 @@ namespace Fdp.Core
         /// Exclude from Flight Recorder and Binary Checkpoints. Use for debug-only data
         /// or metrics that should not pollute binary state snapshots.
         /// </summary>
-        NoRecord = 1 << 2,
+        NoReplay = 1 << 2,
         
         /// <summary>
         /// Exclude from Scenario JSON serialization. Use for runtime execution state
         /// (e.g., BTree pointers, active weapon channels) that should be preserved in
         /// binary checkpoints but omitted from declarative authoring templates.
         /// </summary>
-        NoSave = 1 << 3,
+        NoScenario = 1 << 3,
         
+        // ━━━ Federation (Replay Browser / Review merge) ━━━
+
+        /// <summary>
+        /// ⭐ G-7 / CE-4354 (docs/UX/DESIGN_Review_Perspective.md §6.4 I9, Q14) — a component that belongs to ONE NODE'S process and must
+        /// never be copied into a merged view of several nodes' recordings: a spatial grid or network map keyed by that node's entity
+        /// indices, a per-node cache, a terrain / traffic service, a network hand-shake record. Orthogonal to the other flags (it says
+        /// nothing about snapshots, recording or scenarios); the binary merge (<c>BinaryMerger</c>) skips every type that carries it.
+        /// ⛔ A flag, not a hand-kept list: a new node-local type declares it where it is defined.
+        /// </summary>
+        NodeLocal = 1 << 4,
+
         // ━━━ Convenience Presets ━━━
         
         /// <summary>
@@ -54,7 +65,7 @@ namespace Fdp.Core
         /// Replaces [TransientComponent] attribute.
         /// Use for: UI caches, temporary buffers, debug metrics.
         /// </summary>
-        Transient = NoSnapshot | NoRecord | NoSave
+        Transient = NoPreview | NoReplay | NoScenario
     }
     
     /// <summary>
@@ -63,7 +74,7 @@ namespace Fdp.Core
     /// <example>
     /// <code>
     /// // Mutable class: Record but don't share with background threads
-    /// [DataPolicy(DataPolicy.NoSnapshot)]
+    /// [DataPolicy(DataPolicy.NoPreview)]
     /// public class CombatHistory { /* mutable state */ }
     /// 
     /// // Completely transient
@@ -75,7 +86,9 @@ namespace Fdp.Core
     /// public class AIBlackboard { /* mutable AI state */ }
     /// </code>
     /// </example>
-    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
+    // ⭐ D7 — Interface too: a service singleton is keyed by its interface (ITkbDatabase, INavmeshProvider …), so that is where
+    //   its policy is declared.
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface, AllowMultiple = false, Inherited = false)]
     public sealed class DataPolicyAttribute : Attribute
     {
         public DataPolicy Policy { get; }
@@ -84,5 +97,12 @@ namespace Fdp.Core
         {
             Policy = policy;
         }
+
+        /// <summary>The policy <paramref name="type"/> declares (<see cref="DataPolicy.Default"/> without the attribute).</summary>
+        public static DataPolicy Of(Type type)
+            => ((DataPolicyAttribute?)GetCustomAttribute(type, typeof(DataPolicyAttribute), inherit: false))?.Policy ?? DataPolicy.Default;
+
+        /// <summary>⭐ G-7 — <paramref name="type"/> declares <see cref="DataPolicy.NodeLocal"/>.</summary>
+        public static bool IsNodeLocal(Type type) => Of(type).HasFlag(DataPolicy.NodeLocal);
     }
 }

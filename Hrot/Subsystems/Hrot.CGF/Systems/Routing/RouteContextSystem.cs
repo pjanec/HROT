@@ -13,7 +13,7 @@ namespace Hrot.CGF.Systems.Routing;
 /// <summary>
 /// Low-frequency system that reads per-waypoint <see cref="RouteWaypoint.ExtensionJson"/>
 /// for each vehicle that is actively following a route and writes recognised key values
-/// into the vehicle's <see cref="BrainBlackboard"/> (ROUTES1-T014).
+/// into the vehicle's <see cref="BrainInterrupts"/> (ROUTES1-T014; O2 moved the field there).
 ///
 /// <para>
 /// Runs in <see cref="SystemPhase.Simulation"/> but is throttled by
@@ -25,7 +25,7 @@ namespace Hrot.CGF.Systems.Routing;
 /// Recognised JSON keys:
 /// <list type="table">
 ///   <item><term><c>"dangerLevel"</c></term>
-///         <description>Byte written to <see cref="Fdp.Toolkit.Behavior.Components.BrainBlackboard.ExpectedThreatLevel"/>.</description>
+///         <description>Byte written to <see cref="Fdp.Toolkit.Behavior.Components.BrainInterrupts.ExpectedThreatLevel"/>.</description>
 ///   </item>
 /// </list>
 /// Unrecognised keys are silently ignored. Malformed JSON triggers a warning log and is
@@ -33,6 +33,7 @@ namespace Hrot.CGF.Systems.Routing;
 /// </para>
 /// </summary>
 [UpdateInPhase(SystemPhase.Simulation)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class RouteContextSystem : IEcsModuleSystem
 {
     // ── Configuration ─────────────────────────────────────────────────────────
@@ -40,7 +41,8 @@ public sealed class RouteContextSystem : IEcsModuleSystem
     /// <summary>Minimum elapsed time (seconds) between consecutive evaluations.</summary>
     public float TickIntervalSeconds { get; set; } = 0.5f;
 
-    private float _elapsed;
+    // ⭐ R-3039 S1 — no accumulator: the system runs when the SIM clock crosses a multiple of the interval, so the phase is restored with
+    //   the clock (a checkpoint restored into a fresh system keeps the cadence). 📄 docs/DESIGN_System_State_Inventory.md §6 #8.
 
     // -- Query cache (CT-3) --
 
@@ -70,7 +72,7 @@ public sealed class RouteContextSystem : IEcsModuleSystem
         _vehicleQuery ??= repo.Query()
             .With<NavigationIntent>()
             .With<NavigationStatus>()
-            .With<BrainBlackboard>()
+            .With<BrainInterrupts>()   // O2: ExpectedThreatLevel moved out of BrainBlackboard
             .Build();
 
         _routeQuery ??= repo.Query()
@@ -78,10 +80,12 @@ public sealed class RouteContextSystem : IEcsModuleSystem
             .WithManaged<RoutePlan>()
             .Build();
 
-        _elapsed += deltaTime;
-        if (_elapsed < TickIntervalSeconds)
-            return;
-        _elapsed = 0f;
+        if (TickIntervalSeconds > 0f)
+        {
+            double now = Fdp.Toolkit.Time.SimClock.Of(repo).TotalTime;
+            if (Math.Floor(now / TickIntervalSeconds) == Math.Floor((now - deltaTime) / TickIntervalSeconds))
+                return;   // no interval boundary crossed this step
+        }
 
         // ── Query vehicles following a custom trajectory with a blackboard ────
         foreach (var vehicleEntity in _vehicleQuery)
@@ -173,7 +177,7 @@ public sealed class RouteContextSystem : IEcsModuleSystem
 
     /// <summary>
     /// Parses <paramref name="extensionJson"/> and writes recognised key values
-    /// into the vehicle's <see cref="BrainBlackboard"/>.
+    /// into the vehicle's <see cref="BrainInterrupts"/>.
     /// </summary>
     private void ApplyExtensionJson(Entity vehicleEntity, string extensionJson, EntityRepository repo)
     {
@@ -182,7 +186,7 @@ public sealed class RouteContextSystem : IEcsModuleSystem
             using var doc  = JsonDocument.Parse(extensionJson, JsonDocOpts);
             var       root = doc.RootElement;
 
-            ref var blackboard = ref repo.GetComponentRW<BrainBlackboard>(vehicleEntity);
+            ref var blackboard = ref repo.GetComponentRW<BrainInterrupts>(vehicleEntity);
 
             if (root.TryGetProperty("dangerLevel", out var dangerEl)
              && dangerEl.TryGetInt32(out int dangerValue))

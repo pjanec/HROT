@@ -14,7 +14,12 @@ using FixedString32 = Fdp.Core.FixedString32;
 
 namespace Hrot.AI.Behaviors.Gizmos
 {
-    [GizmoProjector(typeof(BrainBlackboard), typeof(BehaviorState), typeof(SimTransform))]
+    // ⭐ P4-③ (CE-303): gated on BehaviorState + SimTransform. ⛔ BrainBlackboard was dropped from
+    //   the gate, NOT swapped for a tier component: a tier component means "this entity has SOME
+    //   occurrence storage", which is not a proxy for "this entity has a brain" — and the Draw body
+    //   already refuses on a root-slot miss. ⚠ Gating on a tier would also pin the gizmo to whichever
+    //   tier the entity happens to land on, which the allocator may promote at any time.
+    [GizmoProjector(typeof(BehaviorState), typeof(SimTransform), DrawsOffScreen = true)]
     public sealed class HillAttackGizmo : IStatelessGizmo
     {
         // Hash value of PlatoonHillAttack_BT from BehaviorIds (= 3014).
@@ -30,17 +35,19 @@ namespace Hrot.AI.Behaviors.Gizmos
 
         public unsafe void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
+            if (!draw.IsLayerActive(DebugTraceLayers.SquadCommand)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
             ref readonly var bs = ref view.GetComponentRO<BehaviorState>(entity);
             if (bs.ActiveBehaviorHash != PlatoonHillAttack_BT)
                 return;
 
-            ref readonly var bb = ref view.GetComponentRO<BrainBlackboard>(entity);
+            // P3-C: the behaviour's params live in its ROOT PARAMS OCCURRENCE SLOT now, not in a
+            // BrainBlackboard component. ⚠ The VIEW form, because a gizmo may be drawing a snapshot.
+            // ⛔ A miss draws NOTHING rather than a line through the origin — the old read could not
+            //    fail, so silently projecting zeros would put a 0,0 firing line on the map.
+            if (!RootParamsAccess.TryGetRootBytesInView(view, entity, out byte* mem))
+                return;
 
-            // Project the first bytes of the blackboard parameters as PlatoonHillAttackParams.
-            PlatoonHillAttackParams p;
-            ref var bbMut = ref Unsafe.AsRef(in bb);
-            fixed (byte* mem = &bbMut.BehaviorParameters[0])
-                p = *(PlatoonHillAttackParams*)mem;
+            var p = *(PlatoonHillAttackParams*)mem;
 
             var fireStart = new Vector3(p.StartX,         p.StartY,         0f);
             var fireEnd   = new Vector3(p.EndX,           p.EndY,           0f);
@@ -51,9 +58,9 @@ namespace Hrot.AI.Behaviors.Gizmos
             var baseColor = new Rgba32(0, 200,   0, 220);  // green (baseline)
 
             draw.DrawLine(fireStart, fireEnd, fireColor, thickness: 2f,
-                sizeMode: SizeMode.ScreenPixels);
+                sizeMode: SizeMode.ScreenPixels, layer: DebugTraceLayers.SquadCommand);
             draw.DrawLine(baseStart, baseEnd, baseColor, thickness: 2f,
-                sizeMode: SizeMode.ScreenPixels);
+                sizeMode: SizeMode.ScreenPixels, layer: DebugTraceLayers.SquadCommand);
 
             bool showSlots = _settings
                 .Read(GizmoSettingsRegistry.ComputeHash(HillAttackGizmoSettings.ShowSlots))
@@ -77,9 +84,9 @@ namespace Hrot.AI.Behaviors.Gizmos
             {
                 float t   = count == 1 ? 0f : (float)i / (count - 1);
                 var pos   = Vector3.Lerp(start, end, t);
-                draw.DrawSphere(pos, 2f, color);
+                draw.DrawSphere(pos, 2f, color, layer: DebugTraceLayers.SquadCommand);
                 var label = new FixedString32($"{prefix}{i + 1}");
-                draw.DrawText(pos.X, pos.Y, label, color);
+                draw.DrawText(pos.X, pos.Y, label, color, layer: DebugTraceLayers.SquadCommand);
             }
         }
     }

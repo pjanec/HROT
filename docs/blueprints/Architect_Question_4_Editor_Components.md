@@ -1,5 +1,7 @@
 # Architect question #4 — reusable editor components before we build node drawers
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 **Context.** A feature-maturity audit found the blueprint **authoring UI is the weakest axis**: ~16/30
 node kinds can't be configured in the editor, including several that are fully runtime-wired
 (`When` forms are stubs, `WaitForChannel`, `ScoreDecision`, `ReadRankedResult`, `CallPeerBlueprint`,

@@ -15,10 +15,36 @@ internal sealed class EmissionContext
     public CompilerMode Mode { get; }
     public IrGraph? CurrentGraph { get; set; }
 
-    public EmissionContext(IrAsset asset, CompilerMode mode)
+    /// <summary>
+    /// ⭐ <c>CE-446</c> — the graph being emitted is a blueprint BEHAVIOUR's Tick, so every non-status exit is
+    /// <c>Running</c> (<see cref="BehaviorDispatch"/>).
+    /// </summary>
+    public bool IsBehaviorTick => BehaviorDispatch.IsTickGraph(Asset, CurrentGraph);
+
+    /// <summary>⭐ <c>CE-446</c> — the "not finished yet" exit of a behaviour Tick.</summary>
+    public const string ReturnRunning = "return global::Fbt.NodeStatus.Running;";
+
+    /// <summary>
+    /// CallPeerBlueprint/AiPrimitiveCall alias fix -- the cross-asset function signatures the
+    /// caller was compiled WITH (<c>CompileOptions.SiblingSignatures</c>), threaded through so
+    /// <c>CSharpEmitter.EmitUsings</c> can resolve a peer's REAL generated class name
+    /// (<c>{SanitizedName}_{BlueprintId:X8}_Bp</c>) for the <c>__Peer_{id:X8}_Bp</c> /
+    /// <c>__AiPrim_{id:X8}_Bp</c> bare names <c>StatementEmitter</c> emits as call targets. Stage2's
+    /// <c>V_PeerReferences</c> already validated (BP1301) that every <c>CallPeerBlueprintNode</c>
+    /// reaching this stage has a matching entry here -- this is the SAME list, not recomputed.
+    /// </summary>
+    public IReadOnlyList<BlueprintSignature> SiblingSignatures { get; }
+
+    /// <summary>⭐ CE-3164 (R-268) — the picker group a behaviour registration declares (<c>CompileOptions.BehaviorGroup</c>).</summary>
+    public string? BehaviorGroup { get; init; }
+
+    public EmissionContext(
+        IrAsset asset, CompilerMode mode,
+        IReadOnlyList<BlueprintSignature>? siblingSignatures = null)
     {
         Asset = asset;
         Mode = mode;
+        SiblingSignatures = siblingSignatures ?? Array.Empty<BlueprintSignature>();
         _blockLabels = new Dictionary<int, string>();
         foreach (var g in asset.Graphs)
             foreach (var b in g.Blocks)
@@ -34,19 +60,152 @@ internal sealed class EmissionContext
     }
 
     /// <summary>Block label by IrBlockId, for goto emission.</summary>
+    /// <remarks>
+    /// ⭐ <c>CE-464</c> — block ids are numbered PER GRAPH (Stage5 restarts at 0 for every graph), so a label is looked up
+    /// in <see cref="CurrentGraph"/> first. ⛔ It used to read one asset-wide map built graph after graph, so in an asset
+    /// with branches in two or more graphs the LAST graph's labels won: a <c>goto</c> named a label that lives in
+    /// another method (<c>CS0159</c>). Found by the first large blueprint behaviour (<c>PlatoonHillAttackBp</c>).
+    /// </remarks>
     public string LabelForBlock(IrBlockId id)
-        => _blockLabels.TryGetValue(id.Value, out var lbl) ? lbl : $"block_{id.Value}";
-
-    /// <summary>C# field name for a WorkingState or Variable by index.</summary>
-    public string VarFieldName(int index)
     {
-        var fields = Asset.Variables;
-        if (index >= 0 && index < fields.Count)
-            return fields[index].Name;
-        var ws = Asset.WorkingState;
-        if (index >= 0 && index < ws.Count)
-            return ws[index].Name;
-        return $"__var_{index}";
+        if (CurrentGraph is { } g)
+        {
+            foreach (var b in g.Blocks)
+                if (b.Id.Value == id.Value) return b.Label;
+        }
+        return _blockLabels.TryGetValue(id.Value, out var lbl) ? lbl : $"block_{id.Value}";
+    }
+
+    /// <summary>
+    /// U-3 / <c>BP-226</c> — the C# field name for a resolved variable reference.
+    ///
+    /// <para>
+    /// ⛔ <b>This took a bare <c>int</c> and guessed.</b> It read the index as a priority-ordered
+    /// union — <c>Variables</c> first, then <c>WorkingState</c> — while Stage 5 had produced a
+    /// <b>list-relative</b> index. ⇒ a <c>WorkingState</c> reference at position 1 emitted
+    /// <c>Variables[1]</c> whenever <c>Variables.Count &gt; 1</c>: a different struct at a different
+    /// offset. And <c>Parameters</c> had <b>no arm at all</b>, so a parameter reference fell through
+    /// to <c>__var_{index}</c> — not valid C#, with no BP diagnostic.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>The old <c>VarFieldName(int)</c> no longer exists, and that is the point.</b> The wrong
+    /// call is now <b>unwritable</b> rather than merely unwritten — a
+    /// <see cref="VariableRef"/> cannot be produced from an integer by accident, so the next refactor
+    /// cannot re-introduce the ambiguity. (<c>BP1670</c>'s throw is the precedent: it turned a
+    /// fall-through into an assertion.)
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b><c>BP1670</c>'s assertion survives, restated.</b> It was <i>"index &lt; 0"</i>; it is now
+    /// <i>"no kind resolved"</i> — the same condition, named for what it actually means. Stage 5
+    /// returns <see cref="VariableRef.Unresolved"/> where it used to return <c>-1</c>.
+    /// </para>
+    /// </summary>
+    public string VarFieldName(VariableRef target)
+    {
+        if (!target.IsResolved)
+            throw new InvalidOperationException(
+                "Unresolvable variable reference reached Emit (no kind resolved); "
+                + "Stage 2's BP1670 rail should have refused it.");
+
+        int count = target.Kind switch
+        {
+            // ⭐ Batch 86 — ONE state kind (R-01); Asset.Variables IS the whole state run.
+            VariableKind.Variable => Asset.Variables.Count,
+            _                     => Asset.Parameters.Count,
+        };
+
+        // ⚠ An out-of-range index is now a THROW rather than the old `__var_{index}` fall-through.
+        // With the kind carried there is no legitimate way to reach it, so silence would only hide a
+        // Stage 5 / declaration-list disagreement until Roslyn named a generated file.
+        if (target.Index < 0 || target.Index >= count)
+            throw new InvalidOperationException(
+                $"Variable reference {target} is out of range ({count} entries). "
+                + "Stage 5 and the asset's declaration lists disagree.");
+
+        return target.Kind switch
+        {
+            VariableKind.Variable => Asset.Variables[target.Index].Name,
+            _                     => Asset.Parameters[target.Index].Name,
+        };
+    }
+
+    /// <summary>
+    /// U-3 — the struct the reference lives on. ⭐ <b>Parameters are a different struct</b>
+    /// (<c>p</c>), which the bare-<c>int</c> shape could not express at all: a parameter-targeting
+    /// <c>GetVariable</c> emitted <c>{state}.…</c> even when it resolved a name.
+    /// </summary>
+    public string ContainerVarFor(VariableKind kind)
+        => kind == VariableKind.Parameter ? ParamsVar : StateVar;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-428</c> — the container of ONE reference. For a behaviour resolver asset a Variable is a
+    /// field of the injected block, in its <c>In</c> or <c>St</c> half (<c>ResolverSubject.StateVariables</c>);
+    /// every other asset answers <see cref="ContainerVarFor"/> exactly as before.
+    /// </summary>
+    public string ContainerFor(VariableRef target)
+    {
+        var subject = Asset.ResolverSubject;
+        if (subject is null || target.Kind == VariableKind.Parameter)
+            return ContainerVarFor(target.Kind);
+        string name = VarFieldName(target);
+        return subject.StateVariables.Contains(name) ? "block.St" : "block.In";
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ Batch 70 / <c>DESIGN_Parameter_Model.md</c> §3.3 — <b>the expression that names the params
+    /// region, per dispatch kind.</b>
+    ///
+    /// <para>
+    /// An AiPrimitive's params are their own struct, handed to the thunk as <c>p</c>. ⭐ An
+    /// <b>Instance</b> has no such parameter: its payload is ONE struct, and the params live inside it
+    /// between the cursor and the state (<c>[Cursor 16][Params N][State M]</c>) ⇒ <c>s.Params</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ Before this, an Instance emitted a bare <c>p</c> for a parameter read — an identifier nothing
+    /// declares — so an Instance with a parameter produced <b>CS0103 in generated code</b>. Unreachable
+    /// only because no shipped Instance carries one.
+    /// </para>
+    /// </summary>
+    public string ParamsVar =>
+        Asset.ResolverSubject is not null ? "authored"          // ⭐ CE-443: a resolver's Parameters are its authored source
+        : Asset.Dispatch == AssetDispatch.AiPrimitive ? "p"
+        : Asset.Dispatch == AssetDispatch.Behavior ? "__bb.In"     // ⭐ S2 — the block's Input prefix
+        : $"{StateVar}.Params";
+
+
+    /// <summary>
+    /// BP-57 — the emitted C# identifier for a function-local.
+    ///
+    /// <para>
+    /// ⚠ Prefixed so a designer's local cannot collide with a method parameter (a graph's inputs
+    /// become parameters), a C# keyword, or any other emitted symbol.
+    /// </para>
+    /// </summary>
+    public static string LocalName(string declaredName) => "__loc_" + declaredName;
+
+    /// <summary>
+    /// BP-57 — the emitted identifier for the local at <paramref name="index"/> in the CURRENT graph.
+    ///
+    /// <para>
+    /// ⛔ Reads <c>CurrentGraph.Locals</c>, never the asset's variable lists. That separation is the
+    /// point of the op: see <c>IrGraph.Locals</c> and <c>FINDING_Variable_Index_Space.md</c> for what
+    /// sharing an index space with them costs.
+    /// </para>
+    /// </summary>
+    public string LocalFieldName(int index)
+    {
+        var locals = CurrentGraph?.Locals;
+        if (locals is null || index < 0 || index >= locals.Count) return $"__loc_unknown_{index}";
+
+        // BP-57 / ⭐⭐ Q27-A3 — a suspending graph's locals are blackboard slots, not C# locals: the
+        // frame they would otherwise live in dies at every `return NodeStatus.Running`.
+        var prefix = CurrentGraph!.LocalSlotPrefix;
+        return prefix is null
+            ? LocalName(locals[index].Name)
+            : $"{Lowering.Fibers.Container(this)}.{Lowering.LocalStorage.SlotName(prefix, locals[index].Name)}";   // ⭐ S2 — execution state; S6b — a fiber's own record
     }
 
     /// <summary>C# field name for a Parameters entry by index.</summary>
@@ -67,15 +226,57 @@ internal sealed class EmissionContext
     public string ResolveLibraryClass(int libraryBlueprintId)
         => $"__LibBp_{libraryBlueprintId:X8}_Bp";
 
-    /// <summary>World access expression based on dispatch kind.</summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>R4</c> — this graph is a blueprint-authored PARAMETER RESOLVER.</b>
+    /// 📄 <c>DESIGN_Resolver_World_Reach.md</c> §4.1.
+    ///
+    /// <para>
+    /// ⭐⭐ <b>Keyed on the GRAPH, not the asset's dispatch</b> — that is the whole point. A Library
+    /// asset's <c>Function</c> graphs stay stateless static methods with no world in scope; its
+    /// <c>Construction</c> graphs are emitted with <c>(world, self, host)</c> appended, because a
+    /// resolver must reach the world to be worth authoring at all (the motivating case is geo-authored
+    /// params needing <c>IGeographicTransform.ToCartesian</c>).
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <c>CurrentGraph</c> is set by <c>LibraryEmitter.EmitGraphBody</c>, the ONE body emitter every
+    /// graph passes through, so this is correct for every statement inside a resolver and false
+    /// everywhere else — including between graphs, when it is null.
+    /// </para>
+    /// </summary>
+    public bool IsResolverGraph => CurrentGraph?.Kind == IrGraphKind.Construction;
+
+    /// <summary>
+    /// World access expression based on dispatch kind.
+    ///
+    /// <para>
+    /// ⭐ <c>R4</c>: a resolver graph takes the SAME arm as AiPrimitive dispatch, and deliberately
+    /// reuses it rather than adding a third — its emitted method has a <c>world</c> parameter for the
+    /// same reason an AiPrimitive thunk does.
+    /// </para>
+    /// </summary>
     public string WorldVar =>
-        Asset.Dispatch == AssetDispatch.AiPrimitive
+        Asset.Dispatch == AssetDispatch.AiPrimitive || IsResolverGraph
             ? "world"
             : "((global::Fdp.Core.EntityRepository)view)";
 
     /// <summary>State struct local variable name based on dispatch kind.</summary>
     public string StateVar =>
-        Asset.Dispatch == AssetDispatch.AiPrimitive ? "ws" : "s";
+        Asset.Dispatch == AssetDispatch.AiPrimitive ? "ws"
+        // ⭐ S2 (DESIGN_Unified_Behaviour_Run U-1) — a behaviour's Variables are its block's St half.
+        : Asset.Dispatch == AssetDispatch.Behavior ? "__bb.St"
+        : "s";
+
+    /// <summary>⭐ S2 — true for a blueprint BEHAVIOUR: its state is TWO structs, the blackboard block <c>__bb</c> and the
+    /// brain state <c>__ex</c> (cursor, When memory, suspended locals), never one payload.</summary>
+    public bool IsBehavior => Asset.Dispatch == AssetDispatch.Behavior;
+
+    /// <summary>⭐ S2 — where the cursor, When memory and suspended-graph locals live: the behaviour's <c>Exec</c>
+    /// (<c>__ex</c>), or the one payload for every other kind.</summary>
+    public string ExecVar => IsBehavior ? "__ex" : StateVar;
+
+    /// <summary>⭐ S2 — the state argument(s) a generated helper is called with.</summary>
+    public string StateArgs => IsBehavior ? "ref __bb, ref __ex" : $"ref {StateVar}";
 
     /// <summary>
     /// P7 -- read-only <c>ISimulationView</c> expression for the in-scope view, used when
@@ -95,7 +296,7 @@ internal sealed class EmissionContext
     /// Stage5_Schedule.ResolveFunctionCallTrailingContext), so this value is unused in that case.
     /// </summary>
     public string ViewVar =>
-        Asset.Dispatch == AssetDispatch.AiPrimitive ? "world" : "view";
+        Asset.Dispatch == AssetDispatch.AiPrimitive || IsResolverGraph ? "world" : "view";
 
     /// <summary>
     /// CA-05 (Slice 1b) -- an expression whose STATIC type is <c>Fdp.ModuleHost.Abstractions.
@@ -159,5 +360,11 @@ internal sealed class EmissionContext
     /// so entity-scoped debug probes (NodeEnter / PinValueChanged) must not reference <c>self</c>
     /// there — doing so emits uncompilable C# (CS0103). See StatementEmitter debug-probe cases.
     /// </summary>
-    public bool HasSelfInScope => Asset.Dispatch != AssetDispatch.Library;
+    /// <para>
+    /// ⭐⭐ <b><c>R4</c> amendment:</b> a <c>Construction</c> graph on a Library asset DOES have
+    /// <c>self</c> — its emitted method takes it (📄 <c>DESIGN_Resolver_World_Reach.md</c> §4) — so
+    /// debug probes are correctly ON inside a resolver. ⛔ The Library asset's <c>Function</c> graphs
+    /// are unchanged and still have none.
+    /// </para>
+    public bool HasSelfInScope => Asset.Dispatch != AssetDispatch.Library || IsResolverGraph;
 }

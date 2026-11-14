@@ -1,0 +1,23 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: 00000503-0000-0000-0000-000000000001
+
+using System.Runtime.InteropServices;
+
+namespace Hrot.AI.Behaviors.Machines;
+
+[StructLayout(LayoutKind.Explicit, Size = 8)]
+public struct HsmResolverDemo_HsmResolverDemo_Blackboard
+{
+    [FieldOffset(0)]
+    public float Speed;
+    [FieldOffset(4)]
+    public float Doubled;
+}
+
+/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
+[StructLayout(LayoutKind.Explicit)]
+public struct HsmResolverDemo_Block
+{
+    [FieldOffset(0)]
+    public HsmResolverDemo_HsmResolverDemo_Blackboard In;
+}

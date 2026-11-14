@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Spatial.Eqs;
+using CarKinem.Spatial;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests.Eqs.Golden;
@@ -35,7 +37,7 @@ public sealed class EqsFlatTerrainGoldenTests
     // Deterministic LOS: candidate positions east of x=2 are exposed (rejected); west are covered.
     private sealed class MockLosService : ILosService
     {
-        public bool HasCheapLineOfSight(Vector2 from, Vector2 to) => from.X > 2f;
+        public bool HasLineOfSight(Vector3 eye, Vector3 aim) => aim.X > 2f;   // the candidate is the aim (CE-210 3-D seam)
     }
 
     private sealed class SimpleEqsTemplateRegistry : IEqsTemplateRegistry
@@ -54,7 +56,102 @@ public sealed class EqsFlatTerrainGoldenTests
         new Dictionary<uint, (string, Func<EqsGoldenTemplate>)>
         {
             [FindCoverFromTarget.BlueprintId] = (nameof(FindCoverFromTarget), CaptureFindCoverFromTarget),
+            [Hrot.SimHost.Systems.EntitiesOfForceInArea.BlueprintId] =
+                (nameof(Hrot.SimHost.Systems.EntitiesOfForceInArea), CaptureEntitiesOfForceInArea),
+            // ⭐ EQS §19.6 — the terrain starter templates, on flat ground with one wall (CaptureOnFlatGround).
+            [FindOpenFiringPosition.BlueprintId] = (nameof(FindOpenFiringPosition),
+                () => CaptureOnFlatGround(nameof(FindOpenFiringPosition), FindOpenFiringPosition.BlueprintId, 30f)),
+            [FindFlankingPosition.BlueprintId] = (nameof(FindFlankingPosition),
+                () => CaptureOnFlatGround(nameof(FindFlankingPosition), FindFlankingPosition.BlueprintId, 20f)),
+            [FindSafeRetreatPoint.BlueprintId] = (nameof(FindSafeRetreatPoint),
+                () => CaptureOnFlatGround(nameof(FindSafeRetreatPoint), FindSafeRetreatPoint.BlueprintId, 25f)),
+            // ⭐ Stage 7a (CE-3134) — window positions from a manual database: two see the target past the wall's ends, one
+            //   is behind the wall (rejected), and a Cover point at the same range must never appear (one kind per query).
+            [FindWindowFiringPosition.BlueprintId] = (nameof(FindWindowFiringPosition),
+                () => CaptureOnFlatGround(nameof(FindWindowFiringPosition), FindWindowFiringPosition.BlueprintId, 30f, cover: Windows())),
+            // ⭐ CE-2275 D-1 / D-2b (Defend §8c) — a squad's window POSTS and their set-back twins, on the same window database: the
+            //   engagement area's point is slot 1 (the target). The defensive asks keep only posts that see it; the all-round asks keep
+            //   every window; the set-back ones move each post 2 m back from the sill (the flat ground is floor everywhere).
+            [FindDefensiveWindowPosts.BlueprintId] = (nameof(FindDefensiveWindowPosts),
+                () => CaptureOnFlatGround(nameof(FindDefensiveWindowPosts), FindDefensiveWindowPosts.BlueprintId, 30f, cover: Windows())),
+            [FindWindowPostsAllRound.BlueprintId] = (nameof(FindWindowPostsAllRound),
+                () => CaptureOnFlatGround(nameof(FindWindowPostsAllRound), FindWindowPostsAllRound.BlueprintId, 30f, cover: Windows())),
+            [FindDefensiveWindowSetBackPosts.BlueprintId] = (nameof(FindDefensiveWindowSetBackPosts),
+                () => CaptureOnFlatGround(nameof(FindDefensiveWindowSetBackPosts), FindDefensiveWindowSetBackPosts.BlueprintId, 30f, cover: Windows())),
+            [FindWindowSetBackPostsAllRound.BlueprintId] = (nameof(FindWindowSetBackPostsAllRound),
+                () => CaptureOnFlatGround(nameof(FindWindowSetBackPostsAllRound), FindWindowSetBackPostsAllRound.BlueprintId, 30f, cover: Windows())),
+            [FindWindowSetBackPosition.BlueprintId] = (nameof(FindWindowSetBackPosition),
+                () => CaptureOnFlatGround(nameof(FindWindowSetBackPosition), FindWindowSetBackPosition.BlueprintId, 30f, cover: Windows())),
+            // ⭐ CE-2275 D-2g — ROOF posts: one cqb-village house-3f (roof storey at 6 m behind a 1 m parapet) 12 m north of the self; the
+            //   terrain's own cover database, so only its roof points may answer, and only those that see the target to the south.
+            [FindRoofPosts.BlueprintId] = (nameof(FindRoofPosts),
+                () => CaptureOnFlatGround(nameof(FindRoofPosts), FindRoofPosts.BlueprintId, 25f, terrainCover: true,
+                    terrain: OneHouse("cqb-village", "house-3f", new Vector2(0, 12)))),
+            // ⭐ CE-2342 (R-2066 A) — COVER posts facing the target: the terrain's own cover round the one wall; only the points with
+            //   the wall between them and the target (its near face) may answer.
+            [FindCoverPosts.BlueprintId] = (nameof(FindCoverPosts),
+                () => CaptureOnFlatGround(nameof(FindCoverPosts), FindCoverPosts.BlueprintId, 25f, terrainCover: true)),
+            // ⭐ WL-4 W-12f — where to throw from: a donut round the target's last-known point at the ~18 m radius the node sets.
+            [FindThrowingPosition.BlueprintId] = (nameof(FindThrowingPosition),
+                () => CaptureOnFlatGround(nameof(FindThrowingPosition), FindThrowingPosition.BlueprintId, 18f)),
+            [FindThreatsInView.BlueprintId] = (nameof(FindThreatsInView),
+                () => CaptureOnFlatGround(nameof(FindThreatsInView), FindThreatsInView.BlueprintId, 60f, ForceId.Hostile)),
+            // ⭐ CE-2165 V3 — the vehicle templates, the self a 7 × 3.6 × 2.4 m TANK: hide behind the wall from the terrain's own cover
+            //   (pushed out to its hull), firing points round it, and shelter under a 4 m deck east of it (open ground: no answer).
+            [FindVehicleHide.BlueprintId] = (nameof(FindVehicleHide),
+                () => CaptureOnFlatGround(nameof(FindVehicleHide), FindVehicleHide.BlueprintId, 25f, tankSelf: true, terrainCover: true)),
+            [FindVehicleFiringPoint.BlueprintId] = (nameof(FindVehicleFiringPoint),
+                () => CaptureOnFlatGround(nameof(FindVehicleFiringPoint), FindVehicleFiringPoint.BlueprintId, 25f, tankSelf: true)),
+            [FindShelter.BlueprintId] = (nameof(FindShelter),
+                // ⚠ the deck is a WALKABLE SLAB (how the terrain models a floor or a bridge deck: it blocks sight, the ground under it
+                //   is standable) — ⛔ not a floating prism: TryStandAt rejects any point inside a prism's footprint at any height.
+                () => CaptureOnFlatGround(nameof(FindShelter), FindShelter.BlueprintId, 25f, tankSelf: true, walkables: new[]
+                {
+                    new Fdp.Toolkit.Terrain.TerrainWalkable
+                    {
+                        Kind = Fdp.Toolkit.Terrain.TerrainWalkableKind.Slab,
+                        Vertices = new[] { new Vector3(5, 0, 4.5f), new Vector3(15, 0, 4.5f), new Vector3(15, 10, 4.5f), new Vector3(5, 10, 4.5f) },
+                        Triangles = new[] { 0, 1, 2, 0, 2, 3 },
+                        Min = new Vector2(5, 0), Max = new Vector2(15, 10), MinZ = 4.5f, MaxZ = 4.5f,
+                    },
+                })),
+            // ⭐ CE-2236 (civilians CV-7) — a way INTO a building: two houses on flat ground (bt-range's house-2f), the north one's doors
+            //   as authored, the south one's front LOCKED (no way in through it); no navmesh, so reachability keeps every candidate.
+            [FindEnterableShelter.BlueprintId] = (nameof(FindEnterableShelter),
+                () => CaptureOnFlatGround(nameof(FindEnterableShelter), FindEnterableShelter.BlueprintId, 40f, terrain: TwoHouses())),
         };
+
+    /// <summary>Stage 7a's window database: two window points that see the target past the wall's ends, one behind the wall, and a
+    /// Cover point at the same range that a window ask must never answer (one kind per query).</summary>
+    private static ManualCoverProvider Windows() => new(new[]
+    {
+        new CoverPoint { PositionX = 0f,   PositionY = -5f, DirectionY = -1f, Quality = 1f, StanceHeight = 1, Kind = CoverKind.WindowFiring },
+        new CoverPoint { PositionX = 28f,  PositionY = -5f, DirectionY = -1f, Quality = 1f, StanceHeight = 1, Kind = CoverKind.WindowFiring },
+        new CoverPoint { PositionX = -27f, PositionY = -8f, DirectionY = -1f, Quality = 1f, StanceHeight = 1, Kind = CoverKind.WindowFiring },
+        new CoverPoint { PositionX = 26f,  PositionY = -6f, DirectionY = -1f, Quality = 1f, StanceHeight = 2, Kind = CoverKind.Cover },
+    });
+
+    /// <summary>One building of a recipe terrain's templates, alone on flat ground at <paramref name="at"/>.</summary>
+    private static Fdp.Toolkit.Terrain.TerrainWorld OneHouse(string recipe, string template, Vector2 at)
+    {
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), recipe);
+        string geojson = "{\"type\":\"FeatureCollection\",\"features\":["
+            + $"{{\"type\":\"Feature\",\"properties\":{{\"kind\":\"building\",\"template\":\"{template}\",\"label\":\"House\",\"baseZ\":0,\"rotation\":0}},"
+            + $"\"geometry\":{{\"type\":\"Point\",\"coordinates\":[{at.X},{at.Y}]}}}}"
+            + "]}";
+        return Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(geojson, "one-house", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
+    }
+
+    /// <summary>Two bt-range <c>house-2f</c> buildings on flat ground, one 20 m north of the self, one 25 m south with its front locked.</summary>
+    private static Fdp.Toolkit.Terrain.TerrainWorld TwoHouses()
+    {
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "bt-range");
+        const string geojson = "{\"type\":\"FeatureCollection\",\"features\":["
+            + "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"template\":\"house-2f\",\"label\":\"North House\",\"baseZ\":0,\"rotation\":0},\"geometry\":{\"type\":\"Point\",\"coordinates\":[0,20]}},"
+            + "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"template\":\"house-2f\",\"label\":\"South House\",\"baseZ\":0,\"rotation\":0,\"doors\":{\"front\":\"locked\"}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[0,-25]}}"
+            + "]}";
+        return Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(geojson, "two-houses", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
+    }
 
     [Fact]
     public void RegisteredTemplates_AllHaveAGoldenScenario()
@@ -87,6 +184,32 @@ public sealed class EqsFlatTerrainGoldenTests
         RunGoldenForTemplate(nameof(FindCoverFromTarget));
     }
 
+    [Theory]
+    [InlineData(nameof(FindOpenFiringPosition))]
+    [InlineData(nameof(FindFlankingPosition))]
+    [InlineData(nameof(FindSafeRetreatPoint))]
+    [InlineData(nameof(FindThreatsInView))]
+    [InlineData(nameof(FindWindowFiringPosition))]
+    [InlineData(nameof(FindThrowingPosition))]
+    [InlineData(nameof(FindVehicleHide))]
+    [InlineData(nameof(FindVehicleFiringPoint))]
+    [InlineData(nameof(FindShelter))]
+    [InlineData(nameof(FindEnterableShelter))]
+    [InlineData(nameof(FindDefensiveWindowPosts))]
+    [InlineData(nameof(FindWindowPostsAllRound))]
+    [InlineData(nameof(FindDefensiveWindowSetBackPosts))]
+    [InlineData(nameof(FindWindowSetBackPostsAllRound))]
+    [InlineData(nameof(FindWindowSetBackPosition))]
+    [InlineData(nameof(FindRoofPosts))]
+    [InlineData(nameof(FindCoverPosts))]
+    public void TerrainStarterTemplate_FlatTerrain_MatchesGolden(string template) => RunGoldenForTemplate(template);
+
+    [Fact]
+    public void EntitiesOfForceInArea_FlatTerrain_MatchesGolden()
+    {
+        RunGoldenForTemplate(nameof(Hrot.SimHost.Systems.EntitiesOfForceInArea));
+    }
+
     // ── core capture/compare driver ────────────────────────────────────────────
 
     private static void RunGoldenForTemplate(string templateName)
@@ -108,8 +231,10 @@ public sealed class EqsFlatTerrainGoldenTests
 
 #if EQS_HAS_POSITIONZ
         // P3D-403: the only new information on flat ground is a constant Z ≈ 0.
-        Assert.True(actual.MaxAbsPositionZ <= 1e-3f,
-            $"Flat-terrain PositionZ expected ≈0 but max |Z| = {actual.MaxAbsPositionZ:R}");
+        // ⭐ CE-2275 D-2g — a ROOF post stands on the roof (6 m) by definition: the one template whose every answer is off the ground.
+        if (templateName != nameof(FindRoofPosts))
+            Assert.True(actual.MaxAbsPositionZ <= 1e-3f,
+                $"Flat-terrain PositionZ expected ≈0 but max |Z| = {actual.MaxAbsPositionZ:R}");
 #endif
     }
 
@@ -142,7 +267,7 @@ public sealed class EqsFlatTerrainGoldenTests
         });
 
         var mem = new TargetMemory();
-        TargetMemory.AddOrUpdateTarget(ref mem, entityId: 999L, posX: 20f, posY: 0f, scoreBoost: 100f, tick: 1);
+        TargetMemory.AddOrUpdateTarget(ref mem, entityId: (long)harness.Repo.CreateEntity().PackedValue, posX: 20f, posY: 0f, scoreBoost: 100f, tick: 1);
         harness.Repo.AddComponent(observer, mem);
 
         var targetEntity = harness.Repo.CreateEntity();
@@ -160,7 +285,7 @@ public sealed class EqsFlatTerrainGoldenTests
             ThreatThreshold = 50f,
             ContextSlot1    = targetEntity,
         });
-        harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8101L });
+        harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8101 });
 
         bool ready = harness.PumpUntil(
             () => harness.Repo.HasComponent<EqsCognitiveBuffer>(observer)
@@ -204,5 +329,186 @@ public sealed class EqsFlatTerrainGoldenTests
         }
 
         return golden;
+    }
+
+    /// <summary>
+    /// The area query's EQS form on flat ground: a ±15 m square around (50, 50); two live hostiles
+    /// inside, one hostile outside, one hostile wreck inside, one friendly inside. ⭐ Runs the real
+    /// solver on a plain SimHost world with the PRODUCTION registry — not <see cref="EditorHarness"/>,
+    /// whose EQS pumping is red on the base commit for reasons unrelated to templates.
+    /// </summary>
+    private static EqsGoldenTemplate CaptureEntitiesOfForceInArea()
+    {
+        using var repo = new EntityRepository();
+        Hrot.SimHost.SimHostComponentRegistry.RegisterAll(repo);
+        EqsTemplateRegistry.InstallDefault(repo);
+
+        var area = repo.CreateEntity();
+        repo.AddComponent(area, new SimTransform { Position = new Vector3(50f, 50f, 0f), Rotation = Quaternion.Identity });
+        var ecb = (EntityCommandBuffer)((ISimulationView)repo).GetCommandBuffer();
+        ecb.AddManagedComponent(area, new Hrot.Map.Common.Components.EditablePolyline
+        {
+            Points = new List<Vector2> { new(-15f, -15f), new(15f, -15f), new(15f, 15f), new(-15f, 15f) },
+        });
+        ecb.Playback(repo);
+
+        Entity Unit(float x, float y, ForceId force, float? health = null)
+        {
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0f), Rotation = Quaternion.Identity });
+            repo.AddComponent(e, new EntityInfo { ForceId = force });
+            if (health is float h) repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = h, Max = 100f });
+            return e;
+        }
+        Unit(50f, 50f, ForceId.Hostile);
+        Unit(60f, 40f, ForceId.Hostile);
+        Unit(80f, 80f, ForceId.Hostile);          // outside
+        Unit(45f, 55f, ForceId.Hostile, 0f);      // wreck
+        Unit(55f, 55f, ForceId.Friend);           // friendly
+
+        var sensor = repo.CreateEntity();
+        repo.AddComponent(sensor, Hrot.SimHost.Systems.EntitiesOfForceInArea.SensorFor(area, ForceId.Hostile));
+        repo.AddComponent(sensor, new EqsCognitiveBuffer());
+
+        var view = (ISimulationView)repo;
+        new Hrot.SimHost.Systems.EqsSolverSystem().Execute(view, 0.1f);
+        ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(repo);
+        repo.Bus.SwapBuffers();
+        new Hrot.SimHost.Systems.EqsResultUpdateSystem().Execute(view, 0.1f);
+
+        ref readonly var buffer = ref repo.GetComponentRO<EqsCognitiveBuffer>(sensor);
+        Assert.True(buffer.IsReady, "EntitiesOfForceInArea golden scenario produced no result");
+        var golden = new EqsGoldenTemplate
+        {
+            Name        = nameof(Hrot.SimHost.Systems.EntitiesOfForceInArea),
+            BlueprintId = Hrot.SimHost.Systems.EntitiesOfForceInArea.BlueprintId,
+            Count       = buffer.Count,
+        };
+        // Order is not part of the contract (all scores are 0 — design §17.5) ⇒ record rows sorted.
+        var span = buffer.GetSpanRO();
+        var rows = new List<EqsResult>();
+        for (int i = 0; i < buffer.Count; i++) rows.Add(span[i]);
+        foreach (var r in rows.OrderBy(r => r.EntityId))
+        {
+            golden.Rows.Add(new EqsGoldenRow
+            {
+                EntityId        = r.EntityId,
+                PositionX       = r.PositionX,
+                PositionY       = r.PositionY,
+                Score           = r.Score,
+                Flags           = r.Flags,
+                FlagsMeaningful = r.FlagsMeaningful,
+            });
+#if EQS_HAS_POSITIONZ
+            golden.MaxAbsPositionZ = MathF.Max(golden.MaxAbsPositionZ, MathF.Abs(r.PositionZ));
+#endif
+        }
+
+        if (repo.HasSingleton<EqsResultPool>())
+        {
+            var pool = repo.GetSingleton<EqsResultPool>();
+            if (pool.Results.IsCreated) pool.Results.Dispose();
+        }
+        return golden;
+    }
+
+    /// <summary>
+    /// ⭐ EQS §19.6 — one flat world for the terrain starter templates: ground Z = 0, one 3 m wall along x ∈ [−20, 20] at
+    /// y = −10. Self at the origin, the target at (0, −30) beyond the wall, a hostile in the open at (10, 0) and one behind the
+    /// wall at (0, −40), a friendly at (5, 5). Runs the real solver with the PRODUCTION registry (as
+    /// <see cref="CaptureEntitiesOfForceInArea"/>), so the templates are the ones a blueprint gets.
+    /// </summary>
+    private static EqsGoldenTemplate CaptureOnFlatGround(string name, uint blueprintId, float radius, ForceId? threats = null,
+        ICoverProvider? cover = null, bool tankSelf = false, bool terrainCover = false, Fdp.Toolkit.Terrain.TerrainWalkable[]? walkables = null,
+        Fdp.Toolkit.Terrain.TerrainWorld? terrain = null)
+    {
+        using var repo = new EntityRepository();
+        Hrot.SimHost.SimHostComponentRegistry.RegisterAll(repo);
+        EqsTemplateRegistry.InstallDefault(repo);
+        repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+        var wall = new[] { new Vector2(-20, -10), new Vector2(20, -10), new Vector2(20, -9.5f), new Vector2(-20, -9.5f) };
+        var prisms = new List<Fdp.Toolkit.Terrain.TerrainPrism>
+        {
+            new Fdp.Toolkit.Terrain.TerrainPrism
+            {
+                Kind = Fdp.Toolkit.Terrain.TerrainPrismKind.Wall, Footprint = wall, BaseZ = 0, TopZ = 3,
+                Min = new Vector2(-20, -10), Max = new Vector2(20, -9.5f),
+            },
+        };
+        var world = terrain ?? new Fdp.Toolkit.Terrain.TerrainWorld
+        {
+            BoundsMin = new Vector2(-100, -100), BoundsMax = new Vector2(100, 100), Prisms = prisms.ToArray(),
+            Walkables = walkables ?? Array.Empty<Fdp.Toolkit.Terrain.TerrainWalkable>(),
+        };
+        repo.SetSingletonManaged(world);
+        if (cover != null) repo.SetSingletonManaged(cover);
+        else if (terrainCover) repo.SetSingletonManaged<ICoverProvider>(TerrainCoverProvider.Build(world));
+        using var grid = new GridOwner(SpatialHashGrid.Create(100, 100, 5f, 64, Fdp.Core.Collections.Allocator.Persistent));
+        grid.Grid.Clear();
+        repo.SetSingleton(new SpatialGridData { Grid = grid.Grid });
+
+        Entity Unit(float x, float y, ForceId force)
+        {
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0f), Rotation = Quaternion.Identity });
+            repo.AddComponent(e, new EntityInfo { ForceId = force });
+            grid.Grid.Add(e, new Vector2(x, y));
+            return e;
+        }
+        var self   = Unit(0, 0, ForceId.Friend);
+        if (tankSelf)
+        {
+            repo.AddComponent(self, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.Tank, Length = 7f, Width = 3.6f });
+            repo.AddComponent(self, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3.5f, Height = 2.4f });
+        }
+        var target = Unit(0, -30, ForceId.Hostile);
+        Unit(10, 0, ForceId.Hostile);
+        Unit(0, -40, ForceId.Hostile);
+        Unit(5, 5, ForceId.Friend);
+
+        var sensor = repo.CreateEntity();
+        repo.AddComponent(sensor, new EqsSensor
+        {
+            BlueprintId = blueprintId, Epoch = 1, SearchRadius = radius,
+            FactionFilter = threats is ForceId f ? 1u << (int)f : 0u,
+            ContextSlot0 = self, ContextSlot1 = target,
+        });
+        repo.AddComponent(sensor, new EqsCognitiveBuffer());
+
+        var view = (ISimulationView)repo;
+        new Hrot.SimHost.Systems.EqsSolverSystem().Execute(view, 0.1f);
+        ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(repo);
+        repo.Bus.SwapBuffers();
+        new Hrot.SimHost.Systems.EqsResultUpdateSystem().Execute(view, 0.1f);
+
+        ref readonly var buffer = ref repo.GetComponentRO<EqsCognitiveBuffer>(sensor);
+        Assert.True(buffer.IsReady, $"{name} golden scenario produced no result");
+        var golden = new EqsGoldenTemplate { Name = name, BlueprintId = blueprintId, Count = buffer.Count };
+        var span = buffer.GetSpanRO();
+        for (int i = 0; i < buffer.Count; i++)
+        {
+            ref readonly var r = ref span[i];
+            golden.Rows.Add(new EqsGoldenRow
+            {
+                EntityId = r.EntityId, PositionX = r.PositionX, PositionY = r.PositionY,
+                Score = r.Score, Flags = r.Flags, FlagsMeaningful = r.FlagsMeaningful,
+            });
+#if EQS_HAS_POSITIONZ
+            golden.MaxAbsPositionZ = MathF.Max(golden.MaxAbsPositionZ, MathF.Abs(r.PositionZ));
+#endif
+        }
+        if (repo.HasSingleton<EqsResultPool>())
+        {
+            var pool = repo.GetSingleton<EqsResultPool>();
+            if (pool.Results.IsCreated) pool.Results.Dispose();
+        }
+        return golden;
+    }
+
+    private sealed class GridOwner : IDisposable
+    {
+        public SpatialHashGrid Grid;
+        public GridOwner(SpatialHashGrid grid) => Grid = grid;
+        public void Dispose() => Grid.Dispose();
     }
 }

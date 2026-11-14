@@ -10,7 +10,6 @@ namespace Fdp.Examples.Common.Constants
         public const string ComponentDamage    = "componentdamage";
         public const string BallisticsAndHit   = "ballisticsandhit";
         public const string BehaviorValidation = "behaviorvalidation";
-        public const string SensorGrid         = "sensorgrid";
         public const string MissionCommand     = "missioncommand";
         public const string TerrainClamping    = "terrainclamping";
         public const string ParallelEpisodes    = "parallelepisodes";

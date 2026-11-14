@@ -5,7 +5,6 @@ using Fdp.Core;
 using Fdp.Core.Logging;
 using Fdp.Presentation.Windows;
 using Fdp.Presentation.WindowManager;
-using Hrot.BDC.Factory;
 using Hrot.ClusterRunner.Configuration;
 using Hrot.ClusterRunner.Scenarios;
 using Hrot.ClusterRunner.Services;
@@ -35,7 +34,7 @@ namespace Hrot.Runner;
 ///
 /// <para><b>CLI arguments:</b>
 /// <list type="table">
-///   <item><term>-m / --mode</term><description>all | simhost | ig | ios | comma-separated</description></item>
+///   <item><term>-m / --mode</term><description>all | server | player | orchestrator | simhost | cgf | traffic | ig | ios | editor | replaybrowser | comma-separated</description></item>
 ///   <item><term>-d / --domain</term><description>DDS domain ID (default: 0)</description></item>
 ///   <item><term>--headless</term><description>Run without UI</description></item>
 ///   <item><term>--no-wait</term><description>Skip waiting room synchronisation</description></item>
@@ -48,8 +47,23 @@ class Program
 {
     static async Task<int> Main(string[] args)
     {
+        // ⭐ CE-4525 (H-3) — the agent guide with no world started: the same text GET /help serves, minus what a host can do now
+        if (Array.IndexOf(args, "--help-api") >= 0)
+        {
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+            Console.Out.Write(Hrot.Editor.DebugApi.DebugApiHost.HelpText(available: null));
+            return 0;
+        }
+        // ⭐ N-14 (CE-4476, §19) — every HROT process opts out of Windows' power throttling (a windowless node ran at ~half speed, CE-4453) and
+        //   turns console QuickEdit off (a click froze every write); a no-op off Windows; HROT_ECOQOS=1 keeps Windows' default.
+        bool optedOut = Fdp.Core.Threading.WindowsScheduling.OptOutProcess();
+        Fdp.Core.Threading.WindowsScheduling.OptOutCurrentThread();
+        bool quickEditOff = Fdp.Core.Threading.WindowsScheduling.DisableConsoleQuickEdit();
+        Console.WriteLine(Fdp.Core.Threading.WindowsScheduling.Describe(optedOut, quickEditOff, OperatingSystem.IsWindows()));   // ⭐ F-5 — what it did, once
         FdpConfig.EnforceExplicitComponentIds = true;
         FdpConfig.EnforceExplicitEventRegistration = true;
+        // ⭐ CE-3427 C-1 — live play paces slow modules by wall clock (FdpConfig.SlowModulesByWallClock); FDP_SLOW_WALLCLOCK=0 bisects
+        FdpConfig.SlowModulesByWallClock = EnvVars.Read(EnvVars.FdpSlowWallclock) != "0";
 
         // Enable NLog Console Output globally for FdpLog<T>.
         // Also register the UI target so the Message Log window captures all output.
@@ -63,7 +77,7 @@ class Program
 
         // Parse CLI args
         HrotRunnerConfiguration? config = null;
-        var parseResult = Parser.Default.ParseArguments<HrotRunnerConfiguration>(args);
+        var parseResult = Parser.Default.ParseArguments<HrotRunnerConfiguration>(HrotRunnerConfiguration.NormaliseArgs(args));   // ⭐ CE-3354 ⑥ — a bare --map-in-load
 
         parseResult.WithParsed(c => config = c)
                    .WithNotParsed(_ => Environment.Exit(1));
@@ -89,6 +103,7 @@ class Program
         try
         {
             config.Validate();
+            Hrot.Common.Infrastructure.NodeFeatureOverrides.Set(config.FeatureOverrides);   // ⭐ Node Features F-7 — every node of this process applies its own
         }
         catch (InvalidOperationException ex)
         {
@@ -96,7 +111,103 @@ class Program
             return 1;
         }
 
+        // ⭐⭐ U-2 / U-3 (CE-4531 / CE-4532, R-4224) — every optimisation ON by default, switchable in View ▸ Settings ▸ Performance (the user
+        //   file); an explicit HROT_* variable wins; -m all runs serial. Before ANY kernel, pool or host exists.
+        Console.WriteLine(Hrot.ClusterRunner.Configuration.PerformanceStartup.Apply(config));
+
+        // ⭐ CE-1249 (BV-16) — the brain journal switch, before any unit is attached
+        Fdp.Toolkit.Behavior.Diagnostics.BrainJournalSettings.Enabled =
+            !string.Equals(config.BrainJournal, "off", StringComparison.OrdinalIgnoreCase);
+
+        // ── Dump-api mode: print the debug-API manifest and exit ────────────────────────────────
+        //
+        // ⭐ HN-030: the route table + docs as JSON, offline (the same as GET /capabilities' description half). For people and agents,
+        //   --help-api prints the guide (CE-4525).
+        //
+        // ⭐ Boots NOTHING — no DDS, no window, no world. DebugApiHost.EnumerateRouteTemplates only builds
+        //   closures, so the whole API can describe itself in-process in milliseconds.
+        // ⛔ Ask a LIVE GET /capabilities for what a given host can DO; a dump answers only what the API IS.
+        if (config.RequestedSubsystems.Contains("dump-api"))
+        {
+            Console.Out.Write(Hrot.Editor.DebugApi.DebugApiHost.DumpManifestJson());
+            return 0;
+        }
+
+        // ── ⭐ CE-4042 — --verify: the scenario regression check from the command line (docs/DESIGN_Scenario_Regression.md §2a) ──
+        //    Several scenarios ⇒ this process is only the PARENT: each runs in a child of its own (a fresh process per scenario until
+        //    CE-3294's reload leak is fixed — R-4065), and the exit code is the verdict. One ⇒ this process IS the editor that verifies.
+        if (!string.IsNullOrWhiteSpace(config.Verify))
+        {
+            if (!(config.RequestedSubsystems.Count == 1 && config.RequestedSubsystems.Contains("editor")))
+            {
+                Console.Error.WriteLine("[Runner] --verify runs in the editor: use --mode editor (with --headless for no window).");
+                return 1;
+            }
+            var verify = Hrot.ClusterRunner.VerifyCommand.Scenarios(config.Verify);
+            if (verify.Count == 0)
+            {
+                Console.Error.WriteLine($"[Runner] --verify {config.Verify}: no scenario to verify (none named, or none with a checks.json).");
+                return 1;
+            }
+            // ⭐ CE-3299 B5 — R1: this process is the parent of two children per scenario (a child carries its half in the environment)
+            // ⭐ CE-4045 H5 — the review check: this process is the parent of two LIVE children per scenario
+            if (config.VerifyReviewAt > 0 && Hrot.Editor.Director.CommandLineVerify.ReviewCheckFromEnvironment() == null)
+                return Hrot.ClusterRunner.VerifyCommand.RunReviewChecks(args, verify, config.VerifyReviewAt, config.VerifyReport, config.VerifyOut, config.VerifyTimeout);
+            if (config.VerifyRestoreAt > 0 && Hrot.Editor.Director.CommandLineVerify.RestoreCheckFromEnvironment() == null)
+                return Hrot.ClusterRunner.VerifyCommand.RunRestoreChecks(args, verify, config.VerifyRestoreAt, config.VerifyReport, config.VerifyOut, config.VerifyRestoreEvery, config.VerifyTimeout);
+            if (verify.Count > 1 || !string.IsNullOrWhiteSpace(config.VerifyOut))
+                return Hrot.ClusterRunner.VerifyCommand.RunChildren(args, verify, config.VerifyCapture, config.VerifyReport, config.VerifyOut, config.VerifyTimeout);
+            Hrot.ClusterRunner.VerifyCommand.PrepareThisProcess(verify[0], config.VerifyCapture, config.VerifyReport, config.VerifyReplay, config.VerifyBranchAt);
+        }
+
         Console.WriteLine($"[Runner] Starting – mode={string.Join(",", config.RequestedSubsystems)}, domain={config.DomainId}, headless={config.Headless}");
+
+        // ⭐ CE-3218 — a scratch staging tree (the temp dir) keeps only its newest exercise recordings; a deployment's root is left
+        //   alone unless asked (--keep-exercises / FDP_KEEP_EXERCISES). Before anything records, so a new run never loses its own.
+        {
+            var stagingRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot();
+            if (Fdp.Toolkit.Orchestration.ExerciseRetention.ResolveKeep(stagingRoot, config.KeepExercises) is { } keep)
+                Fdp.Toolkit.Orchestration.ExerciseRetention.Prune(stagingRoot, keep, Console.WriteLine);
+        }
+
+        // ⭐⭐ C1 (Q91 §4-O, R-4009/R-4016) — a single-subsystem node launched with NO id asks the cluster master for one,
+        //   BEFORE anything id-dependent is composed. ⭐ Any launch that names its id (-n) keeps today's base + offset exactly;
+        //   the orchestrator IS the master, and a multi-subsystem launch hosts its own — both use base 0 when none is given.
+        int? grantedNodeId = null;
+        if (config.NodeIdAbsent)
+        {
+            bool asks = config.RequestedSubsystems.Count == 1
+                     && !config.RequestedSubsystems.Contains("orchestrator", StringComparer.OrdinalIgnoreCase)
+                     && !config.RequestedSubsystems.Contains("all", StringComparer.OrdinalIgnoreCase)
+                     && !config.RequestedSubsystems.Contains("editor", StringComparer.OrdinalIgnoreCase)
+                     // ⭐ CE-3327 (R-4080) — the Replay Browser is a standalone OFFLINE host: no cluster, no master to ask. 🔴 Measured live: it
+                     //   waited for a grant forever and never opened its debug API.
+                     && !config.RequestedSubsystems.Contains("replaybrowser", StringComparer.OrdinalIgnoreCase);
+            if (asks)
+            {
+                // ⭐ CE-4331 ⑥ (§9b) — the node says its KIND (the master grants inside the kind's range) and the id it held last time (granted again when free).
+                var askedKind = config.RequestedSubsystems.Single();
+                var idRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot();
+                var grant = Hrot.Network.NED.Factory.NodeIdBroker.AwaitGrant(
+                    (uint)config.DomainId, forcedId: 0, preferredId: Fdp.Toolkit.Orchestration.NodeIdMemory.Read(idRoot, askedKind), Console.WriteLine, askedKind);
+                if (grant.Refused)
+                {
+                    Console.Error.WriteLine($"[Runner] The cluster master refused a node id: {grant.Reason}");
+                    return 1;
+                }
+                Fdp.Toolkit.Orchestration.NodeIdMemory.Write(idRoot, askedKind, grant.NodeId);
+                grantedNodeId = grant.NodeId;
+                Console.WriteLine($"[Runner] C1: the cluster master granted node id {grant.NodeId} (session {grant.SessionId}).");
+            }
+            config.NodeId = (Fdp.Core.NodeId)(0);
+        }
+        int ResolveNodeId(string subsystemName, int baseNodeId) => grantedNodeId ?? ResolveAppNodeId(subsystemName, baseNodeId);
+        // ⭐ CE-3354 ⑥ — a node's name: the configured one, else the default <subsystem>-<nodeId> with the id the runner resolves for it. ⛔ The Editor is the exception: it fixes its own node id,
+        //   so it makes its own default (null here) — its name is read back from the subsystem (EditorSubsystem.NodeName).
+        string? NodeNameOf(string subsystemName)
+            => config.NodeNameFor(subsystemName)
+               ?? (subsystemName.Equals("Editor", StringComparison.OrdinalIgnoreCase) ? null
+                   : Fdp.Toolkit.Orchestration.ClusterSlave.DefaultNodeName(subsystemName, ResolveNodeId(subsystemName, config.NodeId)));
 
         // Add NLog file target when LogDirectory is configured
         string resolvedLogDir = string.IsNullOrWhiteSpace(config.LogDirectory)
@@ -179,16 +290,25 @@ class Program
         // Discover all non-abstract ISubsystem implementations (runner-internal
         // ones are excluded; see ScanForSubsystems).
         var discovered = ScanForSubsystems()
-            .Select(type => 
+            .Select(type =>
             {
+                // ⭐ CE-516 — the composition root chooses each node's network. The editor is an OFFLINE node
+                //   (ruling 66 "the editor is a one-node cluster"; Q26 constraint 2): it gets the offline
+                //   factory and no DDS participant. ⛔ Before, it was handed a live NedNetworkFactory it threw
+                //   away, and built its own offline one.
+                if (type == typeof(Hrot.Editor.EditorSubsystem))
+                    return TryCreateSubsystem(type, new Hrot.Editor.OfflineNetworkFactory());
+
                 // 1. Create isolated memory spaces per subsystem
                 var entityMap    = new NetworkEntityMap();
+                // ⭐ CE-3126 — the network factory holds it and the node's builder ADOPTS it (HrotNodeBuilder), so this is
+                //   the node's ONE transform — the one a terrain commit sets the origin on. 📄 docs/DESIGN_Geo_Origin.md §2 C.
                 var geoTransform = HrotEnvironment.CreateGeoTransform();
                 var eventBus     = new FdpEventBus();
         
                 // 2. Extract a rough name for NodeId resolution (e.g., "SimHostSubsystem" -> "SimHost")
                 string subName = type.Name.Replace("Subsystem", "");
-                int subNodeId = ResolveAppNodeId(subName, config.NodeId);
+                int subNodeId = ResolveNodeId(subName, config.NodeId);   // ⭐ C1 — the granted id when one was asked for
 
                 // 3. Create an isolated DDS Participant with a unique Instance ID
                 var participant = HrotEnvironment.CreateParticipant(config.DomainId);
@@ -199,9 +319,8 @@ class Program
                 });
 
                 // 4. Create the dedicated Network Factory
-                INetworkFactory networkFactory = string.Equals(config.NetworkProtocol, "bdc", StringComparison.OrdinalIgnoreCase)
-                    ? (INetworkFactory)new BdcNetworkFactory(participant, entityMap, geoTransform, eventBus, (long)subNodeId, NodeRole.None)
-                    : new NedNetworkFactory(participant, entityMap, geoTransform, eventBus, subNodeId, NodeRole.None);
+                INetworkFactory networkFactory =
+                    new NedNetworkFactory(participant, entityMap, geoTransform, eventBus, subNodeId, NodeRole.None);
 
                 // 5. Inject the isolated factory into the subsystem
                 return TryCreateSubsystem(type, networkFactory);
@@ -220,52 +339,322 @@ class Program
             subsystems.Add(sub);
         }
 
+        // ⭐⭐⭐ RULING 67 — the configured authoring root, applied ONCE for EVERY host.
+        //    🔒 "we need a config file provided asset path for the CGF as well as the Editor (same
+        //       shared code), with fallback to the repo source as of now." (user, 2026-08-14)
+        //    ⇒ ⭐ ONE call, before any Initialize(): AssetRoots is the codebase's stated single authority
+        //      for roots, so configuring it here reaches every host that asks it a question — ⛔ rather
+        //      than each subsystem growing its own notion of where the assets live, which is the third
+        //      competing path authority ruling 67 warns against.
+        //    ⚠ A configured-but-missing directory THROWS here, at startup, by design.
+        Hrot.Editor.AiShared.AssetRoots.Configure(config.AssetRoot);
+
+        // ⭐⭐⭐ THE CONTENT SEED is NOT here (CE-4089 → CE-3340 ③): it runs inside SubsystemOrchestrator.Initialize — the ONE place every host's start
+        //    passes through (this runner, the editor inside it, the in-process harnesses) — before any subsystem initialises.
+
         // Propagate configurable AI project path to the editor subsystem before Initialize().
         foreach (var sub in subsystems.OfType<Hrot.Editor.EditorSubsystem>())
             sub.AiBehaviorsProjectPath = config.AiBehaviorsProjectPath;
+
+        // ⭐⭐ cgf==editor SLICE 2 (CE-013) — CGF indexes the SAME authoring assets, so it reads the SAME
+        //    configured project path. ⛔ Not a second notion of where the assets live: one config value,
+        //    two hosts. 📌 A production caller that HAS a dependency must pass it — the loop above already
+        //    held it, and CGF was not in it.
+        foreach (var sub in subsystems.OfType<Hrot.CGF.CgfSubsystem>())
+            sub.AiBehaviorsProjectPath = config.AiBehaviorsProjectPath;
+
+        // ⭐⭐⭐ CE-4270 B7c (D4, R-3077) — `-m server` is the FUSED server: the orchestrator node (unchanged, D2) and ONE node that CGF's bootstrapper composes from the
+        //    fused role (Brain + MuscleGround + Perception + NavigationSolver in one world, traffic served in it — D3). ⛔ No server host class: the role is the only
+        //    difference, set before Initialize. `--server-nodes` keeps the old four-node process. 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1ag.
+        if (config.FusedServer)
+            foreach (var sub in subsystems.OfType<Hrot.CGF.CgfSubsystem>())
+                sub.Role = Hrot.CGF.CgfSubsystem.FusedServerRole;
 
         var options = new RunnerOptions
         {
             Headless       = config.Headless,
             DomainId       = config.DomainId,
-            NodeId         = config.NodeId,
-            NodeIdResolver = ResolveAppNodeId,
+            NodeId         = (Fdp.Core.NodeId)(config.NodeId),
+            // ⭐ Batch 103 (103a) — the layout reset is a RUNNER option, so the window controller reads
+            //   it from the same place it reads the window size. ⛔ Not a static or an env var.
+            // ⚠ `?? true` because the option is `bool?` — see HrotRunnerConfiguration.ResetLayout for
+            //   why. ⭐ The default lives in ONE place (the [Option] attribute); this is only the
+            //   unwrap, and it agrees with it.
+            ResetLayoutOnRun = config.ResetLayout ?? true,
+            TargetFps = config.TargetFps,   // ⭐ CE-4385 — --target-fps 0 measures the uncapped frame cost
+            NodeIdResolver = ResolveNodeId,   // ⭐ C1
+            NodeNameResolver = NodeNameOf,   // ⭐ CE-3354 ② — the --node-name(s) of each subsystem; else <subsystem>-<nodeId> (made HERE, so --map-in-load can name this process' own nodes)
         };
 
         // ── Create + run orchestrator ─────────────────────────────────────────
         var orchestrator = new SubsystemOrchestrator(subsystems, options);
         Hrot.ClusterRunner.Presentation.LocalWindowController? windowCtrl = null;
+        // ⭐ Declared out here so the `finally` below can dispose the host — see the wiring block inside.
+        Hrot.Editor.DebugApi.MainThreadJobQueue? clusterApiQueue = null;
+        Hrot.Editor.DebugApi.DebugApiHost?       clusterApiHost  = null;
+        Hrot.Editor.DebugApi.DebugApiService?    clusterApiService = null;
+        Hrot.ClusterRunner.StartupScenarioLoad?  startupLoad = null;   // ⭐ CE-3354 ⑥
         try
         {
             orchestrator.Initialize();
 
+            // ⭐ Node Features F-18 (CE-4215 ①) — every in-process node has built its registry: a --feature id none of them declared is a typo, refused loudly.
+            if (Hrot.Common.Infrastructure.NodeFeatureOverrides.Unclaimed() is { Count: > 0 } unclaimed)
+            {
+                Console.Error.WriteLine($"[Runner] ERROR: --feature names {string.Join(", ", unclaimed.Select(u => $"'{u}'"))}, which no node of this process declares.");
+                return 1;
+            }
+
+            // ⭐⭐ CE-3354 ⑥ — the command line's startup load: the SAME two messages HTTP sends, once, when this process' master is up (no timer: the master holds a scenario load until its required nodes joined).
+            //   Ticked every frame by both loops below until it has gone out.
+            startupLoad = Hrot.ClusterRunner.StartupScenarioLoad.For(config, subsystems, perspSubsystem, NodeNameOf);
+
             // WM-S703: Wire up PerspectiveCoordinatorSystem now that the orchestrator exists.
             // Maps perspective names to subsystem names used by SwitchMapOwner.
+            //
+            // ⭐⭐⭐ A9 — CGF's perspective is "Scenario", so THE KEY MOVED AND THE VALUE DID NOT.
+            // 📄 DESIGN_Perspective_Unification.md §1b (charter D1: cgf and the editor share one
+            //    perspective vocabulary) · §1e (exactly ONE new entry — BTree/HSM/Blueprint own a GRAPH
+            //    canvas, not a map, so they are deliberately absent here, exactly as the editor's three
+            //    already are). ⛔ There is no "CGF" perspective any more.
+            // ⭐ This is also the FIRST entry whose key and value differ — 📌 §1b's one constraint:
+            //    a perspective maps to exactly ONE subsystem, so two CO-RUNNING subsystems must never
+            //    claim the same name. ⚠ Safe here because the runner refuses to combine editor and cgf.
+            //
+            // ⭐ A10 — the ["StrideMock"] entry is GONE. 📌 A one-line courtesy to the parallel
+            //    StrideMock-cleanup batch: it was the only StrideMock line in this file and that batch is
+            //    forbidden to touch this literal, so deleting it here is what keeps the two conflict-free.
             var perspectiveMap = new Dictionary<string, string>
             {
-                ["IG"]        = "IG",
+                ["Player"]        = "Player",
                 ["SimHost"]   = "SimHost",
-                ["ExCon"]     = "ExCon",
-                ["CGF"]       = "CGF",
-                ["StrideMock"] = "StrideMock",
+                ["Scenario"]  = "CGF",
             };
-            // GZH-014: build gizmo-controllable map keyed by perspective name.
-            var gizmoControllables = subsystems
-                .OfType<Hrot.Common.Diagnostics.Gizmos.IGizmoControllable>()
-                .Where(s => (ISubsystem)s != perspSubsystem)
-                .ToDictionary(
-                    s => ((ISubsystem)s).Name,
-                    s => s,
-                    StringComparer.OrdinalIgnoreCase);
+
+            // ⭐⭐⭐ GZH-014 — KEYED BY PERSPECTIVE, which is what it is looked up by.
+            //
+            // 🔴🔴 A9 FINDING, measured 2026-08-23. This dictionary's field doc says "map from perspective
+            //    name to IGizmoControllable subsystem" and PerspectiveCoordinatorSystem looks it up with
+            //    evt.OldPerspective / evt.NewPerspective — ⛔ but it was BUILT from ISubsystem.Name. That
+            //    was invisible only because every perspective happened to be spelled like its subsystem.
+            //    ⇒ renaming CGF's perspective to "Scenario" would have left the gizmo listener transfer
+            //    silently dead (SwitchMapOwner would still work, since it takes the mapped VALUE), i.e.
+            //    exactly the kind of green-but-broken the naming unification exists to remove.
+            // ⭐ Derived from perspectiveMap so the two can no longer drift: one map declares the
+            //    perspective→subsystem relation, and this resolves it to the instance.
+            // 📐 Nothing is lost: the old subsystem-name keys were only ever reachable INSIDE
+            //    PerspectiveCoordinatorSystem's `perspectiveMap.TryGetValue(NewPerspective)` guard, so a
+            //    key that is not a mapped perspective could never be hit.
+            var gizmoByPerspective = new Dictionary<string, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable>(
+                StringComparer.OrdinalIgnoreCase);
+            foreach (var (perspective, subsystemName) in perspectiveMap)
+            {
+                var owner = subsystems
+                    .OfType<Hrot.Common.Diagnostics.Gizmos.IGizmoControllable>()
+                    .FirstOrDefault(s => (ISubsystem)s != perspSubsystem
+                                      && string.Equals(((ISubsystem)s).Name, subsystemName,
+                                                       StringComparison.OrdinalIgnoreCase));
+                // ⭐ Absent is normal — the mode simply does not run that subsystem.
+                if (owner != null) gizmoByPerspective[perspective] = owner;
+            }
+            var gizmoControllables = gizmoByPerspective;
             var coordinator = new PerspectiveCoordinatorSystem(orchestrator, perspectiveMap, gizmoControllables);
             perspSubsystem.Coordinator = coordinator;
 
             var shell = new Hrot.ClusterRunner.Presentation.RaylibPresentationShell();
             windowCtrl = new Hrot.ClusterRunner.Presentation.LocalWindowController(
-                shell, subsystems, options, coordinator);
+                shell, subsystems, options, coordinator, orchestrator.Draws);   // ⭐ N-13 — a subsystem's windows draw by the orchestrator's rule · ⭐ CE-1437: ⭐ CE-1443: there is no host armed default — the armed mode is the cluster's, bootstrapped by the master
+
+            // ══ THE LIFTED DEBUG API — item ② of the conformance harness ═══════════════════════════════
+            //
+            // ⭐⭐⭐ 📄 Architect_Question_54 (RESOLVED) · DESIGN_Headless_Testability.md §6a's four wiring
+            //    points. 🔒 User: "MCP in 'mode all' should work from the context of the currently selected
+            //    perspective to be closest to how the user would control it."
+            //
+            // ⛔⛔ GATED TWICE, and both guards matter:
+            //    ① HROT_DEBUG_API_PORT — costs nothing in a normal run, exactly like the editor's;
+            //    ② the EDITOR SUBSYSTEM MUST BE ABSENT — it wires its own host on the same port, so doing
+            //       it here too would fight for the listener. ⭐ `--mode editor` keeps its existing path
+            //       untouched; this is the CLUSTER path only.
+            var clusterApiPort = EnvVars.Read(EnvVars.HrotDebugApiPort);
+            bool hasEditorSubsystem = subsystems.OfType<Hrot.Editor.EditorSubsystem>().Any();
+
+            if (!string.IsNullOrWhiteSpace(clusterApiPort)
+                && int.TryParse(clusterApiPort, out var clusterPort)
+                && !hasEditorSubsystem)
+            {
+                // ① Capture must be ON before any panel draws, or every dump is empty.
+                // ⭐ CE-4432 — HROT_PANEL_CAPTURE=0 keeps the API but not the per-frame panel models: a measuring run then pays what a user's run pays
+                //   (every panel building + registering its snapshot model each frame was part of every frame measured over the API before).
+                Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = EnvVars.Read(EnvVars.HrotPanelCapture) != "0";
+
+                // ⭐⭐ The providers (Q54-2) and the cluster-wide ack-gate (HN-028), composed ONCE — the rails that boot a
+                //    real cluster use the same composition. ⚠ After orchestrator.Initialize(): a provider carries its
+                //    subsystem's world and time adapter. 📄 ClusterDebugApiComposition.
+                var dispatcher = ClusterDebugApiComposition.Dispatcher(
+                    subsystems, () => windowCtrl?.WindowManager?.CurrentPerspective ?? string.Empty,
+                    // ⭐⭐ CE-4094 — the alias source for `Start` (AQ108 M7): the ONE remembered perspective lives on the WindowManager.
+                    rememberedPerspective: () => windowCtrl?.WindowManager?.RememberedPerspective);
+
+                // ② construct + attach + start.
+                clusterApiQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
+                clusterApiHost  = new Hrot.Editor.DebugApi.DebugApiHost(
+                    clusterPort, clusterApiQueue, () => orchestrator.Stop(), mode: config.ModeString);
+                clusterApiHost.AttachDispatcher(dispatcher);
+                // ⭐⭐⭐ MD-001 — the SimHost-node gap. 📄 DESIGN_Mcp_Diagnostics_Federation §2.1.
+                // ⛔⛔ This line built the service with NO log sinks, so `GET /logs` answered `[]` on every
+                //    cluster-limited node — a SimHost node could not report its own logs, which is the
+                //    whole point of each node hosting its own MCP endpoint (§1).
+                // ⚠ A Func: the window manager and its MessageLogRegistry may not exist yet (headless
+                //   nodes never build one at all), and the helper still answers with the process-wide
+                //   NLog targets that Program.Main installs for EVERY mode.
+                // ⭐⭐⭐ CE-169 — the SECOND silent default at this exact call site (logSinks was the
+                //    first, see the note above). ⛔⛔ With no registry, `GET /behaviors` answered
+                //    "Behavior registry not available." and `GET /entities/{id}/state` omitted the
+                //    behaviour NAME on every cluster node — while that same node was resolving the
+                //    hash to RUN the behaviour. An instrument that cannot tell "absent" from
+                //    "unwired" reads as evidence of absence, which is exactly how it misled a
+                //    diagnosis. 📌 The rule this breaks: a production caller that HAS a dependency
+                //    must PASS it — and this one does have it, via `subsystems`.
+                // ⚠ A Func, for the same reason logSinks is one: CGF builds its registry in the
+                //   `behavior-registry` boot step, and `orchestrator.Run()` is ~240 lines BELOW this
+                //   point. A captured value would be null forever.
+                // ⭐ A node with no CGF genuinely has no registry; the Func returns null and the route
+                //   says so truthfully rather than fabricating an empty one (the CE-110 shape).
+                var behaviorRegistryGetter = ClusterDebugApiComposition.BehaviorRegistry(subsystems);
+
+                // ⭐⭐ CE-236 — geoTransform is PASSED, not defaulted. Before this the service fell back
+                //    to `a private origin-less transform`, whose origin fields default to 0, so GET /world/info and
+                //    POST /world/geo-to-local answered against 0°N 0°E while every node's simulation ran
+                //    on the Berlin origin HrotEnvironment.CreateGeoTransform() sets. 🔒 User ruling
+                //    2026-09-08: one GeographicTransform, shared by the debug API, the scenario loader
+                //    and the JSON parameter interpreter alike. ⛔ Null here is not a silent fallback any
+                //    more — the service then resolves the world singleton, and refuses if there is none.
+                // ⭐⭐⭐ CE-476 — the node's AI debug surface, resolved against the ACTIVE perspective's world (only the
+                //   subsystem that OWNS that world answers). 📄 docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md §2 D1.
+                var aiDebugSurfaceGetter = ClusterDebugApiComposition.AiDebugSurface(subsystems);
+
+                clusterApiService = new Hrot.Editor.DebugApi.DebugApiService(
+                    dispatcher,
+                    logSinks: () => Fdp.Core.Logging.MessageLogSinks.ForDiagnostics(
+                        windowCtrl?.WindowManager?.MessageLogRegistry),
+                    behaviorRegistry: behaviorRegistryGetter,
+                    // ⭐ CE-3126 — null: the service reads the ACTIVE perspective's world singleton, the node's one transform,
+                    //   whose origin the terrain sets. A fresh instance here would stay at 0,0,0 while the cluster moved.
+                    geoTransform: null,
+                    // ⭐⭐ CE-515 — the ACTIVE perspective's pack, on every node (was IG only).
+                    entityCreation: ClusterDebugApiComposition.EntityCreation(subsystems),
+                    aiDebugSurface: aiDebugSurfaceGetter);
+                clusterApiHost.AttachService(clusterApiService);
+                // ⭐ CE-1303 P3 — /director/* on the host that has a director (the Replay Browser's; the editor attaches its own host)
+                if (ClusterDebugApiComposition.Director(subsystems) is { } directorPack) clusterApiHost.AttachDirector(directorPack);
+                clusterApiHost.Start();
+
+                FdpLog<Program>.Info(
+                    "[Runner] Debug API listening on {0} — mode={1}, providers=[{2}], perspectives=[{3}].",
+                    clusterPort, config.ModeString,
+                    string.Join(", ", dispatcher.AllProviders.Select(p => p.SubsystemName)),
+                    string.Join(", ", dispatcher.RoutablePerspectives));
+            }
+            else if (!string.IsNullOrWhiteSpace(clusterApiPort) && hasEditorSubsystem)
+            {
+                // ⭐ Not a warning: the editor OWNS the API in its own mode. Said out loud so nobody hunts
+                //   for a second host that deliberately does not exist.
+                FdpLog<Program>.Info("[Runner] Debug API left to EditorSubsystem (mode includes the editor).");
+            }
 
             if (!config.Headless)
                 windowCtrl.OpenLocalWindow();
+
+            // ⭐⭐⭐ PERSPECTIVE ACCESS — attached HERE because this is the first moment the WindowManager
+            //    exists. 📄 DESIGN_Regression_Net.md §7 N0's as-built said the same thing about the editor:
+            //    "the dependency arrives late, and that is forced".
+            // ⭐ Reusing the EXISTING WindowManagerPerspectiveSwitcher (Hrot.Editor.AiShared) — ⛔ not a
+            //   second switcher: it already wraps GetPerspectives/CurrentPerspective/SwitchPerspective, and
+            //   a cluster copy would be the duplicate ruling 9 forbids.
+            // ⚠ Without this, GET /perspectives answers 503 "not wired" — which is honest, but it would make
+            //   the conformance suite unable to reach 3 of 4 perspectives' panels.
+            if (clusterApiService is not null && windowCtrl.WindowManager is not null)
+            {
+                clusterApiService.AttachPerspectives(
+                    new Hrot.Editor.AiShared.Documents.WindowManagerPerspectiveSwitcher(windowCtrl.WindowManager));
+                FdpLog<Program>.Info("[Runner] Debug API perspective access attached.");
+
+                // ⭐⭐⭐ cgf==editor SLICE 2 (CE-014) — the AI-ASSET shell, attached on the next line for
+                //    the same reason the perspectives are: this is the first moment both halves exist.
+                // ⛔⛔ It has to happen HERE and nowhere else: Hrot.CGF cannot reference Hrot.Editor
+                //    (DebugApiService's home) because Hrot.Editor already references Hrot.CGF ⇒ this
+                //    composition root is the ONLY place that can see both. 📌 The same reference-wall
+                //    argument EditorSubsystem makes for the HSM details view.
+                // ⚠ Absent on a mode without CGF, and absent on a headless one — GET /assets then
+                //   answers 503 with the wiring explanation, ⛔ not an empty list that would read as
+                //   "this host has no assets".
+                var cgfShell = subsystems.OfType<Hrot.CGF.CgfSubsystem>().FirstOrDefault();
+                if (cgfShell?.AssetShellCatalog is { } shellCatalog
+                 && cgfShell.AssetShellDocuments is { } shellDocs
+                 && cgfShell.AssetShellWindows   is { } shellWindows)
+                {
+                    clusterApiService.AttachAssetShell(shellCatalog, shellDocs, shellWindows);
+                    FdpLog<Program>.Info(
+                        "[Runner] Debug API asset shell attached — {0} asset(s) indexed on CGF.",
+                        shellCatalog.All.Count);
+
+                    // ⭐⭐ cgf==editor SLICE 3 (CE-021) — the save/reload actions, on the next line and
+                    //    for the same reference-wall reason as the shell above.
+                    if (cgfShell.AssetShellSave is { } save && cgfShell.AssetShellReload is { } reload)
+                    {
+                        clusterApiService.AttachAssetEditing(save, reload);
+                        FdpLog<Program>.Info("[Runner] Debug API asset save/reload attached.");
+                    }
+
+                    // ⭐⭐⭐ AQ57 / MA-019 — CREATE, attached here for the third time for the same
+                    //    reference-wall reason: this is the only composition root that sees both halves.
+                    // ⛔ Not "CGF gets its own create": it is the SAME per-kind INewAssetService contract
+                    //   the editor's New-Asset dialog runs, composed at CGF's root (Q57-A1).
+                    if (cgfShell.AssetShellCreate is { } create)
+                    {
+                        clusterApiService.AttachAssetAuthoring(
+                            (kind, name, relPath, recipe) => create(kind, name, relPath, recipe));
+                        FdpLog<Program>.Info("[Runner] Debug API asset creation attached.");
+                    }
+
+                    // ⭐⭐ MA-020 — recipe discovery reads the SAME registry create does. ⚠ If one is
+                    //    attached and the other is not, GET /assets/recipes would list templates that
+                    //    POST /assets could not build — so they are wired from the one source, together.
+                    if (cgfShell.AssetShellNewAssetServices is { } newAssetServices)
+                    {
+                        clusterApiService.AttachRecipes(
+                            newAssetServices,
+                            Hrot.Blueprints.Editor.RecipeMetadataAdapter.DescribeRecipe,
+                            Hrot.Blueprints.Editor.RecipeMetadataAdapter.RecipeCategory);
+                        FdpLog<Program>.Info(
+                            "[Runner] Debug API recipe discovery attached — kinds [{0}].",
+                            string.Join(", ", newAssetServices.Keys));
+                    }
+
+                    // ⭐⭐⭐ MD-008 — ⛔ NO `AttachEditorCommands` CALL HERE, and that is DELIBERATE.
+                    // 📐 Measured `2026-08-26`: a CGF node already answers `GET /editor/commands` with 68
+                    //    commands. `DebugApiService.ResolveEditorCommands` falls back to
+                    //    `_documents.Active -> ContextOf(...).Commands`, and `_documents` is attached by
+                    //    `AttachAssetShell` two lines above. ⇒ ⭐ the explicit attach would compute the
+                    //    SAME expression from the SAME object — a duplicate wiring, not a missing one.
+                    // ⚠ Proven by `The_editor_command_bus_answers_on_a_non_editor_node`, which is green
+                    //   on this host with nothing attached. ⛔ Do not "fix" this by adding the call.
+
+                    // ⭐ MA-022 — the action-schema exporter, so get_node_kind_schema reports real DTO
+                    //   fields here instead of `paramsSource: none:no-exporter-wired`.
+                    if (cgfShell.AssetShellSchemaExporter is { } schemaExporter)
+                    {
+                        clusterApiService.AttachSchemaExporter(schemaExporter);
+                        FdpLog<Program>.Info("[Runner] Debug API action-schema exporter attached.");
+                    }
+                }
+                else
+                {
+                    FdpLog<Program>.Info(
+                        "[Runner] No CGF asset shell in this mode — /assets and /documents answer 503.");
+                }
+            }
 
             using var consoleSvc = new ConsoleCommandService();
             consoleSvc.RegisterCommand("open",  "Open the local Raylib window",
@@ -279,40 +668,90 @@ class Program
             {
                 // 4. The proper non-headless Render Loop.
                 // App-exit guards (e.g. the editor's unsaved-changes prompt) may DEFER a window-close.
-                var exitGuards = subsystems
-                    .OfType<Fdp.Toolkit.Runner.IAppExitGuard>()
-                    .ToList();
-                bool exiting = false;
-                while (!exiting)
+
+                // Remote-desktop clicks (TeamViewer / Parsec / RDP) inject WM_*BUTTONDOWN and
+                // WM_*BUTTONUP microseconds apart, so both land in one glfwPollEvents() drain and
+                // the polled button state ends where it started -- the press is never observed and
+                // the click is silently lost. The latch watches the raw messages and replays a lost
+                // click held across frames, so raylib sees an ordinary slow click. Inert for local
+                // input; kill switch: HROT_DISABLE_CLICK_LATCH=1.
+                // Windows-only compensation; a no-op elsewhere (Linux needs nothing here).
+                using var clickLatch = Fdp.Presentation.Input.ClickLatch.Create();
+                var frameStats = Hrot.ClusterRunner.Presentation.FrameStats.FromEnvironment();   // ⭐ CE-1072 — HROT_FRAME_STATS=1
+
+                // ⭐⭐ N-13 (CE-4475; U-2 / F-21) — a windowed threaded process runs EVERY kernel on ONE sim worker, in sequence; the cluster API's
+                //   sim-side routes and the startup load run on that worker between passes, its UI-side routes (N-8's split) stay on this thread
+                bool simWorker = Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && !Fdp.ModuleHost.ThreadedKernelGate.ComposedSingleThread;
+                Hrot.Editor.DebugApi.MainThreadJobQueue? clusterUiQueue = null;
+                if (simWorker)
                 {
+                    if (clusterApiQueue is not null) clusterApiQueue.UiQueue = clusterUiQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
+                    orchestrator.StartSimWorker(() => { startupLoad?.Tick(); clusterApiQueue?.DrainAll(); });
+                }
+
+                while (true)
+                {
+                    // ③ + ④ — THE FRAME BOUNDARY. 🔴 ORDER MATTERS (HN-007): the API's jobs drain FIRST,
+                    //    serving the PREVIOUS frame's complete captures, and only then is the captured set
+                    //    cleared for this frame. ⛔ Clearing first is the defect that made every out-of-band
+                    //    panel read return an empty set in the editor, and it would do the same here.
+                    if (clusterApiQueue is not null)
+                    {
+                        if (clusterUiQueue is not null) clusterUiQueue.DrainAll();   // N-13 — the sim-side routes drain on the sim worker
+                        else clusterApiQueue.DrainAll();
+                        Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
+                    }
+
+                    // Before input is polled: replay anything the previous frame dropped.
+                    clickLatch.Tick(
+                        Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Left),
+                        Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Right),
+                        Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Middle));
+
                     orchestrator.DrainConsoleActions();
+
+                    // A subsystem (or a console action) asked the orchestrator to stop — e.g. the
+                    // editor's POST /shutdown. This loop is not orchestrator.Run(), so it has to
+                    // honour that request itself; breaking here still reaches the finally below,
+                    // which shuts every subsystem down in order.
+                    if (!orchestrator.IsRunning)
+                        break;
+
                     float dt = Raylib_cs.Raylib.GetFrameTime();
 
                     // WindowShouldClose() is edge-triggered (it reads AND resets the GLFW close flag),
-                    // so this fires once on the frame the window [X] is clicked. Ask every guard: if any
-                    // DEFERS (unsaved work → it opens its own modal), keep running; otherwise exit now.
-                    if (Raylib_cs.Raylib.WindowShouldClose())
-                    {
-                        bool deferred = false;
-                        foreach (var guard in exitGuards)
-                            if (guard.OnExitRequested() == Fdp.Toolkit.Runner.ExitDisposition.Deferred)
-                                deferred = true;
-                        if (!deferred)
-                            break; // no unsaved work → exit immediately (skip this frame's render)
-                    }
+                    // so this fires once on the frame the window [X] is clicked.
+                    // ⭐ CE-4096 — the Exit item / start-surface button is the same request as the [X].
+                    // ⭐ CE-4101 follow-up (AQ108 §2.11a ④) — ONE exit decision, `LocalWindowController.ExitDue`: the request asks the ONE guard (the subsystems' — the editor's unsaved documents — then the composition's
+                    //   scenario guard over the ▶ owner's door); a question it opens DEFERS the exit while the loop keeps drawing it, an answer in favour approves it on a later frame, a Cancel never does.
+                    if (windowCtrl.ExitDue(Raylib_cs.Raylib.WindowShouldClose() | windowCtrl.TakeExitRequest()))
+                        break; // nothing (left) to ask → exit (skip this frame's render)
 
+                    // ⭐ EXPERIMENT (threaded kernel X-4) — HROT_THREADED_KERNEL=1: take the world if the kernel's worker is between ticks (OFF: always true)
+                    bool haveWorld = Fdp.ModuleHost.ThreadedKernelGate.MainTryEnter();
+                    try {
+                    if (haveWorld && !simWorker) startupLoad?.Tick();   // ⭐ CE-3354 ⑥ (N-13: on the sim worker when it runs)
+                    frameStats?.Begin();
                     orchestrator.Update(dt);
+                    frameStats?.EndUpdate();
+
+                    windowCtrl.UpdateWindowTitle();   // ⭐ CE-1290 — the loaded scenario's name in the title
 
                     // Apply any queued font/DPI rebake at the frame boundary (atlas rebuild
                     // must happen outside rlImGui.Begin/End).
                     shell.FontService.ApplyPendingRebuild();
 
                     Raylib_cs.Raylib.BeginDrawing();
+                    Fdp.Presentation.Raylib.HiddenWindow.BeginFrame();   // ⭐ CE-4386 — hidden mode: the frame into the off-screen target (no-op otherwise)
                     // Restore the black background
                     Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.Black);
 
+                    frameStats?.Begin();
                     orchestrator.DrawWorldAll();
+                    frameStats?.EndDraw();
 
+                    frameStats?.Begin();
+                    if (haveWorld) {   // ⭐ X-4 — the panels read the world: only on a frame that holds it (map-only frames draw no ImGui)
                     rlImGui_cs.rlImGui.Begin();
 
                     // --- DOCKSPACE SETUP (§4.1.2: inset bottom by status bar) ---
@@ -344,40 +783,59 @@ class Program
                     ImGuiNET.ImGui.PopStyleColor();
                     ImGuiNET.ImGui.PopStyleVar(2);
 
-                    ImGuiNET.ImGui.DockSpace(ImGuiNET.ImGui.GetID("MainDockSpace"),
+                    var mainDockId = ImGuiNET.ImGui.GetID("MainDockSpace");
+                    ImGuiNET.ImGui.DockSpace(mainDockId,
                         DockspaceLayout.CentralSize(viewport.WorkSize.X, viewport.WorkSize.Y, toolbarHeight, statusBarHeight),
                         ImGuiNET.ImGuiDockNodeFlags.PassthruCentralNode);
+                    // ⭐ R-4 / V4 — a dock preset a host asked for (the Review layout) is laid out here, right after the dockspace exists, once
+                    windowCtrl.WindowManager!.ApplyPendingDockPreset(mainDockId);
+                    // ⭐ CE-1140 / CE-1145 — where the map is SEEN (the dockspace's open hole), for the overlays that want a visible corner
+                    Fdp.Presentation.WindowManager.OpenMapArea.ReportCentralNodeOf(mainDockId, viewport.Size);
                     ImGuiNET.ImGui.End();
                     // --------------------------------
 
+                    windowCtrl.TickStartGate();   // ⭐ CE-4096 — the ONE start gate, fed once a frame, before the window manager draws
                     windowCtrl.WindowManager!.Render();
                     orchestrator.DrawUIAll();
-                    rlImGui_cs.rlImGui.End();
+                    Fdp.Presentation.Raylib.ImGuiRenderer.End();
+                    }   // ⭐ X-4
+                    frameStats?.EndUi();
+                    frameStats?.NoteDrawLists();
 
+                    Fdp.Presentation.Raylib.HiddenWindow.EndFrame();
                     Raylib_cs.Raylib.EndDrawing();
+                    Fdp.Presentation.Raylib.HiddenWindow.AfterFrame();
+                    frameStats?.EndFrame();
+                    } finally { Fdp.ModuleHost.ThreadedKernelGate.MainExit(); }   // ⭐ X-4
 
-                    // A guard's modal approved exit this frame (Save All & Exit / Discard & Exit).
-                    foreach (var guard in exitGuards)
-                        if (guard.ExitApproved)
-                            exiting = true;
                 }
 
             }
             else
             {
-                // Fallback to the internal headless simulation loop for CI/background tasks
-                orchestrator.Run();
+                // Fallback to the internal headless simulation loop for CI/background tasks.
+                // ⭐ CE-3327 — the frame boundary ③ + ④ above, headless too: 🔴 before, nothing drained the API's jobs here, so a headless
+                //   node with no editor (-m cgf --headless, -m replaybrowser --headless) answered no main-thread route, ever.
+                orchestrator.Run(clusterApiQueue is null && startupLoad is null ? null : () =>
+                {
+                    startupLoad?.Tick();   // ⭐ CE-3354 ⑥
+                    if (clusterApiQueue is null) return;
+                    clusterApiQueue.DrainAll();
+                    Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
+                });
             }
         }
         finally
         {
+            orchestrator.StopSimWorker();   // ⭐ CE-4574 (X-5) — no step runs while the API host and then the subsystems tear down
+            clusterApiHost?.Dispose();
             orchestrator.Shutdown();
             if (windowCtrl?.IsLocalWindowOpen == true)
                 windowCtrl.CloseLocalWindow();
         }
 
         Console.WriteLine("[Runner] Shutdown complete.");
-        return 0;
+        return Environment.ExitCode;   // ⭐ CE-4042 — 0 unless a subsystem set a verdict (the editor's --verify run)
     }
 
     /// <summary>
@@ -386,19 +844,9 @@ class Program
     /// subsystem in a multi-process cluster receives a distinct ID.
     /// Returns 0 (legacy fallback) when <paramref name="baseNodeId"/> is 0.
     /// </summary>
-    private static int ResolveAppNodeId(string subsystemName, int baseNodeId)
+    internal static int ResolveAppNodeId(string subsystemName, int baseNodeId)   // ⭐ CE-4332 — internal for the per-arm rail
     {
-        int offset = subsystemName.ToUpper() switch
-        {
-            "SIMHOST"      => 1,
-            "IG"           => 100,
-            "EXCON"        => 200,
-            "ORCHESTRATOR" => 300,
-            "CGF"          => 400,
-            "CI"           => 500,
-            "STRIDEMOCK"   => 700,
-            _              => 600,
-        };
+        int offset = Hrot.Orchestrator.NodeIdRanges.OffsetOf(subsystemName);   // ⭐ CE-4331 ⑥ — the ONE table, shared with the master's grants
         return baseNodeId + offset;
     }
 
@@ -408,77 +856,12 @@ class Program
     /// visible to the reflection-based <see cref="ScanForSubsystems"/> pass.
     /// </summary>
     private static void LoadReferencedAssemblies()
-    {
-        // Scan the physical deployment directory instead of walking IL metadata.
-        // The C# compiler drops purely-dynamic <ProjectReference> links from the IL,
-        // so Assembly.GetReferencedAssemblies() misses assemblies like Hrot.CGF.dll
-        // when no type from them is statically used in ClusterRunner source.
-        var basePath = AppDomain.CurrentDomain.BaseDirectory;
-        var dllFiles = System.IO.Directory.GetFiles(basePath, "*.dll");
+        // ⭐ CE-3123 — the body moved to the shared DeploymentAssemblies.LoadAll, which the gizmo completeness rail calls too,
+        //   so the rail proves THIS pre-load (folder scan, Hrot.*/Fdp.* only, Hrot.AI.Behaviors kept out for hot reload).
+        => Hrot.Common.Infrastructure.DeploymentAssemblies.LoadAll();
 
-        var loaded = new HashSet<string>(AppDomain.CurrentDomain.GetAssemblies()
-            .Select(a => a.GetName().Name!), StringComparer.OrdinalIgnoreCase);
+    private static IEnumerable<Type> ScanForSubsystems() => Hrot.ClusterRunner.SubsystemFactory.Scan();
 
-        foreach (var file in dllFiles)
-        {
-            var assemblyName = System.IO.Path.GetFileNameWithoutExtension(file);
-
-            // Filter to our own domain boundaries to avoid eagerly loading
-            // hundreds of system/third-party DLLs.
-            if (!assemblyName.StartsWith("Hrot.") && !assemblyName.StartsWith("Fdp."))
-                continue;
-
-            // ARCHITECTURE: Do not lock the AI behaviors assembly in the Default ALC.
-            // FbtAssemblyHotReloader loads Hrot.AI.Behaviors exclusively into a
-            // collectible ALC so it can be unloaded and reloaded at runtime.
-            if (assemblyName.Equals("Hrot.AI.Behaviors", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            if (!loaded.Contains(assemblyName))
-            {
-                try
-                {
-                    // Use Load(AssemblyName) rather than LoadFrom to ensure the
-                    // plugin is loaded into the default AssemblyLoadContext.
-                    System.Reflection.Assembly.Load(new System.Reflection.AssemblyName(assemblyName));
-                    loaded.Add(assemblyName);
-                }
-                catch { /* ignore assemblies that cannot be loaded */ }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Scans all loaded assemblies for non-abstract ISubsystem implementations
-    /// (excluding PerspectiveUpdateSubsystem, EyesAndMuscleSubsystem, and CiSubsystem
-    /// which are runner-internal or handled separately).
-    /// </summary>
-    private static IEnumerable<Type> ScanForSubsystems()
-    {
-        var subsystemType = typeof(ISubsystem);
-        return AppDomain.CurrentDomain.GetAssemblies()
-            .SelectMany(a => { try { return a.GetTypes(); } catch { return Array.Empty<Type>(); } })
-            .Where(t => t.IsClass && !t.IsAbstract
-                     && subsystemType.IsAssignableFrom(t)
-                     && t != typeof(PerspectiveUpdateSubsystem)
-                     && t != typeof(EyesAndMuscleSubsystem)
-                     && t != typeof(CiSubsystem));
-    }
-
-    /// <summary>
-    /// Attempts to instantiate an <see cref="ISubsystem"/> from its <see cref="Type"/>.
-    /// Requires a constructor accepting <see cref="INetworkFactory"/>.
-    /// Returns <c>null</c> when no suitable constructor is found.
-    /// </summary>
-    private static ISubsystem? TryCreateSubsystem(Type type, INetworkFactory networkFactory)
-    {
-        // Prefer constructor that accepts INetworkFactory.
-        var factoryCtor = type.GetConstructor(new[] { typeof(INetworkFactory) });
-        if (factoryCtor != null)
-            return (ISubsystem)factoryCtor.Invoke(new object[] { networkFactory });
-
-
-        return null;
-    }
+    private static ISubsystem? TryCreateSubsystem(Type type, INetworkFactory networkFactory) => Hrot.ClusterRunner.SubsystemFactory.TryCreate(type, networkFactory);
 }
 

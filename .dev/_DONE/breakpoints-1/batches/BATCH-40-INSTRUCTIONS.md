@@ -343,7 +343,7 @@ This test verifies the N vs N+1 boundary invariant. Use the same setup as
 
 ## Build and Test Requirements
 
-1. Run: `dotnet build IOS-IG-SimHost.sln -c Debug` — must complete with 0 errors, 0 warnings.
+1. Run: `dotnet build HROT.sln -c Debug` — must complete with 0 errors, 0 warnings.
 2. Run: `dotnet test Hrot/Diagnostics/Hrot.Diagnostics.Breakpoints.Tests/...` — must pass ALL
    tests (40 existing + 5 new = 45 minimum).
 3. Check for regressions in existing tests, especially:

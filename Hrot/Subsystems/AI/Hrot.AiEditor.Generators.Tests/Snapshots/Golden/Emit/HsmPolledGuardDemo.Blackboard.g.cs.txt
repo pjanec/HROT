@@ -1,0 +1,22 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: 00000151-0000-0000-0000-000000000001
+
+using System.Runtime.InteropServices;
+
+namespace Hrot.AI.Behaviors.Machines;
+
+[StructLayout(LayoutKind.Explicit, Size = 1)]
+public struct HsmPolledGuardDemo_HsmPolledGuardDemo_Blackboard
+{
+    [MarshalAs(UnmanagedType.I1)]
+    [FieldOffset(0)]
+    public bool EngageTarget;
+}
+
+/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
+[StructLayout(LayoutKind.Explicit)]
+public struct HsmPolledGuardDemo_Block
+{
+    [FieldOffset(0)]
+    public HsmPolledGuardDemo_HsmPolledGuardDemo_Blackboard In;
+}

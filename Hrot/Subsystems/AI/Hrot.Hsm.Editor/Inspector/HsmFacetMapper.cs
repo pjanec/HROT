@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Fhsm.Kernel.Data;
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using Hrot.Hsm.Editor.Model;
 
 namespace Hrot.Hsm.Editor.Inspector;
@@ -10,24 +11,18 @@ namespace Hrot.Hsm.Editor.Inspector;
 // Constructed once per loaded HsmAsset and held alive while the asset is open.
 public sealed class HsmFacetMapper
 {
-    private readonly HsmAsset             _asset;
-    private readonly HsmFacetFqnContext?  _fqnContext;
+    private readonly HsmAsset _asset;
 
+    /// <summary>⭐ <c>CE-417</c> slice 4b: no side channel — each binding facet carries its own method, so the one
+    /// binding drawer filters by it (the retired <c>HsmFacetFqnContext</c>).</summary>
     public HsmFacetMapper(HsmAsset asset)
-        : this(asset, null)
     {
+        _asset = asset ?? throw new ArgumentNullException(nameof(asset));
     }
 
-    /// <summary>
-    /// Constructs a mapper that writes the current transition action FQN to
-    /// <paramref name="fqnContext"/> before returning transition/global-transition facets,
-    /// so the <see cref="HsmBlackboardFieldPickerDrawer"/> can filter variables by DtoType.
-    /// </summary>
-    public HsmFacetMapper(HsmAsset asset, HsmFacetFqnContext? fqnContext)
-    {
-        _asset      = asset;
-        _fqnContext = fqnContext;
-    }
+    /// <summary>Promote names for a node's secondary bindings: <c>_auto_{id}_{slot}</c>. The primary binding (a state's
+    /// Activity, a transition's Action) keeps the pre-4b name <c>_auto_{id}</c>.</summary>
+    internal const string EntrySlot = "entry", ExitSlot = "exit", TimerSlot = "timer", GuardSlot = "guard";
 
     public StateFacet GetStateFacet(Guid stableId)
     {
@@ -36,13 +31,34 @@ public sealed class HsmFacetMapper
         return new StateFacet
         {
             Name                    = s.Name,
-            OnEntryAction           = s.OnEntryAction,
-            OnExitAction            = s.OnExitAction,
-            ActivityAction          = s.ActivityAction,
-            TimerAction             = s.TimerAction,
+            // ⭐ CE-417 slice 4b — one binding facet per slot (B-2).
+            OnEntry                 = BehaviorActionBindingEditor.ToFacet(s.OnEntry,  s.StableId.ToString(), EntrySlot),
+            OnExit                  = BehaviorActionBindingEditor.ToFacet(s.OnExit,   s.StableId.ToString(), ExitSlot),
+            Activity                = BehaviorActionBindingEditor.ToFacet(s.Activity, s.StableId.ToString()),
+            // ⛔ HSM-012 — no Timer facet: the kernel never arms one. See HsmFacets.StateFacet for the measurement.
+            //   TimerSlot stays declared because existing assets persist promote names of the form _auto_{id}_timer.
+            // ⭐ §11.1a — the authored name, plus its two derived companions.
+            SubtreeName             = s.SubtreeName,
+            SubtreeAssetId          = s.SubtreeAssetId == Guid.Empty ? string.Empty
+                                                                     : s.SubtreeAssetId.ToString(),
+            IsSubtreeResolved       = s.IsSubtreeResolved,
+            // ⭐ CE-385 — the activity blueprint's id, read-only beside its picked name.
+            ActivityBlueprintAssetId = (s.Activity?.BlueprintAssetId ?? Guid.Empty) == Guid.Empty
+                                         ? string.Empty
+                                         : s.Activity!.BlueprintAssetId.ToString(),
+            // ⭐ CE-2083 — the state's SOP order, if any.
+            SopOrder                = s.SopOrder is null ? HsmSopOrderKind.None
+                                    : s.SopOrder.Kind == Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.React ? HsmSopOrderKind.React
+                                    : HsmSopOrderKind.DoWhenIdle,
+            SopBehavior             = s.SopOrder?.BehaviorName,
+            SopParamsVariable       = s.SopOrder?.ParamsVariable ?? string.Empty,
+            SopUrgency              = s.SopOrder?.Urgency ?? Hrot.AiEditor.Persistence.BTree.SopUrgencyDto.Alert,
+            History                 = s.IsDeepHistory ? HsmHistoryMode.ResumeLastLeaf
+                                    : s.IsHistory     ? HsmHistoryMode.ResumeLastChild
+                                    : HsmHistoryMode.StartAtInitial,
             Flags                   = BuildStateFlags(s),
             DeferredEventIds        = new List<ushort>(s.DeferredEventIds),
-            OutputLanesSummary      = "",  // populated by HS-S1-19
+            OutputLanesSummary      = DescribeLanes(s.OutputLaneMask),   // ⭐ HSM-007
             Comment                 = s.Comment,
             IsBreakpoint            = s.IsBreakpoint,
             StableId                = s.StableId.ToString(),
@@ -57,19 +73,18 @@ public sealed class HsmFacetMapper
             ?? throw new KeyNotFoundException($"Transition {visualId} not found");
         var lca     = FindLca(t.Source, t.Target);
         var lcaCost = (ushort)(DepthOf(t.Source) + DepthOf(t.Target) - 2 * DepthOf(lca));
-        if (_fqnContext is not null)
-        {
-            _fqnContext.CurrentActionFqn = string.IsNullOrEmpty(t.ActionFunction) ? null : t.ActionFunction;
-            _fqnContext.CurrentVisualId  = t.VisualId.ToString();
-        }
         return new TransitionFacet
         {
             SourceStateName       = t.Source.Name,
             TargetStateName       = t.Target.Name,
             EventId               = t.EventId,
-            GuardFunction         = t.GuardFunction,
-            ActionFunction        = t.ActionFunction,
-            ExpressionTargetField = t.ExpressionTargetField,
+            // ⭐ CE-417 slice 4b — two bindings, each with its own variable (B-2).
+            Guard                 = BehaviorActionBindingEditor.ToFacet(t.Guard, t.VisualId.ToString(), GuardSlot),
+            GuardBlueprintAssetId = (t.Guard?.BlueprintAssetId ?? Guid.Empty) == Guid.Empty
+                                       ? string.Empty
+                                       : t.Guard!.BlueprintAssetId.ToString(),
+            IsPolled              = t.IsPolled,   // CE-381
+            Action                = BehaviorActionBindingEditor.ToFacet(t.Action, t.VisualId.ToString()),
             Priority              = t.Priority,
             Kind                  = t.Kind,
             SyncGroupId           = t.SyncGroupId,
@@ -122,18 +137,12 @@ public sealed class HsmFacetMapper
     {
         var g = _asset.AllGlobalTransitions.FirstOrDefault(x => x.VisualId == visualId)
             ?? throw new KeyNotFoundException($"Global transition {visualId} not found");
-        if (_fqnContext is not null)
-        {
-            _fqnContext.CurrentActionFqn = string.IsNullOrEmpty(g.ActionFunction) ? null : g.ActionFunction;
-            _fqnContext.CurrentVisualId  = g.VisualId.ToString();
-        }
         return new GlobalTransitionFacet
         {
             EventId               = g.EventId,
             TargetStateName       = g.Target.Name,
-            GuardFunction         = g.GuardFunction,
-            ActionFunction        = g.ActionFunction,
-            ExpressionTargetField = g.ExpressionTargetField,
+            Guard                 = BehaviorActionBindingEditor.ToFacet(g.Guard, g.VisualId.ToString(), GuardSlot),
+            Action                = BehaviorActionBindingEditor.ToFacet(g.Action, g.VisualId.ToString()),
             Priority              = g.Priority,
             Comment               = g.Comment,
             VisualId              = g.VisualId.ToString(),
@@ -179,6 +188,29 @@ public sealed class HsmFacetMapper
         return depth;
     }
 
+    /// <summary>
+    /// ⭐ <c>HSM-007</c> — the read-only "Output lanes (inferred)" text, from the state's inferred mask.
+    ///
+    /// <para>⛔ This was hard-coded to <c>""</c> ("populated by HS-S1-19"), which was harmless only because the
+    /// mask itself was always 0 — nothing fed <c>HsmOutputLaneMaskInferrer</c>. Now that
+    /// <c>HsmDocumentFactory.Build</c> does, the field would have been the ONE consumer still lying.</para>
+    ///
+    /// <para>⚠ <b>Lane NAMES, not §10.3 step 4's per-action attribution</b> (<i>"Animation (StashWeapon)"</i>):
+    /// the mask is a bitfield and no longer remembers which action contributed which bit, and the mapper has no
+    /// lane dictionary to re-derive it from. ⭐ Saying less, truthfully, beats re-reflecting here.</para>
+    /// </summary>
+    internal static string DescribeLanes(byte mask)
+    {
+        if (mask == 0) return "none";
+
+        var names = new List<string>(8);
+        for (int bit = 0; bit < (int)CommandLane.Count; bit++)
+            if ((mask & (1 << bit)) != 0)
+                names.Add(((CommandLane)bit).ToString());
+
+        return names.Count == 0 ? "none" : string.Join(", ", names);
+    }
+
     private static StateFlags BuildStateFlags(StateNode s)
     {
         var f = StateFlags.None;
@@ -186,9 +218,9 @@ public sealed class HsmFacetMapper
         if (s.IsHistory)              f |= StateFlags.IsHistory;
         if (s.IsDeepHistory)          f |= StateFlags.IsDeepHistory;
         if (s.IsParallel)             f |= StateFlags.IsParallel;
-        if (s.OnEntryAction != null)  f |= StateFlags.HasOnEntry;
-        if (s.OnExitAction  != null)  f |= StateFlags.HasOnExit;
-        if (s.ActivityAction != null) f |= StateFlags.HasOnUpdate;
+        if (s.OnEntry?.MethodFqn  != null) f |= StateFlags.HasOnEntry;
+        if (s.OnExit?.MethodFqn   != null) f |= StateFlags.HasOnExit;
+        if (s.Activity?.MethodFqn != null) f |= StateFlags.HasOnUpdate;
         if (s.IsInitial)              f |= StateFlags.IsInitial;
         if (s.IsFinal)                f |= StateFlags.IsFinal;
         return f;

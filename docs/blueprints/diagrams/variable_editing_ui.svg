@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 780" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0f766e"/>
+    </marker>
+    <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1280" height="780" fill="#f7f8fa"/>
+
+  <text x="640" y="36" text-anchor="middle" font-size="23" font-weight="700" fill="#111827">Unified variable editing — one navigator, one editor, two ways in</text>
+  <text x="640" y="59" text-anchor="middle" font-size="13.5" fill="#6b7280">the friendly <tspan font-weight="600" fill="#374151">create modal</tspan> stays · the shared <tspan font-weight="600" fill="#374151">table</tspan> becomes the details view · nothing is authored in two places</text>
+
+  <!-- ── My Blueprint panel ── -->
+  <rect x="60" y="88" width="330" height="470" rx="9" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.6"/>
+  <rect x="60" y="88" width="330" height="32" rx="9" fill="#e2e8f0"/>
+  <rect x="60" y="110" width="330" height="10" fill="#e2e8f0"/>
+  <text x="76" y="110" font-size="13.5" font-weight="700" fill="#334155">My Blueprint</text>
+  <text x="374" y="110" text-anchor="end" font-size="12" fill="#64748b">navigate · create</text>
+
+  <g font-size="12.5" fill="#334155">
+    <text x="80" y="146" font-weight="600">▸ Graphs</text>
+    <text x="80" y="170" font-weight="600">▸ Functions</text>
+    <text x="80" y="194" font-weight="600">▸ Macros</text>
+    <text x="80" y="218" font-weight="600">▸ Custom Events</text>
+
+    <!-- Variables section -->
+    <rect x="70" y="230" width="310" height="118" rx="6" fill="#f0fdf4" stroke="#22c55e" stroke-width="1.3"/>
+    <text x="80" y="250" font-weight="700" fill="#15803d">▾ Variables</text>
+    <rect x="352" y="238" width="20" height="18" rx="4" fill="#22c55e"/>
+    <text x="362" y="252" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">+</text>
+    <circle cx="88" cy="271" r="4.5" fill="#3b82f6"/>
+    <text x="100" y="275">Ammo <tspan fill="#94a3b8">int</tspan></text>
+    <!-- selected row -->
+    <rect x="76" y="284" width="298" height="22" rx="4" fill="#bfdbfe" stroke="#2563eb" stroke-width="1.3"/>
+    <circle cx="88" cy="295" r="4.5" fill="#10b981"/>
+    <text x="100" y="299" font-weight="700" fill="#1e3a5f">Threat <tspan font-weight="400" fill="#475569">ThreatInfo</tspan></text>
+    <rect x="320" y="287" width="48" height="16" rx="8" fill="#0f766e"/>
+    <text x="344" y="299" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">struct</text>
+    <circle cx="88" cy="323" r="4.5" fill="#3b82f6"/>
+    <text x="100" y="327">Cooldown <tspan fill="#94a3b8">float</tspan></text>
+
+    <!-- Local Variables section -->
+    <rect x="70" y="360" width="310" height="86" rx="6" fill="#faf5ff" stroke="#a855f7" stroke-width="1.3"/>
+    <text x="80" y="380" font-weight="700" fill="#7e22ce">▾ Local Variables</text>
+    <text x="196" y="380" font-size="10.5" fill="#9333ea">graph: Tick</text>
+    <rect x="352" y="368" width="20" height="18" rx="4" fill="#a855f7"/>
+    <text x="362" y="382" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">+</text>
+    <circle cx="88" cy="401" r="4.5" fill="#8b5cf6"/>
+    <text x="100" y="405">Scratch <tspan fill="#94a3b8">int</tspan></text>
+    <rect x="308" y="393" width="60" height="16" rx="8" fill="#7c3aed"/>
+    <text x="338" y="405" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">local</text>
+    <text x="100" y="429" font-size="11.5" font-style="italic" fill="#94a3b8">follows the open graph</text>
+
+    <text x="80" y="474" font-weight="600">▸ Event Dispatchers</text>
+  </g>
+
+  <!-- create modal -->
+  <rect x="96" y="492" width="258" height="52" rx="7" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="110" y="512" font-size="12.5" font-weight="700" fill="#92400e">＋ opens the create modal</text>
+  <text x="110" y="530" font-size="11.5" fill="#78350f">name · type · capacity · initial length</text>
+
+  <!-- ── Details panel ── -->
+  <rect x="446" y="88" width="774" height="470" rx="9" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.6"/>
+  <rect x="446" y="88" width="774" height="32" rx="9" fill="#e2e8f0"/>
+  <rect x="446" y="110" width="774" height="10" fill="#e2e8f0"/>
+  <text x="462" y="110" font-size="13.5" font-weight="700" fill="#334155">Details — Variables</text>
+  <text x="1204" y="110" text-anchor="end" font-size="12" fill="#64748b">the shared VariablesPanelControl table</text>
+
+  <!-- table header -->
+  <rect x="462" y="132" width="742" height="26" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  <g font-size="11.5" font-weight="700" fill="#475569">
+    <text x="474" y="150">Name</text><text x="686" y="150">Type</text><text x="806" y="150">Bytes</text>
+    <text x="866" y="150">Value</text><text x="1030" y="150">Role</text><text x="1104" y="150">Scope</text>
+  </g>
+
+  <!-- rows -->
+  <g font-size="12">
+    <rect x="462" y="158" width="742" height="26" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="474" y="176" fill="#334155">Ammo</text><text x="686" y="176" fill="#475569">int</text><text x="806" y="176" fill="#475569">4</text>
+    <text x="866" y="176" fill="#475569">0</text><text x="1030" y="176" fill="#0f766e">State</text><text x="1104" y="176" fill="#0f766e">Asset</text>
+
+    <!-- selected row, mirrors the panel selection -->
+    <rect x="462" y="184" width="742" height="42" fill="#dbeafe" stroke="#2563eb" stroke-width="1.6"/>
+    <text x="474" y="203" font-weight="700" fill="#1e3a5f">Threat</text>
+    <text x="686" y="203" fill="#1e3a5f">ThreatInfo</text><text x="806" y="203" fill="#1e3a5f">16</text>
+    <text x="866" y="203" fill="#1e3a5f">—</text><text x="1030" y="203" font-weight="700" fill="#0f766e">State</text><text x="1104" y="203" font-weight="700" fill="#0f766e">Asset</text>
+    <text x="486" y="220" font-size="10.5" fill="#1d4ed8">[BlackboardDtoStruct] · sized from the CLR type · fields expand inline</text>
+
+    <rect x="462" y="226" width="742" height="26" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="474" y="244" fill="#334155">Cooldown</text><text x="686" y="244" fill="#475569">float</text><text x="806" y="244" fill="#475569">4</text>
+    <text x="866" y="244" fill="#475569">0.0</text><text x="1030" y="244" fill="#0f766e">State</text><text x="1104" y="244" fill="#0f766e">Asset</text>
+
+    <rect x="462" y="252" width="742" height="26" fill="#faf5ff" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="474" y="270" fill="#334155">Scratch</text><text x="686" y="270" fill="#475569">int</text><text x="806" y="270" fill="#475569">4</text>
+    <text x="866" y="270" fill="#475569">0</text><text x="1030" y="270" fill="#7c3aed">State</text><text x="1104" y="270" font-weight="700" fill="#7c3aed">Graph: Tick</text>
+
+    <rect x="462" y="278" width="742" height="26" fill="#eff6ff" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="474" y="296" fill="#334155">Threshold</text><text x="686" y="296" fill="#475569">float</text><text x="806" y="296" fill="#475569">4</text>
+    <text x="866" y="296" fill="#475569">0.5</text><text x="1030" y="296" font-weight="700" fill="#1d4ed8">Input</text><text x="1104" y="296" fill="#1d4ed8">Asset</text>
+  </g>
+
+  <text x="462" y="330" font-size="12" fill="#64748b">⭐ One table. <tspan font-weight="700" fill="#334155">Role</tspan> and <tspan font-weight="700" fill="#334155">Scope</tspan> are already columns in the shared control — the two axes need no new UI.</text>
+
+  <!-- what only the table can do -->
+  <rect x="462" y="348" width="360" height="190" rx="8" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.4"/>
+  <text x="478" y="371" font-size="13" font-weight="700" fill="#0f766e">Only the table can do this</text>
+  <g font-size="12" fill="#134e4a">
+    <text x="478" y="394">• see the whole set at once</text>
+    <text x="478" y="415">• byte budget per row, and the total</text>
+    <text x="478" y="436">• reorder (MoveVariable)</text>
+    <text x="478" y="457">• flip Role / Scope in place</text>
+    <text x="478" y="478">• reference count before deleting</text>
+    <text x="478" y="499">• unused marking, alias bindings</text>
+    <text x="478" y="522" font-style="italic" fill="#0f766e">already implemented — three consumers today</text>
+  </g>
+
+  <!-- what only the modal can do -->
+  <rect x="844" y="348" width="360" height="190" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="1.4"/>
+  <text x="860" y="371" font-size="13" font-weight="700" fill="#92400e">Only the modal can do this</text>
+  <g font-size="12" fill="#78350f">
+    <text x="860" y="394">• one guided decision, nothing else visible</text>
+    <text x="860" y="415">• name validated before it exists</text>
+    <text x="860" y="436">• capacity / initial length for collections</text>
+    <text x="860" y="457">• no chance to edit the wrong row</text>
+    <text x="860" y="478" font-style="italic" fill="#92400e">this is why it is kept, not replaced</text>
+  </g>
+  <text x="860" y="510" font-size="12" font-weight="700" fill="#92400e">⛔ The two never author the same thing twice:</text>
+  <text x="860" y="529" font-size="12" fill="#78350f">modal = <tspan font-weight="700">create</tspan> · table = <tspan font-weight="700">review and tune</tspan></text>
+
+  <!-- selection arrow -->
+  <path d="M382,295 C 412,295 420,203 452,203" stroke="#2563eb" stroke-width="2" fill="none" marker-end="url(#a1)"/>
+  <text x="416" y="258" text-anchor="middle" font-size="11" font-weight="700" fill="#2563eb" transform="rotate(-90 416 258)">click → select</text>
+
+  <!-- bottom: the struct finding -->
+  <rect x="60" y="580" width="1160" height="86" rx="8" fill="#ffffff" stroke="#0f766e" stroke-width="1.8"/>
+  <text x="78" y="603" font-size="13.5" font-weight="700" fill="#0f766e">⭐ Struct-typed variables: the discovery is already shared — only the projection is forked</text>
+  <text x="78" y="625" font-size="12.5" fill="#334155">One marker attribute, <tspan font-family="ui-monospace, monospace" fill="#0f766e">[BlackboardDtoStruct]</tspan>, is scanned by <tspan font-weight="600">both</tspan> sides. The blackboard picker projects it to a CLR <tspan font-family="ui-monospace, monospace">Type</tspan> (needed for byte sizing);</text>
+  <text x="78" y="645" font-size="12.5" fill="#334155">the blueprint picker projects it to an FQN <tspan font-family="ui-monospace, monospace">string</tspan> (needed by the compiler). ⇒ the unified choice record carries <tspan font-family="ui-monospace, monospace" font-weight="700" fill="#0f766e">(Display, TypeId, Type?)</tspan> — not a new discovery rule.</text>
+
+  <text x="640" y="700" text-anchor="middle" font-size="12.5" fill="#6b7280">⚠ <tspan font-weight="700" fill="#374151">BP-87 forked the two type pickers deliberately</tspan> — widening the shared list would have changed BTree and HSM. Unifying them is a stage of its own, not a side effect.</text>
+  <text x="640" y="724" text-anchor="middle" font-size="12.5" fill="#6b7280">⚠ <tspan font-family="ui-monospace, monospace" fill="#374151">IMyBlueprintModel</tspan> is a read-only projection with <tspan font-weight="700" fill="#374151">no selection event</tspan> — routing the click to the details view is window-level wiring, not a model change.</text>
+  <text x="640" y="752" text-anchor="middle" font-size="12" fill="#94a3b8">Blueprint variable editing — proposed. Rows and values are illustrative.</text>
+</svg>

@@ -29,6 +29,7 @@ namespace Hrot.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<UnitRoster>();
+            repo.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
             repo.RegisterComponent<UnitSubordinate>();
             repo.RegisterComponent<FormationFollower>();
             repo.RegisterEvent<CmdAssignSubordinate>();
@@ -78,7 +79,7 @@ namespace Hrot.SimHost.Tests
             {
                 var roster = repo.GetComponent<UnitRoster>(cmd);
                 Assert.Equal(1, roster.Count);
-                Assert.Equal((long)sub.PackedValue, roster.SubordinateEntities[0]);
+                Assert.Equal(sub, roster.SubordinateEntities[0]);
             }
         }
 
@@ -106,9 +107,9 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(3, roster.Count);
             unsafe
             {
-                Assert.Equal((long)a.PackedValue, roster.SubordinateEntities[0]);
-                Assert.Equal((long)b.PackedValue, roster.SubordinateEntities[1]);
-                Assert.Equal((long)c.PackedValue, roster.SubordinateEntities[2]);
+                Assert.Equal(a, roster.SubordinateEntities[0]);
+                Assert.Equal(b, roster.SubordinateEntities[1]);
+                Assert.Equal(c, roster.SubordinateEntities[2]);
             }
         }
 
@@ -141,7 +142,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, roster2.Count);
             unsafe
             {
-                Assert.Equal((long)sub.PackedValue, roster2.SubordinateEntities[0]);
+                Assert.Equal(sub, roster2.SubordinateEntities[0]);
             }
 
             // UnitSubordinate must point at cmd2
@@ -175,9 +176,9 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, roster.Count);
             unsafe
             {
-                Assert.Equal((long)a.PackedValue, roster.SubordinateEntities[0]);
-                Assert.Equal((long)c.PackedValue, roster.SubordinateEntities[1]);
-                Assert.Equal(0L, roster.SubordinateEntities[2]); // last slot zeroed
+                Assert.Equal(a, roster.SubordinateEntities[0]);
+                Assert.Equal(c, roster.SubordinateEntities[1]);
+                Assert.Equal(default(Entity), roster.SubordinateEntities[2]); // last slot zeroed
             }
 
             // b must have lost its UnitSubordinate
@@ -281,8 +282,8 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, roster.Count);
             unsafe
             {
-                Assert.Equal((long)s2.PackedValue, roster.SubordinateEntities[0]);
-                Assert.Equal(0L, roster.SubordinateEntities[1]);
+                Assert.Equal(s2, roster.SubordinateEntities[0]);
+                Assert.Equal(default(Entity), roster.SubordinateEntities[1]);
             }
         }
 
@@ -428,6 +429,30 @@ namespace Hrot.SimHost.Tests
             var rejections = repo.Bus.Read<CmdAssignSubordinateRejected>();
             Assert.Equal(1, rejections.Length);
             Assert.Equal(overflow, rejections[0].Subordinate);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3263</c> (behaviors' sectors note ⑤) — a second assign of a man to the SAME commander (a succession arriving from the wire, a
+        /// role move) changes his designation in place: the roster still lists him ONCE. ✅ Red-proof: the in-place branch removed ⇒ a roster
+        /// of two ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3263_ReassigningToTheSameCommander_ChangesTheDesignation_NeverListsHimTwice()
+        {
+            using var repo = CreateRepo();
+            var cmd = repo.CreateEntity();
+            var sub = repo.CreateEntity();
+            repo.Bus.Publish(new CmdAssignSubordinate { Subordinate = sub, Commander = cmd, Designation = TacticalDesignation.TeamLeader, FireTeam = FireTeam.A });
+            Tick(repo);
+            Assert.Equal(FireTeam.A, repo.GetComponent<UnitSubordinate>(sub).FireTeam);   // ⭐ CE-2281 / R-3019 — a new assignment
+            repo.Bus.Publish(new CmdAssignSubordinate { Subordinate = sub, Commander = cmd, Designation = TacticalDesignation.SquadLeader, FireTeam = FireTeam.B });
+            Tick(repo);
+
+            var roster = repo.GetComponent<UnitRoster>(cmd);
+            Assert.Equal(1, roster.Count);
+            unsafe { Assert.Equal((ushort)TacticalDesignation.SquadLeader, roster.TacticalDesignations[0]); }
+            Assert.Equal(TacticalDesignation.SquadLeader, repo.GetComponent<UnitSubordinate>(sub).Designation);
+            Assert.Equal(FireTeam.B, repo.GetComponent<UnitSubordinate>(sub).FireTeam);   // ⭐ and the in-place change
         }
     }
 }

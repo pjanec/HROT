@@ -4,12 +4,12 @@ using System.Numerics;
 using System.Text.Json;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
-using Hrot.IG.Components;
 using Hrot.Map.Common.Components;
 using Fdp.Core;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Modules.Geographic;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Map.Common.Replication.Utils
 {
@@ -58,34 +58,26 @@ namespace Hrot.Map.Common.Replication.Utils
         /// instances to be placed in <c>SpawnEntityCommand.InitialComponents</c>.
         /// </summary>
         /// <param name="descriptors">The descriptor list from the incoming DDS request.</param>
-        /// <param name="geoTransform">
-        /// Optional geographic transform. When provided, a <see cref="SimTransform"/> is
-        /// generated for <c>dtGeoSpatial</c> descriptors so the entity starts at the correct
-        /// Cartesian position. When <c>null</c>, no <c>SimTransform</c> is produced.
-        /// VehicleState is NOT added here — it is the responsibility of the TKB template.
-        /// </param>
+        /// <remarks>⭐ AQ107 B / CE-4073: every position on the wire is local ENU metres, so a <c>dtWorldPos</c> descriptor
+        /// always yields a <see cref="SimTransform"/> by a plain copy (<see cref="WorldPosCodec"/>) — there is no geographic
+        /// transform to pass. VehicleState is NOT added here — it is the responsibility of the TKB template.</remarks>
         public static List<object> MapToComponents(
-            List<EntityDescriptorUnion>? descriptors,
-            IGeographicTransform? geoTransform)
+            List<EntityDescriptorUnion>? descriptors)
         {
             var result = new List<object>();
 
             if (descriptors == null)
                 return result;
 
-            // Pre-pass: extract the GeoSpatial centroid so dtMapVisualOverlay can convert
-            // relative-geo offsets to relative-Cartesian using the entity position as reference.
-            Vector3? geoCentroid = null;
-            if (geoTransform != null)
+            // Pre-pass: extract the entity's own position (the WorldPos descriptor) so dtMapVisualOverlay's ABSOLUTE local points
+            // can be made entity-relative — the polyline the ECS holds is relative to SimTransform.Position.
+            Vector3? centroid = null;
+            foreach (var d in descriptors)
             {
-                foreach (var d in descriptors)
+                if (d._d == EDescriptorType.dtWorldPos)
                 {
-                    if (d._d == EDescriptorType.dtWorldPos)
-                    {
-                        var pos = d.WorldPos.Pos;
-                        geoCentroid = geoTransform.ToCartesian(pos.Latitude, pos.Longitude, pos.Altitude);
-                        break;
-                    }
+                    centroid = WorldPosCodec.Position(d.WorldPos);
+                    break;
                 }
             }
 
@@ -96,68 +88,65 @@ namespace Hrot.Map.Common.Replication.Utils
                     case EDescriptorType.dtEntityMaster:
                         break;
 
+                    case EDescriptorType.dtAreaEffectCloud:   // ⭐ CE-3228 — a forwarded request carries its cloud
+                        result.Add(Hrot.Map.Common.Replication.Ingress.EntityAreaEffectCloudIngressTranslator.FromSample(in d.AreaEffectCloud));
+                        break;
+
+                    case EDescriptorType.dtEntityGuid:   // ⭐ CE-4153 — the entity's stable scenario key travels with its creation request
+                        result.Add(Hrot.Map.Common.Replication.Ingress.EntityStableGuidIngressTranslator.ComponentFrom(in d.StableGuid));
+                        break;
+
+                    case EDescriptorType.dtMacroInstance:   // ⭐ macros S3a ③ — a forwarded instance keeps its MacroInstance
+                        result.Add(Hrot.Map.Common.Replication.Ingress.EntityMacroInstanceIngressTranslator.FromSample(in d.MacroInstance));
+                        break;
+
                     case EDescriptorType.dtEntityInfo:
                         result.Add(new Fdp.Core.EntityInfo
                         {
                             Name = d.EntityInfo.Name,
-                            ForceId = (ForceId)(int)d.EntityInfo.ForceIdentifier,
+                            ForceId = ForceIdMapping.FromWire(d.EntityInfo.ForceIdentifier),
                         });
                         break;
 
                     case EDescriptorType.dtWorldPos:
-                        // Produce a SimTransform for spatial placement if a geo transform is available.
-                        if (geoTransform != null)
+                        // ⭐ AQ107 B / D — a plain copy of the local-ENU pose: position, the quaternion decoded from its vector part
+                        //   (⛔ no Euler conversion — the three Euler routes this arm once had are gone with the Euler wire), velocity.
+                        result.Add(new SimTransform
                         {
-                            var pos = d.WorldPos.Pos;
-                            var cart = geoTransform.ToCartesian(pos.Latitude, pos.Longitude, pos.Altitude);
+                            Position = WorldPosCodec.Position(d.WorldPos),
+                            Rotation = WorldPosCodec.Rotation(d.WorldPos),
+                        });
 
-                            var cartPos = new Vector3((float)cart.X, (float)cart.Y, (float)cart.Z);
-                            // Heading is degrees CW from North.
-                            float headingRad = d.WorldPos.Ori.Heading * (MathF.PI / 180f);
-                            // Yaw=-90 rotates North=(0,1) to East=(1,0) per right-handed convention.
-                            var rot = Quaternion.CreateFromYawPitchRoll(-headingRad, 0, 0);
-
-                            result.Add(new SimTransform
-                            {
-                                Position = cartPos,
-                                Rotation = rot
-                            });
-                        }
-
-                        // Apply velocity if present (non-zero speed or angular rate) — independent of geoTransform.
-                        if (d.WorldPos.Vel.Length > 0f || d.WorldPos.RotVel.Heading != 0f
-                            || d.WorldPos.RotVel.Pitch != 0f || d.WorldPos.RotVel.Roll != 0f)
+                        // Apply velocity if present (non-zero linear or angular).
+                        if (WorldPosCodec.HasVelocity(d.WorldPos))
                         {
                             result.Add(new SimVelocity
                             {
-                                Linear = Dal3ToEnu(d.WorldPos.Vel),
-                                Angular = new Vector3(
-                                    d.WorldPos.RotVel.Roll * (MathF.PI / 180f),
-                                    d.WorldPos.RotVel.Pitch * (MathF.PI / 180f),
-                                    d.WorldPos.RotVel.Heading * (MathF.PI / 180f))
+                                Linear  = WorldPosCodec.LinearVelocity(d.WorldPos),
+                                Angular = WorldPosCodec.AngularVelocity(d.WorldPos),
                             });
                         }
                         break;
 
                     case EDescriptorType.dtMapRoute:
                         // Build a RoutePlan component from the incoming waypoints.
-                        // Silently skip if geoTransform is null or Points is null/empty.
-                        if (geoTransform != null && d.MapRoute.Points != null)
+                        // Silently skip if Points is null/empty.
+                        if (d.MapRoute.Points != null)
                         {
-                            var routePlan = new RoutePlan { IsLoop = d.MapRoute.IsLoop };
-                            routePlan.Mutate(wps =>
+                            var routePlan = new RoutePlan { IsLoop = d.MapRoute.IsLoop }.WithWaypoints(wps =>
                             {
                                 foreach (var wp in d.MapRoute.Points)
                                 {
-                                    var cart = geoTransform.ToCartesian(
-                                        wp.Position.Latitude,
-                                        wp.Position.Longitude,
-                                        wp.Position.Altitude);
                                     wps.Add(new RouteWaypoint
                                     {
-                                        Position      = cart,
+                                        Position      = EnuWire.FromWire(wp.Position),   // ⭐ AQ107 B — local ENU, copied
                                         TargetSpeed   = (float)wp.SpeedMetersPerSec,
                                         ExtensionJson = string.IsNullOrEmpty(wp.ExtensionJson) ? null : wp.ExtensionJson,
+                                        Kind          = (Fdp.Toolkit.Navigation.RouteWaypointKind)wp.Kind,   // ⭐ Air Ops B1
+                                        HeightAgl     = wp.HeightAgl,
+                                        Hold          = (Fdp.Toolkit.Navigation.RouteHold)wp.Hold,
+                                        HoldSeconds   = wp.HoldSeconds,
+                                        HoldUnit      = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(wp.HoldUnit)),   // S9': wire int -> component link
                                     });
                                 }
                             });
@@ -166,50 +155,22 @@ namespace Hrot.Map.Common.Replication.Utils
                         break;
 
                     case EDescriptorType.dtMapVisualOverlay:
-                        var polyline = new EditablePolyline();
+                        var polylinePoints = new List<Vector2>();   // CE-4046 — EditablePolyline is an immutable record
                         if (d.MapVisualOverlay.Points != null)
                         {
-                            // Points on the wire are RELATIVE geo offsets (deltaLat, deltaLon, deltaAlt)
-                            // measured from the entity's GeoSpatial centroid.
-                            // Convert to relative Cartesian:
-                            //   absCart = ToCartesian(centLat + dLat, centLon + dLon, centAlt + dAlt)
-                            //   relCart = absCart - centroidCart
-                            polyline.Points = new List<Vector2>(d.MapVisualOverlay.Points.Count);
-
-                            if (geoTransform != null && geoCentroid.HasValue)
+                            // ⭐ AQ107 B — Points on the wire are ABSOLUTE local ENU metres. The ECS polyline is relative to the entity's
+                            //   own position: subtract the WorldPos descriptor's position (no WorldPos in the request ⇒ the entity sits at
+                            //   the local origin, so the points ARE the offsets).
+                            var reference = centroid ?? Vector3.Zero;
+                            polylinePoints.Capacity = d.MapVisualOverlay.Points.Count;
+                            foreach (var pt in d.MapVisualOverlay.Points)
                             {
-                                // Normal path: use GeoSpatial centroid as reference.
-                                var (refLat, refLon, refAlt) = geoTransform.ToGeodetic(geoCentroid.Value);
-                                foreach (var geoPt in d.MapVisualOverlay.Points)
-                                {
-                                    var absCart = geoTransform.ToCartesian(
-                                        refLat + geoPt.Latitude,
-                                        refLon + geoPt.Longitude,
-                                        refAlt + geoPt.Altitude);
-                                    var relCart = absCart - geoCentroid.Value;
-                                    polyline.Points.Add(new Vector2(relCart.X, relCart.Y));
-                                }
-                            }
-                            else if (geoTransform != null)
-                            {
-                                // Fallback: no paired GeoSpatial descriptor; treat delta-geo as
-                                // offsets from the world origin (legacy behaviour).
-                                var origin = geoTransform.ToCartesian(0.0, 0.0, 0.0);
-                                foreach (var geoPt in d.MapVisualOverlay.Points)
-                                {
-                                    var absCart = geoTransform.ToCartesian(geoPt.Latitude, geoPt.Longitude, geoPt.Altitude);
-                                    var relCart = absCart - origin;
-                                    polyline.Points.Add(new Vector2(relCart.X, relCart.Y));
-                                }
-                            }
-                            else
-                            {
-                                foreach (var geoPt in d.MapVisualOverlay.Points)
-                                    polyline.Points.Add(new Vector2((float)geoPt.Longitude, (float)geoPt.Latitude));
+                                var abs = EnuWire.FromWire(pt);
+                                polylinePoints.Add(new Vector2(abs.X - reference.X, abs.Y - reference.Y));
                             }
                         }
 
-                        result.Add(polyline);
+                        result.Add(new EditablePolyline { Points = polylinePoints });
                         break;
 
                     default:
@@ -226,17 +187,14 @@ namespace Hrot.Map.Common.Replication.Utils
         /// Converts each descriptor in <paramref name="descriptors"/> to ECS component instances,
         /// using the shared <paramref name="compiler"/> routing delegates for
         /// <c>dtEntityInfo</c> (Name, Affiliation) and
-        /// <c>dtGeoSpatial</c> (position via <see cref="ApplyGeoSpatialDescriptor"/>).
+        /// <c>dtWorldPos</c> (pose via <see cref="ApplyGeoSpatialDescriptor"/>).
         /// </summary>
         /// <remarks>
         /// This overload is the Phase 6 "unified routing" path (ATTR-S6T1, ATTR-S6T2).
-        /// The existing <see cref="MapToComponents(List{EntityDescriptorUnion},IGeographicTransform)"/>
+        /// The existing <see cref="MapToComponents(List{EntityDescriptorUnion})"/>
         /// overload is retained for backward compatibility.
         /// </remarks>
         /// <param name="descriptors">The descriptor list from the incoming DDS request.</param>
-        /// <param name="geoTransform">
-        /// Optional geographic transform. Required for <c>dtGeoSpatial</c> coordinate conversion.
-        /// </param>
         /// <param name="compiler">
         /// Shared <see cref="JsonAttributeCompiler"/> used to apply Name and Affiliation via the
         /// same routing table as the JSON attribute patch path.
@@ -244,11 +202,10 @@ namespace Hrot.Map.Common.Replication.Utils
         /// </param>
         public static List<object> MapToComponents(
             List<EntityDescriptorUnion>? descriptors,
-            IGeographicTransform? geoTransform,
             JsonAttributeCompiler? compiler)
         {
             if (compiler == null)
-                return MapToComponents(descriptors, geoTransform);
+                return MapToComponents(descriptors);
 
             var result = new List<object>();
 
@@ -262,6 +219,10 @@ namespace Hrot.Map.Common.Replication.Utils
                     case EDescriptorType.dtEntityMaster:
                         break;
 
+                    case EDescriptorType.dtAreaEffectCloud:   // ⭐ CE-3228 — a forwarded request carries its cloud
+                        result.Add(Hrot.Map.Common.Replication.Ingress.EntityAreaEffectCloudIngressTranslator.FromSample(in d.AreaEffectCloud));
+                        break;
+
                     case EDescriptorType.dtEntityInfo:
                     {
                         // Use the shared compiler routing table for Name and Affiliation so that
@@ -269,7 +230,7 @@ namespace Hrot.Map.Common.Replication.Utils
                         var ctx = new ListPatchContext(result);
 
                         // Build a minimal JSON string with proper string escaping.
-                        string escapedName = JsonSerializer.Serialize(d.EntityInfo.Name ?? string.Empty);
+                        string escapedName = JsonSerializer.Serialize(d.EntityInfo.Name ?? string.Empty, FdpJsonOptionsRegistry.DefaultRelaxed);
                         string affStr      = ForceIdentifierToAffiliationString(d.EntityInfo.ForceIdentifier);
                         compiler.Compile(
                             $"{{\"Name\":{escapedName},\"Affiliation\":\"{affStr}\"}}",
@@ -281,25 +242,20 @@ namespace Hrot.Map.Common.Replication.Utils
                     }
 
                     case EDescriptorType.dtWorldPos:
-                        if (geoTransform != null)
-                        {
-                            var ctx = new ListPatchContext(result);
-                            ApplyGeoSpatialDescriptor(ctx, d.WorldPos, geoTransform);
-                            result = ctx.FlushComponents();
-                        }
-                        if (d.WorldPos.Vel.Length > 0f || d.WorldPos.RotVel.Pitch != 0f
-                            || d.WorldPos.RotVel.Roll != 0f || d.WorldPos.RotVel.Heading != 0f)
+                    {
+                        var ctx = new ListPatchContext(result);
+                        ApplyGeoSpatialDescriptor(ctx, d.WorldPos);
+                        result = ctx.FlushComponents();
+                        if (WorldPosCodec.HasVelocity(d.WorldPos))
                         {
                             result.Add(new SimVelocity
                             {
-                                Linear = Dal3ToEnu(d.WorldPos.Vel),
-                                Angular = new Vector3(
-                                    d.WorldPos.RotVel.Roll    * (MathF.PI / 180f),
-                                    d.WorldPos.RotVel.Pitch   * (MathF.PI / 180f),
-                                    d.WorldPos.RotVel.Heading * (MathF.PI / 180f))
+                                Linear  = WorldPosCodec.LinearVelocity(d.WorldPos),
+                                Angular = WorldPosCodec.AngularVelocity(d.WorldPos),
                             });
                         }
                         break;
+                    }
 
                     default:
                         FdpLog<Log>.Warn(
@@ -312,29 +268,25 @@ namespace Hrot.Map.Common.Replication.Utils
         }
 
         /// <summary>
-        /// Applies the coordinate conversion from a <c>dtGeoSpatial</c> descriptor to a
-        /// <see cref="SimTransform"/> via the provided <see cref="ListPatchContext"/>.
-        /// Sets <c>Position</c> only (no rotation) so the result aligns with the JSON path
-        /// delegates registered for <c>GeoPosition.Latitude/Longitude/Altitude</c>.
+        /// Applies a <c>dtWorldPos</c> descriptor's pose to a <see cref="SimTransform"/> via the provided
+        /// <see cref="ListPatchContext"/>: <c>Position</c> (local ENU, copied) and <c>Rotation</c> (the quaternion decoded from its
+        /// vector part) — ⭐ AQ107 B / D, <see cref="WorldPosCodec"/>.
         /// </summary>
         /// <remarks>
-        /// TODO ATTR-BATCH-03: If new JSON path delegates are added for dtWorldPos (e.g. "Heading"),
-        /// this method MUST be updated to maintain convergence between the descriptor-union route
-        /// and the JSON-string route. Enforced currently by DescriptorMapper_GeoSpatial_SharedDelegate_ProducesSameResultAsDirectPath.
+        /// ⭐⭐⭐ <b><c>Q59-C1</c> — ATTR-BATCH-03's TODO HAS BEEN DISCHARGED.</b> It said: *"If new JSON path
+        /// delegates are added for dtWorldPos (e.g. "Heading"), this method MUST be updated to maintain
+        /// convergence between the descriptor-union route and the JSON-string route."*
+        /// ⇒ <c>AX-018</c> registered exactly that delegate, so this method sets <c>Rotation</c> as well as <c>Position</c>.
+        /// ⭐ Both routes end in the same <c>SimTransform</c>: the JSON route converts its lat/lon/heading attributes, this route copies
+        /// the wire's local-ENU pose.
         /// </remarks>
         /// <param name="ctx">The patch context to apply the transform into.</param>
-        /// <param name="geo">The geodetic position source.</param>
-        /// <param name="geoTransform">Transform used to convert geodetic → Cartesian.</param>
-        public static void ApplyGeoSpatialDescriptor(
-            ListPatchContext ctx,
-            WorldPos geo,
-            IGeographicTransform geoTransform)
+        /// <param name="geo">The pose sample (local ENU).</param>
+        public static void ApplyGeoSpatialDescriptor(ListPatchContext ctx, WorldPos geo)
         {
-            var pos  = geo.Pos;
-            var cart = geoTransform.ToCartesian(pos.Latitude, pos.Longitude, pos.Altitude);
-
             ref SimTransform st = ref ctx.GetUnmanagedComponent<SimTransform>();
-            st.Position = new Vector3((float)cart.X, (float)cart.Y, (float)cart.Z);
+            st.Position = WorldPosCodec.Position(in geo);
+            st.Rotation = WorldPosCodec.Rotation(in geo);
         }
 
         /// <summary>
@@ -350,25 +302,5 @@ namespace Hrot.Map.Common.Replication.Utils
                 eForceIdentifier.FORCE_NEUTRAL  => "FORCE_NEUTRAL",
                 _                               => "FORCE_UNKNOWN",
             };
-
-        /// <summary>
-        /// Converts a compass heading (degrees, clockwise from North) to a normalised 2-D forward
-        /// vector in the local XY plane (X = East, Y = North).
-        /// </summary>
-        private static Vector2 HeadingToVector(float headingDeg)
-        {
-            float rad = headingDeg * (MathF.PI / 180f);
-            // North = +Y, East = +X
-            return new Vector2(MathF.Sin(rad), MathF.Cos(rad));
-        }
-
-        private static Vector3 Dal3ToEnu(in AngularVector dal3)
-        {
-            float elevRad = dal3.Elevation * (MathF.PI / 180f);
-            float horizontal = dal3.Length * MathF.Cos(elevRad);
-            var dir = HeadingToVector(dal3.Azimuth);
-            float up = dal3.Length * MathF.Sin(elevRad);
-            return new Vector3(dir.X * horizontal, dir.Y * horizontal, up);
-        }
     }
 }

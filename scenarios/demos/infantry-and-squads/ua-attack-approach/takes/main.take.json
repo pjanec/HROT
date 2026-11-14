@@ -1,0 +1,87 @@
+{
+  "title": "Flank a lost target",
+  "caption": "The hostile ducks behind a wall: the rifleman does not stand and shoot — he moves to a new firing spot",
+  "clip": "F-19",
+  "chapter": 5,
+  "state": "ready",
+  "endAt": "m+5",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Rifleman",
+      "n": 8
+    }
+  },
+  "keys": [
+    {
+      "at": "m-14",
+      "follow": "Rifleman",
+      "distance": 90,
+      "yaw": 35,
+      "pitch": -45,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Rifleman",
+      "toward": "Hidden Hostile",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Rifleman",
+      "toward": "Hidden Hostile",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Hidden Hostile",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-14",
+      "to": "m-4",
+      "speed": 2
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+5"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-14",
+      "until": "m-1.5",
+      "text": "The hostile is behind the wall: he moves to a new firing spot"
+    },
+    {
+      "at": "m-1.5",
+      "until": "m+5",
+      "text": "From the new spot he fires again"
+    }
+  ]
+}

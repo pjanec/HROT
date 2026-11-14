@@ -1,0 +1,87 @@
+{
+  "title": "Window duel",
+  "caption": "Two men fight window to window and van to van",
+  "clip": "F-20",
+  "chapter": 5,
+  "state": "ready",
+  "endAt": "m+5",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Window Rifleman",
+      "n": 3
+    }
+  },
+  "keys": [
+    {
+      "at": "m-14",
+      "follow": "Window Rifleman",
+      "distance": 70,
+      "yaw": 200,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Window Rifleman",
+      "toward": "Street Rifleman",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Window Rifleman",
+      "toward": "Street Rifleman",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Street Rifleman",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-14",
+      "to": "m-4",
+      "speed": 2
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+5"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-14",
+      "until": "m-4",
+      "text": "One man changes windows, the other bounds from van to van"
+    },
+    {
+      "at": "m-4",
+      "until": "m+5",
+      "text": "The window rifleman fires from his new post"
+    }
+  ]
+}

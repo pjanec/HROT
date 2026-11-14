@@ -35,8 +35,8 @@ In `docs/blueprints/`:
 
 ## Build & run
 
-- Solution: `IOS-IG-SimHost.sln` (repo root). Target framework `net8.0`; `TreatWarningsAsErrors` is on.
-- Build: `dotnet build IOS-IG-SimHost.sln`.
+- Solution: `HROT.sln` (repo root). Target framework `net8.0`; `TreatWarningsAsErrors` is on.
+- Build: `dotnet build HROT.sln`.
 - Run the editor: launch the ClusterRunner with the editor subsystem (e.g. `dotnet run --project Hrot/Runner/Hrot.ClusterRunner -- --mode editor`). Use `--headless` for boot/integration tests without UI.
 - Tests (xUnit): per-assembly test projects exist — `Hrot.Editor.AiShared.Tests`, `Hrot.BTree.Editor.Tests`, `Hrot.Hsm.Editor.Tests`, `Hrot.Blueprints.Tests`, `Hrot.ClusterRunner.Integration.Tests`, plus `NodeEditor.*.Tests`. Run with `dotnet test`.
 

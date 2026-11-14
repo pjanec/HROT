@@ -1,0 +1,168 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CV-5 (CE-2237) onlookers gather round a hurt man at (200,200). From the header's Judge (0)-(4): the Casualty is a Casualty, all onlookers are in Gather, all twelve arrive within 11 m (one near expectation each - near is any-of), none within 2.5 m (a ring, not a pile), a crowd of >= 8 (CrowdId != 0 - 'one crowd' needs equal ids, not comparable across units). NOT expressed: (2) 'mean distance < 15 m within 60 s' (a mean over units). The take has no cues.",
+  "runFor": 90,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the hurt civilian is a Casualty",
+      "on": "field",
+      "who": "Casualty",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Casualty"
+    },
+    {
+      "name": "every onlooker enters Gather",
+      "on": "field",
+      "who": "*Onlooker",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Gather",
+      "quantifier": "all",
+      "after": "the hurt civilian is a Casualty"
+    },
+    {
+      "name": "a crowd holds at least eight of them (CrowdId set)",
+      "on": "field",
+      "who": "*Onlooker",
+      "path": "CivilianState.CrowdId",
+      "op": "!=",
+      "value": 0,
+      "quantifier": "atLeast:8"
+    },
+    {
+      "name": "Onlooker 1 arrives within 11 m of the casualty",
+      "on": "near",
+      "who": "Onlooker 1",
+      "point": [
+        200,
+        200
+      ],
+      "within": 11
+    },
+    {
+      "name": "Onlooker 2 arrives within 11 m of the casualty",
+      "on": "near",
+      "who": "Onlooker 2",
+      "point": [
+        200,
+        200
+      ],
+      "within": 11
+    },
+    {
+      "name": "Onlooker 3 arrives within 11 m of the casualty",
+      "on": "near",
+      "who": "Onlooker 3",
+      "point": [
+        200,
+        200
+      ],
+      "within": 11
+    },
+    {
+      "name": "Onlooker 4 arrives within 11 m of the casualty",
+      "on": "near",
+      "who": "Onlooker 4",
+      "point": [
+        200,
+        200
+      ],
+      "within": 11
+    },
+    {
+      "name": "Onlooker 5 arrives within 11 m of the casualty",
+      "on": "near",
+      "who": "Onlooker 5",
+      "point": [
+        200,
+        200
+      ],
+      "within": 11
+    },
+    {
+      "name": "Onlooker 6 arrives within 11 m of the casualty",
+      "on": "near",
+      "who": "Onlooker 6",
+      "point": [
+        200,
+        200
+      ],
+      "within": 11
+    },
+    {
+      "name": "Onlooker 7 arrives within 11 m of the casualty",
+      "on": "near",
+      "who": "Onlooker 7",
+      "point": [
+        200,
+        200
+      ],
+      "within": 11
+    },
+    {
+      "name": "Onlooker 8 arrives within 11 m of the casualty",
+      "on": "near",
+      "who": "Onlooker 8",
+      "point": [
+        200,
+        200
+      ],
+      "within": 11
+    },
+    {
+      "name": "Onlooker 9 arrives within 11 m of the casualty",
+      "on": "near",
+      "who": "Onlooker 9",
+      "point": [
+        200,
+        200
+      ],
+      "within": 11
+    },
+    {
+      "name": "Onlooker 10 arrives within 11 m of the casualty",
+      "on": "near",
+      "who": "Onlooker 10",
+      "point": [
+        200,
+        200
+      ],
+      "within": 11
+    },
+    {
+      "name": "Onlooker 11 arrives within 11 m of the casualty",
+      "on": "near",
+      "who": "Onlooker 11",
+      "point": [
+        200,
+        200
+      ],
+      "within": 11
+    },
+    {
+      "name": "Onlooker 12 arrives within 11 m of the casualty",
+      "on": "near",
+      "who": "Onlooker 12",
+      "point": [
+        200,
+        200
+      ],
+      "within": 11
+    },
+    {
+      "name": "nobody stands on top of him (never within 2.5 m)",
+      "never": {
+        "on": "near",
+        "who": "*Onlooker",
+        "point": [
+          200,
+          200
+        ],
+        "within": 2.5
+      }
+    }
+  ]
+}

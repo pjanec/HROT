@@ -4,7 +4,7 @@
 > capability (`Blueprint_Fixed_Collections_Design.md`). Full implementation design: `Blueprint_List_Variables_Design.md`.
 
 **Context.** Blueprint variables (`asset.Variables`) and AiPrimitive `WorkingState` live in a fixed-size
-**unmanaged** blackboard blob (`BlueprintBlackboard1024/4096/16384`, tiered via `TierHint`), emitted as a
+**unmanaged** blackboard blob (`BlueprintBlackboard256/1024/4096/16384`, tiered via `TierHint`), emitted as a
 `[StructLayout(Sequential)] struct State`/`WorkingState` with one typed field per declared variable and
 `Unsafe.As`-cast onto the raw `fixed byte` payload. `Stage4_TypeResolve.CheckUnmanagedConstraint` (BP1503)
 rejects any variable whose type is not blittable, so **array/list variables are impossible today**. The
@@ -33,6 +33,11 @@ the *write* side is net-new.
 | Overflow | `Add`/`InsertAt` return `false` + emit a runtime diagnostic and drop the element; **never silent**, never overwrite |
 | Indexed r/w | direct `Get[i]` / `Set[i]` by index over the logical length `[0, Count)` |
 | Preallocation | supports declaring/resizing to a given logical length, **default-filled**. *Free for blittable `T`*: `default(T)` is all-zero bytes and the blob is zero-initialized — so preallocation = setting `Count = N` over already-zeroed slots; only a **grow-after-shrink** must re-zero the reclaimed `[oldCount, N)` range |
+
+> **Zeroing rule superseded 2026-08-04 (Q#20 review G6):** the lazy "re-zero on grow-after-shrink" clause above
+> is retired in favor of the cross-home **tail-always-default invariant** — `RemoveAt`/`Clear`/`Resize`-shrink
+> zero vacated slots at mutation time, grow never fills. See `Blueprint_Fixed_Collections_Design.md`
+> §"Decisions folded". Everything else in this table stands.
 
 ---
 

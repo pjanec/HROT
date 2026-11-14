@@ -1,0 +1,60 @@
+using System.ComponentModel;
+using Fdp.Toolkit.Tkb.Attributes;
+using StructEdit.Core.Attributes;
+
+namespace Fdp.Toolkit.Tkb.Domain
+{
+    /// <summary>
+    /// ⭐ M7 (docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md §2) — the TKB descriptor <c>Gen.Flight</c>: how a flyer flies. A point mass:
+    /// a top speed, a climb rate, a turn rate, a battery and the radius at which it meets what it flies into.
+    /// </summary>
+    [TkbDescriptor("Gen.Flight")]
+    public record FlightParamsDto
+    {
+        [EditUnit("m/s")] [Description("Top speed.")]
+        public float MaxSpeedMps { get; init; } = 30f;
+
+        [EditUnit("m/s")] [Description("Climb and descent rate.")]
+        public float ClimbMps { get; init; } = 8f;
+
+        [EditUnit("deg/s")] [Description("Yaw rate.")]
+        public float TurnRateDeg { get; init; } = 120f;
+
+        [EditUnit("s")] [Description("The battery: how long it can fly (its behaviour keeps the clock).")]
+        public float EnduranceSeconds { get; init; } = 600f;
+
+        [EditUnit("m")] [Description("It meets a body or the ground within this distance.")]
+        public float ContactRadiusM { get; init; } = 0.8f;
+
+        [EditUnit("m")] [Description("Its own body (the collider others hit): radius and height.")]
+        public float BodyRadiusM { get; init; } = 0.3f;
+
+        /// <inheritdoc cref="BodyRadiusM"/>
+        [EditUnit("m")]
+        public float BodyHeightM { get; init; } = 0.3f;
+
+        // ⭐ Air Ops slice 2 (docs/designs/air-attack/DESIGN_Air_Operations.md §5, §6) — a route's geometry for this flyer.
+        [EditUnit("m")] [Description("The height above the ground a route flies at where a waypoint states none, and from which it lands.")]
+        public float HoverHeightM { get; init; } = 30f;
+
+        [EditUnit("m")] [Description("The radius a route's corners are rounded to; 0 = top speed / turn rate (a plane: cruise² / (g·tan max bank)).")]
+        public float TurnRadiusM { get; init; } = 0f;
+
+        // ⭐ Air Ops slice 4 (DESIGN_Air_Operations §6) — a fixed-wing aircraft: it never stops, it banks to turn.
+        [EditUnit("m/s")] [Description("A plane never flies slower than this (no stall is modelled: the floor is the stall).")]
+        public float StallSpeedMps { get; init; } = 0f;
+
+        [EditUnit("m/s")] [Description("A plane's route speed where nothing else says.")]
+        public float CruiseSpeedMps { get; init; } = 0f;
+
+        [EditUnit("deg")] [Description("A plane's steepest bank; it sets the turn radius at cruise.")]
+        public float MaxBankDeg { get; init; } = 0f;
+
+        // ⭐ Air Ops follow-up (user, 2026-10-14, R-3007) — how fast it changes speed, and whether meeting something sets off its warhead.
+        [EditUnit("m/s²")] [Description("How fast it speeds up and slows down — on a route, to a point and under a pilot; 0 = the model's own (rotorcraft 3, plane 5).")]
+        public float AccelMps2 { get; init; } = 0f;
+
+        [Description("It IS a munition (an FPV drone): meeting a body or the ground bursts its first weapon mount. Otherwise a crash only destroys it.")]
+        public bool DetonatesOnImpact { get; init; } = false;
+    }
+}

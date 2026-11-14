@@ -20,7 +20,7 @@ internal sealed class NedSimHostMissionSender : ISimHostMissionSender
     public NedSimHostMissionSender(DdsParticipant participant)
         => _writer = new DdsWriter<MissionControlRequest>(participant);
 
-    public void SendNavigateToPoint(long entityNetworkId, Vector2 destination, float speed, float arrivalRadius)
+    public void SendNavigateToPoint(int entityNetworkId, Vector2 destination, float speed, float arrivalRadius)
     {
         var paramsJson = string.Format(
             CultureInfo.InvariantCulture,
@@ -48,10 +48,7 @@ internal sealed class NedSimHostMissionSender : ISimHostMissionSender
                             ExecutingEngine = "CGFX",
                             BehaviorId      = "MoveToLocation",
                             BehaviorParams  = paramsJson,
-                            Triggers        = new List<MissionTrigger>
-                            {
-                                new MissionTrigger { Type = "BehaviorFinished" },
-                            },
+                            Triggers        = new List<MissionTrigger>(),   // ⭐ CE-4298 — no condition = when done (MissionTriggerHelper)
                             State = eTaskState.TASK_PLANNED,
                         }
                     },

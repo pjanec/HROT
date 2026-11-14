@@ -1,0 +1,24 @@
+{
+  "Name": "EntitiesOfForceInArea",
+  "BlueprintId": 3580993801,
+  "Count": 2,
+  "Rows": [
+    {
+      "EntityId": 4294967297,
+      "PositionX": 50,
+      "PositionY": 50,
+      "Score": 0,
+      "Flags": 0,
+      "FlagsMeaningful": 0
+    },
+    {
+      "EntityId": 4294967298,
+      "PositionX": 60,
+      "PositionY": 40,
+      "Score": 0,
+      "Flags": 0,
+      "FlagsMeaningful": 0
+    }
+  ],
+  "MaxAbsPositionZ": 0
+}

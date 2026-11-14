@@ -3,7 +3,7 @@
 **Batch ID:** BATCH-09  
 **Status:** Ready for Implementation  
 **Developer:** @developer-subagent  
-**Build Target:** `IOS-IG-SimHost.sln`  
+**Build Target:** `HROT.sln`  
 **Test Target:** All animation control tests (baseline 169 + new tests from this batch)
 
 ---

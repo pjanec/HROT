@@ -54,7 +54,7 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>Creates a world entity and registers it in the map with the given network ID.</summary>
-        private Entity SpawnEntity(long networkId)
+        private Entity SpawnEntity(int networkId)
         {
             var entity = _world.CreateEntity();
             _entityMap.Register(networkId, entity);
@@ -84,8 +84,8 @@ namespace Hrot.SimHost.Tests
         {
             var (translator, writer) = BuildTranslator();
 
-            var shooter = SpawnEntity(networkId: 1L);
-            var target  = SpawnEntity(networkId: 2L);
+            var shooter = SpawnEntity(networkId: 1);
+            var target  = SpawnEntity(networkId: 2);
 
             PublishNotification(shooter, target, weaponIndex: 0);
 
@@ -96,6 +96,22 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1L, msg.ShooterEntityId);
             Assert.Equal(2L, msg.TargetEntityId);
             Assert.Equal(0,  msg.WeaponIndex);
+        }
+
+        /// <summary>⭐ Q94 A-1 (R-3018) — the muscle's answer carries the request it answers and why it REFUSED it. ✅ Red-proof: the
+        /// two mapped lines removed ⇒ 0 / 0 ⇒ red.</summary>
+        [Fact]
+        public void Q94_TheAnswer_CarriesTheRequestIdAndTheRefusal()
+        {
+            var (translator, writer) = BuildTranslator();
+            var shooter = SpawnEntity(networkId: 1);
+            var target  = SpawnEntity(networkId: 2);
+            _world.Bus.Publish(new WeaponFireNotification { Shooter = shooter, Target = target, RequestId = 41u, Refusal = Fdp.Toolkit.Combat.FireRefusal.Masked });
+            _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+            var msg = Assert.Single(writer.Written);
+            Assert.Equal(41u, msg.RequestId);
+            Assert.Equal((byte)Fdp.Toolkit.Combat.FireRefusal.Masked, msg.Refusal);
         }
 
         // ── SC-2: Multiple notifications → multiple DDS writes ────────────────
@@ -109,9 +125,9 @@ namespace Hrot.SimHost.Tests
         {
             var (translator, writer) = BuildTranslator();
 
-            var s1 = SpawnEntity(1L); var t1 = SpawnEntity(2L);
-            var s2 = SpawnEntity(3L); var t2 = SpawnEntity(4L);
-            var s3 = SpawnEntity(5L); var t3 = SpawnEntity(6L);
+            var s1 = SpawnEntity(1); var t1 = SpawnEntity(2);
+            var s2 = SpawnEntity(3); var t2 = SpawnEntity(4);
+            var s3 = SpawnEntity(5); var t3 = SpawnEntity(6);
 
             _world.Bus.Publish(new WeaponFireNotification { Shooter = s1, Target = t1, WeaponIndex = 0 });
             _world.Bus.Publish(new WeaponFireNotification { Shooter = s2, Target = t2, WeaponIndex = 1 });
@@ -155,7 +171,7 @@ namespace Hrot.SimHost.Tests
 
             // Only target is mapped.
             var unmappedShooter = _world.CreateEntity();
-            var target          = SpawnEntity(networkId: 2L);
+            var target          = SpawnEntity(networkId: 2);
 
             PublishNotification(unmappedShooter, target);
 
@@ -176,7 +192,7 @@ namespace Hrot.SimHost.Tests
         {
             var (translator, writer) = BuildTranslator();
 
-            var shooter       = SpawnEntity(networkId: 1L);
+            var shooter       = SpawnEntity(networkId: 1);
             var unmappedTarget = _world.CreateEntity();
 
             PublishNotification(shooter, unmappedTarget);

@@ -43,6 +43,7 @@ namespace Fdp.ModuleHost.Tests
     /// A simple synchronous Direct-strategy module that counts Tick() invocations.
     /// Can be installed/uninstalled dynamically.
     /// </summary>
+    [TickMode(TickPolicy.EveryFrame)]
     class CountingDirectModule : IEcsModule, IDisposable
     {
         public string Name { get; }
@@ -63,6 +64,7 @@ namespace Fdp.ModuleHost.Tests
     /// A slowish background module that briefly sleeps in Tick().
     /// Useful for testing draining: the module may be mid-execution when uninstall is called.
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     class SlowBackgroundModule : IEcsModule, IDisposable
     {
         public string Name { get; }
@@ -90,6 +92,7 @@ namespace Fdp.ModuleHost.Tests
     /// <summary>
     /// Module that registers a test system (to verify system lifecycle with hot-plug).
     /// </summary>
+    [TickMode(TickPolicy.EveryFrame)]
     class SystemRegisteringModule : IEcsModule
     {
         public string Name { get; }
@@ -106,6 +109,7 @@ namespace Fdp.ModuleHost.Tests
     }
 
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [TickMode(TickPolicy.EveryFrame)]
     class TrackingBeforeSyncSystem : IEcsModuleSystem
     {
         public int ExecuteCount;
@@ -780,6 +784,7 @@ namespace Fdp.ModuleHost.Tests
     /// Snapshot-on-Demand (SlowBackground) module that reads from a snapshot view.
     /// Declares its required component types so the kernel can compute a precise mask.
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     class SodCountingModule : IEcsModule, IDisposable
     {
         public string Name { get; }
@@ -793,8 +798,11 @@ namespace Fdp.ModuleHost.Tests
             _requiredComponents = requiredComponents;
         }
 
+        /// <summary>Asynchronous by default (SlowBackground); a convoy test sets <see cref="RunMode.FrameSynced"/>.</summary>
+        public RunMode Mode { get; init; } = RunMode.Asynchronous;
+
         // SlowBackground → DataStrategy.SoD
-        public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(60).WithTimeout(5000);
+        public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(60).WithTimeout(5000).WithMode(Mode);
 
         public IEnumerable<Type>? GetRequiredComponents() => _requiredComponents;
 
@@ -807,6 +815,7 @@ namespace Fdp.ModuleHost.Tests
     /// <summary>
     /// FrameSynced GDB module that reads from the DoubleBuffer replica.
     /// </summary>
+    [TickMode(TickPolicy.EveryFrame)]
     class GdbCountingModule : IEcsModule, IDisposable
     {
         public string Name { get; }
@@ -957,12 +966,15 @@ namespace Fdp.ModuleHost.Tests
         //    (single swap → all three become live in the same BeforeSync boundary)
         // ──────────────────────────────────────────────────────────────────────────
 
+        // ⭐ A convoy (one SharedSnapshotProvider) forms only for modules the main thread WAITS for (FrameSynced): the kernel keeps
+        //   Asynchronous modules out (ModuleHostKernel.AssignProvider…, `Mode != RunMode.Asynchronous`), because an async module that
+        //   finishes early would re-acquire the snapshot a slower convoy member still holds — frames stale, its events read twice (TM-023).
         [Fact(Timeout = 15_000)]
         public async Task BatchInstall_SodModules_ActivatedAtomically()
         {
-            var modA = new SodCountingModule("BatchSodA", typeof(DynCompAlpha));
-            var modB = new SodCountingModule("BatchSodB", typeof(DynCompBeta));
-            var modC = new SodCountingModule("BatchSodC", typeof(DynCompGamma));
+            var modA = new SodCountingModule("BatchSodA", typeof(DynCompAlpha)) { Mode = RunMode.FrameSynced };
+            var modB = new SodCountingModule("BatchSodB", typeof(DynCompBeta)) { Mode = RunMode.FrameSynced };
+            var modC = new SodCountingModule("BatchSodC", typeof(DynCompGamma)) { Mode = RunMode.FrameSynced };
 
             using var cts = new CancellationTokenSource();
             var loopTask = RunKernelLoop(_kernel, cts.Token);
@@ -1008,8 +1020,8 @@ namespace Fdp.ModuleHost.Tests
         [Fact(Timeout = 15_000)]
         public async Task UnionMask_Expansion_NewSodModule_ExpandsSharedProvider()
         {
-            var modA = new SodCountingModule("SodMaskA", typeof(DynCompAlpha));
-            var modB = new SodCountingModule("SodMaskB", typeof(DynCompBeta));
+            var modA = new SodCountingModule("SodMaskA", typeof(DynCompAlpha)) { Mode = RunMode.FrameSynced };
+            var modB = new SodCountingModule("SodMaskB", typeof(DynCompBeta)) { Mode = RunMode.FrameSynced };
 
             using var cts = new CancellationTokenSource();
             var loopTask = RunKernelLoop(_kernel, cts.Token);
@@ -1093,6 +1105,34 @@ namespace Fdp.ModuleHost.Tests
         // ──────────────────────────────────────────────────────────────────────────
         // 6. ECS schema mutation — novel component registered on live world at install
         // ──────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ <c>CE-3205</c> — a module's required component is registered on ITS kernel's world even when ANOTHER world in the process
+        /// (<c>--mode all</c>, a test host) already registered that type: the check is "registered in THIS world", not "known to the
+        /// process-wide registry". 🔴 Red-proof: the old check skipped it, and the second world had no table for it.
+        /// </summary>
+        [Fact(Timeout = 10_000)]
+        public async Task CE3205_AComponentAnotherWorldRegistered_IsStillRegisteredOnThisKernelsWorld()
+        {
+            _world.RegisterComponent<DynCompGamma>();                       // world 1 knows it ⇒ the process-wide registry does
+            Assert.True(ComponentTypeRegistry.GetId(typeof(DynCompGamma)) >= 0);
+
+            var world2 = new EntityRepository();
+            var kernel2 = new ModuleHostKernel(world2, new EventAccumulator());
+            kernel2.InitializeForTest();
+            Assert.False(world2.TryGetTable(typeof(DynCompGamma), out _));
+
+            using var cts = new CancellationTokenSource();
+            var loopTask = RunKernelLoop(kernel2, cts.Token);
+            await kernel2.InstallModuleAsync(new SodCountingModule("NeedsGamma", typeof(DynCompGamma)));
+
+            Assert.True(world2.TryGetTable(typeof(DynCompGamma), out _), "world 2 must hold its own table for a module's required component");
+
+            cts.Cancel();
+            await loopTask;
+            kernel2.Dispose();
+            world2.Dispose();
+        }
 
         [Fact(Timeout = 10_000)]
         public async Task Install_ModuleWithNovelComponent_RegistersComponentOnLiveWorld()

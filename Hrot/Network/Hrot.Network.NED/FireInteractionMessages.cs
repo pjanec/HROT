@@ -6,7 +6,7 @@ namespace Hrot.NED.Messages
     /// <summary>
     /// Transient combat interaction event published by SimHost and consumed by IG.
     /// </summary>
-    [DdsTopic("FireInteractionEvent")]
+    [DdsTopic]
     [DdsIdlFile("hrot-sim-msgs")]
     public partial struct FireInteractionEvent
     {
@@ -24,35 +24,215 @@ namespace Hrot.NED.Messages
     /// re-emits a local <see cref="global::Fdp.Toolkit.Combat.Events.WeaponFireIntent"/>
     /// on the Muscle's ECS event bus.
     /// </summary>
-    [DdsTopic("WeaponFireRequest")]
+    // ⭐ CE-3095 — events, so Reliable + KeepAll: with no [DdsQos] the reader kept ONE sample, and two shots landing in the same
+    //   take overwrote each other. 📐 Measured on WeaponFireRequest (ua-universal-soldier): the rifleman's shot and a hostile's,
+    //   both at f5008 — his never reached SimHost. The other fire-pipeline events share the same failure mode.
+    [DdsTopic]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct WeaponFireRequest
     {
         /// <summary>Network entity ID of the firing entity.</summary>
-        public long ShooterEntityId;
+        public int ShooterEntityId;
 
-        /// <summary>Network entity ID of the intended target.</summary>
-        public long TargetEntityId;
+        /// <summary>Network entity ID of the intended target; ⭐ <c>CE-1032</c> (W-8) 0 = fire at the point (<see cref="PointX"/>…).</summary>
+        public int TargetEntityId;
 
         /// <summary>Zero-based weapon slot index (POC: always 0).</summary>
         public int WeaponIndex;
+
+        /// <summary>⭐ Stage 6 (<c>CE-1032</c>, W-8) — the aim point of a point fire (a thrown grenade, a mortar), world metres.</summary>
+        public float PointX;
+        public float PointY;
+        public float PointZ;
+
+        /// <summary>⭐ M8 (D-I, R-169) — the munition type of the LOADED round (the weapon brain's choice from the mount's loadout);
+        /// 0 = the mount's own <c>AmmoGuid</c>.</summary>
+        public long AmmoGuid;
+
+        /// <summary>⭐ Indirect fire IF-1 (I3, R-169 — APPENDED) — the brain's fire solution: the charge (1-based; 0 = none, today's arc)
+        /// and the arc (1 = high). The SimHost flies exactly this (no second decision).</summary>
+        public byte Charge;
+        public byte HighArc;
+
+        /// <summary>⭐ <c>CE-2180</c> (Air Ops §8a, R-169 — APPENDED) — the synced sim time (s) the brain raised the shot; 0 = now. A bomb
+        /// starts from its carrier as it was then, flown forward to the SimHost's now.</summary>
+        public double RaisedAt;
+
+        /// <summary>⭐ <c>CE-3235</c> (B-13, §7.10 PU-6, R-169 — APPENDED) — the fuze a time-fuzed round flies with (s); 0 = its warhead's
+        /// own. A live round picked up and thrown back keeps what it had left.</summary>
+        public float FuzeSeconds;
+
+        /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-7, R-169 — APPENDED) — a thrown-back venting canister's burn left (s); 0 = its own.</summary>
+        public float BurnSeconds;
+
+        // ⭐ Q94 A-1 (R-3018) — the brain's request id, echoed by the muscle's WeaponFire (fired or refused). APPENDED.
+        public uint RequestId;
+
+        /// <summary>⭐ <c>CE-2326</c> (R-3030) — the point is the feet of a body remembered in this stance (<c>StanceId + 1</c>);
+        /// 0 = a plain point. Appended (R-169).</summary>
+        public byte BodyStance;
+
+        /// <summary>⭐ <c>CE-4155</c> (SR-82; R-169 — APPENDED) — a round THROWN BACK: network id of the FIRST thrower
+        /// (<see cref="ShooterEntityId"/> is the last); 0 = a first throw.</summary>
+        public int OriginalShooterEntityId;
     }
 
     /// <summary>
     /// DDS message published by the Muscle node after a bullet has been spawned.
     /// Consumed by the IG to trigger a muzzle-flash visual effect.
     /// </summary>
-    [DdsTopic("WeaponFire")]
+    [DdsTopic]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]   // CE-3095
     public partial struct WeaponFire
     {
         /// <summary>Network entity ID of the firing entity.</summary>
-        public long ShooterEntityId;
+        public int ShooterEntityId;
 
         /// <summary>Network entity ID of the intended target.</summary>
-        public long TargetEntityId;
+        public int TargetEntityId;
 
         /// <summary>Zero-based weapon slot index.</summary>
         public int WeaponIndex;
+
+        /// <summary>⭐ CE-1111 / CE-2188 (BS-1-DESIGN §5.4b F1, §5.4c; R-169 — APPENDED) — the munition type FIRED (a flare / chaff for a
+        /// dispenser); 0 = unknown.</summary>
+        public long AmmoGuid;
+
+        /// <summary>⭐ CE-1111 — the network id of the round this shot spawned (a replicated round); 0 = none (a bullet, a decoy).</summary>
+        public int RoundEntityId;
+
+        /// <summary>⭐ CE-1111 — where it left, world metres.</summary>
+        public float OriginX;
+        public float OriginY;
+        public float OriginZ;
+
+        /// <summary>⭐ CE-1111 — its velocity at launch (for a decoy, the aircraft's), m/s.</summary>
+        public float VelocityX;
+        public float VelocityY;
+        public float VelocityZ;
+
+        /// <summary>⭐ CE-1111 — rounds this message stands for (1 per shot, 1 per decoy).</summary>
+        public int Quantity;
+
+        /// <summary>⭐ CE-1111 — the synced sim time (s) it was fired.</summary>
+        public double FiredAt;
+
+        /// <summary>Node that wrote this sample (CE-1148 S2, Node Roles §3.5): every node reads the topic and drops its own. 0 = unknown.</summary>
+        public int SourceNodeId;
+
+        // ⭐ Q94 A-1 (R-3018) — the request this answers, and why the muscle REFUSED it (Fdp.Toolkit.Combat.FireRefusal; 0 = fired).
+        //   APPENDED: an older sender reads as fired.
+        public uint RequestId;
+        public byte Refusal;
     }
+
+    // ── Near miss (CE-3064, R-206) ─────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-3064</c> — a round passed close to a unit without being fired by its side (Muscle → Brain): the unit is being
+    /// shot at. ⛔ No shooter on purpose. docs/DESIGN_Thermal_And_Acoustic_Sensing.md §6 G.
+    /// </summary>
+    [DdsTopic]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile,
+            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 8)]
+    public partial struct NearMiss
+    {
+        /// <summary>Network entity ID of the unit the round passed.</summary>
+        public int UnitEntityId;
+
+        /// <summary>The closest point of the round's path to the unit.</summary>
+        public float X;
+        public float Y;
+        public float Z;
+
+        /// <summary>⭐ <c>CE-3262</c> (DA-14) — where the round was fired from (its muzzle), when <see cref="HasOrigin"/> = 1. APPENDED.</summary>
+        public float OriginX;
+        public float OriginY;
+        public float OriginZ;
+        public byte HasOrigin;
+    }
+
+    // ── Melee strike (CE-3266, G3) ─────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-3266</c> (G3, Civilians §7.18 ST-1) — a blow was struck (any node → every map host): ui draws the swing once. The
+    /// <see cref="WeaponFire"/> shape: <see cref="SourceNodeId"/> so a node drops its own sample. Cosmetic ⇒ BestEffort.
+    /// </summary>
+    [DdsTopic]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile,
+            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 8)]
+    public partial struct MeleeStrike
+    {
+        public int SourceNodeId;
+        public int StrikerEntityId;
+        public int TargetEntityId;
+        /// <summary><c>Fdp.Toolkit.Combat.MeleeWeapon</c>.</summary>
+        public byte Weapon;
+    }
+
+    // ── Round impact (CE-1128, DESIGN_Visual_Effects §10) ──────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-1128</c> — a round marked a surface of the world (Muscle → every map host): entered or left a piece it passed through, or
+    /// stopped on one. Cosmetic ⇒ BestEffort: a lost puff is better than a backlog. ⛔ Not <see cref="MunitionDetonation"/> — that is a combat
+    /// message (area effect, damage, the observer's burst memory). docs/DESIGN_Visual_Effects.md §10 IM-3.
+    /// </summary>
+    [DdsTopic]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile,
+            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 64)]
+    public partial struct RoundImpact
+    {
+        /// <summary>Network entity ID of the shooter (0 = unknown).</summary>
+        public int ShooterEntityId;
+
+        /// <summary>Where the round met the surface.</summary>
+        public float X;
+        public float Y;
+        public float Z;
+
+        /// <summary>The face's outward normal (all 0 = unknown).</summary>
+        public float NormalX;
+        public float NormalY;
+        public float NormalZ;
+
+        /// <summary>The round's travel direction (any length; all 0 = unknown).</summary>
+        public float TravelX;
+        public float TravelY;
+        public float TravelZ;
+
+        /// <summary>The TKB type id of the munition (0 = unknown).</summary>
+        public long MunitionType;
+
+        /// <summary>0 entered, 1 left, 2 stopped (<c>ImpactKind</c>).</summary>
+        public byte Kind;
+
+        /// <summary>Node that wrote this sample (CE-1148 S2, Node Roles §3.5): every node reads the topic and drops its own. 0 = unknown.</summary>
+        public int SourceNodeId;
+    }
+
+    // ── Air defence (CE-2189, DESIGN_Missiles_And_Ammo §3c) ───────────
+
+    /// <summary>
+    /// ⭐ <c>CE-2189</c> — a guided missile was launched at an aircraft (Muscle → its Brain): where from, its seeker, the flight time to it.
+    /// The near-miss pattern; the brain turns it into <c>SensorChange.MissileWarning</c>.
+    /// </summary>
+    [DdsTopic]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile,
+            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 8)]
+    public partial struct MissileWarning
+    {
+        /// <summary>Network entity ID of the aircraft the missile was launched at.</summary>
+        public int UnitEntityId;
+        public float FromX;
+        public float FromY;
+        public float FromZ;
+        /// <summary>The seeker (<c>GuidanceKind</c>).</summary>
+        public byte Seeker;
+        public float TimeToImpactS;
+    }
+
+    // ⛔ CE-2188's DispenseCountermeasure (dt 134) was RETIRED by BS-1-DESIGN §5.4c: a release is an ordinary WeaponFireRequest on the
+    //   dispenser mount, and the SimHost reports it as a WeaponFire.
 
     // ── Detonation / Damage Pipeline (POC simplified) ─────────────────────────
 
@@ -60,14 +240,15 @@ namespace Hrot.NED.Messages
     /// DDS message published by the Muscle node when a bullet impact is resolved.
     /// Consumed by the IG (explosion particle) and the Damage Assessment Module.
     /// </summary>
-    [DdsTopic("MunitionDetonation")]
+    [DdsTopic]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]   // CE-3095
     public partial struct MunitionDetonation
     {
         /// <summary>Network entity ID of the shooter.</summary>
-        public long ShooterEntityId;
+        public int ShooterEntityId;
 
         /// <summary>Network entity ID of the struck entity.</summary>
-        public long HitEntityId;
+        public int HitEntityId;
 
         /// <summary>World-space X coordinate of the hit position.</summary>
         public float HitX;
@@ -77,6 +258,13 @@ namespace Hrot.NED.Messages
 
         /// <summary>World-space Z coordinate of the hit position.</summary>
         public float HitZ;
+
+        /// <summary>⭐ Stage 6 (<c>CE-1032</c>, W-2) — the TKB type id of the munition (0 = unknown); a receiver looks its warhead up.
+        /// ⛔ Never the warhead numbers (§3e — one source). <see cref="HitEntityId"/> 0 = it detonated on the terrain.</summary>
+        public long MunitionType;
+
+        /// <summary>Node that wrote this sample (CE-1148 S2, Node Roles §3.5): every node reads the topic and drops its own. 0 = unknown.</summary>
+        public int SourceNodeId;
     }
 
     /// <summary>
@@ -84,13 +272,63 @@ namespace Hrot.NED.Messages
     /// computed for a bullet impact.  The authoritative node applies the damage to the
     /// entity's <c>Health</c> component upon receiving this message.
     /// </summary>
-    [DdsTopic("EntityHitDamage")]
+    [DdsTopic]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]   // CE-3095
     public partial struct EntityHitDamage
     {
         /// <summary>Network entity ID of the struck entity.</summary>
-        public long HitEntityId;
+        public int HitEntityId;
 
         /// <summary>Total computed HP loss.</summary>
         public float TotalDamage;
+
+        /// <summary>⭐ <c>CE-3210</c> (hit location HL-6, R-169 — APPENDED) — the body part it landed on, as its id + 1 (a person's
+        /// <c>PersonPart</c>); ⭐ 0 = none (an area effect, a vehicle until S2) — so a sender that never sets it reads as "no part", not
+        /// as part 0.</summary>
+        public byte BodyPart;
+
+        /// <summary>⭐ <c>CE-3219</c> (civilians B-1, CV-6 — APPENDED) — the hit's effect kind (<c>EffectKind</c>; 0 = kinetic, damage only).</summary>
+        public byte EffectKind;
+
+        /// <summary>⭐ <c>CE-3219</c> — how long the effect lasts (s).</summary>
+        public float EffectSeconds;
+
+        /// <summary>⭐ <c>CE-3237</c> (civilians B-15, AW-23 — APPENDED) — network id of who caused it (the round's shooter, a melee striker);
+        /// ⭐ 0 = unknown.</summary>
+        public int SourceEntityId;
+
+        /// <summary>⭐ <c>CE-3246</c> (BS-1 §6.4a, R-3015 — APPENDED) — the node that sent it, so a node drops its own sample; 0 = an older
+        /// sender (taken).</summary>
+        public int SourceNodeId;
+
+        /// <summary>⭐ <c>CE-4155</c> (SR-82; APPENDED) — network id of the FIRST thrower when the round was thrown back
+        /// (<see cref="SourceEntityId"/> is the last); ⭐ 0 = the same as <see cref="SourceEntityId"/> (never rethrown, or an older sender).</summary>
+        public int OriginalSourceEntityId;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3364</c> D5 (📄 docs/DESIGN_Man_Downed_Event.md §3, ui's ask 2026-11-03) — a man was taken out of the fight by a hit: the <c>ManDownedEvent</c> of the node that applies
+    /// his Health, carried to every OTHER node (the kill feed, the summary's key events and the debrief read it there). Event-shaped on the <see cref="EntityHitDamage"/> pattern
+    /// (<c>ManDownedEgressTranslator</c> / <c>ManDownedIngressTranslator</c>, both on every node); <see cref="SourceNodeId"/> skips a node's own sample. Ordinal
+    /// <see cref="Hrot.NED.Descriptors.EDescriptorType.dtManDowned"/> = 175. ⛔ Not a state topic: a late joiner gets no old downings.
+    /// </summary>
+    [DdsTopic]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    public partial struct EntityManDowned
+    {
+        /// <summary>Network entity ID of the man who went down.</summary>
+        public int VictimEntityId;
+        /// <summary>Network id of who dealt the hit; 0 = unknown.</summary>
+        public int SourceEntityId;
+        /// <summary>Network id of the first thrower of a rethrown round; 0 = the same as <see cref="SourceEntityId"/>.</summary>
+        public int OriginalSourceEntityId;
+        /// <summary><c>InjuryState</c> the hit made of him (Incapacitated / Dead).</summary>
+        public byte State;
+        /// <summary>The part id + 1 of the downing hit (a person's <c>PersonPart</c>); 0 = none — the <see cref="EntityHitDamage.BodyPart"/> convention.</summary>
+        public byte BodyPart;
+        /// <summary>The victim's force (<c>ForceId</c>) at that moment.</summary>
+        public byte VictimSide;
+        /// <summary>The node that sent it, so a node drops its own sample.</summary>
+        public int SourceNodeId;
     }
 }

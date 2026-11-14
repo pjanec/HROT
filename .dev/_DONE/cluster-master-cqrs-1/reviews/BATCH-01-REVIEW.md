@@ -17,7 +17,7 @@
 
 ### CMC-S002 — Core CQRS Event Structs
 - ✅ All fields use `object?` (not strings)
-- ✅ `[DataPolicy(DataPolicy.NoRecord)]` on all 3 structs
+- ✅ `[DataPolicy(DataPolicy.NoReplay)]` on all 3 structs
 - ✅ EventIds 9011-9013 correct
 - ✅ `PublishManaged`/`ConsumeManaged` round-trip tested
 - ✅ No `ExecuteClusterOpIntent` created

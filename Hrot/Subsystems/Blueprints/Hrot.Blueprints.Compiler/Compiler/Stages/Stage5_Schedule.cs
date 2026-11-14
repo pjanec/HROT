@@ -4,15 +4,56 @@ using Hrot.Blueprints.Core.Compiler.Determinism;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
 using Hrot.Blueprints.Core.Compiler.Emit;
 using Hrot.Blueprints.Core.Compiler.Ir;
+using Hrot.Blueprints.Core.Compiler.Lowering;
 
 namespace Hrot.Blueprints.Core.Compiler.Stages;
 
 internal static class Stage5_Schedule
 {
+    /// <summary>⭐ CE-471 — the BinaryOp operators that need integer operands.</summary>
+    internal static bool IsBitwiseOperator(ArithmeticOperator op) =>
+        op is ArithmeticOperator.BitAnd or ArithmeticOperator.BitOr or ArithmeticOperator.BitXor
+           or ArithmeticOperator.ShiftLeft or ArithmeticOperator.ShiftRight;
+
+    /// <summary>
+    /// ⭐ CE-471 — true when <paramref name="t"/> is a type this reflection-free compiler KNOWS cannot take
+    /// <paramref name="op"/>: floating point, decimal, string, vectors, an entity handle — and bool for a shift.
+    /// An unknown struct / an enum passes (C# decides; <c>&amp; | ^</c> are defined on enums).
+    /// </summary>
+    internal static bool IsKnownNonIntegerOperand(IrTypeRef t, ArithmeticOperator op)
+    {
+        if (t.IsEntityHandle) return true;
+        switch (t.FullName)
+        {
+            case "System.Single": case "System.Double": case "System.Decimal": case "System.String":
+            case "System.Numerics.Vector2": case "System.Numerics.Vector3": case "System.Numerics.Vector4":
+            case "System.Numerics.Quaternion":
+                return true;
+            case "System.Boolean":
+                return op is ArithmeticOperator.ShiftLeft or ArithmeticOperator.ShiftRight;
+            default:
+                return false;
+        }
+    }
+
     // Sentinel unresolved IrTypeRef used when no type information is available.
     internal static readonly IrTypeRef UnknownType = new IrTypeRef
     {
         FullName = "?",
+        IsUnmanaged = false,
+        SizeBytes = 0,
+    };
+
+    internal static readonly IrTypeRef SingleType = new IrTypeRef
+    {
+        FullName = "System.Single",
+        IsUnmanaged = true,
+        SizeBytes = 4,
+    };
+
+    internal static readonly IrTypeRef StringType = new IrTypeRef
+    {
+        FullName = "System.String",
         IsUnmanaged = false,
         SizeBytes = 0,
     };
@@ -46,8 +87,23 @@ internal static class Stage5_Schedule
         var irGraphs = new List<IrGraph>();
         foreach (var graph in typedAsset.Asset.Graphs)
         {
+            // ⭐ A macro is a source-level template: it is spliced into its call sites and is NEVER a
+            // compilation target of its own. Skipping it here is what stops it becoming a Func_X
+            // method -- before this, MapGraphKind's catch-all mapped any unrecognised kind to
+            // Function and emitted one, with no diagnostic.
+            //
+            // ⚠⚠ SKIPPED, not errored, and the distinction is load-bearing. A macro-library asset
+            // (Q25-C2) legitimately DECLARES macros with no call sites in itself; erroring on "a
+            // Macro graph exists" would make that asset uncompilable. The error case is a macro
+            // reaching Stage 5 *as a compilation target* -- i.e. surviving expansion -- which cannot
+            // happen until the expansion pass and MacroCallNode exist. Free to word right today,
+            // expensive to unpick later.
+            if (graph.Kind == GraphKind.Macro) continue;
+
             var scheduler = new GraphScheduler(graph, typedAsset, ctx);
-            irGraphs.Add(scheduler.Schedule());
+            var irGraph = scheduler.Schedule();
+            // ⭐ CE-2017 (DESIGN_Typed_Event_Nodes E6) — a split handler's debug identities name the AUTHORED nodes.
+            irGraphs.Add(graph.HandlerDebugIds is { } ids ? HandlerDebugIdentity.Apply(irGraph, ids) : irGraph);
         }
 
         var asset = typedAsset.Asset;
@@ -59,58 +115,93 @@ internal static class Stage5_Schedule
             BlueprintId   = BlueprintIdHash.Compute(asset.AssetId),
             StructureHash = 0,  // assigned in Stage 6 after layout finalization
             Dispatch      = asset.Dispatch,
+            ResolverSubject = asset.ResolverSubject,
+            ParamsDtoTypeId = string.IsNullOrWhiteSpace(asset.ParamsDtoTypeId) ? null : asset.ParamsDtoTypeId!.Trim(),   // ⭐ CE-2133
+            // BP-82: macro graphs are skipped above, so the count is the only trace of them left for
+            // lowering to see (BP5001 must not call a macro library "empty").
+            DeclaredMacroCount = asset.Graphs.Count(g => g.Kind == GraphKind.Macro),
             Intent        = asset.Primitive?.Intent,
             Hostings      = (IReadOnlyList<AiPrimitiveHosting>?)asset.Primitive?.Hostings ?? Array.Empty<AiPrimitiveHosting>(),
-            Parameters    = BuildIrFields(asset.Parameters, typedAsset, asset.ParameterOrder),
-            WorkingState  = BuildIrFields(asset.WorkingState, typedAsset, asset.WorkingStateOrder),
-            Variables     = BuildIrFields(asset.Variables, typedAsset, asset.VariableOrder),
-            CustomEvents  = BuildCustomEvents(asset.CustomEvents, typedAsset),
+            Parameters    = BuildIrFields(asset.Declarations.Of(DeclarationKind.Parameter),    typedAsset, asset.ParameterOrder,     ctx),
+            // ⭐⭐⭐ Batch 86 — ONE state run (R-01). IrAsset.WorkingState is retired and stays empty;
+            //    Variables carries the whole tier, so StructureHashComputation's append is unchanged.
+            // 🔴🔴 R-24 — the ORDER is the whole risk, and BOTH order lists are applied, concatenated
+            //    WorkingStateOrder-then-VariableOrder: exactly DeclarationList.KindOrder's old
+            //    sequence. ⛔ Do NOT feed one list, and do NOT sort — an id missing from the list it
+            //    belongs to falls to GetOrdered's by-Id tail, which is a DIFFERENT position.
+            Variables     = BuildIrFields(
+                                asset.Declarations.Of(DeclarationKind.Variable), typedAsset,
+                                ConcatOrder(asset.WorkingStateOrder, asset.VariableOrder), ctx),
+            CustomEvents  = BuildCustomEvents(asset.CustomEvents, typedAsset, ctx),
             CallablePeerBlueprintIds = BuildPeerIds(asset.CallablePeers),
             IsWorldSingleton = asset.IsWorldSingleton,
             Graphs        = irGraphs,
         };
     }
 
+    /// <summary>
+    /// <b>U-11 — ONE builder over every declaration kind.</b> ⛔ This was two overloads with
+    /// <b>byte-identical bodies</b>, split only because <c>ParameterDecl</c> and <c>VariableDecl</c>
+    /// were different types. ⭐ <c>BlueprintDeclaration</c> is the type they now share.
+    /// </summary>
     private static IReadOnlyList<IrField> BuildIrFields(
-        IEnumerable<ParameterDecl> decls, TypedAsset typed, List<Guid>? order)
+        IEnumerable<BlueprintDeclaration> decls, TypedAsset typed, List<Guid>? order,
+        ValidationContext ctx)
     {
         var result = new List<IrField>();
         foreach (var d in decls)
         {
             typed.FieldTypes.TryGetValue(d.Id, out var irType);
+            var type = irType ?? UnknownType;
             result.Add(new IrField
             {
                 Id = d.Id,
                 Name = d.Name,
-                Type = irType ?? UnknownType,
-                DefaultValueCSharp = d.DefaultValueJson ?? "",
+                Type = type,
+                // ⭐⭐ BP-247 — the default becomes a C#-TYPED literal here. ⛔ This used to be
+                //    `d.DefaultValueJson ?? ""`, the JSON text verbatim, so a `float` default of `0.5`
+                //    emitted a `double` literal and Roslyn refused it with CS0664 naming a generated
+                //    file. ⭐ A literal the converter cannot type is REFUSED (BP1674) rather than passed
+                //    through — the refusal is the whole point.
+                DefaultValueCSharp = ConvertDefault(type, d, ctx),
+                HasDefault = !string.IsNullOrWhiteSpace(d.DefaultValueJson),   // ⭐ CE-3194
                 Comment = d.Comment,
             });
         }
         return GetOrdered(result, order);
     }
 
-    private static IReadOnlyList<IrField> BuildIrFields(
-        IEnumerable<VariableDecl> decls, TypedAsset typed, List<Guid>? order)
+    /// <summary>
+    /// ⭐ One conversion, one diagnostic — shared by the asset-level lists, the graph locals and the
+    /// graph-parameter path, so a local's default literal cannot drift from a variable's.
+    /// </summary>
+    internal static string ConvertDefault(IrTypeRef type, BlueprintDeclaration d, ValidationContext ctx)
+        => ConvertDefault(type, d.Name, d.DefaultValueJson, ctx);
+
+    internal static string ConvertDefault(
+        IrTypeRef type, string name, string? json, ValidationContext ctx)
     {
-        var result = new List<IrField>();
-        foreach (var d in decls)
-        {
-            typed.FieldTypes.TryGetValue(d.Id, out var irType);
-            result.Add(new IrField
-            {
-                Id = d.Id,
-                Name = d.Name,
-                Type = irType ?? UnknownType,
-                DefaultValueCSharp = d.DefaultValueJson ?? "",
-                Comment = d.Comment,
-            });
-        }
-        return GetOrdered(result, order);
+        if (Lowering.DefaultLiteral.TryToCSharp(type, json, out string csharp, out string reason))
+            return csharp;
+
+        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1674,
+            $"Default value '{json}' for '{name}' is not a valid {type.FullName} literal — {reason}.",
+            Guid.Empty));
+        return "";
     }
+
+    /// <summary>
+    /// BP-57 — the graph-locals overload. ⭐ Delegates to the same builder the asset-level lists use,
+    /// so a local's type resolution, default literal and comment cannot drift from a variable's.
+    /// Only the index space differs, and that is deliberate.
+    /// </summary>
+    internal static IReadOnlyList<IrField> BuildLocalIrFields(
+        IEnumerable<VariableDecl> decls, TypedAsset typed, ValidationContext ctx)
+        => BuildIrFields(
+            decls.Select(v => BlueprintDeclaration.For(DeclarationKind.Variable, v)), typed, order: null, ctx);
 
     private static IReadOnlyList<IrCustomEvent> BuildCustomEvents(
-        IEnumerable<CustomEventDecl> decls, TypedAsset typed)
+        IEnumerable<CustomEventDecl> decls, TypedAsset typed, ValidationContext ctx)
     {
         var result = new List<IrCustomEvent>();
         foreach (var d in decls)
@@ -119,10 +210,30 @@ internal static class Stage5_Schedule
             {
                 Id = d.Id,
                 Name = d.Name,
-                Parameters = BuildIrFields(d.Parameters, typed, null),
+                // ⚠ CustomEventDecl.Parameters is a DIFFERENT Parameters — an event signature, not
+                //   an asset declaration list. Wrapped, not projected through asset.Declarations.
+                Parameters = BuildIrFields(d.Parameters.Select(BlueprintDeclaration.For), typed, null, ctx),
             });
         }
         return result;
+    }
+
+    /// <summary>
+    /// ⭐⭐ Batch 86 — the two state order lists, as one, in <c>DeclarationList.KindOrder</c> sequence.
+    /// ⛔ Null when both are empty, so <see cref="GetOrdered"/> keeps its "no order ⇒ storage order"
+    /// arm rather than being handed an empty list that means the same thing by accident.
+    /// </summary>
+    private static List<Guid>? ConcatOrder(List<Guid>? first, List<Guid>? second)
+    {
+        bool a = first?.Count > 0;
+        bool b = second?.Count > 0;
+        if (!a && !b) return null;
+        if (!b) return first;
+        if (!a) return second;
+        var all = new List<Guid>(first!.Count + second!.Count);
+        all.AddRange(first);
+        all.AddRange(second);
+        return all;
     }
 
     private static IReadOnlyList<IrField> GetOrdered(List<IrField> items, List<Guid>? order)
@@ -235,6 +346,7 @@ internal sealed class GraphScheduler
                 Id    = _graph.Id,
                 Name  = _graph.Name,
                 Kind  = MapGraphKind(_graph.Kind),
+                Locals = BuildLocalFields(),
                 Entry = new IrBlockId(0),
             };
         }
@@ -293,6 +405,8 @@ internal sealed class GraphScheduler
             Id      = _graph.Id,
             Name    = _graph.Name,
             Kind    = MapGraphKind(_graph.Kind),
+            // BP-57: the graph's own locals, in declaration order — IrOp_Read/WriteLocal index here.
+            Locals  = BuildLocalFields(),
             // Q#14: for an Event graph, carry the event identity from its EventEntry so the emitter can key
             // EventHandlers by it (the graph name is a method-name suffix and can't be the FQN).
             EventTypeFqn = _graph.Kind == GraphKind.Event
@@ -304,6 +418,11 @@ internal sealed class GraphScheduler
             TargetFieldName = _graph.Kind == GraphKind.Event
                 ? (entryNode as EventEntryNode)?.TargetFieldName
                 : null,
+            // ⭐ S6b (U-6): the Event graph's arrival policy, carried from its entry node.
+            FiberPolicy   = (entryNode as EventEntryNode)?.Policy ?? EventFiberPolicy.Parallel,
+            FiberCapacity = (entryNode as EventEntryNode)?.Capacity ?? 0,
+            // ⭐ S7b — a task fiber (no event; started by its task's start op).
+            LiftedTaskSite = _graph.LiftedTaskSite,
             Inputs  = irInputs,
             Outputs = irOutputs,
             Blocks  = _blockBuilders.Select(b => b.Build()).ToList().AsReadOnly(),
@@ -407,6 +526,79 @@ internal sealed class GraphScheduler
                 case WhenNode wn:
                     ScheduleWhenNode(wn, bb);
                     return;
+
+                // ⭐ S5d / S7a — the Behaviour Task (run and wait): latent like an inline action; Succeeded on the child's
+                //   Success, Failed on its Failure, and — each frame it is still Running — its While Running chain.
+                case RunBehaviorNode rb:
+                    ScheduleLatentNode(rb, bb, new IrOp_RunBehavior(rb.BehaviorName.Trim(), rb.Id)
+                        {
+                            // ⭐ S8 — the host variable bound to this site (authored, or Stage 2.6's hidden one)
+                            ParamsVariable = ParamsVariableName(rb.ParamsVariable),
+                        },
+                        successSuccessor: GetExecSuccessorWhere(rb, n => !RunBehaviorNode.IsNonSuccessOut(n)),
+                        failureSuccessor: GetExecSuccessorWhere(rb, RunBehaviorNode.IsFailedPin),
+                        whileRunningSuccessor: GetExecSuccessorWhere(rb, n => n == RunBehaviorNode.WhileRunningPin));
+                    return;
+
+                // ⭐ S7a — an Abort of a Behaviour Task (Stage 2.6 retargeted the link here); WaitLowering resolves it.
+                case BehaviorTaskAbortNode abortNode:
+                {
+                    _execNodeToBlockId[abortNode.Id] = blockId;
+                    int before = bb.Statements.Count;
+                    bb.Statements.Add(new IrStatement
+                    {
+                        // ⭐ S7b — the abort of a STARTED task stops its task fiber (emitted from that fiber's labels).
+                        Operation = abortNode.FiberGraph is { } fiberGraph
+                            ? new IrOp_AbortStartedTask(fiberGraph, abortNode.TaskNodeId)
+                            : new IrOp_AbortTask(abortNode.TaskNodeId),
+                        Debug     = DebugOf(abortNode),
+                    });
+                    TagFirstNewStatement(bb.Statements, before, abortNode.Id);
+                    var abortNext = GetSingleExecSuccessor(abortNode);
+                    if (abortNext is null)
+                    {
+                        SealFallThrough(blockId, bb, DebugOf(abortNode));
+                        return;
+                    }
+                    if (IsMergePoint(abortNext.Id))
+                    {
+                        // ⭐ CE-2115 — as every other arm: a convergent successor is jumped to, never re-inlined.
+                        bb.Terminator = new IrTerm_Goto(GetOrAllocMergeBlock(abortNext)) { Debug = DebugOf(abortNode) };
+                        return;
+                    }
+                    node = abortNext;
+                    continue;
+                }
+
+                // ⭐ S7b — a Started Behaviour Task (lifted by Stage 2.6): (re)start its task fiber, continue on Started.
+                case BehaviorTaskStartNode taskStart:
+                {
+                    _execNodeToBlockId[taskStart.Id] = blockId;
+                    bb.SourceNodeId ??= taskStart.Id;
+                    int before = bb.Statements.Count;
+                    bb.Statements.Add(new IrStatement
+                    {
+                        Operation = new IrOp_StartTask(taskStart.FiberGraph),
+                        Debug     = DebugOf(taskStart),
+                    });
+                    TagFirstNewStatement(bb.Statements, before, taskStart.Id);
+                    var startedNext = GetSingleExecSuccessor(taskStart);
+                    if (startedNext is null)
+                    {
+                        SealFallThrough(blockId, bb, DebugOf(taskStart));
+                        return;
+                    }
+                    if (IsMergePoint(startedNext.Id))
+                    {
+                        // ⭐⭐ CE-2115 — the Started continuation re-inlined a merge point (a dispatcher that a task's Failed also
+                        //   reaches) instead of jumping to its shared block, so the node was lowered twice and its branch labels
+                        //   collided (CS0140). Every other arm already checks.
+                        bb.Terminator = new IrTerm_Goto(GetOrAllocMergeBlock(startedNext)) { Debug = DebugOf(taskStart) };
+                        return;
+                    }
+                    node = startedNext;
+                    continue;
+                }
 
                 // AN8: non-channel action node (ActionFqn set) — inline-latent invocation.
                 case ChannelCommandNode { ActionFqn: { } fqn } cc when !string.IsNullOrEmpty(fqn):
@@ -518,7 +710,7 @@ internal sealed class GraphScheduler
     // -----------------------------------------------------------------------
 
     private void ScheduleLatentNode(Node node, BlockBuilder bb, IrOperation latentOp,
-        Node? successSuccessor = null, Node? failureSuccessor = null)
+        Node? successSuccessor = null, Node? failureSuccessor = null, Node? whileRunningSuccessor = null)
     {
         // The pre-suspend block now represents this latent node.
         bb.SourceNodeId = node.Id;
@@ -571,11 +763,29 @@ internal sealed class GraphScheduler
                 _bfsQueue.Enqueue((failBlockId.Value, failureSuccessor));
         }
 
+        // ⭐ S7a — a Behaviour Task's While Running chain: its own block, run by the resume check each frame the child is
+        //   still Running. Its end returns (the fiber stays suspended on this node).
+        IrBlockId? whileRunningBlockId = null;
+        if (whileRunningSuccessor is not null)
+        {
+            var wrBlockId = AllocBlock($"wait_running_{_resumeCounter - 1}");
+            whileRunningBlockId = wrBlockId;
+            if (IsMergePoint(whileRunningSuccessor.Id))
+            {
+                _blockBuilders[wrBlockId.Value].Terminator =
+                    new IrTerm_Goto(GetOrAllocMergeBlock(whileRunningSuccessor)) { Debug = DebugOf(node) };
+                _scheduledBlocks.Add(wrBlockId.Value);
+            }
+            else
+                _bfsQueue.Enqueue((wrBlockId.Value, whileRunningSuccessor));
+        }
+
         bb.Terminator = new IrTerm_Suspend(
             ResumePoint  : resumePointValue,
             WaitUntilTime: null,
             ResumeBlock  : resumeBlockId,
-            FailureBlock : failureResumeBlockId)
+            FailureBlock : failureResumeBlockId,
+            WhileRunningBlock: whileRunningBlockId)
         {
             Debug = DebugOf(node),
         };
@@ -805,6 +1015,44 @@ internal sealed class GraphScheduler
             _fallThroughTarget[branchBlocks[branchBlocks.Count - 1].Value] = outerFt;
     }
 
+    /// <summary>
+    /// BP-108 — resolves each derived argument pin and rewrites the node's <c>Format</c> into the body of
+    /// a C# interpolated string, with every <c>{Name}</c> replaced by the temp that carries that pin's
+    /// value.
+    ///
+    /// <para>
+    /// ⭐ The pin set was DERIVED from this same format by <c>BuiltInNodeRegistry</c> via the same
+    /// parser, so names and pins correspond by construction — there is no separate mapping to drift.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ A malformed format is reported by Stage 2; here it simply yields no placeholders, so the node
+    /// still lowers to valid code rather than throwing mid-schedule.
+    /// </para>
+    /// </summary>
+    private string BuildInterpolatedBody(
+        Guid nodeId, string format, List<Pin> pins, List<IrStatement> stmts)
+    {
+        var parsed = Hrot.Blueprints.Core.Compiler.Format.BlueprintFormatString.Parse(format);
+        var exprByName = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var name in parsed.Names)
+        {
+            var pin = pins.FirstOrDefault(p =>
+                !p.IsExec && p.Direction == "In"
+                && string.Equals(p.Name, name, StringComparison.Ordinal));
+
+            var val = pin is not null
+                ? ResolveDataPin(nodeId, pin.Id, stmts)
+                : AllocValue(Stage5_Schedule.UnknownType);
+
+            exprByName[name] = "__t" + val.Index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        return Hrot.Blueprints.Core.Compiler.Format.BlueprintFormatString
+            .ToInterpolatedBody(format, exprByName);
+    }
+
     // -----------------------------------------------------------------------
     // Fall-through sealing helper
     // -----------------------------------------------------------------------
@@ -813,8 +1061,17 @@ internal sealed class GraphScheduler
     /// Sets the terminator on <paramref name="bb"/>: if a fall-through redirect
     /// is registered for <paramref name="blockId"/>, emits <see cref="IrTerm_Goto"/>;
     /// otherwise synthesizes the dispatch-appropriate implicit return
-    /// (<see cref="IrTerm_ReturnStatus"/>(Success) for AiPrimitive/Library,
-    /// void <see cref="IrTerm_Return"/> for Instance).
+    /// (<see cref="IrTerm_ReturnStatus"/>(Success) for AiPrimitive, and for Library only
+    /// while <see cref="_graph"/> declares no outputs; void <see cref="IrTerm_Return"/>
+    /// otherwise -- Instance, matching <see cref="BuildReturnTerminator"/>'s rule -- BP-104).
+    ///
+    /// <para>
+    /// BP-117: the one case BP-104 got wrong is an outputs-declaring <b>Library</b> graph whose chain
+    /// fell off the end. Its method returns <c>T</c> or a <c>ValueTuple</c>, so the void return BP-104
+    /// chose is <b>CS0126</b>. That case now emits <c>return default;</c>
+    /// (<see cref="IrTerm_Return.ReturnsDefault"/>) <b>and</b> <c>BP1657</c> -- valid C#, plus a
+    /// diagnostic, because a silently-defaulted return value is worse than a compile error.
+    /// </para>
     /// Centralizes the decision so that branch chaining (Sequence) is honoured
     /// wherever a block's exec chain naturally ends.
     /// </summary>
@@ -828,8 +1085,14 @@ internal sealed class GraphScheduler
 
         // Genuine end-of-chain — synthesize the implicit return per dispatch kind
         // (mirrors BuildReturnTerminator's defaults without an explicit ReturnNode).
+        // BP-104: _graph (the graph currently being scheduled) is in scope here, so the same
+        // outputs-driven rule as BuildReturnTerminator applies: AiPrimitive is unconditional;
+        // Library only takes the status branch when it declares no outputs. An outputs-declaring
+        // Library graph that falls off the end with no ReturnNode gets an implicit VOID return here
+        // -- same as Instance -- rather than a NodeStatus that would mismatch its declared C# return
+        // type (the same CS0029 shape BuildReturnTerminator fixes for the explicit-Return case).
         if (_typed.Asset.Dispatch == AssetDispatchKind.AiPrimitive
-            || _typed.Asset.Dispatch == AssetDispatchKind.Library)
+            || (_typed.Asset.Dispatch == AssetDispatchKind.Library && _graph.Outputs.Count == 0))
         {
             var term = new IrTerm_ReturnStatus(NodeStatus.Success);
             if (debug is not null) term = term with { Debug = debug };
@@ -837,7 +1100,33 @@ internal sealed class GraphScheduler
         }
         else
         {
-            var term = new IrTerm_Return(null /* void */);
+            // BP-117: BP-104 correctly stopped emitting a NodeStatus here, but the void return it put
+            // in its place is only right for Instance (a void method). A Library graph DECLARING
+            // outputs compiles to a method returning T or a ValueTuple, and `return;` there is CS0126
+            // -- reported by Roslyn against generated code the author never wrote. Emit
+            // `return default;` so the generated C# is valid, and report BP1657 so the implicit
+            // default is never silently returned: this is exactly C#'s "not all code paths return a
+            // value", and a wrong VALUE is worse than a compile error.
+            bool libraryOwesAValue =
+                _typed.Asset.Dispatch == AssetDispatchKind.Library && _graph.Outputs.Count > 0;
+
+            if (libraryOwesAValue)
+            {
+                // ⚖️ Warning, not Error (user ruling, Batch 25: "warning+return default is a perfect
+                // solution"). Unreal silently returns defaults on such a path, so an Error is stricter
+                // than a designer arriving from Unreal expects. ⭐ It also matters structurally: as an
+                // Error the pipeline never reaches emit, so `return default;` below could never be
+                // proven by any test. As a Warning the authoring-path matrix compiles it through
+                // Roslyn and proves it is valid for both a scalar and a ValueTuple.
+                _ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP1657,
+                    $"Library graph \"{_graph.Name}\" declares {_graph.Outputs.Count} output(s) but an "
+                    + "execution path ends without a Return node; the generated function would return "
+                    + "an unspecified default. Add a Return node on every path (C#: \"not all code "
+                    + "paths return a value\").",
+                    _typed.Asset.AssetId, _graph.Id));
+            }
+
+            var term = new IrTerm_Return(null /* void */, ReturnsDefault: libraryOwesAValue);
             if (debug is not null) term = term with { Debug = debug };
             bb.Terminator = term;
         }
@@ -996,6 +1285,38 @@ internal sealed class GraphScheduler
                 goto scheduleSuccessors;
             }
 
+            case WhenMode.SensorResult:
+            {
+                // ⭐ CE-3078 N4 — by the baked trigger's SHAPE (D4); Stage2 BP2074 / BP2076 refused anything undecidable.
+                var sr = wn.SensorResult;
+                if (sr?.Decl is null || !WhenSensorResultShape.Resolve(sr, out var shape, out var fieldTypeId, out _)) break;
+                var trig = sr.Decl.Triggers!.First(x => x.Name == sr.Trigger);
+                string? fieldCs = fieldTypeId is null ? null
+                    : fieldTypeId.StartsWith("global::", StringComparison.Ordinal) ? fieldTypeId : "global::" + fieldTypeId.Replace('+', '.');
+                string F(float v) => $"{v.ToString("R", System.Globalization.CultureInfo.InvariantCulture)}f";
+                bb.Statements.Add(new IrStatement
+                {
+                    ResultValue = null,
+                    Operation   = new IrOp_WhenSensorResultCheck(
+                        Kind:                 sr.Decl.Kind,
+                        ResultComponentFqn:   sr.Decl.ResultComponentFqn,
+                        Shape:                shape,
+                        Trigger:              sr.Trigger,
+                        ElementField:         trig.ElementField,
+                        FieldCSharpType:      fieldCs,
+                        ThresholdLiteral:     shape == "FieldCrossed" ? F(sr.Threshold) : null,
+                        MaxAgeLiteral:        sr.Trigger == "BecomesStale" ? F(sr.MaxAgeSeconds) : null,
+                        SynthFieldName:       synthFieldName,
+                        SynthStructTypeName:  $"_WhenSensor_{idShort}_PrevState",
+                        SynthStructSizeBytes: 32,
+                        OnFiredBlock:         hasFired ? onFiredBlock : null,
+                        OnEndedBlock:         hasEnded ? onEndedBlock : null),
+                    Debug = debug,
+                });
+                bb.Terminator = new IrTerm_Goto(outBlock) { Debug = debug };
+                goto scheduleSuccessors;
+            }
+
             case WhenMode.EqsResult:
             {
                 var er = wn.EqsResult;
@@ -1033,7 +1354,8 @@ internal sealed class GraphScheduler
                         ScoreThresholdLiteral: scoreThreshold,
                         MaxAgeLiteral:        maxAge,
                         OnFiredBlock:         hasFired ? onFiredBlock : null,
-                        OnEndedBlock:         hasEnded ? onEndedBlock : null),
+                        OnEndedBlock:         hasEnded ? onEndedBlock : null,
+                        UnitSensorKind:       er.UnitSensorKind),
                     Debug = debug,
                 });
 
@@ -1064,15 +1386,28 @@ internal sealed class GraphScheduler
         Node? endedSucc  = GetWhenExecSuccessor(wn, "OnEnded");
         Node? outSucc    = GetWhenExecSuccessor(wn, "Out");
 
-        if (onFiredBlock.HasValue && firedSucc is not null)
-            _bfsQueue.Enqueue((onFiredBlock.Value.Value, firedSucc));
+        // ⛔⛔ CE-446 (found 2026-09-30): an UNCONNECTED exit used to stay an empty block with an implicit
+        //   FallThrough — and when it was the last block emitted there was nothing to fall into, so the C# was a
+        //   bare label before the method's closing brace (CS1525/CS1002, "not all code paths return"). Any Instance
+        //   whose When had no Out/OnFired successor failed to compile. ⭐ Seal an unconnected exit exactly as a
+        //   Branch arm is sealed (ResolveArmBlock): the Sequence continuation if there is one, else the implicit
+        //   return for this dispatch (a behaviour Tick ⇒ Running).
+        if (onFiredBlock.HasValue)
+        {
+            if (firedSucc is not null) _bfsQueue.Enqueue((onFiredBlock.Value.Value, firedSucc));
+            else SealFallThrough(onFiredBlock.Value.Value, _blockBuilders[onFiredBlock.Value.Value], debug);
+        }
 
-        if (onEndedBlock.HasValue && endedSucc is not null)
-            _bfsQueue.Enqueue((onEndedBlock.Value.Value, endedSucc));
+        if (onEndedBlock.HasValue)
+        {
+            if (endedSucc is not null) _bfsQueue.Enqueue((onEndedBlock.Value.Value, endedSucc));
+            else SealFallThrough(onEndedBlock.Value.Value, _blockBuilders[onEndedBlock.Value.Value], debug);
+        }
 
         if (outSucc is not null)
             _bfsQueue.Enqueue((outBlock.Value, outSucc));
-        // else outBlock stays empty -> auto-fallthrough from BlockBuilder.Build()
+        else
+            SealFallThrough(outBlock.Value, _blockBuilders[outBlock.Value], debug);
     }
 
     private static string ComparisonOpToCSharp(ComparisonOperator op) => op switch
@@ -1104,74 +1439,67 @@ internal sealed class GraphScheduler
     {
         switch (node)
         {
+            // CE-433: Set Variables -- one IrOp_WriteVariable per WIRED data-in, in pin (= declaration)
+            // order. ⭐ An unwired pin writes nothing: the variable keeps its value (SetMembers precedent).
+            case SetVariablesNode svs:
+            {
+                foreach (var pin in svs.Pins.Where(p => !p.IsExec && p.Direction == "In").ToList())
+                {
+                    if (!_graph.Links.Any(l => l.ToNodeId == svs.Id && l.ToPinId == pin.Id)) continue;
+                    var val = ResolveDataPin(svs.Id, pin.Id, stmts);
+                    stmts.Add(new IrStatement
+                    {
+                        Operation = new IrOp_WriteVariable(FindPinnedVariableRef(pin.Name), val),
+                        Debug     = DebugOf(node),
+                    });
+                }
+                break;
+            }
+
             case SetVariableNode sv:
             {
-                int idx = FindVariableIndex(sv.VariableId);
+                int localIdx = FindLocalIndex(sv.VariableId);
+                var target = localIdx >= 0 ? VariableRef.Unresolved : FindVariableRef(sv.VariableId);
                 var dataPin = node.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In");
                 if (dataPin is null) break;
                 var val = ResolveDataPin(node.Id, dataPin.Id, stmts);
                 stmts.Add(new IrStatement
                 {
-                    Operation = new IrOp_WriteVariable(idx, val),
+                    // BP-57: a local wins inside its own graph (Q27-C1), and the two spaces are
+                    // disjoint ops so nothing downstream has to disambiguate an integer.
+                    Operation = localIdx >= 0
+                        ? new IrOp_WriteLocal(localIdx, val)
+                        : (IrOperation)new IrOp_WriteVariable(target, val),
                     Debug     = DebugOf(node),
                 });
-                break;
-            }
 
-            case SetSharedNode ssn:
-            {
-                // Name-keyed slot -- NOT FindVariableIndex (there is no variable/struct-field index;
-                // the accessor resolves the slot by string variableId at runtime).
-                string sharedTypeFqn = NormalizeSharedTypeFqn(ssn.SharedTypeId);
-
-                // Q#14 multi-pin: baked per-field decls → one per-field write per WIRED field pin
-                // (unwired = not written = preserved). Sources resolve top-to-bottom into temporaries
-                // (evaluate-then-write); the writes touch distinct offsets, so they are order-independent.
-                if (ssn.Fields is { Count: > 0 })
-                {
-                    foreach (var f in ssn.Fields)
-                    {
-                        var fieldPin = node.Pins.FirstOrDefault(p =>
-                            !p.IsExec && p.Direction == "In"
-                            && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
-                        if (fieldPin is null) continue;
-                        var link = _graph.Links.FirstOrDefault(
-                            l => l.ToNodeId == node.Id && l.ToPinId == fieldPin.Id);
-                        if (link is null) continue; // unwired field → leave the slot's value untouched
-                        var fieldVal = ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts);
-                        stmts.Add(new IrStatement
-                        {
-                            Operation = new IrOp_WriteSharedField(
-                                ssn.VariableId, sharedTypeFqn, NormalizeSharedTypeFqn(f.TypeId),
-                                f.Offset, fieldVal),
-                            Debug = DebugOf(node),
-                        });
-                    }
-                    break;
-                }
-
-                var dataPin = node.Pins.FirstOrDefault(p =>
-                    !p.IsExec && p.Direction == "In"
-                    && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
-                if (dataPin is null) break;
-                var val = ResolveDataPin(node.Id, dataPin.Id, stmts);
-
-                var writtenPin = node.Pins.FirstOrDefault(p =>
+                // ⭐ The "Value" data-OUT pin -- a pass-through of what was just written, exactly as
+                // Unreal's Set node ships. Both projection halves emit this pin and type it, so it is
+                // wirable and the build is clean; NOTHING read it. A consumer pulling it found no case
+                // in ResolveNodeOutput and landed in the `default:` arm, which emitted
+                // IrOp_Const("default") -- so it printed 0 every tick, silently, forever.
+                //
+                // ⚠ No ResultValue is allocated, deliberately. IrOp_WriteVariable emits
+                // `state.Field = __t{val.Index};` -- the written value ALREADY exists as a materialized
+                // local, so the pass-through IS `val`. Mirroring SetSharedNode's writtenResult shape
+                // here would emit a redundant second local; that op allocates one because its result is
+                // a DIFFERENT value (a bool success flag), not the value written.
+                //
+                // ⚠⚠ _statementPinCache, NOT _pinValueCache. The per-block cache is cleared at every
+                // block boundary, so a consumer on the far side of a Branch would fall through to the
+                // same `default:` arm and read 0 again -- the defect would look fixed in every test
+                // whose producer and consumer sit in one block. SetVariable is statement-scheduled, so
+                // its value is materialized exactly once as a real local and stays in scope across the
+                // flat goto-based body -- which is precisely what _statementPinCache is for.
+                //
+                // ⚠ Pinning the value AS WRITTEN is the correct semantics, not a limitation: this pin
+                // means "the value I wrote", not "the variable's value now". A later write through
+                // another SetVariable must not retroactively change what this pin reported.
+                var valueOutPin = node.Pins.FirstOrDefault(p =>
                     !p.IsExec && p.Direction == "Out"
-                    && string.Equals(p.Name, "Written", StringComparison.OrdinalIgnoreCase));
-                IrValue? writtenResult = writtenPin is not null
-                    ? AllocValue(Stage5_Schedule.BoolType)
-                    : null;
-
-                stmts.Add(new IrStatement
-                {
-                    ResultValue = writtenResult,
-                    Operation   = new IrOp_WriteShared(ssn.VariableId, sharedTypeFqn, val),
-                    Debug       = DebugOf(node),
-                });
-
-                if (writtenPin is not null && writtenResult.HasValue)
-                    _pinValueCache[writtenPin.Id] = writtenResult.Value;
+                    && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
+                if (valueOutPin is not null)
+                    _statementPinCache[valueOutPin.Id] = val;
                 break;
             }
 
@@ -1222,7 +1550,10 @@ internal sealed class GraphScheduler
                     !p.IsExec && p.Direction == "Out"
                     && string.Equals(p.Name, "Written", StringComparison.OrdinalIgnoreCase));
                 if (writtenPinM is not null)
-                    _pinValueCache[writtenPinM.Id] = writtenResultM;
+                {
+                    _pinValueCache[writtenPinM.Id]     = writtenResultM;   // see the SetShared note
+                    _statementPinCache[writtenPinM.Id] = writtenResultM;
+                }
                 break;
             }
 
@@ -1276,7 +1607,205 @@ internal sealed class GraphScheduler
                     !p.IsExec && p.Direction == "Out"
                     && string.Equals(p.Name, "Written", StringComparison.OrdinalIgnoreCase));
                 if (writtenPinC is not null)
-                    _pinValueCache[writtenPinC.Id] = writtenResultC;
+                {
+                    _pinValueCache[writtenPinC.Id]     = writtenResultC;   // see the SetShared note
+                    _statementPinCache[writtenPinC.Id] = writtenResultC;
+                }
+                break;
+            }
+
+            case PrintStringNode psn:
+            {
+                // BP-108. Pins were DERIVED from the format by BuiltInNodeRegistry, so the arg pins and
+                // the placeholder names are the same list in the same order by construction -- resolve
+                // each by name and hand the emitter an already-rewritten interpolated body.
+                var psBody = BuildInterpolatedBody(psn.Id, psn.Format, psn.Pins, stmts);
+                stmts.Add(new IrStatement
+                {
+                    Operation = new IrOp_PrintString(psBody, psn.Level.ToString()),
+                    Debug     = DebugOf(psn),
+                });
+                break;
+            }
+
+            case CollectionWriteNode cwn:
+            {
+                // FC-1 (Q#20) -- component-collection element write. The "Ok" ResultValue is ALWAYS
+                // allocated (mirrors SetComponentNode's "Written"), so downstream wires resolve even
+                // on the degraded paths below.
+                var okResult = AllocValue(Stage5_Schedule.BoolType);
+                var okPin = node.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Ok", StringComparison.OrdinalIgnoreCase));
+                if (okPin is not null)
+                {
+                    _pinValueCache[okPin.Id]     = okResult;   // see the SetShared note
+                    _statementPinCache[okPin.Id] = okResult;
+                }
+
+                // Author-time binding check -- mirrors the CA-07 consumers' unwired/unbaked safe
+                // default (Stage2's BP2067 catches the wired-but-unbaked half at validation time;
+                // unwired is legitimately "not used yet"). The wire is NEVER the write entity (G4
+                // defense-in-depth: self-only regardless of what the producer resolved to).
+                var cwCollPin = node.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Collection", StringComparison.OrdinalIgnoreCase));
+                bool cwWired = cwCollPin is not null && _graph.Links.Any(
+                    l => l.ToNodeId == node.Id && l.ToPinId == cwCollPin.Id);
+
+                // Per-op operand pins -- required operands resolved WIRED-ONLY (an unwired required
+                // operand degrades to the same safe no-write default; never a dangling IrValue).
+                bool needsInt   = cwn.Op is CollectionWriteOp.SetAt or CollectionWriteOp.InsertAt
+                                            or CollectionWriteOp.RemoveAt or CollectionWriteOp.Resize;
+                bool needsValue = cwn.Op is CollectionWriteOp.Add or CollectionWriteOp.SetAt
+                                            or CollectionWriteOp.InsertAt;
+                string intPinName = cwn.Op == CollectionWriteOp.Resize ? "Length" : "Index";
+
+                IrValue? ResolveWiredOperand(string pinName)
+                {
+                    var pin = node.Pins.FirstOrDefault(p =>
+                        !p.IsExec && p.Direction == "In"
+                        && string.Equals(p.Name, pinName, StringComparison.OrdinalIgnoreCase));
+                    if (pin is null) return null;
+                    var link = _graph.Links.FirstOrDefault(
+                        l => l.ToNodeId == node.Id && l.ToPinId == pin.Id);
+                    if (link is null) return null;
+                    return ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts);
+                }
+
+                IrValue? cwIntArg = needsInt   ? ResolveWiredOperand(intPinName) : null;
+                IrValue? cwValue  = needsValue ? ResolveWiredOperand("Value")    : null;
+
+                bool degraded = !cwWired
+                    || string.IsNullOrEmpty(cwn.ComponentTypeFqn)
+                    || string.IsNullOrEmpty(cwn.WriteAccessorFqn)
+                    || cwn.CollectionKind == CollectionKind.ManagedMember   // BP2068 backstop
+                    || (needsInt   && cwIntArg is null)
+                    || (needsValue && cwValue  is null);
+                if (degraded)
+                {
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = okResult,
+                        Operation   = new IrOp_Const("false", Stage5_Schedule.BoolType),
+                        Debug       = new IrDebugAnnotation
+                        {
+                            GraphId     = _graph.Id,
+                            NodeId      = node.Id,
+                            Synthesized = "collection-write-unwired-or-unbaked",
+                        },
+                    });
+                    break;
+                }
+
+                // Self-only by construction (Q#16/Q#20) -- entity is ALWAYS the resolved self,
+                // mirrors SetComponentNode exactly; the Collection wire's entity is deliberately
+                // never read here.
+                var cwSelf = AllocValue(Stage5_Schedule.EntityType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = cwSelf,
+                    Operation   = new IrOp_Self(),
+                    Debug       = DebugOf(node),
+                });
+
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = okResult,
+                    Operation   = new IrOp_CollectionWrite(
+                        cwn.ComponentTypeFqn,
+                        cwSelf,
+                        cwn.WriteAccessorFqn,
+                        cwn.Op.ToString(),
+                        node.Id,
+                        cwIntArg,
+                        cwValue,
+                        ReturnsBool: cwn.Op != CollectionWriteOp.Clear),
+                    Debug       = DebugOf(node),
+                });
+                break;
+            }
+
+            case ListWriteNode lwn:
+            {
+                // FC-2/LV-3 -- fixed-list VARIABLE write. Mirrors CollectionWriteNode's shape
+                // (always-allocated Ok except Clear, wired-only required operands, degrade to a
+                // safe no-write) but the target is the state field named by VariableId -- no
+                // entity, no accessor, in-place mutation via IrOp_ListWrite.
+                var lwDecl = TryGetListVariableDeclById(lwn.VariableId);
+
+                IrValue? lwOk = null;
+                if (lwn.Op != CollectionWriteOp.Clear)
+                {
+                    lwOk = AllocValue(Stage5_Schedule.BoolType);
+                    var lwOkPin = node.Pins.FirstOrDefault(p =>
+                        !p.IsExec && p.Direction == "Out"
+                        && string.Equals(p.Name, "Ok", StringComparison.OrdinalIgnoreCase));
+                    if (lwOkPin is not null)
+                    {
+                        _pinValueCache[lwOkPin.Id]     = lwOk.Value;   // see the SetShared note
+                        _statementPinCache[lwOkPin.Id] = lwOk.Value;
+                    }
+                }
+
+                bool lwNeedsInt   = lwn.Op is CollectionWriteOp.SetAt or CollectionWriteOp.InsertAt
+                                             or CollectionWriteOp.RemoveAt or CollectionWriteOp.Resize;
+                bool lwNeedsValue = lwn.Op is CollectionWriteOp.Add or CollectionWriteOp.SetAt
+                                             or CollectionWriteOp.InsertAt;
+                string lwIntPinName = lwn.Op == CollectionWriteOp.Resize ? "Length" : "Index";
+
+                IrValue? ResolveWiredLwOperand(string pinName)
+                {
+                    var pin = node.Pins.FirstOrDefault(p =>
+                        !p.IsExec && p.Direction == "In"
+                        && string.Equals(p.Name, pinName, StringComparison.OrdinalIgnoreCase));
+                    if (pin is null) return null;
+                    var link = _graph.Links.FirstOrDefault(
+                        l => l.ToNodeId == node.Id && l.ToPinId == pin.Id);
+                    if (link is null) return null;
+                    return ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts);
+                }
+
+                IrValue? lwIntArg = lwNeedsInt   ? ResolveWiredLwOperand(lwIntPinName) : null;
+                IrValue? lwValue  = lwNeedsValue ? ResolveWiredLwOperand("Value")      : null;
+
+                bool lwDegraded = lwDecl is null
+                    || (lwNeedsInt   && lwIntArg is null)
+                    || (lwNeedsValue && lwValue  is null);
+                if (lwDegraded)
+                {
+                    // Unbound target / unwired required operand -- safe no-write, Ok=false
+                    // (Stage2's BP1505 catches the unbound-target half at validation time).
+                    if (lwOk is { } lwOkVal)
+                    {
+                        stmts.Add(new IrStatement
+                        {
+                            ResultValue = lwOkVal,
+                            Operation   = new IrOp_Const("false", Stage5_Schedule.BoolType),
+                            Debug       = new IrDebugAnnotation
+                            {
+                                GraphId     = _graph.Id,
+                                NodeId      = node.Id,
+                                Synthesized = "list-write-unbound-or-unwired",
+                            },
+                        });
+                    }
+                    break;
+                }
+
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = lwOk,
+                    Operation   = new IrOp_ListWrite(
+                        lwDecl!.Name,
+                        lwDecl.Type.TypeId,
+                        lwDecl.Type.Capacity,
+                        lwn.Op.ToString(),
+                        node.Id,
+                        lwIntArg,
+                        lwValue),
+                    Debug       = DebugOf(node),
+                });
                 break;
             }
 
@@ -1286,7 +1815,7 @@ internal sealed class GraphScheduler
                 // Discriminator wins over the CLR library case below.
                 if (!Guid.TryParse(fc.TargetGraphId, out var targetGraphGuid))
                 {
-                    _ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP4004,
+                    _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP4004,
                         $"FunctionCallNode TargetGraphId '{fc.TargetGraphId}' is not a valid GUID -- no IR emitted.",
                         _ctx.AssetId, _graph.Id, node.Id));
                     break;
@@ -1294,13 +1823,34 @@ internal sealed class GraphScheduler
                 var targetGraph = _typed.Asset.Graphs.FirstOrDefault(g => g.Id == targetGraphGuid);
                 if (targetGraph is null || targetGraph.Kind != GraphKind.Function)
                 {
-                    _ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP4004,
+                    _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP4004,
                         $"FunctionCallNode references unknown or non-Function graph '{fc.TargetGraphId}' -- no IR emitted.",
                         _ctx.AssetId, _graph.Id, node.Id));
                     break;
                 }
-                var gcArgs   = ResolveAllDataInputs(node, stmts);
-                var gcOutPin = node.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out");
+                var gcArgs    = ResolveAllDataInputs(node, stmts);
+                var gcOutPins = node.Pins.Where(p => !p.IsExec && p.Direction == "Out").ToList();
+                var gcOutPin  = gcOutPins.FirstOrDefault();
+
+                // BP-73: a target graph with N outputs returns a ValueTuple carrier, which is then
+                // fanned out one statement per out-pin. Each fan-out value is cached in
+                // _statementPinCache (NOT _pinValueCache) because it is produced by a REAL statement
+                // already in the block -- the distinction that stops a later consumer from
+                // recomputing or defaulting it.
+                if (targetGraph.Outputs.Count > 1)
+                {
+                    var multiCarrier = AllocValue(Stage5_Schedule.UnknownType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = multiCarrier,
+                        Operation   = new IrOp_GraphCall(
+                            targetGraphGuid, gcArgs, Stage5_Schedule.UnknownType),
+                        Debug       = DebugOf(node),
+                    });
+                    EmitCarrierFanOut(multiCarrier, gcOutPins, targetGraph, stmts, node);
+                    break;
+                }
+
                 IrTypeRef gcRetType;
                 if (gcOutPin is not null && _typed.PinTypes.TryGetValue(gcOutPin.Id, out var gcPinType))
                     gcRetType = gcPinType;
@@ -1316,13 +1866,18 @@ internal sealed class GraphScheduler
                     Debug       = DebugOf(node),
                 });
                 if (gcOutPin is not null)
-                    _pinValueCache[gcOutPin.Id] = gcResult;
+                {
+                    // ⚠ The IMPURE-CLR FunctionCall case below caches into BOTH; this local-graph-call
+                    // arm cached into one. Same node type, two arms, two behaviours across a Branch.
+                    _pinValueCache[gcOutPin.Id]     = gcResult;
+                    _statementPinCache[gcOutPin.Id] = gcResult;
+                }
                 break;
             }
 
             case FunctionCallNode fc when !fc.IsPure:
             {
-                // Impure CLR method call (curated helper, e.g. AreaQueryBatchOps.Request/Free) --
+                // Impure CLR method call (e.g. BlueprintWorldLibrary.RefreshEqsSensor) --
                 // resolve inputs, emit call, cache output. This is NOT a call into another
                 // Library-dispatch blueprint (that is IrOp_LibraryCall's actual purpose, keyed by
                 // a real LibraryBlueprintId resolved elsewhere); fc.TargetTypeId here is an
@@ -1376,7 +1931,37 @@ internal sealed class GraphScheduler
                 if (!Guid.TryParse(cpb.PeerBlueprintId, out var peerId)) break;
                 int peerId32 = BlueprintIdHash.Compute(peerId);
                 var inputVals = ResolveAllDataInputs(node, stmts);
-                var outPin = node.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out");
+                var peerOutPins = node.Pins.Where(p => !p.IsExec && p.Direction == "Out").ToList();
+
+                // BP-113: a peer function declaring N outputs returns a ValueTuple carrier, fanned
+                // out one statement per out-pin -- byte-for-byte what BP-73 does for the same-asset
+                // FunctionCall. Without this the two pin projections would advertise N pins that the
+                // compiler silently collapsed to one: the editor half fixed, the lowering not.
+                var peerFuncSig = _ctx.SiblingSignaturesById.TryGetValue(peerId, out var peerSigForCall)
+                    ? peerSigForCall.ExportedFunctions.FirstOrDefault(
+                        f => string.Equals(f.Name, cpb.FunctionRef, StringComparison.Ordinal))
+                    : null;
+
+                if (peerFuncSig is not null && peerFuncSig.Outputs.Count > 1)
+                {
+                    var peerCarrier = AllocValue(Stage5_Schedule.UnknownType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = peerCarrier,
+                        Operation   = new IrOp_PeerCall(peerId32, cpb.FunctionRef, inputVals,
+                                                        Stage5_Schedule.UnknownType),
+                        Debug       = DebugOf(node),
+                    });
+                    EmitCarrierFanOut(
+                        peerCarrier, peerOutPins,
+                        peerFuncSig.Outputs
+                            .Select(o => new BlueprintTypeRef { TypeId = o.TypeId })
+                            .ToList(),
+                        stmts, node);
+                    break;
+                }
+
+                var outPin = peerOutPins.FirstOrDefault();
                 IrTypeRef retType = outPin is not null && _typed.PinTypes.TryGetValue(outPin.Id, out var t)
                     ? t : Stage5_Schedule.UnknownType;
                 var result = AllocValue(retType);
@@ -1533,6 +2118,103 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            // ⭐ CE-2083 — SOP order: one SopActions call (DESIGN_Decision_Layer §4.10 D4); "Accepted" = it was not refused.
+            //   The Params pin (typed as the behaviour's authored params) is passed `in`; unwired ⇒ "{}" (authored defaults).
+            case SopOrderNode son:
+            {
+                var paramsPin = son.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, SopOrderNode.ParamsPin, StringComparison.OrdinalIgnoreCase));
+                var paramsLink = paramsPin is null ? null
+                    : _graph.Links.FirstOrDefault(l => l.ToNodeId == son.Id && l.ToPinId == paramsPin.Id);
+                IrValue? paramsValue = paramsLink is null ? null
+                    : ResolveNodeOutput(paramsLink.FromNodeId, paramsLink.FromPinId, stmts);
+
+                var accepted = AllocValue(Stage5_Schedule.BoolType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = accepted,
+                    Operation   = new IrOp_SopOrder(son.Kind == SopOrderKind.React, son.BehaviorName,
+                                                    (byte)son.Urgency, son.Urgency.ToString(), paramsValue),
+                    Debug       = DebugOf(son),
+                });
+                var acceptedPin = son.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, SopOrderNode.AcceptedPin, StringComparison.OrdinalIgnoreCase));
+                if (acceptedPin is not null)
+                {
+                    _pinValueCache[acceptedPin.Id]     = accepted;
+                    _statementPinCache[acceptedPin.Id] = accepted;
+                }
+                break;
+            }
+
+            // ⭐ CE-472 — Send Intent: DTO from the member pins → JSON → PublishManaged(AssignTacticalIntentEvent).
+            // The event shape comes from the EngineEventCatalog entry (the same one PublishEvent uses).
+            case SendIntentNode sin:
+            {
+                if (!RequireDto(sin.DtoTypeFqn, sin.Id)) break;
+                if (string.IsNullOrEmpty(sin.IntentId))
+                {
+                    _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1680,
+                        $"Send Intent node '{sin.Id}' has no intent id — nothing to publish.",
+                        _ctx.AssetId, _graph.Id, sin.Id));
+                    break;
+                }
+                var intentEntry = _ctx.EngineEvents.GetEntries().FirstOrDefault(e =>
+                    string.Equals(e.Name, "AssignTacticalIntentEvent", StringComparison.Ordinal));
+                if (intentEntry is null) break;   // no catalog ⇒ no safe publish shape (as PublishEvent)
+
+                var targetPin = sin.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Target", StringComparison.OrdinalIgnoreCase));
+                var targetLink = targetPin is null ? null
+                    : _graph.Links.FirstOrDefault(l => l.ToNodeId == sin.Id && l.ToPinId == targetPin.Id);
+                IrValue target;
+                if (targetLink is not null)
+                    target = ResolveNodeOutput(targetLink.FromNodeId, targetLink.FromPinId, stmts);
+                else
+                {
+                    target = AllocValue(Stage5_Schedule.EntityType);
+                    stmts.Add(new IrStatement { ResultValue = target, Operation = new IrOp_Self(), Debug = DebugOf(node) });
+                }
+
+                var dto  = LowerMakeDto(sin.Id, sin.DtoTypeFqn, sin.Fields, sin.Pins, stmts, Guid.Empty);
+                var json = AllocValue(Stage5_Schedule.StringType);
+                stmts.Add(new IrStatement { ResultValue = json, Operation = new IrOp_ToJson(dto), Debug = DebugOf(node) });
+                // ⭐ CE-3034 (R-193) — the intent's ORIGIN: to SELF (no Target link) a behaviour re-assigns itself ⇒ Self (keeps
+                //   its running origin); to another unit it is a commander's order ⇒ Superior. ⚠ A Target wired back to self
+                //   reads as Superior — the gate then compares it with the unit's own origin.
+                var originType = new IrTypeRef { FullName = "Fdp.Toolkit.Behavior.Components.BehaviorOrigin", IsUnmanaged = true, SizeBytes = 1 };
+                var origin = AllocValue(originType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = origin,
+                    Operation   = new IrOp_Const(targetLink is null
+                        ? "global::Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Self"
+                        : "global::Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior", originType),
+                    Debug       = DebugOf(node),
+                });
+                var intentId = AllocValue(Stage5_Schedule.StringType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = intentId,
+                    Operation   = new IrOp_Const("\"" + sin.IntentId.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"", Stage5_Schedule.StringType),
+                    Debug       = DebugOf(node),
+                });
+                stmts.Add(new IrStatement
+                {
+                    Operation = new IrOp_PublishBusEvent(intentEntry.EventTypeFqn,
+                        new List<(string FieldName, IrValue Value)>
+                        {
+                            (intentEntry.TargetFieldName ?? "Entity", target),
+                            ("IntentId", intentId),
+                            ("JsonParams", json),
+                            ("Origin", origin),
+                        },
+                        Managed: true),
+                    Debug = DebugOf(node),
+                });
+                break;
+            }
+
             case CallCustomEventNode cce:
             {
                 int idx = FindCustomEventIndex(cce.EventId);
@@ -1576,6 +2258,10 @@ internal sealed class GraphScheduler
                 var threatThreshold = ResolveParamPin("ThreatThreshold");
                 var publishPolicy   = ResolveParamPin("PublishPolicy");
                 var priority        = ResolveParamPin("Priority");
+                var contextSlot0    = ResolveParamPin("ContextSlot0");
+                var contextSlot1    = ResolveParamPin("ContextSlot1");
+                var contextSlot2    = ResolveParamPin("ContextSlot2");
+                var sensorKey       = ResolveParamPin("Key");
 
                 // Emit the spawn op; result is the EqsSensorHandle
                 var handleType = new IrTypeRef { FullName = "FDP.Eqs.EqsSensorHandle", IsUnmanaged = true, SizeBytes = 8 };
@@ -1590,7 +2276,11 @@ internal sealed class GraphScheduler
                         FactionFilterValue:         factionFilter,
                         ThreatThresholdValue:       threatThreshold,
                         PublishPolicyValue:         publishPolicy,
-                        PriorityValue:              priority),
+                        PriorityValue:              priority,
+                        ContextSlot0Value:          contextSlot0,
+                        ContextSlot1Value:          contextSlot1,
+                        ContextSlot2Value:          contextSlot2,
+                        KeyValue:                   sensorKey),
                     Debug = DebugOf(ssn),
                 });
 
@@ -1598,8 +2288,43 @@ internal sealed class GraphScheduler
                 var handleOutPin = ssn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out"
                                         && string.Equals(p.Name, "Handle", StringComparison.OrdinalIgnoreCase));
                 if (handleOutPin is not null)
-                    _pinValueCache[handleOutPin.Id] = handleResult;
+                {
+                    _pinValueCache[handleOutPin.Id]     = handleResult;   // see the SetShared note
+                    _statementPinCache[handleOutPin.Id] = handleResult;
+                }
 
+                break;
+            }
+
+            case SpawnSensorNode spn:
+            {
+                // ⭐ CE-3078 N3 — the kind's own Ensure (Q2), the CE-485 site / key shape of SpawnEqsSensor.
+                var decl = spn.Decl!;   // Stage2 BP2074 / BP2075 refuse a node without one
+                IrValue? Wired(string pinName)
+                {
+                    var pin = spn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In" && string.Equals(p.Name, pinName, StringComparison.Ordinal));
+                    if (pin is null) return null;
+                    var link = _graph.Links.FirstOrDefault(l => l.ToNodeId == spn.Id && l.ToPinId == pin.Id);
+                    return link is null ? null : ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts);
+                }
+                var settings = new List<(string, IrValue)>();
+                foreach (var (name, dir, _) in SpawnSensorNode.DataPins(decl))
+                    if (dir == "In" && name != "Key" && Wired(name) is { } v) settings.Add((name, v));
+                var entityType = new IrTypeRef { FullName = "Fdp.Core.Entity", IsUnmanaged = true, SizeBytes = 8 };
+                var sensorResult = AllocValue(entityType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = sensorResult,
+                    Operation   = new IrOp_SpawnSensor((int)BlueprintIdHash.Compute(spn.Id), decl.SettingsTypeFqn!, decl.SettingsDefaultFqn,
+                                                       decl.EnsureMethodFqn!, settings, Wired("Key")),
+                    Debug = DebugOf(spn),
+                });
+                var sensorOut = spn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out" && p.Name == "Sensor");
+                if (sensorOut is not null)
+                {
+                    _pinValueCache[sensorOut.Id]     = sensorResult;
+                    _statementPinCache[sensorOut.Id] = sensorResult;
+                }
                 break;
             }
 
@@ -1610,25 +2335,54 @@ internal sealed class GraphScheduler
                 int decisionId = ComputeDecisionId(sdn.AssetId);
                 string decisionIdLiteral = decisionId.ToString();
 
-                var byteType = new IrTypeRef { FullName = "System.Byte", IsUnmanaged = true, SizeBytes = 1 };
-                var optionResult = AllocValue(byteType);
+                // ⭐ CE-2070 — one call, a small result struct, one field read per out pin (the ReadRankedResult shape);
+                //   the node's last winner lives in a hidden field Stage 6 adds (the When precedent).
+                string structTypeName = $"_ScoreDecisionResult_{id8}";
+                var resultType = new IrTypeRef { FullName = structTypeName, IsUnmanaged = true, SizeBytes = 16 };
+                var decided = AllocValue(resultType);
                 stmts.Add(new IrStatement
                 {
-                    ResultValue = optionResult,
-                    Operation   = new IrOp_ScoreDecision(decisionIdLiteral, id8),
+                    ResultValue = decided,
+                    Operation   = new IrOp_ScoreDecision(decisionIdLiteral, id8, structTypeName, $"_score_{id8}_last"),
                     Debug       = DebugOf(sdn),
                 });
 
-                var outPin = sdn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out"
-                                 && string.Equals(p.Name, "WinningOptionId", StringComparison.OrdinalIgnoreCase));
-                if (outPin is not null)
-                    _pinValueCache[outPin.Id] = optionResult;
+                foreach (var outPin in sdn.Pins.Where(p => !p.IsExec && p.Direction == "Out"))
+                {
+                    IrTypeRef fieldType = _typed.PinTypes.TryGetValue(outPin.Id, out var ft) ? ft : Stage5_Schedule.UnknownType;
+                    var fieldValue = AllocValue(fieldType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = fieldValue,
+                        Operation   = new IrOp_FieldRead(decided, outPin.Name, fieldType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = sdn.Id, PinId = outPin.Id },
+                    });
+                    _pinValueCache[outPin.Id]     = fieldValue;   // see the SetShared note
+                    _statementPinCache[outPin.Id] = fieldValue;
+                }
+                break;
+            }
+
+            case MacroCallNode mcn:
+            {
+                // BP-80 / BP1668: an unexpanded macro call reached Stage 5 as a compilation target.
+                //
+                // ⚠⚠ This arm exists to keep the node OUT of the default: arm below. That arm emits
+                // BP4004 -- a Warning that emits no IR and lets the exec chain walk on -- so without
+                // this case a macro call would compile away to nothing in any consumer that does not
+                // set TreatWarningsAsErrors. Silently doing less than the graph says is exactly the
+                // failure mode BP-216 and BP4005 were opened for; an Error here is the net.
+                _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1668,
+                    $"Macro call node '{mcn.Id}' (target graph '{mcn.TargetGraphId}') reached Stage 5 "
+                    + "as a compilation target -- it survived macro expansion. A macro call must be "
+                    + "spliced into its host graph before scheduling; it is never lowered on its own.",
+                    _ctx.AssetId, _graph.Id, node.Id));
                 break;
             }
 
             default:
                 // Unknown impure node kind -- emit BP4004 and skip.
-                _ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP4004,
+                _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP4004,
                     $"Unknown node kind '{node.GetType().Name}' -- no IR emitted.",
                     _ctx.AssetId, _graph.Id, node.Id));
                 break;
@@ -1711,20 +2465,206 @@ internal sealed class GraphScheduler
 
     private IrTerminator BuildReturnTerminator(ReturnNode rn, BlockBuilder currentBlock)
     {
-        if (_typed.Asset.Dispatch == AssetDispatchKind.AiPrimitive
-            || _typed.Asset.Dispatch == AssetDispatchKind.Library)
+        // BP-104: hoisted above the dispatch branch -- both arms need it. Stage 0 projects exactly
+        // one data-in pin on the Return node per Graph.Outputs entry (in declaration order -- see
+        // ResolveAllDataInputs), so "has value pins" == "the containing graph declares outputs".
+        //
+        // BP-71 / Q24-B1: accept EITHER direction. The projections now emit "In" (the only form a
+        // designer can wire, and the convention everywhere else -- see ResolveAllDataInputs), but
+        // hand-authored JSON may still carry the legacy "Out" form, which this method has always
+        // resolved as an input anyway. Accepting both means there is nothing to migrate and no
+        // silently-void return for an asset written against the old shape.
+        //
+        // ⚠⚠ BP-131: the `Success` pin is EXCLUDED BY NAME, and this is defence in depth rather than
+        // bookkeeping. `valuePins` is "every non-exec pin on the Return node", and two unrelated
+        // shapes branch on its COUNT: `== 0` selects the zero-output-Library NodeStatus return
+        // (test-locked by BPC_ImplicitReturnTests.Library_NoReturn_EmitsImplicitSuccessReturn), and
+        // `> 1` selects BP-73's tuple packing. Left in the list, one new pin would silently move both.
+        // Primary containment is the projection gate (the pin exists for AiPrimitive only) -- but the
+        // two mechanisms fail independently, and a hand-authored asset can carry pins no projection
+        // produced, so the name exclusion stands on its own.
+        var valuePins = rn.Pins
+            .Where(p => !p.IsExec && (p.Direction == "In" || p.Direction == "Out"))
+            .Where(p => !string.Equals(p.Name, ReturnNode.SuccessPinName, StringComparison.Ordinal))
+            .ToList();
+
+        // BP-104: three OTHER halves already derive the method shape from graph.Outputs --
+        // LibraryEmitter.CSharpReturnType (0 outputs -> NodeStatus/void, >=1 -> the output type or a
+        // tuple), CSharpEmitter.EmitLibraryFunctionAdapter (writes the RETURN VALUE into the outputs
+        // span), and BP73_MultipleFunctionOutputsTests' Library adapter test. This terminator was the
+        // ONE remaining half still emitting IrTerm_ReturnStatus unconditionally for Library, so a
+        // Library function that declares outputs got a method declared to return that type/tuple
+        // whose body executed `return NodeStatus.Success;` -- CS0029, a hard Roslyn error that
+        // `CompileOk`-style helpers (which only assert `Succeeded`, never invoking the C# compiler)
+        // let through silently.
+        //
+        // AiPrimitive is UNCONDITIONAL: NodeStatus is its BTree/HSM hosting contract, independent of
+        // whether the graph happens to declare outputs. Library instead takes the status branch only
+        // when it declares NO outputs -- that zero-output case is deliberate and test-locked
+        // (BPC_ImplicitReturnTests.Library_NoReturn_EmitsImplicitSuccessReturn feeds LibraryMath.bp.json)
+        // and must keep returning NodeStatus, not be swept into the value-return path below.
+        bool wantsStatusReturn =
+            _typed.Asset.Dispatch == AssetDispatchKind.AiPrimitive
+            || (_typed.Asset.Dispatch == AssetDispatchKind.Library && valuePins.Count == 0)
+            // ⭐ CE-446: a blueprint BEHAVIOUR's Return node finishes it with its Success/Failure (Q77 D).
+            || BehaviorDispatch.IsTickGraph(_typed.Asset, _graph);
+
+        if (wantsStatusReturn)
         {
-            // AiPrimitive returns a NodeStatus.
+            // AiPrimitive returns a NodeStatus. So does a Library function with zero outputs.
+            //
+            // BP-131: when a `Success : bool` pin is present AND WIRED, the status becomes a runtime
+            // value -- `return cond ? Success : Failure;`. The ABI is untouched (still a NodeStatus).
+            //
+            // ⚠⚠ UNWIRED falls back to the authored rn.Status, NOT to default(bool). This is the
+            // whole migration story: default(bool) is `false` = Failure, so a silent default would
+            // have flipped every AiPrimitive Return already shipped from Success to Failure -- a
+            // wrong-VALUES regression across the repo that a green suite would not have caught. The
+            // fallback is back-compatible with every existing asset and needs no migration.
+            // (An inline `true` default was the alternative; the fallback is preferred because it
+            // also honours a Return node whose author deliberately picked Failure.)
+            var successPin = rn.Pins.FirstOrDefault(
+                p => !p.IsExec
+                     && string.Equals(p.Name, ReturnNode.SuccessPinName, StringComparison.Ordinal));
+
+            bool successWired = successPin is not null && _graph.Links.Any(
+                l => l.ToNodeId == rn.Id && l.ToPinId == successPin.Id);
+
+            if (successWired)
+            {
+                var cond = ResolveDataPin(rn.Id, successPin!.Id, currentBlock.Statements);
+                return new IrTerm_ReturnStatus(rn.Status, cond) { Debug = DebugOf(rn) };
+            }
+
             return new IrTerm_ReturnStatus(rn.Status) { Debug = DebugOf(rn) };
         }
 
-        // Function graph: return data value from output pin (if any).
-        var outPin = rn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out");
-        IrValue? retVal = null;
-        if (outPin is not null)
-            retVal = ResolveDataPin(rn.Id, outPin.Id, currentBlock.Statements);
+        // Function graph (Instance dispatch), or a Library function that DOES declare outputs:
+        // return the data value wired into the Return node's value pin (if any).
+        //
+        // BP-73: N outputs. The pins are collected in declaration order (Stage 0 / the editor both
+        // project one per Graph.Outputs entry, in order), each resolved exactly as the single-output
+        // case always was, then packed into one carrier value by IrOp_MakeTuple.
+        //
+        // ⚠ IrTerm_Return keeps its SINGLE IrValue. Packing in a preceding statement rather than
+        // widening the terminator means every consumer of IrTerm_Return -- the block emitters, the
+        // debug map, the breakpoint anchoring above -- is untouched by this feature.
+        if (valuePins.Count > 1)
+        {
+            var parts = new List<IrValue>(valuePins.Count);
+            foreach (var vp in valuePins)
+                parts.Add(ResolveReturnValuePin(rn, vp, currentBlock));
+
+            var carrier = AllocValue(Stage5_Schedule.UnknownType);
+            currentBlock.Statements.Add(new IrStatement
+            {
+                ResultValue = carrier,
+                Operation   = new IrOp_MakeTuple(parts),
+                Debug       = DebugOf(rn),
+            });
+            return new IrTerm_Return(carrier) { Debug = DebugOf(rn) };
+        }
+
+        var valuePin = valuePins.FirstOrDefault();
+
+        IrValue? retVal = valuePin is not null
+            ? ResolveReturnValuePin(rn, valuePin, currentBlock)
+            : null;
 
         return new IrTerm_Return(retVal) { Debug = DebugOf(rn) };
+    }
+
+    /// <summary>
+    /// BP-73: unpacks a multi-output call's ValueTuple carrier into one value per out-pin, in
+    /// declaration order, and caches each against its pin so downstream consumers resolve normally.
+    /// <para>
+    /// Emits a statement per pin even when only some are wired. That is deliberate: the alternative
+    /// -- emitting lazily on first use -- would put the extraction inside whichever block first
+    /// consumed the pin, which for a call whose result crosses a branch is a different block than the
+    /// call. An unused <c>var</c> is harmless; a value read in a block that never declared it is
+    /// CS0103.
+    /// </para>
+    /// <para>
+    /// ⚠ Cached in <see cref="_statementPinCache"/>, not <c>_pinValueCache</c>: these values are
+    /// produced by real statements already appended to the block.
+    /// </para>
+    /// </summary>
+    private void EmitCarrierFanOut(
+        IrValue carrier, List<Pin> outPins, Graph targetGraph,
+        List<IrStatement> stmts, Node node)
+        => EmitCarrierFanOut(
+            carrier, outPins, targetGraph.Outputs.Select(o => o.Type).ToList(), stmts, node);
+
+    /// <summary>
+    /// BP-113: the same fan-out, driven by a bare list of declared output types rather than a local
+    /// <see cref="Graph"/> — so a <b>cross-asset</b> peer call, whose target is a
+    /// <c>BlueprintFunctionSig</c> in a sibling's signature and not a graph in this asset, lowers
+    /// through the identical path as the same-asset call.
+    /// </summary>
+    private void EmitCarrierFanOut(
+        IrValue carrier, List<Pin> outPins, IReadOnlyList<BlueprintTypeRef> outputTypes,
+        List<IrStatement> stmts, Node node)
+    {
+        // Pair pins to outputs POSITIONALLY -- both projections emit one out-pin per declared output
+        // in declaration order, so index i of each list is the same output. Guard on the shorter list
+        // so a stale asset with fewer pins than the target now declares cannot throw.
+        int n = Math.Min(outPins.Count, outputTypes.Count);
+        for (int i = 0; i < n; i++)
+        {
+            var pin = outPins[i];
+            var fieldType = _typed.PinTypes.TryGetValue(pin.Id, out var pt)
+                ? pt
+                : _ctx.TypeRegistry.TryResolve(outputTypes[i], out var rt)
+                    ? rt
+                    : Stage5_Schedule.UnknownType;
+
+            var fieldVal = AllocValue(fieldType);
+            stmts.Add(new IrStatement
+            {
+                ResultValue = fieldVal,
+                Operation   = new IrOp_TupleField(carrier, i),
+                Debug       = new IrDebugAnnotation
+                {
+                    GraphId = _graph.Id, NodeId = node.Id, PinId = pin.Id,
+                },
+            });
+            _statementPinCache[pin.Id] = fieldVal;
+        }
+    }
+
+    /// <summary>
+    /// Resolves one of the <c>Return</c> node's value pins: the wired value, or a declared
+    /// <c>default(T)</c> when nothing is wired to it.
+    /// <para>
+    /// BP-71 / Q24-C3: only call <see cref="ResolveDataPin"/> when a link actually arrives. Its
+    /// unwired path emits BP4001 and hands back a dummy — historically one that was never DECLARED,
+    /// so the emitter wrote <c>return __t7;</c> with no <c>var __t7</c>: CS0103 with no BP diagnostic
+    /// (BP-69's shape). Stage 2's <c>V_FunctionGraphReturnValue</c> makes the unwired case a hard
+    /// error; this keeps the GENERATED C# compilable regardless.
+    /// </para>
+    /// <para>
+    /// BP-73: shared by the single-output path and by each element of a multi-output carrier, so an
+    /// unwired output among N behaves exactly like the one unwired output of a single-output graph.
+    /// </para>
+    /// </summary>
+    private IrValue ResolveReturnValuePin(ReturnNode rn, Pin valuePin, BlockBuilder currentBlock)
+    {
+        bool wired = _graph.Links.Any(
+            l => l.ToNodeId == rn.Id && l.ToPinId == valuePin.Id);
+
+        if (wired)
+            return ResolveDataPin(rn.Id, valuePin.Id, currentBlock.Statements);
+
+        var retType = _typed.PinTypes.TryGetValue(valuePin.Id, out var pt)
+            ? pt : Stage5_Schedule.UnknownType;
+        var dflt = AllocValue(retType);
+        currentBlock.Statements.Add(new IrStatement
+        {
+            ResultValue = dflt,
+            Operation   = new IrOp_Const("default", retType),
+            Debug       = DebugOf(rn),
+        });
+        return dflt;
     }
 
     // -----------------------------------------------------------------------
@@ -1743,11 +2683,36 @@ internal sealed class GraphScheduler
 
         if (link == null)
         {
-            // Unconnected -- emit BP4001 and return a dummy value.
+            // Unconnected -- emit BP4001 and return a DECLARED default.
+            //
+            // BP-69/BP-71: this used to `AllocValue` a bare dummy and return it. An IrValue is only
+            // declared in the generated C# by the statement that produces it, so a dummy with no
+            // statement produced `Foo(__t7)` / `return __t7;` with no `var __t7` anywhere --
+            // **CS0103 from Roslyn with only a BP4001 *warning* to explain it**. That is the same
+            // unattributable shape as BP-69 itself, and it is reachable from every one of the ~20
+            // ResolveDataPin call sites, not just the return terminator BP-71 hardened.
+            //
+            // Emitting a typed `default(T)` statement makes the value real: the warning still names
+            // the unwired pin, the designer still gets Stage 2 errors where a validator covers the
+            // case (e.g. BP1655 for a function return), and Roslyn can no longer fail for a reason
+            // no diagnostic explains. Type comes from Stage 4's resolved pin type where known, so
+            // `default(float)` is passed to a float parameter rather than `default(object)`.
             _ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP4001,
                 $"Unconnected required data input pin {pinId} on node {consumerNodeId}.",
                 _ctx.AssetId, _graph.Id, consumerNodeId, pinId));
-            var dummy = AllocValue(Stage5_Schedule.UnknownType);
+
+            var dummyType = _typed.PinTypes.TryGetValue(pinId, out var resolvedPinType)
+                ? resolvedPinType : Stage5_Schedule.UnknownType;
+            var dummy = AllocValue(dummyType);
+            stmts.Add(new IrStatement
+            {
+                ResultValue = dummy,
+                Operation   = new IrOp_Const("default", dummyType),
+                Debug       = new IrDebugAnnotation
+                {
+                    GraphId = _graph.Id, NodeId = consumerNodeId, PinId = pinId,
+                },
+            });
             _pinValueCache[pinId] = dummy;
             return dummy;
         }
@@ -1782,10 +2747,97 @@ internal sealed class GraphScheduler
                 stmts.Add(new IrStatement
                 {
                     ResultValue = result,
-                    Operation   = new IrOp_Const(ln.ValueJson, pinType),
+                    // ⭐⭐ CE-300 (2026-09-23): TYPE THE LITERAL BY ITS PIN instead of passing the
+                    //   author's text through verbatim. ⛔ A bare `0.2777778` on a System.Single pin
+                    //   used to emit a `double` and Roslyn refused the GENERATED file with CS0266.
+                    //   ⚠ Convert-or-pass-through, NOT convert-or-refuse — ValueJson holds C# source
+                    //   text, not JSON, and refusing what the JSON parser cannot read would reject 42
+                    //   of the 86 literals that ship today. 📄 DefaultLiteral.ForLiteralNode.
+                    Operation   = new IrOp_Const(DefaultLiteral.ForLiteralNode(pinType, ln.ValueJson), pinType),
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = ln.Id, PinId = sourcePinId },
                 });
                 break;
+
+            // ⭐ CE-472 — To JSON: construct the DTO from the wired member pins (unwired ⇒ the DTO's default),
+            // then serialise it. The DTO lives only in a local between the two ops (decision B).
+            case ToJsonNode tjn:
+            {
+                if (!RequireDto(tjn.DtoTypeFqn, tjn.Id)) { result = AllocValue(Stage5_Schedule.StringType); break; }
+                var dto = LowerMakeDto(tjn.Id, tjn.DtoTypeFqn, tjn.Fields, tjn.Pins, stmts, sourcePinId);
+                result = AllocValue(Stage5_Schedule.StringType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_ToJson(dto),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = tjn.Id, PinId = sourcePinId },
+                });
+                break;
+            }
+
+            // ⭐ CE-472 — From JSON: deserialise once (never null, never throws — decision E), then project
+            // each member out-pin and the "Ok" flag, the BreakStruct read-once-then-project idiom.
+            case FromJsonNode fjn:
+            {
+                string dtoFqn = NormalizeSharedTypeFqn(fjn.DtoTypeFqn);
+                var jsonPin = fjn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Json", StringComparison.OrdinalIgnoreCase));
+                IrValue jsonVal;
+                var jLink = jsonPin is null ? null
+                    : _graph.Links.FirstOrDefault(l => l.ToNodeId == fjn.Id && l.ToPinId == jsonPin.Id);
+                if (jLink is not null)
+                    jsonVal = ResolveNodeOutput(jLink.FromNodeId, jLink.FromPinId, stmts);
+                else
+                {
+                    jsonVal = AllocValue(Stage5_Schedule.StringType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = jsonVal,
+                        Operation   = new IrOp_Const("\"\"", Stage5_Schedule.StringType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = fjn.Id, PinId = sourcePinId },
+                    });
+                }
+                if (!RequireDto(fjn.DtoTypeFqn, fjn.Id)) { result = jsonVal; break; }
+
+                var dtoVal = AllocValue(new IrTypeRef { FullName = dtoFqn, IsUnmanaged = false, SizeBytes = 0 });
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = dtoVal,
+                    Operation   = new IrOp_FromJson(jsonVal, dtoFqn),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = fjn.Id, PinId = sourcePinId },
+                });
+                foreach (var f in fjn.Fields)
+                {
+                    var fPin = fjn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out"
+                        && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                    if (fPin is null) continue;
+                    IrTypeRef fType = _typed.PinTypes.TryGetValue(fPin.Id, out var fpt)
+                        ? fpt
+                        : new IrTypeRef { FullName = NormalizeSharedTypeFqn(f.TypeId), IsUnmanaged = true, SizeBytes = 0 };
+                    var fRes = AllocValue(fType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = fRes,
+                        Operation   = new IrOp_FieldRead(dtoVal, f.Name, fType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = fjn.Id, PinId = fPin.Id },
+                    });
+                    _pinValueCache[fPin.Id] = fRes;
+                }
+                var okPin = fjn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Ok", StringComparison.OrdinalIgnoreCase));
+                if (okPin is not null)
+                {
+                    var okRes = AllocValue(Stage5_Schedule.BoolType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = okRes,
+                        Operation   = new IrOp_FromJsonOk(dtoVal),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = fjn.Id, PinId = okPin.Id },
+                    });
+                    _pinValueCache[okPin.Id] = okRes;
+                }
+                result = _pinValueCache.TryGetValue(sourcePinId, out var fjr) ? fjr : dtoVal;
+                break;
+            }
 
             // Q#14 Option B — MakeStruct: build a struct value from its wired field data-ins (unwired
             // fields keep the struct default). The single "Value" out-pin carries the constructed struct.
@@ -1907,34 +2959,21 @@ internal sealed class GraphScheduler
             }
 
             case GetVariableNode gv:
-                int varIdx = FindVariableIndex(gv.VariableId);
+                int gvLocal = FindLocalIndex(gv.VariableId);
+                var gvTarget = gvLocal >= 0 ? VariableRef.Unresolved : FindVariableRef(gv.VariableId);
                 result = AllocValue(pinType);
                 stmts.Add(new IrStatement
                 {
                     ResultValue = result,
-                    Operation   = new IrOp_ReadVariable(varIdx),
+                    Operation   = gvLocal >= 0
+                        ? new IrOp_ReadLocal(gvLocal)
+                        : (IrOperation)new IrOp_ReadVariable(gvTarget),
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gv.Id, PinId = sourcePinId },
                 });
                 break;
 
-            // GetParameter (GAP-11): reads a declared AiPrimitive/Instance Parameter -- mirrors
-            // GetVariableNode exactly except it resolves against a PARAMS-ONLY index (never a
-            // combined Variables/WorkingState/Parameters index -- see FindParameterIndex) and
-            // lowers to the pre-existing IrOp_ReadParam (StatementEmitter already emits
-            // `p.{ParamFieldName}` for it; no new IR op, no new StatementEmitter case).
-            case GetParameterNode gp:
-                int paramIdx = FindParameterIndex(gp.ParameterId);
-                result = AllocValue(pinType);
-                stmts.Add(new IrStatement
-                {
-                    ResultValue = result,
-                    Operation   = new IrOp_ReadParam(paramIdx),
-                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gp.Id, PinId = sourcePinId },
-                });
-                break;
-
-            // GetAllParameters: one out-pin per asset.Parameters entry -- mirrors GetParameterNode's
-            // IrOp_ReadParam lowering, but (like EventEntryNode's data-out pins, which are matched
+            // GetAllParameters (⭐ CE-2135 P4: the one Parameter read — Get Parameter retired): one out-pin per
+            // asset.Parameters entry, lowered to IrOp_ReadParam, but (like EventEntryNode's data-out pins, which are matched
             // by NAME against Graph.Inputs) resolves the param index by matching the SPECIFIC
             // requested out-pin's Name against asset.Parameters (FindParameterIndex's non-Guid
             // fallback already does a plain name match), rather than a single baked ParameterId.
@@ -1952,6 +2991,22 @@ internal sealed class GraphScheduler
                     ResultValue = result,
                     Operation   = new IrOp_ReadParam(gapIdx),
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gap.Id, PinId = sourcePinId },
+                });
+                break;
+            }
+
+            // CE-433: Get All Variables -- one out-pin per pinned Variable. The GetAllParameters shape
+            // retargeted at the block's state: the requested pin's NAME resolves to the same
+            // VariableRef a GetVariableNode would carry, so ContainerFor routes it for every subject.
+            case GetAllVariablesNode gav:
+            {
+                var gavPin = gav.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out" && p.Id == sourcePinId);
+                result = AllocValue(pinType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_ReadVariable(FindPinnedVariableRef(gavPin?.Name)),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gav.Id, PinId = sourcePinId },
                 });
                 break;
             }
@@ -1989,108 +3044,6 @@ internal sealed class GraphScheduler
                     Operation   = new IrOp_FieldRead(chVS, "Status", pinType),
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = wfcStatus.Id, PinId = sourcePinId },
                 });
-                break;
-            }
-
-            case GetSharedNode gsn:
-            {
-                // Name-keyed slot -- NOT FindVariableIndex (the shared struct is foreign to this
-                // asset's variable list; the accessor resolves the slot by string variableId).
-                string sharedTypeFqn = NormalizeSharedTypeFqn(gsn.SharedTypeId);
-
-                var valuePin = gsn.Pins.FirstOrDefault(p =>
-                    !p.IsExec && p.Direction == "Out"
-                    && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
-                var foundPin = gsn.Pins.FirstOrDefault(p =>
-                    !p.IsExec && p.Direction == "Out"
-                    && string.Equals(p.Name, "Found", StringComparison.OrdinalIgnoreCase));
-
-                // Slice 2b: OPTIONAL "Target" data-in pin (cross-entity read). Resolve it the same
-                // way SpawnEqsSensorNode resolves its optional parameter pins -- look up the pin,
-                // then look up its link directly (NOT via ResolveDataPin, which emits BP4001 for an
-                // unconnected pin); no pin or no link => null => Stage 7 emits `self`, byte-identical
-                // to the pre-Slice-2b unwired path. Mirrors how IrOp_GetComponent carries its
-                // resolved Entity argument as an IrValue.
-                var targetPin = gsn.Pins.FirstOrDefault(p =>
-                    !p.IsExec && p.Direction == "In"
-                    && string.Equals(p.Name, "Target", StringComparison.OrdinalIgnoreCase));
-                IrValue? targetEntity = null;
-                if (targetPin is not null)
-                {
-                    var targetLink = _graph.Links.FirstOrDefault(
-                        l => l.ToNodeId == gsn.Id && l.ToPinId == targetPin.Id);
-                    if (targetLink is not null)
-                        targetEntity = ResolveNodeOutput(targetLink.FromNodeId, targetLink.FromPinId, stmts);
-                }
-
-                // Q#14 multi-pin: read the whole struct ONCE, then project each field via IrOp_FieldRead
-                // (the same field-read op GetComponent uses). "Found" is the read's bool. All out-pins are
-                // cached so the single read is shared across every consumed field pin.
-                if (gsn.Fields is { Count: > 0 })
-                {
-                    var structType = new IrTypeRef { FullName = sharedTypeFqn, IsUnmanaged = true, SizeBytes = 0 };
-                    var structVal  = AllocValue(structType);
-                    var foundRes   = AllocValue(Stage5_Schedule.BoolType);
-                    stmts.Add(new IrStatement
-                    {
-                        ResultValue = structVal,
-                        Operation   = new IrOp_ReadShared(gsn.VariableId, sharedTypeFqn, foundRes, targetEntity),
-                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gsn.Id, PinId = sourcePinId },
-                    });
-
-                    var foundP = gsn.Pins.FirstOrDefault(p =>
-                        !p.IsExec && p.Direction == "Out"
-                        && string.Equals(p.Name, "Found", StringComparison.OrdinalIgnoreCase));
-                    if (foundP is not null) _pinValueCache[foundP.Id] = foundRes;
-
-                    foreach (var f in gsn.Fields)
-                    {
-                        var fPin = gsn.Pins.FirstOrDefault(p =>
-                            !p.IsExec && p.Direction == "Out"
-                            && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
-                        if (fPin is null) continue;
-                        IrTypeRef fType = _typed.PinTypes.TryGetValue(fPin.Id, out var fpt)
-                            ? fpt
-                            : new IrTypeRef { FullName = NormalizeSharedTypeFqn(f.TypeId), IsUnmanaged = true, SizeBytes = 0 };
-                        var fRes = AllocValue(fType);
-                        stmts.Add(new IrStatement
-                        {
-                            ResultValue = fRes,
-                            Operation   = new IrOp_FieldRead(structVal, f.Name, fType),
-                            Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gsn.Id, PinId = fPin.Id },
-                        });
-                        _pinValueCache[fPin.Id] = fRes;
-                    }
-
-                    result = _pinValueCache.TryGetValue(sourcePinId, out var mpr) ? mpr : structVal;
-                    break;
-                }
-
-                // Prefer the resolved pin type (from Stage4) when available; otherwise fall back
-                // to a locally-built IrTypeRef from the SharedTypeFqn (mirrors ReadEqsResult /
-                // ReadRankedResult building their own result-struct IrTypeRef rather than relying
-                // on PinTypes).
-                IrTypeRef valueType = valuePin is not null
-                    && _typed.PinTypes.TryGetValue(valuePin.Id, out var vt)
-                        ? vt
-                        : new IrTypeRef { FullName = sharedTypeFqn, IsUnmanaged = true, SizeBytes = 0 };
-
-                var valueResult = AllocValue(valueType);
-                var foundResult = AllocValue(Stage5_Schedule.BoolType);
-
-                stmts.Add(new IrStatement
-                {
-                    ResultValue = valueResult,
-                    Operation   = new IrOp_ReadShared(gsn.VariableId, sharedTypeFqn, foundResult, targetEntity),
-                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gsn.Id, PinId = sourcePinId },
-                });
-
-                if (valuePin is not null) _pinValueCache[valuePin.Id] = valueResult;
-                if (foundPin is not null) _pinValueCache[foundPin.Id] = foundResult;
-
-                // Return the value for the specifically requested pin (mirrors ReadEqsResult /
-                // ReadRankedResult's multi-output cache-then-select pattern).
-                result = _pinValueCache.TryGetValue(sourcePinId, out var pinRes) ? pinRes : valueResult;
                 break;
             }
 
@@ -2297,10 +3250,12 @@ internal sealed class GraphScheduler
                 // CA-07d-2: managed collections bake CollectionFieldName (native member access) instead
                 // of the curated ItemAccessorFqn -- the unbaked guard checks the kind's OWN required key.
                 bool cignManaged = cign.CollectionKind == CollectionKind.ManagedMember;
+                var cignListDecl = TryGetListVariableDecl(collLink);   // FC-2/LV-2: list-variable source
                 if (collLink is null
-                    || string.IsNullOrEmpty(cign.ComponentTypeFqn)
-                    || (cignManaged ? string.IsNullOrEmpty(cign.CollectionFieldName)
-                                    : string.IsNullOrEmpty(cign.ItemAccessorFqn)))
+                    || (cignListDecl is null
+                        && (string.IsNullOrEmpty(cign.ComponentTypeFqn)
+                            || (cignManaged ? string.IsNullOrEmpty(cign.CollectionFieldName)
+                                            : string.IsNullOrEmpty(cign.ItemAccessorFqn)))))
                 {
                     result = AllocValue(pinType);
                     stmts.Add(new IrStatement
@@ -2318,20 +3273,29 @@ internal sealed class GraphScheduler
                     break;
                 }
 
-                var entity = ResolveNodeOutput(collLink.FromNodeId, collLink.FromPinId, stmts);
-
-                // CA-07d-2: managed component -> IrOp_GetManagedComponentRO (null-safe, IsUnmanaged=false),
-                // mirroring GetComponentNode's managed read; curated -> unchanged IrOp_GetComponentRO.
-                var compTypeRef = new IrTypeRef { FullName = cign.ComponentTypeFqn, IsUnmanaged = !cignManaged, SizeBytes = 0 };
-                var compVal = AllocValue(compTypeRef);
-                stmts.Add(new IrStatement
+                IrValue compVal;
+                if (cignListDecl is not null)
                 {
-                    ResultValue = compVal,
-                    Operation   = cignManaged
-                        ? new IrOp_GetManagedComponentRO(cign.ComponentTypeFqn, entity, compTypeRef)
-                        : new IrOp_GetComponentRO(cign.ComponentTypeFqn, entity, compTypeRef),
-                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cign.Id, PinId = sourcePinId },
-                });
+                    // FC-2/LV-2: bind a ref onto the state field -- no entity, no component re-read.
+                    compVal = EmitListStateFieldRef(cignListDecl, stmts, cign.Id, sourcePinId);
+                }
+                else
+                {
+                    var entity = ResolveNodeOutput(collLink!.FromNodeId, collLink.FromPinId, stmts);
+
+                    // CA-07d-2: managed component -> IrOp_GetManagedComponentRO (null-safe, IsUnmanaged=false),
+                    // mirroring GetComponentNode's managed read; curated -> unchanged IrOp_GetComponentRO.
+                    var compTypeRef = new IrTypeRef { FullName = cign.ComponentTypeFqn, IsUnmanaged = !cignManaged, SizeBytes = 0 };
+                    compVal = AllocValue(compTypeRef);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = compVal,
+                        Operation   = cignManaged
+                            ? new IrOp_GetManagedComponentRO(cign.ComponentTypeFqn, entity, compTypeRef)
+                            : new IrOp_GetComponentRO(cign.ComponentTypeFqn, entity, compTypeRef),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cign.Id, PinId = sourcePinId },
+                    });
+                }
 
                 var indexPin = cign.Pins.FirstOrDefault(p =>
                     !p.IsExec && p.Direction == "In"
@@ -2340,7 +3304,9 @@ internal sealed class GraphScheduler
                     ? ResolveDataPin(cign.Id, indexPin.Id, stmts)
                     : AllocValue(Stage5_Schedule.Int32Type);
 
-                var cignElemFqn = string.IsNullOrEmpty(cign.ElementTypeFqn) ? "System.Object" : cign.ElementTypeFqn;
+                var cignElemFqn = !string.IsNullOrEmpty(cign.ElementTypeFqn) ? cign.ElementTypeFqn
+                    : cignListDecl is not null ? cignListDecl.Type.TypeId
+                    : "System.Object";
                 var elemTypeRef = new IrTypeRef
                 {
                     FullName    = cignElemFqn,
@@ -2353,7 +3319,9 @@ internal sealed class GraphScheduler
                     ResultValue = elemVal,
                     Operation   = new IrOp_ComponentAccessorCall(
                         cign.ItemAccessorFqn, compVal, indexVal, elemTypeRef,
-                        cign.CollectionKind, cign.CollectionFieldName ?? "", cignElemFqn),
+                        cignListDecl is not null ? CollectionKind.BlackboardFixedList : cign.CollectionKind,
+                        cign.CollectionFieldName ?? "", cignElemFqn,
+                        Capacity: cignListDecl?.Type.Capacity ?? 0),
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cign.Id, PinId = sourcePinId },
                 });
 
@@ -2377,10 +3345,12 @@ internal sealed class GraphScheduler
                     l => l.ToNodeId == cicn.Id && l.ToPinId == collPin.Id);
 
                 bool cicnManaged = cicn.CollectionKind == CollectionKind.ManagedMember;
+                var cicnListDecl = TryGetListVariableDecl(collLink);   // FC-2/LV-2
                 if (collLink is null
-                    || string.IsNullOrEmpty(cicn.ComponentTypeFqn)
-                    || (cicnManaged ? string.IsNullOrEmpty(cicn.CollectionFieldName)
-                                    : string.IsNullOrEmpty(cicn.CountAccessorFqn)))
+                    || (cicnListDecl is null
+                        && (string.IsNullOrEmpty(cicn.ComponentTypeFqn)
+                            || (cicnManaged ? string.IsNullOrEmpty(cicn.CollectionFieldName)
+                                            : string.IsNullOrEmpty(cicn.CountAccessorFqn)))))
                 {
                     result = AllocValue(pinType);
                     stmts.Add(new IrStatement
@@ -2398,18 +3368,26 @@ internal sealed class GraphScheduler
                     break;
                 }
 
-                var entity = ResolveNodeOutput(collLink.FromNodeId, collLink.FromPinId, stmts);
-
-                var compTypeRef = new IrTypeRef { FullName = cicn.ComponentTypeFqn, IsUnmanaged = !cicnManaged, SizeBytes = 0 };
-                var compVal = AllocValue(compTypeRef);
-                stmts.Add(new IrStatement
+                IrValue compVal;
+                if (cicnListDecl is not null)
                 {
-                    ResultValue = compVal,
-                    Operation   = cicnManaged
-                        ? new IrOp_GetManagedComponentRO(cicn.ComponentTypeFqn, entity, compTypeRef)
-                        : new IrOp_GetComponentRO(cicn.ComponentTypeFqn, entity, compTypeRef),
-                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cicn.Id, PinId = sourcePinId },
-                });
+                    compVal = EmitListStateFieldRef(cicnListDecl, stmts, cicn.Id, sourcePinId);
+                }
+                else
+                {
+                    var entity = ResolveNodeOutput(collLink!.FromNodeId, collLink.FromPinId, stmts);
+
+                    var compTypeRef = new IrTypeRef { FullName = cicn.ComponentTypeFqn, IsUnmanaged = !cicnManaged, SizeBytes = 0 };
+                    compVal = AllocValue(compTypeRef);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = compVal,
+                        Operation   = cicnManaged
+                            ? new IrOp_GetManagedComponentRO(cicn.ComponentTypeFqn, entity, compTypeRef)
+                            : new IrOp_GetComponentRO(cicn.ComponentTypeFqn, entity, compTypeRef),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cicn.Id, PinId = sourcePinId },
+                    });
+                }
 
                 var countVal = AllocValue(Stage5_Schedule.Int32Type);
                 stmts.Add(new IrStatement
@@ -2419,8 +3397,11 @@ internal sealed class GraphScheduler
                     // the IReadOnlyList<TElem> local so a T[] field still exposes .Count).
                     Operation   = new IrOp_ComponentAccessorCall(
                         cicn.CountAccessorFqn, compVal, null, Stage5_Schedule.Int32Type,
-                        cicn.CollectionKind, cicn.CollectionFieldName ?? "",
-                        string.IsNullOrEmpty(cicn.ElementTypeFqn) ? "System.Object" : cicn.ElementTypeFqn!),
+                        cicnListDecl is not null ? CollectionKind.BlackboardFixedList : cicn.CollectionKind,
+                        cicn.CollectionFieldName ?? "",
+                        !string.IsNullOrEmpty(cicn.ElementTypeFqn) ? cicn.ElementTypeFqn!
+                            : cicnListDecl is not null ? cicnListDecl.Type.TypeId : "System.Object",
+                        Capacity: cicnListDecl?.Type.Capacity ?? 0),
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cicn.Id, PinId = sourcePinId },
                 });
 
@@ -2446,11 +3427,13 @@ internal sealed class GraphScheduler
                     l => l.ToNodeId == ccn.Id && l.ToPinId == collPin.Id);
 
                 bool ccnManaged = ccn.CollectionKind == CollectionKind.ManagedMember;
+                var ccnListDecl = TryGetListVariableDecl(collLink);   // FC-2/LV-2
                 if (collLink is null
-                    || string.IsNullOrEmpty(ccn.ComponentTypeFqn)
-                    || (ccnManaged ? string.IsNullOrEmpty(ccn.CollectionFieldName)
-                                   : (string.IsNullOrEmpty(ccn.CountAccessorFqn)
-                                      || string.IsNullOrEmpty(ccn.ItemAccessorFqn))))
+                    || (ccnListDecl is null
+                        && (string.IsNullOrEmpty(ccn.ComponentTypeFqn)
+                            || (ccnManaged ? string.IsNullOrEmpty(ccn.CollectionFieldName)
+                                           : (string.IsNullOrEmpty(ccn.CountAccessorFqn)
+                                              || string.IsNullOrEmpty(ccn.ItemAccessorFqn))))))
                 {
                     result = AllocValue(pinType);
                     stmts.Add(new IrStatement
@@ -2466,19 +3449,29 @@ internal sealed class GraphScheduler
                     break;
                 }
 
-                var entity = ResolveNodeOutput(collLink.FromNodeId, collLink.FromPinId, stmts);
-                var compTypeRef = new IrTypeRef { FullName = ccn.ComponentTypeFqn, IsUnmanaged = !ccnManaged, SizeBytes = 0 };
-                var compVal = AllocValue(compTypeRef);
-                stmts.Add(new IrStatement
+                IrValue compVal;
+                if (ccnListDecl is not null)
                 {
-                    ResultValue = compVal,
-                    Operation   = ccnManaged
-                        ? new IrOp_GetManagedComponentRO(ccn.ComponentTypeFqn, entity, compTypeRef)
-                        : new IrOp_GetComponentRO(ccn.ComponentTypeFqn, entity, compTypeRef),
-                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = ccn.Id, PinId = sourcePinId },
-                });
+                    compVal = EmitListStateFieldRef(ccnListDecl, stmts, ccn.Id, sourcePinId);
+                }
+                else
+                {
+                    var entity = ResolveNodeOutput(collLink!.FromNodeId, collLink.FromPinId, stmts);
+                    var compTypeRef = new IrTypeRef { FullName = ccn.ComponentTypeFqn, IsUnmanaged = !ccnManaged, SizeBytes = 0 };
+                    compVal = AllocValue(compTypeRef);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = compVal,
+                        Operation   = ccnManaged
+                            ? new IrOp_GetManagedComponentRO(ccn.ComponentTypeFqn, entity, compTypeRef)
+                            : new IrOp_GetComponentRO(ccn.ComponentTypeFqn, entity, compTypeRef),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = ccn.Id, PinId = sourcePinId },
+                    });
+                }
 
-                var ccnElemFqn = string.IsNullOrEmpty(ccn.ElementTypeFqn) ? "System.Object" : ccn.ElementTypeFqn;
+                var ccnElemFqn = !string.IsNullOrEmpty(ccn.ElementTypeFqn) ? ccn.ElementTypeFqn
+                    : ccnListDecl is not null ? ccnListDecl.Type.TypeId
+                    : "System.Object";
                 var itemPin = ccn.Pins.FirstOrDefault(p =>
                     !p.IsExec && p.Direction == "In"
                     && string.Equals(p.Name, "Item", StringComparison.OrdinalIgnoreCase));
@@ -2498,7 +3491,9 @@ internal sealed class GraphScheduler
                     Operation   = new IrOp_ComponentCollectionSearch(
                         ccn.CountAccessorFqn, ccn.ItemAccessorFqn, ccnElemFqn,
                         compVal, queryVal, ContainsResult: boolVal,
-                        Kind: ccn.CollectionKind, ManagedFieldName: ccn.CollectionFieldName ?? ""),
+                        Kind: ccnListDecl is not null ? CollectionKind.BlackboardFixedList : ccn.CollectionKind,
+                        ManagedFieldName: ccn.CollectionFieldName ?? "",
+                        Capacity: ccnListDecl?.Type.Capacity ?? 0),
                     Debug = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = ccn.Id, PinId = sourcePinId },
                 });
 
@@ -2523,11 +3518,13 @@ internal sealed class GraphScheduler
                     l => l.ToNodeId == cfn.Id && l.ToPinId == collPin.Id);
 
                 bool cfnManaged = cfn.CollectionKind == CollectionKind.ManagedMember;
+                var cfnListDecl = TryGetListVariableDecl(collLink);   // FC-2/LV-2
                 if (collLink is null
-                    || string.IsNullOrEmpty(cfn.ComponentTypeFqn)
-                    || (cfnManaged ? string.IsNullOrEmpty(cfn.CollectionFieldName)
-                                   : (string.IsNullOrEmpty(cfn.CountAccessorFqn)
-                                      || string.IsNullOrEmpty(cfn.ItemAccessorFqn))))
+                    || (cfnListDecl is null
+                        && (string.IsNullOrEmpty(cfn.ComponentTypeFqn)
+                            || (cfnManaged ? string.IsNullOrEmpty(cfn.CollectionFieldName)
+                                           : (string.IsNullOrEmpty(cfn.CountAccessorFqn)
+                                              || string.IsNullOrEmpty(cfn.ItemAccessorFqn))))))
                 {
                     result = AllocValue(pinType);
                     stmts.Add(new IrStatement
@@ -2543,19 +3540,29 @@ internal sealed class GraphScheduler
                     break;
                 }
 
-                var entity = ResolveNodeOutput(collLink.FromNodeId, collLink.FromPinId, stmts);
-                var compTypeRef = new IrTypeRef { FullName = cfn.ComponentTypeFqn, IsUnmanaged = !cfnManaged, SizeBytes = 0 };
-                var compVal = AllocValue(compTypeRef);
-                stmts.Add(new IrStatement
+                IrValue compVal;
+                if (cfnListDecl is not null)
                 {
-                    ResultValue = compVal,
-                    Operation   = cfnManaged
-                        ? new IrOp_GetManagedComponentRO(cfn.ComponentTypeFqn, entity, compTypeRef)
-                        : new IrOp_GetComponentRO(cfn.ComponentTypeFqn, entity, compTypeRef),
-                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cfn.Id, PinId = sourcePinId },
-                });
+                    compVal = EmitListStateFieldRef(cfnListDecl, stmts, cfn.Id, sourcePinId);
+                }
+                else
+                {
+                    var entity = ResolveNodeOutput(collLink!.FromNodeId, collLink.FromPinId, stmts);
+                    var compTypeRef = new IrTypeRef { FullName = cfn.ComponentTypeFqn, IsUnmanaged = !cfnManaged, SizeBytes = 0 };
+                    compVal = AllocValue(compTypeRef);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = compVal,
+                        Operation   = cfnManaged
+                            ? new IrOp_GetManagedComponentRO(cfn.ComponentTypeFqn, entity, compTypeRef)
+                            : new IrOp_GetComponentRO(cfn.ComponentTypeFqn, entity, compTypeRef),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cfn.Id, PinId = sourcePinId },
+                    });
+                }
 
-                var cfnElemFqn = string.IsNullOrEmpty(cfn.ElementTypeFqn) ? "System.Object" : cfn.ElementTypeFqn;
+                var cfnElemFqn = !string.IsNullOrEmpty(cfn.ElementTypeFqn) ? cfn.ElementTypeFqn
+                    : cfnListDecl is not null ? cfnListDecl.Type.TypeId
+                    : "System.Object";
                 var itemPin = cfn.Pins.FirstOrDefault(p =>
                     !p.IsExec && p.Direction == "In"
                     && string.Equals(p.Name, "Item", StringComparison.OrdinalIgnoreCase));
@@ -2576,7 +3583,9 @@ internal sealed class GraphScheduler
                     Operation   = new IrOp_ComponentCollectionSearch(
                         cfn.CountAccessorFqn, cfn.ItemAccessorFqn, cfnElemFqn,
                         compVal, queryVal, FindIndex: indexVal, FindFound: foundVal,
-                        Kind: cfn.CollectionKind, ManagedFieldName: cfn.CollectionFieldName ?? ""),
+                        Kind: cfnListDecl is not null ? CollectionKind.BlackboardFixedList : cfn.CollectionKind,
+                        ManagedFieldName: cfn.CollectionFieldName ?? "",
+                        Capacity: cfnListDecl?.Type.Capacity ?? 0),
                     Debug = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cfn.Id, PinId = sourcePinId },
                 });
 
@@ -2661,6 +3670,19 @@ internal sealed class GraphScheduler
                     ? ResolveDataPin(bo.Id, bPin.Id, stmts)
                     : AllocValue(Stage5_Schedule.UnknownType);
 
+                // ⭐ CE-471: the bit/shift operators need integer operands. The check is a DENY-list of the
+                // types this compiler KNOWS are not integers (reflection-free — an unknown struct or a
+                // [Flags] enum passes, and & | ^ are defined on enums). bool is fine for & | ^, not for shifts.
+                if (Stage5_Schedule.IsBitwiseOperator(bo.Operator)
+                    && (Stage5_Schedule.IsKnownNonIntegerOperand(aVal.Type, bo.Operator)
+                        || Stage5_Schedule.IsKnownNonIntegerOperand(bVal.Type, bo.Operator)))
+                {
+                    _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1678,
+                        $"BinaryOp '{bo.Operator}' needs integer operands (a [Flags] enum is fine for BitAnd/BitOr/BitXor); "
+                        + $"got A = '{aVal.Type.FullName}', B = '{bVal.Type.FullName}'.",
+                        _ctx.AssetId, _graph.Id, bo.Id));
+                }
+
                 var binOpResult = AllocValue(aVal.Type);
                 stmts.Add(new IrStatement
                 {
@@ -2714,6 +3736,67 @@ internal sealed class GraphScheduler
                 if (resultPin is not null) _pinValueCache[resultPin.Id] = boolOpResult;
 
                 result = boolOpResult;
+                break;
+            }
+
+            case FormatStringNode fsn:
+            {
+                // BP-108. Pure node: no exec pins, one value out. Buffer is sized from the declared
+                // result type so the stackalloc matches the FixedString capacity exactly.
+                var fsBody   = BuildInterpolatedBody(fsn.Id, fsn.Format, fsn.Pins, stmts);
+                var typeFqn  = string.IsNullOrEmpty(fsn.ResultTypeId)
+                    ? "Fdp.Core.FixedString128" : fsn.ResultTypeId;
+                if (!typeFqn.StartsWith("Fdp.Core.", StringComparison.Ordinal))
+                    typeFqn = "Fdp.Core." + typeFqn;
+                int bufChars = typeFqn.EndsWith("32", StringComparison.Ordinal) ? 32
+                             : typeFqn.EndsWith("64", StringComparison.Ordinal) ? 64
+                             : 128;
+
+                result = AllocValue(new IrTypeRef { FullName = typeFqn, IsUnmanaged = true, SizeBytes = bufChars });
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_FormatString(fsBody, typeFqn, bufChars),
+                    Debug       = DebugOf(fsn),
+                });
+                // ResolveDataPin's own `_pinValueCache[sourcePinId] = result` below caches this, so
+                // the value is computed once no matter how many consumers read the Result pin.
+                break;
+            }
+
+            case GetTimeNode gt:
+            {
+                // ⭐ CE-470: reuse the IR ops the Wait lowering emits. Scope (Q78 §8): `time` is a parameter of every
+                // Function/Event method outside Library dispatch; `deltaTime` only of Instance/Behavior Function graphs.
+                var dispatch = _typed.Asset.Dispatch;
+                bool timeInScope = dispatch != AssetDispatchKind.Library
+                    && (_graph.Kind == GraphKind.Function || _graph.Kind == GraphKind.Event);
+                bool deltaInScope = (dispatch == AssetDispatchKind.Instance || dispatch == AssetDispatchKind.Behavior)
+                    && _graph.Kind == GraphKind.Function;
+                bool inScope = gt.Kind == TimeKind.DeltaTime ? deltaInScope : timeInScope;
+                if (!inScope)
+                {
+                    _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1679,
+                        $"'Get {(gt.Kind == TimeKind.DeltaTime ? "Delta Time" : "Sim Time")}' is not available in a "
+                        + $"{dispatch} {_graph.Kind} graph ('{_graph.Name}'): that clock is not passed to it. "
+                        + (gt.Kind == TimeKind.DeltaTime
+                            ? "Delta time exists only in an Instance/Behavior Tick or function graph."
+                            : "Sim time exists in every graph except a Library function or resolver."),
+                        _ctx.AssetId, _graph.Id, gt.Id));
+                }
+
+                var valuePin = gt.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
+                var timeResult = AllocValue(Stage5_Schedule.SingleType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = timeResult,
+                    Operation   = gt.Kind == TimeKind.DeltaTime ? new IrOp_DeltaTime() : new IrOp_Time(),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gt.Id, PinId = sourcePinId },
+                });
+                if (valuePin is not null) _pinValueCache[valuePin.Id] = timeResult;
+                result = timeResult;
                 break;
             }
 
@@ -2777,6 +3860,42 @@ internal sealed class GraphScheduler
                     break;
                 }
                 var pureGcArgs = ResolveAllDataInputs(sourceNode, stmts);
+
+                // BP-73: multi-output pure call. ResolveNodeOutput is asked for ONE source pin at a
+                // time, so the call is emitted once and every out-pin's extraction is cached by
+                // EmitCarrierFanOut; the pin actually requested is then read straight back out of
+                // that cache. A second out-pin resolved later hits _statementPinCache at the top of
+                // this method and never re-emits the call.
+                if (pureTargetGraph.Outputs.Count > 1)
+                {
+                    var pureOutPins = sourceNode.Pins
+                        .Where(p => !p.IsExec && p.Direction == "Out").ToList();
+
+                    var pureCarrier = AllocValue(Stage5_Schedule.UnknownType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = pureCarrier,
+                        Operation   = new IrOp_GraphCall(
+                            pureGcGuid, pureGcArgs, Stage5_Schedule.UnknownType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = fc.Id },
+                    });
+                    EmitCarrierFanOut(pureCarrier, pureOutPins, pureTargetGraph, stmts, sourceNode);
+
+                    if (_statementPinCache.TryGetValue(sourcePinId, out var fanned))
+                        return fanned;
+
+                    // Requested pin is not among the projected out-pins (stale asset): fall back to a
+                    // declared default so the generated C# still compiles.
+                    result = AllocValue(pinType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = result,
+                        Operation   = new IrOp_Const("default", pinType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = fc.Id },
+                    });
+                    break;
+                }
+
                 IrTypeRef pureGcRetType;
                 if (pureTargetGraph.Outputs.Count > 0 && _ctx.TypeRegistry.TryResolve(pureTargetGraph.Outputs[0].Type, out var pureResolved))
                     pureGcRetType = pureResolved;
@@ -2875,7 +3994,7 @@ internal sealed class GraphScheduler
                 stmts.Add(new IrStatement
                 {
                     ResultValue = helperResult,
-                    Operation   = new IrOp_ReadEqsResult(rer.SensorVariableName, indexValue, id8, structTypeName),
+                    Operation   = new IrOp_ReadEqsResult(rer.SensorVariableName, indexValue, id8, structTypeName, rer.UnitSensorKind),
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rer.Id },
                 });
 
@@ -2897,6 +4016,61 @@ internal sealed class GraphScheduler
                 }
 
                 // Return the value for the specifically requested pin
+                result = _pinValueCache.TryGetValue(sourcePinId, out var pinRes) ? pinRes : helperResult;
+                break;
+            }
+
+            case ReadSensorResultNode rsr:
+            {
+                // ⭐ CE-3078 N2 — one helper call per node (all out-pins share it), then a field read per pin.
+                string id8 = rsr.Id.ToString("N").Substring(0, 8);
+                string structTypeName = $"_SensorRead_{id8}";
+                var resultStructType = new IrTypeRef { FullName = structTypeName, IsUnmanaged = true };
+
+                var indexPin = rsr.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In"
+                                                             && string.Equals(p.Name, "Index", StringComparison.OrdinalIgnoreCase));
+                var indexLink = indexPin is null ? null : _graph.Links.FirstOrDefault(l => l.ToNodeId == rsr.Id && l.ToPinId == indexPin.Id);
+                IrValue indexValue;
+                if (indexLink is not null)
+                    indexValue = ResolveNodeOutput(indexLink.FromNodeId, indexLink.FromPinId, stmts);
+                else
+                {
+                    indexValue = AllocValue(Stage5_Schedule.Int32Type);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = indexValue,
+                        Operation   = new IrOp_Const("0", Stage5_Schedule.Int32Type),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rsr.Id },
+                    });
+                }
+
+                var decl = rsr.Decl!;   // Stage2 BP2074 refuses a node without one
+                var helperResult = AllocValue(resultStructType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = helperResult,
+                    Operation   = new IrOp_ReadSensorResult(indexValue, id8, structTypeName, decl.Kind, decl.ResultComponentFqn, decl.ElementTypeFqn),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rsr.Id },
+                });
+
+                var members = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var (name, dir, _, member) in ReadSensorResultNode.DataPins(decl))
+                    if (dir == "Out") members[name] = member;
+                foreach (var outPin in rsr.Pins.Where(p => !p.IsExec && p.Direction == "Out"))
+                {
+                    if (_pinValueCache.ContainsKey(outPin.Id)) continue;
+                    if (!members.TryGetValue(outPin.Name, out var member)) continue;
+                    IrTypeRef fieldType = _typed.PinTypes.TryGetValue(outPin.Id, out var t2) ? t2 : Stage5_Schedule.UnknownType;
+                    var fieldResult = AllocValue(fieldType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = fieldResult,
+                        Operation   = new IrOp_FieldRead(helperResult, member, fieldType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rsr.Id, PinId = outPin.Id },
+                    });
+                    _pinValueCache[outPin.Id] = fieldResult;
+                }
+
                 result = _pinValueCache.TryGetValue(sourcePinId, out var pinRes) ? pinRes : helperResult;
                 break;
             }
@@ -2955,10 +4129,14 @@ internal sealed class GraphScheduler
                 // Try name-match against graph.Inputs first.
                 int argIndex = ordinal;
                 var sourcePin = dataOutPins.Count > ordinal ? dataOutPins[ordinal] : null;
-                if (sourcePin is not null && _graph.Inputs.Count > 0)
+                // ⭐ CE-2014 (T-6) — the whole-event pin reads the reserved whole-event input (Stage2_6 adds it when wired).
+                var matchName = sourcePin is not null && sourcePin.Name == EventPayload.WholeEventPinName(entry)
+                    ? EventPayload.WholeEventInput
+                    : sourcePin?.Name;
+                if (matchName is not null && _graph.Inputs.Count > 0)
                 {
                     int nameMatch = _graph.Inputs.FindIndex(
-                        inp => string.Equals(inp.Name, sourcePin.Name, StringComparison.OrdinalIgnoreCase));
+                        inp => string.Equals(inp.Name, matchName, StringComparison.OrdinalIgnoreCase));
                     if (nameMatch >= 0) argIndex = nameMatch;
                 }
 
@@ -2979,7 +4157,24 @@ internal sealed class GraphScheduler
 
             default:
             {
-                // Unknown pure source -- dummy value.
+                // ⭐ Trap #5 in its purest form, now closed. This arm returned a plausible value
+                // instead of reporting: a consumer pulling a data-out pin whose producer has no case
+                // here got IrOp_Const("default") -- 0, or false -- silently, every tick, with a clean
+                // build. That is exactly how SetVariable's "Value" pin printed 0 for three batches.
+                //
+                // ⚠ The message was ALREADY being computed and thrown away: the Synthesized
+                // annotation below has said "unknown-source-{kind}" all along. It only ever reached a
+                // debug map nobody reads during a build.
+                var unknownPin = sourceNode.Pins.FirstOrDefault(p => p.Id == sourcePinId);
+                _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP4005,
+                    $"The '{unknownPin?.Name ?? sourcePinId.ToString()}' output of "
+                    + $"'{sourceNode.GetType().Name}' produces no value: nothing in the compiler "
+                    + $"implements reading it, so a consumer reads default({pinType.FullName}) every "
+                    + "tick. ⚠ This is a missing compiler case, not a mistake in the graph -- the "
+                    + "editor projects this pin and accepts the wire. Removing the wire compiles; the "
+                    + "node kind needs reporting.",
+                    _ctx.AssetId, _graph.Id, sourceNode.Id, sourcePinId));
+
                 result = AllocValue(pinType);
                 stmts.Add(new IrStatement
                 {
@@ -3049,7 +4244,16 @@ internal sealed class GraphScheduler
     /// </summary>
     private (bool AppendSelf, bool AppendView) ResolveFunctionCallTrailingContext(FunctionCallNode fc)
     {
-        if (_typed.Asset.Dispatch == AssetDispatchKind.Library)
+        // ⭐⭐⭐ R4 — the gate is per-GRAPH, not per-ASSET. 📄 DESIGN_Resolver_World_Reach.md §4.
+        //
+        // A Library asset's Function graphs are still stateless static methods with no self/view in
+        // scope, so appending either would emit an undefined identifier — that is the case below.
+        // ⛔ But a CONSTRUCTION graph on the same asset is a parameter RESOLVER, and LibraryEmitter
+        // now emits it with `(…, world, self, host)`. ⇒ it must take the normal trailing-context path,
+        // or the CLR escape hatch (the route the geo-authored motivating case needs) stays unreachable
+        // exactly where R4 exists to open it.
+        if (_typed.Asset.Dispatch == AssetDispatchKind.Library
+            && _graph.Kind != GraphKind.Construction)
             return (false, false);
 
         // P7.1 -- baked decision wins over reflection; no reflection attempted at all.
@@ -3291,6 +4495,14 @@ internal sealed class GraphScheduler
 
         var bodyStmts = new List<IrStatement>();
         var savedKeys = new HashSet<Guid>(_pinValueCache.Keys);
+        // ⚠⚠ The STATEMENT cache needs the same isolation, and for a sharper reason. Its whole
+        // justification is that "the emitted TickCore body is flat (goto-based, no nested scopes)", so
+        // a materialized local stays in scope for any later block. An inline body is the ONE place
+        // that premise fails: IrOp_ForEach emits its body inside braces, so a local declared by a
+        // statement-scheduled node in there (a SetVariable's written value, a SetShared's Written
+        // flag) is out of scope the moment the loop closes. Leaking it into the never-cleared cache
+        // would hand a later block a reference to a local that no longer exists.
+        var savedStmtKeys = new HashSet<Guid>(_statementPinCache.Keys);
         if (currentItemPin is not null)
             _pinValueCache[currentItemPin.Id] = itemVar;
         IrValue? indexVar = null;
@@ -3306,6 +4518,8 @@ internal sealed class GraphScheduler
         // span blocks. Latent nodes remain forbidden in the body (Stage2 BP2050).
         ScheduleInlineBodyChain(GetExecSuccessorByPinName(fe, "Body"), null, bodyStmts, bb.Id.Value);
 
+        foreach (var k in _statementPinCache.Keys.Where(k => !savedStmtKeys.Contains(k)).ToList())
+            _statementPinCache.Remove(k);
         foreach (var k in _pinValueCache.Keys.Where(k => !savedKeys.Contains(k)).ToList())
             _pinValueCache.Remove(k);
 
@@ -3344,6 +4558,64 @@ internal sealed class GraphScheduler
     /// just "not used yet").
     /// </para>
     /// </summary>
+
+    /// <summary>
+    /// FC-2/LV-2 (Q#19-A/F1) -- when the "Collection" wire's PRODUCER is a <see cref="GetVariableNode"/>
+    /// referencing a FIXED-LIST variable (Capacity &gt; 0, in Variables or WorkingState), returns that
+    /// declaration; else null. Producer-driven (robust even for a hand-authored consumer whose
+    /// CollectionKind was never baked) -- the baked Kind/CollectionFieldName serve the editor/Stage2
+    /// gates, the WIRE is the source of truth here.
+    /// </summary>
+    private VariableDecl? TryGetListVariableDecl(Link? collLink)
+    {
+        if (collLink is null) return null;
+        if (!_nodeById.TryGetValue(collLink.FromNodeId, out var n) || n is not GetVariableNode gv) return null;
+        var vid = gv.VariableId ?? "";
+        if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
+        if (!Guid.TryParse(vid, out var id)) return null;
+        // ⚠ U-11: Variables and WorkingState only — NOT Declarations.ById(), which also searches
+        //   Parameters. The two-kind set is what this site has always read.
+        var decl = _typed.Asset.Declarations.Of(DeclarationKind.Variable)
+                       .FirstOrDefault(d => d.Id == id)?.AsVariableDecl;
+        return decl is { Type.Capacity: > 0 } ? decl : null;
+    }
+
+    /// <summary>
+    /// FC-2/LV-3 -- resolves a <see cref="ListWriteNode.VariableId"/> ("var:"-prefix tolerated)
+    /// to its FIXED-LIST declaration (Capacity &gt; 0, Variables or WorkingState); else null.
+    /// </summary>
+    private VariableDecl? TryGetListVariableDeclById(string? variableId)
+    {
+        var vid = variableId ?? "";
+        if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
+        if (!Guid.TryParse(vid, out var id)) return null;
+        // ⚠ U-11: Variables and WorkingState only — NOT Declarations.ById(), which also searches
+        //   Parameters. The two-kind set is what this site has always read.
+        var decl = _typed.Asset.Declarations.Of(DeclarationKind.Variable)
+                       .FirstOrDefault(d => d.Id == id)?.AsVariableDecl;
+        return decl is { Type.Capacity: > 0 } ? decl : null;
+    }
+
+    /// <summary>
+    /// FC-2/LV-2 -- emits the <see cref="IrOp_StateFieldRef"/> binding a writable `ref` local onto the
+    /// list variable's state field; the collection consumers use the returned value exactly where the
+    /// component path uses its <c>IrOp_GetComponentRO</c> roster value.
+    /// </summary>
+    private IrValue EmitListStateFieldRef(VariableDecl decl, List<IrStatement> stmts, Guid nodeId, Guid pinId)
+    {
+        var listType = _typed.FieldTypes.TryGetValue(decl.Id, out var lt)
+            ? lt
+            : new IrTypeRef { FullName = "__List_Unresolved", IsUnmanaged = true, SizeBytes = 0, Capacity = decl.Type.Capacity };
+        var refVal = AllocValue(listType);
+        stmts.Add(new IrStatement
+        {
+            ResultValue = refVal,
+            Operation   = new IrOp_StateFieldRef(decl.Name, listType),
+            Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = nodeId, PinId = pinId },
+        });
+        return refVal;
+    }
+
     private void ScheduleComponentForEachNode(ComponentForEachNode cfe, BlockBuilder bb)
     {
         var collPin = cfe.Pins.FirstOrDefault(p =>
@@ -3353,37 +4625,50 @@ internal sealed class GraphScheduler
             l => l.ToNodeId == cfe.Id && l.ToPinId == collPin.Id);
 
         bool cfeManaged = cfe.CollectionKind == CollectionKind.ManagedMember;
+        var cfeListDecl = TryGetListVariableDecl(collLink);   // FC-2/LV-2: list-variable source
         if (collLink is null
-            || string.IsNullOrEmpty(cfe.ComponentTypeFqn)
-            || (cfeManaged ? string.IsNullOrEmpty(cfe.CollectionFieldName)
-                           : (string.IsNullOrEmpty(cfe.CountAccessorFqn)
-                              || string.IsNullOrEmpty(cfe.ItemAccessorFqn))))
+            || (cfeListDecl is null
+                && (string.IsNullOrEmpty(cfe.ComponentTypeFqn)
+                    || (cfeManaged ? string.IsNullOrEmpty(cfe.CollectionFieldName)
+                                   : (string.IsNullOrEmpty(cfe.CountAccessorFqn)
+                                      || string.IsNullOrEmpty(cfe.ItemAccessorFqn))))))
         {
             return;
         }
 
-        // Resolve "Collection" to the source ENTITY (cached there by Stage5's GetComponentNode
-        // case, collection-decl branch), into the OUTER block, before the loop -- mirrors
-        // ScheduleFlowForEachNode's self+roster read, but off the resolved entity instead of self.
-        var entityVal = ResolveNodeOutput(collLink.FromNodeId, collLink.FromPinId, bb.Statements);
-
-        // CA-07d-2: managed -> IrOp_GetManagedComponentRO (null-safe), curated -> IrOp_GetComponentRO.
-        var compTypeRef = new IrTypeRef { FullName = cfe.ComponentTypeFqn, IsUnmanaged = !cfeManaged, SizeBytes = 0 };
-        var compVal = AllocValue(compTypeRef);
-        bb.Statements.Add(new IrStatement
+        IrValue compVal;
+        if (cfeListDecl is not null)
         {
-            ResultValue = compVal,
-            Operation   = cfeManaged
-                ? new IrOp_GetManagedComponentRO(cfe.ComponentTypeFqn, entityVal, compTypeRef)
-                : new IrOp_GetComponentRO(cfe.ComponentTypeFqn, entityVal, compTypeRef),
-            Debug       = DebugOf(cfe),
-        });
+            // FC-2/LV-2: bind a ref onto the state field (no entity, no component re-read).
+            compVal = EmitListStateFieldRef(cfeListDecl, bb.Statements, cfe.Id, Guid.Empty);
+        }
+        else
+        {
+            // Resolve "Collection" to the source ENTITY (cached there by Stage5's GetComponentNode
+            // case, collection-decl branch), into the OUTER block, before the loop -- mirrors
+            // ScheduleFlowForEachNode's self+roster read, but off the resolved entity instead of self.
+            var entityVal = ResolveNodeOutput(collLink!.FromNodeId, collLink.FromPinId, bb.Statements);
+
+            // CA-07d-2: managed -> IrOp_GetManagedComponentRO (null-safe), curated -> IrOp_GetComponentRO.
+            var compTypeRef = new IrTypeRef { FullName = cfe.ComponentTypeFqn, IsUnmanaged = !cfeManaged, SizeBytes = 0 };
+            compVal = AllocValue(compTypeRef);
+            bb.Statements.Add(new IrStatement
+            {
+                ResultValue = compVal,
+                Operation   = cfeManaged
+                    ? new IrOp_GetManagedComponentRO(cfe.ComponentTypeFqn, entityVal, compTypeRef)
+                    : new IrOp_GetComponentRO(cfe.ComponentTypeFqn, entityVal, compTypeRef),
+                Debug       = DebugOf(cfe),
+            });
+        }
 
         // Per-iteration item value, ELEMENT-typed (not Fdp.Core.Entity -- the one FlowForEach-shape
         // difference besides the entity source) -- declared INSIDE the emitted for by IrOp_ForEach.
         var elemTypeRef = new IrTypeRef
         {
-            FullName    = string.IsNullOrEmpty(cfe.ElementTypeFqn) ? "System.Object" : cfe.ElementTypeFqn,
+            FullName    = !string.IsNullOrEmpty(cfe.ElementTypeFqn) ? cfe.ElementTypeFqn
+                : cfeListDecl is not null ? cfeListDecl.Type.TypeId
+                : "System.Object",
             IsUnmanaged = true,
             SizeBytes   = 0,
         };
@@ -3412,6 +4697,14 @@ internal sealed class GraphScheduler
 
         var bodyStmts = new List<IrStatement>();
         var savedKeys = new HashSet<Guid>(_pinValueCache.Keys);
+        // ⚠⚠ The STATEMENT cache needs the same isolation, and for a sharper reason. Its whole
+        // justification is that "the emitted TickCore body is flat (goto-based, no nested scopes)", so
+        // a materialized local stays in scope for any later block. An inline body is the ONE place
+        // that premise fails: IrOp_ForEach emits its body inside braces, so a local declared by a
+        // statement-scheduled node in there (a SetVariable's written value, a SetShared's Written
+        // flag) is out of scope the moment the loop closes. Leaking it into the never-cleared cache
+        // would hand a later block a reference to a local that no longer exists.
+        var savedStmtKeys = new HashSet<Guid>(_statementPinCache.Keys);
         if (currentItemPin is not null)
             _pinValueCache[currentItemPin.Id] = itemVar;
         IrValue? indexVar = null;
@@ -3424,6 +4717,8 @@ internal sealed class GraphScheduler
 
         ScheduleInlineBodyChain(GetExecSuccessorByPinName(cfe, "Body"), null, bodyStmts, bb.Id.Value);
 
+        foreach (var k in _statementPinCache.Keys.Where(k => !savedStmtKeys.Contains(k)).ToList())
+            _statementPinCache.Remove(k);
         foreach (var k in _pinValueCache.Keys.Where(k => !savedKeys.Contains(k)).ToList())
             _pinValueCache.Remove(k);
 
@@ -3435,7 +4730,9 @@ internal sealed class GraphScheduler
         {
             Operation = new IrOp_ForEach(
                 cfe.CountAccessorFqn, cfe.ItemAccessorFqn, compVal, itemVar, bodyStmts, countVar, indexVar,
-                Kind: cfe.CollectionKind, ManagedFieldName: cfe.CollectionFieldName ?? ""),
+                Kind: cfeListDecl is not null ? CollectionKind.BlackboardFixedList : cfe.CollectionKind,
+                ManagedFieldName: cfe.CollectionFieldName ?? "",
+                Capacity: cfeListDecl?.Type.Capacity ?? 0),
             Debug = DebugOf(cfe),
         });
     }
@@ -3509,7 +4806,17 @@ internal sealed class GraphScheduler
     {
         var armStmts  = new List<IrStatement>();
         var savedKeys = new HashSet<Guid>(_pinValueCache.Keys);
+        // ⚠⚠ The STATEMENT cache needs the same isolation, and for a sharper reason. Its whole
+        // justification is that "the emitted TickCore body is flat (goto-based, no nested scopes)", so
+        // a materialized local stays in scope for any later block. An inline body is the ONE place
+        // that premise fails: IrOp_ForEach emits its body inside braces, so a local declared by a
+        // statement-scheduled node in there (a SetVariable's written value, a SetShared's Written
+        // flag) is out of scope the moment the loop closes. Leaking it into the never-cleared cache
+        // would hand a later block a reference to a local that no longer exists.
+        var savedStmtKeys = new HashSet<Guid>(_statementPinCache.Keys);
         ScheduleInlineBodyChain(armStart, joinId, armStmts, blockId);
+        foreach (var k in _statementPinCache.Keys.Where(k => !savedStmtKeys.Contains(k)).ToList())
+            _statementPinCache.Remove(k);
         foreach (var k in _pinValueCache.Keys.Where(k => !savedKeys.Contains(k)).ToList())
             _pinValueCache.Remove(k);
         return armStmts;
@@ -3609,6 +4916,16 @@ internal sealed class GraphScheduler
         return link is not null && _nodeById.TryGetValue(link.ToNodeId, out var t) ? t : null;
     }
 
+    /// <summary>⭐ S7a — the exec successor of the ONE exec-out pin whose name matches; null when none or several match, or
+    /// it is unwired.</summary>
+    private Node? GetExecSuccessorWhere(Node node, Func<string, bool> pinName)
+    {
+        var pins = node.Pins.Where(p => p.IsExec && p.Direction == "Out" && pinName(p.Name)).ToList();
+        if (pins.Count != 1) return null;
+        var link = _graph.Links.FirstOrDefault(l => l.FromNodeId == node.Id && l.FromPinId == pins[0].Id);
+        return link is not null && _nodeById.TryGetValue(link.ToNodeId, out var t) ? t : null;
+    }
+
     /// <summary>Resolves the exec successor reached via a specific named exec-out pin (e.g. "Body"/"Completed").</summary>
     private Node? GetExecSuccessorByPinName(Node node, string pinName)
     {
@@ -3633,6 +4950,45 @@ internal sealed class GraphScheduler
     /// <c>global::global::...</c>, CS0234). Also converts reflection's nested-type '+' separator to
     /// '.' (Category-1 shared structs are expected to be top-level, but this is defensive).
     /// </summary>
+    /// <summary>⭐ CE-472 — BP1680 when a JSON/intent node carries no DTO type (nothing to construct).</summary>
+    private bool RequireDto(string dtoTypeFqn, Guid nodeId)
+    {
+        if (!string.IsNullOrEmpty(dtoTypeFqn)) return true;
+        _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1680,
+            $"Node '{nodeId}' has no DTO type — pick the parameter class it serialises.",
+            _ctx.AssetId, _graph.Id, nodeId));
+        return false;
+    }
+
+    /// <summary>
+    /// ⭐ CE-472 — the shared DTO construction for Send Intent / To JSON: <c>new global::Dto { M = __tN, … }</c> from the
+    /// WIRED member pins only (an unwired member keeps the DTO's own initialiser — e.g. a default <c>TankSpacing</c>).
+    /// Reuses <see cref="IrOp_MakeStruct"/>: object-initialiser syntax is the same for a class.
+    /// </summary>
+    private IrValue LowerMakeDto(Guid nodeId, string dtoTypeFqn, IReadOnlyList<StructFieldDecl> fields,
+                                 IReadOnlyList<Pin> pins, List<IrStatement> stmts, Guid sourcePinId)
+    {
+        string fqn = NormalizeSharedTypeFqn(dtoTypeFqn);
+        var made = new List<(string, IrValue)>();
+        foreach (var f in fields)
+        {
+            var pin = pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In"
+                && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+            if (pin is null) continue;
+            var link = _graph.Links.FirstOrDefault(l => l.ToNodeId == nodeId && l.ToPinId == pin.Id);
+            if (link is null) continue;
+            made.Add((f.Name, ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts)));
+        }
+        var dto = AllocValue(new IrTypeRef { FullName = fqn, IsUnmanaged = false, SizeBytes = 0 });
+        stmts.Add(new IrStatement
+        {
+            ResultValue = dto,
+            Operation   = new IrOp_MakeStruct(fqn, made),
+            Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = nodeId, PinId = sourcePinId },
+        });
+        return dto;
+    }
+
     private static string NormalizeSharedTypeFqn(string sharedTypeId)
     {
         if (string.IsNullOrEmpty(sharedTypeId)) return sharedTypeId ?? "";
@@ -3642,12 +4998,121 @@ internal sealed class GraphScheduler
         return fqn.Replace('+', '.');
     }
 
-    private int FindVariableIndex(string variableId)
+    /// <summary>
+    /// BP-57 — the graph's locals as <see cref="IrField"/>s, in declaration order.
+    ///
+    /// <para>
+    /// ⚠ <c>DefaultValueCSharp</c> is what makes Q27-E true: the emitter re-initialises from it on
+    /// entry, so a local is genuinely per-invocation rather than "a field that happens to be written
+    /// early". A decl with no default gets <c>default</c>, which is still a reset.
+    /// </para>
+    /// </summary>
+    private IReadOnlyList<IrField> BuildLocalFields()
+    {
+        if (_graph.LocalVariables.Count == 0) return Array.Empty<IrField>();
+
+        // ⭐ The SAME builder the asset-level lists use, so a local's type resolution, default and
+        // ordering cannot drift from a variable's. Only the index space differs, and that is the point.
+        return Stage5_Schedule.BuildLocalIrFields(_graph.LocalVariables, _typed, _ctx);
+    }
+
+    /// <summary>
+    /// BP-57 / Q27-C1 — the index of a <b>function-local</b> in THIS graph, or -1.
+    ///
+    /// <para>
+    /// ⛔⛔ <b>By id, in this graph, with NO name fallback — and the omission is the whole design.</b>
+    /// <see cref="FindVariableIndex"/> deliberately falls back to a NAME match across the asset's
+    /// Variables/WorkingState/Parameters when the id misses. Extending that habit here would mean an
+    /// id typo, a stale reference, or a local deleted from another graph silently resolving to the
+    /// asset variable of the same name — and with shadowing that is not a nuisance, it is <b>the
+    /// wrong storage, silently</b>: the persistent instance field instead of the per-call local,
+    /// reading a value the designer never wrote and writing one they never intended to persist.
+    /// </para>
+    ///
+    /// <para>
+    /// ⇒ A miss returns -1 and the caller falls through to the asset lookup, which is correct: a
+    /// Get/Set that names an asset variable is exactly what it looks like. What must not happen is a
+    /// LOCAL reference degrading into an asset one, which is why nothing here matches on name.
+    /// </para>
+    /// </summary>
+    private int FindLocalIndex(string variableId)
+    {
+        var locals = _graph.LocalVariables;
+        if (locals.Count == 0) return -1;
+
+        var idStr = variableId != null && variableId.StartsWith("var:", StringComparison.OrdinalIgnoreCase)
+            ? variableId.Substring(4)
+            : variableId ?? "";
+
+        if (!Guid.TryParse(idStr, out var guid)) return -1;
+
+        for (int i = 0; i < locals.Count; i++)
+            if (locals[i].Id == guid) return i;
+
+        return -1;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-433</c> — a Get All Variables / Set Variables pin NAME to its <see cref="VariableRef"/>.
+    /// ⚠ The index is relative to the FULL <c>Variable</c> list (what <c>EmissionContext</c> indexes),
+    /// not to the pinned subset; only a pinned (non-list) variable matches. ⛔ No parameter fallback —
+    /// these pins never name one. A miss is <see cref="VariableRef.Unresolved"/>, which <c>BP1670</c>
+    /// refuses at Stage 2 before it can reach the emitter.
+    /// </summary>
+    private VariableRef FindPinnedVariableRef(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return VariableRef.Unresolved;
+        var variables = _typed.Asset.Declarations.Of(DeclarationKind.Variable).ToList();
+        for (int i = 0; i < variables.Count; i++)
+            if (variables[i].Name == name && GetAllVariablesNode.IsPinned(variables[i]))
+                return new(VariableKind.Variable, i);
+        return VariableRef.Unresolved;
+    }
+
+    /// <summary>
+    /// U-3 / <c>BP-226</c> — resolves a <c>GetVariable</c>/<c>SetVariable</c> target to
+    /// <b>(kind, list-relative index)</b>.
+    ///
+    /// <para>
+    /// ⛔ <b>This returned a bare <c>int</c>.</b> The search order is unchanged and the index is the
+    /// same one it always was — the position <b>within whichever list matched</b>. What is new is that
+    /// the <b>list travels with it</b>, so <c>EmissionContext.VarFieldName</c> no longer has to guess,
+    /// and can no longer guess differently (it read the integer as a priority-ordered union with no
+    /// <c>Parameters</c> arm at all).
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ The <b>name fallback</b> is kept deliberately: <c>VariableId</c> is not always a GUID —
+    /// hand-authored assets use a bare name, and <c>BP1670</c>'s rail was scoped around that. It loses
+    /// the kind exactly as the id path did, so it gains the same fix.
+    /// </para>
+    /// </summary>
+    /// <summary>
+    /// ⭐ S8 / <c>CE-2022</c> — a Behaviour Task's bound host variable, as its MEMBER PATH in the block: <c>St.Name</c> for a
+    /// Variable, ⭐ <c>In.Name</c> for one of the behaviour's own Parameters (<c>CE-2023</c> ③, "S8n-2": a behaviour passes its
+    /// input straight to a child, e.g. the §7 demos' <c>Move</c> → <c>MoveToLocation</c>), or null.
+    /// </summary>
+    private string? ParamsVariableName(string? variableId)
+    {
+        if (string.IsNullOrWhiteSpace(variableId)) return null;
+        var idStr = variableId!.StartsWith("var:", StringComparison.OrdinalIgnoreCase) ? variableId.Substring(4) : variableId;
+        if (!Guid.TryParse(idStr, out var guid)) return null;
+        var variable = _typed.Asset.Declarations.Of(DeclarationKind.Variable).FirstOrDefault(v => v.Id == guid);
+        if (variable is not null) return "St." + variable.Name;
+        var parameter = _typed.Asset.Declarations.Of(DeclarationKind.Parameter).FirstOrDefault(v => v.Id == guid);
+        return parameter is not null ? "In." + parameter.Name : null;
+    }
+
+    private VariableRef FindVariableRef(string variableId)
     {
         // Search Instance variables first, then AiPrimitive working-state and parameters.
-        var variables  = _typed.Asset.Variables;
-        var workState  = _typed.Asset.WorkingState;
-        var parameters = _typed.Asset.Parameters;
+        // U-11: the same three sequences, now one collection projected three ways. ⚠ The SEARCH
+        // ORDER below is resolution priority (Variables -> WorkingState -> Parameters) and is
+        // deliberately NOT DeclarationList.KindOrder — see DeclarationList.ResolutionOrder.
+        // ⭐ Batch 86 — the first two sequences are ONE now (R-01); the priority that remains is
+        //   state-before-parameters, which is what BP-226 was about.
+        var variables  = _typed.Asset.Declarations.Of(DeclarationKind.Variable).ToList();
+        var parameters = _typed.Asset.Declarations.Of(DeclarationKind.Parameter).ToList();
 
         // VariableId may be in the form "var:<Guid>" — strip the prefix before parsing.
         // Mirrors Stage0_Rehydrate.ResolveVariableTypeId (lines 487-490).
@@ -3657,31 +5122,32 @@ internal sealed class GraphScheduler
 
         if (Guid.TryParse(idStr, out var guid))
         {
-            for (int i = 0; i < variables.Count;  i++) if (variables[i].Id  == guid) return i;
-            for (int i = 0; i < workState.Count;  i++) if (workState[i].Id  == guid) return i;
-            for (int i = 0; i < parameters.Count; i++) if (parameters[i].Id == guid) return i;
+            for (int i = 0; i < variables.Count;  i++) if (variables[i].Id  == guid) return new(VariableKind.Variable, i);
+            for (int i = 0; i < parameters.Count; i++) if (parameters[i].Id == guid) return new(VariableKind.Parameter, i);
         }
         // Name fallback
-        for (int i = 0; i < variables.Count;  i++) if (variables[i].Name  == idStr) return i;
-        for (int i = 0; i < workState.Count;  i++) if (workState[i].Name  == idStr) return i;
-        for (int i = 0; i < parameters.Count; i++) if (parameters[i].Name == idStr) return i;
-        return -1;
+        for (int i = 0; i < variables.Count;  i++) if (variables[i].Name  == idStr) return new(VariableKind.Variable, i);
+        for (int i = 0; i < parameters.Count; i++) if (parameters[i].Name == idStr) return new(VariableKind.Parameter, i);
+        return VariableRef.Unresolved;
     }
 
     /// <summary>
-    /// Params-ONLY index lookup for <see cref="GetParameterNode"/> (GAP-11). Unlike
-    /// <see cref="FindVariableIndex"/> -- which searches Variables, then WorkingState, then
-    /// Parameters and returns a COMBINED index (correct for GetVariable/SetVariable, which only
-    /// ever emit <c>IrOp_ReadVariable</c>/<c>IrOp_WriteVariable</c> against that same combined
-    /// space) -- this searches ONLY <c>_typed.Asset.Parameters</c>, since <c>IrOp_ReadParam</c>'s
-    /// index is looked up via <c>EmissionContext.ParamFieldName</c> against
-    /// <c>Asset.Parameters</c> alone. Using the combined index here would silently emit the wrong
-    /// field (or an out-of-range <c>__p_{idx}</c> placeholder) whenever Variables/WorkingState are
-    /// non-empty.
+    /// Params-ONLY index lookup for <see cref="GetAllParametersNode"/> (GAP-11; its Get Parameter twin retired, CE-2135 P4): searches
+    /// <c>_typed.Asset.Parameters</c> alone, because <c>IrOp_ReadParam</c>'s index is resolved by
+    /// <c>EmissionContext.ParamFieldName</c> against that list alone.
+    ///
+    /// <para>
+    /// ⚠ <b>This comment used to claim <c>FindVariableIndex</c> returned "a COMBINED index". It never
+    /// did</b> — it returned the position <b>within whichever list matched</b> — and the false claim
+    /// has a demonstrated victim: it is the likely source of the Batch 45 handoff's wrong reading of
+    /// <c>VarFieldName</c>'s WorkingState arm as needing a rebase, which would have broken every
+    /// shipped AiPrimitive. ⭐ <c>U-3</c> replaced that method with <see cref="FindVariableRef"/>,
+    /// which returns an explicit <c>(kind, list-relative index)</c>, so the distinction this comment
+    /// was drawing no longer needs drawing.
     /// </summary>
     private int FindParameterIndex(string parameterId)
     {
-        var parameters = _typed.Asset.Parameters;
+        var parameters = _typed.Asset.Declarations.Of(DeclarationKind.Parameter).ToList();
 
         // ParameterId may be in the form "var:<Guid>" or "param:<Guid>" -- strip the prefix before
         // parsing. Mirrors FindVariableIndex's "var:" handling.
@@ -3700,16 +5166,7 @@ internal sealed class GraphScheduler
         return -1;
     }
 
-    private int FindCustomEventIndex(string eventId)
-    {
-        var events = _typed.Asset.CustomEvents;
-        if (Guid.TryParse(eventId, out var guid))
-            for (int i = 0; i < events.Count; i++)
-                if (events[i].Id == guid) return i;
-        for (int i = 0; i < events.Count; i++)
-            if (events[i].Name == eventId) return i;
-        return -1;
-    }
+    private int FindCustomEventIndex(string eventId) => _typed.Asset.IndexOfCustomEvent(eventId);   // ⭐ CE-2031
 
     // -----------------------------------------------------------------------
     // Graph-level Inputs/Outputs propagation (BATCH-03A)
@@ -3725,14 +5182,18 @@ internal sealed class GraphScheduler
         foreach (var d in decls)
         {
             IrTypeRef irType;
-            if (!_ctx.TypeRegistry.TryResolve(d.Type, out irType))
+            // ⭐ CE-2028 — the ONE resolve-and-size step declarations and pins use. ⚠ This subsumes CE-2014 (T-6): the whole
+            //   event is a `global::` project struct, so it is EXACT when the compile has a size oracle (the real build) and
+            //   honestly unreliable — the runtime-layout path, as before — when it has none (in-process compiles, goldens).
+            if (!Stage4_TypeResolve.TryResolveSized(_ctx, d.Type, out irType))
                 irType = Stage5_Schedule.UnknownType;
             result.Add(new IrField
             {
                 Id   = d.Id,
                 Name = d.Name,
                 Type = irType,
-                DefaultValueCSharp = d.DefaultValueJson ?? "",
+                // ⭐ BP-247 — same converter as the asset-level lists (see BuildIrFields).
+                DefaultValueCSharp = Stage5_Schedule.ConvertDefault(irType, d.Name, d.DefaultValueJson, _ctx),
                 Comment = d.Comment,
             });
         }
@@ -3808,15 +5269,42 @@ internal sealed class GraphScheduler
     private IrValue AllocValue(IrTypeRef type)
         => new IrValue(_nextValueIndex++, type);
 
+    /// <summary>
+    /// BP-81: <c>OriginNodeId</c> carries a macro-expanded node back to the AUTHORED node in the macro
+    /// body it was cloned from; it is null for every authored node.
+    /// <para>
+    /// ⚠ <c>NodeId</c> still wins downstream (<c>CSharpEmitter:45,53</c> read
+    /// <c>debug?.NodeId ?? debug?.OriginNodeId</c>), so each expansion site keeps its own
+    /// <c>DebugMapEntry</c>. That is deliberate: <b>line→node stays 1:1 while node→line becomes
+    /// one-to-many</b>, which is what lets BP-83 arm a breakpoint at every site rather than one.
+    /// </para>
+    /// </summary>
     private static IrDebugAnnotation DebugOf(Node node) =>
-        new IrDebugAnnotation { GraphId = default, NodeId = node.Id };
+        new IrDebugAnnotation
+        {
+            GraphId       = default,
+            NodeId        = node.Id,
+            OriginNodeId  = node.OriginNodeId,
+            OriginGraphId = node.OriginGraphId,
+        };
 
+    /// <summary>
+    /// ⚠ <b>The catch-all no longer defaults to <see cref="IrGraphKind.Function"/>.</b> It did, and
+    /// that made a new <see cref="GraphKind"/> member silently compile as an ordinary function --
+    /// the graph-kind floor of the very trap <c>BP4005</c> closes for data pins. A kind with no
+    /// mapping is a compiler bug, not a graph the designer can fix, so it throws rather than
+    /// guessing. <see cref="GraphKind.Macro"/> never reaches here: Stage 5 skips macro graphs before
+    /// scheduling them (see <c>Run</c>).
+    /// </summary>
     private static IrGraphKind MapGraphKind(GraphKind kind) => kind switch
     {
         GraphKind.Function     => IrGraphKind.Function,
         GraphKind.Event        => IrGraphKind.Event,
         GraphKind.Construction => IrGraphKind.Construction,
-        _                       => IrGraphKind.Function,
+        _ => throw new InvalidOperationException(
+                 $"GraphKind.{kind} has no IrGraphKind mapping. Add one rather than letting it "
+                 + "compile as a Function -- a mis-mapped graph kind emits working-looking code for "
+                 + "the wrong thing."),
     };
 
     // -----------------------------------------------------------------------
@@ -3852,16 +5340,9 @@ internal sealed class GraphScheduler
     // Decision ID hash (FNV-1a-32 over chars -- matches UtilityDecisionCatalog.ComputeId)
     // -----------------------------------------------------------------------
 
-    private static int ComputeDecisionId(string assetId)
-    {
-        uint hash = 2166136261u;
-        foreach (char c in assetId)
-        {
-            hash ^= (byte)c;
-            hash *= 16777619u;
-        }
-        return (int)hash;
-    }
+    // ⭐ CE-2035 — THE utility decision id (linked Shared/UtilityIdHash), so a ScoreDecision node bakes exactly the id
+    //   UtilityDecisionCatalog registers under. It was an inlined mirror that XOR'd only each char's low byte.
+    private static int ComputeDecisionId(string assetId) => global::Fdp.Toolkit.Behavior.Shared.UtilityIdHash.DecisionId(assetId);
 
     // -----------------------------------------------------------------------
     // BlockBuilder: mutable accumulator for one IrBlock

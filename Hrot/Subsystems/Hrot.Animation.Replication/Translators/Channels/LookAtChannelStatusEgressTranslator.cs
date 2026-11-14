@@ -12,19 +12,19 @@ using Hrot.MuscleCharacter.Animation.Components;
 namespace Hrot.Animation.Replication.Translators.Channels;
 
 /// <summary>
-/// Egress translator: reads <see cref="LookAtChannel"/> from locally-owned entities
+/// Egress translator: reads <see cref="LookAtChannelStatus"/> (the Muscle's report, CE-513 / R-180) from locally-owned entities
 /// and publishes DDS status samples (Muscle -> Brain direction).
 /// Only publishes when (Status, DispatchedInstanceId) changes.
 /// </summary>
 internal sealed class LookAtChannelStatusEgressTranslator : INetworkTranslator
 {
-    private const string TopicNameConst = "hrot/anim/status/LookAtChannel";
 
     private readonly IAnimDdsWriter<DdsLookAtChannelStatus> _writer;
     private readonly NetworkEntityMap _entityMap;
     private readonly Dictionary<Entity, (NodeStatus, uint)> _lastPublished = new();
+    private int _worldEpoch;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DdsLookAtChannelStatus>();
     public TranslatorDirection Direction => TranslatorDirection.Egress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -32,7 +32,7 @@ internal sealed class LookAtChannelStatusEgressTranslator : INetworkTranslator
 
     internal LookAtChannelStatusEgressTranslator(
         DdsParticipant participant, NetworkEntityMap entityMap)
-        : this(new DdsLiveWriter<DdsLookAtChannelStatus>(participant, TopicNameConst), entityMap)
+        : this(new DdsLiveWriter<DdsLookAtChannelStatus>(participant), entityMap)
     {
     }
 
@@ -47,8 +47,10 @@ internal sealed class LookAtChannelStatusEgressTranslator : INetworkTranslator
 
     public void ScanAndPublish(ISimulationView view)
     {
+        // ⭐ R-3039 S3 — a world replacement (a load, a restore): forget what was published, so every owner republishes (R-3041).
+        if (WorldEpoch.Moved(view, ref _worldEpoch)) { _lastPublished.Clear(); }
         var query = view.Query()
-            .With<LookAtChannel>()
+            .With<LookAtChannelStatus>()
             .With<NetworkIdentity>()
             .Build();
 
@@ -56,11 +58,11 @@ internal sealed class LookAtChannelStatusEgressTranslator : INetworkTranslator
         {
             if (!view.HasAuthority(entity)) continue;
 
-            ref readonly var channel = ref view.GetComponentRO<LookAtChannel>(entity);
+            ref readonly var report = ref view.GetComponentRO<LookAtChannelStatus>(entity);
 
             if (_lastPublished.TryGetValue(entity, out var last)
-                && last.Item1 == channel.Status
-                && last.Item2 == channel.DispatchedInstanceId)
+                && last.Item1 == report.Status
+                && last.Item2 == report.DispatchedInstanceId)
             {
                 DirtyFalsePositiveCount++;
                 continue;
@@ -71,11 +73,11 @@ internal sealed class LookAtChannelStatusEgressTranslator : INetworkTranslator
             _writer.Write(new DdsLookAtChannelStatus
             {
                 EntityId = netId.Value,
-                Status = (byte)channel.Status,
-                DispatchedInstanceId = channel.DispatchedInstanceId,
+                Status = (byte)report.Status,
+                DispatchedInstanceId = report.DispatchedInstanceId,
             });
             SentSampleCount++;
-            _lastPublished[entity] = (channel.Status, channel.DispatchedInstanceId);
+            _lastPublished[entity] = (report.Status, report.DispatchedInstanceId);
         }
     }
 }

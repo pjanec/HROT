@@ -18,6 +18,7 @@ namespace Fdp.Modules.Geographic.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class TerrainQueryInitializationSystem : IEcsModuleSystem
     {
         /// <inheritdoc/>

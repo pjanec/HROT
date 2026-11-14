@@ -863,6 +863,14 @@ Things explicitly NOT in Slice 1:
 - Minimap.
 - Search box for "find this node by name."
 
+> ⚠ **This list is a Slice-1 scoping decision, not current state — every item on it has since
+> shipped** (2026-08). Multi-select and marquee, comment nodes, link waypoints/reroutes, the
+> overview minimap (BP-19) and the find bar are all in. So are copy/cut/paste/duplicate (BP-23a),
+> align/distribute/straighten (BP-13), node custom titles (BP-17), body collapse (BP-18) and
+> jump-to-next-issue (BP-20). See
+> [Blueprints_Overview.md §6](Blueprints_Overview.md) for the current authoring surface and
+> [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md) for what is still open.
+
 ### 5.2 What it displays
 
 ```

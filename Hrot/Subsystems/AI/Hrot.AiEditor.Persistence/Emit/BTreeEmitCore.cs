@@ -38,6 +38,155 @@ public static class BTreeEmitCore
     // ---- Blackboard struct emit (S1-2) ----
 
     /// <summary>
+    /// The namespace the managed blackboard struct is emitted into.
+    /// </summary>
+    internal static string BlackboardStructNamespace(BehaviorTreeAssetDto dto)
+        => string.IsNullOrEmpty(dto.TargetNamespace) ? "Hrot.AI.Behaviors.Trees" : dto.TargetNamespace;
+
+    /// <summary>
+    /// The simple name of the managed blackboard struct for <paramref name="dto"/>.
+    ///
+    /// <para>
+    /// Always prefixed with the asset name to ensure uniqueness across multiple managed assets in the
+    /// same namespace — several assets share one <c>BlackboardTypeName</c> (e.g.
+    /// <c>Fdp.Toolkit.Behavior.Components.BrainBlackboard</c>), which would produce identical struct
+    /// names (CS0101) if the suffix were used alone. Pattern <c>{AssetName}_{TypeNameSuffix}</c>, e.g.
+    /// <c>T10_MultiAction_BrainBlackboard</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <c>CE-235</c>: extracted from <see cref="EmitBlackboardStructSource(BehaviorTreeAssetDto, IStructSizeResolver?, out IReadOnlyList{BTreeBlackboardPackHelper.PackedField})"/>
+    /// so the REGISTRAR emitter can name the same type when it sets
+    /// <c>BehaviorDefinition.JsonParamsDtoType</c>. ⛔ Two independent copies of this rule would be a
+    /// silent CS0246 waiting for the first asset with an unusual name — one producer, per <c>R-132</c>.
+    /// </para>
+    /// </summary>
+    internal static string BlackboardStructName(BehaviorTreeAssetDto dto)
+    {
+        string assetPrefix = SanitizeIdentifier(dto.Name);
+        string typeSuffix  = string.IsNullOrWhiteSpace(dto.Blackboard?.TypeName)
+            ? "Blackboard"
+            : SanitizeIdentifier(dto.Blackboard!.TypeName);
+        if (string.IsNullOrEmpty(typeSuffix)) typeSuffix = "Blackboard";
+        return assetPrefix + "_" + typeSuffix;
+    }
+
+    /// <summary>
+    /// The <c>global::</c>-qualified name of the managed blackboard struct, for emission into
+    /// generated code.
+    /// </summary>
+    /// <summary>
+    /// ⭐⭐ <c>CE-439</c> — the type id (no <c>global::</c>) of <paramref name="dto"/>'s published Inputs struct, or <c>null</c> when
+    /// it publishes none (an unmanaged blackboard, or no <c>Role=Input</c> variable). ⭐ The ONE naming rule a host's binding
+    /// variable, the editor's compose step and the generators' sibling-size catalogue all read.
+    /// </summary>
+    public static string? InputsStructTypeId(BehaviorTreeAssetDto dto)
+    {
+        if (dto?.Blackboard == null || !dto.Blackboard.Managed) return null;
+        // ⚠ CE-2133: for a FLAT behaviour (FlatParamsVariable) this is still the generated mirror, which nothing binds any more —
+        //   a host binds the flat DTO itself, a real type Roslyn sizes. ⛔ Answering the DTO here registered the host as the
+        //   GENERATOR of that type in GeneratedTypeCatalog, which then sized it from the host's own variables (a cycle).
+
+        bool hasInput = false;
+        foreach (var v in dto.Blackboard.Variables)
+            if (!v.IsWorkingState && !string.IsNullOrEmpty(v.Type?.TypeId)) { hasInput = true; break; }
+        return hasInput ? BlackboardStructNamespace(dto) + "." + BlackboardStructName(dto) : null;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2133</c> (B1, <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §1 P2) — the ONE Input variable that IS the
+    /// behaviour's params DTO, or <c>null</c>. True when the managed blackboard has exactly one <c>Role=Input</c> variable, it is a
+    /// STRUCT (not a scalar or vector in <c>KnownTypeLayouts</c>, not an array) and no resolver asset is bound (then the resolver's
+    /// Parameters are the contract). ⇒ its JSON params are that struct's fields, FLAT — never <c>{"&lt;variable&gt;":{…}}</c>.
+    /// </summary>
+    public static BlackboardVariableDto? FlatParamsVariable(BehaviorTreeAssetDto dto)
+    {
+        if (dto?.Blackboard == null || !dto.Blackboard.Managed || dto.Resolver != null) return null;
+        BlackboardVariableDto? only = null;
+        foreach (var v in dto.Blackboard.Variables)
+        {
+            if (v.IsWorkingState || string.IsNullOrEmpty(v.Type?.TypeId)) continue;
+            if (only != null) return null;
+            only = v;
+        }
+        if (only == null || only.Type!.IsArray) return null;
+        return global::Fdp.Toolkit.Behavior.Shared.KnownTypeLayouts.TryGetSize(only.Type.TypeId, out _) ? null : only;
+    }
+
+    /// <summary>⭐ <c>CE-2135</c> (B3a) — the reserved name of the variable that holds a behaviour's named params DTO.</summary>
+    public const string ReservedParamsName = "Params";
+
+    /// <summary>⭐ <c>CE-2135</c> — the shared empty params DTO: a behaviour that takes nothing names it, and it is never stored.</summary>
+    public const string NoParamsTypeId = "Hrot.Map.Definitions.Behavior.NoParams";
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-2135</c> (B3a, R-3000; <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §5c) — an asset that NAMES its params
+    /// DTO and declares no Input variable stores its params in the reserved <see cref="ReservedParamsName"/> variable: this adds
+    /// it (the named type, <see cref="BehaviorTreeAssetDto.ParamsDefaultJson"/> as its default) at the head of the managed
+    /// blackboard — offset 0 of the packed (bindable) region — so the packer, the block's <c>In</c>, the manifest, the flat
+    /// parse and every binding by name see it like any variable. ⭐ The JSON lands ONLY there; the asset's other packed variables
+    /// are plain variables (baked defaults, bindable, never JSON). Idempotent, in place; every generator entry calls it.
+    /// <para>⛔ Not added: with a resolver asset (its Parameters are the contract until B3b), on an unmanaged blackboard, for
+    /// <c>NoParams</c> (it stores nothing), or when a variable named <c>Params</c> already exists.</para>
+    /// </summary>
+    public static BehaviorTreeAssetDto WithParamsVariable(this BehaviorTreeAssetDto dto)
+    {
+        if (dto?.Blackboard == null || !dto.Blackboard.Managed || dto.Resolver != null) return dto!;
+        string? named = dto.ParamsDtoTypeId?.Trim();
+        if (string.IsNullOrEmpty(named) || SameTypeId(named, NoParamsTypeId)) return dto;
+        foreach (var v in dto.Blackboard.Variables)
+            if (v.Name == ReservedParamsName) return dto;   // already applied (or authored — ParamsDtoTypeIdError says if wrongly)
+        dto.Blackboard.Variables.Insert(0, new BlackboardVariableDto
+        {
+            Name             = ReservedParamsName,
+            Type             = new BlackboardTypeRefDto { TypeId = named! },
+            // ⭐ CE-3194 (R-3001/R-3002) — ALWAYS baked: the JSON is read over `new T()` (the DTO's initialisers; an absent key keeps
+            //   them), and "{}" when the asset overrides nothing. ⛔ It was baked only when the asset carried a default, so a DTO's own
+            //   defaults never reached the block (zeroed memory runs no constructor).
+            DefaultValueJson = string.IsNullOrWhiteSpace(dto.ParamsDefaultJson) ? "{}" : dto.ParamsDefaultJson,
+            Comment          = "CE-2135: the behaviour's params (its named DTO, ParamsDtoTypeId) — reserved, not authored",
+        });
+        return dto;
+    }
+
+    /// <summary>⭐ <c>CE-2133</c> — type ids compare with a nested type's <c>+</c> and <c>.</c> spellings as one.</summary>
+    internal static bool SameTypeId(string? a, string? b)
+        => string.Equals(a?.Replace('+', '.'), b?.Replace('+', '.'), StringComparison.Ordinal);
+
+    /// <summary>
+    /// ⭐ <c>CE-2133</c> — why <see cref="BehaviorTreeAssetDto.ParamsDtoTypeId"/> cannot hold for <paramref name="dto"/>, or
+    /// <c>null</c> when it is unset or valid: set, it must equal the one Input variable's (flat) type, or the asset declares
+    /// no Input at all; and a resolver asset names its own contract (R-149), so the two are exclusive.
+    /// </summary>
+    public static string? ParamsDtoTypeIdError(BehaviorTreeAssetDto dto)
+    {
+        string? named = dto?.ParamsDtoTypeId;
+        if (string.IsNullOrWhiteSpace(named)) return null;
+        if (dto!.Resolver != null)
+            return $"behaviour '{dto.Name}' names params DTO '{named}' and resolver asset '{dto.Resolver.Name}'; the resolver's Parameters are its contract — name one (R-149)";
+        // ⭐ CE-2135 (B3a) — "Params" is reserved for the named DTO: a variable that takes the name must be that DTO, packed.
+        var p = dto.Blackboard?.Variables?.FirstOrDefault(v => v.Name == ReservedParamsName);
+        if (p != null && (p.IsWorkingState || !SameTypeId(p.Type?.TypeId, named)))
+            return $"behaviour '{dto.Name}' names params DTO '{named}' but its variable '{ReservedParamsName}' is '{p.Type?.TypeId}'{(p.IsWorkingState ? " (a working-state variable)" : "")}; the name is reserved for the params";
+        return null;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2135</c> — the variable the JSON params land in, or <c>null</c> (keyed legacy overlay): with a named DTO the
+    /// reserved <c>Params</c> (after <see cref="WithParamsVariable"/>); without one, B1's single struct Input (<see cref="FlatParamsVariable"/>).
+    /// </summary>
+    public static BlackboardVariableDto? ParamsTarget(BehaviorTreeAssetDto dto)
+    {
+        if (dto?.Blackboard == null || dto.Resolver != null) return null;
+        if (!string.IsNullOrWhiteSpace(dto.ParamsDtoTypeId))
+            return dto.Blackboard.Variables.FirstOrDefault(v => v.Name == ReservedParamsName && !v.IsWorkingState);
+        return FlatParamsVariable(dto);
+    }
+
+    internal static string BlackboardStructFqn(BehaviorTreeAssetDto dto)
+        => "global::" + BlackboardStructNamespace(dto) + "." + BlackboardStructName(dto);
+
+    /// <summary>
     /// Emits a <c>[StructLayout(LayoutKind.Sequential)]</c> struct for a managed blackboard block.
     /// Returns the C# source string and fills <paramref name="packedFields"/> with the
     /// packing result (name → byte offset, packed order = declaration order for master vars).
@@ -60,14 +209,16 @@ public static class BTreeEmitCore
         out IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields)
     {
         packedFields = Array.Empty<BTreeBlackboardPackHelper.PackedField>();
+        dto.WithParamsVariable();   // ⭐ CE-2135 — the reserved Params, when the asset names its DTO (idempotent)
 
         if (!dto.Blackboard.Managed || dto.Blackboard.Variables.Count == 0)
             return null;
 
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField> fields;
+        int packedBytes;
         try
         {
-            fields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out _);
+            fields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out packedBytes);
         }
         catch (NotSupportedException)
         {
@@ -77,21 +228,8 @@ public static class BTreeEmitCore
 
         packedFields = fields;
 
-        var targetNs = string.IsNullOrEmpty(dto.TargetNamespace)
-            ? "Hrot.AI.Behaviors.Trees"
-            : dto.TargetNamespace;
-
-        // Always prefix with the asset name to ensure uniqueness across multiple managed assets
-        // in the same namespace — multiple assets share the same BlackboardTypeName (e.g.
-        // "Fdp.Toolkit.Behavior.Components.BrainBlackboard") which would produce identical
-        // struct names (CS0101) if we used the TypeName alone.
-        // Pattern: {AssetName}_{TypeNameSuffix} — e.g. "T10_MultiAction_BrainBlackboard".
-        string assetPrefix   = SanitizeIdentifier(dto.Name);
-        string typeSuffix    = string.IsNullOrWhiteSpace(dto.Blackboard.TypeName)
-            ? "Blackboard"
-            : SanitizeIdentifier(dto.Blackboard.TypeName);
-        if (string.IsNullOrEmpty(typeSuffix)) typeSuffix = "Blackboard";
-        string structName = assetPrefix + "_" + typeSuffix;
+        var targetNs    = BlackboardStructNamespace(dto);
+        string structName = BlackboardStructName(dto);
 
         var sb = new StringBuilder();
         sb.AppendLine(AiEmitCoreBase.BuildHeader(dto.AssetId));
@@ -99,7 +237,38 @@ public static class BTreeEmitCore
         sb.AppendLine();
         sb.AppendLine($"namespace {targetNs};");
         sb.AppendLine();
-        sb.AppendLine("[StructLayout(LayoutKind.Sequential)]");
+        // ⭐⭐⭐ CE-418 — ONE LAYOUT AUTHORITY. The struct BECOMES the manifest.
+        //
+        // 🔴 What this fixes, measured 2026-09-28 by a runtime probe over the built
+        //    Hrot.AI.Behaviors.dll: a generated behaviour stated its params layout TWICE — this
+        //    struct (laid out by the CLR from LayoutKind.Sequential) and
+        //    ManagedBlackboardVariables[i].ByteOffset (computed by Pack). They DISAGREED on
+        //    3 of 15 behaviours and 9 of 31 fields, because Pack derives alignment from SIZE
+        //    (Math.Min(size, AlignmentCap)) while the CLR aligns by TYPE: Vector3 is 12 bytes
+        //    aligned 4, so Pack puts it on 8 and the CLR on 4.
+        //
+        // ⛔⛔ It was LIVE, not latent: StructEdit's "Active Parameters" READS AND WRITES at the
+        //    struct's offsets (BlackboardReflection → RootParamsViewProvider) and the ReplayBrowser
+        //    predicate compiler binds property paths against it, while RootParamsProjection takes
+        //    the manifest arm ⇒ two panels disagreed about one entity and an edit in one landed on
+        //    the wrong byte. Sizing was unaffected (RootParamsBytes prefers the manifest), which is
+        //    why nothing crashed — it silently showed and wrote wrong numbers.
+        //
+        // ⭐ The fix emits Pack's offsets EXPLICITLY, so there is nothing left for the CLR to
+        //    decide and NO RUNTIME BYTE MOVES — the manifest was always the authority the runtime
+        //    used. Every Pack offset is legally aligned for Explicit layout: Pack's alignment is
+        //    min(size, 8) and a type's true alignment is <= min(size, 8) for every type in
+        //    KnownSizes and every blittable struct DTO, so Pack is never LESS aligned than the CLR
+        //    requires.
+        //
+        // ⚠ The zero-field case keeps Sequential. Variables that are all Role=State pack to
+        //    nothing, and `Size = 0` on an Explicit struct is not the same statement as "this
+        //    struct is empty" — leaving it Sequential keeps today's behaviour byte-identical and
+        //    there are no offsets to be authoritative about.
+        if (fields.Count > 0)
+            sb.AppendLine($"[StructLayout(LayoutKind.Explicit, Size = {packedBytes})]");
+        else
+            sb.AppendLine("[StructLayout(LayoutKind.Sequential)]");
         sb.AppendLine($"public struct {structName}");
         sb.AppendLine("{");
 
@@ -111,12 +280,111 @@ public static class BTreeEmitCore
             {
                 sb.AppendLine($"{Indent}[MarshalAs(UnmanagedType.I1)]");
             }
+            // CE-418: the offset is Pack's, not the CLR's.
+            sb.AppendLine($"{Indent}[FieldOffset({f.ByteOffset})]");
             string csTypeName = ToCsTypeName(f.TypeId);
             sb.AppendLine($"{Indent}public {csTypeName} {f.Name};");
         }
 
         sb.AppendLine("}");
+
+        // ⭐ CE-2133 — a FLAT behaviour's In IS its params DTO (the one Input's own type, same bytes as the one-field mirror),
+        //   so CE-425's "block.In is the published contract" stays true by construction.
+        string inType = ParamsTarget(dto) is { } flatIn && fields.Count == 1 ? ToCsTypeName(flatIn.Type.TypeId) : structName;
+        EmitBlockStructs(sb, dto, inType, fields.Count > 0, packedBytes);
         return sb.ToString();
+    }
+
+    /// <summary>⭐ <c>CE-425</c> — the block's type name: <c>{Asset}_Block</c>.</summary>
+    internal static string BlockStructName(BehaviorTreeAssetDto dto) => SanitizeIdentifier(dto.Name) + "_Block";
+
+    /// <summary>The <c>global::</c>-qualified block type, for emission into generated code.</summary>
+    internal static string BlockStructFqn(BehaviorTreeAssetDto dto)
+        => "global::" + BlackboardStructNamespace(dto) + "." + BlockStructName(dto);
+
+    /// <summary>
+    /// ⭐ <c>CE-437</c> — the variables that live in the block's <c>St</c> half: the working-state variables
+    /// (<c>CE-3193</c>: a binding names them, <see cref="WorkingStateVariables"/>), in declaration order.
+    /// </summary>
+    internal static List<BlackboardVariableDto> BlockStateVariables(BehaviorTreeAssetDto dto)
+    {
+        var result = new List<BlackboardVariableDto>();
+        if (dto.Blackboard?.Variables == null) return result;
+        foreach (var v in dto.Blackboard.Variables)
+            if (v.IsWorkingState && !string.IsNullOrEmpty(v.Type?.TypeId))
+                result.Add(v);
+        return result;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-425</c> / <c>CE-437</c> — the behaviour's ONE BLOCK <i>(<c>R-151</c>, <c>Q76</c> §12.2)</i>:
+    /// <c>{Asset}_Block { In; St; }</c>, where <c>In</c> is the Inputs struct emitted above —
+    /// ⭐⭐⭐ <b>the SAME type, at offset 0</b>, so the Input region is byte-identical by
+    /// construction and every manifest offset stays valid (§12.2a). Since <c>CE-437</c> it IS the
+    /// behaviour's <c>BlackboardLayoutType</c> and the root slot is sized from it (<c>CE-429</c>).
+    ///
+    /// <para>⭐⭐ <b>The State half is <c>Sequential</c> — the CLR lays it out, and that is correct
+    /// here where it was wrong for the Inputs.</b> <c>CE-418</c> needed <c>Pack</c>'s offsets because a
+    /// MANIFEST states the Input offsets and something reads by it. Nothing states the State offsets:
+    /// they are reached only by typed field access (<c>ref block.St.name</c>). ⇒ no generate-time size
+    /// is needed, which is what lets a state type with <c>fixed</c> buffers (<c>HillAttackMutableState</c>,
+    /// unsizable by <c>StructSizeResolver</c>) have a block at all.</para>
+    ///
+    /// <para>⭐ <c>St</c> sits at the Input bytes rounded up to 8 — the largest alignment any field can
+    /// need — so it never overlaps <c>In</c> whatever the CLR rounds <c>In</c>'s size to.</para>
+    ///
+    /// <para>⚠ A half with no fields is OMITTED rather than emitted empty: an empty C# struct is one
+    /// byte, so an empty <c>St</c> would change the block's size for nothing.</para>
+    /// </summary>
+    private static void EmitBlockStructs(
+        StringBuilder sb,
+        BehaviorTreeAssetDto dto,
+        string inputsStructName,
+        bool hasInputs,
+        int inputBytes)
+    {
+        var stateVars = BlockStateVariables(dto);
+        string blockName = BlockStructName(dto);
+        string stateName = SanitizeIdentifier(dto.Name) + "_BlockState";
+        bool   hasState  = stateVars.Count > 0;
+
+        if (hasState)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"/// <summary>CE-437: the Role=State, Scope=Behavior half of <see cref=\"{blockName}\"/>.</summary>");
+            sb.AppendLine("[StructLayout(LayoutKind.Sequential)]");
+            sb.AppendLine($"public struct {stateName}");
+            sb.AppendLine("{");
+            foreach (var v in stateVars)
+            {
+                string typeId = v.Type!.TypeId;
+                if (typeId == "System.Boolean" || typeId == "bool")
+                    sb.AppendLine($"{Indent}[MarshalAs(UnmanagedType.I1)]");
+                sb.AppendLine($"{Indent}public {ToCsTypeName(typeId)} {v.Name};");
+            }
+            sb.AppendLine("}");
+        }
+
+        int stateOffset = hasInputs ? (inputBytes + 7) & ~7 : 0;
+
+        sb.AppendLine();
+        sb.AppendLine("/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>");
+        sb.AppendLine(hasInputs || hasState
+            ? "[StructLayout(LayoutKind.Explicit)]"
+            : "[StructLayout(LayoutKind.Sequential)]");
+        sb.AppendLine($"public struct {blockName}");
+        sb.AppendLine("{");
+        if (hasInputs)
+        {
+            sb.AppendLine($"{Indent}[FieldOffset(0)]");
+            sb.AppendLine($"{Indent}public {inputsStructName} In;");
+        }
+        if (hasState)
+        {
+            sb.AppendLine($"{Indent}[FieldOffset({stateOffset})]");
+            sb.AppendLine($"{Indent}public {stateName} St;");
+        }
+        sb.AppendLine("}");
     }
 
     /// <summary>
@@ -167,21 +435,25 @@ public static class BTreeEmitCore
     /// EXCLUDING the <c>[BTreeLayout]</c> method, using an optional size resolver for struct-DTO types.
     /// </summary>
     public static string EmitTopologyCore(BehaviorTreeAssetDto dto, SizeResolverDelegate? sizeResolver)
-    {
-        return EmitInternal(dto, includeLayout: false, sizeResolver: sizeResolver);
-    }
+        => EmitTopologyCore(dto, sizeResolver, fields: null);
+
+    /// <summary>⭐ <c>CE-3182</c> — as above, with the field layouts a binding path (<c>Variable.Field</c>) walks.</summary>
+    public static string EmitTopologyCore(BehaviorTreeAssetDto dto, SizeResolverDelegate? sizeResolver, FieldLayoutResolver? fields)
+        => EmitInternal(dto, includeLayout: false, sizeResolver: sizeResolver, fields: fields);
 
     /// <summary>Core emitter: shared implementation for both <see cref="Emit"/> and <see cref="EmitTopologyCore"/>.</summary>
     private static string EmitInternal(BehaviorTreeAssetDto dto, bool includeLayout,
-        SizeResolverDelegate? sizeResolver = null)
+        SizeResolverDelegate? sizeResolver = null, FieldLayoutResolver? fields = null)
     {
+        dto.WithParamsVariable();   // ⭐ CE-2135 — the reserved Params, when the asset names its DTO (idempotent)
+        WorkingStateVariables.Mark(dto);   // ⭐ CE-3193 — working state is derived from the bindings, not read from the file
         var sb = new StringBuilder();
         var usings = includeLayout ? CollectUsings(dto) : CollectUsingsTopologyOnly(dto);
 
         // Pre-compute variable offsets for managed blackboard assets (S1-2 / S1-2b).
         // For unmanaged assets this is empty — EmitAction/EmitCondition fall back to the
         // legacy field-selector form which is byte-identical to the pre-BATCH-02 output.
-        IReadOnlyDictionary<string, int> variableOffsets = BuildVariableOffsets(dto, sizeResolver);
+        IReadOnlyDictionary<string, int> variableOffsets = BuildVariableOffsets(dto, sizeResolver, fields);
 
         // Header
         sb.AppendLine(AiEmitCoreBase.BuildHeader(dto.AssetId));
@@ -201,7 +473,7 @@ public static class BTreeEmitCore
         var targetNs = string.IsNullOrEmpty(dto.TargetNamespace)
             ? "Hrot.AI.Behaviors.Trees"
             : dto.TargetNamespace;
-        var className = SanitizeIdentifier(dto.Name);
+        var className = global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.StripInvalid(dto.Name, "BTreeAsset", bare: true);   // ⭐ CE-2039 — the one sanitizer (bare: a class name)
 
         sb.AppendLine($"namespace {targetNs};");
         sb.AppendLine();
@@ -235,23 +507,32 @@ public static class BTreeEmitCore
     /// </summary>
     private static IReadOnlyDictionary<string, int> BuildVariableOffsets(
         BehaviorTreeAssetDto dto,
-        SizeResolverDelegate? sizeResolver = null)
+        SizeResolverDelegate? sizeResolver = null,
+        FieldLayoutResolver? fields = null)
     {
         if (!dto.Blackboard.Managed || dto.Blackboard.Variables.Count == 0)
             return new Dictionary<string, int>();
 
         try
         {
-            var fields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out _);
-            var map = new Dictionary<string, int>(fields.Count, StringComparer.Ordinal);
-            foreach (var f in fields)
-                map[f.Name] = f.ByteOffset;
-            return map;
+            // ⭐ CE-3182 — the ONE target resolver: every variable, plus each Variable.Field path a node binds.
+            var packed = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out _);
+            return BindingTargets.For(packed, fields).Offsets(BoundTargets(dto));
         }
         catch
         {
             // Unknown type — fall back to empty (unmanaged path)
             return new Dictionary<string, int>();
+        }
+    }
+
+    /// <summary>⭐ <c>CE-3182</c> — every node binding's <c>ExpressionTargetField</c> (a variable or a field path).</summary>
+    internal static IEnumerable<string?> BoundTargets(BehaviorTreeAssetDto dto)
+    {
+        foreach (var node in dto.Nodes)
+        {
+            if (node is BTreeActionNodeDto a) yield return a.Action?.ExpressionTargetField;
+            else if (node is BTreeConditionNodeDto c) yield return c.Condition?.ExpressionTargetField;
         }
     }
 
@@ -280,9 +561,9 @@ public static class BTreeEmitCore
         foreach (var node in dto.Nodes)
         {
             if (node is BTreeActionNodeDto actNode && actNode.Action != null)
-                AddNamespaceFromFqn(set, actNode.Action.MethodFqn);
+                AddNamespaceFromFqn(set, actNode.Action.MethodFqn ?? string.Empty);
             if (node is BTreeConditionNodeDto condNode && condNode.Condition != null)
-                AddNamespaceFromFqn(set, condNode.Condition.MethodFqn);
+                AddNamespaceFromFqn(set, condNode.Condition.MethodFqn ?? string.Empty);
         }
 
         return AiEmitCoreBase.SortUsings(set);
@@ -312,9 +593,9 @@ public static class BTreeEmitCore
         foreach (var node in dto.Nodes)
         {
             if (node is BTreeActionNodeDto actNode && actNode.Action != null)
-                AddNamespaceFromFqn(set, actNode.Action.MethodFqn);
+                AddNamespaceFromFqn(set, actNode.Action.MethodFqn ?? string.Empty);
             if (node is BTreeConditionNodeDto condNode && condNode.Condition != null)
-                AddNamespaceFromFqn(set, condNode.Condition.MethodFqn);
+                AddNamespaceFromFqn(set, condNode.Condition.MethodFqn ?? string.Empty);
         }
 
         return AiEmitCoreBase.SortUsings(set);
@@ -374,7 +655,28 @@ public static class BTreeEmitCore
         StringBuilder sb, BehaviorTreeAssetDto dto,
         IReadOnlyDictionary<string, int> variableOffsets)
     {
-        var bbShort  = ShortTypeName(AiEmitCoreBase.EffectiveBlackboardTypeName(dto.BlackboardTypeName));
+        // ⭐⭐⭐ P4-③ (CE-313): the builder's TBlackboard is `byte` — the root params slot base.
+        //
+        // 📐 MEASURED, not assumed: all 26 generated trees bind EVERY node by explicit string key
+        //   (`seq.Action("…@0@1299152117", visualId: …)`) and use ZERO selector-form lambdas. The
+        //   selector form is the ONLY builder API that reads TBlackboard (it computes the @offset via
+        //   Marshal.OffsetOf and registers a curried thunk), and `Compile()` DISCARDS the typed
+        //   registry it builds ⇒ on the generated path the type argument is never read.
+        //
+        // ⛔⛔ It was `EffectiveBlackboardTypeName(dto.BlackboardTypeName)`, which resolves to
+        //   BrainBlackboard for 26 of 30 assets — while the Interpreter that RUNS the resulting blob
+        //   is Interpreter<byte, BTreeContext> (P4-②). ⇒ the two disagreed, and the generated file
+        //   misstated what the tree dispatches against. `byte` makes builder and interpreter agree.
+        //
+        // ⚠ This does NOT touch dto.BlackboardTypeName itself — that string still mangles into the
+        //   params-layout struct names and into SubtreeSyncIdentity.Derive, which MATCHES SUBTREES.
+        //   📄 §30.19: retargeting the asset field renames 11 structs across 44 files and breaks
+        //   subtree matching silently. Only the builder's generic argument moves here.
+        //
+        // ⛔ HAND-WRITTEN C# trees are untouched and still need a real struct: CgfNodes and
+        //   HideInCover use `.Action(bb => bb.MoveConfig, …)`, which is exactly the selector form.
+        //   They name their type in source, not through an asset.
+        var bbShort  = "byte";
         var ctxShort = ShortTypeName(AiEmitCoreBase.EffectiveContextTypeName(dto.ContextTypeName));
 
         sb.AppendLine($"{Indent}public static BTreeBuilder<{bbShort}, {ctxShort}> CreateBuilder() =>");
@@ -467,7 +769,9 @@ public static class BTreeEmitCore
                 EmitLeafWithPills(sb, dto, node, depth, isLast, methodPrefix, variableOffsets);
                 break;
             default:
-                sb.AppendLine($"{pad}// Unsupported node type: {node.GetType().Name}");
+                // ⭐ CE-2111 — fail LOUDLY: a comment silently dropped the node (and its subtree) from the tree. A decorator
+                //   is authored as a PILL on its host node, never as a node kind (the DTO still accepts those kinds).
+                sb.AppendLine($"#error BTree node kind {node.GetType().Name} is not emitted (visual {node.VisualId:D}) — author a decorator as a pill on its host node");
                 break;
         }
     }
@@ -503,8 +807,8 @@ public static class BTreeEmitCore
         // Parallel's builder signature is Parallel(int policy, Action<...> children, ...);
         // every other composite (Sequence/Selector/ObserverSelector) takes only the children
         // lambda. Without this leading arg the emitted code fails to compile (CS7036).
-        // Policy 0 = RequireAll (kernel default); authoring a per-node policy is DEC follow-up.
-        string leadingArgs = methodName == "Parallel" ? "0, " : "";
+        // Policy 0 = RequireAll (kernel default), 1 = RequireOne — ⭐ CE-2073: authored on the node (was always 0).
+        string leadingArgs = methodName == "Parallel" ? $"{(node as BTreeParallelNodeDto)?.Policy ?? 0}, " : "";
 
         int childCount = node.ChildVisualIds.Count;
         if (childCount == 0)
@@ -568,7 +872,9 @@ public static class BTreeEmitCore
                 EmitLeafWithPills(sb, dto, node, depth, isLast, methodPrefix, variableOffsets);
                 break;
             default:
-                sb.AppendLine($"{pad}// Unknown node type: {node.GetType().Name}");
+                // ⭐ CE-2111 — fail LOUDLY: a comment silently dropped the node (and its subtree) from the tree. A decorator
+                //   is authored as a PILL on its host node, never as a node kind (the DTO still accepts those kinds).
+                sb.AppendLine($"#error BTree node kind {node.GetType().Name} is not emitted (visual {node.VisualId:D}) — author a decorator as a pill on its host node");
                 break;
         }
     }
@@ -665,15 +971,24 @@ public static class BTreeEmitCore
         var visualId = $"visualId: new Guid(\"{node.VisualId:D}\")";
         string term = isLast ? ";" : ",";
 
+        // ⭐ CE-2079 — an SOP order ("Do when idle" / "React") lowers to an ordinary action key; the bridge registers its
+        //   thunk (BTreeBridgeEmitCore.EmitSopOrderThunks), which calls Fdp.Toolkit.Behavior.SopActions.
+        if (node.SopOrder is { } order)
+        {
+            sb.AppendLine($"{pad}{methodPrefix}Action(\"{order.ActionKey(SopOrderOffset(order, node, variableOffsets))}\",");
+            sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+            return;
+        }
+
         if (p == null || string.IsNullOrEmpty(p.MethodFqn))
         {
             throw new InvalidOperationException(
                 $"Action node {node.VisualId:D} is unbound (no method) — bind a method in the editor.");
         }
 
-        string methodRef = ShortMethodRef(p.MethodFqn);
+
         string? actionTargetField = p.ExpressionTargetField;
-        if (p.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable &&
+        if (node.DelegateShape == BTreeDelegateShapeDto.Plain &&
             !string.IsNullOrEmpty(actionTargetField))
         {
             // S1-2: when variableOffsets is populated (managed blackboard), use the
@@ -683,19 +998,22 @@ public static class BTreeEmitCore
             if (variableOffsets != null && variableOffsets.Count > 0 &&
                 variableOffsets.TryGetValue(actionTargetField!, out int offset))
             {
-                string blobKey = $"{p.MethodFqn}@{offset}";
+                string blobKey = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, offset);   // ⭐ CE-2032
                 sb.AppendLine($"{pad}{methodPrefix}Action(\"{blobKey}\",");
                 sb.AppendLine($"{pad}{Indent}{visualId}){term}");
             }
             else
             {
-                // Legacy unmanaged path — field-selector form (byte-identical to pre-BATCH-02).
-                sb.AppendLine($"{pad}{methodPrefix}Action(dto => dto.{actionTargetField}, {methodRef},");
-                sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+                // ⛔ CE-504 slice 4 — the unmanaged field-selector form bound the retired (ref P, ref BTS, ref TCtx) method
+                //   group; the validator requires a managed blackboard for a binding with params, so this is unreachable
+                //   from a valid asset. Fail loud rather than emit an uncompilable bind.
+                throw new InvalidOperationException(
+                    $"Action node {node.VisualId:D} binds '{p.MethodFqn}' to '{actionTargetField}' but the variable has no packed offset " +
+                    "(a non-managed blackboard, or the variable is not packed) — a binding with params needs a managed blackboard (CE-504).");
             }
         }
-        else if ((p.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful ||
-                  p.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore) &&
+        else if ((node.DelegateShape == BTreeDelegateShapeDto.Stateful ||
+                  node.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore) &&
                  !string.IsNullOrEmpty(actionTargetField) &&
                  variableOffsets != null && variableOffsets.Count > 0 &&
                  variableOffsets.TryGetValue(actionTargetField!, out int statefulParamOffset))
@@ -709,11 +1027,11 @@ public static class BTreeEmitCore
             int slotKey  = dto != null
                 ? BTreeBridgeEmitCore.ResolveStatefulSlotKey(dto, BTreeBridgeEmitCore.StatefulScopeVariable(p), node.VisualId)
                 : BTreeBridgeEmitCore.ComputeStatefulSlotKey(default, node.VisualId);
-            string blobKey = $"{p.MethodFqn}@{statefulParamOffset}@{slotKey}";
+            string blobKey = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, statefulParamOffset, slotKey);   // ⭐ CE-2032
             sb.AppendLine($"{pad}{methodPrefix}Action(\"{blobKey}\",");
             sb.AppendLine($"{pad}{Indent}{visualId}){term}");
         }
-        else if (p.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore)
+        else if (node.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore)
         {
             // Defense-in-depth: an AiPrimitiveTickCore node must ALWAYS resolve to the offset-keyed
             // string-blob form above — its bound method is a blueprint's generated TickCore
@@ -733,10 +1051,20 @@ public static class BTreeEmitCore
                 "`.Action(TickCore, ...)` bind. Fix the asset in the editor (bind ExpressionTargetField to a " +
                 "managed blackboard variable typed as the blueprint's generated Params struct).");
         }
+        else if (node.DelegateShape == BTreeDelegateShapeDto.NoParams)
+        {
+            // ⭐ CE-504 C-2/C-3 — a shared param-less node (Entity, EntityRepository) is not a NodeLogicDelegate method
+            //   group: key it by its bare FQN; the bridge registers the call under the same key.
+            sb.AppendLine($"{pad}{methodPrefix}Action(\"{p.MethodFqn}\",");
+            sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+        }
         else
         {
-            sb.AppendLine($"{pad}{methodPrefix}Action({methodRef},");
-            sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+            // ⛔ CE-504 slice 4 — the method-group form bound the retired whole-block (ref TBB, ref BTS, ref TCtx, int)
+            //   shape (FourParamFull). No asset binds it; fail loud rather than emit a bind nothing registers.
+            throw new InvalidOperationException(
+                $"Action node {node.VisualId:D} binds '{p.MethodFqn}' with DelegateShape={node.DelegateShape}, which has no " +
+                "call form — bind a [SharedAi*] method (CE-504).");
         }
     }
 
@@ -756,27 +1084,31 @@ public static class BTreeEmitCore
                 $"Condition node {node.VisualId:D} is unbound (no method) — bind a method in the editor.");
         }
 
-        string methodRef = ShortMethodRef(p.MethodFqn);
+
         string? condTargetField = p.ExpressionTargetField;
-        if (p.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable &&
+        if (node.DelegateShape == BTreeDelegateShapeDto.Plain &&
             !string.IsNullOrEmpty(condTargetField))
         {
             // S1-2: same offset-key logic as EmitAction.
             if (variableOffsets != null && variableOffsets.Count > 0 &&
                 variableOffsets.TryGetValue(condTargetField!, out int offset))
             {
-                string blobKey = $"{p.MethodFqn}@{offset}";
+                string blobKey = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, offset);   // ⭐ CE-2032
                 sb.AppendLine($"{pad}{methodPrefix}Condition(\"{blobKey}\",");
                 sb.AppendLine($"{pad}{Indent}{visualId}){term}");
             }
             else
             {
-                // Legacy unmanaged path — field-selector form (byte-identical to pre-BATCH-02).
-                sb.AppendLine($"{pad}{methodPrefix}Condition(dto => dto.{condTargetField}, {methodRef},");
-                sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+                // ⛔ CE-504 slice 4 — the unmanaged field-selector form bound the retired (ref P, ref BTS, ref TCtx) method
+                //   group; the validator requires a managed blackboard for a binding with params, so this is unreachable
+                //   from a valid asset. Fail loud rather than emit an uncompilable bind.
+                throw new InvalidOperationException(
+                    $"Condition node {node.VisualId:D} binds '{p.MethodFqn}' to '{condTargetField}' but the variable has no packed offset " +
+                    "(a non-managed blackboard, or the variable is not packed) — a binding with params needs a managed blackboard (CE-504).");
             }
         }
-        else if (p.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore &&
+        else if ((node.DelegateShape == BTreeDelegateShapeDto.Stateful ||          // ⭐ CE-2069 — a C# stateful condition
+                  node.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore) &&
                  !string.IsNullOrEmpty(condTargetField) &&
                  variableOffsets != null && variableOffsets.Count > 0 &&
                  variableOffsets.TryGetValue(condTargetField!, out int statefulParamOffset))
@@ -791,11 +1123,11 @@ public static class BTreeEmitCore
             int slotKey = dto != null
                 ? BTreeBridgeEmitCore.ResolveStatefulSlotKey(dto, BTreeBridgeEmitCore.StatefulScopeVariable(p), node.VisualId)
                 : BTreeBridgeEmitCore.ComputeStatefulSlotKey(default, node.VisualId);
-            string blobKey = $"{p.MethodFqn}@{statefulParamOffset}@{slotKey}";
+            string blobKey = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, statefulParamOffset, slotKey);   // ⭐ CE-2032
             sb.AppendLine($"{pad}{methodPrefix}Condition(\"{blobKey}\",");
             sb.AppendLine($"{pad}{Indent}{visualId}){term}");
         }
-        else if (p.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore)
+        else if (node.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore)
         {
             // Defense-in-depth: mirrors EmitAction's AiPrimitiveTickCore guard. An AiPrimitiveTickCore
             // condition node must ALWAYS resolve to the offset-keyed string-blob form above — its bound
@@ -809,10 +1141,20 @@ public static class BTreeEmitCore
                 "`.Condition(TickCore, ...)` bind. Fix the asset in the editor (bind ExpressionTargetField to a " +
                 "managed blackboard variable typed as the blueprint's generated Params struct).");
         }
+        else if (node.DelegateShape == BTreeDelegateShapeDto.NoParams)
+        {
+            // ⭐ CE-504 C-2/C-3 — a shared param-less node (Entity, EntityRepository) is not a NodeLogicDelegate method
+            //   group: key it by its bare FQN; the bridge registers the call under the same key.
+            sb.AppendLine($"{pad}{methodPrefix}Condition(\"{p.MethodFqn}\",");
+            sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+        }
         else
         {
-            sb.AppendLine($"{pad}{methodPrefix}Condition({methodRef},");
-            sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+            // ⛔ CE-504 slice 4 — the method-group form bound the retired whole-block (ref TBB, ref BTS, ref TCtx, int)
+            //   shape (FourParamFull). No asset binds it; fail loud rather than emit a bind nothing registers.
+            throw new InvalidOperationException(
+                $"Condition node {node.VisualId:D} binds '{p.MethodFqn}' with DelegateShape={node.DelegateShape}, which has no " +
+                "call form — bind a [SharedAi*] method (CE-504).");
         }
     }
 
@@ -826,6 +1168,11 @@ public static class BTreeEmitCore
         sb.AppendLine($"{pad}{methodPrefix}Wait({duration.ToString("R", CultureInfo.InvariantCulture)}f,");
         sb.AppendLine($"{pad}{Indent}{visualId}){term}");
     }
+
+    /// <summary>⭐ <c>CE-2079</c> — the baked offset of an SOP order's params variable, or <c>-1</c> when it has none (authored
+    /// defaults). ⛔ A named variable with no packed offset fails loud — the order would silently drop its params.</summary>
+    internal static long SopOrderOffset(SopOrderPayloadDto order, BTreeNodeDto node, IReadOnlyDictionary<string, int>? variableOffsets)
+        => SopOrderEmit.Offset(order, variableOffsets, $"node {node.VisualId:D}");   // ⭐ CE-2083: the one rule, shared with the HSM
 
     private static void EmitSubtree(StringBuilder sb, BTreeSubtreeNodeDto node, string pad, bool isLast, string methodPrefix = ".")
     {
@@ -923,6 +1270,14 @@ public static class BTreeEmitCore
         foreach (var sup in unusedSuppressions)
         {
             sb.AppendLine($"{Indent}{Indent}.SuppressUnusedWarning(\"{sup}\")");
+        }
+
+        // ⭐ W7b (§9.4) -- per-VARIABLE "allow concurrent writes". Sorted like its neighbours so the
+        //   emitted layout method stays deterministic; omitted entirely when empty, so every existing
+        //   asset emits byte-identically.
+        foreach (var allowed in (dto.Suppressions.ConcurrentWritesAllowed ?? new()).OrderBy(s => s))
+        {
+            sb.AppendLine($"{Indent}{Indent}.AllowConcurrentWrites(\"{allowed}\")");
         }
 
         sb.AppendLine($"{Indent}{Indent}.Build();");
@@ -1030,17 +1385,7 @@ public static class BTreeEmitCore
     }
 
     private static string SanitizeIdentifier(string name)
-    {
-        var sb = new StringBuilder();
-        foreach (char c in name)
-        {
-            if (char.IsLetterOrDigit(c) || c == '_')
-                sb.Append(c);
-        }
-        if (sb.Length == 0) return "BTreeAsset";
-        if (char.IsDigit(sb[0])) sb.Insert(0, '_');
-        return sb.ToString();
-    }
+        => global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.StripInvalid(name, "BTreeAsset");
 
     private static string QuoteStr(string s) => $"\"{s}\"";
 

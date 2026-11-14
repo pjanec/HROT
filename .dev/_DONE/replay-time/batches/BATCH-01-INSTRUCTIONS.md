@@ -29,7 +29,7 @@
 ### Build & Test Commands
 ```powershell
 # Build (check for errors):
-dotnet build IOS-IG-SimHost.sln --no-restore -v quiet 2>&1 | Select-String "error CS|Build succeeded|FAILED"
+dotnet build HROT.sln --no-restore -v quiet 2>&1 | Select-String "error CS|Build succeeded|FAILED"
 
 # Run tests for this batch:
 dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj --no-build -v normal
@@ -260,7 +260,7 @@ This batch is DONE when:
 - [ ] RT-004: `EcsRecordReplayController.PrepareReplayAsync` passes `_kernel.GetTimeController()` to `ReplayModule`
 - [ ] RT-005: `ApplyTimeSnap` extracted; all existing `SlaveSyncController` tests pass
 - [ ] RT-006: Instant snap path implemented; T6a-T6d tests written and passing
-- [ ] Solution builds: `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet` with zero `error CS` lines
+- [ ] Solution builds: `dotnet build HROT.sln --no-restore -v quiet` with zero `error CS` lines
 - [ ] All tests in `Fdp.Toolkits.Tests` and `Fdp.ModuleHost.Tests` pass
 
 ---

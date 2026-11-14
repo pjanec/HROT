@@ -21,9 +21,35 @@ public static class AiEmitCoreBase
         "// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.";
 
     /// <summary>
-    /// Standard Brain-tier blackboard type used when an asset has no
-    /// <c>BlackboardTypeName</c> set (e.g. a freshly-created empty asset).
-    /// Matches the type every real hand-authored tree and the golden test corpus use.
+    /// ⛔⛔⛔ <b>THIS NAMES A TYPE THAT NO LONGER EXISTS, AND THAT IS CORRECT. It is an IDENTITY
+    /// TOKEN, not a resolvable type.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.13.
+    ///
+    /// <para>🔴 <c>P4</c> <b>DELETED</b> <c>Fdp.Toolkit.Behavior.Components.BrainBlackboard</c>
+    /// (§30). 📐 Measured <c>2026-09-23</c>: <c>grep 'struct BrainBlackboard'</c> over <c>FDP</c> +
+    /// <c>Hrot</c> returns nothing, while <b>26</b> shipped <c>*.btree.json</c> still carry it as
+    /// their <c>BlackboardTypeName</c>. ⚠ A grep for a deleted type returning 26 live hits reads
+    /// like a bug — it is not, and this note exists so the next reader does not spend an hour on
+    /// it.</para>
+    ///
+    /// <para>⭐⭐ <b>Why nothing breaks.</b> Since <c>P4</c>-② the dispatch type is <c>byte</c> for
+    /// every tree (<c>BTreeBridgeEmitCore:421</c> — <i>"a slot base is bytes; what the asset calls
+    /// its layout struct is irrelevant to dispatch"</i>), and since <c>CE-337</c> retired the
+    /// orchestrator arms <b>no production site emits this string as a C# TYPE at all</b>. What
+    /// survives are the two IDENTITY uses, and both are persisted:</para>
+    /// <list type="number">
+    ///   <item><description>it mangles into the generated params-layout struct name
+    ///   <c>{Asset}_{SanitizedType}</c>;</description></item>
+    ///   <item><description>it feeds <c>SubtreeSyncIdentity.Derive</c>, which MATCHES SUB-TREES by
+    ///   (name, dto type, dto ns).</description></item>
+    /// </list>
+    ///
+    /// <para>⛔⛔ <b>SO DO NOT "FIX" THE NAME.</b> 📐 <c>BTreeBridgeEmitCore:415-420</c> measured the
+    /// cost: retargeting the asset field would rename <b>11 generated structs across 44 files</b>
+    /// AND silently break sub-tree matching. ⇒ this is a rename of a persisted key, not a typo.</para>
+    ///
+    /// <para>⚠ <b>Its remaining live use is namespace collection</b> — <c>AddNamespaceFromTypeName</c>
+    /// in <c>BTreeEmitCore</c> / <c>BTreeBridgeEmitCore</c> — which yields a <c>using</c> for a
+    /// namespace that still exists. Harmless, and not worth a persisted-key migration to remove.</para>
     /// </summary>
     public const string DefaultBlackboardTypeName = "Fdp.Toolkit.Behavior.Components.BrainBlackboard";
 

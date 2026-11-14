@@ -29,6 +29,11 @@ namespace CarKinem.Road
         
         [JsonPropertyName("position")]
         public Vector2Json Position { get; set; } = new();
+
+        /// <summary>⭐ CE-1034 H5c (TH-L) — the road's height here above the ground (m), optional; 0 = on the ground. Additive: a file
+        /// without it is read as before, so the road-network schema version is unchanged.</summary>
+        [JsonPropertyName("aboveGround")]
+        public float AboveGround { get; set; }
     }
     
     /// <summary>

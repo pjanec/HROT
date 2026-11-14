@@ -154,7 +154,7 @@ Define unmanaged parameter structs and action ID constants in `Hrot.MuscleCharac
 ### ANC-P0-05 — Replicated/contractual components
 Define replicated ECS components in `Hrot.MuscleCharacter.Animation.Components`:
 
-**Components (all `[ComponentId]` from P0-03 block, `[DataPolicy(NoSave)]`):**
+**Components (all `[ComponentId]` from P0-03 block, `[DataPolicy(NoScenario)]`):**
 - `AnimationChannel` — Replicates animation playback intent.
 - `LookAtChannel` — Replicates look-at target.
 - `StanceIntent` — Desired stance.

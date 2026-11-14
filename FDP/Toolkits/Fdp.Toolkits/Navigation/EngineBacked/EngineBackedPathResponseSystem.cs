@@ -13,6 +13,7 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
     /// <c>PathfindingResultMaterializationSystem</c>.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class EngineBackedPathResponseSystem : IEcsModuleSystem
     {
         private readonly EngineBackedPathRegistry _registry;
@@ -25,6 +26,7 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             var events = view.ReadEvents<PathfindingResultEvent>();
             if (events.IsEmpty) return;
             if (view is not EntityRepository repo) return;
@@ -48,12 +50,23 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
                 var entity = repo.GetEntityByIndex(entityIndex);
                 if (!repo.IsAlive(entity)) continue;
                 if (!repo.HasComponent<NavState>(entity)) continue;
+                // ⭐ CE-2245 — a path answered AFTER the move it was planned for was stopped (intent None: the bridge's explicit
+                //   stop) must not revive that move. Measured: a civilian shot while walking dropped prone and then crawled
+                //   2 m along the old path. The handle stays registered above; only the drive is refused.
+                if (repo.IsComponentTypeRegistered<NavigationIntent>() && repo.HasComponent<NavigationIntent>(entity)
+                    && repo.GetComponent<NavigationIntent>(entity).Mode == NavigationMode.None)
+                    continue;
 
                 ref var navState = ref repo.GetComponentRW<NavState>(entity);
                 navState.TrajectoryId = handle;
                 navState.Mode         = KinematicsMode.CustomTrajectory;
                 navState.ProgressS    = 0f;
                 navState.HasArrived   = 0;
+                // ⭐ CE-3176 — a MoveTo waited at speed 0 (NavigationIntentBridgeSystem, PathToPoint); it drives at the
+                //   requested speed from here. Other requests (a replan, a route) keep the speed they already carry.
+                if (repo.IsComponentTypeRegistered<NavigationIntent>() && repo.HasComponent<NavigationIntent>(entity)
+                    && repo.GetComponent<NavigationIntent>(entity) is { Mode: NavigationMode.PathToPoint } intent)
+                    navState.TargetSpeed = intent.TargetSpeed;
             }
         }
     }

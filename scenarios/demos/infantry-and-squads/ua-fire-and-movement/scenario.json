@@ -1,0 +1,307 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: S5 (CE-2158 F-b) - on test-town a Squad of Leader + Rifleman 1-5 (immortal) at (190-210,165) is ordered FireAndMovement to (200,285), 120 m from two tough Hostiles at (195/205,285). Shows a squad closing in contact by halves: one half suppresses while the other rushes to cover. Judge: (1) the halves split: at least 2 Suppress, at least 2 Hold/AdvanceTo; (2) a rush starts on 'Covering!' (real fire), at least one on real covering fire; (3) every rush is <= 17 m; (4) at least 3 swaps in 90 s; (5) the squad centre closes >= 30 m; (6) never both halves up for more than 1.5 s. Fail: Both halves move together, rushes start with no covering fire, or the squad stalls. Check: python3 scripts/utility-demo-check.py --launch ua-fire-and-movement"
+  },
+  "entities": {
+    "a2158f00-0000-4000-8000-0000000000c0": {
+      "SimTransform": {
+        "Position": [
+          200,
+          165,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "FireAndMovement",
+        "Params": {"Objective": [200, 285, 0], "RushMetres": 15, "ArrivalRadius": 25},
+        "Origin": "Superior"
+      }
+    },
+    "a2158f00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          190,
+          165,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2158f00-0000-4000-8000-0000000000c0",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a2158f00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          194,
+          165,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2158f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2158f00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          198,
+          165,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2158f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2158f00-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          202,
+          165,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2158f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2158f00-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          206,
+          165,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2158f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2158f00-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          210,
+          165,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 5",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2158f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2158f00-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          195,
+          285,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a2158f00-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          205,
+          285,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

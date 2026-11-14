@@ -383,17 +383,17 @@ namespace Fdp.Tests
         }
 
         /// <summary>
-        /// TASK-E008 SC-4: A component registered with DataPolicy.NoRecord must have its
+        /// TASK-E008 SC-4: A component registered with DataPolicy.NoReplay must have its
         /// bit cleared in the recorded hot chunk data, even when the entity carries that component.
         /// </summary>
         [Fact]
         public void DualStream_RecordableMaskFilter_NonRecordableBitIsCleared()
         {
             // Use a dedicated component (ID 240) that is not registered by any other test,
-            // so we can safely register it with NoRecord here without affecting global registry state.
+            // so we can safely register it with NoReplay here without affecting global registry state.
             using var repo = new EntityRepository();
             // Register NoRecordTestComponent (ID 240) as non-recordable.
-            repo.RegisterComponent<NoRecordTestComponent>(DataPolicy.NoRecord);
+            repo.RegisterComponent<NoRecordTestComponent>(DataPolicy.NoReplay);
 
             var recorder = new RecorderSystem();
             using var stream = new MemoryStream();
@@ -450,7 +450,9 @@ namespace Fdp.Tests
         public void FormatVersion_WrittenInGlobalHeader_Is6()
         {
             // Also verify the constant value directly so any future bump is noticed here.
-            Assert.Equal(6u, FdpConfig.FORMAT_VERSION);
+            // ⭐ CE-3329 P0 — v7 grew the outer header only; the v6 break this rail records is still in. The exact version is pinned by
+            //   PlaybackControllerTests.V7_TheFrameIndexCarriesTheRecordedSimTimeAndTheFlags.
+            Assert.True(FdpConfig.FORMAT_VERSION >= 6u);
 
             string testFilePath = System.IO.Path.Combine(
                 System.IO.Path.GetTempPath(),
@@ -470,7 +472,7 @@ namespace Fdp.Tests
                 fs.Read(versionBytes, 0, 4);
                 uint version = BitConverter.ToUInt32(versionBytes, 0);
 
-                Assert.Equal(6u, version);
+                Assert.Equal(FdpConfig.FORMAT_VERSION, version);   // ⭐ CE-3329 P0 — the header carries the current format (v7)
             }
             finally
             {

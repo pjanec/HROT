@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -16,23 +17,44 @@ namespace Fdp.Core.FlightRecorder
     /// </summary>
     public class AsyncRecorder : IDisposable
     {
-        private const int BUFFER_SIZE = 32 * 1024 * 1024; // 32MB Buffer
-        
-        // Double Buffers (pre-allocated)
-        private byte[] _frontBuffer;
-        private byte[] _backBuffer;
-        
-        // Pre-allocated write buffer with 4-byte header space (zero-allocation)
-        private readonly byte[] _writeBuffer;
+        private const int BUFFER_SIZE = 32 * 1024 * 1024; // 32MB Buffer — the STARTING size of each frame buffer
+
+        /// <summary>⭐ CE-2409 — the frame buffers' starting size (tests use a small one to prove a frame may outgrow it).</summary>
+        internal static int InitialBufferSize { get; set; } = BUFFER_SIZE;
+
+        // ⭐ CE-2409 (DESIGN_Paused_And_Stepped_Execution F9, R0) — the two frame buffers GROW: a frame is written into an expandable
+        //   MemoryStream and the worker gets that stream's array. 📐 It was a fixed 32 MB array; the CE-2408 stress world (~1100 soldiers)
+        //   wrote a bigger keyframe and the CGF node died ("Memory stream is not expandable"). ⛔ Not a retry: recording a delta updates
+        //   the recorder's comparison state, so a retried frame would silently drop chunks. Growth allocates only when a frame is bigger
+        //   than any before it.
+        // ⭐ CE-2045 — one long-lived stream + writer per buffer, swapped WITH it: a frame rewinds instead of allocating a
+        //   MemoryStream and a BinaryWriter (104 B/frame on the hot path, measured). Fdp.Core.md: "no heap allocation on the hot path".
+        // ⭐ CE-2045 — the worker's arguments live in fields and its delegate is cached, so a dispatch allocates only the Task
+        //   (the per-frame lambda captured a closure + a delegate). Safe: at most ONE worker is ever outstanding — a capture
+        //   waits for (blocking) or drops on (non-blocking) the previous one before it dispatches.
+        private byte[]? _pendingBuffer;
+        private int _pendingBytes;
+        private Action? _processPending;
+        private MemoryStream _frontStream;
+        private BinaryWriter _frontWriter;
+        private MemoryStream _backStream;
+        private BinaryWriter _backWriter;
         
         private Task? _workerTask;
         private readonly FileStream _outputStream;
         private readonly RecorderSystem _recorderSystem;
         private readonly RecordingMetadata _metadata;
+
+        /// <summary>
+        /// The metadata written to <c>.meta.json</c> at <see cref="Dispose"/>. Main-thread callers may fill fields that describe
+        /// the recorded world (<c>CE-3126</c>: terrain name, geo origin) while recording.
+        /// </summary>
+        public RecordingMetadata Metadata => _metadata;
         private readonly string _filePath;
         
         // Stats
         public int DroppedFrames { get; private set; }
+        private static readonly bool StatsOn = EnvVars.Read(EnvVars.HrotReplayStats) == "1";
         public int RecordedFrames { get; private set; }
         
         // Error propagation for tests
@@ -46,6 +68,13 @@ namespace Fdp.Core.FlightRecorder
         { 
             get => _recorderSystem.MinRecordableId; 
             set => _recorderSystem.MinRecordableId = value; 
+        }
+
+        /// <summary>⭐ CE-1478 P6 — passthrough to <see cref="RecorderSystem.BlockDeltas"/> (format v8 block-run deltas; default on).</summary>
+        public bool BlockDeltas
+        {
+            get => _recorderSystem.BlockDeltas;
+            set => _recorderSystem.BlockDeltas = value;
         }
 
         /// <summary>
@@ -69,22 +98,36 @@ namespace Fdp.Core.FlightRecorder
         /// When left at the default of <c>0</c>, the field is written as <c>0</c>
         /// in the manifest (pre-feature recordings are treated as unknown).
         /// </summary>
-        public long MaxNetworkId { get; set; } = 0;
+        public int MaxNetworkId { get; set; } = 0;
 
         private bool _disposed;
         
+        /// <summary>A recorder that writes <paramref name="filePath"/>, replacing a file already there (tools, examples, tests).</summary>
         public AsyncRecorder(string filePath, RecordingMetadata? metadata = null)
+            : this(filePath, metadata, appendAfterFrames: -1) { }
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> (R-3047) — the cluster's exercise recorder (<c>RecordingModule</c>): it NEVER overwrites.
+        /// </summary>
+        /// <param name="appendAfterFrames">0: a NEW file — ⛔ <c>FileMode.CreateNew</c>, a loud failure on an existing one (the
+        /// truncation D18 found). N &gt; 0: <paramref name="filePath"/> already holds the global header and N frames (a branch's
+        /// copied history, <see cref="RecordingBranch"/>); this recorder appends after them and counts from N, so a checkpoint mark
+        /// names its frame in the whole file. (-1, the other constructor: replace a file already there.)</param>
+        public AsyncRecorder(string filePath, RecordingMetadata? metadata, int appendAfterFrames)
         {
+            if (appendAfterFrames < -1) throw new ArgumentOutOfRangeException(nameof(appendAfterFrames));
             _filePath = filePath;
             _metadata = metadata ?? new RecordingMetadata();
             if (_metadata.Timestamp == default) _metadata.Timestamp = DateTime.UtcNow;
 
-            _frontBuffer = new byte[BUFFER_SIZE];
-            _backBuffer = new byte[BUFFER_SIZE];
-            _writeBuffer = new byte[BUFFER_SIZE + 4]; // Pre-allocate for length prefix
-            
-            // Allocate compression buffer (Worst case size)
-            int maxOutput = K4os.Compression.LZ4.LZ4Codec.MaximumOutputSize(BUFFER_SIZE);
+            int initial = Math.Max(1024, InitialBufferSize);
+            _frontStream = new MemoryStream(initial);   // expandable (CE-2409); GetBuffer() is the array the worker reads
+            _frontWriter = new BinaryWriter(_frontStream);
+            _backStream  = new MemoryStream(initial);
+            _backWriter  = new BinaryWriter(_backStream);
+
+            // Allocate compression buffer (worst case for the starting size; the worker grows it for a bigger frame)
+            int maxOutput = K4os.Compression.LZ4.LZ4Codec.MaximumOutputSize(initial);
             _compressedBuffer = new byte[maxOutput];
             
             _recorderSystem = new RecorderSystem();
@@ -92,14 +135,23 @@ namespace Fdp.Core.FlightRecorder
             // Open file for async I/O
             _outputStream = new FileStream(
                 filePath, 
-                FileMode.Create, 
+                // ⭐ D18 (R-3047) — a recording never overwrites one: CreateNew, or append after a branch's copied frames.
+                appendAfterFrames switch { > 0 => FileMode.Open, 0 => FileMode.CreateNew, _ => FileMode.Create }, 
                 FileAccess.Write, 
-                FileShare.None, 
+                FileShare.Read,   // ⭐ CE-3299 B3 — a checkpoint is exported from the recording while it is still written 
                 4096, 
                 useAsync: false);
             
-            // Write Global Header immediately (See DES-002)
-            WriteGlobalHeader();
+            if (appendAfterFrames > 0)
+            {
+                _outputStream.Seek(0, SeekOrigin.End);
+                RecordedFrames = appendAfterFrames;
+            }
+            else
+            {
+                // Write Global Header immediately (See DES-002)
+                WriteGlobalHeader();
+            }
         }
 
         private byte[] _compressedBuffer;
@@ -116,12 +168,13 @@ namespace Fdp.Core.FlightRecorder
         /// and is never sampled inside the async recording path.</param>
         /// <param name="blocking">If true, waits for previous write to complete instead of dropping frame.</param>
         /// <param name="eventBus">Optional event bus to capture events from for this frame.</param>
-        public void CaptureFrame(EntityRepository repo, uint prevTick, long wallClockTicks, bool blocking = false, FdpEventBus? eventBus = null)
+        public void CaptureFrame(EntityRepository repo, uint prevTick, long wallClockTicks, bool blocking = false, FdpEventBus? eventBus = null,
+                                 bool readBuffer = false)
         {
             // Auto-Recovery: If we dropped a frame previously, force a Keyframe now to restore state.
             if (_forceKeyframeNext)
             {
-                CaptureKeyframe(repo, wallClockTicks, blocking, eventBus);
+                CaptureKeyframe(repo, wallClockTicks, blocking, eventBus, readBuffer);   // ⭐ CE-4118 — the same buffer as the frame it replaces
                 _forceKeyframeNext = false;
                 return;
             }
@@ -132,7 +185,7 @@ namespace Fdp.Core.FlightRecorder
             {
                 if (blocking)
                 {
-                    _workerTask.Wait();
+                    WaitForWorker();
                 }
                 else
                 {
@@ -148,29 +201,28 @@ namespace Fdp.Core.FlightRecorder
             // 2. CAPTURE (Main Thread - Hot Path - ZERO ALLOCATION)
             int bytesWritten = 0;
             
-            using (var ms = new MemoryStream(_frontBuffer))
-            using (var writer = new BinaryWriter(ms))
-            {
-                // Use the logic from FDP-DES-002
-                // Use the logic from FDP-DES-002
-                _recorderSystem.RecordDeltaFrame(repo, prevTick, writer, wallClockTicks, eventBus);
-                writer.Flush();
-                
-                bytesWritten = (int)ms.Position;
-            }
+            _frontStream.Position = 0;
+            long statT0 = StatsOn ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+            // Use the logic from FDP-DES-002
+            _recorderSystem.RecordDeltaFrame(repo, prevTick, _frontWriter, wallClockTicks, eventBus, serializeReadBuffer: readBuffer);
+            _frontWriter.Flush();
+            if (StatsOn)   // ⭐ CE-1478 P6 — the recorder's MAIN-THREAD cost of a delta (HROT_REPLAY_STATS=1)
+                Console.Error.WriteLine($"[RecordFrame] delta main-thread {(System.Diagnostics.Stopwatch.GetTimestamp() - statT0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:F2} ms, raw {_frontStream.Position / 1024} KB, blocks {_recorderSystem.BlockDeltas}");
+            StampIndex(repo);   // ⭐ CE-3329 P0 — SimTime + Flags for the v7 frame index
+            bytesWritten = (int)_frontStream.Position;
             
-            // Clear the destruction log after recording
-            repo.ClearDestructionLog();
+            // ⭐ CE-3335 — the recorder keeps its own mark in the world's destruction log (RecorderSystem); ⛔ it no longer empties it
             
             // 3. SWAP POINTERS
-            var dataToWrite = _frontBuffer;
-            var freeBuffer = _backBuffer;
-            _frontBuffer = freeBuffer;
-            _backBuffer = dataToWrite;
+            var dataToWrite = _frontStream.GetBuffer();   // ⭐ CE-2409 — the stream's (possibly grown) array
+            (_frontStream, _backStream) = (_backStream, _frontStream);
+            (_frontWriter, _backWriter) = (_backWriter, _frontWriter);
             
             // 4. DISPATCH WORKER
             // Capture 'bytesWritten' by value closure
-            _workerTask = Task.Run(() => ProcessBuffer(dataToWrite, bytesWritten));
+            _pendingBuffer = dataToWrite;
+            _pendingBytes  = bytesWritten;
+            _workerTask = Task.Run(_processPending ??= () => ProcessBuffer(_pendingBuffer!, _pendingBytes));
             
             RecordedFrames++;
         }
@@ -182,35 +234,34 @@ namespace Fdp.Core.FlightRecorder
         /// Must be supplied by the caller — typically read from
         /// <c>GlobalTime.TotalWallTicks</c> so the stamp is constant across all PostSimulation systems.
         /// </param>
-        public void CaptureKeyframe(EntityRepository repo, long wallClockTicks, bool blocking = false, FdpEventBus? eventBus = null)
+        public void CaptureKeyframe(EntityRepository repo, long wallClockTicks, bool blocking = false, FdpEventBus? eventBus = null,
+                                    bool readBuffer = false)
         {
             // Wait for previous frame to complete
-            _workerTask?.Wait();
+            WaitForWorker();
             
             int bytesWritten = 0;
             
-            using (var ms = new MemoryStream(_frontBuffer))
-            using (var writer = new BinaryWriter(ms))
-            {
-                _recorderSystem.RecordKeyframe(repo, writer, wallClockTicks, eventBus);
-                writer.Flush();
-                bytesWritten = (int)ms.Position;
-            }
+            _frontStream.Position = 0;
+            _recorderSystem.RecordKeyframe(repo, _frontWriter, wallClockTicks, eventBus, serializeReadBuffer: readBuffer);
+            _frontWriter.Flush();
+            StampIndex(repo);   // ⭐ CE-3329 P0
+            bytesWritten = (int)_frontStream.Position;
             
-            // Clear the destruction log
-            repo.ClearDestructionLog();
+            // ⭐ CE-3335 — the keyframe moved the recorder's destruction mark; ⛔ the world's log is no longer emptied here
             
             // Swap and dispatch
-            var dataToWrite = _frontBuffer;
-            var freeBuffer = _backBuffer;
-            _frontBuffer = freeBuffer;
-            _backBuffer = dataToWrite;
+            var dataToWrite = _frontStream.GetBuffer();   // ⭐ CE-2409 — the stream's (possibly grown) array
+            (_frontStream, _backStream) = (_backStream, _frontStream);
+            (_frontWriter, _backWriter) = (_backWriter, _frontWriter);
             
-            _workerTask = Task.Run(() => ProcessBuffer(dataToWrite, bytesWritten));
+            _pendingBuffer = dataToWrite;
+            _pendingBytes  = bytesWritten;
+            _workerTask = Task.Run(_processPending ??= () => ProcessBuffer(_pendingBuffer!, _pendingBytes));
             
             if (blocking)
             {
-                _workerTask.Wait();
+                WaitForWorker();
             }
             
             RecordedFrames++;
@@ -219,6 +270,41 @@ namespace Fdp.Core.FlightRecorder
         /// <summary>
         /// Runs on ThreadPool - ZERO ALLOCATION (uses pre-allocated buffers)
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-2045</c> — wait for the outstanding worker WITHOUT allocating: <c>Task.Wait()</c> allocates a wait handle
+        /// whenever it has to block (measured ~56 B), and a blocking capture is on the main thread. A completed task is then
+        /// <c>Wait()</c>-ed once, which allocates nothing and still rethrows a worker failure.
+        /// </summary>
+        private void WaitForWorker()
+        {
+            var task = _workerTask;
+            if (task == null) return;
+            var spin = new SpinWait();
+            // sleep1Threshold: -1 — yield, never Sleep(1): a blocking capture must wake the moment the worker finishes
+            //   (Sleep(1) would add up to ~1 ms per stall, which Task.Wait's event wake does not).
+            while (!task.IsCompleted) spin.SpinOnce(sleep1Threshold: -1);
+            task.Wait();
+        }
+
+        // ⭐⭐ CE-3329 P0 (R1) — what the v7 frame index says about the frame being dispatched: its recorded sim time and flags.
+        //   Set on the main thread before the worker is dispatched; the worker reads them (a capture waits for, or drops instead of
+        //   overlapping, a busy worker, so they cannot change under it).
+        private double _pendingSimTime = double.NaN;
+        private byte _pendingFlags;
+
+        private void StampIndex(EntityRepository repo)
+        {
+            var flags = _recorderSystem.LastFrameChanged ? FrameFlags.Changed : FrameFlags.None;
+            if (repo.HasSingletonUnmanaged<GlobalTime>())
+            {
+                var time = repo.GetSingletonUnmanagedRO<GlobalTime>();
+                _pendingSimTime = time.TotalTime;
+                if (time.IsHalted) flags |= FrameFlags.Halted;
+            }
+            else _pendingSimTime = double.NaN;
+            _pendingFlags = (byte)flags;
+        }
+
         private void ProcessBuffer(byte[] rawData, int length)
         {
             try
@@ -231,6 +317,8 @@ namespace Fdp.Core.FlightRecorder
 
                 // 2. COMPRESS
                 // Compress the ENTIRE frame (including Tick/Type because PlaybackSystem expects them)
+                int need = K4os.Compression.LZ4.LZ4Codec.MaximumOutputSize(length);
+                if (_compressedBuffer.Length < need) _compressedBuffer = new byte[need];   // ⭐ CE-2409 — a frame bigger than any before
                 int encodedLength = K4os.Compression.LZ4.LZ4Codec.Encode(
                     rawData, 0, length, 
                     _compressedBuffer, 0, _compressedBuffer.Length);
@@ -244,7 +332,9 @@ namespace Fdp.Core.FlightRecorder
                         UncompressedSize = length,
                         Tick = tick,
                         FrameType = type,
-                        WallClockTicks = wallClockTicks
+                        WallClockTicks = wallClockTicks,
+                        SimTime = _pendingSimTime,
+                        Flags = _pendingFlags,
                     };
 
                     ReadOnlySpan<byte> headerSpan = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
@@ -282,12 +372,83 @@ namespace Fdp.Core.FlightRecorder
             _outputStream.Flush();
         }
         
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B3 — waits until every frame captured so far is on disk (and the latest manifest written), so the file
+        /// can be read up to its last frame — an export of a checkpoint just written.
+        /// </summary>
+        public void WaitForWrites()
+        {
+            WaitForWorker();
+            Task? meta;
+            lock (_metadataLock) meta = _metadataTask;
+            meta?.Wait();
+        }
+
+        /// <summary>The recording file this recorder writes.</summary>
+        public string FilePath => _filePath;
+
+        /// <summary>⭐ <c>CE-3299</c> B3 — true when <paramref name="label"/> already names a checkpoint in this recording.</summary>
+        public bool HasCheckpoint(string label) => _metadata.Checkpoints.Exists(m => m.Label == label);
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B3 (R-3044) — names the keyframe this recorder JUST captured (call right after <see cref="CaptureKeyframe"/>):
+        /// the mark goes into the metadata and <c>.meta.json</c> is rewritten at once, so a crash keeps every checkpoint taken
+        /// before it (a fresh process restores from it, D10). The manifests are built here (main thread, the registry); the
+        /// JSON is written off it. Returns the mark.
+        /// </summary>
+        public CheckpointMark MarkCheckpoint(string label, long wallClockTicks, GlobalTime time = default)
+        {
+            if (HasCheckpoint(label)) throw new InvalidOperationException($"the recording already has a checkpoint named '{label}'");
+            var mark = new CheckpointMark
+            {
+                Label = label, Frame = RecordedFrames - 1, WallTicks = wallClockTicks,
+                // ⭐ B4 (D5) — the clock a restore of this mark moves the cluster back to
+                TotalTime = time.TotalTime, UnscaledTotalTime = time.UnscaledTotalTime, FrameNumber = time.FrameNumber,
+            };
+            _metadata.Checkpoints.Add(mark);
+            WriteMetadataSoon();
+            return mark;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> — writes <c>.meta.json</c> as it is NOW (main thread: the manifests read the registry). A
+        /// recording calls it on its first frame (CE-3313 — a branch's parent and inherited checkpoints, every recording's exercise, mode
+        /// and schema are on disk at once: a crash keeps them).
+        /// </summary>
+        public void WriteMetadata() => WriteMetadataSoon();
+
+        private Task? _metadataTask;
+        private readonly object _metadataLock = new();
+
+        // ⭐ CE-3299 B3 — the manifest as it is NOW, serialized here and written by a pool thread (one write at a time, in order).
+        private void WriteMetadataSoon()
+        {
+            _metadata.TotalFrames   = RecordedFrames;
+            _metadata.MaxNetworkId  = MaxNetworkId;
+            _metadata.SchemaManifest = BuildSchemaManifest();
+            _metadata.EventManifest  = BuildEventManifest();
+            string json = MetadataSerializer.Serialize(_metadata);
+            string path = _filePath + ".meta.json";
+            lock (_metadataLock)
+            {
+                var previous = _metadataTask ?? Task.CompletedTask;
+                _metadataTask = previous.ContinueWith(_ =>
+                {
+                    try { File.WriteAllText(path, json); }
+                    catch (Exception ex) { LastError = ex; }
+                }, TaskScheduler.Default);
+            }
+        }
+
         public void Dispose()
         {
             if (_disposed) return;
             
             _workerTask?.Wait();
+            lock (_metadataLock) _metadataTask?.Wait();   // ⭐ CE-3299 B3 — a mark's manifest is never written over the final one
             _outputStream?.Dispose();
+            _frontWriter.Dispose();
+            _backWriter.Dispose();
             
             try
             {
@@ -334,7 +495,8 @@ namespace Fdp.Core.FlightRecorder
                     manifest[componentId] = new ComponentSchemaInfo
                     {
                         Name       = type.FullName ?? type.Name,
-                        Size       = isValueType ? Marshal.SizeOf(type) : 0,
+                        Assembly   = type.Assembly.GetName().Name ?? string.Empty,   // ⭐ CE-4050 — a replaying process loads it
+                        Size       = isValueType ? TypeLayout.SizeOf(type) : 0,   // ⭐ CE-2044 — managed (was Marshal.SizeOf)
                         LayoutHash = isValueType
                             ? ComponentLayoutHasher.ComputeHash(type)
                             : ComponentLayoutHasher.ComputeManagedHash(type),
@@ -343,7 +505,7 @@ namespace Fdp.Core.FlightRecorder
                 }
                 catch
                 {
-                    // Skip empty marker/tag structs that Marshal.SizeOf cannot handle.
+                    // Skip a type the layout cannot be computed for (an open generic, a pointer, …).
                 }
             }
 
@@ -359,9 +521,9 @@ namespace Fdp.Core.FlightRecorder
                 var attr = type.GetCustomAttribute<EventIdAttribute>();
                 if (attr == null || type.IsEnum) continue;
                 
-                // Enforce the DataPolicy.NoRecord contract.
+                // Enforce the DataPolicy.NoReplay contract.
                 var policyAttr = type.GetCustomAttribute<DataPolicyAttribute>();
-                if (policyAttr != null && policyAttr.Policy.HasFlag(DataPolicy.NoRecord))
+                if (policyAttr != null && policyAttr.Policy.HasFlag(DataPolicy.NoReplay))
                 {
                     continue;
                 }
@@ -372,7 +534,8 @@ namespace Fdp.Core.FlightRecorder
                     manifest[attr.Id] = new ComponentSchemaInfo
                     {
                         Name       = type.FullName ?? type.Name,
-                        Size       = isValueType ? Marshal.SizeOf(type) : 0,
+                        Assembly   = type.Assembly.GetName().Name ?? string.Empty,   // ⭐ CE-4050 — a replaying process loads it
+                        Size       = isValueType ? TypeLayout.SizeOf(type) : 0,   // ⭐ CE-2044 — managed (was Marshal.SizeOf)
                         LayoutHash = isValueType
                             ? ComponentLayoutHasher.ComputeHash(type)
                             : ComponentLayoutHasher.ComputeManagedHash(type),

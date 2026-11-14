@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.SensorEvalState)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct SensorEvalState
     {
         // Current phase of this sensor's evaluation.
@@ -38,6 +39,27 @@ namespace Fdp.Toolkit.Spatial.Eqs
         // 16-float inline array storing scores from the last published result set.
         // Used by ScoreDelta publish policy to avoid re-emitting near-identical results.
         public TopKScoreCache LastPublishedTopK;
+
+        // ⭐ True once an answer for CurrentEpoch has been published. An epoch change resets it, so ScoreDelta never
+        //   suppresses the FIRST answer of an epoch — EQS 1.3 §17.6: "for a guaranteed-new answer bump Epoch". A brain that
+        //   refreshed (or a new sensor lifetime on a reused part id, CE-485/CE-486) waits for exactly that answer.
+        [MarshalAs(UnmanagedType.I1)]   // the ECS layout contract for a bool
+        public bool PublishedThisEpoch;
+
+        // ⭐ CE-3037 (S4) — the schedule: the tick this sensor last ran (oldest runs first) and the work units it cost then
+        //   (the estimate that decides whether it fits what is left of a tick's budget). 📄 DESIGN_Sensors_And_Doctrine §5.4.
+        public uint LastSolvedTick;
+        public int LastCost;
+
+        // ⭐ CE-2097 — the top of the last PUBLISHED answer, for the TopChanged publish policy: its identity is the entity for
+        //   an entity-shaped answer and the position for a positional one (the same (entity, position) comparison
+        //   EqsResultUpdateSystem uses for a perception sensor's TopChanged). LastPublishedHadTop = false ⇔ it was empty.
+        public long LastPublishedTopEntityId;
+        public float LastPublishedTopX;
+        public float LastPublishedTopY;
+        public float LastPublishedTopZ;
+        [MarshalAs(UnmanagedType.I1)]
+        public bool LastPublishedHadTop;
     }
 
     /// <summary>
@@ -48,6 +70,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     public struct TopKScoreCache { private float _e; }
 
     [ComponentId(GlobalComponentIds.EqsSolverGlobalState)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct EqsSolverGlobalState
     {
         // Maximum RaycastRequestEvents the EQS system is allowed to submit per EqsModule tick.

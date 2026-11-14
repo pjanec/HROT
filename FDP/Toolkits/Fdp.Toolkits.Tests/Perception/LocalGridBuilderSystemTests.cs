@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Toolkit.Perception.Systems;
@@ -53,6 +54,30 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(1, count);
             Assert.Equal(e, results[0].entity);
 
+            grid.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-2125</c> (R-272) — a unit's body-less commander, standing among its men, is never put in the perception
+        /// grid (so never seen, heard or found by a grid search); the soldier next to it is. ✅ Red-proof: drop <c>ExcludeHidden</c> ⇒ red.</summary>
+        [Fact]
+        public void CE2125_AUnitsCommander_IsNeverInThePerceptionGrid()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+            var grid  = CreateTestGrid();
+            var sys   = new LocalGridBuilderSystem(grid);
+            var soldier = world.CreateEntity();
+            world.AddComponent(soldier, new SimTransform { Position = new Vector3(50f, 50f, 0f) });
+            var unit = world.CreateEntity();
+            world.AddComponent(unit, new SimTransform { Position = new Vector3(50.5f, 50f, 0f) });
+            world.AddComponent(unit, new Fdp.Core.CommandHierarchy.UnitEntity { CommandDisruptionSeconds = 6f });
+
+            sys.Execute(world, 0f);
+
+            Span<(Entity entity, Vector2 pos)> results = stackalloc (Entity, Vector2)[10];
+            int count = grid.QueryNeighbors(new Vector2(50f, 50f), 5f, results);
+            Assert.Equal(1, count);
+            Assert.Equal(soldier, results[0].entity);
             grid.Dispose();
         }
 
@@ -299,5 +324,108 @@ namespace Fdp.Toolkit.Perception.Tests
 
             grid.Dispose();
         }
-    }
+
+        /// <summary>
+        /// ⭐ CE-3018 (W9) — the perception grid's only writer REBASES it when the resident terrain changes, and the
+        /// broadphase's copy (made at composition) sees the result: an entity outside the composition extent becomes
+        /// visible to sight. Its remembered positions were hashed with the old geometry, so it full-rebuilds.
+        /// </summary>
+        [Fact]
+        public void LocalGridBuilder_RebasesToTheTerrain_AndTheBroadphaseCopySeesIt_CE3018()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            var grid  = CreateTestGrid();                                         // [0,500)²
+            var broadphaseCopy = grid;
+            Fdp.Toolkit.Terrain.TerrainWorld? terrain = null;
+            var sys = new LocalGridBuilderSystem(grid, () => terrain);
+
+            var near = world.CreateEntity();
+            world.AddComponent(near, new SimTransform { Position = new Vector3(50f, 50f, 0f) });
+            var far = world.CreateEntity();
+            world.AddComponent(far, new SimTransform { Position = new Vector3(900f, 900f, 0f) });
+
+            ISimulationView view = world;
+            Span<(Entity entity, Vector2 pos)> hits = stackalloc (Entity, Vector2)[10];
+            sys.Execute(view, 0f);
+            Assert.Equal(0, broadphaseCopy.QueryNeighbors(new Vector2(900f, 900f), 1f, hits));
+
+            terrain = new Fdp.Toolkit.Terrain.TerrainWorld
+                { BoundsMin = new Vector2(0f, 0f), BoundsMax = new Vector2(1000f, 1000f) };
+            sys.Execute(view, 0f);
+
+            Assert.Equal(1, broadphaseCopy.QueryNeighbors(new Vector2(900f, 900f), 1f, hits));
+            Assert.Equal(far, hits[0].entity);
+            Assert.Equal(1, broadphaseCopy.QueryNeighbors(new Vector2(50f, 50f), 1f, hits));   // the rest re-inserted
+            grid.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — a passenger inside an ENCLOSED vehicle is never in the perception grid (never seen,
+        /// heard or found); one on an OPEN cabin is. And one that boards on the same frame another entity spawns (equal count ⇒ the
+        /// incremental pass) is EVICTED. 📄 docs/DESIGN_Entity_Interactions.md §7.2a.</summary>
+        [Fact]
+        public void CE3110_I2c_AnEnclosedPassenger_IsNeverInThePerceptionGrid_AnExposedOneIs()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            var grid  = CreateTestGrid();
+            var sys   = new LocalGridBuilderSystem(grid);
+            Entity At(float x) { var e = world.CreateEntity(); world.AddComponent(e, new SimTransform { Position = new Vector3(x, 50f, 0f) }); return e; }
+            var apc = At(50f);
+            var enclosed = At(50.2f);
+            world.AddComponent(enclosed, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = apc, Exposed = 0 });
+            var exposed = At(50.4f);
+            world.AddComponent(exposed, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = apc, Exposed = 1 });
+            var walker = At(50.6f);
+
+            sys.Execute(world, 0f);
+            Span<(Entity entity, Vector2 pos)> results = stackalloc (Entity, Vector2)[10];
+            int count = grid.QueryNeighbors(new Vector2(50f, 50f), 5f, results);
+            var found = results.Slice(0, count).ToArray().Select(r => r.entity).ToList();
+            Assert.DoesNotContain(enclosed, found);
+            Assert.Contains(exposed, found);
+            Assert.Contains(apc, found);
+
+            // the walker boards an enclosed vehicle while a new entity appears: the visible count stays equal
+            world.AddComponent(walker, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = apc, Exposed = 0 });
+            At(70f);
+            sys.Execute(world, 0f);
+            count = grid.QueryNeighbors(new Vector2(50f, 50f), 5f, results);
+            Assert.DoesNotContain(walker, results.Slice(0, count).ToArray().Select(r => r.entity));
+            grid.Dispose();
+        }
+    
+        /// <summary>
+        /// ⭐ <c>CE-2194</c> (behaviors' handoff; the perception twin of CE-2193) — a unit the perception grid cannot place is seen and heard by
+        /// nobody, so it is SAID, once: at (−150, 150) on the [0, 500)² grid it is warned about exactly once over 100 frames, MOVING (the
+        /// incremental path) or not; one at (150, 150) never; a terrain re-fit that covers it puts it in the grid with no new warning.
+        /// 🔴 Red-proof: before CE-2194 the drop was silent (<c>Warnings</c> stays 0).
+        /// </summary>
+        [Fact]
+        public void CE2194_AUnitOutsideThePerceptionGrid_IsWarnedAboutOnce_AndARefitThatCoversItPlacesIt()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            var grid  = CreateTestGrid();                                         // [0,500)²
+            Fdp.Toolkit.Terrain.TerrainWorld? terrain = null;
+            var sys = new LocalGridBuilderSystem(grid, () => terrain);
+            var outside = world.CreateEntity();
+            world.AddComponent(outside, new SimTransform { Position = new Vector3(-150f, 150f, 0f) });
+            var inside = world.CreateEntity();
+            world.AddComponent(inside, new SimTransform { Position = new Vector3(150f, 150f, 0f) });
+
+            for (int i = 0; i < 100; i++)
+            {
+                world.GetComponentRW<SimTransform>(outside).Position = new Vector3(-150f + i * 0.1f, 150f, 0f);   // it drives on
+                sys.Execute(world, 0f);
+            }
+            Assert.Equal(1, sys.Warnings);
+
+            terrain = new Fdp.Toolkit.Terrain.TerrainWorld { BoundsMin = new Vector2(-200f, 0f), BoundsMax = new Vector2(300f, 500f) };
+            sys.Execute(world, 0f);
+            Span<(Entity entity, Vector2 pos)> hits = stackalloc (Entity, Vector2)[10];
+            Assert.Equal(1, grid.QueryNeighbors(new Vector2(-140.1f, 150f), 1f, hits));
+            Assert.Equal(outside, hits[0].entity);
+            Assert.Equal(1, sys.Warnings);
+            grid.Dispose();
+        }
+}
 }

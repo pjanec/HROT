@@ -47,7 +47,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             unsafe
             {
                 mem.Count          = 1;
-                mem.ThreatScores[0] = threatScore;
+                mem.Freshness[0] = threatScore;
                 mem.PositionsX[0]   = threatX;
                 mem.PositionsY[0]   = threatY;
             }
@@ -97,14 +97,16 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             batch.Hits[slot] = new RaycastHit { RayId = rayId, HasHit = 1 };
 
             Span<EqsResult> candidates = stackalloc EqsResult[1];
-            candidates[0] = new EqsResult { PositionX = 5f, PositionY = 0f, EntityId = 0L };
+            candidates[0] = new EqsResult { PositionX = 5f, PositionY = 0f, EntityId = 0 };
 
             var sensor = new EqsSensor { ThreatThreshold = 0f, ContextSlot1 = targetEntity };
             new AccurateLineOfSightTest().ExecuteBatch(observer, ref sensor, _repo, candidates);
 
-            // Resolved via ring buffer: not rejected, flag bit 0 set (occluded = good cover).
+            // Resolved via ring buffer: not rejected; §4.2 HasLOSToContext1 judged and false (occluded = good cover).
+            // ⛔ SUPERSEDED (EQS §19.5): flag bit 0 meant "occluded".
             Assert.NotEqual(-1L, candidates[0].EntityId);
-            Assert.NotEqual(0, candidates[0].Flags & 1);
+            Assert.Equal(2, candidates[0].FlagsMeaningful & 2);
+            Assert.Equal(0, candidates[0].Flags & 2);
             // FlagPendingRay cleared.
             Assert.Equal(0, candidates[0].Flags & AccurateLineOfSightTest.FlagPendingRay);
         }
@@ -126,7 +128,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             batch.Hits[slot] = new RaycastHit { RayId = rayId, HasHit = 0 };
 
             Span<EqsResult> candidates = stackalloc EqsResult[1];
-            candidates[0] = new EqsResult { PositionX = 5f, PositionY = 0f, EntityId = 0L };
+            candidates[0] = new EqsResult { PositionX = 5f, PositionY = 0f, EntityId = 0 };
 
             var sensor = new EqsSensor { ThreatThreshold = 0f, ContextSlot1 = targetEntity };
             new AccurateLineOfSightTest().ExecuteBatch(observer, ref sensor, _repo, candidates);
@@ -151,7 +153,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             //  unless observer.Index==0 and i==0. Use i=0 but a different slot to be safe.)
 
             Span<EqsResult> candidates = stackalloc EqsResult[1];
-            candidates[0] = new EqsResult { PositionX = 5f, PositionY = 0f, EntityId = 0L };
+            candidates[0] = new EqsResult { PositionX = 5f, PositionY = 0f, EntityId = 0 };
 
             var sensor = new EqsSensor { ThreatThreshold = 0f, ContextSlot1 = targetEntity };
             new AccurateLineOfSightTest().ExecuteBatch(observer, ref sensor, _repo, candidates);
@@ -188,9 +190,9 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             }
 
             Span<EqsResult> candidates = stackalloc EqsResult[3];
-            candidates[0] = new EqsResult { PositionX = 1f, PositionY = 0f, EntityId = 0L };
-            candidates[1] = new EqsResult { PositionX = 2f, PositionY = 0f, EntityId = 0L };
-            candidates[2] = new EqsResult { PositionX = 3f, PositionY = 0f, EntityId = 0L };
+            candidates[0] = new EqsResult { PositionX = 1f, PositionY = 0f, EntityId = 0 };
+            candidates[1] = new EqsResult { PositionX = 2f, PositionY = 0f, EntityId = 0 };
+            candidates[2] = new EqsResult { PositionX = 3f, PositionY = 0f, EntityId = 0 };
 
             var sensor = new EqsSensor { ThreatThreshold = 0f, ContextSlot1 = targetEntity };
             new AccurateLineOfSightTest().ExecuteBatch(observer, ref sensor, _repo, candidates);
@@ -215,14 +217,14 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         [Fact]
         public void AccurateLos_BypassWhenThreatBelowThreshold()
         {
-            // ThreatScores[0]=10, ThreatThreshold=50 → bypass.
+            // Freshness[0]=10, ThreatThreshold=50 → bypass.
             var observer = CreateObserverWithThreat(threatScore: 10f, threatThreshold: 50f, threatX: 10f, threatY: 0f);
             var targetEntity = CreateTargetEntity(10f, 0f);
             SetupRaycastSingletons(maxBudget: 2048);
 
             Span<EqsResult> candidates = stackalloc EqsResult[2];
-            candidates[0] = new EqsResult { PositionX = 1f, PositionY = 0f, EntityId = 0L };
-            candidates[1] = new EqsResult { PositionX = 2f, PositionY = 0f, EntityId = 0L };
+            candidates[0] = new EqsResult { PositionX = 1f, PositionY = 0f, EntityId = 0 };
+            candidates[1] = new EqsResult { PositionX = 2f, PositionY = 0f, EntityId = 0 };
 
             var sensor = new EqsSensor { ThreatThreshold = 50f, ContextSlot1 = targetEntity };
             new AccurateLineOfSightTest().ExecuteBatch(observer, ref sensor, _repo, candidates);

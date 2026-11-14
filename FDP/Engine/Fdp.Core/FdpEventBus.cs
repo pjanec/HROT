@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Buffers;
 using System.Linq;
+using System.Threading;
 
 namespace Fdp.Core
 {
@@ -22,7 +23,64 @@ namespace Fdp.Core
         // READ-ONLY during module execution phase (safe for concurrent access).
         private readonly HashSet<int> _activeEventIds = new();
 
+        // ⭐⭐ CE-3293 S4 (R-3036 rule 9; docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md §1a) — every stream ONCE, in
+        //   creation order, walked by index: the swap and the event history touch every stream every frame, and
+        //   ConcurrentDictionary.Values builds a new collection on each call. Appended under a lock (stream creation is rare);
+        //   read lock-free (the count is published after the slot).
+        private readonly object _streamListLock = new();
+        private INativeEventStream[] _nativeList = new INativeEventStream[16];
+        private int _nativeCount;
+        private IManagedEventStream[] _managedList = new IManagedEventStream[16];
+        private int _managedCount;
+
+        /// <summary>How many native streams exist (CE-3293 — the event history walks them by index).</summary>
+        internal int NativeStreamCount => Volatile.Read(ref _nativeCount);
+        /// <summary>The native stream created <paramref name="index"/>-th.</summary>
+        internal INativeEventStream NativeStreamAt(int index) => Volatile.Read(ref _nativeList)[index];
+        /// <summary>How many managed streams exist.</summary>
+        internal int ManagedStreamCount => Volatile.Read(ref _managedCount);
+        /// <summary>The managed stream created <paramref name="index"/>-th.</summary>
+        internal IManagedEventStream ManagedStreamAt(int index) => Volatile.Read(ref _managedList)[index];
+
+        private void AppendNative(INativeEventStream stream)   // under _streamListLock
+        {
+            var list = _nativeList;
+            if (_nativeCount == list.Length)
+            {
+                Array.Resize(ref list, list.Length * 2);
+                Volatile.Write(ref _nativeList, list);
+            }
+            list[_nativeCount] = stream;
+            Volatile.Write(ref _nativeCount, _nativeCount + 1);
+        }
+
+        private void AppendManaged(IManagedEventStream stream)   // under _streamListLock
+        {
+            var list = _managedList;
+            if (_managedCount == list.Length)
+            {
+                Array.Resize(ref list, list.Length * 2);
+                Volatile.Write(ref _managedList, list);
+            }
+            list[_managedCount] = stream;
+            Volatile.Write(ref _managedCount, _managedCount + 1);
+        }
+
+        private INativeEventStream AddNativeStream(int typeId, INativeEventStream created)
+        {
+            lock (_streamListLock)
+            {
+                if (_nativeStreams.TryGetValue(typeId, out var existing)) return existing;
+                _nativeStreams[typeId] = created;
+                AppendNative(created);
+                return created;
+            }
+        }
+
         private bool _disposed;
+
+        /// <summary>⭐ A-1 — this bus's id in the access trace (0 when the switch is off).</summary>
+        internal readonly int TraceId = AccessTrace.On ? AccessTrace.NextBusId() : 0;
 
         /// <summary>
         /// Publishes an unmanaged event to the bus.
@@ -34,6 +92,17 @@ namespace Fdp.Core
         public void Publish<T>(T evt) where T : unmanaged
         {
             int typeId = EventType<T>.Id;
+            // ⭐ M-7 (CE-4486) — ONE rule for a direct and a deferred publish: strict mode demands the registration, otherwise the stream is made
+            //   at the publish. 📐 Measured: a squad phase's publish of an event its world never registered threw at the batch's playback (the
+            //   playback finds the stream by id) where the serial publish made the stream. Stream creation is thread-safe (concurrent dictionary).
+            if (ParallelReadCheck.DefersBus(this))
+            {
+                if (!(FdpConfig.EnforceExplicitEventRegistration && !_nativeStreams.ContainsKey(typeId))) GetOrCreateNativeStream<T>();
+                else ThrowUnregisteredNative<T>(typeId);
+                ParallelReadCheck.CurrentBatch!.Commands.PublishEvent(in evt);   // ⭐ N-10 / F-2 — a publish in a phase rides the batch, in batch order
+                return;
+            }
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.BusPublish, TraceId);
             if (FdpConfig.EnforceExplicitEventRegistration && !_nativeStreams.ContainsKey(typeId))
             {
                 throw new InvalidOperationException(
@@ -46,6 +115,12 @@ namespace Fdp.Core
             stream.Write(evt);
         }
 
+        private static void ThrowUnregisteredNative<T>(int typeId)
+            => throw new InvalidOperationException(
+                $"Strict Mode Violation: Unmanaged event type '{typeof(T).Name}' (ID: {typeId}) " +
+                "was published without being explicitly registered. " +
+                $"You must call world.RegisterEvent<{typeof(T).Name}>() during bootstrap.");
+
         /// <summary>
         /// Pre-registers a native event type so that events of this type injected during
         /// playback land in a typed <see cref="NativeEventStream{T}"/> rather than an
@@ -56,7 +131,7 @@ namespace Fdp.Core
         public void PrepareForNativeEventReplay<T>() where T : unmanaged
         {
             int typeId = EventType<T>.Id;
-            _nativeStreams.GetOrAdd(typeId, _ => new NativeEventStream<T>());
+            if (!_nativeStreams.ContainsKey(typeId)) AddNativeStream(typeId, new NativeEventStream<T>());
         }
 
         /// <summary>
@@ -68,6 +143,14 @@ namespace Fdp.Core
         /// <param name="evt">Event to publish</param>
         public void PublishManaged<T>(T evt) // No class constraint — allows managed structs
         {
+            if (ParallelReadCheck.DefersBus(this) && !typeof(T).IsValueType && evt is object boxed)
+            {   // ⭐ N-10 / F-2 — a publish in a phase rides the batch, in batch order (a managed STRUCT event has no buffer op: published at once, locked)
+                //   ⭐ M-7 — the stream made now when strict mode allows it (the same rule as a direct publish; its playback finds it by id)
+                if (!(FdpConfig.EnforceExplicitEventRegistration && !_managedStreams.ContainsKey(GetManagedTypeId<T>()))) GetOrCreateManagedStream<T>();
+                ParallelReadCheck.CurrentBatch!.Commands.PublishManagedEventRaw(GetManagedTypeId<T>(), boxed);
+                return;
+            }
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.BusPublish, TraceId);
             int typeId = GetManagedTypeId<T>();
             if (FdpConfig.EnforceExplicitEventRegistration && !_managedStreams.ContainsKey(typeId))
             {
@@ -86,14 +169,26 @@ namespace Fdp.Core
         /// </summary>
         public bool HasEvent<T>() where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.BusRead, TraceId);
             return _activeEventIds.Contains(EventType<T>.Id);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3047</c> — has this unmanaged event type been registered (so <see cref="Publish{T}"/> is legal under
+        /// <c>FdpConfig.EnforceExplicitEventRegistration</c>)? Lets a code path that runs on several hosts publish only
+        /// where the event's consumer exists.
+        /// </summary>
+        public bool IsRegistered<T>() where T : unmanaged => _nativeStreams.ContainsKey(EventType<T>.Id);
+
+        /// <summary>⭐ <c>CE-3035</c> — the managed twin of <see cref="IsRegistered{T}"/>.</summary>
+        public bool IsRegisteredManaged<T>() => _managedStreams.ContainsKey(GetManagedTypeId<T>());
 
         /// <summary>
         /// Checks if a managed event of type T exists in the current frame.
         /// </summary>
         public bool HasManagedEvent<T>() // No class constraint — aligns with PublishManaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.BusRead, TraceId);
             return _activeEventIds.Contains(GetManagedTypeId<T>());
         }
 
@@ -104,31 +199,8 @@ namespace Fdp.Core
         /// </summary>
         public bool HasEvent(Type type)
         {
-            if (type.IsValueType)
-            {
-                if (!_unmanagedEventIdCache.TryGetValue(type, out int id))
-                {
-                    // Slow path: Reflection to get EventType<T>.Id
-                    // We assume the type has [EventId] attribute or is a valid event type using Fdp.Core event system.
-                    try 
-                    {
-                        var eventTypeGeneric = typeof(EventType<>).MakeGenericType(type);
-                        var idField = eventTypeGeneric.GetField("Id", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-                        id = (int)idField!.GetValue(null)!;
-                        _unmanagedEventIdCache[type] = id;
-                    }
-                    catch
-                    {
-                        // Fallback or error?
-                        return false;
-                    }
-                }
-                return _activeEventIds.Contains(id);
-            }
-            else
-            {
-                return _activeEventIds.Contains(type.FullName!.GetHashCode() & 0x7FFFFFFF);
-            }
+            if (AccessTrace.On) AccessTrace.RecordType(TraceKind.BusRead, type, TraceId);
+            return TryGetTypeId(type, out int id, out _) && _activeEventIds.Contains(id);
         }
 
 
@@ -153,11 +225,29 @@ namespace Fdp.Core
         }
 
         /// <summary>
+        /// Returns the CLR types of all currently registered managed event streams. A stream is
+        /// registered when <see cref="RegisterManaged{T}"/> is called or on the first
+        /// <see cref="PublishManaged{T}"/> for that type — so a managed type never registered/published
+        /// is absent. Thread-safe (ConcurrentDictionary snapshot). Ported from the AI-debug API.
+        /// </summary>
+        public IReadOnlyList<Type> GetRegisteredManagedEventTypes()
+        {
+            var types = new List<Type>();
+            foreach (var streamObj in _managedStreams.Values)
+            {
+                if (streamObj is IManagedEventStreamInfo info)
+                    types.Add(info.EventType);
+            }
+            return types;
+        }
+
+        /// <summary>
         /// Publishes a raw event to the native stream.
         /// Used by EntityCommandBuffer playback.
         /// </summary>
         public unsafe void PublishRaw(int typeId, void* data)
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.BusPublish, "(event id " + typeId + ")", TraceId);
             if (_nativeStreams.TryGetValue(typeId, out var stream))
             {
                 stream.WriteRaw(data);
@@ -174,6 +264,7 @@ namespace Fdp.Core
         /// </summary>
         public void PublishManagedRaw(int typeId, object evt)
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.BusPublish, "(managed event id " + typeId + ")", TraceId);
             if (_managedStreams.TryGetValue(typeId, out var stream))
             {
                 if (stream is IManagedEventStream managedStream)
@@ -203,6 +294,7 @@ namespace Fdp.Core
         /// <returns>Read-only span of events from previous frame</returns>
         public unsafe ReadOnlySpan<T> Read<T>() where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.BusRead, TraceId);
             if (_nativeStreams.TryGetValue(EventType<T>.Id, out var stream))
             {
                 // Check if it's a typed stream (normal case)
@@ -232,6 +324,7 @@ namespace Fdp.Core
         /// </summary>
         public ReadOnlySpan<byte> ReadRawByTypeId(int typeId, out int elementSize)
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.BusRead, "(event id " + typeId + ")", TraceId);
             if (_nativeStreams.TryGetValue(typeId, out var stream))
             {
                 elementSize = stream.ElementSize;
@@ -242,7 +335,11 @@ namespace Fdp.Core
         }
 
         /// <summary>True when a native event of the given <paramref name="typeId"/> is present this frame.</summary>
-        public bool HasEvent(int typeId) => _activeEventIds.Contains(typeId);
+        public bool HasEvent(int typeId)
+        {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.BusRead, "(event id " + typeId + ")", TraceId);
+            return _activeEventIds.Contains(typeId);
+        }
 
         /// <summary>
         /// Consumes all managed events of type T from the previous frame.
@@ -252,6 +349,7 @@ namespace Fdp.Core
         /// <returns>Read-only list of events from previous frame</returns>
         public IReadOnlyList<T> ReadManaged<T>() // No class constraint — allows managed structs
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.BusRead, TraceId);
             if (_managedStreams.TryGetValue(GetManagedTypeId<T>(), out var stream))
             {
                 return ((ManagedEventStream<T>)stream).Read();
@@ -271,35 +369,115 @@ namespace Fdp.Core
         /// MUST be called at the end of each frame (PostSimulation phase).
         /// Rebuilds the _activeEventIds set for fast lookups in the next frame.
         /// </summary>
-        public void SwapBuffers()
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> (restore design D2, §1l) — publishes into THIS bus's PENDING buffers every event <paramref name="source"/>'s CURRENT
+        /// buffers hold: a checkpoint's unconsumed events (the keyframe recorded the pending buffer; a restore read it into a holding bus)
+        /// delivered as if published on the frame before — so the next swap and capture hand them to every reader exactly once. A type this
+        /// bus has no stream for is skipped (nothing here reads it).
+        /// </summary>
+        /// <param name="addMissingStreams">⭐ CE-4062 — when true, a native type this bus has no stream for gets one shaped like the
+        /// source's (typed when the source's is typed), so nothing is skipped: the Replay Browser hands a stepped frame's recorded
+        /// events to the world it draws, whose bus registered only the presentation's own events.</param>
+        /// <param name="addMissingManagedStreams">⭐ N-3 / D-9 — the same for a MANAGED type: a stream of the source's shape is added (the staging's mirror
+        /// buses must carry a managed event type the sim side registered after the mirror was built — never drop it silently).</param>
+        public unsafe void PublishCurrentOf(FdpEventBus source, bool addMissingStreams = false, bool addMissingManagedStreams = false)
         {
-            _activeEventIds.Clear();
-
-            // Swap native streams
-            foreach (var stream in _nativeStreams.Values)
+            if (source is null) throw new ArgumentNullException(nameof(source));
+            var natives = Volatile.Read(ref source._nativeList);
+            int nativeCount = Volatile.Read(ref source._nativeCount);
+            for (int i = 0; i < nativeCount; i++)
             {
-                stream.Swap();
-                if (stream.GetRawBytes().Length > 0)
+                var from = natives[i];
+                var bytes = from.GetRawBytes();
+                if (bytes.IsEmpty || from.ElementSize <= 0) continue;
+                if (!_nativeStreams.TryGetValue(from.EventTypeId, out var to))
                 {
-                    _activeEventIds.Add(stream.EventTypeId);
+                    if (!addMissingStreams) continue;
+                    to = AddNativeStream(from.EventTypeId, from is UntypedNativeEventStream
+                        ? new UntypedNativeEventStream(from.EventTypeId, from.ElementSize)
+                        : (INativeEventStream)Activator.CreateInstance(from.GetType(), 1024)!);   // the typed stream's default capacity
                 }
+                fixed (byte* p = bytes)
+                    for (int offset = 0; offset + from.ElementSize <= bytes.Length; offset += from.ElementSize)
+                        to.WriteRaw(p + offset);
             }
-
-            // Swap managed streams
-            foreach (var streamObj in _managedStreams.Values)
+            var manageds = Volatile.Read(ref source._managedList);
+            int managedCount = Volatile.Read(ref source._managedCount);
+            for (int i = 0; i < managedCount; i++)
             {
-                if (streamObj is IManagedEventStream managedStream)
+                if (manageds[i] is not IManagedEventStreamInfo info || info.CurrentEvents.Count == 0) continue;
+                if (!_managedStreams.TryGetValue(info.TypeId, out var target) && addMissingManagedStreams)
                 {
-                    managedStream.Swap();
-                    
-                    if (streamObj is IEventStreamInspector inspector && inspector.Count > 0)
+                    var created = Activator.CreateInstance(manageds[i].GetType())!;
+                    lock (_streamListLock)
                     {
-                        if (streamObj is IManagedEventStreamInfo info)
+                        if (!_managedStreams.TryGetValue(info.TypeId, out target))
                         {
-                            _activeEventIds.Add(info.TypeId);
+                            _managedStreams[info.TypeId] = created;
+                            AppendManaged((IManagedEventStream)created);
+                            target = created;
                         }
                     }
                 }
+                if (target is not IManagedEventStream to) continue;
+                foreach (var evt in info.CurrentEvents) if (evt != null) to.WriteRaw(evt);
+            }
+        }
+
+        /// <summary>⭐ EXPERIMENT — POC 2 (CE-4439): registers on THIS bus every stream <paramref name="source"/> has (same shape, empty), so World S
+        /// can publish and read every event type World A's bus was given (explicit registration is enforced in the editor).</summary>
+        public void CopyRegistrationsFrom(FdpEventBus source)
+        {
+            var natives = Volatile.Read(ref source._nativeList);
+            int nativeCount = Volatile.Read(ref source._nativeCount);
+            for (int i = 0; i < nativeCount; i++)
+            {
+                var from = natives[i];
+                if (_nativeStreams.ContainsKey(from.EventTypeId)) continue;
+                AddNativeStream(from.EventTypeId, from is UntypedNativeEventStream
+                    ? new UntypedNativeEventStream(from.EventTypeId, from.ElementSize)
+                    : (INativeEventStream)Activator.CreateInstance(from.GetType(), 1024)!);
+            }
+            var manageds = Volatile.Read(ref source._managedList);
+            int managedCount = Volatile.Read(ref source._managedCount);
+            for (int i = 0; i < managedCount; i++)
+            {
+                var from = manageds[i];
+                if (from is not IManagedEventStreamInfo info || _managedStreams.ContainsKey(info.TypeId)) continue;
+                var created = Activator.CreateInstance(from.GetType())!;
+                lock (_streamListLock)
+                {
+                    if (_managedStreams.ContainsKey(info.TypeId)) continue;
+                    _managedStreams[info.TypeId] = created;
+                    AppendManaged((IManagedEventStream)created);
+                }
+            }
+        }
+
+        public void SwapBuffers()
+        {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.BusSwap, "(swap buffers)", TraceId);
+            _activeEventIds.Clear();
+
+            // ⭐ CE-3293 S4 — by index, not ConcurrentDictionary.Values (which allocates every call)
+            var natives = Volatile.Read(ref _nativeList);
+            int nativeCount = Volatile.Read(ref _nativeCount);
+            for (int i = 0; i < nativeCount; i++)
+            {
+                var stream = natives[i];
+                stream.Swap();
+                if (stream.GetRawBytes().Length > 0)
+                    _activeEventIds.Add(stream.EventTypeId);
+            }
+
+            var manageds = Volatile.Read(ref _managedList);
+            int managedCount = Volatile.Read(ref _managedCount);
+            for (int i = 0; i < managedCount; i++)
+            {
+                var stream = manageds[i];
+                stream.Swap();
+                if (stream.ReadCount > 0)
+                    _activeEventIds.Add(stream.TypeId);
             }
         }
 
@@ -334,6 +512,25 @@ namespace Fdp.Core
         /// Gets debug inspectors for all active event streams.
         /// Use this to populate an Event Inspector UI.
         /// </summary>
+        /// <summary>
+        /// ⭐ CE-4565 (X-10) — the same inspectors as <see cref="GetDebugInspectors"/>, as an array rebuilt only when a stream was added (no iterator,
+        /// no copy of the dictionaries per call): a per-tick reader walks it with an index. ⚠ The array is the bus's own — read it, never keep it.
+        /// </summary>
+        public ReadOnlySpan<IEventStreamInspector> DebugInspectors()
+        {
+            int streams = _nativeStreams.Count + _managedStreams.Count;
+            if (streams != _inspectorStreams)
+            {
+                var list = new List<IEventStreamInspector>(streams);
+                foreach (var i in GetDebugInspectors()) list.Add(i);
+                _inspectors = list.ToArray();
+                _inspectorStreams = streams;
+            }
+            return _inspectors;
+        }
+        private IEventStreamInspector[] _inspectors = Array.Empty<IEventStreamInspector>();
+        private int _inspectorStreams = -1;
+
         public IEnumerable<IEventStreamInspector> GetDebugInspectors()
         {
             // 1. Native Streams
@@ -361,20 +558,13 @@ namespace Fdp.Core
             // the cleared buffers (important for playback: new frame starts clean).
             _activeEventIds.Clear();
 
-            // Clear native streams
-            foreach (var stream in _nativeStreams.Values)
-            {
-                stream.ClearCurrent();
-            }
-            
-            // Clear managed streams
-            foreach (var streamObj in _managedStreams.Values)
-            {
-                if (streamObj is IManagedEventStream managedStream)
-                {
-                    managedStream.ClearCurrent();
-                }
-            }
+            var natives = Volatile.Read(ref _nativeList);
+            int nativeCount = Volatile.Read(ref _nativeCount);
+            for (int i = 0; i < nativeCount; i++) natives[i].ClearCurrent();
+
+            var manageds = Volatile.Read(ref _managedList);
+            int managedCount = Volatile.Read(ref _managedCount);
+            for (int i = 0; i < managedCount; i++) manageds[i].ClearCurrent();
         }
 
         /// <summary>
@@ -430,9 +620,7 @@ namespace Fdp.Core
             else
             {
                 // Stream doesn't exist - create untyped stream dynamically
-                var untypedStream = new UntypedNativeEventStream(typeId, elementSize);
-                _nativeStreams.TryAdd(typeId, untypedStream);
-                untypedStream.InjectIntoCurrent(data);
+                AddNativeStream(typeId, new UntypedNativeEventStream(typeId, elementSize)).InjectIntoCurrent(data);
             }
 
             // Mark event type as active so HasEvent returns true immediately after injection.
@@ -446,9 +634,9 @@ namespace Fdp.Core
         private NativeEventStream<T> GetOrCreateNativeStream<T>() where T : unmanaged
         {
             int typeId = EventType<T>.Id; // Validates [EventId] attribute
-            
-            var stream = _nativeStreams.GetOrAdd(typeId, _ => new NativeEventStream<T>());
-            return (NativeEventStream<T>)stream;
+
+            if (_nativeStreams.TryGetValue(typeId, out var stream)) return (NativeEventStream<T>)stream;
+            return (NativeEventStream<T>)AddNativeStream(typeId, new NativeEventStream<T>());
         }
 
         /// <summary>
@@ -458,20 +646,65 @@ namespace Fdp.Core
         private ManagedEventStream<T> GetOrCreateManagedStream<T>() // No class constraint
         {
             int typeId = GetManagedTypeId<T>();
-            
-            var stream = _managedStreams.GetOrAdd(typeId, _ => new ManagedEventStream<T>());
-            return (ManagedEventStream<T>)stream;
+
+            if (_managedStreams.TryGetValue(typeId, out var stream)) return (ManagedEventStream<T>)stream;
+            lock (_streamListLock)
+            {
+                if (_managedStreams.TryGetValue(typeId, out stream)) return (ManagedEventStream<T>)stream;
+                var created = new ManagedEventStream<T>();
+                _managedStreams[typeId] = created;
+                AppendManaged(created);
+                return created;
+            }
         }
 
         /// <summary>
-        /// Gets a stable type ID for managed types.
-        /// Uses hash of full type name (stable across sessions).
+        /// Gets a stable type ID for managed types: the FNV-1a hash of the full type name (<see cref="StableHash"/>).
+        /// ⛔ It was <c>string.GetHashCode()</c>, which is randomised per process — "stable across sessions" was not true (CE-3302).
         /// </summary>
-        private int GetManagedTypeId<T>()
+        private int GetManagedTypeId<T>() => ManagedTypeId<T>.Id;
+
+        /// <summary>
+        /// The stable id of a managed event type: the hash of its full name (simpler than requiring [EventId] on managed types).
+        /// Cached per type — CE-3293 S4: it is read on every swap.
+        /// </summary>
+        internal static class ManagedTypeId<T>
         {
-            // Use hash of full name for stable ID
-            // Note: This is simpler than requiring [EventId] on managed types
-            return typeof(T).FullName!.GetHashCode() & 0x7FFFFFFF;
+            public static readonly int Id = StableHash.NonNegativeId(typeof(T).FullName!);   // ⭐ CE-3302 — the same in every process
+        }
+
+        /// <summary>
+        /// ⭐ CE-3293 S4 — the bus type id of a runtime event type: <c>EventType&lt;T&gt;.Id</c> for a value type with an id, else
+        /// the managed full-name hash (the same answer <see cref="HasEvent(Type)"/> uses). False when a value type has no id.
+        /// </summary>
+        internal static bool TryGetTypeId(Type type, out int id, out bool native)
+        {
+            native = type.IsValueType;
+            if (!native) { id = StableHash.NonNegativeId(type.FullName!); return true; }
+            if (_unmanagedEventIdCache.TryGetValue(type, out id)) return true;
+            try
+            {
+                var idField = typeof(EventType<>).MakeGenericType(type)
+                    .GetField("Id", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                id = (int)idField!.GetValue(null)!;
+                _unmanagedEventIdCache[type] = id;
+                return true;
+            }
+            catch
+            {
+                id = 0;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// ⭐ CE-3293 S4 — appends a typed list to <typeparamref name="T"/>'s READ buffer (the event history's flush into a
+        /// background module's snapshot): no reflection, no boxing. Creates the stream if this bus has none yet.
+        /// </summary>
+        internal void InjectManagedIntoCurrent<T>(List<T> events)
+        {
+            GetOrCreateManagedStream<T>().InjectIntoCurrent(events);
+            if (events.Count > 0) _activeEventIds.Add(ManagedTypeId<T>.Id);
         }
 
         /// <summary>
@@ -484,14 +717,10 @@ namespace Fdp.Core
         public void PopulatePendingStreams(List<INativeEventStream> target)
         {
             target.Clear();
-            foreach (var kvp in _nativeStreams)
-            {
-                var stream = kvp.Value;
-                if (stream.GetPendingBytes().Length > 0)
-                {
-                    target.Add(stream);
-                }
-            }
+            var natives = Volatile.Read(ref _nativeList);
+            int count = Volatile.Read(ref _nativeCount);
+            for (int i = 0; i < count; i++)
+                if (natives[i].GetPendingBytes().Length > 0) target.Add(natives[i]);
         }
         
         /// <summary>
@@ -501,14 +730,10 @@ namespace Fdp.Core
         public void PopulatePendingManagedStreams(List<IManagedEventStreamInfo> target)
         {
             target.Clear();
-            foreach (var kvp in _managedStreams)
-            {
-                var streamObj = kvp.Value;
-                if (streamObj is IManagedEventStreamInfo info && info.PendingEvents.Count > 0)
-                {
-                    target.Add(info);
-                }
-            }
+            var manageds = Volatile.Read(ref _managedList);
+            int count = Volatile.Read(ref _managedCount);
+            for (int i = 0; i < count; i++)
+                if (manageds[i] is IManagedEventStreamInfo info && info.PendingEvents.Count > 0) target.Add(info);
         }
 
         /// <summary>
@@ -519,14 +744,10 @@ namespace Fdp.Core
         public void PopulateCurrentStreams(List<INativeEventStream> target)
         {
             target.Clear();
-            foreach (var kvp in _nativeStreams)
-            {
-                var stream = kvp.Value;
-                if (stream.GetRawBytes().Length > 0)
-                {
-                    target.Add(stream);
-                }
-            }
+            var natives = Volatile.Read(ref _nativeList);
+            int count = Volatile.Read(ref _nativeCount);
+            for (int i = 0; i < count; i++)
+                if (natives[i].GetRawBytes().Length > 0) target.Add(natives[i]);
         }
 
         /// <summary>
@@ -537,14 +758,10 @@ namespace Fdp.Core
         public void PopulateCurrentManagedStreams(List<IManagedEventStreamInfo> target)
         {
             target.Clear();
-            foreach (var kvp in _managedStreams)
-            {
-                var streamObj = kvp.Value;
-                if (streamObj is IManagedEventStreamInfo info && info.CurrentEvents.Count > 0)
-                {
-                    target.Add(info);
-                }
-            }
+            var manageds = Volatile.Read(ref _managedList);
+            int count = Volatile.Read(ref _managedCount);
+            for (int i = 0; i < count; i++)
+                if (manageds[i] is IManagedEventStreamInfo info && info.CurrentEvents.Count > 0) target.Add(info);
         }
         
         /// <summary>
@@ -572,54 +789,6 @@ namespace Fdp.Core
         }
 
         /// <summary>
-        /// Creates a snapshot of current event buffers without consuming them.
-        /// Used by EventAccumulator to capture history.
-        /// </summary>
-        public FrameEventData SnapshotCurrentBuffers()
-        {
-            var data = new FrameEventData();
-            data.NativeEvents = new List<(int, byte[], int, int)>();
-            data.ManagedEvents = new List<(int, object[], int, Type)>();
-            
-            // Copy native events
-            foreach (var stream in _nativeStreams.Values)
-            {
-                var buffer = stream.GetRawBytes(); // Gets READ buffer
-                int len = buffer.Length;
-                if (len > 0)
-                {
-                    var pooled = ArrayPool<byte>.Shared.Rent(len);
-                    buffer.CopyTo(pooled);
-                    data.NativeEvents.Add((stream.EventTypeId, pooled, len, stream.ElementSize));
-                }
-            }
-            
-            // Copy managed events
-            foreach (var streamObj in _managedStreams.Values)
-            {
-                if (streamObj is IEventStreamInspector inspector && streamObj is IManagedEventStreamInfo info)
-                {
-                    // InspectReadBuffer uses _front (READ)
-                    // We need count of _front. IEventStreamInspector.Count returns _front.Count.
-                    int count = inspector.Count; 
-                    if (count > 0)
-                    {
-                        var pooled = ArrayPool<object>.Shared.Rent(count);
-                        int i = 0;
-                        foreach(var item in inspector.InspectReadBuffer())
-                        {
-                            pooled[i++] = item;
-                        }
-                        
-                        data.ManagedEvents.Add((info.TypeId, pooled, count, info.EventType));
-                    }
-                }
-            }
-            
-            return data;
-        }
-
-        /// <summary>
         /// Clears all buffers (Read and Write) and resets active event state.
         /// Used when resetting an EntityRepository for reuse in a pool.
         /// </summary>
@@ -627,63 +796,23 @@ namespace Fdp.Core
         {
             _activeEventIds.Clear();
             
-            // Clear Native Streams
-            foreach (var stream in _nativeStreams.Values)
+            // ⭐ CE-3293 S4 — by index. Clear the read buffer, swap, clear again: both halves of each double buffer.
+            var natives = Volatile.Read(ref _nativeList);
+            int nativeCount = Volatile.Read(ref _nativeCount);
+            for (int i = 0; i < nativeCount; i++)
             {
-                stream.ClearCurrent();
-                // We also need to clear pending/write buffer if any
-                // Assuming stream has ClearPending or we Swap and Clear?
-                // Best to expose ClearAll on stream or clear both.
-                // Since NativeEventStream logic is simple, let's call ClearCurrent() 
-                // and we need to clear Back buffer too.
-                // Assuming NativeEventStream has reset capabilities or we just Swap and Clear again?
-                // Double swap + clear handles both?
-                
-                // For valid robust clearing:
-                stream.ClearCurrent();
-                stream.Swap(); 
-                stream.ClearCurrent();
-                
-                // If stream has dedicated "Reset" or "ClearAll", use that.
-                // If not, the double-swap-clear trick works for double buffers.
+                natives[i].ClearCurrent();
+                natives[i].Swap();
+                natives[i].ClearCurrent();
             }
-            
-            // Clear Managed Streams
-            foreach (var streamObj in _managedStreams.Values)
-            {
-                if (streamObj is IManagedEventStream managedStream)
-                {
-                    managedStream.ClearCurrent();
-                    managedStream.Swap();
-                    managedStream.ClearCurrent();
-                }
-            }
-        }
 
-        /// <summary>
-        /// Injects pre-captured events into this bus.
-        /// Used by EventAccumulator to replay history to replicas.
-        /// </summary>
-        public void InjectEvents(FrameEventData frameData)
-        {
-            // Inject native events
-            if (frameData.NativeEvents != null)
+            var manageds = Volatile.Read(ref _managedList);
+            int managedCount = Volatile.Read(ref _managedCount);
+            for (int i = 0; i < managedCount; i++)
             {
-                foreach (var (typeId, buffer, length, elementSize) in frameData.NativeEvents)
-                {
-                    ReadOnlySpan<byte> slice = new ReadOnlySpan<byte>(buffer, 0, length);
-                    InjectIntoCurrentBySize(typeId, elementSize, slice);
-                }
-            }
-            
-            // Inject managed events
-            if (frameData.ManagedEvents != null)
-            {
-                foreach (var (typeId, objects, count, eventType) in frameData.ManagedEvents)
-                {
-                    var slice = new ArraySegment<object>(objects, 0, count);
-                    InjectManagedIntoCurrent(typeId, eventType, slice);
-                }
+                manageds[i].ClearCurrent();
+                manageds[i].Swap();
+                manageds[i].ClearCurrent();
             }
         }
 
@@ -702,6 +831,11 @@ namespace Fdp.Core
 
             _nativeStreams.Clear();
             _managedStreams.Clear();
+            lock (_streamListLock)
+            {
+                Volatile.Write(ref _nativeCount, 0);
+                Volatile.Write(ref _managedCount, 0);
+            }
 
             _disposed = true;
             GC.SuppressFinalize(this);

@@ -61,6 +61,7 @@ public sealed class CoverAwarePatrolEndToEndTest
         fixture.World.RegisterComponent<EqsCognitiveBuffer>();
         fixture.World.RegisterComponent<EqsSensor>();
         fixture.World.RegisterComponent<PartMetadata>();
+        fixture.World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();   // CE-485: Ensure stamps the owner
     }
 
     private static List<Entity> QueryEntities<T>(BlueprintTestFixture fixture)

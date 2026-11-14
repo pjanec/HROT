@@ -1,0 +1,749 @@
+using System.Collections.Generic;
+using Fdp.Core;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Terrain;
+using Hrot.Map.Common.Dds;
+using Hrot.Map.Common.Replication.Interactions;
+using Hrot.NED.Messages;
+using Xunit;
+
+namespace Hrot.SimHost.Tests
+{
+    /// <summary>
+    /// ⭐ R-221 (📄 docs/DESIGN_Entity_Interactions.md) — the ONE interaction transport: a kind's typed FDP event becomes one
+    /// <see cref="EntityInteractionRequest"/> whose payload is that kind's union case, and comes back on the owner as the same typed
+    /// event marked remote. The loop guard (a remote event, or one whose target this node owns, is never sent) and an unknown kind
+    /// (dropped) are the transport's own rules, independent of any kind.
+    /// </summary>
+    public sealed class InteractionTransportTests
+    {
+        private sealed class CapturingWriter<T> : IDdsWriter<T>
+        {
+            public List<T> Written { get; } = new();
+            public void Write(T sample) => Written.Add(sample);
+            public void DisposeInstance(T key) { }
+        }
+
+        private static EntityRepository World()
+        {
+            var w = new EntityRepository();
+            w.RegisterComponent<DoorState>();
+            w.RegisterComponent<NetworkIdentity>();
+            w.RegisterComponent<NetworkAuthority>();
+            w.RegisterEvent<DoorCommandEvent>();
+            return w;
+        }
+
+        [Fact]
+        public void R221_ADoorCommand_CrossesAsItsUnionCase_AndArrivesAsTheSameTypedEvent_MarkedRemote()
+        {
+            using var sender = World();
+            var map = new NetworkEntityMap();
+            var door = sender.CreateEntity();
+            sender.AddComponent(door, new DoorState { State = TerrainDoorState.Closed });
+            sender.AddComponent(door, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));   // node 2's door
+            var actor = sender.CreateEntity();
+            map.Register(700, door);
+            map.Register(42, actor);
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            var egress = new InteractionEgressTranslator(writer, map);
+
+            sender.Bus.Publish(new DoorCommandEvent { Door = door, Verb = DoorVerb.Lock, Actor = actor });
+            sender.Bus.SwapBuffers();
+            egress.ScanAndPublish(sender);
+
+            var sample = Assert.Single(writer.Written);
+            Assert.Equal(700L, sample.TargetId);
+            Assert.Equal(42L, sample.ActorId);
+            Assert.Equal(EInteractionKind.Door, sample.Payload.Kind);
+            Assert.Equal((byte)DoorVerb.Lock, sample.Payload.Door.Verb);
+
+            using var owner = World();
+            var ownerMap = new NetworkEntityMap();
+            var ownersDoor = owner.CreateEntity();
+            var ownersActor = owner.CreateEntity();
+            ownerMap.Register(700, ownersDoor);
+            ownerMap.Register(42, ownersActor);
+            var ingress = new InteractionIngressTranslator(participant: null, ownerMap);
+            using var cmd = new EntityCommandBuffer();
+            ingress.ProcessSample(in sample, cmd);
+            cmd.Playback(owner);
+            owner.Bus.SwapBuffers();
+
+            var evt = Assert.Single(owner.Bus.Read<DoorCommandEvent>().ToArray());
+            Assert.Equal(ownersDoor, evt.Door);
+            Assert.Equal(ownersActor, evt.Actor);
+            Assert.Equal(DoorVerb.Lock, evt.Verb);
+            Assert.True(evt.IsRemote);
+        }
+
+        [Fact]
+        public void R221_TheLoopGuard_ARemoteEvent_OrOneWhoseTargetIsOwnedHere_IsNeverSent()
+        {
+            using var w = World();
+            var map = new NetworkEntityMap();
+            var mine = w.CreateEntity();                                       // no authority component: owned here
+            w.AddComponent(mine, new DoorState { State = TerrainDoorState.Closed });
+            var theirs = w.CreateEntity();
+            w.AddComponent(theirs, new DoorState { State = TerrainDoorState.Closed });
+            w.AddComponent(theirs, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+            map.Register(1, mine); map.Register(2, theirs);
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            var egress = new InteractionEgressTranslator(writer, map);
+
+            w.Bus.Publish(new DoorCommandEvent { Door = mine, Verb = DoorVerb.Open });                      // owned ⇒ applied here
+            w.Bus.Publish(new DoorCommandEvent { Door = theirs, Verb = DoorVerb.Open, IsRemote = true });   // came off the wire
+            w.Bus.SwapBuffers();
+            egress.ScanAndPublish(w);
+
+            Assert.Empty(writer.Written);
+        }
+
+        /// <summary>
+        /// ⭐ CE-3172 S4e (docs/DESIGN_Entity_Control.md §8c) — possession crosses as three union cases: a station that does not run the
+        /// unit's brain sends its request, frame and release; the brain owner receives the same typed events, marked remote, with the
+        /// station's node id and every control axis intact.
+        /// </summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-3235</c> (B-13, docs/DESIGN_Civilians_And_Crowd_Control.md §7.10 PU-4) — a pick-up crosses as two union cases: the
+        /// brain's node (which does not fly the round) sends the ASK (target = the round, actor = the man); the round's flier (which does
+        /// not run his brain) sends the GRANT (target = the man) with the munition, the count and the fuze left; each arrives as the same
+        /// typed event, marked remote.
+        /// </summary>
+        [Fact]
+        public void CE3235_APickUpAskAndItsGrant_CrossAsTheirUnionCases_AndArriveAsTheSameEvents_MarkedRemote()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterEvent<Fdp.Toolkit.Combat.PickUpRoundEvent>();
+                w.RegisterEvent<Fdp.Toolkit.Combat.PickUpGrantEvent>();
+                return w;
+            }
+            using var brain = Node();
+            using var simHost = Node();
+            var brainMap = new NetworkEntityMap();
+            var hostMap = new NetworkEntityMap();
+            Entity brainsMan = brain.CreateEntity(), brainsRound = brain.CreateEntity();   // a replica round: no flight here
+            Entity hostsMan = simHost.CreateEntity(), hostsRound = simHost.CreateEntity(); // a replica man: no brain here
+            Entity brainsFirst = brain.CreateEntity(), hostsFirst = simHost.CreateEntity();   // ⭐ CE-4155 — who threw the round first
+            brainMap.Register(500, brainsMan); brainMap.Register(600, brainsRound); brainMap.Register(700, brainsFirst);
+            hostMap.Register(500, hostsMan); hostMap.Register(600, hostsRound); hostMap.Register(700, hostsFirst);
+
+            // ① the ask: brain → the round's flier
+            var askWriter = new CapturingWriter<EntityInteractionRequest>();
+            brain.Bus.Publish(new Fdp.Toolkit.Combat.PickUpRoundEvent { Round = brainsRound, Man = brainsMan });
+            brain.Bus.SwapBuffers();
+            new InteractionEgressTranslator(askWriter, brainMap).ScanAndPublish(brain);
+            var ask = Assert.Single(askWriter.Written);
+            Assert.Equal((EInteractionKind.PickUpRound, 600L, 500L), (ask.Payload.Kind, ask.TargetId, ask.ActorId));
+            using (var cmd = new EntityCommandBuffer())
+            {
+                new InteractionIngressTranslator(participant: null, hostMap).ProcessSample(in ask, cmd);
+                cmd.Playback(simHost);
+            }
+            simHost.Bus.SwapBuffers();
+            var arrived = Assert.Single(simHost.Bus.Read<Fdp.Toolkit.Combat.PickUpRoundEvent>().ToArray());
+            Assert.Equal((hostsRound, hostsMan, true), (arrived.Round, arrived.Man, arrived.IsRemote));
+
+            // ② the grant: the flier → the brain
+            var grantWriter = new CapturingWriter<EntityInteractionRequest>();
+            simHost.Bus.Publish(new Fdp.Toolkit.Combat.PickUpGrantEvent { Man = hostsMan, Ammo = 6038L, Rounds = 1, FuzeSeconds = 2.5f, BurnSeconds = 41f,
+                                                                       OriginalShooter = hostsFirst });
+            simHost.Bus.SwapBuffers();
+            new InteractionEgressTranslator(grantWriter, hostMap).ScanAndPublish(simHost);
+            var sent = Assert.Single(grantWriter.Written);
+            Assert.Equal((EInteractionKind.PickUpGrant, 500L), (sent.Payload.Kind, sent.TargetId));
+            using (var cmd = new EntityCommandBuffer())
+            {
+                new InteractionIngressTranslator(participant: null, brainMap).ProcessSample(in sent, cmd);
+                cmd.Playback(brain);
+            }
+            brain.Bus.SwapBuffers();
+            var grant = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Combat.PickUpGrantEvent>().ToArray());
+            Assert.Equal((brainsMan, 6038L, 1, 2.5f, true), (grant.Man, grant.Ammo, grant.Rounds, (float)(grant.FuzeSeconds), grant.IsRemote));
+            Assert.Equal(41f, (float)(grant.BurnSeconds));   // ⭐ CE-3236 (B-14, VC-5) — a venting canister's burn left crosses with it
+            Assert.Equal(brainsFirst, grant.OriginalShooter);   // ⭐ CE-4155 (SR-82) — the round's first thrower crosses as the grant's actor
+        }
+
+        [Fact]
+        public void CE3172_PossessControlRelease_CrossAsTheirUnionCases_AndArriveAsTheSameEvents_MarkedRemote()
+        {
+            using var station = new EntityRepository();
+            station.RegisterEvent<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>();
+            station.RegisterEvent<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>();
+            station.RegisterEvent<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>();
+            var map = new NetworkEntityMap();
+            var unit = station.CreateEntity();   // no BehaviorState here: the brain runs elsewhere
+            map.Register(900, unit);
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            var egress = new InteractionEgressTranslator(writer, map);
+
+            station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.PossessRequestEvent
+                { Unit = unit, StationNodeId = (Fdp.Core.NodeId)(300), Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps });
+            station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent
+            {
+                Unit = unit, StationNodeId = (Fdp.Core.NodeId)(300), Seq = 7, Forward = 1f, Lateral = -0.5f, Steer = 0.25f, Yaw = 1.5f, Gait = 1,
+                Trigger = 1, Mount = 2, AimPoint = new System.Numerics.Vector3(10f, 20f, 3f),
+                Stance = 2, ShotSeq = 5, CancelSeq = 3, AmmoSeq = 9, ShotTarget = 4242,   // ⭐ CE-1074 / CE-1078 / CE-1079
+                UseSeq = 6, UseVerb = 1, UseTarget = 777,   // ⭐ CE-1151
+                Lean = 2,                                    // ⭐ CE-1212
+                Binoculars = 1,                              // ⭐ CE-1219
+                LookFrom = new System.Numerics.Vector3(1f, 2f, 3f), LookDir = new System.Numerics.Vector3(0f, 0.6f, 0.8f), FirePref = 2,   // ⭐ CE-4143
+            });
+            station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent { Unit = unit, StationNodeId = (Fdp.Core.NodeId)(300) });
+            station.Bus.SwapBuffers();
+            egress.ScanAndPublish(station);
+
+            Assert.Equal(3, writer.Written.Count);
+            Assert.All(writer.Written, w => Assert.Equal(900L, w.TargetId));
+            Assert.Contains(writer.Written, w => w.Payload.Kind == EInteractionKind.Possess && w.Payload.Possess.StationNodeId == 300);
+            Assert.Contains(writer.Written, w => w.Payload.Kind == EInteractionKind.ControlFrame && w.Payload.ControlFrame.Seq == 7);
+            Assert.Contains(writer.Written, w => w.Payload.Kind == EInteractionKind.ReleasePossession);
+
+            using var brain = new EntityRepository();
+            brain.RegisterEvent<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>();
+            brain.RegisterEvent<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>();
+            brain.RegisterEvent<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>();
+            var brainMap = new NetworkEntityMap();
+            var brainsUnit = brain.CreateEntity();
+            brainMap.Register(900, brainsUnit);
+            var ingress = new InteractionIngressTranslator(participant: null, brainMap);
+            using var cmd = new EntityCommandBuffer();
+            foreach (var sample in writer.Written) ingress.ProcessSample(in sample, cmd);
+            cmd.Playback(brain);
+            brain.Bus.SwapBuffers();
+
+            var possess = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>().ToArray());
+            Assert.Equal(brainsUnit, possess.Unit);
+            Assert.Equal(300L, possess.StationNodeId);
+            Assert.Equal(Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, possess.Mode);
+            Assert.True(possess.IsRemote);
+            var frame = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>().ToArray());
+            Assert.Equal((7u, 1f, -0.5f, 0.25f, 1.5f, (byte)1, (byte)1, (byte)2), (frame.Seq, frame.Forward, frame.Lateral, frame.Steer,
+                frame.Yaw, frame.Gait, frame.Trigger, frame.Mount));
+            Assert.Equal(new System.Numerics.Vector3(10f, 20f, 3f), frame.AimPoint);
+            Assert.Equal(((byte)2, (byte)5, (byte)3, (byte)9, 4242L), (frame.Stance, frame.ShotSeq, frame.CancelSeq, frame.AmmoSeq, frame.ShotTarget));
+            Assert.Equal(((byte)6, (byte)1, 777L), (frame.UseSeq, frame.UseVerb, frame.UseTarget));   // ⭐ CE-1151 — the use press arrives unchanged
+            Assert.Equal((byte)2, frame.Lean);                                                           // ⭐ CE-1212 — and the lean held
+            Assert.Equal((byte)1, frame.Binoculars);                                                     // ⭐ CE-1219 — and the binoculars
+            Assert.Equal((new System.Numerics.Vector3(1f, 2f, 3f), new System.Numerics.Vector3(0f, 0.6f, 0.8f), (byte)2), (frame.LookFrom, frame.LookDir, frame.FirePref));   // ⭐ CE-4143 — the look ray and L preference cross
+            Assert.True(frame.IsRemote);
+            var release = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>().ToArray());
+            Assert.Equal(300L, release.StationNodeId);
+            Assert.True(release.IsRemote);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3110</c> I-2a (R-224) — embarkation crosses as three union cases: a node that does not own the vehicle sends the
+        /// soldier's embark and disembark and the vehicle's eject (target = the vehicle, actor = the passenger); the vehicle's owner
+        /// receives the same typed commands marked remote — and its <c>EmbarkationSystem</c> applies them (the loop guard keeps a
+        /// remote one from being sent again).
+        /// </summary>
+        [Fact]
+        public void CE3110_EmbarkDisembarkEject_CrossAsTheirUnionCases_AndTheVehiclesOwnerAppliesThem()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterComponent<NetworkAuthority>();
+                w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+                w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.Events.EjectPassengersCommand>();
+                return w;
+            }
+
+            using var soldiersNode = Node();
+            var map = new NetworkEntityMap();
+            var apc = soldiersNode.CreateEntity();
+            soldiersNode.AddComponent(apc, new Fdp.Toolkit.Behavior.Components.PassengerBuffer());
+            soldiersNode.AddComponent(apc, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));   // node 2's vehicle
+            var soldier = soldiersNode.CreateEntity();
+            map.Register(800, apc);
+            map.Register(43, soldier);
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            var egress = new InteractionEgressTranslator(writer, map);
+
+            soldiersNode.Bus.Publish(new Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand { Passenger = soldier, Vehicle = apc });
+            soldiersNode.Bus.SwapBuffers();
+            egress.ScanAndPublish(soldiersNode);
+            var embark = Assert.Single(writer.Written);
+            Assert.Equal((800L, 43L, EInteractionKind.Embark), (embark.TargetId, embark.ActorId, embark.Payload.Kind));
+
+            // the vehicle's owner: the command arrives remote and its applier boards the soldier
+            using var owner = Node();
+            var ownerMap = new NetworkEntityMap();
+            var ownersApc = owner.CreateEntity();
+            owner.AddComponent(ownersApc, new Fdp.Toolkit.Behavior.Components.PassengerBuffer());
+            var ownersSoldier = owner.CreateEntity();
+            ownerMap.Register(800, ownersApc);
+            ownerMap.Register(43, ownersSoldier);
+            var ingress = new InteractionIngressTranslator(participant: null, ownerMap);
+            var applier = new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem();
+            void Deliver(EntityInteractionRequest sample)
+            {
+                using var cmd = new EntityCommandBuffer();
+                ingress.ProcessSample(in sample, cmd);
+                cmd.Playback(owner);
+                owner.Bus.SwapBuffers();
+                applier.Execute(owner, 0f);
+            }
+            Deliver(embark);
+            Assert.True(Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>().ToArray()).IsRemote);
+            Assert.Equal(ownersSoldier, owner.GetComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(ownersApc).Passengers[0]);
+            var ownersEgress = new InteractionEgressTranslator(new CapturingWriter<EntityInteractionRequest>(), ownerMap);
+            ownersEgress.ScanAndPublish(owner);
+            Assert.Equal(0, ownersEgress.SentSampleCount);                                             // remote ⇒ never sent back
+
+            // disembark (names its vehicle) and eject cross the same way
+            writer.Written.Clear();
+            soldiersNode.Bus.Publish(new Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand { Passenger = soldier, Vehicle = apc });
+            soldiersNode.Bus.Publish(new Fdp.Toolkit.Behavior.Events.EjectPassengersCommand { Vehicle = apc });
+            soldiersNode.Bus.SwapBuffers();
+            egress.ScanAndPublish(soldiersNode);
+            Assert.Equal(2, writer.Written.Count);
+            var disembark = Assert.Single(writer.Written, w => w.Payload.Kind == EInteractionKind.Disembark);
+            Assert.Equal((800L, 43L), (disembark.TargetId, disembark.ActorId));
+            Assert.Contains(writer.Written, w => w.Payload.Kind == EInteractionKind.EjectPassengers && w.TargetId == 800L);
+            Deliver(disembark);
+            Assert.Equal(0, owner.GetComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(ownersApc).Count);
+            Assert.False(owner.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(ownersSoldier));
+
+            // ⭐ CE-2151 B-b (R-2009 B4) — the seat ROLE crosses too (the payload's Role byte): a crew request arrives as that role.
+            //   ✅ Red-proof: toPayload writing `Embark = default` ⇒ Role 0 on the wire ⇒ red.
+            writer.Written.Clear();
+            soldiersNode.Bus.Publish(new Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand
+                { Passenger = soldier, Vehicle = apc, Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner });
+            soldiersNode.Bus.SwapBuffers();
+            egress.ScanAndPublish(soldiersNode);
+            var asGunner = Assert.Single(writer.Written);
+            Assert.Equal((byte)Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, asGunner.Payload.Embark.Role);
+            Deliver(asGunner);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.SeatRole.Gunner,
+                Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>().ToArray()).Role);
+
+            // ⭐ CE-2152 C-a (R-2011 C5) — and the CARRY MODE (the payload's Mode byte): a drag request arrives as a drag.
+            //   ✅ Red-proof: toPayload without Mode ⇒ 0 (seated) on the wire ⇒ red.
+            owner.Bus.SwapBuffers();
+            writer.Written.Clear();
+            soldiersNode.Bus.Publish(new Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand
+                { Passenger = soldier, Vehicle = apc, Mode = Fdp.Toolkit.Behavior.Components.CarryMode.Dragged });
+            soldiersNode.Bus.SwapBuffers();
+            egress.ScanAndPublish(soldiersNode);
+            var asDrag = Assert.Single(writer.Written);
+            Assert.Equal((byte)Fdp.Toolkit.Behavior.Components.CarryMode.Dragged, asDrag.Payload.Embark.Mode);
+            Deliver(asDrag);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.CarryMode.Dragged,
+                Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>().ToArray()).Mode);
+
+            // ⭐ Team carry T-a (R-2017 T1; R-169 — EmbarkInteractionPayload.Assistant APPENDED) — a stretcher request names its second man,
+            //   who crosses as a network id and arrives as the owner's entity. ✅ Red-proof: the codec without idsOut ⇒ 0 on the wire ⇒ red.
+            var helper = soldiersNode.CreateEntity();
+            map.Register(44, helper);
+            var ownersHelper = owner.CreateEntity();
+            ownerMap.Register(44, ownersHelper);
+            owner.Bus.SwapBuffers();
+            writer.Written.Clear();
+            soldiersNode.Bus.Publish(new Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand
+                { Passenger = soldier, Vehicle = apc, Mode = Fdp.Toolkit.Behavior.Components.CarryMode.Stretcher, Assistant = helper });
+            soldiersNode.Bus.SwapBuffers();
+            egress.ScanAndPublish(soldiersNode);
+            var asStretcher = Assert.Single(writer.Written);
+            Assert.Equal(44L, asStretcher.Payload.Embark.Assistant);
+            Deliver(asStretcher);
+            Assert.Equal(ownersHelper, Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>().ToArray()).Assistant);
+        }
+
+        /// <summary>
+        /// ⭐ Edit framework F4 (docs/UX/DESIGN_Edit_Framework.md §3, Q2) — a person's embark (<c>EmbarkOrders</c> → <c>Edits.Submit</c>) carries its request
+        /// id in the payload; the vehicle's OWNER applies it and answers Applied under that id; a disembark of a man who is not aboard is answered
+        /// Refused with why. The AI's own commands (no id) answer nothing. ✅ Red-proof: the codec not copying RequestId ⇒ the owner's log has no entry ⇒ red.
+        /// </summary>
+        [Fact]
+        public void F4_AnEmbarkAskedByAPerson_IsAnsweredByTheVehiclesOwner_UnderItsId()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterComponent<NetworkAuthority>();
+                w.RegisterComponent<NetworkIdentity>();
+                w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+                w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
+                return w;
+            }
+            using var station = Node();
+            var map = new NetworkEntityMap();
+            var apc = station.CreateEntity();
+            station.AddComponent(apc, new Fdp.Toolkit.Behavior.Components.PassengerBuffer());
+            station.AddComponent(apc, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+            var soldier = station.CreateEntity();
+            map.Register(810, apc); map.Register(53, soldier);
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            var egress = new InteractionEgressTranslator(writer, map);
+
+            Assert.True(Hrot.Common.Orders.EmbarkOrders.Embark(station, soldier, apc));
+            var journal = Fdp.Toolkit.Replication.Edits.EditJournal.Of(station);
+            var asked = journal[journal.Count - 1];
+            Assert.Equal(("Embark", Fdp.Toolkit.Replication.Edits.EditStatus.Pending), (asked.Label, asked.Status));
+            station.Bus.SwapBuffers();
+            egress.ScanAndPublish(station);
+            var sample = Assert.Single(writer.Written);
+            Assert.Equal(asked.RequestId, sample.Payload.Embark.RequestId);
+
+            using var owner = Node();
+            var ownerMap = new NetworkEntityMap();
+            var ownersApc = owner.CreateEntity();
+            owner.AddComponent(ownersApc, new Fdp.Toolkit.Behavior.Components.PassengerBuffer());
+            var ownersSoldier = owner.CreateEntity();
+            var stranger = owner.CreateEntity();
+            ownerMap.Register(810, ownersApc); ownerMap.Register(53, ownersSoldier); ownerMap.Register(54, stranger);
+            var ingress = new InteractionIngressTranslator(participant: null, ownerMap);
+            var applier = new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem();
+            void Deliver(EntityInteractionRequest r)
+            {
+                using var cmd = new EntityCommandBuffer();
+                ingress.ProcessSample(in r, cmd);
+                cmd.Playback(owner);
+                owner.Bus.SwapBuffers();
+                applier.Execute(owner, 0f);
+            }
+            Deliver(sample);
+            var log = Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(owner);
+            Assert.True(log.TryGet(asked.RequestId, out var o) && o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Applied);
+
+            var notAboardId = System.Guid.NewGuid();
+            Deliver(new EntityInteractionRequest { TargetId = 810, ActorId = 54, Payload = new InteractionPayload
+                { Kind = EInteractionKind.Disembark, Disembark = new DisembarkInteractionPayload { RequestId = notAboardId } } });
+            Assert.True(log.TryGet(notAboardId, out o) && o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Refused);
+            Assert.Contains("not aboard", o.Reason);
+
+            int before = log.Count;
+            Deliver(new EntityInteractionRequest { TargetId = 810, ActorId = 54, Payload = new InteractionPayload { Kind = EInteractionKind.Disembark, Disembark = new DisembarkInteractionPayload() } });
+            Assert.Equal(before, log.Count);   // nobody asked ⇒ nothing answered (the AI's commands cost nothing)
+        }
+
+        /// <summary>
+        /// ⭐ B-5 S3 (R-4137, docs/UX/DESIGN_Initial_State.md §3a) — a "knows about" seed asked at a station that does NOT own the perceiver's brain crosses
+        /// as <c>SeedTarget</c> and is applied by the OWNER (<c>SeedTargetSystem</c>): the knowledge lands in ITS <c>TargetMemory</c>, the answer is Applied under
+        /// the request id; the station's own memory is untouched. A unit that remembers nothing is answered Refused with why. ✅ Red-proof: the codec left out
+        /// of <c>InteractionCodecs.All</c> ⇒ nothing is written ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void S3_ASeedAskedAtAStationThatDoesNotOwnTheBrain_IsAppliedByTheOwner_AndAnswered()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterComponent<NetworkAuthority>();
+                w.RegisterComponent<NetworkIdentity>();
+                w.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
+                w.RegisterComponent<SimTransform>();
+                w.RegisterEvent<Fdp.Toolkit.Perception.Events.SeedTargetCommand>();
+                return w;
+            }
+            using var station = Node();
+            var map = new NetworkEntityMap();
+            var man = station.CreateEntity();
+            station.AddComponent(man, new Fdp.Toolkit.Perception.Components.TargetMemory());
+            station.AddComponent(man, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));   // node 2's brain
+            station.SetAuthority<Fdp.Toolkit.Perception.Components.TargetMemory>(man, false);
+            var enemy = station.CreateEntity();
+            station.AddComponent(enemy, new SimTransform { Position = new System.Numerics.Vector3(30f, 40f, 0f) });
+            map.Register(900, man); map.Register(901, enemy);
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            var egress = new InteractionEgressTranslator(writer, map);
+
+            Assert.True(Hrot.Common.Orders.KnowledgeOrders.SeedTarget(station, man, enemy, 7f));
+            var journal = Fdp.Toolkit.Replication.Edits.EditJournal.Of(station);
+            var asked = journal[journal.Count - 1];
+            station.Bus.SwapBuffers();
+            var stationApplier = new Fdp.Toolkit.Perception.Systems.SeedTargetSystem();
+            stationApplier.Execute(station, 0f);                       // the station applies nothing — it does not own the memory
+            egress.ScanAndPublish(station);
+            var sample = Assert.Single(writer.Written);
+            Assert.Equal((EInteractionKind.SeedTarget, 900L, 901L, 7f), (sample.Payload.Kind, sample.TargetId, sample.ActorId, sample.Payload.SeedTarget.ScoreBoost));
+            Assert.Equal(asked.RequestId, sample.Payload.SeedTarget.RequestId);
+            Assert.Equal(0, station.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(man).Count);
+
+            using var owner = Node();
+            var ownerMap = new NetworkEntityMap();
+            var ownersMan = owner.CreateEntity();
+            owner.AddComponent(ownersMan, new Fdp.Toolkit.Perception.Components.TargetMemory());
+            owner.SetAuthority<Fdp.Toolkit.Perception.Components.TargetMemory>(ownersMan, true);
+            var ownersEnemy = owner.CreateEntity();
+            owner.AddComponent(ownersEnemy, new SimTransform { Position = new System.Numerics.Vector3(30f, 40f, 0f) });
+            var rock = owner.CreateEntity();   // a unit that remembers nothing
+            owner.AddComponent(rock, new SimTransform());
+            ownerMap.Register(900, ownersMan); ownerMap.Register(901, ownersEnemy); ownerMap.Register(902, rock);
+            var ingress = new InteractionIngressTranslator(participant: null, ownerMap);
+            var applier = new Fdp.Toolkit.Perception.Systems.SeedTargetSystem();
+            void Deliver(EntityInteractionRequest r)
+            {
+                using var cmd = new EntityCommandBuffer();
+                ingress.ProcessSample(in r, cmd);
+                cmd.Playback(owner);
+                owner.Bus.SwapBuffers();
+                applier.Execute(owner, 0f);
+            }
+            Deliver(sample);
+            ref readonly var mem = ref owner.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(ownersMan);
+            Assert.Equal(1, mem.Count);
+            Assert.Equal((long)ownersEnemy.PackedValue, mem.EntityIds[0]);
+            var log = Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(owner);
+            Assert.True(log.TryGet(asked.RequestId, out var o) && o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Applied);
+
+            var rockId = System.Guid.NewGuid();
+            Deliver(new EntityInteractionRequest { TargetId = 902, ActorId = 901, Payload = new InteractionPayload
+                { Kind = EInteractionKind.SeedTarget, SeedTarget = new SeedTargetInteractionPayload { ScoreBoost = 1f, RequestId = rockId } } });
+            Assert.True(log.TryGet(rockId, out o) && o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Refused);
+            Assert.Contains("remembers targets", o.Reason);
+        }
+
+        /// <summary>
+        /// ⭐⭐ Airborne insertion B-4 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §7a — CE-3059 closed for a descent) — the BRAIN
+        /// node (it owns the helicopter's passenger list, not the man's position) applies a rope exit: the man leaves the list, and a
+        /// <c>StartDescentCommand</c> crosses as its union case (target = the man, actor = the helicopter, the exit and the rope index) to
+        /// the MUSCLE node owning his position, whose <c>EmbarkationSystem</c> starts the descent on ITS entities. The disembark's own
+        /// exit and rope index cross too. ✅ Red-proof: the codec missing from <c>InteractionCodecs.All</c> ⇒ nothing is written ⇒ red.
+        /// </summary>
+        [Fact]
+        public void B4_ARopeExitDecidedOnTheBrain_StartsTheDescentOnTheNodeOwningHisPosition()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterComponent<NetworkAuthority>();
+                w.RegisterComponent<SimTransform>();
+                w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+                w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+                w.RegisterComponent<Fdp.Toolkit.Motion.Descent>();
+                w.RegisterManagedComponent<DescriptorOwnership>();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.Events.StartDescentCommand>();
+                return w;
+            }
+            static Entity Man(EntityRepository w, int local)
+            {
+                var m = w.CreateEntity();
+                w.AddComponent(m, new SimTransform { Rotation = System.Numerics.Quaternion.Identity });
+                w.AddComponent(m, new NetworkAuthority(primaryOwnerId: 1, localNodeId: local));
+                var own = new DescriptorOwnership();
+                own = own.WithOwner(Fdp.Toolkit.Behavior.Embarkation.PositionKey, 2);   // the Muscle (node 2) owns his position
+                w.SetManagedComponent(m, own);
+                return m;
+            }
+
+            using var brain = Node();
+            var map = new NetworkEntityMap();
+            var heli = brain.CreateEntity();
+            brain.AddComponent(heli, new SimTransform { Position = new System.Numerics.Vector3(0, 0, 24), Rotation = System.Numerics.Quaternion.Identity });
+            brain.AddComponent(heli, new Fdp.Toolkit.Behavior.Components.PassengerBuffer());
+            var man = Man(brain, local: 1);
+            map.Register(900, heli);
+            map.Register(45, man);
+            Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied, Fdp.Toolkit.Behavior.Embarkation.TryEmbark(brain, man, heli));
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            var egress = new InteractionEgressTranslator(writer, map);
+            var brainApplier = new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem();
+
+            brain.Bus.Publish(new Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand
+                { Passenger = man, Vehicle = heli, Exit = Fdp.Toolkit.Motion.ExitKind.RopeDown, AnchorIndex = 1,
+                  Target = new System.Numerics.Vector3(7, 8, 9) });   // ⭐ CE-1118 H-1 (D-18) — carried whatever the exit
+            brain.Bus.SwapBuffers();
+            egress.ScanAndPublish(brain);                                                              // the brain owns the heli: nothing sent
+            Assert.Empty(writer.Written);
+            brainApplier.Execute(brain, 0f);                                                           // applied: out of the list, the descent sent
+            Assert.Equal(0, brain.GetComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(heli).Count);
+            Assert.False(brain.HasComponent<Fdp.Toolkit.Motion.Descent>(man));
+            brain.Bus.SwapBuffers();
+            egress.ScanAndPublish(brain);
+            var start = Assert.Single(writer.Written);
+            Assert.Equal((45L, 900L, EInteractionKind.StartDescent), (start.TargetId, start.ActorId, start.Payload.Kind));
+            Assert.Equal(((byte)Fdp.Toolkit.Motion.ExitKind.RopeDown, (byte)1), (start.Payload.StartDescent.Exit, start.Payload.StartDescent.AnchorIndex));
+            Assert.Equal((7f, 8f, 9f), (start.Payload.StartDescent.TargetX, start.Payload.StartDescent.TargetY, start.Payload.StartDescent.TargetZ));   // ⭐ D-18
+
+            using var muscle = Node();
+            var muscleMap = new NetworkEntityMap();
+            var musclesHeli = muscle.CreateEntity();
+            muscle.AddComponent(musclesHeli, new SimTransform { Position = new System.Numerics.Vector3(0, 0, 24), Rotation = System.Numerics.Quaternion.Identity });
+            var musclesMan = Man(muscle, local: 2);
+            muscleMap.Register(900, musclesHeli);
+            muscleMap.Register(45, musclesMan);
+            var ingress = new InteractionIngressTranslator(participant: null, muscleMap);
+            using (var cmd = new EntityCommandBuffer())
+            {
+                ingress.ProcessSample(in start, cmd);
+                cmd.Playback(muscle);
+            }
+            muscle.Bus.SwapBuffers();
+            new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem().Execute(muscle, 0f);
+            var d = muscle.GetComponent<Fdp.Toolkit.Motion.Descent>(musclesMan);
+            Assert.Equal((Fdp.Toolkit.Motion.DescentKind.FastRope, musclesHeli, (byte)1), (d.Kind, d.Anchor, d.AnchorIndex));
+            Assert.Equal<System.Numerics.Vector3>(new System.Numerics.Vector3(0, -1.2f, 24.5f), muscle.GetComponent<SimTransform>(musclesMan).Position);   // at the right door
+
+            // the disembark itself carries its exit and rope index when it crosses (a soldier's node asking a remote vehicle)
+            var asked = InteractionCodecs.All;
+            Assert.Contains(asked, c => c.Kind == EInteractionKind.StartDescent);
+            var payload = new InteractionPayload { Kind = EInteractionKind.Disembark, Disembark = new DisembarkInteractionPayload { Exit = 2, AnchorIndex = 3, TargetX = 300f, TargetY = 20f, TargetZ = 1f } };
+            using var other = Node();
+            var otherMap = new NetworkEntityMap();
+            otherMap.Register(900, other.CreateEntity());
+            otherMap.Register(45, other.CreateEntity());
+            using (var cmd = new EntityCommandBuffer())
+            {
+                new InteractionIngressTranslator(participant: null, otherMap).ProcessSample(new EntityInteractionRequest { TargetId = 900, ActorId = 45, Payload = payload }, cmd);
+                cmd.Playback(other);
+            }
+            other.Bus.SwapBuffers();
+            var cmdIn = Assert.Single(other.Bus.Read<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>().ToArray());
+            Assert.Equal((Fdp.Toolkit.Motion.ExitKind.JumpOut, (byte)3), (cmdIn.Exit, cmdIn.AnchorIndex));
+            Assert.Equal(new System.Numerics.Vector3(300f, 20f, 1f), cmdIn.Target);                   // ⭐ CE-1118 H-1 (D-18) — the landing point
+        }
+
+        [Fact]
+        public void R221_AKindThisBuildDoesNotKnow_IsDroppedAndCounted()
+        {
+            using var w = World();
+            var map = new NetworkEntityMap();
+            map.Register(700, w.CreateEntity());
+            var ingress = new InteractionIngressTranslator(participant: null, map);
+            using var cmd = new EntityCommandBuffer();
+
+            var unknown = new EntityInteractionRequest { TargetId = 700, Payload = new InteractionPayload { Kind = (EInteractionKind)999 } };   // ⭐ CE-3110 — Embark (2) is known now; 999 is not
+            ingress.ProcessSample(in unknown, cmd);
+            cmd.Playback(w);
+            w.Bus.SwapBuffers();
+
+            Assert.Equal(1, ingress.UnknownKindCount);
+            Assert.Equal(0, w.Bus.Read<DoorCommandEvent>().Length);
+        }
+            /// <summary>⭐ <c>CE-3233</c> (civilians B-11, §7.13 ST-4) — a draw / stow / conceal asked on the brain's node crosses as the
+        /// <c>Restation</c> case (target = the man, actor = the thing, the seat) to the node that owns his list, and arrives as the same event
+        /// marked remote. ✅ Red-proof: <c>Restation</c> left out of <c>InteractionCodecs.All</c> ⇒ nothing is written ⇒ red.</summary>
+        [Fact]
+        public void CE3233_ARestation_CrossesAsItsUnionCase_ToTheListOwner_AndArrivesAsTheSameEvent()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.RestationEvent>();
+                return w;
+            }
+            using var brain = Node();
+            using var owner = Node();
+            var brainMap = new NetworkEntityMap();
+            var ownerMap = new NetworkEntityMap();
+            Entity brainsMan = brain.CreateEntity(), brainsPistol = brain.CreateEntity();   // a replica man: no list here
+            Entity ownersMan = owner.CreateEntity(), ownersPistol = owner.CreateEntity();
+            brainMap.Register(700, brainsMan); brainMap.Register(701, brainsPistol);
+            ownerMap.Register(700, ownersMan); ownerMap.Register(701, ownersPistol);
+
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            brain.Bus.Publish(new Fdp.Toolkit.Behavior.RestationEvent { Man = brainsMan, Thing = brainsPistol, Seat = 3 });
+            brain.Bus.SwapBuffers();
+            new InteractionEgressTranslator(writer, brainMap).ScanAndPublish(brain);
+            var sent = Assert.Single(writer.Written);
+            Assert.Equal((EInteractionKind.Restation, 700L, 701L, (byte)3), (sent.Payload.Kind, sent.TargetId, sent.ActorId, sent.Payload.Restation.Seat));
+            using (var cmd = new EntityCommandBuffer())
+            {
+                new InteractionIngressTranslator(participant: null, ownerMap).ProcessSample(in sent, cmd);
+                cmd.Playback(owner);
+            }
+            owner.Bus.SwapBuffers();
+            var arrived = Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.RestationEvent>().ToArray());
+            Assert.Equal((ownersMan, ownersPistol, (byte)3, true), (arrived.Man, arrived.Thing, arrived.Seat, arrived.IsRemote));
+        }
+            /// <summary>⭐ <c>CE-3233</c> (civilians B-11b, §7.13 ST-8) — a charge set off from the trigger holder's node crosses as the
+        /// <c>DetonateCharge</c> case (target = the charge, actor = who) to its position owner and arrives as the same event, marked remote.
+        /// ✅ Red-proof: <c>DetonateCharge</c> left out of <c>InteractionCodecs.All</c> ⇒ nothing is written ⇒ red.</summary>
+        [Fact]
+        public void CE3233_ADetonateCharge_CrossesAsItsUnionCase_ToThePositionOwner()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterEvent<Fdp.Toolkit.Combat.DetonateChargeEvent>();
+                return w;
+            }
+            using var brain = Node();
+            using var owner = Node();
+            var brainMap = new NetworkEntityMap();
+            var ownerMap = new NetworkEntityMap();
+            Entity brainsVest = brain.CreateEntity(), brainsMan = brain.CreateEntity();
+            Entity ownersVest = owner.CreateEntity(), ownersMan = owner.CreateEntity();
+            brainMap.Register(800, brainsVest); brainMap.Register(801, brainsMan);
+            ownerMap.Register(800, ownersVest); ownerMap.Register(801, ownersMan);
+            // the vest's position is owned elsewhere: the brain's node has a replica
+            brain.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+            brain.AddComponent(brainsVest, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            brain.Bus.Publish(new Fdp.Toolkit.Combat.DetonateChargeEvent { Charge = brainsVest, By = brainsMan });
+            brain.Bus.SwapBuffers();
+            new InteractionEgressTranslator(writer, brainMap).ScanAndPublish(brain);
+            var sent = Assert.Single(writer.Written);
+            Assert.Equal((EInteractionKind.DetonateCharge, 800L, 801L), (sent.Payload.Kind, sent.TargetId, sent.ActorId));
+            using (var cmd = new EntityCommandBuffer())
+            {
+                new InteractionIngressTranslator(participant: null, ownerMap).ProcessSample(in sent, cmd);
+                cmd.Playback(owner);
+            }
+            owner.Bus.SwapBuffers();
+            var arrived = Assert.Single(owner.Bus.Read<Fdp.Toolkit.Combat.DetonateChargeEvent>().ToArray());
+            Assert.Equal((ownersVest, ownersMan, true), (arrived.Charge, arrived.By, arrived.IsRemote));
+        }
+
+        /// <summary>⭐ <c>CE-3256</c> (BR-4, §7.6 CU-2) — a soldier's custody ask about a man whose <c>dtCustody</c> is owned elsewhere crosses
+        /// as the <c>Custody</c> case (target = the man, actor = the soldier, the verb) and arrives on the owner as the same event, marked remote;
+        /// on a node that owns the man nothing is sent (he is applied here). ✅ Red-proof: <c>Custody</c> left out of
+        /// <c>InteractionCodecs.All</c> ⇒ nothing is written ⇒ red.</summary>
+        [Fact]
+        public void CE3256_ACustodyAsk_CrossesAsItsUnionCase_ToTheMansOwner_WithItsVerb()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterEvent<Fdp.Toolkit.Civilians.CustodyEvent>();
+                w.RegisterComponent<NetworkAuthority>();
+                return w;
+            }
+            using var brain = Node();
+            using var owner = Node();
+            var brainMap = new NetworkEntityMap();
+            var ownerMap = new NetworkEntityMap();
+            Entity brainsMan = brain.CreateEntity(), brainsSoldier = brain.CreateEntity();
+            Entity ownersMan = owner.CreateEntity(), ownersSoldier = owner.CreateEntity();
+            brainMap.Register(820, brainsMan); brainMap.Register(821, brainsSoldier);
+            ownerMap.Register(820, ownersMan); ownerMap.Register(821, ownersSoldier);
+            brain.AddComponent(brainsMan, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));   // the man is node 2's
+
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            Assert.True(Fdp.Toolkit.Civilians.CustodyRules.Ask(brain, brainsMan, brainsSoldier, Fdp.Toolkit.Civilians.CustodyVerb.Restrain));
+            brain.Bus.SwapBuffers();
+            new InteractionEgressTranslator(writer, brainMap).ScanAndPublish(brain);
+            var sent = Assert.Single(writer.Written);
+            Assert.Equal((EInteractionKind.Custody, 820L, 821L, (byte)Fdp.Toolkit.Civilians.CustodyVerb.Restrain),
+                         (sent.Payload.Kind, sent.TargetId, sent.ActorId, sent.Payload.Custody.Verb));
+            using (var cmd = new EntityCommandBuffer())
+            {
+                new InteractionIngressTranslator(participant: null, ownerMap).ProcessSample(in sent, cmd);
+                cmd.Playback(owner);
+            }
+            owner.Bus.SwapBuffers();
+            var arrived = Assert.Single(owner.Bus.Read<Fdp.Toolkit.Civilians.CustodyEvent>().ToArray());
+            Assert.Equal((ownersMan, ownersSoldier, Fdp.Toolkit.Civilians.CustodyVerb.Restrain, true), (arrived.Man, arrived.By, arrived.Verb, arrived.IsRemote));
+
+            // the owner's own ask is applied where it is raised: nothing goes out
+            var ownersWriter = new CapturingWriter<EntityInteractionRequest>();
+            Fdp.Toolkit.Civilians.CustodyRules.Ask(owner, ownersMan, ownersSoldier, Fdp.Toolkit.Civilians.CustodyVerb.Detain);
+            owner.Bus.SwapBuffers();
+            new InteractionEgressTranslator(ownersWriter, ownerMap).ScanAndPublish(owner);
+            Assert.Empty(ownersWriter.Written);
+        }
+    }
+}

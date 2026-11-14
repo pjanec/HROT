@@ -45,7 +45,7 @@ Implemented per spec:
 
 **FDP.sln pre-existing NETSDK1004/MSB3202 errors.** The FDP.sln build was already failing before BATCH-03 due to missing assets for ExtDeps sub-projects and missing `.csproj` files. Confirmed pre-existing per BATCH-02 review. `Fdp.Presentation.csproj` and `Fdp.Presentation.Tests.csproj` both build with 0 errors.
 
-**IOS-IG-SimHost.sln build:** Succeeded with 0 errors. No new regressions introduced.
+**HROT.sln build:** Succeeded with 0 errors. No new regressions introduced.
 
 ---
 
@@ -99,7 +99,7 @@ Tests (21 new, all pass):
              T-CE08f x2, T-CE08g x2
 
 Fdp.Presentation.Tests: 238 total (237 pass + 1 pre-existing failure).
-IOS-IG-SimHost.sln: Build succeeded. 0 new failures.
+HROT.sln: Build succeeded. 0 new failures.
 ```
 
 ---
@@ -110,7 +110,7 @@ IOS-IG-SimHost.sln: Build succeeded. 0 new failures.
 |---|---|---|---|
 | `Fdp.Presentation.Tests` | 217 total (216 pass, 1 fail) | 238 total (237 pass, 1 fail) | +21 new tests |
 | Pre-existing failure | `EntityRenderLayer_HitTest_FindsClosest` | unchanged | (known) |
-| `IOS-IG-SimHost.sln` | Build succeeded | Build succeeded | no regressions |
+| `HROT.sln` | Build succeeded | Build succeeded | no regressions |
 
 **New tests:**
 - CE07: 11 tests (T-CE07a×2, T-CE07b×2, T-CE07c×2, T-CE07d×2, T-CE07e×1, T-CE07f×2) — all pass

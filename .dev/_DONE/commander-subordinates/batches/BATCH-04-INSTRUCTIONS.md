@@ -3,8 +3,8 @@
 ## Context
 
 **Repository:** `d:\Work\IOS-IG-SimHost-FDP-2`
-**Build command:** `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet`
-**Test command:** `dotnet test IOS-IG-SimHost.sln --no-build --nologo`
+**Build command:** `dotnet build HROT.sln --no-restore -v quiet`
+**Test command:** `dotnet test HROT.sln --no-build --nologo`
 
 **Design reference:** `.dev/commander-subordinates/DESIGN.md`
 **Task specifications:** `.dev/commander-subordinates/TASK-DETAIL.md`
@@ -491,6 +491,6 @@ Implement in this order to avoid compile errors at each step:
 After completing all tasks, create `.dev/commander-subordinates/reports/BATCH-04-REPORT.md`
 following the format in previous batch reports (table of tasks, files modified, tests added).
 
-Run `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet` and confirm 0 errors.
-Run `dotnet test IOS-IG-SimHost.sln --no-build --nologo` and report any new failures
+Run `dotnet build HROT.sln --no-restore -v quiet` and confirm 0 errors.
+Run `dotnet test HROT.sln --no-build --nologo` and report any new failures
 (pre-existing failures documented in BATCH-03-REVIEW are expected and acceptable).

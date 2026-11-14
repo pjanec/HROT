@@ -27,9 +27,19 @@ namespace Fdp.Toolkit.Orchestration
     /// </summary>
     public sealed class ClusterSlave : IDisposable
     {
-        private readonly int    _nodeId;
+        private readonly NodeId    _nodeId;
         private readonly string _subsystemName;
+        private readonly string _nodeName;
+        private readonly NodeRole _roles;   // P1: the node's declared role mask (now the SOURCE of fdp.role.* tokens).
         private readonly FdpEventBus? _eventBus;
+
+        // CE-285 (C-cap): the node's static capability token set — fdp.role.* tokens derived from _roles
+        // (AQ-70 §Q70-C: the mask is no longer published; its tokens are) UNION the feature tokens the
+        // composition root passed (e.g. CapabilityTokens.ReliableInit). Published ONCE at join on the durable
+        // NodeCapabilities descriptor, never on the per-tick heartbeat (§Q70-B).
+        private string[] _capabilityTokens;
+        private bool _capabilitiesPublished;
+        private bool _readyHeld;   // ⭐ CE-3344 — HoldReady() was called: the advert waits for MarkReady()
 
         private readonly List<IClusterStateHandler> _handlers = new();
         private readonly Stopwatch _heartbeatTimer = Stopwatch.StartNew();
@@ -52,6 +62,80 @@ namespace Fdp.Toolkit.Orchestration
         // ── Local state id ────────────────────────────────────────────────────
         private int _localStateId;
 
+        // ── ⭐ CE-3345 part B (R-3070, R-3072) — the node's readiness report and the cancel of its load ──
+        private bool _ticked;                                   // the first Tick has run (the advert, if not held, went out in it)
+        private NodePhase _lastBeatPhase = NodePhase.Ready;     // what the last heartbeat said (a default host never says Booting: its advert goes out before its first beat)
+        private string? _lastBeatStep;
+        private string? _lastBeatReason;
+        private string _lastBeatFeatures = "";
+        private System.Collections.Generic.List<string>? _lastBeatRecordings;
+
+        /// <summary>
+        /// ⭐ CE-4330 ③ fact ③ — what this node holds in its own exercises staging (rides the heartbeat as <c>LocalRecordings</c>, on change): scanned at most every 5 s. Default = the node's production staging
+        /// (<c>OrchestrationConstants.GetNodeExercisesRoot(nodeId)</c> — the SAME path builder the archive handler's per-node exercise folder comes from); a rail injects a temp root and a clock.
+        /// </summary>
+        public LocalRecordingsScanner LocalRecordings
+        {
+            get => _localRecordings ??= new LocalRecordingsScanner(() => ExercisesRoot());
+            set => _localRecordings = value ?? throw new ArgumentNullException(nameof(value));
+        }
+        private LocalRecordingsScanner? _localRecordings;
+
+        // ── ⭐ CE-4330 ④ (DESIGN_Recording_Storage §6) — the node's local copies of ARCHIVED recordings are a CACHE ──────────────────────────────────────────
+        private Func<string>? _exercisesRoot;
+        /// <summary>This node's own exercises staging (<c>OrchestrationConstants.GetNodeExercisesRoot(nodeId)</c> — what <see cref="LocalRecordings"/> scans and the cache pass prunes); a rail injects a temp folder.</summary>
+        public Func<string> ExercisesRoot
+        {
+            get => _exercisesRoot ??= () => OrchestrationConstants.GetNodeExercisesRoot((int)_nodeId);
+            set => _exercisesRoot = value ?? throw new ArgumentNullException(nameof(value));
+        }
+
+        /// <summary>The pass itself: (exercises root, keep newest, archived ids). Default <see cref="ExerciseRetention.PruneArchivedCopies"/> with <see cref="ExerciseRetention.ResolveCacheKeep"/>; a rail records the call.</summary>
+        public Action<string, int, IReadOnlyCollection<Guid>> CachePruner { get; set; } = (root, keep, ids) => ExerciseRetention.PruneArchivedCopies(root, keep, ids);
+
+        /// <summary>Where the pass runs (default: the thread pool); a rail runs it inline.</summary>
+        public Action<Action> CacheRunner { get; set; } = work => System.Threading.Tasks.Task.Run(work);
+
+        private ExerciseInventoryItem[]? _cachePrunedFor;   // the inventory array the last pass was started for
+        private int _cachePruning;                          // 1 while a pass runs (at most one)
+
+        /// <summary>
+        /// ⭐ CE-4330 ④ — when the master's ARCHIVED inventory (<see cref="ClusterView.ArchivedExercises"/>) is a NEW array (an archive finished and the master republished it; the first one after start-up is the start-up pass), run ONE cache pass over this node's own
+        /// exercises root: the newest N archived copies stay, older ones go, the oldest go first when the disk is short of space — never an un-archived recording. At most one pass at a time: a change that lands while one runs is picked up on a later frame.
+        /// ⛔ HOT PATH: a steady frame costs one reference compare.
+        /// </summary>
+        private void CheckArchiveCache()
+        {
+            var archived = View.ArchivedExercises;
+            if (ReferenceEquals(archived, _cachePrunedFor)) return;
+            if (archived.Length == 0) { _cachePrunedFor = archived; return; }   // nothing is archived: nothing in this node's folder is a cache
+            if (System.Threading.Interlocked.CompareExchange(ref _cachePruning, 1, 0) != 0) return;   // one at a time; the next frame asks again
+            _cachePrunedFor = archived;
+            var ids = new Guid[archived.Length];
+            for (int i = 0; i < ids.Length; i++) ids[i] = (Guid)archived[i].ExerciseId;
+            string root = ExercisesRoot();
+            int keep = ExerciseRetention.ResolveCacheKeep();
+            var pruner = CachePruner;
+            CacheRunner(() =>
+            {
+                try { pruner(root, keep, ids); }
+                catch (Exception e) { FdpLog<ClusterSlave>.Warn("[Retention] node cache pass failed: {0}", e.Message); }
+                finally { System.Threading.Volatile.Write(ref _cachePruning, 0); }
+            });
+        }
+
+        /// <summary>⭐ Node Features F-16 — the ids of the features ON now, set by the shared bootstrapper; the heartbeat carries them.</summary>
+        public Func<System.Collections.Generic.List<string>>? FeaturesOnProvider { get; set; }
+
+        /// <summary>⭐ Node Features F-26 — the override layers this node refused (rides the heartbeat as <c>FeatureErrors</c>).</summary>
+        public Func<System.Collections.Generic.List<string>>? FeatureErrorsProvider { get; set; }
+        private string? _failureReason;                         // set ⇒ Phase Failed, until the next transaction
+        private Guid _failedTransactionId;
+        private bool _loadIsCatchUp;                            // the load in flight is a late joiner's catch-up
+        private System.Threading.CancellationTokenSource? _pendingCts;   // the REAL token the held prepare runs with — CancelLoad cancels it
+        private Guid _cancelledTransactionId;                   // intents of a transaction this node cancelled are not run
+        private string? _progressStepAcked;                     // the step the last InProgress ack named
+
         private bool _disposed;
 
         // ── Production constructor ────────────────────────────────────────────
@@ -62,15 +146,33 @@ namespace Fdp.Toolkit.Orchestration
         /// <param name="nodeId">Node identifier published in heartbeats.</param>
         /// <param name="subsystemName">Subsystem name published in heartbeats.</param>
         /// <param name="eventBus">Optional event bus for heartbeat and operation event publication.</param>
+        /// <param name="nodeName">⭐ <c>CE-3354</c> ② — the node's unique human-given name, carried on every heartbeat; null/blank ⇒ <see cref="DefaultNodeName"/>.</param>
         public ClusterSlave(
             int    nodeId,
             string subsystemName,
-            FdpEventBus? eventBus = null)
+            FdpEventBus? eventBus = null,
+            NodeRole roles = NodeRole.None,
+            IReadOnlyList<string>? capabilities = null,
+            string? nodeName = null)
         {
-            _nodeId        = nodeId;
+            _nodeId        = (Fdp.Core.NodeId)(nodeId);
             _subsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
+            _nodeName      = string.IsNullOrWhiteSpace(nodeName) ? DefaultNodeName(subsystemName, nodeId) : nodeName.Trim();
             _eventBus      = eventBus;
+            _roles         = roles;
+            _capabilityTokens = BuildCapabilityTokens(roles, capabilities);
+            EnsureOrchestrationEventsRegistered(eventBus);
+            View = new ClusterView(eventBus, nodeId) { NodeName = _nodeName };
         }
+
+        /// <summary>⭐ <c>CE-3354</c> ② — the node's name as heartbeated.</summary>
+        public string NodeName => _nodeName;
+
+        /// <summary>⭐ CE-4331 ① — the node's subsystem (what its heartbeat says), written on its recordings.</summary>
+        public string SubsystemName => _subsystemName;
+
+        /// <summary>⭐ <c>CE-3354</c> ② — the name a node gets when none is configured: <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>.</summary>
+        public static string DefaultNodeName(string subsystemName, int nodeId) => $"{subsystemName}-{nodeId}";
 
         // ── Test-only constructor ─────────────────────────────────────────────
 
@@ -78,11 +180,98 @@ namespace Fdp.Toolkit.Orchestration
         /// Creates a ClusterSlave for tests.
         /// Use <see cref="EnqueueIntentForTest"/> to inject intents directly.
         /// </summary>
-        public ClusterSlave(FdpEventBus? eventBus = null, int nodeId = 0, string subsystemName = "TestNode")
+        public ClusterSlave(FdpEventBus? eventBus = null, int nodeId = 0, string subsystemName = "TestNode",
+            NodeRole roles = NodeRole.None, IReadOnlyList<string>? capabilities = null, string? nodeName = null)
         {
-            _nodeId        = nodeId;
+            _nodeId        = (Fdp.Core.NodeId)(nodeId);
             _subsystemName = subsystemName;
+            _nodeName      = string.IsNullOrWhiteSpace(nodeName) ? DefaultNodeName(subsystemName, nodeId) : nodeName.Trim();
             _eventBus      = eventBus;
+            _roles         = roles;
+            _capabilityTokens = BuildCapabilityTokens(roles, capabilities);
+            EnsureOrchestrationEventsRegistered(eventBus);
+            View = new ClusterView(eventBus, nodeId) { NodeName = _nodeName };
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3344</c> (R-3069) — OPT-IN: this host is not ready at its first <see cref="Tick"/> (it still initialises after the slave started ticking), so the capability
+        /// advert — the node's explicit "I am ready" report, which the master's latch counts roles by — is held until <see cref="MarkReady"/>.
+        /// ⛔ No host calls it today (measured <c>2026-10-29</c>: every host's init finishes before its first Tick, so the default advert-on-first-Tick IS the ready report).
+        /// Must be called before the first <see cref="Tick"/>; a call after the advert went out throws.
+        /// </summary>
+        public void HoldReady()
+        {
+            if (_capabilitiesPublished)
+                throw new InvalidOperationException(
+                    $"[ClusterSlave] node {_nodeId}: HoldReady() after the capability advert went out (the first Tick) is too late — call it before the first Tick.");
+            _readyHeld = true;
+        }
+
+        /// <summary>⭐ <c>CE-3344</c> — this host's initialisation is done: releases the advert <see cref="HoldReady"/> held (it goes out on the next <see cref="Tick"/>). A no-op without a hold.</summary>
+        public void MarkReady() => _readyHeld = false;
+
+        /// <summary>⭐ <c>CE-3344</c> — <see cref="HoldReady"/> was called and <see cref="MarkReady"/> has not been: the node has not reported ready.</summary>
+        public bool IsReadyHeld => _readyHeld;
+
+        /// <summary>The capability tokens this node advertises (or has advertised) at join.</summary>
+        public IReadOnlyList<string> CapabilityTokens => _capabilityTokens;
+
+        /// <summary>
+        /// ⭐ Adds tokens a host can only compute AFTER the slave exists — e.g. the asset tokens, which need the host's
+        /// asset catalog (docs/DESIGN_Asset_Management.md §10 D4). ⛔ Only before the one publish at join: the capability
+        /// descriptor is durable and published ONCE, so a later append would be silently invisible to the cluster —
+        /// it throws instead.
+        /// </summary>
+        public void AppendCapabilities(IEnumerable<string> tokens)
+        {
+            if (_capabilitiesPublished)
+                throw new InvalidOperationException(
+                    $"[ClusterSlave] node {_nodeId}: capabilities were already published at join; appending now would never reach the cluster.");
+            _capabilityTokens = BuildCapabilityTokens(NodeRole.None, _capabilityTokens.Concat(tokens).ToList());
+        }
+
+        /// <summary>The full capability token set this node advertises: the <c>fdp.role.*</c> tokens for its
+        /// role mask (AQ-70 §Q70-C — the mask is derived back from these at ingest) unioned with the feature
+        /// tokens the composition root supplied. Order-stable and de-duplicated.</summary>
+        private static string[] BuildCapabilityTokens(NodeRole roles, IReadOnlyList<string>? featureTokens)
+        {
+            var set = new List<string>();
+            foreach (var t in NodeRoleTokens.TokensFromMask(roles))
+                if (!set.Contains(t)) set.Add(t);
+            if (featureTokens != null)
+                foreach (var t in featureTokens)
+                    if (!string.IsNullOrEmpty(t) && !set.Contains(t)) set.Add(t);
+            return set.ToArray();
+        }
+
+        /// <summary>
+        /// ⭐ Registers the orchestration event vocabulary on the bus this slave was handed, so a
+        /// <see cref="ClusterSlave"/> can always publish what it publishes.
+        ///
+        /// <para>
+        /// 🔴 <b>Why it lives here and not in each subsystem's bootstrap.</b> Under <c>--mode all</c>
+        /// every subsystem gets its OWN isolated <see cref="FdpEventBus"/>, so
+        /// <c>OrchestrationEventRegistry.RegisterAll</c> called during one subsystem's bootstrap does
+        /// nothing for another's. It was called by the retired <c>CgfApplication</c> (CE-3348), <c>EditorSubsystem</c> and
+        /// <c>HrotNodeBuilder</c> — and NOT by IG. The first <c>Tick()</c> therefore published
+        /// <c>NodeHeartbeatEvent</c> on an unregistered stream and strict mode killed the whole
+        /// process on frame one:
+        /// <c>"Strict Mode Violation: Managed event type 'NodeHeartbeatEvent' was published without
+        /// being explicitly registered."</c>
+        /// </para>
+        ///
+        /// <para>
+        /// ⭐ Registering from the constructor makes the guarantee follow the publisher instead of
+        /// relying on every present and future host to remember. The existing bootstrap calls stay
+        /// correct and harmless — registration is <c>GetOrCreate</c>, so it is idempotent.
+        /// </para>
+        ///
+        /// <para>⚠ A null bus means "no I/O" (test/offline shape) and needs nothing registered.</para>
+        /// </summary>
+        private static void EnsureOrchestrationEventsRegistered(FdpEventBus? eventBus)
+        {
+            if (eventBus is null) return;
+            OrchestrationEventRegistry.RegisterAll(eventBus);
         }
 
         // ── Handler registration ──────────────────────────────────────────────
@@ -114,18 +303,47 @@ namespace Fdp.Toolkit.Orchestration
         /// </summary>
         public void Tick()
         {
-            // Heartbeat at 1 Hz via FdpEventBus.
-            if (_heartbeatTimer.Elapsed.TotalSeconds >= 1.0)
+            // ⭐⭐ CE-2417 — the handlers this tick runs (a load's prepare and commit, and the workers they start) report into THIS node's progress.
+            var previous = LoadProgress.Current;
+            LoadProgress.Current = Progress;
+            try
             {
-                _heartbeatTimer.Restart();
-                _eventBus?.PublishManaged(new NodeHeartbeatEvent
+                TickCore();
+                PublishHeartbeat();
+            }
+            finally { LoadProgress.Current = previous; }
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-2417</c> — this node's load progress: one per node, keyed on its event bus, so the translator's heartbeat pump reads the SAME
+        /// instance (<see cref="LoadProgress.For"/>). 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §12.
+        /// </summary>
+        public LoadProgress Progress => _progress ??= _eventBus != null ? LoadProgress.For(_eventBus) : new LoadProgress();
+        private LoadProgress? _progress;
+
+        private void TickCore()
+        {
+            _ticked = true;
+
+            // CE-285 (C-cap): advertise the static capability token set ONCE at join. Durable descriptor →
+            // one publish is retained + delivered to the orchestrator and any late joiner (§Q70-B).
+            if (!_capabilitiesPublished && !_readyHeld && _eventBus != null)
+            {
+                _capabilitiesPublished = true;
+                _eventBus.PublishManaged(new NodeCapabilitiesEvent
                 {
-                    NodeId        = _nodeId,
-                    LocalStateId  = _localStateId,
-                    WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
-                    SubsystemName = _subsystemName,
+                    NodeId       = _nodeId,
+                    Capabilities = _capabilityTokens,
                 });
             }
+
+            // ⭐ The heartbeat moved to the END of Tick (PublishHeartbeat): it carries the node's phase, which this frame's dispatch / drain decides.
+
+            // ⭐⭐ C2 (Q91 §4-I I5, R-4006) — follow ONE cluster session.
+            View.Update();
+            CheckArchiveCache();   // ⭐ CE-4330 ④ — a new archived inventory runs one cache pass
+            // ⭐ CE-1436 — the ONE fold of the master's facts (state, inventory, session, op outcomes); the follow-fields below read it
+            FollowClusterSession();
 
             // Poll tickable handlers for deferred ACKs.
             foreach (var handler in _handlers)
@@ -144,7 +362,18 @@ namespace Fdp.Toolkit.Orchestration
                     if (intent.TargetNodeId != 0 && intent.TargetNodeId != _nodeId)
                         continue;
 
-                    if (_pendingPrepare.HasValue)
+                    // ⭐⭐ P8 (Q91 §4-H.3a, H8) — an abort naming the PENDING prepare's transaction does not wait in the
+                    //   queue it exists to clear: it preempts, then runs now. ⛔ Otherwise a stuck load could never be
+                    //   cancelled — the case R-4001 hands to the operator.
+                    if (_pendingPrepare.HasValue
+                     && intent.Operation == NodeOpType.AbortTransaction
+                     && intent.DomainPayload is AbortTransactionPayload preempting
+                     && preempting.TargetTransactionId == _pendingPrepare.Value.Intent.TransactionId)
+                    {
+                        PreemptPendingPrepare(preempting.TargetTransactionId);
+                        DispatchIntent(intent);
+                    }
+                    else if (_pendingPrepare.HasValue)
                     {
                         // Async prepare in progress — buffer unseen intents for next tick.
                         ClusterState sd = intent.DomainPayload switch
@@ -168,26 +397,25 @@ namespace Fdp.Toolkit.Orchestration
             {
                 var pending = _pendingPrepare.Value;
                 if (!pending.PrepareTask.IsCompleted)
+                {
+                    PublishProgressIfStepChanged(pending);   // ⭐ CE-3345 — the master reads progress, never an answer
                     return;
+                }
 
                 _pendingPrepare = null;
-                if (pending.PrepareTask.IsFaulted)
+                _pendingCts = null;
+                if (pending.PrepareTask.IsFaulted || pending.PrepareTask.IsCanceled)
                 {
+                    // ⭐ The STACK, not just the message: a faulted prepare fails the whole 2PC and leaves an
+                    //   empty world, and "Entity … missing NetworkIdentity" alone did not say which of a
+                    //   dozen translators threw (2026-10-01). This path is an error and is rare; it can afford it.
                     FdpLog<ClusterSlave>.Error(
                         "[ClusterSlave] PrepareAsync faulted for operation {0} " +
                         "(transactionId={1}): {2}. Commit skipped.",
                         pending.Intent.Operation,
                         pending.Intent.TransactionId,
-                        pending.PrepareTask.Exception?.GetBaseException().Message ?? "unknown");
-                    _eventBus?.PublishManaged(new NodeOpCompletedEvent
-                    {
-                        TransactionId   = pending.Intent.TransactionId,
-                        Operation       = pending.Intent.Operation,
-                        NodeId          = _nodeId,
-                        StatusCode      = OrchestrationStatusCode.Failure,
-                        IsParticipating = true,
-                        ResultPayload   = null,
-                    });
+                        pending.PrepareTask.Exception?.GetBaseException().ToString() ?? "cancelled");
+                    FailPrepare(pending.Intent, ReasonOf(pending.PrepareTask));
                     _pendingIntents.Clear();  // Discard deferred intents for the failed transaction
                     return;
                 }
@@ -214,6 +442,62 @@ namespace Fdp.Toolkit.Orchestration
             }
         }
 
+        // ── This node's committed cluster state ───────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-163</c> — THIS NODE'S COMMITTED cluster state.</b> The value set by the
+        /// <c>CommitState</c> arm of <see cref="DispatchIntent"/>, republished as
+        /// <c>TkClusterStateChangedEvent</c> and written into every heartbeat.
+        ///
+        /// <para>📄 <c>docs/DESIGN_Mcp_Diagnostics_Federation.md</c> §1c.</para>
+        ///
+        /// <para>🔴 <b>Why it became public.</b> 📐 Measured on a four-process cluster
+        /// <c>2026-09-03</c>: <c>POST /scenario/load/live {waitForReady:true}</c> answered
+        /// <c>NOT_SUPPORTED_HERE(cluster.state)</c> on <b>every</b> node, while
+        /// <c>{waitForReady:false}</c> published fine and the fan-out landed. Only the readiness READ was
+        /// missing — and it was missing because <c>DebugApiService.CurrentClusterState()</c> has two arms
+        /// and <b>both are <c>--mode all</c> arms</b> *(the editor's own getter, or a sibling subsystem's
+        /// pumped <c>ClusterUiCache</c>)*. ⛔ In a separate-process cluster neither exists, so a node that
+        /// KNEW its state refused to say so. ⇒ ⭐ the 12th instance of <c>CLAUDE.md</c>'s
+        /// <i>"a production caller that HAS a dependency must PASS it"</i>, one layer down.</para>
+        ///
+        /// <para>⚠⚠ <b>READ THE SEMANTIC BEFORE USING IT.</b> This is <b>this node's committed state</b>,
+        /// ⛔ <b>NOT the cluster's</b>. During a transition a node can legitimately lag the master, and two
+        /// nodes can legitimately disagree. ⭐ That is the RIGHT answer for a readiness poll — the caller
+        /// is asking <i>"is THIS node at the target?"</i> and a node reporting its own committed state has
+        /// actually done the work — but ⛔ it must be reported as a node-local fact, never passed off as a
+        /// cluster-wide one. 📄 <c>ClusterUiCache.CurrentState</c> is the cluster-wide view; the two are
+        /// different facts, not two implementations of one.</para>
+        ///
+        /// <para>⭐ Before <c>CommitState</c> ever runs this is <c>0</c>, which is
+        /// <see cref="ClusterState"/>'s first member — the honest "nothing committed yet" answer, and the
+        /// same value the heartbeat carries.</para>
+        /// </summary>
+        public ClusterState LocalClusterState => (ClusterState)_localStateId;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-164</c> — does this slave publish on <paramref name="bus"/>?</b> The composition
+        /// invariant every networked slave node must satisfy: its <see cref="ClusterSlave"/> and its
+        /// <c>ISlaveOrchestrationTranslator</c> sit on the <b>same, single</b> orchestration bus — the one
+        /// <c>HrotNodeBuilder</c> put on <c>HrotNodeContext.EventBus</c>.
+        ///
+        /// <para>📄 <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §4.1b.
+        /// Asserted by <c>SharedApplicationBootstrapper</c> right after Phase 5.</para>
+        ///
+        /// <para>🔴 <b>Why a PREDICATE and not a <c>Bus</c> property.</b> The invariant is
+        /// <i>"is it THIS bus"</i>, and that is all a caller needs. ⛔ Exposing the bus itself would hand
+        /// every caller a publish handle to the control plane to satisfy one assertion — a much wider
+        /// surface than the question asked.</para>
+        ///
+        /// <para>📐 <b>The defect it catches, measured <c>2026-09-03</c>:</b> IG built its
+        /// <see cref="ClusterSlave"/> on a second <c>FdpEventBus</c> of its own while the shared,
+        /// egress-capable translator sat on the context's — so every <c>TransitionStateIntent</c> IG
+        /// published was read by nothing, silently. ⚠ Nothing structural forbade it: the base's
+        /// <c>BuildOrchestration</c> is <c>abstract</c>, so the 7-phase order mandates THAT a node wires
+        /// orchestration and shares none of the doing. ⇒ ⭐ this is the binding that was missing.</para>
+        /// </summary>
+        public bool PublishesOn(FdpEventBus? bus) => ReferenceEquals(_eventBus, bus);
+
         // ── Test helpers ──────────────────────────────────────────────────────
 
         /// <summary>
@@ -227,8 +511,155 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>
         /// Current local state id as it would be written into the next heartbeat.
         /// For unit-test assertions only.
+        ///
+        /// <para>⚠ Kept as the raw <c>int</c> the heartbeat carries, so the existing wire-level assertions
+        /// stay wire-level. ⭐ Production readers want <see cref="LocalClusterState"/>.</para>
         /// </summary>
         public int LocalStateIdForTest => _localStateId;
+
+        // ── ⭐⭐ CE-3345 part B (R-3070, R-3072) — the readiness report, the load's progress, the cancel ──────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ What THIS node reports about itself on its heartbeat (<c>AQ110</c> A) — derived from facts the slave already has, a fact about the node only:
+        /// <see cref="NodePhase.Booting"/> until its capability advert (the explicit ready report) is out (the first <see cref="Tick"/>, or <see cref="MarkReady"/> after <see cref="HoldReady"/>);
+        /// <see cref="NodePhase.Failed"/> after a failed or cancelled prepare, until the next transaction; <see cref="NodePhase.Loading"/> / <see cref="NodePhase.CatchingUp"/> while a load prepare is
+        /// held (or the node sits in a committed <c>Loading*</c> state); <see cref="NodePhase.PlayReady"/> once it committed an <c>Operating*</c> state; else <see cref="NodePhase.Ready"/>.
+        /// </summary>
+        public NodePhase Phase
+        {
+            get
+            {
+                if (_readyHeld || !_ticked) return NodePhase.Booting;
+                if (_failureReason != null) return NodePhase.Failed;
+                if (IsLoadHeld || (ClusterState)_localStateId is ClusterState.LoadingLive or ClusterState.LoadingEdit)
+                    return _loadIsCatchUp ? NodePhase.CatchingUp : NodePhase.Loading;
+                if ((ClusterState)_localStateId is ClusterState.OperatingLive or ClusterState.OperatingEdit or ClusterState.OperatingPreview
+                                                or ClusterState.OperatingReplay or ClusterState.OperatingReview)
+                    return NodePhase.PlayReady;
+                return NodePhase.Ready;
+            }
+        }
+
+        /// <summary>⭐ The load step in flight (what <see cref="Phase"/> <c>Loading</c> is on), or <see langword="null"/>.</summary>
+        public string? LoadStep => IsLoadHeld ? (_pendingPrepare!.Value.Handler as ILoadProgressSource)?.CurrentLoadStep : null;
+
+        /// <summary>⭐ The last failure's reason while <see cref="Phase"/> is <c>Failed</c> (else <see langword="null"/>).</summary>
+        public string? FailureReason => _failureReason;
+
+        /// <summary>⭐ A load prepare is held or in flight on this node (its pending prepare belongs to an <see cref="ILoadProgressSource"/>) — what <see cref="CancelLoad"/> may cancel.</summary>
+        public bool IsLoadHeld => _pendingPrepare.HasValue && _pendingPrepare.Value.Handler is ILoadProgressSource;
+
+        /// <summary>
+        /// ⭐⭐ <c>R-3070</c> — <b>the user cancels this node's load.</b> Cancels the REAL token the prepare runs with, calls the chain's <c>AbortLoad</c> (through <see cref="IClusterStateHandler.Abort"/>), and
+        /// answers the prepare with a <b>Failure</b> ack that carries <paramref name="reason"/> — ⭐ no new op: the master learns it through the round it already runs (CE-4103 fails that round at once, the
+        /// failed LOAD round ends in Idle, and the reason reaches every node's op status). Returns <see langword="false"/> when no load is held here.
+        /// </summary>
+        public bool CancelLoad(string? reason = null)
+        {
+            if (!IsLoadHeld) return false;
+            reason ??= $"cancelled by the user on node {_nodeId}";
+
+            var pending = _pendingPrepare!.Value;
+            _pendingPrepare = null;
+            var cts = _pendingCts;
+            _pendingCts = null;
+            try { cts?.Cancel(); }
+            catch (Exception ex) { FdpLog<ClusterSlave>.Error("[ClusterSlave] Node {0}: cancelling the load token failed: {1}", _nodeId, ex.Message); }
+            try { pending.Handler.Abort(pending.Intent, repo: null); }
+            catch (Exception ex) { FdpLog<ClusterSlave>.Error("[ClusterSlave] Node {0}: {1}.Abort failed during the cancel: {2}", _nodeId, pending.Handler.GetType().Name, ex.Message); }
+
+            var tx = pending.Intent.TransactionId;
+            _cancelledTransactionId = tx;   // ⭐ the ONE guard (DispatchIntent): the transaction's queued AND later-arriving steps run no more — no second mechanism (a queue purge) beside it
+
+            FdpLog<ClusterSlave>.Warn("[ClusterSlave] Node {0}: the load of transaction {1} CANCELLED — {2}.", _nodeId, tx, reason);
+            FailPrepare(pending.Intent, reason);
+            return true;
+        }
+
+        /// <summary>⭐ The ONE failure path of a prepare (faulted, cancelled, or the user's cancel): the node enters <see cref="NodePhase.Failed"/> with the reason, and answers the prepare Failure — WITH the reason (the ack used to carry none).</summary>
+        private void FailPrepare(ExecuteNodeOpIntent intent, string reason)
+        {
+            _failureReason       = reason;
+            _failedTransactionId = intent.TransactionId;
+            _eventBus?.PublishManaged(new NodeOpCompletedEvent
+            {
+                TransactionId   = intent.TransactionId,
+                Operation       = intent.Operation,
+                NodeId          = _nodeId,
+                StatusCode      = OrchestrationStatusCode.Failure,
+                IsParticipating = true,
+                ResultPayload   = reason,
+            });
+        }
+
+        private static string ReasonOf(System.Threading.Tasks.Task task)
+            => task.IsCanceled ? "the load was cancelled" : task.Exception?.GetBaseException().Message ?? "unknown";
+
+        /// <summary>⭐ A held LOAD prepare names its step in the P4 <c>InProgress</c> ack, and says so AGAIN when the step changes (once per step, never per frame).</summary>
+        private void PublishProgressIfStepChanged(
+            (System.Threading.Tasks.Task<object?> PrepareTask, ExecuteNodeOpIntent Intent, IClusterStateHandler Handler) pending)
+        {
+            if (pending.Handler is not ILoadProgressSource source) return;
+            var step = source.CurrentLoadStep;
+            if (step == null || step == _progressStepAcked) return;
+            _progressStepAcked = step;
+            _eventBus?.PublishManaged(new NodeOpCompletedEvent
+            {
+                TransactionId   = pending.Intent.TransactionId,
+                Operation       = pending.Intent.Operation,
+                NodeId          = _nodeId,
+                StatusCode      = OrchestrationStatusCode.InProgress,
+                IsParticipating = true,
+                ResultPayload   = step,
+            });
+        }
+
+        /// <summary>
+        /// ⭐ The heartbeat: every second as before, and ⭐ <b>at once</b> when the node's phase, step or failure reason changed (so progress is never a second late). Called once at the end of each
+        /// <see cref="Tick"/> — ⇒ at most one change-triggered beat per frame, and the 1 Hz timer restarts with it.
+        /// </summary>
+        /// <summary>⭐ <c>CE-2417</c> — while a load step works, a beat needs progress within this window (1 s: the beat's own cadence).</summary>
+        public const double LoadBeatWindowSeconds = 1.0;
+
+        private void PublishHeartbeat()
+        {
+            var phase  = Phase;
+            var step   = LoadStep;
+            var reason = _failureReason;
+            View.NoteLocalPhase(phase, step, reason);   // the node's own report, for its own host's gate (the ONE ClusterView)
+
+            var featuresOn = FeaturesOnProvider?.Invoke();
+            var featureErrors = FeatureErrorsProvider?.Invoke();
+            string featuresKey = (featuresOn == null ? "" : string.Join(",", featuresOn)) + "|" + (featureErrors == null ? "" : string.Join(";", featureErrors));
+            var recordings = LocalRecordings.Current();   // ⭐ CE-4330 ③ fact ③ — the cached list between scans; a NEW instance only when the content changed
+            bool changed = phase != _lastBeatPhase || step != _lastBeatStep || reason != _lastBeatReason || featuresKey != _lastBeatFeatures || !ReferenceEquals(recordings, _lastBeatRecordings);
+            if (!changed && _heartbeatTimer.Elapsed.TotalSeconds < 1.0) return;
+
+            // ⭐⭐⭐ CE-2417 — while a load step WORKS (a prepare or commit runs; ⛔ not a node held or waiting on the cluster — that one is not hung),
+            //   a beat means "the load is advancing": none is sent unless the progress moved in the last second. ⇒ a loader that hangs on the worker
+            //   stops the beats and the master's existing 5 s rule ejects the node. 🔒 User: "if it gets stuck, no more hearbeat shall be sent".
+            if (Progress.IsActive && !Progress.MovedWithin(LoadBeatWindowSeconds)) return;
+
+            _heartbeatTimer.Restart();
+            _lastBeatPhase = phase; _lastBeatStep = step; _lastBeatReason = reason; _lastBeatFeatures = featuresKey; _lastBeatRecordings = recordings;
+            _eventBus?.PublishManaged(new NodeHeartbeatEvent
+            {
+                NodeId        = _nodeId,
+                LocalStateId  = _localStateId,
+                WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
+                SubsystemName = _subsystemName,
+                NodeName = _nodeName,
+                SessionId     = _followingSessionId,   // ⭐ C2
+                Phase         = phase,                 // ⭐ CE-3345 (AQ110 A)
+                Step          = step,
+                Reason        = reason,
+                FeaturesOn    = featuresOn,            // ⭐ Node Features F-16
+                FeatureErrors = featureErrors is { Count: > 0 } ? featureErrors : null,   // ⭐ Node Features F-26
+                LocalRecordings = recordings,                                              // ⭐ CE-4330 ③ fact ③
+                // CE-286 (C-roles): the heartbeat is telemetry-only; the role mask travels as fdp.role.*
+                // tokens on the durable NodeCapabilities descriptor (published once at join above).
+            });
+        }
 
         // ── Private helpers ───────────────────────────────────────────────────
 
@@ -253,6 +684,16 @@ namespace Fdp.Toolkit.Orchestration
                 return;
             }
 
+            if (intent.DomainPayload is EditLoadHandlerPayload loadPayload) _loadIsCatchUp = loadPayload.IsCatchUp;   // ⭐ CE-3345 — a catch-up reports CatchingUp, a load Loading
+
+            // ⭐ CE-3345 — a transaction this node CANCELLED runs no more steps (its CommitState must not move the node into a load it abandoned);
+            //   ⭐ and the NEXT transaction (not the master's abort of the failed one) ends the Failed phase.
+            if (intent.Operation != NodeOpType.AbortTransaction)
+            {
+                if (_cancelledTransactionId != Guid.Empty && intent.TransactionId == _cancelledTransactionId) return;
+                if (_failureReason != null && intent.TransactionId != _failedTransactionId) _failureReason = null;
+            }
+
             // CommitState: update local state and raise TkClusterStateChangedEvent.
             if (intent.Operation == NodeOpType.CommitState)
             {
@@ -264,6 +705,14 @@ namespace Fdp.Toolkit.Orchestration
                     PreviousStateId = previousStateId,
                     NextStateId     = nextStateId,
                 });
+                if (previousStateId != nextStateId) NotifyIfEnteredIdle();
+                return;
+            }
+
+            // ⭐⭐ P8 (Q91 §4-H.3a, H7) — an abort goes to EVERY handler that claims it, never the first only.
+            if (intent.Operation == NodeOpType.AbortTransaction)
+            {
+                DispatchAbort(intent);
                 return;
             }
 
@@ -272,25 +721,20 @@ namespace Fdp.Toolkit.Orchestration
             {
                 if (!handler.CanHandle(intent)) continue;
 
-                var prepareTask = handler.PrepareAsync(intent, default);
+                // ⭐ CE-3345 (R-3070) — a REAL token (it was `default`): CancelLoad cancels it, so a load worker stops instead of finishing for nobody.
+                var cts = new System.Threading.CancellationTokenSource();
+                var prepareTask = handler.PrepareAsync(intent, cts.Token);
                 if (prepareTask.IsCompleted)
                 {
-                    if (prepareTask.IsFaulted)
+                    cts.Dispose();
+                    if (prepareTask.IsFaulted || prepareTask.IsCanceled)
                     {
                         FdpLog<ClusterSlave>.Error(
                             "[ClusterSlave] PrepareAsync faulted for operation {0} " +
                             "(transactionId={1}): {2}. Commit skipped.",
                             intent.Operation, intent.TransactionId,
-                            prepareTask.Exception?.GetBaseException().Message ?? "unknown");
-                        _eventBus?.PublishManaged(new NodeOpCompletedEvent
-                        {
-                            TransactionId   = intent.TransactionId,
-                            Operation       = intent.Operation,
-                            NodeId          = _nodeId,
-                            StatusCode      = OrchestrationStatusCode.Failure,
-                            IsParticipating = true,
-                            ResultPayload   = null,
-                        });
+                            prepareTask.Exception?.GetBaseException().ToString() ?? "cancelled");
+                        FailPrepare(intent, ReasonOf(prepareTask));
                     }
                     else
                     {
@@ -310,6 +754,20 @@ namespace Fdp.Toolkit.Orchestration
                 else
                 {
                     _pendingPrepare = (prepareTask, intent, handler);
+                    _pendingCts = cts;
+                    // ⭐⭐ P4 (Q91 §4-B2, R-4001) — say so: the prepare runs on, the frame (and the heartbeat) keeps
+                    //   ticking, and the master reads this as progress, never as the answer. ⭐ CE-3345 — it names the load step
+                    //   (and is re-sent when the step changes: PublishProgressIfStepChanged).
+                    _progressStepAcked = (handler as ILoadProgressSource)?.CurrentLoadStep;
+                    _eventBus?.PublishManaged(new NodeOpCompletedEvent
+                    {
+                        TransactionId   = intent.TransactionId,
+                        Operation       = intent.Operation,
+                        NodeId          = _nodeId,
+                        StatusCode      = OrchestrationStatusCode.InProgress,
+                        IsParticipating = true,
+                        ResultPayload   = _progressStepAcked,
+                    });
                 }
                 return;
             }
@@ -325,6 +783,230 @@ namespace Fdp.Toolkit.Orchestration
                 IsParticipating = false,
                 ResultPayload   = null,
             });
+        }
+
+        /// <summary>
+        /// ⭐⭐ P8 (Q91 §4-H.3a, H8) — drop the pending prepare of <paramref name="transactionId"/> and every queued intent
+        /// of that transaction. ⚠ The prepare's task runs on to its end; its result is discarded, never committed — it
+        /// built only private objects (§4-B2, H6). Its op is answered <c>Cancelled</c>.
+        /// </summary>
+        private void PreemptPendingPrepare(Guid transactionId)
+        {
+            var dropped = _pendingPrepare!.Value.Intent;
+            _pendingPrepare = null;
+
+            int before = _pendingIntents.Count;
+            var keep = new Queue<ExecuteNodeOpIntent>(_pendingIntents.Count);
+            foreach (var queued in _pendingIntents)
+                if (queued.TransactionId != transactionId) keep.Enqueue(queued);
+            _pendingIntents.Clear();
+            foreach (var queued in keep) _pendingIntents.Enqueue(queued);
+
+            FdpLog<ClusterSlave>.Warn(
+                "[ClusterSlave] Abort preempts the pending {0} of transaction {1}; {2} queued intent(s) of it dropped.",
+                dropped.Operation, transactionId, before - _pendingIntents.Count);
+            _eventBus?.PublishManaged(new NodeOpCompletedEvent
+            {
+                TransactionId   = dropped.TransactionId,
+                Operation       = dropped.Operation,
+                NodeId          = _nodeId,
+                StatusCode      = OrchestrationStatusCode.Cancelled,
+                IsParticipating = true,
+                ResultPayload   = null,
+            });
+        }
+
+        /// <summary>
+        /// ⭐⭐ P8 (Q91 §4-H.3a, H7) — an abort names a TRANSACTION, so every handler holding part of it rolls its part
+        /// back; a handler holding nothing for it no-ops. ⛔ First-match dispatch let whichever handler registered first
+        /// swallow every abort. One answer is sent for the abort op.
+        /// </summary>
+        private void DispatchAbort(ExecuteNodeOpIntent intent)
+        {
+            bool participating = false;
+            bool failed        = false;
+            foreach (var handler in _handlers)
+            {
+                if (!handler.CanHandle(intent)) continue;
+                participating = true;
+
+                var task = handler.PrepareAsync(intent, default);
+                if (!task.IsCompleted)
+                {
+                    // ⛔ An abort must not wait: a handler whose abort is asynchronous is a defect, reported loudly.
+                    FdpLog<ClusterSlave>.Error(
+                        "[ClusterSlave] {0} answered AbortTransaction asynchronously — its rollback was not committed.",
+                        handler.GetType().Name);
+                    failed = true;
+                    continue;
+                }
+                if (task.IsFaulted)
+                {
+                    FdpLog<ClusterSlave>.Error("[ClusterSlave] {0} failed to abort: {1}",
+                        handler.GetType().Name, task.Exception?.GetBaseException().ToString() ?? "unknown");
+                    failed = true;
+                    continue;
+                }
+                handler.Commit(intent, repo: null);
+            }
+
+            _eventBus?.PublishManaged(new NodeOpCompletedEvent
+            {
+                TransactionId   = intent.TransactionId,
+                Operation       = intent.Operation,
+                NodeId          = _nodeId,
+                StatusCode      = failed ? OrchestrationStatusCode.Failure : OrchestrationStatusCode.Success,
+                IsParticipating = participating,
+                ResultPayload   = null,
+            });
+        }
+
+        // ── C2 — the cluster session this node follows ────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ C2 (Q91 §4-I I5, R-4006) — the cluster session this node follows (empty until it has seen one). Rides the heartbeat.
+        /// </summary>
+        public Guid FollowingSessionId => _followingSessionId;
+        private Guid _followingSessionId;
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-1436</c> (<c>R-3066</c>) — <b>this node's ONE cluster read model</b>: the master's state broadcast, inventory, replay session and op
+        /// outcomes, folded once. The follow-fields below DELEGATE to it (one owner); a host reads the rest (<see cref="ClusterView.UnsavedCheckOutcomeFor"/>,
+        /// <see cref="ClusterView.LastUnsavedCheck"/>, <see cref="ClusterView.ReplaySession"/>) from here. Drained by <see cref="Tick"/>.
+        /// </summary>
+        public ClusterView View { get; }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — the cluster state the master LAST ANNOUNCED to this node (a public read of what it already
+        /// follows). ⚠ Not <see cref="LocalClusterState"/>: that is this node's own COMMITTED state, which stays <c>Idle</c> while the
+        /// cluster is already loading — the start gate needs the CLUSTER's. Meaningful only when <see cref="HasFollowedState"/>.
+        /// </summary>
+        public ClusterState FollowedClusterState => View.State;
+
+        /// <summary>⭐ <c>CE-4096</c> — a real (non-MasterGone) broadcast has reached this node, so <see cref="FollowedClusterState"/> is a
+        /// fact and not the <c>Idle</c> default of "no master seen yet".</summary>
+        public bool HasFollowedState => View.HasFollowedState;
+
+        /// <summary>⭐ <c>CE-4096</c> — the master's last word was <c>MasterGone</c>: set by that broadcast, cleared by the next real one.</summary>
+        public bool MasterGone => View.MasterGone;
+
+        /// <summary>
+        /// ⭐⭐ <c>R-4007</c> (Q91 §4-M) — <b>is this node BEHIND its cluster?</b> It follows a master's session, it is in
+        /// <c>Idle</c>, and the cluster it follows is not: it has no world to put replicated state into, so its world ingress
+        /// stays closed (<c>CycloneNetworkIngressSystem.IsJoinFrozen</c>) until it commits a load. ⭐ A cluster at rest in
+        /// <c>Idle</c>, and a node with no master, are never frozen.
+        /// </summary>
+        public bool IsJoinFrozen =>
+            _followingSessionId != Guid.Empty
+            && _localStateId == (int)ClusterState.Idle
+            && View.State != ClusterState.Idle;
+
+        /// <summary>
+        /// ⭐⭐ C2 — a DIFFERENT session id, or the master's cluster-state writer gone, means the world this node belonged to has
+        /// ended: drop to <c>Idle</c> and forget whatever that world's master had asked for. ⭐ Deterministic, no timer: the node
+        /// learns it is stale the moment the new master's durable sample arrives. ⚠ What the node does with the WORLD it still
+        /// holds is not decided here (Q91 §4-I I6 ties it to <c>CE-4000</c>); the next load's world boundary clears it.
+        /// </summary>
+        /// <summary>⭐ R-3055 — the exercises the master can replay, as its last inventory said (DDS <c>AssetInventoryTopic</c>, through
+        /// the node's slave translator); <see langword="null"/> until one arrives. The same read model on every node.</summary>
+        public System.Collections.Generic.IReadOnlyList<ExerciseInventoryItem>? KnownExercises => View.HasInventory ? View.AvailableExercises : null;
+
+        /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis, as the master's last cluster-state broadcast said (Sim until one
+        /// arrives — the default). The same read model on every node.</summary>
+        public ReplayAxis ReplayAxis => View.ReplayAxis;
+
+        /// <summary>⭐ CE-4090 (AQ108 D14) — the run the cluster shows was started with recording OFF, as the master's last cluster-state broadcast
+        /// said (false until one arrives, and for a sender that does not set it). The same read model on every node.</summary>
+        public bool RunNotRecorded => View.RunNotRecorded;
+
+        /// <summary>⭐ CE-4090 — the cluster's <i>Record live runs</i> setting is OFF, as the master's last broadcast said (false = ON, also before one arrives).</summary>
+        public bool RecordLiveRunsOff => View.RecordLiveRunsOff;
+
+        /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> setting is ON, from the node's one <see cref="ClusterView"/>.</summary>
+        public bool AskToKeepRecordings => View.AskToKeepRecordings;
+
+        /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting is ON, from the node's one <see cref="ClusterView"/>.</summary>
+        public bool StartLiveImmediately => View.StartLiveImmediately;
+
+        /// <summary>⭐ CE-4099 phase 2 — the cluster's <i>Autosave</i> interval in minutes (0 = off), from the node's one <see cref="ClusterView"/>.</summary>
+        public int AutosaveMinutes => View.AutosaveMinutes;
+
+        /// <summary>⭐ CE-3341 (R-3068) — the cluster's armed run mode, from the node's one <see cref="ClusterView"/> (no second copy).</summary>
+        public ClusterArmedMode ArmedMode => View.ArmedMode;
+
+        private void FollowClusterSession()
+        {
+            if (_eventBus == null) return;
+            foreach (var ev in _eventBus.ReadManaged<ClusterStateUpdateEvent>())
+            {
+                NotifyClusterStateUpdate(ev.CurrentState, ev.MasterGone);   // ⭐ CE-3329 W2 — the master's commit reached this node
+                if (ev.MasterGone)
+                {
+                    if (_followingSessionId != Guid.Empty)
+                        DropToIdle($"the master of session {_followingSessionId} is gone");
+                    _followingSessionId = Guid.Empty;
+                    continue;   // ⭐ CE-4096 — MasterGone / the state / the axis and flags are the VIEW's facts (View.Update folded this broadcast above)
+                }
+                if (ev.SessionId == Guid.Empty) continue;   // a sender that does not carry the session says nothing about it
+                if (_followingSessionId != Guid.Empty && ev.SessionId != _followingSessionId)
+                    DropToIdle($"a new cluster session {ev.SessionId} replaced {_followingSessionId}");
+                _followingSessionId = ev.SessionId;
+            }
+        }
+
+        /// <summary>⭐ CE-3329 W2 — every handler waiting for the master's commit (an egress hold) hears each broadcast.</summary>
+        private void NotifyClusterStateUpdate(ClusterState state, bool masterGone)
+        {
+            foreach (var handler in _handlers)
+            {
+                if (handler is not IClusterStateUpdateObserver observer) continue;
+                try { observer.OnClusterStateUpdate(state, masterGone); }
+                catch (Exception ex)
+                {
+                    FdpLog<ClusterSlave>.Error("[ClusterSlave] Node {0}: {1}.OnClusterStateUpdate failed: {2}",
+                        _nodeId, handler.GetType().Name, ex.Message);
+                }
+            }
+        }
+
+        private void DropToIdle(string why)
+        {
+            if (_pendingPrepare.HasValue)
+            {
+                var stale = _pendingPrepare.Value;
+                _pendingPrepare = null;
+                stale.Handler.Abort(stale.Intent, repo: null);
+            }
+            _pendingIntents.Clear();
+
+            _pendingCts = null;
+            int previous = _localStateId;
+            _localStateId = (int)ClusterState.Idle;
+            if (previous != _localStateId)
+            {
+                _eventBus?.Publish(new TkClusterStateChangedEvent { PreviousStateId = previous, NextStateId = _localStateId });
+                NotifyIfEnteredIdle();
+            }
+            FdpLog<ClusterSlave>.Warn("[ClusterSlave] Node {0} drops to Idle: {1}.", _nodeId, why);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4000</c> F2 / <c>R-4019</c> — the node has just ENTERED <c>Idle</c> (either route): every handler that owns
+        /// the world empties it, so the node deletes what it owned on the wire and <c>Idle</c> is empty everywhere.
+        /// </summary>
+        private void NotifyIfEnteredIdle()
+        {
+            if (_localStateId != (int)ClusterState.Idle) return;
+            foreach (var handler in _handlers)
+            {
+                if (handler is not IIdleResetHandler idle) continue;
+                try { idle.OnEnteredIdle(); }
+                catch (Exception ex)
+                {
+                    FdpLog<ClusterSlave>.Error("[ClusterSlave] Node {0}: {1}.OnEnteredIdle failed: {2}",
+                        _nodeId, handler.GetType().Name, ex.Message);
+                }
+            }
         }
 
         // ── IDisposable ───────────────────────────────────────────────────────

@@ -31,14 +31,40 @@ namespace Hrot.Map.Common.Replication.Egress
 	/// </summary>
 	public class EntityInfoEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityInfo";
+        // ⭐ CE-2407 (DESIGN_Egress_Change_Detection §5, E1) — skips the entities none of these inputs changed for; NetworkIdentity is implied
+        private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(Fdp.Core.EntityInfo), typeof(UnitSubordinate));
+
         private const long OrdinalValue = (long)EDescriptorType.dtEntityInfo;
 
-        private readonly IDdsWriter<Hrot.NED.Descriptors.EntityInfo> _writer;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the instances it deletes on a destruction, a wipe or (as an
+        //   unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<Hrot.NED.Descriptors.EntityInfo> _instances;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
-        public string TopicName => DdsTopicName;
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>Q59-E-pre</c> — the components this descriptor COVERS, declared so the FDP side never
+        /// has to name a descriptor.</b>
+        ///
+        /// <para>📄 <c>Architect_Question_59</c> §7.3/§9.1. ⭐⭐ <c>IDescriptorTranslator</c> already declares
+        /// both halves — <see cref="DescriptorOrdinal"/> and this — so the component→descriptor map is simply
+        /// the INVERSE of what the network layer declares. ⛔ It defaulted to <c>Array.Empty&lt;int&gt;()</c>
+        /// here, which is why <c>EcsPatchContext</c> could not derive the mark and <c>AX-015</c> had to add an
+        /// explicit <c>MarkDescriptorDirty</c> seam member instead.</para>
+        ///
+        /// <para>⚠ <b>This translator gates on <c>SmartEgressUtil.ShouldPublish</c></b> *(unlike
+        /// <c>GeoSpatialEgressTranslator</c>, which diffs state instead)* ⇒ 🔴 <b>if nothing marks
+        /// <c>dtEntityInfo</c> dirty, an entity RENAME is applied locally and never republished</b> — the
+        /// exact <c>AX-015</c> failure.</para>
+        /// </summary>
+        private static readonly IReadOnlyList<int> _targetIds = new[]
+        {
+            GlobalComponentIds.EntityInfo,
+        };
+
+        public IReadOnlyList<int> TargetComponentIds => _targetIds;
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<Hrot.NED.Descriptors.EntityInfo>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -47,8 +73,8 @@ namespace Hrot.Map.Common.Replication.Egress
         public EntityInfoEgressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            long localNodeId)
-            : this(new DdsWriterAdapter<Hrot.NED.Descriptors.EntityInfo>(participant, DdsTopicName),
+            int localNodeId)
+            : this(new DdsWriterAdapter<Hrot.NED.Descriptors.EntityInfo>(participant),
                    entityMap, localNodeId)
         {
         }
@@ -60,11 +86,13 @@ namespace Hrot.Map.Common.Replication.Egress
         internal EntityInfoEgressTranslator(
             IDdsWriter<Hrot.NED.Descriptors.EntityInfo> writer,
             NetworkEntityMap entityMap,
-            long localNodeId)
+            int localNodeId)
         {
-            _writer = writer ?? throw new System.ArgumentNullException(nameof(writer));
+            if (writer is null) throw new System.ArgumentNullException(nameof(writer));
+            _instances = new(s => writer.Write(s), s => writer.DisposeInstance(s), s => writer.UnregisterInstance(s),
+                static key => new Hrot.NED.Descriptors.EntityInfo { EntityId = (int)key });
             _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         // â”€â”€ Ingress (egress-only â€” nothing to consume) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -79,8 +107,9 @@ namespace Hrot.Map.Common.Replication.Egress
 		/// </summary>
 		public void ScanAndPublish(ISimulationView view)
         {
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             var query = view.Query()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .With<Fdp.Core.EntityInfo>()
                 // Include Constructing so affiliation is broadcast at spawn time.
                 .WithLifecycle( EntityLifecycle.All)
@@ -88,8 +117,10 @@ namespace Hrot.Map.Common.Replication.Egress
 
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
+            _gate.Begin(view);
             foreach (var entity in query)
             {
+                if (!_gate.Visit(entity)) continue;   // ⭐ CE-2407 E1 — nothing this translator reads has changed since its last scan
                 // Only publish for entities this node owns.
                 if (!view.HasAuthority(entity, packedKey))
                     continue;
@@ -102,8 +133,9 @@ namespace Hrot.Map.Common.Replication.Egress
                 ref readonly var netId  = ref view.GetComponentRO<NetworkIdentity>(entity);
                 ref readonly var data   = ref view.GetComponentRO<Fdp.Core.EntityInfo>(entity);
 
-                long commanderNetId = 0;
+                int commanderNetId = 0;
                 var designation = eTacticalDesignation.Undefined;
+                byte team = 0;   // ⭐ CE-2281 / R-3019
                 if (view.HasComponent<UnitSubordinate>(entity))
                 {
                     ref readonly var sub = ref view.GetComponentRO<UnitSubordinate>(entity);
@@ -115,15 +147,17 @@ namespace Hrot.Map.Common.Replication.Egress
                         commanderNetId = 0;
                     }
                     designation = TacticalDesignationMapper.ToDds(sub.Designation);
+                    team        = (byte)sub.FireTeam;
                 }
 
-				_writer.Write(new Hrot.NED.Descriptors.EntityInfo
+				_instances.Write(netId.Value, new Hrot.NED.Descriptors.EntityInfo
                 {
-                    EntityId            = (int)netId.Value,
+                    EntityId            = netId.Value,
                     Name                = data.Name.ToString(),
-                    ForceIdentifier     = MapForceId(data.ForceId),
-                    CommanderId         = (int)commanderNetId,
+                    ForceIdentifier     = Utils.ForceIdMapping.ToWire(data.ForceId),
+                    CommanderId         = commanderNetId,
                     TacticalDesignation = designation,
+                    FireTeam            = team,
                 });
 
                 SentSampleCount++;
@@ -142,20 +176,9 @@ namespace Hrot.Map.Common.Replication.Egress
 		/// <summary>
 		/// Sends a DDS dispose for the named <see cref="EntityInfo"/> instance.
 		/// </summary>
-		public void Dispose(long networkEntityId)
+		public void Dispose(int networkEntityId)
         {
-			_writer.DisposeInstance(new Hrot.NED.Descriptors.EntityInfo { EntityId = (int)networkEntityId } );
+			_instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the one delete path
         }
-
-        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-        private static eForceIdentifier MapForceId(ForceId forceId) =>
-            forceId switch
-            {
-                ForceId.Friend  => eForceIdentifier.FORCE_FRIENDLY,
-                ForceId.Hostile => eForceIdentifier.FORCE_OPPOSING,
-                ForceId.Neutral => eForceIdentifier.FORCE_NEUTRAL,
-                _               => eForceIdentifier.FORCE_UNKNOWN,
-            };
     }
 }

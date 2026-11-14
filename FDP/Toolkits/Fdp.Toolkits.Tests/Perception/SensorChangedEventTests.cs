@@ -1,0 +1,271 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Perception.Systems;
+using Xunit;
+
+namespace Fdp.Toolkit.Perception.Tests
+{
+    /// <summary>
+    /// ⭐ <c>CE-3039</c> — the edges of what a unit senses (<see cref="SensorChangedEvent"/>), each published by the system that
+    /// already holds the fact (docs/DESIGN_Sensors_And_Doctrine.md §7.3). An edge fires ONCE per change, never per frame.
+    /// </summary>
+    public class SensorChangedEventTests
+    {
+        private static List<SensorChangedEvent> Run(EntityRepository world, IEcsModuleSystem system, float dt = 0.1f)
+        {
+            var view = (ISimulationView)world;
+            system.Execute(view, dt);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(world);
+            world.Bus.SwapBuffers();
+            return view.ReadEvents<SensorChangedEvent>().ToArray().ToList();
+        }
+
+        private static EntityRepository World()
+        {
+            var w = PerceptionTestWorldFactory.Create();
+            if (!w.IsComponentTypeRegistered<Health>()) w.RegisterComponent<Health>();
+            return w;
+        }
+
+        [Fact]
+        public void TheTrackSet_PublishesAcquiredOnce_AndLostOnce()
+        {
+            var w = World();
+            var unit = w.CreateEntity();
+            var target = w.CreateEntity();
+            var sys = new ActiveSensorTracksUpdateSystem();
+
+            w.Bus.Publish(new SensorTrackStateEvent { Observer = unit, Target = target, State = SensorTrackStatus.Acquired });
+            w.Bus.SwapBuffers();
+            var e1 = Run(w, sys);
+            var acquired = Assert.Single(e1);
+            Assert.Equal(SensorChange.Acquired, acquired.What);
+            Assert.Equal(unit, acquired.Unit);
+            Assert.Equal(target, acquired.Target);
+
+            // A repeated Acquired for a track already held is a position update — no edge.
+            w.Bus.Publish(new SensorTrackStateEvent { Observer = unit, Target = target, State = SensorTrackStatus.Acquired, PositionX = 5f });
+            w.Bus.SwapBuffers();
+            Assert.Empty(Run(w, sys));
+
+            w.Bus.Publish(new SensorTrackStateEvent { Observer = unit, Target = target, State = SensorTrackStatus.Lost });
+            w.Bus.SwapBuffers();
+            Assert.Equal(SensorChange.Lost, Assert.Single(Run(w, sys)).What);
+
+            // Lost for a track not held — no edge.
+            w.Bus.Publish(new SensorTrackStateEvent { Observer = unit, Target = target, State = SensorTrackStatus.Lost });
+            w.Bus.SwapBuffers();
+            Assert.Empty(Run(w, sys));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3073</c> — several contacts acquired in ONE frame are all kept, and several lost in one frame are all
+        /// removed. Every track update used to re-read the frame-start snapshot and overwrite the whole component, so the
+        /// last event won: a unit facing three visible enemies remembered one (measured live, <c>ua-threat-ranking</c>).
+        /// </summary>
+        [Fact]
+        public unsafe void SeveralContactsInOneFrame_AreAllKept_AndAllRemoved_CE3073()
+        {
+            var w = World();
+            var unit = w.CreateEntity();
+            var a = w.CreateEntity();
+            var b = w.CreateEntity();
+            var c = w.CreateEntity();
+            var sys = new ActiveSensorTracksUpdateSystem();
+
+            foreach (var t in new[] { a, b, c })
+                w.Bus.Publish(new SensorTrackStateEvent { Observer = unit, Target = t, State = SensorTrackStatus.Acquired });
+            w.Bus.SwapBuffers();
+            var acquired = Run(w, sys);
+
+            Assert.Equal(3, w.GetComponentRO<ActiveSensorTracks>(unit).Count);
+            Assert.Equal(3, acquired.Count(e => e.What == SensorChange.Acquired));
+
+            foreach (var t in new[] { a, c })
+                w.Bus.Publish(new SensorTrackStateEvent { Observer = unit, Target = t, State = SensorTrackStatus.Lost });
+            w.Bus.SwapBuffers();
+            Run(w, sys);
+
+            ref readonly var tracks = ref w.GetComponentRO<ActiveSensorTracks>(unit);
+            Assert.Equal(1, tracks.Count);
+            Assert.Equal((long)b.PackedValue, tracks.EntityIds[0]);
+        }
+
+        /// <summary>⭐ CE-3060 — the track keeps the kinds the event carries, and the memory takes them (not an assumed Visual).</summary>
+        [Fact]
+        public unsafe void TheTrackKeepsItsKinds_AndTheMemoryTakesThem_CE3060()
+        {
+            var w = World();
+            var unit = w.CreateEntity();
+            var target = w.CreateEntity();
+            w.AddComponent(unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            w.AddComponent(unit, new TargetMemory());
+
+            w.Bus.Publish(new SensorTrackStateEvent { Observer = unit, Target = target, State = SensorTrackStatus.Acquired, Modality = SensorModality.Thermal });
+            w.Bus.SwapBuffers();
+            Run(w, new ActiveSensorTracksUpdateSystem());
+            Assert.Equal((byte)SensorModality.Thermal, w.GetComponentRO<ActiveSensorTracks>(unit).Modalities[0]);
+
+            Run(w, new ThreatEvaluationSystem());
+            var mem = w.GetComponentRO<TargetMemory>(unit);
+            Assert.Equal(1, mem.Count);
+            Assert.Equal((byte)SensorModality.Thermal, mem.Modalities[0]);   // ⇒ HasLineOfSight reads 0 for it
+        }
+
+        /// <summary>⭐ CE-3064 — a near miss (local or from the wire) becomes the unit's SensorChange.NearMiss, once per event.</summary>
+        [Fact]
+        public void ANearMiss_IsTheUnitsNearMissEdge_CE3064()
+        {
+            var w = World();
+            if (!w.Bus.IsRegistered<Fdp.Toolkit.Combat.Events.NearMissEvent>()) w.RegisterEvent<Fdp.Toolkit.Combat.Events.NearMissEvent>();
+            var unit = w.CreateEntity();
+            w.Bus.Publish(new Fdp.Toolkit.Combat.Events.NearMissEvent { Unit = unit, X = 1f, Y = 2f, IsRemote = true });
+            w.Bus.SwapBuffers();
+            var e = Assert.Single(Run(w, new NearMissSensingSystem()));
+            Assert.Equal(SensorChange.NearMiss, e.What);
+            Assert.Equal(unit, e.Unit);
+        }
+
+        [Fact]
+        public unsafe void TheMemory_PublishesFirstThreat_ThenAllClear_WhenItForgets()
+        {
+            var w = World();
+            var unit = w.CreateEntity();
+            var target = w.CreateEntity();
+            w.AddComponent(unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            w.AddComponent(unit, new TargetMemory());
+            var tracks = new ActiveSensorTracks();
+            tracks.EntityIds[0] = (long)target.PackedValue;
+            tracks.Count = 1;
+            w.AddComponent(unit, tracks);
+            var sys = new ThreatEvaluationSystem();
+
+            Assert.Equal(SensorChange.FirstThreat, Assert.Single(Run(w, sys, 1f)).What);   // empty ⇒ one contact
+            Assert.Empty(Run(w, sys, 1f));                                                   // still held — no edge
+
+            w.SetComponent(unit, new ActiveSensorTracks());                                  // no sensor tracks it any more
+            List<SensorChangedEvent> last = new();
+            for (int i = 0; i < 200 && !last.Any(e => e.What == SensorChange.AllClear); i++) last = Run(w, sys, 1f);
+            Assert.Contains(last, e => e.What == SensorChange.AllClear && e.Unit == unit);   // forgotten (CE-3046) ⇒ all clear
+        }
+
+        /// <summary>⭐ <c>CE-2233</c> (CIV-0, 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §5b) — the edges count THREATS: a NEUTRAL in
+        /// memory raises no FirstThreat, a Hostile seen while he is still remembered does, and so does the neutral turning Hostile; with
+        /// only neutrals left the memory is all clear although it is not empty.</summary>
+        [Fact]
+        public unsafe void CE2233_ANeutralIsNoFirstThreat_AHostileAfterIt_Is_AndSoIsTheNeutralTurningHostile()
+        {
+            var w = World();
+            if (!w.IsComponentTypeRegistered<EntityInfo>()) w.RegisterComponent<EntityInfo>();
+            var unit = w.CreateEntity();
+            var civilian = w.CreateEntity();
+            var hostile = w.CreateEntity();
+            w.AddComponent(civilian, new EntityInfo { ForceId = ForceId.Neutral });
+            w.AddComponent(hostile, new EntityInfo { ForceId = ForceId.Hostile });
+            w.AddComponent(unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            w.AddComponent(unit, new TargetMemory());
+            void Track(params Entity[] seen)
+            {
+                var t = new ActiveSensorTracks();
+                for (int i = 0; i < seen.Length; i++) t.EntityIds[i] = (long)seen[i].PackedValue;
+                t.Count = seen.Length;
+                if (w.HasComponent<ActiveSensorTracks>(unit)) w.SetComponent(unit, t); else w.AddComponent(unit, t);
+            }
+            var sys = new ThreatEvaluationSystem();
+
+            Track(civilian);
+            Assert.Empty(Run(w, sys, 1f));                                                    // a neutral: remembered, no threat
+            Assert.Equal(1, w.GetComponentRO<TargetMemory>(unit).Count);
+            Track(civilian, hostile);
+            Assert.Equal(SensorChange.FirstThreat, Assert.Single(Run(w, sys, 1f)).What);    // the Hostile AFTER the civilian is one
+            Track(civilian);
+            List<SensorChangedEvent> last = new();
+            for (int i = 0; i < 200 && !last.Any(e => e.What == SensorChange.AllClear); i++) last = Run(w, sys, 1f);
+            Assert.Contains(last, e => e.What == SensorChange.AllClear);                      // hostile forgotten, civilian still held
+            Assert.Equal(1, w.GetComponentRO<TargetMemory>(unit).Count);
+
+            w.GetComponentRW<EntityInfo>(civilian).ForceId = ForceId.Hostile;                 // a hostile act flips his side
+            Assert.Equal(SensorChange.FirstThreat, Assert.Single(Run(w, sys, 1f)).What);
+        }
+
+        [Fact]
+        public void AHealthDrop_PublishesHit_OnceForTheDrop()
+        {
+            var w = World();
+            var unit = w.CreateEntity();
+            w.AddComponent(unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            w.AddComponent(unit, new TargetMemory());
+            w.AddComponent(unit, new Health { Current = 100f, Max = 100f });
+            var sys = new ThreatEvaluationSystem();
+
+            Assert.Empty(Run(w, sys));                                   // first sight only records the value
+            w.SetComponent(unit, new Health { Current = 70f, Max = 100f });
+            var hit = Assert.Single(Run(w, sys));
+            Assert.Equal(SensorChange.Hit, hit.What);
+            Assert.Equal(unit, hit.Unit);
+            Assert.Empty(Run(w, sys));                                   // unchanged ⇒ no edge
+            w.SetComponent(unit, new Health { Current = 90f, Max = 100f });
+            Assert.Empty(Run(w, sys));                                   // healing is not a hit
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #6) — the Hit edge's last health survives a checkpoint restored into a
+        /// FRESH system: 100 recorded, keyframe, applied to a new world with a NEW system, then 70 ⇒ Hit (as an uninterrupted run).
+        /// 🔴 Red-proof: the last health back in a system field ⇒ the fresh system has none ⇒ the drop only records ⇒ no Hit ⇒ red.
+        /// </summary>
+        [Fact]
+        public void R3039_TheHitEdge_SurvivesACheckpointRestoredIntoAFreshSystem()
+        {
+            var w = World();
+            var unit = w.CreateEntity();
+            w.AddComponent(unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            w.AddComponent(unit, new TargetMemory());
+            w.AddComponent(unit, new Health { Current = 100f, Max = 100f });
+            Assert.Empty(Run(w, new ThreatEvaluationSystem()));                        // first sight only records the value
+
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(w, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            var fresh = World();
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+            fresh.SetComponent(unit, new Health { Current = 70f, Max = 100f });
+            var hit = Assert.Single(Run(fresh, new ThreatEvaluationSystem()));
+            Assert.Equal(SensorChange.Hit, hit.What);
+        }
+
+        /// <summary>⭐⭐ <c>CE-3293</c> — a reload starts a new world: last run's threat counts and health are not this run's. 📐 Measured
+        /// live (ua-tank-ammo, four loads): every reload's first step published AllClear for a tank that had seen nothing — the
+        /// editor's reload (<c>SoftClear</c>) brings the units back under the SAME handles, so the system's own maps matched them.</summary>
+        [Fact]
+        public unsafe void AReload_StartsTheEdgesAfresh_NoAllClearOrHitFromTheLastRun_CE3293()
+        {
+            var w = World();
+            var unit = w.CreateEntity();
+            var target = w.CreateEntity();
+            w.AddComponent(unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            w.AddComponent(unit, new TargetMemory());
+            w.AddComponent(unit, new Health { Current = 100f, Max = 100f });
+            var tracks = new ActiveSensorTracks();
+            tracks.EntityIds[0] = (long)target.PackedValue;
+            tracks.Count = 1;
+            w.AddComponent(unit, tracks);
+            var sys = new ThreatEvaluationSystem();
+            Assert.Equal(SensorChange.FirstThreat, Assert.Single(Run(w, sys, 1f)).What);   // last run: a threat held, health 100
+
+            w.SoftClear();                                                                   // the editor's reload
+            Fdp.Toolkit.Replication.Services.WorldEpoch.Advance(w);
+            var again = w.CreateEntity();
+            w.CreateEntity();
+            Assert.Equal(unit, again);                                                       // ⚠ the same handle comes back
+            w.AddComponent(again, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            w.AddComponent(again, new TargetMemory());
+            w.AddComponent(again, new Health { Current = 60f, Max = 100f });
+
+            Assert.Empty(Run(w, sys, 1f));                                                   // nothing seen, nothing lost, not hit
+        }
+    }
+}

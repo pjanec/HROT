@@ -4,13 +4,21 @@ using Hrot.Blueprints.Editor.GraphEditor;
 namespace Hrot.Blueprints.Editor.NodeDrawers;
 
 /// <summary>
-/// Real implementation of <see cref="IEditService"/> that records property edits as
-/// undoable commands on the Blueprint <see cref="CommandHistory"/> and marks the asset dirty.
+/// Real implementation of <see cref="IEditService"/>: records property edits as undoable actions and
+/// marks the asset dirty.
+///
+/// <para>
+/// BP-11 — edits go onto the editor's <b>single</b> undo stack via
+/// <see cref="EditServiceContext.RecordUndoable"/>, the same one structural canvas edits use, so
+/// Ctrl+Z reverses a mixed sequence in the order the designer performed it. They used to land on
+/// <see cref="CommandHistory"/>, whose <c>Undo</c> had no non-test callers — the edits were recorded
+/// and unreachable. That path survives only as a fallback for contexts with no transport wired.
+/// </para>
 ///
 /// <para>
 /// The <c>Context</c> property may be swapped at any time (e.g. when the active document
-/// changes) so that node drawers always route edits through the currently-open document's
-/// command history.  When <c>Context</c> is <c>null</c> the service degrades gracefully:
+/// changes) so that node drawers always route edits through the currently-open document.
+/// When <c>Context</c> is <c>null</c> the service degrades gracefully:
 /// <see cref="MarkDirty"/> is a no-op and <see cref="RecordPropertyEdit"/> applies the
 /// change immediately without undo history.
 /// </para>
@@ -71,17 +79,29 @@ public sealed class EditService : IEditService
         ArgumentNullException.ThrowIfNull(apply);
         ArgumentNullException.ThrowIfNull(undo);
 
-        if (Context is { } ctx)
-        {
-            var cmd = new PropertyEditCommand(description, apply, undo);
-            ctx.History.Execute(cmd);   // Execute() calls cmd.Execute() → apply()
-            ctx.MarkDirty(asset);
-        }
-        else
+        if (Context is not { } ctx)
         {
             // No active document — apply without history.
             apply();
+            return;
         }
+
+        if (ctx.RecordUndoable is { } record)
+        {
+            // BP-11: the live path. The transport pushes the pair onto the editor's single
+            // UndoStack, which applies the forward on the way in — so `apply` still runs exactly
+            // once here, preserving the "recording an edit performs it" invariant callers rely on.
+            record(description, apply, undo);
+            ctx.MarkDirty(asset);
+            return;
+        }
+
+        // Legacy path: no transport wired (headless tests, documents built before the composition
+        // root learned to wire one). Keeps the edit undoable within CommandHistory even though
+        // nothing reaches that stack from the UI.
+        var cmd = new PropertyEditCommand(description, apply, undo);
+        ctx.History.Execute(cmd);   // Execute() calls cmd.Execute() → apply()
+        ctx.MarkDirty(asset);
     }
 }
 
@@ -106,14 +126,35 @@ public sealed class EditServiceContext
     /// </summary>
     public Action<BlueprintAsset>? OnStructureChanged { get; }
 
+    /// <summary>
+    /// BP-11 (Q22-C2) — transport that puts a property edit on the editor's <b>single</b> undo stack:
+    /// <c>(label, apply, undo)</c>. The composition root wires it to
+    /// <c>GraphView.Execute(forward, inverse, label)</c>.
+    ///
+    /// <para>
+    /// A delegate rather than a <c>GraphView</c> reference, for the same reason
+    /// <see cref="OnStructureChanged"/> is one: this service must never reference the canvas. It also
+    /// solves an ordering problem — the context is built before the view exists, so the composition
+    /// root closes over a local that is assigned later.
+    /// </para>
+    ///
+    /// <para>
+    /// Null in headless tests and in documents whose composition root does not wire it; edits then
+    /// fall back to <see cref="History"/> (which nothing reaches from the UI — that is BP-11).
+    /// </para>
+    /// </summary>
+    public Action<string, Action, Action>? RecordUndoable { get; }
+
     public EditServiceContext(
         CommandHistory history,
         Action<BlueprintAsset> markDirty,
-        Action<BlueprintAsset>? onStructureChanged = null)
+        Action<BlueprintAsset>? onStructureChanged = null,
+        Action<string, Action, Action>? recordUndoable = null)
     {
         History            = history    ?? throw new ArgumentNullException(nameof(history));
         MarkDirty          = markDirty  ?? throw new ArgumentNullException(nameof(markDirty));
         OnStructureChanged = onStructureChanged;
+        RecordUndoable     = recordUndoable;
     }
 }
 

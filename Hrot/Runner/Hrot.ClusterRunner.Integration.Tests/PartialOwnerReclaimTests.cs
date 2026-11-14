@@ -1,0 +1,317 @@
+using System;
+using System.Text.Json;
+using Fdp.Core.Serialization;
+using Fdp.Toolkit.Behavior.Components;
+using Hrot.NED.Messages;
+using System.Threading;
+using System.Collections.Generic;
+using System.Linq;
+using CycloneDDS.Runtime;
+using CycloneDDS.Runtime.Tracking;
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
+using Hrot.Map.Common;
+using Hrot.NED.Descriptors;
+using Hrot.NED.Descriptors.Orchestration;
+using Xunit;
+using WireOwnershipUpdate = Fdp.Network.Cyclone.Topics.OwnershipUpdate;
+
+namespace Hrot.ClusterRunner.Integration.Tests;
+
+/// <summary>
+/// ⭐ Ownership build S7 (R-167): a node that LEAVES gives back what it owned, on every node, with no message. The
+/// departing node is a foreign DDS participant (node 77) the test drives directly — it heartbeats, takes or is given
+/// ownership, then deletes its heartbeat writer, as an exit does (a crash reaches the same ingest path once the
+/// participant lease expires). 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c>
+/// §5.3, §5.6 S7, §5.7 E8.
+/// </summary>
+public class PartialOwnerReclaimTests
+{
+    private const int FakeNode = 77;
+    private static int _domainCounter = 120;
+
+    private static long Key(EDescriptorType d) => OwnershipExtensions.PackKey((long)d, 0);
+
+    private static void Heartbeat(DdsWriter<NodeHeartbeat> hb)
+        => hb.Write(new NodeHeartbeat
+        {
+            NodeId = FakeNode, SubsystemName = "fake-leaver", WallTicksUtc = DateTime.UtcNow.Ticks, SubsystemsJson = "[]",
+        });
+
+    /// <summary>Node 77 joins as every node does: one durable capabilities sample (Reliable + TransientLocal).</summary>
+    private static DdsWriter<NodeCapabilitiesTopic> Join(DdsParticipant fake)
+    {
+        var caps = new DdsWriter<NodeCapabilitiesTopic>(fake);
+        caps.Write(new NodeCapabilitiesTopic { NodeId = FakeNode, CapabilitiesJson = "[]" });
+        return caps;
+    }
+
+    /// <summary>Pumps while node 77 keeps heartbeating (and runs <paramref name="alsoEachTick"/>), as a live node does —
+    /// a sample written before discovery has matched the readers is simply lost.</summary>
+    private static bool PumpAlive(HrotRunnerHarness harness, DdsWriter<NodeHeartbeat> hb, Func<bool> condition,
+                                  int timeoutFrames, Action? alsoEachTick = null)
+    {
+        int frame = 0;
+        return harness.PumpUntil(() =>
+        {
+            if (frame++ % 10 == 0) { Heartbeat(hb); alsoEachTick?.Invoke(); }
+            return condition();
+        }, timeoutFrames);
+    }
+
+    /// <summary>Q79 P2: CGF grants the kinematic group to a node that never takes over; when that node leaves, CGF
+    /// (which yielded the claim at creation) takes the grant back and owns its position again.</summary>
+    [Fact(Timeout = 90_000)]
+    public void AGrantToANodeThatLeavesBeforeTakingOver_IsTakenBackByTheCreator()
+    {
+        int domainId = Interlocked.Increment(ref _domainCounter);
+        using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
+        using var fake = new DdsParticipant((uint)domainId);
+        var hb   = new DdsWriter<NodeHeartbeat>(fake);           // both deleted below: node 77 leaves
+        var caps = Join(fake);
+        Heartbeat(hb);
+
+        var matched = DateTime.UtcNow.AddSeconds(2);                                // let discovery match node 77
+        PumpAlive(harness, hb, () => DateTime.UtcNow > matched, timeoutFrames: 5000);
+
+        int net = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: FakeNode);
+        var cgf = harness.Cgf!.World!;
+        Entity tank = Entity.Null;
+        Assert.True(PumpAlive(harness, hb, () => harness.Cgf!.GhostEntityMap!.TryGetEntity(net, out tank)
+                                         && cgf.HasComponent<SimTransform>(tank)
+                                         && cgf.HasManagedComponent<OutgoingGrantsPending>(tank), timeoutFrames: 2000),
+            "CGF must create the tank and hold its kinematic grant to node 77 as pending.");
+        Assert.False(cgf.HasAuthority<SimTransform>(tank));                         // yielded at creation
+
+        // Node 77 lives a while (as any node does before leaving): a reader that never received one of its
+        // heartbeats has no instance for the dispose to end.
+        var until = DateTime.UtcNow.AddSeconds(3);                                  // wall clock: frames are ~5 ms
+        PumpAlive(harness, hb, () => DateTime.UtcNow > until, timeoutFrames: 5000);
+        Assert.True(cgf.HasManagedComponent<OutgoingGrantsPending>(tank), "Node 77 never takes over, so the grant stays pending.");
+
+        // Node 77 leaves: its writers go away, as on an exit or a crash. ⚠ The durable capabilities instance is the
+        // reliable half of the signal — the BestEffort heartbeat alone was missed 1 run in 10, by a reader that had
+        // not yet received one of its samples.
+        hb.Dispose();
+        caps.Dispose();
+
+        Assert.True(harness.PumpUntil(() => cgf.HasAuthority<SimTransform>(tank), timeoutFrames: 2000),
+            $"CGF must take back the kinematic group once its grantee has left. {Describe(cgf, tank)}");
+        Assert.True(((ISimulationView)cgf).HasAuthority(tank, Key(EDescriptorType.dtWorldPos)));
+        Assert.False(cgf.HasManagedComponent<OutgoingGrantsPending>(tank));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4079</c> ② — the creator LETS GO of a granted descriptor once the grantee confirms (F7), and the instance is never deleted
+    /// on the way: a reader of <c>WorldPos</c> sees the tank's instance, alive, written by the grantee; and when the grantee's writer then goes
+    /// away, the reader sees <c>NotAliveNoWriters</c> — the spec's partial-owner signal — never <c>NotAliveDisposed</c>. 📐 Without the
+    /// creator's release the instance would stay registered by two writers and the grantee's writer going would show NOTHING; with the
+    /// library's default writer QoS the release would DISPOSE the descriptor mid-handover.
+    /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.3. Node 77 is the grantee: it confirms (an <c>OwnershipUpdate</c> and a
+    /// <c>WorldPos</c> write), and keeps heartbeating so the cluster does not see it LEAVE (that would be the reclaim above).
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public void AGrantTheGranteeConfirmed_IsLetGoByTheCreator_SoTheGranteesWriterGoingShowsAsNoWriters()
+    {
+        int domainId = Interlocked.Increment(ref _domainCounter);
+        using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
+        using var fake = new DdsParticipant((uint)domainId);
+        fake.EnableSenderTracking(new SenderIdentityConfig { AppDomainId = domainId, AppInstanceId = FakeNode });
+        using var observerNode = new DdsParticipant((uint)domainId);
+        observerNode.EnableSenderTracking(new SenderIdentityConfig { AppDomainId = domainId, AppInstanceId = 99 });
+        using var probe = new DdsReader<WorldPos>(observerNode);                       // a bystander: reads the topic like any replica
+        probe.EnableSenderTracking(observerNode.SenderRegistry!);
+        var hb   = new DdsWriter<NodeHeartbeat>(fake);
+        var caps = Join(fake);
+        using var owner = new DdsWriter<WireOwnershipUpdate>(fake);
+        var position = new DdsWriter<WorldPos>(fake);
+        Heartbeat(hb);
+        PumpAlive(harness, hb, () => false, timeoutFrames: 60);                     // let discovery match node 77
+
+        int net = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: FakeNode);
+        var cgf = harness.Cgf!.World!;
+
+        var seen = new List<(DdsInstanceState State, int? Sender)>();
+        void Observe()
+        {
+            using var loan = probe.Take();
+            int i = 0;
+            foreach (var s in loan)
+            {
+                long id = s.IsValid ? s.Data.EntityId : DdsTypeSupport.FromNative<WorldPos>(s.NativePtr).EntityId;
+                if (id == net) seen.Add((s.Info.InstanceState, loan.GetSender(i)?.AppInstanceId));
+                i++;
+            }
+        }
+
+        Entity tank = Entity.Null;
+        Assert.True(PumpAlive(harness, hb, () => harness.Cgf!.GhostEntityMap!.TryGetEntity(net, out tank)
+                                         && cgf.HasManagedComponent<OutgoingGrantsPending>(tank)
+                                         && seen.Any(x => x.State == DdsInstanceState.Alive),   // ⚠ the harness's own nodes share ONE untracked participant: their samples carry no sender
+                timeoutFrames: 3000, alsoEachTick: Observe),
+            "CGF must create the tank, hold the grant pending, and publish its position meanwhile (F7). "
+            + $"exists={harness.Cgf!.GhostEntityMap!.TryGetEntity(net, out var t0)} pending={t0.Index != 0 && cgf.HasManagedComponent<OutgoingGrantsPending>(t0)} "
+            + $"saw: {string.Join(", ", seen.Select(x => $"{x.State}/{x.Sender}"))}");
+
+        // The grantee takes over and confirms: it writes the position and says it owns it (re-sent until CGF has it).
+        bool WorldPosStillPending() => cgf.HasManagedComponent<OutgoingGrantsPending>(tank)
+            && cgf.GetComponent<OutgoingGrantsPending>(tank).Descriptors.ContainsKey((long)EDescriptorType.dtWorldPos);   // the mark holds every granted descriptor
+        Assert.True(PumpAlive(harness, hb, () => !WorldPosStillPending()
+                                              && Recorded(cgf, tank, Key(EDescriptorType.dtWorldPos)) == FakeNode
+                                              && seen.Any(x => x.State == DdsInstanceState.Alive && x.Sender == FakeNode),
+                timeoutFrames: 3000,
+                alsoEachTick: () =>
+                {
+                    owner.Write(new WireOwnershipUpdate
+                    {
+                        EntityId = net, DescrTypeId = (long)EDescriptorType.dtWorldPos, InstanceId = 0, NewOwner = FakeNode, OriginNodeId = FakeNode,
+                    });
+                    position.Write(new WorldPos { EntityId = net });
+                    Observe();
+                }),
+            "CGF must record node 77 as the position's owner (ending its F7 window) and a reader must see node 77's sample. "
+            + $"pending={WorldPosStillPending()} recorded={Recorded(cgf, tank, Key(EDescriptorType.dtWorldPos))} "
+            + $"saw: {string.Join(", ", seen.Select(x => $"{x.State}/{x.Sender}"))}");
+
+        // The creator's release must have reached the wire by now. Nothing about the instance was deleted.
+        PumpAlive(harness, hb, () => false, timeoutFrames: 60, alsoEachTick: Observe);
+        Assert.DoesNotContain(seen, x => x.State == DdsInstanceState.NotAliveDisposed);
+
+        // ⭐ The grantee's writer goes away (node 77 itself stays in the cluster, so this is not a departure). Only the creator's
+        //   release can make that the LAST writer: the reader must now see the instance as having no writers — not disposed.
+        position.Dispose();
+        Assert.True(PumpAlive(harness, hb, () => seen.Any(x => x.State == DdsInstanceState.NotAliveNoWriters),
+                timeoutFrames: 3000, alsoEachTick: Observe),
+            "once the grantee's writer is gone the reader must see NotAliveNoWriters — the creator must have let go of the instance. "
+            + $"saw: {string.Join(", ", seen.Select(x => $"{x.State}/{x.Sender}"))}");
+        Assert.DoesNotContain(seen, x => x.State == DdsInstanceState.NotAliveDisposed);
+    }
+
+    /// <summary>An external node is handed the position (spec <c>OwnershipUpdate</c>, Q79 §0.12 E2), then leaves: every
+    /// node records the primary owner (CGF) again, and CGF alone claims it.</summary>
+    [Fact(Timeout = 90_000)]
+    public void WhatALeavingNodeOwned_ReturnsToThePrimaryOwner_OnEveryNode()
+    {
+        int domainId = Interlocked.Increment(ref _domainCounter);
+        using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
+        using var fake  = new DdsParticipant((uint)domainId);
+        var hb   = new DdsWriter<NodeHeartbeat>(fake);           // both deleted below: node 77 leaves
+        var caps = Join(fake);
+        using var owner = new DdsWriter<WireOwnershipUpdate>(fake);
+        Heartbeat(hb);
+
+        PumpAlive(harness, hb, () => false, timeoutFrames: 60);                     // let discovery match node 77
+
+        int net = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        Entity cgfTank = Entity.Null, simTank = Entity.Null;
+        long worldPos = Key(EDescriptorType.dtWorldPos);
+        Assert.True(PumpAlive(harness, hb, () => harness.Cgf!.GhostEntityMap!.TryGetEntity(net, out cgfTank)
+                                         && harness.SimHost.TestHook_EntityMap.TryGetEntity(net, out simTank)
+                                         && ((ISimulationView)sim).HasAuthority(simTank, worldPos), timeoutFrames: 3000),
+            "SimHost must take over the tank's position (the kinematic grant).");
+
+        // Node 77 is handed the position, as an external node would be (re-sent until both nodes have it).
+        Assert.True(PumpAlive(harness, hb, () => Recorded(cgf, cgfTank, worldPos) == FakeNode
+                                              && Recorded(sim, simTank, worldPos) == FakeNode, timeoutFrames: 2000,
+            alsoEachTick: () => owner.Write(new WireOwnershipUpdate
+            {
+                EntityId = net, DescrTypeId = (long)EDescriptorType.dtWorldPos, InstanceId = 0, NewOwner = FakeNode, OriginNodeId = FakeNode,
+            })),
+            "Both nodes must record node 77 as the position's owner.");
+        Assert.False(sim.HasAuthority<SimTransform>(simTank));
+
+        // Node 77 leaves: its writers go away, as on an exit or a crash. ⚠ The durable capabilities instance is the
+        // reliable half of the signal — the BestEffort heartbeat alone was missed 1 run in 10, by a reader that had
+        // not yet received one of its samples.
+        hb.Dispose();
+        caps.Dispose();
+
+        int cgfNode = harness.Cgf!.TestHook_NodeId;
+        Assert.True(harness.PumpUntil(() => Recorded(cgf, cgfTank, worldPos) == cgfNode
+                                         && Recorded(sim, simTank, worldPos) is int simRecord && simRecord != FakeNode,
+                timeoutFrames: 2000),
+            $"Every node must stop naming the departed node. cgf={Recorded(cgf, cgfTank, worldPos)} sim={Recorded(sim, simTank, worldPos)}");
+        Assert.True(cgf.HasAuthority<SimTransform>(cgfTank));                             // the primary owner claims it…
+        Assert.True(((ISimulationView)cgf).HasAuthority(cgfTank, worldPos));              // …and publishes it
+        Assert.False(sim.HasAuthority<SimTransform>(simTank));                            // nobody else claims it…
+        Assert.False(((ISimulationView)sim).HasAuthority(simTank, worldPos));             // …or publishes it
+        // ⚠ CE-517 is fixed where each node has its own sender-tracked participant (production: the replica learns the
+        //   owner from the EntityMaster's writer — rail EntityMasterTranslatorTests.PollIngress_Records…). THIS harness
+        //   shares ONE untracked participant across its nodes, so no writer resolves to a node here: SimHost records
+        //   the reclaimed key as -1 ("not me"), not CGF's id.
+    }
+
+    /// <summary>⭐⭐ <c>CE-3048</c> (V7) — the Brain survives a hand-over: node 77 is handed CGF's tank's Brain, publishes
+    /// what it runs (as a Brain owner does), then leaves. The Brain returns to CGF, and CGF runs what node 77 published, at
+    /// node 77's origin — not what CGF ran before. 📄 <c>docs/DESIGN_Sensors_And_Doctrine.md</c> §7.7.</summary>
+    [Fact(Timeout = 120_000)]
+    public void ABrainThatComesBack_RunsWhatItsLastOwnerPublished()
+    {
+        int domainId = Interlocked.Increment(ref _domainCounter);
+        using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
+        using var fake  = new DdsParticipant((uint)domainId);
+        var hb   = new DdsWriter<NodeHeartbeat>(fake);           // both deleted below: node 77 leaves
+        var caps = Join(fake);
+        using var owner  = new DdsWriter<WireOwnershipUpdate>(fake);
+        using var intent = new DdsWriter<EntityBrainIntent>(fake);
+        Heartbeat(hb);
+        PumpAlive(harness, hb, () => false, timeoutFrames: 60);                     // let discovery match node 77
+
+        int net = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
+        var cgf = harness.Cgf!.World!;
+        var registry = harness.Cgf!.TestHook_BehaviorRegistry!;
+        Entity tank = Entity.Null;
+        Assert.True(PumpAlive(harness, hb, () => harness.Cgf!.GhostEntityMap!.TryGetEntity(net, out tank)
+                                         && cgf.HasComponent<BehaviorState>(tank), timeoutFrames: 3000),
+            "CGF must create the tank with a brain.");
+
+        long anchor = Key(EDescriptorType.dtNavigationIntent), brainIntent = Key(EDescriptorType.dtBrainIntent);
+        Assert.True(((ISimulationView)cgf).HasAuthority(tank, brainIntent), "the creator owns the intent before any hand-over");
+
+        // Node 77 is handed the Brain (anchor + intent, as a grant hands the group) and publishes what it runs.
+        const string order = "Idle";
+        Assert.True(registry.TryGetId(order, out int orderId), "the corpus behaviour the rail orders must exist");
+        string published = JsonSerializer.Serialize(new InitialBrainIntent
+        {
+            Behavior = new SavedBrainSlot { Name = order, Params = "{}", Origin = BehaviorOrigin.Operator },
+        }, FdpJsonOptionsRegistry.DefaultRelaxed);
+        Assert.True(PumpAlive(harness, hb, () => Recorded(cgf, tank, anchor) == FakeNode && Recorded(cgf, tank, brainIntent) == FakeNode
+                                              && cgf.HasManagedComponent<ReplicatedBrainIntent>(tank), timeoutFrames: 3000,
+            alsoEachTick: () =>
+            {
+                foreach (var d in new[] { EDescriptorType.dtNavigationIntent, EDescriptorType.dtBrainIntent })
+                    owner.Write(new WireOwnershipUpdate { EntityId = net, DescrTypeId = (long)d, InstanceId = 0, NewOwner = FakeNode, OriginNodeId = FakeNode });
+                intent.Write(new EntityBrainIntent { EntityId = net, IntentJson = published });
+            }),
+            $"CGF must record node 77 as the Brain's owner and keep its published intent. {Describe(cgf, tank)}");
+        Assert.False(cgf.HasAuthority<BehaviorState>(tank));                          // CGF no longer runs it
+
+        // Node 77 leaves: the Brain returns to CGF (the primary owner), which must run what 77 published.
+        hb.Dispose();
+        caps.Dispose();
+        Assert.True(harness.PumpUntil(() => cgf.HasAuthority<BehaviorState>(tank)
+                                         && cgf.GetComponentRO<BehaviorState>(tank).ActiveBehaviorHash == orderId,
+                timeoutFrames: 3000),
+            $"CGF must take the Brain back AND run the published order. hash={cgf.GetComponentRO<BehaviorState>(tank).ActiveBehaviorHash:X} {Describe(cgf, tank)}");
+        Assert.Equal(BehaviorOrigin.Operator, cgf.GetComponentRO<BehaviorState>(tank).Origin);
+    }
+
+    private static string Describe(EntityRepository world, Entity e)
+    {
+        var pending = world.HasManagedComponent<OutgoingGrantsPending>(e)
+            ? string.Join(",", System.Linq.Enumerable.Select(world.GetComponent<OutgoingGrantsPending>(e).Descriptors, kv => $"{kv.Key}->{kv.Value}"))
+            : "none";
+        var record = world.HasManagedComponent<DescriptorOwnership>(e)
+            ? string.Join(",", System.Linq.Enumerable.Select(world.GetComponent<DescriptorOwnership>(e).Map, kv => $"{kv.Key >> 32}:{kv.Value}"))
+            : "none";
+        return $"pending=[{pending}] record=[{record}] simTransformClaimed={world.HasAuthority<SimTransform>(e)}";
+    }
+
+    private static int? Recorded(EntityRepository world, Entity e, long key)
+        => world.HasManagedComponent<DescriptorOwnership>(e) &&
+           world.GetComponent<DescriptorOwnership>(e).TryGetOwner(key, out int o) ? o : null;
+}

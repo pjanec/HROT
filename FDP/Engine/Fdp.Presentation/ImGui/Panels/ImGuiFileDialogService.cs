@@ -1,4 +1,5 @@
 using System;
+using NodeEditor.Core.Widgets;
 using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
@@ -180,8 +181,10 @@ public sealed class ImGuiFileDialogService : IFileDialogService
                 // File name input
                 byte[] buf = Encoding.UTF8.GetBytes(_fileNameBuffer.PadRight(256, '\0'));
                 Array.Resize(ref buf, 256);
-                if (ImGuiApi.InputText("File name", buf, (uint)buf.Length))
-                    _fileNameBuffer = Encoding.UTF8.GetString(buf).TrimEnd('\0');
+                FormGrid.BeginField("filedialog.form", "File name");
+                if (ImGuiApi.InputText("##filename", buf, (uint)buf.Length))
+                    _fileNameBuffer = Fdp.Presentation.Utils.ImGuiBufferText.Decode(buf);
+                FormGrid.EndField();
             }
 
             string confirmLabel = _multiSelect ? "Open" : (_dialogTitle == "Open File" ? "Open" : "Save");

@@ -32,12 +32,8 @@ public static class HrotSerializerOptions
 
     static HrotSerializerOptions()
     {
-        // Base on registry Indented options (frozen), then extend with camelCase policy.
-        // A new (non-frozen) instance is required to add PropertyNamingPolicy.
-        var opts = new JsonSerializerOptions(FdpJsonOptionsRegistry.Indented)
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        };
-        HrotJsonOptions = opts;
+        // CE-3187 (R-2005): the shared Indented options plus one delta — camelCase, the scenario file spelling.
+        HrotJsonOptions = FdpJsonOptionsRegistry.Derive(
+            o => o.PropertyNamingPolicy = JsonNamingPolicy.CamelCase, indented: true);
     }
 }

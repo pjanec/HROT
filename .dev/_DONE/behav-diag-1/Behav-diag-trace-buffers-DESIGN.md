@@ -36,7 +36,7 @@ Each behavior-aware entity may optionally carry:
 - **`HsmTraceWorkingMemory1024`** — 1024-byte unmanaged ECS component. Ring buffer of `TraceRecord`s. Lives only on entities currently executing an HSM.
 - **`DebugState`** — small unmanaged transient component carrying generic debug bitflags (one group per subsystem). Whether tracing is *active* for a given entity is decided by `DebugState.Behavior` bits, not by the presence of the buffer alone.
 
-Both ring buffers are pure unmanaged structs that fit the 1024-byte `MaxComponentSize` ceiling enforced by [EntityCommandBuffer.cs:34](FDP/Engine/Fdp.Core/EntityCommandBuffer.cs#L34). They are decorated with `[DataPolicy(DataPolicy.NoSave)]` so the JSON scenario serializer ignores them while the Flight Recorder still snapshots their byte contents into `.fdp` recordings.
+Both ring buffers are pure unmanaged structs that fit the 1024-byte `MaxComponentSize` ceiling enforced by [EntityCommandBuffer.cs:34](FDP/Engine/Fdp.Core/EntityCommandBuffer.cs#L34). They are decorated with `[DataPolicy(DataPolicy.NoScenario)]` so the JSON scenario serializer ignores them while the Flight Recorder still snapshots their byte contents into `.fdp` recordings.
 
 ### 2.2 Data Flow
 
@@ -140,7 +140,7 @@ We deliberately omit the variable-length `FixedString32` opcode for this iterati
 ```csharp
 [StructLayout(LayoutKind.Sequential, Size = 1024)]
 [ComponentId(BehaviorApplicationComponentIds.BTreeTraceWorkingMemory)]
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 public unsafe struct BTreeTraceWorkingMemory1024
 {
     public const int RecordStride    = 16;
@@ -167,7 +167,7 @@ Identical layout to BTree. Same wrap semantics — `WritePos` is pre-wrapped in 
 ```csharp
 [StructLayout(LayoutKind.Sequential, Size = 1024)]
 [ComponentId(BehaviorApplicationComponentIds.HsmTraceWorkingMemory)]
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 public unsafe struct HsmTraceWorkingMemory1024
 {
     public const int RecordStride    = 16;
@@ -819,7 +819,7 @@ if (tracePtr != null
 
 ### Out-of-Solution Test/Example Projects (Critical!)
 
-The following projects are **not** included in `IOS-IG-SimHost.sln` but **will break** when the FastBTree/FastHSM kernel signatures change. They live in separate sub-solutions (`FDP/ExtDeps/FastBTree/FastBTree.sln`, `FDP/ExtDeps/FastHSM/FastHSM.sln`):
+The following projects are **not** included in `HROT.sln` but **will break** when the FastBTree/FastHSM kernel signatures change. They live in separate sub-solutions (`FDP/ExtDeps/FastBTree/FastBTree.sln`, `FDP/ExtDeps/FastHSM/FastHSM.sln`):
 
 - `Fbt.Tests` — 33+ unit tests, several construct `BTreeContext` and run `Interpreter`.
 - `Fbt.Benchmarks`, `Fbt.Examples.Console`, `Fbt.Examples.FluentBTree`, `Fbt.Examples.FluentBTree.Trees`, `Fbt.Demo.Visual.Tests`.
@@ -889,7 +889,7 @@ Rewire the kernels to consume the new contracts.
 - T6.3 — Fix `Fhsm.Tests` — rewrite `Tooling/TraceTests.cs` and `Tooling/TraceSymbolicationTests.cs` to construct `HsmTraceContext` over a caller-owned buffer; replace any `HsmKernelCore.SetTraceBuffer` calls; update `OrthogonalRegionTests`, `FailSafeTests` accordingly
 - T6.4 — Fix `Fhsm.Benchmarks`, `Fhsm.Examples.Console`, `Fhsm.Demo.Visual`, `Fhsm.Demo.Visual.Tests`
 
-> Important: developers must build and test the sub-solutions `FDP/ExtDeps/FastBTree/FastBTree.sln` and `FDP/ExtDeps/FastHSM/FastHSM.sln` explicitly, because they are excluded from the top-level `IOS-IG-SimHost.sln`. The main solution can compile green while these sub-projects are broken.
+> Important: developers must build and test the sub-solutions `FDP/ExtDeps/FastBTree/FastBTree.sln` and `FDP/ExtDeps/FastHSM/FastHSM.sln` explicitly, because they are excluded from the top-level `HROT.sln`. The main solution can compile green while these sub-projects are broken.
 
 ---
 

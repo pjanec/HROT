@@ -27,6 +27,7 @@ public sealed class EpisodeProcessManagerTests
     {
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory                = new[] { "SimHost" },
             HeartbeatTimeoutSeconds  = 60f,
             TransactionHistoryCapacity = 10,
@@ -40,7 +41,7 @@ public sealed class EpisodeProcessManagerTests
         // Bootstrap to OperatingLive.
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             SubsystemName = "SimHost",
             LocalStateId  = (int)ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
@@ -82,7 +83,7 @@ public sealed class EpisodeProcessManagerTests
         {
             TransactionId   = txId,
             Operation       = FdpNodeOpType.StartEpisode,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
         });
@@ -106,6 +107,7 @@ public sealed class EpisodeProcessManagerTests
     {
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory                = new[] { "SimHost" },
             HeartbeatTimeoutSeconds  = 60f,
             TransactionHistoryCapacity = 10,
@@ -120,7 +122,7 @@ public sealed class EpisodeProcessManagerTests
         // Bootstrap to OperatingLive.
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             SubsystemName = "SimHost",
             LocalStateId  = (int)ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
@@ -159,7 +161,7 @@ public sealed class EpisodeProcessManagerTests
         {
             TransactionId   = startTxId,
             Operation       = FdpNodeOpType.StartEpisode,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
         });
@@ -191,7 +193,7 @@ public sealed class EpisodeProcessManagerTests
         {
             TransactionId   = stopTxId,
             Operation       = FdpNodeOpType.StopEpisode,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
         });
@@ -215,6 +217,7 @@ public sealed class EpisodeProcessManagerTests
     {
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory                = new[] { "SimHost" },
             HeartbeatTimeoutSeconds  = 60f,
             TransactionHistoryCapacity = 10,
@@ -228,7 +231,7 @@ public sealed class EpisodeProcessManagerTests
         // Bootstrap to OperatingLive.
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             SubsystemName = "SimHost",
             LocalStateId  = (int)ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
@@ -268,7 +271,7 @@ public sealed class EpisodeProcessManagerTests
         {
             TransactionId   = txId,
             Operation       = FdpNodeOpType.StartEpisode,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Timeout,  // error
             IsParticipating = true,
         });

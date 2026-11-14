@@ -72,7 +72,7 @@ The broken build is fixed by deleting the interface method, not by implementing 
 Build check after each phase before moving on:
 
 ```
-dotnet build IOS-IG-SimHost.sln -v quiet 2>&1 | Select-String "error"
+dotnet build HROT.sln -v quiet 2>&1 | Select-String "error"
 ```
 
 ---
@@ -814,7 +814,7 @@ public ISimHostAuxiliaryTranslators CreateSimHostAuxiliaryTranslators()
 
 Add the two null stub classes implementing the interfaces with empty bodies.
 
-**After Phase 11: `dotnet build IOS-IG-SimHost.sln -v quiet` must show 0 errors.**
+**After Phase 11: `dotnet build HROT.sln -v quiet` must show 0 errors.**
 
 ---
 
@@ -1007,7 +1007,7 @@ internal sealed class StubMissionSender : ISimHostMissionSender
 
 ```powershell
 # Build
-dotnet build IOS-IG-SimHost.sln -v quiet
+dotnet build HROT.sln -v quiet
 
 # Test SimHost
 dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj --no-build -v quiet

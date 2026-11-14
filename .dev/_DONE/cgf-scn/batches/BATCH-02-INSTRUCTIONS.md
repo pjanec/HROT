@@ -68,7 +68,7 @@ independent work streams:
 # From repo root d:\Work\IOS-IG-SimHost-FDP-2
 
 # Build full solution
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Run CGF/SimHost tests (includes C013 tests + fixed D002 tests)
 dotnet test Hrot\Subsystems\Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj
@@ -266,7 +266,7 @@ See TASK-DETAIL.md success conditions 1–3 for C005d.
 3. **Task 3+4 (C005a+b):** Add attribute + DTOs (no tests needed yet) ✅
 4. **Task 5 (C005c):** Implement compiler → Write tests → **ALL pass** ✅
 5. **Task 6 (C005d):** Implement remapper → Write tests → **ALL pass** ✅
-6. **Final:** `dotnet build IOS-IG-SimHost.sln` → **0 errors** ✅
+6. **Final:** `dotnet build HROT.sln` → **0 errors** ✅
 
 **Do NOT stop to ask for permission to run tests, fix errors, or proceed to the
 next task.  Fix all failures at the root cause.  Write the report only after
@@ -313,7 +313,7 @@ This batch is DONE when:
 - [ ] TASK-C005b: 3 DTO classes created with correct JSON property names
 - [ ] TASK-C005c: `BehaviorParamRemapperCompiler` with cached expression-tree delegates; 6 tests pass
 - [ ] TASK-C005d: `ScenarioBehaviorRemapper` with registration + remap; 3 tests pass
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors
+- [ ] `dotnet build HROT.sln` — 0 errors
 - [ ] Report submitted to `.dev/cgf-scn/reports/BATCH-02-REPORT.md`
 
 ---

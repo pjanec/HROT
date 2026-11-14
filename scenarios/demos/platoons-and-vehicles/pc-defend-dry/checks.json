@@ -1,0 +1,51 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — PlatoonDefend's decisions on FAKED reports: DEMO (16 units). Judge (1) every squad is ordered SquadDefend and (4) the SOP never pauses the defence are task cues. Left out: (2)/(3) the fake SPOT reports (POST /entities/{squad}/reports, not a component) and the squads' effective ROE (a chain-of-command read, not one component).",
+  "runFor": 30,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the platoon runs PlatoonDefend",
+      "on": "task",
+      "who": "Red Platoon",
+      "is": "PlatoonDefend",
+      "before": 15
+    },
+    {
+      "name": "Red Squad 1 is ordered to SquadDefend",
+      "on": "task",
+      "who": "Red Squad 1",
+      "is": "SquadDefend",
+      "before": 20
+    },
+    {
+      "name": "Red Squad 2 is ordered to SquadDefend",
+      "on": "task",
+      "who": "Red Squad 2",
+      "is": "SquadDefend",
+      "before": 20
+    },
+    {
+      "name": "the reserve is ordered to SquadDefend",
+      "on": "task",
+      "who": "Red Reserve",
+      "is": "SquadDefend",
+      "before": 20
+    },
+    {
+      "name": "the platoon's SOP never pauses the defence (no PlatoonHold)",
+      "never": {
+        "on": "task",
+        "who": "Red Platoon",
+        "is": "PlatoonHold"
+      }
+    },
+    {
+      "name": "no squad is pulled off to hold",
+      "never": {
+        "on": "task",
+        "who": "*Red ",
+        "is": "InfantrySquadHold"
+      }
+    }
+  ]
+}

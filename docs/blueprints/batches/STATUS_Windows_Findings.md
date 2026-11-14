@@ -1,0 +1,60 @@
+<!--STATUS
+state: LIVE — DONE (F-1 … F-6; one residue open: CE-3445)
+updated: 2026-11-13
+current-answer: the whole file (NEXT is the resume point)
+related-designs:
+  - HANDOFF_Coordinator_To_Backend_Windows_Findings.md — the work F-1 … F-6 (CE-4501 … CE-4506), dispatched at abc319675
+  - STATUS_Mode_And_Serial_Systems.md — M-D9 / M-D10 / M-D12: the stepped gate's differences measured to their cause (padding, one race)
+  - ../../DESIGN_Parallel_Simulation.md — §18.7 the as-built gate; §19 Windows scheduling
+  - ../DESIGN_Time_Architecture.md — §17 stepped mode waits for background jobs
+-->
+
+# STATUS — what the Windows run found: stepped repeatability, the gate, small fixes
+
+Branch `exp/threaded-build`. Started after the mode + serial-systems batch (its M-7 gate already took F-3's root cause — the order the contract allows
+when an item is blocked).
+
+## 1. DONE
+
+| item | what | commit |
+|---|---|---|
+| F-1 `CE-4501` | ⭐ the stepped gate committed: `scripts/stepped-hash.py` — the one session driver (hidden window on Windows, Xvfb on Linux), the field-bytes hash, `--rows <T> --bytes` names the entities and the bytes that differ, `--kernel 0|3`, exit code 0 / 1 / 2 (equal / differs / a run failed) | (this commit) |
+| F-5 `CE-4505` | ⭐ R-4221 — no output is ever culture-formatted: `InvariantGlobalization` for every non-test Exe/WinExe, set ONCE in a root `Directory.Build.targets` (⚠ not the props: `OutputType` / `IsTestProject` are unknown there); measured first: no production `new CultureInfo("…")` / `CurrentCulture` / `CurrentUICulture`. The `[FrameStats]` parser is one function in the session driver and reads a decimal POINT only (⛔ never taught a comma). `WindowsScheduling.Describe` — the runner logs what the opt-out did, once | `541e48364` |
+| F-3 `CE-4503` · a stepped run is never abandoned on the wall clock | ⭐ a module run dispatched on a STEPPED frame is awaited whole: its output is played back, no timeout reaches its circuit breaker (an overrun is reported once per module); continuous play keeps the hang guard. 📌 Measured: a stepped 8-thread run logged `NavigationSolver timed out after 100ms. Task abandoned` — the step's result depended on the machine's speed. Rail `PausedAndSteppedExecutionTests.F3_ASteppedRun_IsNeverAbandoned…`, red-proved. ⚠ Not THE cause of F-2's differences (F-D2) | `4ac2333ce` |
+| ⭐⭐ F-3 `CE-4503` · **THE CAUSE: a unit's centroid depended on the paused frames** | `UnitCentroidSystem` (EveryFrame — R-3036's "a paused frame computes exactly what the next step would") did NOT make that true: units were placed in query order (a platoon averaged last pass's squad centres) and it ran mid-Simulation, after systems that read unit positions. So the number of paused frames between two steps — the wall clock's, hence the thread count's — changed what a step read. 📐 Found with `--probe 10 --bytes`: all six 4-thread runs ended IDENTICAL to each other and different from 1 thread; the first rows to part were the force / platoon HQs. Now: owned sub-units placed first (one pass exact) and it runs first in the CGF pack's Input phase. Rail `SquadCoordinationSystemTests.F3_OnePassIsExact…` red-proved | `bc2017a21` |
+| F-3 tool · `stepped-hash.py --probe K` | steps in pieces of K and hashes by type after each: names the first piece where a run parts from run 0 | `a44448b89` |
+| F-5 · `[FrameStats]` | formats every number invariant by construction (`FormattableString.Invariant`), not only through the process setting | `ba39e4005` |
+| F-3 `CE-4503` (root cause, taken in M-7) | ⭐ the stepped run IS repeatable — the differences were the GATE: `/world/hash` hashed raw rows, padding included, and a padding byte keeps whatever the slot held. 📐 Measured with the row bytes (`?rows=<T>&bytes=1`): `ScenarioClock` bytes 10–12, `Utterance` 1–3 / 10–12 — padding only. With the hash over FIELD bytes, two identical switch-off 1 000-man runs: STATE EQUAL. With every phase on, one real race found by the read-check survey (the weapon phase read the target's `WeaponPosture` live) and fixed; the residual `WeaponChannel` difference is `Entity` padding inside an opaque buffer ⇒ CE-4507 | `STATUS_Mode_And_Serial_Systems` M-D9 / M-D10 / M-D12 |
+
+## 2. GATES
+
+| gate | command | result |
+|---|---|---|
+| F-1 the committed gate | `HROT_PARALLEL_SIM=1 python3 scripts/stepped-hash.py --threads 1,4` (Release, 1 000 men) | STATE EQUAL, exit 0 |
+| ⭐⭐ **F-3 the gate** (240 steps, 1 000-man demo-city, Release, VM, after `bc2017a21`) | `--kernel 0 --threads 1,4,8,1,4,8 --chunk 40` | ⭐ **switch off: all six STATE EQUAL** at 1 / 4 / 8 threads, all at 240 steps (`simTime` 4.0) · ⭐ **mode 3 + every phase (`HROT_PARALLEL_SIM=1`): all six STATE EQUAL** |
+| the combined gate (every fix of the day: + E-1 … E-3, `d0437b497`) | `--threads 1,2,4,8,4,8`, both modes | switch off: **all six EQUAL** at 1 / 2 / 4 / 8 · ⚠ mode 3: **5 of 6 equal, one 4-thread run differs** (17 types; 10 766 entities now — the child sensors created in a phase now exist and are solved) — chased with `--probe` (F-D4) |
+| ⭐ F-2 the repeatability table (`scripts/stepped-hash.py --chunk 40` = 240 steps, 1 000-man demo-city, Release, VM) | `--kernel 0` (every switch off) · `--kernel 3` + `HROT_PARALLEL_SIM=1`, each at 1, 1, 1, 4, 8 threads | **switch off:** three 1-thread runs EQUAL · 4 threads: 22 types differ, 100 positions, the entity count (10 755 vs 10 756) · 8 threads: 19 types, 18 positions — ⚠ **the THREAD COUNT changes the shipped product's stepped world** · **mode 3 + every phase:** 1, 1, 1, 4 EQUAL · 8 threads: 8 types, 15 positions. ⭐ Repeatable at a FIXED thread count in both; the 120-step gates (M-7) were too short to see it |
+| F-5 rails | `python3 scripts/test_invariant_culture.py --live <Debug ClusterRunner.dll>` · Core `WindowsScheduling` | **34 executables invariant, 63 test projects not** (red-proved: the targets removed ⇒ the executables listed); **under `cs-CZ` the editor printed `mean 44.1 ms`** (a point); the runtimeconfig carries `System.Globalization.Invariant: true` · 4 / 0; the live log shows `[Scheduling] power throttling: …` |
+
+## 3. DECISIONS
+
+| # | question | decision | where |
+|---|---|---|---|
+| F-D2 | is the difference SYSTEMATIC or a RACE? | ⭐ **a race, rare.** 📐 Measured, switch off, 240 steps, Release, vs one 1-thread baseline: no diagnostic 4/4/8/4/8/4/8 threads → 1 of 6 differs (19 types), plus F-2's two; with the EQS verify pass (each window solve re-solved inline at its commit) 9 of 9 equal, 0 mismatches. ⇒ the EQS window's solves equal the serial ones every time they were checked; the module timeout (fixed above) logged in 2 runs that stayed EQUAL. The race's first diverging step is being located with `--probe` | this file |
+| F-D5 | F-4: is 1 thread with the phases on slower than the switch off — a defect? | ⭐ **not on this head: 3–6 %, the per-entity rule's own cost.** 📐 VM, Release, threaded node, 1 000 men, 60 s played, twice each: tick **191.5 / 179.9 ms off vs 196.5 / 190.9 ms on**; BrainTick 60.1 / 50.1 vs 63.3 / 61.7 ms (the tick-start view, the batch buffers and their merge, run inline); `TogglableSimulationGroup` 109–142 ms run to run (noise). ⚠ Windows' 1.7× (246 vs 144 ms) does NOT reproduce here — it was measured before this branch's M-batch fixes (snapshots recycled, the clone flag lock-free); ⇒ the Windows session re-measures on this head. Not changed: at ≥ 2 threads the phases gain far more than 6 % | `scripts/threaded-scale-measure.py` |
+| F-D4 | the combined gate's one diverging mode-3 run — what is it? | ⚠ **OPEN, rare: 1 of 12 mode-3 runs at 4 threads** (6 + 6 runs: the combined gate's 5 of 6, then a `--probe` series 6 of 6 equal). Its rows are the SAME ones the centroid bifurcation moved (the platoon in contact) — the most sensitive entities, so they identify the outcome, not the cause. Ruled out, measured: the paused-frame ground clamp (0 writes between steps in a stepped run), the passengers' follow (idempotent: they follow where the carrier stood); switch off: 12 of 12 equal | this file |
+| F-D3 | the coordinator's steer (`STEER_Coordinator_To_Backend_Preview_Extra_Step`): is F-D2 the EXTRA STEP Windows V-4 measured? | ⭐ **not on this VM.** 📐 every one of the 32 stepped runs here (240 steps, 1 / 4 / 8 threads, switch off) ended at `simTime` exactly **4.0** — the diverging ones too (a slipped step reads 4.0167; `simTime` is the world's own clock, `DebugApiService.GetWorldHash`). ⇒ F-D2 is something else here, chased with `--probe`. ⭐ The gate now compares only at equal sim time and exits 2 loudly otherwise (`0ed503430`). ⚠ The paused entry's slip does not reproduce on Linux, so its fix waits for a reproduction (the Windows session, or a rail that forces the window); read so far, without a cause: the master's `PublishClusterPause` (sim time frozen at once), the slave's barrier (`SlaveSyncController`), `/sim/step`'s ack wait (no re-send) | this file |
+| F-D1 | what makes the switch-off product depend on the thread count? | ⛔ **REFUTED as stated (F-D2)** — a window solve equals its serial solve (0 mismatches in 9 runs), and `HROT_EQS_WORKERS=1`'s one equal run per thread count was too few for a 1-in-6 race. Original hypothesis: EQS's solve WINDOW — its size is the pool's thread count (`N-16`, `105705de9`), its places are solved ahead against the window-start state and committed in order; with one worker there is no window (the serial path). If a later place's solve depends on what an earlier commit in the same tick wrote (the shared-twin cache, the memory stage), the result depends on the window ⇒ on the thread count. 📐 Test: the same series with `HROT_EQS_WORKERS=1` | `EqsSolverSystem.SolveWindow` |
+
+## 4. OPEN
+
+| item | why | what it needs |
+|---|---|---|
+| ⚠ F-D4 → **CE-3445** — a rare mode-3 divergence (1 of 36 runs at 4 threads, every phase on) | two approaches, not reproduced: 18 runs probed every 10 steps and 12 at the 40-step chunk boundaries all EQUAL (35 of 36 overall; switch off 12 of 12) | a long unprobed series with per-run world saves, or an instrument on the EveryFrame systems that write sim state (CE-3445) |
+
+## NEXT (the resume point)
+⭐ F-1 … F-6 built (F-4 measured: F-D5; F-6 folded `8731fae92`). ⚠ OPEN F-D4: a rare mode-3 divergence — the long probe series is the next step.
+
+## ⛔ NEXT — superseded
+F-3: the probe series (`--probe 10`, 1 vs 8 × 4 threads, switch off) names the first step and types where a run parts → the race's source → a fix +
+rail → the ≥5-run gate at 1/4/8, switch off and mode 3. Then F-4 (a timing profile: nothing else may run) · F-2 ticked with the final table · F-6.

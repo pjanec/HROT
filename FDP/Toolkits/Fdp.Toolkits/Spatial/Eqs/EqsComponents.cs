@@ -34,6 +34,45 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// by the template's tests. A bit not set here must not be read by consumers.
         /// </summary>
         public short FlagsMeaningful;
+        /// <summary>
+        /// ⭐ <c>CE-3135</c> / peek-and-fire D5 — the stance this point is MEANT for, stored as
+        /// <c>(byte)StanceId + 1</c>; <c>0</c> = none (every non-cover generator, and every recording made before it —
+        /// a former padding byte, so the struct stays 32 bytes). Read it through <see cref="TryGetStance"/>.
+        /// </summary>
+        public byte Stance;
+        /// <summary>
+        /// ⭐ <c>CE-3158</c> G1 (📄 docs/DESIGN_Peek_And_Fire.md §10.5) — what kind of cover point this is, stored as
+        /// <c>(byte)CoverKind + 1</c>; <c>0</c> = not a cover point (every other generator, and every recording made before it — a
+        /// former padding byte, the struct stays 32 bytes). Read it through <see cref="TryGetKind"/>.
+        /// </summary>
+        public byte Kind;
+
+        /// <summary>
+        /// ⭐ <c>CE-3283</c> (Q95 A; Sensing §8.4) — an acoustic answer's SIGNATURE as the node's ring token (<c>SoundEmissionRing.TypeOf</c> turns
+        /// it back into the TKB type, in the same solve); <c>0</c> = none (every other generator, and every recording made before it). The
+        /// struct's LAST two padding bytes, so it stays 32 bytes (the layout rails pin it).
+        /// </summary>
+        public ushort SignatureToken;
+
+        /// <summary>The <see cref="Kind"/> encoding of <paramref name="kind"/>.</summary>
+        public static byte EncodeKind(CoverKind kind) => (byte)((byte)kind + 1);
+
+        /// <summary>The point's cover kind, or <see langword="false"/> when it is not a cover point.</summary>
+        public readonly bool TryGetKind(out CoverKind kind)
+        {
+            kind = Kind == 0 ? default : (CoverKind)(Kind - 1);
+            return Kind != 0;
+        }
+
+        /// <summary>The <see cref="Stance"/> encoding of <paramref name="stance"/>.</summary>
+        public static byte EncodeStance(Fdp.Toolkit.Tkb.Domain.StanceId stance) => (byte)((byte)stance + 1);
+
+        /// <summary>The point's stance, or <see langword="false"/> when the generator gave none.</summary>
+        public readonly bool TryGetStance(out Fdp.Toolkit.Tkb.Domain.StanceId stance)
+        {
+            stance = Stance == 0 ? default : (Fdp.Toolkit.Tkb.Domain.StanceId)(Stance - 1);
+            return Stance != 0;
+        }
     }
 
     /// <summary>
@@ -53,7 +92,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.EqsCognitiveBuffer)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct EqsCognitiveBuffer
     {
         /// <summary>Number of valid entries in <see cref="Results"/> (0–16).</summary>
@@ -133,6 +172,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.EqsSensor)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct EqsSensor
     {
         /// <summary>FNV-1a 32-bit hash of the query template BlueprintId.</summary>
@@ -167,5 +207,26 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// <summary>Context slot 2 (by convention: Leader / Squad-mate). Optional secondary
         /// LOS context.</summary>
         public Entity ContextSlot2;
+        /// <summary>
+        /// ⭐ <c>CE-486</c> — the sensor has ENDED: the solver publishes nothing for it. A child sensor's descriptor
+        /// instance is never disposed while its parent lives (BDC/NED descriptor rules), so this is how an end reaches
+        /// the Muscle. ⚠ <c>false</c> = running, so every existing creator stays correct (the approved "Active" flag with
+        /// its polarity flipped — decision B-1). 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D5 ③.
+        /// </summary>
+        [MarshalAs(UnmanagedType.I1)]   // the ECS layout contract for a bool (recorder / StructEdit buffers)
+        public bool Suspended;
+
+        /// <summary>
+        /// ⭐ <c>CE-3063</c> ③ — a POSITION standing in for context slot 1 when the threat is a heard contact (no entity; 🔒 user
+        /// <c>2026-10-05</c>: "hide from a point is OK"). Read through <see cref="EqsContext.AnchorPosition"/> only when slot 1 is
+        /// null and <see cref="ContextPointMask"/> has <see cref="Point1Bit"/>. 📄 <c>docs/DESIGN_Thermal_And_Acoustic_Sensing.md</c> §8.
+        /// </summary>
+        public Fdp.Core.WorldPoint ContextPoint1;
+
+        /// <summary>⭐ <c>CE-3063</c> — which context slots carry a point (bit = 1 &lt;&lt; slot; only slot 1 has one).</summary>
+        public byte ContextPointMask;
+
+        /// <summary>The <see cref="ContextPointMask"/> bit of <see cref="ContextPoint1"/>.</summary>
+        public const byte Point1Bit = 1 << 1;
     }
 }

@@ -16,18 +16,20 @@ using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.NetworkSpawning;
+using Hrot.Common.EntityCreation;
 
 namespace Hrot.SimHost.UI
 {
     /// <summary>
     /// Provides GUI-driven entity spawning and scenario utilities for the SimHost 2-D window.
     ///
-    /// <para>All spawners publish <see cref="SpawnEntityCommand"/> onto the event bus so that
-    /// <c>NetworkSpawningSystem</c> creates entities with the full network component set and
-    /// publishes them over DDS, making them visible on the IG map.</para>
+    /// <para>⭐ <c>CE-259ax</c> — every spawner is an AUTHOR (R-145): it calls <see cref="EntityCreation.RequestEntityCreation"/>, so the request
+    /// goes through <c>CreateEntityRequestSystem</c> (routing, ack, ownership grants) and then <c>NetworkSpawningSystem</c> creates the
+    /// entity with the full network component set and publishes it over DDS, making it visible on the IG map.
+    /// ⛔ It used to publish <c>SpawnEntityCommand</c> ORDERS straight on the bus, which skip all of that.</para>
     ///
     /// <para>Each spawned entity carries a <see cref="BehaviorState"/> and
-    /// <see cref="BrainBlackboard"/> so the BTree cognitive tier drives its behaviour
+    /// <c>BrainBlackboard</c> so the BTree cognitive tier drives its behaviour
     /// autonomously from the first frame.</para>
     /// </summary>
     public class SimHostScenarioManager
@@ -36,41 +38,30 @@ namespace Hrot.SimHost.UI
         private readonly RoadNetworkBlob          _road;
         private readonly TrajectoryPoolManager    _traj;
         private readonly FormationTemplateManager _formations;
-        private readonly IEventBus               _spawnBus;
-        private readonly INetworkIdAllocator?    _idAllocator;
-        private readonly int                      _localNodeId;
+        private readonly EntityCreation          _creation;
+        private readonly NodeId                      _localNodeId;
         private readonly Random                   _rng = new();
 
         /// <param name="repo">Live entity repository.</param>
         /// <param name="road">Road network (may be empty).</param>
         /// <param name="traj">Trajectory pool manager.</param>
         /// <param name="formations">Formation template manager.</param>
-        /// <param name="spawnBus">
-        /// Event bus used to publish <see cref="SpawnEntityCommand"/> for network-visible
-        /// entity creation.  Defaults to <paramref name="repo"/>.Bus when <c>null</c>.
-        /// </param>
-        /// <param name="idAllocator">
-        /// Optional allocator for pre-allocating network IDs (required by
-        /// <see cref="SpawnFormation"/> to wire followers to their leader at spawn time).
-        /// When <c>null</c>, formation leaders use <c>NetworkId = 0</c> and followers
-        /// cannot pre-resolve the leader ID.
-        /// </param>
+        /// <param name="creation">⭐ <c>CE-259ax</c> — this host's creation pack. Required: a spawner with none would have nothing to ask
+        /// (the old <c>spawnBus ?? repo.Bus</c> default silently published an order nobody routed).</param>
         public SimHostScenarioManager(
             EntityRepository        repo,
             RoadNetworkBlob          road,
             TrajectoryPoolManager    traj,
             FormationTemplateManager formations,
-            IEventBus?               spawnBus    = null,
-            INetworkIdAllocator?     idAllocator = null,
+            EntityCreation           creation,
             int                      localNodeId = 0)
         {
             _repo        = repo;
             _road        = road;
             _traj        = traj;
             _formations  = formations;
-            _spawnBus    = spawnBus ?? repo.Bus;
-            _idAllocator = idAllocator;
-            _localNodeId = localNodeId;
+            _creation    = creation ?? throw new ArgumentNullException(nameof(creation));
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         // ── Tick ─────────────────────────────────────────────────────────────
@@ -84,9 +75,19 @@ namespace Hrot.SimHost.UI
         // ── Spawn helpers ─────────────────────────────────────────────────────
 
         /// <summary>
-        /// Publishes a <see cref="SpawnEntityCommand"/> so that
+        /// ⭐ THE one tail of every spawner here. <c>owner: _creation.NodeId</c> = "this node owns it" — the same intent the old
+        /// <c>OwnerNodeId = SimHostNetworkConstants.LocalNodeId</c> expressed, but read from the pack, so a node-id override can no longer
+        /// leave the owner at the constant while the pack runs as another node.
+        /// </summary>
+        private void Author(long tkbType, SimTransform transform, params object[] components)
+            => _creation.RequestEntityCreation(
+                tkbType, transform, components,
+                owner: _creation.NodeId, initType: ReliableInitType.AllPeers);
+
+        /// <summary>
+        /// ⭐ CE-259ax — asks the creation pack (<see cref="EntityCreation.RequestEntityCreation"/>) for one entity; then
         /// <c>NetworkSpawningSystem</c> creates a fully-networked entity with
-        /// <c>NetworkIdentity</c>, <c>NetworkOwnership</c>, and <c>NetworkSpawnRequest</c>.
+        /// <c>NetworkIdentity</c>, <c>NetworkAuthority</c>, and <c>NetworkSpawnRequest</c>.
         /// </summary>
         /// <param name="position">Initial world-space XY position in metres.</param>
         /// <param name="heading">Heading unit vector; yaw is derived from its angle from east.</param>
@@ -112,17 +113,7 @@ namespace Hrot.SimHost.UI
                 ForceId     = ForceId.Neutral,
             };
 
-            var cmd = new SpawnEntityCommand
-            {
-                NetworkId         = 0, // 0 = auto-allocate by DdsIdAllocator
-                TkbType           = tkbType,
-                DisType           = 0,
-                OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
-                InitType          = ReliableInitType.AllPeers,
-                InitialComponents = new List<object> { transform, entityInfo },
-            };
-
-            _spawnBus.PublishManaged(cmd);
+            Author(tkbType, transform, entityInfo);   // the network id is auto-allocated
         }
 
         /// <summary>Maps <see cref="VehicleClass"/> to the canonical TKB entity type constant.</summary>
@@ -161,16 +152,7 @@ namespace Hrot.SimHost.UI
                     ForceId     = ForceId.Neutral,
                 };
 
-                _spawnBus.PublishManaged(new SpawnEntityCommand
-                {
-                    NetworkId         = 0,
-                    TkbType           = tkbType,
-                    DisType           = 0,
-                    OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
-                    InitType          = ReliableInitType.AllPeers,
-                    InitialTransform  = transform,
-                    InitialComponents = new List<object> { entityInfo },
-                });
+                Author(tkbType, transform, entityInfo);
             }
         }
 
@@ -212,16 +194,7 @@ namespace Hrot.SimHost.UI
                     ForceId     = ForceId.Neutral,
                 };
 
-                _spawnBus.PublishManaged(new SpawnEntityCommand
-                {
-                    NetworkId         = 0,
-                    TkbType           = tkbType,
-                    DisType           = 0,
-                    OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
-                    InitType          = ReliableInitType.AllPeers,
-                    InitialTransform  = transform,
-                    InitialComponents = new List<object> { entityInfo },
-                });
+                Author(tkbType, transform, entityInfo);
             }
         }
 
@@ -229,17 +202,14 @@ namespace Hrot.SimHost.UI
         /// Spawns a formation of <paramref name="count"/> vehicles: one leader and
         /// <c>count-1</c> followers. The CGF node assigns behaviors (WanderMilitary for
         /// leader, JoinFormation for followers) via MissionControlRequest after spawn.
-        /// Requires an <see cref="INetworkIdAllocator"/> (supplied at construction time) to
-        /// pre-allocate the leader ID so followers can reference it at spawn time.
-        /// </summary>
+                /// </summary>
         public void SpawnFormation(VehicleClass cls, FormationType formType, int count, TrajectoryInterpolation interp = TrajectoryInterpolation.CatmullRom)
         {
             long tkbType = MapVehicleClassToTkbType(cls);
             var  center  = RandomPos(300);
 
-            // Pre-allocate the leader's network ID so followers can reference it at spawn time.
-            // Without an allocator the leader uses 0 (deferred) and followers cannot pre-wire it.
-            long leaderNetId = _idAllocator?.AllocateId() ?? 0L;
+            // ⭐ CE-259ax — the leader's id is no longer PRE-allocated here: the affordance deliberately has no pre-allocated-id parameter
+            //   (design §3 — only the scenario extractor, a translator, needs one), and nothing used it — the followers below never read it.
 
             // 1. Leader
             var leaderInfo = new EntityInfo
@@ -248,16 +218,9 @@ namespace Hrot.SimHost.UI
                 ForceId     = ForceId.Friend,
             };
 
-            _spawnBus.PublishManaged(new SpawnEntityCommand
-            {
-                NetworkId         = leaderNetId,
-                TkbType           = tkbType,
-                DisType           = 0,
-                OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
-                InitType          = ReliableInitType.AllPeers,
-                InitialTransform  = new SimTransform { Position = new Vector3(center.X, center.Y, 0f), Rotation = SimMath.FromYaw(0f) },
-                InitialComponents = new List<object> { leaderInfo },
-            });
+            Author(tkbType,
+                new SimTransform { Position = new Vector3(center.X, center.Y, 0f), Rotation = SimMath.FromYaw(0f) },
+                leaderInfo);
 
             // 2. Followers
             for (int i = 0; i < count - 1; i++)
@@ -269,16 +232,9 @@ namespace Hrot.SimHost.UI
                     ForceId     = ForceId.Friend,
                 };
 
-                _spawnBus.PublishManaged(new SpawnEntityCommand
-                {
-                    NetworkId         = 0,
-                    TkbType           = tkbType,
-                    DisType           = 0,
-                    OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
-                    InitType          = ReliableInitType.AllPeers,
-                    InitialTransform  = new SimTransform { Position = new Vector3(followerPos.X, followerPos.Y, 0f), Rotation = SimMath.FromYaw(0f) },
-                    InitialComponents = new List<object> { followerInfo },
-                });
+                Author(tkbType,
+                    new SimTransform { Position = new Vector3(followerPos.X, followerPos.Y, 0f), Rotation = SimMath.FromYaw(0f) },
+                    followerInfo);
             }
         }
 
@@ -327,16 +283,7 @@ namespace Hrot.SimHost.UI
                 ForceId     = ForceId.Neutral,
             };
 
-            _spawnBus.PublishManaged(new SpawnEntityCommand
-            {
-                NetworkId         = 0,
-                TkbType           = tkbType,
-                DisType           = 0,
-                OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
-                InitType          = ReliableInitType.AllPeers,
-                InitialTransform  = transform,
-                InitialComponents = new List<object> { intent, entityInfo },
-            });
+            Author(tkbType, transform, intent, entityInfo);
         }
 
         /// <summary>

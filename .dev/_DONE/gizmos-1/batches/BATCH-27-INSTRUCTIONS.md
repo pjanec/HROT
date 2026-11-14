@@ -40,7 +40,7 @@ The following use `Fdp.Toolkit.Vis2D.Tools.LocationPickerTool` and `Fdp.Toolkit.
 
 ```
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln -c Debug --nologo -v q
+dotnet build HROT.sln -c Debug --nologo -v q
 dotnet test Hrot/Subsystems/Hrot.Editor.Tests/ --no-build -v q
 dotnet test Hrot/Subsystems/Hrot.IG.Tests/ --no-build -v q
 ```
@@ -287,7 +287,7 @@ Add `using Hrot.ScenarioEditor.Gizmos;` at the top. Remove `using Hrot.Editor.To
 
 ```
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln -c Debug --nologo -v q
+dotnet build HROT.sln -c Debug --nologo -v q
 dotnet test Hrot/Subsystems/Hrot.Editor.Tests/ --no-build -v q
 dotnet test Hrot/Subsystems/Hrot.IG.Tests/ --no-build -v q
 dotnet test Hrot/Engine/Hrot.Presentation.Tests/ --no-build -v q

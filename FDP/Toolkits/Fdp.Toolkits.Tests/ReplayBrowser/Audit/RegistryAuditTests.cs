@@ -4,10 +4,22 @@ using Xunit;
 
 namespace Fdp.Toolkit.ReplayBrowser.Audit
 {
-    // Component IDs 200, 291 reserved for this file (Fdp.Toolkits.Tests/ReplayBrowser/Audit)
+    // Component IDs 290, 291 reserved for this file (Fdp.Toolkits.Tests/ReplayBrowser/Audit)
     // NOTE: 201 = GlobalComponentIds.ZoneEnvironmentData (production); use 291 instead.
+    //
+    // 🔴🔴 290 was 200, and 200 WAS THE SUITE'S LONG-RUNNING INTERMITTENT FAILURE (trap ㉗).
+    //   ScenarioComponentIds.ScenarioIgnoreTag also declares [ComponentId(200)], and
+    //   ComponentTypeRegistry is PROCESS-GLOBAL and THROWS on a collision:
+    //     "Component ID collision: AuditCompA and ScenarioIgnoreTag both declare [ComponentId(200)]"
+    //   Whichever type registers first wins and the second throws, so the failure moved with xUnit's
+    //   collection order and NEVER reproduced in isolation — only one of the two registers there.
+    //   It cost ~6 red runs across a session before the raw assertion text was finally captured.
+    // ⚠ The "reserved for this file" comment above was TRUE WHEN WRITTEN and rotted: the Scenario
+    //   toolkit claimed 200 afterwards (GlobalComponentIds.cs:382 says so in production).
+    // ⇒ Before reserving a test id, grep BOTH GlobalComponentIds.cs AND the per-toolkit *ComponentIds
+    //   classes — a comment reserving an id is a claim about the whole process, not about this file.
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
-    [ComponentId(200)]
+    [ComponentId(290)]
     internal struct AuditCompA { public int Value; }
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]

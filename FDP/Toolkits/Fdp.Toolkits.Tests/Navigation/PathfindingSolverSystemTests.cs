@@ -98,6 +98,118 @@ namespace Fdp.Toolkit.Navigation.Tests
             pool.Dispose();
         }
 
+        // ── CE-2059: a road route ends at the requested point ──────────────────────
+
+        /// <summary>
+        /// ⭐ <c>CE-2059</c> — a road route ENDS AT THE REQUESTED POINT: the nodes, then a connector to <c>req.End</c>.
+        /// 🔴 Red before: the trajectory ended at the road node nearest the destination, and the vehicle reported
+        /// <c>Arrived</c> there (measured live 14.8 m out on a 5 m arrival radius). A destination ON the last node adds no
+        /// zero-length segment. ⭐ CE-3128 D4 — the road leg is now sampled along the segment's curve, so the waypoint COUNT is no
+        /// longer the node count; the claim is unchanged: the route ends at the requested point, at the right length, with no
+        /// zero-length segment anywhere.
+        /// </summary>
+        [Theory]
+        [InlineData(100f, 14f, 114f)]   // 14 m off the last node: a connector is appended
+        [InlineData(100f,  0f, 100f)]   // on the last node: none
+        public void CE2059_ARoadRoute_EndsAtTheRequestedPoint(float endX, float endY, float expectedLength)
+        {
+            var builder = new RoadNetworkBuilder();
+            builder.AddNode(new Vector2(0f, 0f));
+            builder.AddNode(new Vector2(100f, 0f));
+            builder.AddSegment(
+                new Vector2(0f, 0f),   new Vector2(50f, 0f),
+                new Vector2(100f, 0f), new Vector2(50f, 0f),
+                startNodeIdx: 0, endNodeIdx: 1);
+            var roadNet = builder.Build(cellSize: 20f, gridWidth: 10, gridHeight: 10);
+            var pool    = new TrajectoryPoolManager();
+
+            long requestId = PathfindingBatchHelper.RequestPath(_world, entityIndex: 1, from: Vector3.Zero, to: new Vector3(endX, endY, 0f));
+            var r = RunSolverPipeline(new PathfindingSolverSystem(roadNet, pool), requestId);
+
+            Assert.True(r.IsReachable);
+            Assert.True(pool.TryGetTrajectory(r.RouteHandle, out var traj));
+            Assert.True(traj.Waypoints.Length >= 2);
+            for (int i = 1; i < traj.Waypoints.Length; i++)
+                Assert.True(Vector3.Distance(traj.Waypoints[i - 1].Position, traj.Waypoints[i].Position) > 0.05f,
+                    $"zero-length segment at waypoint {i}");
+            var last = traj.Waypoints[traj.Waypoints.Length - 1].Position;
+            Assert.Equal(endX, last.X, 3);
+            Assert.Equal(endY, last.Y, 3);
+            Assert.Equal(expectedLength, traj.TotalLength, 1);
+
+            roadNet.Dispose();
+            pool.Dispose();
+        }
+
+        // ── ⭐ CE-4391 S-3 (P3-e) — nobody standing inside a collapsed building is given a path ───────────────────
+
+        /// <summary>
+        /// A request that started INSIDE a collapsed building's footprint (its man is a casualty; the request was still in flight when the building fell) is answered unreachable at once — no
+        /// throw, no path — while one from outside the footprint is planned as before. 🔴 Red-proof: drop the <c>InsideCollapsed</c> test in <c>SolveGround</c> ⇒ the inside request is planned.
+        /// </summary>
+        [Fact]
+        public void P3e_ARequestFromInsideACollapsedBuilding_IsAnsweredUnreachable_OneFromOutsideIsPlanned()
+        {
+            var terrain = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{ \"type\": \"FeatureCollection\", \"features\": [ { \"type\": \"Feature\", \"properties\": { \"kind\": \"building\", \"label\": \"H\", \"building\": { \"footprint\": [[0,0],[10,0],[10,8],[0,8]], "
+                + "\"storeys\": [ { \"height\": 3, \"walls\": [ { \"from\": [0,0], \"to\": [10,0] }, { \"from\": [10,0], \"to\": [10,8] }, { \"from\": [10,8], \"to\": [0,8] }, { \"from\": [0,8], \"to\": [0,0] } ] } ] } }, "
+                + "\"geometry\": { \"type\": \"Point\", \"coordinates\": [20, 20] } } ] }", "range");
+            _world.RegisterComponent<Fdp.Toolkit.Terrain.BuildingDamage>();
+            _world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+            _world.SetSingletonManaged(terrain);
+            var damage = _world.CreateEntity();
+            _world.AddComponent(damage, new Fdp.Toolkit.Terrain.BuildingDamage { Building = 0, Collapsed = 1 });
+            _world.SetManagedComponent(damage, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = "range/H" });
+
+            Assert.Equal(1, Fdp.Toolkit.Terrain.DoorStates.Of(_world)?.Damage?.CollapsedCount);
+            var pool = new TrajectoryPoolManager();
+            var navmesh = new SwitchableNavmeshProvider();   // before any bake: straight lines, everywhere walkable — a planned path is reachable
+            var solver = new PathfindingSolverSystem(default(RoadNetworkBlob), pool, navmesh);
+            bool Reachable(int entityIndex, Vector3 from)
+            {
+                long id = PathfindingBatchHelper.RequestPath(_world, entityIndex, from, to: new Vector3(40f, 40f, 0f));
+                return RunSolverPipeline(solver, id).IsReachable;   // one request a run: the ring slot is the request's low bits
+            }
+            Assert.False(Reachable(7, new Vector3(25f, 24f, 0.5f)));
+            Assert.True(Reachable(8, new Vector3(25f, 10f, 0f)));
+        }
+
+        /// <summary>The tile sequence a navmesh reports.</summary>
+        private sealed class SequencedNavmesh : INavmeshProvider, INavmeshTileVersions
+        {
+            private readonly SwitchableNavmeshProvider _inner = new();
+            public uint Sequence = 7;
+            public float TileMetres => 24f;
+            public uint ChangeSequence => Sequence;
+            public uint TileVersion(int tileX, int tileZ) => 0u;
+            public bool IsWalkable(Vector3 p, uint m = 0xFFFFFFFF) => _inner.IsWalkable(p, m);
+            public bool ProjectToNavmesh(Vector3 p, out Vector3 s, uint m = 0xFFFFFFFF) => _inner.ProjectToNavmesh(p, out s, m);
+            public int SampleNavmeshPoints(Vector3 c, float r, Span<Vector3> o, uint m = 0xFFFFFFFF) => _inner.SampleNavmeshPoints(c, r, o, m);
+            public bool PathExists(Vector3 a, Vector3 b, uint m = 0xFFFFFFFF) => _inner.PathExists(a, b, m);
+            public float PathCost(Vector3 a, Vector3 b, uint m = 0xFFFFFFFF) => _inner.PathCost(a, b, m);
+            public uint QueryVersion() => 1;
+            public int PlanPath(Vector3 a, Vector3 b, Span<NavWaypoint> w, uint m = 0xFFFFFFFF) => _inner.PlanPath(a, b, w, m);
+        }
+
+        /// <summary>
+        /// ⭐ P3-a/b — the tile change sequence read BEFORE a path is planned travels solver → <c>PathfindingResultEvent.TileSequenceAtPlan</c> → the mover's <c>NavigationCorridorMuscle.TileSequence</c>
+        /// (what the stale-path check compares). 🔴 Red-proof: have the solver write 0 ⇒ the corridor's stamp is 0 (never judged by tile).
+        /// </summary>
+        [Fact]
+        public void P3b_ThePlanTimeTileSequence_ReachesTheMoversCorridor()
+        {
+            _world.RegisterComponent<NavigationIntent>();
+            _world.RegisterComponent<NavigationCorridorMuscle>();
+            var mover = _world.CreateEntity();
+            _world.AddComponent(mover, new NavigationIntent { Mode = NavigationMode.PathToPoint, IntentId = 1 });
+            var navmesh = new SequencedNavmesh { Sequence = 7 };
+            var solver = new PathfindingSolverSystem(default(RoadNetworkBlob), new TrajectoryPoolManager(), navmesh);
+            long id = PathfindingBatchHelper.RequestPath(_world, mover.Index, from: new Vector3(1f, 1f, 0f), to: new Vector3(30f, 30f, 0f));
+            var r = RunSolverPipeline(solver, id);
+            Assert.True(r.IsReachable);
+            Assert.Equal(7u, _world.GetComponentRO<NavigationCorridorMuscle>(mover).TileSequence);
+        }
+
         // ── Test 2: empty network -> unreachable ──────────────────────────────────
 
         [Fact]
@@ -123,7 +235,9 @@ namespace Fdp.Toolkit.Navigation.Tests
         public void NavigationSolverModule_RegistersMaterializationSystem()
         {
             // Arrange
-            var module       = new NavigationSolverModule(default(RoadNetworkBlob));
+            // B3: the pool is required — the module must share the node's pool, never default one.
+            using var pool   = new TrajectoryPoolManager();
+            var module       = new NavigationSolverModule(default(RoadNetworkBlob), pool);
             var mockRegistry = new Mock<ISystemRegistry>();
 
             // Act
@@ -178,6 +292,126 @@ namespace Fdp.Toolkit.Navigation.Tests
             Assert.False(r.IsReachable);
             Assert.Equal(99, r.SourceNodeId);
 
+            pool.Dispose();
+        }
+
+        // ── Test 6 (A3 / R2): the road graph is re-read from the singleton EVERY tick ─────────────
+        //
+        // ⭐⭐ THE DEFECT THIS PINS: the solver used to capture the blob in its constructor
+        //    (`private readonly RoadNetworkBlob _roadNetwork`). The terrain loader publishes a NEW
+        //    ZoneEnvironmentData when terrain or a zone loads, and CarKinematicsSystem already re-reads
+        //    that singleton per tick — so a swap reached the DRIVING code and silently did nothing for
+        //    PATH PLANNING. Vehicles would follow the new roads while routes were still planned over the
+        //    old graph, with no exception and nothing in a log.
+        //
+        // ⛔ RED-PROOF SHAPE: revert Execute's refresh to use the constructor blob and this fails —
+        //    the post-swap request comes back IsReachable=false, exactly as before the swap.
+        // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.4 (R2), §4 second red box.
+
+        [Fact]
+        public void PathfindingSolverSystem_ObservesARoadNetworkPublishedAfterConstruction()
+        {
+            var pool = new TrajectoryPoolManager();
+
+            // Constructed with an EMPTY graph — nothing reachable, as Test 2 establishes.
+            var system = new PathfindingSolverSystem(default(RoadNetworkBlob), pool);
+
+            long beforeId = PathfindingBatchHelper.RequestPath(
+                _world, entityIndex: 7, from: Vector3.Zero, to: new Vector3(100f, 0f, 0f));
+            Assert.False(RunSolverPipeline(system, beforeId).IsReachable);
+
+            // ── the swap: a terrain/zone load publishes the road graph AFTER construction ──
+            var builder = new RoadNetworkBuilder();
+            builder.AddNode(new Vector2(0f, 0f));
+            builder.AddNode(new Vector2(100f, 0f));
+            builder.AddSegment(
+                new Vector2(0f, 0f),   new Vector2(50f, 0f),
+                new Vector2(100f, 0f), new Vector2(50f, 0f),
+                startNodeIdx: 0, endNodeIdx: 1);
+            var roadNet = builder.Build(cellSize: 20f, gridWidth: 10, gridHeight: 10);
+            _world.SetSingleton(new ZoneEnvironmentData { RoadNetwork = roadNet });
+
+            // The SAME solver instance must now plan over the new graph.
+            long afterId = PathfindingBatchHelper.RequestPath(
+                _world, entityIndex: 8, from: Vector3.Zero, to: new Vector3(100f, 0f, 0f));
+            var after = RunSolverPipeline(system, afterId);
+
+            Assert.True(after.IsReachable,
+                "the solver must re-read ZoneEnvironmentData per tick; a constructor-captured blob "
+              + "makes a terrain/zone load invisible to path planning");
+            Assert.True(after.RouteHandle >= 0);
+
+            roadNet.Dispose();
+            pool.Dispose();
+        }
+
+        // Test 6b: with NO singleton published, the constructor blob is still honoured — the fallback
+        // must not regress the hosts that supply a graph statically and never publish one.
+        [Fact]
+        public void PathfindingSolverSystem_FallsBackToTheConstructorBlob_WhenNoSingletonExists()
+        {
+            var builder = new RoadNetworkBuilder();
+            builder.AddNode(new Vector2(0f, 0f));
+            builder.AddNode(new Vector2(100f, 0f));
+            builder.AddSegment(
+                new Vector2(0f, 0f),   new Vector2(50f, 0f),
+                new Vector2(100f, 0f), new Vector2(50f, 0f),
+                startNodeIdx: 0, endNodeIdx: 1);
+            var roadNet = builder.Build(cellSize: 20f, gridWidth: 10, gridHeight: 10);
+
+            Assert.False(_world.HasSingleton<ZoneEnvironmentData>(),
+                "Precondition: no ZoneEnvironmentData singleton");
+
+            var pool   = new TrajectoryPoolManager();
+            var system = new PathfindingSolverSystem(roadNet, pool);
+
+            long requestId = PathfindingBatchHelper.RequestPath(
+                _world, entityIndex: 9, from: Vector3.Zero, to: new Vector3(100f, 0f, 0f));
+
+            Assert.True(RunSolverPipeline(system, requestId).IsReachable);
+
+            roadNet.Dispose();
+            pool.Dispose();
+        }
+
+        // Test 6c: the HOLDER path — the channel a BACKGROUND module must use.
+        //
+        // ⚠ NavigationSolverModule is SlowBackground ⇒ DataStrategy.SoD, so its Tick receives a snapshot
+        //    and ISimulationView has NO singleton API at all. The singleton read in Test 6 is therefore
+        //    unavailable on that path, and a RoadNetworkHolder carries the swap instead. This asserts the
+        //    holder is honoured and, crucially, that a LATER publish is picked up by the SAME instance.
+        [Fact]
+        public void PathfindingSolverSystem_ObservesAGraphPublishedThroughTheHolder()
+        {
+            var pool   = new TrajectoryPoolManager();
+            var holder = new RoadNetworkHolder();   // starts empty
+
+            var system = new PathfindingSolverSystem(
+                default(RoadNetworkBlob), pool, roadNetworkHolder: holder);
+
+            long beforeId = PathfindingBatchHelper.RequestPath(
+                _world, entityIndex: 10, from: Vector3.Zero, to: new Vector3(100f, 0f, 0f));
+            Assert.False(RunSolverPipeline(system, beforeId).IsReachable);
+
+            var builder = new RoadNetworkBuilder();
+            builder.AddNode(new Vector2(0f, 0f));
+            builder.AddNode(new Vector2(100f, 0f));
+            builder.AddSegment(
+                new Vector2(0f, 0f),   new Vector2(50f, 0f),
+                new Vector2(100f, 0f), new Vector2(50f, 0f),
+                startNodeIdx: 0, endNodeIdx: 1);
+            var roadNet = builder.Build(cellSize: 20f, gridWidth: 10, gridHeight: 10);
+
+            // ⚠ takeOwnership:false — this test disposes roadNet itself below. RoadNetworkBlob is a
+            //   STRUCT, so letting the holder own it too would double-free the native arrays.
+            holder.Publish(roadNet, takeOwnership: false);
+
+            long afterId = PathfindingBatchHelper.RequestPath(
+                _world, entityIndex: 11, from: Vector3.Zero, to: new Vector3(100f, 0f, 0f));
+            Assert.True(RunSolverPipeline(system, afterId).IsReachable,
+                "a graph published through the holder must be visible to the next tick");
+
+            roadNet.Dispose();
             pool.Dispose();
         }
     }

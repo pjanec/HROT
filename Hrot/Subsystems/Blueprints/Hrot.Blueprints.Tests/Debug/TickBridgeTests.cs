@@ -1371,4 +1371,24 @@ public sealed class TickBridgeTests : IDisposable
             return i;
         return 0;
     }
+
+    /// <summary>
+    /// ⭐ CE-2017 (<c>DESIGN_Typed_Event_Nodes</c> E6, I11) — the next-iteration step starts at the handler that reaches
+    /// the node it stopped on: Ping → A, Pong → B, both → T. From A only Ping; from B only Pong; from the shared T both.
+    /// <para>✅ Red-proof: the old <c>FirstOrDefault</c> entry answers Ping for B.</para>
+    /// </summary>
+    [Fact]
+    public void E6_TheNextIteration_StartsAtTheHandlerThatReachesTheNode()
+    {
+        var t = new Hrot.Blueprints.Tests.Runtime.TypedEventGraph();
+        var ping = t.Event("Test.Events.PingEvent");
+        var pong = t.Event("Test.Events.PongEvent");
+        var count = new VariableDecl { Id = Guid.NewGuid(), Name = "X", Type = new BlueprintTypeRef { TypeId = "System.Int32" } };
+        var a = t.Set(count); var b = t.Set(count); var tail = t.Set(count);
+        t.Then(ping, a).Then(pong, b).Then(a, tail).Then(b, tail);
+
+        Assert.Equal(new[] { ping.Id }, BlueprintDebugSession.EntriesReaching(t.Graph, a.Id).Select(n => n.Id));
+        Assert.Equal(new[] { pong.Id }, BlueprintDebugSession.EntriesReaching(t.Graph, b.Id).Select(n => n.Id));
+        Assert.Equal(new[] { ping.Id, pong.Id }, BlueprintDebugSession.EntriesReaching(t.Graph, tail.Id).Select(n => n.Id));
+    }
 }

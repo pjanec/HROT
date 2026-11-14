@@ -115,16 +115,28 @@ internal static class Stage0_Rehydrate
         // Enrich with dynamic pins for dynamic-pin node kinds.
         switch (node)
         {
-            case EventEntryNode:
-                EnrichEventEntryPins(pins, graph, staticShapes);
+            case EventEntryNode een:
+                EnrichEventEntryPins(pins, graph, een, staticShapes);
                 break;
 
             case GetAllParametersNode:
                 EnrichGetAllParametersPins(pins, asset, staticShapes);
                 break;
 
+            case GetAllVariablesNode:
+                pins.Clear();
+                EnrichAllVariablesPins(pins, asset, "Out");
+                break;
+
+            case SetVariablesNode:
+                EnrichAllVariablesPins(pins, asset, "In");   // after the static ExecIn/ExecOut
+                break;
+
             case ReturnNode:
-                EnrichReturnPins(pins, graph, staticShapes);
+                // BP-131/H3: `asset` is threaded in because the Success pin is AiPrimitive-only and
+                // Dispatch lives on the ASSET, not the graph. The editor's twin already had it in
+                // scope; this half needed the signature change.
+                EnrichReturnPins(pins, graph, asset, staticShapes);
                 break;
 
             case GetVariableNode gv:
@@ -135,16 +147,21 @@ internal static class Stage0_Rehydrate
                 EnrichSetVariablePins(pins, sv, asset, staticShapes);
                 break;
 
-            case GetSharedNode gsn:
-                EnrichGetSharedPins(pins, gsn, staticShapes);
-                break;
-
-            case SetSharedNode ssn:
-                EnrichSetSharedPins(pins, ssn, staticShapes);
-                break;
-
             case GetComponentNode gcn:
                 EnrichGetComponentPins(pins, gcn, staticShapes);
+                break;
+
+            case SpawnSensorNode ssn3:
+                // ⭐ CE-3078 N3 — after the static exec In / Out, the ONE projection the editor uses too.
+                foreach (var (name, dir, typeId) in SpawnSensorNode.DataPins(ssn3.Decl))
+                    pins.Add(MakePin(name, dir, isExec: false, typeId: typeId));
+                break;
+
+            case ReadSensorResultNode rsr:
+                // ⭐ CE-3078 N2 — the ONE projection the editor uses too (ReadSensorResultNode.DataPins).
+                pins.Clear();
+                foreach (var (name, dir, typeId, _) in ReadSensorResultNode.DataPins(rsr.Decl))
+                    pins.Add(MakePin(name, dir, isExec: false, typeId: typeId));
                 break;
 
             case SetComponentNode scn:
@@ -171,8 +188,34 @@ internal static class Stage0_Rehydrate
                 EnrichComponentFindPins(pins, cfn);
                 break;
 
+            case CollectionWriteNode cwn:
+                EnrichCollectionWritePins(pins, cwn);
+                break;
+
+            case ListWriteNode lwn:
+                EnrichListWritePins(pins, lwn, asset);
+                break;
+
             case MakeStructNode msn:
                 EnrichMakeStructPins(pins, msn);
+                break;
+
+            // ⭐ CE-472 — pins from the baked DTO members (parity: editor NodePinSchema).
+            case SendIntentNode sin:
+                EnrichSendIntentPins(pins, sin);
+                break;
+
+            case ToJsonNode tjn:
+                pins.Clear();
+                foreach (var f in tjn.Fields) pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
+                pins.Add(MakePin("Json", "Out", isExec: false, typeId: "System.String"));
+                break;
+
+            case FromJsonNode fjn:
+                pins.Clear();
+                pins.Add(MakePin("Json", "In", isExec: false, typeId: "System.String"));
+                foreach (var f in fjn.Fields) pins.Add(MakePin(f.Name, "Out", isExec: false, typeId: f.TypeId));
+                pins.Add(MakePin("Ok", "Out", isExec: false, typeId: "System.Boolean"));
                 break;
 
             case BreakStructNode bsn:
@@ -185,6 +228,10 @@ internal static class Stage0_Rehydrate
 
             case FunctionCallNode fc:
                 EnrichFunctionCallPins(pins, fc, asset, graph, options, staticShapes, outL, inL);
+                break;
+
+            case MacroCallNode mc:
+                EnrichMacroCallPins(pins, mc, asset);
                 break;
 
             case PublishEventNode pen:
@@ -223,8 +270,11 @@ internal static class Stage0_Rehydrate
     // ── Dynamic pin enrichers ─────────────────────────────────────────────────
 
     private static void EnrichEventEntryPins(
-        List<Pin> pins, Graph graph, IReadOnlyList<PinSchema> staticShapes)
+        List<Pin> pins, Graph graph, EventEntryNode node, IReadOnlyList<PinSchema> staticShapes)
     {
+        // ⭐ CE-2012 (DESIGN_Typed_Event_Nodes T-1) — the payload is the NODE's (its baked Fields), or the graph's Inputs
+        //   when it is the graph's one entry (EventPayload owns that rule, shared with NodePinSchema).
+        var payload = EventPayload.FieldsOf(graph, node);
         // Static skeleton: exec-Out "Out" already added from registry.
         // Enrich: add one data-Out per Graph.Inputs entry. Function graphs expose their declared
         // inputs; Event graphs (Q#14 custom-event subscribers) expose the event PAYLOAD fields the
@@ -232,18 +282,51 @@ internal static class Stage0_Rehydrate
         // Stage5's EventEntryNode resolution (IrOp_ReadInputArg, name-matched against Graph.Inputs)
         // and the InstanceEmitter thunk (which passes each __ev.{field}) already handle both kinds;
         // this early-return was the sole gate keeping subscribers from reading their payload.
-        if ((graph.Kind != GraphKind.Function && graph.Kind != GraphKind.Event) || graph.Inputs.Count == 0)
+        //
+        // BP-80 / F3: Macro joins them — a macro's INPUT boundary is this exact shape. Must stay in
+        // parity with the editor's NodePinSchema.EventEntryNodePins.
+        //
+        // ⚠⚠ BP-74 / Q26-A3: the `Inputs.Count == 0` half of this gate is now WRONG for a Macro, and
+        // the parity test is what caught it. A macro can declare exec ENTRIES while declaring no data
+        // inputs at all — that is the ordinary shape of a collapsed selection — and the old gate
+        // short-circuited such a graph, leaving the static skeleton's single "Out" in place while the
+        // editor half projected N. Precisely the two-halves-drift this projection pair keeps hitting.
+        bool isMacro   = graph.Kind == GraphKind.Macro;
+        bool wantsData = (graph.Kind == GraphKind.Function || graph.Kind == GraphKind.Event || isMacro)
+                         && payload.Count > 0;
+
+        if (!isMacro && !wantsData)
+        {
+            // ⭐ CE-2014 — a typed node with no fields still has its whole-event pin.
+            if (EventPayload.WholeEventPinName(node) is { } wholeOnly)
+                pins.Add(MakePin(wholeOnly, "Out", isExec: false, typeId: EventPayload.WholeEventTypeId(node)));
             return;
+        }
+        if (isMacro && !wantsData && graph.ExecInputs.Count == 0) return;   // nothing to change
 
         // Ensure we have the exec-Out from static; then add data-Out pins.
         // (Clear and rebuild to avoid duplicates when static already added exec-Out.)
         pins.Clear();
-        pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
-        foreach (var inp in graph.Inputs)
+
+        // ⭐ BP-74 / Q26-A3: a Macro projects N exec-OUT pins, one per Graph.ExecInputs entry,
+        // replacing the single "Out". Empty ExecInputs keeps today's single implicit entry.
+        // Exact parity with NodePinSchema.MacroEntryExecPins.
+        if (graph.Kind == GraphKind.Macro && graph.ExecInputs.Count > 0)
+            foreach (var execIn in graph.ExecInputs)
+                pins.Add(MakePin(execIn.Name, "Out", isExec: true, typeId: ""));
+        else
+            pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
+
+        if (!wantsData) return;
+
+        foreach (var inp in payload)
         {
             var inpTypeId = GetTypeId(inp.Type);
             pins.Add(MakePin(inp.Name, "Out", isExec: false, typeId: inpTypeId));
         }
+        // ⭐ CE-2014 (T-6) — the whole event, beside its fields (split it with Break Struct). Parity: NodePinSchema.
+        if (EventPayload.WholeEventPinName(node) is { } whole)
+            pins.Add(MakePin(whole, "Out", isExec: false, typeId: EventPayload.WholeEventTypeId(node)));
     }
 
     /// <summary>
@@ -258,25 +341,127 @@ internal static class Stage0_Rehydrate
         List<Pin> pins, BlueprintAsset asset, IReadOnlyList<PinSchema> staticShapes)
     {
         pins.Clear();
-        foreach (var p in asset.Parameters)
+        foreach (var p in asset.Declarations.Of(DeclarationKind.Parameter))
         {
             var typeId = GetTypeId(p.Type);
             pins.Add(MakePin(p.Name, "Out", isExec: false, typeId: typeId));
         }
     }
 
-    private static void EnrichReturnPins(
-        List<Pin> pins, Graph graph, IReadOnlyList<PinSchema> staticShapes)
+    /// <summary>
+    /// ⭐ <c>CE-433</c> — the blackboard twins: one data pin per
+    /// <see cref="GetAllVariablesNode.PinnedVariablesOf"/> entry, in <paramref name="direction"/>
+    /// (<c>Out</c> for Get, <c>In</c> for Set). Mirrors <see cref="EnrichGetAllParametersPins"/>.
+    /// </summary>
+    private static void EnrichAllVariablesPins(List<Pin> pins, BlueprintAsset asset, string direction)
     {
-        // Static skeleton: exec-In "In" already added from registry.
-        // Enrich: add data-Out from Graph.Outputs[0] for Function graphs.
-        if (graph.Kind != GraphKind.Function || graph.Outputs.Count == 0)
-            return;
+        foreach (var v in GetAllVariablesNode.PinnedVariablesOf(asset))
+            pins.Add(MakePin(v.Name, direction, isExec: false, typeId: GetTypeId(v.Type)));
+    }
 
-        var output = graph.Outputs[0];
-        var typeId = GetTypeId(output.Type);
-        // Data pin already not in static (static is exec-In only) — just add it.
-        pins.Add(MakePin(output.Name, "Out", isExec: false, typeId: typeId));
+    private static void EnrichReturnPins(
+        List<Pin> pins, Graph graph, BlueprintAsset asset, IReadOnlyList<PinSchema> staticShapes)
+    {
+        // BP-131: an AiPrimitive's Return gains a `Success : bool` data-IN pin, so the NodeStatus it
+        // reports to its BTree/HSM host can be decided at runtime rather than picked from a combo at
+        // author time. AiPrimitive ONLY -- projecting it wider would silently change
+        // BuildReturnTerminator's valuePins COUNT, which selects the zero-output-Library NodeStatus
+        // return and BP-73 tuple packing. Exact parity with NodePinSchema.ReturnSuccessPin.
+        //
+        // ⚠ ADDITIVE, and appended LAST -- deliberately not an early return. An AiPrimitive whose
+        // graph happens to declare Outputs is odd (the drawer hides the Outputs table for that
+        // dispatch) but hand-authorable, and short-circuiting here would have dropped its declared
+        // data-in pins -- which changes nothing about the emit (AiPrimitive takes wantsStatusReturn
+        // unconditionally) but would silently STOP BP1655 firing on an unwired one. Losing a
+        // diagnostic is the same class of defect as emitting a wrong value.
+        bool wantsSuccessPin =
+            asset?.Dispatch == BlueprintDispatchKind.AiPrimitive && graph.Kind != GraphKind.Macro;
+
+        // Static skeleton: exec-In "In" already added from registry.
+        // Enrich: add data-In from Graph.Outputs[0] for Function graphs.
+        //
+        // BP-71 / Q24-A1: this pin used to be "Out". BuildReturnTerminator has always resolved it
+        // as an INPUT (ResolveDataPin follows a link arriving AT the Return node), but the editor
+        // maps Direction straight onto the canvas and rejects same-direction links — so an "Out"
+        // pin could never be wired and a Function graph could not return a value at all. "In" is
+        // now the one convention on both sides, matching ResolveAllDataInputs everywhere else.
+        // BuildReturnTerminator still accepts either direction (Q24-B1) so hand-authored JSON
+        // carrying the legacy "Out" form keeps working.
+        //
+        // BP-73: one data-In per declared output, in declaration order. Stage5.BuildReturnTerminator
+        // pairs them POSITIONALLY with Graph.Outputs, so order here is load-bearing.
+        //
+        // BP-80 / F3: Macro reuses this node as its OUTPUT boundary. It takes the same data-in
+        // projection AND replaces the single static exec-In with one pin per declared ExecOutDecl.
+        // Must stay in parity with the editor's NodePinSchema.ReturnNodePins / MacroReturnExecPins.
+        if (graph.Kind == GraphKind.Macro && graph.ExecOutputs.Count > 0)
+        {
+            // The static skeleton contributed exec-In "In"; the declared exec-outs replace it.
+            pins.RemoveAll(p => p.IsExec);
+            foreach (var execOut in graph.ExecOutputs)
+                pins.Add(MakePin(execOut.Name, "In", isExec: true, typeId: ""));
+        }
+
+        if ((graph.Kind == GraphKind.Function || graph.Kind == GraphKind.Macro)
+            && graph.Outputs.Count > 0)
+        {
+            foreach (var output in graph.Outputs)
+            {
+                var typeId = GetTypeId(output.Type);
+                // Data pins are not in the static shape (static is exec-In only) — just add them.
+                pins.Add(MakePin(output.Name, "In", isExec: false, typeId: typeId));
+            }
+        }
+
+        // Last, so the Outputs above keep their positional order intact (Stage 5 pairs valuePins[i]
+        // with Graph.Outputs[i]). Success is excluded from valuePins by name, so it never takes part
+        // in that pairing -- appending it last means it cannot perturb it either way.
+        if (wantsSuccessPin)
+            pins.Add(MakePin(ReturnNode.SuccessPinName, "In", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
+    /// BP-80 — compiler half of <c>NodePinSchema.MacroCallPins</c>. Everything is derived from the
+    /// target macro graph (F4: the node carries only <c>TargetGraphId</c>): exec-In, one exec-Out per
+    /// <c>ExecOutputs</c> entry, one data-In per <c>Inputs</c> entry, one data-Out per <c>Outputs</c>
+    /// entry — each group in declaration order, paired positionally by the splice rules.
+    /// <para>
+    /// Falls back to plain exec In/Out when the target does not resolve; reporting that is BP-82's
+    /// <c>BP1660</c>, not this projection's job. An unexpanded call reaching Stage 5 is caught by
+    /// <c>BP1668</c> regardless.
+    /// </para>
+    /// </summary>
+    private static void EnrichMacroCallPins(List<Pin> pins, MacroCallNode mc, BlueprintAsset asset)
+    {
+        pins.Clear();
+
+        Graph? target = null;
+        if (!string.IsNullOrEmpty(mc.TargetGraphId) && asset != null
+            && Guid.TryParse(mc.TargetGraphId, out var targetGuid))
+        {
+            target = asset.Graphs.FirstOrDefault(
+                g => g.Id == targetGuid && g.Kind == GraphKind.Macro);
+        }
+
+        // ⭐ BP-74 / Q26-A3: N exec-IN pins from the target's ExecInputs, replacing the single "In".
+        if (target is null || target.ExecInputs.Count == 0)
+            pins.Add(MakePin("In", "In", isExec: true, typeId: ""));
+        else
+            foreach (var execIn in target.ExecInputs)
+                pins.Add(MakePin(execIn.Name, "In", isExec: true, typeId: ""));
+
+        if (target is null || target.ExecOutputs.Count == 0)
+            pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
+        else
+            foreach (var execOut in target.ExecOutputs)
+                pins.Add(MakePin(execOut.Name, "Out", isExec: true, typeId: ""));
+
+        if (target is null) return;
+
+        foreach (var inp in target.Inputs)
+            pins.Add(MakePin(inp.Name, "In", isExec: false, typeId: GetTypeId(inp.Type)));
+        foreach (var output in target.Outputs)
+            pins.Add(MakePin(output.Name, "Out", isExec: false, typeId: GetTypeId(output.Type)));
     }
 
     private static void EnrichGetVariablePins(
@@ -285,9 +470,31 @@ internal static class Stage0_Rehydrate
     {
         // Static: empty (registry returns empty for GetVariable).
         // Build: data-Out "Value" typed from the variable.
-        var typeId = ResolveVariableTypeId(gv.VariableId, asset);
+        // FC-2/LV-2 (Q#19-A): a FIXED-LIST variable projects a COLLECTION out-pin instead --
+        // IsArray + element-typed (mirrors GetComponent's collection-decl out-pin), consumed by the
+        // same ForEach/ItemGet/ItemCount/Contains/Find nodes.
         pins.Clear();
+        var decl = FindVariableDecl(gv.VariableId, asset);
+        if (decl is { Type.Capacity: > 0 })
+        {
+            pins.Add(MakePin("Value", "Out", isExec: false, typeId: decl.Type.TypeId, isArray: true));
+            return;
+        }
+        var typeId = ResolveVariableTypeId(gv.VariableId, asset);
         pins.Add(MakePin("Value", "Out", isExec: false, typeId: typeId));
+    }
+
+    /// <summary>FC-2/LV-2: the full VariableDecl behind a Get/SetVariable id ("var:"-prefix tolerated), from Variables or WorkingState; null when absent.</summary>
+    private static VariableDecl? FindVariableDecl(string variableId, BlueprintAsset asset)
+    {
+        var vid = variableId ?? "";
+        if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
+        if (!Guid.TryParse(vid, out var id)) return null;
+        // ⚠ U-11: Variables and WorkingState only — NOT Declarations.ById(), which also searches
+        //   Parameters. Widening the set would resolve a parameter id where this never did.
+        // ⭐ Batch 86 — ONE state kind (R-01), so the concat is gone rather than rewritten.
+        return asset.Declarations.Of(DeclarationKind.Variable)
+                    .FirstOrDefault(d => d.Id == id)?.AsVariableDecl;
     }
 
     private static void EnrichSetVariablePins(
@@ -305,66 +512,7 @@ internal static class Stage0_Rehydrate
     }
 
     /// <summary>
-    /// GetSharedNode (Slice 2a-2 + Slice 2b): pure-data node. Static skeleton is empty (registry
-    /// mirrors GetVariableNode). Build data-In "Target" (OPTIONAL, <c>Fdp.Core.Entity</c> -- Slice
-    /// 2b cross-entity read; unwired = self, mirrors how <c>IrOp_GetComponent</c>'s Entity argument
-    /// is carried/typed) + data-Out "Value" typed DIRECTLY from
-    /// <see cref="GetSharedNode.SharedTypeId"/> (NOT <c>ResolveVariableTypeId</c> over
-    /// <c>asset.Variables</c> -- the shared struct is foreign to this asset's variable list) +
-    /// data-Out "Found" (<c>System.Boolean</c>).
-    /// </summary>
-    private static void EnrichGetSharedPins(
-        List<Pin> pins, GetSharedNode gsn, IReadOnlyList<PinSchema> staticShapes)
-    {
-        pins.Clear();
-        pins.Add(MakePin("Target", "In", isExec: false, typeId: "Fdp.Core.Entity"));
-
-        // Q#14 multi-pin: baked per-field decls → one data-OUT pin per field (read the struct once,
-        // project each field) + "Found". Mirrors EnrichSetSharedPins / the PublishEvent baked path.
-        if (gsn.Fields is { Count: > 0 })
-        {
-            foreach (var f in gsn.Fields)
-                pins.Add(MakePin(f.Name, "Out", isExec: false, typeId: f.TypeId));
-            pins.Add(MakePin("Found", "Out", isExec: false, typeId: "System.Boolean"));
-            return;
-        }
-
-        // Legacy whole-struct path: single "Value" data-out (typed by SharedTypeId) + "Found".
-        var typeId = SharedTypePinTypeId(gsn.SharedTypeId);
-        pins.Add(MakePin("Value", "Out", isExec: false, typeId: typeId));
-        pins.Add(MakePin("Found", "Out", isExec: false, typeId: "System.Boolean"));
-    }
-
-    /// <summary>
-    /// SetSharedNode (Slice 2a-2): exec node. Static skeleton is exec In/Out (registry mirrors
-    /// SetVariableNode). Enrich: add data-In "Value" typed DIRECTLY from
-    /// <see cref="SetSharedNode.SharedTypeId"/> + data-Out "Written" (<c>System.Boolean</c>).
-    /// </summary>
-    private static void EnrichSetSharedPins(
-        List<Pin> pins, SetSharedNode ssn, IReadOnlyList<PinSchema> staticShapes)
-    {
-        pins.Clear();
-        pins.Add(MakePin("In",  "In",  isExec: true, typeId: ""));
-        pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
-
-        // Q#14 multi-pin: baked per-field decls → one data-in pin per field (name = field name, matched
-        // by Stage5 lowering) so the designer sets fields directly. Unwired fields are simply not written.
-        if (ssn.Fields is { Count: > 0 })
-        {
-            foreach (var f in ssn.Fields)
-                pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
-            return;
-        }
-
-        // Legacy whole-struct path: single "Value" data-in + "Written" data-out.
-        var typeId = SharedTypePinTypeId(ssn.SharedTypeId);
-        pins.Add(MakePin("Value",   "In",  isExec: false, typeId: typeId));
-        pins.Add(MakePin("Written", "Out", isExec: false, typeId: "System.Boolean"));
-    }
-
-    /// <summary>
-    /// GetComponentNode (CA-01, Slice 1a): pure-data node, mirrors <see cref="EnrichGetSharedPins"/>
-    /// exactly. Static skeleton is empty (registry mirrors GetSharedNode). Build data-In "Target"
+    /// GetComponentNode (CA-01, Slice 1a): pure-data node. Static skeleton is empty. Build data-In "Target"
     /// (OPTIONAL, <c>Fdp.Core.Entity</c> -- cross-entity read, unwired = self) + either one data-Out
     /// pin PER baked <see cref="GetComponentNode.Fields"/> entry (multi-pin) or the legacy single
     /// "Value" data-Out typed from <see cref="GetComponentNode.FieldTypeFqn"/> -- plus data-Out
@@ -411,7 +559,7 @@ internal static class Stage0_Rehydrate
     }
 
     /// <summary>
-    /// SetComponentNode (CA-03/CA-06): exec node, mirrors <see cref="EnrichSetSharedPins"/>.
+    /// SetComponentNode (CA-03/CA-06): exec node.
     /// Static skeleton is exec In/Out. UNMANAGED (<see cref="SetComponentNode.IsManaged"/> == false):
     /// one data-IN pin PER baked <see cref="SetComponentNode.Fields"/> entry (no fields baked yet ⇒
     /// none). MANAGED (CA-06, Slice W2, Q#16-C): a SINGLE data-IN "Value" pin typed by
@@ -518,6 +666,81 @@ internal static class Stage0_Rehydrate
     }
 
     /// <summary>
+    /// CollectionWriteNode (FC-1, Q#20): exec node. "Collection" (IsArray, element-typed by the
+    /// node's baked <see cref="CollectionWriteNode.ElementTypeFqn"/>, System.Object fallback --
+    /// mirrors <see cref="EnrichComponentItemGetPins"/>) is the author-time binding pin ONLY (the
+    /// write entity is always <c>self</c>); operand data-ins vary per <see
+    /// cref="CollectionWriteNode.Op"/> (Add: Value · SetAt/InsertAt: Index+Value · RemoveAt: Index ·
+    /// Clear: none · Resize: Length); "Ok" (Boolean) is the write-if-present AND-op-applied result
+    /// (mirrors SetComponent's unconditional "Written").
+    /// </summary>
+    private static void EnrichCollectionWritePins(List<Pin> pins, CollectionWriteNode cwn)
+    {
+        var elemType = string.IsNullOrEmpty(cwn.ElementTypeFqn) ? "System.Object" : cwn.ElementTypeFqn;
+        pins.Clear();
+        pins.Add(MakePin("In",  "In",  isExec: true, typeId: ""));
+        pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
+        pins.Add(MakePin("Collection", "In", isExec: false, typeId: elemType, isArray: true));
+        switch (cwn.Op)
+        {
+            case CollectionWriteOp.Add:
+                pins.Add(MakePin("Value", "In", isExec: false, typeId: elemType));
+                break;
+            case CollectionWriteOp.SetAt:
+            case CollectionWriteOp.InsertAt:
+                pins.Add(MakePin("Index", "In", isExec: false, typeId: "System.Int32"));
+                pins.Add(MakePin("Value", "In", isExec: false, typeId: elemType));
+                break;
+            case CollectionWriteOp.RemoveAt:
+                pins.Add(MakePin("Index", "In", isExec: false, typeId: "System.Int32"));
+                break;
+            case CollectionWriteOp.Clear:
+                break;
+            case CollectionWriteOp.Resize:
+                pins.Add(MakePin("Length", "In", isExec: false, typeId: "System.Int32"));
+                break;
+        }
+        pins.Add(MakePin("Ok", "Out", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
+    /// ListWriteNode (FC-2/LV-3, Q#19-C): exec node bound BY VARIABLE ID (no Collection pin -- the
+    /// SetVariable lvalue pattern). Operand data-ins per <see cref="ListWriteNode.Op"/> (Add: Value ·
+    /// SetAt/InsertAt: Index+Value · RemoveAt: Index · Clear: none · Resize: Length), element-typed
+    /// from the referenced variable's declared element; "Ok" (Boolean) on every fallible op (all but
+    /// Clear).
+    /// </summary>
+    private static void EnrichListWritePins(List<Pin> pins, ListWriteNode lwn, BlueprintAsset asset)
+    {
+        var decl = FindVariableDecl(lwn.VariableId, asset);
+        var elemType = decl is { Type.Capacity: > 0 } ? decl.Type.TypeId : "System.Object";
+        pins.Clear();
+        pins.Add(MakePin("In",  "In",  isExec: true, typeId: ""));
+        pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
+        switch (lwn.Op)
+        {
+            case CollectionWriteOp.Add:
+                pins.Add(MakePin("Value", "In", isExec: false, typeId: elemType));
+                break;
+            case CollectionWriteOp.SetAt:
+            case CollectionWriteOp.InsertAt:
+                pins.Add(MakePin("Index", "In", isExec: false, typeId: "System.Int32"));
+                pins.Add(MakePin("Value", "In", isExec: false, typeId: elemType));
+                break;
+            case CollectionWriteOp.RemoveAt:
+                pins.Add(MakePin("Index", "In", isExec: false, typeId: "System.Int32"));
+                break;
+            case CollectionWriteOp.Clear:
+                break;
+            case CollectionWriteOp.Resize:
+                pins.Add(MakePin("Length", "In", isExec: false, typeId: "System.Int32"));
+                break;
+        }
+        if (lwn.Op != CollectionWriteOp.Clear)
+            pins.Add(MakePin("Ok", "Out", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
     /// ComponentFindNode (CA-07d-1): pure-data node. "Collection" (IsArray) + "Item" (query) typed by
     /// the node's baked <see cref="ComponentFindNode.ElementTypeFqn"/>; "Index" is Int32, "Found" is
     /// Boolean (Q#18-B). Mirrors <see cref="EnrichComponentContainsPins"/>.
@@ -542,6 +765,17 @@ internal static class Stage0_Rehydrate
         foreach (var f in msn.Fields)
             pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
         pins.Add(MakePin("Value", "Out", isExec: false, typeId: SharedTypePinTypeId(msn.StructTypeId)));
+    }
+
+    /// <summary>
+    /// ⭐ CE-472 — SendIntent: the static exec pair + an optional "Target" entity (unwired ⇒ self) + one data-in
+    /// per baked DTO member. Parity with the editor's NodePinSchema.SendIntentPins.
+    /// </summary>
+    private static void EnrichSendIntentPins(List<Pin> pins, SendIntentNode sin)
+    {
+        pins.Add(MakePin("Target", "In", isExec: false, typeId: "Fdp.Core.Entity"));
+        foreach (var f in sin.Fields)
+            pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
     }
 
     /// <summary>
@@ -571,8 +805,9 @@ internal static class Stage0_Rehydrate
     }
 
     /// <summary>
-    /// Resolves the pin <c>TypeId</c> for a GetShared/SetShared "Value" pin directly from the
-    /// node's <c>SharedTypeId</c> (a foreign Category-1 struct FQN, not a declared asset variable).
+    /// Resolves the pin <c>TypeId</c> for a struct-typed pin (SetComponent/Make/Break/SetMembers "Value") directly
+    /// from a baked struct FQN (a foreign struct, not a declared asset variable). ⛔ HISTORY: written for the
+    /// GetShared/SetShared nodes removed by <c>CE-440</c>; the name is historical.
     /// Stamped with the <c>"global::"</c> AN2 sentinel (mirrors <c>EnumStampedTypeFqn</c> in the
     /// editor's <c>NodePinSchema</c>) so <see cref="Catalogs.StaticTypeRegistry"/> accepts it as a
     /// project/unmanaged type without requiring reflection over an assembly that, in the analyzer
@@ -703,9 +938,11 @@ internal static class Stage0_Rehydrate
             var typeId = GetTypeId(inp.Type);
             pins.Add(MakePin(inp.Name, "In", isExec: false, typeId: typeId));
         }
-        if (target.Outputs.Count > 0)
+        // BP-73: one data-Out per target output, in declaration order. Stage5's EmitCarrierFanOut
+        // pairs these positionally with the target's Graph.Outputs, so the order is load-bearing
+        // (mirrors NodePinSchema.FunctionGraphCallPins).
+        foreach (var output in target.Outputs)
         {
-            var output = target.Outputs[0];
             var typeId = GetTypeId(output.Type);
             pins.Add(MakePin(output.Name, "Out", isExec: false, typeId: typeId));
         }
@@ -871,7 +1108,7 @@ internal static class Stage0_Rehydrate
     /// structs declared in <see cref="Catalogs.StaticTypeRegistry"/>) pass through UNPREFIXED so they
     /// resolve via the type table. A curated blittable struct the table does NOT know (e.g. a demo's
     /// own shared struct) is stamped with the <c>"global::"</c> AN2 sentinel — exactly like
-    /// <see cref="SharedTypePinTypeId"/> does for GetShared/SetShared — so it flows through the
+    /// <see cref="SharedTypePinTypeId"/> does for struct pins — so it flows through the
     /// registry's project-type acceptance path instead of failing BP1500.
     /// <para>
     /// This is what makes the semantic-model FunctionCall rehydration (Blocker-1) general: the
@@ -934,7 +1171,7 @@ internal static class Stage0_Rehydrate
     /// Recognition is by TYPE (exact FQN match against <c>Fdp.Core.Entity</c> /
     /// <c>Fdp.ModuleHost.Abstractions.ISimulationView</c>). The <c>Entity</c> case ALSO requires the
     /// parameter be named exactly <c>"self"</c> (ordinal) -- <c>Entity</c> is a legitimate ordinary
-    /// data-pin type elsewhere (e.g. <see cref="GetSharedNode"/>'s "Target" pin), so the name
+    /// data-pin type elsewhere (e.g. GetComponent's "Target" pin), so the name
     /// disambiguates a genuine trailing self-context parameter from an author-supplied data argument.
     /// <c>ISimulationView</c> has no legitimate ordinary blueprint-data use, so type alone suffices.
     /// </para>
@@ -976,9 +1213,17 @@ internal static class Stage0_Rehydrate
     {
         // Static: exec In/Out from registry.
         // Enrich: add data-In per custom-event parameter.
+        //
+        // BP-69: EventId accepts TWO forms — the declaration's GUID (what the editor's picker
+        // writes) and a bare Name (hand-authored JSON, and the shape the test builders use).
+        // This used to `return` on !Guid.TryParse, so a name-referenced call to an event WITH
+        // parameters got no argument pins at all, and the emitter produced
+        // Event_X(ref s, view, ecb, self, time) against a handler that declares some ⇒ CS7036 with
+        // no BP diagnostic. BP1408 cannot catch it: it compares the declaration's Parameters
+        // against the handler graph's Inputs, and those two agree — the mismatch is at the CALL
+        // NODE's pins, a third list nothing compared.
         if (asset == null) return;
-        if (!Guid.TryParse(cce.EventId, out var eventGuid)) return;
-        var decl = asset.CustomEvents.FirstOrDefault(e => e.Id == eventGuid);
+        var decl = ResolveCustomEventDecl(asset, cce.EventId);
         if (decl == null || decl.Parameters.Count == 0) return;
 
         foreach (var param in decl.Parameters)
@@ -987,6 +1232,16 @@ internal static class Stage0_Rehydrate
             pins.Add(MakePin(param.Name, "In", isExec: false, typeId: typeId));
         }
     }
+
+    /// <summary>
+    /// BP-69 — resolves a <see cref="CallCustomEventNode.EventId"/> in <b>either</b> accepted form.
+    /// Mirrors <c>Stage5_Schedule.FindCustomEventIndex</c> exactly, which is the authority on the
+    /// two forms: GUID first, then an ordinal <see cref="CustomEventDecl.Name"/> match. Stage 2's
+    /// <c>V_ValueNodeReferences</c> and <c>V_CustomEventHandlers</c> and BP-12b's rename path all
+    /// honour both, so a projection that honours only one is the odd one out.
+    /// </summary>
+    private static CustomEventDecl? ResolveCustomEventDecl(BlueprintAsset asset, string eventId)
+        => asset.FindCustomEvent(eventId);   // ⭐ CE-2031 — the one rule (was a "Mirrors…" copy)
 
     private static void EnrichCallPeerBlueprintPins(
         List<Pin> pins, CallPeerBlueprintNode cpb,
@@ -1013,9 +1268,20 @@ internal static class Stage0_Rehydrate
             var typeId = string.IsNullOrEmpty(inp.TypeId) ? "System.Object" : inp.TypeId;
             pins.Add(MakePin(inp.Name, "In", isExec: false, typeId: typeId));
         }
-        var returnTypeId = funcSig.Outputs.Count > 0 && !string.IsNullOrEmpty(funcSig.Outputs[0].TypeId)
-            ? funcSig.Outputs[0].TypeId : "System.Object";
-        pins.Add(MakePin("Return", "Out", isExec: false, typeId: returnTypeId));
+        // BP-113: one data-OUT per peer function output, in declaration order — the same projection
+        // NodePinSchema.CallPeerBlueprintPins makes, and the same one BP-73 gave the same-asset
+        // FunctionCall node. ⚠ Both projections must stay in step: they are the two halves of trap #9,
+        // and this node shipped with only one of them fixed.
+        if (funcSig.Outputs.Count == 0)
+        {
+            pins.Add(MakePin("Return", "Out", isExec: false, typeId: "System.Object"));
+            return;
+        }
+        foreach (var outp in funcSig.Outputs)
+        {
+            var outTypeId = string.IsNullOrEmpty(outp.TypeId) ? "System.Object" : outp.TypeId;
+            pins.Add(MakePin(outp.Name, "Out", isExec: false, typeId: outTypeId));
+        }
         return;
 
         addReturnFallback:
@@ -1141,14 +1407,12 @@ internal static class Stage0_Rehydrate
         if (Guid.TryParse(idStr, out var guid))
         {
             // Check instance variables.
-            var varDecl = asset.Variables.FirstOrDefault(v => v.Id == guid);
+            var varDecl = asset.Declarations.Of(DeclarationKind.Variable).FirstOrDefault(d => d.Id == guid);
             if (varDecl != null && varDecl.Type != null && !string.IsNullOrEmpty(varDecl.Type.TypeId))
                 return varDecl.Type.TypeId;
 
-            // Check working-state variables (AiPrimitive).
-            var wsDecl = asset.WorkingState.FirstOrDefault(v => v.Id == guid);
-            if (wsDecl != null && wsDecl.Type != null && !string.IsNullOrEmpty(wsDecl.Type.TypeId))
-                return wsDecl.Type.TypeId;
+            // ⭐ Batch 86 — the working-state lookup searched the SAME set as the line above
+            //   (R-01: one state kind), so the second pass is removed rather than duplicated.
         }
 
         return "System.Object";
@@ -1163,17 +1427,20 @@ internal static class Stage0_Rehydrate
     {
         FunctionCallNode fc   => !fc.IsPure,
         GetVariableNode       => false,
-        GetParameterNode      => false,
         GetAllParametersNode  => false,
-        GetSharedNode         => false,
+        GetAllVariablesNode   => false,
         GetComponentNode      => false,
         CompareNode           => false,
         BinaryOpNode          => false,
         BooleanOpNode         => false,
         NotNode               => false,
+        GetTimeNode           => false,
+        ToJsonNode            => false,   // CE-472: pure
+        FromJsonNode          => false,
         LiteralNode           => false,
         ReadRankedResultNode  => false,
         ReadEqsResultNode     => false,
+        ReadSensorResultNode  => false,   // ⭐ CE-3078 N2: pure
         // Q#14 Option B — Make/Break/SetMembers are PURE data nodes (no exec pins).
         MakeStructNode        => false,
         BreakStructNode       => false,

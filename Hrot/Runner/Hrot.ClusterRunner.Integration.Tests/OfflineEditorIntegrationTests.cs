@@ -30,7 +30,7 @@ public sealed class OfflineEditorIntegrationTests
     // â”€â”€ Test constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private const long  TestTkbType    = 1L;   // matches TkbTemplate registered in EditorHarness
-    private const long  TestNetworkId  = 42L;  // deterministic; non-zero = no allocator call
+    private const int  TestNetworkId  = 42;  // deterministic; non-zero = no allocator call
     private const int   PumpTimeoutMs  = 5_000;
 
     // =========================================================================
@@ -46,9 +46,9 @@ public sealed class OfflineEditorIntegrationTests
 
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType     = TestTkbType,
+            TkbType     = (Fdp.Core.TkbTypeId)(TestTkbType),
             NetworkId   = TestNetworkId,
-            OwnerNodeId = 0,
+            OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType    = ReliableInitType.None,
         });
 
@@ -74,9 +74,9 @@ public sealed class OfflineEditorIntegrationTests
         // 1. Spawn
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType     = TestTkbType,
+            TkbType     = (Fdp.Core.TkbTypeId)(TestTkbType),
             NetworkId   = TestNetworkId,
-            OwnerNodeId = 0,
+            OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType    = ReliableInitType.None,
             InitialTransform = new SimTransform { Position = Vector3.Zero },
         });
@@ -118,9 +118,9 @@ public sealed class OfflineEditorIntegrationTests
         // 1. Spawn
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType     = TestTkbType,
+            TkbType     = (Fdp.Core.TkbTypeId)(TestTkbType),
             NetworkId   = TestNetworkId,
-            OwnerNodeId = 0,
+            OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType    = ReliableInitType.None,
         });
         Assert.True(harness.PumpUntil(() => harness.Repo.EntityCount == 1, PumpTimeoutMs));

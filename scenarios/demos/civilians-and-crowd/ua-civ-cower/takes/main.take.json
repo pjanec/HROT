@@ -1,0 +1,87 @@
+{
+  "title": "Cower in the open",
+  "caption": "No building near: frightened civilians crouch where they stand, then calm down once the shooting stops",
+  "clip": "F-04",
+  "chapter": 3,
+  "state": "ready",
+  "endAt": "m+31",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Rifleman",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": 0.2,
+      "follow": "Civilian 2",
+      "distance": 60,
+      "yaw": 200,
+      "pitch": -30,
+      "lift": 2,
+      "fov": 50,
+      "segment": "fire"
+    },
+    {
+      "at": "m-0.6",
+      "follow": "Civilian 1",
+      "distance": 7,
+      "yaw": 160,
+      "pitch": -6,
+      "lift": 1.4,
+      "fov": 40,
+      "segment": "fire"
+    },
+    {
+      "at": "m+8",
+      "follow": "Civilian 3",
+      "distance": 9,
+      "yaw": 60,
+      "pitch": -8,
+      "lift": 1.3,
+      "fov": 40,
+      "segment": "crouch"
+    },
+    {
+      "at": "m+22",
+      "follow": "Civilian 2",
+      "distance": 32,
+      "yaw": 100,
+      "pitch": -20,
+      "lift": 1.5,
+      "fov": 45,
+      "segment": "calm"
+    }
+  ],
+  "segments": [
+    {
+      "id": "fire",
+      "from": 0.2,
+      "to": "m+9"
+    },
+    {
+      "id": "crouch",
+      "from": "m+9",
+      "to": "m+21",
+      "speed": 3
+    },
+    {
+      "id": "calm",
+      "from": "m+21",
+      "to": "m+31"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": 0.2,
+      "until": "m+21",
+      "text": "Under fire, with no house near: they crouch"
+    },
+    {
+      "at": "m+21",
+      "until": "m+31",
+      "text": "The firing stops: they calm down"
+    }
+  ]
+}

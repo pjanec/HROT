@@ -52,7 +52,7 @@ namespace Hrot.SimHost.Integration.Tests
                 return;
 
             // ── Spawn 100 entities spread in a 500 × 500 m grid ──────────────────────────
-            var entityIds = new List<int>(EntityCount);
+            var entityIds = new List<long>(EntityCount);
             const float spacing = 50f;          // 50 m between entities
             int sideLength = (int)MathF.Ceiling(MathF.Sqrt(EntityCount));  // 10
 

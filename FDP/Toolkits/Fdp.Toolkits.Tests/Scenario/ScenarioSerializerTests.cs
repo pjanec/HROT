@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             repo.RegisterComponent<TestPhysicsCollider>();
             repo.RegisterComponent<GuidedTarget>();
             repo.RegisterComponent<CachedSpeedComponent>();
-            repo.RegisterComponent<NoSaveVelocity>(); // [DataPolicy(DataPolicy.NoSave)]
+            repo.RegisterComponent<NoSaveVelocity>(); // [DataPolicy(DataPolicy.NoScenario)]
             repo.RegisterComponent<ScenarioIgnoreTag>();
             repo.RegisterComponent<Fdp.Core.EpisodeTag>();   // canonical episode-membership tag (Guid)
         }
@@ -52,6 +52,108 @@ namespace Fdp.Toolkit.Scenario.Tests
             var builder = new ScenarioSerializerBuilder(subsystemType);
             foreach (var t in translators) builder.RegisterTranslator(t);
             return builder.Build();
+        }
+
+        // ── CE-275 ② — the ownership save gate ────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>CE-275 ② / OQ8 — a host writes ONLY the entities it is the network-agnostic primary
+        /// owner of.</b> <c>CollectSaveableEntities</c> now gates on <c>HasAuthority</c>
+        /// (<c>NetworkAuthority.PrimaryOwnerId == LocalNodeId</c>, absent ⇒ owned) as well as
+        /// <c>ScenarioIgnoreTag</c>. This proves all three arms in one save:
+        /// a locally-owned entity is saved; a REMOTELY-owned one (e.g. a replicated IG-authored persistable
+        /// sketch) is EXCLUDED — the gap that <c>ScenarioIgnoreTag</c>-only filtering left open; and an entity
+        /// with NO <c>NetworkAuthority</c> is saved (the editor / AllInOne single-node cluster writes
+        /// everything). 📄 <c>docs/DESIGN_Distributed_Scenario_Persistence.md</c> §6.
+        /// </summary>
+        [Fact]
+        public void Serialize_AppliesTheOwnershipGate_SavingOnlyOwnedEntities()
+        {
+            _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+
+            // Locally owned (PrimaryOwnerId == LocalNodeId) → saved.
+            var owned = _repo.CreateEntity();
+            _repo.SetComponent(owned, new DummyPosition { X = 1f, Y = 0f, Z = 0f });
+            _repo.AddComponent(owned, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+
+            // Owned by a FOREIGN node → excluded (we replicate it but do not own it).
+            var foreign = _repo.CreateEntity();
+            _repo.SetComponent(foreign, new DummyPosition { X = 2f, Y = 0f, Z = 0f });
+            _repo.AddComponent(foreign, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+
+            // No NetworkAuthority at all (editor / AllInOne) → owned by construction → saved.
+            var editorLike = _repo.CreateEntity();
+            _repo.SetComponent(editorLike, new DummyPosition { X = 3f, Y = 0f, Z = 0f });
+
+            var dom      = BuildSerializer().Serialize(_repo, new ScenarioHeader("TestSubsystem"));
+            var entities = dom["Entities"]!.AsObject();
+
+            // owned + editorLike are written; the foreign one is dropped.
+            Assert.Equal(2, entities.Count);
+
+            var savedX = entities
+                .Select(kv => kv.Value!["DummyPosition"]!["X"]!.GetValue<float>())
+                .OrderBy(x => x)
+                .ToArray();
+            Assert.Equal(new[] { 1f, 3f }, savedX);   // non-vacuous: the X=2 foreign entity is the one dropped
+        }
+
+        // ── ⭐ Buildings 5e — the TerrainObjects section (📄 docs/DESIGN_Building_Interiors.md §3b K5, §3j "5e") ──
+
+        private const string TwoDoorHouse = """
+            { "type": "FeatureCollection", "features": [ { "type": "Feature",
+                "properties": { "kind": "building", "label": "H", "doors": { "front": "locked" },
+                  "building": { "footprint": [[0,0],[10,0],[10,8],[0,8]],
+                    "storeys": [ { "height": 3, "walls": [
+                      { "from": [0,0], "to": [10,0], "thickness": 0.3, "openings": [ { "kind": "door", "at": 4.5, "width": 1, "doorId": "front" } ] },
+                      { "from": [5,0], "to": [5,8], "thickness": 0.15, "openings": [ { "kind": "door", "at": 6, "width": 0.9, "doorId": "hall" } ] } ] } ] } },
+                "geometry": { "type": "Point", "coordinates": [20, 20] } } ] }
+            """;
+
+        /// <summary>
+        /// ⭐ 5e — a save writes the state of the doors this host OWNS that differ from what the terrain authored, keyed by terrain-object
+        /// key, in a <c>TerrainObjects</c> section; the door ENTITIES themselves stay out of <c>Entities</c> (<c>ScenarioIgnoreTag</c>, K5).
+        /// A door owned by another node is that node's to save (one door, one slice); a door as authored says nothing; nothing to say ⇒
+        /// no section at all.
+        /// </summary>
+        [Fact]
+        public void Stage5e_TheSaveWritesTheOwnedDoorsThatDifferFromTheTerrain_KeyedByTerrainObjectKey()
+        {
+            _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+            _repo.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
+            _repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+            _repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(TwoDoorHouse, "range"));
+            Entity Door(string key, Fdp.Toolkit.Terrain.TerrainDoorState state, int owner)
+            {
+                var e = _repo.CreateEntity();
+                _repo.AddComponent(e, new Fdp.Toolkit.Terrain.DoorState { State = state });
+                _repo.SetManagedComponent(e, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = key });
+                _repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: owner, localNodeId: 1));
+                _repo.AddComponent(e, new ScenarioIgnoreTag());
+                return e;
+            }
+            var front = Door("range/H/front", Fdp.Toolkit.Terrain.TerrainDoorState.Open, owner: 1);     // authored locked — differs
+            var hall  = Door("range/H/hall",  Fdp.Toolkit.Terrain.TerrainDoorState.Locked, owner: 2);   // differs, but node 2's
+            JsonObject? Section() => (JsonObject?)BuildSerializer().Serialize(_repo, new ScenarioHeader("TestSubsystem"))[Fdp.Toolkit.Terrain.TerrainObjectsSection.Name];
+
+            var dom = BuildSerializer().Serialize(_repo, new ScenarioHeader("TestSubsystem"));
+            Assert.Empty(dom["Entities"]!.AsObject());                                   // K5 — the entities are never saved
+            var section = Assert.IsType<JsonObject>(dom["TerrainObjects"]);
+            Assert.Equal(new[] { "range/H/front" }, section.Select(kv => kv.Key));
+            Assert.Equal("Open", (string)section["range/H/front"]!["door"]!);
+
+            _repo.SetComponent(hall, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            _repo.SetComponent(hall, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Open });
+            Assert.Equal(new[] { "range/H/front" }, Section()!.Select(kv => kv.Key));   // owned now, but as authored
+
+            _repo.SetComponent(front, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Locked });
+            Assert.Null(Section());                                                       // every door as authored ⇒ no section
+
+            // the reader is the writer's inverse, and a bad state fails loudly
+            var read = Fdp.Toolkit.Terrain.TerrainObjectsSection.ReadDoors(dom);
+            Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Open, Assert.Single(read).Value);
+            var bad = new JsonObject { ["TerrainObjects"] = new JsonObject { ["range/H/front"] = new JsonObject { ["door"] = "Ajar" } } };
+            Assert.Contains("Ajar", Assert.Throws<InvalidOperationException>(() => Fdp.Toolkit.Terrain.TerrainObjectsSection.ReadDoors(bad)).Message);
         }
 
         // �� RoundTrip_1to1_PreservesAllFields ������������������������������������
@@ -225,10 +327,58 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.Dispose();
         }
 
+        // ── CE-4224 — a null entity reference is a valid reference ────────────────
+
+        /// <summary>
+        /// ⭐ CE-4224 — <c>Entity.Null</c> in an entity field (an <c>AmmoLoadout</c>'s unused rows) is saved as the EMPTY GUID and read back as
+        /// <c>Entity.Null</c>; it used to throw "entity Entity.Null is not in the save map" and kill every save of showcase-bridgehead.
+        /// </summary>
+        [Fact]
+        public void CE4224_ANullEntityField_IsSavedAsTheEmptyGuid_AndLoadedBackAsNull()
+        {
+            var tracker = _repo.CreateEntity();
+            _repo.AddComponent(tracker, new GuidedTarget { TargetId = Entity.Null });
+
+            var serializer = BuildSerializer();
+            var dom = serializer.Serialize(_repo, new ScenarioHeader("TestSubsystem"));
+
+            string? raw = null;
+            foreach (var ekv in (JsonObject)dom["Entities"]!)
+                if (ekv.Value is JsonObject eNode && eNode.ContainsKey("GuidedTarget"))
+                    raw = ((JsonObject)eNode["GuidedTarget"]!)["TargetId"]?.GetValue<string>();
+            Assert.Equal(Guid.Empty.ToString(), raw);
+
+            var fresh = new EntityRepository();
+            RegisterCommonComponents(fresh);
+            serializer.Deserialize(fresh, dom);
+            Entity loaded = default; bool found = false;
+            for (int i = 0; i <= fresh.MaxEntityIndex; i++)
+            {
+                var e = new Entity(i, fresh.GetMetadata(i).Generation);
+                if (fresh.IsAlive(e) && fresh.HasComponent<GuidedTarget>(e)) { loaded = e; found = true; break; }
+            }
+            Assert.True(found, "the tracker must load");
+            Assert.True(fresh.GetComponent<GuidedTarget>(loaded).TargetId.IsNull, "the empty GUID loads back as Entity.Null");
+            fresh.Dispose();
+        }
+
+        /// <summary>⭐ CE-4224 — only the NULL entity is exempt: any other entity that is not in the save map still throws, naming the component and the entity.</summary>
+        [Fact]
+        public void CE4224_AnyOtherUnresolvableEntity_StillThrows_NamingTheComponentAndTheEntity()
+        {
+            var tracker = _repo.CreateEntity();
+            var stranger = new Entity(900, 1);   // never created in this world ⇒ not in the save map
+            _repo.AddComponent(tracker, new GuidedTarget { TargetId = stranger });
+
+            var ex = Assert.Throws<InvalidOperationException>(() => BuildSerializer().Serialize(_repo, new ScenarioHeader("TestSubsystem")));
+            Assert.Contains("GuidedTarget", ex.Message);
+            Assert.Contains(stranger.ToString(), ex.Message);
+        }
+
         // �� DataPolicyNoSave_ComponentExcluded �����������������������������������
 
         /// <summary>
-        /// <c>NoSaveVelocity</c> is marked <c>[DataPolicy(DataPolicy.NoSave)]</c> and
+        /// <c>NoSaveVelocity</c> is marked <c>[DataPolicy(DataPolicy.NoScenario)]</c> and
         /// must be absent from the serialized DOM.
         /// </summary>
         [Fact]
@@ -245,7 +395,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             var entityNode   = (JsonObject)entitiesNode.First().Value!;
 
             Assert.False(entityNode.ContainsKey("NoSaveVelocity"),
-                "NoSave component must be absent from the DOM.");
+                "NoScenario component must be absent from the DOM.");
             Assert.True(entityNode.ContainsKey("DummyPosition"),
                 "Saveable component must still appear in the DOM.");
         }
@@ -477,6 +627,63 @@ namespace Fdp.Toolkit.Scenario.Tests
             };
             var serializer = BuildSerializer();
             Assert.Throws<InvalidOperationException>(() => serializer.Deserialize(_repo, dom));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b><c>CE411_R1</c> — the LENIENT half of the unknown-component policy.</b> The same
+        /// DOM that throws under the default policy loads under
+        /// <see cref="UnknownComponentPolicy.WarnAndSkip"/>: the alien key is skipped, the entity
+        /// survives, and the known components on it are still injected.
+        ///
+        /// <para>🔒 <b>Why this option exists.</b> 📐 Measured 2026-09-28: P4 retired
+        /// <c>BrainBlackboard</c> without migrating the scenario corpus, so every scenario still
+        /// carrying the key was unloadable — the 2PC <c>PrepareLive</c> faulted, the commit was
+        /// skipped, and no exercise could start. ⇒ on a live cluster, refusing the whole scenario
+        /// is a worse outcome than loading it one component short.</para>
+        ///
+        /// <para>⛔ <b>It does not replace the migration chain.</b> A PLANNED retirement ships a
+        /// migrator (<c>V2ToV3_RemoveBrainBlackboard</c>); this policy is the safety net for the
+        /// ones nobody planned. And the strict default stays — see the test below, which is the
+        /// reason this is a policy and not a behaviour change.</para>
+        /// </summary>
+        [Fact]
+        public void CE411_R1_UnknownComponentKey_IsSkipped_UnderWarnAndSkip()
+        {
+            var entity = _repo.CreateEntity();
+            _repo.SetComponent(entity, new DummyPosition { X = 7f });
+
+            var dom = BuildSerializer().Serialize(_repo, new ScenarioHeader("TestSubsystem"));
+
+            var entitiesNode = (JsonObject)dom["Entities"]!;
+            var entityNode   = (JsonObject)entitiesNode.First().Value!;
+            entityNode.Add("RetiredComponent999", new JsonObject { ["Field"] = JsonValue.Create(42) });
+
+            using var freshRepo = new EntityRepository();
+            RegisterCommonComponents(freshRepo);
+            var lenient = new ScenarioSerializerBuilder("TestSubsystem")
+                .WithUnknownComponentPolicy(UnknownComponentPolicy.WarnAndSkip)
+                .Build();
+
+            // ⭐ No throw — and the entity is still there with its KNOWN component intact.
+            lenient.Deserialize(freshRepo, dom);
+
+            var loaded = new List<Entity>();
+            foreach (var e in freshRepo.Query().With<DummyPosition>().Build())
+                loaded.Add(e);
+
+            Assert.Single(loaded);
+            Assert.Equal(7f, freshRepo.GetComponent<DummyPosition>(loaded[0]).X);
+        }
+
+        /// <summary>
+        /// ⭐ <b><c>CE411_R2</c></b> — the default is still <see cref="UnknownComponentPolicy.Throw"/>.
+        /// ⛔ If this ever flips, every editor and CI load silently starts dropping data, which is
+        /// exactly what the test below was written to prevent.
+        /// </summary>
+        [Fact]
+        public void CE411_R2_TheDefaultPolicyIsStillThrow()
+        {
+            Assert.Equal(UnknownComponentPolicy.Throw, BuildSerializer().UnknownComponentPolicy);
         }
 
         /// <summary>

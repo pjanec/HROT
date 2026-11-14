@@ -490,7 +490,7 @@ Tests:
 
 After implementing all changes:
 
-1. `dotnet build IOS-IG-SimHost.sln` — must succeed with 0 errors
+1. `dotnet build HROT.sln` — must succeed with 0 errors
 2. `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/ --filter "FullyQualifiedName~EqsQueryTemplate"` — 4 tests must pass
 3. `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/ --filter "FullyQualifiedName~EqsTranslator"` — 3 tests must pass (T8, T9, T10)
 4. `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/ --filter "FullyQualifiedName~Eqs"` — all previous 7 EQS tests must still pass

@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices;
 using Fbt;
 using Fdp.Toolkit.Behavior;
+using Fdp.Core;
+using Fbt.Kernel;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -32,11 +34,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// Condition: Success while <c>Counter &lt; Threshold</c>, Failure once the counter
         /// reaches the threshold. Lets a Sequence keep running the increment until the cap.
         /// </summary>
-        [BTreeCondition]
-        public static NodeStatus Condition_CounterBelowThreshold(
-            ref DemoCounterParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiCondition]
+        public static NodeStatus Condition_CounterBelowThreshold(ref DemoCounterParams p, Entity self, EntityRepository world)
         {
             return p.Counter < p.Threshold ? NodeStatus.Success : NodeStatus.Failure;
         }
@@ -45,11 +44,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// Action: increments <c>Counter</c> by one and returns Success. The simplest
         /// possible observable effect — mirrors the blueprint CountingDemo's "+1".
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_IncrementCounter(
-            ref DemoCounterParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_IncrementCounter(ref DemoCounterParams p, Entity self, EntityRepository world)
         {
             p.Counter++;
             return NodeStatus.Success;
@@ -75,11 +71,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// Action: adds <c>Step</c> to <c>Sum</c> and returns Success. Purely stateless and
         /// side-effect-free — the result is observable directly through the blackboard.
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_AddStepToSum(
-            ref DemoAccumParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_AddStepToSum(ref DemoAccumParams p, Entity self, EntityRepository world)
         {
             p.Sum += p.Step;
             return NodeStatus.Success;
@@ -116,16 +109,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// then <see cref="NodeStatus.Success"/>. WorkingState is projected from the
         /// entity's active <c>BlueprintBlackboard*</c> tier partition slot.
         ///
-        /// NOT marked [BTreeAction] — this method uses the ThreeParamReusableStateful delegate
-        /// shape (4-param with WorkingState) registered by the bridge emitter, not the
-        /// standard FbtActionRegistrar auto-registration. The [BTreeAction] attribute only
-        /// supports the standard 3-param (ref TDto, ref BehaviorTreeState, ref BTreeContext) shape.
+        /// ⭐ CE-504 C-2 — the shared stateful form <c>(ref P, ref WS, Entity, EntityRepository)</c>: a JSON asset's stateful
+        /// thunk and a curated tree's <c>StatefulAction</c> both call it with this signature.
         /// </summary>
-        public static NodeStatus Action_AdvanceCursor(
-            ref DemoCursorParams p,
-            ref DemoCursorState ws,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_AdvanceCursor(ref DemoCursorParams p, ref DemoCursorState ws, Entity self, EntityRepository world)
         {
             ws.Cursor++;
             return ws.Cursor < p.Limit ? NodeStatus.Running : NodeStatus.Success;

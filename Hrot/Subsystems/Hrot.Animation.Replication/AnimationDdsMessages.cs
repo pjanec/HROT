@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using CycloneDDS.Schema;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Animation.Replication;
 
@@ -13,7 +15,7 @@ namespace Hrot.Animation.Replication;
 [StructLayout(LayoutKind.Sequential)]
 internal unsafe struct DdsAnimationChannelIntent
 {
-    public long EntityId;
+    public int EntityId;
     public ushort ActiveAction;
     public ushort Pad1;
     public uint ActionInstanceId;
@@ -25,17 +27,24 @@ internal unsafe struct DdsAnimationChannelIntent
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsAnimationChannelStatus
 {
-    public long EntityId;
+    public int EntityId;
     public byte Status;           // NodeStatus cast to byte
     public byte Pad1;
     public ushort Pad2;
     public uint DispatchedInstanceId;
 }
 
+// ⭐ CE-3252 (LD-F, G5) — the look-at pair put on REAL DDS, as CE-2121 did for the stance pair. ⛔ Before, it had no generated
+//   serialiser and the first live reader threw "does not have a public static GetDescriptorOps()" at boot (measured when the pair was
+//   first registered on SimHost / CGF). State-bearing: Reliable + TransientLocal + KeepLast 1 (the QoS table's State()).
+[DdsTopic]
+[DdsIdlFile("hrot-anim-msgs")]
+[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
 [StructLayout(LayoutKind.Sequential)]
-internal unsafe struct DdsLookAtChannelIntent
+public unsafe partial struct DdsLookAtChannelIntent
 {
-    public long EntityId;
+    [DdsKey]
+    public int EntityId;
     public ushort ActiveAction;
     public ushort Pad1;
     public uint ActionInstanceId;
@@ -44,10 +53,14 @@ internal unsafe struct DdsLookAtChannelIntent
     public fixed byte ActionParams[32];
 }
 
+[DdsTopic]
+[DdsIdlFile("hrot-anim-msgs")]
+[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
 [StructLayout(LayoutKind.Sequential)]
-internal struct DdsLookAtChannelStatus
+public partial struct DdsLookAtChannelStatus
 {
-    public long EntityId;
+    [DdsKey]
+    public int EntityId;
     public byte Status;           // NodeStatus cast to byte
     public byte Pad1;
     public ushort Pad2;
@@ -56,10 +69,18 @@ internal struct DdsLookAtChannelStatus
 
 // ── Descriptor topics ─────────────────────────────────────────────────────────
 
+// ⭐ CE-2121 slice ② — the first animation topics put on REAL DDS: [DdsTopic] + the CycloneDDS generator. ⛔ Before, these structs
+//   had no generated serialiser (only the loopback tests' fake writers used them) and the first live DdsWriter threw
+//   "does not have a public static GetDescriptorOps()" at boot. ⭐ CE-3252 added the look-at pair (above); the montage / channel topics
+//   stay test-only (CE-3010).
+[DdsTopic]
+[DdsIdlFile("hrot-anim-msgs")]
+[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
 [StructLayout(LayoutKind.Sequential)]
-internal struct DdsStanceIntent
+public partial struct DdsStanceIntent
 {
-    public long EntityId;
+    [DdsKey]
+    public int EntityId;
     public byte TargetStance;     // StanceId cast to byte
     public byte Pad1;
     public ushort Pad2;
@@ -67,10 +88,14 @@ internal struct DdsStanceIntent
     public uint Version;
 }
 
+[DdsTopic]
+[DdsIdlFile("hrot-anim-msgs")]
+[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
 [StructLayout(LayoutKind.Sequential)]
-internal struct DdsStanceStatus
+public partial struct DdsStanceStatus
 {
-    public long EntityId;
+    [DdsKey]
+    public int EntityId;
     public byte CurrentStance;    // StanceId cast to byte
     public byte Phase;            // StanceTransitionPhase cast to byte
     public ushort Pad1;
@@ -83,7 +108,7 @@ internal struct DdsStanceStatus
 [StructLayout(LayoutKind.Sequential)]
 internal unsafe struct DdsMontageQueue
 {
-    public long EntityId;
+    public int EntityId;
     public uint QueueVersion;
     public byte Count;
     private byte _pad0;
@@ -96,7 +121,7 @@ internal unsafe struct DdsMontageQueue
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsMontageQueueState
 {
-    public long EntityId;
+    public int EntityId;
     public byte CurrentEntryIndex;
     public byte InBlendOutWindow;  // bool as byte for blittability
     public ushort Pad;
@@ -108,7 +133,7 @@ internal struct DdsMontageQueueState
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsMontageStartedEvent
 {
-    public long Target;
+    public int Target;
     public int MontageId;
     public uint ActionInstanceId;
     public byte QueueIndex;
@@ -119,7 +144,7 @@ internal struct DdsMontageStartedEvent
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsMontageEndedEvent
 {
-    public long Target;
+    public int Target;
     public int MontageId;
     public uint ActionInstanceId;
     public byte QueueIndex;
@@ -130,7 +155,7 @@ internal struct DdsMontageEndedEvent
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsMontageSectionAdvancedEvent
 {
-    public long Target;
+    public int Target;
     public int MontageId;
     public byte FromSectionIndex;
     public byte ToSectionIndex;
@@ -140,7 +165,7 @@ internal struct DdsMontageSectionAdvancedEvent
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsStanceChangedEvent
 {
-    public long Target;
+    public int Target;
     public byte PreviousStance;   // StanceId cast to byte
     public byte NewStance;        // StanceId cast to byte
     private ushort _p;
@@ -149,7 +174,7 @@ internal struct DdsStanceChangedEvent
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsHitWindowOpenedEvent
 {
-    public long Target;
+    public int Target;
     public int MontageId;
     public byte WindowId;
     private byte _p0;
@@ -159,7 +184,7 @@ internal struct DdsHitWindowOpenedEvent
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsHitWindowClosedEvent
 {
-    public long Target;
+    public int Target;
     public int MontageId;
     public byte WindowId;
     private byte _p0;
@@ -169,7 +194,7 @@ internal struct DdsHitWindowClosedEvent
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsAnimNotifyEvent
 {
-    public long Target;
+    public int Target;
     public int MontageId;
     public uint MarkerHash;
     public float PayloadFloat;

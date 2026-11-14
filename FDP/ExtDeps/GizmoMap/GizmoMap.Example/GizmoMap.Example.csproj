@@ -16,7 +16,7 @@
     <ProjectReference Include="..\..\StructEdit\src\StructEdit.Reflection\StructEdit.Reflection.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
+    <PackageReference Include="CycloneDDS.NET" Version="$(CycloneDdsNetVersion)" />
     <PackageReference Include="rlImgui-cs" Version="3.2.0" />
   </ItemGroup>
 </Project>

@@ -101,7 +101,7 @@ This is the component where the Muscle-side solver delivers its results. To expl
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.EqsCognitiveBuffer)] // E.g., next available ID
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct EqsCognitiveBuffer
     {
         public int Count;

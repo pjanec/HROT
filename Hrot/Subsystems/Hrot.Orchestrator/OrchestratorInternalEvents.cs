@@ -1,19 +1,12 @@
 using System;
 using System.Collections.Generic;
 using Hrot.Network.Orchestration;
+using Fdp.Core;
 
 namespace Hrot.Orchestrator;
 
-/// <summary>
-/// Published by <see cref="GlobalContextProcessManager"/> after the local
-/// Orchestrator.json has been serialized and committed.
-/// Consumed by <see cref="StorageProcessManager"/> to prepend the orchestrator's
-/// own manifest entry before the NAS pull.
-/// </summary>
-internal struct GlobalContextManifestReadyEvent
-{
-    public FileManifestEntry Entry;
-}
+// CE-278: GlobalContextManifestReadyEvent retired — it carried the SaveScenario=2 Orchestrator.json
+// manifest entry from GlobalContextProcessManager to StorageProcessManager; both ends are removed.
 
 /// <summary>
 /// Published by <see cref="ClusterMaster"/> when a PrefetchScenario operation step is
@@ -28,6 +21,31 @@ internal struct ExecutePrefetchIntent
     public string ScenarioId;
     /// <summary>Active node IDs captured at fan-out time (for PrefetchFiles fan-out).</summary>
     public List<int> ActiveNodeIds;
+    /// <summary>⭐ CE-3020 — each active node's advertised capability tokens, so the saga knows which asset kinds each
+    /// node needs or authors and where they live (docs/DESIGN_Asset_Management.md §4, §7.3a). Null = none known.</summary>
+    public Dictionary<int, string[]>? NodeCapabilities;
+    /// <summary>⭐ CE-4099 (AQ108 §4c A7) — stage the scenario's AUTOSAVE as its <c>scenario.json</c> for this load (refused when none or stale).</summary>
+    public bool RecoverAutosave;
+}
+
+/// <summary>
+/// ⭐⭐ <c>R-4018</c> / <c>CE-4003</c> step 2 — published by <see cref="ClusterMaster"/> when a node ENTERS the roster
+/// (first start, restart after ejection, late join — one path). Consumed by <see cref="AssetPrefetchProcessManager"/>,
+/// which syncs the deployment's TKB to that node. 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §0a.
+/// </summary>
+internal struct NodeJoinedRosterEvent
+{
+    public NodeId NodeId;
+}
+
+/// <summary>
+/// ⭐⭐ <c>P8</c> <c>H5</c> (Q91 §4-H) — the operator cancelled a PARKED transition: the staging copy its prefetch started
+/// is STOPPED, not left to finish. Published by <see cref="ClusterMaster"/>, consumed by
+/// <see cref="AssetPrefetchProcessManager"/>, which cancels the transfer (<c>IFileTransfer.Cancel</c>, P6).
+/// </summary>
+internal struct PrefetchCancelRequestedEvent
+{
+    public Guid RequestId;
 }
 
 /// <summary>
@@ -46,6 +64,28 @@ internal struct PrefetchStagingCompletedEvent
 }
 
 /// <summary>
+/// ⭐⭐⭐ <c>L8</c> — published by <see cref="AssetPrefetchProcessManager"/> when the WHOLE distribution
+/// of a scenario is finished: the NAS copy AND every node's <c>PrefetchFiles</c> acknowledgement.
+///
+/// <para>⭐ This is the fact a parked transition waits on, and it is not a new measurement — the saga
+/// already tracks a per-node acknowledgement set and already knows when it empties. What was missing is
+/// that the set forgot which request started it, so nothing could be correlated back; the tracker now
+/// carries the originating request id and this event relays it.</para>
+///
+/// <para>⛔ Do NOT confuse it with <see cref="PrefetchStagingCompletedEvent"/>, which fires when the
+/// server-side COPY finishes — half-way through, while the nodes have not yet been told anything.
+/// 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §7.1.</para>
+/// </summary>
+internal struct PrefetchDistributionCompletedEvent
+{
+    /// <summary>The request that started the distribution — the transition's own request id.</summary>
+    public Guid   RequestId;
+    public string ScenarioId;
+    /// <summary><c>false</c> when the copy failed or any node acknowledged a failure.</summary>
+    public bool   IsSuccess;
+}
+
+/// <summary>
 /// Published by <see cref="ClusterMaster"/> when an ExportArchive SerializeLocal fan-out
 /// is initiated. Carries the archive request context so <see cref="StorageProcessManager"/>
 /// can route the completed NAS pull to the correct archive request ID.
@@ -58,6 +98,37 @@ internal struct ExportArchiveBegunEvent
     public Guid ArchiveRequestId;
     /// <summary>Cancellation token source for the NAS pull; also stored in ClusterMaster._activeCancellations.</summary>
     public System.Threading.CancellationTokenSource Cts;
+    /// <summary>⭐ CE-4330 ② — the job's counters the pull writes (files, bytes) and the master's give-way word it reads.</summary>
+    public Fdp.Toolkit.Orchestration.StorageTransferProgress? Progress;
+}
+
+/// <summary>
+/// CE-277(c2) — published by <see cref="ClusterMaster"/> when a <c>SaveScenarioJson</c> SerializeLocal
+/// fan-out is initiated. Carries the transaction id → scenario name mapping so
+/// <see cref="StorageProcessManager"/> can, after the NAS pull, run <c>ScenarioMergeCore</c> on the pulled
+/// per-node slices and write the one canonical <c>scenarios/&lt;name&gt;/scenario.json</c>.
+/// </summary>
+internal struct SaveScenarioJsonBegunEvent
+{
+    /// <summary>SerializeLocal fan-out transaction ID (matches the ClusterOpCompletedEvent.RequestId).</summary>
+    public Guid TransactionId;
+    /// <summary>Relative scenario name / subfolder under the NAS scenarios root (never a filesystem path).</summary>
+    public string ScenarioName;
+    /// <summary>⭐ CE-4099 (AQ108 §4c A2/A5) — an AUTOSAVE round: merged into <c>.autosave/autosave.json</c> (+ its meta), never <c>scenario.json</c>; no
+    /// <see cref="ScenarioSaveFinishedEvent"/> (an autosave is not a save — A3).</summary>
+    public bool Autosave;
+}
+
+/// <summary>
+/// ⭐ CE-4093 (AQ108 D20) — published by <see cref="StorageProcessManager"/> when the NAS pull + merge of a scenario save has finished, so the
+/// master knows whether the file on disk is current: a node cannot know a save failed AFTER its slice was written.
+/// </summary>
+internal struct ScenarioSaveFinishedEvent
+{
+    /// <summary>The save's SerializeLocal fan-out transaction ID (<see cref="SaveScenarioJsonBegunEvent.TransactionId"/>).</summary>
+    public Guid TransactionId;
+    /// <summary>True when every slice was pulled and merged into the canonical <c>scenario.json</c>.</summary>
+    public bool Succeeded;
 }
 
 /// <summary>
@@ -75,4 +146,6 @@ internal struct ImportArchiveBegunEvent
     public System.Collections.Generic.List<NodeDistributionTarget> Targets;
     /// <summary>Cancellation token source; also stored in ClusterMaster._activeCancellations.</summary>
     public System.Threading.CancellationTokenSource Cts;
+    /// <summary>⭐ CE-4330 ② — the job's counters the push writes, and the master's give-way word.</summary>
+    public Fdp.Toolkit.Orchestration.StorageTransferProgress? Progress;
 }

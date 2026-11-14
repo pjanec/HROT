@@ -1,0 +1,54 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CV-5 (CE-2237) fear spreads through a crowd. A DEMO by size (17 units, so no golden). From the header's Judge (0)-(3): the rifleman opens fire (the take's first round at 1.1 s), >= 5 civilians hear it (CivilianState.HeardAt > 0), >= 4 never hear anything, and fear reaches the deaf: Civilians 10-15 are 94-142 m out, so >= 3 of '*Civilian 1' (Civilian 1 plus 10-15, the one near man included) frightened is the necessary form of 'at least 3 deaf ones panic' (a field cue cannot AND 'never heard' with 'frightened' on one man). 'ONE crowd' is CrowdId != 0 for all fifteen (equal ids cannot be compared across units).",
+  "runFor": 50,
+  "golden": false,
+  "expect": [
+    {
+      "name": "they stand in a crowd (every civilian has a CrowdId)",
+      "on": "field",
+      "who": "*Civilian",
+      "path": "CivilianState.CrowdId",
+      "op": "!=",
+      "value": 0,
+      "quantifier": "all"
+    },
+    {
+      "name": "the rifleman opens fire",
+      "on": "shot",
+      "by": "Rifleman"
+    },
+    {
+      "name": "at least five hear it",
+      "on": "field",
+      "who": "*Civilian",
+      "path": "CivilianState.HeardAt",
+      "op": ">",
+      "value": 0,
+      "quantifier": "atLeast:5"
+    },
+    {
+      "name": "at least three of the far end are frightened (caught from the crowd)",
+      "on": "field",
+      "who": "*Civilian 1",
+      "path": "CivilianState.Mode",
+      "op": "in",
+      "value": [
+        "Panic",
+        "Shelter",
+        "Inside",
+        "Cower"
+      ],
+      "quantifier": "atLeast:3"
+    },
+    {
+      "name": "at least four never hear anything",
+      "on": "field",
+      "who": "*Civilian",
+      "path": "CivilianState.HeardAt",
+      "op": "==",
+      "value": 0,
+      "quantifier": "atLeast:4",
+      "atEnd": true
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<defs>
+  <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EEF2F6"/><stop offset="1" stop-color="#A3AEBB"/></linearGradient>
+  <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#55606C"/><stop offset="1" stop-color="#2A3139"/></linearGradient>
+  <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A9D0F2"/><stop offset="1" stop-color="#4A79A8"/></linearGradient>
+  <radialGradient id="wheel" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#C9D1DA"/><stop offset="1" stop-color="#6E7A87"/></radialGradient>
+</defs>
+<g stroke="#1B2027" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<circle cx="64" cy="24" r="10" fill="url(#body)"/>
+<path d="M51,38 C51,36 53,35 55,35 L73,35 C75,35 77,36 77,38 L80,72 L48,72 Z" fill="url(#body)"/>
+<path d="M50,72 L63,72 L61,110 L50,110 Z" fill="url(#body)"/>
+<path d="M65,72 L78,72 L86,108 L75,110 Z" fill="url(#body)"/>
+<path d="M46,110 L62,110 L62,116 L44,116 Z M73,110 L89,108 L91,114 L73,116 Z" fill="url(#dark)"/>
+<path d="M70,40 L82,66" fill="none" stroke-width="5"/><path d="M70,40 L82,66" fill="none" stroke="#C9D1DA" stroke-width="2.6"/>
+</g>
+</svg>

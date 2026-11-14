@@ -23,8 +23,8 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             _repo = new EntityRepository();
             _repo.RegisterComponent<UnitRoster>();
             _repo.RegisterComponent<UnitSubordinate>();
-            _repo.RegisterComponent<Blackboard1024>();
-            _repo.RegisterComponent<SquadStateMarker>();
+            _repo.RegisterComponent<SquadCognitiveState>();
+            _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<BehaviorState>();
         }
 
@@ -36,8 +36,7 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
         {
             var e = _repo.CreateEntity();
             _repo.AddComponent(e, new UnitRoster());
-            _repo.AddComponent(e, new Blackboard1024());
-            _repo.AddComponent(e, new SquadStateMarker());
+            _repo.AddComponent(e, default(SquadCognitiveState));
             return e;
         }
 
@@ -47,12 +46,11 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             _repo.AddComponent(m, new UnitSubordinate { Commander = commander });
             _repo.AddComponent(m, new BehaviorState { ActiveBehaviorHash = behaviorHash });
             ref var roster = ref _repo.GetComponentRW<UnitRoster>(commander);
-            UnitRoster.Add(ref roster, (long)m.PackedValue);
+            UnitRoster.Add(ref roster, m);
 
             // Write role into SquadCognitiveState.
             int idx = roster.Count - 1;
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(commander);
             System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
                 ref System.Runtime.CompilerServices.Unsafe.As<RoleAssignmentArray, RoleSlot>(
                     ref System.Runtime.CompilerServices.Unsafe.AsRef(in state.Roles)), 16)[idx].RoleId = roleId;
@@ -127,10 +125,9 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             var m = _repo.CreateEntity();
             _repo.AddComponent(m, new UnitSubordinate { Commander = cmd });
             ref var roster = ref _repo.GetComponentRW<UnitRoster>(cmd);
-            UnitRoster.Add(ref roster, (long)m.PackedValue);
+            UnitRoster.Add(ref roster, m);
             // Write roleId=1 into state.
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(cmd));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(cmd);
             System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
                 ref System.Runtime.CompilerServices.Unsafe.As<RoleAssignmentArray, RoleSlot>(
                     ref System.Runtime.CompilerServices.Unsafe.AsRef(in state.Roles)), 16)[0].RoleId = 1;

@@ -136,12 +136,11 @@ namespace Fdp.Examples.CarKinem.Core
             
             _repository.AddComponent(e, new VehicleState { 
                 Speed = 0,
-                SteerAngle = 0,
+                SteerAngle = (Fdp.Core.Angle)(0),
                 Accel = 0
             });
             
             var preset = global::CarKinem.Core.VehiclePresets.GetPreset(vehicleClass);
-            preset.Class = vehicleClass; // Ensure class is set
             _repository.AddComponent(e, preset);
             
             // Use component-based color defaults if needed, or rely on visualizer
@@ -319,7 +318,7 @@ namespace Fdp.Examples.CarKinem.Core
                  Params = new FormationParams 
                  {
                      Spacing = 12.0f,
-                     WedgeAngleRad = 0.5f,
+                     WedgeAngleRad = (Fdp.Core.Angle)(0.5f),
                      MaxCatchUpFactor = 1.25f,
                      BreakDistance = 50.0f,
                      ArrivalThreshold = 2.0f,

@@ -10,14 +10,14 @@ namespace Hrot.DDS.DataModel.Runner
     /// <para>QoS: Reliable + TransientLocal (KeepLast/1) ensures late-joining
     /// processes receive the most recent announcement from all peers.</para>
     /// </summary>
-    [DdsTopic("SubsystemStatusAnnounce")]
+    [DdsTopic]
     [DdsIdlFile("runner-msgs")]
     [DdsManaged]
     [DdsQos(
         Reliability  = DdsReliability.Reliable,
         Durability   = DdsDurability.TransientLocal,
         HistoryKind  = DdsHistoryKind.KeepLast,
-        HistoryDepth = 1)]
+        HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct SubsystemStatusAnnounce
     {
         /// <summary>Unique node identifier within the DDS domain. Used as the DDS key.</summary>

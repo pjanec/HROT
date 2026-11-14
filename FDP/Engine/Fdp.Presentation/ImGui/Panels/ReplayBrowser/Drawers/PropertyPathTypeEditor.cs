@@ -1,0 +1,237 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using Fdp.Presentation.Editing;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.ReplayBrowser.Search;
+using StructEdit.Core;
+
+namespace Fdp.Presentation.Panels.ReplayBrowser.Drawers;
+
+using ImGuiApi = ImGuiNET.ImGui;
+
+/// <summary>
+/// ⭐ CE-3378 (N-1) — the property-path picker as a FIELD RULE on <see cref="PropertyPathPickerAttribute"/> (it was the replay search's <c>typeof(string)</c> drawer, built per search with its session): the session it
+/// reads sibling fields through is <c>ctx.Session</c>, the registry <c>ctx.Get&lt;BehaviorRegistry&gt;()</c>. The combo's filter text is per instance (one combo is open at a time).
+/// </summary>
+internal sealed class PropertyPathTypeEditor : Fdp.Presentation.Editing.Types.TypeEditor<string>
+{
+    private string _filter = string.Empty;
+
+    public override bool CanDraw => true;
+
+    public override bool Draw(in Fdp.Presentation.Editing.Types.TypeDrawContext ctx, ref object value)
+        => ctx.Session != null && DrawInput(ref value, ctx.Node, ctx.Session, ctx.Get<BehaviorRegistry>());
+
+    private bool DrawInput(ref object value, EditNode node, IEditSession _session, BehaviorRegistry? _behaviorRegistry)
+    {
+        string strVal = value as string ?? string.Empty;
+        bool isPicker = node.Metadata.CustomAttributes.Any(a => a is PropertyPathPickerAttribute);
+
+        if (!isPicker)
+        {
+            bool changed = ImGuiApi.InputText("##v", ref strVal, 256);
+            if (changed)
+                value = strVal;
+            return changed;
+        }
+
+        bool valueChanged = false;
+        Type? targetType = GetTargetType(_session, _behaviorRegistry, node.JsonPath);
+
+        if (targetType == null)
+        {
+            ImGuiApi.BeginDisabled();
+            if (ImGuiApi.BeginCombo($"##path_disabled_{node.Id.Value}", "(Select Type first)"))
+            {
+                ImGuiApi.EndCombo();
+            }
+            ImGuiApi.EndDisabled();
+            return false;
+        }
+
+        string preview = string.IsNullOrEmpty(strVal) ? "(empty)" : strVal;
+        ImGuiApi.SetNextItemWidth(ImGuiApi.GetContentRegionAvail().X);
+        string comboId = $"##path_combo_{node.Id.Value}";
+        if (ImGuiApi.BeginCombo(comboId, preview))
+        {
+            ImGuiApi.InputTextWithHint($"##path_filter_{node.Id.Value}", "Filter...", ref _filter, 128);
+
+            var paths = new List<string>();
+            CollectPaths(targetType, string.Empty, paths, 0);
+            var orderedPaths = paths.Distinct().OrderBy(p => p, StringComparer.Ordinal).ToList();
+
+            if (orderedPaths.Count == 0)
+            {
+                ImGuiApi.Selectable($"(No properties on {targetType.Name})", false);
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(_filter) ||
+                    "(empty)".Contains(_filter, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (ImGuiApi.Selectable("(empty)", strVal == string.Empty))
+                    {
+                        value = string.Empty;
+                        valueChanged = true;
+                    }
+                }
+
+                foreach (string path in orderedPaths)
+                {
+                    if (!string.IsNullOrEmpty(_filter) &&
+                        path.IndexOf(_filter, StringComparison.OrdinalIgnoreCase) < 0)
+                        continue;
+
+                    bool selected = strVal == path;
+                    if (selected)
+                        ImGuiApi.SetItemDefaultFocus();
+
+                    if (ImGuiApi.Selectable(path, selected))
+                    {
+                        value = path;
+                        valueChanged = true;
+                        ImGuiApi.CloseCurrentPopup();
+                    }
+                }
+            }
+
+            ImGuiApi.EndCombo();
+        }
+
+        return valueChanged;
+    }
+
+    private static Type? GetTargetType(IEditSession _session, BehaviorRegistry? _behaviorRegistry, string jsonPath)
+    {
+        int lastDot = jsonPath.LastIndexOf('.');
+        if (lastDot <= 0)
+            return null;
+
+        string parentPath = jsonPath.Substring(0, lastDot);
+        EditNode? parentNode = FindNodeByPath(_session.Document.Root, parentPath);
+        if (parentNode == null)
+            return null;
+
+        // ⭐ CE-308: which occurrence SLOT the sibling selector names (0 = root params).
+        int workingSlotKey = BehaviorParamSlotResolver.RootParamsSlotKey;
+        foreach (EditNode child in parentNode.Children)
+        {
+            if (child.Name == nameof(BehaviorParamPredicateDto.WorkingSlotKey)
+                && child.Binding?.GetBoxed() is int selectedSlot)
+            {
+                workingSlotKey = selectedSlot;
+                break;
+            }
+        }
+
+        foreach (EditNode child in parentNode.Children)
+        {
+            if (child.Name == nameof(PropertyMatchDto.ComponentType) ||
+                child.Name == nameof(TransientEventPredicateDto.EventType) ||
+                child.Name == nameof(LifecyclePredicateDto.NameComponentType) ||
+                child.Name == nameof(SpatialBoundingPredicateDto.PositionComponentType))
+            {
+                if (child.Binding?.GetBoxed() is Type selectedType)
+                    return selectedType;
+            }
+            else if (child.Name == nameof(BehaviorParamPredicateDto.BehaviorId))
+            {
+                if (child.Binding?.GetBoxed() is int hash
+                    && hash != 0
+                    && _behaviorRegistry != null && _behaviorRegistry.TryGetDefinition(hash, out var def))
+                {
+                    // ⭐ The SAME resolver the compiler binds through — see CE-308.
+                    Type? dtoType = BehaviorParamSlotResolver.ResolveDtoType(def, workingSlotKey);
+                    if (dtoType != null)
+                        return dtoType;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static EditNode? FindNodeByPath(EditNode current, string targetPath)
+    {
+        if (current.JsonPath == targetPath)
+            return current;
+
+        if (targetPath.StartsWith(current.JsonPath, StringComparison.Ordinal))
+        {
+            foreach (EditNode child in current.Children)
+            {
+                EditNode? found = FindNodeByPath(child, targetPath);
+                if (found != null)
+                    return found;
+            }
+        }
+
+        return null;
+    }
+
+    private static void CollectPaths(Type type, string prefix, List<string> paths, int depth)
+    {
+        if (depth > 5)
+            return;
+
+        var flags = BindingFlags.Public | BindingFlags.Instance;
+
+        foreach (FieldInfo field in type.GetFields(flags))
+        {
+            string path = prefix + field.Name;
+            if (IsComplexType(field.FieldType))
+            {
+                if (!IsCollectionType(field.FieldType))
+                    CollectPaths(field.FieldType, path + ".", paths, depth + 1);
+            }
+            else
+            {
+                paths.Add(path);
+            }
+        }
+
+        foreach (PropertyInfo property in type.GetProperties(flags))
+        {
+            if (property.GetIndexParameters().Length > 0)
+                continue;
+            string path = prefix + property.Name;
+            if (IsComplexType(property.PropertyType))
+            {
+                if (!IsCollectionType(property.PropertyType))
+                    CollectPaths(property.PropertyType, path + ".", paths, depth + 1);
+            }
+            else
+            {
+                paths.Add(path);
+            }
+        }
+    }
+
+    private static bool IsComplexType(Type type)
+    {
+        return !(type.IsPrimitive
+            || type.IsEnum
+            || type == typeof(string)
+            || type == typeof(decimal)
+            || type == typeof(Guid)
+            || type == typeof(Fdp.Core.FixedString32)
+            || type == typeof(Fdp.Core.FixedString64)
+            || type == typeof(Fdp.Core.FixedString128));
+    }
+
+    private static bool IsCollectionType(Type type)
+    {
+        if (type == typeof(string))
+            return false;
+        if (type.IsArray)
+            return true;
+        if (typeof(System.Collections.IEnumerable).IsAssignableFrom(type))
+            return true;
+        if (type.GetCustomAttributes(typeof(InlineArrayAttribute), false).Length > 0)
+            return true;
+        return false;
+    }
+}

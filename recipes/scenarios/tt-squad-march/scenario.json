@@ -1,0 +1,206 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: On test-town, 'Squad' (Friend, TKB 302) with 'Leader' and 'Rifleman 1-4' is ordered SquadMarch in a wedge (Shape 1) to (340,300), about 50 m from (296,280). No enemy. Shows the squad march drill (S3). Judge: (1) the squad's leader runs SquadMarch; (2) every member reaches the objective (a slot that does not work falls back to the lead's trail); (3) members keep their spacing (closest pair >= 2.5 m); (4) the march costs at most 5 move orders per sim second. Fail: a member never arrives, men bunch under 2.5 m, or the order rate is above 5 per second. Check: none (no live check); rail SquadTacticsScenarioTests (CE-2123 S3; the Order.Move variant is CE-2141, Hrot.ClusterRunner.Integration.Tests)."
+  },
+  "entities": {
+    "2b123300-0000-4000-8000-0000000000c0": {
+      "SimTransform": {
+        "Position": [
+          296.2,
+          280.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "SquadMarch",
+        "Params": {"Objective":[340,300,0],"Shape":1},
+        "Origin": "Superior"
+      }
+    },
+    "2b123300-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          293,
+          277,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "2b123300-0000-4000-8000-0000000000c0",
+        "Designation": "SquadLeader"
+      }
+    },
+    "2b123300-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          290,
+          280,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "2b123300-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "2b123300-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          296,
+          282,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "2b123300-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "2b123300-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          302,
+          284,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "2b123300-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "2b123300-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          308,
+          286,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "2b123300-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    }
+  }
+}

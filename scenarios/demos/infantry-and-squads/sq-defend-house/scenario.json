@@ -1,0 +1,463 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "cqb-village",
+    "description": "What: On cqb-village, 'Red Squad' (Hostile, 7 men: 'Red Leader', 'Red Rifleman 1-6') runs SquadDefend on the 3-storey OBJ house at (121,157), given a southern sector (150-210 deg, 90 m) by the check, fire held; four Friend riflemen 'Blue 1-4' walk north from y=46 toward y=128 at 1.5 m/s. Judge: (1) posts cover more than one storey, the roof is manned (z >= 5 m), window posts are set back; (2) no Red round before the first Blue enters the sector, then at least two Red men fire; (3) the squad reports PROGRESS Set (all at post); (4) a man under fire moves to his alternate (PROGRESS Displacing). Fail: Red fires before Blue is in the sector, all posts on one storey, or no Set / no Displacing. Check: python3 scripts/utility-demo-check.py --launch sq-defend-house"
+  },
+  "entities": {
+    "c2275d00-0000-4000-8000-000000009310": {
+      "SimTransform": {
+        "Position": [
+          120.9,
+          157,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Red Squad",
+        "ForceId": "Hostile"
+      },
+      "Behavior": {
+        "Name": "SquadDefend",
+        "Params": {"Position": [120.9, 157, 0], "SearchRadius": 14, "Speed": 2},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Roe": {
+        "Fire": "HoldFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      }
+    },
+    "c2275d00-0000-4000-8000-000000009311": {
+      "SimTransform": {
+        "Position": [
+          118.5,
+          156,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Leader",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2275d00-0000-4000-8000-000000009310",
+        "Designation": "SquadLeader"
+      }
+    },
+    "c2275d00-0000-4000-8000-000000009312": {
+      "SimTransform": {
+        "Position": [
+          120.9,
+          156,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Rifleman 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2275d00-0000-4000-8000-000000009310",
+        "Designation": "MachineGunner"
+      }
+    },
+    "c2275d00-0000-4000-8000-000000009313": {
+      "SimTransform": {
+        "Position": [
+          123.3,
+          156,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Rifleman 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2275d00-0000-4000-8000-000000009310",
+        "Designation": "Wingman"
+      }
+    },
+    "c2275d00-0000-4000-8000-000000009314": {
+      "SimTransform": {
+        "Position": [
+          118.5,
+          158.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Rifleman 3",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2275d00-0000-4000-8000-000000009310",
+        "Designation": "Wingman"
+      }
+    },
+    "c2275d00-0000-4000-8000-000000009315": {
+      "SimTransform": {
+        "Position": [
+          120.9,
+          158.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Rifleman 4",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2275d00-0000-4000-8000-000000009310",
+        "Designation": "Wingman"
+      }
+    },
+    "c2275d00-0000-4000-8000-000000009316": {
+      "SimTransform": {
+        "Position": [
+          123.3,
+          158.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Rifleman 5",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2275d00-0000-4000-8000-000000009310",
+        "Designation": "Wingman"
+      }
+    },
+    "c2275d00-0000-4000-8000-000000009317": {
+      "SimTransform": {
+        "Position": [
+          120.9,
+          157.2,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Rifleman 6",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2275d00-0000-4000-8000-000000009310",
+        "Designation": "Wingman"
+      }
+    },
+    "c2275d00-0000-4000-8000-000000009211": {
+      "SimTransform": {
+        "Position": [
+          114,
+          46,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "AdvanceTo",
+        "Params": {"Objective": [114, 128, 0], "Speed": 1.5, "ArrivalRadius": 2},
+        "Origin": "Superior"
+      },
+      "Roe": {
+        "Fire": "ReturnFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c2275d00-0000-4000-8000-000000009212": {
+      "SimTransform": {
+        "Position": [
+          118,
+          46,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "AdvanceTo",
+        "Params": {"Objective": [118, 128, 0], "Speed": 1.5, "ArrivalRadius": 2},
+        "Origin": "Superior"
+      },
+      "Roe": {
+        "Fire": "ReturnFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c2275d00-0000-4000-8000-000000009213": {
+      "SimTransform": {
+        "Position": [
+          122,
+          46,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "AdvanceTo",
+        "Params": {"Objective": [122, 128, 0], "Speed": 1.5, "ArrivalRadius": 2},
+        "Origin": "Superior"
+      },
+      "Roe": {
+        "Fire": "ReturnFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c2275d00-0000-4000-8000-000000009214": {
+      "SimTransform": {
+        "Position": [
+          126,
+          46,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "AdvanceTo",
+        "Params": {"Objective": [126, 128, 0], "Speed": 1.5, "ArrivalRadius": 2},
+        "Origin": "Superior"
+      },
+      "Roe": {
+        "Fire": "ReturnFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

@@ -100,7 +100,7 @@ Phase R1 builds the Runner application shell — the "aggregator" that can host 
 
 **Steps:**
 1. `dotnet new console -n Hrot.ClusterRunner -f net8.0`
-2. `dotnet sln IOS-IG-SimHost.sln add Hrot.ClusterRunner/Hrot.ClusterRunner.csproj`
+2. `dotnet sln HROT.sln add Hrot.ClusterRunner/Hrot.ClusterRunner.csproj`
 3. Create folder structure:
    ```
    Hrot.ClusterRunner/

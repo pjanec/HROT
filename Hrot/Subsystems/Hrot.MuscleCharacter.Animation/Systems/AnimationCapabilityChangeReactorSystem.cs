@@ -27,6 +27,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
     [UpdateBefore(typeof(CognitiveInterruptSystem))]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class AnimationCapabilityChangeReactorSystem : IEcsModuleSystem
     {
         private readonly IAnimationBackend _backend;
@@ -38,6 +39,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(AnimationCapabilityChangeReactorSystem)} requires direct EntityRepository access.");
@@ -80,7 +82,8 @@ namespace Hrot.MuscleCharacter.Animation.Systems
             if (!repo.HasComponent<AnimationChannel>(entity))
                 return;
 
-            ref var channel = ref repo.GetComponentRW<AnimationChannel>(entity);
+            // ⭐ CE-513 / R-180 — the failure is reported in the Muscle's component, never in the Brain's request.
+            ref var report = ref ChannelReports.Animation(repo, entity);
 
             // Force-stop all active slots with short blend-out (0.1s configurable)
             if (repo.HasComponent<CharacterAnimationDefRuntime>(entity) &&
@@ -93,20 +96,22 @@ namespace Hrot.MuscleCharacter.Animation.Systems
                 StageForceStop(ref execState, blendOutTime: 0.1f);
             }
 
-            // Set channel status to Failure
-            channel.Status = NodeStatus.Failure;
+            // Report the action failed
+            report.Status = NodeStatus.Failure;
 
             // Bump DispatchedInstanceId so next command isn't ignored as duplicate
-            channel.DispatchedInstanceId++;
+            report.DispatchedInstanceId++;
 
-            // Clear queue if present
+            // ⭐ CE-3008 (R-180) — abort the queue in the MUSCLE's state only: the queue itself (AnimationMontageQueue) is the
+            //   Brain's request and the Brain is its one writer. ⛔ It set queue.Count = 0. Tracking off + the Failure report keep
+            //   MontageQueueAdvanceSystem from resuming an entry (Case A needs tracking, Case B a Running status) until the Brain
+            //   issues a new command.
             if (repo.HasComponent<AnimationMontageQueueState>(entity))
             {
                 ref var queueState = ref repo.GetComponentRW<AnimationMontageQueueState>(entity);
-                ref var queue = ref repo.GetComponentRW<AnimationMontageQueue>(entity);
-
                 queueState.CurrentEntryIndex = 0xFF;
-                queue.Count = 0;
+                queueState.TrackingActive = 0;
+                queueState.EntryElapsedSeconds = 0f;
             }
         }
 
@@ -115,7 +120,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
             if (!repo.HasComponent<LookAtChannel>(entity))
                 return;
 
-            ref var channel = ref repo.GetComponentRW<LookAtChannel>(entity);
+            ref var report = ref ChannelReports.LookAt(repo, entity);
 
             // Stage ReleaseAim if executor present
             if (repo.HasComponent<LookAtExecutorState>(entity))
@@ -125,11 +130,11 @@ namespace Hrot.MuscleCharacter.Animation.Systems
                 exec.BlendOutWeight = 1.0f; // Start blending out
             }
 
-            // Set channel status to Failure
-            channel.Status = NodeStatus.Failure;
+            // Report the action failed
+            report.Status = NodeStatus.Failure;
 
             // Bump DispatchedInstanceId
-            channel.DispatchedInstanceId++;
+            report.DispatchedInstanceId++;
         }
 
         private static unsafe void StageForceStop(ref AnimationExecutorState state, float blendOutTime)

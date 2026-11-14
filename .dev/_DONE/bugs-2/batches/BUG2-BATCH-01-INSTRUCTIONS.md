@@ -185,7 +185,7 @@ This batch bundles 9 tasks from phases 1, 2, and 3 of the BUG2 work tracking. Th
 
 ## 🧪 Testing Requirements
 - **Always verify correctness:** Evaluate whether the test properly captures behavioral goals vs just existing functionality checks.
-- Build must run zero compile errors and zero warnings. Ensure `dotnet test IOS-IG-SimHost.sln` completes fully.
+- Build must run zero compile errors and zero warnings. Ensure `dotnet test HROT.sln` completes fully.
 
 ---
 

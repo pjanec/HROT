@@ -46,7 +46,7 @@ public sealed class EqsLastUpdateTimeTests : IDisposable
     public void CognitiveBuffer_StampsLastUpdateTimeSeconds_PathB()
     {
         // Arrange: entity with sensor and NetworkIdentity.
-        const long netId = 8300L;
+        const int netId = 8300;
         const uint epoch = 1u;
 
         var entity = _repo.CreateEntity();
@@ -58,7 +58,7 @@ public sealed class EqsLastUpdateTimeTests : IDisposable
 
         // Set up EqsResultPool with one pre-written candidate.
         var results = new NativeArray<EqsResult>(EqsResultPool.PoolCapacity, Allocator.Persistent);
-        results[0] = new EqsResult { EntityId = 0L, PositionX = 10f, PositionY = 0f, Score = 1f };
+        results[0] = new EqsResult { EntityId = 0, PositionX = 10f, PositionY = 0f, Score = 1f };
         var pool = new EqsResultPool { Results = results, NextFreeIndex = 1 };
         _repo.SetSingletonUnmanaged(pool);
 
@@ -97,7 +97,7 @@ public sealed class EqsLastUpdateTimeTests : IDisposable
         // Arrange: entity with sensor.
         var entity = _repo.CreateEntity();
         _repo.AddComponent(entity, new EqsSensor { Epoch = 2u });
-        _repo.AddComponent(entity, new NetworkIdentity { Value = 8301L });
+        _repo.AddComponent(entity, new NetworkIdentity { Value = 8301 });
 
         _repo.SetSimulationTime(5.5f);
 
@@ -107,7 +107,7 @@ public sealed class EqsLastUpdateTimeTests : IDisposable
             Observer    = entity,
             Epoch       = 2u,
             RefreshTick = 3u,
-            Results     = new List<EqsResultEntry>(),
+            Results     = new List<EqsResult>(),
         });
         _repo.Bus.SwapBuffers();
 
@@ -135,7 +135,7 @@ public sealed class EqsLastUpdateTimeTests : IDisposable
     {
         // Write via span API (correct path, no defensive copy).
         var buffer = new EqsCognitiveBuffer();
-        buffer.GetSpanRW()[0] = new EqsResult { EntityId = 77L, Score = 3.14f, PositionX = 5f };
+        buffer.GetSpanRW()[0] = new EqsResult { EntityId = 77, Score = 3.14f, PositionX = 5f };
 
         // Read back and verify value was persisted.
         ref readonly var read = ref buffer.GetSpanRO()[0];

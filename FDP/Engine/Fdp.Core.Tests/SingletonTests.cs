@@ -30,6 +30,31 @@ namespace Fdp.Tests
             public int Version { get; set; }
         }
         
+        [ComponentId(470)]
+        public sealed class HighIdSingletonA { public int V; }
+
+        [ComponentId(480)]
+        public sealed class HighIdSingletonB { public int V; }
+
+        /// <summary>
+        /// CE-3016: two high-id singletons set in ascending order grew the slot array past the 512-bit
+        /// borrowed-singletons mask (64 → 471 → 942), and Dispose threw ArgumentOutOfRange on slot 512.
+        /// Found when the terrain world (304) joined the terrain definition (301).
+        /// </summary>
+        [Fact]
+        public void TwoHighIdSingletons_DisposeCleanly_CE3016()
+        {
+            var repo = new EntityRepository();
+            repo.RegisterManagedComponent<HighIdSingletonA>();
+            repo.RegisterManagedComponent<HighIdSingletonB>();
+            repo.SetSingletonManaged(new HighIdSingletonA { V = 1 });
+            repo.SetSingletonManaged(new HighIdSingletonB { V = 2 });
+
+            Assert.Equal(2, repo.GetSingletonManaged<HighIdSingletonB>()!.V);
+            var ex = Record.Exception(() => repo.Dispose());
+            Assert.Null(ex);
+        }
+
         [Fact]
         public void SetSingleton_UnmanagedComponent_StoresValue()
         {

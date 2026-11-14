@@ -1,0 +1,78 @@
+using Fdp.Core;
+using Fdp.Toolkit.Physics;
+using Fdp.Toolkit.Spatial.Eqs;
+using Hrot.SimHost.Systems;
+
+namespace Hrot.SimHost;
+
+/// <summary>
+/// ⭐⭐⭐ ECS registration contract for nodes fulfilling the <b>Perception</b> role.
+///
+/// <para>📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.9a / §3.9b.</para>
+///
+/// <para>⛔⛔ <b>WHY THIS EXISTS, AND IT IS THE ROOT CAUSE OF <c>CE-259bf</c> — not a tidy-up.</b>
+/// Four role registries already existed — <c>IgRoleComponentRegistry</c>,
+/// <see cref="MuscleRoleComponentRegistry"/>, <c>NavigationSolverComponentRegistry</c> and
+/// <c>CognitiveComponentRegistry</c> <i>(which IS the Brain role's set, under a name that does not say
+/// so)</i> — ⛔ but <b>Perception had none</b>, and its components were filed inside the BRAIN's registry.
+/// ⇒ ⭐⭐ <b>SimHost had to call the Brain's registry to obtain its OWN role's components</b>, which is how
+/// a node that runs no cognitive system came to register the entire brain tier.</para>
+///
+/// <para>📐 <b>Measured <c>2026-09-12</c>:</b> <c>SimHostCapabilities.cs:79</c> registers
+/// <c>EqsModule</c> and <c>Hrot.SimHost/Systems/EqsSolverSystem.cs</c> is SimHost's own — ⇒ the EQS
+/// trio is <b>OWNED</b> by SimHost's Perception role, not read from a brain.</para>
+///
+/// <para>⚠ <b>This extraction is BEHAVIOUR-PRESERVING by construction.</b> Both
+/// <c>SimHostComponentRegistry</c> and <c>CgfComponentRegistry</c> call it, so the set registered on
+/// each host is byte-identical to before. ⛔ Deciding that CGF does <i>not</i> need Perception is a
+/// SEPARATE change with its own evidence — this one only gives the role a home.</para>
+/// </summary>
+public static class PerceptionRoleComponentRegistry
+{
+    /// <summary>
+    /// Registers the shared Perception-role component and event schema.
+    /// </summary>
+    public static void RegisterAll(EntityRepository world)
+    {
+        // ── EQS sensing ───────────────────────────────────────────────────────
+        // ⚠ These carried a "Brain-tier" comment in their previous home. That label was wrong:
+        //   the solver runs on the node that declares Perception (SimHost), not on the Brain.
+        world.RegisterComponent<EqsSensor>();
+        world.RegisterComponent<EqsCognitiveBuffer>();
+        world.RegisterComponent<EqsContextPoints>();   // ⭐ CE-3272 (Q94 B) — the points a sensor's owner hands its solver
+        // ⭐ CE-3072 B0 — the danger-area sensor's settings and answer (the AREA result family, R-213); possible only after
+        //   QA-037 moved their ids off the navigation fakes'
+        world.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>();
+        world.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>();
+        // ⭐ a sensor child's kind — TKB sensors are built on every node that registers it (DESIGN_Sensors_And_Doctrine §4).
+        world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorTag>();
+        // ⭐ CE-3061 — what a thermal sensor reads on its targets (docs/DESIGN_Thermal_And_Acoustic_Sensing.md §4).
+        world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.ThermalState>();
+        // ⭐ CE-3062 — what an acoustic sensor hears on its sources, and the anonymous contact it makes.
+        world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();
+        world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticCursor>();   // ⭐ CE-3282 — a hearing sensor's ring cursor (Sensing §8.3)
+        world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.DoorHeard>();   // ⭐ AQ104 E ③ — the door state this node last heard (Sensing §8.8)
+        world.RegisterEvent<Fdp.Toolkit.Perception.Events.SoundContactEvent>();
+        world.RegisterManagedEvent<EqsResultUpdateEvent>();
+        world.RegisterManagedEvent<Fdp.Toolkit.Squad.DangerArea.DangerAreaResultEvent>();   // ⭐ CE-3072 B3
+        // ⭐ CE-3249 — the WorldSurvey sensor: its request (the carrier's), its answer family, its answer on the way
+        //   (docs/DESIGN_World_Survey_Sensor.md §4)
+        Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.Register(world);
+        world.RegisterManagedEvent<Fdp.Toolkit.Perception.Survey.WorldSurveyResultEvent>();
+        // ⭐ CE-3039 — the edges of what a unit senses (design §7.3): published by EqsResultUpdateSystem (every host that runs
+        //   it) and by the Brain's track / memory systems.
+        world.RegisterEvent<Fdp.Toolkit.Perception.Events.SensorChangedEvent>();
+
+        // Per-sensor cross-tick evaluation state (EQS Phase 5).
+        world.RegisterComponent<SensorEvalState>();
+
+        // ⭐ EqsSolverSystem submits RaycastRequestEvents via command-buffer playback and
+        //   RaycastSolverSystem (Combat/Input) resolves them, publishing RaycastResultEvents.
+        //   BOTH must be registered in every world hosting these systems or FdpEventBus.PublishRaw
+        //   throws during harvest/flush.
+        // ⚠ SimHostComponentRegistry also registers these directly; registration is idempotent, and
+        //   the duplicate is left in place deliberately — removing it is a separate, measured step.
+        world.RegisterEvent<RaycastRequestEvent>();
+        world.RegisterEvent<RaycastResultEvent>();
+    }
+}

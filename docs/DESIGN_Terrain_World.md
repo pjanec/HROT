@@ -1,0 +1,907 @@
+<!--STATUS
+state: LIVE
+build-state: BUILT (slice 1, 2026-10-03; open: CE-3010, CE-3027 hull clearance; CE-3017 + CE-3018 + CE-3025 + CE-3026 closed 2026-10-03; live-run results in §8) — Q81 §0 APPROVED (R-181); §7.1 W2–W8 RULED (R-182); §7.2 W1/W9/W10/W11 APPROVED 2026-10-03 (R-183); §7.3 W12–W14 decided by the backend lane under the user's 'go autonomously'.
+updated: 2026-10-20 (§10 CE-1227 — the 2-D terrain is a retained layer; §3/§5 renamed TerrainWorldGizmo → TerrainLayer2D + TerrainPlan2D)
+current-answer: §11 (CE-4369, 2026-11-10) the FOREST surface grows from drawn-only to SIGHT (woods grid) — movement and lone trunks in slices · §10 (CE-1227, 2026-10-20) the 2-D map draws the terrain as a RETAINED layer (TerrainLayer2D), not gizmos · §9 (lean, 2026-10-17) SPARSE TERRAIN — several high-resolution insets over a declared low-resolution OUTER ground · §2 the file format, §3 the classes, §4 the sequences, §5 the module diagram (incl. the dead edges), §6a the allocation contract (R-220), §7 the rulings, §7.3 terrain delivery + the picker, §8 the slice plan.
+stale-below: nothing quotable — §7's HISTORY row block records the first-draft leans the user overturned.
+known-rot: the single GroundZ (§2 `hrot.groundZ`, §3 `TerrainWorld.GroundZ`) is a TEMPORARY simplification (R-248, 2026-10-10) — see DESIGN_Terrain_Height.md. AS-BUILT folded 2026-10-03 (slice steps 0–3): W5/W6/W7/W8/W9/W11 rows carry 'As built' notes; the deviations are W8 (no GroundFollow), W9 (rebase, not resize — §4.4, CE-3018), W11 (folded into CE-3010) and the editor solver (CE-3017).
+known-conflict: docs/DESIGN_Cluster_Load_Phase.md §4.1a and Hrot.Core RoleLoadRequirements give terrain to MuscleGround + NavigationSolver only; §5 here makes the terrain WORLD universal (every ECS node, like the knowledge base) and keeps only the navmesh bake role-derived. RESOLVED 2026-10-03: Cluster_Load_Phase §4.1a and Node_Roles §3.2 updated for the universal world part; INavmeshProvider is Z-up in code (CE-3011) and Navigation_Design_v2_0.md carries a Z-up supersession note.
+related-designs:
+  - DESIGN_Ground_Patches_And_Road_Blockage.md — reuses §11's woods-area pricing for crater areas (G-9)
+  - DESIGN_Map_3D_Mode.md §6ah — the 3-D terrain by chunk and level of detail (CE-3423); §10a here is its 2-D sibling at 5.5 km (CE-4376)
+  - DESIGN_Terrain_Import_UTM.md §9.6 (R-4190) — the tree decisions T-1…T-8 that §11 here builds (woods grid, lone trunks, woods navmesh area, felling)
+  - DESIGN_Terrain_Import_UTM.md — importing a 6 × 6 km UTM terrain as ONE §9 inset (CE-4011 / CE-4012 become its prerequisites); adds a tiled height store, a UTM frame, a building generator
+  - UX/DESIGN_New_Scenario_And_Recipe.md — E12: the terrain is chosen only for a NEW scenario (TerrainCatalog.List in the New picker); W13 stays superseded
+  - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — OPEN: hearing must not be bounded by the high-resolution terrain's grids (B); a bigger demo-city bounds for perf tests (D)
+  - designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — changes how a ROUND queries the collider grid (a cell walk, HL-2), not the grid
+  - designs/air-attack/DESIGN_Air_Operations.md — §9g, the live check that found a unit outside the collider grid is unhittable without a word (CE-2193, behaviors → backend)
+  - DESIGN_Terrain_Height.md — plans the removal of the flat ground (R-248): an optional ESRI ASCII height grid
+    (Q81 T2), GroundHeightAt(x, y) behind this file's 9 GroundZ reads, the mesher sampling it, one ground trace for
+    sight and fire. It extends this model; it owns nothing else here.
+  - designs/navig-2/Navigation_Design_v2_0.md §5.2a — CE-3128 (R-231): the road GRAPH (`roadNetworks`) is the road; D8 retires this file's `surface: road` polygons
+  - designs/navig-2/Navigation_Design_v2_0.md §14 — OWNS runtime navmesh change (R-218): the W6 bake becomes one immutable snapshot (P1), tiled with CE-1029 (P2, built 2026-10-08: 24 m tiles, 0.15 m infantry cells over buildings, a per-node tile cache — "P2 as built"); §15 points to §6a here for the path queries' allocation contract (R-220)
+  - DESIGN_Building_Interiors.md — the enterable-building v2 that §6 L459 deferred (wall panels with openings, storeys as slabs, doors as entities, transmittance trace); CE-1031
+  - DESIGN_Add_Entity_Picker.md §2a — chooses an entity's BIRTH level (SurfacePlacement, resolved by the creating node) and proposes TerrainWorld.SurfacesAt; adds no clamp step (W8 stands); §2c records the solid-building consequence, filed as CE-1031 against this doc's §2
+  - docs/DESIGN_Utility_AI_Demo_Scenarios.md — reuses test-town and extends basic-desert with a ramp ridge + wadi for the utility demos (§3 there).
+  - docs/designs/eqs-2/EQS_Design_v1.3_final.md — §19 owns EQS over this world: terrain sight (SegmentBlocked), the cover database
+    built from the prisms (TerrainCoverProvider, published by TerrainResidency.Commit), ground placement of sampled points.
+  - docs/blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md — the WHY and the approved decisions T1–T10; THIS doc is the WHAT.
+  - docs/DESIGN_Terrain_Zones_And_Assets.md — owns WHAT a terrain asset is (named, JSON definition §2.1e), zones, and the asset build for static obstacles (§2.1c); this doc fills the content its §7 postponed.
+  - docs/DESIGN_Cluster_Load_Phase.md — owns WHEN terrain loads and the role→load-part contract; §5 here makes the world part universal. §10 there (CE-3075, 2026-10-05) owns what a scenario naming NO terrain does: the resident terrain is UNLOADED (an empty TerrainWorld = flat ground); only the SAME name stays untouched.
+  - docs/DESIGN_Node_Roles_And_Policies.md — owns the role→data table (§3.2) that the world now joins for every role.
+  - docs/designs/navig-2/Navigation_Design_v2_0.md — owns INavmeshProvider, per-layer navmesh and "the solver lives on the Muscle"; W7 flips its coordinate contract to Z-up.
+  - docs/DESIGN_Subsystem_Composition_Unification.md — owns CE-210 (the 3-D LOS seam, §4.1ab), which §3/§4.3 here builds, and B5 (role composition).
+  - docs/PROGRAMME_Cgf_Equals_Editor_Gap_Map.md — owns "the editor is a one-node cluster / CGF is as capable as the editor" (ruling 66); W3/W4 apply it to terrain.
+  - docs/DESIGN_Gizmo_Renderer_Seam.md — owns the gizmo builder→buffer→renderer seam the map layer draws through; W2 adds one shape to it.
+  - docs/DESIGN_Map_Rendering_And_Interaction.md — owns the map canvas and IMapLayer (the legacy path this doc does NOT use).
+  - docs/DESIGN_Stride_Node_Modes.md — owns the Stride host's scene-baked navmesh (stays as it is in slice 1; its coordinate conversion moves inside the implementations, W7).
+  - docs/designs/promote-to-3d/3D_Cognitive_Spatial_Awareness_Promotion_Design_v1_1.md — owns "SimTransform.Position.Z is authoritative"; W8 is how SimHost honours it.
+  - docs/designs/anim-ctrl/AnimationControl_BrainMuscle_MiniDesign_v0_3.md — owns StanceIntent/StanceStatus, which W5's posture-driven eye height reads.
+  - docs/DESIGN_Map_3D_Mode.md — the map's 3-D mode: renders this world lit and colour-shaded, adding an OPTIONAL per-triangle tag output to TerrainWorldMesh (navmesh output unchanged). (DESIGN_Godot_3D_Viewer.md, DEFERRED, held the earlier Godot plan.)
+  - blueprints/Architect_Question_93_Sumo_Traffic_Node.md — the SUMO net rides the terrain folder (R-4021); every node parses it once for the traffic layer and dead reckoning.
+  - DESIGN_Terrain_Height.md — §8 (R-4050) the height fallback outside the terrain that §9 S1/S3 here generalise (outer ground source: flat, coarse grid or SUMO lattice).
+-->
+
+# DESIGN — **the terrain world** *(SimHost's test terrain: one file, one model, every query derived)*
+
+> **The one rule:** a terrain is **one world file**, parsed into **one `TerrainWorld` model** on every ECS node; the
+> navmesh, the ground height, line of sight and the 2D map drawing are **all derived from it** and cannot disagree.
+> ⭐ Every API is in the engine's **Z-up** space; conversion happens only inside an implementation (W7).
+
+## 1. INVENTORY — measured `2026-10-03` (graph CLI + grep; five sweeps, summarised)
+
+| area | exists | ⛔ missing / wrong |
+|---|---|---|
+| terrain asset | `TerrainDefinition` (v1: `Name`, `RoadNetworks`), `TerrainDefinitionParser`, `TerrainResidency` (`Prepare`/`Commit`, `Hrot.Core/Services/TerrainResidency.cs:94,162`), `TerrainLoadStep`, role filter `RoleLoadRequirements.cs:54-59`; the knowledge base is already a **universal** part (`:34`) | any geometry; no terrain file was ever authored |
+| navmesh | `DotRecastNavmeshProvider`, `DotRecastDtCrowdProvider`, `StrideNavmeshBaker`, `ISceneGeometrySource` — ⭐ **no Stride type used** (namespace `Hrot.Stride.Core`, TFM net8.0-windows; DotRecast 2026.1.3 ships net8.0) | a headless home; a headless geometry source |
+| coordinates | `IDtCrowdProvider`, `CrowdMotorIntent`, EQS results, `RouteWaypoint` are Z-up | 🔴 `INavmeshProvider`, `NavWaypoint`, `IVolumetricPathProvider`/`FlyProfile`, `NavPolygon` are **Y-up**; 4 places already mix the two (`CE-3011`), one of them LIVE (`CE-3013`) |
+| solver | `NavigationSolverModule` / `PathfindingSolverSystem`, `EngineBackedPathResponseSystem` writes `NavState.CustomTrajectory`, `CarKinematicsSystem` follows it | ⛔ composed on no host (`CE-3006`) |
+| height | position writers: `CarKinematicsSystem.cs:287` keeps Z, `LinearKinematicsSystem.cs:110` integrates `vel.Z`; spawns write Z=0 (`VehicleCommandSystem.cs:64`, `SimHostScenarioManager.cs`, editor placement) | ⛔ nothing on SimHost/Editor/CGF ever reads a ground height |
+| posture | `StanceIntent` (Brain) / `StanceStatus { CurrentStance }` (Muscle), `StanceId` Standing/Crouched/Prone | ⛔ `StanceTransitionSystem` runs on **no** host ⇒ `StanceStatus` is never written; no eye-height field anywhere |
+| LOS | `LosRequestBatchingSystem` 2-D segment-vs-circle (`:94-131`), built by `CognitiveSpatialModule` on 3 hosts; `IRaycastBackend` (3-D, Z-up, never wired) | ⛔ the strategy seam (`CE-210` (b)); collider height |
+| map | gizmo seam: `IGlobalStatelessGizmo.Draw(view, builder)` registered on **all five hosts** via `MapInteractionPack`; **filled** circles (`Sphere`) and **filled rotated rectangles** (`Box2D`) exist (`DebugPrimitiveRenderer2D.cs:234-296`); primitive = fixed 64-byte slot | ⛔ no filled POLYGON; 🔴 `MapOverlayStyle.FillColor` is authored (`SpawnerPanel`) and **never drawn** (`MapOverlayGizmo` strokes only, `CE-3014`) |
+| geometry utils | `PointInPolygon` ×2 (SimHost-internal, nav-fake private), `BoundingBox3D.IntersectsLine`, `Intersection2D.RaycastCircle` | no shared polygon library |
+
+## 2. THE FILE — GeoJSON in local metres (✅ T2)
+
+`{staging}/Terrain/<name>.json` (exists, schema **v2** adds `world`) → `<name>.world.geojson`:
+
+```json
+{ "schemaVersion": 2, "name": "test-town", "roadNetworks": ["roads.json"],
+  "world": "test-town.world.geojson" }
+```
+
+```json
+{ "type": "FeatureCollection",
+  "hrot": { "schemaVersion": 1, "bounds": [0, 0, 400, 400], "groundZ": 0 },
+  "features": [
+    { "type": "Feature", "properties": { "kind": "building", "height": 12, "floors": 3 },
+      "geometry": { "type": "Polygon", "coordinates": [[[100,100],[140,100],[140,130],[100,130],[100,100]]] } },
+    { "type": "Feature", "properties": { "kind": "wall", "height": 2.5, "thickness": 0.4 },
+      "geometry": { "type": "LineString", "coordinates": [[60,40],[60,90]] } },
+    { "type": "Feature", "properties": { "kind": "surface", "surface": "forest" },
+      "geometry": { "type": "Polygon", "coordinates": [[[200,200],[300,200],[300,300],[200,300],[200,200]]] } },
+    { "type": "Feature", "properties": { "kind": "slab" },
+      "geometry": { "type": "Polygon", "coordinates": [[[250,50,3],[290,50,3],[290,80,3],[250,80,3],[250,50,3]]] } },
+    { "type": "Feature", "properties": { "kind": "ramp" },
+      "geometry": { "type": "Polygon", "coordinates": [[[240,50,0],[250,50,3],[250,58,3],[240,58,0],[240,50,0]]] } }
+  ] }
+```
+
+| `kind` | geometry | meaning | blocks move | blocks sight | walkable |
+|---|---|---|---|---|---|
+| `building` | Polygon | solid prism `baseZ`..`baseZ+height` (`floors` = label only in v1) | ✅ | ✅ | roof no |
+| `wall` | LineString + `thickness` | thin prism | ✅ | ✅ | — |
+| `surface` | Polygon | `road`/`open`/`forest`/`water`; cost + draw colour (water = unwalkable). ⚠ `road` retires with CE-3128 (R-231, [Nav v2 §5.2a](designs/navig-2/Navigation_Design_v2_0.md) D8): roads are the terrain's road graph | water only | `forest` partial — ⛔ v1: no | ✅ |
+| `slab` | Polygon with Z | walkable floor at that Z (T7 — format v1, built later) | under/over | ✅ (from below/above) | ✅ |
+| `ramp` | Polygon with per-vertex Z | sloped walkable link between levels | — | ✅ | ✅ |
+| ⭐ `building` *(Stage 1)* | **Point** + `template` or inline `building` | an ENTERABLE building instance — walls with openings, storey floors, stairs, roof (📄 `DESIGN_Building_Interiors.md` §3a, §3g) | walls ✅ | walls ✅ (openings pass) | floors, stairs, roof |
+| ⭐ `fence` *(Stage 1)* | LineString | a `wall` whose default material is `fence-wood`; any wall/fence takes `material` (§3c) | ✅ | per material | — |
+
+⭐ Coordinates are the world's **local metres, X east / Y north / Z up** (FDP space). GeoJSON's lat/lon rule is
+deliberately not followed (user: *"small numbers over large ones"*).
+
+## 3. CLASSES
+
+```mermaid
+classDiagram
+  direction LR
+  class TerrainDefinition {
+    +int SchemaVersion
+    +string Name
+    +IReadOnlyList~string~ RoadNetworks
+    +string World
+  }
+  class TerrainWorld {
+    +Bounds2 Bounds
+    +float GroundZ
+    +Prism[] Prisms
+    +Slab[] Slabs
+    +Surface[] Surfaces
+    +Triangle2[] FillTriangles
+    +SurfaceZ(x, y, zHint) float
+    +SegmentBlocked(a, b) bool
+  }
+  class TerrainWorldParser {
+    +Parse(json) TerrainWorld
+  }
+  class TerrainResidency {
+    +Prepare(name, bakeNavmesh) Staged
+    +Commit(world, staged)
+  }
+  class INavmeshFactory {
+    <<interface>>
+    +Build(TerrainWorld) INavmeshProvider
+  }
+  class RecastNavmeshFactory
+  class TerrainWorldGeometrySource
+  class TerrainWorldMesh {
+    +Build(world, verts, indices, cellSize)$
+  }
+  class SwitchableNavmeshProvider {
+    +Publish(INavmeshProvider)
+    +HasBakedMesh bool
+  }
+  class TerrainGridCoverage {
+    +Problems(world)$ string[]
+  }
+  class ISceneGeometrySource {
+    <<interface>>
+    +TryGetTriangles(verts, indices) bool
+  }
+  class RecastNavmeshBaker
+  class DotRecastNavmeshProvider {
+    -ToRecast(Vector3) swizzle
+  }
+  class INavmeshProvider {
+    <<interface>>
+    Z-up
+  }
+  class CarKinematicsSystem
+  class LinearKinematicsSystem
+  class GroundFollow {
+    +float LastSurfaceZ
+  }
+  class ILosStrategy {
+    <<interface>>
+    +BeginBatch(view)
+    +IsVisible(view, observer, target) bool
+  }
+  class PlanarCircleLosStrategy
+  class TerrainWorldLosStrategy {
+    +ForLiveWorld(EntityRepository, stanceReader)$
+    -Func~TerrainWorld~ worldSource
+    +EyeHeight(view, e) float
+    +AimHeight(view, e) float
+  }
+  class SensorMount {
+    +float Standing
+    +float Crouched
+    +float Prone
+    +For(StanceId) float
+  }
+  class PhysicsCollider {
+    +float Radius
+    +int CollisionLayer
+    +float Height
+  }
+  class LosRequestBatchingSystem
+  class TerrainLayer2D
+  class TerrainPlan2D
+  TerrainResidency --> TerrainWorldParser : Prepare
+  TerrainResidency --> INavmeshFactory : Prepare, when AttachNavmesh was called
+  TerrainResidency --> SwitchableNavmeshProvider : Commit publishes the bake
+  TerrainResidency --> TerrainGridCoverage : Commit warns (W9)
+  SwitchableNavmeshProvider ..|> INavmeshProvider
+  TerrainWorldGeometrySource --> TerrainWorldMesh : Z-up soup, swizzled + re-wound
+  TerrainWorldParser --> TerrainWorld
+  RecastNavmeshFactory ..|> INavmeshFactory
+  RecastNavmeshFactory --> TerrainWorldGeometrySource
+  RecastNavmeshFactory --> RecastNavmeshBaker
+  TerrainWorldGeometrySource ..|> ISceneGeometrySource
+  TerrainWorldGeometrySource --> TerrainWorld
+  DotRecastNavmeshProvider ..|> INavmeshProvider
+  RecastNavmeshBaker --> DotRecastNavmeshProvider
+  CarKinematicsSystem --> TerrainWorld : SurfaceZ when writing Position
+  LinearKinematicsSystem ..> TerrainWorld : NOT BUILT (W8 as-built)
+  LinearKinematicsSystem ..> GroundFollow : NOT BUILT
+  PlanarCircleLosStrategy ..|> ILosStrategy
+  TerrainWorldLosStrategy ..|> ILosStrategy
+  TerrainWorldLosStrategy --> TerrainWorld
+  TerrainWorldLosStrategy --> SensorMount : eye height by stance reader
+  TerrainWorldLosStrategy --> PhysicsCollider : radius + height
+  LosRequestBatchingSystem --> ILosStrategy
+  TerrainLayer2D --> TerrainPlan2D : once per terrain (§10)
+  TerrainPlan2D --> TerrainWorld
+  note for TerrainWorld "NEW. ECS singleton, NoScenario|NoReplay. FillTriangles = polygons triangulated ONCE at parse, for the map"
+  note for DotRecastNavmeshProvider "MOVED from Hrot.Stride.Core. Z-up API, swizzles to Recast Y-up INSIDE (W7)"
+  note for PlanarCircleLosStrategy "the original 2-D sweep, extracted unchanged — the default when no strategy is injected"
+  note for TerrainWorldLosStrategy "world arrives by Func, not the view: it runs in a background scoped view with no singletons"
+```
+
+*What the picture shows that the prose hid:* **every consumer points at `TerrainWorld` and nothing points back**, and
+**there is no ground-clamp class** — the two movement models ask the world for the surface Z while they compute the
+position (W8). ⭐ New interfaces: only `INavmeshFactory` (keeps DotRecast out of `Hrot.Core`) and `ILosStrategy`
+(`CE-210` (b)).
+
+| type | home | new / moved |
+|---|---|---|
+| `TerrainWorld`, `TerrainWorldParser`, `GroundFollow`, `INavmeshFactory`, `ISceneGeometrySource`, `ILosStrategy`, `PlanarCircleLosStrategy`, `TerrainWorldLosStrategy` | `Fdp.Toolkits` (`Terrain/`, `Navigation/`, `Perception/`, `CarKinem/`) | new (`ISceneGeometrySource` moved) |
+| `SensorMount` | TKB `SensorCapabilitiesDto` (per-stance heights), projected by `PerceptionTkbTranslator` | new fields |
+| `RecastNavmeshBaker`, `DotRecastNavmeshProvider`, `DotRecastDtCrowdProvider`, `RecastNavmeshFactory`, `TerrainWorldGeometrySource` | **new `Fdp.Toolkits.Navigation.Recast`** (net8.0) — W1 | moved + new |
+| `TerrainPlan2D` (was `TerrainWorldGizmo`, a projector until `CE-1227`) + `TerrainLayer2D` | `Hrot.Presentation` (`ScenarioEditor/Gizmos`, `Map2D`) | new — §10 |
+| `DebugPrimitiveShape.FilledTriangle` | `GizmoMap.Contracts` + one renderer case | new enum value, same 64-byte slot (W2) |
+
+## 4. SEQUENCES
+
+### 4.1 Load — the existing chain, more content
+
+```mermaid
+sequenceDiagram
+  participant C as LoadPhaseChain
+  participant S as TerrainLoadStep
+  participant R as TerrainResidency
+  participant P as TerrainWorldParser
+  participant F as INavmeshFactory
+  participant W as ECS world
+  C->>S: prepare (off main thread)
+  S->>R: Prepare(terrainName, bakeNavmesh = has NavigationSolver)
+  R->>P: Parse(world.geojson)
+  P-->>R: TerrainWorld (+ fill triangles)
+  opt node has NavigationSolver role
+    R->>F: Build(TerrainWorld)
+    F-->>R: DotRecastNavmeshProvider (baked)
+  end
+  R-->>S: Staged
+  C->>S: commit (main thread)
+  S->>R: Commit(world, staged)
+  R->>W: set TerrainDefinition, TerrainWorld
+  R->>R: SwitchableNavmeshProvider.Publish(bake or null)
+  R->>W: publish road graph (exists)
+```
+
+*What it shows:* the bake rides **`Prepare`**, whose contract is already "off-thread, no ECS mutation"; the swap is one
+`Commit`. No new phase, no new op. The world part runs on **every** ECS node (§5).
+
+### 4.2 A move order — Brain to wheels, Z from the world
+
+```mermaid
+sequenceDiagram
+  participant B as Brain (BTree MoveTo)
+  participant BR as NavigationIntentBridgeSystem
+  participant NS as NavigationSolverModule
+  participant N as DotRecastNavmeshProvider
+  participant PR as EngineBackedPathResponseSystem
+  participant K as CarKinematicsSystem
+  participant W as TerrainWorld
+  B->>BR: LocomotionChannel MoveTo
+  BR->>NS: PathfindingRequestEvent (Z-up)
+  NS->>N: PlanPath (Z-up)
+  N->>N: swizzle to Recast and back, inside
+  N-->>NS: waypoints (Z-up)
+  NS-->>PR: PathfindingResultEvent + trajectory in the shared pool
+  PR->>K: NavState = CustomTrajectory
+  K->>K: next XY along the trajectory
+  K->>W: SurfaceZ(x, y, zHint = current Z)
+  K->>K: write Position (x, y, surfaceZ)
+```
+
+*What it shows:* everything left of the provider **already exists**; the slice adds the provider, composes the solver,
+and makes the movement model set Z itself — ground, roof or the floor nearest the current Z.
+
+### 4.3 Line of sight
+
+```mermaid
+sequenceDiagram
+  participant V as VisionBroadphaseSystem
+  participant L as LosRequestBatchingSystem
+  participant S as TerrainWorldLosStrategy
+  participant W as TerrainWorld
+  V->>L: LosCheckRequestEvent
+  L->>S: BeginBatch(view) — world via worldSource, colliders once
+  L->>S: IsVisible(view, observer, target)
+  S->>S: eye = Z + SensorMount[stance] (default 1.7/1.1/0.35)
+  S->>S: aim = target Z + height for its stance
+  S->>W: SegmentBlocked(eye, aim)
+  S->>S: colliders within PhysicsCollider.Height (0 = blocks at any height)
+  S-->>L: visible?
+  L-->>V: TargetVisibleEvent (if visible)
+```
+
+*What it shows:* the system keeps its events; only the inner test moves behind a strategy. A prone soldier's eye and
+silhouette are low, so a 0.5 m wall now hides him (W5).
+
+⭐ **As built (`2026-10-03`):** `Fdp.Toolkits/Perception/LineOfSight/LosStrategies.cs`. SimHost, editor (≡ CGF) and
+Stride pass `TerrainWorldLosStrategy.ForLiveWorld(world)`; `LosRequestBatchingSystem` with no strategy keeps the
+original sweep byte-for-byte (`LegacyCrossing`). ⚠ **The world is read through a `Func`, not the view** — the
+perception modules tick in a background `PerceptionScopedView` that exposes no singletons; the parsed `TerrainWorld`
+is immutable and replaced by reference on load. ⚠ **The stance reader is null on every host** (⇒ Standing): no host
+references `StanceStatus`'s assembly or composes the stance runtime — folded into `CE-3010` (W11 below).
+`PhysicsCollider.Height` is filled from `StrideRenderModelDefDto.ShapeHeight` by the vehicle and combat translators;
+`SensorMount` from the new `SensorCapabilitiesDto.EyeHeight*` fields (0 = unset ⇒ the default mount).
+
+### 4.4 W9 — the spatial grids follow the terrain (`CE-3018`, as built `2026-10-03`)
+
+```mermaid
+classDiagram
+  class SpatialHashGrid {
+    <<struct>>
+    +NativeArray GridHead / GridNext / GridValues / Positions
+    +NativeArray~float~ Geometry  [cell, originX, originY]
+    +int Width / Height  (fixed)
+    +CellSize / OriginX / OriginY  read Geometry
+    +Rebase(originX, originY, cellSize)
+    +Add(entity, position) bool  false = not placed (CE-2193)
+  }
+  class SpatialGridFit {
+    <<static>>
+    +For(defaultMin, defaultMax, width, height, baseCell, world)$ GridGeometry
+  }
+  class GridGeometry {
+    <<record struct>>
+    +float OriginX
+    +float OriginY
+    +float CellSize
+  }
+  class SpatialHashSystem {
+    -TerrainWorld lastWorld
+    -HashSet~Entity~ warned  cleared on a fit
+    +int Dropped  this frame
+    +int Warnings
+    main thread, live repo
+  }
+  class LocalGridBuilderSystem {
+    -Func~TerrainWorld~ terrainSource
+    -TerrainWorld lastWorld
+    background, perception module
+  }
+  class VisionBroadphaseSystem
+  class CognitiveSpatialModule {
+    +ForTerrainHost(EntityRepository)$
+  }
+  class TerrainWorldSource {
+    <<static>>
+    +Live(EntityRepository)$ Func~TerrainWorld~
+  }
+  class TerrainWorldLosStrategy
+  class TerrainWorld
+  SpatialHashSystem --> SpatialHashGrid : owns collider grid, Rebase on world change
+  SpatialHashSystem --> SpatialGridFit
+  LocalGridBuilderSystem --> SpatialHashGrid : sole writer of perception grid, Rebase + full rebuild
+  LocalGridBuilderSystem --> SpatialGridFit
+  VisionBroadphaseSystem --> SpatialHashGrid : copy, reads shared Geometry
+  SpatialGridFit --> GridGeometry
+  SpatialGridFit --> TerrainWorld : BoundsMin/Max
+  CognitiveSpatialModule --> LocalGridBuilderSystem : passes terrainSource
+  CognitiveSpatialModule --> TerrainWorldSource
+  TerrainWorldLosStrategy --> TerrainWorldSource : same live source (R-174)
+  SpatialHashSystem --> TerrainWorld : live repo singleton
+```
+
+*What the picture shows that the prose hid:* **each grid is rebased only by its own writer, on its own thread** —
+`SpatialHashSystem` (main) for the collider grid, `LocalGridBuilderSystem` (perception module) for the perception grid —
+so the rebase adds no cross-thread write. **Nothing is reallocated**: the cell COUNT and the entity capacity stay fixed;
+only origin and cell size move, and they live in shared native memory (`Geometry`) so every value copy of the struct
+(the broadphase's, the `SpatialGridData` singleton's, a background snapshot's) sees the new geometry with no re-plumbing.
+
+```mermaid
+sequenceDiagram
+  participant TR as TerrainResidency.Commit
+  participant W as World (TerrainWorld singleton)
+  participant SH as SpatialHashSystem (main)
+  participant PB as LocalGridBuilderSystem (perception)
+  participant VB as VisionBroadphaseSystem
+  TR->>W: SetSingletonManaged(new TerrainWorld)
+  Note over SH: next Simulation frame
+  SH->>W: GetSingletonManaged TerrainWorld
+  SH->>SH: world changed: SpatialGridFit.For(...) then grid.Rebase
+  SH->>SH: Clear + re-insert colliders (as every frame)
+  SH->>W: SetSingleton(SpatialGridData)
+  Note over PB: next perception tick
+  PB->>W: terrainSource() (live read, as the LOS strategy does)
+  PB->>PB: world changed: Rebase, forget prev positions, FullRebuild
+  PB->>VB: same tick, after the builder
+  VB->>VB: QueryNeighbors reads the shared Geometry
+```
+
+| ⭐ decision | why |
+|---|---|
+| **rebase, never reallocate** | a reallocation frees memory a background snapshot (`SyncSingletonById(SpatialGridData)`) or the broadphase's copy may still read — the use-after-free `RoadNetworkHolder` had to solve with leases. Same-size arrays make every index still in range |
+| **coverage = UNION(today's default extent, terrain bounds + margin)**; cell = max(base cell, union span ÷ cell count) | ⛔ never shrinks what is covered today, so a terrain that fits changes NOTHING (same origin, same cell). A big terrain coarsens cells — query cost grows, correctness does not |
+| **each owner PULLS the world** | the collider system already requires the live repo; the perception builder gets the world by `Func` exactly as `TerrainWorldLosStrategy` does (`TerrainWorldSource.Live`, one source for both) |
+| **`CognitiveSpatialModule.ForTerrainHost(world)`** | the three production sites (SimHost, editor, Stride) built the module identically; one factory makes "forgot the terrain source" unrepresentable (`AX-012`) |
+
+⛔ Rejected: **resize at commit** — frees memory other threads hold (see above). **Shrink-to-terrain** — would hide an
+entity placed off the terrain that today's grid sees. **Publish the geometry from `TerrainResidency.Commit`** — a
+main-thread write into the perception grid while its builder runs on the perception thread.
+
+⭐ **`CE-2193` (backend, `2026-10-15`; behaviors' handoff) — a collider
+OUTSIDE the grid is no longer silent.** 📐 Measured live (`ua-air-attack`, [Air Ops §9g](designs/air-attack/DESIGN_Air_Operations.md)): a truck
+at (0, 6 000) on `basic-desert` (grid ±750 m) took 0 of 1 358 rounds — `SpatialHashGrid.Add` dropped it with no word, so no round, near
+miss, avoidance or radius search could meet it. As built: `Add` returns **false** when it could not place the entity (outside the grid,
+or over its capacity); `SpatialHashSystem` counts them per frame (`Dropped`) and logs **one** warning per entity per terrain fit (its id,
+position and the grid's extent) — a new fit clears the set, so whoever is still outside is named again. ⛔ The grid is **not** widened
+to the entities: it follows the terrain by design (W9 above); a unit off its terrain is an authoring error to surface, not to absorb.
+
+⭐ **`CE-2194` (backend, `2026-10-16`; behaviors' handoff) — the
+PERCEPTION grid says so too.** 📐 Measured live on `basic-desert` ([0, 600]²): the two grids follow the terrain differently (perception
+[0, 1000), collider [−750, 750)), so a truck at (−150, 150) was hittable and seen by nobody for 40 s, silently. As built:
+`LocalGridBuilderSystem` places every entity through one `Place`, which logs **one** warning per entity per terrain fit (`Warnings`; the
+fit clears the set) on both the full rebuild and the incremental (moving) path. Same rule as CE-2193: the grid is not widened.
+
+
+⭐ **Off the grids (`2026-10-20`, [Q95](blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md) B2, approved):** a unit standing outside the fitted grids — a battery 20 km off the high-resolution terrain — **is HEARD, not seen, and does not collide.** Its loud sounds reach every listener by distance alone (the ring, [Sensing §8.3](DESIGN_Thermal_And_Acoustic_Sensing.md)); vision and collision walk the grids and never find it (`LocalGridBuilderSystem` warns *"outside the perception grid"*). Off-terrain units are guns that do not move; a unit that must be SEEN far away (an aircraft at 6 km) is another question.
+
+## 5. MODULE RELATIONSHIPS — who loads, who registers, who ticks
+
+```mermaid
+graph TD
+  subgraph SimHost["SimHost (Muscle, Perception, NavSolver)"]
+    SH_L["TerrainLoadStep: world + navmesh"]
+    SH_N["NavigationSolverModule (NEW composition)"]
+    SH_K["Car/Linear kinematics read SurfaceZ"]
+    SH_P["CognitiveSpatialModule + TerrainWorldLosStrategy"]
+    SH_M["map: TerrainLayer2D (§10)"]
+  end
+  subgraph EdCgf["Editor = CGF (one host shape, ruling 66)"]
+    EC_L["TerrainLoadStep: world + navmesh"]
+    EC_M["map: TerrainLayer2D (§10)"]
+    EC_P["CognitiveSpatialModule + TerrainWorldLosStrategy"]
+    EC_K["CarKinematics reads SurfaceZ"]
+    EC_N["NavigationSolverModule (SimHost capability, CE-3017)"]
+  end
+  subgraph IG["IG (Map2D)"]
+    IG_L["TerrainLoadStep: world"]
+    IG_M["map: TerrainLayer2D (§10)"]
+  end
+  subgraph Stride["Stride (NavSolver, Map2D)"]
+    ST_N["scene-baked navmesh (unchanged slice 1)"]
+  end
+  SH_L --> SH_N
+  SH_L --> SH_K
+  SH_L --> SH_P
+  SH_L --> SH_M
+  EC_L --> EC_M
+  IG_L --> IG_M
+  EC_L --> EC_P
+  EC_L --> EC_K
+  EC_L --> EC_N
+```
+
+*What the picture shows that the prose hid:* **no dead edge is left** (`2026-10-03`, as built). ⭐ The editor's
+navigation edge was dead until `CE-3017`: its role DECLARED `NavigationSolver` but its plan carried no capability for it.
+Now the default arm composes SimHost's own `SimHostCapabilities.NavigationSolver` (`R-174`: shared, not copied) over the
+muscle pack's pool, one `SwitchableNavmeshProvider` and the editor's road holder; its residency bakes on every terrain
+load. ⚠ The injected (Stride) arm is unchanged — it brings its own scene-baked navigation. ⛔ SUPERSEDED: the dashed
+"no bake: solver absent" edge. The earlier dead edge — the load chain registered as Brain only — was fixed by `CE-3012`.
+
+| load part | who | why |
+|---|---|---|
+| knowledge base | every ECS node (exists) | — |
+| ⭐ **terrain world + road graph** | **every ECS node** (NEW — universal, like the knowledge base) | map on every host (user: *"Cgf must render the map as well"*), LOS, movement Z |
+| **navmesh bake** | nodes that compose **NavigationSolver** | the solver |
+
+## 6. WHY — what the diagrams cannot carry
+
+- **Why one model and not per-consumer files:** navmesh, height and LOS built from separate sources diverge silently
+  (a wall on the map that a unit walks through). One model makes that impossible by construction (`R-132`).
+- **Why GeoJSON:** the only standard text format carrying polygons + lines + properties + optional Z that is
+  hand-authorable and viewable in common tools. Local metres are the user's choice.
+- **Why DotRecast and not the fake navmesh:** one implementation for SimHost and Stride (ruling 9); it handles agent
+  radius/height/climb and stacked floors natively, and the bake is already written and tested.
+- **Why the movement model sets Z (no clamp step):** the model is the only place that knows where the entity is going
+  and which floor it is on; a separate clamp would be a second writer of `Position` (user ruling, W8).
+- **Why Z-up everywhere:** a Y-up API leaks the library's convention into every caller — and already produced four
+  mixed sites, one of them a live route bug (`CE-3013`).
+- **Why prisms are solid in v1:** enterable buildings need doors/stairs; garages cover multi-level through slabs+ramps.
+- **Why an OVERHEAD piece does not take the ground away** *(`SurfaceZ`, as built `2026-10-08`)*: a prism counts as solid
+  under you only when it starts within step reach (`BaseZ ≤ zHint + StepHeight`). ⛔ A door's lintel (2.1–3 m) used to count,
+  removed the ground, and an agent walking through a doorway under an upper floor came out at 3 m (`bt-doors` live run). Its top
+  is still a candidate surface. Rail `TerrainWorldTests.Stage5d2_UnderADoorwaysLintel_*`.
+- **Why a WALL PANEL never takes the ground away** *(`SurfaceZ`, `CE-3111`, as built `2026-10-08`)*: only a SOLID prism
+  (`Panel < 0` — a building block) removes the ground under a point inside it. ⛔ SUPERSEDED: *"a full-height wall still takes
+  the ground"* — with real 0.9 m doors a mover turning through a doorway clips a jamb by centimetres; the wall's top (3 m) became
+  the only surface, and the agent's Z hint then held it on the upper floor's slab across the whole storey (probe on the
+  `bt-doors` live run: z 3.0 in the east room). The same rule as the ground mesh below. Rail
+  `TerrainWorldTests.CE3111_InsideAWallPanel_TheGroundStays_*`.
+- **Why the ground grid skips only SOLID prisms** *(`TerrainWorldMesh`, as built `2026-10-08`)*: the ground is a grid of cells
+  (2 m on a 200 m world), and a cell is dropped when its CENTRE lies in a prism — so the hollow inside of a solid block never
+  bakes as floor. ⛔ It used to apply to WALL PANELS too (building walls, fences, free walls: `Panel ≥ 0`), and a 0.15 m inner
+  wall that crossed a cell centre cut a 2 m strip out of the floor — bt-range House A's hall and front doorways never
+  connected (found by the `bt-doors` live run). ⭐ A panel is thin and its own side faces block, so it keeps the ground under
+  it. 📄 `DESIGN_Building_Interiors.md` §3j "5d-3 / 5d-4 as built".
+
+## 6a. ALLOCATION — a background batch allocates nothing per query *(R-220, backend, `2026-10-08`)*
+
+> 🔒 **User, `2026-10-08`:** *"Are those background batches writeen in a garbage collection friendly way, to avoid gc stutters?"*
+> → *"Approved, do it first"*.
+
+⭐ **Rule:** a query that a background module (path solver, EQS, perception, danger sensor) or a per-tick system runs per
+candidate or per entity allocates **0 bytes per call once warm**. Scratch is owned **per thread**, because two background
+modules query one provider at once (`CE-2122`). A table handed to a caller is **immutable**, so the caller may hold it for its batch.
+
+```mermaid
+classDiagram
+    direction LR
+    class TerrainWorld { <<immutable>> SegmentBlocked · QueryFire(into) · QuerySight ⚠ diagnostic — allocates its answer }
+    class PolygonMath { InsideIntervals(poly, a, b, Span ts, Span into) NEW · List overload ⚠ allocates }
+    class DoorStates { <<immutable once returned>> Of(view, terrain) }
+    class DoorStatesThreadCache { <<ThreadStatic>> scratch byte[] · last table · door EntityQuery of the last repo }
+    class DotRecastNavmeshProvider { PlanPath · PathExists · PathCost · IsWalkable · Sample… }
+    class Snapshot { <<P1, immutable>> Layers + Masks[] + States[] NEW }
+    class LayerState { Query ThreadLocal · working filter ThreadLocal NEW · FilterFor(doors) }
+    class ProviderThreadScratch { <<ThreadStatic>> poly path · straight path · waypoints · circle buffers · NearestPolyQuery }
+    class DoorAwareQueryFilter { shared Base filter (static) · WorkingCopy() · JudgeBy(doors) NEW · With(doors) ⚠ allocates }
+    class DtNodePool { <<DotRecast, not ours>> one List per visited node ⚠ }
+    TerrainWorld ..> PolygonMath : stack spans
+    DoorStates ..> DoorStatesThreadCache : re-read, reuse if equal
+    DotRecastNavmeshProvider --> Snapshot : read ONCE
+    Snapshot --> LayerState
+    DotRecastNavmeshProvider ..> ProviderThreadScratch
+    LayerState --> DoorAwareQueryFilter : shared (authored) + one working copy per thread
+    LayerState ..> DtNodePool : A* inside DotRecast
+```
+*What it shows that prose hid:* every piece of scratch has exactly one owner thread. The only object a caller keeps, the door table, is
+immutable. The one allocation left is inside DotRecast, below our seam.
+
+| measured (bytes per call, warm) | before | after |
+|---|---|---|
+| `SegmentBlocked` · `QueryFire(into)` · `DoorStates.Of` (doors unchanged) | 320 · 360 · 664 | **0 · 0 · 0** |
+| `IsWalkable` · `ProjectToNavmesh` | 64 | **0** |
+| `PlanPath` / `PathExists` / `PathCost` (the 5c room, no doors) | 9 392 / 16 360 / 16 360 | **440 = DotRecast's own `FindPath`+`FindStraightPath`** |
+| the same, judged by the caller's doors | 10 192 / 16 360 / 16 360 | **= DotRecast's own cost for that search** |
+
+| decision | ⭐ as built | rejected (one line each) |
+|---|---|---|
+| path scratch | `[ThreadStatic]` arrays in the provider | a pool — a rent/return pair at every exit for no gain · `stackalloc` — `DtStraightPath` and the 256-slot buffers are too large for comfort on a module thread |
+| the door filter per call | one **working copy per thread and layer**, re-pointed by `JudgeBy` (throws on a shared filter) | `With(doors)` per call — the allocation being removed · a lock around the shared filter — it would serialise the two modules `CE-2122` let run in parallel |
+| `DoorStates.Of` | always **re-read** the door entities into thread scratch; hand back the thread's previous table when the bytes are equal | a key on `GlobalVersion` — it moves once per tick, so a door written within the tick would be served stale · a per-view cache keyed by repo — a snapshot replica is reused, so the repo key says nothing about its content |
+| DotRecast's node pool | ⚠ **left alone, measured and pinned**: our queries are held to DotRecast's own cost for the same search | fork DotRecast — a vendored A* to maintain for ~0.5 KB/query · our own A* over `DtNavMesh` — a second path planner (ruling 9) |
+| `FindNearestPoly` | our own per-thread `IDtPolyQuery`, running DotRecast's `Process` rule verbatim through the public `QueryPolygons` | accept DotRecast's 64 B — it runs twice per path |
+
+| rails | `TerrainWorldTests.R220_SightFireAndTheDoorTable_AllocateNothingPerCall` · `R220_TheDoorTable_IsReusedOnlyWhileTheDoorsAreUnchanged_AndAHandedOutTableNeverChanges` (a door written within the tick is seen at once) · `RecastNavmeshFactoryTests.R220_PathQueries_AllocateNothingOfTheirOwn_WithOrWithoutTheCallersDoors` (per query, against DotRecast alone) |
+|---|---|
+
+⭐ **`CE-1032` (warheads, `2026-10-08`):** `QueryFire(into)` is also the FRAGMENT trace — one query for rounds and fragments — and each `FireCrossing` now carries the piece's `TopZ` (a wall's top, a slab's level: what a blast wave diffracts over). Still zero allocations (`R220_*`). 📄 [`DESIGN_Building_Interiors.md`](DESIGN_Building_Interiors.md) §3k "Stage 6 as built".
+
+⚠ **Not covered:** `DotRecastDtCrowdProvider` (synchronous on the main thread, not a background batch) and the per-batch objects a
+solver makes once per batch (`EqsTerrainSight.Sight`'s `TerrainLosService`), which are not per-query costs.
+
+## 7. DESIGN CALLS
+
+### 7.1 ✅ RULED by the user `2026-10-03` (`R-182`)
+
+> 🔒 **User, verbatim:** *"Cgf must render the map as well. What filled shapes, dont we have already? Cgf==editor,
+> there should be no diffwrence. Editor loads terrain, percwption, navigation, kinematics etc all locally. Note
+> infantry can lay on geound or squat, sensor height must follow posture. Simhoat for sure needs navig solver.
+> Terrain coordinate system and nav solver and all similar apis should follow engines coordinate system which is
+> z-up. All conversiin just inside the implementations (including on the boundary to stride). Simhost provides
+> height based on world hwight as it calcylatws worls pos, there is nothing simhoat ahould ground clamp, entity
+> movement model clamps them to ground height or on top of buikding or to buikding floor."*
+
+| # | ruling | what it means here |
+|---|---|---|
+| **W2** | fills | 📐 we HAVE filled circles and filled rotated rectangles; we do NOT have a filled polygon. ⇒ add **`FilledTriangle`** (fits the existing 64-byte slot: 3×2 floats + fill colour, no format change); `TerrainWorldParser` triangulates every footprint/surface **once**; the gizmo emits triangles. ⭐ The same shape then lets `MapOverlayGizmo` draw the fill colour it has always carried and never drawn (`CE-3014`) |
+| **W3** | every map draws the world, **CGF included** | the world becomes a **universal** load part (§5) |
+| **W4** | **editor ≡ CGF**, both load everything locally | the load chain is built from the host's **composed** role on both (`CE-3012`); no host-specific terrain path |
+| **W5** | sensor height follows posture | `SensorMount` per stance (Standing/Crouched/Prone) in the TKB sensor data, read through `StanceStatus.CurrentStance`; the target's silhouette height follows its stance too. ⚠ `StanceTransitionSystem` runs on **no** host today, so `StanceStatus` is never written — the strategy falls back to Standing until the stance runtime is composed (see the open row below) ⭐ **As built:** `SensorMount` (id 305) + `SensorCapabilitiesDto.EyeHeight*`; the strategy takes a stance READER — **null on every host today ⇒ Standing** (see W11) |
+| **W6** | SimHost composes the navigation solver | NavigationSolver capability composes `NavigationSolverModule` with the factory's provider + the shared pool; `EngineBackedNavigationModule.RegisterProviders` stops throwing when a provider already exists ⭐ **As built:** SimHost — the `NavigationSolver` capability registers `EngineBackedNavigationModule` **and** `NavigationSolverModule` over ONE `SwitchableNavmeshProvider` (singleton + the background solver's navmesh — a singleton swap would be invisible to a SlowBackground module); `TerrainResidency.AttachNavmesh(RecastNavmeshFactory, …)` bakes in Prepare, publishes in Commit (`CE-3006` closed). ⭐ **Editor (≡ CGF solo): composed `2026-10-03` (`CE-3017`)** — `EditorCapabilities.BuildDefault` now REQUIRES SimHost's `NavigationSolver` capability (made public; appended after the EQS solver so the pinned system order is unchanged); `EditorSubsystem` attaches the Recast factory to its residency, registers the providers after kernel init, and adds the solver's modules to the hot-swap list `SwitchToExternalAsync` uninstalls. ⛔ SUPERSEDED: *"Editor/CGF: NOT composed"* |
+| **W7** | **every navigation/terrain API is Z-up; conversion only inside implementations** (DotRecast, the Stride boundary) | flip `INavmeshProvider`, `NavWaypoint`, `IVolumetricPathProvider`/`FlyProfile`, `NavPolygon`/`NavTestMap` to Z-up; `DotRecastNavmeshProvider` swizzles inside; remove the caller-side swizzles. 📐 Blast radius: **7 production files**, ~66 test call sites in ~46 files, **10 JSON navmaps**. Fixes the 4 mixed sites for free (`CE-3011`) ⭐ **As built (`ca1325385`, `CE-3011` closed):** `INavmeshProvider`, `NavWaypoint`, `IVolumetricPathProvider`, fakes and navmaps are Z-up; `DotRecastNavmeshProvider` swizzles inside; `TerrainWorldGeometrySource` swizzles + re-winds the Z-up soup for the baker. ⚠ Stride edits compile-verified only |
+| **W8** | **no ground clamp**; the movement model sets Z to ground / roof / floor as it computes the position | `CarKinematicsSystem` and `LinearKinematicsSystem` write `Z = TerrainWorld.SurfaceZ(x, y, zHint = current Z)`; spawns at Z=0 settle on the first movement tick. `LinearKinematics` does this only for entities marked **`GroundFollow`** (set by the TKB translators from the entity's mobility) — ⛔ never for bullets ⭐ **As built (`399e6ffd3`): `CarKinematicsSystem` only.** ⛔ `LinearKinematicsSystem`/`GroundFollow` **NOT built** — measured: no ground mover runs `LinearKinematics` (SimHost infantry carry `VehicleState`, W10), so it would have no consumer; bullets keep their ballistic Z |
+
+### 7.2 ✅ APPROVED `2026-10-03` (`R-183`: *"Approved. Document and go autonomously."*)
+
+| # | question | ⭐ lean | rejected (one fact each) |
+|---|---|---|---|
+| **W1** | home of the DotRecast code | **new `Fdp.Toolkits.Navigation.Recast` project** (net8.0); `Hrot.Stride.Core` and SimHost reference it; 5 of its 7 Stride tests move with it | into `Fdp.Toolkits`: DotRecast would ride into all 49 projects that reference it |
+| **W9** | grid extents | perception grid and collider grid sized from `TerrainWorld.Bounds` (+ margin) at commit | fixed constants: entities silently invisible outside [0,1000) / [-750,750) ⭐ **As built `2026-10-03` (`CE-3018`): REBASE** — see §4.4. ⛔ SUPERSEDED: *"check only — `TerrainGridCoverage.Problems` warns at every commit; resizing is CE-3018"*. `TerrainGridCoverage` now reports the FITTED extents (it can only warn if a fit is impossible) |
+| **W10** | infantry motion on SimHost | v1 follows the trajectory on the existing bicycle model (they carry `VehicleState` on SimHost); DotRecast crowd later | crowd in slice 1: a second motion model at once |
+| **W11** | the stance runtime (for W5) | compose `StanceTransitionSystem` on the Muscle (SimHost, Editor=CGF) in slice step 3, so posture is real when LOS reads it | leave it out: W5 would read Standing forever ⚠ **As built: NOT composed in slice 1** — `StanceTransitionSystem` needs `IAnimationBackend` and the Muscle animation pipeline that **no host composes**; folded into `CE-3010`. The LOS stance reader is the seam that lights up when it lands |
+
+### 7.3 ⭐ TERRAIN DELIVERY + THE PICKER — ⛔ THE PICKER IS SUPERSEDED `2026-10-29` (R-3073: the recipe owns the terrain and a scenario's terrain is not replaceable; `File/Terrain…` and `TerrainPickerLauncher` are removed — `Architect_Question_108_Run_Mode_Picker.md` §2.15) *(user, `2026-10-03`: "Scenario needs editor picker fir terrain i guess"; decided by the backend lane)*
+
+📐 Measured: ① **saving drops the terrain** — every host's `HrotScenarioSaveHandler` builds `new ScenarioHeader(type, TkbName: …)` with no `TerrainName` (`HrotScenarioSaveHandler.cs:100`, `ScenarioFileService.cs:106`), and the merge keeps a terrain name only when a slice carries one (`ScenarioMergeCore.cs:121`) ⇒ a saved scenario loses its terrain (`CE-3015`). ② **nothing stages a terrain** to a node (`BP-557`): the gateway copies only `{nas}/tkb/<name>.zip` (`StorageGatewayModule.cs:412-475`). ③ **no editor UI** sets the terrain name; only a recipe seed carries one.
+
+| # | decision | rejected (one line each) |
+|---|---|---|
+| **W12** | **a terrain is a FOLDER** `terrain/<name>/` holding `terrain.json` (the definition) + the files it names (world, roads). ONE resolver, **`TerrainCatalog`**, searches in order: node staging `{node}/Terrain/` → the NAS stand-in `{shared}/terrain/` → the terrains shipped with the build (`Recipes/Terrain/`, copied to output like the scenario seeds). The gateway's prefetch copies the named folder to every node beside the TKB (closes `BP-557`), with the same skip-if-current rule | one file per terrain (`Terrain/<name>.json`): sibling files of two terrains collide in one folder · a second loader per host: two mechanisms for one lookup |
+| **W13** | **the picker**: a *Terrain…* entry in the scenario menu lists `TerrainCatalog.List()`; choosing one calls the existing `TerrainResidency.EnsureTerrain(world, name)` on the local node and marks the scenario dirty. On the editor (a one-node cluster) it loads at once; on CGF it loads locally and reaches the other nodes at the next scenario load (the staged header carries it) | a cluster op to swap terrain live: a new 2PC for a rare authoring action |
+| **W14** | **save stamps the RESIDENT terrain** — `HrotScenarioSaveHandler` and `ScenarioFileService` write `TerrainName` from the node's `TerrainDefinition` singleton, exactly as `TkbName` comes from `ITkbDatabase.ActiveTkbName` (`CE-3015`) | a scenario-level editable field: a second copy of a fact the loaded world already holds |
+
+### ⛔ HISTORY — first-draft leans the user overturned (do not quote)
+
+W2 *"outlines only, fill as a separate UI-lane item"* · W3 *"CGF draws nothing"* · W7 *"swizzle in the solver, keep the
+Y-up provider contract"* · W8 *"move the IG ground-clamp pipeline to SimHost"* · W5 *"one mount height per sensor"*.
+
+## 8. SLICE 1 (✅ Q81: steps 1–3 + the map layer)
+
+| step | builds | acceptance |
+|---|---|---|
+| **0** | `CE-3013` — the live route axis swap (one line + a rail with Z-up waypoints); `CE-3015` — save stamps the resident terrain | a SimHost route with north ≠ 0 is driven where it was drawn; a save keeps `TerrainName` |
+| **1a** | `TerrainWorld` + parser + definition v2 + universal world part + `CE-3012` + W12 `TerrainCatalog` + folder staging (`BP-557`) + W13 picker | a shipped `test-town` loads on SimHost, Editor, CGF, IG; `SurfaceZ` rails incl. a slab picked by Z hint; the picker switches the editor's terrain |
+| **1b** | `FilledTriangle` + `TerrainWorldGizmo` (filled footprints shaded by height, labels) + `CE-3014` | the world draws on every map; an area overlay shows its fill |
+| **2** | W7 Z-up flip, the Recast project (move), geometry source, factory, solver composition, W8 movement Z | a CGF tank given MoveTo drives **around** a building to the goal, and its Z follows a ramp; closes `CE-3006` + `CE-3011`, unblocks `CE-524` |
+| **3** | `ILosStrategy` seam (default = today's sweep), `TerrainWorldLosStrategy`, `SensorMount`, `PhysicsCollider.Height`, stance runtime (W11) | a soldier behind a 12 m building does not see a target; a standing one sees over a 0.5 m wall, a prone one does not |
+
+⭐ **As built `2026-10-03`:** 0 `bf5c0b017` · 1a `1b5f679dd` · 1b `ca42c5aff` · 2 W8 `399e6ffd3`, W1 `8febfb726`, W7 `ca1325385`, W6 + LOS (step 3) in the slice's closing commit. ⭐ **LIVE RUN `2026-10-03`** (scenario `scenarios/demos/navigation-and-terrain/tt-nav-los`: a Bradley ordered through Block A; an observer at (300,80), Hostile A behind the 3 m High Wall, Hostile B in the open) — **sight PASSES on both the editor and `--mode all`**: the observer sees B from t=0.17 s and never A; on the cluster the track crosses the wire (SimHost `SensorTrackState` 1 → CGF 1) and the Brain's `TargetMemory` holds B only. **Navigation PASSES in the editor** after two fixes the run forced (`CE-3017`'s missing `NavigationCorridorMuscle` registration aborted the editor; every request planned on the infantry mesh — `CE-3025`): the route goes around Block A on the vehicle mesh. ⭐ **Navigation PASSES on separate nodes too** after `CE-3026` *(⛔ SUPERSEDED: it first FAILED — the cross-node MoveTo arrived as `DirectPoint` and the vehicle drove straight through the building)*: a MoveTo is now a `PathToPoint` intent planned on the vehicle side by one path on every host, and the editor and `--mode all` take the same route around Block A ([`Navigation_Design_v2_0.md`](designs/navig-2/Navigation_Design_v2_0.md) §3.1). ⚠ A hull still passes 0.7–1.1 m from Block A's corner (`CE-3027`). ⛔ SUPERSEDED: *"Acceptance proven by rails, not a live cluster run:"* step 2 by `RecastNavmeshFactoryTests` (the plan goes around a building, Z-up) + the W8 ramp rail; step 3 by `LosRequestBatchingSystemTests` (building blocks, standing over a 0.5 m wall, prone not). The editor-side solver (`CE-3017`) and the stance runtime (`CE-3010`) are not built, so posture reads Standing on every host today.
+
+⚠ Each step names its feature suites first (T-1): `TerrainLoadStepTests`, `TerrainDefinitionTests`,
+`RouteTrajectorySyncSystemTests` (its fixtures feed Y-up today — they pin the bug), `PathfindingSolverSystemTests`,
+`NavmeshWalkIntegrationTests` (after the move), the perception suites, and the cluster integration rail for nav.
+
+
+## 9. ⭐ SPARSE TERRAIN — **high-resolution insets over a low-resolution outer ground** *(✅ S1–S7 APPROVED `2026-10-17`, R-4051; filed DEFERRED as CE-4011 (outer ground) + CE-4012 (insets) — SUMO is built first)*
+
+> 🔒 **User, `2026-10-17`:** *"the artificial terrain around our terrain area is a good idea anyway, even if there is no sumo
+> road network. Maybe we could somehow define this outer area size into our terrain […] could our terrain be sparse, meaning
+> that only some rectangular areas, multiple of them, even far from each other, could be used, each having its own nav mesh?
+> […] Originally, each terrain zone was coming with its own terrain definition, which is very close to the idea I am just
+> talking about. But a sparse terrain definition would make it happen in a general way, so the terrain can span whatever big
+> area and just some part of it would be high resolution inset."* · *"S1 to S7 approved. Pls file the the whole outer ground and terrain insets as separate tasks that we do not need to take now, because first I would like to build the sumo stuff."*
+
+📐 **Measured — what is dense today, and what is already sparse:**
+
+| part | today | sparse? |
+|---|---|---|
+| world features (buildings, walls, surfaces, doors) | GeoJSON in local metres (§2) — features may sit anywhere | ✅ already: nothing requires them to be near each other |
+| the ground | ONE height grid (`hrot.heightGrid`, ESRI ASCII, one rectangle) or one flat `groundZ`; outside it the edge holds (`TerrainHeightGrid.cs:45-49`) | ⛔ one rectangle |
+| the world's extent | ONE `bounds` rectangle (`hrot.bounds`, §2; or the features' box + 50 m, `TerrainWorldParser.cs:36,263`) | ⛔ one rectangle |
+| the render mesh and the navmesh | built over `BoundsMin`..`BoundsMax` (`TerrainWorldMesh.cs:25,67`) and baked from that mesh (`RecastNavmeshBaker.cs:214`) — tiled at 24 m (Nav v2 §14 P2) | ⛔ cost grows with the ONE rectangle: two insets 50 km apart would bake every empty tile between them |
+| who depends on the model | **55** production files name `TerrainWorld`; **31** read the world through `IWorldQuery` | ⇒ keep ONE `TerrainWorld` model; change what is inside it |
+| the zone precursor | `mgmt-1` §11: a zone = *"a named high-resolution area"* whose high-res terrain + navmesh load through `PrepareZone`/`CommitZone`; tiles are FAKED by ruling (Terrain_Zones §6) | the dormant form of exactly this idea |
+
+```mermaid
+classDiagram
+  direction LR
+  class TerrainDefinition { <<existing, grows>> +Insets +Outer +RoadNetworks }
+  class TerrainInset { <<NEW>> +Name +Bounds +HeightGrid or GroundZ +NavmeshBounds }
+  class OuterGround { <<NEW>> +Extent +Source flat or coarse grid or SUMO lattice }
+  class TerrainWorld { <<existing, ONE model, grows>> +Insets +Outer +GroundHeightAt composes }
+  class TerrainWorldMesh { <<existing, changes>> builds per inset }
+  class RecastNavmeshBaker { <<existing, changes>> bakes per inset bounds }
+  class FidelityZones { <<DESIGN Terrain_Zones 11>> each inset is an implicit zone }
+  class RoutePlanner { <<existing, changes>> straight open-ground legs between insets (Terrain_Height 8 A2) }
+  TerrainDefinition --> TerrainInset : 1..n
+  TerrainDefinition --> OuterGround : 0..1
+  TerrainWorld --> TerrainInset
+  TerrainWorld --> OuterGround
+  TerrainWorldMesh ..> TerrainInset
+  RecastNavmeshBaker ..> TerrainInset
+  FidelityZones ..> TerrainInset
+  RoutePlanner ..> TerrainWorld
+```
+
+*What the picture shows that prose hid:* sparseness lives INSIDE the one `TerrainWorld` the 55 consumers already hold —
+only the three dense parts (ground, extent, mesh/navmesh) learn about insets; features, cover, LOS and the 31
+`IWorldQuery` readers do not change; and between insets the outer ground and straight legs (Terrain_Height §8) carry
+everything.
+
+| id | ⭐ lean | rejected — one line each |
+|---|---|---|
+| **S1** the outer ground (no SUMO needed) | `terrain.json` gains an **`outer`** block: its extent (a margin or a rectangle) and its source — `flat` (a height), a **coarse height grid** file, or the **SUMO net's lattice** (AQ93 V8) — feeding the SAME height fallback as Terrain_Height §8 A1; the SUMO lattice becomes one source among three | SUMO as the only outer source: a terrain without a net would keep the infinite edge |
+| **S2** insets | `terrain.json` lists **`insets[]`**, each a rectangle with its own height grid (or flat height) and its own navmesh bounds; the world file keeps ALL features (they are already location-free); a terrain with no `insets` is ONE inset = today's file, so every shipped terrain is unchanged | one `TerrainWorld` per inset: 55 consumers would have to pick one · one big height grid with no-data holes: still one dense rectangle in memory |
+| **S3** ground query | `GroundHeightAt` / `SurfaceZ` / the ground trace pick the inset containing the point, else the outer ground (A1), with a blended seam at every inset edge (as V8-c) | — |
+| **S4** mesh and navmesh | the render mesh and the navmesh are built PER INSET bounds (Recast tiles only where insets are); between insets units move on straight open-ground legs (A2) | one navmesh over the union rectangle: bakes every empty tile between far insets |
+| **S5** fidelity | each inset is an **implicit fidelity zone** (Terrain_Zones §11, R-4042); scenario zones may add more | declaring zones twice for the same area |
+| **S6** loading | slice 1 loads every inset at terrain load; streaming insets on demand is the zone 2PC (`PrepareZone`/`CommitZone`, mgmt-1 §11) — later, not now | building streaming first: no inset exists yet to stream |
+| **S7** precision | positions stay float local metres from the terrain origin: ~4 mm at 50 km, ~6 cm at 1 000 km — insets within a few hundred km of the origin need nothing new | double-precision positions: a cross-engine change for a precision nobody needs yet |
+
+⭐ **Size of the change:** moderate, not a rewrite — `TerrainDefinition` + its parser, `TerrainWorld`'s ground and extent,
+the mesh builder, the navmesh bake loop, the route planner's open-ground leg, and the map's terrain layer drawing per inset.
+
+## 10. ⭐ THE 2-D MAP DRAWS THE TERRAIN AS A RETAINED LAYER — `CE-1227` *(ui, `2026-10-20`; build-state: BUILT, see the as-built note; ruling R-1013)*
+
+🔒 **User, `2026-10-20`:** *"When i load scenario uc convoy hit, on that terrain in 2d the entity symbols are not shown and neither the
+selecgion maraquee, and when i turn off the entity checkbox in the tactical layer panel the labels show up. Looks like some gizmo buffer
+overflow. What limits number of gizmos? The terrain has msny houses."* · on the explanation of a retained layer: *"Yes"*.
+
+### INVENTORY *(graph CLI + grep, `2026-10-20`)*
+
+| query | result |
+|---|---|
+| a temporary rail drawing every map projector against demo-city into an unbounded buffer | ⛔ **`TerrainWorldGizmo` 73 188 primitives a frame** (23 896 `FilledTriangle`, 47 792 `Line`, 1 500 `Text`, all on layer 0) · `TrafficRoadGizmo` 648 · `DoorLeafGizmo` 507 · `RoadNetworkGizmo` 0 |
+| the map buffer's capacity | `MapInteractionContext.DefaultBufferCapacity` = **16 384**; `DebugPrimitiveBuffer.AppendRaw` drops what does not fit (only the CE-1071 protected meta primitives and pick boxes survive) |
+| when demo-city crossed it | `a8ed7908e` (UI-8..12, the quarters) and `1aad64e8e` (`CE-4028`, 34 enterable houses), both `2026-10-18` — every wall piece around a door or window is 2 triangles + 4 lines |
+| `grep TerrainWorldGizmo` (code) | 1 production class, 3 rails (`Hrot.IG.Tests/Gizmos/PresentationGizmoTests`) |
+| the 2-D map layers every host gets | `MapInteractionPack.AttachMapLayers` — editor, CGF, SimHost, IG, Replay Browser (rail `EveryMapHostAttachesTheSharedLayers`); the gizmo layer is the FIRST layer it adds |
+| who ships a gizmo frame off the node | SimHost, CGF, IG (`CreateGizmoPublisherSystem`) → Stride's `ConsumerBuffer` (4 096) and the stand-alone `GizmoMap.Viewer`; both draw their own terrain or none |
+| the retained precedent | `TerrainLayer3D` (Fdp.Presentation) — one mesh, rebuilt when the geometry's identity changes, `Has3D` only |
+| view culling in the gizmo API | none — no view rectangle reaches a projector |
+
+```mermaid
+classDiagram
+  class IMapLayer { <<exists>> Draw(ctx) · Has3D }
+  class TerrainLayer2D {
+    <<NEW, Hrot.Presentation Map2D>>
+    world : Func of EntityRepository
+    visible : Func of bool
+    Draw(ctx) mesh, then outlines and labels in view
+    Rebuild(TerrainWorld) once per instance
+    FillTriangles · OutlinesDrawn · LabelsDrawn
+  }
+  class TerrainPlan2D {
+    <<RENAMED from TerrainWorldGizmo, no longer a projector>>
+    Emit(TerrainWorld, IDebugDrawBuilder) static
+    MaterialColor · HeightColor · WallEdge
+  }
+  class DebugPrimitiveBuffer { <<exists>> the recording for one Emit · IsLayerActive(bit) }
+  class DebugPrimitiveRenderer2D { <<exists, Fdp.Presentation>> Render(span, ctx) — strokes, dashes, north-up text }
+  class TerrainLayer3D { <<exists>> the 3-D sibling }
+  class TerrainWorld { <<exists>> the singleton, replaced on every terrain load }
+  class MapInteractionPack { <<exists, changed>> AttachMapLayers adds TerrainLayer2D BEFORE the gizmo layer }
+  class LayerControlDto { <<exists, changed>> Terrain2D row, on (FL-1) }
+  class DebugTraceLayers { <<exists, changed>> Terrain2D = 15 }
+  TerrainLayer2D ..|> IMapLayer
+  TerrainLayer3D ..|> IMapLayer
+  TerrainLayer2D --> TerrainPlan2D : once per terrain
+  TerrainLayer2D --> TerrainWorld
+  TerrainLayer2D --> DebugPrimitiveRenderer2D : outlines + labels in view
+  TerrainPlan2D ..> DebugPrimitiveBuffer : emits into a private one
+  MapInteractionPack ..> TerrainLayer2D : builds, visible = map buffer IsLayerActive(Terrain2D)
+  LayerControlDto --> DebugTraceLayers
+```
+*What the picture shows that prose hid:* the terrain's LOOK does not move — `TerrainPlan2D` is the old gizmo's code, emitting into a
+private buffer once; what changes is only WHO calls it and HOW OFTEN. Nothing points from the map's gizmo buffer to the terrain any more.
+
+```mermaid
+sequenceDiagram
+  participant R as TerrainResidency
+  participant L as TerrainLayer2D
+  participant P as TerrainPlan2D
+  participant G as GPU
+  participant D as DebugPrimitiveRenderer2D
+  participant B as map buffer (gizmos)
+  R->>R: Commit — a new TerrainWorld singleton
+  L->>L: Draw — the instance changed
+  L->>P: Emit(world, private buffer)
+  P-->>L: triangles, lines, labels
+  L->>G: UploadMesh(triangles) — once
+  loop every 2-D frame
+    L->>B: IsLayerActive(Terrain2D)?
+    L->>G: DrawMesh (one call)
+    L->>D: Render(lines and labels inside the view)
+    Note over B: entities, tools, marquee — the terrain takes no slot
+  end
+```
+*What the picture shows that prose hid:* the expensive work is on the LOAD edge, not the frame; the frame does one mesh draw plus what is on
+screen.
+
+```mermaid
+graph TD
+  H["editor · CGF · SimHost · IG · Replay Browser"] --> A["MapInteractionPack.AttachMapLayers"]
+  A --> T2["TerrainLayer2D (first, bottom)"]
+  A --> GL["DebugGizmoLayer (map buffer)"]
+  A --> T3["TerrainLayer3D"]
+  GL --> PUB["CreateGizmoPublisherSystem (SimHost, CGF, IG)"]
+  PUB -.->|"no terrain any more"| ST["Stride ConsumerBuffer"]
+  PUB -.->|"no terrain any more"| GV["GizmoMap.Viewer"]
+  style ST stroke:#c33,stroke-dasharray: 5 5
+  style GV stroke:#c33,stroke-dasharray: 5 5
+```
+*What the picture shows that prose hid:* every map host reaches the layer through the one attach call, so none can lack it (W3 holds); the
+two dashed edges are what the terrain LEAVES — Stride draws its own terrain, the stand-alone viewer now shows none.
+
+| ⭐ decision | why |
+|---|---|
+| ⭐⭐ fills = one non-indexed mesh with vertex colours, drawn with back-face culling off | the `TerrainLayer3D` way; the north-up mirror flips winding, which the gizmo renderer answered by drawing every triangle twice |
+| ⭐ outlines and labels drawn each frame through the existing `DebugPrimitiveRenderer2D`, only those whose box meets the view | their stroke is in SCREEN pixels, so a baked mesh would be wrong at every other zoom; reusing the renderer keeps dashes, wall widths and north-up text identical |
+| ⭐ the checkbox reads the map buffer's mask (`IsLayerActive`) — the mask `LayerControlGizmo` already hands it (CE-1071) | one authority; a host with no layer control has no mask ⇒ the terrain shows |
+| ⭐ `Has3D` false ⇒ never drawn in 3-D | answers §5e FL-7's open row ("Terrain (2-D)" under the real buildings): the old triangles targeted `All` and the 3-D triage draped them under `TerrainLayer3D` |
+| ⭐ the class is RENAMED (Roslyn), not deleted: `TerrainWorldGizmo` → `TerrainPlan2D` | route, don't delete — the look and its rails stay; only `[GizmoProjector]` / `IGlobalStatelessGizmo` go |
+
+**Rejected — one line each:**
+- *A bigger buffer* — gizmos-1 §11.11 already rejects it: the next bigger terrain is the next cliff, and 73k primitives a frame are still sorted and shipped.
+- *Protect entity primitives from eviction* — the city would draw with holes.
+- *Cull and LOD inside the gizmo* — no view reaches a projector, and zoomed out the whole city is still 73k.
+- *Draw the 2-D terrain from `ITerrainRenderGeometry`* (World Query Seam's long-term direction) — it carries ground / wall / roof only, not the plan's heights, materials and labels; the source stays `TerrainWorld` exactly as before, so R-250 is no worse.
+
+⚠ **Amends W2's mechanism (§7.1, R-182) — not its shape:** `FilledTriangle` stays (`MapOverlayGizmo` uses it); only the terrain stops
+reaching the map through it. Ruled by the user `2026-10-20` (R-1013).
+⚠ **What leaves the gizmo frame:** the debug API's gizmo panels and any remote viewer no longer list terrain primitives — the terrain is
+not a gizmo.
+
+#### ✅ As built `2026-10-20` (ui) — and what the build found
+
+| | |
+|---|---|
+| the classes and sequence above | as drawn: `TerrainLayer2D` (`Hrot.Presentation/Map2D`), `TerrainPlan2D.Emit` (the renamed gizmo; Roslyn, 5 references = grep's 5), `MapLayers.Terrain2D`, `DebugTraceLayers.Terrain2D = 15`, `LayerControlDto.Terrain2D` (on), `FirstUntoggledLayer` 15 → 16 |
+| level of detail (new, not drawn above) | labels only from `LabelMinZoom` = 1.5 px/m (zoomed out, the old path smeared all 1 500 into one black mass — see the parity rail's reference); an outline shorter than `MinStrokePixels` = 0.75 px is skipped; culling pads the view by 150 px |
+| ⚠ order inside the terrain | every fill first, then every outline and label — before, a later building's fill could cover an earlier one's outline. Outlines now always show |
+| ⭐ **first frame (found by the rail)** | `LayerControlGizmo` hands the buffer its mask only when it runs — AFTER the projectors — so on a fresh map the first frame stored the hidden layers: 📐 demo-city's Cover (7 891 points × sphere + line) and SpatialGrid, **17 943 dropped**. ⭐ `MapInteractionPack.Build` now seeds the buffer with `LayerControlGizmo.ActiveLayers` |
+| ⚠ **colour (found by the parity rail, NOT fixed here → `CE-1228`)** | `GizmoMap.Presentation.DebugPrimitiveRenderer2D` draws each `FilledTriangle` in BOTH windings ("the culled one costs nothing"), but the 2-D camera disables culling (CE-1040 N4) ⇒ every translucent fill was blended TWICE. The mesh blends once, so the sand houses, slabs and walls now show the colour their alpha says (lighter); the tower and orange houses look the same. Other `FilledTriangle` users (`MapOverlayGizmo`) still double-blend |
+| rails | `TerrainLayer2DTests` ×3 (the production frame on demo-city drops nothing and holds no terrain — red-proved; the plan; culling) · `Map3DFrameRail.CE1227_V` (real window: under the gizmos, built once, coverage = the old gizmo path's, unticked = gone, close-up culls) · `LayerControlGizmoTests` (the row) · `EveryMapHostAttachesTheSharedLayers` (no host builds its own) |
+
+Screenshots: [`terrain2d-1-demo-city.png`](assets/map-3d/terrain2d-1-demo-city.png) · [`terrain2d-2-off.png`](assets/map-3d/terrain2d-2-off.png) · [`terrain2d-3-close.png`](assets/map-3d/terrain2d-3-close.png).
+
+### 10a. ⭐ The 2-D plan at 5.5 km — the stroke cull by cell *(ui, `2026-11-10`, CE-4376 / handoff D-2; build-state: BUILT)*
+
+📐 **Measured on scale-1 first** (`TheLargeTerrainNumbers.ScaleOne_The2DPlansNumbers`, Debug): the plan builds in 0.4 s; its **281 k fill triangles** are already ONE retained
+mesh (§10, 12 MB) — within budget, unchanged. ⛔ The cost was the per-frame stroke cull: `Cull` scanned all **482 k** outlines and labels every frame — **14.5 ms** at the
+whole-terrain zoom, **4.2 ms** close in (where it keeps 1 080).
+
+```mermaid
+classDiagram
+  class TerrainLayer2D { <<existing, §10>> Draw: the fill mesh, then Cull + the gizmo renderer for the strokes in view }
+  class Plan { <<existing>> FillVertices · FillColors · Strokes · Index NEW }
+  class StrokeIndex { <<NEW>> 256 m cells: lines longest-first + labels per cell · Long (lines over a cell) · Other }
+  TerrainLayer2D --> Plan
+  Plan *-- StrokeIndex
+```
+*What the picture shows: the index is built ONCE with the plan; a frame walks only the cells in view (± one cell, the midpoint slack) and stops in each at the zoom's length cut.*
+
+```mermaid
+graph TD
+  CANVAS["MapCanvas.Draw (every 2-D frame)"] --> L2["TerrainLayer2D.Draw"]
+  L2 -->|"once per terrain"| PLAN["PlanOf → Plan + StrokeIndex"]
+  L2 -->|"every frame"| CULL["Cull: the cells in view → into[] (0 B)"]
+  CULL --> GR["DebugPrimitiveRenderer2D (the strokes kept)"]
+```
+*What the picture shows: nothing new runs per frame — the same Cull, now over the cells in view.*
+
+| # | decision | measured / why |
+|---|---|---|
+| 2D-1 | strokes binned by midpoint into 256 m cells, lines sorted longest first; lines over a cell long and other shapes in lists scanned whole | scale-1: whole **14.5 → 3.65 ms**, close **4.2 → 0.24 ms**, 0 B a frame |
+| 2D-2 | ⭐ the SAME strokes kept as the linear rule — only their draw order changes (by cell, longest first) | rail `TheBinnedStrokeCullTests` (demo-city, highway-rest, test-town; whole, close, off-centre, the corner); the strokes are opaque single-colour lines, so the order does not change the picture |
+| 2D-3 | ⛔ SUPERSEDED by 2D-5: *the whole-terrain zoom still draws 64 k outlines (every building edge ≥ 0.75 px)* | it was the remaining 2-D cost |
+| 2D-5 | ⭐ **CE-4389** — coarser than `BuildingStrokesMaxMetresPerPixel` (1 m/px) a building is its FILL only: its walls' and slabs' outlines are skipped in `Cull` (by `Plan.StrokeBuilding`); strokes of no building, labels and the damage cull unchanged | 📐 Windows, scale-1 + 1 000 men, whole: **61 492 strokes, every one a building's, 14.7 ms** to draw (+ 2.7 ms cull) — a house is 4–6 px there. 🔒 User 2026-11-10: *"Whatever is better for the performance"* (over one outline per building). Rail `TheBinnedStrokeCullTests.FarOut_ABuildingIsItsFillOnly_CloseIn_ItsOutlinesToo` |
+| 2D-4 | ⛔ **the "height shading" of the handoff does not exist** in 2-D (`search_graph` `.*(Hillshade\|Shading\|Shade\|Relief\|Contour\|HeightLayer\|Elevation).*` — only the 3-D `LitShader`; grep of Map2D / Gizmos / Vis2D: none) | a failed premise (R-106): building one is a NEW 2-D look — it would change the small hilly terrains, which D-2 says stay unchanged ⇒ reported, not invented |
+
+## 11. ⭐ TREES — the forest surface grows from drawn-only to sight and movement *(L-7, `CE-4369`, backend `2026-11-10`; R-4190 / [Terrain Import UTM §9.6](DESIGN_Terrain_Import_UTM.md); build-state: BUILDING — S1–S4, the import clustering and the tracked speed cap built; felling not)*
+
+```mermaid
+classDiagram
+  class TerrainSurface { <<existing>> Type Forest · Polygon · Density NEW (trees/ha, default 115) · Canopy NEW (m, default 15) }
+  class TerrainWoods { <<NEW, S1>> 25 m cells: trees/ha, canopy · Build(world) once · Transmittance(a, b) · DensityAt(x, y) }
+  class TerrainWorld { <<existing>> Woods NEW (built on first use) · SegmentBlocked · QuerySight (one "woods" crossing) }
+  class IWorldQuery { <<existing, R-253>> SightBlocked · Trace }
+  class TrunkPrisms { <<S2>> kind tree Point → an octagon prism r 0.3 m (object index, navmesh obstacle) }
+  class WoodsArea { <<S3>> forest → navmesh area · filter cost per mover: wheeled ⛔, tracked high + cap, infantry small }
+  TerrainWorld o-- "0..1" TerrainWoods
+  TerrainWoods ..> TerrainSurface : rasterised from
+  IWorldQuery ..> TerrainWorld : sight
+```
+
+```mermaid
+sequenceDiagram
+  participant P as perception (any frame)
+  participant W as TerrainWorld.SegmentBlocked
+  participant H as TerrainHeightGrid.Crosses
+  participant T as TerrainWoods.Transmittance
+  P->>W: a → b
+  W->>H: a hill in the way? (L-5's skipping trace)
+  W->>T: march the 25 m cells the line crosses
+  T-->>W: exp(−Σ density/100 · (trunk m · 0.012 + crown m · 0.08))
+  W->>W: × each prism's sight transmittance, below 0.5 ⇒ blocked
+```
+*What the pictures show: no new query path — the woods are one more factor in the transmittance product sight already computes; nothing
+new is called per frame except the cell march (≤ 120 cells for 3 km), allocation-free.*
+
+| # | decision (R-4190 fixed WHAT; these are HOW) | measured / why |
+|---|---|---|
+| W-1 | the grid is RASTERISED FROM the forest surfaces at load (a cell's centre in a polygon takes its density / canopy) — no new file | one source (the polygons, which the importer writes from its clustering — UTM §9.6) for drawing, navmesh and sight; edges ± one cell, as R-4190 Q-V8 accepts |
+| W-2 | ⭐ TWO layers: the trunk zone (up to 40 % of the canopy height) loses 0.012 / m per 100 trees / ha, the crown 0.08 | ⛔ one rate cannot do both T-2 and T-5: hidden from straight above under 15 m of canopy needs ≥ 0.040 / m, seen 20 m into a wood at eye height needs ≤ 0.030. Two layers: eye height 50 m to hidden, straight down hidden (T ≈ 0.40), the edge seen from the air |
+| W-3 | the sight trace reports the woods as ONE crossing (kind `woods`, material `forest`) | the diagnostic form shows why a line failed; the per-frame `SegmentBlocked` allocates nothing |
+
+**Rails (S1):** `TerrainWoodsTests` — in a wood seen at 20 m, hidden at 100 m, beside it seen at 100 m; from the air hidden under the trees,
+seen at the edge, hidden deep inside; a sparse wood (20 / ha) hides less; the sight trace's one crossing. Red-proved (one crown rate fails
+the air rail). ⚠ Shipped terrains with forests (test-town, highway-rest) now hide units inside them — the cluster scenario suites on them
+were run (see the commit).
+
+| # | decision (S2, S3) | measured / why |
+|---|---|---|
+| W-4 | ⭐ a LONE tree (`kind: tree`, a Point) is an octagon prism r 0.3 m × 10 m, material `tree-trunk` (sight 0, 300 mm RHA per m, blocks movement), `TerrainPrismKind.Tree` | the existing object path does sight, fire and the navmesh obstacle with no new code; a trunk inside a wood is NOT an object (T-1, T-4) |
+| W-5 | ⭐ the woods enter the navmesh as AREA 3 (`NavDoorways.WoodsArea`, convex volumes from the forest polygons, marked before the doorways so a doorway wins) | the bake's existing convex-volume path; the tile cache key carries the area, so a changed wood re-bakes only its tiles |
+| W-6 | ⭐ per-mover cost on the filter: infantry ×1.5, tracked ×4, wheeled REFUSED (`DoorAwareQueryFilter.PassFilter`) | ONE vehicle mesh, priced per query — no tracked bake. A tracked mover is the vehicle layer + `NavLayerSelection.TrackedModifier` (bit 8, carried by no mesh), set by `NavLayerSelection.For` from `Locomotions.Of` — the one class rule |
+| W-7 | ⭐ the IMPORT side is `TerrainWoods.Cluster` (tree points → grid-aligned rectangles + lone trees), driven today by `hrot-trees` (`terrain-scale.py --trees`) and by the importer (L-6) later — ONE clustering. A cell is wood when its 3 × 3 holds ≥ 45 / ha (R-4190); density rounded to 5 / ha so neighbours merge | ⭐ the rectangles sit ON the runtime 25 m grid, so `Build` rasterises back exactly the clustered grid (rail). ⛔ Python clustering in the scale script would be a second copy of the importer's |
+| W-8 | ⭐ a wood cell a ROAD crosses (within the lane's half width) stays OPEN; its trees are dropped, not made lone trunks | R-4190's Q-T1 lean: *"the minor roads cross the woods"* — without this a car's navmesh path down a forest road is refused. ⚠ a 25 m clearing is wider than a real forest road: the road is easier to see along than reality |
+| W-9 | ⭐ a TRACKED hull inside a wood has its top speed capped at 10 km/h (`TerrainWoods.TrackedSpeedCap`), in `CarKinematicsSystem` beside the stance / load slow-downs; the woods grid read once per tick | Q-T2. Density is read first, the class rule (`Locomotions.Of`) only inside a wood — nothing extra per frame outside woods, no allocation. Rail `CE4369_ATrackedHull_CrawlsThroughAWood` |
+| W-10 | ⭐ FIRE through a wood (S4, T-6): the world query's FIRE trace gets ONE `woods` crossing (where the line enters a wood) that stops `1 − exp(−Σ density/100 · trunk m · 0.003)` of rounds whatever their penetration — a 0.3 m trunk met `trees/m² × 0.3` times a metre. `TraceCrossing.Stop`; the round's damage × `1 − Stop` (the expected value, no dice, as every crossing). 100 m through 115 / ha ⇒ ≈ 0.71 arrive | ⭐ only the FIRE purpose, which the round path reads — `QueryFire`'s other readers (blasts, sound, door breach) are unchanged; a woods crossing is no barrier (hull clearance, grenade safety ignore it) and no surface (no impact marks; the blast map's first obstacle skips it). ONE march (`TerrainWoods.March`) serves sight and fire |
+| W-11 | 📐 **scale-1 with trees** (`terrain-scale.py --trees`): 176 112 synthetic trees → 11 907 woods rectangles (18 942 cells, 1 184 ha = 39 % of the area; the source data's 40–45 %), 11 062 lone trunks (≈ 12 000 expected), 3 995 cells left open for roads; clustered in 0.33 s | ⭐ LOAD, measured: the WARM load on the Release cluster **34.8 s** with woods vs 35.6 s without — no cost. ⛔ two scaling defects it exposed, both fixed: the baker scanned every volume per tile (80 s warm navmesh in the Debug editor → 40 s: volumes filed by tile once, the same set and order ⇒ the same keys), and the tile cache's prune listed its whole layer folder per write (cold > 10 min → 475 s: one folder per square, Nav v2 §14). Cold bake 475 s for 106 260 tiles — once per terrain, cached |
+
+**Rails (S2, S3):** a lone tree blocks sight, stops small arms, is a hole in the navmesh; a wood across the map stops a wheeled vehicle,
+not a tracked one, not infantry; with a gap at one end the tracked vehicle goes round (×4) and infantry cuts through (×1.5).
+
+**Not yet built:** felling a lone tree (the §8 / Nav v2 §14 state-on-fixed-geometry seam — a vehicle or a blast removes a trunk; T-4), and
+fragments in woods (a blast's fragments ignore the trunks — `FragmentTransmission` reads resistance only).
+⚠ A hand-drawn forest polygon over a road still closes it to a wheeled navmesh path (road-graph driving is not affected) — W-8 opens roads
+only in CLUSTERED woods. The shipped forests (test-town, highway-rest) carry no road.

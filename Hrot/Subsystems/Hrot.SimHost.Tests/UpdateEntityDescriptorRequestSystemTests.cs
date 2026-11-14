@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Numerics;
 using System.Threading;
 using Hrot.NED.Descriptors;
@@ -30,7 +30,6 @@ namespace Hrot.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
-            repo.RegisterComponent<NetworkOwnership>();
             repo.RegisterComponent<NetworkAuthority>();
             repo.RegisterComponent<SimTransform>();
             return repo;
@@ -57,7 +56,7 @@ namespace Hrot.SimHost.Tests
                     WorldPos = new WorldPos
                     {
                         EntityId = entityId,
-                        Pos      = new GeoPoint { Latitude = 10.0, Longitude = 20.0, Altitude = 0.0 }
+                        Position = new Hrot.NED.Messages.Vec3d { X = 20.0, Y = 10.0, Z = 0.0 }   // AQ107 B: local ENU
                     }
                 }
             };
@@ -106,11 +105,11 @@ namespace Hrot.SimHost.Tests
             const uint domain = 210u;
             using var participant = new DdsParticipant(domain);
             var entityMap  = new NetworkEntityMap();
-            var system     = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform());
+            var system     = new UpdateEntityDescriptorRequestSystem(participant, entityMap);
             var repo       = CreateWorld();
 
-            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
-            using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
+            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant);
+            using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant);
 
             Thread.Sleep(100); // allow pub/sub matching
 
@@ -132,7 +131,7 @@ namespace Hrot.SimHost.Tests
             const uint domain = 211u;
             using var participant = new DdsParticipant(domain);
             var entityMap = new NetworkEntityMap();
-            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform());
+            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap);
             var repo      = CreateWorld();
 
             var entity = repo.CreateEntity();
@@ -141,8 +140,8 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
             entityMap.Register(EntityId, entity);
 
-            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
-            using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
+            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant);
+            using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant);
 
             Thread.Sleep(50);
 
@@ -163,7 +162,7 @@ namespace Hrot.SimHost.Tests
             const uint domain = 212u;
             using var participant = new DdsParticipant(domain);
             var entityMap = new NetworkEntityMap();
-            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform());
+            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap);
             var repo      = CreateWorld();
 
             var entity = repo.CreateEntity();
@@ -172,8 +171,8 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
             entityMap.Register(EntityId, entity);
 
-            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
-            using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
+            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant);
+            using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant);
 
             Thread.Sleep(50);
 
@@ -194,7 +193,7 @@ namespace Hrot.SimHost.Tests
             const uint domain = 213u;
             using var participant = new DdsParticipant(domain);
             var entityMap = new NetworkEntityMap();
-            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform());
+            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap);
             var repo      = CreateWorld();
 
             var entity = repo.CreateEntity();
@@ -203,8 +202,8 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
             entityMap.Register(EntityId, entity);
 
-            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
-            using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
+            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant);
+            using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant);
 
             Thread.Sleep(50);
 
@@ -243,7 +242,7 @@ namespace Hrot.SimHost.Tests
             var stub      = new StubAckWriter();
             using var participant = new DdsParticipant(domain);
             var entityMap = new NetworkEntityMap();
-            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform(), stub);
+            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, stub);
             var repo      = CreateWorld();
 
             var entity = repo.CreateEntity();
@@ -251,7 +250,7 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1)); // NOT auth
             entityMap.Register(EntityId, entity);
 
-            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
+            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant);
             Thread.Sleep(50);
             reqWriter.Write(MakeGeoRequest(EntityId));
             Thread.Sleep(30);
@@ -270,7 +269,7 @@ namespace Hrot.SimHost.Tests
             var stub      = new StubAckWriter();
             using var participant = new DdsParticipant(domain);
             var entityMap = new NetworkEntityMap();
-            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform(), stub);
+            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, stub);
             var repo      = CreateWorld();
 
             var entity = repo.CreateEntity();
@@ -278,7 +277,7 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1)); // auth
             entityMap.Register(EntityId, entity);
 
-            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
+            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant);
             Thread.Sleep(50);
             reqWriter.Write(MakeGeoRequest(EntityId));
             Thread.Sleep(30);

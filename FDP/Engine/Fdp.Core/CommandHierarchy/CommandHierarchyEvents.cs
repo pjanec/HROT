@@ -19,6 +19,8 @@ namespace Fdp.Core.CommandHierarchy
         public TacticalDesignation Designation;
         public byte HasFormationSlot;  // 1 = write FormationFollower.SlotIndex atomically; 0 = skip
         public ushort SlotIndex;
+        /// <summary>⭐ <c>CE-2281</c> / R-3019 — the fire team the assignment gives him, like <see cref="Designation"/>.</summary>
+        public FireTeam FireTeam;
     }
 
     /// <summary>

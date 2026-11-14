@@ -1,0 +1,254 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: the air showcase on basic-desert, five vignettes side by side against bare pickups that cannot shoot back. 'Bomber A-10' level-bombs a fortification point; 'Gunship A-10' gun-runs 'Column Lead' ('Column Second' behind it); 'Apache' rocket-runs then guns a position ('Position Truck') on the move; 'Door Gunship UH-60' orbits 'Orbit Truck' with its door guns, and the check shoots its left door gunner. Judge: (1) the bomb bursts within 25 m of the point (2) the gun run fires 10+ rounds and the lead truck dies (3) the Apache fires both its rockets and its gun and breaks off 300 m+ short (4) the UH-60 circles at 250-550 m, never hovering (20+ m/s) (5) after the left gunner falls his gun goes silent, the other door's gun takes over, the orbit reverses, and the Orbit Truck is destroyed. Fail: a vignette misses, or the orbit does not reverse. Check: python3 scripts/utility-demo-check.py --launch ua-air-attack"
+ },
+ "entities": {
+  "a2173600-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     -4000,
+     -550,
+     300
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 405
+   },
+   "EntityInfo": {
+    "Name": "Bomber A-10",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "AirPlatformStrike",
+    "Params": {"Location":[-400,-550,0],"TargetKind":"Fortification"},
+    "Origin": "Superior"
+   },
+   "Health": {
+    "Current": 1500,
+    "Max": 1500
+   }
+  },
+  "a2173600-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     -4000,
+     -150,
+     300
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 405
+   },
+   "EntityInfo": {
+    "Name": "Gunship A-10",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "AirPlatformAttack",
+    "Params": {"Target":"a2173600-0000-4000-8000-000000000003"},
+    "Origin": "Superior"
+   },
+   "Health": {
+    "Current": 1500,
+    "Max": 1500
+   }
+  },
+  "a2173600-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     500,
+     -150,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 106
+   },
+   "EntityInfo": {
+    "Name": "Column Lead",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   }
+  },
+  "a2173600-0000-4000-8000-000000000004": {
+   "SimTransform": {
+    "Position": [
+     540,
+     -150,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 106
+   },
+   "EntityInfo": {
+    "Name": "Column Second",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   }
+  },
+  "a2173600-0000-4000-8000-000000000005": {
+   "SimTransform": {
+    "Position": [
+     500,
+     4000,
+     60
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 406
+   },
+   "EntityInfo": {
+    "Name": "Apache",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "AirPlatformStrike",
+    "Params": {"Location":[500,400,0],"TargetKind":"Vehicles"},
+    "Origin": "Superior"
+   },
+   "Health": {
+    "Current": 800,
+    "Max": 800
+   }
+  },
+  "a2173600-0000-4000-8000-000000000006": {
+   "SimTransform": {
+    "Position": [
+     500,
+     400,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 106
+   },
+   "EntityInfo": {
+    "Name": "Position Truck",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   }
+  },
+  "a2173600-0000-4000-8000-000000000007": {
+   "SimTransform": {
+    "Position": [
+     -350,
+     3500,
+     100
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 404
+   },
+   "EntityInfo": {
+    "Name": "Door Gunship UH-60",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "AirPlatformAttack",
+    "Params": {"Target":"a2173600-0000-4000-8000-000000000008"},
+    "Origin": "Superior"
+   },
+   "Health": {
+    "Current": 800,
+    "Max": 800
+   }
+  },
+  "a2173600-0000-4000-8000-000000000008": {
+   "SimTransform": {
+    "Position": [
+     -350,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 106
+   },
+   "EntityInfo": {
+    "Name": "Orbit Truck",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 8000,
+    "Max": 8000
+   },
+   "TargetMemory": {
+    "Entries": []
+   }
+  }
+ }
+}

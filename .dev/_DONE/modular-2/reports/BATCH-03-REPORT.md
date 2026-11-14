@@ -47,7 +47,7 @@
   (`FDP.Toolkit.Vis2D`, `FDP.Toolkit.ImGui`, `FDP.Framework.Raylib`) and their test
   projects; added `Fdp.Presentation`, `Fdp.Presentation.Tests`,
   `Fdp.Network.Cyclone`, `Fdp.Network.Cyclone.Tests`.
-- `IOS-IG-SimHost.sln`: same additions and removals.
+- `HROT.sln`: same additions and removals.
 
 ---
 
@@ -158,7 +158,7 @@ Breakdown:
 ## 6. Build Result
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 **Build succeeded. 0 Error(s).**
@@ -188,7 +188,7 @@ dotnet build IOS-IG-SimHost.sln
 
 ### Solution files modified
 - `FDP/FDP.sln`
-- `IOS-IG-SimHost.sln`
+- `HROT.sln`
 
 ### Source files modified
 - `FDP/Toolkits/Fdp.Engine/Runner/SubsystemOrchestrator.cs`

@@ -1,10 +1,12 @@
 # Blueprints — Capabilities & Architecture Overview
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone; [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135); Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > **Start here.** What the Blueprint subsystem can do today and how it is built, at a
 > capabilities/architecture level. For the gentle conceptual intro see
 > [Blueprint_Architecture_Overview.md](Blueprint_Architecture_Overview.md); for adding a node see
 > [Blueprint_New_Node_Authoring_Guide.md](Blueprint_New_Node_Authoring_Guide.md). A doc index is at
-> the bottom. *(Refreshed 2026-07-21 against the implemented system.)*
+> the bottom. *(Refreshed 2026-08-06 against the implemented system.)*
 
 A **Blueprint** is game logic you *draw* as a node graph instead of writing C#. The graph is
 compiled — by a **reflection-free source generator** — into ordinary C# that runs one of three ways:
@@ -26,7 +28,23 @@ and who ticks it.
 | **Library** | A stateless helper | Called synchronously by other code | *none* | Reusable pure logic; each Function graph → a static method |
 
 Variables vs WorkingState is not cosmetic: **Variables** = Instance persistent state; **WorkingState**
-= AiPrimitive scratch/latent state. Using the wrong one is a compile error (BP1031).
+= AiPrimitive scratch/latent state.
+
+> ⚠⚠ **CORRECTED `2026-08-17`.** This used to read *"using the wrong one is a compile error
+> (BP1031)."* ⛔ **`BP1031` IS RETIRED** *(Batch 70, `Stage2_Validate.cs:168`; tracker `BP-278`)*, and
+> `U-12` had already legalised a `WorkingState` declaration on an `Instance`. ⭐ The two remain
+> **different storage**, and `Q39` rules they are **one concept** whose merge is stage `D` — ⛔ but
+> mixing them is no longer a diagnostic.
+
+> ⚠ **"host-provisioned" WorkingState now works uniformly across hosts** — both key AiPrimitive
+> working state by occurrence rather than by a shared fixed offset. (BP-48; the earlier HSM
+> collision, **BP-30**, is closed.)
+> **BTree** provisions a real occurrence slot: `ComposeAiPrimitiveAction` auto-creates a distinct
+> `Role=State, Scope=Node` host variable per placement, so two blueprints — or one placed twice —
+> separate correctly. **HSM does too**: it keys its slot via `HsmOccurrence.KeyFor(instance, …)`,
+> one slot per `(region, state)` placement, so two stateful AiPrimitives on one HSM entity no
+> longer collide.
+> See [Runtime DD §9.6](Blueprint_Subsystem_Runtime_Detailed_Design.md) for the mechanism.
 
 ---
 
@@ -52,47 +70,77 @@ accepts them as project/unmanaged types. This is why almost every "advanced" nod
 ## 3. Node vocabulary (~42 kinds)
 
 Grouped by purpose. Status is coarse: **✅** shipped & used · **◐** runs but thin authoring surface ·
-**⚠** legacy/avoid (superseded — see notes). Per-node, per-axis detail lives in the (dated)
+**⚠** legacy/avoid (superseded — see notes) · **⛔** rejected by the compiler *or* deliberately
+removed from the palette. Per-node, per-axis detail lives in the (dated)
 [Feature Maturity Matrix](Blueprint_Feature_Maturity_Matrix.md).
+
+> ⚠ **These marks describe the *compiler* axis and the *authoring* axis together, and the two do not
+> always agree.** A node can lower and run perfectly while being impossible to place or configure in
+> the editor. Where they diverge the weaker axis wins the mark, with a note. See
+> [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md) for the live gap list.
 
 **Entry / flow control** — `EventEntry` ✅ (graph entry; Function inputs *or* event payload fields),
 `Return` ✅, `Branch` ✅, `Sequence` ✅.
 
 **Variables / parameters** — `GetVariable` ✅, `SetVariable` ✅, `GetParameter` ✅ (host data-in
-contract), `GetAllParameters` ✅.
+contract), `GetAllParameters` ✅, `GetAllVariables` / `SetVariables` ✅ (the whole blackboard as pins —
+`CE-433`, Q76 §12.22; an unwired `SetVariables` pin leaves its variable untouched).
 
-**Shared & component state** (entity-scoped, foreign structs) — `GetShared` ✅, `SetShared` ✅ (both
-support **per-field pins** — see §6), `GetComponent` ✅ (read a field off an ECS component).
+**Component state** — `GetComponent` ✅ (read a field off an ECS component). ⛔ `GetShared` / `SetShared`
+(entity-scoped shared memory) were **REMOVED** by `CE-440` — decision `A` of Q76 §12.24; a behaviour's state
+lives in its own block, read and written through `GetVariable` / `SetVariable` / `GetAllVariables` / `SetVariables`.
 
 **Struct values** — `MakeStruct` ✅, `BreakStruct` ✅, `SetMembers` ✅ (construct / deconstruct /
 copy-modify a blittable struct inline). New in the Option-B work.
 
 **Events** — `PublishEvent` ✅ (publish an engine/custom event on the bus, with per-field payload
-pins), `CallCustomEvent` ◐ (blueprint-local custom event), `WaitForEvent` ⚠ / `CallDispatcher`
-⚠ / `BindDispatcher` ⚠ (legacy dispatcher model — superseded by `PublishEvent` + `EventEntry`
-subscribe).
+pins), `CallCustomEvent` ✅ (blueprint-local custom event — declare in My Blueprint, pick in
+Details), `WaitForEvent` ⚠ / `CallDispatcher` ⛔ / `BindDispatcher` ⛔ (legacy dispatcher model —
+superseded by `PublishEvent` + `EventEntry` subscribe; **removed from the palette**, BP-09).
 
 **Data / pure ops** — `Literal` ✅, `Compare` ✅ (full `ComparisonOperator` set), `BinaryOp` ✅
-(Add/Sub/Mul/Div/Mod), `BooleanOp` ✅ (And/Or), `Not` ✅, `Cast` ⚠, `ArrayMake` ⚠ / `ArrayGet` ⚠.
+(Add/Sub/Mul/Div/Mod), `BooleanOp` ✅ (And/Or), `Not` ✅, `Cast` ◐,
+`ArrayMake` ⛔ / `ArrayGet` ⛔.
+
+> **`Compare` / `BinaryOp` / `BooleanOp` / `Not` were ◐ until BP-04.** All four were fully lowered
+> and compile-tested but had **no palette entry**, so they could not be placed at all — reachable
+> only from hand-authored JSON. 14 baked entries (one per enum value) shipped, and a round-out test
+> asserts every operator value has a row, so a newly added operator cannot silently become
+> unreachable. Math is also covered by `BlueprintMathPaletteEntries`, which routes through CLR
+> `BlueprintMath` helpers as `FunctionCall`.
+>
+> **`Cast` is ◐, not ⚠.** Its emit bug is fixed — `StatementEmitter` intercepts `Cast.`-prefixed
+> calls and emits a native `(global::T)` cast. It is also inserted implicitly by Stage3 Normalize.
+> It simply has no drawer (BP-58).
+>
+> **`ArrayMake` / `ArrayGet` are ⛔ — they are now a compile error (BP1420).** They never had Stage5
+> lowering: reading their output silently yielded `default(T)` with no diagnostic, so a graph using
+> them compiled clean and returned wrong data. `V_UnloweredNodeKinds` rejects them outright (BP-16).
+> Use a fixed-capacity list variable for collection storage.
 
 **Calls** — `FunctionCall` ✅ (a CLR `[BlueprintCallable]` method *or* an in-blueprint Function graph;
-bakes the self/view trailing-context decision), `CallPeerBlueprint` ◐.
+bakes the self/view trailing-context decision), `CallPeerBlueprint` ✅ (dependent peer + function
+pickers; typed pins projected from the peer's signature).
 
 **Behavior / channels** — `ChannelCommand` ✅ (a channel action, *or* a non-channel behavior action
 via baked `ActionFqn`).
 
-**EQS / utility** — `SpawnEqsSensor` ✅, `ReadEqsResult` ✅, `ScoreDecision` ◐, `ReadRankedResult` ◐.
+**EQS / utility** — `SpawnEqsSensor` ✅, `ReadEqsResult` ✅, `ScoreDecision` ◐ (no decision-asset
+catalog editor-side — BP-27), `ReadRankedResult` ✅.
 
 **Loop** — `FlowForEach` ✅ (bounded, latent-free loop over a curated collection; body may not contain
 latent/Branch nodes — BP2050).
 
-**Reactive** — `When` ◐ (Rising/Falling edge trigger; modes: ValueChanged / EventFired / ConditionMet
-/ EqsResult).
+**Reactive** — `When` ◐ (Rising/Falling edge trigger; modes: ValueChanged / EventFired /
+ConditionMet / EqsResult). **Only `EventFired` is authorable** — the other three modes are
+`TextDisabled` stubs with no picker (BP-67), so the node is effectively EventFired-only.
 
-**Latent** — `Delay` ✅, `WaitForChannel` ◐ (runs, no drawer).
+**Latent** — `Delay` ✅, `WaitForChannel` ✅ (filtered channel picker, deduplicated and sorted).
 
-**Squad primitives** — `PartitionElements` ⚠ / `AssignRoles` ⚠ / `AdvancePhase` ⚠ / `AcquireSlot` ⚠
-(façade over the FDP squad library; the lean `SlotRotation`/`MemberSlotList` path is preferred).
+**Squad primitives** — `PartitionElements` ⛔ / `AssignRoles` ⛔ / `AdvancePhase` ⛔ / `AcquireSlot` ⛔
+(façade over the FDP squad library, never lowered; **removed from the palette**, BP-09. The lean
+`SlotRotation`/`MemberSlotList` path is the supported one. Node classes are retained so existing
+assets still deserialize — and then fail loudly.)
 
 ---
 
@@ -128,9 +176,7 @@ mirrored in the other.
 - **Blackboard tiers** — per-entity state lives in one of three fixed-size unmanaged components
   (`BlueprintBlackboard1024 / 4096 / 16384`), chosen by size; `BlueprintMaintenanceSystem` upgrades a
   slot to a larger tier when it outgrows the current one.
-- **`BlueprintSharedState`** — by-value, fail-safe entity-scoped shared slots: `TryGetShared<T>`,
-  `TrySetShared<T>`, and `TrySetSharedField<TStruct,TField>` (true per-field write at a baked offset).
-  Returns `false` (never throws) on layout drift or key collision.
+- ⛔ **`BlueprintSharedState`** (entity-scoped shared slots) — **REMOVED** by `CE-440` (Q76 §12.24).
 - **Custom-event dispatch** — `BlueprintEventDispatch.DispatchForSlot`: for each Event-graph handler,
   resolves the event key → bus type-id, `HasEvent`-gates (absent events cost nothing), and invokes the
   handler once per event instance with the payload bytes.
@@ -143,17 +189,25 @@ mirrored in the other.
 
 - **Palette discovery** — the node vocabulary is assembled from many sources: the built-in set, plus
   *discovered* entries — per-action channel commands, `[BlueprintCallable]` methods, `[BlueprintEvent]`
-  publishers, and a Make/Break/SetMembers triple per `[BlackboardDtoStruct]`. Discovery reflects
+  publishers, and a Make/Break/SetMembers triple per `[Dto]` (was `[BlackboardDtoStruct]`, retired CE-3185). Discovery reflects
   Hrot/Fdp assemblies and **bakes** the resulting FQNs onto the created node.
 - **Pin projection** — `NodePinSchema.GetCanonicalPins` computes each node's pins (authored → registry
-  → fallback). Dynamic kinds (EventEntry, FunctionCall, Get/SetShared, Make/Break/SetMembers,
+  → fallback). Dynamic kinds (EventEntry, FunctionCall, Make/Break/SetMembers,
   PublishEvent, …) are computed with reflection + `global::` stamping, and must match Stage0 (§4).
-- **Per-field ("expand") pins** — `GetShared`/`SetShared`/`PublishEvent` can show one pin per struct
-  field instead of one whole-struct pin. `SetShared`'s multi-pin write is a **true per-field write** —
-  unwired fields keep their existing value (no whole-struct clobber).
+- **Per-field ("expand") pins** — `PublishEvent` can show one pin per struct field instead of one whole-struct
+  pin *(`GetShared`/`SetShared` had the same, and were removed by `CE-440`)*.
 - **Wire editing + undo** — a full NodeEdit **Host** layer (`BlueprintNodeModel`/`GraphModel`/
-  `NodePinSchema`/`BlueprintCommandSink`) with wire-drop, exec-out fan-out, and a `CommandHistory` that
-  makes add/remove/replace-link and delete-node **undoable**.
+  `NodePinSchema`/`BlueprintCommandSink`) with wire-drop and exec-out fan-out. **One undo stack**
+  covers canvas *and* Details-panel edits, in the order the designer performed them (BP-11); a
+  continuous gesture such as dragging a stepper is one entry, not one per frame.
+  > The invariant, learned the hard way: **the sink applies, the stack records.** An
+  > `IGraphCommandSink.Apply` must never push an undo entry — the caller snapshots the prior state
+  > and supplies the inverse.
+- **Canvas ergonomics** — copy / cut / paste / duplicate (fresh node *and pin* GUIDs, internal links
+  remapped), align / distribute / straighten, node custom titles, body collapse, an overview
+  minimap, jump-to-next-issue (F8), bookmarks with rename/delete, and Promote-to-Variable.
+- **My Blueprint panel** — declare variables and custom events (name + typed parameters), place
+  Get/Set from the context menu, and rename / duplicate / delete any of them.
 - **Debug** — breakpoints, watch/callstack/step panels, a hot-reload log, and per-node source mapping
   (the runtime `DebugMap` + a frame-start callback).
 
@@ -166,10 +220,16 @@ The features below post-date most existing docs (they are folded into the sectio
 | Capability | What it enables |
 |------------|-----------------|
 | **Custom events pub/sub** | Designer-authored bus events with typed payloads, published from one blueprint (`PublishEvent`) and handled by another's **Event graph** (`EventEntry`), optionally filtered to **Self** vs **Any** recipient. |
-| **Multi-pin field access** | Per-field pins on `PublishEvent` / `GetShared` / `SetShared` — set/read individual struct fields without touching the rest. |
+| **Multi-pin field access** | Per-field pins on `PublishEvent` *(`GetShared`/`SetShared` removed, `CE-440`)* — set/read individual struct fields without touching the rest. |
 | **Struct-value nodes** | `MakeStruct` / `BreakStruct` / `SetMembers` — construct, deconstruct, and copy-modify blittable structs inline; whole structs flow along pins. |
 | **Struct-typed Variables** | A Variable can hold a blittable struct; state offsets are derived from the emitted `State` layout. |
 | **Wire-edit undo** | Link add/remove/replace and node delete are undoable through `CommandHistory`. |
+| **Unified undo (BP-11)** | One stack for canvas *and* inspector/drawer edits, in performance order. Before this, **no** Details-panel edit was undoable at all. |
+| **Canvas clipboard (BP-23a)** | Copy / cut / paste / duplicate, same-graph. Paste ships fully-built nodes, so every kind keeps its configuration. |
+| **Custom-event authoring (BP-12c + BP-24)** | Declare a custom event with typed parameters from My Blueprint; **its body `Event` graph is created with it** and the canvas opens on it. `CallCustomEvent` picker and palette pick it up. (BP1407 now only fires for hand-authored JSON that lacks a body.) |
+| **Promote to Variable (BP-60)** | Right-click a data pin → declare a variable and wire a Get/Set to it, as one undo entry. |
+| **Navigation aids (BP-13/19/20)** | Align / distribute / straighten, an overview minimap, and F8 / Shift+F8 to walk error and warning nodes. |
+| **Graph create + switching (BP-24)** | Create Function graphs from My Blueprint (Functions section is real now); double-click any graph to show it on the canvas. Undo history, bookmarks and per-graph pan/zoom/selection survive switches; undo auto-switches to the graph the edit was made in; bookmarks jump across graphs. |
 
 ---
 
@@ -182,9 +242,13 @@ spec whose details no longer match — read this overview + the auto-generated p
 | Doc | Status | Note |
 |-----|--------|------|
 | **Blueprints_Overview.md** (this) | Current | Front door — capabilities + architecture |
+| **Blueprint_Issues_Tracker.md** | Current | **The live gap list** — open/fixed checklist, BP-xx ids |
+| Blueprint_Issues_Detail.md | Current | Per-item evidence, `DONE` notes, and the corrections table |
+| Blueprint_Gaps_Programme_RESUME.md | Current | Handoff: state, next-task briefing, traps, test baseline |
 | Blueprint_Architecture_Overview.md | Current | 1-page conceptual intro (Blueprint→Node→Tree) |
 | Blueprint_New_Node_Authoring_Guide.md | Current | How to expose a new C# thing as a node |
-| Blueprint_Feature_Maturity_Matrix.md | Current (dated) | Per-node/axis audit — snapshot 2026-07-16; see banner |
+| Blueprint_Feature_Maturity_Matrix.md | Superseded (dated) | Per-node/axis audit, 2026-07-16; kept for the axis breakdown only — see banner |
+| Blueprint_Editor_Issue_List.md, Blueprint_Gaps_And_QoL_Audit.md | Superseded | The 2026-08-04 source audit, frozen. Status lives in the tracker; several "Fix" columns were wrong |
 | Blueprint_Authoring_Examples.md | Current | When a blueprint earns its keep (worked cases) |
 | Variables_Designer_Quickstart.md | Current | Variables vs Working State vs Shared decision tree |
 | `docs/projects/Hrot/Blueprints/*.md` | Current | Auto-generated per-assembly API references |
@@ -193,5 +257,6 @@ spec whose details no longer match — read this overview + the auto-generated p
 | *_Slice_Design.md, WaveCore/EQS/TreeIntegration/… | Design record | Per-slice designs + build plans |
 | Blueprint_Subsystem_Architecture_v1.2.md | Superseded | Frozen Slice-1 plan; assembly split + node set no longer match |
 | Blueprint_Subsystem_Compiler_Detailed_Design.md | Superseded | Pre-build DD (no Stage0; ~22-node schema) |
-| Blueprint_Subsystem_Editor_Detailed_Design.md | Superseded | Pre-build DD (canvas described as a "placeholder") |
+| Blueprint_Subsystem_Editor_Detailed_Design.md | Superseded | Pre-build DD (canvas described as a "placeholder"); its "NOT in Slice 1" list has since shipped in full |
+| When_Reactivity_Iteration_Design_v2_2.md | Design record | `When`/EQS iteration. ⚠ only the **EventFired** authoring form was built — BP-67 |
 | Blueprint_Subsystem_Runtime_Detailed_Design.md | Design record | Pre-build DD; core runtime model still broadly holds |

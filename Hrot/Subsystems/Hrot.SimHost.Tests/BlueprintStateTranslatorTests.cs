@@ -15,7 +15,13 @@ namespace Hrot.SimHost.Tests
     /// <summary>
     /// BSA-202: Tests for BlueprintStateTranslator — Extract, Inject,
     /// GetOutputDomKeys, CanTranslate, and legacy black-hole.
+    ///
+    /// <para>⭐ <c>QA-008</c>: this class calls <c>ComponentTypeRegistry.Clear()</c> in its constructor,
+    /// which wipes a PROCESS-GLOBAL dictionary. It therefore joins the serial collection — see
+    /// <see cref="ComponentTypeRegistryMutatorCollection"/> for the measurement that made this necessary.
+    /// ⛔ Do not remove the attribute; a rail asserts it is present.</para>
     /// </summary>
+    [Collection(ComponentTypeRegistryMutatorCollection.Name)]
     public sealed class BlueprintStateTranslatorTests : IDisposable
     {
         private readonly EntityRepository _repo;
@@ -27,9 +33,11 @@ namespace Hrot.SimHost.Tests
             _repo = new EntityRepository();
 
             // Register all three blackboard tier components.
-            _repo.RegisterComponent<BlueprintBlackboard1024>();
-            _repo.RegisterComponent<BlueprintBlackboard4096>();
-            _repo.RegisterComponent<BlueprintBlackboard16384>();
+            // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+            //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+            //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+            //   O3b added one. Production never had the bug: it registers from the table.
+            BlueprintTierTable.RegisterAll(_repo);
             _repo.RegisterManagedComponent<InitialBlueprintsIntent>();
 
             _registry = new BlueprintRegistry();
@@ -337,9 +345,11 @@ namespace Hrot.SimHost.Tests
             Assert.DoesNotContain("BlueprintBlackboard1024", json);
 
             var loadRepo = new EntityRepository();
-            loadRepo.RegisterComponent<BlueprintBlackboard1024>();
-            loadRepo.RegisterComponent<BlueprintBlackboard4096>();
-            loadRepo.RegisterComponent<BlueprintBlackboard16384>();
+            // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+            //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+            //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+            //   O3b added one. Production never had the bug: it registers from the table.
+            BlueprintTierTable.RegisterAll(loadRepo);
             loadRepo.RegisterManagedComponent<InitialBlueprintsIntent>();
 
             serializer.Deserialize(loadRepo, dom);

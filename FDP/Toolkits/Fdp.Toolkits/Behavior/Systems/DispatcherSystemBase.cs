@@ -6,33 +6,22 @@ using Fdp.Toolkit.Behavior.Executors;
 namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
-    /// Shared registration and previous-action tracking for all dispatcher systems.
+    /// Shared executor registration for all dispatcher systems.
     /// Each concrete dispatcher implements OnUpdate with its own channel type and capability check.
+    /// ⭐ <c>R-3039</c> S1 — the action each entity last entered is on its channel (<c>DispatchedAction</c>, beside
+    /// <c>DispatchedInstanceId</c>), never an array here: a checkpoint restored into a fresh process still owes the right OnExit, and an
+    /// entity index reused by the next world starts from its own fresh channel (what <c>ForgetLastWorld</c> used to do, CE-3076).
     /// </summary>
     public abstract class DispatcherSystemBase<TChannel> : IEcsModuleSystem
         where TChannel : struct
     {
-        private const int InitialPreviousActionCapacity = 256;
-
         protected readonly IActionExecutor<TChannel>[] _executors =
             new IActionExecutor<TChannel>[BehaviorConstants.MaxActionTypes];
-
-        protected ushort[] _previousAction = new ushort[InitialPreviousActionCapacity];
 
         /// <summary>Register an executor to handle a specific action kind.</summary>
         public void RegisterExecutor(ushort actionId, IActionExecutor<TChannel> executor)
         {
             _executors[actionId] = executor;
-        }
-
-        /// <summary>Grow _previousAction if entity.Index exceeds current capacity.</summary>
-        protected void EnsurePreviousActionCapacity(int requiredMinSize)
-        {
-            if (_previousAction.Length < requiredMinSize)
-            {
-                int newSize = Math.Max(_previousAction.Length * 2, requiredMinSize);
-                Array.Resize(ref _previousAction, newSize);
-            }
         }
 
         /// <inheritdoc/>

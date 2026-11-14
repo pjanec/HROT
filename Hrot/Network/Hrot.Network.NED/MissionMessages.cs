@@ -44,7 +44,7 @@ namespace Hrot.NED.Messages
         public bool UnusedPlaceholder;
     }
 
-    [DdsTopic("MissionControlRequest")]
+    [DdsTopic]
     [DdsIdlFile("hrot-missions-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct MissionControlRequest
@@ -53,7 +53,7 @@ namespace Hrot.NED.Messages
         public Guid RequestId;
 
         // The entity to control
-        public long TargetEntityId;
+        public int TargetEntityId;
 
         // Optimistic locking: the version of the mission the sender believes is current.
         // The server rejects the request with ERR_VERSION_CONFLICT if its version is greater.
@@ -65,7 +65,7 @@ namespace Hrot.NED.Messages
     }
 
     // Acknowledgment sent by the CGF/SimHost for a MissionControlRequest.
-    [DdsTopic("MissionControlAck")]
+    [DdsTopic]
     [DdsIdlFile("hrot-missions-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     [DdsManaged]

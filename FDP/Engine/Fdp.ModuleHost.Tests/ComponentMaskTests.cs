@@ -19,6 +19,7 @@ namespace Fdp.ModuleHost.Tests
         [ComponentId(101)]
         struct TestComponent3 { public byte Flag; }
         
+        [TickMode(TickPolicy.EveryFrame)]
         class ModuleWithDeps : IEcsModule
         {
             public string Name => "ModuleWithDeps";
@@ -33,6 +34,7 @@ namespace Fdp.ModuleHost.Tests
             public void Tick(ISimulationView view, float deltaTime) { }
         }
         
+        [TickMode(TickPolicy.EveryFrame)]
         class ModuleWithNoDeps : IEcsModule
         {
             public string Name => "ModuleWithNoDeps";
@@ -43,6 +45,7 @@ namespace Fdp.ModuleHost.Tests
             public void Tick(ISimulationView view, float deltaTime) { }
         }
         
+        [TickMode(TickPolicy.EveryFrame)]
         class ModuleRequiringC2C3 : IEcsModule
         {
             public string Name => "ModuleRequiringC2C3";

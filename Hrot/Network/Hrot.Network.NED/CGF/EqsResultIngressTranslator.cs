@@ -18,16 +18,15 @@ namespace Hrot.Network.NED.CGF
     /// event bus so that <c>EqsResultUpdateSystem</c> can write the results into the entity's
     /// <c>EqsCognitiveBuffer</c> component.
     /// </summary>
-    public sealed class EqsResultIngressTranslator : IDescriptorTranslator
+    public sealed class EqsResultIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EqsResult";
         private readonly DdsReader<EqsResultTopic>? _reader;
         private readonly NetworkEntityMap _entityMap;
         // Dictionary-cached reverse lookup: (ParentNetworkId, LocalChildIndex) -> Brain-side entity.
         // Populated lazily on first miss by a one-shot scan of PartMetadata entities.
-        internal readonly Dictionary<(long ParentNetId, int ChildIndex), Entity> _childEntityCache = new();
+        internal readonly Dictionary<(int ParentNetId, int ChildIndex), Entity> _childEntityCache = new();
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EqsResultTopic>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsResult;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -38,9 +37,12 @@ namespace Hrot.Network.NED.CGF
             if (entityMap == null) throw new ArgumentNullException(nameof(entityMap));
             _entityMap = entityMap;
             _reader = participant != null
-                ? new DdsReader<EqsResultTopic>(participant, DdsTopicName)
+                ? new DdsReader<EqsResultTopic>(participant)
                 : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <inheritdoc/>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
@@ -76,20 +78,23 @@ namespace Hrot.Network.NED.CGF
                 {
                     // Child-entity sensor: look up via dictionary cache.
                     var cacheKey = (data.ParentNetworkId, data.LocalChildIndex);
-                    if (!_childEntityCache.TryGetValue(cacheKey, out observer))
+                    // ⭐⭐ CE-487 — a hit is RE-CHECKED every time. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D5, §2 ③.
+                    //    Part ids are allocated and REUSED (D5 ①): when a behaviour run ends, its sensor is destroyed
+                    //    and the next run's sensor takes the same (parent, part id) — a NEW local entity. The instance is
+                    //    never disposed (CE-486), so no dispose sample evicts the entry; and on a KeepLast-1 topic one
+                    //    could collapse anyway. ⇒ without this check every answer for the new sensor went to the dead one.
+                    if (!_childEntityCache.TryGetValue(cacheKey, out observer)
+                        || !EqsSensorKey.IsChildSensor(repo, observer, data.ParentNetworkId, data.LocalChildIndex))
                     {
-                        // Cache miss: one-shot scan for the child entity.
+                        _childEntityCache.Remove(cacheKey);
+
+                        // Cache miss (or a stale hit): one-shot scan for the child sensor.
                         Entity? found = null;
-                        foreach (var e in repo.Query().With<PartMetadata>().Build())
+                        foreach (var e in repo.Query().With<PartMetadata>().With<EqsSensor>().Build())
                         {
-                            var meta = repo.GetComponentRO<PartMetadata>(e);
-                            if (meta.InstanceId == data.LocalChildIndex &&
-                                repo.HasComponent<NetworkIdentity>(meta.ParentEntity) &&
-                                repo.GetComponentRO<NetworkIdentity>(meta.ParentEntity).Value == data.ParentNetworkId)
-                            {
-                                found = e;
-                                break;
-                            }
+                            if (!EqsSensorKey.IsChildSensor(repo, e, data.ParentNetworkId, data.LocalChildIndex)) continue;
+                            found = e;
+                            break;
                         }
                         if (!found.HasValue) continue;
                         observer = found.Value;
@@ -97,14 +102,21 @@ namespace Hrot.Network.NED.CGF
                     }
                 }
 
-                // Bridge to the managed event bus so EqsResultUpdateSystem can consume it.
-                // EqsResultTopic.Results is List<EqsResultEntry> -- direct assignment works.
+                // ⭐ S8 / F-5 — skip our OWN result looping back: the recorded owner of this sensor's result part (d, n) is the
+                //   node that SOLVED it, and its own EqsResultUpdateSystem already took the answer from the local
+                //   EqsResultEvent — this copy is the echo. ⛔ Recorded owner only. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md
+                //   §3 F-5, §5.6 S8, §5.8 (who solves).
+                if (Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(
+                        repo, observer, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, data.LocalChildIndex)))
+                    continue;
+
+                // Bridge to the managed event bus so EqsResultUpdateSystem can consume it — as ENGINE records (CE-4207).
                 repo.Bus.PublishManaged(new EqsResultUpdateEvent
                 {
                     Observer    = observer,
                     Epoch       = data.Epoch,
                     RefreshTick = data.RefreshTick,
-                    Results     = data.Results,
+                    Results     = MapToLocal(data.Results, _entityMap),
                 });
             }
         }
@@ -116,15 +128,55 @@ namespace Hrot.Network.NED.CGF
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         // ── Internal helpers (exposed for unit testing via InternalsVisibleTo) ─
+
+        /// <summary>
+        /// Rewrites every entity-shaped entry's <c>EntityId</c> from the wire's NETWORK id to this node's
+        /// packed local entity, and drops entries whose entity is not (yet) known here. Positional
+        /// entries (<c>EntityId == 0</c>) pass through.
+        /// </summary>
+        /// <remarks>
+        /// ⭐ Without this the Brain's <c>EqsCognitiveBuffer</c> held network ids across nodes but packed
+        /// entities on one node — one field, two meanings — so <c>new Entity((ulong)EntityId)</c> (every
+        /// reader, including the blueprint <c>ReadEqsResult</c> node) was wrong exactly in the split. Design
+        /// §4.1 says the id "resolves to local entity on Brain"; the area-query ingress always did.
+        /// </remarks>
+        internal static List<EqsResult> MapToLocal(List<EqsResultEntry>? results, NetworkEntityMap entityMap)
+        {
+            var mapped = new List<EqsResult>(results?.Count ?? 0);
+            if (results is null) return mapped;
+            foreach (var entry in results)
+            {
+                long local = 0;   // positional candidate
+                if (entry.EntityId != 0)
+                {
+                    if (!entityMap.TryGetEntity(entry.EntityId, out var entity)) continue;
+                    local = (long)entity.PackedValue;
+                }
+                // ⭐ CE-4207 — the ONE wire → engine conversion (it used to be split between here and EqsResultUpdateSystem)
+                mapped.Add(new EqsResult
+                {
+                    EntityId        = local,
+                    PositionX       = entry.PositionX,
+                    PositionY       = entry.PositionY,
+                    PositionZ       = entry.PositionZ,
+                    Score           = entry.Score,
+                    Flags           = (short)entry.Flags,
+                    FlagsMeaningful = (short)entry.FlagsMeaningful,
+                    Stance          = entry.Stance,   // ⭐ CE-3135
+                    Kind            = entry.Kind,     // ⭐ CE-3158 G1
+                });
+            }
+            return mapped;
+        }
 
         /// <summary>
         /// Removes a cache entry for the given composite key.
         /// Called when a NotAliveDisposed DDS sample is received.
         /// </summary>
-        internal void RemoveCacheEntry(long parentNetworkId, int localChildIndex)
+        internal void RemoveCacheEntry(int parentNetworkId, int localChildIndex)
             => _childEntityCache.Remove((parentNetworkId, localChildIndex));
     }
 }

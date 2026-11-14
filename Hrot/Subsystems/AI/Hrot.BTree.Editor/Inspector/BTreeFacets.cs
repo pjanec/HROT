@@ -1,3 +1,4 @@
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using StructEdit.Core.Attributes;
 
 namespace Hrot.BTree.Editor.Inspector;
@@ -7,13 +8,11 @@ namespace Hrot.BTree.Editor.Inspector;
 /// <summary>Inspector facet for Action leaf nodes.</summary>
 public struct BTreeActionFacet
 {
-    [EditDisplayName("Method")]
-    [BehaviorHashPicker]
-    public string MethodFqn;
-
-    [EditDisplayName("Expression target (blackboard field)")]
-    [BlackboardFieldPicker]
-    public string? ExpressionTargetField;
+    /// <summary>⭐ <c>CE-417</c> slice 4b — the node's binding: method OR blueprint (slice 4c, B-1) + target variable,
+    /// drawn by ONE <c>ActionBindingDrawer</c>.</summary>
+    [EditDisplayName("Action")]
+    [ActionBinding(BindingSlotKind.Action, allowsBlueprint: true)]
+    public BehaviorActionBindingFacet Action;
 
     [EditDisplayName("Comment")]
     public string? Comment;
@@ -34,13 +33,11 @@ public struct BTreeActionFacet
 /// <summary>Inspector facet for Condition leaf nodes.</summary>
 public struct BTreeConditionFacet
 {
-    [EditDisplayName("Method")]
-    [BehaviorHashPicker]
-    public string MethodFqn;
-
-    [EditDisplayName("Expression target (blackboard field)")]
-    [BlackboardFieldPicker]
-    public string? ExpressionTargetField;
+    /// <summary>⭐ <c>CE-417</c> slice 4b — the node's binding: method OR blueprint (slice 4c, B-1) + target variable,
+    /// drawn by ONE <c>ActionBindingDrawer</c>.</summary>
+    [EditDisplayName("Condition")]
+    [ActionBinding(BindingSlotKind.Guard, allowsBlueprint: true)]
+    public BehaviorActionBindingFacet Condition;
 
     [EditDisplayName("Comment")]
     public string? Comment;
@@ -129,6 +126,10 @@ public struct BTreeObserverSelectorFacet
 /// <summary>Inspector facet for Parallel composite nodes.</summary>
 public struct BTreeParallelFacet
 {
+    /// <summary>⭐ <c>CE-2073</c> — when the Parallel ends: every child succeeded, or the first one did.</summary>
+    [EditDisplayName("Finishes when")]
+    public BTreeParallelPolicy Policy;
+
     [EditDisplayName("Comment")]
     public string? Comment;
 
@@ -142,6 +143,15 @@ public struct BTreeParallelFacet
     public int ChildCount;
 }
 
+/// <summary>⭐ <c>CE-2073</c> — a Parallel's completion policy (the kernel's int: 0 / 1).</summary>
+public enum BTreeParallelPolicy
+{
+    /// <summary>Every child must succeed (any failure fails it).</summary>
+    AllSucceed = 0,
+    /// <summary>The first child to succeed ends it.</summary>
+    OneSucceeds = 1,
+}
+
 /// <summary>Inspector facet for the Root node.</summary>
 public struct BTreeRootFacet
 {
@@ -152,10 +162,46 @@ public struct BTreeRootFacet
     public string VisualId;
 }
 
+/// <summary>⭐ <c>CE-2079</c> — inspector facet for an SOP order ("Do when idle" / "React"): the behaviour it starts, the
+/// variable holding that behaviour's params (composed on pick), and — for React — how urgent it is.</summary>
+public struct BTreeSopOrderFacet
+{
+    [EditReadOnly]
+    [EditDisplayName("Order")]
+    public string Kind;
+
+    [EditDisplayName("Behaviour")]
+    [Hrot.Editor.AiShared.Inspector.AiBehaviorPicker]
+    public string BehaviorName;
+
+    /// <summary>Composed when a behaviour is picked (a variable of its params type, edited in the blackboard); empty =
+    /// the behaviour's authored defaults.</summary>
+    [EditReadOnly]
+    [EditDisplayName("Params variable")]
+    public string ParamsVariable;
+
+    [EditDisplayName("Urgency (React)")]
+    public Hrot.AiEditor.Persistence.BTree.SopUrgencyDto Urgency;
+
+    [EditDisplayName("Comment")]
+    public string? Comment;
+
+    [EditDisplayName("Breakpoint")]
+    public bool IsBreakpoint;
+
+    [EditReadOnly]
+    public string VisualId;
+}
+
 /// <summary>Inspector facet for Subtree leaf nodes.</summary>
 public struct BTreeSubtreeFacet
 {
+    // ⭐⭐ §S1 ① — PICKED, not typed. 🔒 User, 2026-09-26: "the tree asset must be pickable."
+    // 🔴 This field was labelled "Referenced asset" and was plain free text: a designer typed an
+    //    asset name by hand and learned it was wrong from a validator. The same picker now serves
+    //    the HSM state facet, so the two editors cannot drift.
     [EditDisplayName("Referenced asset")]
+    [Hrot.Editor.AiShared.Inspector.AiAssetPicker(Hrot.Editor.AiShared.AssetKind.BTree)]
     public string SubtreeName;
 
     [EditReadOnly]

@@ -43,17 +43,13 @@ public static class ShellSaveCommands
     /// <summary>Id for the Save All command: <c>"shell.saveAll"</c> (Ctrl+Shift+S).</summary>
     public const string SaveAllId = "shell.saveAll";
 
-    /// <summary>
-    /// Id for the Scenario Save command: <c>"scenario.save"</c>.
-    /// Only registered when the <c>saveScenario</c> seam is supplied.
-    /// </summary>
-    public const string ScenarioSaveId = "scenario.save";
+    /// <summary>⭐ CE-1443 B2 — <c>"shell.saveAsRecipe"</c>: <i>Save BTree 'x' as Recipe…</i> — the focused document written into its kind's recipes folder (<see cref="Recipes.RecipeFiles"/>), which that kind's <i>New …</i> lists.</summary>
+    public const string SaveAsRecipeId = "shell.saveAsRecipe";
 
-    /// <summary>
-    /// Id for the Scenario Save As command: <c>"scenario.saveAs"</c>.
-    /// Only registered when the <c>requestScenarioSaveAs</c> seam is supplied.
-    /// </summary>
-    public const string ScenarioSaveAsId = "scenario.saveAs";
+    // ⛔ CE-1443 part B — the "scenario.save" / "scenario.saveAs" commands are registered ONCE, by ScenarioMenuCommands (on every operator host). This class
+    //   registered the same two ids a second time (last registration won) — deleted.
+
+    private static readonly NodeEditor.Core.Widgets.IconGlyph? CheckpointGlyph = new NodeEditor.Core.Widgets.IconGlyph("\uf024", NodeEditor.Core.Widgets.IconPalette.Amber);   // ⭐ CE-3408 — the amber flag (FA flag)
 
     // ── Public API ──────────────────────────────────────────────────────────────
 
@@ -106,9 +102,9 @@ public static class ShellSaveCommands
     /// Scenario Save-As action. When not null, shell.saveAs delegates here in scenario
     /// context, and the <c>scenario.saveAs</c> command is registered.
     /// </param>
-    /// <param name="describeActiveTarget">
-    /// When not null, provides a dynamic label for the shell.save command (e.g.
-    /// "Save [scenario: TestScenario]" or "Save [blueprint: MyBP]").
+    /// <param name="scenarioName">
+    /// ⭐ CE-1443 part B — the loaded scenario's name, for the label in scenario context (<see cref="SaveLabels"/>: <i>Save Scenario 'x'</i>).
+    /// ⛔ SUPERSEDES the editor-only <c>describeActiveTarget</c> seam: the label is ONE rule on every host, never a host's own text.
     /// </param>
     /// <param name="resolveActiveDocument">
     /// When not null, the non-scenario branch uses this to resolve the save target
@@ -131,12 +127,27 @@ public static class ShellSaveCommands
         Func<bool>?                                               hasLoadedScenario = null,
         Action?                                                   saveScenarioAction = null,
         Action?                                                   requestScenarioSaveAs = null,
-        Func<string>?                                             describeActiveTarget = null,
-        Func<AiDocument?>?                                        resolveActiveDocument = null)
+        Func<string?>?                                            scenarioName = null,
+        Func<AiDocument?>?                                        resolveActiveDocument = null,
+        SaveAllAiDocumentsCommand.SaveDelegate?                   saveBlueprintRecipe = null,
+        Action<NodeEditor.UI.Dialogs.SaveAsRequest, Action<NodeEditor.UI.Dialogs.SaveAsResult>>? openSaveAsBrowser = null,
+        Func<Hrot.UI.Common.RunMode.RunModeChoice?>? runChoice = null)
     {
         if (register       is null) throw new ArgumentNullException(nameof(register));
         if (docManager     is null) throw new ArgumentNullException(nameof(docManager));
         if (requestSaveAs  is null) throw new ArgumentNullException(nameof(requestSaveAs));
+
+        // ⭐⭐ CE-1443 part B (AQ108 §2.15) — every save item NAMES what it saves (SaveLabels), on every host: the scenario in scenario context, else the focused document.
+        AiDocument? Target() => resolveActiveDocument != null ? resolveActiveDocument() : docManager.Active;
+        string Label(string verb, string suffix)
+            => isScenarioContext?.Invoke() == true ? SaveLabels.Named(verb, "Scenario", scenarioName?.Invoke()) + suffix
+             : Target() is { } d                   ? SaveLabels.For(verb, d) + suffix
+             :                                       $"{verb}{suffix} (no document open)";
+
+        // ⭐ CE-3408 (R-5, AQ108 §0 D27) — ONE Save slot whose glyph changes: the floppy in Edit (greyed with SaveDisabledReason as its tooltip when the world cannot be saved, and in a Preview), the AMBER FLAG in Live / DAR / AAR
+        //   (take a checkpoint; greyed with CheckpointDisabledReason where it cannot — an AAR). Ctrl+S in a run already checkpoints (the save intercept) — unchanged. No run choice on this host ⇒ today's slot.
+        string? SlotReason() => runChoice?.Invoke() is { } rc ? rc.SaveSlotDisabledReason : null;
+        bool SlotTakesCheckpoint() => runChoice?.Invoke() is { SaveSlotTakesCheckpoint: true };
 
         // ── shell.save ──────────────────────────────────────────────────────────
         register(
@@ -148,13 +159,12 @@ public static class ShellSaveCommands
                 IconKey:     "shell/save",
                 DefaultKey:  new KeyBinding(EditorKey.S, KeyModifiers.Ctrl),
                 IsEnabled:   () => (isScenarioContext?.Invoke() == true)
-                    ? true
-                    : (resolveActiveDocument != null
-                        ? resolveActiveDocument() != null
-                        : docManager.Active != null),
-                DynamicDisplayName: describeActiveTarget != null
-                    ? () => describeActiveTarget()
-                    : null),
+                    ? SlotReason() is null   // ⭐ CE-3408 — the scenario slot is greyed by the ONE answer (the indicator's pen and File › Save read it too)
+                    : (resolveActiveDocument != null ? resolveActiveDocument() : docManager.Active) is { IsReadOnly: false },
+                DynamicDisplayName: () => isScenarioContext?.Invoke() == true && SlotReason() is { } why
+                    ? Label(SlotTakesCheckpoint() ? "Take a checkpoint" : "Save", "") + " (unavailable — " + why + ")"
+                    : isScenarioContext?.Invoke() == true && SlotTakesCheckpoint() ? "Take a checkpoint (Ctrl+S)" : Label("Save", ""),
+                DynamicGlyph: () => isScenarioContext?.Invoke() == true && SlotTakesCheckpoint() ? CheckpointGlyph : null),
             _ =>
             {
                 // Branch on scenario context first.
@@ -170,6 +180,7 @@ public static class ShellSaveCommands
                     ? resolveActiveDocument()
                     : docManager.Active;
                 if (doc == null) return;
+                if (doc.IsReadOnly) { report?.Invoke($"[INFO] {AiDocument.ReadOnlyReason(doc.Asset)}."); return; }   // ⭐ CE-1252
 
                 if (string.IsNullOrEmpty(doc.Asset.SourceFilePath))
                 {
@@ -217,9 +228,8 @@ public static class ShellSaveCommands
                 DefaultKey:  null,
                 IsEnabled:   () => (isScenarioContext?.Invoke() == true)
                     ? true
-                    : (resolveActiveDocument != null
-                        ? resolveActiveDocument() != null
-                        : docManager.Active != null)),
+                    : (resolveActiveDocument != null ? resolveActiveDocument() : docManager.Active) is { IsReadOnly: false },
+                DynamicDisplayName: () => Label("Save", " As…")),
             _ =>
             {
                 // Branch on scenario context first.
@@ -233,8 +243,52 @@ public static class ShellSaveCommands
                 var doc = resolveActiveDocument != null
                     ? resolveActiveDocument()
                     : docManager.Active;
+                if (doc is { IsReadOnly: true }) { report?.Invoke($"[INFO] {AiDocument.ReadOnlyReason(doc.Asset)}."); return; }   // ⭐ CE-1252
                 if (doc != null)
                     requestSaveAs(doc);
+            });
+
+        // ── shell.saveAsRecipe (CE-1443 B2) ─────────────────────────────────────
+        //    ⭐ The kind's own writer into RecipeFiles.PathFor (never over an existing recipe); ⛔ the document is NOT marked clean — its own file was not saved.
+        //    A Blueprint recipe needs the recipe card on the written copy, so it has its own writer (saveBlueprintRecipe); BTree / HSM reuse their save delegates.
+        SaveAllAiDocumentsCommand.SaveDelegate? RecipeWriter(AssetKind kind) => kind switch
+        {
+            AssetKind.BTree     => saveBTree,
+            AssetKind.Hsm       => saveHsm,
+            AssetKind.Blueprint => saveBlueprintRecipe,
+            _                   => null,
+        };
+        register(
+            new EditorCommandDescriptor(
+                Id:          SaveAsRecipeId,
+                DisplayName: "Save as Recipe…",
+                Category:    "File",
+                Description: "Save the focused document as a recipe its kind's New … offers",
+                IconKey:     null,
+                DefaultKey:  null,
+                IsEnabled:   () => isScenarioContext?.Invoke() != true && Target() is { IsReadOnly: false } d && RecipeWriter(d.Kind) != null,
+                DynamicDisplayName: () => Target() is { } d && isScenarioContext?.Invoke() != true ? SaveLabels.For("Save", d) + " as Recipe…" : "Save as Recipe… (no document open)"),
+            _ =>
+            {
+                if (isScenarioContext?.Invoke() == true || Target() is not { } doc || doc.IsReadOnly || RecipeWriter(doc.Kind) is not { } write) return;
+                // ⭐ B-9 N3 — with a Save-As browser the user names the recipe and is asked Replace? when it exists; the file is EXACTLY the chosen path (no "name (2)" fork).
+                //   A host that cannot show the browser keeps the old behaviour (a new file, forked when the name is taken).
+                if (openSaveAsBrowser != null)
+                {
+                    var asset = doc.Asset; var kind = doc.Kind;
+                    openSaveAsBrowser(Recipes.RecipeFiles.SaveAsRequest(kind, SaveLabels.For("Save", doc) + " as Recipe", asset.Name), result =>
+                    {
+                        if (!result.Confirmed) return;
+                        var chosen = Recipes.RecipeFiles.ExactPathFor(kind, result.Name);
+                        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(chosen)!);
+                        write(asset, chosen);
+                        report?.Invoke($"[OK] Saved {SaveLabels.KindName(kind)} recipe '{System.IO.Path.GetFileName(chosen)}'.");
+                    });
+                    return;
+                }
+                var path = Recipes.RecipeFiles.PathFor(doc.Kind, doc.Asset.Name);
+                write(doc.Asset, path);
+                report?.Invoke($"[OK] Saved {SaveLabels.KindName(doc.Kind)} recipe '{System.IO.Path.GetFileName(path)}'.");
             });
 
         // ── shell.saveAll ───────────────────────────────────────────────────────
@@ -246,14 +300,8 @@ public static class ShellSaveCommands
                 Description: "Save all dirty open documents (Ctrl+Shift+S)",
                 IconKey:     "shell/saveAll",
                 DefaultKey:  new KeyBinding(EditorKey.S, KeyModifiers.Ctrl | KeyModifiers.Shift),
-                IsEnabled:   () =>
-                {
-                    var open = docManager.OpenDocuments;
-                    for (int i = 0; i < open.Count; i++)
-                        if (open[i].IsDirty)
-                            return true;
-                    return false;
-                }),
+                IsEnabled:   () => DirtyCount(docManager) > 0,
+                DynamicDisplayName: () => SaveLabels.SaveAll(DirtyCount(docManager))),   // ⭐ CE-1443 part B — Save All counts what it will write
             _ =>
             {
                 SaveAllAiDocumentsCommand.Execute(
@@ -263,41 +311,14 @@ public static class ShellSaveCommands
                     saveHsm,
                     report);
             });
+    }
 
-        // ── scenario.save (only when saveScenarioAction seam is supplied) ──────
-        if (saveScenarioAction != null)
-        {
-            register(
-                new EditorCommandDescriptor(
-                    Id:          ScenarioSaveId,
-                    DisplayName: "Save Scenario",
-                    Category:    "File",
-                    Description: "Save the currently loaded scenario",
-                    IconKey:     null,
-                    DefaultKey:  null,
-                    IsEnabled:   () => hasLoadedScenario?.Invoke() == true),
-                _ =>
-                {
-                    saveScenarioAction.Invoke();
-                });
-        }
-
-        // ── scenario.saveAs (only when requestScenarioSaveAs seam is supplied) ──
-        if (requestScenarioSaveAs != null)
-        {
-            register(
-                new EditorCommandDescriptor(
-                    Id:          ScenarioSaveAsId,
-                    DisplayName: "Save Scenario As…",
-                    Category:    "File",
-                    Description: "Save the current world state as a new scenario",
-                    IconKey:     null,
-                    DefaultKey:  null,
-                    IsEnabled:   () => hasLoadedScenario?.Invoke() == true),
-                _ =>
-                {
-                    requestScenarioSaveAs.Invoke();
-                });
-        }
+    private static int DirtyCount(AiDocumentManager docManager)
+    {
+        int n = 0;
+        var open = docManager.OpenDocuments;
+        for (int i = 0; i < open.Count; i++)
+            if (open[i].IsDirty) n++;
+        return n;
     }
 }

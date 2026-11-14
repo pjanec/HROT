@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         public bool UseNetworkId { get; set; }
         public int Index { get; set; }
         public int Generation { get; set; }
-        public long NetworkId { get; set; }
+        public int NetworkId { get; set; }
 
         public bool Passes(EntityRepository repo, Entity entity)
         {

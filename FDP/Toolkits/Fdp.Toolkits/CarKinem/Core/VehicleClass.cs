@@ -17,9 +17,30 @@ namespace CarKinem.Core
     /// </summary>
     public static class VehiclePresets
     {
+        /// <summary>
+        /// Returns the kinematic baseline for a vehicle class, with
+        /// <see cref="VehicleParams.Class"/> set to the class it actually describes.
+        /// </summary>
+        /// <remarks>
+        /// The stamping matters: this fills thirteen kinematic fields, and leaving the
+        /// fourteenth -- the one that says what the struct IS -- at its default made every
+        /// caller responsible for a line the function should own.  Three of them wrote it
+        /// independently (<c>VehicleCommandSystem</c>, the CarKinem example's
+        /// <c>ScenarioManager</c>, <c>VehicleKinematicsTkbTranslator</c>), each with its own
+        /// comment; and because <c>PersonalCar</c> is <c>0</c>, anyone who forgot got a Tank
+        /// preset that reported itself as a car -- wrong in a way nothing would surface.
+        /// <para>
+        /// An undefined class normalises to <c>PersonalCar</c> BEFORE the lookup, so the
+        /// returned <c>Class</c> always describes the data returned rather than what was
+        /// asked for.
+        /// </para>
+        /// </remarks>
         public static VehicleParams GetPreset(VehicleClass vehicleClass)
         {
-            return vehicleClass switch
+            if (!System.Enum.IsDefined(vehicleClass))
+                vehicleClass = VehicleClass.PersonalCar;
+
+            var preset = vehicleClass switch
             {
                 VehicleClass.PersonalCar => new VehicleParams
                 {
@@ -27,9 +48,10 @@ namespace CarKinem.Core
                     Width = 2.0f,
                     WheelBase = 2.7f,
                     MaxSpeedFwd = 25.0f,
+                    MaxSpeedRev = 6.0f,   // ⭐ CE-2167 (V5) — it can back up (it was 0: no AI car ever reversed)
                     MaxAccel = 3.0f,
                     MaxDecel = 6.0f,
-                    MaxSteerAngle = 0.6f,
+                    MaxSteerAngle = (Fdp.Core.Angle)(0.6f),
                     MaxSteerRate = 1.0f,
                     MaxLatAccel = 8.0f,
                     AvoidanceRadius = 3.0f,
@@ -44,9 +66,10 @@ namespace CarKinem.Core
                     Width = 2.5f,
                     WheelBase = 5.0f,
                     MaxSpeedFwd = 18.0f,
+                    MaxSpeedRev = 4.0f,   // ⭐ CE-2167 (V5)
                     MaxAccel = 1.5f,
                     MaxDecel = 4.0f,
-                    MaxSteerAngle = 0.4f,
+                    MaxSteerAngle = (Fdp.Core.Angle)(0.4f),
                     MaxSteerRate = 0.6f,
                     MaxLatAccel = 5.0f,
                     AvoidanceRadius = 5.0f,
@@ -63,7 +86,7 @@ namespace CarKinem.Core
                     MaxSpeedFwd = 15.0f,
                     MaxAccel = 1.2f,
                     MaxDecel = 3.5f,
-                    MaxSteerAngle = 0.35f,
+                    MaxSteerAngle = (Fdp.Core.Angle)(0.35f),
                     MaxSteerRate = 0.5f,
                     MaxLatAccel = 4.0f,
                     AvoidanceRadius = 7.0f,
@@ -81,7 +104,7 @@ namespace CarKinem.Core
                     MaxSpeedRev = 8.0f,
                     MaxAccel = 2.0f,
                     MaxDecel = 4.0f,
-                    MaxSteerAngle = 0.8f,  // Can turn sharply (tracks)
+                    MaxSteerAngle = (Fdp.Core.Angle)(0.8f),  // Can turn sharply (tracks)
                     MaxSteerRate = 1.2f,
                     MaxLatAccel = 6.0f,
                     AvoidanceRadius = 5.0f,
@@ -95,10 +118,10 @@ namespace CarKinem.Core
                     Length = 0.6f,
                     Width = 0.4f,
                     WheelBase = 0.3f,
-                    MaxSpeedFwd = 2.0f,  // Walking speed
-                    MaxAccel = 1.0f,
+                    MaxSpeedFwd = 6.0f,  // ⭐ AQ88 A (R-265) — a person's SPRINT (was 2.0 "walking speed", which clamped every run to a walk); a walk asks its own speed, the stance scales the cap
+                    MaxAccel = 2.5f,
                     MaxDecel = 2.0f,
-                    MaxSteerAngle = 1.57f,  // Nearly 90 degrees (can turn in place)
+                    MaxSteerAngle = (Fdp.Core.Angle)(1.57f),  // Nearly 90 degrees (can turn in place)
                     MaxSteerRate = 3.0f,
                     MaxLatAccel = 3.0f,
                     AvoidanceRadius = 0.8f,
@@ -107,8 +130,13 @@ namespace CarKinem.Core
                     AccelGain = 2.5f
                 },
                 
-                _ => GetPreset(VehicleClass.PersonalCar) // Default
+                // Unreachable: an undefined class was normalised above.  Kept so the
+                // switch stays exhaustive if a new member is added before its arm is.
+                _ => GetPreset(VehicleClass.PersonalCar)
             };
+
+            preset.Class = vehicleClass;
+            return preset;
         }
         
         public static (byte R, byte G, byte B) GetColor(VehicleClass vehicleClass)

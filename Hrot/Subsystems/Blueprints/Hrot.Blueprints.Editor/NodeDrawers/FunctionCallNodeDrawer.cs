@@ -1,6 +1,9 @@
+using Fdp.Presentation.Forms;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
+using Hrot.Editor.AiShared.Source;
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
 
@@ -81,25 +84,55 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
 
     private void ApplyFunctionGraphSelection(Guid graphId)
     {
-        _node.TargetGraphId = graphId.ToString();
-        _node.TargetTypeId  = "";
-        _node.MethodName    = "";
-        MarkChanged();
+        RecordChange("Set Function Target", () =>
+        {
+            _node.TargetGraphId = graphId.ToString();
+            _node.TargetTypeId  = "";
+            _node.MethodName    = "";
+        });
     }
 
     private void ApplyClrTarget(string typeId, string methodName, bool isPure)
     {
-        _node.TargetTypeId  = typeId;
-        _node.MethodName    = methodName;
-        _node.IsPure        = isPure;
-        _node.TargetGraphId = "";
-        MarkChanged();
+        RecordChange($"Set Function Target '{methodName}'", () =>
+        {
+            _node.TargetTypeId  = typeId;
+            _node.MethodName    = methodName;
+            _node.IsPure        = isPure;
+            _node.TargetGraphId = "";
+        });
     }
 
-    private void MarkChanged()
+    /// <summary>
+    /// BP-11: the node's undo-relevant state. Picking a target rewrites up to four fields at once —
+    /// one gesture, so one undo entry, and the reason a single-key
+    /// <c>GraphCommand.SetNodeProperty</c> cannot express it.
+    /// </summary>
+    private readonly record struct NodeState(string TargetGraphId, string TargetTypeId, string MethodName, bool IsPure);
+
+    private NodeState Capture() => new(_node.TargetGraphId, _node.TargetTypeId, _node.MethodName, _node.IsPure);
+
+    private void Restore(NodeState s)
     {
-        IsDirty = true;
-        _editService?.MarkDirty(_parent);
+        _node.TargetGraphId = s.TargetGraphId;
+        _node.TargetTypeId  = s.TargetTypeId;
+        _node.MethodName    = s.MethodName;
+        _node.IsPure        = s.IsPure;
+    }
+
+    /// <summary>
+    /// BP-11: runs <paramref name="mutate"/> as an undoable edit. When no edit service is present
+    /// (headless construction) the mutation still happens — it just is not recorded.
+    /// </summary>
+    private void RecordChange(string label, Action mutate)
+    {
+        if (_editService is null) { mutate(); IsDirty = true; return; }
+
+        var before = Capture();
+        _editService.RecordPropertyEdit(
+            _parent, label,
+            apply: () => { mutate();        IsDirty = true; },
+            undo:  () => { Restore(before); IsDirty = true; });
     }
 
     // ── INodeEditSession ─────────────────────────────────────────────────────────
@@ -112,7 +145,7 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
         // Purity is fixed by the chosen function (set once at add-time) — read-only display.
         ImGui.BeginDisabled();
         bool isPure = _node.IsPure;
-        ImGui.Checkbox("Pure (no exec pins)", ref isPure);
+        FormGrid.BeginField("bp.node", "Pure (no exec pins)"); ImGui.Checkbox("##Pure_no_exec_pins", ref isPure); FormGrid.EndField();
         ImGui.EndDisabled();
 
         ImGui.Separator();
@@ -142,7 +175,7 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
 
         if (functionGraphs.Count == 0)
         {
-            ImGui.TextColored(EditorColors.Warning, "(no function graphs in this blueprint)");
+            ImGui.TextColored(StatusPalette.Warning, "(no function graphs in this blueprint)");
             return;
         }
 
@@ -159,7 +192,7 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
             }
         }
 
-        if (ImGui.Combo("Function Graph", ref currentIdx, names, names.Length))
+        FormGrid.BeginField("bp.node", "Function Graph"); if (ImGui.Combo("##Function_Graph", ref currentIdx, names, names.Length))
         {
             if (currentIdx >= 0)
             {
@@ -169,10 +202,10 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
                     ApplyFunctionGraphSelection(chosen.Id);
                 }
             }
-        }
+        } FormGrid.EndField();
 
         if (string.IsNullOrEmpty(_node.TargetGraphId))
-            ImGui.TextColored(EditorColors.Warning, "(no function graph selected)");
+            ImGui.TextColored(StatusPalette.Warning, "(no function graph selected)");
     }
 
     private void DrawClrMethodForm()
@@ -181,10 +214,10 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
         // is immutable afterward — designers never type an FQN. Fields are ReadOnly (still selectable /
         // copyable). To call a different method, add a new node.
         var typeId = _node.TargetTypeId ?? "";
-        ImGui.InputText("Type ID", ref typeId, 256, ImGuiInputTextFlags.ReadOnly);
+        FormGrid.BeginField("bp.node", "Type ID"); ImGui.InputText("##Type_ID", ref typeId, 256, ImGuiInputTextFlags.ReadOnly); FormGrid.EndField();
 
         var methodName = _node.MethodName ?? "";
-        ImGui.InputText("Method Name", ref methodName, 256, ImGuiInputTextFlags.ReadOnly);
+        FormGrid.BeginField("bp.node", "Method Name"); ImGui.InputText("##Method_Name", ref methodName, 256, ImGuiInputTextFlags.ReadOnly); FormGrid.EndField();
 
         ImGui.TextDisabled("Read-only — pick from the Add-Node picker; add a new node to change it.");
 

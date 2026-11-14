@@ -655,7 +655,7 @@ namespace Hrot.SimHost.Tests
 After each task:
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-restore -v quiet 2>&1 | Select-String "error CS|Build succeeded|FAILED"
+dotnet build HROT.sln --no-restore -v quiet 2>&1 | Select-String "error CS|Build succeeded|FAILED"
 ```
 
 After all tasks:

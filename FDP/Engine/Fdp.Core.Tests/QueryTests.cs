@@ -17,6 +17,46 @@ namespace Fdp.Tests
         // QUERY BUILDER TESTS
         // ================================================
         
+        /// <summary>
+        /// ⭐ CE-2400 (R-2084) — a query built every frame allocates nothing: the same filter on the same repository returns the query it built
+        /// before, a different filter (or lifecycle) a different one that still filters right, a builder started inside another's chain is its
+        /// own, and another repository gets its own queries. 🔴 Red-proof: Build() constructing a new EntityQuery ⇒ the instance and the
+        /// zero-allocation asserts fail.
+        /// </summary>
+        [Fact]
+        public void CE2400_ABuiltEveryFrameQuery_IsReused_AndAllocatesNothing()
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<Position>();
+            repo.RegisterComponent<Velocity>();
+            var a = repo.CreateEntity(); repo.AddComponent(a, new Position());
+            var b = repo.CreateEntity(); repo.AddComponent(b, new Position()); repo.AddComponent(b, new Velocity());
+
+            var q1 = repo.Query().With<Position>().Without<Velocity>().Build();
+            var q2 = repo.Query().With<Position>().Without<Velocity>().Build();
+            Assert.Same(q1, q2);
+            var all = repo.Query().With<Position>().Build();
+            Assert.NotSame(q1, all);
+            Assert.NotSame(all, repo.Query().With<Position>().IncludeAll().Build());
+
+            var outer = repo.Query().With<Position>();
+            var inner = repo.Query().With<Velocity>().Build();                 // started while `outer` is unbuilt
+            var outerQ = outer.Without<Velocity>().Build();
+            Assert.Same(q1, outerQ);
+            var hits = new List<Entity>(); foreach (var e in inner) hits.Add(e);
+            Assert.Equal(new[] { b }, hits);
+            hits.Clear(); foreach (var e in q1) hits.Add(e);
+            Assert.Equal(new[] { a }, hits);
+
+            using var other = new EntityRepository();
+            other.RegisterComponent<Position>();
+            Assert.NotSame(q1, other.Query().With<Position>().Without<Velocity>().Build());
+
+            long a0 = GC.GetAllocatedBytesForCurrentThread();
+            for (int f = 0; f < 100; f++) { var q = repo.Query().With<Position>().Without<Velocity>().Build(); foreach (var _ in q) { } }
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - a0);
+        }
+
         [Fact]
         public void QueryBuilder_With_SingleComponent()
         {
@@ -460,7 +500,9 @@ namespace Fdp.Tests
         [Fact]
         public void FdpConfig_FormatVersion_Is6()
         {
-            Assert.Equal(6u, FdpConfig.FORMAT_VERSION);
+            // ⭐ CE-3329 P0 — v7 grew the outer header only; the v6 break this rail records is still in. The exact version is pinned by
+            //   PlaybackControllerTests.V7_TheFrameIndexCarriesTheRecordedSimTimeAndTheFlags.
+            Assert.True(FdpConfig.FORMAT_VERSION >= 6u);
         }
 
         /// <summary>

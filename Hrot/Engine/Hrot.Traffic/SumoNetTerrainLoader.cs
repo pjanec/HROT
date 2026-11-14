@@ -1,0 +1,99 @@
+using System.Security.Cryptography;
+using Fdp.Core;
+using Fdp.Core.Logging;
+using Fdp.Toolkit.Terrain;
+using Hrot.Map.Common.Services;
+using Sim.Ingest;
+
+namespace Hrot.Traffic;
+
+/// <summary>
+/// ⭐ AQ93 R-4021 — loads the terrain's SUMO net with the terrain (<see cref="TerrainResidency.AttachContent"/>): parses it off
+/// the main thread, publishes a <see cref="TrafficNetCache"/> on commit, clears it when the terrain has no net or is unloaded.
+/// </summary>
+public sealed class SumoNetTerrainLoader : ITerrainContentLoader
+{
+    /// <inheritdoc/>
+    public object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName, TerrainWorld world, string? overlayFolder)
+    {
+        if (definition.SumoNet is not { } declared) return null;
+
+        string path = Path.Combine(terrainFolder, declared.File);
+        // ⭐ T-7a (CE-4423, §18k) — the overlay's own net (the base's plus its bridges) takes the base's place: the SAME load, one path, no second reader. Same placement (netconvert keeps the net's location).
+        if (!string.IsNullOrEmpty(overlayFolder))
+        {
+            string header = Path.Combine(overlayFolder, TerrainOverlayHeader.FileName);
+            if (System.IO.File.Exists(header) && TerrainOverlayHeader.Parse(System.IO.File.ReadAllText(header), header).SumoNet is { Length: > 0 } own)
+                path = Path.Combine(overlayFolder, own);
+        }
+        if (!System.IO.File.Exists(path))
+            throw new FileNotFoundException(
+                $"[Traffic] Terrain '{terrainName}' declares the SUMO net '{declared.File}', which does not exist at '{path}'.", path);
+
+        // ⭐ CE-2417 — the net reports while it is read and between its stages (the vendored parser itself cannot: measured 2.4 s, under the 5 s rule).
+        byte[] bytes = Fdp.Core.ProgressStream.ReadAllBytes(path);
+        string hash = Convert.ToHexString(SHA256.HashData(bytes))[..16];
+        Fdp.Core.LoadProgress.Report();
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        NetworkModel model;
+        model = NetworkParser.ParseXml(System.Text.Encoding.UTF8.GetString(bytes));
+        Fdp.Core.LoadProgress.Report();
+        var placement = SumoNetPlacement.For(model, declared, TerrainGeoFrame.Of(definition.Origin, definition.Utm));
+        FdpLog<SumoNetTerrainLoader>.Info(
+            $"[Traffic] '{terrainName}': SUMO net '{declared.File}' parsed in {sw.ElapsedMilliseconds} ms — {model.Edges.Count} edges, "
+          + $"{model.Junctions.Count} junctions, {model.TlLogicsById.Count} traffic lights, hash {hash}, placed "
+          + (placement.IsGeoreferenced ? "through its UTM projection and the terrain's geo frame." : $"by the anchor ({declared.AnchorX}, {declared.AnchorY})."));
+        sw.Restart();
+        // ⭐ R-4030 (E2b) — a FLAT net (no lane z) is laid on OUR ground: roads, cars and pedestrians all take the terrain's own
+        // GroundHeightAt (one function, here, for every host). The ground beyond our footprint is attached FIRST so the roads and the ambient
+        // ground out there are laid on the ground that is drawn there. A net with z is used as-is (R-4025).
+        bool flat = TrafficDrape.IsFlat(model);
+        Func<float, float, float>? drape = flat ? world.GroundHeightAt : null;
+        AttachBeyond(world, model, placement, flat);
+        var roads = TrafficRoadScene.Build(model, placement, world.BoundsMin, world.BoundsMax, drape);
+        FdpLog<SumoNetTerrainLoader>.Info($"[Traffic] '{terrainName}': road scene built in {sw.ElapsedMilliseconds} ms — {roads.TriangleCount} triangles, "
+          + $"{roads.Signals.Count} signal heads{(flat ? ", flat net laid on the terrain's ground (R-4030)" : "")}.");
+        Fdp.Core.LoadProgress.Report();
+        return new TrafficNetCache(declared.File, System.IO.Path.GetFullPath(path), model, hash, placement, roads, drape);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4122 (HB2, <c>docs/DESIGN_Map_3D_Mode.md</c> §6ad-2) — the ground beyond our terrain follows SUMO's own height field where the net is:
+    /// the field is built once, and handed to the world in LOCAL metres through the placement (its footprint is the net's bounds, which a UTM
+    /// placement may rotate). ⭐ Runs in <see cref="Prepare"/> — before the world is published — so the world is immutable by the time anyone reads it
+    /// (and the render geometry's identity, the world object, is new for the load). A world with no rectangle (no world file) has no "beyond".
+    /// </summary>
+    /// <remarks>⭐ R-4030 / AQ93 §8.8 H2 — a FLAT net has no height field (<c>TerrainField.FromNetwork</c> would be 0 m, a cliff beside a 350 m terrain): its
+    /// field is the terrain ORIGIN's altitude — the ground at the origin (clamped into our footprint) — which <see cref="BeyondGround"/> blends
+    /// from the terrain's edge height over its ramp, so the ground beyond meets our terrain instead of dropping to 0.</remarks>
+    private static void AttachBeyond(TerrainWorld world, NetworkModel model, SumoNetPlacement placement, bool flat)
+    {
+        if (!(world.BoundsMax.X > world.BoundsMin.X && world.BoundsMax.Y > world.BoundsMin.Y) || world.Beyond != null) return;
+        var field = flat ? null : Sim.Scene.TerrainField.FromNetwork(model);
+        float originAlt = flat
+            ? world.GroundHeightAt(Math.Clamp(0f, world.BoundsMin.X, world.BoundsMax.X), Math.Clamp(0f, world.BoundsMin.Y, world.BoundsMax.Y))
+            : 0f;
+        var (minX, minY, maxX, maxY) = TrafficRoadScene.NetBounds(model);
+        System.Numerics.Vector2 Corner(double nx, double ny) { var (lx, ly) = placement.ToLocal(nx, ny); return new System.Numerics.Vector2((float)lx, (float)ly); }
+        var quad = new[] { Corner(minX, minY), Corner(maxX, minY), Corner(maxX, maxY), Corner(minX, maxY) };
+        world.AttachBeyond(new BeyondGround((lx, ly) =>
+        {
+            if (field is null) return originAlt;
+            var (nx, ny) = placement.ToNet(lx, ly);
+            return (float)field.HeightAt(nx, ny);
+        }, quad));
+    }
+
+    /// <inheritdoc/>
+    public void Commit(EntityRepository world, object? prepared)
+    {
+        world.RegisterManagedComponent<TrafficNetCache>();
+        world.SetSingletonManaged((TrafficNetCache?)prepared!);
+    }
+
+    /// <inheritdoc/>
+    public void Unload(EntityRepository world)
+    {
+        if (world.HasSingletonManaged<TrafficNetCache>()) world.SetSingletonManaged<TrafficNetCache>(null!);
+    }
+}

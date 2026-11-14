@@ -3,19 +3,20 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Fbt.Kernel;
+using Fdp.Core;
 
 namespace Hrot.Editor.AiShared.Blackboard;
 
 /// <summary>
 /// Builds the ordered, de-duplicated list of <see cref="VariableTypeChoice"/> offered by the
-/// Add-Variable dropdown in the Variables panel (<see cref="VariablesPanelControl"/>).
+/// Add-Variable dropdown in the Variables panel (<see cref="VariablesPanelHost"/>).
 /// <para>
 /// The choice set is the union of:
 /// </para>
 /// <list type="number">
 ///   <item>The existing primitive/vector set (<see cref="BlackboardTypeHelper.DefaultKnownTypeNames"/>).</item>
 ///   <item>
-///   Structs decorated with <see cref="BlackboardDtoStructAttribute"/>, discovered by scanning
+///   Structs decorated with <see cref="Fdp.Core.DtoAttribute"/>, discovered by scanning
 ///   every assembly currently loaded into <see cref="AppDomain.CurrentDomain"/> -- the same
 ///   predicate <see cref="BlackboardFieldClassifier"/> uses to recognize Category-1 shared-struct
 ///   fields.
@@ -35,7 +36,7 @@ public static class BlackboardTypeChoiceBuilder
     /// <summary>
     /// Builds the default choice list. <paramref name="actionSchemaExporter"/> may be null when
     /// the caller has no schema exporter in scope (e.g. the Blueprint Variables window); in that
-    /// case the result still contains primitives + <c>[BlackboardDtoStruct]</c> types.
+    /// case the result still contains primitives + <c>[Dto]</c> types.
     /// </summary>
     public static IReadOnlyList<VariableTypeChoice> BuildDefault(IActionSchemaExporter? actionSchemaExporter = null)
     {
@@ -50,7 +51,7 @@ public static class BlackboardTypeChoiceBuilder
             primitives.Add(new VariableTypeChoice(BlackboardTypeHelper.GetDisplayName(t), t));
         }
 
-        foreach (var t in DiscoverBlackboardDtoStructTypes())
+        foreach (var t in DiscoverBlackboardDtoStructTypesCore())
         {
             if (!seen.Add(t)) continue;
             structs.Add(new VariableTypeChoice(BlackboardTypeHelper.GetDisplayName(t), t));
@@ -76,10 +77,30 @@ public static class BlackboardTypeChoiceBuilder
 
     /// <summary>
     /// Scans every assembly currently loaded into <see cref="AppDomain.CurrentDomain"/> for value
-    /// types decorated with <see cref="BlackboardDtoStructAttribute"/>. Same predicate as
+    /// types decorated with <see cref="Fdp.Core.DtoAttribute"/>. Same predicate as
     /// <see cref="BlackboardFieldClassifier"/>'s <c>IsKnownType</c> check.
     /// </summary>
-    private static IReadOnlyList<Type> DiscoverBlackboardDtoStructTypes()
+    /// <summary>
+    /// U-8 — every <c>[Dto]</c> type in the loaded assemblies.
+    ///
+    /// <para>
+    /// ⭐ <b>Made public so the Blueprint type picker can offer the same set the Variables panel
+    /// does.</b> Those were two disjoint lists: this one (primitives + structs) and
+    /// <c>BlueprintTypeSystem.SelectableTypeIds</c> (13 hardcoded primitive FQNs, <b>no structs at
+    /// all</b>) — so a designer could declare a struct variable in one window and not the other.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>Discovery IS the existence proof.</b> These types are found by reflecting over loaded
+    /// assemblies, so an offered entry cannot name a type that does not exist — which is a stronger
+    /// guarantee than checking a hand-written list against an oracle, and it is why <c>U-8</c> needs no
+    /// editor-side type oracle (<c>BP-228</c>'s rail guards the build, where the defect actually bit).
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<Type> DiscoverBlackboardDtoStructTypes()
+        => DiscoverBlackboardDtoStructTypesCore();
+
+    private static IReadOnlyList<Type> DiscoverBlackboardDtoStructTypesCore()
     {
         var result = new List<Type>();
 
@@ -104,7 +125,7 @@ public static class BlackboardTypeChoiceBuilder
             foreach (var t in types)
             {
                 if (!t.IsValueType) continue;
-                if (!t.IsDefined(typeof(BlackboardDtoStructAttribute), inherit: false)) continue;
+                if (!t.IsDefined(typeof(DtoAttribute)   /* CE-3185: [Dto] or a derived marker */, inherit: false)) continue;
                 result.Add(t);
             }
         }

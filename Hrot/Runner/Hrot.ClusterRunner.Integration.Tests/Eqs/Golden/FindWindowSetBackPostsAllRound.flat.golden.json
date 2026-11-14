@@ -1,0 +1,32 @@
+{
+  "Name": "FindWindowSetBackPostsAllRound",
+  "BlueprintId": 277287928,
+  "Count": 3,
+  "Rows": [
+    {
+      "EntityId": 0,
+      "PositionX": 0,
+      "PositionY": -3,
+      "Score": 1.9,
+      "Flags": 256,
+      "FlagsMeaningful": 256
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -27,
+      "PositionY": -6,
+      "Score": 1.0780456,
+      "Flags": 256,
+      "FlagsMeaningful": 256
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 28,
+      "PositionY": -3,
+      "Score": 1.0613248,
+      "Flags": 256,
+      "FlagsMeaningful": 256
+    }
+  ],
+  "MaxAbsPositionZ": 0
+}

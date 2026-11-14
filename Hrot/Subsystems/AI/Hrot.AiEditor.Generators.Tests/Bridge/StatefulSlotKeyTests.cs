@@ -16,7 +16,7 @@ namespace Hrot.AiEditor.Generators.Tests.Bridge;
 /// 1. <c>SlotKey_KnownGuidPair_ProducesKnownInt</c> — locks the FNV-1a-32 algorithm
 ///    with a known pair of GUIDs → known int (algorithm stability gate).
 /// 2. <c>StatefulEmitter_EmitsBridge_WithTryGetSlotOffset_AndSlotKeyLiteral</c> —
-///    runs the real emitter on a fixture DTO with a ThreeParamReusableStateful action node
+///    runs the real emitter on a fixture DTO with a Stateful action node
 ///    and asserts the emitted bridge source contains:
 ///    (a) the baked SlotKey literal matching the independently-computed FNV-1a value,
 ///    (b) "TryGetSlotOffset",
@@ -76,7 +76,7 @@ public sealed class StatefulSlotKeyTests
 
     /// <summary>
     /// Runs the real <see cref="BTreeBridgeEmitCore.EmitBridge"/> on a fixture DTO containing
-    /// one ThreeParamReusableStateful action node and asserts the emitted bridge:
+    /// one Stateful action node and asserts the emitted bridge:
     /// (a) contains the baked SlotKey literal equal to the independently-computed FNV-1a value,
     /// (b) calls TryGetSlotOffset,
     /// (c) projects WorkingState at the returned offset,
@@ -128,13 +128,13 @@ public sealed class StatefulSlotKeyTests
                     VisualId       = nodeId,
                     DisplayLabel   = "AdvanceCursor",
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action         = new BTreeActionPayloadDto
+                    Action         = new BehaviorActionBindingDto
                     {
                         MethodFqn         = AdvanceCursorFqn,
                         ExpressionTargetField = "cursor",
-                        DelegateShape     = BTreeDelegateShapeDto.ThreeParamReusableStateful,
                         WorkingStateTypeId = CursorStateTypeId,
-                    }
+                    },
+                    DelegateShape = BTreeDelegateShapeDto.Stateful
                 }
             }
         };
@@ -155,9 +155,14 @@ public sealed class StatefulSlotKeyTests
         bridgeSrc.Should().Contain(expectedSlotKey.ToString(),
             $"emitted bridge must contain the baked SlotKey literal {expectedSlotKey} (FNV-1a result)");
 
-        // (b) TryGetSlotOffset is called.
-        bridgeSrc.Should().Contain("TryGetSlotOffset",
-            "emitted bridge must call BlueprintBlackboardPartitions.TryGetSlotOffset");
+        // (b) The slot is resolved through the partition allocator.
+        // ⚠ A2b (2026-09-20) — this used to pin the literal "TryGetSlotOffset", because the emitter
+        //   hand-rolled the 16384 → 4096 → 1024 ladder and called it in each arm. The ladder is now ONE
+        //   call to OccurrenceStoreAccess.TryResolveOccurrence, which calls TryGetSlotOffset itself.
+        //   ⭐ The CLAIM is unchanged — resolution goes through the partition slot — so the assertion
+        //   moves to the seam rather than being deleted or weakened.
+        bridgeSrc.Should().Contain("OccurrenceStoreAccess.TryResolveOccurrence",
+            "emitted bridge must resolve the slot through the one occurrence-store seam (A2b)");
 
         // (c) WorkingState projection at the returned offset.
         bridgeSrc.Should().Contain("Unsafe.AsRef",
@@ -247,36 +252,18 @@ public sealed class StatefulSlotKeyTests
             "Node scope via 4-arg overload must be byte-identical to the 2-arg legacy result");
     }
 
-    /// <summary>
-    /// S3-2 (optional): Entity scope produces the same key regardless of assetId.
-    /// This verifies that assetId is intentionally excluded for post-MVP entity-lifetime slots.
-    /// </summary>
-    [Fact]
-    public void SlotKey_Entity_IndependentOfAsset()
-    {
-        var assetId1     = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
-        var assetId2     = Guid.Parse("ffffffff-0000-0000-0000-0000000000ff");
-        var nodeId       = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000002");
-        const string variableId = "entityScopedVar";
-
-        int key1 = BTreeBridgeEmitCore.ComputeStatefulSlotKey(assetId1, WorkingStateScope.Entity, nodeId, variableId);
-        int key2 = BTreeBridgeEmitCore.ComputeStatefulSlotKey(assetId2, WorkingStateScope.Entity, nodeId, variableId);
-
-        key1.Should().Be(key2,
-            "Entity-scoped key must not depend on assetId (survives behavior switch)");
-        key1.Should().BeGreaterThanOrEqualTo(0, "slot key must be non-negative (0x7FFFFFFF mask)");
-    }
+    // ⛔ HISTORY — SlotKey_Entity_IndependentOfAsset pinned the Entity scope's asset-free key. Entity was removed
+    //   by CE-441 slice 1 (Q76 §12.25) after CE-440 removed its only consumer (GetShared/SetShared).
 
     // ── S3-7: manifest carries role/scope ─────────────────────────────────────────
 
     /// <summary>
-    /// S3-7: the emitted StatefulWorkingSlots manifest entry for a Behavior-scoped State variable
-    /// must carry the authored Role (State=1) and Scope (Behavior=1) as the trailing ctor args, so
-    /// the live inspector can group/label by scope. (Node/Input assets stay byte-identical — the
-    /// args are omitted when default — which is why only the non-default case is asserted here.)
+    /// ⭐ <c>CE-3193</c> — a variable a binding names as its working state IS working state: it lives in the block's
+    /// <c>St</c> half (reached by name), so it needs no side slot and no manifest entry. ⛔ HISTORY: this rail pinned the
+    /// authored Role/Scope bytes on a NODE-scoped side slot (S3-7); the authored pair is gone.
     /// </summary>
     [Fact]
-    public void StatefulSlotInfo_CarriesRoleAndScope()
+    public void ANamedWorkingStateVariable_LivesInTheBlock_NotASideSlot()
     {
         const string ParamsTypeId = "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorParams";
         const string StateTypeId  = "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorState";
@@ -303,14 +290,12 @@ public sealed class StatefulSlotKeyTests
                     {
                         Name = "cfg",
                         Type = new BlackboardTypeRefDto { TypeId = ParamsTypeId },
-                        Role = BlackboardVariableRole.Input,
                     },
+                    // the node below names it as its working state — that alone makes it St (CE-3193)
                     new BlackboardVariableDto
                     {
                         Name  = "shared",
                         Type  = new BlackboardTypeRefDto { TypeId = StateTypeId },
-                        Role  = BlackboardVariableRole.State,
-                        Scope = WorkingStateScope.Behavior,
                     }
                 }
             },
@@ -320,13 +305,13 @@ public sealed class StatefulSlotKeyTests
                 new BTreeActionNodeDto
                 {
                     VisualId = nodeId, DisplayLabel = "AdvanceShared", EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = MethodFqn, ExpressionTargetField = "cfg",
                         WorkingStateTargetField = "shared",
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful,
                         WorkingStateTypeId = StateTypeId,
-                    }
+                    },
+                    DelegateShape = BTreeDelegateShapeDto.Stateful
                 }
             }
         };
@@ -334,10 +319,8 @@ public sealed class StatefulSlotKeyTests
         Func<string, int?> sizeResolver = t => t == ParamsTypeId ? 4 : (int?)null;
         string bridgeSrc = BTreeBridgeEmitCore.EmitBridge(dto, sizeResolver);
 
-        // Role=State(1), Scope=Behavior(1) appended after the NodeLabel string, as named enum casts
-        // (clarity-only change — same bytes, self-documenting source text) rather than raw ints.
-        bridgeSrc.Should().Contain(
-            "\"AdvanceShared\", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior)",
-            "the StatefulSlotInfo for a Behavior-scoped State variable must carry Role=State, Scope=Behavior as named enum casts");
+        int key = BTreeBridgeEmitCore.ComputeStatefulSlotKey(assetId, WorkingStateScope.Behavior, Guid.Empty, "shared");
+        bridgeSrc.Should().Contain(".St.shared", "the thunk reaches the working state through the block, by name");
+        bridgeSrc.Should().NotContain($"StatefulSlotInfo({key},", "one home: a block member has no side slot (CE-437)");
     }
 }

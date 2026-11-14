@@ -1,0 +1,194 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: U2 (CP-2) - one Rifleman advances through test-town with four contacts in view or not: Civilian Near (neutral, 20 m), Armed Near (hostile, ~43 m), Armed Far (hostile, ~100 m) and Armed Hidden (hostile behind the Tower, never seen). Shows which contact he engages first. Judge: (1) the ranking settles with at least two contacts and a top score above 0; (2) Armed Near ranks first and is the one he shoots; (3) Armed Far ranks below Armed Near; (4) Civilian Near is remembered but scores 0 and is never the winner (neutral safety gate, CE-2233); (5) Armed Hidden is not ranked at all. Fail: A civilian or the far hostile is engaged first, or the hidden hostile shows up in the ranking. Check: python3 scripts/utility-demo-check.py --launch ua-threat-ranking"
+  },
+  "entities": {
+    "a1020000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          295,
+          285,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {"advance":{"Objective":[325,300,0],"Speed":2,"ArrivalRadius":3,"CooldownSeconds":1}},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a1020000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          310,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Civilian Near",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "Idle",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a1020000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          330,
+          310,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Armed Near",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a1020000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          380,
+          330,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Armed Far",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a1020000-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          318,
+          225,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Armed Hidden",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

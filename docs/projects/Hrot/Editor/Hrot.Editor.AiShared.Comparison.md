@@ -198,7 +198,6 @@ ASSET ID:         f7c0a1b2-1188-4c5d-9e3a-7b6c5d4e3f21
 SOURCE PATH:      /project/AI/Combat/OrcGuard_BT.cs
 LAST MODIFIED:    2026-01-14 11:23:08 UTC
 COMPANION FILES:  OrcGuard_BT.Blackboard.cs (present)
-                  OrcGuard_BT.HeavyBlackboard.cs (not present)
                   OrcGuard_BT.Orchestrators.g.cs (present)
 ```
 
@@ -245,15 +244,12 @@ Same structural approach as BTree, adapted for HSM's identifier model:
 Simplest sanitizer. No layout method, no comment hoisting. Steps:
 
 1. Read the inline `{Name}.Blackboard.cs` file.
-2. Discover the optional `{Name}.HeavyBlackboard.cs` companion in the same directory.
 3. Emit a labeled concatenation:
 
 ```csharp
 // === Inline blackboard ===
 {inline file content}
 
-// === Heavy blackboard (overflow) ===   // (only when present)
-{heavy file content}
 ```
 
 XML `///` doc comments on struct fields are already canonical; no hoisting is needed.
@@ -290,9 +286,9 @@ or a folder.
 
 | Asset Kind | Main File | Companion Files |
 |------------|-----------|-----------------|
-| BTree | `{Name}_BT.cs` | `{Name}_BT.Blackboard.cs`, `{Name}_BT.HeavyBlackboard.cs`, `{Name}_BT.Orchestrators.g.cs` |
-| HSM | `{Name}_HSM.cs` | `{Name}_HSM.Blackboard.cs`, `{Name}_HSM.HeavyBlackboard.cs`, `{Name}_HSM.Orchestrators.g.cs` |
-| Blackboard | `{Name}.Blackboard.cs` | `{Name}.HeavyBlackboard.cs` |
+| BTree | `{Name}_BT.cs` | `{Name}_BT.Blackboard.cs`, `{Name}_BT.Orchestrators.g.cs` |
+| HSM | `{Name}_HSM.cs` | `{Name}_HSM.Blackboard.cs`, `{Name}_HSM.Orchestrators.g.cs` |
+| Blackboard | `{Name}.Blackboard.cs` | — |
 | Blueprint | `{Name}.bp.json` | (none) |
 
 ### Folder mode
@@ -703,7 +699,7 @@ toolbar.DrawToolbar(activeAsset);  // renders buttons + all modals
 | `LlmResponseParser.cs` | `static class` | Parses LLM response text into `ComparisonResponse`. |
 | `ComparisonResponse.cs` | Records | `ComparisonResponse`, `ComparisonChange`. |
 | `ComparisonSessionState.cs` | `sealed class` + `sealed class` | Per-asset session state; `ComparisonSessionRegistry`. |
-| `BlackboardComparisonSanitizer.cs` | `sealed class` | Blackboard-specific sanitizer (inline + heavy concatenation). |
+| `BlackboardComparisonSanitizer.cs` | `sealed class` | Blackboard-specific sanitizer. |
 | `BlackboardComparisonDecorator.cs` | `sealed class` | Adds severity outlines to variable rows in `BlackboardAuthoringWindow`. |
 | `ResponseAssetMatcher.cs` | `sealed class` | Detects response/asset mismatch before applying a paste. |
 | `StaleBadgeWatcher.cs` | `sealed class` | Marks sessions stale on asset save. |

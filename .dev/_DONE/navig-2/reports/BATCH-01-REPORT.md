@@ -116,7 +116,7 @@ Extract back: `PositionX = point.X, PositionY = point.Z`.
 
 | Suite | Passed | Failed | Notes |
 |-------|--------|--------|-------|
-| `dotnet build IOS-IG-SimHost.sln` | — | 0 errors | Clean build |
+| `dotnet build HROT.sln` | — | 0 errors | Clean build |
 | `Fdp.Toolkits.Tests` (nav filter) | 23 | 0 | All nav tests green |
 | `Hrot.ClusterRunner.Integration.Tests` (Eqs filter) | 62 | 0 | All EQS integration tests green |
 | `Hrot.ClusterRunner.Integration.Tests` (AccurateLos filter) | 4 | 0 | LOS tests green |

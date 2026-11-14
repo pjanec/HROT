@@ -30,7 +30,7 @@
 | `UrbanCombatValidatorTests` (3 tests) | `Fdp.Examples.Scenarios.Tests` | ✅ Pass |
 | `NetworkGatewaySystemTests` (3 tests) | `FDP.Toolkit.Replication.Tests` | ✅ Pass |
 
-**Full solution build:** `Build succeeded. 0 Error(s)` (IOS-IG-SimHost.sln)
+**Full solution build:** `Build succeeded. 0 Error(s)` (HROT.sln)
 
 **Key Test Scenarios Verified:**
 - ✅ `CgfComponentRegistry.RegisterAll` registers tier-1, tier-2 (cognitive + kinematic), and tier-3 (IG) components without throwing

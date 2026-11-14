@@ -1,0 +1,289 @@
+using System;
+using System.Linq;
+using System.Text.Json.Nodes;
+using System.Threading;
+using Fdp.Core;
+using Fdp.Toolkit.Behavior.Events;
+using Hrot.Map.Common;
+using Xunit;
+
+namespace Hrot.ClusterRunner.Integration.Tests;
+
+/// <summary>
+/// ⭐⭐⭐ <c>CE-476</c> — the AI debug surface answers on a CONSTRUCTED, HEADLESS cluster: a real CGF + SimHost, the debug API
+/// built by the same <c>ClusterDebugApiComposition</c> <c>Hrot.ClusterRunner/Program.cs</c> calls (providers → dispatcher →
+/// the cluster ctor, with the world-keyed <c>aiDebugSurface</c> Func). 📄 <c>docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md</c>.
+/// </summary>
+/// <remarks>🔴 Before: <c>/trace/observe</c> → "Trace coordinator not available", <c>/trace</c> → <c>tier: unknown</c> for
+/// both commanders, <c>/variables</c> → "No blueprint debug session". And a headless CGF composed no BTree/HSM session at all.</remarks>
+[Collection("EqsIntegrationTests")]
+public sealed class TheClusterAiDebugSurfaceAnswersTests
+{
+    // Domain range: 181-189 (free; below CgfHarness's 200 base, above the 162 block).
+    private static int _domain = 180;
+
+    // The hill-attack params (from the retired hill-attack-close-bp scenario, R-2006; the C# PlatoonHillAttack still takes them), with the area pointed at a
+    // REAL area entity: with none, the commander's area node fails at once and the behaviour ends (measured).
+    private static string HillAttackParams(int areaNet) =>
+        "{\"firingLineStart\":[52.5239942191481,13.413540814869096],\"firingLineEnd\":[52.524533409890886,13.413578805321581]," +
+        "\"baselineStart\":[52.52360336114987,13.412705470497283],\"baselineEnd\":[52.52492437655515,13.412838305005167]," +
+        "\"tankSpacing\":20,\"targetAreaNetworkId\":" + areaNet + "}";
+
+    private sealed record Rig(HrotRunnerHarness H, Hrot.Editor.DebugApi.DebugApiService Api, Func<string> Perspective) : IDisposable
+    {
+        public void Dispose() => H.Dispose();
+    }
+
+    private static Rig Boot(Func<string> perspective)
+    {
+        var h = new HrotRunnerHarness("simhost,cgf", Interlocked.Increment(ref _domain));
+        var subsystems = new object[] { h.SimHost, h.Cgf! };
+
+        // ⭐ The composition root's OWN code (ClusterDebugApiComposition — what Program.Main calls), not a copy of it.
+        var api = new Hrot.Editor.DebugApi.DebugApiService(
+            Hrot.Runner.ClusterDebugApiComposition.Dispatcher(subsystems, perspective),
+            behaviorRegistry: Hrot.Runner.ClusterDebugApiComposition.BehaviorRegistry(subsystems),
+            aiDebugSurface: Hrot.Runner.ClusterDebugApiComposition.AiDebugSurface(subsystems),
+            entityCreation: Hrot.Runner.ClusterDebugApiComposition.EntityCreation(subsystems));
+        return new Rig(h, api, perspective);
+    }
+
+    private static int Commander(Rig rig, string behaviour, string? paramsJson = null)
+    {
+        // The area: Muscle-owned, a polygon around the origin, replicated to the Brain before the assignment.
+        int areaNet = rig.H.SimHost.TestHook_SpawnEntity(
+            TkbEntityTypes.TacGraphic_Area, new Hrot.Core.Mission.GeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 });
+        Assert.True(rig.H.PumpUntil(() => rig.H.SimHost.TestHook_EntityMap.TryGetEntity(areaNet, out _), timeoutFrames: 3000));
+        rig.H.SimHost.TestHook_EntityMap.TryGetEntity(areaNet, out Entity simArea);
+        rig.H.SimHost.World!.SetManagedComponent(simArea, new Hrot.Map.Common.Components.EditablePolyline
+        {
+            Points = new System.Collections.Generic.List<System.Numerics.Vector2> { new(-50, -50), new(50, -50), new(50, 50), new(-50, 50) },
+        });
+
+        int net = rig.H.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
+        Assert.True(rig.H.PumpUntil(() => rig.H.Cgf!.GhostEntityMap!.TryGetEntity(net, out _)
+                                       && rig.H.Cgf!.GhostEntityMap!.TryGetEntity(areaNet, out _), timeoutFrames: 3000));
+        rig.H.Cgf!.GhostEntityMap!.TryGetEntity(net, out Entity e);
+        var w = rig.H.Cgf!.World!;
+
+        // A platoon commander needs a platoon: with an EMPTY roster the doctrine has nothing to command and finishes at
+        // once (measured: FINISHED(Success) on frame 3). Two arrived subordinates — the shape HillAttackBlueprintTests
+        // uses — keep it running (it asks its EQS area sensor and waits), which is when an agent reads the trace.
+        var roster = new Fdp.Core.CommandHierarchy.UnitRoster { Count = 2 };
+        for (int i = 0; i < 2; i++)
+        {
+            var sub = w.CreateEntity();
+            w.AddComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(sub, default);
+            w.AddComponent(sub, new Fdp.Toolkit.Navigation.NavigationStatus { Result = Fdp.Toolkit.Navigation.NavigationResult.Arrived });
+            roster.SubordinateEntities[i] = sub;
+        }
+        if (w.HasComponent<Fdp.Core.CommandHierarchy.UnitRoster>(e)) w.GetComponentRW<Fdp.Core.CommandHierarchy.UnitRoster>(e) = roster;
+        else w.AddComponent(e, roster);
+
+        // ⭐ Assigned THROUGH A MISSION, as production does (CMD_REPLACE_MISSION over DDS — the CgfSubsystemHeadlessTests
+        //   pattern). ⚠ A direct AssignBehaviorEvent is cleared two frames later: CGF's MissionAdapterSystem reads the
+        //   entity's empty MissionPlanQueue as an exhausted plan (measured: CLEAR@3).
+        using var participant = new CycloneDDS.Runtime.DdsParticipant((uint)rig.H.DomainId);
+        using var writer = new CycloneDDS.Runtime.DdsWriter<Hrot.NED.Messages.MissionControlRequest>(participant);
+        var taskId = Guid.NewGuid();
+        writer.Write(new Hrot.NED.Messages.MissionControlRequest
+        {
+            RequestId      = Guid.NewGuid(),
+            TargetEntityId = net,
+            BaseVersion    = 0,
+            Payload        = new Hrot.NED.Messages.MissionCommandUnion
+            {
+                _d              = Hrot.NED.Messages.eMissionCommandType.CMD_REPLACE_MISSION,
+                FullMissionData = new Hrot.NED.Descriptors.MissionPlan
+                {
+                    ActiveTaskId = taskId,
+                    Tasks = new System.Collections.Generic.List<Hrot.NED.Descriptors.MissionTask>
+                    {
+                        new Hrot.NED.Descriptors.MissionTask
+                        {
+                            TaskId          = taskId,
+                            BehaviorId      = behaviour,
+                            BehaviorParams  = paramsJson ?? HillAttackParams(areaNet),
+                            ExecutingEngine = "CGFX",
+                            State           = Hrot.NED.Descriptors.eTaskState.TASK_ACTIVE,
+                            Triggers        = new System.Collections.Generic.List<Hrot.NED.Descriptors.MissionTrigger>
+                            {
+                                new Hrot.NED.Descriptors.MissionTrigger { Type = "BehaviorFinished", Params = "" },
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        Assert.True(rig.H.PumpUntil(() =>
+                w.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(e)
+             && w.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(e).ActiveBehaviorHash != 0,
+                timeoutFrames: 1200),
+            $"'{behaviour}' must be assigned on CGF through its mission.");
+        // ⚠ The routes are read IN THIS FRAME, while the behaviour runs. In this harness the platoon is two bare local
+        //   entities, so the doctrine concludes within a few frames and the mission then clears it (measured) — a
+        //   long-running commander is the live --mode all run's job, not this rail's. Nothing advances between the
+        //   assignment frame and the reads below, so they see the running behaviour deterministically.
+        return net;
+    }
+
+    private static string Brain(Rig rig, int net)
+    {
+        rig.H.Cgf!.GhostEntityMap!.TryGetEntity(net, out Entity e);
+        var w = rig.H.Cgf!.World!;
+        var st = w.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(e);
+        return $"BehaviorState{{hash={st.ActiveBehaviorHash}, tier={st.BrainTier}}} surface={(rig.H.Cgf!.AiDebugSurface is null ? "null" : "ok")}";
+    }
+
+    [Fact(Timeout = 120_000)]
+    public void A_headless_CGF_publishes_its_AI_debug_surface()
+    {
+        using var rig = Boot(() => "Scenario");
+        var surface = rig.H.Cgf!.AiDebugSurface;
+
+        Assert.NotNull(surface);
+        Assert.Same(rig.H.Cgf!.World, surface!.World);
+        Assert.NotNull(surface.BTree);
+        Assert.NotNull(surface.Hsm);
+        Assert.NotNull(surface.Blueprint);
+        Assert.NotNull(surface.Blueprints);
+    }
+
+    [Fact(Timeout = 120_000)]
+    public void The_trace_arms_and_reads_the_CSharp_BTree_commander()
+    {
+        using var rig = Boot(() => "Scenario");
+        int commander = Commander(rig, "PlatoonHillAttack");
+
+        var trace = rig.Api.GetEntityTrace(commander);
+        Assert.True("BTree" == (string?)trace["tier"], $"trace: {trace.ToJsonString()} · {Brain(rig, commander)}");
+
+        // Arming: the tracer exists for this world and publishes the patch (the flag lands a frame later).
+        var armed = rig.Api.ObserveTrace(commander, on: true);
+        Assert.Equal(true, (bool?)armed["armed"]);
+    }
+
+    [Fact(Timeout = 120_000)]
+    public void The_trace_and_the_variables_read_the_blueprint_behaviour_commander()
+    {
+        // ⭐ R-2006 — the subject is SubordinateForEachDemo (PlatoonHillAttackBp retired): a blueprint BEHAVIOUR with an enum-typed
+        //   variable (LastOrder) and fixed lists of an enum and of a struct — the shapes the variables surface must read.
+        using var rig = Boot(() => "Scenario");
+        int commander = Commander(rig, "SubordinateForEachDemo", "{}");
+
+        var trace = rig.Api.GetEntityTrace(commander);
+        Assert.True("Blueprint" == (string?)trace["tier"], $"trace: {trace.ToJsonString()} · {Brain(rig, commander)}");
+        Assert.Equal("Behavior", (string?)trace["dispatch"]);
+        Assert.Equal("SubordinateForEachDemo", (string?)trace["behavior"]);
+        var traceVariables = Assert.IsType<JsonObject>(trace["variables"]);
+        Assert.True(traceVariables.ContainsKey("LastOrder"), $"trace variables: {traceVariables.ToJsonString()}");
+        Assert.True(traceVariables.ContainsKey("Slots"), $"trace variables: {traceVariables.ToJsonString()}");
+
+        var (result, error, _) = rig.Api.GetEntityVariables(commander, asset: null);
+        Assert.Null(error);
+        var names = result!["variables"]!.AsArray().Select(v => (string?)v!["path"]).ToList();
+        Assert.Contains("LastOrder", names);
+        Assert.Contains("Orders", names);
+
+        var (one, oneError, _) = rig.Api.GetEntityVariable(commander, asset: "SubordinateForEachDemo", path: "LastOrder");
+        Assert.Null(oneError);
+        Assert.Equal("OrderKind", (string?)one!["type"]);
+    }
+
+    [Fact(Timeout = 120_000)]
+    public void A_perspective_whose_node_owns_no_AI_sessions_borrows_none()
+    {
+        string perspective = "Scenario";
+        using var rig = Boot(() => perspective);
+        int commander = Commander(rig, "SubordinateForEachDemo", "{}");   // R-2006: was PlatoonHillAttackBp
+
+        perspective = "SimHost";   // the Muscle node: its world has a ghost of the commander, but no AI sessions
+        var armed = rig.Api.ObserveTrace(commander, on: true);
+        Assert.Equal(false, (bool?)armed["armed"]);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-515</c> — <c>POST /entities/create-request</c> creates on the SELECTED node (it was hard-wired to IG), and
+    /// <c>GET /entities/{id}/ownership</c> reads one ownership truth there: the brain group granted to CGF, the record
+    /// matching the claim on every descriptor. 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.7 (row E2).
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void CreateRequest_creates_on_the_selected_node_and_the_ownership_reads_one_truth()
+    {
+        string perspective = "SimHost";
+        using var rig = Boot(() => perspective);
+        var simHost = rig.H.SimHost.EntityCreation!;
+        var before  = rig.H.SimHost.TestHook_EntityMap.Entries.Keys.ToHashSet();
+
+        var (node, error) = rig.Api.CreateEntityViaRequestPath(TkbEntityTypes.Tank_M1Abrams, simHost.NodeId);
+        Assert.Null(error);
+        Assert.Equal(true, (bool?)node!["enqueued"]);
+
+        int id = 0;
+        Assert.True(rig.H.PumpUntil(() =>
+        {
+            id = rig.H.SimHost.TestHook_EntityMap.Entries.Keys.FirstOrDefault(k => !before.Contains(k));
+            return id != 0 && rig.H.Cgf!.GhostEntityMap!.TryGetEntity(id, out _);
+        }, timeoutFrames: 600), "the create-request did not produce an entity on the SimHost node");
+        rig.H.PumpFrames(120);
+
+        var (owners, ownErr) = rig.Api.GetEntityOwnership(id);
+        Assert.Null(ownErr);
+        var descriptors = owners!["descriptors"]!.AsArray();
+        var intent = descriptors.Single(d => (long)d!["descriptorTypeId"]! == (long)Hrot.NED.Descriptors.EDescriptorType.dtNavigationIntent);
+        Assert.Equal("Brain", (string?)intent!["group"]);
+        Assert.Equal(false, (bool?)intent["ownedByThisNode"]);              // granted to the Brain (CGF)
+        var simMismatch = descriptors.Where(d => (bool?)d!["claimMatchesRecord"] != true).Select(d => d!.ToJsonString()).ToList();
+        Assert.True(simMismatch.Count == 0, "SimHost record != claim: " + string.Join(" | ", simMismatch));
+
+        perspective = "Scenario";   // CGF
+        var (cgfOwners, _) = rig.Api.GetEntityOwnership(id);
+        var cgfIntent = cgfOwners!["descriptors"]!.AsArray()
+            .Single(d => (long)d!["descriptorTypeId"]! == (long)Hrot.NED.Descriptors.EDescriptorType.dtNavigationIntent);
+        Assert.Equal(true, (bool?)cgfIntent!["ownedByThisNode"]);
+        // ⭐ S4 — and on EVERY descriptor on CGF too: after S3 the ghost's promotion still claimed the master/info,
+        //   MuscleGround and Perception components it did not own; S4 retired the promote-leg claim (design §5.6 S4).
+        var cgfMismatch = cgfOwners["descriptors"]!.AsArray().Where(d => (bool?)d!["claimMatchesRecord"] != true).Select(d => d!.ToJsonString()).ToList();
+        Assert.True(cgfMismatch.Count == 0, "CGF record != claim: " + string.Join(" | ", cgfMismatch));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>S4</c> — the other creation path: CGF creates the tank, keeps the brain and grants kinematics and perception to
+    /// SimHost; both nodes read one ownership truth on every descriptor. 📄 design §5.7 row E3.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void A_CGF_created_tank_reads_one_ownership_truth_on_both_nodes()
+    {
+        string perspective = "Scenario";   // CGF
+        using var rig = Boot(() => perspective);
+        var cgf    = rig.H.Cgf!.EntityCreation!;
+        var before = rig.H.Cgf!.GhostEntityMap!.Entries.Keys.ToHashSet();
+
+        var (_, error) = rig.Api.CreateEntityViaRequestPath(TkbEntityTypes.Tank_M1Abrams, cgf.NodeId);
+        Assert.Null(error);
+
+        int id = 0;
+        Assert.True(rig.H.PumpUntil(() =>
+        {
+            id = rig.H.Cgf!.GhostEntityMap!.Entries.Keys.FirstOrDefault(k => !before.Contains(k));
+            return id != 0 && rig.H.SimHost.TestHook_EntityMap.TryGetEntity(id, out _);
+        }, timeoutFrames: 600), "the create-request did not produce an entity on both nodes");
+        rig.H.PumpFrames(120);
+
+        foreach (var node in new[] { "Scenario", "SimHost" })
+        {
+            perspective = node;
+            var (owners, ownErr) = rig.Api.GetEntityOwnership(id);
+            Assert.Null(ownErr);
+            var all = owners!["descriptors"]!.AsArray();
+            var mismatch = all.Where(d => (bool?)d!["claimMatchesRecord"] != true).Select(d => d!.ToJsonString()).ToList();
+            Assert.True(mismatch.Count == 0, $"{node} record != claim: " + string.Join(" | ", mismatch));
+
+            bool ownsWorldPos = (bool)all.Single(d => (long)d!["descriptorTypeId"]! == (long)Hrot.NED.Descriptors.EDescriptorType.dtWorldPos)!["ownedByThisNode"]!;
+            bool ownsIntent   = (bool)all.Single(d => (long)d!["descriptorTypeId"]! == (long)Hrot.NED.Descriptors.EDescriptorType.dtNavigationIntent)!["ownedByThisNode"]!;
+            Assert.Equal(node == "SimHost", ownsWorldPos);   // MuscleGround granted to SimHost
+            Assert.Equal(node == "Scenario", ownsIntent);    // Brain kept by the CGF creator
+        }
+    }
+}

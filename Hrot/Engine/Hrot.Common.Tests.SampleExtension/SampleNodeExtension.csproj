@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ⭐ CE-4293 — a TEST-ONLY node extension, built the way a foreign product builds one: compile-only references to HROT, the build stamp from
+       Hrot.NodeExtension.targets, nothing of HROT copied to its output. Named without the Hrot. prefix on purpose: an extension folder may not ship one. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>SampleNodeExtension</AssemblyName>
+    <RootNamespace>SampleNodeExtension</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Shared/**" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj"><Private>false</Private><ExcludeAssets>runtime</ExcludeAssets></ProjectReference>
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj"><Private>false</Private><ExcludeAssets>runtime</ExcludeAssets></ProjectReference>
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj"><Private>false</Private><ExcludeAssets>runtime</ExcludeAssets></ProjectReference>
+  </ItemGroup>
+  <Import Project="..\Hrot.Common\Hrot.NodeExtension.targets" />
+</Project>

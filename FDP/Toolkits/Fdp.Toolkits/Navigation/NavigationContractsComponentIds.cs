@@ -37,5 +37,21 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary><c>CrowdAgent</c> — tag component opting the entity into Detour crowd avoidance.</summary>
         public const int CrowdAgent                     = 261;
+
+        // IDs 262-264 WERE occupied by GlobalComponentIds (DangerAreaSensor, DangerAreaCognitiveBuffer,
+        // MovementModeIntent) AND NavFakeIds at once (QA-037); those three moved to 271-273 on 2026-10-06 (CE-3072 B0).
+        // CrowdMotorIntent is placed at 265, continuing the navigation block.
+        //
+        // ST-PORT: 265 was NOT free, contrary to the port design's "coord ids stop at 264". NavFakeIds
+        // declares its block as 262-279 and RESERVED 265 for FakeVolumetricState -- a constant with no
+        // component attached to it (measured: the declaration is its only reference). The reservation
+        // has been moved to 269 so this id has exactly one claimant. See NavFakeIds for the other half.
+
+        /// <summary>
+        /// <c>CrowdMotorIntent</c> — engine-agnostic steering output written by
+        /// <c>CrowdAgentUpdateSystem</c> (P2-T4) and read by <c>BulletCharacterMotor</c>
+        /// (P1-T3, design §5.3).
+        /// </summary>
+        public const int CrowdMotorIntent               = 265;
     }
 }

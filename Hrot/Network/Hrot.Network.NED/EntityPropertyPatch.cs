@@ -1,5 +1,4 @@
 using Hrot.NED.Descriptors;
-using Hrot.NED.Common;
 
 namespace Hrot.NED.Messages
 {
@@ -41,14 +40,6 @@ namespace Hrot.NED.Messages
         /// When null, the TKB default affiliation is preserved.
         /// </summary>
         public eForceIdentifier? Affiliation { get; set; }
-
-        /// <summary>
-        /// Geographic position override (mapped to <c>GeoSpatial.Pos</c>).
-        /// When set in <c>InitialAttributes</c>, overrides the position derived from
-        /// the <c>dtGeoSpatial</c> descriptor. Useful for programmatic entity creation
-        /// where no operator map-click is involved.
-        /// </summary>
-        public GeoPoint? GeoPosition { get; set; }
 
         // ── Auto-name generation ──────────────────────────────────────────────
 

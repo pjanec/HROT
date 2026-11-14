@@ -1,0 +1,191 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+using Fdp.ModuleHost;
+using Fdp.Presentation.Abstractions;
+using Fdp.Presentation.Adapters;
+using Fdp.Presentation.Panels;
+using Fdp.Toolkit.Runner;
+using Hrot.Presentation.Facades;
+
+namespace Hrot.Presentation.Windows;
+
+/// <summary>
+/// ⭐⭐⭐ <b>The four diagnostics windows every visual host offers, registered ONCE.</b>
+///
+/// <para>📐 <b>Measured `2026-08-27`:</b> the entity inspector, the event browser, the architecture
+/// diagnostics window, the system profiler and the "Inspect…" context-menu wiring were instantiated at
+/// <b>20 sites across 4 hosts</b> — IG, SimHost, CGF and the Editor — as five near-identical blocks of
+/// copy-paste. ⛔ 20 sites is 20 chances to drift, and three had already drifted *(see the
+/// <c>DiagnosticsHostServices</c> remarks)</para>.
+///
+/// <para>⭐ <c>CE-1244</c> (design §5c.7.8, <c>2026-10-22</c>) — the ReplayBrowser composes it too: its own copies of the inspector
+/// and event-browser windows were the same panels with the same code, and are deleted. It has no kernel, so it passes no
+/// architecture panel and no stats (absent, ruling 49). ⛔ SUPERSEDED: <i>"NOT five hosts … it cannot join this bundle"</i> — that
+/// recorded a different TYPE, not a reason for one.</para>
+///
+/// <para>⭐⭐ <b>The ids and titles are DERIVED from two strings</b>, because measurement showed all four
+/// hosts already followed one scheme exactly: <c>{IdPrefix}fdp_inspector</c> titled
+/// <c>"{TitlePrefix} Entity Inspector"</c>, and so on. ⛔ A host that wanted a different id would be
+/// changing users' saved layouts, so there is deliberately no way to override one.</para>
+///
+/// <para>📄 Design: <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §5c.7 *(the
+/// <c>classDiagram</c>/<c>sequenceDiagram</c> this type is drawn in, and decisions
+/// <c>F1</c>–<c>F6</c>)</para>.
+/// </summary>
+public sealed class DiagnosticsWindowsBundle : IUiBundle
+{
+    private readonly DiagnosticsHostServices _host;
+
+    public DiagnosticsWindowsBundle(DiagnosticsHostServices host)
+        => _host = host ?? throw new ArgumentNullException(nameof(host));
+
+    /// <inheritdoc/>
+    public string Name => "diagnostics-windows";
+
+    /// <inheritdoc/>
+    public void RegisterInto(UiBundleContext ctx)
+    {
+        if (ctx is null) throw new ArgumentNullException(nameof(ctx));
+        var h = _host;
+
+        ctx.Windows.RegisterWindow(new FdpEntityInspectorWindow(
+            InspectorId(h.IdPrefix), $"{h.TitlePrefix} Entity Inspector", h.Perspective,
+            h.Inspector,
+            h.RepoAdapter,
+            h.InspectorState,
+            h.TitleBarColor));
+
+        // ⭐⭐ CE-1134 (canvas-context-menu-design §9) — the inspector's right-click menu STARTS with the map's entity menu (the same
+        //    items, run by the same actions); the inspector's own items (Inspect…, and each host's) follow. ⭐ CE-1150 (§12 HA-5) — it
+        //    reads the HOST's actions and world, handed to this bundle; ⛔ no map, no lookup table.
+        h.Inspector.RegisterContextMenuHandler(new Hrot.UI.Common.Menus.MapEntityMenuHandler(h.Host, h.World));
+
+        // ⭐ The component-editor reflector + the "Inspect…" context menu.
+        // ⚠ This registers NOTHING eagerly — the helper's own RegisterWindow sits inside the
+        //   "Inspect…" click handler — so its position relative to the window above cannot change the
+        //   registered set. 📐 That is measured, and it is why CGF's old call site (which ran BEFORE its
+        //   inspector window) can move here safely.
+        // ⭐⭐ CE-083 (user ruling, `2026-08-27`) — the helper gets THE SAME colour as the windows.
+        //    📐 IG and SimHost used to pass a different shade here, so a spawned "Inspect…" watch window
+        //    did not match the window it came from. ⇒ each subsystem's `TitleBarColor` now RETURNS its
+        //    own window constant, so there is ONE value per subsystem and the second parameter this
+        //    method used to need is GONE — ⛔ not defaulted-and-unused, which is how a knob nobody
+        //    passes becomes a liability (the `CE-070` lesson).
+        FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu(
+            h.Inspector,
+            ctx.Windows,
+            h.Perspective,
+            h.RepoAdapter,
+            h.PickBroker,
+            h.TitleBarColor,
+            h.World,
+            h.DeclareParam);
+
+        ctx.Windows.RegisterWindow(new FdpEventBrowserWindow(
+            EventsId(h.IdPrefix), $"{h.TitlePrefix} Event Browser", h.Perspective,
+            h.EventBrowser,
+            h.TitleBarColor,
+            openByDefault: h.EventBrowserOpenByDefault));
+
+        // ⭐⭐ RULING 49 — absent-and-explained beats present-and-broken. A host that cannot service
+        //    these two does not register them, which is exactly what the editor's `if (_kernel != null)`
+        //    guard said before this bundle existed. ⛔ Registering them unconditionally would have moved
+        //    the editor's window set and therefore the ui-baseline golden (design §5c.7.2 G1).
+        if (h.ArchitecturePanel != null)
+            ctx.Windows.RegisterWindow(new ArchitectureDiagnosticsWindow(
+                ArchitectureId(h.IdPrefix), $"{h.TitlePrefix} Architecture Diagnostics", h.Perspective,
+                h.ArchitecturePanel,
+                h.TitleBarColor));
+
+        // BP-327 — the module/system execution-stats profiler.
+        if (h.ExecutionStats != null)
+            ctx.Windows.RegisterWindow(new SystemProfilerWindow(
+                ProfilerId(h.IdPrefix), $"{h.TitlePrefix} System Profiler", h.Perspective,
+                h.ExecutionStats,
+                h.TitleBarColor));
+
+        // ⭐⭐ AQ109 X5 (R-3067) — THE generic wire inspector: every host that composes this bundle offers it, closed by default (its DDS
+        //    readers exist only while it is open). ⚠ A host with no participant gets the window and a one-line explanation.
+        ctx.Windows.RegisterWindow(new WireEntityInspectorWindow(
+            WireEntitiesId(h.IdPrefix), $"{h.TitlePrefix} Wire Entity Inspector", h.Perspective,
+            h.WireParticipant,
+            h.TitleBarColor));
+    }
+
+    // ⭐ The id scheme, in one place and PUBLIC — so the equivalence rail asserts against the same
+    //   expressions the bundle uses, and so a host can never spell one differently by hand.
+    public static string InspectorId(string idPrefix)    => $"{idPrefix}fdp_inspector";
+    public static string EventsId(string idPrefix)       => $"{idPrefix}fdp_events";
+    public static string ArchitectureId(string idPrefix) => $"{idPrefix}architecture_diagnostics";
+    public static string ProfilerId(string idPrefix)     => $"{idPrefix}system_profiler";
+    public static string WireEntitiesId(string idPrefix) => $"{idPrefix}wire_entities";
+}
+
+/// <summary>
+/// ⭐⭐ <b>Everything the four hosts actually differ by</b> — the ctor-arg bag for
+/// <see cref="DiagnosticsWindowsBundle"/>.
+///
+/// <para>⭐ Services arrive as CONSTRUCTOR ARGUMENTS, never through <c>UiBundleContext</c> (design
+/// <c>D1</c>): the context deliberately hands out no kernel, no bus and no module registry, and widening
+/// it would breach that.</para>
+///
+/// <para>⚠⚠ <b>THREE MEASURED DRIFTS ARE PRESERVED HERE, NOT TIDIED AWAY</b> — 📐 all three measured
+/// `2026-08-27`, all three recorded in design §5c.7.2:</para>
+/// <list type="number">
+///   <item><b><c>G1</c> — the kernel.</b> The editor guarded its architecture + profiler windows on
+///     <c>if (_kernel != null)</c> and bound the kernel EAGERLY; the other three bound it lazily and did
+///     not guard. ⇒ ⭐ this record takes the <b>already-built</b>
+///     <see cref="ArchitectureDiagnosticsPanel"/> and a stats delegate, so each host keeps its own
+///     construction verbatim and <b>nothing about that split changes</b>. ⛔ Passing null is how the
+///     editor's guard survives.</item>
+///   <item><b><c>G2</c> — ONE colour per subsystem <i>(resolved by the user, `2026-08-27`)</i>.</b>
+///     📐 IG and SimHost used to pass a different shade to the "Inspect…" helper than to their windows.
+///     ⇒ each subsystem's <c>TitleBarColor</c> property now RETURNS its own window constant, so there is
+///     one value per subsystem applied to every one of its windows — <b>true by construction</b>, and the
+///     record no longer carries a second colour field. 📌 <c>CE-083</c>.</item>
+///   <item><b><c>G3</c> — the reflector block is NOT here.</b> The ~30-line
+///     <c>AddBufferViewProvider</c>/<c>EditContextFactory</c> setup is duplicated verbatim between CGF
+///     and the editor and is <b>absent on IG/SimHost</b> ⇒ ⛔ putting it in this bundle would hand two
+///     hosts a capability they do not have. ⭐ It lives in
+///     <see cref="BlackboardReflection"/> with exactly two callers.</item>
+/// </list>
+/// </summary>
+/// <param name="IdPrefix">e.g. <c>"ig_"</c> — ⚠ include the trailing underscore.</param>
+/// <param name="TitlePrefix">e.g. <c>"IG"</c> — the window titles read <c>"IG Entity Inspector"</c>.</param>
+/// <param name="Perspective">
+/// ⚠ The PERSPECTIVE, not a display name. It is also the "Inspect…" watch windows' id prefix
+/// (lower-cased by the helper), so <c>"Scenario"</c> on CGF/Editor and the host name on IG/SimHost.
+/// </param>
+/// <param name="Host">⭐ CE-1150 (canvas-context-menu-design §12 HA-5) — the host's actions: the inspector menu offers what they run and
+/// requests a click on them. A host with no actions (Stride mode 2 composes no map) passes <c>() =&gt; null</c> and gets no map menu.</param>
+/// <param name="World">⭐ CE-1150 — the world the inspected entities live in (the menu is computed from it).</param>
+/// <param name="ArchitecturePanel">⛔ null ⇒ the window is NOT registered (ruling 49, and <c>G1</c>).</param>
+/// <param name="ExecutionStats">⛔ null ⇒ the profiler is NOT registered.</param>
+/// <param name="WireParticipant">⭐ AQ109 X5 — this host's DDS participant for the generic wire inspector; null/absent (or returning null) ⇒ the window
+/// says the host has no wire. ⛔ The inspector never creates a participant of its own.</param>
+/// <param name="TitleBarColor">
+/// ⭐⭐ <b>The subsystem's ONE colour</b>, applied to every window this bundle registers AND to the
+/// spawned "Inspect…" watch windows. 📌 <c>CE-083</c>: there used to be a second parameter for the
+/// helper because IG and SimHost passed a different shade there; each subsystem's <c>TitleBarColor</c>
+/// property now returns its own window constant, so one value is all there is.
+/// </param>
+public sealed record DiagnosticsHostServices(
+    string IdPrefix,
+    string TitlePrefix,
+    string Perspective,
+    EntityInspectorPanel Inspector,
+    Func<RepositoryAdapter?> RepoAdapter,
+    Func<InspectorState> InspectorState,
+    EventBrowserPanel EventBrowser,
+    Vector4? TitleBarColor,
+    Func<Hrot.Common.Interactions.HostActions?> Host,
+    Func<Fdp.Core.EntityRepository?> World,
+    ArchitectureDiagnosticsPanel? ArchitecturePanel = null,
+    Func<List<ModuleStats>?>? ExecutionStats = null,
+    MapPickBroker? PickBroker = null,
+    Func<CycloneDDS.Runtime.DdsParticipant?>? WireParticipant = null,
+    // ⭐ CE-4210 P2 — a host that AUTHORS scenario params passes how a bind popup's "New parameter…" declares one; null ⇒ the popup offers only the declared ones.
+    Func<Type, string, object?, Fdp.Presentation.Editing.ParamInScope?>? DeclareParam = null,
+    // ⭐ CE-1463 (W-B1; backend's note §3 ①) — the Event Browser starts OPEN (the editor's default, unchanged); a host where it is not the main tool passes false (CGF: it covered the top-left of the map in every --mode all screenshot). It stays openable from the Window menu.
+    bool EventBrowserOpenByDefault = true);

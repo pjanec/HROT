@@ -32,8 +32,18 @@ public sealed class CgfRecordingIntegrationTests
     private const int SimHostNodeId = 1;
     private const int CgfNodeId     = 400;
 
+    // ⭐ Through the SAME function the recorder uses (OrchestrationConstants.GetExerciseRecordingFilePath — its own doc
+    //   names this trap: a hand-composed path missing the `exercises/` segment reads as "recording file not found",
+    //   i.e. as a broken recorder, and it is not one). ⛔ The old hand-built `{staging}/{id}/node_N.fdp` failed exactly so.
+    // 📐 Each host's storage root, measured 2026-10-01: SimHost records under the staging root itself
+    //   (NodeBootstrapper's localTempRoot), CGF under its own node root (CgfSubsystem's isolatedTempRoot).
     private static string RecordingFile(string exerciseId, int nodeId) =>
-        Path.Combine(OrchestrationConstants.ResolveStagingRoot(), exerciseId, $"node_{nodeId}.fdp");
+        OrchestrationConstants.GetExerciseRecordingFilePath(
+            nodeId == CgfNodeId
+                ? OrchestrationConstants.GetNodeStagingRoot(nodeId)
+                : OrchestrationConstants.ResolveStagingRoot(),
+            Guid.Parse(exerciseId),
+            nodeId);
 
     // Issue a TransitionState cluster op and pump until the master reaches the target state.
     private static async Task TransitionAsync(
@@ -42,9 +52,16 @@ public sealed class CgfRecordingIntegrationTests
         string? exerciseId,
         int timeoutFrames = 4000)
     {
+        // ⭐⭐ QA-027 — the enum NAME, not its integer. TransitionPayloadDto's TargetState carries
+        //    [JsonConverter(typeof(StrictStringEnumConverter))] and OrchestrationJsonOptions documents
+        //    itself as rejecting integer enum values "to avoid silent integer-as-enum bugs". An int here
+        //    deserialised to null ⇒ the adapter threw ⇒ ClusterMaster caught it into a Warn log ⇒ the
+        //    cluster silently stayed at state 0 and every wait in this class timed out.
+        string targetStateName = ((Hrot.NED.Descriptors.Orchestration.ClusterState)targetStateId).ToString();
+
         string payloadJson = exerciseId != null
-            ? JsonSerializer.Serialize(new { TargetState = targetStateId, ExerciseId = exerciseId })
-            : JsonSerializer.Serialize(new { TargetState = targetStateId });
+            ? JsonSerializer.Serialize(new { TargetState = targetStateName, ExerciseId = exerciseId })
+            : JsonSerializer.Serialize(new { TargetState = targetStateName });
 
         await harness.OrchestratorSvc.TestHook_ClusterMaster!
             .HandleClusterOpRequestAsync(new ClusterOpRequest

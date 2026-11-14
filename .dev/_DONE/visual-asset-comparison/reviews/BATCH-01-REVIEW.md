@@ -12,7 +12,7 @@
 |-------|--------|
 | `Hrot.Editor.AiShared.Tests` | 390 passed, 0 failed |
 | `Hrot.BTree.Editor.Tests` | 291 passed, 0 failed |
-| Solution build (`IOS-IG-SimHost.sln`) | 0 errors |
+| Solution build (`HROT.sln`) | 0 errors |
 | TASK-C-01 deliverables | All present and correct |
 | TASK-C-02 deliverables | All present and correct |
 | TASK-C-03 deliverables | All present and correct |

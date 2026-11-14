@@ -1,0 +1,22 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4035 G-1: a damaged jet is shot down and its pilot ejects by himself. From the header's Judge (1) only: the air defence fires at the A-10 and hits it. The pilot (type 206) is spawned unnamed, so (2) exactly one pilot, (3) the canopy and (4) he stays down cannot be addressed by a check.",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the air defence fires at the A-10",
+      "on": "shot",
+      "at": "A-10"
+    },
+    {
+      "name": "the A-10 is hit (health below 330)",
+      "on": "field",
+      "who": "A-10",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 330
+    }
+  ]
+}

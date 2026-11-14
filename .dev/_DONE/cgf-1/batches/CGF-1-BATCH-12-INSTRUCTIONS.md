@@ -112,7 +112,7 @@ Implement **all** work items (1–7) in the task detail, including:
 
 ### Integration tests
 
-Task detail names **`Hrot.Orchestrator.Integration.Tests`**. **If that project does not exist**, create it, reference orchestrator + SimHost (and DDS deps as needed), add to **`IOS-IG-SimHost.sln`**, and implement:
+Task detail names **`Hrot.Orchestrator.Integration.Tests`**. **If that project does not exist**, create it, reference orchestrator + SimHost (and DDS deps as needed), add to **`HROT.sln`**, and implement:
 
 - **`ScenarioSaveLoadTests.RoundTrip_SimHost_EntitiesMatchAfterLoad`**  
 - **`ScenarioSaveLoadTests.OrchestratorContextRestored_AfterLoad`**  

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 2,
+  "origin": {
+    "lat": 52.52,
+    "lon": 13.405,
+    "alt": 0.0
+  },
+  "name": "indirect-fire-range",
+  "world": "indirect-fire-range.world.geojson"
+}

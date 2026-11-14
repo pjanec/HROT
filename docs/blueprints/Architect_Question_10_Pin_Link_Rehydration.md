@@ -1,5 +1,7 @@
 # Architect question #10 — robust pin↔link reconstruction for the editor round-trip (Blocker-1, part 2)
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 **Context.** Blueprints are stored **projection-only** (`"Pins": []`); the editor strips every node's pins
 on save and the compiler (`Stage0_Rehydrate`) + the editor model (`BlueprintGraphModel.Rebuild`) rebuild
 them on load. The user hit a corruption: opening a hill-attack blueprint in the editor and letting it

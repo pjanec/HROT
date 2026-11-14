@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -30 680 680" width="680" height="680" font-family="sans-serif" font-size="11">
+  <!-- basic-desert top view, 600 x 600 m, north up (svg y = 600 - world y). CE-3086 / Terrain Height H4. -->
+  <rect x="0" y="0" width="600" height="600" fill="#f3e9d2" stroke="#999"/>
+  <text x="0" y="-12" font-size="13" font-weight="bold">basic-desert (H4): the ridge and the wadi, clear of what already stands there</text>
+
+  <!-- wadi: banks 497.5-542.5, bed 510-530 -->
+  <rect x="497.5" y="0" width="45" height="600" fill="#cfe0ea"/>
+  <rect x="510" y="0" width="20" height="600" fill="#9cc1d6"/>
+  <text x="547" y="40">wadi, bed -3 m</text>
+
+  <!-- track y 290-300 -->
+  <rect x="0" y="300" width="600" height="10" fill="#b5a88f"/>
+  <text x="6" y="296">track (road, y = 295) - drapes into the wadi</text>
+
+  <!-- ridge footprint x 180-370, y 160-260; crest x 230-320 at y 210 -->
+  <rect x="180" y="340" width="190" height="100" rx="45" fill="#d9b77a" stroke="#a07a3a"/>
+  <rect x="230" y="365" width="90" height="50" rx="20" fill="#c4964a"/>
+  <line x1="230" y1="390" x2="320" y2="390" stroke="#5a3d10" stroke-width="3"/>
+  <text x="200" y="455">ridge: crest 10 m, shoulders 50 m (max 17.9 deg)</text>
+
+  <!-- features on ground 0 -->
+  <polygon points="150,450 170,455 178,438 160,425 148,435" fill="#8a6d4b"/><text x="120" y="470">Rock 1</text>
+  <polygon points="420,220 445,222 450,200 430,190 418,202" fill="#8a6d4b"/><text x="455" y="210">Rock 2</text>
+  <rect x="380" y="440" width="60" height="60" fill="none" stroke="#555" stroke-width="2"/><text x="385" y="515">compound</text>
+
+  <!-- U5 weapon choice: Bradley, insurgent, T-72 and their sight lines -->
+  <line x1="100" y1="80" x2="100" y2="380" stroke="#2a62b0" stroke-dasharray="5,4"/>
+  <line x1="100" y1="80" x2="480" y2="440" stroke="#2a62b0" stroke-dasharray="5,4"/>
+  <circle cx="100" cy="80" r="5" fill="#2a62b0"/><text x="108" y="78">U5 Bradley</text>
+  <circle cx="100" cy="380" r="5" fill="#b02a2a"/><text x="108" y="384">U5 insurgent</text>
+  <circle cx="480" cy="440" r="5" fill="#b02a2a"/><text x="430" y="432">U5 T-72</text>
+
+  <!-- U6 fire distribution: squad north, hostiles south of it, all north of the track -->
+  <rect x="265" y="122" width="70" height="20" fill="none" stroke="#2a62b0"/><text x="340" y="136">U6 squad</text>
+  <rect x="235" y="236" width="130" height="18" fill="none" stroke="#b02a2a"/><text x="370" y="250">U6 hostiles</text>
+
+  <!-- air strike targets lie east of the map edge -->
+  <text x="606" y="300" font-size="10">air-strike</text><text x="606" y="312" font-size="10">targets</text><text x="606" y="324" font-size="10">x 600-640</text>
+
+  <text x="0" y="625">Blue dashed: U5 lines the relief must not cross (rail H4_..._LeavesTheWeaponChoiceLinesOpen). Ground is 0 under every</text>
+  <text x="0" y="640">feature and every grounded scenario entity (rail H4_..._ThePlainUnderEverythingThatStoodOnItIsUnchanged).</text>
+</svg>

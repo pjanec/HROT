@@ -7,9 +7,12 @@ namespace Fdp.Core
     /// Stores components of type T using NativeChunkTable.
     /// Provides O(1) access to components by entity index.
     /// </summary>
-    public sealed class ComponentTable<T> : IComponentTable, FlightRecorder.IUnmanagedComponentTable where T : unmanaged
+    public sealed class ComponentTable<T> : IComponentTable, FlightRecorder.IUnmanagedComponentTable, Diagnostics.TableWriteStats.ISampled, IMemorySized where T : unmanaged
     {
         private readonly NativeChunkTable<T> _data;
+
+        Diagnostics.TableWriteStats.Sample Diagnostics.TableWriteStats.ISampled.SampleWrites(uint frameVersion) => _data.SampleWrites(frameVersion);   // ⭐ M-1
+        int Diagnostics.TableWriteStats.ISampled.CommitByContent(uint frameVersion) => _data.CommitByContent(frameVersion);   // ⭐ D-5
         private readonly int _componentTypeId;
         
         public ComponentTable()
@@ -17,6 +20,10 @@ namespace Fdp.Core
             _data = new NativeChunkTable<T>();
             _componentTypeId = ComponentType<T>.ID;
         }
+
+        // ⭐ CE-4456 N-1 — the memory census
+        long IMemorySized.NativeBytes => _data.GetMemoryStats().CommittedBytes;
+        long IMemorySized.ManagedSlotBytes => 0;
         
         public int ComponentTypeId => _componentTypeId;
         public Type ComponentType => typeof(T);
@@ -100,6 +107,10 @@ namespace Fdp.Core
         /// Sets component value for entity at given index.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <inheritdoc/>
+        public void CopyRowFrom(IComponentTable source, int entityIndex, uint version)
+            => _data.GetRefRW(entityIndex, version) = ((ComponentTable<T>)source)._data.GetRefRO(entityIndex);
+
         public void Set(int entityIndex, in T component, uint version)
         {
             _data.GetRefRW(entityIndex, version) = component;
@@ -137,6 +148,31 @@ namespace Fdp.Core
             void* destPtr = Unsafe.AsPointer(ref dest);
             Buffer.MemoryCopy((void*)dataPtr, destPtr, size, size);
         }
+
+        /// <summary>
+        /// Ruling 14 — the surgical write: <paramref name="size"/> bytes at
+        /// <paramref name="byteOffset"/>, and nothing else.
+        ///
+        /// <para>
+        /// ⭐ <b>The bound is checked against the component, not trusted from the caller.</b> The whole
+        /// point of this method is that the bytes it does not name stay untouched, so an offset/size
+        /// pair that runs off the end would corrupt the NEXT entity's component — the failure this
+        /// exists to prevent, one row over.
+        /// </para>
+        /// </summary>
+        public unsafe void SetRawAt(int entityIndex, int byteOffset, IntPtr src, int size, uint version)
+        {
+            int total = Unsafe.SizeOf<T>();
+            if (byteOffset < 0 || size < 0 || byteOffset + size > total)
+                throw new ArgumentOutOfRangeException(nameof(byteOffset),
+                    $"Field write [{byteOffset}, {byteOffset + size}) is outside {typeof(T).Name}, "
+                    + $"which is {total} bytes.");
+            if (size == 0) return;
+
+            ref T dest = ref _data.GetRefRW(entityIndex, version);
+            byte* destPtr = (byte*)Unsafe.AsPointer(ref dest) + byteOffset;
+            Buffer.MemoryCopy((void*)src, destPtr, size, size);
+        }
         
         // ================================================
         // FLIGHT RECORDER SUPPORT
@@ -159,6 +195,12 @@ namespace Fdp.Core
         {
             return _data.CopyChunkToBuffer(chunkIndex, destination);
         }
+
+        /// <summary>⭐ CE-2392 — the first <paramref name="maxBytes"/> bytes of the chunk only (the recorder's delta prefix).</summary>
+        public int CopyChunkToBuffer(int chunkIndex, Span<byte> destination, int maxBytes)
+        {
+            return _data.CopyChunkToBuffer(chunkIndex, destination, maxBytes);
+        }
         
         /// <summary>
         /// Restores chunk data from a buffer.
@@ -169,16 +211,30 @@ namespace Fdp.Core
             _data.RestoreChunkFromBuffer(chunkIndex, source);
         }
         
+        /// <summary>⭐ CE-1478 P6 — restores a block run of a v8 delta.</summary>
+        public void RestoreChunkRangeFromBuffer(int chunkIndex, int byteOffset, ReadOnlySpan<byte> source)
+        {
+            _data.RestoreChunkRange(chunkIndex, byteOffset, source);
+        }
+
         public void Dispose()
         {
             _data?.Dispose();
         }
 
-        public void SyncFrom(IComponentTable source)
+        /// <summary>⭐ EXPERIMENT (threaded kernel X-1) — the chunks a sync from <paramref name="source"/> would copy now, and this table's committed bytes.</summary>
+        internal (int DirtyChunks, long CommittedBytes) ProbeStats(IComponentTable source)
+            => (source is ComponentTable<T> s ? _data.CountDirtyChunks(s._data) : 0, _data.GetMemoryStats().CommittedBytes);
+
+        public void SyncFrom(IComponentTable source) => SyncFrom(source, force: false);
+
+        public void InvalidateChunksStampedSince(uint version) => _data.InvalidateChunksStampedSince(version);
+
+        public void SyncFrom(IComponentTable source, bool force)
         {
             if (source is ComponentTable<T> typedSource)
             {
-                _data.SyncDirtyChunks(typedSource._data);
+                _data.SyncDirtyChunks(typedSource._data, force);
             }
             #if FDP_PARANOID_MODE
             else

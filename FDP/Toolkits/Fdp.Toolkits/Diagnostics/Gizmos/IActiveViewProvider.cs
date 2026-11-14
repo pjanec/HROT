@@ -16,4 +16,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// </summary>
         ISimulationView ActiveView { get; }
     }
+
+    /// <summary>
+    /// ⭐ R-4211 (§4 hazard) — the view a THREADED node's UI-side gizmo managers draw: its presentation world. The data-breakpoint manager is the
+    /// SIM side's (its live view is the simulation world; a hit pauses the sim, whose held state the staging publishes to the UI like any tick),
+    /// so the UI's gizmos must never be handed it.
+    /// </summary>
+    public sealed class PresentationViewProvider : IActiveViewProvider
+    {
+        private readonly System.Func<ISimulationView> _view;
+        public PresentationViewProvider(System.Func<ISimulationView> view) => _view = view ?? throw new System.ArgumentNullException(nameof(view));
+        public ISimulationView ActiveView => _view();
+    }
 }

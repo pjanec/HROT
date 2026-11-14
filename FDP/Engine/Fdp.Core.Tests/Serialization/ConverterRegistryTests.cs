@@ -62,6 +62,34 @@ namespace Fdp.Tests.Serialization
             Assert.Equal("\"abc\"", json);
         }
 
+        // ── FixedString128 ────────────────────────────────────────────────────
+
+        [Fact]
+        public void FixedString128Converter_Serialize_ReturnsQuotedString()
+        {
+            var opts = MakeOpts(new FixedString128Converter());
+            string json = JsonSerializer.Serialize(new FixedString128("hello"), opts);
+            Assert.Equal("\"hello\"", json);
+        }
+
+        [Fact]
+        public void FixedString128Converter_Deserialize_ReturnsValue()
+        {
+            var opts = MakeOpts(new FixedString128Converter());
+            var result = JsonSerializer.Deserialize<FixedString128>("\"hello\"", opts);
+            Assert.Equal("hello", result.ToString());
+        }
+
+        [Fact]
+        public void FixedString128Converter_Roundtrip()
+        {
+            var opts = MakeOpts(new FixedString128Converter());
+            var original = new FixedString128("HealthDepleted");
+            string json  = JsonSerializer.Serialize(original, opts);
+            var result   = JsonSerializer.Deserialize<FixedString128>(json, opts);
+            Assert.Equal(original.ToString(), result.ToString());
+        }
+
         // ── StrictStringEnumConverter ─────────────────────────────────────────
 
         private enum TestEnum { Alpha, Beta, Gamma }
@@ -189,6 +217,14 @@ namespace Fdp.Tests.Serialization
         {
             var opts   = FdpJsonOptionsRegistry.DefaultRelaxed;
             var result = JsonSerializer.Deserialize<FixedString64>("\"hello\"", opts);
+            Assert.Equal("hello", result!.ToString());
+        }
+
+        [Fact]
+        public void DefaultRelaxed_FixedString128_Roundtrip()
+        {
+            var opts   = FdpJsonOptionsRegistry.DefaultRelaxed;
+            var result = JsonSerializer.Deserialize<FixedString128>("\"hello\"", opts);
             Assert.Equal("hello", result!.ToString());
         }
 

@@ -467,7 +467,7 @@ If any are NOT public, change visibility to `public` (minimum change only — no
 | N001-SC3 | Unit | driveFromNetwork=false for combined MuscleGround\|ImageGenerator |
 | N001-SC4 | Unit | ArgumentException for invalid role (e.g. Perception) |
 | N001-SC5 | Unit | GhostCreationSystem + SmartEgressSystem registered for Brain |
-| N002-SC1 | Build | dotnet build IOS-IG-SimHost.sln passes cleanly |
+| N002-SC1 | Build | dotnet build HROT.sln passes cleanly |
 
 ### Test-Driven Task Progression
 
@@ -486,7 +486,7 @@ If any are NOT public, change visibility to `public` (minimum change only — no
 
 ```powershell
 # Build first
-dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln --no-restore
+dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln --no-restore
 
 # Run new unit tests
 dotnet test Hrot.ClusterRunner.Tests --no-build --logger "console;verbosity=normal"

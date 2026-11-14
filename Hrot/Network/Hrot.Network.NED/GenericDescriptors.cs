@@ -5,6 +5,25 @@ using Hrot.NED.Common;
 
 namespace Hrot.NED.Descriptors
 {
+    /// <summary>
+    /// Reserved bits on <see cref="EntityMaster"/>.<c>Flags</c> (the "entity type specific flags"
+    /// field). Generic, host-ignorable: a host that does not implement a bit behaves as if it were
+    /// unset. <c>WaitForAcks</c> marks an entity created in reliable-init mode — a receiving peer
+    /// must report its <c>Active</c> status so the creator can release the cross-node construction
+    /// barrier (docs/DESIGN_Cross_Node_Construction_Barrier.md §2c/§3a.2).
+    /// </summary>
+    [Flags]
+    public enum EntityMasterFlags : ulong
+    {
+        None = 0,
+        WaitForAcks = 1UL << 0,
+
+        /// <summary>⭐ LR-2 (Hrot docs/DESIGN_Visual_Effects.md §8.5, R-271) — a LIGHTWEIGHT entity (a replicated round): a receiver creates
+        /// it ACTIVE on this sample — no ghost, no promotion, no lifecycle, no acks — keeps it current from <c>WorldPos</c>, and
+        /// destroys it when this master is disposed.</summary>
+        Lightweight = 1UL << 1,
+    }
+
     // ===================================================================================
     // GENERAL PRINCIPLES: NED SST ENTITY DESCRIPTORS
     // ===================================================================================
@@ -72,9 +91,9 @@ namespace Hrot.NED.Descriptors
     // What descriptors are to be expected for what entity type is defined just by convention (even different modules
     // within the same system might have different needs).
     // Once this one is removed, the entity instances ceases to exist no matter if its descriptors still exist.
-    [DdsTopic("EntityMaster")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityMaster
     {
         // Entity instance id.
@@ -125,13 +144,22 @@ namespace Hrot.NED.Descriptors
         SquadLeader = 2,
         Wingman     = 3,
         Support     = 4,
+        // ⭐ CE-3253 (BR-8, DA-19) — the rest of TacticalDesignation, value for value (a rail pins name and value): ⛔ before, TeamLeader and
+        //   Medic crossed as raw numbers outside the enum, and the squad roles did not exist.
+        TeamLeader  = 5,
+        Medic       = 6,
+        AutomaticRifleman = 7,
+        MachineGunner = 8,
+        Grenadier   = 9,
+        Marksman    = 10,
+        AntiTank    = 11,
     }
 
     // Additional metadata for an entity that is not strictly required for existence
     // but crucial for identification and hierarchy.
-    [DdsTopic("EntityInfo")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     [DdsManaged]
     public partial struct EntityInfo
     {
@@ -154,6 +182,10 @@ namespace Hrot.NED.Descriptors
         // Logical role of this entity within the commander's unit.
         // Undefined = no designation or no commander.
         public eTacticalDesignation TacticalDesignation;
+
+        // ⭐ CE-2281 / R-3019 — the fire team within the commander's unit (Fdp.Core.CommandHierarchy.FireTeam: 0 none, 1 A … 4 D).
+        //   APPENDED: an older sample reads as no team.
+        public byte FireTeam;
     }
 
     // Optimistic Concurrency Control Sidecar.
@@ -163,9 +195,9 @@ namespace Hrot.NED.Descriptors
     // - Checked by the Owner when receiving UpdateEntityDescriptorRequest.
     // - Ensures no "Lost Updates" in multi-user editing scenarios.
     // NOT for every descriptor, on demand only! Used just where optimistic locking is needed.
-    [DdsTopic("DescriptorOptimisticLock")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepAll)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepAll, AutodisposeUnregisteredInstances = false)]
     public partial struct DescriptorOptimisticLock
     {
         // Key 1: Entity ID.

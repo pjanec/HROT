@@ -1,0 +1,56 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — AQ96 C3 (CE-2319): a six-man squad closes 120 m by fire and movement. Judge (1) the rushing men go crouched (some rifleman's stance intent Crouched after the first near miss), (2) a near-missed mover drops (some soldier's UnderFireMove.Phase Down/Shifting/Crawling; '*e' = Leader + riflemen, the hostiles have no UnderFireMove), (3) a half is covered by the other half's fire (UnderFireMove.CoveredUntil > now — the cover gate, an approximation of 'he rises though rounds still come'), (4) the bounds complete (a rifleman within 25 m of the objective (200,285) = the order's ArrivalRadius). NOT expressible: speeds, the sideways crawl, 'rises under fire'. runFor 120 is a guess (the live check sampled 75 s and only counted >= 2 Rush phases). UNVERIFIED: brain-local components in the editor dump.",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "rounds pass near the squad",
+      "on": "field",
+      "who": "*Rifleman",
+      "path": "RecentSenses.NearMiss",
+      "op": ">",
+      "value": 0
+    },
+    {
+      "name": "a mover is near-missed and drops (Down / Shifting / Crawling)",
+      "on": "field",
+      "who": "*e",
+      "path": "UnderFireMove.Phase",
+      "op": "in",
+      "value": [
+        "Down",
+        "Shifting",
+        "Crawling"
+      ]
+    },
+    {
+      "name": "a rifleman moves crouched under fire",
+      "on": "field",
+      "who": "*Rifleman",
+      "path": "StanceIntent.TargetStance",
+      "op": "==",
+      "value": "Crouched",
+      "after": "rounds pass near the squad"
+    },
+    {
+      "name": "a half is covered by the other half's fire (CoveredUntil in the future)",
+      "on": "field",
+      "who": "*e",
+      "path": "UnderFireMove.CoveredUntil",
+      "op": ">",
+      "value": "$now"
+    },
+    {
+      "name": "the bounds complete: a rifleman reaches the objective area",
+      "on": "near",
+      "who": "*Rifleman",
+      "point": [
+        200,
+        285
+      ],
+      "within": 25
+    }
+  ]
+}

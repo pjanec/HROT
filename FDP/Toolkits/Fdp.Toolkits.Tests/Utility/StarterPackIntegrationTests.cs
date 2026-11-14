@@ -1,11 +1,12 @@
+using System.Linq;
 using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
-using Fdp.Modules.Geographic.Components;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Utility;
+using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Toolkit.Tests.Utility;
 using Xunit;
 
@@ -49,17 +50,32 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal((byte)Posture.AdvanceAndAttack, posture);
         }
 
-        // SC-SP-02: No contacts → HaveLiveTarget=0 → Step gate kills AdvanceAndAttack.
-        // TakeCover/Flee require EQS (not present). Suppress requires AllyAdvancingNearby (Phase-2 stub=0).
-        // Only Hold (WeightedSum with Constant baseline) produces a non-zero score.
+        // ⭐ CE-2072: a healthy, armed unit facing a MATCHED-or-stronger enemy suppresses instead of advancing.
+        //   🔴 Suppress multiplied by AllyAdvancingNearby (a stub returning 0), so it could never win.
         [Fact]
-        public void CombatPosture_NoContacts_SelectsHold()
+        public void CE2072_Healthy_FullAmmo_StrongEnemy_Suppresses()
+        {
+            var enemy = _world.Repo.CreateEntity();
+            var agent = _world.SpawnAgent(1.0f, 1.0f);
+            _world.SeedContact(agent, enemy, 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true);
+            _world.SetEnemyStrengthRatio(agent, 0.8f);
+
+            byte posture = _world.Scorer.SelectPosture(_world.Repo, agent, CombatPostureDecision.Id);
+
+            Assert.Equal((byte)Posture.Suppress, posture);
+        }
+
+        // SC-SP-02 ⭐ CE-2105 (R-208, user "advance without enemy"): no contacts → a healthy, armed unit ADVANCES (on to its
+        // objective). ⛔ SUPERSEDED: "HaveLiveTarget=0 → Step gate kills AdvanceAndAttack → Hold" — an advance whose enemy fell
+        // short of the objective then held there for ever. Suppress still needs a live target; TakeCover/Flee need EQS.
+        [Fact]
+        public void CombatPosture_NoContacts_SelectsAdvanceAndAttack()
         {
             var agent = _world.SpawnAgent(0.8f, 1.0f);
 
             byte posture = _world.Scorer.SelectPosture(_world.Repo, agent, CombatPostureDecision.Id);
 
-            Assert.Equal((byte)Posture.Hold, posture);
+            Assert.Equal((byte)Posture.AdvanceAndAttack, posture);
         }
 
         // SC-SP-03: AmmoFraction=0 → Threshold curve output=0 → WeightedProduct kills AdvanceAndAttack.
@@ -77,29 +93,30 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal((byte)Posture.Hold, posture);
         }
 
-        // SC-SP-04: Hysteresis prevents a 1% health-drop from flipping posture.
-        // Step 1 — Evaluate at health=0.08 (AdvanceAndAttack beats Hold by ~0.019).
-        // Step 2 — Drop health to 0.07 (Hold would win by ~0.007 without the bonus).
-        // Step 3 — SelectPosture reads the previous winner, applies +0.08 hysteresis, AA still wins.
+        // SC-SP-04: Hysteresis prevents a small health drop from flipping posture.
+        // ⭐ CE-3090 — re-pinned to the AdvanceAndAttack / HoldProne boundary (~0.51 against this unarmed contact): health 0.54 →
+        //   AA 0.622 vs HoldProne 0.569; health 0.48 → HoldProne 0.618 vs AA 0.566 (computed from the curves, 2026-10-07).
+        //   ⛔ SUPERSEDED (CE-2105): the AA / Suppress boundary ~0.235 — it now lies inside HoldProne's band (a wounded unit).
         [Fact]
         public void CombatPosture_Hysteresis_SmallHealthDrop_DoesNotFlipPosture()
         {
             var enemy = _world.Repo.CreateEntity();
-            var agent = _world.SpawnAgent(0.08f, 1.0f);
+            var agent = _world.SpawnAgent(0.54f, 1.0f);
             _world.SeedContact(agent, enemy, 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true);
 
-            // Prime buffer: at health=0.08, AdvanceAndAttack wins (score ~0.191 vs Hold ~0.172).
+            // Prime buffer: at health=0.54, AdvanceAndAttack wins.
             _world.Scorer.Evaluate(_world.Repo, agent, CombatPostureDecision.Id);
-
-            // Confirm AdvanceAndAttack was the winner before the health drop.
             byte primePosture = _world.Repo.GetComponentRO<UtilityResultBuffer>(agent).GetSpanRO()[0].WinningPostureId;
             Assert.Equal((byte)Posture.AdvanceAndAttack, primePosture);
 
-            // Drop health by 1% absolute — without hysteresis Hold would win (~0.163 vs ~0.170).
-            ref var h = ref _world.Repo.GetComponentRW<Health>(agent);
-            h.Current = 7f; // 0.07 * 100
+            // The counterfactual: a unit with NO previous winner at health 0.48 holds prone.
+            var fresh = _world.SpawnAgent(0.48f, 1.0f);
+            _world.SeedContact(fresh, _world.Repo.CreateEntity(), 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true);
+            Assert.Equal((byte)Posture.HoldProne, _world.Scorer.SelectPosture(_world.Repo, fresh, CombatPostureDecision.Id));
 
-            // Hysteresis bonus +0.08 is applied to the previous winner: 0.163+0.08=0.243 > Hold 0.170.
+            // Drop health by 6 % — the hysteresis bonus (+0.08) on the previous winner keeps AdvanceAndAttack.
+            ref var h = ref _world.Repo.GetComponentRW<Health>(agent);
+            h.Current = 48f;
             byte posture = _world.Scorer.SelectPosture(_world.Repo, agent, CombatPostureDecision.Id);
 
             Assert.Equal((byte)Posture.AdvanceAndAttack, posture);
@@ -113,7 +130,7 @@ namespace Fdp.Toolkit.Tests
             var self = _world.SpawnAgent(health01: 0.35f, ammo01: 1.0f);
             _world.SeedContact(self, enemy, 80f, 0.5f, 1f, hasLos: true);
             _world.SetEnemyStrengthRatio(self, 1.3f);
-            _world.SpawnEqsSensor(self, UtilityTestWorld.Fnv1a32("CoverQuery"), topScore: 0.85f, count: 3, instanceId: 0);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId, topScore: 0.85f, count: 3, instanceId: 0);
 
             _world.Scorer.SelectPosture(_world.Repo, self, CombatPostureDecision.Id);
 
@@ -127,6 +144,33 @@ namespace Fdp.Toolkit.Tests
                 "EqsTopScore consideration for TakeCover branch should be > 0.5");
         }
 
+        // ⭐ CE-2356 (AQ102 A, R-2072) — an UNHURT man with cover and a live target suppresses — until he is shot at: a near miss half a
+        //   second ago makes him take cover, and once it has worn off (4 s) he suppresses again. 🔴 Before: TakeCover carried only health
+        //   on an inverse curve (0 at full health) in a product, so an unhurt man never took cover however hard he was fired on.
+        //   🔴 Red-proof: drop the UnderFire consideration from TakeCover (or restore the inverse-linear health curve) ⇒ red.
+        [Fact]
+        public void CE2356_AnUnhurtMan_ShotAt_TakesCover_AndSuppressesWhenItWearsOff()
+        {
+            if (!_world.Repo.IsComponentTypeRegistered<RecentSenses>()) _world.Repo.RegisterComponent<RecentSenses>();
+            Entity Man()
+            {
+                var enemy = _world.Repo.CreateEntity();
+                var agent = _world.SpawnAgent(1.0f, 1.0f);
+                _world.SeedContact(agent, enemy, 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true);
+                _world.SetEnemyStrengthRatio(agent, 0.8f);
+                _world.SpawnEqsSensor(agent, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId, topScore: 0.85f, count: 3, instanceId: 0);
+                var senses = new RecentSenses();
+                senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, 9.5);
+                _world.Repo.AddComponent(agent, senses);
+                return agent;
+            }
+            _world.Repo.SetSingleton(new GlobalTime { TotalTime = 10.0 });
+            Assert.Equal((byte)Posture.TakeCover, _world.Scorer.SelectPosture(_world.Repo, Man(), CombatPostureDecision.Id));
+            var later = Man();
+            _world.Repo.SetSingleton(new GlobalTime { TotalTime = 14.0 });
+            Assert.Equal((byte)Posture.Suppress, _world.Scorer.SelectPosture(_world.Repo, later, CombatPostureDecision.Id));
+        }
+
         // SC-P1-07-3 / SC-P1-08-4: Hurt with cover available takes cover
         [Fact]
         public void Hurt_With_Cover_Available_Takes_Cover()
@@ -135,31 +179,50 @@ namespace Fdp.Toolkit.Tests
             var self = _world.SpawnAgent(health01: 0.35f, ammo01: 0.8f);
             _world.SeedContact(self, enemy, 90f, 0.8f, 1f, hasLos: true);
             _world.SetEnemyStrengthRatio(self, 1.3f);
-            _world.SpawnEqsSensor(self, UtilityTestWorld.Fnv1a32("CoverQuery"),   topScore: 0.85f, count: 3, instanceId: 0);
-            _world.SpawnEqsSensor(self, UtilityTestWorld.Fnv1a32("RetreatQuery"), topScore: 0.20f, count: 1, instanceId: 1);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId,   topScore: 0.85f, count: 3, instanceId: 0);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.20f, count: 1, instanceId: 1);
 
             byte posture = _world.Scorer.SelectPosture(_world.Repo, self, CombatPostureDecision.Id);
 
             Assert.Equal((byte)Posture.TakeCover, posture);
         }
 
-        // SC-P1-07-3 / SC-P1-08-4: Near death with escape flees
+        // ⭐ CE-3090 (🔒 user 2026-10-07: "flee is only realistic if the unit is healthy and capable of fleeing without becoming easy
+        //   target; for wounded one the hold-prone seems a better option") — SUPERSEDES SC-P1-07-3 "near death with escape flees":
+        //   a near-dead unit no longer runs; with poor cover it lies down and returns fire.
         [Fact]
-        public void NearDeath_With_Escape_Flees()
+        public void CE3090_NearDeath_With_Escape_HoldsProne_InsteadOfFleeing()
         {
             var enemy = _world.Repo.CreateEntity();
             var self = _world.SpawnAgent(health01: 0.12f, ammo01: 0.3f);
             _world.SeedContact(self, enemy, 70f, 0.9f, 1f, hasLos: true);
             _world.SetEnemyStrengthRatio(self, 2.5f);
-            _world.SpawnEqsSensor(self, UtilityTestWorld.Fnv1a32("CoverQuery"),   topScore: 0.30f, count: 1, instanceId: 0);
-            _world.SpawnEqsSensor(self, UtilityTestWorld.Fnv1a32("RetreatQuery"), topScore: 0.75f, count: 2, instanceId: 1);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId,   topScore: 0.30f, count: 1, instanceId: 0);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.75f, count: 2, instanceId: 1);
+
+            byte posture = _world.Scorer.SelectPosture(_world.Repo, self, CombatPostureDecision.Id);
+
+            Assert.Equal((byte)Posture.HoldProne, posture);
+        }
+
+        // ⭐ CE-3090 — a unit still able to run (≥ half health), outmatched, with a HIDDEN retreat and no cover, flees.
+        [Fact]
+        public void CE3090_HalfHealth_Outmatched_With_HiddenEscape_Flees()
+        {
+            var enemy = _world.Repo.CreateEntity();
+            var self = _world.SpawnAgent(health01: 0.55f, ammo01: 0.3f);
+            _world.SeedContact(self, enemy, 70f, 0.9f, 1f, hasLos: true);
+            _world.SetEnemyStrengthRatio(self, 2.5f);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId,   topScore: 0.05f, count: 0, instanceId: 0);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.90f, count: 2, instanceId: 1);
 
             byte posture = _world.Scorer.SelectPosture(_world.Repo, self, CombatPostureDecision.Id);
 
             Assert.Equal((byte)Posture.Flee, posture);
         }
 
-        // SC-P1-07-3 / SC-P1-08-4: Near death with no escape and no cover does not flee into nothing
+        // SC-P1-07-3 / SC-P1-08-4: Near death with no escape and no cover does not flee into nothing.
+        // ⭐ CE-3090 — the open-ground case itself: it HOLDS PRONE (was the plain Hold floor, which did not fire back).
         [Fact]
         public void NearDeath_With_No_Escape_And_No_Cover_Does_Not_Flee_Into_Nothing()
         {
@@ -167,12 +230,141 @@ namespace Fdp.Toolkit.Tests
             var self = _world.SpawnAgent(health01: 0.12f, ammo01: 0.6f);
             _world.SeedContact(self, enemy, 50f, 0.9f, 1f, hasLos: true);
             _world.SetEnemyStrengthRatio(self, 2.5f);
-            _world.SpawnEqsSensor(self, UtilityTestWorld.Fnv1a32("CoverQuery"),   topScore: 0.05f, count: 0, instanceId: 0);
-            _world.SpawnEqsSensor(self, UtilityTestWorld.Fnv1a32("RetreatQuery"), topScore: 0.05f, count: 0, instanceId: 1);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId,   topScore: 0.05f, count: 0, instanceId: 0);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.05f, count: 0, instanceId: 1);
 
             byte posture = _world.Scorer.SelectPosture(_world.Repo, self, CombatPostureDecision.Id);
 
-            Assert.Equal((byte)Posture.Hold, posture);
+            Assert.Equal((byte)Posture.HoldProne, posture);
+        }
+
+        // ── ⭐ CE-2271 (TS-5, R-2075) — temperament and stress as MODIFIERS of the posture decision ──────────────────────────────
+
+        /// <summary>The shipped posture decision, built afresh — with its modifiers, or as it was before them (every modifier row dropped).</summary>
+        private static UtilityDecisionDef PostureDef(bool modifiers)
+        {
+            var b = new UtilityDecisionBuilder();
+            CombatPostureDecision.Build(b);
+            var def = b.Build(new UtilityDecisionAttribute(CombatPostureDecision.DecisionAssetId, "Combat posture", DecisionKind.PostureSelect));
+            if (!modifiers)
+                foreach (var o in def.Options)
+                    o.Considerations = o.Considerations.Where(c => (c.Flags & ConsiderationFlags.Modifier) == 0).ToArray();
+            return def;
+        }
+
+        /// <summary>Every option's score for <paramref name="agent"/>, by option id (no hysteresis: the static scorer, no previous winner).</summary>
+        private unsafe System.Collections.Generic.Dictionary<byte, float> Scores(in UtilityDecisionDef def, Entity agent)
+        {
+            var output = default(UtilityResultBuffer);
+            UtilityScorer.Evaluate(_world.Repo, agent, in def, default, ref output, null);
+            var scores = new System.Collections.Generic.Dictionary<byte, float>();
+            foreach (var r in output.GetSpanRO()) scores[r.WinningPostureId] = r.Score;
+            return scores;
+        }
+
+        /// <summary>The suite's own situations (SC-SP-01 … CE-3090), one fresh agent each.</summary>
+        private Entity Situation(int k)
+        {
+            if (!_world.Repo.IsComponentTypeRegistered<RecentSenses>()) _world.Repo.RegisterComponent<RecentSenses>();
+            _world.Repo.SetSingleton(new GlobalTime { TotalTime = 10.0 });
+            var enemy = _world.Repo.CreateEntity();
+            Entity a;
+            switch (k)
+            {
+                case 0: a = _world.SpawnAgent(1f, 1f); _world.SeedContact(a, enemy, 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true); break;
+                case 1: a = _world.SpawnAgent(1f, 1f); _world.SeedContact(a, enemy, 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true); _world.SetEnemyStrengthRatio(a, 0.8f); break;
+                case 2: a = _world.SpawnAgent(0.8f, 1f); break;
+                case 3: a = _world.SpawnAgent(0.8f, 0f); _world.SeedContact(a, enemy, 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true); break;
+                case 4:
+                    a = _world.SpawnAgent(1f, 1f); _world.SeedContact(a, enemy, 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true);
+                    _world.SetEnemyStrengthRatio(a, 0.8f);
+                    _world.SpawnEqsSensor(a, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId, topScore: 0.85f, count: 3, instanceId: 0);
+                    var senses = new RecentSenses();
+                    senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, 9.5);
+                    _world.Repo.AddComponent(a, senses);
+                    break;
+                case 5:
+                    a = _world.SpawnAgent(0.35f, 0.8f); _world.SeedContact(a, enemy, 90f, 0.8f, 1f, hasLos: true); _world.SetEnemyStrengthRatio(a, 1.3f);
+                    _world.SpawnEqsSensor(a, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId,   topScore: 0.85f, count: 3, instanceId: 0);
+                    _world.SpawnEqsSensor(a, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.20f, count: 1, instanceId: 1);
+                    break;
+                case 6:
+                    a = _world.SpawnAgent(0.12f, 0.3f); _world.SeedContact(a, enemy, 70f, 0.9f, 1f, hasLos: true); _world.SetEnemyStrengthRatio(a, 2.5f);
+                    _world.SpawnEqsSensor(a, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId,   topScore: 0.30f, count: 1, instanceId: 0);
+                    _world.SpawnEqsSensor(a, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.75f, count: 2, instanceId: 1);
+                    break;
+                default:
+                    a = _world.SpawnAgent(0.55f, 0.3f); _world.SeedContact(a, enemy, 70f, 0.9f, 1f, hasLos: true); _world.SetEnemyStrengthRatio(a, 2.5f);
+                    _world.SpawnEqsSensor(a, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId,   topScore: 0.05f, count: 0, instanceId: 0);
+                    _world.SpawnEqsSensor(a, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.90f, count: 2, instanceId: 1);
+                    break;
+            }
+            return a;
+        }
+
+        private const int Situations = 8;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2271</c> TS-5 — THE NEUTRAL RAIL: for a man with no temperament and no stress, every option of the posture decision
+        /// scores BIT-IDENTICALLY to the decision as it was before its modifiers, in each of this suite's situations. 🔒 R-2075 (user,
+        /// <i>"Approved"</i>): the damping is a MODIFIER, outside the product's compensation. ✅ Red-proof: a modifier written as a
+        /// <c>Consider</c> ⇒ the compensation counts it ⇒ every score of that option moves ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2271_NoTemperamentNoStress_EveryPostureScore_IsBitIdenticalToBefore()
+        {
+            var now = PostureDef(modifiers: true);
+            var before = PostureDef(modifiers: false);
+            Assert.True(now.Options.Sum(o => o.Considerations.Count(c => (c.Flags & ConsiderationFlags.Modifier) != 0)) >= 6, "the modifiers are there");
+            for (int k = 0; k < Situations; k++)
+            {
+                var agent = Situation(k);
+                var a = Scores(in now, agent);
+                var b = Scores(in before, agent);
+                Assert.Equal(b.Count, a.Count);
+                foreach (var (option, score) in b)
+                    Assert.True(BitConverter.SingleToInt32Bits(score) == BitConverter.SingleToInt32Bits(a[option]),
+                        $"situation {k}, option {(Posture)option}: {a[option]:R} was {score:R}");
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2271</c> TS-5 — what each modifier does, and ONLY that: a cautious man (bravery 0.1, no discipline to temper it) advances at
+        /// 0.6 of the score (under strict discipline, 0.96); a bold one (0.9) takes cover, lies down and flees at 0.6; a man at stress 0.5 advances and suppresses at 0.5 —
+        /// every other option exactly as for the ordinary man.
+        /// </summary>
+        [Fact]
+        public void CE2271_ACautiousMan_ABoldMan_AStressedMan_DampOnlyTheirOptions()
+        {
+            if (!_world.Repo.IsComponentTypeRegistered<CombatTemperament>()) _world.Repo.RegisterComponent<CombatTemperament>();
+            if (!_world.Repo.IsComponentTypeRegistered<Stress>()) _world.Repo.RegisterComponent<Stress>();
+            var def = PostureDef(modifiers: true);
+            var damped = new (string Who, Action<Entity> Make, Posture[] Options, float Factor)[]
+            {
+                ("cautious", e => _world.Repo.AddComponent(e, new CombatTemperament { RiskAcceptance = 0.1f, Obedience = 0f, Set = CombatTemperament.RiskAcceptanceSet | CombatTemperament.ObedienceSet }),
+                    new[] { Posture.AdvanceAndAttack }, 0.6f),
+                // TS-2 — the same coward under strict discipline: effective bravery 0.46 (a = −0.08) ⇒ he advances at 0.96
+                ("disciplined coward", e => _world.Repo.AddComponent(e, new CombatTemperament { RiskAcceptance = 0.1f, Obedience = 0.9f, Set = CombatTemperament.RiskAcceptanceSet | CombatTemperament.ObedienceSet }),
+                    new[] { Posture.AdvanceAndAttack }, 0.96f),
+                ("bold", e => _world.Repo.AddComponent(e, new CombatTemperament { RiskAcceptance = 0.9f, Obedience = 0f, Set = CombatTemperament.RiskAcceptanceSet | CombatTemperament.ObedienceSet }),
+                    new[] { Posture.TakeCover, Posture.HoldProne, Posture.Flee }, 0.6f),
+                ("stressed", e => _world.Repo.AddComponent(e, new Stress { Level = 0.5f }),
+                    new[] { Posture.AdvanceAndAttack, Posture.Suppress }, 0.5f),
+            };
+            for (int k = 0; k < Situations; k++)
+                foreach (var (who, make, options, factor) in damped)
+                {
+                    var plain = Scores(in def, Situation(k));
+                    var man = Situation(k);
+                    make(man);
+                    var his = Scores(in def, man);
+                    foreach (var (option, score) in plain)
+                    {
+                        float expected = Array.IndexOf(options, (Posture)option) >= 0 ? score * factor : score;
+                        Assert.True(MathF.Abs(his[option] - expected) <= 1e-5f,
+                            $"{who}, situation {k}, {(Posture)option}: {his[option]} expected {expected}");
+                    }
+                }
         }
 
         // ── ThreatRankingDecision ────────────────────────────────────────────────
@@ -216,16 +408,97 @@ namespace Fdp.Toolkit.Tests
             var agent   = _world.SpawnAgent(1.0f, 1.0f);
             var enemyA  = _world.Repo.CreateEntity(); // close
             var enemyB  = _world.Repo.CreateEntity(); // far
-            _world.SeedContact(agent, enemyA, 100f, threatBoost: 0.5f, contactHealth01: 0.5f, hasLos: true);
+            // ⭐ CE-3070 — the FAR contact is seeded FIRST: with every score 0 (distance read from a component no node
+            //   registers) a tie broken by order would still have picked the first-seeded one, so the old order hid it.
             _world.SeedContact(agent, enemyB, 800f, threatBoost: 0.5f, contactHealth01: 0.5f, hasLos: true);
+            _world.SeedContact(agent, enemyA, 100f, threatBoost: 0.5f, contactHealth01: 0.5f, hasLos: true);
 
             _world.Scorer.Evaluate(_world.Repo, agent, ThreatRankingDecision.Id);
 
             ref readonly var buf = ref _world.Repo.GetComponentRO<UtilityResultBuffer>(agent);
             Assert.True(buf.Count >= 2);
-            // Winner entity handle should match the closer contact.
-            long winnerHandle = buf.GetSpanRO()[0].CandidateHandle;
-            Assert.Equal((long)enemyA.PackedValue, winnerHandle);
+            // Winner entity handle should match the closer contact, by a real margin (not a 0-0 tie).
+            var ranked = buf.GetSpanRO();
+            Assert.Equal((long)enemyA.PackedValue, ranked[0].CandidateHandle);
+            Assert.True(ranked[0].Score > ranked[1].Score, $"closer {ranked[0].Score} vs farther {ranked[1].Score}");
+        }
+
+        /// <summary>
+        /// ⭐ CE-3074 — a HEALTHY armed contact ranks above an unarmed one. Full health used to read 1 − 1 = 0 through the
+        /// health consideration, zeroing the armed contact's whole product, so the unarmed civilian (no Health) won live.
+        /// The unarmed contact is seeded FIRST so a 0–0 tie broken by order cannot pass.
+        /// </summary>
+        [Fact]
+        public void CE3074_ThreatRanking_AHealthyArmedContact_OutranksAnUnarmedOne()
+        {
+            var agent   = _world.SpawnAgent(1.0f, 1.0f);
+            var unarmed = _world.Repo.CreateEntity();
+            var armed   = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(armed, new WeaponState { Ammo = 30, MaxAmmo = 30 });
+            _world.SeedContact(agent, unarmed, 50f, threatBoost: 1f, contactHealth01: 1f, hasLos: true);
+            _world.SeedContact(agent, armed,   50f, threatBoost: 1f, contactHealth01: 1f, hasLos: true);
+
+            _world.Scorer.Evaluate(_world.Repo, agent, ThreatRankingDecision.Id);
+
+            var ranked = _world.Repo.GetComponentRO<UtilityResultBuffer>(agent).GetSpanRO();
+            Assert.Equal((long)armed.PackedValue, ranked[0].CandidateHandle);
+            Assert.True(ranked[0].Score > 0f, $"a full-health armed contact must not score 0 (got {ranked[0].Score})");
+            Assert.True(ranked[0].Score > ranked[1].Score);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2165</c> V1 (DESIGN_Vehicle_Exposure_Cycle §2) — a TANK ranks the RPG man above a NEARER rifleman: the rifle
+        /// cannot penetrate its side (danger 0.1), the RPG can (1). A SOLDIER in the same spot ranks the nearer rifleman first —
+        /// to him both are simply armed. The far RPG man is seeded FIRST so a tie broken by order cannot pass.
+        /// </summary>
+        [Fact]
+        public void V1_TopThreat_PicksTheAtGunner_ForAVehicle()
+        {
+            const long RpgManType = 9101, RiflemanType = 9102;
+            static Fdp.Interfaces.TkbTemplate Armed(string name, long type, Fdp.Toolkit.Tkb.Domain.WeaponMountDto mount)
+            {
+                var t = new Fdp.Interfaces.TkbTemplate(name, type);
+                t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 100, ArmorFront = 5 });
+                t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { mount } });
+                return t;
+            }
+            _world.Repo.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            _world.UseTkb(UtilityTestWorld.TankTemplate(), UtilityTestWorld.InfantryTemplate(),
+                Armed("RPG man", RpgManType, new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Range = 300, Penetration = 300, DamagePerHit = 400 }),
+                Armed("Rifleman", RiflemanType, new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Range = 500, Penetration = 5, DamagePerHit = 10 }));
+
+            Entity Contact(long type, float x)
+            {
+                var e = _world.Repo.CreateEntity();
+                _world.Repo.AddComponent(e, new SimTransform { Position = new Vector3(x, 0f, 0f), Rotation = Quaternion.Identity });
+                _world.Repo.AddComponent(e, new WeaponState { Ammo = 4, MaxAmmo = 4 });
+                _world.SetType(e, type);
+                return e;
+            }
+            Entity Self(long type, global::CarKinem.Core.VehicleClass cls)
+            {
+                var self = _world.SpawnAgent(1.0f, 1.0f);
+                // facing +Y: both contacts (on +X) are on its SIDE (250 mm on the T-72)
+                _world.Repo.GetComponentRW<SimTransform>(self).Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);
+                _world.Repo.AddComponent(self, new global::CarKinem.Core.VehicleParams { Class = cls });
+                _world.SetType(self, type);
+                return self;
+            }
+            var rpg = Contact(RpgManType, 250f);
+            var rifle = Contact(RiflemanType, 60f);
+
+            long Top(Entity self)
+            {
+                _world.SeedContact(self, rpg,   250f, threatBoost: 1f, contactHealth01: 1f, hasLos: true);
+                _world.SeedContact(self, rifle, 60f,  threatBoost: 1f, contactHealth01: 1f, hasLos: true);
+                _world.Scorer.Evaluate(_world.Repo, self, ThreatRankingDecision.Id);
+                var ranked = _world.Repo.GetComponentRO<UtilityResultBuffer>(self).GetSpanRO();
+                Assert.True(ranked[0].Score > ranked[1].Score, $"a real margin, not a tie ({ranked[0].Score} vs {ranked[1].Score})");
+                return ranked[0].CandidateHandle;
+            }
+
+            Assert.Equal((long)rpg.PackedValue, Top(Self(UtilityTestWorld.TankType, global::CarKinem.Core.VehicleClass.Tank)));
+            Assert.Equal((long)rifle.PackedValue, Top(Self(UtilityTestWorld.InfantryType, global::CarKinem.Core.VehicleClass.Pedestrian)));
         }
 
         // SC-P1-06-5: Assigned target bias promotes leader choice
@@ -264,14 +537,15 @@ namespace Fdp.Toolkit.Tests
 
         // ── WeaponSelectionDecision ──────────────────────────────────────────────
 
-        // SC-SP-08: Mount whose effective range matches the engagement distance scores via Bell(1.0)=1.0.
-        // Mount at 500m effective range scores Bell(100/500)=Bell(0.2)<<1. Mount at 100m wins.
+        // SC-SP-08 — ⭐ re-homed by CE-3089 (G7, W6): the range term now reads "IN range" (≈ 1 up to the mount's range, falling off
+        // past it), not "AT range" (the old Bell peaked at distance == range and scored a close target ≈ 0). The claim kept:
+        // the range decides between two otherwise equal mounts — a target BEYOND one mount's range goes to the mount that reaches.
         [Fact]
-        public void WeaponSelection_MountAtEffectiveRange_RanksFirst()
+        public void WeaponSelection_TheMountThatReaches_RanksFirst()
         {
             var agent  = _world.SpawnAgent(1.0f, 1.0f);
             var target = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(target, new Position { Value = new Vector3(100f, 0f, 0f) });
+            _world.Repo.AddComponent(target, new SimTransform { Position = new Vector3(300f, 0f, 0f) });
 
             var mount100  = _world.SpawnWeaponMount(agent, mountIndex: 1, weaponGuid: 0xAAAA_0001UL,
                 effRange: 100f,  ammo01: 1.0f, initialAmmunition: 30);
@@ -282,10 +556,11 @@ namespace Fdp.Toolkit.Tests
 
             ref readonly var buf = ref _world.Repo.GetComponentRO<UtilityResultBuffer>(agent);
             Assert.True(buf.Count >= 2);
-            Assert.True(buf.GetSpanRO()[0].Score > buf.GetSpanRO()[1].Score);
-            // The winner is the mount at 100m effective range.
-            long winnerHandle = buf.GetSpanRO()[0].CandidateHandle;
-            Assert.Equal((long)mount100.PackedValue, winnerHandle);
+            // The winner is the mount whose 500 m reaches the 300 m target; the 100 m mount is out of range.
+            Assert.Equal((long)mount500.PackedValue, buf.GetSpanRO()[0].CandidateHandle);
+            float s100 = -1f;
+            for (int i = 0; i < buf.Count; i++) if (buf.GetSpanRO()[i].CandidateHandle == (long)mount100.PackedValue) s100 = buf.GetSpanRO()[i].Score;
+            Assert.True(s100 < buf.GetSpanRO()[0].Score * 0.1f, $"out of range scores far below in range ({s100} vs {buf.GetSpanRO()[0].Score})");
         }
 
         // SC-SP-09: A mount with zero ammo → WeaponHasAmmo=0 → Step(0)=0 → score=0.
@@ -295,7 +570,7 @@ namespace Fdp.Toolkit.Tests
         {
             var agent  = _world.SpawnAgent(1.0f, 1.0f);
             var target = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(target, new Position { Value = new Vector3(50f, 0f, 0f) });
+            _world.Repo.AddComponent(target, new SimTransform { Position = new Vector3(50f, 0f, 0f) });
 
             var mountFull  = _world.SpawnWeaponMount(agent, mountIndex: 1, weaponGuid: 0xBBBB_0001UL,
                 effRange: 50f, ammo01: 1.0f, initialAmmunition: 30);
@@ -322,6 +597,69 @@ namespace Fdp.Toolkit.Tests
 
             // The full mount should rank first.
             Assert.Equal((long)mountFull.PackedValue, span[0].CandidateHandle);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3071</c> (design §9, the U5 demo's claim) — a Bradley picks the 25 mm against infantry and the TOW against a
+        /// tank: effectiveness through the ArmorModel and the scarce TOW's RoundsLeft decide it, not range alone.
+        /// </summary>
+        [Fact]
+        public void CE3071_WeaponSelection_25mmOnInfantry_TowOnATank()
+        {
+            _world.UseTkb(UtilityTestWorld.BradleyTemplate(), UtilityTestWorld.TankTemplate(), UtilityTestWorld.InfantryTemplate());
+            var bradley = _world.SpawnAgent(1.0f, 1.0f);   // at the origin
+            _world.SetType(bradley, UtilityTestWorld.BradleyType);
+            var gun = _world.SpawnWeaponMount(bradley, mountIndex: 0, weaponGuid: 1, effRange: 2500f, ammo01: 1f, initialAmmunition: 300);
+            var tow = _world.SpawnWeaponMount(bradley, mountIndex: 1, weaponGuid: 2, effRange: 2500f, ammo01: 1f, initialAmmunition: 7);
+
+            // Both at a distance either weapon reaches comfortably — range alone cannot decide.
+            var infantry = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, 2000f, maxHealth: 100f);
+            var tank     = _world.SpawnTypedTarget(UtilityTestWorld.TankType,     2000f, maxHealth: 2500f);
+
+            _world.Scorer.Evaluate(_world.Repo, bradley, WeaponSelectionDecision.Id, infantry);
+            Assert.Equal((long)gun.PackedValue, _world.Repo.GetComponentRO<UtilityResultBuffer>(bradley).GetSpanRO()[0].CandidateHandle);
+
+            _world.Scorer.Evaluate(_world.Repo, bradley, WeaponSelectionDecision.Id, tank);
+            Assert.Equal((long)tow.PackedValue, _world.Repo.GetComponentRO<UtilityResultBuffer>(bradley).GetSpanRO()[0].CandidateHandle);
+        }
+
+        /// <summary>⭐ <c>CE-2239</c> part 1 (CV-8, §5j FL-4) — the WEAPON CHOICE honours the force level: a unit with a rifle (mount 0) and a
+        /// baton launcher (mount 1) picks the rifle with no level, but under NonLethal the rifle is no candidate and the launcher is chosen
+        /// (so the unit fires it rather than hold). ✅ Red-proof: the AllowsMount filter dropped from the child-mount loop ⇒ red.</summary>
+        [Fact]
+        public void CE2239_WeaponSelection_UnderANonLethalCap_DropsTheRifle_AndChoosesTheBatonLauncher()
+        {
+            const long RifleRound = 9890, BatonRound = 9891, PoliceType = 9801;
+            var police = new Fdp.Interfaces.TkbTemplate("Police with rifle and launcher", PoliceType);
+            police.AddDescriptor(new WeaponSuiteDto { Mounts =
+            {
+                new WeaponMountDto { Category = WeaponCategory.SmallArms, AmmoGuid = (ulong)RifleRound, Range = 300f },
+                new WeaponMountDto { Category = WeaponCategory.SmallArms, AmmoGuid = (ulong)BatonRound, Range = 300f },
+            } });
+            var rifleRound = new Fdp.Interfaces.TkbTemplate("Rifle round", RifleRound);
+            var batonRound = new Fdp.Interfaces.TkbTemplate("Baton round", BatonRound);
+            batonRound.AddDescriptor(new WarheadDto { Kind = WarheadKind.Blunt });
+            _world.UseTkb(police, rifleRound, batonRound, UtilityTestWorld.InfantryTemplate());
+            if (!_world.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.Roe>()) _world.Repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.Roe>();
+            var cop = _world.SpawnAgent(1.0f, 1.0f);
+            _world.SetType(cop, PoliceType);
+            var rifle    = _world.SpawnWeaponMount(cop, mountIndex: 0, weaponGuid: 1, effRange: 300f, ammo01: 1f, initialAmmunition: 30);
+            var launcher = _world.SpawnWeaponMount(cop, mountIndex: 1, weaponGuid: 2, effRange: 300f, ammo01: 1f, initialAmmunition: 30);
+            var rioter = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, 40f, maxHealth: 100f);
+
+            bool Candidate(Entity mount)
+            {
+                ref readonly var buf = ref _world.Repo.GetComponentRO<UtilityResultBuffer>(cop);
+                for (int i = 0; i < buf.Count; i++) if (buf.GetSpanRO()[i].CandidateHandle == (long)mount.PackedValue) return true;
+                return false;
+            }
+            _world.Scorer.Evaluate(_world.Repo, cop, WeaponSelectionDecision.Id, rioter);
+            Assert.True(Candidate(rifle) && Candidate(launcher));                                       // no level: both are weapons
+
+            _world.Repo.AddComponent(cop, new Fdp.Toolkit.Behavior.Components.Roe { ForceLevel = Fdp.Toolkit.Behavior.Components.RoeForceLevel.NonLethal });
+            _world.Scorer.Evaluate(_world.Repo, cop, WeaponSelectionDecision.Id, rioter);
+            Assert.False(Candidate(rifle));
+            Assert.Equal((long)launcher.PackedValue, _world.Repo.GetComponentRO<UtilityResultBuffer>(cop).GetSpanRO()[0].CandidateHandle);
         }
 
         // ── ThreatMatrixAssignmentSystem / LeaderAssignmentDecision ─────────────
@@ -419,12 +757,239 @@ namespace Fdp.Toolkit.Tests
             sys.Run(_world.Repo, leader);
             Assert.Equal((long)t1.PackedValue, _world.AssignmentFor(leader, m1));
 
-            // Add retreat EQS sensor so Flee is not gated.
-            _world.SpawnEqsSensor(m1, UtilityTestWorld.Fnv1a32("RetreatQuery"), topScore: 0.7f, count: 1, instanceId: 1);
+            // A hidden retreat exists — but at 8 % health the member no longer flees (CE-3090): it breaks off by lying down and
+            // returning fire (no cover sensor ⇒ no cover). Either way the veto holds: it does not advance on its assignment.
+            _world.SpawnEqsSensor(m1, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.7f, count: 1, instanceId: 1);
 
             byte posture = _world.Scorer.SelectPosture(_world.Repo, m1, CombatPostureDecision.Id);
 
-            Assert.Equal((byte)Posture.Flee, posture);
+            Assert.Equal((byte)Posture.HoldProne, posture);
+        }
+
+        // ── CE-3089 (G7) — the unit fires the weapon its target calls for, on the PRODUCTION layout ──────────────────────────
+        //    (mount 0 = the owner's own WeaponState, mount 1 = a child — CombatTkbTranslator). 📄 Utility demo design §12.
+
+        private (Entity bradley, Entity tow, Entity infantry, Entity tank) ProductionBradley(int towAmmo = 7,
+            float infantryAt = 2000f, float tankAt = 2000f)
+        {
+            _world.UseTkb(UtilityTestWorld.BradleyTemplate(), UtilityTestWorld.TankTemplate(), UtilityTestWorld.InfantryTemplate());
+            var bradley = _world.SpawnAgent(1.0f, 1.0f, initialAmmunition: 300);   // the 25 mm IS the owner's WeaponState
+            _world.SetType(bradley, UtilityTestWorld.BradleyType);
+            var tow = _world.SpawnWeaponMount(bradley, mountIndex: 1, weaponGuid: 2, effRange: 2500f,
+                ammo01: towAmmo / 7f, initialAmmunition: 7);
+            // ⭐ the PRODUCTION child: CombatTkbTranslator gives it no position (the helper's SimTransform hid the defect —
+            //   ✅ red-proof: without OwnerOf in the weapon inputs, every TOW scores 0 and the gun fires at the tank).
+            _world.Repo.RemoveComponent<SimTransform>(tow);
+            var infantry = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, infantryAt, maxHealth: 100f);
+            var tank     = _world.SpawnTypedTarget(UtilityTestWorld.TankType,     tankAt,     maxHealth: 2500f);
+            return (bradley, tow, infantry, tank);
+        }
+
+        /// <summary>⭐ W2 + W3: the OWNER is mount 0 — the 25 mm against infantry, the TOW child against a tank.
+        /// ✅ Red-proof: the old candidate test (self only with <c>WeaponMountInfo</c>) ⇒ the 25 mm is never a candidate, the
+        /// infantry gets the TOW.</summary>
+        [Fact]
+        public void CE3089_WeaponChoice_OnTheProductionLayout_25mmOnInfantry_TowOnATank()
+        {
+            var (bradley, tow, infantry, tank) = ProductionBradley();
+
+            Assert.Equal(0, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, bradley, infantry, out var m0));
+            Assert.Equal(bradley, m0);
+            Assert.Equal(1, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, bradley, tank, out var m1));
+            Assert.Equal(tow, m1);
+        }
+
+        /// <summary>⭐ W6 — the U5 live geometry (insurgent 300 m, T-72 523 m — a fifth of both mounts' range): the same choice.
+        /// ✅ Red-proof: the old range Bell ⇒ every mount ≈ 0 ⇒ the 25 mm at the tank (measured live before the fix).</summary>
+        [Fact]
+        public void CE3089_WeaponChoice_AtMidRange_25mmOnInfantry_TowOnATank()
+        {
+            var (bradley, tow, infantry, tank) = ProductionBradley(infantryAt: 300f, tankAt: 523f);
+            Assert.Equal(0, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, bradley, infantry, out var m0));
+            Assert.Equal(bradley, m0);
+            Assert.Equal(1, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, bradley, tank, out var m1));
+            Assert.Equal(tow, m1);
+        }
+
+        /// <summary>⭐ An empty launcher ⇒ the gun, even at a tank (no ammo scores 0).</summary>
+        [Fact]
+        public void CE3089_AnEmptyTow_FallsBackToThe25mm()
+        {
+            var (bradley, _, _, tank) = ProductionBradley(towAmmo: 0);
+            Assert.Equal(0, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, bradley, tank, out var mount));
+            Assert.Equal(bradley, mount);
+        }
+
+        /// <summary>⭐⭐ <c>CE-3230</c> (B-8, H-4, AW-24) — a rifleman whose HANDS hold stones (mount 1, five rounds, in range of a man 20 m
+        /// away) still fires his RIFLE: the weapon brain never chooses the hands unless they hold a lethal round.</summary>
+        [Fact]
+        public void CE3230_ARiflemanWithStonesInHisHands_StillFiresHisRifle()
+        {
+            const long riflemanWithHands = 9310;
+            var t = new Fdp.Interfaces.TkbTemplate("Rifleman with hands", riflemanWithHands);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 100 });
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { InitialAmmunition = 30, Range = 500, Penetration = 5, DamagePerHit = 10 },
+                global::Fdp.Toolkit.Combat.PersonHands.Mount(),
+            } });
+            _world.UseTkb(t, UtilityTestWorld.InfantryTemplate());
+            var rifleman = _world.SpawnAgent(1.0f, 1.0f, initialAmmunition: 30);
+            _world.SetType(rifleman, riflemanWithHands);
+            var hands = _world.SpawnWeaponMount(rifleman, mountIndex: 1, weaponGuid: 0, effRange: 25f, ammo01: 1f, initialAmmunition: 5);
+            var man = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, 20f, maxHealth: 100f);
+
+            Assert.Equal(0, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, rifleman, man, out var mount));
+            Assert.Equal(rifleman, mount);
+            Assert.NotEqual(hands, mount);
+        }
+
+        /// <summary>⭐ The executor on <c>Mount = Auto</c> fires <c>WeaponIndex 1</c> at a tank and spends the CHILD's round;
+        /// <c>Mount = 0</c> (every other writer) still fires the primary. ✅ Red-proof: keep <c>WeaponIndex = 0</c> ⇒ red.</summary>
+        [Fact]
+        public unsafe void CE3089_TheExecutor_OnAuto_FiresTheTowAtATank_AndSpendsTheChildsRound()
+        {
+            var repo = _world.Repo;
+            if (!repo.IsComponentTypeRegistered<global::Fdp.Toolkit.Behavior.Components.WeaponChannel>())
+                repo.RegisterComponent<global::Fdp.Toolkit.Behavior.Components.WeaponChannel>();
+            repo.RegisterEvent<global::Fdp.Toolkit.Combat.Events.WeaponFireIntent>();
+            var (bradley, tow, _, tank) = ProductionBradley();
+            var exec = new global::Fdp.Toolkit.Combat.Executors.AimAndFireExecutor();
+
+            int Fire(byte mount)
+            {
+                var ch = new global::Fdp.Toolkit.Behavior.Components.WeaponChannel();
+                *(global::Fdp.Toolkit.Combat.Executors.AimAndFireParams*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref ch.Params[0]) =
+                    new global::Fdp.Toolkit.Combat.Executors.AimAndFireParams { Target = tank, CooldownSeconds = 0f, Mount = mount };
+                exec.OnEnter(bradley, ref ch, repo);
+                // ⭐ CE-3136 P-3 (D3) — an aimed round leaves after the aim time (0.8 s fallback): step until it does.
+                for (int step = 0; step < 20; step++)
+                {
+                    exec.Execute(bradley, ref ch, repo, 0.1f);
+                    repo.Bus.SwapBuffers();
+                    var intents = repo.Bus.Read<global::Fdp.Toolkit.Combat.Events.WeaponFireIntent>();
+                    if (intents.Length == 0) continue;
+                    Assert.Equal(1, intents.Length);
+                    global::Fdp.Toolkit.Combat.Tests.TestMuscle.FireAll(repo);   // ⭐ Q94 A-3 — the muscle's answer spends the round
+                    return intents[0].WeaponIndex;
+                }
+                Assert.Fail("no round within 2 s");
+                return -1;
+            }
+
+            Assert.Equal(1, Fire(global::Fdp.Toolkit.Combat.Executors.AimAndFireParams.MountAuto));
+            Assert.Equal(6, repo.GetComponentRO<WeaponState>(tow).Ammo);        // the TOW's round
+            Assert.Equal(300, repo.GetComponentRO<WeaponState>(bradley).Ammo);  // the gun untouched
+
+            Assert.Equal(0, Fire(0));                                            // the default: the primary, as before
+            Assert.Equal(299, repo.GetComponentRO<WeaponState>(bradley).Ammo);
+        }
+
+        /// <summary>
+        /// ⭐ WL-4 W-12a (Weapon_Layers §5f L-4) — Auto chooses the mount ONCE per engagement: the TOW chosen for the tank is KEPT in
+        /// the action's state, and only an EMPTY TOW hands the tank to the 25 mm.
+        /// 🔴 Red before: <c>WeaponChoice</c> ran every shot and nothing kept the choice (§5e known limit).
+        /// </summary>
+        [Fact]
+        public unsafe void WL4_W12a_TheMountIsChosenOncePerEngagement_AndAgainOnlyWhenItRunsDry()
+        {
+            var repo = _world.Repo;
+            if (!repo.IsComponentTypeRegistered<global::Fdp.Toolkit.Behavior.Components.WeaponChannel>())
+                repo.RegisterComponent<global::Fdp.Toolkit.Behavior.Components.WeaponChannel>();
+            repo.RegisterEvent<global::Fdp.Toolkit.Combat.Events.WeaponFireIntent>();
+            var (bradley, tow, _, tank) = ProductionBradley();
+            var exec = new global::Fdp.Toolkit.Combat.Executors.AimAndFireExecutor();
+            var ch = new global::Fdp.Toolkit.Behavior.Components.WeaponChannel();
+            *(global::Fdp.Toolkit.Combat.Executors.AimAndFireParams*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref ch.Params[0]) =
+                new global::Fdp.Toolkit.Combat.Executors.AimAndFireParams { Target = tank, CooldownSeconds = 0f, Mount = global::Fdp.Toolkit.Combat.Executors.AimAndFireParams.MountAuto };
+            static global::Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.AimState Aim(ref global::Fdp.Toolkit.Behavior.Components.WeaponChannel c)
+                => *(global::Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.AimState*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref c.State[sizeof(Entity)]);
+
+            exec.OnEnter(bradley, ref ch, repo);
+            exec.Execute(bradley, ref ch, repo, 0.1f);
+            Assert.Equal(1 + (int)global::Fdp.Toolkit.Behavior.Components.RoeForceLevel.Lethal, Aim(ref ch).HasChoice);   // a choice, made under the Lethal level (EL-9)
+            Assert.Equal(1, Aim(ref ch).ChosenMount);   // the TOW for the tank
+
+            repo.GetComponentRW<WeaponState>(tow).Ammo = 0;   // the TOW runs dry ⇒ the next frame chooses again
+            exec.Execute(bradley, ref ch, repo, 0.1f);
+            Assert.Equal(0, Aim(ref ch).ChosenMount);   // the 25 mm
+        }
+
+        /// <summary>⭐ W9 — a RELOADING TOW is still the TOW's target: the choice ignores cooldown (the executor waits on it), so a
+        /// reloading launcher never hands the tank to the 25 mm. ✅ Red-proof: put WeaponReadiness back in the decision ⇒ mount 0.</summary>
+        [Fact]
+        public void CE3089_AReloadingTow_IsStillChosenForTheTank()
+        {
+            var (bradley, tow, _, tank) = ProductionBradley(tankAt: 523f);
+            _world.Repo.GetComponentRW<WeaponState>(tow).CooldownSecondsRemaining = 1f;
+            Assert.Equal(1, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, bradley, tank, out var m));
+            Assert.Equal(tow, m);
+        }
+
+        // ── CE-3088 (G8, F4) — the squad's fire distribution reads the MERGED pool and runs from the frame driver ──────
+        //    📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §11.
+
+        /// <summary>⭐ F4: a target only a MEMBER has seen (the leader saw nothing) is assignable — through the merged pool.
+        /// ✅ Red-proof: source the targets from the leader's own <c>TargetMemory</c> only (the pre-CE-3088 code) ⇒ unassigned.</summary>
+        [Fact]
+        public void CE3088_ATargetSeenOnlyByAMember_IsAssigned_ThroughTheMergedPool()
+        {
+            var leader = _world.SpawnLeader();
+            var member = _world.SpawnSquadMember(leader, health01: 1.0f, ammo01: 1.0f);
+            var target = _world.SpawnTarget();
+            _world.SeedContact(member, target, 100f, threatBoost: 0.7f, contactHealth01: 1f, hasLos: true);   // the leader: nothing
+
+            Assert.True(global::Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(_world.Repo, leader, currentTick: 1));
+            new ThreatMatrixAssignmentSystem(LeaderAssignmentDecision.Id).Run(_world.Repo, leader);
+
+            Assert.Equal((long)target.PackedValue, _world.AssignmentFor(leader, member));
+        }
+
+        /// <summary>⭐ The leader's OWN sighting still counts — the merge walks subordinates only, so the union keeps it.</summary>
+        [Fact]
+        public void CE3088_ATargetSeenOnlyByTheLeader_StillCounts()
+        {
+            var leader = _world.SpawnLeader();
+            var member = _world.SpawnSquadMember(leader, health01: 1.0f, ammo01: 1.0f);
+            var target = _world.SpawnTarget();
+            _world.SeedContact(leader, target, 100f, threatBoost: 0.7f, contactHealth01: 1f, hasLos: true);
+            _world.SeedContact(member, target, 100f, threatBoost: 0.7f, contactHealth01: 1f, hasLos: true);
+            // the pool is empty (never merged): the leader's memory alone supplies the target
+
+            new ThreatMatrixAssignmentSystem(LeaderAssignmentDecision.Id).Run(_world.Repo, leader);
+
+            Assert.Equal((long)target.PackedValue, _world.AssignmentFor(leader, member));
+        }
+
+        /// <summary>⭐ The FRAME DRIVER runs it: four members, three targets seen by all ⇒ every member assigned, the targets
+        /// spread, no target over the focus cap of 2 — U6's acceptance at unit level. ✅ Red-proof: construct the driver
+        /// without the assignment system ⇒ every slot stays 0.</summary>
+        [Fact]
+        public void CE3088_TheSquadDriver_AssignsEveryMember_AfterAMerge_AtMostTwoPerTarget()
+        {
+            if (!_world.Repo.IsComponentTypeRegistered<global::Fdp.Toolkit.Behavior.Components.BehaviorState>())
+                _world.Repo.RegisterComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>();
+            var leader = _world.SpawnLeader();
+            _world.Repo.AddComponent(leader, new global::Fdp.Toolkit.Behavior.Components.BehaviorState());
+            var members = new[]
+            {
+                _world.SpawnSquadMember(leader, 1f, 1f), _world.SpawnSquadMember(leader, 1f, 1f),
+                _world.SpawnSquadMember(leader, 1f, 1f), _world.SpawnSquadMember(leader, 1f, 1f),
+            };
+            var targets = new[] { _world.SpawnTarget(), _world.SpawnTarget(), _world.SpawnTarget() };
+            float[] range = { 100f, 150f, 200f };
+            foreach (var m in members)
+                for (int t = 0; t < targets.Length; t++)
+                    _world.SeedContact(m, targets[t], range[t], threatBoost: 0.7f, contactHealth01: 1f, hasLos: true);
+
+            var driver = new global::Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem(
+                gateOnAuthority: false, fire: new ThreatMatrixAssignmentSystem(LeaderAssignmentDecision.Id, maxFocusFireCount: 2));
+            driver.Execute(_world.Repo, 0.016f);
+
+            var assigned = members.Select(m => _world.AssignmentFor(leader, m)).ToArray();
+            Assert.All(assigned, a => Assert.Contains(a, targets.Select(t => (long)t.PackedValue)));
+            Assert.All(assigned.GroupBy(a => a), g => Assert.True(g.Count() <= 2, $"target {g.Key} has {g.Count()} members"));
+            Assert.True(assigned.Distinct().Count() >= 2, "the fire is spread");
         }
     }
 }

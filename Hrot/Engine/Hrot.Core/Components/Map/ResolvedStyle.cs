@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using Fdp.Core;
 
-namespace Hrot.IG.Components;
+namespace Hrot.Map.Common.Components;
 
 /// <summary>
 /// ECS component caching the computed visual rendering state for an entity.
@@ -21,7 +21,7 @@ namespace Hrot.IG.Components;
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 [ComponentId(GlobalComponentIds.ResolvedStyle)]
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 public unsafe struct ResolvedStyle
 {
     // ── Fixed-buffer string fields ────────────────────────────────────────────
@@ -87,7 +87,10 @@ public unsafe struct ResolvedStyle
     /// <paramref name="name"/> (UTF-8 encoded) into the fixed texture-name buffer.
     /// The buffer is always null-terminated.
     /// </summary>
-    public unsafe void SetTextureName(string? name)
+    public void SetTextureName(string? name) => SetTextureName(name.AsSpan());
+
+    /// <summary>⭐ CE-4432 — the same from a char span (0 B: the style pass fills it on the stack).</summary>
+    public unsafe void SetTextureName(ReadOnlySpan<char> name)
     {
         fixed (byte* buf = _textureName)
             WriteUtf8(buf, ResolvedStyleConstants.TextureNameMaxBytes, name);
@@ -105,7 +108,10 @@ public unsafe struct ResolvedStyle
     /// <paramref name="label"/> (UTF-8 encoded) into the fixed label-text buffer.
     /// The buffer is always null-terminated.
     /// </summary>
-    public unsafe void SetLabelText(string? label)
+    public void SetLabelText(string? label) => SetLabelText(label.AsSpan());
+
+    /// <summary>⭐ CE-4432 — the same from a char span.</summary>
+    public unsafe void SetLabelText(ReadOnlySpan<char> label)
     {
         fixed (byte* buf = _labelText)
             WriteUtf8(buf, ResolvedStyleConstants.LabelTextMaxBytes, label);
@@ -120,16 +126,18 @@ public unsafe struct ResolvedStyle
 
     // ── Private byte-buffer helpers ───────────────────────────────────────────
 
-    private static unsafe void WriteUtf8(byte* buf, int capacity, string? text)
+    private static unsafe void WriteUtf8(byte* buf, int capacity, ReadOnlySpan<char> text)
     {
-        if (string.IsNullOrEmpty(text))
+        if (text.IsEmpty)
         {
             buf[0] = 0;
             return;
         }
         // Write up to (capacity - 1) bytes to leave room for the null terminator.
+        // ⭐ CE-1349 — a longer text is TRUNCATED at a whole character, as the doc says. 🔴 It was Encoding.UTF8.GetBytes, which THROWS when
+        //   the text does not fit: placing an "AH-64 Apache (attack helicopter)" crashed the editor in StyleResolutionSystem (user, 2026-10-25).
         var dest = new Span<byte>(buf, capacity);
-        int written = Encoding.UTF8.GetBytes(text, dest[..^1]);
+        System.Text.Unicode.Utf8.FromUtf16(text, dest[..^1], out _, out int written, replaceInvalidSequences: true, isFinalBlock: true);
         dest[written] = 0;
     }
 

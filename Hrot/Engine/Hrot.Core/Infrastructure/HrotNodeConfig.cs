@@ -1,5 +1,6 @@
 using CycloneDDS.Runtime;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Core;
 
 namespace Hrot.Common.Infrastructure;
 
@@ -9,14 +10,46 @@ namespace Hrot.Common.Infrastructure;
 /// </summary>
 public sealed class HrotNodeConfig
 {
+    /// <summary>
+    /// ⭐ CE-4013 D13 — THE node config every networked host starts from: its domain, node id, role token and DDS participant, its staging
+    /// under <c>&lt;staging&gt;/nodes/node-&lt;id&gt;</c> (<see cref="OrchestrationConstants.GetNodeStagingRoot(string, int)"/> — where the
+    /// orchestrator writes each node's scenarios and TKB, <c>docs/DESIGN_Artifact_Staging.md</c> V1) and its logs beside the binaries.
+    /// 📐 Five hosts built it inline and differed: IG and the Stride node took the BARE staging root (in a co-located run they read
+    /// where nothing is written for them). A host sets only what is genuinely its own afterwards (a geo transform, a skipped routing wait).
+    /// </summary>
+    /// <param name="stagingRoot">The staging root, when the host was given one; null/empty ⇒ <see cref="OrchestrationConstants.ResolveStagingRoot"/>.</param>
+    public static HrotNodeConfig ForNode(int domainId, int nodeId, string subsystemName, DdsParticipant? participant, string? stagingRoot = null, string? nodeName = null)
+        => new()
+        {
+            DomainId            = domainId,
+            NodeId              = (Fdp.Core.NodeId)(nodeId),
+            SubsystemName       = subsystemName,
+            NodeName            = nodeName,
+            Headless            = false,   // a networked host always has its participant; Headless here is not the window
+            ExternalParticipant = participant,
+            LocalTempRoot       = OrchestrationConstants.GetNodeStagingRoot(
+                                      string.IsNullOrEmpty(stagingRoot) ? OrchestrationConstants.ResolveStagingRoot() : stagingRoot, nodeId),
+            LogDirectory        = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs"),
+        };
+
     /// <summary>CycloneDDS domain ID.</summary>
     public int DomainId { get; set; }
 
-    /// <summary>Logical node identifier used in DDS heartbeats, entity IDs, and recording file names.</summary>
-    public int NodeId { get; set; }
+    /// <summary>
+    /// ⭐⭐ CE-3446 (docs/DESIGN_Threaded_Simulation_Presentation.md §15) — a UI draws this node (the editor, a windowed player). With the threaded
+    /// node on (<c>ThreadedKernelGate.ComposedWorlds</c>) the bootstrap then composes its <see cref="StagedPresentation"/>; a headless node never
+    /// builds one. ⭐ The host states the FACT; the policy is the bootstrap's, the same for every host (R-4215).
+    /// </summary>
+    public bool HasPresentation { get; set; }
 
-    /// <summary>Human-readable subsystem name published in heartbeats (e.g. "EyesAndMuscle").</summary>
+    /// <summary>Logical node identifier used in DDS heartbeats, entity IDs, and recording file names.</summary>
+    public NodeId NodeId { get; set; }
+
+    /// <summary>Human-readable subsystem name published in heartbeats (e.g. "SimHost").</summary>
     public string SubsystemName { get; set; } = string.Empty;
+
+    /// <summary>⭐ <c>CE-3354</c> ② — the node's unique human-given name carried in its heartbeat; null/blank ⇒ <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>.</summary>
+    public string? NodeName { get; set; }
 
     /// <summary>
     /// Root directory for scenario staging and checkpoint storage.
@@ -45,6 +78,13 @@ public sealed class HrotNodeConfig
     /// calling <c>HrotEnvironment.CreateParticipant</c>.
     /// </summary>
     public CycloneDDS.Runtime.DdsParticipant? ExternalParticipant { get; set; }
+
+    /// <summary>
+    /// ⭐ <c>CE-3126</c> — the node's ONE geo transform, when the composition root created it before the builder (SimHost
+    /// closes over it while composing). <see cref="HrotNodeBuilder"/> then uses it as <c>HrotNodeContext.GeoTransform</c>
+    /// instead of making another; otherwise the network factory's, otherwise a fresh one. 📄 docs/DESIGN_Geo_Origin.md §2 C.
+    /// </summary>
+    public Fdp.Modules.Geographic.IGeographicTransform? ExternalGeoTransform { get; set; }
 
     /// <summary>
     /// Directory where this node writes its log files.

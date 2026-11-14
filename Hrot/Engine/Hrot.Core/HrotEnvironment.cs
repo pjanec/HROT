@@ -10,24 +10,69 @@ namespace Hrot.Map.Common
     /// </summary>
     public static class HrotEnvironment
     {
-        private const double BerlinLatitudeDeg = 52.52;
-        private const double BerlinLongitudeDeg = 13.405;
-        private const double BerlinAltitudeMeters = 0.0;
-
+        /// <summary>
+        /// Builds the process's TKB database with the catalogue CONTENTS every host must share.
+        ///
+        /// <para>⭐ <b>Identical contents on every host is the point.</b> There are four independent
+        /// <c>CreateTkb()</c> call sites; before 2026-08-31 only the Editor and the Stride editor also
+        /// seeded the UrbanCombat templates (types 1001-2003), because they were the only two production
+        /// projects referencing <c>Fdp.Examples.Scenarios</c> — so a scenario referencing 1001 resolved in
+        /// the Editor and failed on SimHost or CGF. 🔒 User ruling 2026-08-30: "if editor builds UrbanCombat
+        /// stuff then everyone should, editor is the most advanced in that matter."</para>
+        ///
+        /// <para>⛔ <b>A host that calls this must NOT also call</b>
+        /// <c>UrbanCombatTkbCatalog.RegisterAll</c> or <c>UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates</c>
+        /// — <c>TkbDatabase.Register</c> THROWS on a duplicate name or type. Two production call sites were
+        /// removed for exactly this reason. 📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.</para>
+        /// </summary>
         public static TkbDatabase CreateTkb()
         {
             var tkb = new TkbDatabase();
-            NedTkbCatalog.RegisterAll(tkb);
-            RouteTkbExtensions.ApplyRoutePlanToBlueprint(tkb);
+            RegisterBuiltInTkb(tkb);
             return tkb;
         }
 
-        public static WGS84Transform CreateGeoTransform()
+        /// <summary>
+        /// ⭐ The built-in catalogue — the ONE definition of what a node runs on when no TKB file is staged. Used by
+        /// <see cref="CreateTkb"/> at node start and by the knowledge-base load step when it falls back
+        /// (<c>R-4018</c>: no master copy on the NAS). ⛔ <paramref name="tkb"/> must be empty —
+        /// <c>TkbDatabase.Register</c> throws on a duplicate.
+        /// </summary>
+        public static void RegisterBuiltInTkb(TkbDatabase tkb)
         {
-            var transform = new WGS84Transform();
-            transform.SetOrigin(BerlinLatitudeDeg, BerlinLongitudeDeg, BerlinAltitudeMeters);
-            return transform;
+            NedTkbCatalog.RegisterAll(tkb);
+            // ⭐ 2026-08-31: the UrbanCombat development templates, so all four CreateTkb() sites produce
+            //    identical CONTENTS. ⚠ Development default only — the real system loads TKB from files
+            //    synced to all nodes (user, 2026-08-31).
+            Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(tkb);
+            Hrot.Core.Tkb.CivilianTkbCatalog.RegisterAll(tkb);   // ⭐ CE-3220 (civilians B-2, R-3013) — the civilian family + security forces
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(tkb);   // ⭐ CE-1032 — the munition types mounts load (warheads by name)
+            Hrot.Core.Tkb.EffectTkbCatalog.RegisterAll(tkb);     // ⭐ CE-1042 E1 — the realism effect types + the munitions' effect sets
+            Hrot.Core.Tkb.SoundTkbCatalog.RegisterAll(tkb);      // ⭐ CE-1120 — the FPS sound types (docs/designs/audio/DESIGN_FPS_Audio.md AU-5)
+            Hrot.Core.Tkb.VoiceTkbCatalog.RegisterAll(tkb);      // ⭐ CE-2372 — the voice lines (AQ105 F): a clip per utterance kind, a voice per side
+            Hrot.Core.Tkb.MapCameraTkb.RegisterAll(tkb);         // ⭐ CE-1033 S5 — the map camera entity's type (R-260)
+            Hrot.Core.Tkb.AreaEffectCloudTkb.RegisterAll(tkb);   // ⭐ CE-3219 part 3 — a gas / smoke cloud entity's type
+            Hrot.Core.Tkb.BuildingDamageTkb.RegisterAll(tkb);    // ⭐ CE-4391 S-1 — a building's breaches (the entity a detonation's wall breach is written to)
+            RouteTkbExtensions.ApplyRoutePlanToBlueprint(tkb);
+            // ⭐ CE-3230 (B-8, H-1; DESIGN_Civilians_And_Crowd_Control §7.9) — every person type ends with its HANDS mount (AW-7)
+            Fdp.Toolkit.Combat.PersonHands.EnsureOnPersons(tkb);
         }
+
+        /// <summary>
+        /// A node's geo transform: LOCAL-ONLY (no frame) until a terrain commit sets the terrain's frame (UTM by its origin, CE-4396)
+        /// (<c>TerrainResidency.ApplyGeoOrigin</c>). ⛔ <c>CE-3126</c> (R-229) — this used to set a hard-coded Berlin origin;
+        /// 🔒 user, <c>2026-10-08</c>: <i>"No default berlin. Missing geo = zeros."</i> The shipped terrains carry Berlin as their
+        /// own data. ⚠ Call it ONCE per node — the node builder adopts the network factory's instance; a second one would not
+        /// follow the terrain. 📄 docs/DESIGN_Geo_Origin.md §2.
+        /// </summary>
+        public static SwitchableGeoTransform CreateGeoTransform() => new SwitchableGeoTransform();   // ⭐ CE-4394 — the one instance whose frame a terrain selects (UTM §12.2)
+
+        /// <summary>
+        /// A geo transform at a CALLER-SUPPLIED origin (degrees, degrees, metres) — for tests and tools whose data is authored
+        /// against a known place without loading a terrain. ⛔ Production nodes take the origin from the terrain instead.
+        /// </summary>
+        public static SwitchableGeoTransform CreateGeoTransform(double latDeg, double lonDeg, double altMeters)
+            => new SwitchableGeoTransform(latDeg, lonDeg, altMeters);
 
         public static DdsParticipant CreateParticipant(int domainId)
         {

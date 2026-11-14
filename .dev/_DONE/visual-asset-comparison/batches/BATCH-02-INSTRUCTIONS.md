@@ -52,7 +52,7 @@ dotnet test "Hrot/Subsystems/AI/Hrot.Hsm.Editor.Tests/Hrot.Hsm.Editor.Tests.cspr
 dotnet test "Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests/Hrot.BTree.Editor.Tests.csproj" -c Debug
 
 # Build whole solution to catch integration errors
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4
 ```
 
 ### Report Submission
@@ -314,7 +314,7 @@ The companion `.HeavyBlackboard.cs` file has the same structure when the blackbo
 
 After each step, run the relevant test project and fix all failures before moving on. Do NOT stop to ask for permission to fix errors. Keep going until everything is done. Build the whole solution at the end:
 ```powershell
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4
 ```
 
 ---
@@ -357,7 +357,7 @@ This batch is DONE when:
 - [ ] TASK-C-05: `HsmComparisonSanitizer` + DI wiring created; all `HsmComparisonSanitizerTests` pass
 - [ ] TASK-C-06: `BlackboardComparisonSanitizer` + DI wiring created; all `BlackboardComparisonSanitizerTests` pass
 - [ ] TASK-C-07: All 4 determinism/self-comparison test classes created; all tests pass
-- [ ] `dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4` — 0 errors
+- [ ] `dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4` — 0 errors
 - [ ] `dotnet test "Hrot/Editor/Hrot.Editor.AiShared.Tests/..."` passes
 - [ ] `dotnet test "Hrot/Subsystems/AI/Hrot.Hsm.Editor.Tests/..."` passes
 - [ ] `dotnet test "Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests/..."` passes

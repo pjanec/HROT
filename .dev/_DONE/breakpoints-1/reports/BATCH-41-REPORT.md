@@ -157,7 +157,7 @@ Total: **47/47** passed (45 pre-existing + 2 new).
 ## Build Result
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
 Build succeeded.
     0 Error(s)
 ```

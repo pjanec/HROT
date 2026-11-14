@@ -14,6 +14,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
     {
         private readonly GizmoSettingsRegistry _settings;
 
+        /// <summary>⭐ CE-1480 G5 — the picture is a function of the pose and the vehicle's length (and Seeable.OnMap): held while none moved.</summary>
+        public GizmoInputs? Inputs { get; } = Seeable.Inputs(typeof(SimTransform), typeof(CarKinem.Core.VehicleParams));
+
         public EntityRotationGizmo(GizmoSettingsRegistry settings)
         {
             _settings = settings;
@@ -22,6 +25,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
+            if (!Seeable.OnMap(view, entity)) return;   // ⭐ CE-4239 (was NotAUnit alone)   // ⭐ CE-1165 — a cloud, a round, the camera have no heading to show
             ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
             var pos = tf.Position;
             var q   = tf.Rotation;
@@ -44,12 +48,17 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 pos.Z);
 
             var color = new Rgba32(255, 165, 0, 255); // orange
-            draw.DrawArrow(pos, tip, color, headSize: 3f);
+            draw.DrawArrow(pos, tip, color, headSize: 3f, layer: DebugTraceLayers.UnitDetails);   // ⭐ CE-1065 — off by default
 
             // Heading label: compass degrees where 0=north, 90=east, clockwise.
             float compassDeg = SimMath.YawRadToCompassDeg(yawRad);
-            var label = new FixedString32($"{compassDeg:F0}*");
-            draw.DrawText(pos.X, pos.Y, label, new Rgba32(255, 165, 0, 200));
+            // ⭐ CE-4432 (R-2084) — formatted on the stack: a string per entity per frame was ~2.6 MB/s at 8 000 units (measured on Windows)
+            System.Span<char> text = stackalloc char[12];
+            ((int)MathF.Round(compassDeg, MidpointRounding.AwayFromZero)).TryFormat(text, out int n, default, System.Globalization.CultureInfo.InvariantCulture);
+            text[n++] = '*';
+            // ⭐ CE-4582 (§6am D-7) — a row of HIS card, never free text at the unit (the arrow stays: it is drawn on the ground)
+            int net = EntityCardRows.CardIdOf(view, entity);
+            if (net != 0) draw.Card(net, DebugTraceLayers.UnitDetails).Row(EntityCardRows.Heading).Text(text[..n], new Rgba32(255, 165, 0, 200), 12f);
         }
     }
 }

@@ -56,7 +56,7 @@ Do not stop to ask permission for obvious things like running the tests or fixin
 
 Check the test file `FDP/Engine/Fdp.Presentation.Tests/Vis2D/Gizmos/` for any tests that reference `ExclusiveCaptureProxyTool` and delete those tests too (they test the wrong architecture).
 
-After deletion, run `dotnet build IOS-IG-SimHost.sln` and fix every compile error that references the deleted type. The two callers are both in `SimHostVisualization.cs` -- comment out the failing lines with a `// TODO BATCH-24` note so the build passes. We fix them properly in Task 6.
+After deletion, run `dotnet build HROT.sln` and fix every compile error that references the deleted type. The two callers are both in `SimHostVisualization.cs` -- comment out the failing lines with a `// TODO BATCH-24` note so the build passes. We fix them properly in Task 6.
 
 ---
 
@@ -640,7 +640,7 @@ Run all tests in `Hrot/Subsystems/Hrot.SimHost.Tests/` and `FDP/Toolkits/Fdp.Too
 
 Run this after all tasks are done:
 ```
-dotnet build IOS-IG-SimHost.sln -nologo 2>&1 | Select-String "error CS|Build succeeded|FAILED"
+dotnet build HROT.sln -nologo 2>&1 | Select-String "error CS|Build succeeded|FAILED"
 ```
 
 Expected: `Build succeeded` with 0 errors.

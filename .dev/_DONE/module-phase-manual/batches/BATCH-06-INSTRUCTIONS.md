@@ -112,7 +112,7 @@ Two methods to update:
 
 **Verify after Task 1:**
 - No magic behavior-ID string literals (like `"FireAtTarget"`, `"MoveToLocation"`, etc.) remain in `BehaviorUiSetup.cs` or `CgfBehaviorSetup.cs`.
-- `dotnet build IOS-IG-SimHost.sln` passes.
+- `dotnet build HROT.sln` passes.
 
 ---
 
@@ -150,7 +150,7 @@ Implement `BuildMap()` per DESIGN.md § 5.6, then wire `GetValidBehaviors` to us
 - `BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.MilitaryApc)` still returns list containing `"FireAtTarget"`, `"MoveToLocation"`, `"ConvoyEscort"`, `"FollowRoute"`.
 - `BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.CivilianPedestrian)` returns `["WanderCivil", "PanicFlee"]` unchanged.
 - No magic behavior-ID strings remain for military/insurgent categories in the new implementation.
-- `dotnet build IOS-IG-SimHost.sln` passes.
+- `dotnet build HROT.sln` passes.
 
 ---
 
@@ -185,7 +185,7 @@ The JSON is in raw string literals (interpolated). Use C# interpolated raw strin
 **Verify:**
 - No raw TreeName behavior-ID string literals remain in `CgfNodes.cs`.
 - All runtime JSON values are identical to what they were before.
-- `dotnet build IOS-IG-SimHost.sln` passes.
+- `dotnet build HROT.sln` passes.
 
 ---
 
@@ -239,15 +239,15 @@ Has `registry.Register(101, "MoveToLocation", ...)`. Same pattern - replace if p
 **Verify after Task 4:**
 - `BehaviorTestHelper.cs` exists and compiles.
 - Test files that were updated still pass.
-- `dotnet build IOS-IG-SimHost.sln` - 0 errors.
-- `dotnet test IOS-IG-SimHost.sln --no-build` - same baseline as BATCH-05 (10 pre-existing integration failures, all others pass).
+- `dotnet build HROT.sln` - 0 errors.
+- `dotnet test HROT.sln --no-build` - same baseline as BATCH-05 (10 pre-existing integration failures, all others pass).
 
 ---
 
 ## Testing Requirements
 
-1. **After each task:** `dotnet build IOS-IG-SimHost.sln`
-2. **Final after T07:** `dotnet test IOS-IG-SimHost.sln --no-build`
+1. **After each task:** `dotnet build HROT.sln`
+2. **Final after T07:** `dotnet test HROT.sln --no-build`
 
 ---
 
@@ -265,10 +265,10 @@ Submit to `.dev/module-phase-manual/reports/BATCH-06-REPORT.md`.
 - [ ] MPM-P5-T07: Create BehaviorTestHelper + update test files
 
 ## Build Status
-[Result of: dotnet build IOS-IG-SimHost.sln]
+[Result of: dotnet build HROT.sln]
 
 ## Test Status
-[Result of: dotnet test IOS-IG-SimHost.sln --no-build]
+[Result of: dotnet test HROT.sln --no-build]
 
 ## Developer Insights
 
@@ -299,7 +299,7 @@ Submit to `.dev/module-phase-manual/reports/BATCH-06-REPORT.md`.
 - [ ] No raw TreeName behavior-ID strings in `CgfNodes.cs`
 - [ ] `BehaviorTestHelper.cs` created in Hrot.Core
 - [ ] Test files updated where project references permit
-- [ ] `dotnet build IOS-IG-SimHost.sln` - 0 errors
+- [ ] `dotnet build HROT.sln` - 0 errors
 - [ ] Test count unchanged from BATCH-05 baseline
 - [ ] Report submitted
 

@@ -297,6 +297,45 @@ warnings map to `DiagnosticSeverity.Warning`.
 
 ### Trigger Mechanism (MSBuild)
 
+> ⭐⭐⭐ **`CE-379` (`2026-09-27`) — TWO ITEMS ACTIVATE THE GENERATOR; THEY DO NOT MAKE IT *LOAD*.**
+> 🔒 **The rule, stated once:** the generator runs inside Roslyn's **analyzer load context**, which
+> resolves **only what is shipped as an `Analyzer` item**. ⛔ That covers **package** dependencies as
+> well as project ones — and the package half was missed for as long as this doc has existed.
+>
+> 📐 **Measured `2026-09-27`, and the mechanism is the load HOST, not the code:**
+>
+> | host | what it provides | result |
+> |---|---|---|
+> | ⭐ `dotnet build` (SDK 8) | csc runs **on .NET 8** ⇒ `System.Text.Json 8.0.0.0` and `System.Runtime 8.0.0.0` come free from the shared framework | ✅ **green — by COINCIDENCE** |
+> | ⛔ Visual Studio (`MSBuild\Current\Bin\Roslyn\csc.exe` + `csc.exe.config`) | **.NET FRAMEWORK**-hosted ⇒ provides **none** of them | 🔴 `CS8784` / `CS8785` / `BP0002` / `HSM0001` |
+>
+> ⇒ ⛔⛔ **A green CLI build is NOT evidence that a generator's dependencies are shipped.** It only
+> proves the CLI's host happened to own them. 🔒 **Two consequences for anyone touching this wiring:**
+>
+> 1. ⭐⭐ **A multi-targeted dependency must be PINNED to `netstandard2.0`** with
+>    `SetTargetFramework="TargetFramework=netstandard2.0"`. ⚠ `Hrot.Blueprints.Compiler` and
+>    `Hrot.Blueprints.Schema` are `netstandard2.0;net8.0`, so nearest-TFM shipped the **net8.0** flavour
+>    to a net8.0 consumer — which a .NET Framework host cannot load at all.
+> 2. ⭐⭐ **Every PACKAGE dependency, and its whole transitive closure, must be shipped too**
+>    *(`ExcludeAssets="all" GeneratePathProperty="true"` + an `<Analyzer Include="$(Pkg…)\lib\netstandard2.0\…"/>`)*.
+>    ⚠ The loader names **exactly one** missing assembly per attempt, so a partial list reads as
+>    progress and is still broken — take the versions from the dependency's own
+>    `obj/project.assets.json`.
+>
+> 📌 **Verify with `-getItem:Analyzer`, never by eye:**
+> `dotnet msbuild <consumer>.csproj -t:ResolveReferences -getItem:Analyzer` — it prints the actual
+> resolved paths, which is how the `bin\Debug\net8.0\` flavour was caught.
+>
+> ⛔⛔ **AND THE RULE ABOVE APPLIES ONLY TO `Analyzer` ITEMS — an ORDINARY `ProjectReference` to the same
+> project is FINE.** 🔒 For an ordinary reference there is no analyzer load context, so nearest-TFM
+> picking `net8.0` for a `net8.0` consumer is **correct** and nothing needs shipping.
+> ⚠ **`CE-380` was filed against three consumers on exactly this confusion and refuted `2026-09-27`:** a
+> TEXT sweep for `OutputItemType="Analyzer"` matched `Hrot.AiEditor.Generators.Tests.csproj` because the
+> string appears **in a COMMENT** *("referenced as an ORDINARY LIBRARY, not `OutputItemType="Analyzer"`")*.
+> ⇒ ⭐⭐ **grep cannot tell a comment from an item, nor an ordinary reference from an analyzer one** — parse
+> the XML or use `-getItem`. 📐 Measured: of **12** analyzer-shipping projects, only `Hrot.AI.Behaviors`
+> ever shipped a defect-carrying one.
+
 To activate the generator in a consuming project, two MSBuild items are required:
 
 ```xml

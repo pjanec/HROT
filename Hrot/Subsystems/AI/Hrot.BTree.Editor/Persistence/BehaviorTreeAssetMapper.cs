@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Fbt;
+using Hrot.AiEditor.Persistence;
 using Hrot.AiEditor.Persistence.BTree;
 using Hrot.BTree.Editor.Model;
+using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Blackboard;
 
 namespace Hrot.BTree.Editor.Persistence;
@@ -34,6 +36,12 @@ public static class BehaviorTreeAssetMapper
                 PanY = asset.CanvasPanOffset.Y,
                 Zoom = asset.CanvasZoomLevel,
             },
+            // ⭐ CE-428 — the bound resolver asset.
+            Resolver = asset.Resolver is { } r ? new BehaviorResolverRefDto { AssetId = r.AssetId, Name = r.Name, ShapeHash = r.ShapeHash } : null,
+            ParamsDtoTypeId = asset.ParamsDtoTypeId,   // ⭐ CE-2133
+            // ⭐ CE-2135 — the reserved Params' default lives on its editor entry while open; on disk it is this asset field.
+            ParamsDefaultJson = Hrot.Editor.AiShared.Blackboard.ReservedParamsVariable.Find(asset.BlackboardVariables)?.DefaultValueJson
+                                ?? asset.ParamsDefaultJson,
         };
 
         // Topology — nodes
@@ -62,6 +70,31 @@ public static class BehaviorTreeAssetMapper
             dto.SubtreeSyncBindings[key] = bindings;
         }
 
+        // ⭐⭐⭐ Batch 91 (91b) — Approach-A ALIASES (persistence design :132).
+        //    🔴 These never persisted: the only writers to _aliases were rename, AddAlias and prune,
+        //    and NOTHING on the load path touched them ⇒ every alias a designer authored was gone on
+        //    reopen, with the badge, the type match and the cross-region refusal that guarded it.
+        //    ⛔ Emitted ONLY when non-empty (the DTO field is nullable, WhenWritingNull) — no shipped
+        //    asset can contain an alias, so the whole corpus stays byte-identical.
+        foreach (var kv in asset.GetAllAliases())
+        {
+            if (kv.Value.Count == 0) continue;
+            var list = new List<Hrot.AiEditor.Persistence.BlackboardAliasBindingDto>();
+            foreach (var a in kv.Value)
+            {
+                list.Add(new Hrot.AiEditor.Persistence.BlackboardAliasBindingDto
+                {
+                    RequiringAssetId   = a.RequiringAssetId,
+                    RequiringElementId = a.RequiringElementId,
+                    RequiringAssetName = a.RequiringAssetName,
+                    RequiredByPath     = a.RequiredByPath,
+                    // ⭐ FullName, the same spelling every other persisted type id uses.
+                    DtoTypeId          = a.DtoType?.FullName ?? string.Empty,
+                });
+            }
+            (dto.Aliases ??= new())[kv.Key] = list;
+        }
+
         // Suppressions (§5.2)
         foreach (var (varName, writerKey) in asset.GetConflictSuppressions())
         {
@@ -73,11 +106,13 @@ public static class BehaviorTreeAssetMapper
         }
         foreach (var varName in asset.GetUnusedSuppressions())
             dto.Suppressions.Unused.Add(varName);
+        foreach (var varName in asset.GetConcurrentWritesAllowed())
+            (dto.Suppressions.ConcurrentWritesAllowed ??= new()).Add(varName);
 
         // Blackboard block (§5.4)
         dto.Blackboard = BlackboardToDto(asset);
 
-        return dto;
+        return Hrot.AiEditor.Persistence.WorkingStateVariables.Mark(dto);   // ⭐ CE-3193 — working state, from the bindings
     }
 
     // ── DTO → Model ───────────────────────────────────────────────────────────
@@ -122,6 +157,9 @@ public static class BehaviorTreeAssetMapper
             emptyBlob,
             dto.TargetNamespace);
 
+        if (dto.Resolver is { } rr) asset.Resolver = new BehaviorResolverRef(rr.AssetId, rr.Name, rr.ShapeHash);   // ⭐ CE-428/434
+        asset.ParamsDtoTypeId = dto.ParamsDtoTypeId;   // ⭐ CE-2133
+        asset.ParamsDefaultJson = dto.ParamsDefaultJson;   // ⭐ CE-2135
         asset.CanvasPanOffset = new Vector2(dto.Canvas.PanX, dto.Canvas.PanY);
         asset.CanvasZoomLevel = dto.Canvas.Zoom;
 
@@ -156,11 +194,37 @@ public static class BehaviorTreeAssetMapper
         }
         asset.LoadSyncBindings(syncBindings);
 
+        // ⭐⭐⭐ Batch 91 (91b) — rehydrate the aliases. ⭐ ResolveClrType is the EXISTING resolver that
+        //    already probes loaded assemblies for DTO structs living in behavior assemblies — ⛔ not a
+        //    second one. ⚠ An unresolvable type yields typeof(object) rather than throwing: a behavior
+        //    assembly can legitimately be absent, and the alias is still a real authored relationship.
+        if (dto.Aliases is { Count: > 0 })
+        {
+            var aliases = new Dictionary<string, IReadOnlyList<Hrot.Editor.AiShared.Blackboard.BlackboardAliasBinding>>();
+            foreach (var kv in dto.Aliases)
+            {
+                var list = new List<Hrot.Editor.AiShared.Blackboard.BlackboardAliasBinding>();
+                foreach (var a in kv.Value)
+                {
+                    list.Add(new Hrot.Editor.AiShared.Blackboard.BlackboardAliasBinding(
+                        a.RequiringAssetId,
+                        a.RequiringElementId,
+                        a.RequiringAssetName,
+                        a.RequiredByPath,
+                        ResolveClrType(a.DtoTypeId)));
+                }
+                aliases[kv.Key] = list.AsReadOnly();
+            }
+            asset.LoadAliases(aliases);
+        }
+
         // Suppressions
         foreach (var s in dto.Suppressions.Conflict)
             asset.SetConflictSuppressed(s.VariableName, s.WriterPairKey, true);
         foreach (var varName in dto.Suppressions.Unused)
             asset.SetUnusedWarningSuppressed(varName, true);
+        foreach (var varName in dto.Suppressions.ConcurrentWritesAllowed ?? new())
+            asset.SetConcurrentWritesAllowed(varName, true);
 
         // Blackboard variables
         // Restore the editor-managed flag from the persisted block. Without this the
@@ -168,6 +232,9 @@ public static class BehaviorTreeAssetMapper
         // set it back, so a Managed asset always opened as "not managed".
         asset.IsBlackboardEditorManaged = dto.Blackboard.Managed;
         var vars = BlackboardFromDto(dto.Blackboard);
+        // ⭐ CE-2135 (B3a) — a named params DTO with no Input variable appears as the reserved Params entry.
+        Hrot.Editor.AiShared.Blackboard.ReservedParamsVariable.AddTo(vars, dto.ParamsDtoTypeId, dto.ParamsDefaultJson,
+            dto.Blackboard.Managed, dto.Resolver != null);
         if (vars.Count > 0)
             asset.SetBlackboardVariables(vars);
 
@@ -230,32 +297,30 @@ public static class BehaviorTreeAssetMapper
         {
             // Similarly no FloatParam at node level (pill carries it).
         }
+        // ⭐ CE-417 (slice 4a): one binding in the model too — a straight copy; DelegateShape sits on the node.
         if (dto is BTreeActionNodeDto actDto && node.Action != null)
         {
-            actDto.Action = new BTreeActionPayloadDto
-            {
-                MethodFqn           = node.Action.MethodFqn,
-                ExpressionTargetField = node.Action.ExpressionTargetField,
-                DelegateShape       = (BTreeDelegateShapeDto)node.Action.DelegateShape,
-                WorkingStateTypeId  = node.Action.WorkingStateTypeId,
-                WorkingStateTargetField = node.Action.WorkingStateTargetField,
-            };
+            actDto.Action        = BehaviorActionBindingMapping.ToDto(node.Action, keepWhenEmpty: true);
+            actDto.DelegateShape = (BTreeDelegateShapeDto)node.DelegateShape;
         }
         if (dto is BTreeConditionNodeDto condDto && node.Condition != null)
         {
-            condDto.Condition = new BTreeConditionPayloadDto
+            condDto.Condition     = BehaviorActionBindingMapping.ToDto(node.Condition, keepWhenEmpty: true);
+            condDto.DelegateShape = (BTreeDelegateShapeDto)node.DelegateShape;
+        }
+        if (dto is BTreeActionNodeDto sopDto && node.SopOrder is { } order)   // ⭐ CE-2079
+        {
+            sopDto.SopOrder = new SopOrderPayloadDto
             {
-                MethodFqn           = node.Condition.MethodFqn,
-                ExpressionTargetField = node.Condition.ExpressionTargetField,
-                DelegateShape       = (BTreeDelegateShapeDto)node.Condition.DelegateShape,
-                WorkingStateTypeId  = node.Condition.WorkingStateTypeId,
-                WorkingStateTargetField = node.Condition.WorkingStateTargetField,
+                Kind = order.Kind, BehaviorAssetId = order.BehaviorAssetId, BehaviorName = order.BehaviorName,
+                ParamsVariable = order.ParamsVariable, Urgency = order.Urgency,
             };
         }
         if (dto is BTreeWaitNodeDto waitDto && node.Wait != null)
         {
             waitDto.Wait = new BTreeWaitPayloadDto { Duration = node.Wait.Duration };
         }
+        if (dto is BTreeParallelNodeDto parDto) parDto.Policy = node.ParallelPolicy;   // ⭐ CE-2073
         if (dto is BTreeSubtreeNodeDto subtreeDto && node.Subtree != null)
         {
             subtreeDto.Subtree = new BTreeSubtreePayloadDto
@@ -263,6 +328,7 @@ public static class BehaviorTreeAssetMapper
                 SubtreeAssetId = node.Subtree.SubtreeAssetId,
                 SubtreeName    = node.Subtree.SubtreeName,
                 IsResolved     = node.Subtree.IsResolved,
+                ParamsVariable = node.Subtree.ParamsVariable,   // ⭐ CE-431
             };
         }
 
@@ -291,30 +357,27 @@ public static class BehaviorTreeAssetMapper
 
         if (dto is BTreeActionNodeDto actDto && actDto.Action != null)
         {
-            node.Action = new BTreeActionPayload
-            {
-                MethodFqn           = actDto.Action.MethodFqn,
-                ExpressionTargetField = actDto.Action.ExpressionTargetField,
-                DelegateShape       = (BTreeActionDelegateShape)actDto.Action.DelegateShape,
-                WorkingStateTypeId  = actDto.Action.WorkingStateTypeId,
-                WorkingStateTargetField = actDto.Action.WorkingStateTargetField,
-            };
+            node.Action        = BehaviorActionBindingMapping.FromDto(actDto.Action, keepWhenEmpty: true);
+            node.DelegateShape = (BTreeActionDelegateShape)actDto.DelegateShape;
         }
         if (dto is BTreeConditionNodeDto condDto && condDto.Condition != null)
         {
-            node.Condition = new BTreeConditionPayload
+            node.Condition     = BehaviorActionBindingMapping.FromDto(condDto.Condition, keepWhenEmpty: true);
+            node.DelegateShape = (BTreeActionDelegateShape)condDto.DelegateShape;
+        }
+        if (dto is BTreeActionNodeDto { SopOrder: { } order })   // ⭐ CE-2079
+        {
+            node.SopOrder = new BTreeSopOrderPayload
             {
-                MethodFqn           = condDto.Condition.MethodFqn,
-                ExpressionTargetField = condDto.Condition.ExpressionTargetField,
-                DelegateShape       = (BTreeActionDelegateShape)condDto.Condition.DelegateShape,
-                WorkingStateTypeId  = condDto.Condition.WorkingStateTypeId,
-                WorkingStateTargetField = condDto.Condition.WorkingStateTargetField,
+                Kind = order.Kind, BehaviorAssetId = order.BehaviorAssetId, BehaviorName = order.BehaviorName,
+                ParamsVariable = order.ParamsVariable, Urgency = order.Urgency,
             };
         }
         if (dto is BTreeWaitNodeDto waitDto && waitDto.Wait != null)
         {
             node.Wait = new BTreeWaitPayload { Duration = waitDto.Wait.Duration };
         }
+        if (dto is BTreeParallelNodeDto parDto) node.ParallelPolicy = parDto.Policy;   // ⭐ CE-2073
         if (dto is BTreeSubtreeNodeDto subtreeDto && subtreeDto.Subtree != null)
         {
             node.Subtree = new BTreeSubtreePayload
@@ -322,6 +385,7 @@ public static class BehaviorTreeAssetMapper
                 SubtreeAssetId = subtreeDto.Subtree.SubtreeAssetId,
                 SubtreeName    = subtreeDto.Subtree.SubtreeName,
                 IsResolved     = subtreeDto.Subtree.IsResolved,
+                ParamsVariable = subtreeDto.Subtree.ParamsVariable,   // ⭐ CE-431
             };
         }
 
@@ -392,6 +456,7 @@ public static class BehaviorTreeAssetMapper
 
         foreach (var v in asset.BlackboardVariables)
         {
+            if (v.IsReservedParams) continue;   // ⭐ CE-2135 — saved as ParamsDtoTypeId / ParamsDefaultJson, never as a variable
             var typeId = v.FieldType.FullName ?? v.FieldType.Name;
             block.Variables.Add(new BlackboardVariableDto
             {
@@ -405,8 +470,6 @@ public static class BehaviorTreeAssetMapper
                 DefaultValueJson = v.DefaultValueJson,
                 Comment          = v.Comment,
                 IsAutoManaged    = v.IsAutoManaged,
-                Role             = v.Role,
-                Scope            = v.Scope,
             });
         }
 
@@ -423,56 +486,12 @@ public static class BehaviorTreeAssetMapper
             result.Add(new BlackboardVariableEntry(
                 v.Name, clrType, v.Comment,
                 IsAutoManaged:    v.IsAutoManaged,
-                DefaultValueJson: v.DefaultValueJson,
-                Role:             v.Role,
-                Scope:            v.Scope));
+                DefaultValueJson: v.DefaultValueJson));
         }
         return result;
     }
 
+    // ⭐ CE-439 — the shared rule (BlackboardTypeHelper.ResolveClrType); this mapper used to own a private copy.
     private static Type ResolveClrType(string typeId)
-    {
-        // Try the short-name map first (for primitives)
-        var primitive = Hrot.Editor.AiShared.Blackboard.BlackboardTypeHelper.GetPrimitiveType(typeId);
-        if (primitive != null) return primitive;
-
-        // Try full name via Type.GetType (works for System types)
-        var t = Type.GetType(typeId);
-        if (t != null) return t;
-
-        // DTO struct types (e.g. action param DTOs like DemoCounterNodes+DemoCounterParams)
-        // live in behavior assemblies (Hrot.AI.Behaviors, etc.), NOT the editor assembly, so
-        // Type.GetType — which only probes this assembly + corelib — misses them. Search all
-        // loaded assemblies by full name. TypeId uses the `+` nested separator (from Type.FullName),
-        // which Assembly.GetType understands directly.
-        var resolved = ResolveFromLoadedAssemblies(typeId);
-        if (resolved != null) return resolved;
-
-        // Alias shorthand (e.g. "int" or "float") already handled by GetPrimitiveType;
-        // try the display name path as well
-        foreach (var name in Hrot.Editor.AiShared.Blackboard.BlackboardTypeHelper.DefaultKnownTypeNames)
-        {
-            var pt = Hrot.Editor.AiShared.Blackboard.BlackboardTypeHelper.GetPrimitiveType(name);
-            if (pt != null && (pt.FullName == typeId || pt.Name == typeId)) return pt;
-        }
-
-        return typeof(object);
-    }
-
-    /// <summary>
-    /// Searches all loaded assemblies for a value type whose full name equals <paramref name="typeId"/>.
-    /// Used to resolve action/condition DTO struct types referenced by managed-blackboard variables,
-    /// which live in behavior assemblies rather than the editor assembly. Returns null if not found.
-    /// </summary>
-    private static Type? ResolveFromLoadedAssemblies(string typeId)
-    {
-        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            Type? byName;
-            try { byName = asm.GetType(typeId, throwOnError: false, ignoreCase: false); }
-            catch { byName = null; } // dynamic/reflection-only assemblies may throw
-            if (byName != null) return byName;
-        }
-        return null;
-    }
+        => Hrot.Editor.AiShared.Blackboard.BlackboardTypeHelper.ResolveClrType(typeId);
 }

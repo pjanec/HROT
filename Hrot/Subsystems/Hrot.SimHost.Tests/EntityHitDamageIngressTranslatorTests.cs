@@ -28,7 +28,7 @@ namespace Hrot.SimHost.Tests
         public void Dispose() => _world.Dispose();
 
         private EntityHitDamageIngressTranslator BuildTranslator()
-            => new EntityHitDamageIngressTranslator(participant: null, _entityMap);
+            => new EntityHitDamageIngressTranslator(participant: null, _entityMap, localNodeId: 1);
 
         private ReadOnlySpan<DamageAssessedEvent> ProcessAndFlush(
             EntityHitDamageIngressTranslator translator,
@@ -56,11 +56,11 @@ namespace Hrot.SimHost.Tests
             var translator = BuildTranslator();
 
             var entity = _world.CreateEntity();
-            _entityMap.Register(7L, entity);
+            _entityMap.Register(7, entity);
 
             var msg = new EntityHitDamage
             {
-                HitEntityId = 7L,
+                HitEntityId = 7,
                 TotalDamage = 30f,
             };
 
@@ -71,6 +71,83 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(30f, events[0].TotalDamage);
         }
 
+        /// <summary>⭐ <c>CE-3210</c> — the wire's id + 1 becomes the part; a sender that never set it (0) means no part, never ThighL.</summary>
+        [Fact]
+        public void CE3210_ThePartArrives_AndAnUnsetFieldMeansNoPart()
+        {
+            var translator = BuildTranslator();
+            var entity = _world.CreateEntity();
+            _entityMap.Register(7, entity);
+
+            var withPart = new EntityHitDamage { HitEntityId = 7, TotalDamage = 5f, BodyPart = 6 /* Head + 1 */ };
+            var e = ProcessAndFlush(translator, in withPart);
+            Assert.Equal(((byte)1, (byte)5), (e[0].HasBodyPart, e[0].BodyPart));
+
+            var none = new EntityHitDamage { HitEntityId = 7, TotalDamage = 5f };
+            e = ProcessAndFlush(translator, in none);
+            Assert.Equal((byte)0, e[0].HasBodyPart);
+        }
+
+        /// <summary>⭐ <c>CE-3219</c> (civilians B-1, CV-6) — the hit's effect kind and duration cross the wire unchanged; an unset field is
+        /// Kinetic (damage only), so every sender from before reads as before.</summary>
+        [Fact]
+        public void CE3219_TheEffectArrives_AndAnUnsetFieldMeansKinetic()
+        {
+            var translator = BuildTranslator();
+            var entity = _world.CreateEntity();
+            _entityMap.Register(8, entity);
+
+            var blunt = new EntityHitDamage { HitEntityId = 8, TotalDamage = 2f, EffectKind = (byte)Fdp.Toolkit.Combat.HitEffect.Blunt, EffectSeconds = 4f };
+            var e = ProcessAndFlush(translator, in blunt);
+            Assert.Equal((Fdp.Toolkit.Combat.HitEffect.Blunt, 4f), (e[0].Effect, (float)(e[0].EffectSeconds)));
+
+            var plain = new EntityHitDamage { HitEntityId = 8, TotalDamage = 2f };
+            e = ProcessAndFlush(translator, in plain);
+            Assert.Equal(Fdp.Toolkit.Combat.HitEffect.Kinetic, e[0].Effect);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3237</c> (civilians B-15, DS-2) — the source arrives as this node's entity; 0, or an id this node does not know, is
+        /// unknown (Null) — the damage itself still applies. ✅ Red-proof: the ingress without the source ⇒ Null for the shooter ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3237_TheSourceArrives_AsThisNodesEntity_UnknownIsNull()
+        {
+            var translator = BuildTranslator();
+            var victim = _world.CreateEntity();
+            var shooter = _world.CreateEntity();
+            _entityMap.Register(8, victim);
+            _entityMap.Register(42, shooter);
+
+            var known = new EntityHitDamage { HitEntityId = 8, TotalDamage = 2f, SourceEntityId = 42 };
+            var e = ProcessAndFlush(translator, in known);
+            Assert.Equal(shooter, e[0].Source);
+
+            var notHere = new EntityHitDamage { HitEntityId = 8, TotalDamage = 2f, SourceEntityId = 99 };
+            e = ProcessAndFlush(translator, in notHere);
+            Assert.Equal((Entity.Null, 2f), (e[0].Source, e[0].TotalDamage));
+
+            var none = new EntityHitDamage { HitEntityId = 8, TotalDamage = 2f };
+            e = ProcessAndFlush(translator, in none);
+            Assert.True(e[0].Source.IsNull);
+        }
+
+        /// <summary>⭐ <c>CE-4155</c> (SR-82) — the first thrower arrives as this node's entity; 0 or an unknown id is Null (= the same as the source).
+        /// ✅ Red-proof: the ingress without it ⇒ Null ⇒ red.</summary>
+        [Fact]
+        public void CE4155_TheOriginalSourceArrives_AsThisNodesEntity_UnknownIsNull()
+        {
+            var translator = BuildTranslator();
+            var victim = _world.CreateEntity(); var last = _world.CreateEntity(); var first = _world.CreateEntity();
+            _entityMap.Register(8, victim); _entityMap.Register(42, last); _entityMap.Register(43, first);
+            var rethrown = new EntityHitDamage { HitEntityId = 8, TotalDamage = 2f, SourceEntityId = 42, OriginalSourceEntityId = 43 };
+            var e = ProcessAndFlush(translator, in rethrown);
+            Assert.Equal((last, first), (e[0].Source, e[0].OriginalSource));
+            var unknown = new EntityHitDamage { HitEntityId = 8, TotalDamage = 2f, SourceEntityId = 42, OriginalSourceEntityId = 99 };
+            e = ProcessAndFlush(translator, in unknown);
+            Assert.True(e[0].OriginalSource.IsNull);
+        }
+
         // ── SC-2: Unknown entity → skipped ────────────────────────────────────
 
         [Fact]
@@ -78,7 +155,7 @@ namespace Hrot.SimHost.Tests
         {
             var translator = BuildTranslator();
 
-            var msg = new EntityHitDamage { HitEntityId = 9999L, TotalDamage = 30f };
+            var msg = new EntityHitDamage { HitEntityId = 9999, TotalDamage = 30f };
 
             var ex = Record.Exception(() =>
             {

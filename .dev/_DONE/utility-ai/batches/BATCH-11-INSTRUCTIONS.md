@@ -43,7 +43,7 @@ implementation steps.
 ### Build and Test Commands
 
 ```bat
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test Hrot\Editor\Hrot.Utility.Editor.Tests\Hrot.Utility.Editor.Tests.csproj
 ```
 
@@ -78,7 +78,7 @@ StructEdit drawer in the Tuning Console (Phase 6). Building it now before either
 1. Add `UtilityCurve` and `PiecewisePoint` as the editor-side curve types to `Fdp.Toolkits`
 2. Create the `Hrot.Utility.Editor` project and implement `CurveWidget.Draw` + `CurveWidgetOptions`
 3. Create `Hrot.Utility.Editor.Tests` and verify all four success conditions with unit tests
-4. Add both new projects to `IOS-IG-SimHost.sln`
+4. Add both new projects to `HROT.sln`
 
 ---
 
@@ -160,7 +160,7 @@ Create the project file following the pattern of `Hrot/Editor/Hrot.Editor.AiShar
 - `InternalsVisibleTo` for `Hrot.Utility.Editor.Tests`
 - References: `FDP/Toolkits/Fdp.Toolkits/Fdp.Toolkits.csproj`, `FDP/Engine/Fdp.Presentation/Fdp.Presentation.csproj`
 
-Add the project to `IOS-IG-SimHost.sln`.
+Add the project to `HROT.sln`.
 
 **File:** `Hrot/Editor/Hrot.Utility.Editor/Curve/CurveWidgetOptions.cs` — NEW FILE
 
@@ -253,7 +253,7 @@ Follow the pattern of `Hrot/Subsystems/Hrot.Editor.Tests/Hrot.Editor.Tests.cspro
 - `net8.0`, `IsTestProject`, standard xunit packages
 - References: `Hrot/Editor/Hrot.Utility.Editor/Hrot.Utility.Editor.csproj`
 
-Add to `IOS-IG-SimHost.sln`.
+Add to `HROT.sln`.
 
 **File:** `Hrot/Editor/Hrot.Utility.Editor.Tests/CurveWidgetTests.cs` — NEW FILE
 
@@ -371,7 +371,7 @@ UtilityCurve_FromResponseCurve_PreservesFields
 - [ ] SC-P3-01-2 verified: `CurveWidget.Evaluate` matches `ResponseCurve.Evaluate` at 16 sample points for at least two curve kinds
 - [ ] SC-P3-01-3 verified: `CurveWidget.IsParamEditable` returns correct locked/editable per all CurveKinds
 - [ ] SC-P3-01-4 verified: PiecewiseLinear add/remove/eval tests pass
-- [ ] Both new projects added to `IOS-IG-SimHost.sln`
+- [ ] Both new projects added to `HROT.sln`
 - [ ] Full solution builds without errors
 - [ ] All new tests pass
 

@@ -27,7 +27,7 @@ public class ReplicationPhaseExecutionTests
 
         var entityMap = harness.SimHost.TestHook_EntityMap;
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(
+        int networkId = harness.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.Tank_M1Abrams,
             new GeoPoint { Latitude = 32.0, Longitude = 34.0 });
 

@@ -1,0 +1,330 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using FluentAssertions;
+using Fbt.Runtime;
+using Fdp.Toolkit.Behavior;
+using Hrot.AI.Behaviors.Generated;
+using Xunit;
+
+namespace Hrot.AiEditor.Generators.Tests.Bridge;
+
+/// <summary>
+/// ⭐⭐⭐ <b><c>CE-375</c> — the generated <c>CuratedBehaviorRegistrar</c> replaces the hand-written
+/// one, and these rails are what says so.</b>
+/// 📄 <c>DESIGN_Behavior_Self_Registration.md</c> §10.
+///
+/// <para>🔒 <b>User, <c>2026-09-27</c>:</b> *"can the `CgfCuratedBehaviorRegistrar` be replaced with
+/// automatic boot-time reflection scan as almost everything else in the engine?"* — ⭐ it already WAS
+/// reflection-discovered; what was hand-written was its BODY, and that body is now generated.</para>
+///
+/// <para>⛔⛔ <b><c>SR_R1</c> is the acceptance gate and it is a SET COMPARISON, not a count.</b>
+/// 🔒 <c>CE-355</c>'s lesson, paid for once already: *"a matching NET count is not an explanation —
+/// diff the SETS."*</para>
+/// </summary>
+public sealed class CuratedBehaviorRegistrarTests
+{
+    /// <summary>The registry facts that must survive the move, per behaviour.</summary>
+    private readonly record struct Facts(
+        string Name, byte BrainTier, bool HasBTree, bool HasHsm, string? ParamsType);
+
+    private static ActionRegistry<byte, BTreeContext> NodeLogic() =>
+        BTreeActionRegistryFactory.BuildFromAssembly(
+            typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly);
+
+    private static Dictionary<string, Facts> Snapshot(BehaviorRegistry beh)
+    {
+        var map = new Dictionary<string, Facts>(StringComparer.Ordinal);
+        foreach (var name in beh.GetRegisteredNames())
+        {
+            if (!beh.TryGetId(name, out int id)) continue;
+            if (!beh.TryGetDefinition(id, out var def)) continue;
+            map[name] = new Facts(
+                def.Name,
+                def.BrainTier,
+                def.BTreeInterpreter is not null,
+                def.HsmDefinition is not null,
+                def.BlackboardLayoutType?.FullName);
+        }
+        return map;
+    }
+
+    // ── SR_R1 — RETIRED WITH THE CLASS IT COMPARED AGAINST ────────────────────
+    //
+    // SR_R1 / SR_R1b registered through BOTH the hand-written CgfCuratedBehaviorRegistrar and the
+    // generated CuratedBehaviorRegistrar and asserted the two BehaviorRegistry contents were equal
+    // AS SETS -- not as counts (CE-355's lesson). They passed, and they were RED-PROVED: dropping
+    // `Curated = true` from one topology reddened SR_R1 naming the missing behaviour.
+    //
+    // They are deleted with CE-374 because their subject is gone, exactly as the design said they
+    // would be. Leaving a rail that references a deleted class is the failure this note prevents;
+    // "delete a rail when its SUBJECT is gone, re-point it when only its SPELLING changed, never
+    // leave it empty."
+    //
+    // The standing cover is everything below.
+
+    /// <summary>⭐ CE-3164 (R-268) — a curated behaviour's <c>[BTreeDefinition(Group = …)]</c> reaches the registry (the
+    /// picker's folder); a library behaviour is under <c>Library/</c>, the window-duel demo under <c>Demos/</c>.
+    /// 🔴 Red before: the attribute had no Group and the generated registrar wrote none.</summary>
+    [Fact]
+    public void CE3164_TheAttributeGroup_ReachesTheRegistry()
+    {
+        var beh = new BehaviorRegistry();
+        CuratedBehaviorRegistrar.Register(beh, NodeLogic());
+        beh.GroupOf("CombatPosture").Should().Be("Library/Combat");          // CE-4359 — the picker's folders (§5.13)
+        beh.GroupOf("BoundingOverwatch").Should().Be("Library/Combat");
+        beh.GroupOf("SuppressAndManeuver").Should().Be("Library/Combat");   // CE-2123
+        beh.GroupOf("AdvanceTo").Should().Be("Library/Movement");          // CE-2123
+        beh.GroupOf("SquadMarch").Should().Be("Library/Movement");          // CE-2123 S3
+        beh.GroupOf("InfantrySquadMove").Should().Be("Library/Orders");     // CE-2141
+        beh.GroupOf("InfantrySquadHold").Should().Be("Library/Orders");     // CE-2141
+        beh.GroupOf("InfantrySquadAttack").Should().Be("Library/Orders");   // CE-2141
+        beh.GroupOf("MoveToLocation").Should().Be("Library/Movement");
+        beh.GroupOf("Idle").Should().Be("Library/Movement");
+        beh.GroupOf("WindowDuel").Should().Be("Demos/PeekAndFire");
+        foreach (var name in beh.GetRegisteredNames())
+            beh.GroupOf(name).Should().NotBeNull($"every curated behaviour declares its folder — {name} does not");
+    }
+
+    // ── SR_R2 — the standing cover, and it closes a live hazard ───────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>SR_R2</c> — every <c>BehaviorNames</c> constant resolves to a registered behaviour.</b>
+    ///
+    /// <para>📐 <b>The real hazard, measured:</b> <c>BehaviorNames.MoveToLocation</c>, the
+    /// <c>[BTreeDefinition("MoveToLocation")]</c> string and the generated
+    /// <c>FbtTreeCatalog.GetMoveToLocation</c> are <b>three spellings and nothing checked they
+    /// agree</b>. ⛔ Registering the right blob under a wrong name compiles perfectly.</para>
+    /// </summary>
+    [Fact]
+    public void SR_R2_EveryBehaviorNamesConstant_ResolvesToARegisteredBehaviour()
+    {
+        var beh = new BehaviorRegistry();
+        CuratedBehaviorRegistrar.Register(beh, NodeLogic());
+
+        // ⚠ Only the names this registrar OWNS. HullDownAttackRun and PlatoonHillAttack are
+        //   registered by their generated JSON registrars, so they are resolver-only here.
+        string[] curated =
+        {
+            Hrot.Map.Definitions.Behavior.BehaviorNames.MoveToLocation,
+            Hrot.Map.Definitions.Behavior.BehaviorNames.FollowRoute,
+            Hrot.Map.Definitions.Behavior.BehaviorNames.JoinFormation,
+            Hrot.Map.Definitions.Behavior.BehaviorNames.WanderMilitary,
+            Hrot.Map.Definitions.Behavior.BehaviorNames.FireAtTarget,
+            Hrot.Map.Definitions.Behavior.BehaviorNames.Idle,
+            Hrot.Map.Definitions.Behavior.BehaviorNames.SuppressAndManeuver,   // CE-2123
+            Hrot.Map.Definitions.Behavior.BehaviorNames.AdvanceTo,             // CE-2123
+            Hrot.Map.Definitions.Behavior.BehaviorNames.SquadMarch,            // CE-2123 S3
+            Hrot.Map.Definitions.Behavior.BehaviorNames.InfantrySquadMove,     // CE-2141
+            Hrot.Map.Definitions.Behavior.BehaviorNames.InfantrySquadHold,     // CE-2141
+            Hrot.Map.Definitions.Behavior.BehaviorNames.InfantrySquadAttack,   // CE-2141
+            Hrot.Map.Definitions.Behavior.BehaviorNames.PersonMove,            // CE-2143
+            Hrot.Map.Definitions.Behavior.BehaviorNames.PersonAttack,          // CE-2143
+            Hrot.Map.Definitions.Behavior.BehaviorNames.PersonHold,            // CE-2143
+            Hrot.Map.Definitions.Behavior.BehaviorNames.PlatformMove,          // CE-2143
+            Hrot.Map.Definitions.Behavior.BehaviorNames.PlatformAttack,        // CE-2143
+            Hrot.Map.Definitions.Behavior.BehaviorNames.PlatformHold,          // CE-2143
+            Hrot.Map.Definitions.Behavior.BehaviorNames.LandPlatformAttack,    // CE-2165 V4
+            Hrot.Map.Definitions.Behavior.BehaviorNames.VehicleFightFromCover, // CE-2165 V4
+            Hrot.Map.Definitions.Behavior.BehaviorNames.SquadEmbark,           // CE-2173 slice 3
+            Hrot.Map.Definitions.Behavior.BehaviorNames.LoadCasualty,          // CE-2173 slice 3
+            Hrot.Map.Definitions.Behavior.BehaviorNames.SquadRide,             // CE-2173 slice 3 (B8)
+            Hrot.Map.Definitions.Behavior.BehaviorNames.AirPlatformStrike,     // CE-2173 slice 5 (B4)
+            Hrot.Map.Definitions.Behavior.BehaviorNames.AirPlatformAttack,     // CE-2173 slice 6c (B12-B14)
+            Hrot.Map.Definitions.Behavior.BehaviorNames.AirPlatformMove,       // CE-2173 B4
+            Hrot.Map.Definitions.Behavior.BehaviorNames.ManWeapon,             // CE-2176 (Weapon Systems §4b)
+            Hrot.Map.Definitions.Behavior.BehaviorNames.SetUpWeapon,           // WS-6 (Weapon Systems §10)
+            Hrot.Map.Definitions.Behavior.BehaviorNames.PackUpWeapon,          // WS-6
+            Hrot.Map.Definitions.Behavior.BehaviorNames.CarryWeapon,           // WS-6
+            Hrot.Map.Definitions.Behavior.BehaviorNames.SquadRecover,          // CE-2173 slice 3c
+            Hrot.Map.Definitions.Behavior.BehaviorNames.WeaponSystemAttack,    // WS-6
+            Hrot.Map.Definitions.Behavior.BehaviorNames.WeaponSystemHold,      // WS-6
+        };
+
+        foreach (var name in curated)
+            beh.TryGetId(name, out _).Should().BeTrue(
+                $"'{name}' is a BehaviorNames constant and must name a registered behaviour");
+    }
+
+    // ── SR_R3 — the Idle machine is REAL, not just catalogued ─────────────────
+
+    /// <summary>
+    /// ⭐⭐ <b><c>SR_R3</c> — the hand-built <c>Idle</c> machine survives the move to
+    /// <c>[HsmDefinition]</c> with a usable blob.</b>
+    ///
+    /// <para>🔒 <b>Why this asserts the BLOB and not a catalog entry:</b> the retired BTree
+    /// orchestrator passed its shape rails for months while emitting a call to a method defined
+    /// nowhere, because nothing ever RAN what it emitted.</para>
+    /// </summary>
+    [Fact]
+    public void SR_R3_TheIdleMachine_RegistersAUsableBlob()
+    {
+        var beh = new BehaviorRegistry();
+        CuratedBehaviorRegistrar.Register(beh, NodeLogic());
+
+        beh.TryGetId(Hrot.Map.Definitions.Behavior.BehaviorNames.Idle, out int id).Should().BeTrue();
+        beh.TryGetDefinition(id, out var def).Should().BeTrue();
+
+        def!.BrainTier.Should().Be(BehaviorConstants.BrainTierHsm);
+        def.HsmDefinition.Should().NotBeNull("the graph-returning [HsmDefinition] must compile to a blob");
+        def.BTreeInterpreter.Should().BeNull("Idle is an HSM, not a tree");
+    }
+
+    // ── SR_R4 — CE-370 ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>SR_R4</c> — <c>HsmMetadata</c> is present, which is <c>CE-370</c>.</b>
+    ///
+    /// <para>📐 Measured <c>2026-09-27</c>: <c>HsmBridgeEmitCore</c> never emits <c>HsmMetadata</c>,
+    /// so before this change the ONLY definition in the repo carrying it was the hand-written Idle —
+    /// while three consumers read it (<c>HsmTraceWorkingMemoryTranslator</c>,
+    /// <c>HsmTraceWorkingMemoryRenderer</c>, <c>BrainTickSystem</c>).</para>
+    ///
+    /// <para>⛔ <b>CORRECTED <c>2026-09-27</c>:</b> an earlier version of this comment said *"the
+    /// catalog is the one place that holds the graph, so it is the only place that can supply
+    /// both"*. 📐 False — <c>StateMachineGraph.Compile()</c> already sets <c>blob.Metadata</c>, so
+    /// the metadata rides ON THE BLOB and any registrar can carry it across. That is what closed the
+    /// JSON-authored half in one line.</para>
+    ///
+    /// <para>⚠ <b>Scope:</b> this pins the CURATED path. The JSON-authored half is pinned by
+    /// <c>BlueprintRegistrarBridgeIntegrationTests.Hsm_SampleGuard_Bridge_Register_RegistersHsmDefinition</c>,
+    /// which compiles and invokes the real emitted bridge.</para>
+    /// </summary>
+    [Fact]
+    public void SR_R4_TheCuratedHsm_CarriesItsMachineMetadata()
+    {
+        var beh = new BehaviorRegistry();
+        CuratedBehaviorRegistrar.Register(beh, NodeLogic());
+
+        beh.TryGetId(Hrot.Map.Definitions.Behavior.BehaviorNames.Idle, out int id).Should().BeTrue();
+        beh.TryGetDefinition(id, out var def).Should().BeTrue();
+
+        def!.HsmMetadata.Should().NotBeNull(
+            "trace symbolication reads BehaviorDefinition.HsmMetadata; a null renders numeric ids");
+    }
+
+    // ── SR_R5 — both resolver arities ─────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <b><c>SR_R5</c> — the 6-param and the 3-param resolver shapes BOTH bind.</b>
+    /// ⚠ <c>FollowRoute</c> is the 3-param case the generator wraps; <c>MoveToLocation</c> is the
+    /// 6-param case bound directly. ⛔ A generator that silently dropped the short shape would leave
+    /// two behaviours unparsed and every other rail green.
+    /// </summary>
+    [Fact]
+    public void SR_R5_BothResolverArities_Bind()
+    {
+        var beh = new BehaviorRegistry();
+        CuratedBehaviorRegistrar.Register(beh, NodeLogic());
+
+        foreach (var name in new[]
+                 {
+                     Hrot.Map.Definitions.Behavior.BehaviorNames.FollowRoute,     // 3-param, wrapped
+                     Hrot.Map.Definitions.Behavior.BehaviorNames.MoveToLocation,  // 6-param, direct
+                 })
+        {
+            beh.TryGetId(name, out int id).Should().BeTrue();
+            beh.TryGetDefinition(id, out var def).Should().BeTrue();
+            def!.ParseParams.Should().NotBeNull($"'{name}' declares a [BehaviorResolver]");
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The overlay's params TYPE reaches a topology this registrar does NOT own.</b>
+    /// <c>PlatoonHillAttack</c>'s topology belongs to its generated JSON registrar and expresses the
+    /// layout only via <c>ManagedBlackboardVariables</c>, so <c>RegisterResolver</c>'s third argument
+    /// is the only carrier. ⭐ <c>CE-2230</c>: this rail used to stand on <c>HullDownAttackRun</c>; its resolver is a TYPED block
+    /// resolver now (<c>Resolve(in TAuthored, ref TBlock, …)</c>), whose block layout the generated registrar declares itself, so
+    /// it no longer carries a params type — <c>PlatoonHillAttack</c> is the remaining raw-shape resolver with a <c>ParamsType</c>.
+    ///
+    /// <para>⚠ <b>An overlay for a name with no topology is NOT observable</b> — it waits in a
+    /// pending map. ⛔ My first draft of this rail asserted <c>TryGetId</c> would succeed and it
+    /// reddened, correctly. ⭐ Planting the topology afterwards is both the honest assertion and the
+    /// production order: the JSON registrar and this one run in the same scan, in either order.</para>
+    /// </summary>
+    /// <para>⛔ <b>SUPERSEDED by <c>CE-1410</c> (R-1042):</b> <c>PlatoonHillAttack</c>'s topology is a curated C# tree now, so no resolver
+    /// overlays a topology this registrar does not own, and its <c>[BehaviorResolver]</c> carries NO params type (one would demote the block,
+    /// <c>CE-437</c>). ⭐ The rail now pins that: the ONE registration carries the topology, the parse and the BLOCK as its layout.</para>
+    [Fact]
+    public void SR_R5b_PlatoonHillAttack_IsOneCuratedRegistration_ItsBlockStaysTheLayout()
+    {
+        var beh = new BehaviorRegistry();
+        CuratedBehaviorRegistrar.Register(beh, NodeLogic());
+
+        beh.TryGetId("PlatoonHillAttack", out int id).Should().BeTrue();
+        beh.TryGetDefinition(id, out var def).Should().BeTrue();
+        def!.BTreeInterpreter.Should().NotBeNull("the topology is curated (CE-1410)");
+        def.ParseParams.Should().NotBeNull("its resolver binds to the same name");
+        def.BlackboardLayoutType.Should().Be(typeof(Hrot.AI.Behaviors.Brains.PlatoonHillAttackBlackboard),
+            "the resolver writes the params at offset 0 of the block; a params-typed overlay would leave the State no room (CE-437)");
+    }
+
+    // ── SR_R6 / SR_R7 ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <b><c>SR_R6</c> — <c>R-149</c> survives the move to attributes:</b> two curated bindings for
+    /// one params region THROW rather than racing. ⛔ A silent last-writer-wins would pick one by
+    /// source order, which is the *"not a precedence rule, a race"* shape <c>R-132</c> names.
+    /// </summary>
+    [Fact]
+    public unsafe void SR_R6_TwoCuratedResolversForOneName_StillThrow()
+    {
+        var beh = new BehaviorRegistry();
+        CuratedBehaviorRegistrar.Register(beh, NodeLogic());
+
+        var act = () => beh.RegisterResolver(
+            Hrot.Map.Definitions.Behavior.BehaviorNames.MoveToLocation,
+            (json, memory, capacity, world, self) => { });
+
+        act.Should().Throw<Exception>("R-149: two explicit bindings for one params region must throw");
+    }
+
+    /// <summary>
+    /// ⭐ <b><c>SR_R7</c> — registration is idempotent across a reload.</b> ⚠ Hot reload re-runs
+    /// registrars into a FRESH staging registry, so the second pass must yield the same set.
+    /// </summary>
+    [Fact]
+    public void SR_R7_ASecondRegistration_YieldsTheSameSet()
+    {
+        var first = new BehaviorRegistry();
+        CuratedBehaviorRegistrar.Register(first, NodeLogic());
+
+        var second = new BehaviorRegistry();
+        CuratedBehaviorRegistrar.Register(second, NodeLogic());
+
+        Snapshot(second).Should().BeEquivalentTo(Snapshot(first));
+    }
+
+    // ── the opt-in is what keeps the non-curated definitions out ──────────────
+
+    /// <summary>
+    /// ⛔⛔ <b>The <c>Curated</c> opt-in is load-bearing, and this rail is why it exists.</b>
+    ///
+    /// <para>📐 Measured <c>2026-09-27</c>: <c>Hrot.AI.Behaviors</c> carries <b>nine</b>
+    /// <c>[BTreeDefinition]</c> methods and only <b>five</b> are curated topologies.
+    /// <c>HideInCover_BT</c>/<c>_v2</c> are registered as behaviours nowhere, and
+    /// <c>PlatoonHillAttack</c>/<c>HullDownAttackRun</c> have their topology owned by generated JSON
+    /// registrars. ⇒ *"every [BTreeDefinition] is a behaviour"* is false four ways out of nine, and
+    /// registering the last two here would <b>hard-error on a duplicate name</b>.</para>
+    /// </summary>
+    [Fact]
+    public void TheOptIn_KeepsNonCuratedDefinitionsOut()
+    {
+        var beh = new BehaviorRegistry();
+        CuratedBehaviorRegistrar.Register(beh, NodeLogic());
+
+        var names = beh.GetRegisteredNames().ToHashSet(StringComparer.Ordinal);
+
+        names.Should().NotContain("HideInCover_BT");
+        names.Should().NotContain("HideInCover_BT_v2");
+
+        // ⭐ CE-1410 (R-1042): HullDownAttackRun / PlatoonHillAttack were the other two non-curated cases (their topology was a JSON
+        //   asset's); they are curated C# trees now — opted in, so present WITH a topology.
+        foreach (var name in new[] { "HullDownAttackRun", "PlatoonHillAttack" })
+        {
+            beh.TryGetId(name, out int id).Should().BeTrue();
+            beh.TryGetDefinition(id, out var def).Should().BeTrue();
+            def!.BTreeInterpreter.Should().NotBeNull($"'{name}' is a curated C# tree since CE-1410");
+        }
+    }
+}

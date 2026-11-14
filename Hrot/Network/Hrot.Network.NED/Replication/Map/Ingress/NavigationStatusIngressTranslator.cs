@@ -23,13 +23,13 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// wire-stable scalar values.
     /// </para>
     /// </summary>
-    public sealed class NavigationStatusIngressTranslator : IDescriptorTranslator
+    public sealed class NavigationStatusIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<Hrot.NED.Descriptors.NavigationStatus> _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
-        public string TopicName      => "NavigationStatus";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<Hrot.NED.Descriptors.NavigationStatus>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationStatus;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -38,12 +38,15 @@ namespace Hrot.Map.Common.Replication.Ingress
         public NavigationStatusIngressTranslator(
             DdsParticipant   dds,
             NetworkEntityMap entityMap,
-            long localNodeId)
+            int localNodeId)
         {
-            _reader    = new DdsReader<Hrot.NED.Descriptors.NavigationStatus>(dds, "NavigationStatus");
+            _reader    = new DdsReader<Hrot.NED.Descriptors.NavigationStatus>(dds);
             _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <summary>
         /// Polls DDS reader and updates <see cref="EcsNavigationStatus"/> on matching entities.
@@ -66,6 +69,14 @@ namespace Hrot.Map.Common.Replication.Ingress
                         "[Node-{0}] NavigationStatus ingress: unknown EntityId={1} — skipped", _localNodeId, msg.EntityId);
                     continue;
                 }
+
+                // ⭐ S8 / F-5 — skip our OWN sample looping back: the descriptor's RECORDED owner writes this state, so the
+                //   last value it published must not overwrite the one it holds now. ⛔ Recorded owner only (IsRecordedOwner):
+                //   a ghost still being built has no record and takes the sample. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md
+                //   §3 F-5, §5.6 S8.
+                if (Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(
+                        view, entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0)))
+                    continue;
 
                 cmd.SetComponent(entity, new EcsNavigationStatus
                 {
@@ -91,7 +102,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <summary>No DDS dispose needed.</summary>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         // ── Enum mapping ──────────────────────────────────────────────────────
 

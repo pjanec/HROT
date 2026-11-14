@@ -53,7 +53,7 @@ namespace Hrot.SimHost.Tests
             return (translator, writer);
         }
 
-        private Entity RegisterEntity(long netId)
+        private Entity RegisterEntity(int netId)
         {
             var entity = _world.CreateEntity();
             _entityMap.Register(netId, entity);
@@ -86,8 +86,8 @@ namespace Hrot.SimHost.Tests
         {
             var (translator, writer) = BuildTranslator();
 
-            var shooterEntity = RegisterEntity(1L);
-            var hitEntity     = RegisterEntity(3L);
+            var shooterEntity = RegisterEntity(1);
+            var hitEntity     = RegisterEntity(3);
 
             PublishDetonation(shooterEntity, hitEntity, hitX: 10f, hitY: 20f, hitZ: 5f);
 
@@ -114,10 +114,10 @@ namespace Hrot.SimHost.Tests
         {
             var (translator, writer) = BuildTranslator();
 
-            var shooter = RegisterEntity(1L);
-            var t1      = RegisterEntity(2L);
-            var t2      = RegisterEntity(3L);
-            var t3      = RegisterEntity(4L);
+            var shooter = RegisterEntity(1);
+            var t1      = RegisterEntity(2);
+            var t2      = RegisterEntity(3);
+            var t3      = RegisterEntity(4);
 
             _world.Bus.Publish(new DetonationNotification { Shooter = shooter, Target = t1 });
             _world.Bus.Publish(new DetonationNotification { Shooter = shooter, Target = t2 });
@@ -160,7 +160,7 @@ namespace Hrot.SimHost.Tests
             var (translator, writer) = BuildTranslator();
 
             // Only target is registered; shooter is not.
-            var hitEntity = RegisterEntity(3L);
+            var hitEntity = RegisterEntity(3);
             // Shooter is an entity not in the map:
             var unmappedShooter = _world.CreateEntity();
 
@@ -185,7 +185,7 @@ namespace Hrot.SimHost.Tests
         {
             var (translator, writer) = BuildTranslator();
 
-            var shooterEntity   = RegisterEntity(1L);
+            var shooterEntity   = RegisterEntity(1);
             var unmappedTarget  = _world.CreateEntity();  // not in map
 
             var ex = Record.Exception(() =>

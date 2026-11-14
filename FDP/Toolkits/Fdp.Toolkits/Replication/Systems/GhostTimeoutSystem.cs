@@ -14,6 +14,7 @@ namespace Fdp.Toolkit.Replication.Systems
     /// <see cref="GhostStateTracker.FirstSeenFrame"/> was stamped by
     /// <see cref="GhostCreationSystem"/> at ghost creation time.
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class GhostTimeoutSystem : IEcsModuleSystem
     {
         private const uint MAX_GHOST_AGE = 3600; // 60 seconds at 60Hz
@@ -22,7 +23,7 @@ namespace Fdp.Toolkit.Replication.Systems
         {
             var repo = (EntityRepository)view;
             if (!repo.HasSingletonUnmanaged<GlobalTime>()) return;
-            var globalTime = repo.GetSingletonUnmanaged<GlobalTime>();
+            var globalTime = repo.GetSingletonUnmanagedRO<GlobalTime>();
             uint currentFrame = (uint)globalTime.FrameNumber;
 
             var query = repo.Query()

@@ -1,0 +1,136 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "bt-range",
+  "description": "What: CE-2298 LD-5 - on bt-range a Sentry (Friend) at (185,80) with a 200-degree field of view holds (PersonHold); the check gives him a sector facing north. Hostile A crosses at y 150 (about 70 m); Hostile B walks up from (185,5) behind him to 40 m, then is ordered to fire. Shows the view cone hiding B until the shot. Judge: (1) his body turns north (within 10 degrees) within 8 s; (2) hostile A crossing in front of him is seen (visual); (3) B walks up to y 38 with no trace in his memory; (4) when B fires his eyes go to the sound behind him (within 80 degrees of south) and B is then seen. Fail: The Sentry sees B while it walks up behind him, or never turns to the shot. Check: python3 scripts/utility-demo-check.py --launch ld-sentry-surprise"
+ },
+ "entities": {
+  "2a980301-0000-4000-8000-000000000301": {
+   "SimTransform": {
+    "Position": [
+     185,
+     80,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.382683,
+     0.92388
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Sentry",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "PersonHold",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "PerceptionReceptor": {
+    "HearingRange": 4000,
+    "VisionRange": 300,
+    "FieldOfViewCos": -0.173648
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "2a980302-0000-4000-8000-000000000302": {
+   "SimTransform": {
+    "Position": [
+     150,
+     150,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.0,
+     1.0
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Hostile A",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": {"speed":1.0,"arrivalRadius":1,"target":[198,150,0]},
+    "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "2a980303-0000-4000-8000-000000000303": {
+   "SimTransform": {
+    "Position": [
+     185,
+     5,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.707107,
+     0.707107
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Hostile B",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": {"speed":1.5,"arrivalRadius":1,"target":[185,40,0]},
+    "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  }
+ }
+}

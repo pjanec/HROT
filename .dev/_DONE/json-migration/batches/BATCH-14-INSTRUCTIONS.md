@@ -491,7 +491,7 @@ public class NodeBootstrapperMigrationTests
 
 ```powershell
 # Build
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 5
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 5
 
 # Run new migration tests
 dotnet test "Hrot/Subsystems/Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj" -c Debug --no-build --filter "NodeBootstrapperMigration" 2>&1 | Select-Object -Last 5

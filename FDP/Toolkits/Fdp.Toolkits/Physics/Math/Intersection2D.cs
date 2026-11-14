@@ -70,5 +70,28 @@ namespace Fdp.Toolkit.Physics.Math
             t = 0f;
             return false;
         }
+
+        /// <summary>
+        /// ⭐ M1 (DESIGN_Armour_Hit_Model §2) — the part of the segment <paramref name="start"/>→<paramref name="end"/> (t ∈ [0, 1])
+        /// that lies INSIDE the circle: [<paramref name="tIn"/>, <paramref name="tOut"/>]. Unlike <see cref="RaycastCircle"/> it
+        /// answers a segment wholly inside (a round dropping onto a hull) and a vertical one (no horizontal length). False when the
+        /// segment never enters.
+        /// </summary>
+        public static bool SegmentInCircle(Vector2 start, Vector2 end, Vector2 center, float radius, out float tIn, out float tOut)
+        {
+            Vector2 d = end - start;
+            Vector2 f = start - center;
+            float a = Vector2.Dot(d, d);
+            float c = Vector2.Dot(f, f) - radius * radius;
+            tIn = 0f; tOut = 1f;
+            if (a < 1e-12f) return c <= 0f;   // no horizontal travel: inside the whole way, or never
+            float b = 2f * Vector2.Dot(f, d);
+            float disc = b * b - 4f * a * c;
+            if (disc < 0f) return false;
+            float sq = MathF.Sqrt(disc);
+            tIn  = MathF.Max(0f, (-b - sq) / (2f * a));
+            tOut = MathF.Min(1f, (-b + sq) / (2f * a));
+            return tIn <= tOut;
+        }
     }
 }

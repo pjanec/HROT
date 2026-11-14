@@ -15,6 +15,7 @@ using Fdp.Toolkit.Serialization;
 using FixedString32 = Fdp.Core.FixedString32;
 using FixedString64 = Fdp.Core.FixedString64;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 using StructEdit.Core;
 using StructEdit.Core.UnionSupport;
 using StructEdit.Reflection;
@@ -45,6 +46,12 @@ public class ComponentReflector
     /// <summary>Set to <c>true</c> this frame to force-collapse all component headers.</summary>
     public bool ForceCollapseAll { get; set; }
 
+    /// <summary>
+    /// ⭐ G-7 S5 (I5, M-5) — drawn at the END of every OPEN component's body (after its value tree), inside the component's id scope: the Details ▸ component ▸ <i>By node</i> section is this hook in the merged
+    /// view. Null ⇒ nothing extra (every other host / view). ⛔ Not a second component renderer — it adds a block under the one this class draws.
+    /// </summary>
+    public Action<IInspectableSession, Entity, Type>? ComponentFooter { get; set; }
+
     /// <summary>Filter string for component names (substring match, case-insensitive).</summary>
     public string ComponentFilter { get; set; } = string.Empty;
 
@@ -57,7 +64,10 @@ public class ComponentReflector
     public Func<IInspectableSession?>? EditSessionGetter { get; set; }
 
     /// <summary>Optional picker context for map/entity picking inside the editor.</summary>
-    public IComponentPickerContext? EditPickerContext { get; set; }
+    public IMapPickContext? EditPickerContext { get; set; }
+
+    /// <summary>⭐ CE-4210 P2 (MA-1) — makes the bind context of the entity being edited (the world's params in scope + that entity's <c>ParamBindings</c>); null / returning null ⇒ no bind affordance. Set by the host that HAS the world (silent-default rule).</summary>
+    public Func<Entity, Type, IParamBindContext?>? BindContextFactory { get; set; }
 
     /// <summary>
     /// Optional interceptor; when set and IsPaused, commits route to StageMutation.
@@ -70,7 +80,9 @@ public class ComponentReflector
     // ── Edit service ─────────────────────────────────────────────────────────
     private IComponentEditService _editService;
     private readonly List<IBufferViewProvider> _bufferViewProviders = new();
-    private readonly Dictionary<Type, IImGuiFieldDrawer> _fieldDrawers = new();
+
+    /// <summary>⭐ CE-3378 (N-1) — the cells every edit window / in-place editor of this reflector draws from: <see cref="Editing.Types.TypeCatalogue.Standard"/> (Quaternion, WorldRotation, Guid, Type … are in it), or a host's overlay built once.</summary>
+    public Editing.Types.TypeCatalogue Types { get; set; } = Editing.Types.TypeCatalogue.Standard;
 
     /// <summary>
     /// Optional factory invoked before opening an edit window to build a caller-provided
@@ -91,8 +103,6 @@ public class ComponentReflector
     public ComponentReflector()
     {
         _editService = BuildEditService();
-        _fieldDrawers[typeof(Quaternion)] = new QuaternionEulerFieldDrawer();
-        _fieldDrawers[typeof(Guid)] = new GuidFieldDrawer();
     }
 
     /// <summary>
@@ -116,11 +126,8 @@ public class ComponentReflector
 
     private IComponentEditService BuildEditService()
     {
-        var builder = new ComponentEditServiceBuilder()
-            .RegisterFieldEditor<FixedString32>(new FixedString32FieldEditor())
-            .RegisterFieldEditor<FixedString64>(new FixedString64FieldEditor())
-            .RegisterFieldEditor<Quaternion>(new QuaternionEulerFieldEditor())
-            .RegisterFieldEditor<Guid>(new StructEdit.Reflection.Editors.GuidFieldEditor());
+        // ⭐ CE-1023 — the standard leaves are ONE list, shared with the behaviour params form (§7.6b F1).
+        var builder = ComponentEditServices.CreateBuilder();
         foreach (var p in _bufferViewProviders)
             builder = builder.RegisterBufferViewProvider(p);
         return builder.Build();
@@ -160,6 +167,8 @@ public class ComponentReflector
         }
 
         var allTypes = session.GetAllComponentTypes().OrderBy(t => t.Name).ToList();
+        // ⭐ CE-4310 (D6) — Expand All / Collapse All reach the NESTED nodes too (they used to touch only the component headers)
+        ImGuiPropertyTree.ForceOpen = ForceExpandAll ? true : ForceCollapseAll ? false : null;
 
         int componentIndex = 0;
         int visibleComponents = 0;
@@ -251,16 +260,9 @@ public class ComponentReflector
             //    this component. Uses the EntityHeader.AuthorityMask as the canonical
             //    source of truth, queried via IInspectableSession.HasAuthority.
             bool hasAuthority = session.HasAuthority(e, type);
-            if (hasAuthority)
-            {
-                ImGuiApi.PushStyleColor(ImGuiCol.Header,        new Vector4(0.15f, 0.45f, 0.15f, 0.8f));
-                ImGuiApi.PushStyleColor(ImGuiCol.HeaderHovered, new Vector4(0.20f, 0.55f, 0.20f, 0.8f));
-                ImGuiApi.PushStyleColor(ImGuiCol.HeaderActive,  new Vector4(0.25f, 0.65f, 0.25f, 0.8f));
-                popColors += 3;
-            }
-
-            // Headers are collapsed by default (no DefaultOpen flag)
-            bool open = ImGuiApi.CollapsingHeader(label);
+            // ⭐ U-5 (Q-C5): slate like every header, EXCEPT authority — green means something here, so it is the HeaderColors override.
+            // Headers are collapsed by default (no DefaultOpen flag). The id is the type name (stable while the summary text changes).
+            bool open = SectionHeader.Draw(type.Name, label, "tab/components", ImGuiTreeNodeFlags.None, hasAuthority ? AuthorityHeader : null);
 
             if (popColors > 0)
                 ImGuiApi.PopStyleColor(popColors);
@@ -310,6 +312,7 @@ public class ComponentReflector
 
                     if (!handled)
                         ImGuiPropertyTree.Render(data, contextType: type, out doubleClickedPath);
+                    ComponentFooter?.Invoke(session, e, type);
                 }
 
                 ImGuiApi.Unindent();
@@ -327,6 +330,7 @@ public class ComponentReflector
             ImGuiApi.TextDisabled("No components matched.");
         }
 
+        ImGuiPropertyTree.ForceOpen = null;
         ForceExpandAll   = false;
         ForceCollapseAll = false;
     }
@@ -364,8 +368,14 @@ public class ComponentReflector
             string title = $"Edit {type.Name} [{e.Index}]";
             EditWindowManager.RegisterWindow(new ComponentEditWindow(
                 winId, title, EditOwningPerspective, editSession,
-                e, type, EditSessionGetter!, EditPickerContext, _fieldDrawers,
-                interceptor: MutationInterceptor));
+                e, type, EditSessionGetter!, EditPickerContext,
+                interceptor: MutationInterceptor,
+                // ⭐ Ruling 14 — `data` IS the value the session is opened on, so the baseline costs
+                //   nothing to supply and is the only thing that makes the staged write surgical.
+                baseline: data,
+                paramBindContext: BindContextFactory?.Invoke(e, type),
+                types: Types,
+                defaults: TypeDefaults.For(type)));   // ⭐ N-4: grey at the default, amber + ↺ when changed
         }
     }
 
@@ -383,7 +393,7 @@ public class ComponentReflector
 
         _inPlaceEditSession = _editService.Open(data, type, scope, editContext);
         _inPlaceEditComponentType = type;
-        _inPlaceEditDrawer = new ComponentEditDrawer(_inPlaceEditSession, EditPickerContext, _fieldDrawers);
+        _inPlaceEditDrawer = new ComponentEditDrawer(_inPlaceEditSession, EditPickerContext, BindContextFactory?.Invoke(e, type), Types, defaults: TypeDefaults.For(type));
         _inPlaceEditErrorMessage = null;
     }
 
@@ -392,20 +402,16 @@ public class ComponentReflector
         if (_inPlaceEditSession!.RebuildState == EditRebuildState.RebuildRequired)
             _inPlaceEditSession.RebuildDocument();
 
-        if (ImGuiApi.BeginTable($"##inPlaceEdit_{type.Name}", 2,
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
-            ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingFixedFit))
+        // ⭐ CE-3386 — the ONE two-column struct table (as the edit window and every struct host), the error in the kit's one error line
+        if (StructTable.Begin("##inPlaceEdit"))
         {
-            ImGuiApi.TableSetupColumn("Property", ImGuiTableColumnFlags.WidthFixed, 180f);
-            ImGuiApi.TableSetupColumn("Value",    ImGuiTableColumnFlags.WidthStretch);
+            _inPlaceEditDrawer!.DrawRoot(_inPlaceEditSession.Document.Root);
 
-            _inPlaceEditDrawer!.DrawEditNode(_inPlaceEditSession.Document.Root);
-
-            ImGuiApi.EndTable();
+            StructTable.End();
         }
 
         if (_inPlaceEditErrorMessage != null)
-            ImGuiApi.TextColored(new Vector4(1f, 0.2f, 0.2f, 1f), _inPlaceEditErrorMessage);
+            NodeEditor.Core.Widgets.RowMarks.ErrorLine(_inPlaceEditErrorMessage);
 
         ImGuiApi.Separator();
 
@@ -415,7 +421,7 @@ public class ComponentReflector
             {
                 object newState = _inPlaceEditSession!.Commit();
                 if (session.IsAlive(e))
-                    session.SetComponent(e, type, newState);
+                    session.SetComponentAsUserStep(e, type, newState, "Edit " + type.Name);   // ⭐ CE-3386 — one undo step in Edit mode
                 CloseInPlaceEdit();
             }
             catch (EditValidationException ex)
@@ -443,6 +449,9 @@ public class ComponentReflector
         _inPlaceEditErrorMessage = null;
     }
 
+    /// <summary>The raw editor's authority green (this node owns the component) — the one header colour that keeps its meaning (U-5, Q-C5).</summary>
+    private static readonly HeaderColors AuthorityHeader = new(new Vector4(0.15f, 0.45f, 0.15f, 0.8f), new Vector4(0.20f, 0.55f, 0.20f, 0.8f), new Vector4(0.25f, 0.65f, 0.25f, 0.8f));
+
     private static string BuildHeaderLabel(IInspectableSession session, Entity entity, Type type, object? data)
     {
         if (data == null) return type.Name;
@@ -456,11 +465,11 @@ public class ComponentReflector
 
         if (!string.IsNullOrEmpty(summary))
             // Append ###{type.Name} to lock the ID
-            return $"{type.Name}  [{summary}]###{type.Name}";
+            return $"{type.Name}  [{summary}]";
 
         string? auto = GetAutoSummary(data, type);
         // Append ###{type.Name} to lock the ID
-        return auto != null ? $"{type.Name}  {auto}###{type.Name}" : type.Name;
+        return auto != null ? $"{type.Name}  {auto}" : type.Name;
     }
 
     private static string? GetAutoSummary(object data, Type type)

@@ -1,0 +1,266 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+using Fdp.Core;
+using Fdp.Core.Logging;
+using Fdp.Modules.Geographic;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Vis2D.Abstractions;
+using MapMouseButton = Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton;
+using MapKeyboardKey = Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey;
+using Hrot.Common.Orders;
+using Hrot.Map.Definitions.Behavior.Orders;
+using System.Text.Json.Nodes;
+using Hrot.UI.Common.Facades;
+using Fdp.Toolkit.Input;
+
+namespace Hrot.ScenarioEditor.Map
+{
+    /// <summary>
+    /// ⭐⭐ <c>CE-3171</c> (<c>docs/DESIGN_Entity_Control.md</c> §8a) — what the RTS command tool's three gestures DO. It owns no state:
+    /// the selection is the map's (written only through <see cref="SelectionChangeRequest"/>), the orders are
+    /// <see cref="EntityOrders"/>' and the hit test is the station's map pick (<see cref="IMapPickService.EntityAt"/>).
+    /// </summary>
+    public sealed class RtsCommands
+    {
+        private readonly EntityRepository _world;
+        private readonly Func<IReadOnlyCollection<Entity>> _selected;
+        private readonly Func<IMapPickService?> _pick;
+
+        public RtsCommands(EntityRepository world, Func<IReadOnlyCollection<Entity>> selected, Func<IMapPickService?> pick)
+        {
+            _world = world ?? throw new ArgumentNullException(nameof(world));
+            _selected = selected ?? throw new ArgumentNullException(nameof(selected));
+            _pick = pick ?? throw new ArgumentNullException(nameof(pick));
+        }
+
+        /// <summary>LMB: the unit under the cursor becomes the selection (<paramref name="additive"/>: joins it); empty ground
+        /// clears it (unless additive).</summary>
+        public void Select(Vector2 worldXY, bool additive)
+        {
+            var hit = EntityAt(worldXY);
+            if (hit.IsNull)
+            {
+                if (!additive) _world.Bus.PublishManaged(new SelectionChangeRequest { Mode = SelectionChangeMode.Clear });
+                return;
+            }
+            _world.Bus.PublishManaged(new SelectionChangeRequest
+            {
+                Entities = new[] { hit }, Mode = additive ? SelectionChangeMode.Add : SelectionChangeMode.Replace,
+            });
+        }
+
+        /// <summary>⭐ B-10 K7 — what the cursor is on, for the gesture router: <see cref="GestureTarget.Ground"/>, a unit HOSTILE to a selected unit, or any other unit.</summary>
+        public GestureTarget TargetAt(Vector2 worldXY)
+        {
+            var hit = EntityAt(worldXY);
+            if (hit.IsNull) return GestureTarget.Ground;
+            foreach (var unit in _selected())
+                if (!unit.IsNull && !unit.Equals(hit) && IsHostile(unit, hit)) return GestureTarget.Hostile;
+            return GestureTarget.Entity;
+        }
+
+        /// <summary>RTS right click on ground (or a friendly / neutral: a move to its position): every selected unit moves to the point.
+        /// Returns how many orders were accepted.</summary>
+        public int Move(Vector2 worldXY) => Issue(worldXY, attack: false, force: false);
+
+        /// <summary>RTS right click on a hostile: every selected unit attacks it (a unit it is not hostile to moves there instead). ⭐ CE-1132 —
+        /// <paramref name="force"/> (Ctrl held): the unit under the cursor is ATTACKED whatever its side; empty ground is still a move.</summary>
+        public int Attack(Vector2 worldXY, bool force = false) => Issue(worldXY, attack: true, force);
+
+        /// <summary>RMB, as before the gesture bindings: every selected unit attacks the HOSTILE under the cursor, else moves to the point —
+        /// <see cref="Attack"/>. ⭐ Since B-10 K7 the RTS gizmo chooses <see cref="Move"/> or <see cref="Attack"/> by its bindings; this stays for the callers that do not.</summary>
+        public int Command(Vector2 worldXY, bool forceAttack = false) => Attack(worldXY, forceAttack);
+
+        private int Issue(Vector2 worldXY, bool attack, bool force)
+        {
+            var map = Map();
+            if (map is null) return 0;
+            var orders = new EntityOrders(_world, map, Geo());
+            var hit = EntityAt(worldXY);
+            int accepted = 0;
+            foreach (var unit in _selected())
+            {
+                if (unit.IsNull || unit.Equals(hit) || !map.TryGetNetworkId(unit, out int id)) continue;
+                // ⭐ CE-2143 (D4-F) — the order a GESTURE issues ([Order(Gesture = …)]), never a behaviour name: a hostile under the
+                //   cursor is the EnemyClick order (Attack), anything else the GroundClick order (Move) to the point.
+                // ⭐ CE-2148 (F6) — the click is the gesture's CONTEXT: it fills the order's one missing [Required] field of its kind;
+                //   an order it cannot complete goes to the order form (MenuOrders.OpenForm), never half-filled.
+                OrderResult r = attack && !hit.IsNull && (force || IsHostile(unit, hit)) && map.TryGetNetworkId(hit, out int target)
+                    ? Gesture(orders, id, OrderGesture.EnemyClick, new OrderContext(target, null))
+                    : Gesture(orders, id, OrderGesture.GroundClick, new OrderContext(null, Point(worldXY)));
+                if (r.Accepted) accepted++;
+                else FdpLog<RtsCommands>.Warn("[Orders] RTS order refused: {0}", r.Detail);
+            }
+            return accepted;
+        }
+
+        /// <summary>Hostile = the other side, never neutral (<see cref="EntityInfo.ForceId"/>).</summary>
+        public bool IsHostile(Entity unit, Entity other)
+        {
+            if (!_world.IsComponentTypeRegistered<EntityInfo>()) return false;
+            if (!_world.HasComponent<EntityInfo>(unit) || !_world.HasComponent<EntityInfo>(other)) return false;
+            var mine = _world.GetComponentRO<EntityInfo>(unit).ForceId;
+            var theirs = _world.GetComponentRO<EntityInfo>(other).ForceId;
+            return theirs != mine && theirs != ForceId.Neutral;
+        }
+
+        private OrderResult Gesture(EntityOrders orders, int id, OrderGesture gesture, OrderContext context)
+        {
+            if (OrderMenu.ByGesture(gesture) is not { } order)
+                return new OrderResult(OrderRefusal.BadRequest, $"No order is issued by a {gesture}.", string.Empty, string.Empty);
+            // ⭐ CE-2149 — the unit's designations fill what the click did not (one draft per unit, so the per-unit store applies)
+            var store = OrderDesignations.Of(_world);
+            var map = Map();
+            var draft = OrderMenu.Draft(order, new[] { id }, context, json => new[] { orders.Order(id, order.Name, json) },
+                designation: store != null && map != null ? store.Lookup(n => OrderDesignations.IsLive(_world, map, n)) : null);
+            if (draft.IsComplete) return draft.Send(draft.Params.ToJsonString())[0];
+            MenuOrders.OpenForm(_world, draft);
+            return new OrderResult(OrderRefusal.BadRequest, $"{order.Name} needs the order form.", string.Empty, string.Empty);
+        }
+
+        /// <summary>The clicked point as an order's point.</summary>
+        private JsonArray Point(Vector2 at) => OrderPoint(_world, at);
+
+        /// <summary>⭐ <c>CE-1213</c> — a world point as an order's point, for any front-end (the first-person command wheel too): local metres
+        /// <c>[x, y, 0]</c> (⭐ CE-4575 — <see cref="Hrot.Common.Orders.OrderPoints"/>; ⛔ it wrote the geodetic <c>[lat, lon]</c> that S0 item 5
+        /// retired, so a ground-click move was dropped on the brain).</summary>
+        public static JsonArray OrderPoint(EntityRepository world, Vector2 at) => Hrot.Common.Orders.OrderPoints.Of(at);
+
+        private Entity EntityAt(Vector2 worldXY)
+        {
+            int netId = _pick()?.EntityAt(worldXY) ?? -1;
+            return netId > 0 && Map() is { } map && map.TryGetEntity(netId, out var e) ? e : Entity.Null;
+        }
+
+        private NetworkEntityMap? Map()
+            => _world.HasSingletonManaged<NetworkEntityMap>() ? _world.GetSingletonManaged<NetworkEntityMap>() : null;
+
+        private IGeographicTransform? Geo()
+            => _world.HasSingletonManaged<IGeographicTransform>() ? _world.GetSingletonManaged<IGeographicTransform>() : null;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3171</c> — the RTS command tool's input: EXCLUSIVE focus (which also suppresses every map context menu,
+    /// <c>DebugGizmoLayer</c>) and raw input. LMB release selects (Shift adds), an RMB CLICK commands, Esc leaves. Draws nothing:
+    /// the selection already highlights the units.
+    /// <para>⭐ CE-1077 (DESIGN_Entity_Control.md §13.6) — 🔒 user, 2026-10-14: "in RTS mode a right click commands and a right drag
+    /// only looks". The order goes on the RMB RELEASE, at the press point, and only when the mouse did not move in between (at most
+    /// <see cref="ClickMaxMoves"/> moved frames — the terminal reports one drag update per frame the mouse moves): a right-drag is the
+    /// 3-D camera's look (or the 2-D pan) and orders nothing. It used to command on the PRESS, so every look also ordered a move.</para>
+    /// </summary>
+    public sealed class RtsCommandGizmo : IEntityStatefulGizmo
+    {
+        private readonly RtsCommands _commands;
+        private readonly Action _onRemove;
+        private readonly RtsModeState? _mode;
+        private bool _shift;
+        private bool _ctrl;
+        private bool _rightDown;
+        private int _rightMoves;
+        private Vector2 _rightAt;
+
+        /// <summary>⭐ CE-1077 — mouse-moved frames a right click may have and still be a click (hand jitter), not a drag.</summary>
+        public const int ClickMaxMoves = 3;
+
+        private readonly MapGestureRouter _gestures;
+
+        public RtsCommandGizmo(RtsCommands commands, Action onRemove, RtsModeState? mode = null, MapGestureRouter? gestures = null)
+        {
+            _commands = commands ?? throw new ArgumentNullException(nameof(commands));
+            _onRemove = onRemove ?? throw new ArgumentNullException(nameof(onRemove));
+            _mode = mode;
+            _gestures = gestures ?? MapGestureRouter.Shared;
+            if (_mode != null) { _mode.Armed = true; _mode.ForceAttack = false; }
+        }
+
+        public bool RequiresExclusiveFocus => true;
+        public bool WantsRawInput => true;
+        public bool IsFocused { get; private set; }
+        public void SetFocus(bool isFocused) => IsFocused = isFocused;
+
+        public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw) { }
+
+        /// <summary>
+        /// ⭐⭐ B-10 K7 (§6b, R-4163) — the gizmo owns NO gesture meaning any more: it classifies what the click landed on, asks the scope chain (the Command hat's scope in
+        /// front of the map's) and runs the row it gets — <c>rts.select</c>, <c>rts.select.add</c>, <c>rts.move</c>, <c>rts.attack</c>, <c>rts.attack.force</c>
+        /// (<see cref="MapGestureIds"/>). ⛔ SUPERSEDES the hand-written "left = select, right = command" branches. A row of the MAP scope (a gesture the RTS scope does not
+        /// override) is the terminal's menu or the selection system's — nothing to run here.
+        /// </summary>
+        public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
+        {
+            if (_mode is { StoodDown: true }) { _rightDown = false; return; }   // ⭐ Seats H3 — under the FPS view the gestures are the unit's
+            // ⭐ CE-1075 — the terminal packs the held modifiers into the button's high bits (MapMouseButton.ShiftMask …): a
+            //   Shift-click arrived as Left|ShiftMask and matched neither branch, so "Shift adds" never added. The mask IS the Shift.
+            bool shift = _shift || (button & MapMouseButton.ShiftMask) != 0;
+            bool ctrl = _ctrl || (button & MapMouseButton.CtrlMask) != 0;   // ⭐ CE-1132 — Ctrl = attack what is under the cursor
+            bool alt = (button & MapMouseButton.AltMask) != 0;
+            button &= ~(MapMouseButton.ShiftMask | MapMouseButton.CtrlMask | MapMouseButton.AltMask);
+            var xy = new Vector2(worldPos.X, worldPos.Y);
+            var mods = (shift ? GestureModifiers.Shift : 0) | (ctrl ? GestureModifiers.Ctrl : 0) | (alt ? GestureModifiers.Alt : 0);
+            if (button == MapMouseButton.Left && !isPressed) Run(GestureButton.Left, mods, xy);
+            else if (button == MapMouseButton.Right && isPressed) { _rightDown = true; _rightMoves = 0; _rightAt = xy; }
+            else if (button == MapMouseButton.Right && _rightDown)
+            {
+                _rightDown = false;
+                if (_rightMoves <= ClickMaxMoves) Run(GestureButton.Right, mods, _rightAt);   // ⭐ CE-1077 — a click, not a look
+            }
+        }
+
+        private void Run(GestureButton button, GestureModifiers mods, Vector2 xy)
+        {
+            var gesture = new MapGesture(button, GestureKind.Click, mods, _commands.TargetAt(xy));
+            if (!_gestures.Resolve(Hrot.Common.Editing.Hat.Command, in gesture, out var entry) || entry.Scope != Fdp.Toolkit.Input.InputScope.Hat) return;
+            if (MapGestureIds.Is(entry, MapGestureIds.RtsSelect)) _commands.Select(xy, additive: false);
+            else if (MapGestureIds.Is(entry, MapGestureIds.RtsSelectAdd)) _commands.Select(xy, additive: true);
+            else if (MapGestureIds.Is(entry, MapGestureIds.RtsMove)) _commands.Move(xy);
+            else if (MapGestureIds.Is(entry, MapGestureIds.RtsAttack)) _commands.Attack(xy);
+            else if (MapGestureIds.Is(entry, MapGestureIds.RtsAttackForce)) _commands.Attack(xy, force: true);
+        }
+
+        public void OnKeyEvent(MapKeyboardKey key, bool isPressed)
+        {
+            key &= ~(MapKeyboardKey.ShiftMask | MapKeyboardKey.CtrlMask | MapKeyboardKey.AltMask);   // ⭐ CE-1075 — as for the mouse
+            if (_mode is { StoodDown: true }) return;
+            if (key is MapKeyboardKey.LeftShift or MapKeyboardKey.RightShift) _shift = isPressed;
+            else if (key is MapKeyboardKey.LeftControl or MapKeyboardKey.RightControl)
+            {
+                _ctrl = isPressed;
+                if (_mode != null) _mode.ForceAttack = isPressed;   // ⭐ CE-1132 — the overlay shows the attack reticle while held
+            }
+            // ⭐ R-4163 (Input §6b) — RTS is sticky: Esc drops a half-done right-press and stops; only View ▸ RTS command mode leaves.
+            //   ⛔ SUPERSEDED: Esc removed the tool (Entity Control §8a).
+            else if (key == MapKeyboardKey.Escape && isPressed) _rightDown = false;
+        }
+
+        public void OnDragUpdate(Vector3 worldPos) { if (_rightDown) _rightMoves++; }
+        public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos) { }
+        public void OnCommit(Vector3 worldPos) { }
+        public void OnCancel() { }
+        public void OnMenuAction(int actionId) { }
+        public void Dispose() { if (_mode != null) { _mode.Armed = false; _mode.ForceAttack = false; } }
+    }
+
+    /// <summary>⭐ CE-1132 — what the RTS tool is doing, for the map's overlay (the controls legend, the attack reticle): armed while the
+    /// tool's gizmo lives, <see cref="ForceAttack"/> while Ctrl is held. One per world (<see cref="MapUiStates"/>).</summary>
+    public sealed class RtsModeState
+    {
+        public bool Armed;
+        public bool ForceAttack;
+        /// <summary>⭐ Seats H3 (§3.3) — the station drives a unit: RTS stays checked but ignores input and hides its legend; release returns to it (R-4163).</summary>
+        public bool StoodDown;
+
+        /// <summary>The controls, as the legend lists them.</summary>
+        public static readonly string[] Legend =
+        {
+            "RTS COMMAND MODE",
+            "LMB  select    Shift+LMB  add    drag  box select",
+            "RMB  move here / attack the enemy under the cursor",
+            "Ctrl+RMB  attack whatever is under the cursor",
+            "RMB drag  look    View > RTS command mode  leave",
+        };
+    }
+}

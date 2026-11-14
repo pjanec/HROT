@@ -15,6 +15,9 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Hrot.ReplayBrowser.Tests</_Parameter1>
     </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.ClusterRunner.Integration.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>
@@ -33,6 +36,7 @@
     <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
     <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />
     <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
+    <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />   <!-- CE-4289 Q-B6: NodeIdRanges.NameOf names the Federation rows by node role -->
   </ItemGroup>
 
 </Project>

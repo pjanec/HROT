@@ -1,6 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using Fdp.Core;
 using Fdp.ModuleHost;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Systems;
@@ -31,12 +35,12 @@ public static class BlueprintRuntimeWiring
     ///     (<see cref="BlueprintBlackboard1024"/>/<see cref="BlueprintBlackboard4096"/>/<see cref="BlueprintBlackboard16384"/>)
     ///     on <paramref name="world"/>. Component tables reserve virtual address space lazily
     ///     (per 64 KB chunk) and cost no physical RAM until populated, so registering the 16 KB
-    ///     tier is cheap. MUST happen before kernel initialization so the tick/maintenance
+    ///     tier is cheap. MUST happen before kernel initialization so the tick
     ///     queries can be built.
     ///   </item>
     ///   <item>
-    ///     Register <see cref="BlueprintMaintenanceSystem"/> as a global system (it is
-    ///     <c>[UpdateInPhase(BeforeSync)]</c>, which the kernel permits as a global system).
+    ///     ⛔ No maintenance system any more — <c>BlueprintMaintenanceSystem</c> (the BeforeSync
+    ///     copy-promotion) is retired by CE-3137 U-0 (R-236).
     ///   </item>
     /// </list>
     /// <para>
@@ -64,22 +68,61 @@ public static class BlueprintRuntimeWiring
 
         RegisterTierComponents(world);
 
-        var maintenance = new BlueprintMaintenanceSystem();
-        kernel.RegisterGlobalSystem(maintenance);
+        // ⛔ CE-3137 U-0 (R-236): no BlueprintMaintenanceSystem any more — the store never moves a slot.
 
         return new BlueprintTickSystem(registry);
     }
 
     /// <summary>
-    /// Registers the three blackboard tier components on <paramref name="world"/> if they are
-    /// not already present. Idempotent-safe to expose separately for hosts that register
-    /// components in a dedicated block.
+    /// FC-1·G2 (Q#20 review G2) -- inserts <paramref name="bpTick"/> into
+    /// <paramref name="simulationSystems"/> at the position its own <c>[UpdateBefore]</c>
+    /// declarations require: immediately BEFORE the first system whose type is named by one of
+    /// <see cref="BlueprintTickSystem"/>'s <c>[UpdateBefore]</c> attributes (the Locomotion/Weapon/
+    /// Interaction dispatchers). Module-group execution order is ARRAY POSITION -- the kernel does
+    /// not re-apply ordering attributes inside a module's system list (see
+    /// <c>ChannelArbitrationSystem</c>'s comments and the Q#20 review's G2 finding: both real
+    /// compositions used to APPEND the tick after the dispatchers, silently downgrading the
+    /// architect-approved Q#16-B "intent is read the same tick" contract to write-visible-next-tick).
+    /// This helper makes the declared contract hold BY CONSTRUCTION and is the single splice both
+    /// hosts (<c>EditorSubsystem</c>, <c>EditorHarness</c>) use.
+    /// <para>
+    /// The targets are read off the attributes (not hardcoded) so a future <c>[UpdateBefore]</c>
+    /// addition on <see cref="BlueprintTickSystem"/> re-positions the splice automatically. A list
+    /// containing NO target system (degenerate/test compositions without dispatchers) appends the
+    /// tick at the end -- exactly the old behavior, where no ordering contract exists to honor.
+    /// </para>
+    ///
+    /// <para>⚠⚠ <b>THE SPLICE MOVED <c>2026-09-20</c> (A4 / <c>O0</c>), for the same reason the tier
+    /// list moved in <c>CE-161</c>.</b> It now lives at
+    /// <see cref="Fdp.Toolkit.Blueprints.Systems.BlueprintRuntimeComposition"/> — in the assembly that
+    /// owns the systems — and <c>CgfLogicPack</c> performs it once, so every host carrying the Brain
+    /// capability ticks blueprint Instances rather than only the Editor. ⛔ This method is kept as a
+    /// forwarder so existing callers are unchanged; it is no longer a second implementation.</para>
+    /// </summary>
+    public static List<IEcsModuleSystem> SpliceIntoSimulation(
+        IEnumerable<IEcsModuleSystem> simulationSystems, BlueprintTickSystem bpTick)
+        => Fdp.Toolkit.Blueprints.Systems.BlueprintRuntimeComposition
+               .SpliceIntoSimulation(simulationSystems, bpTick);
+
+    /// <summary>
+    /// Registers the blackboard tier components on <paramref name="world"/>. Idempotent.
+    ///
+    /// <para>⚠⚠ <b>THE LIST MOVED <c>2026-09-03</c>.</b> This method used to hold the three
+    /// <c>RegisterComponent</c> calls itself, and because its only production caller is the Editor,
+    /// <b>every other host was missing them</b> — a <c>--mode all</c> cluster aborted on its first live
+    /// load with <i>"Component BlueprintBlackboard1024 is not registered"</i> from
+    /// <c>BehaviorIngressSystem</c> on CGF.</para>
+    ///
+    /// <para>⭐ The list now lives at
+    /// <see cref="Fdp.Toolkit.Blueprints.Components.BlueprintBlackboardTiers"/> — in the same assembly as
+    /// the components and the system that needs them — and is called for every node by
+    /// <c>HrotSharedComponentRegistry.RegisterAll</c>. ⛔ This method is kept as a forwarder so the
+    /// Editor's wiring path is unchanged; it is no longer a second list.
+    /// 📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §2.3b.</para>
     /// </summary>
     public static void RegisterTierComponents(EntityRepository world)
     {
         if (world is null) throw new ArgumentNullException(nameof(world));
-        world.RegisterComponent<BlueprintBlackboard1024>();
-        world.RegisterComponent<BlueprintBlackboard4096>();
-        world.RegisterComponent<BlueprintBlackboard16384>();
+        Fdp.Toolkit.Blueprints.Components.BlueprintBlackboardTiers.RegisterAll(world);
     }
 }

@@ -1,3 +1,11 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-30
+current-answer: all three sections are built; "Bit / shift operators (CE-471)" is the newest
+stale-below: the header's "Status" line (boolean pending) is history — both sections below are DONE
+related-designs:
+  - docs/blueprints/Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — owns WHY the bit operators were wanted (§6 row 9, §7 row 6)
+-->
 # Arithmetic `BinaryOp` + boolean logic nodes (mini-design)
 
 > The natural general round-out of the GAP-12 `Compare` node — same pure-data + infix-emit machinery.
@@ -52,3 +60,20 @@ Two nodes, same pure-data + infix machinery as `Compare`:
 
 Coverage: `BuildBooleanOpMinimalAsset` (`true && false`) + `BuildNotMinimalAsset` (`!true`), full Roslyn
 pipeline. Gates: real build 0 err; full Blueprints.Tests + generator suites green.
+
+## Bit / shift operators — `CE-471` (✅ DONE `2026-09-30`)
+
+Five more `ArithmeticOperator` values on the same `BinaryOpNode`, **appended** (the enum is persisted by value):
+`BitAnd &` · `BitOr |` · `BitXor ^` · `ShiftLeft <<` · `ShiftRight >>`. No new node, IR op or emitter case.
+
+| as built | where |
+|---|---|
+| infix map + a shift count cast to `(int)` (C# requires an `int` count; a `long` pin still compiles) | `StatementEmitter.ArithmeticOperatorInfix`, `case IrOp_BinaryOp` |
+| **`BP1678`** — a bit/shift operator on a type the compiler KNOWS is not an integer (float, double, decimal, string, vectors, entity; bool for shifts). Deny-list, reflection-free: an unknown struct or a `[Flags]` enum passes (`& | ^` are defined on enums) | `Stage5_Schedule.IsKnownNonIntegerOperand` |
+| palette entries `BinaryOp.BitAnd` … `BinaryOp.ShiftRight`, titles `Math &` … | `BlueprintNodePaletteEntries`, `BlueprintNodeModel.OperatorSymbol` |
+| rails — real Roslyn compile per operator + the `BP1678` refusal | `CE471_BitOperatorTests` |
+
+⚠ **Deviation from the plan row:** no unary `BitNot` — `BinaryOp` is A/B-shaped; `A ^ AllOnes` (XOR with `-1`, or
+`~0` of the unsigned type as a literal) inverts. ⚠ **Expected, shared with `+`:** operands narrower than `int` (byte/short)
+are promoted by C#, so `var __t = a & b` is `int` while the result pin says `byte`; wire through an `int` until the
+emitter casts back (not new in `CE-471`; ⛔ expected from C# promotion rules, not measured through this pipeline).

@@ -82,9 +82,9 @@ namespace Fhsm.Kernel
 
             ref InstanceHeader header = ref System.Runtime.CompilerServices.Unsafe.As<T, InstanceHeader>(ref *instance);
 
-            if (header.MachineId != definition.Header.StructureHash)
+            if (header.MachineId != definition.MachineId)   // ⭐ CE-2001
             {
-                error = $"Instance MachineId ({header.MachineId}) does not match Definition StructureHash ({definition.Header.StructureHash})";
+                error = $"Instance MachineId ({header.MachineId}) does not match Definition MachineId ({definition.MachineId})";
                 return false;
             }
 

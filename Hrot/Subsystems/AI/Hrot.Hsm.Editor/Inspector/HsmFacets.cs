@@ -1,6 +1,9 @@
 using System.Collections.Generic;
 using Fhsm.Kernel.Data;
 using Hrot.Editor.AiShared;
+using Hrot.Editor.AiShared.Catalog;
+using Hrot.Editor.AiShared.Inspector;
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using Hrot.Hsm.Editor.Model;
 using StructEdit.Core.Attributes;
 
@@ -12,21 +15,91 @@ public struct StateFacet
     [EditDisplayName("Name")]
     public string Name;
 
-    [EditDisplayName("On Entry action")]
-    [HsmActionPicker]
-    public string? OnEntryAction;
+    // ⭐⭐⭐ CE-417 slice 4b — ONE binding facet per slot, each with its OWN target variable (B-2), drawn by the ONE
+    //   ActionBindingDrawer. 📄 DESIGN_Behavior_Action_Binding.md §5.4.
+    // ⛔ Replaces the four flat *Action fields, the activity blueprint name/id pair and the ONE state-wide
+    //   "Params seed" field. The state's seed (what a hosted occurrence reads) is still DERIVED from the slots by
+    //   StateNode.StateWideTargetField — the Activity's variable first — so the emitter and the editor cannot disagree.
+    // ⚠ Only the Activity may run a BLUEPRINT (CE-385, design §9 ③: method XOR blueprint).
+    [EditDisplayName("On Entry")]
+    [ActionBinding(BindingSlotKind.Action)]
+    public BehaviorActionBindingFacet OnEntry;
 
-    [EditDisplayName("On Exit action")]
-    [HsmActionPicker]
-    public string? OnExitAction;
+    [EditDisplayName("On Exit")]
+    [ActionBinding(BindingSlotKind.Action)]
+    public BehaviorActionBindingFacet OnExit;
 
-    [EditDisplayName("Activity (tick) action")]
-    [HsmActionPicker]
-    public string? ActivityAction;
+    [EditDisplayName("Activity (tick)")]
+    [ActionBinding(BindingSlotKind.Action, allowsBlueprint: true)]
+    public BehaviorActionBindingFacet Activity;
 
-    [EditDisplayName("Timer action")]
-    [HsmActionPicker]
-    public string? TimerAction;
+    /// <summary>⭐ The persisted RENAME SURVIVOR of the activity blueprint and the id the emitter bakes. ⛔ Never typed —
+    /// written by the pick. Shown so a dangling reference is diagnosable.</summary>
+    [EditReadOnly]
+    [EditDisplayName("Activity blueprint asset id")]
+    public string ActivityBlueprintAssetId;
+
+    // ⛔⛔ HSM-012 — THE "Timer" BINDING FACET IS GONE, AND IT IS NOT AN OVERSIGHT.
+    //
+    // 📐 Measured 2026-10-06 across the whole repo: the editor authored a timer action, HsmEmitCore emitted
+    //    .TimerAction(...), HsmFlattener.cs:182 packed it into StateDef.TimerActionId and HsmEmitter wrote it into
+    //    the blob — and then NOTHING ARMED IT. HsmKernelCore never reads TimerActionId, and every PRODUCTION write
+    //    of TimerDeadlines[i] is `= 0` (HsmKernelCore.cs:1319/1325/1331 cancel-on-exit, HotReloadManager.cs:139-167
+    //    reset). The only non-zero writes in the tree are Fhsm.Tests fixtures arming deadlines by hand. There is no
+    //    SetTimer/StartTimer/Arm API anywhere in Fhsm.Kernel, and NO DURATION FIELD EXISTS AT ALL — not in StateDef,
+    //    not in the facet, not in HSM_Editor_NodeEditor_Host_Design.md §11.1 — so even an arming kernel would have
+    //    nothing to say "how long".
+    // ⇒ an author could wire a timer, save it, build it, and it would SILENTLY NEVER FIRE. The field was a trap.
+    //
+    // ⭐ What is KEPT, deliberately (no rush removals): StateNode.Timer, the mapper round-trip, the emit path and
+    //    HsmBlackboardAggregator's requirement for a timer action. A hand-authored asset still round-trips byte for
+    //    byte; it simply can no longer be AUTHORED here. HsmValidator.CheckTimerActionNotImplemented reports any
+    //    state that still carries one, so the binding is diagnosable instead of invisible.
+    // ⛔ Do NOT re-add this field without an arming kernel AND a duration — that is the open half of HSM-012.
+
+    // ⭐⭐⭐ HSM SUBTREE AUTHORING — 📄 HSM_Editor_NodeEditor_Host_Design.md §11.1a.
+    // 🔒 User, 2026-09-26: "the tree asset must be pickable."
+    // 🔴 Until this field existed, E5's whole runtime for "an HSM state hosts a BTree" was
+    //    UNREACHABLE on a real asset: nothing outside the mapper could write SubtreeAssetId /
+    //    SubtreeName, so validator rules 8/8b/10 could never fire.
+    // ⭐ ONE editable field; the Guid and the resolved flag are DERIVED and shown read-only —
+    //   deliberately the same shape as BTreeSubtreeFacet, whose pair is already read-only.
+    [EditDisplayName("Hosted subtree (BTree asset)")]
+    [AiAssetPicker(AssetKind.BTree)]
+    public string? SubtreeName;
+
+    /// <summary>⭐ The persisted RENAME SURVIVOR. ⛔ Never typed — written by the pick, healed by
+    /// <c>HsmSubtreeResolver</c>. Shown so a dangling reference is diagnosable.</summary>
+    [EditReadOnly]
+    [EditDisplayName("Hosted subtree asset id")]
+    public string SubtreeAssetId;
+
+    /// <summary>⚠ DERIVED, never persisted — recomputed against the catalogue on load/hot-reload.</summary>
+    [EditReadOnly]
+    [EditDisplayName("Subtree resolves")]
+    public bool IsSubtreeResolved;
+
+    // ⭐ CE-2083 — an SOP order this state issues; it RUNS AS the activity, so leave "Activity (tick)" empty when one is set.
+    //   📄 DESIGN_Decision_Layer.md §4.10. The behaviour is picked (every registered behaviour, any tier); picking one composes
+    //   a variable of its params type (edited in the blackboard); none ⇒ the behaviour's authored defaults.
+    [EditDisplayName("SOP order")]
+    public HsmSopOrderKind SopOrder;
+
+    [EditDisplayName("SOP behaviour")]
+    [Hrot.Editor.AiShared.Inspector.AiBehaviorPicker]
+    public string? SopBehavior;
+
+    [EditReadOnly]
+    [EditDisplayName("SOP params variable")]
+    public string SopParamsVariable;
+
+    [EditDisplayName("SOP urgency (React)")]
+    public Hrot.AiEditor.Persistence.BTree.SopUrgencyDto SopUrgency;
+
+    // ⭐ Q84 C1 (HSM-010) — what a COMPOSITE does when it is re-entered. Shallow/deep history are flags on the
+    //    composite itself (the kernel saves on exit and restores on entry of the state carrying them).
+    [EditDisplayName("On re-entry")]
+    public HsmHistoryMode History;
 
     public StateFlags Flags;
 
@@ -54,6 +127,25 @@ public struct StateFacet
     public int OutgoingTransitionCount;
 }
 
+/// <summary>⭐ <c>CE-2083</c> — whether a state issues an SOP order, and which.</summary>
+/// <summary>Q84 C1 — what a composite does when it is entered again.</summary>
+public enum HsmHistoryMode
+{
+    /// <summary>Start at its initial state (no history).</summary>
+    StartAtInitial = 0,
+    /// <summary>Resume the child that was active when it was left (shallow history).</summary>
+    ResumeLastChild = 1,
+    /// <summary>Resume the innermost state that was active (deep history).</summary>
+    ResumeLastLeaf = 2,
+}
+
+public enum HsmSopOrderKind
+{
+    None = 0,
+    DoWhenIdle = 1,
+    React = 2,
+}
+
 // Inspector facet struct for a TransitionNode. Shown when a transition is selected.
 public struct TransitionFacet
 {
@@ -69,17 +161,29 @@ public struct TransitionFacet
     [HsmEventPicker]
     public ushort EventId;
 
+    // ⭐⭐⭐ CE-417 slice 4b — the guard and the effect action are two bindings, each with its OWN variable (B-2): the
+    //   guard's is the INPUT it reads, the action's the OUTPUT it writes. ⛔ Before 4b one field served both.
+    // ⚠ Only the guard may run a BLUEPRINT (CE-385; method XOR blueprint, design §9 ③).
     [EditDisplayName(ReactiveGuardVocabulary.HsmTransitionGuardDisplayName)]
-    [HsmGuardPicker]
-    public string? GuardFunction;
+    [ActionBinding(BindingSlotKind.Guard, allowsBlueprint: true)]
+    public BehaviorActionBindingFacet Guard;
+
+    /// <summary>⭐ The persisted RENAME SURVIVOR and the id the emitter bakes. ⛔ Never typed.</summary>
+    [EditReadOnly]
+    [EditDisplayName("Guard blueprint asset id")]
+    public string GuardBlueprintAssetId;
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-381</c> — evaluate this transition's guard on every QUIESCENT tick, with no
+    /// event posted. ⛔ Not "a transition with no event": that one is the RTC loop's COMPLETION
+    /// pass and fires once. 📄 §2.3, §3.1.
+    /// </summary>
+    [EditDisplayName("Polled (guard runs every idle tick)")]
+    public bool IsPolled;
 
     [EditDisplayName("Effect action")]
-    [HsmActionPicker]
-    public string? ActionFunction;
-
-    [EditDisplayName("Expression target (blackboard field)")]
-    [HsmBlackboardFieldPicker]
-    public string? ExpressionTargetField;
+    [ActionBinding(BindingSlotKind.Action)]
+    public BehaviorActionBindingFacet Action;
 
     [EditDisplayName("Priority")]
     [EditRange(0, 255)]
@@ -174,17 +278,14 @@ public struct GlobalTransitionFacet
     [HsmStateSelector]
     public string TargetStateName;
 
+    // ⭐ CE-417 slice 4b — the same two bindings as a transition (B-3).
     [EditDisplayName(ReactiveGuardVocabulary.HsmTransitionGuardDisplayName)]
-    [HsmGuardPicker]
-    public string? GuardFunction;
+    [ActionBinding(BindingSlotKind.Guard)]
+    public BehaviorActionBindingFacet Guard;
 
     [EditDisplayName("Effect action")]
-    [HsmActionPicker]
-    public string? ActionFunction;
-
-    [EditDisplayName("Expression target (blackboard field)")]
-    [HsmBlackboardFieldPicker]
-    public string? ExpressionTargetField;
+    [ActionBinding(BindingSlotKind.Action)]
+    public BehaviorActionBindingFacet Action;
 
     [EditDisplayName("Priority")]
     [EditRange(0, 255)]

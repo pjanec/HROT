@@ -40,15 +40,15 @@ public sealed class BTreeComposedBlueprintReferenceContributor : IReferenceCatal
             SubElementKind targetKind;
 
             if (node.KernelType == NodeType.Action &&
-                node.Action?.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore)
+                (node.Action is not null && node.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore))
             {
-                methodFqn  = node.Action.MethodFqn;
+                methodFqn  = ComposedBlueprintResolver.EffectiveMethodFqn(node.Action);   // CE-417 B-1: derived for a blueprint binding
                 targetKind = SubElementKind.ActionFqn;
             }
             else if (node.KernelType == NodeType.Condition &&
-                     node.Condition?.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore)
+                     (node.Condition is not null && node.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore))
             {
-                methodFqn  = node.Condition.MethodFqn;
+                methodFqn  = ComposedBlueprintResolver.EffectiveMethodFqn(node.Condition);
                 targetKind = SubElementKind.ConditionFqn;
             }
             else

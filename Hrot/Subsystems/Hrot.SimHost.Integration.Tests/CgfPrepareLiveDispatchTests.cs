@@ -61,14 +61,14 @@ public sealed class CgfPrepareLiveDispatchTests : IDisposable
         var stub       = new FailLoudRecordReplayStub("CGF-test");
 
         using var slave = new ClusterSlave();
-        slave.RegisterHandler(new HrotHandlerAdapter(stub));  // same registration order as CgfApplication
+        slave.RegisterHandler(new HrotHandlerAdapter(stub));  // same registration order as the live CGF slave (the former CgfApplication's, CE-3348)
         slave.RegisterHandler(handler);
 
         var scenarioId = "test_scenario_01";
         slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 0,
+            TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
             DomainPayload = scenarioId,
         });
@@ -105,7 +105,7 @@ public sealed class CgfPrepareLiveDispatchTests : IDisposable
         slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 0,
+            TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
             DomainPayload = null,  // no scenario ID → handler skips gracefully
         });
@@ -142,7 +142,7 @@ public sealed class CgfPrepareLiveDispatchTests : IDisposable
         var cmd = new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 0,
+            TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
             DomainPayload = scenarioId,
         };

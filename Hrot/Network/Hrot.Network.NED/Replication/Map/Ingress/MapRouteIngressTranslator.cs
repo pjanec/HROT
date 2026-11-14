@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.Map.Common.Components;
+using Hrot.Map.Common.Replication.Utils;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -18,9 +19,8 @@ namespace Hrot.Map.Common.Replication.Ingress;
 ///
 /// <para>
 /// Receives <see cref="MapRoute"/> DDS samples and writes the decoded waypoints
-/// into the target entity's <see cref="RoutePlan"/> managed component. Geodetic
-/// coordinates in the DDS payload are converted to local Cartesian world-space
-/// via <see cref="IGeographicTransform.ToCartesian"/>.
+/// into the target entity's <see cref="RoutePlan"/> managed component. Waypoint positions in the DDS
+/// payload are local ENU metres (AQ107 B) — the ECS frame — and are copied.
 /// </para>
 /// <para>
 /// If the target entity is not yet registered in <see cref="NetworkEntityMap"/>
@@ -29,21 +29,19 @@ namespace Hrot.Map.Common.Replication.Ingress;
 /// <see cref="PollIngress"/> call.
 /// </para>
 /// </summary>
-public class MapRouteIngressTranslator : IDescriptorTranslator
+public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngress
 {
-    private const string DdsTopicName = "MapRoute";
     private const long OrdinalValue = (long)EDescriptorType.dtMapRoute;
 
     private readonly DdsReader<MapRoute>? _reader;
     private readonly NetworkEntityMap _entityMap;
-    private readonly IGeographicTransform _geoTransform;
 
     /// <summary>
     /// Samples deferred because the entity was not yet registered in
     /// <see cref="NetworkEntityMap"/> when the sample arrived.
     /// Key: DDS EntityId (network ID); Value: the pending sample.
     /// </summary>
-    private readonly Dictionary<long, MapRoute> _pendingRoutes = new();
+    private readonly Dictionary<int, MapRoute> _pendingRoutes = new();
 
     /// <summary>
     /// Network IDs registered since the last <see cref="PollIngress"/> call.
@@ -51,9 +49,10 @@ public class MapRouteIngressTranslator : IDescriptorTranslator
     /// that the retry loop only inspects newly-arrived entities rather than scanning
     /// the entire <see cref="_pendingRoutes"/> dictionary on every tick.
     /// </summary>
-    private readonly HashSet<long> _recentlyRegistered = new();
+    private readonly HashSet<int> _recentlyRegistered = new();
+    private int _worldEpoch;   // ⭐ CE-2101 — deferred samples belong to ONE world (WorldEpoch)
 
-    public string TopicName => DdsTopicName;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MapRoute>();
     public long DescriptorOrdinal => OrdinalValue;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -61,20 +60,22 @@ public class MapRouteIngressTranslator : IDescriptorTranslator
 
     public MapRouteIngressTranslator(
         DdsParticipant? participant,
-        NetworkEntityMap entityMap,
-        IGeographicTransform geoTransform)
+        NetworkEntityMap entityMap)
     {
         _reader       = participant is not null ? new DdsReader<MapRoute>(participant) : null;
         _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
-        _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
 
         // Subscribe to registration events so the retry loop only runs when relevant
         // entities become available, rather than scanning all pending IDs every tick.
         _entityMap.EntityRegistered += OnEntityRegistered;
     }
 
+    /// <inheritdoc />
+    public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
+
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
     {
+        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _pendingRoutes.Clear(); _recentlyRegistered.Clear(); }   // CE-2101
         // Retry deferred samples — only for net IDs registered since the last poll.
         if (_recentlyRegistered.Count > 0 && _pendingRoutes.Count > 0)
         {
@@ -109,20 +110,15 @@ public class MapRouteIngressTranslator : IDescriptorTranslator
     {
         if (data is not MapRoute mapRoute) return;
 
-        RoutePlan routePlan;
-        if (repo.HasManagedComponent<RoutePlan>(entity))
-            routePlan = ((ISimulationView)repo).GetManagedComponentRO<RoutePlan>(entity);
-        else
-        {
-            routePlan = new RoutePlan();
-            repo.SetManagedComponent(entity, routePlan);
-        }
+        // CE-4046 — RoutePlan is an immutable record: build the new value and Set it.
+        var routePlan = repo.HasManagedComponent<RoutePlan>(entity)
+            ? ((ISimulationView)repo).GetManagedComponentRO<RoutePlan>(entity)
+            : new RoutePlan();
 
-        routePlan.IsLoop = mapRoute.IsLoop;
-        ApplyWaypoints(routePlan, mapRoute);
+        repo.SetManagedComponent(entity, MapRouteWire.Apply(routePlan, in mapRoute));
     }
 
-    public void Dispose(long networkEntityId)
+    public void Dispose(int networkEntityId)
     {
         _pendingRoutes.Remove(networkEntityId);
     }
@@ -131,7 +127,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator
 
     internal void ProcessSample(in MapRoute data, IEntityCommandBuffer cmd, ISimulationView view)
     {
-        long netId = data.EntityId;
+        int netId = data.EntityId;
         if (!_entityMap.TryGetEntity(netId, out var entity))
         {
             // Entity not yet spawned — defer until it is registered.
@@ -147,44 +143,19 @@ public class MapRouteIngressTranslator : IDescriptorTranslator
     private void ApplyRouteToEntity(
         Entity entity, in MapRoute data, IEntityCommandBuffer cmd, ISimulationView view)
     {
-        RoutePlan routePlan;
-        if (view.HasManagedComponent<RoutePlan>(entity))
-        {
-            routePlan = view.GetManagedComponentRO<RoutePlan>(entity);
-        }
-        else
-        {
-            routePlan = new RoutePlan();
-            cmd.SetManagedComponent(entity, routePlan);
-        }
+        // ⭐ S8 / F-5 — skip our OWN sample looping back: the recorded owner of this descriptor (the creator — CREATOR
+        //   group) edits it, and the value it last published must not overwrite a newer local edit. ⛔ Recorded owner
+        //   only: a ghost still being built takes the sample. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §3 F-5, §5.6 S8.
+        if (Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(
+                view, entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(OrdinalValue, 0)))
+            return;
 
-        routePlan.IsLoop = data.IsLoop;
-        ApplyWaypoints(routePlan, data);
-    }
+        // CE-4046 — RoutePlan is an immutable record: build the new value and Set it (it used to mutate the stored object in place).
+        var routePlan = view.HasManagedComponent<RoutePlan>(entity)
+            ? view.GetManagedComponentRO<RoutePlan>(entity)
+            : new RoutePlan();
 
-    private void ApplyWaypoints(RoutePlan routePlan, MapRoute data)
-    {
-        routePlan.Mutate(wps =>
-        {
-            wps.Clear();
-            if (data.Points != null)
-            {
-                foreach (var wp in data.Points)
-                {
-                    var cartesian = _geoTransform.ToCartesian(
-                        wp.Position.Latitude,
-                        wp.Position.Longitude,
-                        wp.Position.Altitude);
-
-                    wps.Add(new RouteWaypoint
-                    {
-                        Position      = cartesian,
-                        TargetSpeed   = (float)wp.SpeedMetersPerSec,
-                        ExtensionJson = string.IsNullOrEmpty(wp.ExtensionJson) ? null : wp.ExtensionJson,
-                    });
-                }
-            }
-        });
+        cmd.SetManagedComponent(entity, MapRouteWire.Apply(routePlan, in data)   /* ⭐ CE-4284 — the one decoding */);
     }
 
     /// <summary>
@@ -192,7 +163,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator
     /// entity is registered. Records the net ID so that <see cref="PollIngress"/> can
     /// check only the newly-arrived entries rather than scanning all pending routes.
     /// </summary>
-    private void OnEntityRegistered(long netId, Entity _)
+    private void OnEntityRegistered(int netId, Entity _)
     {
         if (_pendingRoutes.ContainsKey(netId))
             _recentlyRegistered.Add(netId);

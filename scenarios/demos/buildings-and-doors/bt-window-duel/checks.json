@@ -1,0 +1,44 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — P-8 peek-and-fire: a window duel, nothing scripted. Judge (1) both sides fire, (3) the Street Rifleman bounds to within 4 m of Van 2's cover (the take's proven cue, 30.5 s). Left out: (2) 'fires from at least two different windows' needs an OR over four window points, which one cue cannot say.",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "first": {
+      "on": "shot",
+      "n": 1
+    },
+    "bound": {
+      "on": "near",
+      "who": "Street Rifleman",
+      "point": [
+        113,
+        76
+      ],
+      "within": 2
+    }
+  },
+  "expect": [
+    {
+      "name": "the Window Rifleman fires",
+      "on": "shot",
+      "by": "Window Rifleman"
+    },
+    {
+      "name": "the Street Rifleman fires",
+      "on": "shot",
+      "by": "Street Rifleman"
+    },
+    {
+      "name": "the Street Rifleman bounds to Van 2's cover",
+      "on": "near",
+      "who": "Street Rifleman",
+      "point": [
+        113,
+        76
+      ],
+      "within": 4
+    }
+  ]
+}

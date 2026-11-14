@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Core.Serialization;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Components;
@@ -130,9 +131,11 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
     public BlueprintScenarioIntegrationTests()
     {
         _repo = new EntityRepository();
-        _repo.RegisterComponent<BlueprintBlackboard1024>();
-        _repo.RegisterComponent<BlueprintBlackboard4096>();
-        _repo.RegisterComponent<BlueprintBlackboard16384>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+        //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+        //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+        //   O3b added one. Production never had the bug: it registers from the table.
+        BlueprintTierTable.RegisterAll(_repo);
         _repo.RegisterManagedComponent<InitialBlueprintsIntent>();
         _registry = new BlueprintRegistry();
     }
@@ -159,30 +162,17 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
         return bpId;
     }
 
+    // ⭐ B4 — design §17.7: the store through the SEAM, not a named tier.
+    //   ⛔ This was a three-arm ladder blind to the 256 tier, so it returned -1 for a store that
+    //   was there. An entity carries AT MOST ONE store.
     private static unsafe int ReadCount(EntityRepository repo, Entity entity, int blueprintId)
     {
-        if (repo.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-            byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
-            if (BlueprintBlackboardPartitions.TryGetSlotOffset(mem, blueprintId, out int offset))
-                return Unsafe.ReadUnaligned<int>(mem + offset + 4); // offset after cursor
-        }
-        if (repo.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var bb = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-            byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb));
-            if (BlueprintBlackboardPartitions.TryGetSlotOffset(mem, blueprintId, out int offset))
-                return Unsafe.ReadUnaligned<int>(mem + offset + 4);
-        }
-        if (repo.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var bb = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-            byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb));
-            if (BlueprintBlackboardPartitions.TryGetSlotOffset(mem, blueprintId, out int offset))
-                return Unsafe.ReadUnaligned<int>(mem + offset + 4);
-        }
-        return -1;
+        byte* mem = OccurrenceStoreAccess.TryGetStoreReadOnly(repo, entity, out _);
+        if (mem == null) return -1;
+
+        return BlueprintBlackboardPartitions.TryGetSlotOffset(mem, blueprintId, out int offset)
+            ? Unsafe.ReadUnaligned<int>(mem + offset + 4)   // offset after cursor
+            : -1;
     }
 
     // ── Test 3: Dynamic swap ─────────────────────────────────────────────────
@@ -227,7 +217,7 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
         Assert.Equal(1, ReadCount(_repo, entity, bpIdA));
 
         // Publish replace event + swap buffers so Read<T> sees it
-        _repo.Bus.Publish(new ReplaceInstanceBlueprintEvent
+        _repo.Bus.PublishManaged(new ReplaceInstanceBlueprintEvent
         {
             Entity = entity,
             OldBlueprintId = bpIdA,
@@ -284,18 +274,17 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
         var ex = Record.Exception(() => matSys.Execute(_repo, 0f));
         Assert.Null(ex);
 
-        // Valid blueprint attached
-        Assert.True(_repo.HasComponent<BlueprintBlackboard1024>(entity));
-
-        // Slot count == 1 (only valid)
+        // Valid blueprint attached — ⭐ through the store seam: materialization provisions the tier the demand selects —
+        //   measured: NOT the 1024 tier for this small blueprint (HasComponent<BlueprintBlackboard1024> was false) — so asserting the 1024 component named a tier, not the property. (Same re-home as
+        //   ReadCount's B4 note above; found when the backend lane re-ran this suite, 2026-10-01.)
         unsafe
         {
-            ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = bb.Memory)
-            {
-                ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
-                Assert.Equal(1, header.SlotCount);
-            }
+            byte* mem = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);   // ⭐ the seam, not a named tier (B4)
+            Assert.True(mem != null, "the valid blueprint must have provisioned a store");
+
+            // Slot count == 1 (only valid)
+            ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
+            Assert.Equal(1, header.SlotCount);
         }
 
         // Intent removed after materialization
@@ -368,6 +357,134 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
         Assert.False(_repo.HasComponent<BlueprintBlackboard1024>(entity));
     }
 
+    // ── CE-3044 (R-191) — params persist as JSON by name ─────────────────────────────────────────────────────────
+    //  A hand-built Instance with two int params, A (default 0) and B (default 5), and the generated shape of its
+    //  ParseParams (defaults, then overlay by name) and FormatParams (non-default fields by name).
+
+    private static unsafe void TwoIntParse(string json, byte* memory, int capacity, EntityRepository world, Entity self)
+    {
+        var p = (int*)memory;
+        p[0] = 0;
+        p[1] = 5;
+        if (string.IsNullOrWhiteSpace(json)) return;
+        using var doc = JsonDocument.Parse(json);
+        foreach (var prop in doc.RootElement.EnumerateObject())
+        {
+            if (string.Equals(prop.Name, "A", StringComparison.OrdinalIgnoreCase)) p[0] = prop.Value.GetInt32();
+            else if (string.Equals(prop.Name, "B", StringComparison.OrdinalIgnoreCase)) p[1] = prop.Value.GetInt32();
+        }
+    }
+
+    private static unsafe string? TwoIntFormat(byte* memory, int capacity)
+    {
+        var p = (int*)memory;
+        var o = new JsonObject();
+        if (p[0] != 0) o["A"] = p[0];
+        if (p[1] != 5) o["B"] = p[1];
+        return o.Count == 0 ? null : o.ToJsonString();
+    }
+
+    private unsafe BlueprintDefinition RegisterTwoIntParamBlueprint(Guid assetId)
+    {
+        var def = new BlueprintDefinition
+        {
+            Name          = "ParamBp",
+            Kind          = BlueprintDispatchKind.Instance,
+            StructureHash = 0xABCDEF01UL,
+            StateSize     = 32,                      // [Cursor 16][Params 8][State 8]
+            ParamsOffset  = 16,
+            ParamsSize    = 8,
+            AssetId       = assetId,
+            InitDefault   = span => span.Clear(),    // ⚠ bakes STATE only — the params' declared B=5 comes from ParseParams
+            ParseParams   = TwoIntParse,
+            FormatParams  = TwoIntFormat,
+            ParamNames    = new[] { "A", "B" },
+        };
+        _registry.RegisterInstance(BlueprintIdHash.Compute(assetId), def);
+        return def;
+    }
+
+    private Dictionary<string, object> SaveOneParamInstance(BlueprintDefinition def, string? paramsJson)
+    {
+        int bpId = BlueprintIdHash.Compute(def.AssetId);
+        var src = _repo.CreateEntity();
+        _repo.AddComponent(src, default(BlueprintBlackboard1024));
+        Assert.Equal(BlueprintAttachStatus.Attached,
+            BlueprintInstanceService.AttachToEntity(_repo, _registry, bpId, src, paramsJson).Status);
+        return new BlueprintStateTranslator(_registry).Extract(_repo, src, new StubGuidResolver());
+    }
+
+    private int[] Reload(BlueprintDefinition def, Dictionary<string, object> saved)
+    {
+        var dst = _repo.CreateEntity();
+        new BlueprintStateTranslator(_registry).Inject(_repo, dst, saved, new StubGuidResolver());
+        Assert.True(_repo.HasManagedComponent<InitialBlueprintsIntent>(dst));
+        new BlueprintMaterializationSystem(_registry).Execute(_repo, 0f);
+        var bytes = ReadSlotParams(_repo, dst, BlueprintIdHash.Compute(def.AssetId), def);
+        return new[] { BitConverter.ToInt32(bytes, 0), BitConverter.ToInt32(bytes, 4) };
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3044 — a NON-default param survives save → reload, and the scenario holds it as JSON BY NAME with only the
+    /// non-default field (B is at its default, so it is not written). Supersedes the MX-031 byte rail.
+    /// <para><b>Inverse-edit red-proof:</b> drop the <c>ApplyParams</c> call in <c>BlueprintMaterializationSystem</c> and
+    /// the reload reads <c>[0, 0]</c>; drop the <c>FormatParams</c> call in <c>Extract</c> and <c>Params</c> is null.</para>
+    /// </summary>
+    [Fact]
+    public void ParamPersistence_NonDefaultParams_SurviveSaveThenReload_AsJsonByName()
+    {
+        var def = RegisterTwoIntParamBlueprint(Guid.Parse("E50117E7-0000-0000-0000-0000000000AA"));
+        var saved = SaveOneParamInstance(def, "{\"A\":42}");
+
+        var array = (JsonArray)saved["BlueprintAssignments"];
+        var paramsNode = Assert.IsType<JsonObject>(array[0]!["Params"]);
+        Assert.Equal("{\"A\":42}", paramsNode.ToJsonString());          // by name, only the non-default field
+
+        Assert.Equal(new[] { 42, 5 }, Reload(def, saved));
+    }
+
+    /// <summary>⭐ CE-3044 — a reload with NOTHING saved bakes the DECLARED param defaults, as a fresh attach does
+    /// (it used to run InitDefault only, which leaves params zero).</summary>
+    [Fact]
+    public void ParamPersistence_ADefaultAssignment_ReloadsWithTheDeclaredDefaults()
+    {
+        var def = RegisterTwoIntParamBlueprint(Guid.Parse("E50117E7-0000-0000-0000-0000000000AB"));
+        var saved = SaveOneParamInstance(def, null);
+
+        var array = (JsonArray)saved["BlueprintAssignments"];
+        Assert.Null(array[0]!["Params"]);                                    // a default assignment saves no params
+        Assert.Equal(new[] { 0, 5 }, Reload(def, saved));
+    }
+
+    /// <summary>⭐⭐ CE-3044 (R-191's reason) — a field RENAMED between save and load loses only itself: it keeps its
+    /// default and is reported, the other saved fields still load.</summary>
+    [Fact]
+    public void ParamPersistence_ARenamedField_DegradesToItsDefault_TheOthersLoad()
+    {
+        var def = RegisterTwoIntParamBlueprint(Guid.Parse("E50117E7-0000-0000-0000-0000000000AC"));
+        var saved = SaveOneParamInstance(def, "{\"A\":42,\"B\":9}");
+
+        // The scenario was saved when A was called "Alpha".
+        var p = (JsonObject)((JsonArray)saved["BlueprintAssignments"])[0]!["Params"]!;
+        var a = p["A"]!.DeepClone();
+        p.Remove("A");
+        p["Alpha"] = a;
+
+        Assert.Equal(new[] { "Alpha" }, BlueprintInstanceService.UnknownParamKeys(def, p));
+        Assert.Equal(new[] { 0, 9 }, Reload(def, saved));
+    }
+
+    private static unsafe byte[] ReadSlotParams(
+        EntityRepository repo, Entity entity, int bpId, BlueprintDefinition def)
+    {
+        // ⭐ Through the store seam: the reloaded entity is provisioned by materialization at the smallest tier that fits,
+        //   not at the 1024 tier the AUTHOR side hand-attached ("missing BlueprintBlackboard1024" was a named-tier read).
+        byte* mem = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
+        Assert.True(mem != null, "the entity must carry a store");
+        Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, bpId, out int off));
+        return BlueprintInstanceService.ReadParamsRegion(mem + off, def);
+    }
+
     // ── BSA-402: Demo scenario fixture ───────────────────────────────────────
 
     /// <summary>
@@ -425,14 +542,11 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
 
         // Intent removed after materialization
         Assert.False(_repo.HasManagedComponent<InitialBlueprintsIntent>(entity));
-        // Entity has the correct tier
-        Assert.True(_repo.HasComponent<BlueprintBlackboard1024>(entity));
-
-        // Verify the slot exists and blueprint id matches
+        // Verify the store, the slot and the blueprint id — ⭐ through the seam (any tier; see Test4's note).
         unsafe
         {
-            ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-            byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+            byte* mem = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);   // ⭐ the seam, not a named tier (B4)
+            Assert.True(mem != null, "materialization must have provisioned a store");
             ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
             Assert.Equal(BlueprintBlackboardHeader.MagicValue, header.MagicAndVersion);
             Assert.Equal(1, header.SlotCount);
@@ -447,9 +561,8 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
         // Direct write to verify memory is writable through the component ref
         unsafe
         {
-            ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-            byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
-            if (BlueprintBlackboardPartitions.TryGetSlotOffset(mem, counterBpId, out int off))
+            byte* mem = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);   // ⭐ the seam, not a named tier (B4)
+            if (mem != null && BlueprintBlackboardPartitions.TryGetSlotOffset(mem, counterBpId, out int off))
             {
                 ref int countRef = ref Unsafe.As<byte, int>(ref Unsafe.AsRef<byte>(mem + off + 4));
                 countRef++;

@@ -11,6 +11,10 @@ namespace Hrot.Blueprints.Tests.Compiler;
 /// <summary>
 /// Tests that verify PDB is emitted with embedded source when the option is set.
 /// </summary>
+// Batch 52 §1 — the two tests the coordinator bisected. They were green for two batches only because
+// something else in the run had loaded Hrot.Blueprints.Core first; see RoslynFinalizerCollection and
+// TestAssemblyModuleInit.
+[Collection("RoslynFinalizer")]
 public sealed class PdbEmbeddedSourceTests
 {
     private static CompileOptions OptionsWithPdb() =>

@@ -7,6 +7,7 @@ using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Contracts;
 using Hrot.MuscleCharacter.Animation.Nodes;
 using Xunit;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Animation.Integration.Tests;
 
@@ -28,14 +29,18 @@ public class AiPrimitiveCrossContextTests
     {
         var repo = new EntityRepository();
         repo.RegisterComponent<AnimationChannel>();
+        repo.RegisterComponent<AnimationChannelStatus>();
         repo.RegisterComponent<LookAtChannel>();
+        repo.RegisterComponent<LookAtChannelStatus>();
         repo.RegisterComponent<StanceStatus>();
         repo.RegisterComponent<AnimationMontageQueue>();
         repo.RegisterComponent<ActorCapabilityState>();
 
         var entity = repo.CreateEntity();
-        repo.AddComponent(entity, new AnimationChannel { Status = (NodeStatus)0 });
-        repo.AddComponent(entity, new LookAtChannel { Status = (NodeStatus)0 });
+        repo.AddComponent(entity, new AnimationChannel());
+        repo.AddComponent(entity, new AnimationChannelStatus { Status = (NodeStatus)0 });
+        repo.AddComponent(entity, new LookAtChannel());
+        repo.AddComponent(entity, new LookAtChannelStatus { Status = (NodeStatus)0 });
         repo.AddComponent(entity, new StanceStatus { CurrentStance = StanceId.Standing });
         repo.AddComponent(entity, new AnimationMontageQueue { Count = 0 });
         repo.AddComponent(entity, new ActorCapabilityState { Capabilities = ActorCapabilities.CanPlayAnimations });

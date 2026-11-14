@@ -24,7 +24,10 @@ namespace Hrot.Network.NED.Gizmos
         private readonly IDdsWriter<GizmoInteractionBatch>? _writer;
         private readonly FdpEventBus _interactionBus;
         private uint _sequenceNumber;
-        public string TopicName => "GizmoInteractionBatch";
+
+        // 🔴 §6.7 — `NetworkEntityMap? _entityMap` DELETED. S2 used it for the Entity -> network id
+        //   direction; the token now carries the network id, so there is nothing to look up.
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<GizmoInteractionBatch>();
         public TranslatorDirection Direction => TranslatorDirection.Egress;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -46,8 +49,12 @@ namespace Hrot.Network.NED.Gizmos
             if (_writer == null) return;
 
             // Drain all interaction event types from the isolated bus.
+            // ⭐⭐⭐ UXI-11 S-4b — the BUTTON rides in ActionId, the slot RawInput already uses for one
+            //   (ingress :162). ⚠ MapMouseButton.Left is 0 and ActionId defaults to 0, so this is
+            //   wire-compatible with an un-migrated sender. 📄 UX_Feature_Selection.md §2.7.14.
             foreach (ref readonly var evt in _interactionBus.Read<GizmoInteractionStartedEvent>())
-                WriteRecord(GizmoInteractionEventKind.Started, evt.Token, evt.WorldPos);
+                WriteRecord(GizmoInteractionEventKind.Started, evt.Token, evt.WorldPos,
+                            actionId: (int)evt.Button);
 
             foreach (ref readonly var evt in _interactionBus.Read<GizmoDragUpdateEvent>())
                 WriteRecord(GizmoInteractionEventKind.DragUpdate, evt.Token, evt.WorldPos, evt.Space);
@@ -65,27 +72,59 @@ namespace Hrot.Network.NED.Gizmos
             // Forward StructInspector Apply mutations back to SimHost.
             foreach (var evt in _interactionBus.ReadManaged<GizmoStructUpdateEvent>())
                 WriteStructUpdate(evt.AnchorId, evt.GizmoTypeId, evt.PayloadJson);
+
+            // ⭐ CE-1066 — a StructInspector panel closed with its [X], back to the gizmo that owns it
+            if (_interactionBus.IsRegistered<GizmoInspectorClosedEvent>())
+                foreach (ref readonly var evt in _interactionBus.Read<GizmoInspectorClosedEvent>())
+                    WriteInspectorClosed(evt.AnchorId, evt.GizmoTypeId);
         }
+
+        private void WriteInspectorClosed(long anchorId, uint gizmoTypeId)
+        {
+            _writer!.Write(new GizmoInteractionBatch
+            {
+                SourceNodeId    = _nodeId,
+                SequenceNumber  = _sequenceNumber++,
+                Kind            = GizmoInteractionEventKind.InspectorClosed,
+                PickAnchorId    = anchorId,
+                PickGizmoTypeId = gizmoTypeId,
+            });
+            SentSampleCount++;
+        }
+
+        // 🔴 §6.7 — `private long NetworkIdOf(Entity)` DELETED with the map it read.
 
         private void WriteRecord(
             GizmoInteractionEventKind kind,
             PickToken token,
             Vector3 worldPos,
-            CoordinateSpace space = default)
+            CoordinateSpace space = default,
+            int actionId = 0)
         {
             _writer!.Write(new GizmoInteractionBatch
             {
                 SourceNodeId         = _nodeId,
                 SequenceNumber       = _sequenceNumber++,
                 Kind                 = kind,
-                PickAnchorId         = token.Target.Index,
-                PickStreamId         = (uint)token.Target.Generation,
+                // ⭐⭐⭐ S2/§6.7 — send the NETWORK id, which is what the record documents (:21) and what
+                //   the token now already holds.
+                //   ⛔ HISTORY: this sent `token.Target.Index`/`.Generation` (a PROCESS-LOCAL handle,
+                //     meaningless on the receiver — defect D2); S2 then made it `NetworkIdOf(token.Target)`,
+                //     a NetworkEntityMap lookup back UP from the handle. §6.7 deleted the handle from the
+                //     token, so the id travels from the picked primitive to the wire untouched — ⭐ and a
+                //     node with no map can now SEND, where before `NetworkIdOf` returned 0 and the
+                //     interaction went out anchored to nothing.
+                PickAnchorId         = token.AnchorId,
+                PickStreamId         = 0u,   // reserved: "publisher stream discriminator" (GizmoPickToken.cs:10)
                 PickSubElementId     = token.SubElementId,
                 PickGizmoTypeId      = token.GizmoTypeId,
                 WorldX               = worldPos.X,
                 WorldY               = worldPos.Y,
                 WorldZ               = worldPos.Z,
                 Space                = (byte)space,
+                // ⭐ UXI-11 S-4b — the BUTTON for Started; 0 (= Left) for every other kind, which is
+                //   what they all carried before the field had a second meaning.
+                ActionId             = actionId,
             });
             SentSampleCount++;
         }

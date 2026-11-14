@@ -145,7 +145,7 @@ After Batch 1, Brain emits `WeaponFireIntent` internally. This batch wires Brain
 - Specifically run:
   - `dotnet test FDP/Toolkits/FDP.Toolkit.Combat.Tests/FDP.Toolkit.Combat.Tests.csproj`
   - `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj` (or the closest relevant host tests that exercise translators)
-  - `dotnet test IOS-IG-SimHost.sln` before submission if runtime allows.
+  - `dotnet test HROT.sln` before submission if runtime allows.
 
 ---
 

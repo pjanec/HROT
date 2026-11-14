@@ -1,0 +1,565 @@
+using Fdp.Toolkit.Replication;
+using System.Numerics;
+using System.Runtime.InteropServices;
+using Fbt;
+using FDP.Eqs;
+using Fdp.Core;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Spatial.Eqs;
+using Fdp.Toolkit.Utility;
+using Fbt.Kernel;
+using Fdp.Toolkit.Tkb.Domain;
+using Hrot.MuscleCharacter.Animation.Stance;
+using Fdp.Toolkit.Behavior.Diagnostics;
+
+namespace Hrot.AI.Behaviors.Brains
+{
+    /// <summary>⭐ <c>CE-2092</c> — the tunables of <see cref="EqsTacticsNodes"/> (what a designer edits on the tree's node).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
+    public struct EqsTacticsParams
+    {
+        /// <summary>How far from the unit the query looks (m).</summary>
+        public float SearchRadius;
+        /// <summary>TakeCover only: a new best point closer than this to the current goal does not move the unit again (m).</summary>
+        public float MinRepositionMetres;
+        /// <summary>Travel speed (m/s).</summary>
+        public float Speed;
+        /// <summary>Distance from the point that counts as arrived (m).</summary>
+        public float ArrivalRadius;
+        /// <summary>The sensor publishes a new answer only when a top score moved by more than this (EQS ScoreDelta policy).</summary>
+        public float ScoreDeltaThreshold;
+        /// <summary>Which forces count as threats for the query's exposure scoring (bit N = force N; 0 = every acquired contact).</summary>
+        public uint FactionFilter;
+        /// <summary>⭐ <c>CE-2108</c> (§9.6a) — seconds between shots when <see cref="FireWhileMoving"/> (0 ⇒ 1 s).</summary>
+        public SimDuration FireCooldownSeconds;
+        /// <summary>⭐ <c>CE-2108</c> (§9.6a) — 1 = fire at the top threat while moving there (the ROE still gates every shot).
+        /// A manoeuvre setting, not an ROE one: it does not outlive the run.</summary>
+        public byte FireWhileMoving;
+        /// <summary>⭐ <c>CE-2275</c> D-2d (PC-14) — a POSTED man's move: with <see cref="AnchorRadius"/> &gt; 0 only a point within it of
+        /// <see cref="Anchor"/> is taken (the best-ranked such point); none ⇒ no move, he fights from where he is. 0 = anywhere.
+        /// 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c D-2d.</summary>
+        public PointLink Anchor;
+        public float AnchorRadius;
+    }
+
+    /// <summary>⭐ <c>CE-2092</c> — the node's own memory between ticks (a node-scoped working state).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct EqsTacticsState
+    {
+        /// <summary>The run's own child sensor.</summary>
+        public EqsSensorHandle Sensor;
+        /// <summary>The threat the sensor is pointed at (slot 1).</summary>
+        public Entity Threat;
+        /// <summary>⭐ <c>CE-3063</c> ③ — the HEARD contact it is pointed at instead (its memory id; 0 = none) …</summary>
+        public long HeardId;
+        /// <summary>… and the point it was pointed at (the sensor's context point 1).</summary>
+        public Vector3 HeardPoint;
+        /// <summary>Where the unit was last sent.</summary>
+        public Vector3 Goal;
+        /// <summary>The answer stamp (<see cref="EqsCognitiveBuffer.LastUpdateTick"/>) last acted on — one look per answer.</summary>
+        public uint LastAnswerTick;
+        /// <summary>1 once a move was issued; ⭐ 2 = down in the open, no cover point yet (CE-2322, TakeCover only).</summary>
+        public byte Moving;
+        /// <summary>⭐ <c>CE-2108</c> — what the weapon is aimed at while moving (<see cref="EqsTacticsParams.FireWhileMoving"/>).</summary>
+        public EngageState Fire;
+        /// <summary>⭐ <c>CE-2108</c> (§9.8 G6) — where the threat was when the current move was issued: Flank / FiringPosition
+        /// re-route only when the THREAT has moved, never because the unit's own walk changed a self-relative answer.</summary>
+        public Vector3 ThreatAtMove;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3063</c> ③ — what a sensor hides FROM: an identified threat (an entity), or a HEARD contact (its memory id and its
+    /// fused position — 🔒 user <c>2026-10-05</c>: "hide from a point is OK"). 📄 <c>docs/DESIGN_Thermal_And_Acoustic_Sensing.md</c> §8.
+    /// </summary>
+    public readonly record struct ThreatAim(Entity Entity, long HeardId, Vector3 Point)
+    {
+        /// <summary>True when the aim is a heard contact's point.</summary>
+        public bool IsPoint => Entity.IsNull && HeardId != 0;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2092</c> / <c>CE-2093</c> — take cover and fall back, as shared C# nodes a BTree (and an HSM) binds.
+    /// 📄 <c>docs/DESIGN_Eqs_Consuming_Behaviours.md</c> §2 (R-204).
+    /// <para>Each tick: the unit's top threat (the starter <c>ThreatRankingDecision</c> over its <c>TargetMemory</c>) → the
+    /// run's own standing sensor pointed at it (re-pointed with a new epoch when the threat changes) → on each NEW answer,
+    /// a pathed MoveTo to the best point (<see cref="LocomotionMoveTo"/>).</para>
+    /// </summary>
+    public static class EqsTacticsNodes
+    {
+        /// <summary>The sensor sites (with the run's owner stamp, CE-485, they find this node's sensor again).</summary>
+        public const int TakeCoverSite = 0x20920001;
+        /// <summary>See <see cref="TakeCoverSite"/>.</summary>
+        public const int FallBackSite  = 0x20930001;
+        /// <summary>⭐ <c>CE-2108</c> — see <see cref="TakeCoverSite"/>.</summary>
+        public const int FlankSite = 0x21080001, FiringPositionSite = 0x21080002;
+        /// <summary>⭐ WL-4 W-12f — see <see cref="TakeCoverSite"/>.</summary>
+        public const int CloseToThrowSite = 0x40120001;
+
+        /// <summary>⭐ WL-4 W-12f — how far from the last sighting a throwing spot may be (m): inside an M67's 22.9 m reach with
+        /// room for the lob (Weapon_Layers §5f).</summary>
+        public const float ThrowSearchRadius = 18f;
+
+        /// <summary>⭐ <c>CE-2108</c> (§9.6 F4) — how the ONE body <see cref="Run"/> flies a manoeuvre.</summary>
+        [System.Flags]
+        private enum Mode : byte
+        {
+            /// <summary>TakeCover: re-position for as long as there is a threat; never ends on its own.</summary>
+            None = 0,
+            /// <summary>Success on arrival (the sensor goes, the unit stays).</summary>
+            EndOnArrival = 1,
+            /// <summary>A new answer ≥ <see cref="EqsTacticsParams.MinRepositionMetres"/> from the goal moves the unit again.</summary>
+            Reposition = 2,
+            /// <summary>Needs an IDENTIFIED threat (to see / shoot at); none ⇒ Failure. Else a heard point will do, none ⇒ Success.</summary>
+            NeedsEntity = 4,
+            /// <summary>⭐ §9.8 G6 — re-position only once the THREAT has moved ≥ <see cref="EqsTacticsParams.MinRepositionMetres"/>
+            /// since the move was issued. 📐 Both templates score relative to the unit's CURRENT position (the flank's bearing
+            /// reference is slot 0 = self; the firing position prefers near self), so as the unit walks the best point walks
+            /// with it — re-routing on every such answer would chase it round the target.</summary>
+            RepositionOnThreatMove = 8,
+            /// <summary>⭐ WL-4 L-5 — the sensor is pointed at the threat's LAST-KNOWN point (its memory slot), never the live
+            /// entity: a hidden man's current position is not the unit's to know.</summary>
+            AtLastKnownPoint = 16,
+            /// <summary>⭐ WL-4 W-12f — fire (through the weapon brain, which throws at a hidden target) whenever there is a threat,
+            /// not only while moving: the spot is reached to THROW from.</summary>
+            FireAlways = 32,
+            /// <summary>⭐ <c>CE-2322</c> (AQ96 C) — fired on with no point to move to: down, prone, until a point comes.</summary>
+            DownInTheOpen = 64,
+        }
+
+        /// <summary>The starter threat ranking (<see cref="ThreatRankingDecision"/>'s asset id).</summary>
+        public static readonly int ThreatRankingId = UtilityDecisionCatalog.ComputeId("1a4f7c20-3b9e-4d18-8a01-threat0000001");
+
+        private static UtilityScorer? _scorer;
+
+        /// <summary>
+        /// Keeps the unit in cover from its top threat: Running while it has one, re-positioning only when a NEW answer's
+        /// best point is at least <see cref="EqsTacticsParams.MinRepositionMetres"/> from the current goal. Success when
+        /// it has nothing left to hide from; Failure when it cannot move.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus TakeCover(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Run(ref p, ref ws, self, world, FindCoverFromTarget.BlueprintId, TakeCoverSite, Mode.Reposition | Mode.DownInTheOpen);
+
+        /// <summary>
+        /// Falls back once to a point hidden from the top threat and far from it: one move, Success on arrival. The sensor
+        /// is re-pointed only until the move is issued.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus FallBack(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Run(ref p, ref ws, self, world, FindSafeRetreatPoint.BlueprintId, FallBackSite, Mode.EndOnArrival);
+
+        /// <summary>
+        /// ⭐ <c>CE-2108</c> — moves to a FLANK on the top identified threat (<see cref="FindFlankingPosition"/>: a point that sees
+        /// it, side-on to the threat→unit line), re-positioning while it moves; Success on arrival (the tree then fires).
+        /// Failure when no threat is identified (a heard point cannot be seen from anywhere) or the unit cannot move.
+        /// 📄 <c>docs/DESIGN_Eqs_Consuming_Behaviours.md</c> §9.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus Flank(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Run(ref p, ref ws, self, world, FindFlankingPosition.BlueprintId, FlankSite,
+                   Mode.EndOnArrival | Mode.RepositionOnThreatMove | Mode.NeedsEntity);
+
+        /// <summary>
+        /// ⭐ <c>CE-2357</c> (AQ102 E) — a FLANK on where the hidden top threat was LAST SEEN (its memory slot, L-5): the same
+        /// <see cref="FindFlankingPosition"/> as <see cref="Flank"/>, pointed at the remembered point, never the live entity. 📐 Measured
+        /// live (<c>rf-house-obstacle</c>): two men flanking each other's LIVE positions chased each other round House A and swapped sides
+        /// without a shot. Success on arrival.
+        /// </summary>
+        public static NodeStatus FlankRemembered(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Run(ref p, ref ws, self, world, FindFlankingPosition.BlueprintId, FlankSite,
+                   Mode.EndOnArrival | Mode.RepositionOnThreatMove | Mode.NeedsEntity | Mode.AtLastKnownPoint);
+
+        /// <summary>
+        /// ⭐ <c>CE-2357</c> (AQ102 E) — CLOSES IN on where the hidden top threat was LAST SEEN: to within a throw of the remembered point
+        /// (<see cref="FindThrowingPosition"/>, as <see cref="CloseToThrow"/>), firing — and throwing, the weapon brain's choice — on the
+        /// way; unlike <see cref="CloseToThrow"/> it ends on arrival, so the fight from cover goes on from there. 📐 Live (<c>rf-car-duel</c>):
+        /// side-on flanks alone kept the two men 43 m apart for 90 s.
+        /// </summary>
+        public static NodeStatus CloseInRemembered(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Run(ref p, ref ws, self, world, FindThrowingPosition.BlueprintId, CloseToThrowSite,
+                   Mode.EndOnArrival | Mode.RepositionOnThreatMove | Mode.NeedsEntity | Mode.AtLastKnownPoint | Mode.FireAlways);
+
+        /// <summary>
+        /// ⭐ <c>CE-2108</c> — moves to a FIRING POSITION on the top identified threat (<see cref="FindOpenFiringPosition"/>: a
+        /// nearby point that sees it, higher and less exposed scoring more), as <see cref="Flank"/> does. 📄 §9.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus FiringPosition(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Run(ref p, ref ws, self, world, FindOpenFiringPosition.BlueprintId, FiringPositionSite,
+                   Mode.EndOnArrival | Mode.RepositionOnThreatMove | Mode.NeedsEntity);
+
+        /// <summary>
+        /// ⭐⭐ <c>WL-4</c> W-12f (📄 docs/DESIGN_Weapon_Layers.md §5f) — closes to within a THROW of where the hidden top threat was
+        /// last seen (<see cref="FindThrowingPosition"/>, the sensor on the remembered point — L-5) and keeps firing at it from
+        /// there: the weapon brain (<c>AimAndFireExecutor</c> → <c>HiddenTargetThrow</c>) throws while the target stays hidden,
+        /// and the rifle takes over the moment it is seen. Never ends on its own: the approach decision moves the unit on.
+        /// Failure when no threat is identified or remembered, or the unit cannot move.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus CloseToThrow(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Run(ref p, ref ws, self, world, FindThrowingPosition.BlueprintId, CloseToThrowSite,
+                   Mode.RepositionOnThreatMove | Mode.NeedsEntity | Mode.AtLastKnownPoint | Mode.FireAlways);
+
+        /// <summary>⭐ WL-4 L-5 — <paramref name="threat"/> as its LAST-KNOWN point (the memory slot's position, keyed by the entity's
+        /// id), so a sensor anchors there and not on the live entity. False when the memory has no slot for it.</summary>
+        internal static bool LastKnownAim(EntityRepository world, Entity self, Entity threat, out ThreatAim aim)
+        {
+            aim = default;
+            if (threat.IsNull || !ThreatPosition(world, self, new ThreatAim(threat, 0, default), out var at)) return false;
+            aim = new ThreatAim(Entity.Null, (long)threat.PackedValue, at);
+            return true;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2108</c> (§9.6 F4) — the ONE body of the four manoeuvres: the top threat → the run's own sensor with
+        /// <paramref name="template"/> pointed at it → on each NEW answer a pathed MoveTo to the best point; <paramref name="mode"/>
+        /// says whether it ends on arrival, re-positions while moving and needs an identified threat. With
+        /// <see cref="EqsTacticsParams.FireWhileMoving"/> it also fires at the top threat while the move runs (§9.6a).
+        /// </summary>
+        private static NodeStatus Run(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world,
+                                      uint template, int site, Mode mode)
+        {
+            if (!world.HasComponent<LocomotionChannel>(self)) return NodeStatus.Failure;
+            bool endOnArrival = (mode & Mode.EndOnArrival) != 0;
+            bool onThreatMove = (mode & Mode.RepositionOnThreatMove) != 0;
+            bool reposition = onThreatMove || (mode & Mode.Reposition) != 0;
+
+            if (endOnArrival && ws.Moving == 1)
+            {
+                var status = LocomotionMoveTo.Status(world, self);
+                if (status == NodeStatus.Success)
+                {
+                    Release(ref ws, self, world, stopMoving: false);
+                    return NodeStatus.Success;
+                }
+                if (status == NodeStatus.Running && !reposition)
+                {
+                    FireOnTheMove(ref p, ref ws, self, world, (mode & Mode.FireAlways) != 0);
+                    return NodeStatus.Running;
+                }
+                if (status != NodeStatus.Running)
+                {
+                    ws.Moving = 0;   // failed: ask again
+                    ws.LastAnswerTick = 0;
+                }
+            }
+
+            ThreatAim threat;
+            if ((mode & Mode.NeedsEntity) != 0)
+            {
+                if (!TopThreat(world, self, ws.Threat, out var seen))
+                {
+                    Release(ref ws, self, world);
+                    return NodeStatus.Failure;   // nothing identified to flank / shoot at: the parent picks something else
+                }
+                threat = new ThreatAim(seen, 0, default);
+                if ((mode & Mode.AtLastKnownPoint) != 0 && !LastKnownAim(world, self, seen, out threat))
+                {
+                    Release(ref ws, self, world);
+                    return NodeStatus.Failure;
+                }
+            }
+            else if (!TopAim(world, self, new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint), out threat, bursts: true))   // R-2071 — hide from where rounds land
+            {
+                Release(ref ws, self, world);
+                return NodeStatus.Success;
+            }
+
+            var child = EnsureSensor(ref p, ref ws, self, world, threat, template, site);
+            if (child.IsNull) return NodeStatus.Running;
+
+            bool hasThreatPos = ThreatPosition(world, self, threat, out var threatPos);
+            if (TryNewAnswer(world, child, ref ws, in p, out var best)
+                && (ws.Moving != 1
+                    || (reposition && Vector3.Distance(best, ws.Goal) >= p.MinRepositionMetres
+                        && (!onThreatMove || (hasThreatPos && Vector3.Distance(threatPos, ws.ThreatAtMove) >= p.MinRepositionMetres)))))
+            {
+                // ⭐ AQ96 D (CE-2320) — every move here is made against a threat (to cover, back, round its flank): crouched, at least a rush
+                LocomotionMoveTo.Issue(world, self, best, System.MathF.Max(p.Speed, UnderFire.RushSpeed), p.ArrivalRadius, MoveGait.Crouched, source: MoveSource.CoverSearch);
+                ws.Goal = best;
+                ws.Moving = 1;
+                ws.ThreatAtMove = threatPos;
+            }
+            else if (!endOnArrival && ws.Moving == 1 && LocomotionMoveTo.Status(world, self) == NodeStatus.Failure)
+            {
+                ws.Moving = 0;   // the move failed (or was taken over): the next answer moves again
+            }
+            // ⭐ CE-2322 (AQ96 C, "still under fire, nothing near: stays down") — no point to move to and fired on: he drops where he
+            //   stands rather than standing in it. The next answer's crouched move gets him up (LocomotionMoveTo sets the gait's stance).
+            if ((mode & Mode.DownInTheOpen) != 0 && ws.Moving == 0
+                && Now(world) - UnderFire.LastFire(world, self) <= UnderFire.FreshFireSeconds)
+            {
+                StanceRequest.Set(world, self, StanceId.Prone, UnderFire.DropBlendSeconds);
+                ws.Moving = 2;
+            }
+            FireOnTheMove(ref p, ref ws, self, world, (mode & Mode.FireAlways) != 0);
+            return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ <c>CE-2108</c> — where the unit's memory places <paramref name="aim"/>: a heard contact's point, else the
+        /// remembered entity's fused position (the Brain reads its memory, not the threat's transform).</summary>
+        // ⭐ CE-3136 P-6 — internal: PeekAndFire's blind burst aims there.
+        internal static unsafe bool ThreatPosition(EntityRepository world, Entity self, in ThreatAim aim, out Vector3 position)
+        {
+            position = aim.Point;
+            if (aim.IsPoint) return true;
+            if (!world.HasComponent<TargetMemory>(self)) return false;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            long id = (long)aim.Entity.PackedValue;
+            for (int i = 0; i < mem.Count; i++)
+                if (mem.EntityIds[i] == id) { position = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]); return true; }
+            return false;
+        }
+
+        /// <summary>⭐ <c>CE-2108</c> (§9.6a) — while a move runs and the params ask for it, fire at the top threat through the
+        /// posture's ONE fire step (the ROE gates every shot in the executor); otherwise the weapon this node aimed stops.</summary>
+        private static void FireOnTheMove(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world, bool always = false)
+        {
+            // ⭐ CE-2275 D-2d (PC-14) — a posted man with no move to make (none asked yet, or no answer on his post) fights from where he stands
+            bool posted = p.AnchorRadius > 0f && ws.Moving != 1;
+            if (p.FireWhileMoving == 0 && !posted) return;
+            if (always || posted || (ws.Moving == 1 && LocomotionMoveTo.Status(world, self) == NodeStatus.Running))
+                // ⭐ AQ89 C — FireAlways (CloseToThrow) suppresses BLIND at the hidden target while it closes (R-269)
+                PostureNodes.Fire(world, self, ref ws.Fire, p.FireCooldownSeconds > 0f ? p.FireCooldownSeconds : 1f, blind: always);
+            else
+                PostureNodes.StopFiring(world, self, ref ws.Fire);
+        }
+
+        /// <summary>Leaving the node (abort / branch switch): its sensor goes, and a move it issued stops.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.TakeCover")]
+        public static void Deactivate_TakeCover(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Release(ref ws, self, world);
+
+        /// <summary>See <see cref="Deactivate_TakeCover"/>.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBack")]
+        public static void Deactivate_FallBack(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Release(ref ws, self, world);
+
+        /// <summary>See <see cref="Deactivate_TakeCover"/> (the weapon it aimed stops too).</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Flank")]
+        public static void Deactivate_Flank(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Release(ref ws, self, world);
+
+        /// <summary>⭐ WL-4 — see <see cref="Deactivate_Flank"/>.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.CloseToThrow")]
+        public static void Deactivate_CloseToThrow(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Release(ref ws, self, world);
+
+        /// <summary>See <see cref="Deactivate_Flank"/>.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FiringPosition")]
+        public static void Deactivate_FiringPosition(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Release(ref ws, self, world);
+
+        // ── the shared steps ─────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// The threat to hide from: the ranking's top. ⚠ When nothing scores above zero (nothing in sight — e.g. the unit is
+        /// already hidden) the ranking ties and its order is the memory's; the CURRENT threat is then kept while it is still
+        /// remembered, so the sensor is not re-pointed back and forth. False = nothing remembered.
+        /// </summary>
+        internal static bool TopThreat(EntityRepository world, Entity self, Entity current, out Entity threat)   // ⭐ CE-2073 — shared with PostureNodes
+        {
+            threat = Entity.Null;
+            if (!world.HasComponent<TargetMemory>(self)) return false;
+            if (world.GetComponentRO<TargetMemory>(self).Count == 0) return false;
+
+            // ⭐ CE-3170 (docs/DESIGN_Entity_Control.md C-5) — an attack order's target wins while the unit still REMEMBERS it (the
+            //   order seeds the memory; fog of war still applies after that) and it is in the fight: hidden or not, a nearer threat
+            //   does not take it over. (The squad's assignment stays a ranking bias, IsAssignedTarget: it orders the SEEN ones.)
+            if (DesignatedTarget.Of(world, self, out var designated) && Engageable(world, designated)
+                && Remembers(world, self, designated))
+            {
+                threat = designated;
+                return true;
+            }
+
+            UtilityDecisionCatalog.EnsureRegistered();
+            var scorer = UtilityDecisionCatalog.ScorerOverShared(ref _scorer);
+            if (!scorer.TopCandidate(world, self, ThreatRankingId, 0, out Entity top, out float score)) return false;
+
+            // ⭐ CE-2202 — never a BODY: the kept current and the ranking's top must still be in the fight (CombatLife, CE-466's rule — a
+            //   knocked-out man stays in the world and in memory). 📌 Live ua-ifv-standoff: the IFV killed one RPG man, kept him as its
+            //   threat (nothing else scored above zero), stood guarding the corpse, and two live men walked up to it unengaged.
+            threat = score <= 0f && !current.IsNull && Remembers(world, self, current) ? current : top;
+            if (!threat.IsNull && !Engageable(world, threat)) threat = FirstLiveRemembered(world, self);
+            return !threat.IsNull;
+        }
+
+        /// <summary>⭐ CE-2202 + ⭐ CE-2233 (CIV-0) + ⭐ CE-2318 — a threat to fight: in the fight (never a body, never a man down —
+        /// <c>Injury.IsInTheFight</c>, Injury States I4) and not a NEUTRAL (a civilian is
+        /// remembered — a police line must see a crowd — but is never the threat; its side is read live, so a flip to Hostile counts).</summary>
+        private static bool Engageable(EntityRepository world, Entity e)
+            => Fdp.Toolkit.Combat.Injury.IsInTheFight(world, e) && !Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e);
+
+        /// <summary>⭐ CE-2282 DA-27 — the first identified, live, engageable entity in memory (score order) that his SECTOR allows him to
+        /// choose (<c>EngagementAreas.Allows</c>), or none.</summary>
+        internal static unsafe Entity FirstAllowedRemembered(EntityRepository world, Entity self)
+        {
+            if (!world.HasComponent<TargetMemory>(self)) return Entity.Null;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (TargetMemory.IsAnonymous(in mem, i)) continue;
+                var e = new Entity((ulong)mem.EntityIds[i]);
+                if (Engageable(world, e) && Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, e)) return e;
+            }
+            return Entity.Null;
+        }
+
+        /// <summary>⭐ CE-2202 — the first identified, live entity in memory (slots are score-ordered), or none.</summary>
+        private static unsafe Entity FirstLiveRemembered(EntityRepository world, Entity self)
+        {
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (TargetMemory.IsAnonymous(in mem, i)) continue;
+                var e = new Entity((ulong)mem.EntityIds[i]);
+                if (Engageable(world, e)) return e;
+            }
+            return Entity.Null;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3063</c> ③ — what to hide from: <see cref="TopThreat"/> when the unit knows an ENTITY; else a HEARD contact — the
+        /// one it already hides from while still remembered (so the sensor is not re-pointed between two shots), else the freshest
+        /// heard slot. False = nothing remembered at all. ⚠ An identified threat always wins over a heard one.
+        /// </summary>
+        /// <remarks>⭐ R-2071 E-1 (Sensing §8.6b) — a heard BURST is the threat only with <paramref name="bursts"/> (TakeCover / Flee hide
+        /// from where rounds land); a fight never takes one for its enemy.</remarks>
+        internal static unsafe bool TopAim(EntityRepository world, Entity self, in ThreatAim current, out ThreatAim aim, bool bursts = false)
+        {
+            aim = default;
+            if (TopThreat(world, self, current.Entity, out var threat)) { aim = new ThreatAim(threat, 0, default); return true; }
+            if (!world.HasComponent<TargetMemory>(self)) return false;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+
+            int slot = -1;
+            for (int i = 0; current.HeardId != 0 && i < mem.Count; i++)
+                if (mem.EntityIds[i] == current.HeardId && TargetMemory.IsAnonymous(in mem, i) && (bursts || !TargetMemory.IsBurst(in mem, i))) { slot = i; break; }
+            for (int i = 0; slot < 0 && i < mem.Count; i++)
+                if (TargetMemory.IsAnonymous(in mem, i) && (bursts || !TargetMemory.IsBurst(in mem, i))) slot = i;   // slots are sorted by score: the first is the freshest
+            if (slot < 0) return false;
+
+            aim = new ThreatAim(Entity.Null, mem.EntityIds[slot], new Vector3(mem.PositionsX[slot], mem.PositionsY[slot], mem.PositionsZ[slot]));
+            return true;
+        }
+
+        /// <summary>⭐ <c>CE-3063</c> — points a sensor config at <paramref name="aim"/>: slot 1 for an entity, context point 1 for a
+        /// heard contact.</summary>
+        internal static void Point(ref EqsSensor config, in ThreatAim aim)
+        {
+            config.ContextSlot1 = aim.Entity;
+            config.ContextPoint1 = aim.IsPoint ? aim.Point : default;
+            config.ContextPointMask = aim.IsPoint ? EqsSensor.Point1Bit : (byte)0;
+        }
+
+        /// <summary>A heard contact's fused point moving this far re-points the sensor (m).</summary>
+        internal const float RepointMetres = 2f;
+
+        /// <summary>⭐ <c>CE-3063</c> — does the sensor need re-pointing from <paramref name="was"/> to <paramref name="now"/>?</summary>
+        internal static bool Moved(in ThreatAim was, in ThreatAim now)
+            => !now.Entity.Equals(was.Entity) || now.HeardId != was.HeardId
+            || (now.IsPoint && Vector3.Distance(now.Point, was.Point) > RepointMetres);
+
+        /// <summary>Is the sensor already pointed at <paramref name="aim"/>?</summary>
+        internal static bool PointsAt(in EqsSensor s, in ThreatAim aim)
+        {
+            if (!s.ContextSlot1.Equals(aim.Entity)) return false;
+            bool hasPoint = (s.ContextPointMask & EqsSensor.Point1Bit) != 0;
+            return aim.IsPoint ? hasPoint && Vector3.Distance(s.ContextPoint1, aim.Point) <= RepointMetres : !hasPoint;
+        }
+
+        private static unsafe bool Remembers(EntityRepository world, Entity self, Entity e)
+        {
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            for (int i = 0; i < mem.Count; i++)
+                if (new Entity((ulong)mem.EntityIds[i]).Equals(e)) return true;
+            return false;
+        }
+
+        private static EqsSensor Config(in EqsTacticsParams p, uint template, Entity self, in ThreatAim threat)
+        {
+            var config = new EqsSensor
+            {
+                BlueprintId         = template,
+                Epoch               = 1,
+                SearchRadius        = p.SearchRadius,
+                FactionFilter       = p.FactionFilter,
+                PublishPolicy       = (byte)EqsPublishPolicy.ScoreDelta,
+                ScoreDeltaThreshold = p.ScoreDeltaThreshold,
+                ContextSlot0        = self,
+            };
+            Point(ref config, in threat);
+            return config;
+        }
+
+        /// <summary>The run's own sensor, created on first use and re-pointed (a new epoch) when the threat changes.</summary>
+        private static Entity EnsureSensor(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world,
+                                           in ThreatAim threat, uint template, int site)
+        {
+            var config = Config(in p, template, self, in threat);
+            var child = ws.Sensor.IsValid && world.IsAlive(ws.Sensor.ChildId) ? ws.Sensor.ChildId : Entity.Null;
+            bool repoint;
+            if (child.IsNull)
+            {
+                child = EqsChildSensor.Ensure(world, self, site, in config);
+                if (child.IsNull) return Entity.Null;
+                ws.Sensor = new EqsSensorHandle(child);
+                repoint = !PointsAt(world.GetComponentRO<EqsSensor>(child), in threat);   // re-found from an earlier tick
+            }
+            else repoint = Moved(new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint), in threat);
+
+            if (repoint)
+            {
+                EqsChildSensor.Refresh(world, child, in config);
+                ws.LastAnswerTick = 0;
+            }
+            // ⚠ the point stored is the one the sensor was pointed at, so a slowly drifting heard contact re-points once it has
+            //   moved RepointMetres in all, not never.
+            if (repoint || ws.HeardId != threat.HeardId) ws.HeardPoint = threat.Point;
+            ws.Threat = threat.Entity;
+            ws.HeardId = threat.HeardId;
+            return child;
+        }
+
+        /// <summary>True once per published answer that has a best point (the buffer's per-answer stamp, as CE-2089).</summary>
+        private static bool TryNewAnswer(EntityRepository world, Entity child, ref EqsTacticsState ws, in EqsTacticsParams p, out Vector3 best)
+        {
+            best = default;
+            if (!world.HasComponent<EqsCognitiveBuffer>(child)) return false;
+            ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(child);
+            if (!buffer.IsReady || buffer.LastUpdateTick == ws.LastAnswerTick) return false;
+            ws.LastAnswerTick = buffer.LastUpdateTick;
+            if (buffer.Count == 0) return false;
+            // ⭐ CE-2275 D-2d (PC-14) — a posted man takes the best-ranked point ON his post, never one off it
+            // ⭐ CE-2327 (R-2064) — and a move made to FIRE never goes to a spot the search marked look-only: "if attacking is desired, then
+            //   the spot must let him shoot" (an unmarked answer — another template, or no terrain — is taken as before)
+            var span = buffer.GetSpanRO()[..buffer.Count];
+            for (int i = 0; i < span.Length; i++)
+            {
+                if (Fdp.Toolkit.Spatial.Eqs.CheapLineOfSightTest.FireMarkOf(in span[i]) == 2) continue;
+                var at = new Vector3(span[i].PositionX, span[i].PositionY, span[i].PositionZ);
+                if (p.AnchorRadius > 0f && Vector3.Distance(at, p.Anchor) > p.AnchorRadius) continue;
+                best = at;
+                return true;
+            }
+            return false;
+        }
+
+        private static double Now(EntityRepository world)
+            => world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
+
+        private static void Release(ref EqsTacticsState ws, Entity self, EntityRepository world, bool stopMoving = true)
+        {
+            PostureNodes.StopFiring(world, self, ref ws.Fire);   // CE-2108: a weapon this node aimed stops with it
+            if (ws.Sensor.IsValid && world.IsAlive(ws.Sensor.ChildId)) EqsChildSensor.Destroy(world, ws.Sensor.ChildId);
+            if (stopMoving && ws.Moving == 1) LocomotionMoveTo.Stop(world, self);
+            if (ws.Moving == 2) StanceRequest.Set(world, self, StanceId.Standing, PostureNodes.GetUpSeconds);   // CE-2322: up again
+            ws = default;
+        }
+    }
+}

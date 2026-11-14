@@ -1,3 +1,5 @@
+using Fdp.Toolkit.Replication;
+using Fdp.Toolkit.Determinism;   // ⭐ CE-2188 — SimRng moved to Fdp.Toolkits
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -12,22 +14,19 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Navigation;
 using Hrot.AI.Behaviors.Logging;
+using Fbt.Kernel;
+using Hrot.Map.Definitions.Behavior;
 
 namespace Hrot.AI.Behaviors.Brains
 {
     /// <summary>
     /// FastBTree action node delegates for CGF Brain-tier mission behaviors.
-    /// Hot-reloadable copy compiled independently into Hrot.AI.Behaviors so the
-    /// FbtAssemblyHotReloader can load a fresh version without restarting the editor.
-    /// Source of truth is Hrot.CGF.Brains.CgfNodes; keep both files in sync.
+    /// Compiled into Hrot.AI.Behaviors so the FbtAssemblyHotReloader can load a fresh version without
+    /// restarting the editor. ⚠ CE-447: an older header said a second copy lived in Hrot.CGF.Brains and had to
+    /// be kept in sync — measured 2026-09-30, it does not exist; this is the only CgfNodes.
     /// </summary>
     public static class CgfNodes
     {
-        private static readonly JsonSerializerOptions JsonOptions = new()
-        {
-            PropertyNameCaseInsensitive = true,
-            IncludeFields = true
-        };
 
         // -- Channel write helpers --
 
@@ -75,33 +74,37 @@ namespace Hrot.AI.Behaviors.Brains
             public float Y;
             public float Speed;
             public float ArrivalRadius;
+            /// <summary>⭐ CE-3130 — the actor's road use for this move (R-230); Unspecified ⇒ by the unit's class.</summary>
+            public RoadUse RoadUse;
         }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct FollowRouteParams
         {
             /// <summary>
-            /// ID of the registered trajectory in the <see cref="TrajectoryPoolManager"/> to follow.
-            /// Written into <see cref="BrainBlackboard.BehaviorParameters"/> at spawn time and read by
-            /// <see cref="Action_WriteFollowRouteChannel"/> to populate the locomotion channel.
+            /// ID of the registered trajectory in the <see cref="TrajectoryPoolManager"/> to follow; 0 = not resolved yet.
+            /// ⭐ CE-2145 — resolved from <see cref="RouteNetworkId"/> by <see cref="ResolveFollowRoute"/> at start, and again by
+            /// <see cref="Action_WriteFollowRouteChannel"/> while the route is not compiled (the action caches it here).
             /// </summary>
             public int   TrajectoryId;
             public float Speed;
             public bool  Loop;
+            /// <summary>⭐ CE-2145 — the route entity's network id, as the authored contract named it.</summary>
+            public int  RouteNetworkId;
         }
 
         /// <summary>
         /// Blackboard DTO for the JoinFormation behavior.
-        /// Currently parameterless (the contract exists to satisfy the
-        /// ReusableActionDelegate signature pattern). Populated to defaults
-        /// by JoinFormationParamsJsonDto which carries no JSON fields.
+        /// ⭐ CE-2134 — also JoinFormation's declared params DTO: the curated registrar parses the
+        /// JSON straight into it (identity, no resolver), so it IS what the behaviour reads
+        /// (the empty JoinFormationParamsJsonDto that anchored the old contract is deleted).
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
+        [Fdp.Core.ParamsDto]   // CE-3185 (R-2000): JoinFormation publishes it as its params DTO
         public struct JoinFormationParams
         {
-            // Reserved for future extension; both fields are zero-initialised
-            // because JoinFormationParamsJsonDto is currently parameterless.
-            public int  LeaderNetworkId;
+            // Reserved for future extension: nothing reads them yet, and a caller sending {} leaves both zero.
+            public Fdp.Toolkit.Replication.EntityLink LeaderNetworkId;
             public byte FormationTypeId;
         }
 
@@ -120,29 +123,14 @@ namespace Hrot.AI.Behaviors.Brains
             /// <summary>Maximum number of fire activations. 0 = unlimited.</summary>
             public int   MaxRounds;
             /// <summary>Seconds to wait between successive shots.</summary>
-            public float CooldownSeconds;
+            public SimDuration CooldownSeconds;
             /// <summary>Runtime counter of fire activations (written back to blackboard).</summary>
             public int   RoundsFired;
         }
 
-        // -- JSON parse DTOs (private) --
-
-        private class MoveToLocationParamsJsonDto
-        {
-            public double TargetLat { get; set; }
-            public double TargetLon { get; set; }
-            public float Speed { get; set; }
-            public float ArrivalRadius { get; set; }
-            public float X { get; set; }
-            public float Y { get; set; }
-        }
-
-        private class FireAtTargetParamsJsonDto
-        {
-            public long  TargetNetworkId  { get; set; }
-            public int   MaxRounds        { get; set; }
-            public float CooldownSeconds  { get; set; }
-        }
+        // ⭐ CE-447 (2026-09-30): no private parse DTOs — the resolvers deserialise into the ONE authored contract,
+        //   Hrot.Core's [Behavior(Params = …)] classes (the paramSchema a scenario is authored against). ⛔ The private
+        //   copies here had drifted (float vs double, R-132: one producer per slot).
 
         /// <summary>
         /// Fallback travel speed (m/s) applied when a <c>MoveToLocation</c> params JSON
@@ -155,140 +143,133 @@ namespace Hrot.AI.Behaviors.Brains
         // -- Parse methods (cold path, unsafe byte* accepted from engine delegate) --
 
         /// <summary>
-        /// Resolver (ParseParamsDelegate shape): fetches the geographic transform from the world
-        /// singleton and delegates to <see cref="ParseMoveToParams"/>. Null geo → Cartesian fallback.
+        /// ⭐⭐ <c>CE-2023</c> ③ ("S8n") — the TYPED resolver: the authored contract (<see cref="Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto"/>,
+        /// a struct now) in, the blackboard block out. ⭐ The generator registers BOTH arms from it — the JSON arm (a root
+        /// assign, a scenario) and the from-bytes arm (a host's Behaviour Task binds the contract) — so a blueprint can start
+        /// <c>MoveToLocation</c> with parameters. Geo coordinates win over Cartesian X/Y; no geo transform on the world ⇒
+        /// the Cartesian pair. ⚠ An empty payload now means "not given" ⇒ the defaults (speed, 5 m), as <c>{}</c> always did.
         /// </summary>
-        public static unsafe void ResolveMoveToParams(string json, byte* ptr, EntityRepository world, Entity self)
+        [Fdp.Toolkit.Behavior.BehaviorResolver("MoveToLocation")]
+        public static void ResolveMoveTo(in Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto authored,
+            ref MoveToLocationParams block, EntityRepository world, Entity self)
         {
-            var geo = world.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
-                ? world.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
-                : null;
-            ParseMoveToParams(json, ptr, geo!);
+            block = ConvertMoveTo(authored);   // ⭐ S0 item 5 (SR-135): the authored place is local metres — no geodetic transform here
+        }
+
+        /// <summary>The MoveTo conversion: the authored <c>Location</c> (JSON <c>target</c>, a <c>PointLink</c>, local metres) to the blackboard's X / Y.</summary>
+        public static MoveToLocationParams ConvertMoveTo(
+            in Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto authored)
+        {
+            var p = new MoveToLocationParams
+            {
+                Speed = authored.Speed > 0 ? (float)authored.Speed : DefaultMoveToSpeed,
+                ArrivalRadius = authored.ArrivalRadius > 0 ? (float)authored.ArrivalRadius : 5f,
+                X = authored.Location.Local.X,
+                Y = authored.Location.Local.Y,
+                RoadUse = authored.RoadUse,   // CE-3130
+            };
+            return p;
         }
 
         /// <summary>
-        /// Resolver (ParseParamsDelegate shape): fetches the NetworkEntityMap from the world
-        /// singleton and delegates to <see cref="ParseFireAtTargetParams"/>.
+        /// ⭐⭐ <c>CE-2023</c> ③ ("S8n") — the TYPED resolver for <c>FireAtTarget</c>: the authored contract's network id is
+        /// mapped to the local entity through the world's <c>NetworkEntityMap</c>; both arms (JSON, host bytes) come from it.
         /// </summary>
-        public static unsafe void ResolveFireAtTargetParams(string json, byte* ptr, EntityRepository world, Entity self)
+        [Fdp.Toolkit.Behavior.BehaviorResolver("FireAtTarget")]
+        public static void ResolveFireAtTarget(in Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto authored,
+            ref FireAtTargetParams block, EntityRepository world, Entity self)
         {
             var map = (world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()
                 ? world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()
                 : null) ?? new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
-            ParseFireAtTargetParams(json, ptr, map);
+            block = ConvertFireAtTarget(authored, map);
         }
 
-        public static unsafe void ParseMoveToParams(string json, byte* ptr, Fdp.Modules.Geographic.IGeographicTransform geoTransform)
-        {
-            if (string.IsNullOrWhiteSpace(json))
-            {
-                Unsafe.Write(ptr, default(MoveToLocationParams));
-                return;
-            }
-
-            var dto = JsonSerializer.Deserialize<MoveToLocationParamsJsonDto>(json, JsonOptions);
-            if (dto == null)
-            {
-                Unsafe.Write(ptr, default(MoveToLocationParams));
-                return;
-            }
-
-            var p = new MoveToLocationParams
-            {
-                Speed = dto.Speed > 0f ? dto.Speed : DefaultMoveToSpeed,
-                ArrivalRadius = dto.ArrivalRadius > 0f ? dto.ArrivalRadius : 5f,
-                X = dto.X,
-                Y = dto.Y
-            };
-
-            // If geo-coords provided, map them
-            if ((dto.TargetLat != 0 || dto.TargetLon != 0) && geoTransform != null)
-            {
-                var cartesian = geoTransform.ToCartesian(dto.TargetLat, dto.TargetLon, 0.0);
-                p.X = cartesian.X;
-                p.Y = cartesian.Y;
-            }
-
-            Unsafe.Write(ptr, p);
-        }
-
-        public static unsafe void ParseFollowRouteParams(string json, byte* ptr)
-        {
-            var p = string.IsNullOrWhiteSpace(json)
-                ? default
-                : JsonSerializer.Deserialize<FollowRouteParams>(json, JsonOptions);
-            Unsafe.Write(ptr, p);
-        }
-
-        /// <summary>
-        /// Parses FireAtTarget JSON params and writes the resolved
-        /// <see cref="FireAtTargetParams"/> into the blackboard memory pointer.
-        /// </summary>
-        public static unsafe void ParseFireAtTargetParams(
-            string json, byte* ptr,
+        /// <summary>The FireAtTarget conversion, given the node's entity map.</summary>
+        public static FireAtTargetParams ConvertFireAtTarget(
+            in Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto authored,
             Fdp.Toolkit.Replication.Services.NetworkEntityMap entityMap)
         {
-            if (string.IsNullOrWhiteSpace(json))
-            {
-                Unsafe.Write(ptr, default(FireAtTargetParams));
-                return;
-            }
-
-            var dto = JsonSerializer.Deserialize<FireAtTargetParamsJsonDto>(json, JsonOptions);
-            if (dto == null)
-            {
-                BehaviorLog.ParseWarn("FireAtTarget JSON deserialized to null; using default params.");
-                Unsafe.Write(ptr, default(FireAtTargetParams));
-                return;
-            }
-
             long targetPacked = 0;
-            if (dto.TargetNetworkId != 0
-                && entityMap.TryGetEntity(dto.TargetNetworkId, out var entity))
+            if (!authored.TargetNetworkId.IsNone
+                && entityMap.TryGetEntity(authored.TargetNetworkId.Ref.NetworkId, out var entity))
             {
                 targetPacked = (long)entity.PackedValue;
             }
-            else if (dto.TargetNetworkId != 0)
+            else if (!authored.TargetNetworkId.IsNone)
             {
-                BehaviorLog.ParseWarn("FireAtTarget TargetNetworkId=" + dto.TargetNetworkId + " not found in entity map; target will not fire.");
+                BehaviorLog.ParseWarn("FireAtTarget TargetNetworkId=" + authored.TargetNetworkId.Ref.NetworkId + " not found in entity map; target will not fire.");
             }
 
-            Unsafe.Write(ptr, new FireAtTargetParams
+            return new FireAtTargetParams
             {
                 TargetPacked    = targetPacked,
-                MaxRounds       = dto.MaxRounds,
-                CooldownSeconds = dto.CooldownSeconds,
+                MaxRounds       = authored.MaxRounds,
+                CooldownSeconds = authored.CooldownSeconds,
                 RoundsFired     = 0,
-            });
+            };
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2145</c> (docs/DESIGN_Orders_Params_Entity_Classes.md §10, R-273) — the TYPED resolver for <c>FollowRoute</c>:
+        /// the RECEIVER converts the authored route entity to its compiled trajectory, so any sender (mission, HTTP, order, SOP,
+        /// scenario) may send the published <c>{routeEntityId, Speed, Loop}</c>. A route not compiled yet leaves
+        /// <c>TrajectoryId = 0</c>; the action looks again each tick (it replaces the mission system's assignment retry).
+        /// </summary>
+        [Fdp.Toolkit.Behavior.BehaviorResolver("FollowRoute")]
+        public static void ResolveFollowRoute(in Hrot.Map.Definitions.Behavior.FollowRouteParamsJsonDto authored,
+            ref FollowRouteParams block, EntityRepository world, Entity self)
+        {
+            // ⚠ an empty params string reaches a typed resolver as default — null for this class DTO (BehaviorParams.FromBlockResolver).
+            int route = authored is null || authored.RouteEntityId.IsNone ? 0 : authored.RouteEntityId.Ref.NetworkId;
+            block = new FollowRouteParams
+            {
+                RouteNetworkId = route,
+                Speed          = authored?.Speed ?? 0f,
+                Loop           = authored?.Loop ?? false,
+                TrajectoryId   = TryFindRouteTrajectory(world, route, out int trajectory) ? trajectory : 0,
+            };
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2145</c> — THE lookup from a route entity's network id to its compiled trajectory (moved from the deleted
+        /// sender-side <c>MissionControlBehaviorParamsHelper</c>): the entity through the one network-id resolver
+        /// (<see cref="Fdp.Toolkit.Replication.Services.NetworkIdResolver"/>, BP-508), then its <c>RouteTrajectoryCache</c>.
+        /// False while the route is unknown or not compiled (<c>TrajectoryId == 0</c>).
+        /// </summary>
+        public static bool TryFindRouteTrajectory(EntityRepository? world, int routeNetworkId, out int trajectoryId)
+        {
+            trajectoryId = 0;
+            if (world is null || routeNetworkId <= 0 || !world.IsComponentTypeRegistered<Hrot.Map.Common.Components.RouteTrajectoryCache>())
+                return false;
+            var route = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, routeNetworkId);
+            if (route == Entity.Null || !world.HasComponent<Hrot.Map.Common.Components.RouteTrajectoryCache>(route)) return false;
+            trajectoryId = world.GetComponentRO<Hrot.Map.Common.Components.RouteTrajectoryCache>(route).TrajectoryId;
+            return trajectoryId != 0;
         }
 
         // -- Action / Condition delegates --
-        // Three-param ReusableActionDelegate<TValue, BTreeContext> signatures.
-        // The [BTreeAction] / [BTreeCondition] attributes cause Fbt.SourceGen to
-        // emit bridge closures in FbtActionRegistrar.g.cs that project the runtime
-        // BrainBlackboard to TValue using Unsafe.As at byte offset 0.
-        // No 'unsafe' keyword or 'fixed' blocks appear in any of these methods.
+        // ⭐ CE-504 C-2 — the shared C# node signature (ref P, Entity self, EntityRepository world), the same one the HSM
+        //   binds. A JSON asset calls each per binding at its baked host offset (BTreeBridgeEmitCore); a curated tree binds
+        //   it through SharedNodeBuilderExtensions. 📄 docs/blueprints/DESIGN_BTree_Node_Call_Shapes.md.
 
         /// <summary>
         /// BTree action node for the MoveToLocation behavior.
         /// Writes the parsed destination into the <see cref="LocomotionChannel"/> every tick.
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_WriteMoveToChannel(
-            ref MoveToLocationParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_WriteMoveToChannel(ref MoveToLocationParams p, Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
+            if (!world.HasComponent<LocomotionChannel>(self))
             {
-                BehaviorLog.Error(ref ctx, "Entity is missing LocomotionChannel; blueprint may be misconfigured.");
+                BehaviorLog.Error(self, world, "Entity is missing LocomotionChannel; blueprint may be misconfigured.");
                 return NodeStatus.Failure;
             }
 
-            ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
-            if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
+            ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);
+            if (world.HasComponent<BehaviorState>(self))
             {
-                var behavior = ctx.World.GetComponent<BehaviorState>(ctx.Self);
+                var behavior = world.GetComponent<BehaviorState>(self);
                 channel.BehaviorInstanceId = behavior.InstanceId;
             }
 
@@ -312,31 +293,40 @@ namespace Hrot.AI.Behaviors.Brains
 
             WriteToLocomotionParams(ref channel, new MoveToParams
             {
-                Destination  = new Vector3(p.X, p.Y, 0f), // blueprint-authored 2D destination (§0.2)
+                Destination  = new Vector3(p.X, p.Y, 0f), // blueprint-authored 2-D destination: its height is not given —
+                Flags        = NavigationConstants.FlagDestinationOnSurface,   //   ⭐ CE-1035 Q0b (R-252): the motion side puts it on the surface
                 ArrivalRadius = p.ArrivalRadius,
-                Speed        = p.Speed
+                Speed        = p.Speed,
+                RoadUse      = p.RoadUse,   // ⭐ CE-3130 — packed into Flags bits 5–7
             });
 
             return NodeStatus.Running;
         }
 
         /// <summary>BTree action node for the FollowRoute behavior.</summary>
-        [BTreeAction]
-        public static NodeStatus Action_WriteFollowRouteChannel(
-            ref FollowRouteParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_WriteFollowRouteChannel(ref FollowRouteParams p, Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
+            if (!world.HasComponent<LocomotionChannel>(self))
             {
-                BehaviorLog.Error(ref ctx, "Entity is missing LocomotionChannel; blueprint may be misconfigured.");
+                BehaviorLog.Error(self, world, "Entity is missing LocomotionChannel; blueprint may be misconfigured.");
                 return NodeStatus.Failure;
             }
 
-            ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
-            if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
+            // ⭐ CE-2145 — the route is not compiled yet: look again, and WAIT (Running) without touching the channel.
+            // ⭐⭐ CE-2171 — …but only when there is no route ENTITY to send: the compiled trajectory is a LOCAL pool id that only the
+            //   motion node makes and that never crosses the wire, so on a split cluster the brain waited for good. With a route entity
+            //   the intent carries it and the motion side resolves its own trajectory (the local id still rides along when this node has one).
+            if (p.TrajectoryId == 0)
             {
-                var behavior = ctx.World.GetComponent<BehaviorState>(ctx.Self);
+                if (TryFindRouteTrajectory(world, p.RouteNetworkId, out int trajectory)) p.TrajectoryId = trajectory;
+                else if (p.RouteNetworkId <= 0) return NodeStatus.Running;
+            }
+
+            ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);
+            if (world.HasComponent<BehaviorState>(self))
+            {
+                var behavior = world.GetComponent<BehaviorState>(self);
                 channel.BehaviorInstanceId = behavior.InstanceId;
             }
 
@@ -350,29 +340,29 @@ namespace Hrot.AI.Behaviors.Brains
             WriteToLocomotionParams(ref channel, new Fdp.Toolkit.Navigation.FollowRouteParams
             {
                 TrajectoryId = p.TrajectoryId, // FIX: was hardcoded to 0; now reads from blackboard params
-                IsLooped     = (byte)(p.Loop ? 1 : 0)
+                IsLooped     = (byte)(p.Loop ? 1 : 0),
+                RouteEntityId = p.RouteNetworkId,   // ⭐ CE-2171
+                // ⭐ CE-2173 slice 3 (Air Ops §9b) — an aircraft held at an Unload / Pickup stop: its brain says when the hold is over.
+                ReleaseHold  = AirHolds.ShouldRelease(world, self, p.RouteNetworkId) ? (byte)1 : (byte)0,
             });
 
             return NodeStatus.Running;
         }
 
         /// <summary>BTree action node for the JoinFormation behavior.</summary>
-        [BTreeAction]
-        public static NodeStatus Action_WriteJoinFormationChannel(
-            ref JoinFormationParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_WriteJoinFormationChannel(ref JoinFormationParams p, Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
+            if (!world.HasComponent<LocomotionChannel>(self))
             {
-                BehaviorLog.Error(ref ctx, "Entity is missing LocomotionChannel; blueprint may be misconfigured.");
+                BehaviorLog.Error(self, world, "Entity is missing LocomotionChannel; blueprint may be misconfigured.");
                 return NodeStatus.Failure;
             }
 
-            ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
-            if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
+            ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);
+            if (world.HasComponent<BehaviorState>(self))
             {
-                var behavior = ctx.World.GetComponent<BehaviorState>(ctx.Self);
+                var behavior = world.GetComponent<BehaviorState>(self);
                 channel.BehaviorInstanceId = behavior.InstanceId;
             }
 
@@ -412,17 +402,13 @@ namespace Hrot.AI.Behaviors.Brains
         /// <para><b>Return value:</b> always <see cref="NodeStatus.Running"/> so the
         /// BTree root keeps ticking every frame indefinitely.</para>
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_Wander(
-            ref BrainBlackboard blackboard,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx,
-            int paramIndex)
+        [SharedAiAction]
+        public static NodeStatus Action_Wander(Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
+            if (!world.HasComponent<LocomotionChannel>(self))
                 return NodeStatus.Failure;
 
-            ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
+            ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);
 
             // Determine if we need a new destination:
             //   * No active MoveTo action yet
@@ -437,14 +423,19 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 // Pick a random destination in the square [-WanderRadius, +WanderRadius]^2
                 // centred on the world origin.
-                float x = (Random.Shared.NextSingle() * 2f - 1f) * WanderRadius;
-                float y = (Random.Shared.NextSingle() * 2f - 1f) * WanderRadius;
+                // ⭐ CE-202 — one generator, TWO draws. A stateless seed-per-call would have handed
+                //   x == y and sent every wanderer down the diagonal; SimRng advances per draw.
+                //   The salt (1) distinguishes this call site from the firing-slot pick, which is
+                //   seeded from the same entity and tick.
+                var wanderRng = SimRng.FromSim((int)self.Index, 1, world.SimulationTime);
+                float x = (wanderRng.NextSingle() * 2f - 1f) * WanderRadius;
+                float y = (wanderRng.NextSingle() * 2f - 1f) * WanderRadius;
 
                 // Propagate behavior instance id so ChannelArbitrationSystem does not
                 // clear the channel on the same frame we pick a new target.
-                if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
+                if (world.HasComponent<BehaviorState>(self))
                 {
-                    var behavior = ctx.World.GetComponent<BehaviorState>(ctx.Self);
+                    var behavior = world.GetComponent<BehaviorState>(self);
                     channel.BehaviorInstanceId = behavior.InstanceId;
                 }
 
@@ -457,7 +448,8 @@ namespace Hrot.AI.Behaviors.Brains
 
                 WriteToLocomotionParams(ref channel, new MoveToParams
                 {
-                    Destination   = new Vector3(x, y, 0f), // wander target, 2D-authored (§0.2)
+                    Destination   = new Vector3(x, y, 0f), // wander target, 2-D: its height is not given —
+                    Flags         = NavigationConstants.FlagDestinationOnSurface,   //   ⭐ CE-1035 Q0b (R-252): the motion side puts it on the surface
                     ArrivalRadius = WanderArrivalRadius,
                     Speed         = WanderSpeed,
                 });
@@ -476,7 +468,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             for (int i = 0; i < mem.Count; i++)
             {
-                if (mem.EntityIds[i] == targetPacked && mem.ThreatScores[i] > 0f)
+                if (mem.EntityIds[i] == targetPacked && mem.Freshness[i] > 0f)
                     return true;
             }
             return false;
@@ -488,23 +480,20 @@ namespace Hrot.AI.Behaviors.Brains
         /// Return Failure when the target is dead.
         /// Return Running while the target is alive but out of sight.
         /// </summary>
-        [BTreeCondition]
-        public static NodeStatus Condition_TargetAliveAndVisible(
-            ref FireAtTargetParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiCondition]
+        public static NodeStatus Condition_TargetAliveAndVisible(ref FireAtTargetParams p, Entity self, EntityRepository world)
         {
             var target = new Fdp.Core.Entity((ulong)p.TargetPacked);
 
             // 1. If the target is definitively dead, fail the node so the behavior finishes cleanly.
-            if (!ctx.World.IsAlive(target))
+            if (!world.IsAlive(target))
                 return NodeStatus.Failure;
 
             // 2. Wait for the perception pipeline to initialize/catch up.
-            if (!ctx.World.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self))
+            if (!world.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(self))
                 return NodeStatus.Running; // FIX: Was Failure
 
-            ref readonly var mem = ref ctx.World.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self);
+            ref readonly var mem = ref world.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(self);
 
             // 3. Target is visible! Proceed to the next node in the Sequence.
             if (IsTargetVisible(in mem, p.TargetPacked))
@@ -525,22 +514,19 @@ namespace Hrot.AI.Behaviors.Brains
         ///   <item>Returns Running while actively firing.</item>
         /// </list>
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_FireAtTarget(
-            ref FireAtTargetParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_FireAtTarget(ref FireAtTargetParams p, Entity self, EntityRepository world)
         {
             var target = new Fdp.Core.Entity((ulong)p.TargetPacked);
 
             // Target destroyed = mission accomplished.
-            if (!ctx.World.IsAlive(target))
+            if (!world.IsAlive(target))
                 return NodeStatus.Success;
 
             // Target out of sensor range = mission aborted.
-            if (ctx.World.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self))
+            if (world.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(self))
             {
-                ref readonly var mem = ref ctx.World.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self);
+                ref readonly var mem = ref world.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(self);
                 if (!IsTargetVisible(in mem, p.TargetPacked)) return NodeStatus.Failure;
             }
 
@@ -548,15 +534,15 @@ namespace Hrot.AI.Behaviors.Brains
             if (p.MaxRounds > 0 && p.RoundsFired >= p.MaxRounds)
                 return NodeStatus.Success;
 
-            if (!ctx.World.HasComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>(ctx.Self))
+            if (!world.HasComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>(self))
                 return NodeStatus.Failure;
 
-            ref var channel = ref ctx.World.GetComponentRW<Fdp.Toolkit.Behavior.Components.WeaponChannel>(ctx.Self);
+            ref var channel = ref world.GetComponentRW<Fdp.Toolkit.Behavior.Components.WeaponChannel>(self);
 
             // Sync BehaviorInstanceId so ChannelArbitrationSystem does not clear the channel every frame
-            if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
+            if (world.HasComponent<BehaviorState>(self))
             {
-                var behavior = ctx.World.GetComponent<BehaviorState>(ctx.Self);
+                var behavior = world.GetComponent<BehaviorState>(self);
                 channel.BehaviorInstanceId = behavior.InstanceId;
             }
 
@@ -571,26 +557,20 @@ namespace Hrot.AI.Behaviors.Brains
                 channel.ActiveAction != Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire
                 || channel.Status    == Fbt.NodeStatus.Failure;
 
+            // ⭐ CE-3136 B7 (backend, cross-lane — said in the commit) — the EXECUTOR counts the rounds and ends the action after
+            //   MaxRounds (AimAndFireParams.Rounds); the node no longer predicts a round from "cooldown is 0". ⛔ That prediction
+            //   counted every tick of the aim time (P-3, the weapon is cooled but not yet aimed) and reached MaxRounds before a
+            //   single round left — measured on HeardShotScenarioTests: the hidden shooter "fired" 30 rounds and spent none.
+            int alreadyFired = p.RoundsFired;
+            if (!needsActivation && channel.DispatchedInstanceId == channel.ActionInstanceId)
+                p.RoundsFired = Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.RoundsFiredOf(ref channel);   // the real count
             if (needsActivation)
             {
-                WriteToWeaponParams(ref channel, new Fdp.Toolkit.Combat.Executors.AimAndFireParams
-                {
-                    Target          = target,
-                    CooldownSeconds = p.CooldownSeconds,
-                });
-
-                unchecked { channel.ActionInstanceId++; }
-                channel.ActiveAction = Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire;
-            }
-
-            // Only increment RoundsFired exactly when the weapon is ready to shoot this tick.
-            // Writing back through the ref parameter updates the blackboard in-place -- no
-            // pointer arithmetic required.
-            if (ctx.World.HasComponent<Fdp.Toolkit.Combat.Components.WeaponState>(ctx.Self))
-            {
-                var weapon = ctx.World.GetComponent<Fdp.Toolkit.Combat.Components.WeaponState>(ctx.Self);
-                if (weapon.CooldownSecondsRemaining <= 0f)
-                    p.RoundsFired = p.RoundsFired + 1;
+                // ⭐ CE-3158 L5 (R-256) — through the ONE aimed step (PostureNodes.Fire at a named target): the executor picks the
+                //   weapon per shot (MountAuto) as every other aimed fire does. ⛔ SUPERSEDED: its own AimAndFireParams write (mount 0).
+                var issue = new EngageState();
+                PostureNodes.Fire(world, self, ref issue, p.CooldownSeconds,
+                    p.MaxRounds > 0 ? System.Math.Max(p.MaxRounds - alreadyFired, 1) : 0, target);
             }
 
             return NodeStatus.Running;
@@ -601,7 +581,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// visible. Always returns <see cref="NodeStatus.Running"/> so the Selector stays alive.
         /// </summary>
         public static NodeStatus Action_HoldPosition(
-            ref BrainBlackboard blackboard,
+            ref byte blackboard,   // P4-②: the root params SLOT BASE, not a component
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
             int paramIndex)
@@ -617,7 +597,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the MoveToLocation BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("MoveToLocation")]
+        [Behavior(BehaviorNames.MoveToLocation, Params = typeof(global::Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto), Categories = BehaviorCategory.AllMilitary | BehaviorCategory.Civilian, Description = "Moves to a location.")]   // ⭐ CE-2134
+        [BTreeDefinition("MoveToLocation", Curated = true, Group = "Library/Movement", ParamsType = typeof(MoveToLocationParams))]
         public static BTreeBuilder<MoveToBlackboard, BTreeContext> BuildMoveToLocationTree()
         {
             return new BTreeBuilder<MoveToBlackboard, BTreeContext>()
@@ -627,7 +608,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the FollowRoute BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("FollowRoute")]
+        [Behavior(BehaviorNames.FollowRoute, Params = typeof(global::Hrot.Map.Definitions.Behavior.FollowRouteParamsJsonDto), Categories = BehaviorCategory.AllMilitary, Description = "Follows a route of points in order.")]   // ⭐ CE-2134
+        [BTreeDefinition("FollowRoute", Curated = true, Group = "Library/Movement", ParamsType = typeof(FollowRouteParams))]
         public static BTreeBuilder<FollowRouteBlackboard, BTreeContext> BuildFollowRouteTree()
         {
             return new BTreeBuilder<FollowRouteBlackboard, BTreeContext>()
@@ -637,7 +619,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the JoinFormation BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("JoinFormation")]
+        [Behavior(BehaviorNames.JoinFormation, Params = typeof(global::Hrot.AI.Behaviors.Brains.CgfNodes.JoinFormationParams), Categories = BehaviorCategory.Infantry, Description = "Takes its place in a formation and keeps it.")]   // ⭐ CE-2134 — what the identity parse fills (BEH003)
+        [BTreeDefinition("JoinFormation", Curated = true, Group = "Library/Movement", ParamsType = typeof(JoinFormationParams))]
         public static BTreeBuilder<JoinFormationBlackboard, BTreeContext> BuildJoinFormationTree()
         {
             return new BTreeBuilder<JoinFormationBlackboard, BTreeContext>()
@@ -647,17 +630,24 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the WanderMilitary BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("WanderMilitary")]
-        public static BTreeBuilder<BrainBlackboard, BTreeContext> BuildWanderMilitaryTree()
+        [Behavior(BehaviorNames.WanderMilitary, Params = typeof(global::Hrot.Map.Definitions.Behavior.NoParams), Categories = BehaviorCategory.MilitaryApc)]   // ⭐ CE-2134
+        [BTreeDefinition("WanderMilitary", Curated = true, Group = "Library/Movement")]
+        // ⭐ P4-②: `byte` here, and it is the RAW-DELEGATE case so nothing is lost. A selector-form
+        //   builder still needs a struct with fields (which is why the wrapper structs stay — §30.18);
+        //   this tree binds a delegate directly, and that delegate now takes `ref byte`.
+        // ⚠ WanderMilitary declares NO params, so its entity has no root slot and the tick hands the
+        //   interpreter a scratch byte. That is safe precisely because nothing here projects.
+        public static BTreeBuilder<byte, BTreeContext> BuildWanderMilitaryTree()
         {
-            return new BTreeBuilder<BrainBlackboard, BTreeContext>()
+            return new BTreeBuilder<byte, BTreeContext>()
                 .Action(Action_Wander);
         }
 
         /// <summary>
         /// Exposes the FireAtTarget BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("FireAtTarget")]
+        [Behavior(BehaviorNames.FireAtTarget, Params = typeof(global::Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto), Categories = BehaviorCategory.AllMilitary, Description = "Fires at a chosen target.")]   // ⭐ CE-2134
+        [BTreeDefinition("FireAtTarget", Curated = true, Group = "Library/Combat", ParamsType = typeof(FireAtTargetParams))]
         public static BTreeBuilder<FireAtTargetBlackboard, BTreeContext> BuildFireAtTargetTree()
         {
             return new BTreeBuilder<FireAtTargetBlackboard, BTreeContext>()

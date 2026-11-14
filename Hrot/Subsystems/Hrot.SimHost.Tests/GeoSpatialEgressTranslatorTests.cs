@@ -7,6 +7,13 @@ using Hrot.Map.Common.Replication.Egress;
 using CycloneDDS.Runtime;
 using Fdp.Modules.Geographic.Systems;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Systems;
+using Fdp.Core;
+using Fdp.Interfaces;
+using Fdp.ModuleHost.Abstractions;
+using Hrot.Map.Common.Replication.Ingress;
+using System.Collections.Generic;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
@@ -62,18 +69,8 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(123f, azimuth, precision: 1);
         }
 
-        // ?? Angular velocity conversion (rad/s ? deg/s) ??????????????????????
-
-        [Fact]
-        public void AngularVelocity_RadToDeg_CorrectConversion()
-        {
-            // WorldPos.RotVel expects deg/s; GeoVelocity.Angular stores rad/s  
-            float yawRateRadS = MathF.PI; // 180 deg/s
-            float expectedDegS = 180f;
-
-            float actual = yawRateRadS * (180f / MathF.PI);
-            Assert.Equal(expectedDegS, actual, precision: 1);
-        }
+        // AQ107 D — the old "angular velocity rad/s -> deg/s" arithmetic test is gone with the conversion: AngularVelocity is
+        // SimVelocity.Angular as is (rad/s about the local ENU axes), asserted by the wire round-trip rail below.
 
         // ?? Consistency: heading round-trip (rotation ? heading ? verify against forward vector)
 
@@ -91,6 +88,196 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(compassHeading, computedHeading, precision: 1);        
         }
 
+        // -- CE-2348 ② — a stop is sent, and the heartbeat cannot be stepped over --
+
+        private sealed class PassthroughGeo : Fdp.Modules.Geographic.IGeographicTransform
+        {
+            public void SetOrigin(double lat, double lon, double alt) { }
+            public Vector3 ToCartesian(double lat, double lon, double alt) => new((float)lon, (float)lat, (float)alt);
+            public (double lat, double lon, double alt) ToGeodetic(Vector3 pos) => (pos.Y, pos.X, pos.Z);
+        }
+
+        private static (Fdp.Core.EntityRepository Repo, Fdp.Core.Entity Hull) OwnedHull()
+        {
+            var repo = new Fdp.Core.EntityRepository();
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+            repo.RegisterComponent<Fdp.Core.SimTransform>();
+            repo.RegisterComponent<Fdp.Core.SimVelocity>();
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkTransform>();
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(42));
+            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            repo.AddComponent(e, new Fdp.Core.SimTransform { Position = new Vector3(13.4f, 52.5f, 0f), Rotation = Quaternion.Identity });
+            repo.AddComponent(e, new Fdp.Core.SimVelocity { Linear = new Vector3(0.3f, 0f, 0f) });
+            return (repo, e);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2348</c> ② — a hull that STOPS publishes its stop, though it did not move another centimetre. 📐 Measured on
+        /// <c>uc-urban-battle</c>: the destroyed APC's last sample (creeping at ~0.3 m/s) stayed on every other node for ~200 s, so they read
+        /// it as moving (and dead-reckoned it). ✅ Red-proof: the velocity test removed ⇒ no second sample ⇒ red.</summary>
+        [Fact]
+        public void AHullThatStops_PublishesTheStop_ThoughItDidNotMove_CE2348()
+        {
+            using var participant = new DdsParticipant(166u);
+            var translator = new GeoSpatialEgressTranslator(participant, new NetworkEntityMap(), localNodeId: 1);
+            var (repo, hull) = OwnedHull();
+            translator.ScanAndPublish(repo);
+            long first = translator.SentSampleCount;
+            Assert.Equal(1, first);                                                   // its first sample, creeping
+
+            repo.Tick();
+            repo.GetComponentRW<Fdp.Core.SimVelocity>(hull) = default;               // stopped where it stood
+            translator.ScanAndPublish(repo);
+            Assert.Equal(first + 1, translator.SentSampleCount);                     // the stop is sent at once
+
+            repo.Tick();
+            translator.ScanAndPublish(repo);
+            Assert.Equal(first + 1, translator.SentSampleCount);                     // and nothing more while it stands
+        }
+
+        /// <summary>⭐ <c>CE-2348</c> ② — a standing hull's heartbeat comes within its interval however the translator is called. ⛔ It was
+        /// one exact tick in 600 (<c>(Tick + salt) % 600 == 0</c>): called every 6th tick it never came. ✅ Red-proof: the modulo restored ⇒
+        /// no heartbeat in 1 800 ticks ⇒ red.</summary>
+        [Fact]
+        public void AStandingHull_GetsItsHeartbeat_HoweverOftenTheTranslatorRuns_CE2348()
+        {
+            using var participant = new DdsParticipant(167u);
+            var translator = new GeoSpatialEgressTranslator(participant, new NetworkEntityMap(), localNodeId: 1);
+            var (repo, hull) = OwnedHull();
+            repo.GetComponentRW<Fdp.Core.SimVelocity>(hull) = default;
+            translator.ScanAndPublish(repo);
+            long first = translator.SentSampleCount;
+            for (int i = 0; i < 300; i++)                                            // 1 800 ticks, called every 6th
+            {
+                for (int k = 0; k < 6; k++) repo.Tick();
+                translator.ScanAndPublish(repo);
+            }
+            Assert.InRange(translator.SentSampleCount - first, 2, 4);               // ~ every 600 ticks: 3
+        }
+
+        // -- AQ107 B / D — the pose on the wire: ECS -> egress -> DDS -> WorldPos -> ingress -> ECS --
+
+        public static IEnumerable<object[]> WirePoses()
+        {
+            yield return new object[] { "heading 30 / pitch 10 / roll -20", Quaternion.Normalize(Quaternion.CreateFromYawPitchRoll(0.4f, 0.17f, -0.35f)) };
+            yield return new object[] { "nose straight UP (CE-4068)",       Quaternion.CreateFromAxisAngle(Vector3.UnitY, -MathF.PI / 2f) };
+            yield return new object[] { "nose straight DOWN (CE-4068)",     Quaternion.CreateFromAxisAngle(Vector3.UnitY,  MathF.PI / 2f) };
+            var q = Quaternion.Normalize(Quaternion.CreateFromAxisAngle(Vector3.Normalize(new Vector3(1f, 2f, 3f)), 2.4f));
+            yield return new object[] { "w < 0 before canonicalisation",    new Quaternion(-q.X, -q.Y, -q.Z, -q.W) };
+        }
+
+        /// <summary>Exposes the protected <c>Decode</c> so the REAL ingress translator reads what the REAL egress put on the wire.</summary>
+        private sealed class IngressProbe : GeoSpatialIngressTranslator
+        {
+            public IngressProbe(NetworkEntityMap map, GhostCreationSystem ghosts)
+                : base(participant: null, map, ghosts, localNodeId: 2) { }
+            public void Apply(in WorldPos data, IEntityCommandBuffer cmd, ISimulationView view) => Decode(data, cmd, view);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>AQ107 D acceptance (a), through the real DDS wire</b> — an owned entity's pose (position, rotation, velocity, angular
+        /// velocity) published by <see cref="GeoSpatialEgressTranslator"/> and read back by <see cref="GeoSpatialIngressTranslator"/> on a
+        /// replica arrives within 1 mm / quaternion dot ≥ 1 − 1e-6 (sign-insensitive) / exactly, including a nose straight up and
+        /// straight down (CE-4068) and a quaternion whose w is negative before canonicalisation; and the sample on the wire is the
+        /// local-ENU one (position copied, SimTime = the sim clock). ✅ Red-proof (run): <c>QuaternionWireCodec.Encode</c> without the
+        /// <c>w ≥ 0</c> canonicalisation ⇒ the "w &lt; 0" case comes back as the inverse rotation ⇒ red.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(WirePoses))]
+        public void AQ107D_APoseOnTheDdsWire_RoundTripsEcsToWorldPosToEcs(string _, Quaternion rotation)
+        {
+            using var participant = new DdsParticipant(188u);
+            using var reader      = new DdsReader<WorldPos>(participant);
+            var translator = new GeoSpatialEgressTranslator(participant, new NetworkEntityMap(), localNodeId: 1);
+
+            var (repo, hull) = OwnedHull();
+            var position = new Vector3(1234.5f, -8765.25f, 42.125f);
+            var linear   = new Vector3(1.5f, -2f, 0.25f);
+            var angular  = new Vector3(0.1f, -0.2f, 0.3f);
+            repo.GetComponentRW<Fdp.Core.SimTransform>(hull) = new Fdp.Core.SimTransform { Position = position, Rotation = rotation };
+            repo.GetComponentRW<Fdp.Core.SimVelocity>(hull)  = new Fdp.Core.SimVelocity { Linear = linear, Angular = angular };
+
+            translator.ScanAndPublish(repo);
+            Assert.Equal(1, translator.SentSampleCount);
+
+            WorldPos wire = default;
+            bool got = false;
+            for (int i = 0; i < 60 && !got; i++)
+            {
+                using var loan = reader.Take();
+                foreach (var sample in loan)
+                    if (sample.IsValid && sample.Info.InstanceState == DdsInstanceState.Alive && sample.Data.EntityId == 42) { wire = sample.Data; got = true; }
+                if (!got) Thread.Sleep(50);
+            }
+            Assert.True(got, "no WorldPos sample for entity 42 arrived over DDS");
+            Assert.Equal(position.X, wire.Position.X, 3);     // the wire is local ENU: a copy
+            Assert.Equal(position.Y, wire.Position.Y, 3);
+            Assert.Equal(position.Z, wire.Position.Z, 3);
+
+            // the replica: another world, the REAL ingress translator
+            var replica = new EntityRepository();
+            replica.RegisterComponent<NetworkIdentity>();
+            replica.RegisterComponent<NetworkAuthority>();
+            replica.RegisterComponent<Fdp.Core.SimTransform>();
+            replica.RegisterComponent<Fdp.Core.SimVelocity>();
+            replica.RegisterComponent<NetworkTransform>();
+            replica.RegisterComponent<NetworkVelocity>();
+            var map = new NetworkEntityMap();
+            var ghost = replica.CreateEntity();
+            replica.AddComponent(ghost, new NetworkIdentity(42));
+            replica.AddComponent(ghost, new Fdp.Core.SimTransform());
+            replica.AddComponent(ghost, new Fdp.Core.SimVelocity());
+            replica.AddComponent(ghost, new NetworkTransform());
+            replica.AddComponent(ghost, new NetworkVelocity());
+            map.Register(42, ghost);
+
+            var probe = new IngressProbe(map, new GhostCreationSystem(map));
+            ISimulationView view = replica;
+            var cmd = view.GetCommandBuffer();
+            probe.Apply(wire, cmd, view);
+            ((EntityCommandBuffer)cmd).Playback(replica);
+
+            var st = replica.GetComponent<Fdp.Core.SimTransform>(ghost);
+            Assert.True(Vector3.Distance(position, st.Position) < 0.001f, $"position {st.Position}");
+            float dot = MathF.Abs(Quaternion.Dot(Quaternion.Normalize(rotation), st.Rotation));
+            Assert.True(dot >= 1f - 1e-6f, $"rotation dot {dot:R}");
+            Assert.Equal(linear,  replica.GetComponent<NetworkVelocity>(ghost).Value);
+            Assert.Equal(angular, replica.GetComponent<Fdp.Core.SimVelocity>(ghost).Angular);
+        }
+
+        /// <summary>
+        /// ⭐ <b>AQ107 D addendum (2026-10-28)</b> — <c>WorldPos.OrientationXyz</c> is the <c>OrientationQuat</c> type: <c>ddsmonitor</c> shows the grid text
+        /// (<c>ToString</c>) and the detail tokens (<c>GetFormatTokens</c>, found by reflection) as heading/pitch/roll + quaternion, while the struct is
+        /// ⭐ the same CDR bytes as <c>Vec3f</c> (identical descriptor ops, size 12, align 4 — a change of layout would turn this red).
+        /// ✅ Red-proofs (run): <c>OrientationQuat.ToString</c> returning <c>base.ToString()</c> ⇒ the text test red; giving <c>OrientationQuat</c> a 4th <c>float W</c> (12 → 16 bytes) ⇒ the descriptor test red; <c>GetFormatTokens</c> passing 0 for Z ⇒ the text test red.
+        /// </summary>
+        [Fact]
+        public void AQ107D_OrientationQuat_DisplaysAsHprAndQuat_ThroughToStringAndTheDuckTypedTokens()
+        {
+            Fdp.Toolkit.Replication.Components.QuaternionWireCodec.Encode(
+                Fdp.Core.SimMath.FromYawPitchRoll(45f * MathF.PI / 180f, -3.2f * MathF.PI / 180f, -1.0f * MathF.PI / 180f), out float x, out float y, out float z);
+            var wire = new WorldPos { OrientationXyz = new Hrot.NED.Messages.OrientationQuat { X = x, Y = y, Z = z } };
+
+            const string expected = "HPR [045.0, 3.2, -1.0] deg, Quat [0.003, -0.029, 0.382, 0.924]";
+            Assert.Equal(expected, wire.OrientationXyz.ToString());
+
+            // ddsmonitor looks the method up by reflection (DetailPanel.razor) — so do the same, not a direct call.
+            var method = typeof(Hrot.NED.Messages.OrientationQuat).GetMethod("GetFormatTokens", Type.EmptyTypes);
+            Assert.NotNull(method);
+            var tokens = (IEnumerable<CycloneDDS.Schema.Formatting.FormattedToken>)method!.Invoke(wire.OrientationXyz, null)!;
+            Assert.Equal(expected, string.Concat(System.Linq.Enumerable.Select(tokens, t => t.Text)));
+        }
+
+        [Fact]
+        public void AQ107D_OrientationQuat_HasTheSameBytesOnTheWireAsAVec3f()
+        {
+            Assert.Equal(Hrot.NED.Messages.Vec3f.GetDescriptorOps(), Hrot.NED.Messages.OrientationQuat.GetDescriptorOps());
+            Assert.Equal(Hrot.NED.Messages.Vec3f.GetDescriptorSize(), Hrot.NED.Messages.OrientationQuat.GetDescriptorSize());
+            Assert.Equal(Hrot.NED.Messages.Vec3f.GetDescriptorAlign(), Hrot.NED.Messages.OrientationQuat.GetDescriptorAlign());
+            Assert.Equal(12u, Hrot.NED.Messages.OrientationQuat.GetDescriptorSize());
+        }
+
         // -- BUG2-N003 - WorldPos disposal integration tests --
 
         /// <summary>
@@ -102,14 +289,14 @@ namespace Hrot.SimHost.Tests
         {
             const uint domain = 165u;
             using var participant = new DdsParticipant(domain);
-            using var drReader    = new DdsReader<WorldPos>(participant, "WorldPos");
+            using var drReader    = new DdsReader<WorldPos>(participant);
 
-            var geoTransform = HrotEnvironment.CreateGeoTransform();
+            var geoTransform = HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
             var entityMap    = new NetworkEntityMap();
-            var translator   = new GeoSpatialEgressTranslator(participant, entityMap, geoTransform, localNodeId: 0);
+            var translator   = new GeoSpatialEgressTranslator(participant, entityMap, localNodeId: 0);
 
             // Call Dispose -- this should tombstone the WorldPos instance.
-            translator.Dispose(42L);
+            translator.Dispose(42);
 
             // Wait briefly for the loopback to complete.
             Thread.Sleep(200);
@@ -139,14 +326,14 @@ namespace Hrot.SimHost.Tests
         {
             const uint domain = 166u;
             using var participant  = new DdsParticipant(domain);
-            using var geoReader    = new DdsReader<WorldPos>(participant, "WorldPos");
+            using var geoReader    = new DdsReader<WorldPos>(participant);
 
-            var geoTransform = HrotEnvironment.CreateGeoTransform();
+            var geoTransform = HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
             var entityMap    = new NetworkEntityMap();
-            var translator   = new GeoSpatialEgressTranslator(participant, entityMap, geoTransform, localNodeId: 0);
+            var translator   = new GeoSpatialEgressTranslator(participant, entityMap, localNodeId: 0);
 
             // Call Dispose -- base.Dispose should tombstone the GeoSpatial instance.
-            translator.Dispose(99L);
+            translator.Dispose(99);
 
             Thread.Sleep(200);
 
@@ -164,6 +351,70 @@ namespace Hrot.SimHost.Tests
 
             Assert.True(receivedTombstone,
                 "Dispose(99) should tombstone the primary GeoSpatial instance (NOT_ALIVE sample expected).");
+        }
+
+        // -- CE-3427 N-1 — the scan OFF the frame (docs/DESIGN_Egress_Change_Detection.md §7, O-C) --
+
+        /// <summary>The samples a translator would put on the wire, without a DDS writer.</summary>
+        private sealed class RecordingGeo : GeoSpatialEgressTranslator
+        {
+            public readonly List<(int Id, Vector3 Pos)> Sent = new();
+            public RecordingGeo() : base(null!, new NetworkEntityMap(), localNodeId: 1) { }
+            protected override void Publish(in WorldPos sample) => Sent.Add((sample.EntityId, new Vector3((float)sample.Position.X, (float)sample.Position.Y, (float)sample.Position.Z)));
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3427 N-1 (O-C) — <c>WorldPos</c> scanned OFF the frame, on a replica, sends what it sends on the frame, and the live world's
+        /// dead-reckoning shadow ends the same: the scan reads the shadow from the replica and QUEUES its writes; the join writes them on the
+        /// live world before the next sync. The hull starts WITHOUT a shadow (the first-sight attach is queued too), moves, stops, stands.
+        /// ✅ Red-proof (run): <c>ApplyDeferred</c> writing nothing ⇒ the live shadow stays at its zeros, so the off-frame scan sends every
+        /// frame ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3427_OffTheFrame_WorldPosSendsWhatItSendsOnTheFrame_AndTheShadowEndsTheSame()
+        {
+            static void Move(EntityRepository repo, Entity hull, int frame)
+            {
+                // moves for 10 frames, then stands (the shadow comparison must then send nothing)
+                var p = frame < 10 ? new Vector3(frame * 0.5f, 2f, 0f) : new Vector3(4.5f, 2f, 0f);
+                repo.GetComponentRW<Fdp.Core.SimTransform>(hull).Position = p;
+                if (frame == 10) repo.GetComponentRW<Fdp.Core.SimVelocity>(hull) = default;
+            }
+
+            var on = new RecordingGeo();
+            var (liveOn, hullOn) = OwnedHull();
+            var off = new RecordingGeo();
+            var (liveOff, hullOff) = OwnedHull();
+            using var replica = new EntityRepository();
+            Assert.False(liveOff.HasComponent<NetworkTransform>(hullOff));
+
+            var sentOn = new List<int>();
+            var sentOff = new List<int>();
+            for (int f = 0; f < 20; f++)
+            {
+                liveOn.Tick(); Move(liveOn, hullOn, f);
+                on.ScanAndPublish(liveOn);
+                sentOn.Add(on.Sent.Count);
+
+                liveOff.Tick();
+                off.ApplyDeferred(liveOff);                 // the join: last frame's shadow writes, on the live world
+                Move(liveOff, hullOff, f);
+                replica.SyncFrom(liveOff);                  // the launch
+                off.ScanState(replica, offFrame: true);
+                sentOff.Add(off.Sent.Count);
+                if (f == 0) Assert.False(replica.HasComponent<NetworkTransform>(hullOff), "the first-sight attach is queued, never made on the replica");
+            }
+            off.ApplyDeferred(liveOff);
+
+            Assert.Equal(sentOn, sentOff);                  // the same samples, frame by frame
+            Assert.Equal(on.Sent, off.Sent);
+            Assert.True(liveOff.HasComponent<NetworkTransform>(hullOff));   // the queued first-sight attach
+            var a = liveOn.GetComponentRO<NetworkTransform>(hullOn);
+            var b = liveOff.GetComponentRO<NetworkTransform>(hullOff);
+            Assert.Equal(a.LastPosition, b.LastPosition);
+            Assert.Equal(a.LastVelocity, b.LastVelocity);
+            Assert.Equal(a.LastSentTick, b.LastSentTick);
+            Assert.True(sentOn[^1] - sentOn[12] == 0, "a standing hull sends nothing");
         }
     }
 }

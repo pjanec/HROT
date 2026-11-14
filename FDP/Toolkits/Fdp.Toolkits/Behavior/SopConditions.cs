@@ -1,0 +1,128 @@
+using System.Runtime.InteropServices;
+using Fbt.Kernel;
+using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
+
+namespace Fdp.Toolkit.Behavior
+{
+    /// <summary>⭐ <c>CE-2080</c> — params of <see cref="SopConditions.SensedWithin"/>: which sensing change, how recently.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SopSenseParams
+    {
+        /// <summary>The change to look for (Hit, FirstThreat, Acquired, …).</summary>
+        public SensorChange Kind;
+        /// <summary>How recent, in sim seconds.</summary>
+        public SimDuration Seconds;
+    }
+
+    /// <summary>⭐ <c>CE-2159</c> X-c — params of the "danger area ahead" condition: how near along the route the next area must be.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SopAreaParams
+    {
+        /// <summary>The area counts once the route reaches it within this many metres (0 = 30).</summary>
+        public float WithinMetres;
+    }
+
+    /// <summary>⭐ <c>CE-2080</c> — params of the ROE conditions: the fire rule to compare against.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SopRoeParams
+    {
+        /// <summary>The threshold — ordered most to least restrictive (HoldFire &lt; ReturnFire &lt; FireAtWill).</summary>
+        public RoeFire Fire;
+    }
+
+    /// <summary>⭐ <c>CE-2104</c> — params of <see cref="SopConditions.InContact"/>.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SopContactParams
+    {
+        /// <summary>How long the mode outlasts the contact: still true this many sim seconds after <c>AllClear</c>
+        /// (0 = ends with the contact).</summary>
+        public SimDuration LingerSeconds;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2080</c> — the conditions an SOP's rows ask (R-199, R-200): what the unit sensed lately, and what its ROE
+    /// allows. Shared C# conditions, so any BTree / HSM asset binds them. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.3–§4.4.
+    /// <para>They read STATE, not events: <see cref="RecentSenses"/> (written from <c>SensorChangedEvent</c>, which lives one
+    /// frame) and <see cref="Roe"/> through <see cref="RoeOf"/> (defaults applied).</para>
+    /// </summary>
+    public static class SopConditions
+    {
+        /// <summary>The unit sensed a change of <see cref="SopSenseParams.Kind"/> within the last
+        /// <see cref="SopSenseParams.Seconds"/> — "was hit within 5 s".</summary>
+        [SharedAiCondition]
+        public static bool SensedWithin(ref SopSenseParams p, Entity self, EntityRepository world)
+            => Noted(RecentSensesOf.Within(world, self, p.Kind, p.Seconds), p.Kind, self, world);
+
+        /// <summary>⭐ <see cref="SensedWithin"/> AND sensed since the unit's TASK SLOT began its current run
+        /// (<see cref="BehaviorState.RunSince"/>) — so an event that already caused a reaction does not fire it again once the
+        /// reaction ends and the task restarts. ⭐ The row a recipe uses.</summary>
+        [SharedAiCondition]
+        public static bool SensedFresh(ref SopSenseParams p, Entity self, EntityRepository world)
+        {
+            double since = world.HasComponent<BehaviorState>(self) ? world.GetComponentRO<BehaviorState>(self).RunSince : double.NegativeInfinity;
+            return Noted(RecentSensesOf.WithinSince(world, self, p.Kind, p.Seconds, since), p.Kind, self, world);
+        }
+
+        /// <summary>⭐ <c>CE-1250</c> (Brain View BV-12) — a matched sense is noted in the unit's brain journal, so the reaction its row
+        /// publishes says what it answers (<i>"started TakeCover (Reaction, Contact) after NearMiss"</i>).</summary>
+        private static bool Noted(bool matched, SensorChange kind, Entity self, EntityRepository world)
+        {
+            if (matched) Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.NoteReactionCause(world, self, (byte)kind);
+            return matched;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2104</c> — the unit is IN CONTACT: its threat memory holds a contact (seen or heard), or it emptied less than
+        /// <see cref="SopContactParams.LingerSeconds"/> ago. The "alerted" mode of any SOP, DERIVED from state the perception
+        /// already keeps — on with <c>FirstThreat</c>, off with <c>AllClear</c> (+ linger) — so there is no flag to latch, save
+        /// or replay. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.7 (CE-2104).
+        /// </summary>
+        [SharedAiCondition]
+        public static bool InContact(ref SopContactParams p, Entity self, EntityRepository world)
+            => (world.HasComponent<TargetMemory>(self) && world.GetComponentRO<TargetMemory>(self).Count > 0)
+               || (p.LingerSeconds > 0f && RecentSensesOf.Within(world, self, SensorChange.AllClear, p.LingerSeconds));
+
+        /// <summary>The unit's ROE fire rule is at least as permissive as <see cref="SopRoeParams.Fire"/> — "may return fire".</summary>
+        [SharedAiCondition]
+        public static bool RoeFireAtLeast(ref SopRoeParams p, Entity self, EntityRepository world)
+            => RoeOf.Fire(world, self) >= p.Fire;
+
+        /// <summary>The unit's ROE fire rule is at most as permissive as <see cref="SopRoeParams.Fire"/> — "must hold fire".</summary>
+        [SharedAiCondition]
+        public static bool RoeFireAtMost(ref SopRoeParams p, Entity self, EntityRepository world)
+            => RoeOf.Fire(world, self) <= p.Fire;
+
+        /// <summary>
+        /// ⭐ <c>CE-2322</c> (AQ97 A, R-2062) — the unit has a live commander in the fight above it (<see cref="UnitSubordinate"/>): its
+        /// reactions are its unit's (the unit's SOP, the plays), so a soldier's own SOP stands aside — and the moment the commander is
+        /// gone or out of the fight, the man is his own master again. 📄 docs/blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md.
+        /// </summary>
+        [SharedAiCondition]
+        public static bool UnderCommand(Entity self, EntityRepository world)
+        {
+            if (!world.IsComponentTypeRegistered<UnitSubordinate>() || !world.HasComponent<UnitSubordinate>(self)) return false;
+            var commander = world.GetComponentRO<UnitSubordinate>(self).Commander;
+            if (commander.IsNull || !world.IsAlive(commander)) return false;
+            return Fdp.Toolkit.Squad.CombatEffective.IsUnit(world, commander)
+                ? Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(world, commander)
+                : Fdp.Toolkit.Combat.Injury.IsInTheFight(world, commander);
+        }
+
+        /// <summary>⭐ <c>CE-2322</c> (AQ97, as built) — he sits aboard a vehicle (a crewman spawned in his seat, a passenger): the vehicle's
+        /// behaviour and his seat decide, so a soldier's own SOP stands aside as under command. ⭐ <c>CE-4035</c> G-11 — NOT when what he sits
+        /// in is a WEAPON SYSTEM (a manned M2, a mortar tube): the weapon has no brain (Weapon Systems W-D), so nothing would decide — 📐 live
+        /// `ua-m2-engage`: the gunner saw the intruder for 50 s from his seat and the M2 never fired.</summary>
+        [SharedAiCondition]
+        public static bool Aboard(Entity self, EntityRepository world)
+        {
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
+                || !world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(self)) return false;
+            var carrier = world.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(self).VehicleEntity;
+            return !Fdp.Toolkit.Combat.WeaponSystems.IsWeaponSystem(world, carrier);
+        }
+    }
+}

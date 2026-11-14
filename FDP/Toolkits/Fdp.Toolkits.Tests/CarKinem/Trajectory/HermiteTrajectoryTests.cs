@@ -282,3 +282,32 @@ namespace CarKinem.Tests.Trajectory
         }
     }
 }
+
+namespace CarKinem.Tests.Trajectory
+{
+    /// <summary>
+    /// ⭐ CE-4462 — a curved path whose first two waypoints COINCIDE (the path starts at the vehicle's own position) has a zero tangent at
+    /// its start; sampling it there returned a NaN heading, which made the following vehicle's speed and position NaN on its first step
+    /// (found in the 1 000-man rig: cars and every passenger they carried). Sampling must stay finite and unit-length everywhere.
+    /// 🔴 Red-proof (run): the Hermite branch normalising the curve tangent unguarded ⇒ NaN at progress 0.
+    /// </summary>
+    public class DegenerateCurveTangentTests
+    {
+        [Fact]
+        public void ACurvedPathStartingOnADuplicatePoint_SamplesAFiniteUnitHeading()
+        {
+            var pool = new CarKinem.Trajectory.TrajectoryPoolManager();
+            int id = pool.RegisterTrajectory(
+                new[] { new System.Numerics.Vector3(411.9f, 404.8f, 0f), new System.Numerics.Vector3(411.9f, 404.8f, 0f),
+                        new System.Numerics.Vector3(430f, 410f, 0f), new System.Numerics.Vector3(450f, 440f, 0f) },
+                interpolation: CarKinem.Trajectory.TrajectoryInterpolation.CatmullRom);
+            foreach (float s in new[] { 0f, 0.0001f, 1f, 10f, 30f })
+            {
+                var (pos, tangent, speed) = pool.SampleTrajectory(id, s);
+                Xunit.Assert.False(float.IsNaN(tangent.X) || float.IsNaN(tangent.Y), $"NaN heading at s={s}");
+                Xunit.Assert.InRange(tangent.Length(), 0.999f, 1.001f);
+                Xunit.Assert.False(float.IsNaN(pos.X) || float.IsNaN(pos.Y) || float.IsNaN(speed), $"NaN sample at s={s}");
+            }
+        }
+    }
+}

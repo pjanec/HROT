@@ -31,7 +31,7 @@ the test body. When xUnit runs tests in parallel (the default), this Clear() rac
 
 **Fix:** Added `NoRecordTestComponent` (`[ComponentId(240)]`) to `TestComponents.cs` and
 rewrote the test to use that component instead of `IntComponent`. The Clear() call was
-removed. No other test uses ID 240, so registration with `DataPolicy.NoRecord` is safe
+removed. No other test uses ID 240, so registration with `DataPolicy.NoReplay` is safe
 without touching global state.
 
 Status: Fixed. Full test suite re-run confirms BATCH-04 tests pass and CheckpointIOWorkerTests

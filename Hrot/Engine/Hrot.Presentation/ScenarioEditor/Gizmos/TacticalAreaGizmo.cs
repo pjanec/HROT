@@ -3,7 +3,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Replication.Components;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common;
 
 namespace Hrot.ScenarioEditor.Gizmos
@@ -14,7 +14,7 @@ namespace Hrot.ScenarioEditor.Gizmos
     /// The area boundary is drawn as a closed polyline using vertices from the entity's
     /// <see cref="EditablePolyline.Points"/> list.
     /// </summary>
-    [GizmoProjector(typeof(TkbIdentity))]
+    [GizmoProjector(typeof(TkbIdentity), DrawsOffScreen = true)]
     public sealed class TacticalAreaGizmo : IStatelessGizmo
     {
         // Olive-yellow outline to visually distinguish areas from routes.
@@ -32,15 +32,32 @@ namespace Hrot.ScenarioEditor.Gizmos
             var polyline = view.GetManagedComponentRO<EditablePolyline>(entity);
             if (polyline.Points == null || polyline.Points.Count < 2) return;
 
-            int n = polyline.Points.Count;
-
-            // Draw a closed polygon: connect each consecutive pair and close the loop.
-            for (int i = 0; i < n; i++)
+            // ⭐⭐⭐ BP-517 — EditablePolyline.Points are RELATIVE offsets from SimTransform, so the
+            //   origin MUST be added. ⛔ This gizmo used to pass Vector2.Zero on the strength of a
+            //   comment claiming the points were absolute; that comment was false for shipped data.
+            //   Because an area entity can carry BOTH TkbIdentity and MapOverlayStyle, and
+            //   GizmoReflectionRegistrar runs every matching [GizmoProjector], the raw-Points version
+            //   drew such an entity TWICE — once here and once at origin+Points from MapOverlayGizmo —
+            //   with picking off by the same distance. 📄 DESIGN_Terrain_Zones_And_Assets.md §2.2.
+            var origin = Vector2.Zero;
+            float level = 0f;   // ⭐ CE-1033 M22 — the area's level height (0 = the ground, draped in 3-D)
+            if (view.HasComponent<SimTransform>(entity))
             {
-                var a = new Vector3(polyline.Points[i].X,           polyline.Points[i].Y,           0f);
-                var b = new Vector3(polyline.Points[(i + 1) % n].X, polyline.Points[(i + 1) % n].Y, 0f);
-                draw.DrawLine(a, b, AreaColor, 1.5f, SizeMode.ScreenPixels);
+                ref readonly var simTr = ref view.GetComponentRO<SimTransform>(entity);
+                origin = new Vector2(simTr.Position.X, simTr.Position.Y);
+                level = EntityPresentationGizmoShared.LevelHeightOf(view, simTr.Position);
             }
+
+            // ⭐ E1 — through the SHARED outline helper, so this loop exists once. BP-517 lived in a copy
+            //   of it, and TerrainZoneGizmo draws the same geometry with a state-driven stroke.
+            EntityPresentationGizmoShared.DrawClosedPolylineOutline(
+                draw, polyline.Points, origin, AreaColor, z: level, layer: DebugTraceLayers.TacticalGraphics);
+
+            // ⭐⭐⭐ CE-259ae — make the boundary CLICKABLE (select on left-click, context menu on
+            //   right-click). ⚠ The SAME origin the drawing used, or a click on the drawn outline
+            //   misses by exactly the transform.
+            EntityPresentationGizmoShared.EmitPickSegments(
+                draw, view, entity, polyline.Points, origin, isClosed: true);
         }
     }
 }

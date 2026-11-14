@@ -95,6 +95,26 @@ public sealed class BlueprintDocumentFactoryTests : IDisposable
     }
 
     [Fact]
+    public void BlueprintDocumentFactory_Build_HandsTheAttachmentProvidersToTheCanvasModel()
+    {
+        var spawnId  = Guid.NewGuid();
+        var template = Guid.NewGuid();
+        var asset = BlueprintAssetBuilder.Instance("WithSpawn")
+            .WithGraph("EventGraph", GraphKind.Event, g => g.Entry())
+            .Build();
+        asset.Graphs[0].Nodes.Add(new SpawnEqsSensorNode { Id = spawnId, TemplateAssetId = template });
+        var templates = new EqsTemplateRegistry();
+        templates.Register(new EqsTemplateEntry { AssetId = template, DisplayName = "EntitiesOfForceInArea" });
+
+        var ctx = BlueprintDocumentFactory.Build(MakeFileAsset(asset), MakeBundle(),
+            attachmentProviders: Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateAttachmentProviders(
+                templates, _ => null));
+
+        var pill = Assert.Single(ctx.View.Model.GetAttachmentsForNode(new NodeId(spawnId)));
+        Assert.Equal("EntitiesOfForceInArea", pill.Label);
+    }
+
+    [Fact]
     public void BlueprintDocumentFactory_Build_InjectedEditService_ContextUpdated()
     {
         var fileAsset   = MakeFileAsset();

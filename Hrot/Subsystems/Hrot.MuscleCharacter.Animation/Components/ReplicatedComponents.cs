@@ -3,51 +3,30 @@ using System.Runtime.InteropServices;
 using Fbt;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.MuscleCharacter.Animation.Components
 {
-    /// <summary>
-    /// Enumeration of supported stance modes for character locomotion and posture.
-    /// Maps to TKB animation descriptor stance definitions (DD-4 §3.2).
-    /// </summary>
-    [Serializable]
-    public enum StanceId : byte
-    {
-        /// <summary>Standing upright (default).</summary>
-        Standing = 0,
+    // ⚠ `StanceId` MOVED OUT of this file on 2026-08-31 → FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/StanceId.cs
+    //   and it is now in namespace `Fdp.Toolkit.Tkb.Domain` (CE-145, done 2026-08-31) — hence the
+    //   `using Fdp.Toolkit.Tkb.Domain;` above. It moved because CharacterAnimationDefDto (a TKB descriptor
+    //   DTO referencing it) had to sit beside the other TKB DTOs so Hrot.Core could host the UrbanCombat
+    //   catalogue without referencing this subsystem.
+    //   📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
 
-        /// <summary>Crouched / half-height.</summary>
-        Crouched = 1,
-
-        /// <summary>Prone / fully horizontal.</summary>
-        Prone = 2,
-    }
+    // ⚠ StanceTransitionPhase, StanceIntent and StanceStatus MOVED to FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/StanceComponents.cs
+    //   (2026-10-07, AQ85 / R-216): the hit model and the AI's estimate in Fdp.Toolkits read the LOGICAL stance. Same
+    //   namespace, same ComponentIds, same layout — no reference changed. Precedent: StanceId (CE-145).
 
     /// <summary>
-    /// Stance transition phase tracking for multi-frame blend sequences.
-    /// Synchronizes between Brain intent and Muscle execution.
-    /// </summary>
-    [Serializable]
-    public enum StanceTransitionPhase : byte
-    {
-        /// <summary>No active transition; current stance is stable.</summary>
-        Idle = 0,
-
-        /// <summary>Transition blend in progress.</summary>
-        Transitioning = 1,
-
-        /// <summary>Transition complete and locked (final state written).</summary>
-        Locked = 2,
-    }
-
-    /// <summary>
-    /// Animation channel component carrying one-shot montage playback intent.
-    /// Follows the existing LocomotionChannel/WeaponChannel pattern (DD-1 §5.1).
-    /// Total layout must fit within BehaviorConstants.MaxChannelSizeBytes (96 bytes).
+    /// Animation channel: the Brain's REQUEST for one-shot montage playback (DD-1 §5.1).
+    /// ⭐ <c>CE-513</c> / <c>R-180</c> (<c>Architect_Question_80</c>): only the Brain writes this component (Brain
+    /// ownership group, wire descriptor 100). The Muscle's report lives in <see cref="AnimationChannelStatus"/> —
+    /// one writer per component, the <see cref="StanceIntent"/>/<see cref="StanceStatus"/> shape.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AnimationChannel)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct AnimationChannel
     {
         /// <summary>Current action ID (see AnimationActionIds). 0 = no action pending.</summary>
@@ -59,27 +38,41 @@ namespace Hrot.MuscleCharacter.Animation.Components
         /// <summary>Action instance token; bumped on each new action to preempt stale requests.</summary>
         public uint ActionInstanceId;
 
-        /// <summary>Dispatcher instance ID; synchronizes dispatcher state between ticks.</summary>
-        public uint DispatchedInstanceId;
-
-        /// <summary>Lifecycle status: Idle, Running, Success, Failure.</summary>
-        public NodeStatus Status;
-
         /// <summary>32-byte action parameter payload (PlayMontageParams, StopMontageParams, etc.).</summary>
         public fixed byte Params[BehaviorConstants.ActionParamsByteSize];
-
-        /// <summary>32-byte executor state payload (current playback progress, blending weights, etc.).</summary>
-        public fixed byte State[BehaviorConstants.ActionStateByteSIze];
     }
 
     /// <summary>
-    /// Look-at (aim) channel component carrying targeting intent for aim/look-at overlay.
-    /// Follows the same fixed-size shape as AnimationChannel (DD-1 §5.1).
-    /// Runs concurrently with montage playback to achieve simultaneous aiming.
+    /// The Muscle's REPORT on the <see cref="AnimationChannel"/> request it last picked up (MuscleGround ownership
+    /// group, wire descriptor 101). ⭐ <c>CE-513</c> / <c>R-180</c>.
+    /// <para>⚠ <see cref="Status"/> is only meaningful for the request whose <see cref="AnimationChannel.ActionInstanceId"/>
+    /// equals <see cref="DispatchedInstanceId"/>; the default (<see cref="NodeStatus.Failure"/> = 0) means "nothing
+    /// picked up yet".</para>
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.AnimationChannelStatus)]
+    [DataPolicy(DataPolicy.NoScenario)]
+    public struct AnimationChannelStatus
+    {
+        /// <summary>The <see cref="AnimationChannel.ActionInstanceId"/> the Muscle last dispatched.</summary>
+        public uint DispatchedInstanceId;
+
+        /// <summary>Lifecycle status of that action: Running, Success, Failure.</summary>
+        public NodeStatus Status;
+
+        /// <summary>⭐ <c>R-3039</c> S1 — the action the Muscle last ENTERED (its OnExit is owed when the next one arrives); was the
+        /// dispatcher's <c>_previousAction[entity.Index]</c>. Muscle-local: the report's wire message does not carry it.</summary>
+        public ushort DispatchedAction;
+    }
+
+    /// <summary>
+    /// Look-at (aim) channel: the Brain's REQUEST for the aim/look-at overlay (DD-1 §5.1), concurrent with montage
+    /// playback. ⭐ <c>CE-513</c> / <c>R-180</c>: Brain-written only (descriptor 102); the report is
+    /// <see cref="LookAtChannelStatus"/>.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.LookAtChannel)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct LookAtChannel
     {
         /// <summary>Current action ID (see LookAtActionIds). 0 = no action pending.</summary>
@@ -91,61 +84,52 @@ namespace Hrot.MuscleCharacter.Animation.Components
         /// <summary>Action instance token; bumped on each new action to preempt stale requests.</summary>
         public uint ActionInstanceId;
 
-        /// <summary>Dispatcher instance ID; synchronizes dispatcher state between ticks.</summary>
-        public uint DispatchedInstanceId;
-
-        /// <summary>Lifecycle status: Idle, Running, Success, Failure.</summary>
-        public NodeStatus Status;
-
         /// <summary>32-byte action parameter payload (LookAtPointParams, LookAtEntityParams, etc.).</summary>
         public fixed byte Params[BehaviorConstants.ActionParamsByteSize];
+    }
 
-        /// <summary>32-byte executor state payload (blend weight, current target, transition progress, etc.).</summary>
-        public fixed byte State[BehaviorConstants.ActionStateByteSIze];
+    /// <summary>The Muscle's REPORT on the <see cref="LookAtChannel"/> request (descriptor 103). ⭐ <c>CE-513</c>.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.LookAtChannelStatus)]
+    [DataPolicy(DataPolicy.NoScenario)]
+    public struct LookAtChannelStatus
+    {
+        /// <summary>The <see cref="LookAtChannel.ActionInstanceId"/> the Muscle last dispatched.</summary>
+        public uint DispatchedInstanceId;
+
+        /// <summary>Lifecycle status of that action: Running, Success, Failure.</summary>
+        public NodeStatus Status;
+
+        /// <summary>⭐ <c>R-3039</c> S1 — the action the Muscle last ENTERED (its OnExit is owed when the next one arrives); was the
+        /// dispatcher's <c>_previousAction[entity.Index]</c>. Muscle-local: the report's wire message does not carry it.</summary>
+        public ushort DispatchedAction;
     }
 
     /// <summary>
-    /// Brain-authored stance intention descriptor.
-    /// Brain writes the target stance; Muscle initiates transition blend.
-    /// Replicates from Brain → Muscle; Muscle writes back StanceStatus.
+    /// ⭐ <c>CE-513</c> — the Muscle executors' working view of one montage action: the request (read-only by
+    /// convention) and the report the executor writes. NOT a component: the dispatcher builds it on the stack from
+    /// <see cref="AnimationChannel"/> + <see cref="AnimationChannelStatus"/> and writes back only
+    /// <see cref="Report"/>, so the generic <c>IActionExecutor&lt;TChannel&gt;</c> contract is unchanged.
     /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.StanceIntent)]
-    [DataPolicy(DataPolicy.NoSave)]
-    public struct StanceIntent
+    public struct AnimationChannelWork
     {
-        /// <summary>Target stance (Standing, Crouched, Prone).</summary>
-        public StanceId TargetStance;
+        /// <summary>The Brain's request (do not write).</summary>
+        public AnimationChannel Request;
 
-        /// <summary>Blend duration in seconds for smooth transition (0 = immediate).</summary>
-        public float BlendTime;
-
-        /// <summary>Version counter; bumped each time intent changes (triggers Muscle transition).</summary>
-        public uint Version;
+        /// <summary>The Muscle's report — what the executor writes.</summary>
+        public AnimationChannelStatus Report;
     }
 
-    /// <summary>
-    /// Muscle-authored stance status descriptor.
-    /// Tracks current stance and transition progress; replicates from Muscle → Brain.
-    /// Brain observes this via ValueChanged to know when transitions are complete.
-    /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.StanceStatus)]
-    [DataPolicy(DataPolicy.NoSave)]
-    public struct StanceStatus
+    /// <summary>⭐ <c>CE-513</c> — the look-at executors' working view; see <see cref="AnimationChannelWork"/>.</summary>
+    public struct LookAtChannelWork
     {
-        /// <summary>Current stable stance (Standing, Crouched, Prone).</summary>
-        public StanceId CurrentStance;
+        /// <summary>The Brain's request (do not write).</summary>
+        public LookAtChannel Request;
 
-        /// <summary>Transition phase: Idle, Transitioning, Locked.</summary>
-        public StanceTransitionPhase Phase;
-
-        /// <summary>Progress of active transition blend (0.0 = start, 1.0 = complete).</summary>
-        public float TransitionProgress;
-
-        /// <summary>Version observed by Muscle (ack counter to Brain's StanceIntent.Version).</summary>
-        public uint AckVersion;
+        /// <summary>The Muscle's report — what the executor writes.</summary>
+        public LookAtChannelStatus Report;
     }
+
 
     /// <summary>
     /// Single entry in a montage queue (used inside AnimationMontageQueue.Entries [InlineArray]).
@@ -179,7 +163,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AnimationMontageQueue)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct AnimationMontageQueue
     {
         /// <summary>Number of valid entries in Entries (0 = empty queue).</summary>
@@ -204,7 +188,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AnimationMontageQueueState)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct AnimationMontageQueueState
     {
         /// <summary>Index of the currently-playing queue entry (0xFF = no entry active / queue idle).</summary>

@@ -60,7 +60,7 @@ public sealed class ComponentNodeDrawersTests
     public void Drawer_Handles_OtherNodeTypes_False()
     {
         var drawer = new GetComponentNodeDrawer(new SpyEditService(), DefaultTypeProvider);
-        Assert.False(drawer.Handles(new GetSharedNode  { Id = Guid.NewGuid() }));
+        Assert.False(drawer.Handles(new GetVariableNode{ Id = Guid.NewGuid() }));
         Assert.False(drawer.Handles(new SetVariableNode{ Id = Guid.NewGuid() }));
     }
 
@@ -340,7 +340,7 @@ public sealed class ComponentNodeDrawersTests
     {
         var drawer = new SetComponentNodeDrawer(new SpyEditService(), DefaultTypeProvider);
         Assert.False(drawer.Handles(new GetComponentNode { Id = Guid.NewGuid() }));
-        Assert.False(drawer.Handles(new SetSharedNode    { Id = Guid.NewGuid() }));
+        Assert.False(drawer.Handles(new SetVariableNode  { Id = Guid.NewGuid() }));
     }
 
     [Fact]
@@ -545,7 +545,25 @@ public sealed class ComponentNodeDrawersTests
             MarkDirtyCallCount++;
             LastMarkedAsset = asset;
         }
-    }
+    
+        /// <summary>BP-11: every recorded (label, apply, undo) triple, in order.</summary>
+        public List<(string Label, Action Apply, Action Undo)> Recorded { get; } = new();
+
+        public int StructureChangedCallCount { get; private set; }
+
+        /// <summary>
+        /// Mirrors the real service: recording performs the edit, so a drawer that routes through
+        /// here mutates exactly once — and the captured <c>Undo</c> lets a headless test reverse it.
+        /// </summary>
+        public void RecordPropertyEdit(BlueprintAsset asset, string description, Action apply, Action undo)
+        {
+            Recorded.Add((description, apply, undo));
+            apply();
+            MarkDirty(asset);
+        }
+
+        public void NotifyStructureChanged(BlueprintAsset asset) => StructureChangedCallCount++;
+}
 
     private sealed class TestPredicateCompiler : IPredicateCompiler
     {

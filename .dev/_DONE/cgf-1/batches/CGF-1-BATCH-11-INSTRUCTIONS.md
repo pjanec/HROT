@@ -78,7 +78,7 @@ Normative behaviour is **§CGF1-S0306**; use §5.6 for narrative (N:M translator
    - **`Build(ComponentTypeRegistry registry)`** — per registered component type, compile delegates with **`Expression.Property`** (extract / inject shapes per §CGF1-S0306).
    - **No** `Type.GetProperties()` / **`PropertyInfo.GetValue`** on the hot path.
    - Skip **`[ScenarioIgnore]`** fields at compile time; patch **`Entity`**-typed fields via **`IGuidResolver`**.
-   - Types with **`DataPolicy.NoSave`** must be **omitted from delegate compilation** (they never appear in the saveable mask — see note below).
+   - Types with **`DataPolicy.NoScenario`** must be **omitted from delegate compilation** (they never appear in the saveable mask — see note below).
 
 5. **`ScenarioSerializerBuilder`** — **`RegisterTranslator(IEntityScenarioTranslator)`** (no type parameter); **`Build()`** runs **`FdpAutoSerializer.Build`**, freezes translators, returns **`ScenarioSerializer`**.
 
@@ -88,9 +88,9 @@ Normative behaviour is **§CGF1-S0306**; use §5.6 for narrative (N:M translator
 
 7. **`ScenarioHeader`** — `record ScenarioHeader(string SubsystemType, int SchemaVersion = 1)`.
 
-8. **`[ScenarioIgnore]`** — field-level exclusion. **`ScenarioIgnoreTag`** — empty component with **`[DataPolicy(DataPolicy.NoSave)]`**; serializer enumerates with **`.Without<ScenarioIgnoreTag>()`** (or equivalent) so whole entities are skipped.
+8. **`[ScenarioIgnore]`** — field-level exclusion. **`ScenarioIgnoreTag`** — empty component with **`[DataPolicy(DataPolicy.NoScenario)]`**; serializer enumerates with **`.Without<ScenarioIgnoreTag>()`** (or equivalent) so whole entities are skipped.
 
-9. **Integration with existing FDP policy:** call **`EntityRepository.GetSaveableMask()`** as the starting mask; do **not** duplicate **`DataPolicy.NoSave`** logic (see §CGF1-S0306 note).
+9. **Integration with existing FDP policy:** call **`EntityRepository.GetSaveableMask()`** as the starting mask; do **not** duplicate **`DataPolicy.NoScenario`** logic (see §CGF1-S0306 note).
 
 10. **Artifacts** — align with design §6 file map where applicable (e.g. **`ScenarioEntityDto.cs`** if the implementation needs a shared DTO type; **`ScenarioIgnoreAttribute.cs`**).
 
@@ -104,7 +104,7 @@ Implement **all** §CGF1-S0306 success conditions (names must match intent):
 | `NtoM_CustomTranslator_CompressesComponents` | e.g. **`MissileOrdnanceTranslator`** consumes `BallisticProjectile` + `PhysicsCollider` → single **`OrdnanceDef`** DOM key; round-trip restores both components. |
 | `ConsumptionMask_PreventsDuplication` | After translator extract, consumed bits cleared; auto-serializer **does not** emit those components. |
 | `EntityCrossReference_ResolvedViaIGuidResolver` | **`GuidedTarget.TargetId: Entity`** ↔ GUID string in DOM; deserialize resolves handle. |
-| `DataPolicyNoSave_ComponentExcluded` | e.g. **`SimVelocity`** with **`NoSave`** absent from DOM. |
+| `DataPolicyNoSave_ComponentExcluded` | e.g. **`SimVelocity`** with **`NoScenario`** absent from DOM. |
 | `ScenarioIgnore_FieldExcluded` | Saved field present; **`[ScenarioIgnore]`** field absent in JSON. |
 | `ScenarioIgnoreTag_EntitySkipped` | Entity with **`ScenarioIgnoreTag`** missing from **`dom["Entities"]`**. |
 | `StoryLoad_StampsStoryTag` | **`asStory: true`** → every created entity has **`StoryTag`**. **Note:** BATCH-11 shipped a scenario-local **`StoryTag`** (`string`, managed class). **CGF-1-BATCH-12 §A.7** replaces it with the canonical **`FDP.Toolkit.Replay.StoryTag`** (`Guid`) — see BATCH-12 instructions. |

@@ -1,7 +1,7 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 
 namespace Hrot.Presentation.Gizmos
 {
@@ -18,7 +18,7 @@ namespace Hrot.Presentation.Gizmos
     public sealed class CanvasContextMenuGizmo : IGlobalStatelessGizmo
     {
         /// <summary>Well-known anchor ID representing the empty-canvas context menu.</summary>
-        public const long CanvasAnchorId = -1L;
+        public const int CanvasAnchorId = -1;
 
         public void Draw(ISimulationView view, IDebugDrawBuilder drawBuilder)
         {

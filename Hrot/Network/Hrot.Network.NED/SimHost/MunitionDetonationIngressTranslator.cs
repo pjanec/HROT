@@ -21,14 +21,14 @@ namespace Hrot.Network.NED.SimHost
     /// If unknown, the sample is silently skipped.
     /// </para>
     /// </summary>
-    public sealed class MunitionDetonationIngressTranslator : IDescriptorTranslator
+    public sealed class MunitionDetonationIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "MunitionDetonation";
 
         private readonly DdsReader<MunitionDetonation>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        private readonly NodeId _localNodeId;   // ⭐ CE-1148 S2 — this node's own samples are dropped (SourceNodeId)
 
-        public string TopicName       => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MunitionDetonation>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtMunitionDetonation;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -41,11 +41,13 @@ namespace Hrot.Network.NED.SimHost
         /// </summary>
         public MunitionDetonationIngressTranslator(
             DdsParticipant? participant,
-            NetworkEntityMap entityMap)
+            NetworkEntityMap entityMap,
+            int localNodeId)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _reader    = participant is not null
-                ? new DdsReader<MunitionDetonation>(participant, DdsTopicName)
+                ? new DdsReader<MunitionDetonation>(participant)
                 : null;
         }
 
@@ -54,6 +56,12 @@ namespace Hrot.Network.NED.SimHost
         /// republishes each valid sample as a <see cref="DetonationNotification"/> on the
         /// local event bus via the command buffer.
         /// </summary>
+        /// <summary>⭐ R-4007 (Q91 §4-M) — a one-shot world event: discarded while the node is frozen for a join.</summary>
+        public TranslatorClass Category => TranslatorClass.WorldEvent;
+
+        /// <inheritdoc/>
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
+
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (_reader is null) return;
@@ -80,7 +88,11 @@ namespace Hrot.Network.NED.SimHost
             // PACK-P003: DetonationNotification now carries Entity handles.
             // Resolve both network IDs to local Entity handles.
             // If the target is unknown on this node, skip (same guard as before).
-            if (!_entityMap.TryGetEntity(msg.HitEntityId, out var hitEntity)) return;
+            // ⭐ CE-1148 S2 (Node Roles §3.5, R-3015) — every node reads this topic; its own detonation is already a local event.
+            if (msg.SourceNodeId != 0 && msg.SourceNodeId == _localNodeId) return;
+            // ⭐ CE-1032 W-3 — HitEntityId 0 = a terrain burst: kept, with no target (the IG still shows it).
+            var hitEntity = Entity.Null;
+            if (msg.HitEntityId != 0 && !_entityMap.TryGetEntity(msg.HitEntityId, out hitEntity)) return;
 
             // Shooter may be unknown on Muscle (cross-node entity); default to Entity.Null if not found.
             _entityMap.TryGetEntity(msg.ShooterEntityId, out var shooterEntity);
@@ -92,6 +104,7 @@ namespace Hrot.Network.NED.SimHost
                 HitX    = msg.HitX,
                 HitY    = msg.HitY,
                 HitZ    = msg.HitZ,
+                Ammo    = msg.MunitionType,
                 IsRemote = true,
             });
         }
@@ -103,6 +116,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

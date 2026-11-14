@@ -40,7 +40,12 @@ public sealed class ExportDeliveryModalTests : IDisposable
     public void SaveToFile_InvalidPath_ReturnsErrorString()
     {
         var state = MakeState("content");
-        var badPath = @"Z:\DoesNotExist\file.txt";
+
+        // BP-64: a path under a directory that does not exist fails on every platform. The literal
+        // this replaced, @"Z:\DoesNotExist\file.txt", is only invalid on Windows — on Linux a
+        // backslash is an ordinary filename character, so it names a perfectly writable file in the
+        // current directory and the save succeeded.
+        var badPath = Path.Combine(_tempDir, "no-such-subdirectory", "file.txt");
 
         var error = state.SaveToFile(badPath);
 

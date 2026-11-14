@@ -1,0 +1,154 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "bt-range",
+    "description": "What: WL-4 (U-W7) - on bt-range a Rifleman (140,12) and a brave Grenadier (158,12, rifle + M67) advance north on CombatPosture toward a Hostile behind the sandbags at (149,42.5), who is seen for ~3 s and then crouches out of sight. Shows a rifle-or-grenade choice against a hidden target. Judge: (1) the Grenadier carries grenades and closes to throwing distance, then throws at the hostile's last-known spot (his grenade count drops); (2) the Rifleman fires blind at the same spot - his rounds hit the sandbags, the hostile's health is unchanged and he is marked under fire; (3) the lobbed grenade clears the sandbags and the hostile loses health. Fail: Nobody throws, the Grenadier stands off, or the hostile is never hurt. Check: none (no live check) - twin: GrenadeOrRifleScenarioTests"
+  },
+  "entities": {
+    "a4120000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          140,
+          12,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": [
+          {
+            "Entity": "a4120000-0000-4000-8000-000000000003",
+            "PosX": 149,
+            "PosY": 42.5,
+            "PosZ": 0,
+            "Score": 500,
+            "Tick": 0,
+            "Modality": 1
+          }
+        ]
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {"advance":{"Objective":[149,48,0],"Speed":3,"ArrivalRadius":3,"CooldownSeconds":1}},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a4120000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          158,
+          12,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Grenadier",
+        "ForceId": "Friend"
+      },
+      "Temperament": {
+        "riskAcceptance": 0.8
+      },
+      "TargetMemory": {
+        "Entries": [
+          {
+            "Entity": "a4120000-0000-4000-8000-000000000003",
+            "PosX": 149,
+            "PosY": 42.5,
+            "PosZ": 0,
+            "Score": 500,
+            "Tick": 0,
+            "Modality": 1
+          }
+        ]
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {"advance":{"Objective":[149,48,0],"Speed":3,"ArrivalRadius":3,"CooldownSeconds":1}},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a4120000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          149,
+          42.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 1000,
+        "Max": 1000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile behind the sandbags",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {"stance":"Crouched"},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

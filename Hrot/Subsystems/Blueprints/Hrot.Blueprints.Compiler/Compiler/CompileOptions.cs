@@ -21,4 +21,26 @@ public sealed record CompileOptions(
     // Roslyn incremental generator (which cannot reflect over the assembly it is compiling) so Stage0
     // can rehydrate typed FunctionCall pins without explicit pins or runtime reflection. Null in the
     // in-process compiler/editor path, where reflection over loaded assemblies is used instead.
-    IClrSignatureResolver? ClrSignatureResolver = null);
+    IClrSignatureResolver? ClrSignatureResolver = null,
+
+    // ⭐⭐ S2 — the struct-size oracle. FQN in, managed byte size out, null for "no opinion".
+    //
+    // ⛔ NOT a project reference, and not an ITypeRegistry member. A bare Func<string,int?> is the
+    // shape the design mandate names (user decision 2026-06-15, .dev/btree-ai-action-binding
+    // TASK-DETAIL.md:58): "StructSizeResolver lives in Hrot.AiEditor.Generators (Roslyn-aware) and is
+    // injected via Func<string,int?>. The Persistence assembly stays netstandard2.0 / Roslyn-free."
+    // The same shape already ships as BTreeBlackboardPackHelper.Pack(vars, Func<string,int?>, out t).
+    //
+    // ⚠ Null is the NORMAL case, exactly as ClrSignatureResolver is: one production site supplies one
+    // (BlueprintIncrementalGenerator). Absence means "no opinion", and the caller must then mark the
+    // size UNRELIABLE rather than trust the AN2 4-byte placeholder -- see Stage4_TypeResolve.
+    Func<string, int?>? StructSizeOracle = null,
+
+    // ⭐ CE-3164 (R-268) — the picker group of a blueprint BEHAVIOUR: the asset's folder below Assets/Blueprints/, supplied by
+    // the generator that holds the path (BehaviorGroups.FromAssetPath). Null ⇒ no group (the picker's "Other").
+    string? BehaviorGroup = null,
+
+    // ⭐ CE-2135 P4 (R-2004, docs/DESIGN_Orders_Params_Entity_Classes.md §13.10 P4-a) — where a named params DTO's fields come from.
+    // Null is the NORMAL case (ReflectionParamsDtoFieldSource over the loaded assemblies); the Roslyn generator supplies one over its
+    // compilation, exactly as it supplies ClrSignatureResolver.
+    IParamsDtoFieldSource? ParamsDtoFields = null);

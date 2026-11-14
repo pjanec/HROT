@@ -20,22 +20,33 @@ namespace Fdp.Toolkit.Behavior.Modules
     {
         private readonly BehaviorRegistry _registry;
 
+        /// <summary>⭐ rules ② — the ONE ingress of this module: the Input-phase system, and what the rule-edit system calls (<c>Reparameterise</c>) — never a second instance.</summary>
+        public BehaviorIngressSystem Ingress { get; }
+
         /// <summary>Systems that run in the Input phase.</summary>
         public IReadOnlyList<IEcsModuleSystem> InputSystems { get; }
 
         /// <summary>Systems that run in the Simulation phase.</summary>
         public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; }
 
-        public MissionControlModule(BehaviorRegistry registry)
+        /// <param name="gateOnAuthority">⭐ <c>P3</c> step <c>3b</c> — process only missions whose
+        /// entity's cognitive state this node owns. ⚠ Defaults to <c>false</c>; see
+        /// <c>CognitiveRuntimeModule</c>'s parameter of the same name for why the default is
+        /// load-bearing.</param>
+        public MissionControlModule(BehaviorRegistry registry, bool gateOnAuthority = false)
         {
             _registry = registry;
+            Ingress = new BehaviorIngressSystem(registry);
             InputSystems = new IEcsModuleSystem[]
             {
-                new BehaviorIngressSystem(_registry),
+                new RoeSystem(),                       // ⭐ CE-2074 — orders change the ROE, gated by origin
+                new Fdp.Toolkit.Squad.Command.ReportingRequirementsSystem(),   // ⭐ CE-2291 CC-A — its twin: a superior's reporting extras
+                new EngagementAreaSystem(),            // ⭐ CE-2282 DA-L — the ROE twin for a man's sector
+                Ingress,
             };
             SimulationSystems = new IEcsModuleSystem[]
             {
-                new MissionDirectorSystem(),
+                new MissionDirectorSystem(gateOnAuthority),
             };
         }
     }

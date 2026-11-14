@@ -1,0 +1,207 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: a pilot ejects from a failing jet on basic-desert. An 'A-10' flies a route at 300 m and 150 m/s; its mission has a timer (40 s), then an Eject task - a scripted malfunction, not combat damage. A hostile patrol (Patrol 1-3) waits near (2150, 260). The pilot comes down under a round canopy and EvadeAndSignal takes him away. Judge: (1) exactly one new Pilot (type 206) appears (2) his canopy is open within about 3-4.5 s of ejecting (3) the jet is down (health 0, below 20 m) (4) the pilot lands at least 100 m from the nearest patrol man (250 m measured) and stays down (moves under 2 m in 6 s). Fail: no pilot, canopy late, or he lands beside the patrol. Check: python3 scripts/utility-demo-check.py --launch ua-eject"
+  },
+  "entities": {
+    "a1118300-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -4000,
+          0,
+          300
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 405
+      },
+      "EntityInfo": {
+        "Name": "A-10",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 1500,
+        "Max": 1500
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "ActiveTaskId": "a1118300-0000-4000-8000-0000000000a1",
+          "Tasks": [
+            {
+              "TaskId": "a1118300-0000-4000-8000-0000000000a1",
+              "ExecutingEngine": "",
+              "BehaviorName": "FollowRoute",
+              "BehaviorParams": {"routeEntityId":"a1118300-0000-4000-8000-000000000002","Speed":150},
+              "Triggers": [
+                {
+                  "Type": "TimerElapsed",
+                  "Params": "40"
+                }
+              ]
+            },
+            {
+              "TaskId": "a1118300-0000-4000-8000-0000000000a2",
+              "ExecutingEngine": "",
+              "BehaviorName": "Eject",
+              "BehaviorParams": {},
+              "Triggers": [
+                {
+                  "Type": "BehaviorFinished",
+                  "Params": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "a1118300-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          4000,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "A-10 route",
+        "ForceId": "Friend"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": 4000,
+            "Y": 0,
+            "Z": 0,
+            "TargetSpeed": 150,
+            "HeightAgl": 300
+          }
+        ],
+        "IsLoop": false
+      }
+    },
+    "a1118300-0000-4000-8000-000000000020": {
+      "SimTransform": {
+        "Position": [
+          2150,
+          250,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Patrol 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a1118300-0000-4000-8000-000000000021": {
+      "SimTransform": {
+        "Position": [
+          2160,
+          262,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Patrol 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a1118300-0000-4000-8000-000000000022": {
+      "SimTransform": {
+        "Position": [
+          2140,
+          270,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Patrol 3",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

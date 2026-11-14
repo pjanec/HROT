@@ -1,5 +1,7 @@
 # FlowForEach loop-introspection outs — `CurrentIndex` + `Count`
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 **Type:** demand-driven round-out of an existing node's interface (not new vocabulary).
 **Trigger:** `DispatchAllToBaseline` needs the per-tank lerp `t = count>1 ? i/(count-1) : 0.5f`
 — i.e. the body must see the 0-based iteration index **and** the element count. `FlowForEach`

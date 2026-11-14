@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.NED.Messages;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Network.NED.Factory;
 
@@ -18,6 +19,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
 {
     private readonly FdpEventBus                                       _bus;
     private readonly DdsReader<NodeHeartbeat>                          _heartbeatReader;
+    private readonly DdsReader<NodeCapabilitiesTopic>                  _capabilitiesReader;   // CE-285 (C-cap)
     private readonly Hrot.Network.Orchestration.ClusterOpMasterTranslator _clusterOpTranslator;
     private readonly Hrot.Network.Orchestration.NodeOpMasterTranslator    _nodeOpTranslator;
     // DDS readers/writers owned by this translator:
@@ -26,9 +28,20 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
     private readonly DdsReader<NodeOpStatus>                           _nodeOpStatusReader;
     private readonly DdsWriter<AssetInventoryTopic>                    _inventoryWriter;
     private readonly DdsWriter<ClusterStateTopic>                       _stateWriter;
+    private readonly DdsWriter<ReplaySessionTopic>                      _sessionWriter;   // ⭐ CE-3329 rows 32, 45
+    private readonly DdsWriter<GeoReference>                            _geoReferenceWriter;   // ⭐ AQ107 C — the NED wire's frame origin
+    private readonly DdsWriter<StorageJobsTopic>                        _storageJobsWriter;   // ⭐ CE-4330 ③ fact ① — the master's storage job list
+    private readonly DdsWriter<ExerciseNotesTopic>                      _notesWriter;         // ⭐ CE-4325 — the exercise's notes
     // Per-node command writers, created on demand and cached.
     private readonly Dictionary<int, DdsWriter<NodeOpCommand>>         _commandWriters = new();
+    // ⭐ Q86 §4-B — the Context Plane (mgmt-1 §1.2): written from the bus event, never by the handler itself.
+    private readonly DdsWriter<OrchestratorContextTopic>               _contextWriter;
+    // ⭐ C1 (Q91 §4-O) — node-id requests in, grants out.
+    private readonly DdsReader<NodeIdRequest>                           _nodeIdRequestReader;
+    private readonly DdsWriter<NodeIdGrant>                             _nodeIdGrantWriter;
     private readonly DdsParticipant                                    _participant;
+    private string _lastContextScenarioId = string.Empty;
+    private string _lastInSyncJson = string.Empty;   // ⭐ C6 — empty = not published yet ⇒ nodes filter nothing
     private bool _disposed;
 
     public NedOrchestrationTranslator(DdsParticipant participant, FdpEventBus bus)
@@ -36,13 +49,21 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         _participant         = participant ?? throw new ArgumentNullException(nameof(participant));
         _bus                 = bus         ?? throw new ArgumentNullException(nameof(bus));
         _heartbeatReader     = new DdsReader<NodeHeartbeat>(_participant);
+        _capabilitiesReader  = new DdsReader<NodeCapabilitiesTopic>(_participant);
         _sysOpRequestReader  = new DdsReader<ClusterOpRequest>(_participant);
         _sysOpStatusWriter   = new DdsWriter<ClusterOpStatus>(_participant);
         _nodeOpStatusReader  = new DdsReader<NodeOpStatus>(_participant);
         _inventoryWriter     = new DdsWriter<AssetInventoryTopic>(_participant);
         _stateWriter         = new DdsWriter<ClusterStateTopic>(_participant);
+        _sessionWriter       = new DdsWriter<ReplaySessionTopic>(_participant);
+        _geoReferenceWriter  = new DdsWriter<GeoReference>(_participant);
+        _storageJobsWriter   = new DdsWriter<StorageJobsTopic>(_participant);
+        _notesWriter         = new DdsWriter<ExerciseNotesTopic>(_participant);
+        _contextWriter       = new DdsWriter<OrchestratorContextTopic>(_participant);
+        _nodeIdRequestReader = new DdsReader<NodeIdRequest>(_participant);
+        _nodeIdGrantWriter   = new DdsWriter<NodeIdGrant>(_participant);
         _clusterOpTranslator = new Hrot.Network.Orchestration.ClusterOpMasterTranslator(
-            _sysOpRequestReader, _sysOpStatusWriter, _bus, null, _inventoryWriter, _stateWriter);
+            _sysOpRequestReader, _sysOpStatusWriter, _bus, null, _inventoryWriter, _stateWriter, _sessionWriter, _geoReferenceWriter, _storageJobsWriter, _notesWriter);
         _nodeOpTranslator    = new Hrot.Network.Orchestration.NodeOpMasterTranslator(
             GetOrCreateCommandWriter, _nodeOpStatusReader, _bus);
     }
@@ -55,17 +76,69 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         foreach (var sample in hbScope)
         {
             if (!sample.IsValid) continue;
-            _bus.PublishManaged(new NodeHeartbeatEvent
-            {
-                NodeId        = sample.Data.NodeId,
-                LocalStateId  = (int)sample.Data.LocalClusterState,
-                WallTicksUtc  = sample.Data.WallTicksUtc,
-                SubsystemName = sample.Data.SubsystemName ?? string.Empty,
-            });
+            _bus.PublishManaged(Hrot.Common.Orchestration.NodeHeartbeatWire.ToEvent(sample.Data));   // ⭐ CE-3345 — the ONE mapping
         }
+
+        // Capabilities bridge: durable DDS NodeCapabilities -> bus NodeCapabilitiesEvent (CE-285).
+        using (var capScope = _capabilitiesReader.Take())
+            foreach (var sample in capScope)
+            {
+                if (!sample.IsValid) continue;
+                _bus.PublishManaged(new NodeCapabilitiesEvent
+                {
+                    NodeId       = (Fdp.Core.NodeId)(sample.Data.NodeId),
+                    Capabilities = DeserializeTokens(sample.Data.CapabilitiesJson),
+                });
+            }
+
+        // ⭐ C1 — node-id requests: DDS → bus (the master answers on the bus, below).
+        using (var idScope = _nodeIdRequestReader.Take())
+            foreach (var sample in idScope)
+            {
+                if (!sample.IsValid) continue;
+                _bus.PublishManaged(Hrot.Network.Orchestration.NodeIdRequestWire.ToEvent(sample.Data));   // ⭐ CE-4331 ⑥ — the ONE mapping (carries the node's kind)
+            }
+        foreach (var grant in _bus.ReadManaged<NodeIdGrantEvent>())
+            _nodeIdGrantWriter.Write(new NodeIdGrant
+            {
+                ComputerHash = NodeIdKeys.ComputerHash(grant.ComputerName),
+                ProcessId    = grant.ProcessId,
+                NodeId       = grant.NodeId,
+                SessionId    = grant.SessionId,
+                Refused      = grant.Refused,
+                Reason       = grant.Reason ?? string.Empty,
+            });
 
         _clusterOpTranslator.Tick();
         _nodeOpTranslator.Tick();
+
+        // Context bridge: bus OrchestratorContextChangedEvent -> DDS OrchestratorContextTopic (Q86 §4-B).
+        // ⭐ C6 (Q91 §4-N) — the topic is keyless and carries BOTH the scenario and the master's InSync set, so each write
+        //   repeats the last value of the other field.
+        bool contextChanged = false;
+        foreach (var ctx in _bus.ReadManaged<OrchestratorContextChangedEvent>())
+        {
+            _lastContextScenarioId = ctx.ScenarioId ?? string.Empty;
+            contextChanged = true;
+        }
+        foreach (var set in _bus.ReadManaged<InSyncSetChangedEvent>())
+        {
+            _lastInSyncJson = System.Text.Json.JsonSerializer.Serialize(set.NodeIds ?? Array.Empty<int>(), Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            contextChanged = true;
+        }
+        if (contextChanged)
+            _contextWriter.Write(new OrchestratorContextTopic
+            {
+                ScenarioId          = _lastContextScenarioId,
+                RequiredNodeIdsJson = _lastInSyncJson,
+            });
+    }
+
+    private static string[] DeserializeTokens(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return Array.Empty<string>();
+        try { return System.Text.Json.JsonSerializer.Deserialize<string[]>(json, FdpJsonOptionsRegistry.DefaultRelaxed) ?? Array.Empty<string>(); }
+        catch { return Array.Empty<string>(); }
     }
 
     /// <inheritdoc/>
@@ -75,11 +148,19 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         _disposed = true;
 
         _heartbeatReader.Dispose();
+        _capabilitiesReader.Dispose();
         _sysOpRequestReader.Dispose();
         _sysOpStatusWriter.Dispose();
         _nodeOpStatusReader.Dispose();
         _inventoryWriter.Dispose();
         _stateWriter.Dispose();
+        _sessionWriter.Dispose();
+        _geoReferenceWriter.Dispose();
+        _storageJobsWriter.Dispose();
+        _notesWriter.Dispose();
+        _contextWriter.Dispose();
+        _nodeIdRequestReader.Dispose();
+        _nodeIdGrantWriter.Dispose();
         foreach (var w in _commandWriters.Values)
             w.Dispose();
         _commandWriters.Clear();

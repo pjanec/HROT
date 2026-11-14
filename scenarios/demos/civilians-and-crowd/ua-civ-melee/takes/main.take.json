@@ -1,0 +1,82 @@
+{
+  "title": "Melee",
+  "caption": "A protester knocks a policeman down",
+  "clip": "F-17",
+  "chapter": 4,
+  "state": "ready",
+  "endAt": "m+8",
+  "anchors": {
+    "m": {
+      "on": "side",
+      "who": "Rioter",
+      "is": "Hostile"
+    }
+  },
+  "keys": [
+    {
+      "at": "m-4.5",
+      "follow": "Policeman",
+      "distance": 30,
+      "yaw": 60,
+      "pitch": -30,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Rioter",
+      "toward": "Policeman",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Policeman",
+      "distance": 14,
+      "yaw": 60,
+      "pitch": -25,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m-0.6",
+      "follow": "Policeman",
+      "distance": 12,
+      "yaw": 200,
+      "pitch": -10,
+      "lift": 1.4,
+      "fov": 35,
+      "segment": "replay"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-4.5",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+8"
+    },
+    {
+      "id": "replay",
+      "from": "m-0.6",
+      "to": "m+1.2",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-4.5",
+      "until": "m+8",
+      "text": "A protester knocks a policeman down"
+    }
+  ]
+}

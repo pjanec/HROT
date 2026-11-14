@@ -32,10 +32,7 @@ public sealed class NodeOwnedVariableTests
             HasActiveAsset:            true,
             IsBlackboardEditorManaged: true,
             TotalInlineBytes:          0,
-            TotalHeavyBytes:           0,
             InlineBudget:              512,
-            HeavyBudget:               0,
-            RequiresHeavyComponent:    false,
             Warning:                   PackWarning.None,
             Variables:                 rows,
             KnownTypeNames:            Array.Empty<VariableTypeChoice>(),
@@ -119,7 +116,7 @@ public sealed class NodeOwnedVariableTests
     public void IsAliasDropAccepted_NormalVar_MatchingType_ReturnsTrue()
     {
         var target = MakeVar("sharedVar", isAutoManaged: false, type: typeof(float));
-        VariablesPanelControl.IsAliasDropAccepted(target, typeof(float))
+        VariablesPanelHost.IsAliasDropAccepted(target, typeof(float))
             .Should().BeTrue("hand-authored var with matching DTO type accepts alias drop");
     }
 
@@ -127,7 +124,7 @@ public sealed class NodeOwnedVariableTests
     public void IsAliasDropAccepted_NormalVar_MismatchedType_ReturnsFalse()
     {
         var target = MakeVar("sharedVar", isAutoManaged: false, type: typeof(float));
-        VariablesPanelControl.IsAliasDropAccepted(target, typeof(int))
+        VariablesPanelHost.IsAliasDropAccepted(target, typeof(int))
             .Should().BeFalse("type mismatch rejects alias drop");
     }
 
@@ -136,7 +133,7 @@ public sealed class NodeOwnedVariableTests
     {
         // B-4 §3.7: auto-managed vars must never be alias targets.
         var target = MakeVar("_auto_nodeA", isAutoManaged: true, type: typeof(float));
-        VariablesPanelControl.IsAliasDropAccepted(target, typeof(float))
+        VariablesPanelHost.IsAliasDropAccepted(target, typeof(float))
             .Should().BeFalse("auto-managed var must NOT accept alias drop even if types match");
     }
 
@@ -144,7 +141,7 @@ public sealed class NodeOwnedVariableTests
     public void IsAliasDropAccepted_AutoManagedVar_MismatchedType_ReturnsFalse()
     {
         var target = MakeVar("_auto_nodeA", isAutoManaged: true, type: typeof(float));
-        VariablesPanelControl.IsAliasDropAccepted(target, typeof(int))
+        VariablesPanelHost.IsAliasDropAccepted(target, typeof(int))
             .Should().BeFalse("auto-managed var must NOT accept alias drop");
     }
 
@@ -169,11 +166,48 @@ public sealed class NodeOwnedVariableTests
         autoVar.IsUnused.Should().BeFalse(
             "auto-managed var must NOT be flagged as unused while its owning node is alive");
     }
+
+    // ── CE-1061 (U3): the reserved Params row lists its DTO's fields ──────────
+
+    /// <summary>A params DTO for the U3 rail.</summary>
+    public struct ParamsRowRailDto
+    {
+        public float Radius = 1f;
+        public int Rounds = 4;
+        public ParamsRowRailDto() { }   // R-3002 — initialisers need a parameterless constructor
+    }
+
+    /// <summary>⭐ <c>CE-1061</c> (U3, acceptance 2) — the <c>Params</c> row of a DTO-named BTree lists the DTO's fields READ-ONLY, from the
+    /// walk the bindings use (<c>ActionBindingCompatibility.BindableFieldsOf</c>); a field the asset overrides shows its value, the rest
+    /// say "DTO default". Any other row carries no field rows.</summary>
+    [Fact]
+    public void CE1061_TheParamsRow_ListsItsDtosFields_ReadOnly()
+    {
+        var asset = new FakeBlackboardAsset();
+        asset.SetBlackboardVariables(new[]
+        {
+            new BlackboardVariableEntry("Params", typeof(ParamsRowRailDto), null, DefaultValueJson: "{\"radius\":2.5}", IsReservedParams: true),
+            new BlackboardVariableEntry("Counter", typeof(int), null),
+        });
+
+        var vm = BlackboardAuthoringWindow.BuildViewModel(asset);
+
+        var row = vm.Variables.Single(v => v.Name == "Params");
+        row.IsReadOnly.Should().BeTrue();
+        row.ParamsFields!.Select(f => f.Name).Should().Equal(
+            Hrot.Editor.AiShared.Inspector.ActionBinding.ActionBindingCompatibility.BindableFieldsOf(typeof(ParamsRowRailDto)).Select(f => f.Name));
+        row.ParamsFields.Select(f => f.Name).Should().Equal("Radius", "Rounds");
+        var radius = row.ParamsFields.Single(f => f.Name == "Radius");
+        radius.ValueJson.Should().Be("2.5");                                    // the key matched case-insensitively
+        radius.IsOverridden.Should().BeTrue();
+        var rounds = row.ParamsFields.Single(f => f.Name == "Rounds");
+        rounds.ValueJson.Should().Be("4", "§13.10c E7 — the DTO's own default (its initialiser), not a placeholder");
+        rounds.IsOverridden.Should().BeFalse();
+        vm.Variables.Single(v => v.Name == "Counter").ParamsFields.Should().BeNull();
+    }
 }
 
-// ── Fake asset for BuildViewModel tests ──────────────────────────────────────
-
-internal sealed class FakeBlackboardAsset : IEditableAsset, IBlackboardManagedAsset
+internal class FakeBlackboardAsset : IEditableAsset, IBlackboardManagedAsset
 {
     private readonly List<BlackboardVariableEntry> _vars = new();
     private readonly int _refCountOverride;
@@ -201,42 +235,18 @@ internal sealed class FakeBlackboardAsset : IEditableAsset, IBlackboardManagedAs
         Changed?.Invoke();
     }
 
-    public void AddVariable(BlackboardVariableEntry entry) { _vars.Add(entry); Changed?.Invoke(); }
+    public virtual void AddVariable(BlackboardVariableEntry entry) { _vars.Add(entry); Changed?.Invoke(); }
     public void RemoveVariable(string name) { _vars.RemoveAll(v => v.Name == name); Changed?.Invoke(); }
-    public void RemoveVariables(IReadOnlyList<string> names) { foreach (var n in names) _vars.RemoveAll(v => v.Name == n); Changed?.Invoke(); }
+    public virtual void RemoveVariables(IReadOnlyList<string> names) { foreach (var n in names) _vars.RemoveAll(v => v.Name == n); Changed?.Invoke(); }
     public void UpdateVariableComment(string name, string? comment) { Changed?.Invoke(); }
-    public void UpdateVariableDefaultValueJson(string name, string? json) { Changed?.Invoke(); }
-    public void MoveVariable(int src, int dst) { Changed?.Invoke(); }
-    public void RenameVariable(string o, string n) { Changed?.Invoke(); }
+    public virtual void UpdateVariableDefaultValueJson(string name, string? json) { Changed?.Invoke(); }
+    public virtual void MoveVariable(int src, int dst) { Changed?.Invoke(); }
+    public virtual void RenameVariable(string o, string n) { Changed?.Invoke(); }
     public int CountNodesReferencingVariable(string name) => _refCountOverride;
 
-    // ── S3-1 authorability: real (non-no-op) Role/Scope updates, mirroring
-    // BehaviorTreeAsset.UpdateVariableRole/UpdateVariableScope, so tests can prove the
-    // schema call actually persists on the model — including for IsAutoManaged rows,
-    // since the real asset applies the update purely by name lookup with no auto-managed gate.
-    public int UpdateVariableScopeCallCount { get; private set; }
-    public int UpdateVariableRoleCallCount { get; private set; }
 
-    public void UpdateVariableRole(string name, BlackboardVariableRole role)
-    {
-        UpdateVariableRoleCallCount++;
-        int idx = _vars.FindIndex(v => v.Name == name);
-        if (idx < 0) return;
-        _vars[idx] = _vars[idx] with { Role = role };
-        Changed?.Invoke();
-    }
-
-    public void UpdateVariableScope(string name, WorkingStateScope scope)
-    {
-        UpdateVariableScopeCallCount++;
-        int idx = _vars.FindIndex(v => v.Name == name);
-        if (idx < 0) return;
-        _vars[idx] = _vars[idx] with { Scope = scope };
-        Changed?.Invoke();
-    }
-
-    public IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string v) => Array.Empty<BlackboardAliasBinding>();
-    public void AddAlias(string v, BlackboardAliasBinding b) { }
+    public virtual IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string v) => Array.Empty<BlackboardAliasBinding>();
+    public virtual void AddAlias(string v, BlackboardAliasBinding b) { }
     public void RemoveAlias(string v, Guid a, Guid e) { }
     public void PruneStaleAliasBindings(IReadOnlyCollection<Guid> knownIds) { }
     public IReadOnlyCollection<Guid> GetKnownSubAssetIds() => Array.Empty<Guid>();

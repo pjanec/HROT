@@ -14,43 +14,34 @@ namespace Hrot.Map.Common.Replication.Egress
 {
     /// <summary>
     /// Egress translator that tracks dirty <see cref="Health"/> components and publishes
-    /// <see cref="EntityDamage"/> DDS messages so the IG and ExCon can update health bars.
+    /// <see cref="EntityDamage"/> DDS messages so the IG and ExCon can show entity health.
     ///
     /// <para>
-    /// Change detection is performed by comparing <see cref="Health.Current"/> against a
-    /// per-entity cache keyed by network ID.  A DDS sample is only written when the value
-    /// has changed from the last published value, preventing unnecessary traffic on every tick.
+    /// Change detection compares BOTH <see cref="Health.Current"/> and <see cref="Health.Max"/>
+    /// against a per-entity cache keyed by network ID. A DDS sample is only written when either
+    /// has changed, preventing unnecessary traffic on every tick.
     /// </para>
     ///
     /// <para>
-    /// The <see cref="EntityDamage.Damage"/> wire field is a 0â€“100 damage level where
-    /// 0 = fully healthy and 100 = fully destroyed/dead, derived from
-    /// <c>(1 â’ Current / Max) Ă— 100</c>.
+    /// ⭐⭐⭐ <b>CE-196 — the sample carries Current and Max, NOT a precomputed percentage.</b>
+    /// It used to publish a 0–100 damage level derived from <c>(1 − Current / Max) × 100</c>. That was
+    /// computed against the SENDER's <c>Max</c>, while every receiver kept its own TKB-seeded one — so
+    /// the nodes disagreed about the same entity (measured: 50/50 on the Brain, 3000/3000 on IG).
+    /// Shipping the pair makes the receiver's <see cref="Health"/> identical to the authority's, and
+    /// each consumer derives whatever fraction it needs to render.
+    /// 🔒 User ruling, 2026-09-05: "no precalculated percentages".
     /// </para>
     /// </summary>
-    public class EntityDamageEgressTranslator : IDescriptorTranslator
+    public class EntityDamageEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
-        private const string DdsTopicName = "EntityDamage";
         private const long OrdinalValue   = (long)EDescriptorType.dtEntityDamage;
 
-        private readonly DdsWriter<EntityDamage> _writer;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityDamage> _instances;
         private readonly NetworkEntityMap        _entityMap;
 
-        /// <summary>
-        /// Cache of last-published <see cref="Health.Current"/> per network entity ID.
-        ///
-        /// <para>
-        /// <b>TD-9 â€” Memory leak risk:</b> entries are only removed in <see cref="Dispose(long)"/>,
-        /// which is called by <c>CycloneNetworkCleanupSystem</c> during network entity teardown.
-        /// In topologies where <c>CycloneNetworkCleanupSystem</c> is disabled or fails to run
-        /// (e.g., abnormal process exit or certain test configurations), stale health entries for
-        /// destroyed entities will accumulate in this dictionary for the lifetime of the process.
-        /// A dedicated lifecycle cleanup pass should be added in a future debt-burndown batch.
-        /// </para>
-        /// </summary>
-        private readonly Dictionary<long, float> _lastPublished = new();
-
-        public string TopicName       => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityDamage>();
         public long   DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -58,7 +49,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public EntityDamageEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
         {
-            _writer    = new DdsWriter<EntityDamage>(participant, DdsTopicName);
+            _instances = new(new DdsWriter<EntityDamage>(participant), static key => new EntityDamage { EntityId = (int)key });
             _entityMap = entityMap;
         }
 
@@ -68,14 +59,33 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>
         /// Scans all authority-owned entities that have both a <see cref="Health"/> and a
         /// <see cref="NetworkIdentity"/> component, and publishes an <see cref="EntityDamage"/>
-        /// DDS sample whenever <see cref="Health.Current"/> has changed since the last publish.
+        /// DDS sample whenever <see cref="Health.Current"/> or <see cref="Health.Max"/> has changed
+        /// since the last publish.
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+        /// destruction bookkeeping (it reads the bus).</summary>
+        public void BeginFrame(ISimulationView view)
+        {
+            // ⭐ CE-3076 (CE-2101's rule) — send-on-change keyed by net id: a reused id whose health equals the last world's
+            //   final value (e.g. 100/100) would never be published, and receivers would keep their TKB-seeded Max.
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+        /// on the off-frame replica.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
+
             var query = view.Query()
                 .With<Health>()
-                .With<NetworkIdentity>()
-                .WithLifecycle(EntityLifecycle.All)
+                .DefaultRoutePublishable()
+                .WithLifecycle(EntityLifecycle.AllButTearDown)
                 .Build();
 
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
@@ -90,38 +100,42 @@ namespace Hrot.Map.Common.Replication.Egress
                 ref readonly var health = ref view.GetComponentRO<Health>(entity);
 
                 float current = health.Current;
+                float max     = health.Max;
 
                 // Only send when health has actually changed.
-                if (_lastPublished.TryGetValue(netId.Value, out float prev) && prev == current)
-                    continue;
-
-                _lastPublished[netId.Value] = current;
-
-                float max    = health.Max > 0f ? health.Max : 1f;
-                float damage = (1f - current / max) * 100f;
-                if (damage < 0f)   damage = 0f;
-                if (damage > 100f) damage = 100f;
-
-                _writer.Write(new EntityDamage
+                // ⚠ The comparison covers BOTH fields: Max is authored data (a scenario may set it, and
+                //   an editor write may change it), so a Max-only change must still reach the receivers.
+                //   Comparing Current alone would silently pin them to a stale maximum.
+                var sample = new EntityDamage
                 {
-                    EntityId = (int)netId.Value,
-                    Damage   = damage,
-                });
+                    EntityId = netId.Value,
+                    Current  = current,
+                    Max      = max,
+                };
+                if (_instances.Unchanged(netId.Value, sample)) continue;
+
+                // ⛔ NO PERCENTAGE IS COMPUTED HERE. The pair travels and every consumer derives what it
+                //    needs — one representation of health on the wire, as on the components.
+                //    📄 See the descriptor's own remarks in SimDescriptors.cs.
+                _instances.Write(netId.Value, sample);
 
                 SentSampleCount++;
             }
         }
 
         /// <summary>Removes the entity from the published-value cache.</summary>
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
             // TD-9: Trace disposal events so we can detect if cleanup is being skipped.
             // If this log never fires for a destroyed entity, the cache entry is leaking.
             FdpLog<EntityDamageEgressTranslator>.Warn(
                 "[TD-9] EntityDamageEgressTranslator.Dispose called for networkEntityId={0}",
                 networkEntityId);
-            _lastPublished.Remove(networkEntityId);
+            _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
         }
+
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
 
         /// <inheritdoc/>
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }

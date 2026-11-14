@@ -44,7 +44,7 @@ namespace Fdp.Toolkit.Utility
     /// Stack-allocated or stored as an ECS component; fully unmanaged.
     /// </summary>
     [ComponentId(UtilityApplicationComponentIds.UtilityResultBuffer)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     [StructLayout(LayoutKind.Sequential)]
     public struct UtilityResultBuffer
     {
@@ -111,7 +111,7 @@ namespace Fdp.Toolkit.Utility
     /// Attach to an entity at debug-time to activate the scoring trace buffer.
     /// </summary>
     [ComponentId(UtilityApplicationComponentIds.UtilityDebugFlags)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct UtilityDebugFlags
     {
         /// <summary>Non-zero = trace buffer recording is active for this entity.</summary>

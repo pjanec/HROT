@@ -23,7 +23,7 @@
 
 ## Mandatory workflow
 
-Complete **Part A** (small, correctness-first items) **before** implementing the full **DistributedTimeCoordinator** / **SlaveTimeModeListener** barrier flow, so **`TotalWallTicks`** semantics are consistent across **Continuous → Deterministic** swaps. Full **`dotnet test IOS-IG-SimHost.sln`** green before report (use serial/known-good policy if parallel DDS flakes appear).
+Complete **Part A** (small, correctness-first items) **before** implementing the full **DistributedTimeCoordinator** / **SlaveTimeModeListener** barrier flow, so **`TotalWallTicks`** semantics are consistent across **Continuous → Deterministic** swaps. Full **`dotnet test HROT.sln`** green before report (use serial/known-good policy if parallel DDS flakes appear).
 
 ---
 

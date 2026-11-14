@@ -416,13 +416,13 @@ how do we prevent saving these management events into the exercise recording whe
 
 To prevent infrastructure or management events from polluting the exercise recording, you utilize the `[DataPolicy]` attribute directly on your event struct or class declarations.
 
-By decorating your internal management events with `[DataPolicy(DataPolicy.NoRecord)]` (or `[DataPolicy(DataPolicy.Transient)]`), the Flight Recorder infrastructure automatically strips them from the `.fdprec` binary stream while continuing to serialize the true exercise events.
+By decorating your internal management events with `[DataPolicy(DataPolicy.NoReplay)]` (or `[DataPolicy(DataPolicy.Transient)]`), the Flight Recorder infrastructure automatically strips them from the `.fdprec` binary stream while continuing to serialize the true exercise events.
 
 Here is the pristine, architecturally sound way to define a management event:
 
 ```
 [EventId(9000)]
-[DataPolicy(DataPolicy.NoRecord)] // Completely excludes this from .fdprec files
+[DataPolicy(DataPolicy.NoReplay)] // Completely excludes this from .fdprec files
 public struct InternalManagementIntent 
 {
     public int TargetNodeId;
@@ -430,7 +430,7 @@ public struct InternalManagementIntent
 }
 ```
 
-Under the hood, the `RecorderSystem` handles this cleanly at the infrastructure boundary. When it drains the pending streams from the `FdpEventBus` during the `PostSimulation` phase, it evaluates the policy via `ShouldRecordEventInternal`. If the `NoRecord` flag is present, the event is entirely bypassed during the chunk serialization process.
+Under the hood, the `RecorderSystem` handles this cleanly at the infrastructure boundary. When it drains the pending streams from the `FdpEventBus` during the `PostSimulation` phase, it evaluates the policy via `ShouldRecordEventInternal`. If the `NoReplay` flag is present, the event is entirely bypassed during the chunk serialization process.
 
 This approach represents textbook clean architecture for several reasons:
 

@@ -40,5 +40,29 @@ namespace Fdp.Toolkit.Behavior.Events
         /// Empty string is valid when the intent carries no configurable parameters.
         /// </summary>
         public string JsonParams = string.Empty;
+        /// <summary>⭐ <c>CE-3034</c> — who asks; carried onto the behaviour the intent resolves to and over DDS.</summary>
+        public Fdp.Toolkit.Behavior.Components.BehaviorOrigin Origin;
+
+        /// <summary>⭐ <c>CE-3167</c> — assign (default) or clear. 📄 <c>DESIGN_Sensors_And_Doctrine.md</c> §7.7: <i>"the ONE wire
+        /// path is the intent topic, which gains a <c>Kind</c> beside <c>Origin</c>"</i> — so releasing a unit travels exactly as
+        /// an order does, from any node.</summary>
+        public TacticalIntentKind Kind;
+
+        /// <summary>⭐ <c>CE-3167</c> (Entity Commanding §2.5b) — before the behaviour starts, the owner runs every registered
+        /// <see cref="TacticalOrderMapper.IIntentClearProvider"/> (today: the mission plan) in the same system call, so an
+        /// immediate order cannot be undone by a plan resuming at its next phase.</summary>
+        public bool ClearsPriorIntent;
+
+        /// <summary>⭐ CE-4306 (edit framework F5) — the id a station's <c>EditOp.Command</c> minted for this order (<see cref="System.Guid.Empty"/> = nobody asked: the AI's own orders). Crosses the wire and rides onto the <see cref="AssignBehaviorEvent"/>; the brain's owner answers accepted / refused under it.</summary>
+        public System.Guid RequestId;
+    }
+
+    /// <summary>⭐ <c>CE-3167</c> — what an <see cref="AssignTacticalIntentEvent"/> asks for (a byte on the wire).</summary>
+    public enum TacticalIntentKind : byte
+    {
+        /// <summary>Start the behaviour <see cref="AssignTacticalIntentEvent.IntentId"/> names.</summary>
+        Assign = 0,
+        /// <summary>End the running behaviour (a <see cref="ClearBehaviorEvent"/> at the intent's origin) — the SOP picks next.</summary>
+        Clear = 1,
     }
 }

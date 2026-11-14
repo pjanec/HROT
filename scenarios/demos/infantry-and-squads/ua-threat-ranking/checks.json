@@ -1,0 +1,32 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — U2 (CP-2): which contact he engages first. Judge (2) Armed Near is the one he shoots, (3) Armed Far is not engaged before it, (4) Civilian Near is never the winner => never shot. NOT expressible: the ranking itself ((1) settles, (3)/(5) ranks, Armed Hidden 'not ranked') — a decision's scores are not component state; left out: 'never a round at Armed Hidden' (implied but not stated).",
+  "runFor": 30,
+  "golden": {
+    "every": 5
+  },
+  "expect": [
+    {
+      "name": "he shoots Armed Near",
+      "on": "shot",
+      "by": "Rifleman",
+      "at": "Armed Near"
+    },
+    {
+      "name": "he does not engage Armed Far before Armed Near",
+      "never": {
+        "on": "shot",
+        "by": "Rifleman",
+        "at": "Armed Far"
+      },
+      "before": "he shoots Armed Near"
+    },
+    {
+      "name": "he never shoots the neutral Civilian Near",
+      "never": {
+        "on": "shot",
+        "by": "Rifleman",
+        "at": "Civilian Near"
+      }
+    }
+  ]
+}

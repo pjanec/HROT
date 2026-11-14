@@ -1,0 +1,82 @@
+{
+  "title": "Denied lock",
+  "caption": "The tank shows itself just shorter than the Javelin's lock time",
+  "clip": "F-42",
+  "chapter": 9,
+  "state": "ready",
+  "endAt": "m+8",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Tank Cycling",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-14",
+      "follow": "Tank Cycling",
+      "distance": 60,
+      "yaw": 40,
+      "pitch": -20,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Tank Cycling",
+      "toward": "Javelin A",
+      "back": 16,
+      "height": 5,
+      "lift": 2,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Tank Cycling",
+      "toward": "Javelin A",
+      "back": 14,
+      "height": 4.5,
+      "lift": 2,
+      "fov": 32,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Javelin A",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-14",
+      "to": "m-4",
+      "speed": 2
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+8"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-14",
+      "until": "m+8",
+      "text": "The tank shows itself just shorter than the Javelin's lock time"
+    }
+  ]
+}

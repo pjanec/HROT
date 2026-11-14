@@ -275,12 +275,12 @@ namespace Fbt.Compiler
         /// <summary>
         /// Adds a Condition leaf node that projects the blackboard to the field selected by
         /// <paramref name="fieldSelector"/> and evaluates <paramref name="logic"/> against it.
-        /// The byte offset is computed once at tree-build time via Marshal.OffsetOf.
+        /// The byte offset is computed once at tree-build time — the managed field offset (CE-2044; was Marshal.OffsetOf).
         /// </summary>
         /// <typeparam name="TValue">Field type. Must be unmanaged.</typeparam>
         /// <remarks>
         /// TBlackboard should be decorated with [StructLayout(LayoutKind.Sequential)] for
-        /// Marshal.OffsetOf to produce reliable offsets.
+        /// a fixed field order (the offset is the managed one, exact for any layout — CE-2044).
         /// </remarks>
         public BTreeBuilder<TBlackboard, TContext> Condition<TValue>(
             Expression<Func<TBlackboard, TValue>> fieldSelector,
@@ -316,12 +316,12 @@ namespace Fbt.Compiler
         /// <summary>
         /// Adds an Action leaf node that projects the blackboard to the field selected by
         /// <paramref name="fieldSelector"/> and executes <paramref name="logic"/> against it.
-        /// The byte offset is computed once at tree-build time via Marshal.OffsetOf.
+        /// The byte offset is computed once at tree-build time — the managed field offset (CE-2044; was Marshal.OffsetOf).
         /// </summary>
         /// <typeparam name="TValue">Field type. Must be unmanaged.</typeparam>
         /// <remarks>
         /// TBlackboard should be decorated with [StructLayout(LayoutKind.Sequential)] for
-        /// Marshal.OffsetOf to produce reliable offsets.
+        /// a fixed field order (the offset is the managed one, exact for any layout — CE-2044).
         /// </remarks>
         public BTreeBuilder<TBlackboard, TContext> Action<TValue>(
             Expression<Func<TBlackboard, TValue>> fieldSelector,
@@ -354,6 +354,30 @@ namespace Fbt.Compiler
             return this;
         }
 
+        // ---- Editor annotations (CE-1410) ----
+
+        /// <summary>
+        /// ⭐ <c>CE-1410</c> (R-1042) — the editor TITLE of the node added last by this builder (its debug label), so a C#-built tree
+        /// shows in the editor with the words a JSON asset's <c>DisplayLabel</c> carried. Annotation only: nothing binds by it.
+        /// </summary>
+        public BTreeBuilder<TBlackboard, TContext> Label(string label)
+        {
+            LastEntry(nameof(Label)).Meta.Label = label ?? throw new ArgumentNullException(nameof(label));
+            return this;
+        }
+
+        /// <summary>⭐ <c>CE-1410</c> — the editor COMMENT of the node added last by this builder (<see cref="NodeDebugMetadata.CustomComment"/>).</summary>
+        public BTreeBuilder<TBlackboard, TContext> Comment(string comment)
+        {
+            LastEntry(nameof(Comment)).Meta.CustomComment = comment ?? throw new ArgumentNullException(nameof(comment));
+            return this;
+        }
+
+        private BuilderEntry LastEntry(string what)
+            => _entries.Count > 0
+                ? _entries[_entries.Count - 1]
+                : throw new InvalidOperationException($"{what}() annotates the node added last; add a node first.");
+
         // ---- Terminal calls ----
 
         /// <summary>
@@ -376,6 +400,7 @@ namespace Fbt.Compiler
                 methodName => _registry.TryGetDeactivator(methodName, out _));
 
             // Populate DebugMetadata in depth-first order (mirrors FlattenToBlob ordering)
+            AssignIds(root, treeName);
             var metaList = new List<NodeDebugMetadata>();
             FlattenMetadata(root, metaList);
             blob.DebugMetadata = metaList.ToArray();
@@ -405,6 +430,7 @@ namespace Fbt.Compiler
             var blob = TreeCompiler.FlattenToBlob(root.Node, treeName, owningDelegate);
 
             // Populate DebugMetadata in depth-first order (mirrors FlattenToBlob ordering)
+            AssignIds(root, treeName);
             var metaList = new List<NodeDebugMetadata>();
             FlattenMetadata(root, metaList);
             blob.DebugMetadata = metaList.ToArray();
@@ -428,6 +454,7 @@ namespace Fbt.Compiler
                     "The builder has multiple root nodes. A behavior tree must have exactly one root.");
 
             var graph = new BehaviorTreeGraph { TreeName = treeName };
+            AssignIds(_entries[0], treeName);   // ⭐ CE-1345
             graph.RootNode = ConvertToGraphNode(_entries[0], null);
             return graph;
         }
@@ -527,8 +554,37 @@ namespace Fbt.Compiler
                 Label = label,
                 SourceFile = Path.GetFileName(sourceFile),
                 LineNumber = lineNumber,
-                VisualId = (visualId == default ? Guid.NewGuid() : visualId).ToString()
+                VisualId = visualId == default ? string.Empty : visualId.ToString()   // ⭐ CE-1345 — none given: AssignIds mints it
             };
+        }
+
+        /// <summary>⭐ <c>CE-1345</c> — every node with no id given gets one from its DEPTH-FIRST position (unique by construction; a helper that
+        /// builds nodes on one source line in a loop or a sub-builder gives each its own).</summary>
+        private static void AssignIds(BuilderEntry root, string treeName)
+        {
+            var all = new List<NodeDebugMetadata>();
+            FlattenMetadata(root, all);
+            for (int i = 0; i < all.Count; i++)
+                if (string.IsNullOrEmpty(all[i].VisualId))
+                    all[i].VisualId = MintVisualId(treeName + "|" + all[i].Label, all[i].SourceFile, all[i].LineNumber, i).ToString();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1345</c> — a node id with none given is DETERMINISTIC: the same tree built twice (the runtime's registry and the editor's
+        /// read-only graph each build it) gives every node the same id, so what the editor selects is what runs. 🔴 It was
+        /// <c>Guid.NewGuid()</c>: the editor's ids never matched the running blob's, and everything keyed by a node id (its decision view, a
+        /// breakpoint) found nothing on a C#-built tree. 🔒 User, 2026-10-25: "choseoption node in such decompiled btree does not seem to show
+        /// the utility ai view on the details view".
+        /// </summary>
+        internal static Guid MintVisualId(string label, string sourceFile, int lineNumber, int ordinal)
+        {
+            var bytes = System.Text.Encoding.UTF8.GetBytes($"{Path.GetFileName(sourceFile)}|{lineNumber}|{label}|{ordinal}");
+            var hash = System.Security.Cryptography.SHA256.HashData(bytes);
+            var g = new byte[16];
+            Array.Copy(hash, g, 16);
+            g[7] = (byte)((g[7] & 0x0F) | 0x50);   // a name-based id (version 5 layout)
+            g[8] = (byte)((g[8] & 0x3F) | 0x80);
+            return new Guid(g);
         }
 
         private static string GetDelegateKey(NodeLogicDelegate<TBlackboard, TContext> del)
@@ -552,8 +608,9 @@ namespace Fbt.Compiler
                     "fieldSelector must be a direct field or property access (e.g. dto => dto.FieldName).",
                     parameterName);
             string memberName = memberExpr.Member.Name;
-            // Note: TBlackboard should have [StructLayout(LayoutKind.Sequential)] for reliable offsets.
-            nint offset = (nint)Marshal.OffsetOf<TBlackboard>(memberName);
+            // ⭐ CE-2044 — the MANAGED offset: the bound thunk reads Unsafe.AddByteOffset(ref bb, offset). Marshal.OffsetOf gave the
+            //   INTEROP one, which is wrong after a bare bool — and the offset is also baked into the action key (@offset).
+            nint offset = global::Fdp.Core.Layout.ManagedLayout.OffsetOf(typeof(TBlackboard), memberName);
             return (memberName, offset);
         }
 

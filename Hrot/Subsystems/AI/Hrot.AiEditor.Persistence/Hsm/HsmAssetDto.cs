@@ -50,14 +50,64 @@ public sealed class StateNodeDto
     public bool IsParallel { get; set; }
     public bool IsFinal { get; set; }
 
-    // Actions (nullable strings matching editor model)
-    public string? OnEntryAction { get; set; }
-    public string? OnExitAction { get; set; }
-    public string? ActivityAction { get; set; }
-    public string? TimerAction { get; set; }
+    // ⭐⭐⭐ CE-417 — the four action slots, each ONE BehaviorActionBindingDto (design §3). Each carries its OWN
+    //   ExpressionTargetField (B-2); the state-wide ExpressionTargetField and the ActivityBlueprintAssetId/Name pair
+    //   are folded into these by the v1→v2 migrator (ActionBindingMigrator). Only Activity may name a blueprint.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BehaviorActionBindingDto? OnEntry { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BehaviorActionBindingDto? OnExit { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BehaviorActionBindingDto? Activity { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BehaviorActionBindingDto? Timer { get; set; }
+
+    /// <summary>
+    /// ⭐ <c>CE-2083</c> — an SOP order ("Do when idle" / "React") this state issues: it RUNS AS THE STATE'S ACTIVITY (every
+    /// tick — <c>SopActions</c> dedupes, and a refused order is retried), so a state carries an order XOR an
+    /// <see cref="Activity"/> binding. The BTree action node's payload, unchanged. 📄 <c>DESIGN_Decision_Layer.md</c> §4.10.
+    /// </summary>
+    /// <remarks>⭐ Omitted from JSON when null, so every existing asset stays byte-identical.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BTree.SopOrderPayloadDto? SopOrder { get; set; }
 
     // Region membership
     public int RegionIndex { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>DEBT-AIB-028</c>(a): when non-empty, this state HOSTS an external behaviour asset
+    /// (BTree or nested HSM). ⛔ Until Batch 75 the model carried this field and the persistence layer
+    /// did not, so <b>no asset loaded from disk could ever set it</b> — and the two validator rules
+    /// that read it (rule 8 cross-region stateful subtree, rule 8b shared scope) were dormant in
+    /// production regardless of what a designer authored.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ Omitted from JSON when empty, so every existing asset stays byte-identical.
+    /// </remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Guid SubtreeAssetId { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>E5</c> / <c>Q36-B</c> = <b>A</b> — the hosted child's REGISTRY NAME, beside
+    /// <see cref="SubtreeAssetId"/>. Mirrors <c>BTreeSubtreePayload</c>'s shipped
+    /// <c>{SubtreeAssetId, SubtreeName}</c> pair.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ Omitted from JSON when null, so every existing asset stays byte-identical and
+    /// <c>hsm-persistence-shape</c> moves only when an asset is RE-SAVED — not on the checked-in
+    /// fixtures (the <c>BP-302</c> correction). 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.8.
+    /// </remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public string? SubtreeName { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-439</c> — the HOST variable whose bytes seed the hosted child's Inputs on each start (a <c>Role=Input</c>
+    /// variable typed as the child's Inputs struct, created by the editor's compose step). Mirrors
+    /// <c>BTreeSubtreePayloadDto.ParamsVariable</c>; null = unbound (the child starts from its defaults).
+    /// </summary>
+    /// <remarks>⭐ Omitted from JSON when null, so every existing asset stays byte-identical.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public string? SubtreeParamsVariable { get; set; }
 
     // Deferred events (by name; emit core resolves to IDs using DTO event order)
     public List<string> DeferredEventNames { get; set; } = new();
@@ -82,6 +132,29 @@ public sealed class RegionNodeDto
     public byte Priority { get; set; }
     /// <summary>StableId of the initial child state in this region; null when none.</summary>
     public Guid? InitialChildStableId { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>BP-299</c>: the StableId of the parallel composite that OWNS this region.
+    ///
+    /// <para>
+    /// 🔴 <b>Why it exists.</b> Ownership used to be re-derived on load from
+    /// <c>InitialChild.Parent</c> (RHS-05) — the flat JSON region list carried no parent reference.
+    /// ⛔ A region with <b>no</b> initial child therefore had no owner, its composite came back with
+    /// zero regions, and validator rules 8 and 8b <b>skipped that composite silently</b>: no
+    /// diagnostic, asset validates clean.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Nullable, and the derivation stays as the FALLBACK</b> — an asset saved before this field
+    /// existed must still load. ⛔ Making it required would break every shipped asset to fix a case
+    /// none of them hit.
+    /// </para>
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Guid? OwnerStableId { get; set; }
+    /// <summary>CE-1004 (R1): the author-set band size along the parallel state's stack axis (graph units); null = content-sized.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public float? PreferredSize { get; set; }
     public string? Comment { get; set; }
     public string? ColorOverride { get; set; }
 }
@@ -98,13 +171,25 @@ public sealed class TransitionNodeDto
     // Event (by name — EventId is runtime-only)
     public string? EventName { get; set; }
 
-    public string? GuardFunction { get; set; }
-    public string? ActionFunction { get; set; }
+    // ⭐⭐⭐ CE-417 — Guard and Action are each ONE BehaviorActionBindingDto with its OWN ExpressionTargetField (B-2:
+    //   one transition-wide field used to serve both — F2). Only Guard may name a blueprint (CE-384).
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? ExpressionTargetField { get; set; }
+    public BehaviorActionBindingDto? Guard { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BehaviorActionBindingDto? Action { get; set; }
     public byte Priority { get; set; }
     public TransitionKindDto Kind { get; set; }
     public ushort SyncGroupId { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-381</c> — evaluate this transition's guard EVERY quiescent tick, with no event.</b>
+    /// ⛔⛔ NOT the same as omitting <see cref="EventName"/>: an eventless transition is a COMPLETION
+    /// transition, already selected once by the RTC loop after another transition fires. 📄 §2.3.
+    /// ⭐ The flattener normalises a polled transition onto <c>ReservedEventIds.Polled</c>, so the
+    /// two can never both claim it.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsPolled { get; set; }
 
     // Layout
     public List<WaypointDto> Waypoints { get; set; } = new();
@@ -118,10 +203,12 @@ public sealed class GlobalTransitionNodeDto
     public Guid VisualId { get; set; }
     public Guid TargetStableId { get; set; }
     public string? EventName { get; set; }
-    public string? GuardFunction { get; set; }
-    public string? ActionFunction { get; set; }
+    // ⭐⭐⭐ CE-417 — Guard and Action are each ONE BehaviorActionBindingDto with its OWN ExpressionTargetField (B-2:
+    //   one transition-wide field used to serve both — F2). Only Guard may name a blueprint (CE-384).
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? ExpressionTargetField { get; set; }
+    public BehaviorActionBindingDto? Guard { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BehaviorActionBindingDto? Action { get; set; }
     public byte Priority { get; set; }
     public string? Comment { get; set; }
 }
@@ -170,15 +257,12 @@ public sealed class HsmBlackboardVariableDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool IsAutoManaged { get; set; }
     /// <summary>
-    /// Authoring role: Input (default) or State. Omitted from JSON when Input (default).
+    /// ⭐ <c>CE-3193</c> — DERIVED, never persisted: true when a binding names this variable as its working state
+    /// (<see cref="WorkingStateVariables"/>). Working state lives in the block's <c>St</c> half; every other variable is a
+    /// plain one in <c>In</c>. ⛔ HISTORY: the authored <c>Role</c>/<c>Scope</c> pair; an old file's keys are ignored on load.
     /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public BlackboardVariableRole Role { get; set; }
-    /// <summary>
-    /// Working-state scope (only meaningful when Role == State). Omitted from JSON when Node (default).
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public WorkingStateScope Scope { get; set; }
+    [JsonIgnore]
+    public bool IsWorkingState { get; set; }
 }
 
 public sealed class HsmBlackboardBlockDto
@@ -210,6 +294,25 @@ public sealed class HsmSuppressionsDto
 {
     public List<HsmConflictSuppressionDto> Conflict { get; set; } = new();
     public List<string> Unused { get; set; } = new();
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>W7b</c> (§9.4) — variables whose CROSS-REGION CONCURRENT WRITES the designer has
+    /// explicitly allowed. ⛔⛔ <b>NOT the same thing as <see cref="Conflict"/>.</b> A conflict
+    /// suppression is per <b>(variable, writer-PAIR)</b> — §9.3: <i>"a new aliasing relationship on the
+    /// same variable would surface a fresh diagnostic"</i>. ⭐ This is per <b>VARIABLE</b>: the designer
+    /// has said the race on it is intended, so every pair on it is allowed, including pairs that do not
+    /// exist yet. ⇒ <b>two mechanisms, deliberately, and collapsing them would silently widen one of
+    /// them.</b>
+    /// </summary>
+    /// ⚠⚠ <b>NULLABLE and omitted when empty, UNLIKE its two neighbours</b> — and that asymmetry is
+    /// deliberate. <c>Conflict</c> and <c>Unused</c> have always serialised as <c>[]</c>, so their
+    /// presence is baked into every stored document. ⛔ A new ALWAYS-EMITTED list changes the bytes of
+    /// every asset that has no allowance at all — caught by <c>MigrationEquivalenceTests</c>, which
+    /// round-trips stored JSON and compares it verbatim. ⇒ <c>WhenWritingNull</c> keeps the existing
+    /// corpus byte-identical while still persisting the flag for anyone who sets it.
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? ConcurrentWritesAllowed { get; set; }
 }
 
 // ── Root DTO ──────────────────────────────────────────────────────────────────
@@ -228,6 +331,11 @@ public sealed class HsmAssetDto
     public string TargetNamespace { get; set; } = string.Empty;
     public string BlackboardTypeName { get; set; } = string.Empty;
 
+    /// <summary>⭐ <c>CE-3164</c> (R-268) — the picker group, set by the generator from the file's FOLDER
+    /// (<see cref="Hrot.AiEditor.Persistence.BehaviorGroups.FromAssetPath"/>). ⛔ Never persisted: the folder IS the data.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? Group { get; set; }
+
     // ── Topology ──────────────────────────────────────────────────────────────
     public List<StateNodeDto> States { get; set; } = new();
     public List<RegionNodeDto> Regions { get; set; } = new();
@@ -241,6 +349,49 @@ public sealed class HsmAssetDto
     // ── Suppressions (§5.2) ───────────────────────────────────────────────────
     public HsmSuppressionsDto Suppressions { get; set; } = new();
 
+    // ── Approach-A alias bindings (§7; persistence design :132) ─────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 91 (<c>91b</c>) — alias relationships, keyed by VARIABLE NAME.</b>
+    /// 📄 <c>…Persistence_Detailed_Design.md:132</c> lists these beside the sync bindings and the
+    /// suppressions; 🔴 they were the one item of the three never built, so every authored alias was
+    /// lost on reload.
+    ///
+    /// <para>⚠⚠ <b>NULLABLE and omitted when empty — and the reason is the GOLDEN.</b> 📌 The same
+    /// rule <c>ConcurrentWritesAllowed</c> states above: <i>"a new ALWAYS-EMITTED list changes the
+    /// bytes of every asset"</i>, and <c>MigrationEquivalenceTests</c> round-trips stored JSON
+    /// verbatim. ⭐ <b>No shipped asset can contain an alias</b> *(they never persisted)*, so with
+    /// <c>WhenWritingNull</c> the field is absent everywhere and the whole corpus stays
+    /// byte-identical.</para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, List<Hrot.AiEditor.Persistence.BlackboardAliasBindingDto>>? Aliases { get; set; }
+
+
     // ── Blackboard (§5.4) ─────────────────────────────────────────────────────
     public HsmBlackboardBlockDto Blackboard { get; set; } = new();
+
+    /// <summary>
+    /// ⭐ <c>CE-503</c> — the bound blueprint RESOLVER asset (<c>CE-428</c>'s shape ③), or <c>null</c>: the same record a BTree
+    /// binds (<c>BehaviorResolverRefDto</c>). The HSM's block is emitted through <c>HsmBridgeEmitCore.BlackboardOwner</c>, which
+    /// forwards this, so the resolve stage is the BTree's own emission. Omitted when null ⇒ the corpus stays byte-identical.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Hrot.AiEditor.Persistence.BTree.BehaviorResolverRefDto? Resolver { get; set; }
+
+    /// <summary>⭐⭐ <c>CE-2133</c> — the behaviour's NAMED params DTO; same rule as <c>BehaviorTreeAssetDto.ParamsDtoTypeId</c>
+    /// (the HSM's block is emitted through <c>HsmBridgeEmitCore.BlackboardOwner</c>, which carries it).</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsDtoTypeId { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2135</c> (B3a, R-3000) — the reserved <c>Params</c> variable's baked default (JSON of the named params DTO), or
+    /// <c>null</c>. An asset that names its params DTO and declares NO Input variable stores its params in the reserved
+    /// <c>Params</c> (the block's <c>In</c>); this is that variable's <c>DefaultValueJson</c>. Written only when set.
+    /// 📄 <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §5c.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsDefaultJson { get; set; }
 }

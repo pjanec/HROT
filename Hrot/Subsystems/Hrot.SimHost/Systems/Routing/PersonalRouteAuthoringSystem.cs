@@ -41,29 +41,31 @@ namespace Hrot.SimHost.Systems.Routing;
 /// </list>
 /// </summary>
 [UpdateInPhase(SystemPhase.Input)]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
 {
-    /// <summary>
-    /// Pending follow-trajectory commands deferred by one frame so that
-    /// <see cref="RouteTrajectorySyncSystem"/> (BeforeSync) has time to compile
-    /// the new/updated trajectory before we issue the follow command.
-    /// </summary>
-    private readonly List<(Entity vehicle, Entity routeEntity)> _pendingFollowCommands = new();
+    // Follow-trajectory commands are deferred by one frame so that RouteTrajectorySyncSystem (BeforeSync) has time to compile the
+    // new/updated trajectory before we issue the follow command. ⭐ R-3039 S1 — the deferral is PersonalRouteRef.FollowPending on the
+    // vehicle (the ref already names the route), never a list here: a checkpoint in that frame keeps it.
 
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)
     {
+        if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
         if (view is not EntityRepository repo)
             throw new InvalidOperationException(
                 $"{nameof(PersonalRouteAuthoringSystem)} requires direct EntityRepository access " +
                 $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
         // -- 1. Dispatch deferred NavigationIntent (FollowRoute) from the previous frame --
-        if (_pendingFollowCommands.Count > 0)
-        {
-            foreach (var (vehicle, routeEntity) in _pendingFollowCommands)
+        if (repo.IsComponentTypeRegistered<PersonalRouteRef>())
+            foreach (var vehicle in repo.Query().With<PersonalRouteRef>().Build())
             {
-                if (!view.IsAlive(vehicle) || !view.IsAlive(routeEntity))
+                if (repo.GetComponentRO<PersonalRouteRef>(vehicle).FollowPending == 0) continue;
+                var routeEntity = repo.GetComponentRO<PersonalRouteRef>(vehicle).RouteEntity;
+                repo.GetComponentRW<PersonalRouteRef>(vehicle).FollowPending = 0;
+
+                if (!view.IsAlive(routeEntity))
                     continue;
 
                 if (!view.HasComponent<RouteTrajectoryCache>(routeEntity))
@@ -84,11 +86,9 @@ public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
                         repo.AddComponent(vehicle, intent);
                 }
             }
-            _pendingFollowCommands.Clear();
-        }
 
         // -- 2. Process CmdAppendPersonalWaypoint events --
-        var events = repo.Bus.Read<CmdAppendPersonalWaypoint>();
+        var events = repo.ReadEvents<CmdAppendPersonalWaypoint>();
         if (events.Length == 0) return;
 
         foreach (var evt in events)
@@ -110,13 +110,14 @@ public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
                     continue;
 
                 var existingPlan = view.GetManagedComponentRO<RoutePlan>(routeEntity);
-                existingPlan.Mutate(wps => wps.Add(new RouteWaypoint
+                // CE-4046 — RoutePlan is an immutable record: the appended plan is a NEW value, Set back.
+                repo.SetManagedComponent(routeEntity, existingPlan.WithWaypoints(wps => wps.Add(new RouteWaypoint
                 {
                     Position    = clickedPos,
                     TargetSpeed = 0f,
-                }));
+                })));
 
-                _pendingFollowCommands.Add((vehicleEntity, routeEntity));
+                repo.GetComponentRW<PersonalRouteRef>(vehicleEntity).FollowPending = 1;
             }
             else
             {
@@ -125,10 +126,9 @@ public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
                 // can be embedded in PersonalRouteRef immediately.
                 var vehiclePos = repo.HasComponent<SimTransform>(vehicleEntity)
                     ? view.GetComponentRO<SimTransform>(vehicleEntity).Position
-                    : Vector3.Zero;
+                    : Fdp.Core.WorldPoint.Zero;
 
-                var newPlan = new RoutePlan { IsLoop = false };
-                newPlan.Mutate(wps =>
+                var newPlan = new RoutePlan { IsLoop = false }.WithWaypoints(wps =>
                 {
                     wps.Add(new RouteWaypoint { Position = vehiclePos, TargetSpeed = 0f });
                     wps.Add(new RouteWaypoint { Position = clickedPos, TargetSpeed = 0f });
@@ -137,12 +137,10 @@ public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
                 var childEntity = repo.CreateEntity();
                 repo.SetManagedComponent(childEntity, newPlan);
                 repo.AddComponent(childEntity, new PartMetadata { ParentEntity = vehicleEntity });
-                repo.AddComponent(childEntity, new TkbIdentity { TkbType = TkbEntityTypes.TacGraphic_Route });
+                repo.AddComponent(childEntity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Route) });
                 repo.AddComponent(childEntity, new SimTransform { Position = vehiclePos });
 
-                repo.AddComponent(vehicleEntity, new PersonalRouteRef { RouteEntity = childEntity });
-
-                _pendingFollowCommands.Add((vehicleEntity, childEntity));
+                repo.AddComponent(vehicleEntity, new PersonalRouteRef { RouteEntity = childEntity, FollowPending = 1 });
             }
         }
     }

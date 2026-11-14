@@ -85,7 +85,7 @@ Total tests: 42
 
 (Previous batch: 31 tests. New tests added: 11.)
 
-### `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore`
+### `dotnet build HROT.sln -c Debug --no-restore`
 
 ```
 Build succeeded.

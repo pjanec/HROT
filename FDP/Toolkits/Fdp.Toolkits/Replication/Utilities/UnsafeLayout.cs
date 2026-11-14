@@ -35,7 +35,7 @@ namespace Fdp.Toolkit.Replication.Utilities
             if (field != null && (field.FieldType == typeof(long)  || field.FieldType == typeof(ulong)
                                || field.FieldType == typeof(int)   || field.FieldType == typeof(uint)))
             {
-                EntityIdOffset   = (int)Marshal.OffsetOf<T>("EntityId");
+                EntityIdOffset   = Fdp.Core.TypeLayout.OffsetOf(typeof(T), "EntityId"); // ⭐ CE-2043 — the MANAGED offset (read through a pointer)
                 IsValid          = true;
                 IsEntityId32Bit  = (field.FieldType == typeof(int) || field.FieldType == typeof(uint));
             }

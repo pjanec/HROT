@@ -1,6 +1,7 @@
 using Fdp.Presentation.Icons;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Picker;
+using Fdp.Presentation.Input;   // ImGuiInputSource (moved, B-10 K1)
 
 namespace Hrot.Editor.AiShared.Adapters;
 

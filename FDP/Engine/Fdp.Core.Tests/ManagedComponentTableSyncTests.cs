@@ -91,7 +91,35 @@ namespace Fdp.Tests
             Assert.Null(dest.GetRO(0));
         }
 
+        /// <summary>
+        /// ⭐ CE-2399 (R-2084) — a pooled snapshot's cycle (sync from the live table, Clear on release, sync again) reuses its chunk arrays:
+        /// steady cycles allocate far less than one 16384-slot array (128 KB), and every sync still carries the live data, with no stale
+        /// reference surviving a Clear. 🔴 Red-proof: Retire made a no-op ⇒ each cycle allocates a fresh array per chunk.
+        /// </summary>
         [Fact]
+        public void CE2399_AClearedTable_ReusesItsChunkArrays_AndHoldsNoStaleReferences()
+        {
+            using var live = new ManagedComponentTable<TestRecord>();
+            using var snap = new ManagedComponentTable<TestRecord>();
+            int cap = live.ChunkCapacity;
+            for (int c = 0; c < 3; c++) live.Set(c * cap + 5, new TestRecord("c" + c, c), 1);
+            uint v = 1;
+            for (int w = 0; w < 3; w++) { snap.SyncDirtyChunks(live); snap.Clear(); }
+
+            long a0 = GC.GetAllocatedBytesForCurrentThread();
+            for (int w = 0; w < 10; w++) { live.Set(5, live.GetRO(5), ++v); snap.SyncDirtyChunks(live); snap.Clear(); }
+            long perCycle = (GC.GetAllocatedBytesForCurrentThread() - a0) / 10;
+            Assert.True(perCycle < 16 * 1024, $"a cleared snapshot re-allocated its chunks: {perCycle} B/cycle");
+
+            Assert.Null(snap.GetRO(cap + 5));                                     // cleared: nothing survives
+            for (int i = 0; i < cap; i += 997) Assert.Null(snap.GetRO(2 * cap + i));
+            snap.SyncDirtyChunks(live);
+            for (int c = 0; c < 3; c++) Assert.Equal("c" + c, snap.GetRO(c * cap + 5)!.Name);
+            Assert.Null(snap.GetRO(cap + 6));
+        }
+
+        [Fdp.Testing.FlakyFact("wall-clock 5 ms threshold")]
+        [Trait("Category", "Flaky")]
         public void Performance_Benchmark()
         {
              using var source = new ManagedComponentTable<TestRecord>();

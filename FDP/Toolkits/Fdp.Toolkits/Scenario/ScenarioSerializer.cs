@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Core.Serialization.Migrations;
+using Fdp.Toolkit.Replication.Extensions;
 
 namespace Fdp.Toolkit.Scenario
 {
@@ -13,7 +14,7 @@ namespace Fdp.Toolkit.Scenario
     /// <code>
     /// {
     ///   "$meta": { "docType": "...", "schemaVersion": 1 },
-    ///   "Header": { "TkbName": "..." },
+    ///   "Header": { "TerrainName": "..." },
     ///   "Entities": {
     ///     "&lt;guid&gt;": { "ComponentName": { "field": "..." } }
     ///   }
@@ -48,11 +49,25 @@ namespace Fdp.Toolkit.Scenario
         /// v2: entity DIS type is now persisted via the <c>DisEntityType</c> translator
         /// (added on top of the v1 component set). Load remains backward-compatible — v1
         /// files simply lack the <c>DisEntityType</c> entry.
+        /// v3: <c>BrainBlackboard</c> is retired, so a document this serializer writes can no
+        /// longer contain it — its output is v3-shaped by construction.
         /// </summary>
-        public const int CurrentSchemaVersion = 2;
+        /// <remarks>
+        /// ⚠⚠ TWO PRODUCERS OF ONE FACT, and they must agree. This constant is what a SAVE
+        /// stamps; <c>Hrot.Common.Scenario.Migrations.ScenarioMigrationModule.CurrentVersion</c>
+        /// is the highest version the migration CHAIN understands. They live in different
+        /// assemblies — Toolkits cannot reference Hrot.Common — so the duplication is structural
+        /// and cannot be collapsed into one symbol.
+        /// ⛔ If they drift, every freshly saved file claims a version the chain then tries to
+        /// migrate, or worse is silently treated as older than it is.
+        /// ⭐ Pinned by <c>ScenarioSchemaVersionAgreementTests</c> in <c>Hrot.Common.Tests</c>,
+        /// which is the one place that can see both.
+        /// </remarks>
+        public const int CurrentSchemaVersion = 3;
 
         private readonly string _subsystemType;
         private readonly IEntityScenarioTranslator[] _translators;
+        private readonly UnknownComponentPolicy _unknownComponentPolicy;
 
         /// <summary>Compiled 1:1 fallback serializer.</summary>
         public FdpAutoSerializer AutoSerializer { get; }
@@ -60,11 +75,41 @@ namespace Fdp.Toolkit.Scenario
         internal ScenarioSerializer(
             string subsystemType,
             IEntityScenarioTranslator[] translators,
-            FdpAutoSerializer autoSerializer)
+            FdpAutoSerializer autoSerializer,
+            UnknownComponentPolicy unknownComponentPolicy = UnknownComponentPolicy.Throw)
         {
-            _subsystemType = subsystemType;
-            _translators   = translators;
-            AutoSerializer = autoSerializer;
+            _subsystemType          = subsystemType;
+            _translators            = translators;
+            AutoSerializer          = autoSerializer;
+            _unknownComponentPolicy = unknownComponentPolicy;
+        }
+
+        /// <summary>
+        /// What this serializer does with a component name the registry cannot resolve.
+        /// See <see cref="UnknownComponentPolicy"/> for why this is per-host.
+        /// </summary>
+        public UnknownComponentPolicy UnknownComponentPolicy => _unknownComponentPolicy;
+
+        /// <summary>
+        /// Applies <see cref="UnknownComponentPolicy"/> to an unresolvable component key.
+        /// Returns true when the caller should skip the key and carry on.
+        /// </summary>
+        private bool HandleUnknownComponent(string caller, string componentName)
+        {
+            if (_unknownComponentPolicy == UnknownComponentPolicy.WarnAndSkip)
+            {
+                Fdp.Core.Logging.FdpLog<ScenarioSerializer>.Warn(
+                    "[ScenarioSerializer] {0}: skipping unknown component type name '{1}'. " +
+                    "It is not registered in the current ComponentTypeRegistry — most likely a " +
+                    "component retired without a migrator. The entity loads without it.",
+                    caller, componentName);
+                return true;
+            }
+
+            throw new InvalidOperationException(
+                $"[ScenarioSerializer] {caller}: unknown component type name '{componentName}'. " +
+                "The scenario file references a component that is not registered in the current " +
+                "ComponentTypeRegistry. This may indicate a file version skew or a typo.");
         }
 
         /// <summary>
@@ -112,6 +157,14 @@ namespace Fdp.Toolkit.Scenario
         /// <param name="header">Header metadata written to <c>dom["Header"]</c>.</param>
         /// <returns>The assembled scenario DOM.</returns>
         public JsonObject Serialize(EntityRepository repo, ScenarioHeader header)
+            => Serialize(repo, header, onlyGuids: null);
+
+        /// <summary>
+        /// ⭐ CE-4210 MA-9 — as <see cref="Serialize(EntityRepository, ScenarioHeader)"/>, but when <paramref name="onlyGuids"/> is non-empty only the saveable entities whose <c>EntityGuid</c> is in the set are WRITTEN
+        /// (Save selection as macro). The ownership gate still applies first (a node writes only what it owns), and the save resolver still knows EVERY saveable entity — so a reference from a selected entity to one outside the
+        /// selection is written as that entity's key (the caller then rebinds it, <c>ScenarioSaveCore.RebindOutsideReferences</c>), never a throw. ⛔ The terrain-objects section is not part of a selection.
+        /// </summary>
+        public JsonObject Serialize(EntityRepository repo, ScenarioHeader header, IReadOnlySet<Guid>? onlyGuids)
         {
             if (repo == null)    throw new ArgumentNullException(nameof(repo));
             if (header == null)  throw new ArgumentNullException(nameof(header));
@@ -121,9 +174,31 @@ namespace Fdp.Toolkit.Scenario
             var entityToGuid = new Dictionary<Entity, Guid>();
             var liveEntities = CollectSaveableEntities(repo);
 
+            // ⭐ CE-4153 (S4) — the key is the entity's STABLE EntityGuid, never a fresh Guid per save. ⛔ No tolerant fallback: an entity that
+            //   reaches save without one is a DEFECT of whatever created it (a scenario load stamps it from the file key; an authored
+            //   entity gets one at creation), so it fails loudly naming the entity instead of minting a key that would not repeat.
+            // ⭐ A repo that never REGISTERED EntityGuid does not track stable identity at all (a bare toolkit-level repo in a unit test):
+            //   there the keys stay what they always were here, ephemeral per save. ⛔ Every Hrot host registers it (HrotSharedComponentRegistry),
+            //   and on a registered repo an entity without one is a defect — never a quiet mint.
+            bool tracksGuids = repo.IsComponentTypeRegistered<EntityGuid>();
             foreach (var entity in liveEntities)
             {
-                var guid = Guid.NewGuid();
+                Guid guid;
+                if (!tracksGuids)
+                    guid = Guid.NewGuid();
+                else if (repo.HasComponent<EntityGuid>(entity))
+                    guid = repo.GetComponent<EntityGuid>(entity).Value;
+                else
+                {
+                    var msg = $"[ScenarioSerializer] Serialize: entity {entity} has no EntityGuid — it reached a scenario save without a stable identity. " +
+                              "A scenario load stamps one from the file key and an authored entity gets one at creation (CreateEntityRequestSystem); " +
+                              "this entity was created by a path that does neither. (CE-4153)";
+                    Fdp.Core.Logging.FdpLog<ScenarioSerializer>.Error(msg);
+                    throw new InvalidOperationException(msg);
+                }
+                if (guidToEntity.TryGetValue(guid, out var other))
+                    throw new InvalidOperationException(
+                        $"[ScenarioSerializer] Serialize: entities {other} and {entity} carry the same EntityGuid {guid} — saving would merge them into one key. (CE-4153 I2)");
                 entityToGuid[entity] = guid;
                 guidToEntity[guid]   = entity;
             }
@@ -134,8 +209,10 @@ namespace Fdp.Toolkit.Scenario
             var globalSaveable = repo.GetSaveableMask();
             var entitiesNode   = new JsonObject();
 
+            bool selecting = onlyGuids is { Count: > 0 };   // ⭐ CE-4210 MA-9 — null or empty = everything, exactly as before
             foreach (var entity in liveEntities)
             {
+                if (selecting && !onlyGuids!.Contains(entityToGuid[entity])) continue;
                 var guidStr     = entityToGuid[entity].ToString();
                 var entityNode  = new JsonObject();
 
@@ -147,6 +224,7 @@ namespace Fdp.Toolkit.Scenario
                 // Run custom translators first.
                 foreach (var translator in _translators)
                 {
+                    if (translator.IsDiagnosticOnly) continue;   // ⭐ CE-3207 — a dump is never a scenario's content (R-192)
                     if (!translator.CanTranslate(repo, entity)) continue;
 
                     var entries = translator.Extract(repo, entity, saveResolver);
@@ -181,7 +259,11 @@ namespace Fdp.Toolkit.Scenario
                 {
                     if (!remainingMask.IsSet(bit)) continue;
 
-                    var fieldObj = AutoSerializer.TryExtract(repo, entity, bit, saveResolver);
+                    // ⭐ CE-4224 — name the component and the entity: "entity Entity.Null is not in the save map" alone cost a session to place
+                    JsonNode? fieldObj;
+                    try { fieldObj = AutoSerializer.TryExtract(repo, entity, bit, saveResolver); }
+                    catch (InvalidOperationException ex)
+                    { throw new InvalidOperationException($"[ScenarioSerializer] while saving component '{AutoSerializer.GetComponentName(bit)}' of {entity}: {ex.Message}", ex); }
                     if (fieldObj == null) continue;
 
                     var compName = AutoSerializer.GetComponentName(bit);
@@ -193,10 +275,28 @@ namespace Fdp.Toolkit.Scenario
                 entitiesNode.Add(guidStr, entityNode);
             }
 
+            // ⭐ CE-4154 / SR-71 — the World Environment is saved in the HEADER, not as an entity (it stays an entity at runtime).
+            var worldNode = ScenarioWorldSection.TakeFrom(entitiesNode);
+
             // ── Assemble root DOM ────────────────────────────────────────────────
             var root = new JsonObject { ["Entities"] = entitiesNode };
-            if (header.TkbName != null)
-                root["Header"] = new JsonObject { ["TkbName"] = JsonValue.Create(header.TkbName) };
+
+            // ⚠ The Header node is written only when it has something to say. ⛔⛔ R-4018: never a TKB name —
+            //   a scenario does not name a TKB (one TKB per deployment).
+            //   ⭐ CE-3288 — and the scenario's description, when it has one (§4d)
+            if (header.TerrainName != null || !string.IsNullOrWhiteSpace(header.Description) || worldNode != null || ScenarioHeaderJson.HasAny(header))
+            {
+                var headerNode = new JsonObject();
+                if (header.TerrainName != null) headerNode["TerrainName"] = JsonValue.Create(header.TerrainName);
+                if (!string.IsNullOrWhiteSpace(header.Description)) headerNode["Description"] = JsonValue.Create(header.Description);
+                if (worldNode != null) headerNode[ScenarioWorldSection.SectionName] = worldNode;   // ⭐ CE-4154
+                ScenarioHeaderJson.Write(headerNode, header);   // ⭐ Macros S3a ② — kind · params · anchor · placement · relocatable (only what is set)
+                root["Header"] = headerNode;
+            }
+            // ⭐ Buildings 5e — the terrain objects' state (its doors), keyed by terrain-object key; absent when nothing differs from
+            //   what the terrain authored. Door ENTITIES are ScenarioIgnoreTag'd above; this is where their state lives (§3b K5).
+            if (!selecting && Fdp.Toolkit.Terrain.TerrainObjectsSection.Write(repo) is { } terrainObjects)
+                root[Fdp.Toolkit.Terrain.TerrainObjectsSection.Name] = terrainObjects;
             JsonEnvelope.Write(root, new DocumentMeta(header.SubsystemType, CurrentSchemaVersion));
             return root;
         }
@@ -211,7 +311,7 @@ namespace Fdp.Toolkit.Scenario
         /// </summary>
         /// <remarks>
         /// Use this for clipboard / diagnostic dumps.  Pass
-        /// <c>repo.GetSnapshotableMask()</c> to include <c>NoSave</c> execution-state
+        /// <c>repo.GetSnapshotableMask()</c> to include <c>NoScenario</c> execution-state
         /// components (e.g. <see cref="Fdp.Toolkit.Behavior.Components.BrainBlackboard"/>),
         /// or <c>repo.GetSaveableMask()</c> to limit output to persistable components.
         /// </remarks>
@@ -277,6 +377,12 @@ namespace Fdp.Toolkit.Scenario
 
                 var compName = AutoSerializer.GetComponentName(bit);
                 if (compName == null) continue;
+
+                // ⭐ CE-3225 — a translator's key wins over a component of the same name: with the snapshot mask (the debug dump)
+                //   the brain snapshot's "Roe" (an ordered ROE) met the Roe component itself, and the duplicate key threw — the
+                //   whole entity, and GET /entities with it, failed. The translator's projection is the richer one (as in
+                //   EntityStateExtractionService, which never overwrites it either).
+                if (entityNode.ContainsKey(compName)) continue;
 
                 entityNode.Add(compName, fieldObj);
             }
@@ -363,9 +469,13 @@ namespace Fdp.Toolkit.Scenario
                         "The scenario file is invalid or corrupt.");
                 var entity = repo.CreateEntity();
                 guidToEntity[guid] = entity;
+                // ⭐ CE-4153 (S2) — the file key IS the entity's identity from now on: stamped here, carried through the creation request
+                //   (StagingEntityExtractor keeps every staging component), and written back as the key on the next save.
+                if (repo.IsComponentTypeRegistered<EntityGuid>()) repo.AddComponent(entity, new EntityGuid(guid));
             }
 
             IGuidResolver loadResolver = new LoadResolver(guidToEntity);
+
 
             // ── Pass 2: inject components ────────────────────────────────────────
             foreach (var kvp in entitiesNode)
@@ -412,11 +522,8 @@ namespace Fdp.Toolkit.Scenario
 
                     // Find type ID by component name.
                     int typeId = FindTypeIdByName(compKvp.Key);
-                    if (typeId < 0)
-                        throw new InvalidOperationException(
-                            $"[ScenarioSerializer] Deserialize: unknown component type name '{compKvp.Key}'. " +
-                            "The scenario file references a component that is not registered in the current " +
-                            "ComponentTypeRegistry. This may indicate a file version skew or a typo.");
+                    if (typeId < 0 && HandleUnknownComponent("Deserialize", compKvp.Key))
+                        continue;
 
                     AutoSerializer.TryInject(repo, entity, typeId, compKvp.Value, loadResolver);
                 }
@@ -424,7 +531,7 @@ namespace Fdp.Toolkit.Scenario
                 // Stamp Fdp.Core.EpisodeTag if requested.
                 if (asEpisode)
                 {
-                    repo.SetComponent(entity, new Fdp.Core.EpisodeTag { EpisodeId = episodeId!.Value });
+                    repo.SetComponent(entity, new Fdp.Core.EpisodeTag { EpisodeId = (Fdp.Core.EpisodeId)episodeId!.Value });
                 }
             }
         }
@@ -506,11 +613,8 @@ namespace Fdp.Toolkit.Scenario
                     if (translatorHandled.Contains(compKvp.Key)) continue;
 
                     int typeId = FindTypeIdByName(compKvp.Key);
-                    if (typeId < 0)
-                        throw new InvalidOperationException(
-                            $"[ScenarioSerializer] DeserializeWith: unknown component type name '{compKvp.Key}'. " +
-                            "The scenario file references a component that is not registered in the current " +
-                            "ComponentTypeRegistry. This may indicate a file version skew or a typo.");
+                    if (typeId < 0 && HandleUnknownComponent("DeserializeWith", compKvp.Key))
+                        continue;
 
                     AutoSerializer.TryInject(repo, entity, typeId, compKvp.Value, loadResolver);
                 }
@@ -519,7 +623,29 @@ namespace Fdp.Toolkit.Scenario
 
         // ── Helpers ──────────────────────────────────────────────────────────────
 
-        /// <summary>Collects all active entities that do NOT carry <see cref="ScenarioIgnoreTag"/>.</summary>
+        /// <summary>
+        /// Collects the entities this host must write to a scenario save: those that do NOT carry
+        /// <see cref="ScenarioIgnoreTag"/> AND that this host is the network-agnostic PRIMARY OWNER of.
+        /// </summary>
+        /// <remarks>
+        /// ⭐⭐⭐ <b><c>CE-275</c> ② — the unified ownership save gate.</b> A distributed scenario save is
+        /// one cluster-orchestrated operation in which every host runs the SAME gate and writes only the
+        /// slice it owns; the brain file is the canonical scenario, each node contributing its own entities.
+        /// <para>The owner test is <c>ISimulationView.HasAuthority(entity)</c> — the entity-level
+        /// <see cref="Replication.Components.NetworkAuthority.PrimaryOwnerId"/> <c>== LocalNodeId</c>, with
+        /// <b>absent NetworkAuthority ⇒ owned</b>. That single rule makes:
+        /// <list type="bullet">
+        ///   <item>the <b>editor / AllInOne</b> single-node cluster save EVERYTHING (no NetworkAuthority, or
+        ///     all locally owned) — the R-A load model then re-owns to the loading brain;</item>
+        ///   <item>a <b>peer</b> skip an entity it merely replicates but does not own (e.g. an IG-authored
+        ///     persistable sketch), closing the gap that <c>ScenarioIgnoreTag</c>-only filtering left open;</item>
+        ///   <item><b>child parts</b> follow their parent's ownership — <c>HasAuthority</c> resolves a
+        ///     <c>PartMetadata</c> child to its root entity before reading authority.</item>
+        /// </list></para>
+        /// ⚠ This is the SCENARIO save only. Checkpoint save/load is a different path: every host writes and
+        /// reloads EVERYTHING regardless of ownership, and does not pass through this gate.
+        /// 📄 <c>docs/DESIGN_Distributed_Scenario_Persistence.md</c> §6.
+        /// </remarks>
         private static List<Entity> CollectSaveableEntities(EntityRepository repo)
         {
             int ignoreTagId = ComponentTypeRegistry.GetId(typeof(ScenarioIgnoreTag));
@@ -530,8 +656,13 @@ namespace Fdp.Toolkit.Scenario
                 var entity = new Entity(i, repo.GetMetadata(i).Generation);
                 if (!repo.IsAlive(entity)) continue;
 
-                // Skip entities tagged ScenarioIgnoreTag.
+                // Skip entities tagged ScenarioIgnoreTag (transient / throwaway).
                 if (ignoreTagId >= 0 && repo.GetComponentMask(i).IsSet(ignoreTagId))
+                    continue;
+
+                // The ownership gate: save only what this host is the primary owner of.
+                // Absent NetworkAuthority ⇒ owned, so editor / AllInOne saves everything.
+                if (!repo.HasAuthority(entity))
                     continue;
 
                 result.Add(entity);
@@ -573,6 +704,36 @@ namespace Fdp.Toolkit.Scenario
 
         // ── GuidResolver implementations ─────────────────────────────────────────
 
+        /// <summary>
+        /// ⭐ CE-4326 (Presets §9a.2) — a resolver over a LIVE world, both ways: an entity ↔ its <see cref="EntityGuid"/> (the file key, CE-4153). For a
+        /// round trip of ONE entity in place (serialize → bind → inject the changed keys back), where a save map and a load map are the same world.
+        /// </summary>
+        public static IGuidResolver ResolverFor(EntityRepository repo)
+        {
+            if (repo == null) throw new ArgumentNullException(nameof(repo));
+            var toGuid = new Dictionary<Entity, Guid>();
+            var toEntity = new Dictionary<Guid, Entity>();
+            if (repo.IsComponentTypeRegistered<EntityGuid>())
+                foreach (var e in repo.Query().With<EntityGuid>().Build())
+                {
+                    var g = repo.GetComponentRO<EntityGuid>(e).Value;
+                    toGuid[e] = g;
+                    toEntity[g] = e;
+                }
+            return new WorldResolver(new SaveResolver(toGuid), new LoadResolver(toEntity));
+        }
+
+        private sealed class WorldResolver : IGuidResolver
+        {
+            private readonly SaveResolver _save;
+            private readonly LoadResolver _load;
+            public WorldResolver(SaveResolver save, LoadResolver load) { _save = save; _load = load; }
+            public string Resolve(Entity entity) => _save.Resolve(entity);
+            public Entity Resolve(string guidStr) => _load.Resolve(guidStr);
+            public bool TryResolve(Entity entity, out string guid) => _save.TryResolve(entity, out guid);
+        }
+
+
         private sealed class SaveResolver : IGuidResolver
         {
             private readonly Dictionary<Entity, Guid> _entityToGuid;
@@ -582,17 +743,27 @@ namespace Fdp.Toolkit.Scenario
 
             public string Resolve(Entity entity)
             {
+                if (entity.IsNull) return Guid.Empty.ToString();   // ⭐ CE-4224 — "no entity" is a valid reference (an AmmoLoadout's unused rows): saved as the empty GUID, read back as Entity.Null — it used to throw and kill the editor on every save of showcase-bridgehead
                 if (_entityToGuid.TryGetValue(entity, out var guid))
                     return guid.ToString();
                 throw new InvalidOperationException(
                     $"[ScenarioSerializer] SaveResolver: entity {entity} is not in the save map. " +
                     "This is a programmer error — ensure all cross-referenced entities are included " +
-                    "in the saveable entity set (not tagged with ScenarioIgnoreTag or DataPolicy.NoSave).");
+                    "in the saveable entity set (not tagged with ScenarioIgnoreTag or DataPolicy.NoScenario).");
             }
 
             public Entity Resolve(string guidStr)
                 => throw new InvalidOperationException(
                     "SaveResolver.Resolve(string) must not be called during save.");
+
+            /// <summary>⭐ CE-4250 — declines an entity the save map does not hold (the null entity still resolves to the empty GUID, CE-4224).</summary>
+            public bool TryResolve(Entity entity, out string guid)
+            {
+                if (entity.IsNull) { guid = Guid.Empty.ToString(); return true; }
+                if (_entityToGuid.TryGetValue(entity, out var g)) { guid = g.ToString(); return true; }
+                guid = "";
+                return false;
+            }
         }
 
         private sealed class LoadResolver : IGuidResolver
@@ -612,6 +783,7 @@ namespace Fdp.Toolkit.Scenario
                     throw new InvalidOperationException(
                         $"[ScenarioSerializer] LoadResolver: reference GUID string '{guidStr}' is not a valid Guid. " +
                         "The scenario file is corrupt.");
+                if (guid == Guid.Empty) return Entity.Null;   // ⭐ CE-4224 — the other half of the null reference
                 if (!_guidToEntity.TryGetValue(guid, out var entity))
                     throw new InvalidOperationException(
                         $"[ScenarioSerializer] LoadResolver: GUID {guid} does not resolve to any loaded entity. " +

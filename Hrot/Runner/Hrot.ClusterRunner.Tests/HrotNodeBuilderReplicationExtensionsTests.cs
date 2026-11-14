@@ -2,6 +2,7 @@ using Hrot.Common;
 using Hrot.Common.Infrastructure;
 using Hrot.Network.Infrastructure;
 using Xunit;
+using Fdp.Core;
 
 namespace Hrot.ClusterRunner.Tests;
 
@@ -27,7 +28,7 @@ public sealed class HrotNodeBuilderReplicationExtensionsTests
     private static HrotNodeConfig HeadlessConfig() => new()
     {
         DomainId = 0,
-        NodeId   = 1,
+        NodeId   = (Fdp.Core.NodeId)(1),
         Headless = true,
     };
 

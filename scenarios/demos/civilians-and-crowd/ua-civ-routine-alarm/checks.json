@@ -1,0 +1,80 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CV: civilians hear gunfire, a wounded one is a Casualty. Would have caught CE-4039 (civilians deaf to rifle fire, 2026-10-21). From the header's Judge (1), (2), (4).",
+  "runFor": 32,
+  "golden": {
+    "every": 5
+  },
+  "anchors": {
+    "first shot": {
+      "on": "shot",
+      "by": "Rifleman"
+    }
+  },
+  "expect": [
+    {
+      "name": "all six civilians start in Routine",
+      "on": "field",
+      "who": "*Civilian",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Routine",
+      "quantifier": "all",
+      "before": 5
+    },
+    {
+      "name": "the rifleman opens fire",
+      "on": "shot",
+      "by": "Rifleman",
+      "before": 20
+    },
+    {
+      "name": "both near civilians are alarmed within 2.5 s of the first shot",
+      "on": "field",
+      "who": "*Near Civilian",
+      "path": "CivilianState.Mode",
+      "op": "in",
+      "value": [
+        "Alarmed",
+        "Panic",
+        "Shelter",
+        "Cower"
+      ],
+      "quantifier": "all",
+      "after": "first shot",
+      "before": "first shot+2.5"
+    },
+    {
+      "name": "the far civilians, beyond hearing, stay in Routine",
+      "never": {
+        "on": "field",
+        "who": "*Far Civilian",
+        "path": "CivilianState.Mode",
+        "op": "!=",
+        "value": "Routine"
+      }
+    },
+    {
+      "name": "the wounded civilian becomes a Casualty",
+      "on": "field",
+      "who": "Near Civilian 1",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Casualty",
+      "after": "wounded",
+      "before": "wounded+3"
+    }
+  ],
+  "do": [
+    {
+      "name": "wounded",
+      "at": 25,
+      "set": {
+        "who": "Near Civilian 1",
+        "component": "Health",
+        "patch": {
+          "Current": 40
+        }
+      }
+    }
+  ]
+}

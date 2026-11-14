@@ -612,6 +612,97 @@ public sealed class WhenNodeRuntimeTests
         Assert.Null(Record.Exception(() => fixture.TickFrame(0.016f)));
     }
 
+    // ======================== CE-446: the same When, in a blueprint BEHAVIOUR ========================
+
+    /// <summary>
+    /// Compiles <paramref name="asset"/> as a blueprint BEHAVIOUR (<c>Dispatch = Behavior</c>, CE-446), loads it, and
+    /// assigns it to a fresh entity through the real <c>BehaviorIngressSystem</c>. The block is the root params slot.
+    /// </summary>
+    private static Entity AssignAsBehaviour(BlueprintTestFixture fixture, BlueprintAsset asset, CompileOptions options)
+    {
+        asset.Dispatch = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Behavior;
+        fixture.CompileAndLoad(asset, options);
+        var entity = fixture.CreateEntity();
+        fixture.World.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+        fixture.World.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent
+            { Entity = entity, BehaviorName = asset.Name, JsonParams = string.Empty });
+        fixture.World.Bus.SwapBuffers();
+        new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(fixture.BehaviorRegistry).Execute(fixture.World, 0.016f);
+        return entity;
+    }
+
+    /// <summary>Reads a field of a behaviour's block (its registered layout type) from the root params slot.</summary>
+    private static unsafe T ReadBehaviourField<T>(BlueprintTestFixture fixture, string behaviourName, Entity entity, string field)
+        where T : unmanaged
+    {
+        Assert.True(fixture.BehaviorRegistry.TryGetId(behaviourName, out int id));
+        Assert.True(fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+        Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetRootBytes(fixture.World, entity, out byte* root),
+            "the behaviour's block must be attached");
+        return *(T*)(root + Hrot.Blueprints.Tests.Compiler.BlueprintBehaviourTests.VarOffset(def!, field));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>CE-446 — a <c>When</c> node runs inside a blueprint BEHAVIOUR</b>, ticked by <c>BrainTickSystem</c>, not
+    /// <c>BlueprintTickSystem</c>: the Instance-only restriction (BP2001) does not apply to a behaviour, the synthesized
+    /// state lands in its block, and the event reaches it. Same asset as the Instance rail above, dispatch flipped.
+    /// </summary>
+    [Fact]
+    public void CE446_EventFired_Fires_InABlueprintBehaviour()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        var asset  = BuildEventFiredAsset(targetFilter: EventTargetFilter.None);
+        // ⚠ An Instance Return means "end THIS frame"; a behaviour Return means "FINISHED" (Q77 D). The Instance asset
+        //   returns on both paths every frame, so as a behaviour it would finish on frame 1 — drop the Returns: the
+        //   paths fall off the end, which a behaviour reads as Running.
+        foreach (var g in asset.Graphs)
+        {
+            var returns = g.Nodes.OfType<ReturnNode>().Select(n => n.Id).ToHashSet();
+            g.Nodes.RemoveAll(n => returns.Contains(n.Id));
+            g.Links.RemoveAll(l => returns.Contains(l.ToNodeId));
+        }
+        var entity = AssignAsBehaviour(fixture, asset, OptionsWithEmptyEventCatalog());
+        var brain  = new Fdp.Toolkit.Behavior.Systems.BrainTickSystem(fixture.BehaviorRegistry);
+
+        fixture.World.Bus.SwapBuffers();
+        brain.Execute(fixture.World, 0.016f);                 // no event yet
+        Assert.False(ReadBehaviourField<bool>(fixture, asset.Name, entity, "WasFired"));
+
+        fixture.World.Bus.Publish(new WhenTestHitEvent { Damage = 10f });
+        fixture.World.Bus.SwapBuffers();
+        brain.Execute(fixture.World, 0.016f);                 // the event is visible this frame
+        Assert.True(ReadBehaviourField<bool>(fixture, asset.Name, entity, "WasFired"));
+        Assert.Equal(Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBlueprint,
+            fixture.World.GetComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(entity).BrainTier);   // no Return ⇒ still running
+    }
+
+    /// <summary>
+    /// ⛔⛔ <b>Regression, found by CE-446 (2026-09-30): an INSTANCE whose When has an UNCONNECTED exit did not compile.</b>
+    /// The empty Out block fell through to nothing — a bare C# label before the method's closing brace (CS1525/CS1002).
+    /// ⭐ Stage 5 now seals an unconnected When exit like a Branch arm (<c>SealFallThrough</c>).
+    /// <para>⚠ Before the fix: the behaviour variant failed Roslyn with CS1525/CS1002/CS0161, and this Instance variant's
+    /// dumped source ended in the same bare <c>__block_when_…_out:</c> label before <c>}</c>.</para>
+    /// </summary>
+    [Fact]
+    public void AWhenWithUnconnectedExits_CompilesAndTicks_ForAnInstance()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        var asset = BuildEventFiredAsset(targetFilter: EventTargetFilter.None);
+        foreach (var g in asset.Graphs)
+        {
+            var returns = g.Nodes.OfType<ReturnNode>().Select(n => n.Id).ToHashSet();
+            g.Nodes.RemoveAll(n => returns.Contains(n.Id));
+            g.Links.RemoveAll(l => returns.Contains(l.ToNodeId));
+        }
+        fixture.CompileAndLoad(asset, OptionsWithEmptyEventCatalog());   // ⛔ threw BlueprintCompileException before
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, entity);
+
+        fixture.World.Bus.Publish(new WhenTestHitEvent { Damage = 10f });
+        fixture.TickFrame(0.016f);
+        Assert.True(ReadSlotField<bool>(fixture, asset, entity, "WasFired"));
+    }
+
     // ======================== EventFired Tests ========================
 
     [Fact]
@@ -628,6 +719,50 @@ public sealed class WhenNodeRuntimeTests
         fixture.TickFrame(0.016f);
 
         Assert.True(ReadSlotField<bool>(fixture, asset, entity, "WasFired"));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3039</c> — a blueprint reacts to what its unit SENSES with an ordinary <c>When EventFired</c>: the
+    /// <c>SensorChangedEvent</c> entry in the BUILT-IN catalog compiles, the self filter keys on <c>Unit</c>, and a payload
+    /// check selects the edge (here: Hit). 📄 DESIGN_Sensors_And_Doctrine.md §7.3.
+    /// </summary>
+    [Fact]
+    public void CE3039_ABlueprintReactsToItsOwnUnitsSensorChange_ThroughTheBuiltInCatalog()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        var asset = BuildEventFiredAsset(
+            eventTypeId:     "Fdp.Toolkit.Perception.Events.SensorChangedEvent",
+            targetFilter:    EventTargetFilter.Self,
+            targetFieldName: "Unit",
+            payloadCheck:    new PayloadCondition
+            {
+                PropertyPath    = "What",
+                Operator        = ComparisonOperator.Equal,
+                TargetValueText = "Fdp.Toolkit.Perception.Events.SensorChange.Hit",
+            });
+        fixture.CompileAndLoad(asset, new CompileOptions(
+            Mode:              CompilerMode.Debug,
+            NodeRegistry:      BuiltInNodeRegistry.Instance,
+            TypeRegistry:      StaticTypeRegistry.Instance,
+            EngineEvents:      BuiltInEngineEventCatalog.Instance,
+            ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
+            WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
+            SiblingSignatures: Array.Empty<BlueprintSignature>()));
+        var unit  = fixture.CreateEntity();
+        var other = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, unit);
+
+        fixture.World.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent
+            { Unit = other, What = Fdp.Toolkit.Perception.Events.SensorChange.Hit });           // another unit's hit
+        fixture.World.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent
+            { Unit = unit, What = Fdp.Toolkit.Perception.Events.SensorChange.FirstThreat });    // another edge
+        fixture.TickFrame(0.016f);
+        Assert.False(ReadSlotField<bool>(fixture, asset, unit, "WasFired"));
+
+        fixture.World.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent
+            { Unit = unit, What = Fdp.Toolkit.Perception.Events.SensorChange.Hit });
+        fixture.TickFrame(0.016f);
+        Assert.True(ReadSlotField<bool>(fixture, asset, unit, "WasFired"));
     }
 
     [Fact]
@@ -1001,7 +1136,7 @@ public sealed class WhenNodeRuntimeTests
         // Set up child entity with a positional result (EntityId = 0) and initial sensor
         var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
         var span1   = buffer1.GetSpanRW();
-        span1[0]    = new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 2f, Score = 0.5f };
+        span1[0]    = new EqsResult { EntityId = 0, PositionX = 1f, PositionY = 2f, Score = 0.5f };
         var sensor1 = new EqsSensor { Epoch = 1u };
         var childEntity = SetupEqsChildEntity(fixture, buffer1, sensor1);
         WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
@@ -1015,11 +1150,231 @@ public sealed class WhenNodeRuntimeTests
         fixture.World.SetComponent(childEntity, sensor2);
         var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 2u, Count = 1 };
         var span2   = buffer2.GetSpanRW();
-        span2[0]    = new EqsResult { EntityId = 0L, PositionX = 99f, PositionY = 99f, Score = 0.8f };
+        span2[0]    = new EqsResult { EntityId = 0, PositionX = 99f, PositionY = 99f, Score = 0.8f };
         fixture.World.SetComponent(childEntity, buffer2);
         fixture.TickFrame(0.016f);
         bool fired = ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired");
         Assert.True(fired, "Should fire when positional query top changes");
+    }
+
+    // ⭐⭐ CE-2089 — a STANDING sensor keeps its epoch while it publishes new answers (only the Brain bumps the epoch, on
+    //   a parameter change or a refresh). Each new answer (a fresh buffer.LastUpdateTick) must be compared.
+    //   📄 docs/DESIGN_Sensors_And_Doctrine.md §7.9.
+    [Fact]
+    public void CE2089_TopChanged_FiresOnANewAnswer_UnderTheSameEpoch()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.World.RegisterComponent<EqsCognitiveBuffer>();
+        fixture.World.RegisterComponent<EqsSensor>();
+
+        var (asset, _, sensorVarName) = BuildEqsResultAsset(EqsTrigger.TopChanged);
+        fixture.CompileAndLoad(asset);
+        var parentEntity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, parentEntity);
+
+        var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7, Score = 0.5f };
+        var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
+        WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
+
+        fixture.TickFrame(0.016f);                       // first answer: recorded, no fire
+        ResetBoolField(fixture, asset, parentEntity, "WasFired");
+
+        // Same epoch, same answer: no fire.
+        fixture.TickFrame(0.016f);
+        Assert.False(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"), "the same answer must not fire");
+
+        // Same epoch, NEW answer with a different top.
+        var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 2u, Count = 1 };
+        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 9, Score = 0.6f };
+        fixture.World.SetComponent(childEntity, buffer2);
+        fixture.TickFrame(0.016f);
+        Assert.True(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
+            "a new answer under the same epoch must be compared — the top changed 7 → 9");
+    }
+
+    // ⭐⭐ CE-3054 D — a When on the UNIT's sensor of a kind (no variable): the blueprint reads the TKB sensor the unit
+    //   carries (SensorTag + PartMetadata → UnitSensors.Of) and compares once per answer, as CE-2089.
+    //   📄 docs/DESIGN_Sensors_And_Doctrine.md §7.8a.
+    [Fact]
+    public void CE3054_TopChanged_OnTheUnitsOwnSensorOfAKind()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.World.RegisterComponent<EqsCognitiveBuffer>();
+        fixture.World.RegisterComponent<EqsSensor>();
+        fixture.World.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorTag>();
+        fixture.World.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+
+        var (asset, _, _) = BuildEqsResultAsset(EqsTrigger.TopChanged);
+        var when = asset.Graphs[0].Nodes.OfType<WhenNode>().Single();
+        when.EqsResult!.SensorVariableName = "";
+        when.EqsResult.UnitSensorKind = (byte)Fdp.Toolkit.Perception.Components.SensorModality.Visual;
+        fixture.CompileAndLoad(asset);
+        var parentEntity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, parentEntity);
+
+        var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7, Score = 0.5f };
+        var sensorChild = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
+        fixture.World.AddComponent(sensorChild, new Fdp.Toolkit.Perception.Components.SensorTag { Kind = Fdp.Toolkit.Perception.Components.SensorModality.Visual });
+        fixture.World.AddComponent(sensorChild, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = parentEntity, InstanceId = 1000 });
+
+        fixture.TickFrame(0.016f);                       // first answer: recorded, no fire
+        ResetBoolField(fixture, asset, parentEntity, "WasFired");
+        fixture.TickFrame(0.016f);
+        Assert.False(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"), "the same answer must not fire");
+
+        var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 2u, Count = 1 };
+        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 9, Score = 0.6f };
+        fixture.World.SetComponent(sensorChild, buffer2);
+        fixture.TickFrame(0.016f);
+        Assert.True(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
+            "a new answer of the unit's visual sensor must be compared — the top changed 7 → 9");
+    }
+
+    [Fact]
+    public void CE2089_TopChanged_AfterARefresh_TheFirstNewAnswerIsCompared()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.World.RegisterComponent<EqsCognitiveBuffer>();
+        fixture.World.RegisterComponent<EqsSensor>();
+
+        var (asset, _, sensorVarName) = BuildEqsResultAsset(EqsTrigger.TopChanged);
+        fixture.CompileAndLoad(asset);
+        var parentEntity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, parentEntity);
+
+        var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7, Score = 0.5f };
+        var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
+        WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
+        fixture.TickFrame(0.016f);
+
+        // Refresh: the Brain bumps the epoch and clears the buffer (EqsChildSensor.Refresh) — a tick with no answer.
+        fixture.World.SetComponent(childEntity, new EqsSensor { Epoch = 2u });
+        fixture.World.SetComponent(childEntity, default(EqsCognitiveBuffer));
+        fixture.TickFrame(0.016f);
+        ResetBoolField(fixture, asset, parentEntity, "WasFired");
+
+        // The re-pointed sensor's first answer, with a different top.
+        var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 5u, Count = 1 };
+        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 9, Score = 0.6f };
+        fixture.World.SetComponent(childEntity, buffer2);
+        fixture.TickFrame(0.016f);
+        Assert.True(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
+            "the first answer after a refresh must be compared, not swallowed by the empty tick");
+    }
+
+    [Fact]
+    public void CE2089_ScoreCrossed_FiresOnANewAnswer_UnderTheSameEpoch()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.World.RegisterComponent<EqsCognitiveBuffer>();
+        fixture.World.RegisterComponent<EqsSensor>();
+
+        var (asset, _, sensorVarName) = BuildEqsResultAsset(EqsTrigger.ScoreCrossed, scoreThreshold: 0.7f);
+        fixture.CompileAndLoad(asset);
+        var parentEntity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, parentEntity);
+
+        var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7, Score = 0.5f };
+        var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
+        WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
+        fixture.TickFrame(0.016f);
+        ResetBoolField(fixture, asset, parentEntity, "WasFired");
+
+        var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 2u, Count = 1 };
+        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 7, Score = 0.9f };
+        fixture.World.SetComponent(childEntity, buffer2);
+        fixture.TickFrame(0.016f);
+        Assert.True(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
+            "a new answer under the same epoch crossing 0.7 must fire");
+    }
+
+    // ⭐⭐ CE-2113 — the FIRST answer is compared, against a zeroed "previous": TopChanged fires on the first top (the
+    //   design's own acceptance: "fires on first result"), ScoreCrossed fires when the
+    //   first top is already over the threshold (from "below", as N4's FieldCrossed). And a fire RECORDS the answer, so
+    //   the same answer on the next tick does not fire again. 📄 When v2.2 §6.5/§6.7 (as-built).
+    [Theory]
+    [InlineData(EqsTrigger.TopChanged)]
+    [InlineData(EqsTrigger.ScoreCrossed)]
+    public void CE2113_FirstAnswer_Fires_Once(EqsTrigger trigger)
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.World.RegisterComponent<EqsCognitiveBuffer>();
+        fixture.World.RegisterComponent<EqsSensor>();
+
+        var (asset, _, sensorVarName) = BuildEqsResultAsset(trigger, scoreThreshold: 0.7f);
+        fixture.CompileAndLoad(asset);
+        var parentEntity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, parentEntity);
+
+        var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7, Score = 0.9f };
+        var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
+        WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
+
+        fixture.TickFrame(0.016f);
+        Assert.True(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
+            $"{trigger}: the first answer (top 7, score 0.9 ≥ 0.7) must fire");
+
+        ResetBoolField(fixture, asset, parentEntity, "WasFired");
+        fixture.TickFrame(0.016f);
+        Assert.False(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
+            $"{trigger}: the same answer on the next tick must not fire again — the fire must record it");
+    }
+
+    [Theory]
+    [InlineData(EqsTrigger.TopChanged)]
+    [InlineData(EqsTrigger.ScoreCrossed)]
+    public void CE2113_AFireOnALaterAnswer_IsRecorded_NoRefire(EqsTrigger trigger)
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.World.RegisterComponent<EqsCognitiveBuffer>();
+        fixture.World.RegisterComponent<EqsSensor>();
+
+        var (asset, _, sensorVarName) = BuildEqsResultAsset(trigger, scoreThreshold: 0.7f);
+        fixture.CompileAndLoad(asset);
+        var parentEntity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, parentEntity);
+
+        var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7, Score = 0.5f };
+        var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
+        WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
+        fixture.TickFrame(0.016f);
+
+        var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 2u, Count = 1 };
+        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 9, Score = 0.9f };
+        fixture.World.SetComponent(childEntity, buffer2);
+        fixture.TickFrame(0.016f);
+        ResetBoolField(fixture, asset, parentEntity, "WasFired");
+
+        fixture.TickFrame(0.016f);
+        Assert.False(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
+            $"{trigger}: after firing on answer 2, the same answer must not fire again on the next tick");
+    }
+
+    [Fact]
+    public void CE2113_ScoreCrossed_FirstAnswerBelow_DoesNotFire()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.World.RegisterComponent<EqsCognitiveBuffer>();
+        fixture.World.RegisterComponent<EqsSensor>();
+
+        var (asset, _, sensorVarName) = BuildEqsResultAsset(EqsTrigger.ScoreCrossed, scoreThreshold: 0.7f);
+        fixture.CompileAndLoad(asset);
+        var parentEntity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, parentEntity);
+
+        var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7, Score = 0.5f };
+        var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
+        WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
+        fixture.TickFrame(0.016f);
+        Assert.False(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
+            "a first answer below the threshold is not a crossing");
     }
 
     [Fact]

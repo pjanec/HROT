@@ -1,0 +1,101 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: U4 (CE-3084) - a Rifleman advances east on test-town from (300,80) toward (380,80); an unarmed Hidden Hostile (1000 HP) at (345,160) is first seen north of the High Wall, then its own mission walks it to (360,80) behind the wall. Shows the AttackApproach decision {Direct, Flank, FiringPosition}. Judge: (1) against the unarmed hostile his posture advances (AdvanceAndAttack); (2) once the identified hostile is out of sight behind the wall he chooses Flank or FiringPosition instead of walking straight at it; (3) from there he regains sight and fires (his ammo drops). Fail: He walks straight at the last-seen spot, never regains sight, or never fires. Check: python3 scripts/utility-demo-check.py --launch ua-attack-approach"
+  },
+  "entities": {
+    "a3084000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {"advance":{"Objective":[380,80,0],"Speed":2,"ArrivalRadius":3,"CooldownSeconds":1}},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a3084000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          345,
+          160,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071,
+          0.7071
+        ]
+      },
+      "Health": {
+        "Current": 1000,
+        "Max": 1000
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Hidden Hostile",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "b3084000-0000-4000-8000-000000000001",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {"speed":2,"arrivalRadius":2,"target":[360,80,0]},
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -305,7 +305,7 @@ Run before writing your report:
 
 ```powershell
 # Full solution build
-dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln
+dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln
 
 # IG unit tests + Map.Common tests
 dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot.IG.Tests

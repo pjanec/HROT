@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.DER
 {
@@ -9,11 +10,11 @@ namespace Fdp.Toolkit.DER
     {
         private readonly ConcurrentDictionary<int, DerEntity> _entities = new();
 
-        public int LocalNodeId { get; }
+        public NodeId LocalNodeId { get; }
 
         public DerRepo(int localNodeId = 0)
         {
-            LocalNodeId = localNodeId;
+            LocalNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
 

@@ -319,7 +319,7 @@ After implementing both tasks:
 
 ```
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln --no-restore -v quiet 2>&1 | Select-String "error CS|Build succeeded|FAILED"
+dotnet build HROT.sln --no-restore -v quiet 2>&1 | Select-String "error CS|Build succeeded|FAILED"
 ```
 
 Then run targeted tests:

@@ -41,6 +41,7 @@ public static class AssetBaseNameCollisionGuard
         ".btree.json",
         ".hsm.json",
         ".bp.json",
+        ".params.json",   // ⭐ CE-3185 (F1) — a params DTO asset generates a C# type of its own name: no same-named .cs beside it
     };
 
     // ── Representation class ─────────────────────────────────────────────────

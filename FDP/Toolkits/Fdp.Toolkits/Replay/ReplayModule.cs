@@ -23,6 +23,7 @@ namespace Fdp.Toolkit.Replay
     /// await them with <c>Task.WhenAll</c>.
     /// </para>
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class ReplayModule : IEcsModule, IDisposable
     {
         private readonly string _filePath;
@@ -75,10 +76,41 @@ namespace Fdp.Toolkit.Replay
         /// </exception>
         public void RegisterSystems(ISystemRegistry registry)
         {
-            // PlaybackController ctor validates magic bytes and schema via SchemaValidator.
-            _playback   = new PlaybackController(_filePath);
+            // ⭐⭐ R-4012 (Q91 §4-P P5) — a node with NO recording of this exercise (absent while it ran) is a LISTENER, not
+            //   a failed replay: it restores nothing and takes the world from the owners' flood.
+            //   ⛔ Was: the metadata open threw and the node failed the whole replay transition.
+            if (!System.IO.File.Exists(_filePath))   // ⛔ absent only — a file that exists but is corrupt still fails loudly
+            {
+                Fdp.Core.Logging.FdpLog<ReplayModule>.Info(
+                    "[Replay] No recording at {0} — this node listens for the whole replay (R-4012).", _filePath);
+                _playback = null;
+            }
+            else
+            {
+                // PlaybackController ctor validates magic bytes and schema via SchemaValidator.
+                _playback = new PlaybackController(_filePath);
+            }
             _tickSystem = new PlaybackTickSystem(_playback, _timeController, _afterSeek);
             registry.RegisterSystem(_tickSystem);
+        }
+
+        /// <summary>⭐ R-4012 — whether this node holds a recording of the replayed exercise.</summary>
+        public bool HasRecording => _playback != null;
+
+        /// <summary>⭐ R-4012 — restoring its own recording, listening, or not yet decided.</summary>
+        public ReplaySpanState State => _tickSystem?.State ?? ReplaySpanState.Unsettled;
+
+        /// <summary>⭐ R-4012 — true while this node restores the current moment from its own recording.</summary>
+        public bool IsRestoring => State == ReplaySpanState.Restoring;
+
+        /// <summary>
+        /// ⭐⭐ R-4012 (Q91 §4-P P1) — the replay timeline's zero: the CLUSTER's anchor (the earliest first frame across
+        /// every node), set from each seek. 0 until set — the node's own first frame is used.
+        /// </summary>
+        public long AnchorWallTicks
+        {
+            get => _tickSystem?.EffectiveAnchorWallTicks ?? 0;
+            set { if (_tickSystem != null) _tickSystem.AnchorWallTicks = value; }
         }
 
         /// <inheritdoc/>
@@ -95,17 +127,15 @@ namespace Fdp.Toolkit.Replay
         /// <param name="targetFrameIndex">Zero-based frame index within the recording.</param>
         public Task SeekToFrameAsync(int targetFrameIndex)
         {
-            if (_playback == null)
+            if (_tickSystem == null)
                 throw new InvalidOperationException(
                     "ReplayModule.RegisterSystems() must be called before SeekToFrameAsync.");
+            if (_playback == null) return Task.CompletedTask;   // R-4012 — no recording: a listener
 
             // Execute strictly on the calling (main) thread to prevent ECS memory corruption.
             // The ECS repository is single-threaded for structural changes; seeking must not
             // race with UI rendering or other main-thread operations.
-            _playback.SeekToFrame(_repo, targetFrameIndex);
-            Fdp.Toolkit.Replication.Utilities.SmartEgressUtil.ForceMarkAllDirty(_repo);
-            _afterSeek?.Invoke();
-
+            _tickSystem.SeekToFrame(_repo, targetFrameIndex);
             return Task.CompletedTask;
         }
 
@@ -120,20 +150,21 @@ namespace Fdp.Toolkit.Replay
         /// UTC wall-clock ticks (<see cref="System.DateTime.UtcNow"/>.Ticks scale).
         /// The controller floor-seeks to the frame whose wall timestamp is ≤ this value.
         /// </param>
-        public Task SeekToWallClockTicksAsync(long targetWallTicks)
+        /// <returns>
+        /// ⭐⭐ R-4012 — <c>true</c> when this node's recording covers the moment and it restored it; <c>false</c> when it does
+        /// not (or the node has no recording): the world was cleared and the node listens.
+        /// </returns>
+        public Task<bool> SeekToWallClockTicksAsync(long targetWallTicks)
         {
-            if (_playback == null)
+            if (_tickSystem == null)
                 throw new InvalidOperationException(
                     "ReplayModule.RegisterSystems() must be called before SeekToWallClockTicksAsync.");
 
             // Execute strictly on the calling (main) thread to prevent ECS memory corruption.
             // The ECS repository is single-threaded for structural changes; seeking must not
             // race with UI rendering or other main-thread operations.
-            _playback.SeekToWallClockTicks(_repo, targetWallTicks);
-            Fdp.Toolkit.Replication.Utilities.SmartEgressUtil.ForceMarkAllDirty(_repo);
-            _afterSeek?.Invoke();
-
-            return Task.CompletedTask;
+            // ⭐ R-4012 — the play loop's own rule: restore inside the span, clear and listen outside it.
+            return Task.FromResult(_tickSystem.SeekTo(_repo, targetWallTicks));
         }
 
         /// <summary>
@@ -142,6 +173,19 @@ namespace Fdp.Toolkit.Replay
         /// </summary>
         public int TotalFrames => _playback?.TotalFrames ?? 0;
 
+        /// <summary>⭐ <c>CE-3299</c> B4 / <c>D18</c> — the frame on screen (0-based, in file order); -1 before the first is applied.</summary>
+        public int CurrentFrame => _playback?.CurrentFrame ?? -1;
+
+        /// <summary>⭐ <c>D18</c> — the wall time of <see cref="CurrentFrame"/> (0 when none).</summary>
+        public long CurrentFrameWallTicks =>
+            _playback is { CurrentFrame: >= 0 } p ? p.GetFrameMetadata(p.CurrentFrame).WallClockTicks : 0;
+
+        /// <summary>⭐ <c>D18</c> — the recording this module replays.</summary>
+        public string FilePath => _filePath;
+
+        /// <summary>⭐ <c>D18</c> — the exercise the replayed recording belongs to (from its <c>.meta.json</c>; empty when none).</summary>
+        public ExerciseId RecordedExerciseId => _playback?.Metadata.ExerciseId ?? ExerciseId.Empty;
+
         /// <summary>
         /// Wall-clock duration of the recording, as stored in
         /// <see cref="Fdp.Core.FlightRecorder.Metadata.RecordingMetadata.Duration"/>.
@@ -149,6 +193,22 @@ namespace Fdp.Toolkit.Replay
         /// called yet or if the recording pre-dates duration support.
         /// </summary>
         public TimeSpan Duration => _playback?.Metadata.Duration ?? TimeSpan.Zero;
+
+        /// <summary>⭐ CE-3329 P1 (row 7) — the recording's wall ↔ sim map, built once from the frame index (no frame decoded);
+        /// <see cref="ReplayTimeMap.Empty"/> for a listener or a v6 recording.</summary>
+        public ReplayTimeMap TimeMap => _timeMap ??= _playback != null ? ReplayTimeMap.FromRecording(_playback) : ReplayTimeMap.Empty;
+        private ReplayTimeMap? _timeMap;
+
+        /// <summary>⭐ CE-3329 (§9f) — the recording's checkpoint marks (its <c>.meta.json</c>); empty for a listener.</summary>
+        public Fdp.Core.FlightRecorder.Metadata.CheckpointMark[] Checkpoints
+            => _playback?.Metadata.Checkpoints.ToArray() ?? System.Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
+
+        /// <summary>⭐ AQ107 C — the geodetic origin the recording was made under (its metadata); <see langword="null"/> for a listener
+        /// or a recording that pre-dates the field.</summary>
+        public Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord? GeoOrigin => _playback?.Metadata.GeoOrigin;
+
+        /// <summary>⭐ AQ107 C — the terrain that was resident while recording (its metadata); empty when none / pre-dates the field.</summary>
+        public string TerrainName => _playback?.Metadata.TerrainName ?? string.Empty;
 
         /// <summary>
         /// The maximum network entity ID present in the recording, as reported by
@@ -160,7 +220,7 @@ namespace Fdp.Toolkit.Replay
         /// so the orchestrator can reset the ID allocator above the replay's ID space
         /// (CGF1-S0304).
         /// </summary>
-        public long MaxNetworkId => _playback?.Metadata.MaxNetworkId ?? 0;
+        public int MaxNetworkId => _playback?.Metadata.MaxNetworkId ?? 0;
 
         /// <summary>
         /// Starting wall-clock ticks of the recording timeline.
@@ -173,6 +233,9 @@ namespace Fdp.Toolkit.Replay
             _playback.TotalFrames > 0
                 ? _playback.GetFrameMetadata(0).WallClockTicks
                 : _playback.RecordingTimestamp;
+
+        /// <summary>⭐ R-4012 — wall-clock ticks of this recording's last frame; 0 when it has none.</summary>
+        public long RecordingEndWallTicks => _playback?.LastFrameWallTicks ?? 0;
 
         /// <summary>ACID-safe dispose: closes the <c>PlaybackController</c> file handles.</summary>
         public void Dispose()

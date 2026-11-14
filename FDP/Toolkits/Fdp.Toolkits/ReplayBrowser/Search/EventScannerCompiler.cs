@@ -51,7 +51,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             var evaluator = new PropertyEvaluator(_editService, eventType, path);
 
-            // Branch 2: unmanaged value scan (bus.Read<T>()).
+            // Branch 2: unmanaged value scan (repo.ReadEvents<T>()).
             if (eventType.IsValueType)
             {
                 var factoryMethod = _buildUnmanagedScannerMethod.MakeGenericMethod(eventType);
@@ -59,7 +59,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     null, new object[] { evaluator, op, targetValue })!;
             }
 
-            // Branch 3: managed value scan (bus.ReadManaged<T>()).
+            // Branch 3: managed value scan (repo.ReadManagedEvents<T>()).
             {
                 var factoryMethod = _buildManagedScannerMethod.MakeGenericMethod(eventType);
                 return (EventScannerDelegate)factoryMethod.Invoke(
@@ -69,13 +69,73 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         // ── Branch 1: pure occurrence ────────────────────────────────────────
 
+        /// <inheritdoc/>
+        public EventScannerDelegate CompileScanner(TransientEventPredicateDto predicate, ResultProjectionDto? projection)
+        {
+            if (projection == null) return CompileScanner(predicate);
+            if (predicate == null) throw new ArgumentNullException(nameof(predicate));
+            Type eventType = predicate.EventType ?? throw new ArgumentException("EventType must not be null.", nameof(predicate));
+            Func<object, bool> matches = _ => true;
+            if (!predicate.AnyOccurrence && !string.IsNullOrEmpty(predicate.PropertyPath))
+            {
+                var evaluator = new PropertyEvaluator(_editService, eventType, predicate.PropertyPath);
+                var match = CompileStringMatch(predicate.Operator, predicate.TargetValue ?? string.Empty);
+                matches = boxed => match(evaluator.GetValueAsString(boxed));
+            }
+            var compiled = new CompiledProjection(projection, eventType);
+            var factory = (eventType.IsValueType ? _buildUnmanagedProjectedMethod : _buildManagedProjectedMethod).MakeGenericMethod(eventType);
+            return (EventScannerDelegate)factory.Invoke(null, new object[] { matches, compiled })!;
+        }
+
+        private static readonly MethodInfo _buildUnmanagedProjectedMethod =
+            typeof(EventScannerCompiler).GetMethod(nameof(BuildUnmanagedProjectedScanner), BindingFlags.NonPublic | BindingFlags.Static)!;
+        private static readonly MethodInfo _buildManagedProjectedMethod =
+            typeof(EventScannerCompiler).GetMethod(nameof(BuildManagedProjectedScanner), BindingFlags.NonPublic | BindingFlags.Static)!;
+
+#pragma warning disable IDE0051 // Used via reflection
+        private static EventScannerDelegate BuildUnmanagedProjectedScanner<T>(Func<object, bool> matches, CompiledProjection projection)
+            where T : unmanaged
+        {
+            string typeName = typeof(T).Name;
+            return (repo, frame, ticks, results, filter) =>
+            {
+                ReadOnlySpan<T> events = repo.ReadEvents<T>();
+                for (int i = 0; i < events.Length; i++)
+                {
+                    object boxed = events[i];
+                    if (!matches(boxed)) continue;
+                    var payload = projection.Apply(repo, boxed, Entity.Null, out var subject);
+                    if (filter != null && !filter.Passes(repo, subject)) continue;
+                    results.Add(new SearchResultDto(frame, ticks, subject, typeName, payload));
+                }
+            };
+        }
+
+        private static EventScannerDelegate BuildManagedProjectedScanner<T>(Func<object, bool> matches, CompiledProjection projection)
+        {
+            string typeName = typeof(T).Name;
+            return (repo, frame, ticks, results, filter) =>
+            {
+                IReadOnlyList<T> events = repo.ReadManagedEvents<T>();
+                for (int i = 0; i < events.Count; i++)
+                {
+                    object? boxed = events[i];
+                    if (boxed == null || !matches(boxed)) continue;
+                    var payload = projection.Apply(repo, boxed, Entity.Null, out var subject);
+                    if (filter != null && !filter.Passes(repo, subject)) continue;
+                    results.Add(new SearchResultDto(frame, ticks, subject, typeName, payload));
+                }
+            };
+        }
+#pragma warning restore IDE0051
+
         private static EventScannerDelegate BuildOccurrenceScanner(Type eventType)
         {
             string typeName = eventType.Name;
-            return (bus, frame, ticks, results, repo, filter) =>
+            return (repo, frame, ticks, results, filter) =>
             {
                 if (filter != null) return;
-                if (bus.HasEvent(eventType))
+                if (repo.HasEvents(eventType))
                     results.Add(new SearchResultDto(frame, ticks, Entity.Null, typeName + " Occurred"));
             };
         }
@@ -91,9 +151,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         {
             Func<string, bool> match = CompileStringMatch(op, targetValue);
 
-            return (bus, frame, ticks, results, repo, filter) =>
+            return (repo, frame, ticks, results, filter) =>
             {
-                ReadOnlySpan<T> events = bus.Read<T>();
+                ReadOnlySpan<T> events = repo.ReadEvents<T>();
                 for (int i = 0; i < events.Length; i++)
                 {
                     object boxed = events[i]; // boxes the value once per event
@@ -120,9 +180,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             Func<string, bool> match = CompileStringMatch(op, targetValue);
             string typeName = typeof(T).Name;
 
-            return (bus, frame, ticks, results, repo, filter) =>
+            return (repo, frame, ticks, results, filter) =>
             {
-                IReadOnlyList<T> events = bus.ReadManaged<T>();
+                IReadOnlyList<T> events = repo.ReadManagedEvents<T>();
                 for (int i = 0; i < events.Count; i++)
                 {
                     object? boxed = events[i];
@@ -141,7 +201,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         // ── Operator match helper ────────────────────────────────────────────
 
-        private static Func<string, bool> CompileStringMatch(SearchOperator op, string target)
+        internal static Func<string, bool> CompileStringMatch(SearchOperator op, string target)
         {
             return op switch
             {
@@ -172,14 +232,23 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         /// </summary>
         internal static Entity TryExtractEntity(string value)
         {
-            // Expected format: "[42, v3]" or "[42,v3]"
-            if (string.IsNullOrEmpty(value) || value[0] != '[')
-                return Entity.Null;
-
-            int closeBracket = value.IndexOf(']');
-            if (closeBracket < 0) return Entity.Null;
-
-            string inner = value.Substring(1, closeBracket - 1); // "42, v3"
+            // Expected format: "[42, v3]" or "[42,v3]" — ⭐ CE-4164: and "Entity(42, v3)", which is what <see cref="Entity.ToString"/> (so an
+            //   Entity-typed event field's rendering) actually writes; the bracket form alone matched nothing a real event carried.
+            if (string.IsNullOrEmpty(value)) return Entity.Null;
+            string inner;
+            if (value[0] == '[')
+            {
+                int closeBracket = value.IndexOf(']');
+                if (closeBracket < 0) return Entity.Null;
+                inner = value.Substring(1, closeBracket - 1); // "42, v3"
+            }
+            else if (value.StartsWith("Entity(", StringComparison.Ordinal))
+            {
+                int close = value.IndexOf(')');
+                if (close < 0) return Entity.Null;
+                inner = value.Substring(7, close - 7);
+            }
+            else return Entity.Null;
             int commaIdx = inner.IndexOf(',');
             if (commaIdx < 0) return Entity.Null;
 

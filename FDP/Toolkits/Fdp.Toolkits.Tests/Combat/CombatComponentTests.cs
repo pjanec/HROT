@@ -97,8 +97,12 @@ namespace Fdp.Toolkit.Combat.Tests
         public void WeaponFireIntent_IsUnmanaged_AndHasCorrectSize()
         {
             Assert.True(typeof(WeaponFireIntent).IsValueType);
-            // Current actual layout: 2×Entity(8) + int(4) + bool(1) padded to 24 bytes.
-            Assert.Equal(24, Marshal.SizeOf<WeaponFireIntent>());
+            // Current actual layout: 2×Entity(8) + int(4) + bool(1) padded to 24 bytes; ⭐ CE-1032 + AtPoint (bool) and
+            // TargetPoint (Vector3) = 40, ⭐ M8 + AmmoGuid (long, 8-aligned) = 48, ⭐ IF-1 (I3) + Charge, HighArc (bytes) = 50,
+            // ⭐ CE-2180 + RaisedAt (double, Pack = 1) = 58, ⭐ CE-3235 + FuzeSeconds (float) = 62, ⭐ CE-3236 + BurnSeconds (float) = 66,
+            // ⭐ Q94 A-1 (R-3018) + RequestId (uint) = 70, ⭐ CE-2326 (R-3030) + BodyStance (byte) = 71.
+            // A LOCAL event — the wire (WeaponFireRequest) is mapped field by field.
+            Assert.Equal(79, Marshal.SizeOf<WeaponFireIntent>());   // ⭐ CE-4155 — + OriginalShooter (Entity, 8)
         }
 
         /// <summary>
@@ -109,8 +113,10 @@ namespace Fdp.Toolkit.Combat.Tests
         public void WeaponFireNotification_IsUnmanaged_AndHasCorrectSize()
         {
             Assert.True(typeof(WeaponFireNotification).IsValueType);
-            // Current actual layout: 2×Entity(8) + int(4) + bool(1) padded to 24 bytes.
-            Assert.Equal(24, Marshal.SizeOf<WeaponFireNotification>());
+            // 2×Entity(8) + int(4) + bool (marshalled as a 4-byte BOOL) = 24, then ⭐ CE-1111 (BS-1 §5.4b F1, appended): AmmoGuid(8) +
+            //   Round(8) + Origin(12) + Velocity(12) + Quantity(4) + FiredAt(8) = 52 ⇒ 76, then ⭐ Q94 A-1 (R-3018, appended):
+            //   RequestId(4) + Refusal(1) ⇒ 81.
+            Assert.Equal(81, Marshal.SizeOf<WeaponFireNotification>());
         }
 
         /// <summary>
@@ -135,8 +141,11 @@ namespace Fdp.Toolkit.Combat.Tests
         public void DetonationNotification_IsUnmanaged_AndHasCorrectSize()
         {
             Assert.True(typeof(DetonationNotification).IsValueType);
-            // Current actual layout: 2×Entity(8) + 3×float(4) padded to 32 bytes.
-            Assert.Equal(32, Marshal.SizeOf<DetonationNotification>());
+            // Current actual layout: 2×Entity(8) + 3×float(4) + bool (marshalled as 4) = 32, ⭐ CE-3071 + Penetration and
+            // Damage (2×float) = 40, ⭐ CE-1032 + Ammo (long) = 48, ⭐ M1 + TravelX/Y/Z (3×float) = 60. A LOCAL event — the wire
+            // message (MunitionDetonation) is mapped field by field, so the travel never reaches the wire. ⭐ CE-3209 + HasBodyPart,
+            // BodyPart, Face (3×byte, Pack = 1) = 63. ⭐ CE-3236 + Round (Entity, local only) = 71.
+            Assert.Equal(79, Marshal.SizeOf<DetonationNotification>());   // ⭐ CE-4155 — + OriginalShooter (Entity, 8)
         }
 
         /// <summary>
@@ -148,8 +157,9 @@ namespace Fdp.Toolkit.Combat.Tests
         public void DamageAssessedEvent_IsUnmanaged_AndHasCorrectSize()
         {
             Assert.True(typeof(DamageAssessedEvent).IsValueType);
-            // Current actual layout: Entity(8) + float(4) + bool(1) padded to 16 bytes.
-            Assert.Equal(16, Marshal.SizeOf<DamageAssessedEvent>());
+            // Marshalled layout: Entity(8) + float(4) + bool(4, marshalled as a Win32 BOOL) + HasBodyPart(1) + BodyPart(1) (CE-3210)
+            // + Effect(1, CE-3219) + pad(1) + EffectSeconds(4, CE-3219) = 24 bytes.
+            Assert.Equal(40, Marshal.SizeOf<DamageAssessedEvent>());   // ⭐ CE-3237 (B-15) — + Source (Entity, 8); ⭐ CE-4155 — + OriginalSource (Entity, 8)
         }
     }
 }

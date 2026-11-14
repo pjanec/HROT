@@ -30,7 +30,7 @@ namespace Hrot.Common.Infrastructure;
 /// <c>SimHostApp.OnLoad</c> with a 3-line call sequence:</para>
 /// <code>
 /// _context = new HrotNodeBuilder(config)
-///     .WithRole("EyesAndMuscle", NodeRole.MuscleGround | NodeRole.ImageGenerator)
+///     .WithRole("SimHost", NodeRole.MuscleGround | NodeRole.Perception)
 ///     .Build();
 /// </code>
 ///
@@ -44,15 +44,56 @@ public sealed class HrotNodeBuilder
     private INetworkFactory?  _networkFactory;
     private bool              _built;
 
+    /// <summary>
+    /// The node's TIME role. Defaults to <see cref="TimeRole.Slave"/> — what every caller got
+    /// before <c>N₀</c>, so this is behaviour-preserving for all of them.
+    /// </summary>
+    /// <remarks>
+    /// ⭐⭐⭐ <b><c>N₀</c> (<c>CE-201</c>) — why this had to become an input.</b> <c>Build()</c>
+    /// HARDWIRED <c>TimeRole.Slave</c>, while the editor is the time MASTER: it builds a
+    /// <c>MasterSyncController</c>. ⇒ the editor could not adopt this builder without silently
+    /// becoming a slave to a cluster it is meant to drive, so **every** editor-adoption item was
+    /// blocked on this one line.
+    ///
+    /// <para>🔒 User, <c>2026-09-03</c>: <i>"add the time role change to the plan to unblock editor
+    /// (because i need the editor to be unified too of course)."</i></para>
+    ///
+    /// <para>⛔ It is an INPUT, not an inference. A builder guessing the time role from
+    /// <c>NodeRole</c> would tie two independent axes together — a node's simulation role and its
+    /// clock authority are not the same question, and §3.1 is explicit that time authority is not to
+    /// be moved blindly.</para>
+    /// </remarks>
+    private TimeRole          _timeRole = TimeRole.Slave;
+
     public HrotNodeBuilder(HrotNodeConfig config)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
     }
 
     /// <summary>Sets the human-readable subsystem name used in DDS heartbeat publications.</summary>
-    public HrotNodeBuilder WithRole(string subsystemName, Hrot.Common.NodeRole role)
+    public HrotNodeBuilder WithRole(string subsystemName, Fdp.Core.NodeRole role)
     {
         _subsystemName = subsystemName;
+        _role          = role;   // P1: was silently discarded — the node's declared role mask is now retained and published on the heartbeat.
+        return this;
+    }
+
+    /// <summary>P1: the node's declared <see cref="Fdp.Core.NodeRole"/> mask, set by <see cref="WithRole"/>
+    /// and published on every heartbeat via <c>ClusterSlave</c>.</summary>
+    private Fdp.Core.NodeRole _role;
+
+    /// <summary>
+    /// Declares the node's TIME role. Omit it and the node is a time <see cref="TimeRole.Slave"/>,
+    /// which is what every caller got before <c>N₀</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ Pass <see cref="TimeRole.Master"/> only for a host that actually owns the clock — one that
+    /// drives a <c>MasterSyncController</c>. ⚠ Two masters on one cluster is a time-authority split,
+    /// which is exactly the class of defect §3.1 says not to create by accident.
+    /// </remarks>
+    public HrotNodeBuilder WithTimeRole(TimeRole timeRole)
+    {
+        _timeRole = timeRole;
         return this;
     }
 
@@ -80,6 +121,9 @@ public sealed class HrotNodeBuilder
     /// <see cref="HrotNodeContext"/>.  May only be called once per builder instance.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown if <see cref="Build"/> has already been called.</exception>
+    /// <summary>⭐ CE-4013 D3 — the id-allocator client id: unique per node, so two nodes of one subsystem never share id chunks.</summary>
+    public static string AllocatorClientId(string subsystemName, int nodeId) => $"{subsystemName}Allocator-{nodeId}";
+
     public HrotNodeContext Build()
     {
         if (_built)
@@ -98,16 +142,35 @@ public sealed class HrotNodeBuilder
         // Step 3 — Event bus
         var eventBus = new FdpEventBus();
 
-        // Step 4 — Time controller (Slave role; transitions handled by SlaveSyncController)
+        // The orchestration/time intent types must be registered on THE BUS THAT CARRIES THEM.
+        // Every non-orchestrator node publishes its time-control intents here —
+        // ClusterTimeTransportAdapter issues PauseTimeIntent/ResumeTimeIntent/StepTimeIntent/
+        // SetTimeScaleIntent/TransitionStateIntent onto HrotNodeContext.EventBus — and
+        // Hrot.ClusterRunner/Program.cs turns on FdpConfig.EnforceExplicitEventRegistration, under
+        // which PublishManaged throws for an unregistered type. Without this line, pressing pause on
+        // a CGF/SimHost/IG toolbar throws instead of pausing.
+        //
+        // The orchestrator (OrchestratorSubsystem), ExCon and the editor each already call this on
+        // their own bus; the nodes built here were the gap, because the only call that named a
+        // node's bus was in the former CgfApplication, whose sole caller was a unit test (deleted, CE-3348).
+        Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(eventBus);
+
+        // Step 4 — Time controller. The role is DECLARED by the caller (N₀ / CE-201) and defaults to
+        //          Slave, whose transitions are handled by SlaveSyncController.
+        // ⛔ It used to be hardwired to Slave here, which is why the editor — a time MASTER that
+        //    drives a MasterSyncController — could not adopt this builder at all.
         var timeConfig = new TimeControllerConfig
         {
             Mode        = TimeMode.Continuous,
-            Role        = TimeRole.Slave,
+            Role        = _timeRole,
             LocalNodeId = _config.NodeId,
             SyncConfig  = Fdp.Toolkit.Time.Controllers.TimeConfig.Default,
         };
         var timeCtrl = TimeControllerFactory.Create(eventBus, timeConfig);
         kernel.SetTimeController(timeCtrl);
+        // ⭐ CE-3427 N-1 — opt-in measuring probe: the per-frame cost of a full world replica (HROT_REPLICA_PROBE=1; off = nothing registered)
+        if (Fdp.Toolkit.Diagnostics.ReplicaSyncProbeSystem.Requested)
+            kernel.RegisterGlobalSystem(new Fdp.Toolkit.Diagnostics.ReplicaSyncProbeSystem());
         eventBus.SwapBuffers();
 
         // ── Part B: Hrot / DDS-specific ───────────────────────────────────────
@@ -133,6 +196,10 @@ public sealed class HrotNodeBuilder
             // so the factory decides whether to return a DdsIdAllocator or a
             // SequentialIdAllocator (e.g. in offline/headless environments).
             // Without a factory, fall back to direct DDS instantiation (legacy path).
+            // ⭐⭐ CE-4013 D3 — the client id carries the NODE id. ⛔ It was SubsystemName + "Allocator", and DdsIdAllocator keeps every
+            //   response whose ClientId matches — so two nodes of one subsystem name (two traffic nodes, R-4055; two SimHosts; two Players)
+            //   took each other's id chunks and handed out the SAME network id. 📄 DESIGN_Subsystem_Composition_Unification.md §4.1ae.1.
+            string allocatorClientId = AllocatorClientId(_config.SubsystemName ?? _subsystemName, _config.NodeId);
             if (_networkFactory != null)
             {
                 // Factory path: delegate to factory regardless of participant availability.
@@ -140,13 +207,13 @@ public sealed class HrotNodeBuilder
                 // non-null, SequentialIdAllocator otherwise.  Offline/mock factories always
                 // return SequentialIdAllocator.
                 idAllocator = _networkFactory.CreateIdAllocator(
-                    (_config.SubsystemName ?? _subsystemName) + "Allocator",
+                    allocatorClientId,
                     skipRoutingWait: _config.SkipAllocatorRouting);
             }
             else if (participant != null)
             {
                 // Legacy path (no factory injected): create DdsIdAllocator directly.
-                var ddsAllocator = new DdsIdAllocator(participant, (_config.SubsystemName ?? _subsystemName) + "Allocator");
+                var ddsAllocator = new DdsIdAllocator(participant, allocatorClientId);
                 if (!_config.SkipAllocatorRouting)
                     DdsIdAllocatorHelper.EnsureRouting(participant, ddsAllocator);
                 idAllocator = ddsAllocator;
@@ -171,18 +238,33 @@ public sealed class HrotNodeBuilder
         }
 
         // Step 8 — ClusterSlave + SlaveTranslator
-        var clusterSlave = new ClusterSlave(_config.NodeId, _subsystemName, eventBus);
+        // P1/CE-285: advertise the declared role (fdp.role.* tokens → derived mask, CE-286) + fdp.reliable-init.
+        var clusterSlave = new ClusterSlave(_config.NodeId, _subsystemName, eventBus, _role,
+            capabilities: Hrot.Map.Common.ClusterLoad.AssetNeeds.HostCapabilities(_role),   // + asset tokens, CE-3020
+            nodeName: _config.NodeName);   // ⭐ CE-3354 ②
         
         Hrot.Core.Network.ISlaveOrchestrationTranslator? slaveTranslator = null;
         if (participant != null && _networkFactory != null)
         {
-            var nodeFactory = _networkFactory.ConfigureForNode(participant, _config.NodeId, Hrot.Common.NodeRole.None);
+            var nodeFactory = _networkFactory.ConfigureForNode(participant, _config.NodeId, Fdp.Core.NodeRole.None);
             slaveTranslator = nodeFactory.CreateSlaveOrchestratorTranslators(eventBus, _config.NodeId);
         }
 
         // Step 9 — Infrastructure EcsModules
         var tkbDb       = HrotEnvironment.CreateTkb();
-        var geoTransform = HrotEnvironment.CreateGeoTransform();
+        // ⭐ CE-3126 — ONE transform per node: the one the composition root made, else the one the network factory's
+        //   translators already hold, else a fresh one (origin 0,0,0 until a terrain commit sets it). Before, this was always
+        //   a new instance, so the translators and the world singleton could disagree. 📄 docs/DESIGN_Geo_Origin.md §2 C.
+        var geoTransform = _config.ExternalGeoTransform ?? _networkFactory?.GeoTransform ?? HrotEnvironment.CreateGeoTransform();
+        // ⭐ ...and it is the world singleton on EVERY node (IG published none before): the terrain commit sets the origin
+        //   THROUGH it (TerrainResidency.ApplyGeoOrigin), and the debug API, map pick and AI nodes read it.
+        world.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geoTransform);
+        // ⭐⭐ CE-4013 D4/D5 — and the node's ONE catalogue and ONE entity map, the same way, on every node. ⛔ Hosts used to publish them
+        //   again after boot (four of them), IG published a FRESH catalogue (so its world read a different TKB than its load step filled)
+        //   and Stride published neither. The context's objects are THE ones: the load step loads into TkbDb, the replicas map into
+        //   EntityMap. 📄 DESIGN_Subsystem_Composition_Unification.md §4.1ae.1.
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkbDb);
+        world.SetSingletonManaged(entityMap);
         var elm         = new EntityLifecycleModule(tkbDb, new List<int>(), localNodeId: _config.NodeId);
         var geoModule   = new GeographicModule(geoTransform);
         var baseModules = new List<IEcsModule> { elm, geoModule };
@@ -204,6 +286,10 @@ public sealed class HrotNodeBuilder
             NodeId          = _config.NodeId,
             TkbDb           = tkbDb,
             GeoTransform    = geoTransform,
+            // N₀ item ② (CE-203): the controller Step 4 built and already gave the kernel. Exposed so a
+            // host that drives the clock — the editor — need not build a second one.
+            TimeController  = timeCtrl,
+            TimeRole        = _timeRole,
         };
     }
 }

@@ -7,7 +7,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common;
 using Hrot.ScenarioEditor.Systems;
 using Xunit;
@@ -29,26 +29,65 @@ public class SelectionInteractionSystemTests
         _world.RegisterComponent<SelectionState>();
         _world.RegisterComponent<VehicleState>();
         _system = new SelectionInteractionSystem(_world, _world.Bus);
+        _requests = new SelectionRequestSystem(
+            () => new Hrot.ScenarioEditor.Selection.EcsSelectionState(_world));
     }
+
+    private readonly SelectionRequestSystem _requests;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-11</c> <c>S-4</c> — a map gesture is a REQUEST now, so serving it takes a frame.</b>
+    ///
+    /// <para>📄 §2.7.3 rule 1: <c>SelectionRequestSystem</c> is the only writer. ⛔ This system used to
+    /// write the component itself and announce nothing, which is exactly the defect <c>S-4</c> closes —
+    /// the hosts' inspector context stopped following map clicks when <c>S-3</c> replaced their
+    /// hand-syncs with the notification.</para>
+    ///
+    /// <para>⭐⭐ <b>These rails are STRONGER for it.</b> Before, they proved this system wrote two
+    /// booleans. Now they prove the whole chain — gesture → request → the one writer → the component —
+    /// which is the chain that actually has to work on five hosts.</para>
+    /// </summary>
+    private void ServeRequests()
+    {
+        _world.Bus.SwapBuffers();
+        _requests.Execute(_world, 0f);
+    }
+
+    /// <summary>⭐⭐ §6.7 — ids must be UNIQUE now. Selection resolves the token's anchor id against the
+    /// world, so two entities sharing <c>NetworkIdentity.Value = 1</c> (which is what this used to do)
+    /// would make the second one unaddressable — the resolve answers with the first match.
+    /// 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6.7.</summary>
+    private int _nextNetId = 7041;
 
     private Entity CreateSelectableEntity()
     {
         var e = _world.CreateEntity();
         _world.AddComponent(e, default(SimTransform));
-        _world.AddComponent(e, new NetworkIdentity { Value = 1L });
+        _world.AddComponent(e, new NetworkIdentity { Value = _nextNetId++ });
         _world.AddComponent(e, new SelectionState());
         return e;
     }
 
-    private void PublishStartedEvent(Entity target, Vector3 worldPos = default)
+    /// <summary>⭐ §6.7 — the token carries the target's NETWORK id; <c>Entity.Null</c> maps to 0,
+    /// which is exactly the "empty canvas" signal the rubber-band arm reads.</summary>
+    private void PublishStartedEvent(Entity target, Vector3 worldPos = default,
+                                     MapMouseButton button = MapMouseButton.Left)
     {
         _world.Bus.Publish(new GizmoInteractionStartedEvent
         {
-            Token    = new PickToken { Target = target },
+            Token    = new PickToken { AnchorId = AnchorIdOf(target) },
             WorldPos = worldPos,
+            Button   = button,
         });
         _world.Bus.SwapBuffers();
     }
+
+    /// <summary>⭐ <c>S-4b</c> — the right-press form, for §2.3's rows.</summary>
+    private void PublishRightStartedEvent(Entity target, Vector3 worldPos = default)
+        => PublishStartedEvent(target, worldPos, MapMouseButton.Right);
+
+    private long AnchorIdOf(Entity target)
+        => Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(_world, target);
 
     private void PublishKeyEvent(MapKeyboardKey key, bool isPressed)
     {
@@ -68,10 +107,97 @@ public class SelectionInteractionSystemTests
         PublishStartedEvent(entity);
 
         _system.Tick(0f);
+        ServeRequests();
 
         var state = _world.GetComponent<SelectionState>(entity);
         Assert.True(state.IsSelected);
         Assert.True(state.IsPrimarySelection);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1300 (user, 2026-10-23: <i>"I am able to select the gun and the gunner independently … only the carrier vehicle can be selected"</i>) — a click on an entity ATTACHED to a vehicle selects the CARRIER:
+    /// a weapon system in a host's station and a man in a seat both carry <c>IsEmbarkedTag</c> (<c>VehicleEntity</c> = the host); the anchor resolves to the top carrier in the ONE anchor rule
+    /// (<c>NetworkIdResolver.ResolveAnchorId</c>), so the selection — and every other consumer of a pick — gets the vehicle by construction. An unattached unit gives itself.
+    /// 🔴 Red-proof (compiles): <c>ResolveAnchorId</c> returning the entity without <c>CarrierOf</c> ⇒ the gun and the gunner rows select themselves ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1300_AClickOnAMountedGunOrASeatedGunner_SelectsTheCarrier_AnUnattachedUnitSelectsItself()
+    {
+        if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()) _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        var carrier = CreateSelectableEntity();
+        var vehicle = CreateSelectableEntity();
+        var gun = CreateSelectableEntity();
+        var gunner = CreateSelectableEntity();
+        var free = CreateSelectableEntity();
+        _world.AddComponent(vehicle, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = carrier, Seat = 1 });   // the vehicle is itself aboard the carrier (nested)
+        _world.AddComponent(gun, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = vehicle, Seat = 0 });
+        _world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = vehicle, Seat = 2 });
+
+        bool Selected(Entity e) => _world.GetComponent<SelectionState>(e).IsSelected;
+
+        PublishStartedEvent(gun);
+        _system.Tick(0f); ServeRequests();
+        Assert.True(Selected(carrier), "the gun resolves up to the TOP carrier");
+        Assert.False(Selected(gun)); Assert.False(Selected(vehicle));
+
+        PublishStartedEvent(gunner);
+        _system.Tick(0f); ServeRequests();
+        Assert.True(Selected(carrier), "a seated gunner selects the carrier too");
+        Assert.False(Selected(gunner));
+
+        PublishStartedEvent(free);
+        _system.Tick(0f); ServeRequests();
+        Assert.True(Selected(free), "an unattached unit gives itself");
+        Assert.False(Selected(carrier));
+    }
+
+    /// <summary>
+    /// ⭐⭐ B-10 K7 (docs/UX/DESIGN_Input_And_Commands.md §6b) — WHICH selection effect a click has is the MAP SCOPE's row, not a branch in this system: with the defaults a left click selects, with a keymap that binds
+    /// the left click on an entity to nothing it selects nothing, and bound to "keep the selection" it leaves the selection alone but still tells the host who was clicked; a keymap with no band row starts no rubber band.
+    /// 🔴 Red-proof (compiles): the system selecting without asking the router ⇒ the empty keymap still selects ⇒ red.
+    /// </summary>
+    [Fact]
+    public void K7_TheMapScopeDecidesWhatAClickDoes()
+    {
+        var entity = CreateSelectableEntity();
+        var seen = new List<Entity>();
+        SelectionInteractionSystem With(Fdp.Toolkit.Input.Keymap keymap)
+        {
+            var sys = new SelectionInteractionSystem(_world, _world.Bus, null, null, new Hrot.ScenarioEditor.Map.MapGestureRouter(keymap));
+            sys.OnSelectionChanged += (e, _) => seen.Add(e);
+            return sys;
+        }
+
+        // no rows: the click is nobody's
+        var none = With(new Fdp.Toolkit.Input.Keymap());
+        PublishStartedEvent(entity);
+        none.Tick(0f); ServeRequests();
+        Assert.False(_world.GetComponent<SelectionState>(entity).IsSelected);
+        Assert.Empty(seen);
+
+        // the left click on an entity bound to "keep" (the menu-for-the-selection row): no selection request, the host still hears of the click
+        var keep = new Fdp.Toolkit.Input.Keymap();
+        keep.DeclareGesture(new(new Fdp.Toolkit.Input.MapGesture(Fdp.Toolkit.Input.GestureButton.Left, Fdp.Toolkit.Input.GestureKind.Click, Fdp.Toolkit.Input.GestureModifiers.None,
+            Fdp.Toolkit.Input.GestureTarget.AnyEntity), Fdp.Toolkit.Input.InputScope.Map, null, Fdp.Toolkit.Input.ActionRef.Command(Hrot.ScenarioEditor.Map.MapGestureIds.MenuSelection)));
+        var keeper = With(keep);
+        PublishStartedEvent(entity);
+        keeper.Tick(0f); ServeRequests();
+        Assert.False(_world.GetComponent<SelectionState>(entity).IsSelected);
+        Assert.Equal(new[] { entity }, seen);
+
+        // the defaults select
+        PublishStartedEvent(entity);
+        With(Hrot.ScenarioEditor.Map.MapGestureRouter.Shared.Keymap).Tick(0f); ServeRequests();
+        Assert.True(_world.GetComponent<SelectionState>(entity).IsSelected);
+
+        // no band row ⇒ a press on empty ground starts no rubber band: a commit then clears nothing
+        var band = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
+        var noBand = new SelectionInteractionSystem(_world, _world.Bus, band, null, new Hrot.ScenarioEditor.Map.MapGestureRouter(new Fdp.Toolkit.Input.Keymap()));
+        PublishStartedEvent(Entity.Null, new Vector3(5, 5, 0));
+        noBand.Tick(0f);
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default }); _world.Bus.SwapBuffers();
+        noBand.Tick(0f); ServeRequests();
+        Assert.True(_world.GetComponent<SelectionState>(entity).IsSelected);
     }
 
     // SIS-002: After null-entity GizmoInteractionStartedEvent, selection is NOT cleared immediately.
@@ -85,13 +211,15 @@ public class SelectionInteractionSystemTests
         // Step 1: null entity click -> rubber-band starts, selection NOT yet cleared
         PublishStartedEvent(Entity.Null);
         _system.Tick(0f);
+        ServeRequests();
         // Still selected (rubber-band in progress, no commit yet)
         Assert.True(_world.GetComponent<SelectionState>(entity).IsSelected);
 
         // Step 2: commit without any drag event -> tiny drag path -> clears selection
-        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = new PickToken { Target = Entity.Null } });
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default });
         _world.Bus.SwapBuffers();
         _system.Tick(0f);
+        ServeRequests();
 
         var state = _world.GetComponent<SelectionState>(entity);
         Assert.False(state.IsSelected);
@@ -104,18 +232,292 @@ public class SelectionInteractionSystemTests
         var entity1 = CreateSelectableEntity();
         var entity2 = _world.CreateEntity();
         _world.AddComponent(entity2, default(SimTransform));
-        _world.AddComponent(entity2, new NetworkIdentity { Value = 2L });
+        _world.AddComponent(entity2, new NetworkIdentity { Value = 2 });
         _world.AddComponent(entity2, new SelectionState());
 
         PublishStartedEvent(entity1);
         _system.Tick(0f);
+        ServeRequests();
         Assert.True(_world.GetComponent<SelectionState>(entity1).IsSelected);
 
         PublishStartedEvent(entity2);
         _system.Tick(0f);
+        ServeRequests();
 
         Assert.False(_world.GetComponent<SelectionState>(entity1).IsSelected);
         Assert.True(_world.GetComponent<SelectionState>(entity2).IsSelected);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-11</c> <c>S-4</c> — A MAP CLICK REACHES THE INSPECTOR CONTEXT. This is the rail
+    /// the regression it fixes never had.</b>
+    ///
+    /// <para>🔴 <b>What broke, and how it hid.</b> Every host used to hand-sync
+    /// <c>IInspectorContext.SelectedEntity</c> off <c>OnSelectionChanged</c>. <c>S-3</c> deleted those
+    /// in favour of <c>SelectionChangedNotification</c> — correctly, because they fired for a MAP click
+    /// and nothing else. ⛔ But this system wrote the component DIRECTLY and published no notification,
+    /// so the replacement never fired for a map click either. ⇒ the details pane stopped following the
+    /// map on the editor, IG, SimHost and ReplayBrowser, and **the whole ~8 000-rail suite stayed
+    /// green** — because the entity-inspector PANEL projects from <c>ISelectionState</c> each draw and
+    /// so kept working, which is exactly the kind of partial symptom that reads as "fine".</para>
+    ///
+    /// <para>⭐ Now the gesture is a request, the request system announces, and the notification system
+    /// points the context. This asserts that chain end to end.</para>
+    /// </summary>
+    [Fact]
+    public void AMapClickReachesTheInspectorContext()
+    {
+        var entity    = CreateSelectableEntity();
+        var inspector = new Fdp.Presentation.Abstractions.InspectorState();
+        var notify    = new SelectionNotificationSystem(() => inspector);
+
+        PublishStartedEvent(entity);
+        _system.Tick(0f);          // the gesture publishes a request
+        ServeRequests();           // the one writer applies it AND announces
+        _world.Bus.SwapBuffers();
+        notify.Execute(_world, 0f);
+
+        Assert.Equal(entity, inspector.SelectedEntity);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-300</c> — the AI editors' entity cell follows the ANNOUNCEMENT, so EVERY cause
+    /// moves it.</b> 📄 <c>docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md</c> §3.1.
+    ///
+    /// <para>🔴 <b>The defect this pins.</b> The cell's only production writer used to be
+    /// <c>CallbackSelectionBridge</c>, hung off <c>SelectionInteractionSystem.OnSelectionChanged</c> —
+    /// <b>a map gesture</b>. ⇒ an entity-inspector click, an orbat select, a context-menu <i>Select</i>
+    /// or a remote <c>CMD_SET_SELECTION</c> left every Watch/Details live-value row projecting the
+    /// PREVIOUS entity.</para>
+    ///
+    /// <para>⭐⭐ <b>The request here is deliberately NOT a map gesture</b> — it is published directly,
+    /// the way the inspector publishes one. ⛔ Driving this through <c>PublishStartedEvent</c> would
+    /// assert the defect away: the old bridge passed that case too, and only that case.
+    /// ⛔ <b>Red-proof:</b> restrict the sink to <c>Map.</c> reasons and this reddens while
+    /// <see cref="AMapClickReachesTheInspectorContext"/> stays green.</para>
+    /// </summary>
+    [Fact]
+    public void ASelectionFromANonMapCause_ReachesTheAiEditorsEntityCell()
+    {
+        var entity = CreateSelectableEntity();
+        Entity? aiCell = null;
+        var notify = new SelectionNotificationSystem(
+            static () => null, null, null, e => aiCell = e);
+
+        _world.Bus.PublishManaged(
+            Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+                .ReplaceWith(entity, "Inspector.RowClick"));     // ⭐ NOT a map gesture
+        ServeRequests();
+        _world.Bus.SwapBuffers();
+        notify.Execute(_world, 0f);
+
+        Assert.Equal(entity, aiCell);
+    }
+
+    /// <summary>
+    /// ⚠ <b><c>CE-300</c> — a CLEARED selection hands the cell <c>null</c>, never
+    /// <see cref="Entity.Null"/>.</b>
+    ///
+    /// <para>⭐ The cell's <c>null</c> is a REAL state its readers gate on — <c>LiveBlackboardValue
+    /// Provider</c>'s second line is <c>if (entity == null) return false</c>, so the row honestly reads
+    /// <c>(pending)</c>. ⛔ Handing them <c>Entity.Null</c> instead would make every provider ask the
+    /// world about entity 0.</para>
+    ///
+    /// <para>⛔ <b>Asserted as "assigned, and assigned null"</b>, not merely "still null" — ⚠ an
+    /// unchanged initial value would pass a test that never ran the system at all.</para>
+    /// </summary>
+    [Fact]
+    public void ClearingTheSelection_HandsTheAiCellNull_NotEntityNull()
+    {
+        var entity = CreateSelectableEntity();
+        var writes = new System.Collections.Generic.List<Entity?>();
+        var notify = new SelectionNotificationSystem(
+            static () => null, null, null, e => writes.Add(e));
+
+        _world.Bus.PublishManaged(
+            Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(entity, "Map.Click"));
+        ServeRequests();
+        _world.Bus.SwapBuffers();
+        notify.Execute(_world, 0f);
+
+        _world.Bus.PublishManaged(
+            Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ClearAll("Map.RightClick.EmptySpace"));
+        ServeRequests();
+        _world.Bus.SwapBuffers();
+        notify.Execute(_world, 0f);
+
+        Assert.Equal(new Entity?[] { entity, null }, writes);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-11</c> <c>S-5</c> — ruling ②, END TO END: selecting another entity cancels the edit
+    /// on the one that lost the selection.</b>
+    /// 🔒 <i>"if entity becomes unselected, it should cancel any editing on the entity losing the
+    /// selection"</i> (user, <c>2026-09-10</c>). 📄 §2.6 ② / §2.7.15.
+    ///
+    /// <para>⭐ This is the first real EDGE consumer of <c>SelectionChangedNotification</c> — the thing
+    /// §2.7.8 deviation ② said the notification existed for while the panels projected instead.</para>
+    ///
+    /// <para>⛔ <b>Red-proof:</b> stop passing the controller to <c>SelectionNotificationSystem</c> and the
+    /// gizmo stays armed on the deselected entity.</para>
+    /// </summary>
+    [Fact]
+    public void SelectingAnotherEntity_CancelsTheEditOnTheOneThatLostTheSelection()
+    {
+        var a = CreateSelectableEntity();
+        var b = CreateSelectableEntity();
+
+        var buffer     = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var dataDriven = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
+            new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry(), buffer, interactionBus: _world.Bus);
+        var tools = new Hrot.ScenarioEditor.Tools.ToolController(() => null, () => dataDriven);
+        tools.Register(
+            new Hrot.ScenarioEditor.Tools.ToolDescriptor(
+                "edit", "Edit Shape",
+                Hrot.ScenarioEditor.Tools.ToolModality.Modal,
+                Hrot.ScenarioEditor.Tools.ToolArbiter.EntityScoped),
+            target =>
+            {
+                dataDriven.ActivateGizmo(target, new S5ProbeGizmo());
+                return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
+            });
+
+        var selection = new Hrot.ScenarioEditor.Selection.EcsSelectionState(_world);
+        var notify    = new SelectionNotificationSystem(
+            () => new Fdp.Presentation.Abstractions.InspectorState(), tools, selection);
+
+        // ① select A, then arm an edit ON A.
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(a, "test.setup"));
+        ServeRequests();
+        Assert.True(tools.Activate("edit", a));
+        Assert.True(dataDriven.HasInjectedGizmo(a));        // ⛔ anti-vacuity: it really is armed
+
+        // ② now select B. A loses the selection.
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(b, "test.reselect"));
+        ServeRequests();                                     // the one writer applies AND announces
+        _world.Bus.SwapBuffers();
+        notify.Execute(_world, 0f);
+
+        Assert.Null(tools.ActiveModal);                      // ⭐ the edit is over
+        Assert.False(dataDriven.HasInjectedGizmo(a));        // ⭐ and the gizmo is gone, not merely forgotten
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The other half of ruling ②, and the one a sweep would break:</b> an entity that KEEPS the
+    /// selection keeps its edit. ⛔ If this ever reddens, something replaced the per-entity predicate with
+    /// a "selection changed ⇒ cancel everything" sweep, which §4.14 forbids by name.
+    /// </summary>
+    [Fact]
+    public void AnEntityThatKeepsTheSelection_KeepsItsEdit()
+    {
+        var a = CreateSelectableEntity();
+        var b = CreateSelectableEntity();
+
+        var buffer     = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var dataDriven = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
+            new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry(), buffer, interactionBus: _world.Bus);
+        var tools = new Hrot.ScenarioEditor.Tools.ToolController(() => null, () => dataDriven);
+        tools.Register(
+            new Hrot.ScenarioEditor.Tools.ToolDescriptor(
+                "edit", "Edit Shape",
+                Hrot.ScenarioEditor.Tools.ToolModality.Modal,
+                Hrot.ScenarioEditor.Tools.ToolArbiter.EntityScoped),
+            target =>
+            {
+                dataDriven.ActivateGizmo(target, new S5ProbeGizmo());
+                return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
+            });
+
+        var selection = new Hrot.ScenarioEditor.Selection.EcsSelectionState(_world);
+        var notify    = new SelectionNotificationSystem(
+            () => new Fdp.Presentation.Abstractions.InspectorState(), tools, selection);
+
+        // A is armed, and the selection GROWS to {A, B} — A never loses it.
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(a, "test.setup"));
+        ServeRequests();
+        tools.Activate("edit", a);
+
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(new[] { a, b }, "test.grow"));
+        ServeRequests();
+        _world.Bus.SwapBuffers();
+        notify.Execute(_world, 0f);
+
+        Assert.NotNull(tools.ActiveModal);                   // ⭐ still editing A
+        Assert.True(dataDriven.HasInjectedGizmo(a));
+    }
+
+    /// <summary>
+    /// ⭐⭐ A rubber band is ONE request carrying the set — not a clear plus N writes.
+    /// ⚠ That is what makes the ring, the panels and the announcement all see the finished selection
+    /// instead of N intermediate ones.
+    /// </summary>
+    [Fact]
+    public void ARubberBandSelectsTheWholeBoxInOneRequest()
+    {
+        var a = CreateSelectableEntity();
+        var b = CreateSelectableEntity();
+        _world.SetComponent(a, default(SimTransform));
+        _world.SetComponent(b, new SimTransform { Position = new System.Numerics.Vector3(5f, 5f, 0f) });
+
+        PublishStartedEvent(Entity.Null, new System.Numerics.Vector3(-10f, -10f, 0f));
+        _system.Tick(0f);
+
+        _world.Bus.Publish(new GizmoDragUpdateEvent
+        {
+            Token = default, WorldPos = new System.Numerics.Vector3(20f, 20f, 0f),
+        });
+        _world.Bus.SwapBuffers();
+        _system.Tick(0f);
+
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default });
+        _world.Bus.SwapBuffers();
+        _system.Tick(0f);
+        ServeRequests();
+
+        Assert.True(_world.GetComponent<SelectionState>(a).IsSelected);
+        Assert.True(_world.GetComponent<SelectionState>(b).IsSelected);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1136 (docs/DESIGN_Map_3D_Mode.md §6z) — in 3-D the marquee is a SCREEN rectangle: with the view's projection lent to the band,
+    /// what PROJECTS inside it is selected — here a unit 100 m away along the view (far outside the ground rectangle of the two picked
+    /// points) but on screen inside the box — and what projects outside is not. 🔒 User, 2026-10-16: <i>"the 3d map has no multi-selection
+    /// marquee, one would be very useful."</i>
+    /// </summary>
+    [Fact]
+    public void CE1136_In3D_TheMarqueeSelectsWhatProjectsInsideTheScreenRectangle()
+    {
+        var band = new Hrot.ScenarioEditor.Gizmos.RubberBandState
+        {
+            Projector = p => new System.Numerics.Vector2(p.Y, p.Z),   // a view looking along +X: screen x = world Y, screen y = world Z
+        };
+        var system = new SelectionInteractionSystem(_world, _world.Bus, band);
+        var near = CreateSelectableEntity();
+        var far = CreateSelectableEntity();
+        var outside = CreateSelectableEntity();
+        _world.SetComponent(near, new SimTransform { Position = new System.Numerics.Vector3(0f, 5f, 1f) });
+        _world.SetComponent(far, new SimTransform { Position = new System.Numerics.Vector3(100f, 5f, 1f) });
+        _world.SetComponent(outside, new SimTransform { Position = new System.Numerics.Vector3(0f, 50f, 1f) });
+
+        PublishStartedEvent(Entity.Null, new System.Numerics.Vector3(0f, 0f, 0f));
+        system.Tick(0f);
+        Assert.True(band.InScreen);
+        _world.Bus.Publish(new GizmoDragUpdateEvent { Token = default, WorldPos = new System.Numerics.Vector3(0f, 10f, 10f) });
+        _world.Bus.SwapBuffers();
+        system.Tick(0f);
+        Assert.Equal(new System.Numerics.Vector2(10f, 10f), band.ScreenCurrent);
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default });
+        _world.Bus.SwapBuffers();
+        system.Tick(0f);
+        ServeRequests();
+
+        Assert.True(_world.GetComponent<SelectionState>(near).IsSelected);
+        Assert.True(_world.GetComponent<SelectionState>(far).IsSelected, "on screen inside the box, though far off the ground rectangle");
+        Assert.False(_world.GetComponent<SelectionState>(outside).IsSelected);
     }
 
     // SIS-004: GizmoKeyEvent(Delete, isPressed=false) on selected entity publishes DestroyEntityCommand.
@@ -133,7 +535,11 @@ public class SelectionInteractionSystemTests
         foreach (var cmd in _world.Bus.ReadManaged<DestroyEntityCommand>())
             commands.Add(cmd);
         Assert.Single(commands);
-        Assert.Equal(1L, commands[0].NetworkId);
+        // ⭐ §6.7 — CreateSelectableEntity now allocates a UNIQUE network id per entity (it used to
+        //   hard-code 1 for every one of them, which the id-based resolve makes unusable).
+        Assert.Equal(
+            Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(_world, entity),
+            commands[0].NetworkId);
     }
 
     // SIS-005: GizmoKeyEvent(Delete, isPressed=true) is ignored.
@@ -193,10 +599,375 @@ public class SelectionInteractionSystemTests
         Assert.Null(callbackEntity); // not yet fired
 
         // Commit without drag = tiny drag = deselect all
-        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = new PickToken { Target = Entity.Null } });
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default });
         _world.Bus.SwapBuffers();
         _system.Tick(0f);
 
         Assert.Equal(Entity.Null, callbackEntity);
+    }
+
+    // ══ UXI-11 S-4b — §2.3'S BUTTON-SPECIFIC ROWS ON THE MAP ═══════════════════
+    // 📄 docs/UX/UX_Feature_Selection.md §2.3 (ruled 2026-08-12) and §2.7.14 (the as-built).
+    //
+    // 🔴 Until the terminal tagged the button, a right-release and a left-press arrived here as the
+    //    SAME event, so every press took the left branch and a right-click collapsed a multi-selection.
+    //    These four rails are what that defect could not satisfy.
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>§2.3 row 1 — a right-click INSIDE the selection leaves the whole selection alone.</b>
+    /// 🔒 Load-bearing, not cosmetic: the <c>2026-09-10</c> fan-out ruling (<i>"a menu opened on a
+    /// selection affects all selected"</i>) is impossible if the gesture that opens the menu destroys
+    /// the multi-selection.
+    ///
+    /// <para>⛔ <b>Red-proof:</b> drop the <c>isRight &amp;&amp; IsSelected</c> guard and the second
+    /// entity loses its selection — the exact collapse the operator sees today.</para>
+    /// </summary>
+    [Fact]
+    public void RightClickingAnEntityInsideTheSelection_LeavesTheWholeSelectionAlone()
+    {
+        var a = CreateSelectableEntity();
+        var b = CreateSelectableEntity();
+
+        // Select both, through the real writer.
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(new[] { a, b }, "test.setup"));
+        ServeRequests();
+        Assert.True(_world.GetComponent<SelectionState>(a).IsSelected);   // ⛔ anti-vacuity
+        Assert.True(_world.GetComponent<SelectionState>(b).IsSelected);
+
+        PublishRightStartedEvent(b);
+        _system.Tick(0f);
+        ServeRequests();
+
+        Assert.True(_world.GetComponent<SelectionState>(a).IsSelected);   // ⭐ the group SURVIVES
+        Assert.True(_world.GetComponent<SelectionState>(b).IsSelected);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>§2.3 row 2 — a right-click OUTSIDE the selection still replaces it.</b> ⚠ Right-click
+    /// does not stop selecting; it deselects the others exactly as a left-click would. Only the
+    /// inside-the-group case is exempt.
+    /// </summary>
+    [Fact]
+    public void RightClickingAnEntityOutsideTheSelection_ReplacesTheSelectionWithIt()
+    {
+        var a = CreateSelectableEntity();
+        var b = CreateSelectableEntity();
+
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(a, "test.setup"));
+        ServeRequests();
+
+        PublishRightStartedEvent(b);
+        _system.Tick(0f);
+        ServeRequests();
+
+        Assert.False(_world.GetComponent<SelectionState>(a).IsSelected);
+        Assert.True(_world.GetComponent<SelectionState>(b).IsSelected);
+        Assert.True(_world.GetComponent<SelectionState>(b).IsPrimarySelection);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The asymmetry that made the button necessary.</b> A LEFT-click inside a multi-selection
+    /// must still narrow it to that one entity — that is how an operator drills down. ⛔ If the §2.3
+    /// guard were applied to both buttons (which is what a button-less fix would have done), this rail
+    /// goes red and nobody would have noticed until an operator tried it.
+    /// </summary>
+    [Fact]
+    public void LeftClickingAnEntityInsideTheSelection_StillNarrowsTheSelectionToIt()
+    {
+        var a = CreateSelectableEntity();
+        var b = CreateSelectableEntity();
+
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(new[] { a, b }, "test.setup"));
+        ServeRequests();
+
+        PublishStartedEvent(b);                     // ⭐ LEFT, the default
+        _system.Tick(0f);
+        ServeRequests();
+        // ⭐ B-17 P5 — the narrowing waits for the RELEASE (a drag on a member moves the whole selection); a click is press + release
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default });
+        _world.Bus.SwapBuffers();
+        _system.Tick(0f);
+        ServeRequests();
+
+        Assert.False(_world.GetComponent<SelectionState>(a).IsSelected);
+        Assert.True(_world.GetComponent<SelectionState>(b).IsSelected);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>A4 / R-4163 — right-click on EMPTY SPACE leaves the selection alone</b> (its menu is the empty-space menu only). 🔒 <i>"if there
+    /// are entities selected and I right click the empty space, the menu should be for the empty space only, not for the selection"</i>.
+    /// ⛔ SUPERSEDED: §2.3 row 3 "right-click on empty space clears". 🔴 Red-proof: the old <c>ClearAll</c> restored ⇒ red.
+    ///
+    /// <para>⛔ And it must NOT arm a rubber band — that is a left-drag gesture, and arming one on a
+    /// right-release leaves <c>_isBoxSelecting</c> set with no matching commit. The second half of this
+    /// rail pins that: a later commit must not then re-clear as a tiny drag.</para>
+    /// </summary>
+    [Fact]
+    public void A4_RightClickingEmptySpace_KeepsTheSelection_AndDoesNotArmARubberBand()
+    {
+        var a = CreateSelectableEntity();
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(a, "test.setup"));
+        ServeRequests();
+        Assert.True(_world.GetComponent<SelectionState>(a).IsSelected);   // ⛔ anti-vacuity
+
+        PublishRightStartedEvent(Entity.Null);
+        _system.Tick(0f);
+        ServeRequests();
+
+        Assert.True(_world.GetComponent<SelectionState>(a).IsSelected);   // ⭐ R-4163 — unchanged
+
+        // ⭐ No band was armed, so this commit is not a tiny-drag deselect and nothing further happens.
+        Entity? callbackEntity = null;
+        _system.OnSelectionChanged += (e, _) => callbackEntity = e;
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default });
+        _world.Bus.SwapBuffers();
+        _system.Tick(0f);
+        Assert.Null(callbackEntity);
+    }
+
+    /// <summary>
+    /// ⚠ <b>The modifier trap, pinned.</b> <c>MapMouseButton</c> is <c>[Flags]</c> and packs
+    /// Shift/Ctrl/Alt into bits 28-30, so a naive <c>Button == Right</c> is FALSE for a
+    /// shift-right-click. ⛔ That bug would appear only once someone held a modifier.
+    /// </summary>
+    [Fact]
+    public void AShiftRightClickInsideTheSelection_IsStillARightClick()
+    {
+        var a = CreateSelectableEntity();
+        var b = CreateSelectableEntity();
+
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(new[] { a, b }, "test.setup"));
+        ServeRequests();
+
+        PublishStartedEvent(b, default, MapMouseButton.Right | MapMouseButton.ShiftMask);
+        _system.Tick(0f);
+        ServeRequests();
+
+        Assert.True(_world.GetComponent<SelectionState>(a).IsSelected);
+        Assert.True(_world.GetComponent<SelectionState>(b).IsSelected);
+    }
+    /// <summary>⭐ A minimal modal gizmo for the <c>S-5</c> rails. ⚠ Local on purpose:
+    /// <c>ToolControllerTests.ProbeGizmo</c> is a private nested type and sharing it would mean widening
+    /// another suite's surface for this one's convenience.</summary>
+    private sealed class S5ProbeGizmo : Fdp.Toolkit.Diagnostics.Gizmos.IEntityStatefulGizmo
+    {
+        public bool RequiresExclusiveFocus => true;
+        public bool IsFocused { get; private set; }
+        public bool Disposed  { get; private set; }
+        public void SetFocus(bool f) { IsFocused = f; }
+        public void UpdateAndDraw(Fdp.ModuleHost.Abstractions.ISimulationView view, float dt,
+                                  Fdp.Toolkit.Diagnostics.Gizmos.IDebugDrawBuilder b) { }
+        public void OnInteractionStarted(GizmoPickToken t, Vector3 w) { }
+        public void OnDragUpdate(Vector3 pos) { }
+        public void OnCommit(Vector3 w) { }
+        public void OnMenuAction(int id) { }
+        public void OnMouseEvent(MapMouseButton b, bool p, Vector3 w) { }
+        public void OnKeyEvent(MapKeyboardKey k, bool p) { }
+        public void OnCancel() { }
+        public void Dispose() { Disposed = true; }
+    }
+
+    /// <summary>⭐ B-17 P6 — while a tool holds the keyboard (the shape / route editors), Delete is the TOOL'S (it deletes a point): the selected unit or route is NOT also destroyed.
+    /// 🔴 Red-proof (compiles): the <c>ToolOwnsKeys</c> check removed ⇒ the entity is destroyed ⇒ red.</summary>
+    [Fact]
+    public void B17P6_TheDeleteKey_DestroysNothing_WhileAToolHoldsTheKeyboard_AndDoesAgainWhenItLetsGo()
+    {
+        var entity = CreateSelectableEntity();
+        _world.SetComponent(entity, new SelectionState { IsSelected = true, IsPrimarySelection = true });
+        bool held = true;
+        _system.ToolOwnsKeys = () => held;
+
+        PublishKeyEvent(MapKeyboardKey.Delete, isPressed: false);
+        _system.Tick(0f);
+        _world.Bus.SwapBuffers();
+        Assert.Empty(_world.Bus.ReadManaged<DestroyEntityCommand>());
+        Assert.True(_world.IsAlive(entity));
+
+        held = false;
+        PublishKeyEvent(MapKeyboardKey.Delete, isPressed: false);
+        _system.Tick(0f);
+        _world.Bus.SwapBuffers();
+        Assert.Single(_world.Bus.ReadManaged<DestroyEntityCommand>());
+    }
+
+    /// <summary>⭐ DAR F7 — the Delete key edits no recording: while the world shows a review or a replay it destroys nothing.</summary>
+    [Fact]
+    public void DARF7_TheDeleteKey_DestroysNothing_WhileTheWorldShowsARecording()
+    {
+        var entity = CreateSelectableEntity();
+        _world.SetComponent(entity, new SelectionState { IsSelected = true, IsPrimarySelection = true });
+        Fdp.Toolkit.Replay.ReplayState.Enter(_world);
+
+        PublishKeyEvent(MapKeyboardKey.Delete, isPressed: false);
+        _system.Tick(0f);
+        _world.Bus.SwapBuffers();
+
+        Assert.Empty(_world.Bus.ReadManaged<DestroyEntityCommand>());
+    }
+
+    /// <summary>⭐ <c>CE-3328</c> (Replay Browser HTTP §7.4) — a host that SWITCHES the world it shows (the Replay Browser's node / merged
+    /// view) hands the gesture system a provider: a click resolves its pick in the shown world, and asks THAT world's request system.
+    /// ⛔ Built over the boot world, the click found no unit there and started a rubber band instead.</summary>
+    [Fact]
+    public void CE3328_AClick_ResolvesInTheWorldTheHostShows()
+    {
+        using var shown = new EntityRepository();
+        HrotSharedComponentRegistry.RegisterAll(shown);
+        shown.RegisterComponent<SelectionState>();
+        var unit = shown.CreateEntity();
+        shown.AddComponent(unit, default(SimTransform));
+        shown.AddComponent(unit, new NetworkIdentity { Value = 9001 });
+        shown.AddComponent(unit, new SelectionState());
+
+        EntityRepository current = _world;   // the boot world first, as on the Replay Browser before a recording opens
+        var mi = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext
+        {
+            World = _world, SelectionWorld = () => current,   // ⭐ the Replay Browser's wiring (ReplayBrowserSubsystem)
+        });
+        var interaction = mi.InteractionBus;
+        var system = mi.SelectionInteraction;
+        current = shown;                     // a recording opens: the host shows its world
+
+        interaction.Publish(new GizmoInteractionStartedEvent
+        {
+            Token  = new PickToken { AnchorId = Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(shown, unit) },
+            Button = MapMouseButton.Left,
+        });
+        interaction.SwapBuffers();
+        system.Tick(0f);
+        shown.Bus.SwapBuffers();
+
+        var request = Assert.Single(shown.Bus.ReadManaged<Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest>());
+        Assert.Equal(unit, Assert.Single(request.Entities));
+    }
+
+    // ── ⭐ B-17 P5 (DESIGN_Map_Interaction §2.5 "multi-select") — the modifier gestures, declared in the map scope's rows ──────────────────────────
+
+    private const MapMouseButton ShiftLeft = MapMouseButton.Left | MapMouseButton.ShiftMask;
+    private const MapMouseButton CtrlLeft  = MapMouseButton.Left | MapMouseButton.CtrlMask;
+    private const MapMouseButton AltLeft   = MapMouseButton.Left | MapMouseButton.AltMask;
+
+    private Entity UnitAt(float x, float y)
+    {
+        var e = CreateSelectableEntity();
+        _world.SetComponent(e, new SimTransform { Position = new Vector3(x, y, 0f) });
+        return e;
+    }
+
+    private void Select(params Entity[] es)
+    {
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(es, "test"));
+        ServeRequests();
+    }
+
+    private bool Sel(Entity e) => _world.GetComponent<SelectionState>(e).IsSelected;
+
+    private void Click(Entity e, MapMouseButton button, Vector3 at = default)
+    {
+        PublishStartedEvent(e, at, button);
+        _system.Tick(0f);
+        ServeRequests();
+    }
+
+    private void Release()
+    {
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default });
+        _world.Bus.SwapBuffers();
+        _system.Tick(0f);
+        ServeRequests();
+    }
+
+    private void Band(MapMouseButton button, Vector3 from, Vector3 to)
+    {
+        PublishStartedEvent(Entity.Null, from, button);
+        _system.Tick(0f);
+        _world.Bus.Publish(new GizmoDragUpdateEvent { Token = default, WorldPos = to });
+        _world.Bus.SwapBuffers();
+        _system.Tick(0f);
+        Release();
+    }
+
+    /// <summary>🔴 Red-proof (compiles): the SelectAdd row resolved as Select (replace) ⇒ A drops out ⇒ red.</summary>
+    [Fact]
+    public void B17P5_ShiftClick_AddsToTheSelection()
+    {
+        var a = UnitAt(0, 0); var b = UnitAt(50, 0);
+        Select(a);
+        Click(b, ShiftLeft);
+        Assert.True(Sel(a)); Assert.True(Sel(b));
+    }
+
+    [Fact]
+    public void B17P5_CtrlClick_TogglesAUnit_InWhenOut_OutWhenIn()
+    {
+        var a = UnitAt(0, 0); var b = UnitAt(50, 0);
+        Select(a);
+        Click(b, CtrlLeft);
+        Assert.True(Sel(a)); Assert.True(Sel(b));
+        Click(a, CtrlLeft);
+        Assert.False(Sel(a)); Assert.True(Sel(b));
+    }
+
+    [Fact]
+    public void B17P5_ShiftBand_AddsToTheSelection_APlainBandReplacesIt()
+    {
+        var a = UnitAt(500, 500); var b = UnitAt(5, 5); var c = UnitAt(8, 2);
+        Select(a);
+        Band(ShiftLeft, new Vector3(-10, -10, 0), new Vector3(20, 20, 0));
+        Assert.True(Sel(a)); Assert.True(Sel(b)); Assert.True(Sel(c));
+
+        Band(MapMouseButton.Left, new Vector3(-10, -10, 0), new Vector3(20, 20, 0));
+        Assert.False(Sel(a)); Assert.True(Sel(b)); Assert.True(Sel(c));
+    }
+
+    [Fact]
+    public void B17P5_AShiftDragThatGoesNowhere_ClearsNothing()
+    {
+        var a = UnitAt(0, 0);
+        Select(a);
+        Band(ShiftLeft, new Vector3(100, 100, 0), new Vector3(100.5f, 100.5f, 0));
+        Assert.True(Sel(a));
+    }
+
+    [Fact]
+    public void B17P5_AltClick_CyclesTheOverlappedUnits_OneMorePerClick_ThenWrapsRound()
+    {
+        var u1 = UnitAt(10, 10); var u2 = UnitAt(10.2f, 10f); var u3 = UnitAt(10f, 10.3f);
+        var far = UnitAt(900, 900);
+        var at = new Vector3(10, 10, 0);
+
+        var seen = new List<Entity>();
+        for (int i = 0; i < 4; i++)
+        {
+            Click(u1, AltLeft, at);   // the terminal's pick names the same (top) unit each time
+            foreach (var e in new[] { u1, u2, u3 }) if (Sel(e)) seen.Add(e);
+            Assert.False(Sel(far));
+        }
+        Assert.Equal(new[] { u1, u2, u3, u1 }, seen);   // index order, wrapping, exactly one selected each time
+    }
+
+    /// <summary>A plain click on a member of a multi-selection still narrows it — but at the RELEASE, so a drag can move them all; a drag leaves it whole.</summary>
+    [Fact]
+    public void B17P5_APlainPressOnAMember_NarrowsAtTheRelease_ADragKeepsTheSelectionWhole()
+    {
+        var a = UnitAt(0, 0); var b = UnitAt(50, 0); var c = UnitAt(100, 0);
+        Select(a, b, c);
+
+        Click(b, MapMouseButton.Left);
+        Assert.True(Sel(a) && Sel(b) && Sel(c));        // pressed, not released: nothing narrowed yet
+        Release();
+        Assert.False(Sel(a)); Assert.True(Sel(b)); Assert.False(Sel(c));
+
+        Select(a, b, c);
+        Click(b, MapMouseButton.Left);
+        _world.Bus.Publish(new GizmoDragUpdateEvent { Token = default, WorldPos = new Vector3(60, 0, 0) });
+        _world.Bus.SwapBuffers(); _system.Tick(0f);
+        Release();
+        Assert.True(Sel(a) && Sel(b) && Sel(c));        // dragged: the whole selection stays for the group move
     }
 }

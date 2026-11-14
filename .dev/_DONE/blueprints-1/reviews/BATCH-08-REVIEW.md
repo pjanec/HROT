@@ -2,7 +2,7 @@
 
 **Result: APPROVED**
 
-**Build:** 0 errors, 0 warnings (`dotnet build IOS-IG-SimHost.sln`)
+**Build:** 0 errors, 0 warnings (`dotnet build HROT.sln`)
 **Tests:** 160 pass, 3 skip, 0 fail (up from 143 pass, 4 skip)
 
 ---

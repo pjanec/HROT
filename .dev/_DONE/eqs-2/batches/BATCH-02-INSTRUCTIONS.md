@@ -47,7 +47,7 @@ the three BTree lifecycle nodes.
 
 ```powershell
 # Build full solution
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Run FDP unit tests (EQS subset)
 dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/ --filter "Eqs"
@@ -105,7 +105,7 @@ The full offline-editor round-trip is verified by an integration test after TASK
 **DO NOT** move to the next task until:
 - Current task implementation complete
 - Current task tests written and passing
-- `dotnet build IOS-IG-SimHost.sln` succeeds without new errors
+- `dotnet build HROT.sln` succeeds without new errors
 
 **DO NOT** stop mid-batch to ask for permission to run tests, fix errors, or build. Do it all.
 
@@ -343,7 +343,7 @@ moving to the next task. Do not stop to ask if you should run tests — just do 
 - [ ] Epoch increments ONLY on param change, not every tick
 - [ ] Deactivator removes both `EqsSensor` AND `EqsCognitiveBuffer`
 - [ ] All new tests pass; no pre-existing tests regressed
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds, 0 errors
+- [ ] `dotnet build HROT.sln` succeeds, 0 errors
 - [ ] Report submitted
 
 ---

@@ -293,4 +293,33 @@ public sealed class AssetPickerSourceTests
         Assert.Single(filtered);
         Assert.Equal("Alpha", filtered[0].Name);
     }
+
+    /// <summary>⭐ CE-4397 — a scenario at the top of <c>scenarios/</c> is in the folder "My scenarios" (single-kind picker); one in a sub-folder keeps its path; a top-level blueprint stays loose.
+    /// 🔴 Red-proof: drop the Scenario arm in <c>ToEntry</c> ⇒ null ⇒ red.</summary>
+    [Fact]
+    public void CE4397_ATopLevelScenario_IsInMyScenarios()
+    {
+        var root = "C:/proj/scenarios";
+        var top = new FakeEditableAsset { Name = "mine", Kind = AssetKind.Scenario, SourceFilePath = $"{root}/mine/scenario.json" };
+        var source = new AssetPickerSource(new FakeAssetCatalog { All = new IEditableAsset[] { top } }, AssetKindFilter.Scenario, kind => null);   // scenarios: the name is the relative path (non-file asset)
+        Assert.Equal(AssetPickerSource.MyScenarios, source.ToEntry(top).Category);
+    }
+
+    /// <summary>⭐ CE-4398 — the docked / modal browser's filter lists the hits flat with their folder (a collapsed folder hid them).
+    /// 🔴 Red-proof: <c>FilterHits</c> returning only root-level leaves ⇒ the nested hit is missing ⇒ red.</summary>
+    [Fact]
+    public void CE4398_TheBrowserFilter_FindsANestedHit_WithItsFolder()
+    {
+        var baseFolder = AssetRoots.AssetsFor(AssetKind.Blueprint);
+        var nested = new FakeEditableAsset { Name = "Deep", Kind = AssetKind.Blueprint, SourceFilePath = System.IO.Path.Combine(baseFolder, "combat", "inner", "Deep.bp.json") };
+        var top = new FakeEditableAsset { Name = "Patrol", Kind = AssetKind.Blueprint, SourceFilePath = System.IO.Path.Combine(baseFolder, "Patrol.bp.json") };
+        var panel = new AssetBrowserPanel(new FakeAssetCatalog { All = new IEditableAsset[] { nested, top } }, new NoIcons(),
+            new AssetBrowserPanelOptions { Kinds = AssetKindFilter.Blueprint, ShowAllTab = false, InitialKind = AssetKind.Blueprint }, null);
+        panel.Filter = "dee";
+        var hit = Assert.Single(panel.FilterHits(AssetKind.Blueprint));
+        Assert.Equal("Deep", hit.Asset.Name);
+        Assert.Equal("combat/inner", hit.Folder);
+    }
+
+    private sealed class NoIcons : NodeEditor.Core.Interfaces.IIconProvider { public bool TryGet(string key, out NodeEditor.Core.Interfaces.IconHandle handle) { handle = default; return false; } }
 }

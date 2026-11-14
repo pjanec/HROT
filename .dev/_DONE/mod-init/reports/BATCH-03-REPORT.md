@@ -21,7 +21,7 @@
 
 ## 🧪 2. Validation Outputs
 
-### `dotnet build IOS-IG-SimHost.sln` (last 5 lines)
+### `dotnet build HROT.sln` (last 5 lines)
 
 ```
     15 Warning(s)

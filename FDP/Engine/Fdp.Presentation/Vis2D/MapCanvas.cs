@@ -103,44 +103,118 @@ namespace Fdp.Toolkit.Vis2D
             Camera.Update(dt);
 
             // Handle Input Routing
-            ProcessInputPipeline();
+            using (Fdp.Core.AccessTrace.Scope("map-input: pipeline (hover, drag, press, release, keys across the layers)", Fdp.Core.TraceContext.Presentation))   // ⭐ A-1
+                ProcessInputPipeline();
 
             // Update Layers
             foreach (var layer in _layers)
             {
+                using var traceUpdate = Fdp.Core.AccessTrace.On ? Fdp.Core.AccessTrace.Scope("layer.Update: " + layer.Name, Fdp.Core.TraceContext.Presentation) : default;   // ⭐ A-1
                 layer.Update(dt);
             }
         }
 
+        /// <summary>⭐ CE-1033 S1 — in 3-D, the visible layers that have no 3-D path (drawn as a dead edge in the design's module
+        /// diagram; reported so their absence is visible). Updated each 3-D frame.</summary>
+        public int LayersWithout3D { get; private set; }
+
         public void Draw()
         {
-            Camera.BeginMode();
+            // ⭐ CE-1033 S5b (2-D: entity cards) / S3 (M13, 3-D: labels) — the screen-space pass over the finished map
+            var ctx = Camera.Is3D ? DrawLayers3D(sceneOnly: false) : DrawLayers2D(sceneOnly: false);
+            DrawOverlays(ctx, sceneOnly: false);
+        }
 
-            var ctx = new RenderContext
-            {
-                Zoom              = Camera.Zoom,
-                MouseWorldPos     = Camera.ScreenToWorld(GetMousePosition()),
-                DeltaTime         = GetFrameTime(),
-                VisibleLayersMask = ActiveLayerMask,
-                Resources         = this,
-                DrawBuilder       = DrawBuffer
-            };
+        /// <summary>
+        /// ⭐ <c>CE-3289</c> (docs/DESIGN_Map_3D_Mode.md §6ab) — the WORLD alone, as a film frame shows it: the visible
+        /// <see cref="ISceneLayer"/>s through the SAME layer passes <see cref="Draw"/> runs (no tool, cursor, HUD or panel). Into whatever
+        /// target is bound (a render texture).
+        /// <para>⭐ <c>CE-1379</c> / <c>CE-1380</c> (docs/DESIGN_Director_Timeline_Editor.md §11t "as built") — in BOTH modes (⛔ was: 3-D only, so a
+        /// 2-D film frame took the whole screen pass, cursor readout and HUD included), with the scene layers' screen-space pass (the cards and
+        /// labels the film's layer set turns on), and <see cref="RenderContext.Film"/> set so the gizmo layer draws its film layers only.</para>
+        /// </summary>
+        /// <param name="targetSize">⭐ <c>CE-1383</c> — the size of the render target being drawn into (the film's capture size); it becomes
+        /// <see cref="RenderContext.ViewSize"/>, so the layers that cull cull to the target, not the window. Null: the window's.</param>
+        public void DrawScene(Vector2? targetSize = null)
+        {
+            var ctx = Camera.Is3D ? DrawLayers3D(sceneOnly: true, targetSize) : DrawLayers2D(sceneOnly: true, targetSize);
+            DrawOverlays(ctx, sceneOnly: true);
+        }
 
-            // Draw Layers (0 -> N) - Bottom to Top
+        /// <summary>The screen-space pass both <see cref="Draw"/> and <see cref="DrawScene"/> run (in 3-D only the layers with a 3-D path).</summary>
+        private void DrawOverlays(RenderContext ctx, bool sceneOnly)
+        {
             foreach (var layer in _layers)
             {
-                // Verify visibility
-                if (IsLayerVisible(layer))
-                {
-                    layer.Draw(ctx);
-                }
+                if (!IsLayerVisible(layer) || (sceneOnly && layer is not ISceneLayer)) continue;
+                if (Camera.Is3D && !layer.Has3D) continue;
+                using var traceOverlay = Fdp.Core.AccessTrace.On ? Fdp.Core.AccessTrace.Scope("layer.Overlay: " + layer.Name, Fdp.Core.TraceContext.Presentation) : default;   // ⭐ A-1
+                long t = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4387 — HROT_FRAME_STATS: each map layer's time + garbage (no-op when off)
+                layer.DrawOverlay(ctx);
+                Fdp.Presentation.WindowManager.WindowTimings.Record(layer.Name, t);
             }
-
-            Camera.EndMode();
         }
+
+        private RenderContext NewContext(bool film, Vector2? targetSize = null) => new()
+        {
+            ViewSize          = targetSize ?? (Raylib.IsWindowReady() ? new Vector2(Raylib.GetScreenWidth(), Raylib.GetScreenHeight()) : Vector2.Zero),   // ⭐ CE-1383
+            Zoom              = Camera.Zoom,
+            MouseWorldPos     = Camera.ScreenToWorld(GetMousePosition()),
+            DeltaTime         = GetFrameTime(),
+            VisibleLayersMask = ActiveLayerMask,
+            Resources         = this,
+            DrawBuilder       = DrawBuffer,
+            Film              = film,
+        };
+
+        /// <summary>The 2-D layer pass (0 → N, bottom to top) both <see cref="Draw"/> and <see cref="DrawScene"/> run (one loop).</summary>
+        private RenderContext DrawLayers2D(bool sceneOnly, Vector2? targetSize = null)
+        {
+            Camera.BeginMode();
+            var ctx = NewContext(sceneOnly, targetSize);
+            foreach (var layer in _layers)
+                if (IsLayerVisible(layer) && (!sceneOnly || layer is ISceneLayer))
+                {
+                    using var traceDraw = Fdp.Core.AccessTrace.On ? Fdp.Core.AccessTrace.Scope("layer.Draw2D: " + layer.Name, Fdp.Core.TraceContext.Presentation) : default;   // ⭐ A-1
+                    long t = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4387 — per map layer, under HROT_FRAME_STATS
+                    layer.Draw(ctx);
+                    Fdp.Presentation.WindowManager.WindowTimings.Record(layer.Name, t);
+                }
+            Camera.EndMode();
+            return ctx;
+        }
+
+        /// <summary>The 3-D layer pass both <see cref="Draw"/> and <see cref="DrawScene"/> run (one loop).</summary>
+        private RenderContext DrawLayers3D(bool sceneOnly, Vector2? targetSize = null)
+        {
+            Camera.BeginMode();
+            var ctx = NewContext(sceneOnly, targetSize);
+            int without = 0;
+            foreach (var layer in _layers)
+            {
+                if (!IsLayerVisible(layer)) continue;
+                if (sceneOnly && layer is not ISceneLayer) continue;
+                if (layer.Has3D)
+                {
+                    using var traceDraw3 = Fdp.Core.AccessTrace.On ? Fdp.Core.AccessTrace.Scope("layer.Draw3D: " + layer.Name, Fdp.Core.TraceContext.Presentation) : default;   // ⭐ A-1
+                    long t = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4387 — per map layer, under HROT_FRAME_STATS
+                    layer.Draw3D(ctx);
+                    Fdp.Presentation.WindowManager.WindowTimings.Record(layer.Name, t);
+                }
+                else without++;
+            }
+            if (!sceneOnly) LayersWithout3D = without;
+            Camera.EndMode();
+            return ctx;
+        }
+
+        /// <summary>⭐ EXPERIMENT (threaded kernel X-4) — when set, a layer it refuses is not drawn this frame (a frame without the world lock
+        /// draws only the layers that read no world).</summary>
+        public Func<IMapLayer, bool>? DrawFilter { get; set; }
 
         private bool IsLayerVisible(IMapLayer layer)
         {
+            if (DrawFilter != null && !DrawFilter(layer)) return false;
             if (layer.LayerBitIndex < 0) return true; // Always visible
             if (layer.LayerBitIndex >= 32) return false; // Out of range
 
@@ -152,31 +226,10 @@ namespace Fdp.Toolkit.Vis2D
         {
             KeyboardConsumedByTool = false;
 
-            if (_input.IsMouseCaptured) return;
-
-            Vector2 mouseScreen = _input.MousePosition;
-            Vector2 mouseWorld = Camera.ScreenToWorld(mouseScreen);
-            
-            bool leftPressed = _input.IsMouseButtonPressed(MapMouseButton.Left);
-            bool rightPressed = _input.IsMouseButtonPressed(MapMouseButton.Right);
-            bool leftDown = _input.IsMouseButtonDown(MapMouseButton.Left);
-            bool rightDown = _input.IsMouseButtonDown(MapMouseButton.Right);
-            bool leftReleased = _input.IsMouseButtonReleased(MapMouseButton.Left);
-            bool rightReleased = _input.IsMouseButtonReleased(MapMouseButton.Right);
-
-            Vector2 delta = _input.MouseDelta;
-            Vector2 deltaWorld = delta * (1.0f / Camera.Zoom);
-
-            bool consumed = false;
-
-            // Track right-button drags so that pan-then-release does not fire a click.
-            if (rightDown && delta.LengthSquared() > RightDragThresholdSq)
-                _rightButtonDragged = true;
-
-            // Save right-drag state before reset so 3.5 can check it correctly.
-            bool wasRightDragged = _rightButtonDragged;
-
             // 0. Keyboard routing to layers (highest index = top priority).
+            // ⭐ B-10 K1 (docs/UX/DESIGN_Input_And_Commands.md §5, CE-4282) — the KEYBOARD follows focus, not the mouse: it runs before the
+            //    mouse gate below, and only while the map has the keyboard (IsKeyboardCaptured is false — RaylibInputProvider asks
+            //    KeyboardFocus.MapHasKeyboard). ⛔ SUPERSEDED: keys read only while the mouse was over the map, whichever panel was focused.
             if (!_input.IsKeyboardCaptured)
             {
                 int rawKey;
@@ -193,6 +246,33 @@ namespace Fdp.Toolkit.Vis2D
                 }
             }
 
+            if (_input.IsMouseCaptured) return;
+
+            Vector2 mouseScreen = _input.MousePosition;
+            bool leftPressed = _input.IsMouseButtonPressed(MapMouseButton.Left);
+            bool rightPressed = _input.IsMouseButtonPressed(MapMouseButton.Right);
+            bool leftDown = _input.IsMouseButtonDown(MapMouseButton.Left);
+            bool rightDown = _input.IsMouseButtonDown(MapMouseButton.Right);
+            bool leftReleased = _input.IsMouseButtonReleased(MapMouseButton.Left);
+            bool rightReleased = _input.IsMouseButtonReleased(MapMouseButton.Right);
+            // ⭐ CE-4558 (docs/DESIGN_Map_3D_Mode.md §6ak D-6) — the 3-D pick is cached while the mouse and the camera are still; a press or a release picks afresh,
+            //   so a click selects what is under the cursor NOW, not what was there when the mouse stopped
+            if ((leftPressed || rightPressed || leftReleased || rightReleased) && Camera is Fdp.Toolkit.Vis3D.MapCamera3D camera3D) camera3D.InvalidatePicks();
+            Vector2 mouseWorld = Camera.ScreenToWorld(mouseScreen);
+
+            Vector2 delta = _input.MouseDelta;
+            Vector2 deltaWorld = Camera.ScreenDeltaToWorld(delta);   // ⭐ CE-1033 S1 — the camera knows its own scale (2-D: /Zoom)
+
+            bool consumed = false;
+            Vector2? dragWorld = null;
+
+            // Track right-button drags so that pan-then-release does not fire a click.
+            if (rightDown && delta.LengthSquared() > RightDragThresholdSq)
+                _rightButtonDragged = true;
+
+            // Save right-drag state before reset so 3.5 can check it correctly.
+            bool wasRightDragged = _rightButtonDragged;
+
             // 1. Hover and drag to layers (informational; no consume semantics for hover).
             for (int i = _layers.Count - 1; i >= 0; i--)
             {
@@ -201,7 +281,9 @@ namespace Fdp.Toolkit.Vis2D
                 layer.HandleHover(mouseWorld);
                 if ((leftDown || rightDown) && delta.LengthSquared() > 0f)
                 {
-                    if (layer.HandleDrag(mouseWorld, deltaWorld))
+                    // ⭐ CE-1033 S2 (P2) — a drag follows the terrain under the cursor, never an entity (2-D: the same point).
+                    dragWorld ??= Camera.ScreenToWorldForDrag(mouseScreen);
+                    if (layer.HandleDrag(dragWorld.Value, deltaWorld))
                         consumed = true;
                 }
             }

@@ -15,7 +15,7 @@ namespace Hrot.MuscleCharacter.Animation.Executors
     /// Validates montage exists in baked data, then stages play intent in AnimationExecutorState.
     /// Montage is applied to backend by AnimationRuntimeBridgeSystem.
     /// </summary>
-    public sealed class PlayMontageExecutor : IActionExecutor<AnimationChannel>
+    public sealed class PlayMontageExecutor : IActionExecutor<AnimationChannelWork>
     {
         private readonly IAnimationBackend _backend;
         private readonly BakedAnimationCache _cache;
@@ -26,10 +26,10 @@ namespace Hrot.MuscleCharacter.Animation.Executors
             _cache = cache;
         }
 
-        public unsafe void OnEnter(Entity entity, ref AnimationChannel channel, EntityRepository world)
+        public unsafe void OnEnter(Entity entity, ref AnimationChannelWork channel, EntityRepository world)
         {
             PlayMontageParams p;
-            fixed (byte* src = channel.Params)
+            fixed (byte* src = channel.Request.Params)
                 p = *(PlayMontageParams*)src;
 
             // DEBT D-21: A zero MontageId at this point is almost always a bug
@@ -44,7 +44,7 @@ namespace Hrot.MuscleCharacter.Animation.Executors
                 "Likely cause: Params blob not written, or written without WriteParams<PlayMontageParams>(...).");
             if (p.MontageId == 0)
             {
-                channel.Status = NodeStatus.Failure;
+                channel.Report.Status = NodeStatus.Failure;
                 return;
             }
 
@@ -56,7 +56,7 @@ namespace Hrot.MuscleCharacter.Animation.Executors
                 {
                     if (!bakedData.MontageDict.ContainsKey(p.MontageId))
                     {
-                        channel.Status = NodeStatus.Failure;
+                        channel.Report.Status = NodeStatus.Failure;
                         return;
                     }
                 }
@@ -71,15 +71,15 @@ namespace Hrot.MuscleCharacter.Animation.Executors
                 execState.LastActiveMontageId = p.MontageId;
             }
 
-            channel.Status = NodeStatus.Running;
+            channel.Report.Status = NodeStatus.Running;
         }
 
-        public void Execute(Entity entity, ref AnimationChannel channel, EntityRepository world, float dt)
+        public void Execute(Entity entity, ref AnimationChannelWork channel, EntityRepository world, float dt)
         {
             // Nothing to drive per-tick; bridge system handles backend state
         }
 
-        public unsafe void OnExit(Entity entity, ref AnimationChannel channel, EntityRepository world)
+        public unsafe void OnExit(Entity entity, ref AnimationChannelWork channel, EntityRepository world)
         {
             // Stage a stop command in the executor state so bridge can clean up
             if (world.HasComponent<AnimationExecutorState>(entity))
@@ -121,7 +121,7 @@ namespace Hrot.MuscleCharacter.Animation.Executors
     /// Executor for AnimationActionIds.StopMontage (ANC-P3-01, DD-1 §6).
     /// Stages a stop intent for bridge to apply.
     /// </summary>
-    public sealed class StopMontageExecutor : IActionExecutor<AnimationChannel>
+    public sealed class StopMontageExecutor : IActionExecutor<AnimationChannelWork>
     {
         private readonly IAnimationBackend _backend;
 
@@ -130,10 +130,10 @@ namespace Hrot.MuscleCharacter.Animation.Executors
             _backend = backend;
         }
 
-        public unsafe void OnEnter(Entity entity, ref AnimationChannel channel, EntityRepository world)
+        public unsafe void OnEnter(Entity entity, ref AnimationChannelWork channel, EntityRepository world)
         {
             StopMontageParams p;
-            fixed (byte* src = channel.Params)
+            fixed (byte* src = channel.Request.Params)
                 p = *(StopMontageParams*)src;
 
             int interruptedMontageId = 0;
@@ -152,17 +152,17 @@ namespace Hrot.MuscleCharacter.Animation.Executors
                 world.Bus.Publish(new MontageEndedEvent(
                     target: entity,
                     montageId: interruptedMontageId,
-                    actionInstanceId: channel.ActionInstanceId,
+                    actionInstanceId: channel.Request.ActionInstanceId,
                     queueIndex: 0xFF,
                     endReason: MontageEndReason.Interrupted));
             }
 
-            channel.Status = NodeStatus.Success;
+            channel.Report.Status = NodeStatus.Success;
         }
 
-        public void Execute(Entity entity, ref AnimationChannel channel, EntityRepository world, float dt) { }
+        public void Execute(Entity entity, ref AnimationChannelWork channel, EntityRepository world, float dt) { }
 
-        public void OnExit(Entity entity, ref AnimationChannel channel, EntityRepository world) { }
+        public void OnExit(Entity entity, ref AnimationChannelWork channel, EntityRepository world) { }
 
         private static unsafe void StageStop(ref AnimationExecutorState state, in StopMontageParams p)
         {
@@ -181,7 +181,7 @@ namespace Hrot.MuscleCharacter.Animation.Executors
     /// resets AnimationMontageQueueState to start playback from index 0.
     /// Actual backend play is deferred to AnimationRuntimeBridgeSystem.
     /// </summary>
-    public sealed class PlayMontageQueueExecutor : IActionExecutor<AnimationChannel>
+    public sealed class PlayMontageQueueExecutor : IActionExecutor<AnimationChannelWork>
     {
         private readonly IAnimationBackend _backend;
         private readonly BakedAnimationCache _cache;
@@ -192,12 +192,12 @@ namespace Hrot.MuscleCharacter.Animation.Executors
             _cache = cache;
         }
 
-        public void OnEnter(Entity entity, ref AnimationChannel channel, EntityRepository world)
+        public void OnEnter(Entity entity, ref AnimationChannelWork channel, EntityRepository world)
         {
             // Queue entries must have been written to AnimationMontageQueue by the Brain before issuing this command
             if (!world.HasComponent<AnimationMontageQueue>(entity))
             {
-                channel.Status = NodeStatus.Failure;
+                channel.Report.Status = NodeStatus.Failure;
                 return;
             }
 
@@ -206,14 +206,14 @@ namespace Hrot.MuscleCharacter.Animation.Executors
             // Empty queue is a malformed command (DD-1 §6.3 step 3)
             if (queue.Count == 0)
             {
-                channel.Status = NodeStatus.Failure;
+                channel.Report.Status = NodeStatus.Failure;
                 return;
             }
 
             // ANIM012: chain length must not exceed 8
             if (queue.Count > 8)
             {
-                channel.Status = NodeStatus.Failure;
+                channel.Report.Status = NodeStatus.Failure;
                 return;
             }
 
@@ -234,7 +234,7 @@ namespace Hrot.MuscleCharacter.Animation.Executors
                             {
                                 if (!bakedData.MontageDict.ContainsKey(entries[i].MontageId))
                                 {
-                                    channel.Status = NodeStatus.Failure;
+                                    channel.Report.Status = NodeStatus.Failure;
                                     return;
                                 }
                             }
@@ -279,12 +279,12 @@ namespace Hrot.MuscleCharacter.Animation.Executors
                 }
             }
 
-            channel.Status = NodeStatus.Running;
+            channel.Report.Status = NodeStatus.Running;
         }
 
-        public void Execute(Entity entity, ref AnimationChannel channel, EntityRepository world, float dt) { }
+        public void Execute(Entity entity, ref AnimationChannelWork channel, EntityRepository world, float dt) { }
 
-        public void OnExit(Entity entity, ref AnimationChannel channel, EntityRepository world) { }
+        public void OnExit(Entity entity, ref AnimationChannelWork channel, EntityRepository world) { }
 
         private static unsafe void StageFirstQueueEntry(ref AnimationExecutorState state, in MontageQueueEntry entry)
         {
@@ -306,7 +306,7 @@ namespace Hrot.MuscleCharacter.Animation.Executors
     /// Appends a single montage entry to the currently-running AnimationMontageQueue.
     /// Silent no-op if queue is at capacity (Count == 8); Status=Running in that case.
     /// </summary>
-    public sealed class EnqueueExecutor : IActionExecutor<AnimationChannel>
+    public sealed class EnqueueExecutor : IActionExecutor<AnimationChannelWork>
     {
         private readonly BakedAnimationCache _cache;
 
@@ -315,10 +315,10 @@ namespace Hrot.MuscleCharacter.Animation.Executors
             _cache = cache;
         }
 
-        public unsafe void OnEnter(Entity entity, ref AnimationChannel channel, EntityRepository world)
+        public unsafe void OnEnter(Entity entity, ref AnimationChannelWork channel, EntityRepository world)
         {
             EnqueueParams p;
-            fixed (byte* src = channel.Params)
+            fixed (byte* src = channel.Request.Params)
                 p = *(EnqueueParams*)src;
 
             // Validate montage ID against baked data
@@ -329,7 +329,7 @@ namespace Hrot.MuscleCharacter.Animation.Executors
                 {
                     if (!bakedData.MontageDict.ContainsKey(p.MontageId))
                     {
-                        channel.Status = NodeStatus.Failure;
+                        channel.Report.Status = NodeStatus.Failure;
                         return;
                     }
                 }
@@ -337,7 +337,7 @@ namespace Hrot.MuscleCharacter.Animation.Executors
 
             if (!world.HasComponent<AnimationMontageQueue>(entity))
             {
-                channel.Status = NodeStatus.Failure;
+                channel.Report.Status = NodeStatus.Failure;
                 return;
             }
 
@@ -346,7 +346,7 @@ namespace Hrot.MuscleCharacter.Animation.Executors
             // At capacity: silent no-op per spec, Status=Running (command accepted, not acted upon)
             if (queue.Count >= 8)
             {
-                channel.Status = NodeStatus.Running;
+                channel.Report.Status = NodeStatus.Running;
                 return;
             }
 
@@ -373,12 +373,12 @@ namespace Hrot.MuscleCharacter.Animation.Executors
             // Bump QueueVersion to signal bridge/advance system of the mutation
             queue.QueueVersion++;
 
-            channel.Status = NodeStatus.Success;
+            channel.Report.Status = NodeStatus.Success;
         }
 
-        public void Execute(Entity entity, ref AnimationChannel channel, EntityRepository world, float dt) { }
+        public void Execute(Entity entity, ref AnimationChannelWork channel, EntityRepository world, float dt) { }
 
-        public void OnExit(Entity entity, ref AnimationChannel channel, EntityRepository world) { }
+        public void OnExit(Entity entity, ref AnimationChannelWork channel, EntityRepository world) { }
     }
 
     /// <summary>
@@ -387,13 +387,13 @@ namespace Hrot.MuscleCharacter.Animation.Executors
     /// Note: Brain-side direct mutation is the preferred approach per DD-1 §6.4.
     /// This executor provides a channel-command equivalent for Muscle-side truncation.
     /// </summary>
-    public sealed class ClearQueueExecutor : IActionExecutor<AnimationChannel>
+    public sealed class ClearQueueExecutor : IActionExecutor<AnimationChannelWork>
     {
-        public void OnEnter(Entity entity, ref AnimationChannel channel, EntityRepository world)
+        public void OnEnter(Entity entity, ref AnimationChannelWork channel, EntityRepository world)
         {
             if (!world.HasComponent<AnimationMontageQueue>(entity))
             {
-                channel.Status = NodeStatus.Success;
+                channel.Report.Status = NodeStatus.Success;
                 return;
             }
 
@@ -409,12 +409,12 @@ namespace Hrot.MuscleCharacter.Animation.Executors
                 queueState.ObservedQueueVersion = queue.QueueVersion;
             }
 
-            channel.Status = NodeStatus.Success;
+            channel.Report.Status = NodeStatus.Success;
         }
 
-        public void Execute(Entity entity, ref AnimationChannel channel, EntityRepository world, float dt) { }
+        public void Execute(Entity entity, ref AnimationChannelWork channel, EntityRepository world, float dt) { }
 
-        public void OnExit(Entity entity, ref AnimationChannel channel, EntityRepository world) { }
+        public void OnExit(Entity entity, ref AnimationChannelWork channel, EntityRepository world) { }
     }
 
     /// <summary>

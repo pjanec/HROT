@@ -1,5 +1,7 @@
 # Hrot.Blueprints.Tests
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135); Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../../../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > Manually maintained; last verified 2026-07-21 against the implemented code.
 
 - **Project file**: `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tests.csproj`
@@ -91,10 +93,12 @@ Registered test component/event types are defined in `MockTestTypes.cs`:
 
 #### `MockEntityCommandBuffer`
 
-Implements `IEntityCommandBuffer` by immediately applying structural ECS mutations
-(create entity, add/remove components, set component data) to the backing
-`EntityRepository`. Deferred semantics are not simulated; all writes take effect on
-the next component read within the same test.
+Implements `IEntityCommandBuffer` with the SAME deferred semantics as `Fdp.Core.EntityCommandBuffer`
+(`CE-494`, `2026-10-01`): every op is recorded and applied at `Playback(repo)` — in `BlueprintTestFixture`,
+the Sync phase of `TickFrame`. `CreateEntity()` returns a negative-index **placeholder** that becomes a real
+entity only at playback; `LastPlayback.Resolve(handle)` maps it for assertions. ⚠ It used to create eagerly
+(and the text here said writes applied immediately — wrong even then), which let a blueprint use a fresh
+spawn handle in the same frame and hid `CE-479`.
 
 #### `MockDispatcherSystem`
 

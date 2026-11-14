@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Lifecycle;
@@ -22,18 +21,120 @@ namespace Fdp.Toolkit.Replication.Systems
     /// <para>Checks are O(1) bitmask operations against the entity's
     /// <see cref="EntityHeader.ComponentMask"/> — no network concepts involved.</para>
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐⭐ <b><c>P2</c> (<c>2026-09-11</c>) — THE TWO ATTRIBUTES BELOW EXIST BECAUSE THE REGISTRAR MOVED.</b>
+    /// 📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.7 · §6 step <c>0a</c>. Registration left
+    /// <c>NedReplicationModule.RegisterSystems</c> — <b>one</b> network implementation — for
+    /// <c>EntityCreationPack</c>, which every ECS host builds. ⭐ Ghost CREATION is a network concern and
+    /// stays in the replication module; ghost PROMOTION consumes the TKB and the translator list and is a
+    /// SIMULATION concern. ⇒ the BDC gap closed as a side effect: the BDC replication module (removed since, R-4095) created
+    /// ghosts and registered no promotion, so its ghosts were never promoted.
+    ///
+    /// <para>⭐⭐ <see cref="UpdateAfterAttribute"/> — <b>the ordering was true BY REGISTRATION ORDER and is
+    /// now true BY CONSTRUCTION.</b> 📐 Measured: with no declared edge, <c>SystemScheduler</c> orders a
+    /// phase by insertion order *(Kahn's algorithm over nodes added in registration order,
+    /// <c>SystemScheduler.cs:233</c>/<c>:280</c>)*. ⛔ While both systems were registered by the SAME
+    /// module that was free; across two registrars it would depend on which the host wires first — and a
+    /// promotion running before creation costs a frame of latency silently. ⚠ The edge is PHASE-SCOPED
+    /// *(<c>SystemScheduler.cs:250</c> adds it only when the target is in the same phase)*, and both are
+    /// <see cref="SystemPhase.BeforeSync"/>; on a host with no replication module at all *(the editor's
+    /// <c>NullReplicationModule</c>, the integration harness)* there is no <c>GhostCreationSystem</c> to
+    /// order against and the edge is correctly skipped.</para>
+    ///
+    /// <para>⭐⭐ <see cref="SingleInstanceAttribute"/> — <b>this is what makes step <c>0a</c>'s gate
+    /// structural instead of a rail.</b> The gate is *"a node built from the pack registers promotion
+    /// exactly once"*; ⛔ the failure mode of a MOVE is landing the add without the remove, which would
+    /// promote twice per frame. 📌 <c>CE-165</c> put this attribute in the scheduler for exactly that
+    /// class of defect, and it recurses into groups, so a second registration now throws at
+    /// <c>BeginRun()</c> rather than being measured later.</para>
+    ///
+    /// <para>⚠⚠ <b>WHAT THE MOVE DELIBERATELY DID NOT CHANGE — the replay gate.</b> 📐 Measured
+    /// <c>2026-09-11</c>: <c>NetworkLifecycleSystemGroup</c>'s own summary claims it groups
+    /// <i>"LifecycleSystem, GhostPromotionSystem and NetworkGatewaySystem"</i> so that *"no … ghost
+    /// promotions occur during playback"*, but <b>no production site has ever put this system in it</b> —
+    /// every one passes <c>GhostCreationSystem</c> alone, and promotion was registered standalone at
+    /// <c>NedReplicationModule.cs:417</c>, i.e. OUTSIDE the gate. ⇒ the pack registers it standalone too,
+    /// preserving today's behaviour exactly. ⛔ Whether promotion SHOULD be gated during replay is a
+    /// separate question and is filed, not answered here — a relocation may not change behaviour.</para>
+    /// </remarks>
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [UpdateAfter(typeof(GhostCreationSystem))]
+    [SingleInstance]
+    [TickMode(TickPolicy.EveryFrame)]
     public class GhostPromotionSystem : IEcsModuleSystem
     {
         private readonly ITkbDatabase _tkbDatabase;
         private readonly EntityLifecycleModule _lifecycleModule;
-        private readonly IReadOnlyList<ITkbEntityTranslator> _translators;
+        private readonly IReadOnlyList<ITkbEntityTranslator>? _explicitTranslators;
+
+        /// <summary>
+        /// ⭐ The node's TKB→ECS projection list. An explicit list wins; otherwise the ONE list the
+        /// node's <see cref="EntityLifecycleModule"/> already holds is used — §6.3's
+        /// <i>"identical for all three systems within the same node"</i>, satisfied by SHARING the
+        /// instance rather than by a second argument nobody passes.
+        ///
+        /// <para>📌 <c>CE-155</c>. ⚠ <b>Corrected scope, <c>2026-09-01</c>:</b> an earlier version of this
+        /// comment said the list was <c>Array.Empty</c> on <i>every</i> node. 📐 It is empty on the
+        /// <b>FACTORY path</b> only — <c>NedNetworkFactory.CreateReplicationModule()</c> omits
+        /// <c>tkbEntityTranslators</c>, which is how <b>CGF</b> builds its module. Hosts on the
+        /// <b>BUILDER path</b> could pass one, via
+        /// <c>HrotNodeBuilderReplicationExtensions.Build()</c> forwarding <c>.WithTranslators(...)</c>.
+        /// ⚠⚠ <b>UPDATED <c>2026-09-03</c>: NO PRODUCTION HOST CALLS IT ANY MORE.</b> SimHost dropped it
+        /// at <c>CE-140</c> step 3 and IG — the last caller — at <c>CE-141</c>, under the ruling that
+        /// every ECS node uses the same TKB projection through the same shared code. ⇒ ⭐ <b>this
+        /// fallback is now THE path, not a factory-path convenience</b>, and it is what makes
+        /// <c>tkb-1/DESIGN.md</c> §6.3's <i>"identical for all three systems within the same node"</i>
+        /// true by SHARING the instance. Resolved lazily because composition roots call
+        /// <see cref="EntityLifecycleModule.SetTranslators"/> after the module is constructed.</para>
+        /// </summary>
+        private IReadOnlyList<ITkbEntityTranslator> Translators
+            => _explicitTranslators ?? _lifecycleModule.Translators;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-265</c> — derives each template's HARD promotion requirements from this host's own
+        /// facts.</b> 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §6.6a. ⭐ Per-SYSTEM, and this system is
+        /// <c>[SingleInstance]</c> per node, so the resolver's cache is per-node — which is what the answer
+        /// is scoped to. ⛔ A shared/static cache would be wrong: two worlds in one process (the editor's
+        /// in-process cluster, the integration harness) register different components.
+        /// </summary>
+        private readonly Services.MandatoryComponentResolver _mandatoryResolver = new();
+
+        /// <summary>
+        /// ⭐⭐ <b>A ghost that is still un-promoted after this many frames is a CONFIGURATION ERROR, and the
+        /// design says so in as many words</b> — <i>"it deserves a LOUD diagnostic, not a silent timeout"</i>
+        /// *(§6.6a, "WHY HARD CANNOT HANG ON THE HAPPY PATH")*. 🔴 Until now this system said NOTHING: a ghost
+        /// blocked forever was indistinguishable from one that had simply not arrived yet.
+        ///
+        /// <para>⛔ This is NOT a timeout — the ghost keeps waiting. The one and only effect is a message, once
+        /// per (TKB type, component) pair, so the operator learns WHICH component never came instead of
+        /// finding an entity that silently never appeared.</para>
+        /// </summary>
+        private const uint STALL_REPORT_FRAMES = 600;
+
+        private readonly HashSet<(long, int)> _reportedStalls = new();
+
+        private void ReportStallIfOverdue(long tkbType, int componentId, uint tick, uint firstSeenFrame)
+        {
+            if (tick - firstSeenFrame < STALL_REPORT_FRAMES) return;
+            if (!_reportedStalls.Add((tkbType, componentId))) return;
+
+            var name = ComponentTypeRegistry.GetType(componentId)?.Name ?? $"id {componentId}";
+            Console.Error.WriteLine(
+                $"[GhostPromotionSystem] STALLED: ghosts of TKB type {tkbType} have waited " +
+                $"{STALL_REPORT_FRAMES}+ frames for component '{name}' and cannot be promoted. " +
+                "The owning node is not publishing it — most likely it does not register the component, " +
+                "so its egress has nothing to send. This is a cluster configuration error, not a delay.");
+        }
 
         private readonly Queue<Entity> _promotionQueue = new();
         private readonly HashSet<Entity> _inQueue = new();
-        private readonly Stopwatch _stopwatch = new();
-        private static readonly long PROMOTION_BUDGET_TICKS =
-            (long)(0.002 * Stopwatch.Frequency);
+        private int _epoch;   // ⭐ CE-3294 — the world the state below describes (ghosts waiting to be promoted)
+        /// <summary>
+        /// ⭐ <c>CE-4044</c> — at most this many ghosts are promoted per frame, the rest wait for the next. ⛔ It was a 2 ms STOPWATCH
+        /// budget: how many promoted on a frame depended on the machine's load, so a node's world at a given step did too (the
+        /// determinism rail <c>NoSystemSchedulesOnTheWallClockTests</c>). A COUNT is the same on every machine.
+        /// </summary>
+        public const int PromotionsPerFrame = 256;
 
         private EntityRepository? _world;
         private EntityQuery? _readyGhostQuery;
@@ -45,11 +146,36 @@ namespace Fdp.Toolkit.Replication.Systems
         {
             _tkbDatabase = tkbDatabase ?? throw new ArgumentNullException(nameof(tkbDatabase));
             _lifecycleModule = lifecycleModule ?? throw new ArgumentNullException(nameof(lifecycleModule));
-            _translators = translators ?? System.Array.Empty<ITkbEntityTranslator>();
+            _explicitTranslators = translators;
         }
+
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The replay gate</b> — asked once per <see cref="Execute"/>; <c>true</c> makes this system
+        /// do nothing. 📄 <c>mgmt-1/DESIGN.md</c> §8.10: during replay <i>"the ELM pipeline is never
+        /// invoked"</i>, and §8.10 names this system among the three that must not run.
+        ///
+        /// <para>🔴 <b>Why it matters HERE specifically.</b> Lifecycle IS recorded — the entity index's cold
+        /// chunk carries <c>EntityMetadataCold.LifecycleState</c> — so an entity recorded while it was a
+        /// GHOST <b>comes back as a ghost</b>, matches this system's
+        /// <c>With&lt;TkbIdentity&gt;().WithLifecycle(Ghost)</c> query, and would be promoted: mutating
+        /// entities the LOG owns, and calling <c>BeginConstruction</c> on them. 📄 <c>CE-259ap</c>.</para>
+        ///
+        /// <para>⛔ Gated IN PLACE rather than relocated into <c>NetworkLifecycleSystemGroup</c> as §8.10
+        /// prescribes — that group's <c>ExecuteGroup</c> has exactly ONE caller, so it never ticks on the
+        /// editor (or on the since-removed BDC nodes), and this system is <c>[SingleInstance]</c> and already scheduler-
+        /// registered by <c>EntityCreationPack</c>. Authorised deviation; 📄 <c>DESIGN.md</c> §2.1m.</para>
+        ///
+        /// <para>⭐ CE-3329 P2 — read from the world (<see cref="Fdp.Toolkit.Replay.ReplayState"/>). ⛔ SUPERSEDED: an injected
+        /// <c>Func&lt;bool&gt;? IsReplayActive</c>, "never replaying" when a host did not wire it.</para>
+        /// </summary>
 
         public void Execute(ISimulationView view, float dt)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _promotionQueue.Clear(); _inQueue.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
+            // ⛔ The log owns the world during playback — a restored ghost is the log's, not ours to promote.
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;
+
             _world = view as EntityRepository;
             if (_world == null) return;
 
@@ -59,13 +185,13 @@ namespace Fdp.Toolkit.Replication.Systems
 
             if (_promotionQueue.Count == 0) return;
 
-            _stopwatch.Restart();
             var cmdBuffer = view.GetCommandBuffer();
             var tick = view.Tick;
 
+            int promoted = 0;
             while (_promotionQueue.Count > 0)
             {
-                if (_stopwatch.ElapsedTicks > PROMOTION_BUDGET_TICKS) break;
+                if (promoted == PromotionsPerFrame) break;
 
                 var entity = _promotionQueue.Dequeue();
                 _inQueue.Remove(entity);
@@ -74,8 +200,8 @@ namespace Fdp.Toolkit.Replication.Systems
                 if (!_world.HasComponent<TkbIdentity>(entity)) continue;
 
                 PromoteGhost(entity, cmdBuffer, tick);
+                promoted++;
             }
-            _stopwatch.Stop();
         }
 
         private void EnqueueReadyGhosts()
@@ -102,6 +228,29 @@ namespace Fdp.Toolkit.Replication.Systems
             // Evaluate mandatory components defined by the template.
             if (_tkbDatabase.TryGetByType(tkbIdentity.TkbType, out var template))
             {
+                // ⭐⭐⭐ CE-265 — the DERIVED half of the gate. 📄 docs/designs/tkb-1/DESIGN.md §6.6a/§6.6b.
+                //   [PerInstanceValue] ∩ produced(this template's translators) ∩ ingressible ∩ registered,
+                //   all HARD and with no timeout (user ruling: "i do not want to wait 10 frames by design").
+                //   ⛔ This replaces hand-authored AddMandatoryComponent calls that had already DRIFTED:
+                //   NedTkbBuilder declared {EntityInfo, SimTransform} while UrbanCombat's five
+                //   identically-shaped templates declared none, and the file-loading path could author
+                //   nothing at all.
+                var derived = _mandatoryResolver.Resolve(
+                    template,
+                    _world!,
+                    Translators,
+                    Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider.GetDescriptorMap(_world!));
+
+                for (int i = 0; i < derived.Count; i++)
+                {
+                    if (compGP.IsSet(derived[i])) continue;
+
+                    ReportStallIfOverdue(tkbIdentity.TkbType, derived[i], tick, tracker.FirstSeenFrame);
+                    return; // Abort — a derived requirement is always hard.
+                }
+
+                // ⭐ …and the EXPLICIT half, kept as the authoring escape hatch for components NO translator
+                //   produces (managed state, a host-specific network gate). 📄 TkbTemplate.MandatoryComponents.
                 foreach (var req in template.MandatoryComponents)
                 {
                     bool hasComponent = compGP.IsSet(req.ComponentTypeId);
@@ -109,7 +258,11 @@ namespace Fdp.Toolkit.Replication.Systems
                     if (!hasComponent)
                     {
                         if (req.IsHard)
+                        {
+                            ReportStallIfOverdue(tkbIdentity.TkbType, req.ComponentTypeId, tick,
+                                                 tracker.FirstSeenFrame);
                             return; // Abort — hard requirement not yet satisfied.
+                        }
 
                         // Soft requirement: wait until timeout expires.
                         if (tick - tracker.FirstSeenFrame <= req.SoftTimeoutFrames)
@@ -119,8 +272,14 @@ namespace Fdp.Toolkit.Replication.Systems
                 }
 
                 // All requirements satisfied: apply blueprint defaults.
-                foreach (var t in _translators)
+                foreach (var t in Translators)
                     t.Inject(_world!, entity, template);
+
+                // ⭐⭐⭐ S4 — a PROMOTING node claims NOTHING (push-only, R-164; Q79 §0.7 ③). Its claim comes only from a
+                //   grant or a transfer, which write the record with it. The role-affinity promote leg that stood here
+                //   (P3 step 3) is RETIRED: several nodes may hold one role (R-162), so each would claim the same
+                //   components — measured after S3 on CGF: a SimHost-created tank's ghost claimed the master, info,
+                //   kinematics and perception components it did not own. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S4.
             }
 
             // Promote: Ghost → Constructing.

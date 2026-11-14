@@ -18,13 +18,23 @@
 
   <ItemGroup>
     <Using Include="Xunit" />  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\..\FDP\TestShared\FlakyFactAttribute.cs" Link="Shared\FlakyFactAttribute.cs" />
+    <Compile Include="..\..\TestShared\TestEntityCreation.cs" Link="Shared\TestEntityCreation.cs" />   <!-- CE-259ax: a real EntityCreation over a world, for rails on an AUTHOR -->
+    <Compile Include="..\..\..\FDP\TestShared\TestRepo.cs" Link="Shared\TestRepo.cs" />   <!-- CE-3343: the ONE test-side repository-root walk-up (built on ContentLayout.TryFindSourceTree) -->
+  </ItemGroup>
 
   <ItemGroup>    <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />    <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
     <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />
+    <ProjectReference Include="..\..\Engine\Hrot.Gameplay\Hrot.Gameplay.csproj" />   <!-- Player Join §9 -->
+    <ProjectReference Include="..\Hrot.Player\Hrot.Player.csproj" />   <!-- CE-4208: the R-134 placement scan must reach IG's wire types -->
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />
     <!-- GZH-011: LayerControlGizmoTests need ComponentEditServiceBuilder -->
     <ProjectReference Include="..\..\..\FDP\ExtDeps\StructEdit\src\StructEdit.Reflection\StructEdit.Reflection.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\..\FDP\TestShared\GizmoLayerProbe.cs" Link="Shared\GizmoLayerProbe.cs" />   <!-- CE-1203: the per-row map layer rail -->
   </ItemGroup>
 </Project>

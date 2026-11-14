@@ -37,7 +37,7 @@ namespace Fdp.Examples.UrbanCombat.Brains
         /// <see cref="NodeStatus.Failure"/> otherwise.
         /// </returns>
         public static NodeStatus Condition_HasTarget(
-            ref BrainBlackboard blackboard,
+            ref byte blackboard,
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
             int paramIndex)
@@ -65,7 +65,7 @@ namespace Fdp.Examples.UrbanCombat.Brains
         /// </summary>
         /// <returns><see cref="NodeStatus.Running"/> while the target is alive.</returns>
         public static unsafe NodeStatus Action_AimAndFire(
-            ref BrainBlackboard blackboard,
+            ref byte blackboard,
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
             int paramIndex)
@@ -81,7 +81,9 @@ namespace Fdp.Examples.UrbanCombat.Brains
                 return NodeStatus.Failure;
 
             // Reconstruct the target Entity from the packed long stored in TargetMemory.
-            var targetEntity = new Entity((ulong)mem.EntityIds[0]);
+            int first = TargetMemory.FirstIdentified(in mem);   // ⭐ CE-3063 — a heard contact is not an entity to shoot
+            if (first < 0) return NodeStatus.Failure;
+            var targetEntity = new Entity((ulong)mem.EntityIds[first]);
 
             ref var channel = ref ctx.World.GetComponentRW<WeaponChannel>(ctx.Self);
 
@@ -100,6 +102,10 @@ namespace Fdp.Examples.UrbanCombat.Brains
                 unchecked { channel.ActionInstanceId++; }
 
             channel.ActiveAction = CombatConstants.ActionIdAimAndFire;
+            // ⭐ CE-2126 — stamp the owning behaviour: ChannelArbitrationSystem clears an action whose BehaviorInstanceId is not
+            //   the unit's, so an unstamped one was re-issued every tick and OnEnter restarted the aim clock (CE-3136 P-3) for ever.
+            if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
+                channel.BehaviorInstanceId = ctx.World.GetComponent<BehaviorState>(ctx.Self).InstanceId;
             return NodeStatus.Running;
         }
 
@@ -111,7 +117,7 @@ namespace Fdp.Examples.UrbanCombat.Brains
         /// </summary>
         [BTreeDeactivator("Fdp.Examples.UrbanCombat.Brains.InsurgentNodes.Action_AimAndFire")]
         public static void Deactivate_AimAndFire(
-            ref BrainBlackboard blackboard,
+            ref byte blackboard,
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
             int paramIndex)
@@ -128,7 +134,7 @@ namespace Fdp.Examples.UrbanCombat.Brains
         /// Used as the fallback branch in the Ambush Selector when no target is present.
         /// </summary>
         public static NodeStatus Action_HoldPosition(
-            ref BrainBlackboard blackboard,
+            ref byte blackboard,
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
             int paramIndex)

@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using System.Numerics;
 using Fbt;
@@ -184,7 +185,7 @@ public sealed class VariableBindingBadgeRendererTests
         {
             VisualId    = visualId,
             KernelType  = NodeType.Action,
-            Action      = new BTreeActionPayload { ExpressionTargetField = "myVar" },
+            Action      = new BehaviorActionBinding { ExpressionTargetField = "myVar" },
         });
         store.ActiveAsset = asset;
 
@@ -211,7 +212,7 @@ public sealed class VariableBindingBadgeRendererTests
         {
             VisualId    = visualId,
             KernelType  = NodeType.Condition,
-            Condition   = new BTreeConditionPayload { ExpressionTargetField = "condVar" },
+            Condition   = new BehaviorActionBinding { ExpressionTargetField = "condVar" },
         });
         store.ActiveAsset = asset;
 
@@ -238,7 +239,7 @@ public sealed class VariableBindingBadgeRendererTests
         {
             VisualId   = visualId,
             KernelType = NodeType.Action,
-            Action     = new BTreeActionPayload { ExpressionTargetField = null },
+            Action     = new BehaviorActionBinding { ExpressionTargetField = null },
         });
         store.ActiveAsset = asset;
 

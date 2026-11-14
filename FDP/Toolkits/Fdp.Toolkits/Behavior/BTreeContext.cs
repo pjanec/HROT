@@ -49,6 +49,19 @@ namespace Fdp.Toolkit.Behavior
         /// stamping into trace records.</summary>
         internal uint _instanceId;
 
+        /// <summary>
+        /// ⭐ S5b — the slot key of the OCCURRENCE this tree runs as: 0 for the root, the hosted slot's actual key for a
+        /// hosted child. A hosting site nests its own child's key under it (<c>OccurrenceSlots.HostedKeyAt</c>).
+        /// </summary>
+        internal int _occurrenceKey;
+
+        /// <summary>
+        /// ⭐ S5b — the occurrence this tree runs as (0 = root). Generated thunks nest their baked working-state slot key
+        /// under it (<c>OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, key)</c>), so a child hosted at two sites keeps two
+        /// working states; at the root it returns the baked key unchanged.
+        /// </summary>
+        public int OccurrenceKey => _occurrenceKey;
+
         // ── IAIContext implementation ──────────────────────────────────────────────
         float IAIContext.DeltaTime   => _deltaTime;
         float IAIContext.Time        => _time;

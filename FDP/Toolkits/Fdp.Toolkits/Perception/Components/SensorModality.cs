@@ -21,5 +21,20 @@ namespace Fdp.Toolkit.Perception.Components
 
         /// <summary>Passive acoustic detection.</summary>
         Acoustic = 8,
+
+        /// <summary>
+        /// ⭐ <c>CE-3072</c> (R-213) — the danger-area sensor: the areas along the unit's route where it would be exposed. NOT a
+        /// detection modality (no contact is ever stamped with it) but a sensor KIND, like the four above — the enum is the
+        /// kind (<c>SensorTag.Kind</c>, <c>UnitSensors.Of</c>). Its result family is <c>SensorResultFamily.Area</c>, not the
+        /// ranked list (<c>SensorKindRegistry</c>). 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.2, §10.6.
+        /// </summary>
+        DangerArea = 16,
+
+        /// <summary>
+        /// ⭐ <c>CE-3249</c> (R-2037, DA-25) — the WorldSurvey sensor: geometry asked of the muscle (a visibility fan, a building survey with
+        /// its derived rooms, a point survey). A sensor KIND, never a detection modality, like <see cref="DangerArea"/>. Its answer is
+        /// <c>WorldSurveyStatus</c> + <c>WorldSurveyAnswer</c>. 📄 docs/DESIGN_World_Survey_Sensor.md.
+        /// </summary>
+        WorldSurvey = 32,
     }
 }

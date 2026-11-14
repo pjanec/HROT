@@ -1,5 +1,7 @@
 # Blueprint / BTree Authoring — UX Improvement Backlog
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > **Purpose:** a running list of ideas to make the variable / scope / shared-state authoring system
 > usable by non-programmers. **Ideas only — not commitments.** Each becomes a task when picked up.
 > **Feed:** anything that trips up an author (incl. findings from the *Platoon Hill-attack →
@@ -55,8 +57,9 @@ conditions** are; that a node has **Parameters** (set once) and **Working State*
 the orientation a newcomer needs *before* the D4 tree.
 
 ### DOC-3 — Memory-layout schematic (D2)
-To-scale SVG: where data physically lives — `BehaviorParameters` (Params) vs `BlueprintBlackboard`
-partition slots (Working State), keyed by scope. The engineer's "aha."
+To-scale SVG: where data physically lives — the root params occurrence slot (Params) vs
+`BlueprintBlackboard` partition slots (Working State); both are occurrence-keyed slots in the same
+tier ladder, keyed by scope. The engineer's "aha."
 
 ### DOC-4 — Lifetime timeline (D3)
 SVG: assign-behavior → tick → tick → switch-behavior — *when* Params sync in, how long each scope's

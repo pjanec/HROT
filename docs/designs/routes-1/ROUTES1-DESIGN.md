@@ -1,0 +1,693 @@
+<!--STATUS
+state: LIVE
+build-state: BUILT in substance (verified 2026-09-17) — RoutePlan, PersonalRouteAuthoringSystem,
+  RouteTrajectorySyncSystem + RouteTrajectoryCache, MapRouteEgressTranslator and the FollowRoute
+  executor all exist in production. ⚠ The header below still says "Status: Design Phase"; that is STALE.
+updated: 2026-10-20 (§8.1 as built — RouteGizmo draws waypoint circles, CE-1233)
+current-answer: §5 (Shared vs Personal Routes) and §5.1 (directing a vehicle to follow one) are the
+  route MODEL and are current — a shared route is a root entity multiple vehicles may follow.
+  ⭐ §16 is NEW and carries the as-built PERSISTENCE gap, which this design never covered.
+  ⭐ §11.4 (CE-1096, 2026-10-14) — the waypoint editor on every authoring host, with the air fields; §11.2's IG-only panel is SUPERSEDED by it.
+known-rot: ⛔⛔ THIS DESIGN NEVER COVERED SCENARIO PERSISTENCE, and the omission shipped as a DEFECT:
+  PersonalRouteRefTranslator persists the vehicle→route GUID, but there is NO RoutePlanTranslator, so
+  the waypoints are never written. A save/load silently yields a vehicle pointing at an EMPTY route.
+  📄 §16, filed as BP-518.
+related-designs:
+  - ../../UX/DESIGN_Map_Interaction.md — E8: §11.1 is its route-edit spec EXCEPT the right-click commit (D11: right-click = menu, Enter / ✓ commits)
+  - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the aircraft waypoint kinds (Pass / Ground), height above ground and holds on RouteWaypoint, and the route reference on NavigationIntent (CE-2171) (R-2015)
+  - DESIGN_Uniform_Gizmo_Membership.md §10 — CE-3123: the route overlay as a reflected gizmo (AuthoredRouteGizmo) on every host.
+  - docs/DESIGN_Terrain_Zones_And_Assets.md — §2.1a: routes are NOT terrain assets and are NOT the road
+    network; that design explicitly defers the route model to THIS one.
+  - docs/DESIGN_Distributed_Scenario_Persistence.md — owns the scenario save gate and which file an
+    entity rides in; route entities pass through it like any other once §16 is closed.
+-->
+# Routes-1 Design — Predefined Vehicle Trajectories as Route Entities
+
+**Workstream:** ROUTES1  
+**Status:** Design Phase  
+**Reference Talk:** [design-talk.md](./design-talk.md)
+
+---
+
+## Table of Contents
+
+1. [Problem Statement & Goals](#1-problem-statement--goals)
+2. [Current State (Legacy System)](#2-current-state-legacy-system)
+3. [Architectural Principles](#3-architectural-principles)
+4. [Core Data Model — RoutePlan ECS Component](#4-core-data-model--routeplan-ecs-component)
+5. [Shared vs. Personal Routes](#5-shared-vs-personal-routes)
+6. [DDS Network Replication](#6-dds-network-replication)
+7. [Trajectory Pool Integration](#7-trajectory-pool-integration)
+8. [Rendering on the IG 2D Map](#8-rendering-on-the-ig-2d-map)
+9. [Authoring Flow — Shared Routes](#9-authoring-flow--shared-routes)
+10. [Authoring Flow — Personal (Vehicle-Owned) Routes](#10-authoring-flow--personal-vehicle-owned-routes)
+11. [Editing Flow](#11-editing-flow)
+12. [Deletion Flow](#12-deletion-flow)
+13. [AI Soft Advice Pipeline](#13-ai-soft-advice-pipeline)
+14. [TKB Blueprint for TacGraphic_Route](#14-tkb-blueprint-for-tacgraphic_route)
+15. [Deprecation of Legacy Waypoint Queue](#15-deprecation-of-legacy-waypoint-queue)
+16. [Implementation Phases](#16-implementation-phases)
+
+---
+
+## 1. Problem Statement & Goals
+
+The current `TrajectoryPoolManager` stores all vehicle path data as transient, in-memory `CustomTrajectory` objects keyed by an auto-incremented integer. There is no ECS representation, no network replication, no IG visualisation, and no operator authoring flow for user-defined trajectories.
+
+The primary goals of this workstream are:
+
+- **Visualise routes** on the IG 2D map, both as a "show all routes" layer and as a "selected vehicle trajectory" overlay.
+- **Author and edit routes** interactively from the IOS/IG map canvas using the same interaction patterns as tactical drawings.
+- **Share a single route across multiple vehicles** by decoupling path geometry from individual vehicle state.
+- **Create vehicle-specific personal routes** paired to a single vehicle via Shift+Right-Click, matching the existing ad-hoc waypoint workflow.
+- **Carry metadata per waypoint** (target speed, AI "soft advice" JSON) accessible to the vehicle's behavior system.
+- **Replicate routes over DDS** so that all nodes (IOS, IG, SimHost) stay synchronised.
+- **Deprecate** the legacy `_waypointQueues` per-entity dictionary held in `ScenarioManager`, replacing it with the new ECS route infrastructure.
+
+---
+
+## 2. Current State (Legacy System)
+
+### 2.1 TrajectoryPoolManager
+
+`TrajectoryPoolManager` (`FDP/Toolkits/FDP.Toolkit.CarKinem/Trajectory/TrajectoryPoolManager.cs`) is a plain singleton managed object (not an ECS component). It stores `CustomTrajectory` structs in `Dictionary<int, CustomTrajectory>`, each backed by a `NativeArray<TrajectoryWaypoint>` with precomputed arc-lengths and tangents. Supports `Linear`, `CatmullRom`, and `HermiteExplicit` interpolation.
+
+### 2.2 NavState
+
+`NavState` (`FDP/Toolkits/FDP.Toolkit.CarKinem/Core/NavState.cs`) is the ECS blittable struct that governs vehicle movement. The fields relevant to this workstream:
+
+```csharp
+public int   TrajectoryId;   // index into TrajectoryPoolManager
+public float ProgressS;      // arc-length progress in metres
+public KinematicsMode Mode;  // CustomTrajectory, RoadGraph, Formation, Direct, None
+```
+
+### 2.3 Legacy Waypoint Queue
+
+`SimHostScenarioManager` (and the example `ScenarioManager`) keep a `Dictionary<Entity, List<Vector2>> _waypointQueues`. On Shift+Right-Click, `AddWaypoint` appends the clicked position using the vehicle's current world position as the starting waypoint, compiles the full sequence into the trajectory pool, and issues `CmdFollowTrajectory`. This approach:
+
+- Ties the trajectory geometry to the vehicle's position at the moment of authoring.
+- Prevents sharing a trajectory across multiple vehicles.
+- Holds simulation state inside a UI class, violating CQRS/ECS principles.
+- Produces no ECS entity, so the route is invisible to the network and the IG map.
+
+### 2.4 CarKinematicsSystem
+
+`CarKinematicsSystem` (`FDP/Toolkits/FDP.Toolkit.CarKinem/Systems/CarKinematicsSystem.cs`) handles `KinematicsMode.CustomTrajectory` by calling `TrajectoryPoolManager.SampleTrajectory(nav.TrajectoryId, nav.ProgressS)` each physics tick. No changes to this system are required by this workstream — routes will be compiled into the same pool and the vehicle's `NavState.TrajectoryId` will reference the compiled entry.
+
+### 2.5 SimHostTrajectoryLayer
+
+> ⛔ **SUPERSEDED `2026-10-08` (`CE-3123`, R-228):** the layer is deleted. Its followed-trajectory half became `PlannedPathGizmo` (CE-3117) and its route half `AuthoredRouteGizmo` — reflected gizmos (Family Path) that draw on every host. 📄 [`DESIGN_Uniform_Gizmo_Membership.md`](../../DESIGN_Uniform_Gizmo_Membership.md) §10.
+
+`SimHostTrajectoryLayer` (`Hrot.SimHost/Visualization/SimHostTrajectoryLayer.cs`) is an always-visible overlay that reads the selected vehicle's `NavState`, fetches its `CustomTrajectory` from the pool, and draws the path as grey line segments with an orange circle at the current `ProgressS`. This layer will need to be extended to also handle route entities.
+
+### 2.6 Existing Map Layer — road_graphs
+
+The `MapLayerRegistry` defines a `road_graphs` layer (bit 4) whose predicate matches entities with `TkbIdentity.TkbType == TkbEntityTypes.TacGraphic_Route (8802)`. Layer visibility is toggled from the IOS Config panel and filters the ORBAT mission panel. The new route entities will automatically appear in this layer once the `TkbIdentity` component is set correctly, but a **route-specific rendering layer** is still needed to draw the actual polyline geometry.
+
+---
+
+## 3. Architectural Principles
+
+The design is built on three pillars:
+
+1. **ECS as Authoritative State.** The `RoutePlan` managed component, attached to a dedicated route entity, is the single source of truth for all route data. The `TrajectoryPoolManager` is treated strictly as a transient, read-optimised performance cache — analogous to `SpatialHashGrid`.
+
+2. **Network Boundary Isolation.** Coordinate conversion (Cartesian ↔ Geodetic) happens exclusively at the DDS ingress/egress translators. The internal ECS state stores absolute Cartesian `Vector3` positions, which are valid and precise for our ≤ 100 km world domains. The DDS `MapRoute` wire format retains double-precision geodetic coordinates for interoperability.
+
+3. **Single Unified Abstraction.** Both shared (multi-vehicle) routes and personal (single-vehicle) routes use the same `RoutePlan` component on the same kind of entity. A shared route is a root-level ECS entity; a personal route carries an additional `PartMetadata` component linking it to its owning vehicle. All systems downstream (rendering, sync, editing) operate on the same component — no branching by route type.
+
+---
+
+## 4. Core Data Model — RoutePlan ECS Component
+
+### 4.1 RouteWaypoint
+
+```csharp
+public struct RouteWaypoint
+{
+    /// <summary>
+    /// Absolute Cartesian position in local world space (ENU, metres from map origin).
+    /// Valid for world domains ≤ 100 km — coordinate conversion to/from geodetic 
+    /// happens only at DDS boundary.
+    /// </summary>
+    public Vector3 Position;
+
+    /// <summary>
+    /// Desired vehicle speed on this segment in m/s. 0 = use vehicle default.
+    /// </summary>
+    public float TargetSpeed;
+
+    /// <summary>
+    /// Optional JSON object with "soft advice" hints for the vehicle's behavior tree.
+    /// Example: {"dangerLevel": 2, "tacticalStance": "cautious"}
+    /// Written to the vehicle's root-params occurrence slot by RouteContextSystem as the
+    /// vehicle enters the segment; does NOT interact with MissionPlanQueue.
+    /// </summary>
+    public string ExtensionJson;
+}
+```
+
+### 4.2 RoutePlan Managed Component
+
+```csharp
+[ComponentId(GlobalComponentIds.RoutePlan)]
+public class RoutePlan
+{
+    public List<RouteWaypoint> Waypoints = new();
+
+    /// <summary>
+    /// When true, the vehicle loops back to waypoint 0 upon reaching the last waypoint.
+    /// </summary>
+    public bool IsLoop;
+
+    /// <summary>
+    /// Monotonically-incremented version stamp. Reactive systems (RouteTrajectorySyncSystem)
+    /// compare against their cached version to detect mutations without polling every field.
+    /// </summary>
+    public int Version;
+}
+```
+
+`ComponentId` must be registered in `GlobalComponentIds` and wired into the `RegisterManagedComponent<RoutePlan>()` call in both `NetworkSpawningSystem` registrations (SimHost and IG).
+
+### 4.3 PersonalRouteRef Component
+
+Placed on the **vehicle** entity to provide an O(1) lookup from vehicle → its personal route entity:
+
+```csharp
+[ComponentId(GlobalComponentIds.PersonalRouteRef)]
+public struct PersonalRouteRef
+{
+    public Entity RouteEntity;
+}
+```
+
+### 4.4 CmdAppendPersonalWaypoint Event
+
+Blittable ECS event published to the event bus by the IG input layer when the operator Shift+Right-Clicks on the map while a vehicle is selected:
+
+```csharp
+public struct CmdAppendPersonalWaypoint
+{
+    public Entity VehicleEntity;
+    public Vector3 WorldPosition; // absolute Cartesian, already converted from screen
+}
+```
+
+---
+
+## 5. Shared vs. Personal Routes
+
+| Aspect | Shared Route | Personal (Vehicle) Route |
+|---|---|---|
+| Entity parent | Root entity (no `PartMetadata`) | Child entity with `PartMetadata { ParentEntity = vehicleEntity }` |
+| Lifecycle | Exists until operator deletes it | Automatically destroyed by `SubEntityCleanupSystem` when the vehicle entity is destroyed |
+| Authoring | CMD_START_AUTHORING → PointSequenceTool on IG canvas → CreateEntityRequest | Shift+Right-Click → `CmdAppendPersonalWaypoint` → `PersonalRouteAuthoringSystem` creates/mutates child entity |
+| Sharing | Multiple vehicles can point `NavState.TrajectoryId` to the same compiled entry | One vehicle only (`PersonalRouteRef` on the vehicle) |
+| DDS replication | Full — entity announced via `EntityMaster` + `dtWorldPos` + `dtMapRoute` | Full — same sequence; the child entity is announced as a separate network entity with its parent's NetworkId encoded in descriptors |
+| Editing | RouteEditTool accessible via context menu | RouteEditTool accessible via context menu on the child entity |
+| Component | `RoutePlan` only | `RoutePlan` + `PartMetadata` |
+
+### 5.1 Directing a Vehicle to Follow a Route
+
+When an operator commands a vehicle to follow a shared route:
+
+1. The commanding system reads the route entity's compiled `TrajectoryId` from a lightweight cache component (e.g., `RouteTrajectoryCache { public int TrajectoryId; public int CompiledVersion; }`) attached to the route entity by `RouteTrajectorySyncSystem`.
+2. It publishes a `CmdFollowTrajectory { Entity, int TrajectoryId }` event.
+3. The vehicle's `NavState.TrajectoryId` and `ProgressS = 0` are set; `Mode = KinematicsMode.CustomTrajectory`.
+
+For personal routes, step 1 is handled automatically by `PersonalRouteAuthoringSystem` which both mutates the route entity and issues `CmdFollowTrajectory` each time a waypoint is appended.
+
+---
+
+## 6. DDS Network Replication
+
+The DDS wire format remains geodetic (the pre-existing `MapRoute` IDL descriptor) to preserve global interoperability. Coordinate conversion is isolated to two new translators.
+
+> ⭐ **AS-BUILT `2026-10-14` (`CE-2171`):** both translators run on **every** node, in `SharedTranslatorPack` (beside the
+> `MapVisualOverlay` pair, for the same reason). ⛔ Until then the egress lived in `KinematicTranslatorPack` (Muscle only)
+> and the ingress only in the pure IG's `EntityStatesIngressPack`, so a route **created and owned by CGF** (every scenario
+> route) never reached SimHost, which follows it. The pure IG keeps its own ingress (its `!pureIg` guard skips the shared
+> pack's ingress); the ingress skips its own sample on the recorded owner (F-5).
+
+### 6.1 MapRouteEgressTranslator (SimHost + IG)
+
+- Queries entities with `NetworkIdentity` + `SimTransform` + `RoutePlan` (and `NetworkAuthority` on SimHost).
+- On dirty flag (`SmartEgressUtil.IsDirty`), iterates `RoutePlan.Waypoints`.
+- Converts each `RouteWaypoint.Position` (`Vector3` Cartesian) → `GeoPoint` (lat/lon/alt) via `IGeographicTransform.ToGeodetic`.
+- Emits `MapRoute { EntityId, Points: [Waypoint(GeoPoint, SpeedMetersPerSec, ExtensionJson)], IsLoop }`.
+- Also emits `WorldPos` update if waypoint[0] changed (spatial anchor for "center on entity").
+
+### 6.2 MapRouteIngressTranslator (SimHost + IG)
+
+- Subscribes to the `dtMapRoute` DDS topic.
+- On receipt, looks up the route entity by `EntityId` in `NetworkEntityMap`.
+- Converts each `Waypoint.Position` (`GeoPoint`) → absolute Cartesian `Vector3` via `IGeographicTransform.ToCartesian`.
+- Writes updated `RoutePlan.Waypoints` and increments `RoutePlan.Version`.
+- Defers if the entity's `SimTransform` is not yet available (same pattern as `MapVisualOverlayIngressTranslator`).
+
+### 6.3 CreateEntityRequest Payload for New Shared Routes
+
+When a new route is being created, the IG issues a `CreateEntityRequest` containing:
+
+| Descriptor | Content |
+|---|---|
+| `dtEntityMaster` | `TkbType = TkbEntityTypes.TacGraphic_Route` |
+| `dtWorldPos` | First waypoint converted to geodetic — used as spatial anchor |
+| `dtMapRoute` | All waypoints in geodetic doubles |
+
+The SimHost `CreateEntityRequestSystem` allocates a network ID and dispatches `SpawnEntityCommand`. `NetworkSpawningSystem` creates the entity, applies the `TacGraphic_Route` TKB blueprint, and the `MapRouteIngressTranslator` populates the `RoutePlan` component from the initial `dtMapRoute` descriptor.
+
+---
+
+## 7. Trajectory Pool Integration
+
+### 7.1 RouteTrajectorySyncSystem
+
+A new reactive ECS system in `SystemPhase.BeforeSync` (after translators, before kinematics):
+
+- Queries all entities with `RoutePlan` (optional `RouteTrajectoryCache`).
+- For each entity: compares `RoutePlan.Version` against `RouteTrajectoryCache.CompiledVersion`.
+- If version differs (new route or mutation):
+  - If a previous trajectory was compiled (`RouteTrajectoryCache.TrajectoryId > 0`), calls `TrajectoryPoolManager.RemoveTrajectory`.
+  - Converts `RoutePlan.Waypoints` to a `Vector2[]` (XZ plane, matching `TrajectoryWaypoint.Position` convention) with per-waypoint speeds.
+  - Calls `TrajectoryPoolManager.RegisterTrajectory(waypoints, interpolation, isLoop)` → gets `int id`.
+  - Writes `id` and current version into `RouteTrajectoryCache`.
+- On entity destruction, an `IEntityLifecycleListener` implementation calls `RemoveTrajectory`.
+
+### 7.2 RouteTrajectoryCache Component
+
+Lightweight blittable struct attached by `RouteTrajectorySyncSystem`:
+
+```csharp
+public struct RouteTrajectoryCache
+{
+    public int TrajectoryId;
+    public int CompiledVersion;
+}
+```
+
+Not replicated over DDS — purely local performance state.
+
+---
+
+## 8. Rendering on the IG 2D Map
+
+### 8.1 RouteRenderLayer (IG)
+
+A new `IMapLayer` implementation in `Hrot.IG` — analogous to `MapOverlayRenderLayer` which renders `EditablePolyline` entities.
+
+- **Layer bit:** Reuses `RoadGraphsBit` (bit 4, "road_graphs") so the existing IOS layer toggle controls route visibility.
+- **Query:** Iterates all entities whose `TkbIdentity.TkbType == TkbEntityTypes.TacGraphic_Route` AND the `road_graphs` layer bit is set.
+- **Render:** For each entity with a `RoutePlan`, draws line segments between consecutive waypoints (converted to screen space via the map canvas transform). Draws a small circle at each waypoint vertex. Uses a distinct colour (e.g. blue) to differentiate from tactical overlay drawings.
+- **Selected highlight:** When the entity is selected (`IInspectorContext.SelectedEntity == routeEntity`), draws the route in a highlighted colour with vertex drag handles visible.
+
+⭐ **AS BUILT `2026-10-20` (`CE-1233`, ui) — the render line above is what the map draws, on every host:** `RouteGizmo`
+(`Hrot.Presentation/ScenarioEditor/Gizmos`, the gizmo that replaced this IG layer — GZ058) draws the segments **2.5 px** and a filled
+**4 px circle at each waypoint**, both constant on screen, blue `#4488FF`; a route whose `SelectionState.IsSelected` is set draws
+in light cyan, 3.5 px / 5.5 px. 🔒 User: *"routes are not rendered as waypoints connect as lines"*. 📐 Before: 1 px segments and no
+waypoint mark — on uc-convoy-hit the route lies on Avenue E's SUMO lanes and was unreadable (and until `CE-1227` it was dropped
+with the rest of the frame). ⚠ Still on layer 0 (Entities); `CE-1203`'s Routes checkbox moves it to its own bit. ⚠ The
+"vertex drag handles" stay `RouteWaypointGizmo`'s (the editing tool). Rails: `PresentationGizmoTests.SC_GZ058_3` (extended),
+`Map3DFrameRail.CE1227_V` step ④ (real window, `route-1-convoy.png`).
+
+### 8.2 SimHostTrajectoryLayer Extension
+
+> ⛔ **SUPERSEDED `2026-10-08`:** built later as `AuthoredRouteGizmo` (`CE-3123`) — same data and colours, on every host; see §2.5.
+
+The existing `SimHostTrajectoryLayer` is extended to also show the route geometry for selected vehicles that follow a route entity:
+
+- If selected vehicle has `PersonalRouteRef`, look up the child route entity's `RoutePlan` and draw it in the trajectory overlay colour.
+- If the vehicle follows a shared route (`NavState.TrajectoryId` matches a `RouteTrajectoryCache`), draw the shared route entity's `RoutePlan` waypoints.
+
+---
+
+## 9. Authoring Flow — Shared Routes
+
+The IOS triggers authoring using the same `CMD_START_AUTHORING` command as for tactical drawings.
+
+```
+IOS                     IG                          SimHost
+ │                       │                              │
+ │─ MapCommandRequest ──►│                              │
+ │  (CMD_START_AUTHORING,│                              │
+ │   TkbType=TacGraphic  │                              │
+ │   _Route)             │                              │
+ │                       │─ push PointSequenceTool      │
+ │                       │  (configured for routes)     │
+ │                       │                              │
+ │                   [operator left-clicks N waypoints] │
+ │                   [operator right-clicks to commit]  │
+ │                       │                              │
+ │                       │─ CreateEntityRequest ───────►│
+ │                       │  dtEntityMaster(Route)       │
+ │                       │  dtWorldPos(wp[0])         │
+ │                       │  dtMapRoute(all waypoints)   │
+ │                       │                              │
+ │                       │◄────── CreateEntityAck ──────│
+ │                       │                              │
+ │                       │◄── EntityMaster (broadcast)  │
+ │                       │◄── WorldPos (broadcast)    │
+ │                       │◄── MapRoute (broadcast) ─────│
+ │                       │                              │
+ │                       │  [MapRouteIngressTranslator  │
+ │                       │   populates RoutePlan ECS]   │
+ │                       │  [RouteTrajectorySyncSystem  │
+ │                       │   compiles into pool]        │
+```
+
+The `PointSequenceTool` configured for route authoring translates screen clicks directly to absolute geodetic coordinates (via the map canvas's `IGeographicTransform`) and emits the `CreateEntityRequest`.
+
+---
+
+## 10. Authoring Flow — Personal (Vehicle-Owned) Routes
+
+Kept as a fast, single-gesture interaction: Shift+Right-Click on the map while a vehicle is selected.
+
+```
+[User: Shift+Right-Click on map, vehicle selected]
+        │
+        ▼
+IgApplication.OnWorldClick (shift=true)
+        │
+        ▼
+Publishes CmdAppendPersonalWaypoint { VehicleEntity, WorldPosition }
+        │
+        ▼ (ECS event bus, SystemPhase.Input)
+PersonalRouteAuthoringSystem
+        │
+        ├─ [No PersonalRouteRef on vehicle]
+        │       │
+        │       ▼
+        │  SpawnChildRouteEntity:
+        │    · Creates ECS entity with RoutePlan, PartMetadata { ParentEntity=vehicle },
+        │      TkbIdentity(TacGraphic_Route), SimTransform (at WorldPosition)
+        │    · Seeds RoutePlan.Waypoints with:
+        │        [0] = vehicle.SimTransform.Position (current pos)
+        │        [1] = WorldPosition
+        │    · Attaches PersonalRouteRef { RouteEntity } to vehicle
+        │
+        └─ [PersonalRouteRef exists]
+                │
+                ▼
+           Appends WorldPosition to route entity's RoutePlan.Waypoints
+           Increments RoutePlan.Version
+           │
+           ▼
+   (RouteTrajectorySyncSystem detects version bump)
+   Recompiles trajectory in pool, updates RouteTrajectoryCache.TrajectoryId
+           │
+           ▼
+   PersonalRouteAuthoringSystem issues CmdFollowTrajectory { vehicle, newTrajectoryId }
+```
+
+This flow does **not** go through `ScenarioManager`. The UI layer (`IgApplication`) emits only a typed event; all simulation state mutation happens in ECS systems.
+
+---
+
+## 11. Editing Flow
+
+### 11.1 RouteEditTool (IG)
+
+A new `IMapTool` dedicated to `RoutePlan` editing — separate from the existing `EditTool` which is specific to `EditablePolyline` relative `Vector2` points.
+
+**Capabilities:**
+
+| Action | Interaction |
+|---|---|
+| Select vertex | Left-click near a waypoint handle |
+| Move vertex | Left-click-drag on selected handle |
+| Insert vertex | Left-click on a line segment (between two waypoints) |
+| Delete vertex | Select vertex, press `Delete` key |
+| Edit speed/JSON | Reflected live in `WaypointEditorPanel` |
+| Commit changes | Right-click |
+| Cancel | `Escape` key |
+
+On `OnEnter`, the tool copies `RoutePlan.Waypoints` into an in-memory ghost list (`List<RouteWaypoint> _ghost`). All in-tool edits mutate the ghost. On commit (right-click), the tool fires an `UpdateEntityDescriptorRequest` containing the updated `dtMapRoute` descriptor. The SimHost's `UpdateEntityDescriptorRequestSystem` overwrites the `RoutePlan` component and increments its version, triggering recompilation in the trajectory pool.
+
+**Vertex insertion logic:** When the user left-clicks and no existing vertex is within the pick radius (15 world units), the tool does a point-to-segment distance check for all segments in `_ghost`. If the click is within the pick radius of a segment `[i, i+1]`, a new `RouteWaypoint` is inserted at index `i+1`, inheriting `TargetSpeed` and `ExtensionJson` from waypoint `i`.
+
+### 11.2 WaypointEditorPanel (IG ImGui)
+
+An ImGui panel rendered during the `DrawUI` phase. It observes the `MapCanvas`'s active tool:
+
+```csharp
+if (_canvas.ActiveTool is RouteEditTool routeTool && routeTool.SelectedVertexIndex >= 0)
+{
+    ref RouteWaypoint wp = ref routeTool.GetSelectedWaypointRef();
+    ImGui.InputFloat("Target Speed (m/s)", ref wp.TargetSpeed);
+    string json = wp.ExtensionJson ?? "";
+    ImGui.InputTextMultiline("AI Advice (JSON)", ref json, ...);
+    wp.ExtensionJson = json;
+}
+```
+
+The panel provides real-time, in-tool editing of per-waypoint semantic metadata. It does **not** submit changes itself; the `RouteEditTool` owns the ghost state and emits the update request on commit.
+
+### 11.3 Triggering Edit Mode
+
+Editing is initiated via the IOS context menu: the operator right-clicks a route entity and selects "Edit". The IOS publishes `MapCommandRequest { Type = CMD_START_EDITING, EntityId }`. The IG's `MapCommandController` pushes the `RouteEditTool` seeded with the target entity's `RoutePlan`.
+
+### 11.4 The waypoint editor on EVERY authoring host, with the air fields (`CE-1096`, air hand-off U2, ui, designed `2026-10-14`)
+
+🔒 **User, `2026-10-14`:** the air-operations plan *"Approved"* (R-2015) — U2 *"per-waypoint height, kind and hold in the route editor"*
+(HANDOFF_Behaviors_To_Ui_Air_Operations.md) → the ui plan → *"Ok go"*.
+
+📐 **INVENTORY** *(graph `search_graph .*Waypoint.* Class` = 25 — the only waypoint-properties UI is `Hrot.IG.UI.WaypointEditorPanel`; window
+registrations grep'd per host)*:
+
+| fact | where | so |
+|---|---|---|
+| the panel edits the route gizmo's WORKING copy (speed, AI-advice JSON) and lives in **Hrot.IG** — only the IG registers its window | `Hrot.IG/UI/WaypointEditorPanel.cs`, `IgSubsystem.cs:216` | ⛔ the EDITOR (and CGF, the editor of `--mode all`) can draw a route and move its points but set nothing on a waypoint |
+| shared panel windows already live in `Hrot.Presentation.Windows` with the id / perspective / colour as arguments, registered by each host | `ScenarioPanelWindowIds`, `SpawnerPanelWindow` (`EditorSubsystem.cs:5012`, `CgfSubsystem.cs:1933`) | ⭐ the precedent: one implementation, the host gives the id |
+| ⛔ the gizmo DESELECTS on `OnCommit` (`_activeVertex = -1`) — a click is a press + a release, so the panel shows its selection only while the mouse is held | `RouteWaypointGizmo.OnCommit` | a defect: the selection outlives the drag |
+| the panel never writes back: the gizmo publishes on a menu action or a right-click | `WriteBackAndPublish` | an edit made in the panel is lost on Escape |
+| the air fields exist on `RouteWaypoint` and round-trip the save and the wire (backend E2) | `RoutePlan.cs`, `RoutePlanTranslator` (B1 rail) | the panel only has to edit them |
+
+```mermaid
+classDiagram
+    direction LR
+    class WaypointEditorPanel { <<MOVED Hrot.IG to Hrot.Presentation.Panels, grows>> BuildViewModel · DrawContent · + kind, height, hold fields }
+    class WaypointEditorPanelViewModel { <<moved, grows>> + Kind · HeightAgl · Hold · HoldSeconds · HoldUnit }
+    class WaypointEditorWindow { <<NEW Hrot.Presentation.Windows, ManagedWindow>> id · perspective · colour from the host }
+    class IRouteWaypointEditorState { <<existing, grows>> SelectedVertexIndex · GetSelectedWaypointRef · + CommitEdits }
+    class RouteWaypointGizmo { <<existing, fixed>> keeps the selection after a drag · CommitEdits publishes }
+    class RouteWaypoint { <<existing>> Kind · HeightAgl · Hold · HoldSeconds · HoldUnit }
+    class EditorSubsystem { <<host>> registers editor_waypoint_editor }
+    class CgfSubsystem { <<host>> registers cgf_waypoint_editor }
+    class IgSubsystem { <<host>> registers ig_waypoint_editor (unchanged id) }
+    WaypointEditorWindow --> WaypointEditorPanel
+    WaypointEditorPanel ..> IRouteWaypointEditorState
+    RouteWaypointGizmo ..|> IRouteWaypointEditorState
+    IRouteWaypointEditorState ..> RouteWaypoint
+    EditorSubsystem ..> WaypointEditorWindow
+    CgfSubsystem ..> WaypointEditorWindow
+    IgSubsystem ..> WaypointEditorWindow
+```
+
+```mermaid
+sequenceDiagram
+    participant U as author
+    participant G as RouteWaypointGizmo
+    participant P as WaypointEditorPanel
+    participant E as the route entity
+    U->>G: click a waypoint (press, release)
+    G->>G: selected, and it stays selected
+    P->>G: the selected waypoint each frame
+    U->>P: Kind Ground, Height 120 m, Hold Unload
+    P->>G: CommitEdits when a field is changed
+    G->>E: RoutePlan written, UpdateEntityCommand published
+```
+
+*Caption:* nothing new reaches the route — the panel already edited the gizmo's working copy; what changes is WHERE the panel can be opened
+(every authoring host, one implementation) and that an edit is committed when it is made rather than lost on Escape.
+
+| decision (✅ user, `2026-10-14`) | rule |
+|---|---|
+| **W-1 one panel, every authoring host** | the panel and a `WaypointEditorWindow` move to `Hrot.Presentation`; the editor (`editor_waypoint_editor`), CGF (`cgf_waypoint_editor`) and the IG (`ig_waypoint_editor`, its id kept for saved layouts) register it |
+| **W-2 the air fields** | Kind (Pass / Ground) · Height above ground, m (0 = the stored height) · Hold (None / Seconds / Unload / Pickup) · its seconds (Seconds) · its unit's network id (Pickup); the position shown, read-only |
+| **W-3 commit on edit** | a field the author changes is committed at once (`CommitEdits` → the route written and published, as a drag's end does) |
+| **W-4 the selection stays** | releasing a drag keeps the waypoint selected; Escape / a deletion clear it |
+
+**Rejected — one line each:** *a second, editor-only panel* — two implementations of one panel (ruling 9); *a unit picked on the map for the
+hold* — v1 takes the network id; the map pick (`IMapPickAdapter`) is a follow-up once a Pickup scenario needs it; *committing on the panel's
+close* — Escape would still lose the edit.
+
+**AS-BUILT (`CE-1096` + `CE-2172`, `2026-10-14`, ui)** — built as the two diagrams above draw them. Details they do not carry:
+
+| as-built detail | why |
+|---|---|
+| the panel's namespace is `Hrot.UI.Common.Panels` (file in `Hrot.Presentation/Panels`); `Draw(beforeBegin, afterBegin)` keeps a standalone window for the IG's own loop, which styles it with `IgPanelColors.Push`/`Pop` | the IG standalone draws panels outside the window manager; one panel serves both |
+| `CommitEdits()` = the gizmo's existing `WriteBackAndPublish` | the same write a drag's end makes — no second publish path |
+| combo changes commit at once; text / number fields commit on `IsItemDeactivatedAfterEdit` | a commit per keystroke would publish half-typed values |
+| ⭐ CE-2172 fixed in ALL THREE route gizmos through one helper, `RouteGizmo.PointOf(view, wp)` = ground + `HeightAgl` when it is above 0, else `Position` | `RouteGizmo` and `AuthoredRouteGizmo` had the same Y-north reading; one helper keeps them from drifting |
+| the Pickup unit is a numeric network id (v1) | the map pick stays the follow-up named above |
+
+📐 **Rails** `RouteWaypointGizmoTests.CE2172_*` (Z-up, a drag keeps the height) and `CE1096_*` (the selection survives the release, a panel edit
+reaches the route) — each red-proved; IG `WaypointEditorPanelTests` and `IgWindowsDumpTheirModelsTests` re-pointed at the shared panel. Seen in the
+3-D map (frame rail `Map3DFrameRail.CE1085_V`, shot `ws-7`):
+
+![route heights](../../assets/map-3d/ws-7-route-heights.png)
+
+---
+
+## 12. Deletion Flow
+
+Deletion follows the established ECS lifecycle pipeline:
+
+1. Operator selects "Delete" from context menu.
+2. IOS/IG issues a `DestroyEntityCommand` for the route entity.
+3. `NetworkSpawningSystem` sets `EntityLifecycle.TearDown` on the entity.
+4. `EntityLifecycleModule` broadcasts a `DestructionOrder`.
+5. `CycloneNetworkCleanupSystem` disposes the DDS writers (`DisposeInstance` on `MapRoute`, `EntityMaster`, `WorldPos` topics).
+6. Remote nodes receive `DdsInstanceState.NotAliveDisposed` and destroy their ghost entities.
+7. An `IEntityLifecycleListener` on `RouteTrajectorySyncSystem` (or a dedicated cleanup system) calls `TrajectoryPoolManager.RemoveTrajectory` for the compiled entry.
+
+For **personal routes**: if the parent vehicle is destroyed first, `SubEntityCleanupSystem` (running in `PostSimulation`) detects `PartMetadata.ParentEntity` is dead and issues `DestroyEntity` for the child route entity — the above pipeline then proceeds normally.
+
+---
+
+## 13. AI Soft Advice Pipeline
+
+### 13.1 RouteContextSystem
+
+A low-frequency simulation phase system that periodically evaluates the vehicle's position along its active `RoutePlan`:
+
+1. Queries all entities with `NavState` (mode `CustomTrajectory`) + `PersonalRouteRef` **or** a reference to a shared route.
+2. Determines the current route entity from `NavState.TrajectoryId` ↔ `RouteTrajectoryCache`.
+3. Using `NavState.ProgressS` and the precomputed cumulative arc-lengths, identifies which segment the vehicle is currently on (via the `RouteTrajectoryCache` or by checking the `RoutePlan` waypoints in order).
+4. Reads `ExtensionJson` from the current `RouteWaypoint`.
+5. Parses the JSON and writes values directly into the vehicle's root-params occurrence slot at designated byte offsets (e.g., via `RootParamsAccess.TryGetRootBytes(repo, entity, …)` at `BlackboardOffsets.ExpectedThreatLevel`).
+
+### 13.2 BTree Reaction
+
+The vehicle's active behavior tree reads those slot values during its normal `BrainTickSystem` evaluation (the BTree arm). Condition nodes such as `Condition_CheckDangerLevel` branch to sub-trees that adjust `TargetSpeed` (via `LocomotionChannel`), expand `VisionRange` (via `PerceptionReceptor` mutation), or alter Rules of Engagement flags — all without touching the `MissionPlanQueue`. This keeps the route's "soft advice" strictly advisory; the behavior tree remains in full control.
+
+---
+
+## 14. TKB Blueprint for TacGraphic_Route
+
+A new TKB blueprint entry is required for `TkbEntityTypes.TacGraphic_Route (8802)`. The blueprint must:
+
+- Register `RoutePlan` as a managed component requirement.
+- Register `TkbIdentity` with `TkbType = 8802`.
+- Register `SimTransform` (for spatial anchor, "center on entity", and map culling).
+- Register `NetworkIdentity` and `NetworkAuthority` (for DDS replication).
+- **Not** register `EditablePolyline`, `NavState`, or any movement component (routes are not moving entities).
+
+The TKB entry is located in the TKB definition database (see `Hrot.Map.Definitions`). The blueprint ensures that both `NetworkSpawningSystem` and `IG`'s entity factory system attach the correct components when a route is spawned via `CreateEntityRequest`.
+
+---
+
+## 15. Deprecation of Legacy Waypoint Queue
+
+`SimHostScenarioManager._waypointQueues` and the `AddWaypoint` / `SetDestination` methods that operate on it must be deprecated and ultimately removed. The replacement flow is:
+
+- `AddWaypoint` → `CmdAppendPersonalWaypoint` → `PersonalRouteAuthoringSystem` (new system).
+- The `ScenarioManager` retains only its `SetDestination` (direct movement, no trajectory) helper in the interim.
+
+Removal should happen at the end of the workstream, once the personal route authoring system is fully tested.
+
+---
+
+## 16. Implementation Phases
+
+The implementation is split into nine phases, each decomposed into independently testable tasks. Tasks are identified by the prefix `ROUTES1-T`.
+
+### Phase 1 — Core ECS Data Layer
+
+> **Goal:** Introduce the new ECS components and events so all downstream phases have a stable foundation.
+
+- **ROUTES1-T001** — `RoutePlan` managed component + `RouteWaypoint` struct
+- **ROUTES1-T002** — `PersonalRouteRef` + `RouteTrajectoryCache` blittable components + `CmdAppendPersonalWaypoint` event
+- **ROUTES1-T003** — `GlobalComponentIds` registration + TKB blueprint for `TacGraphic_Route`
+
+### Phase 2 — DDS Replication
+
+> **Goal:** Route entities replicate seamlessly over DDS using the pre-existing `MapRoute` descriptor.
+
+- **ROUTES1-T004** — `MapRouteEgressTranslator` (SimHost + IG)
+- **ROUTES1-T005** — `MapRouteIngressTranslator` (SimHost + IG)
+
+### Phase 3 — Trajectory Pool Integration
+
+> **Goal:** Route entity mutations automatically propagate to the `TrajectoryPoolManager`.
+
+- **ROUTES1-T006** — `RouteTrajectorySyncSystem`
+
+### Phase 4 — Shared Route Authoring
+
+> **Goal:** Operators can author new shared routes from the IOS/IG map canvas.
+
+- **ROUTES1-T007** — `CMD_START_AUTHORING` → `PointSequenceTool` → `CreateEntityRequest` flow for routes
+
+### Phase 5 — Personal Route Authoring
+
+> **Goal:** Shift+Right-Click authors a vehicle-specific child route.
+
+- **ROUTES1-T008** — `PersonalRouteAuthoringSystem` (ECS system)
+- **ROUTES1-T009** — IG input wiring: `IgApplication` shift+right-click → `CmdAppendPersonalWaypoint`
+
+### Phase 6 — Rendering
+
+> **Goal:** Routes are visible on the IG 2D map.
+
+- **ROUTES1-T010** — `RouteRenderLayer` (IG map layer)
+- **ROUTES1-T011** — `SimHostTrajectoryLayer` extension for route entities
+
+### Phase 7 — Editing
+
+> **Goal:** Operators can modify routes (move, insert, delete waypoints; set per-waypoint metadata).
+
+- **ROUTES1-T012** — `RouteEditTool` (IG map tool)
+- **ROUTES1-T013** — `WaypointEditorPanel` (IG ImGui panel)
+
+### Phase 8 — AI Soft Advice
+
+> **Goal:** Per-waypoint `ExtensionJson` influences vehicle behavior trees via the root-params occurrence slot.
+
+- **ROUTES1-T014** — `RouteContextSystem`
+
+### Phase 9 — Legacy Deprecation
+
+> **Goal:** Remove the legacy waypoint queue mechanism.
+
+- **ROUTES1-T015** — Remove `_waypointQueues` from `ScenarioManager`; wire Shift+Right-Click through the new personal route system end-to-end
+
+
+---
+
+## 16. ⛔ AS-BUILT GAP `2026-09-17` — **routes do not survive a scenario save**
+
+📐 **Measured.** Managed components are written to a scenario only via an explicit
+`IEntityScenarioTranslator`; there are 14, and the two that matter here are asymmetric:
+
+| translator | state |
+|---|---|
+| `EditablePolylineTranslator` | ✅ exists — areas persist |
+| `PersonalRouteRefTranslator` | ✅ exists, and is careful: on save it resolves `PersonalRouteRef.RouteEntity` to a **stable GUID**; on load it writes `InitialRouteIntent` so `GenesisMaterializationSystem` re-resolves the handle |
+| 🔴 **`RoutePlanTranslator`** | ⛔ **DOES NOT EXIST** |
+
+⇒ 🔴 **the LINK is persisted and the GEOMETRY is not.** A scenario saved with a route reloads as a
+vehicle pointing at a route entity with **zero waypoints** — ⛔ silently, with no error. Corroborated:
+**no shipped scenario contains a `RoutePlan`.**
+
+⚠ **Two things the fix must handle**, both measured:
+- `RoutePlan.Waypoints` is an `IReadOnlyList` over a `private readonly List`, mutable only through
+  `Mutate()` ⇒ **it cannot be auto-deserialized**; the translator must go through `Mutate`, which is
+  also what keeps `Version` correct (§4's mutation contract).
+- `RouteWaypoint.ExtensionJson` is nullable free-form JSON (§13's AI soft advice) and must round-trip.
+
+⭐ **What is NOT missing, and needs no new design:**
+- **sharing** — §5 already specifies a shared route as a root entity multiple vehicles follow, and the
+  `FollowRoute` mission references the route by **network id**, so N vehicles → 1 route already works;
+- **naming** — `EntityInfo { FixedString64 Name, ForceId }` already exists on entities and already
+  persists *(a shipped scenario carries `"Tank Platoon (Auto Spawn)"`)*, so *"follow route &lt;name&gt;"*
+  resolves name → entity → the existing mission with no new component;
+- **the follow order** — `FollowRoute` exists as a blueprint channel command, a mission `BehaviorId`,
+  and `FollowRouteExecutor`.
+
+⇒ ⭐ **the whole gap is ONE translator**, mirroring `EditablePolylineTranslator`. 📄 **`BP-518`.**
+⚠ Note `RoutePlan.Version` is correctly maintained by `Mutate()` — ⛔ unlike `EditablePolyline.Version`,
+which is never incremented (`BP-516`). Do not copy that half of the mirror.

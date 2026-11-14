@@ -1,0 +1,48 @@
+{
+  "host": "all",
+  "roster": [
+    "Orchestrator",
+    "SimHost",
+    "Player",
+    "CGF",
+    "Traffic"
+  ],
+  "nodeCounts": {
+    "simhost": {
+      "modules": 11,
+      "systems": 145,
+      "translators": 153,
+      "capabilities": 10,
+      "providers": 1,
+      "singletons": 14,
+      "componentTypes": 195
+    },
+    "player": {
+      "modules": 10,
+      "systems": 96,
+      "translators": 140,
+      "capabilities": 7,
+      "providers": 0,
+      "singletons": 6,
+      "componentTypes": 149
+    },
+    "cgf": {
+      "modules": 9,
+      "systems": 152,
+      "translators": 160,
+      "capabilities": 7,
+      "providers": 0,
+      "singletons": 9,
+      "componentTypes": 228
+    },
+    "traffic": {
+      "modules": 6,
+      "systems": 52,
+      "translators": 132,
+      "capabilities": 2,
+      "providers": 0,
+      "singletons": 5,
+      "componentTypes": 126
+    }
+  }
+}

@@ -9,13 +9,15 @@ using Hrot.Orchestrator;
 using Fdp.Core;
 using Fdp.Toolkit.Time.Domain;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 using FdpClusterOpType        = Fdp.Toolkit.Orchestration.ClusterOpType;
 using FdpClusterState         = Fdp.Toolkit.Orchestration.ClusterState;
 using TransitionStateIntent   = Fdp.Toolkit.Orchestration.TransitionStateIntent;
+using BuildTerrainAssetIntent = Fdp.Toolkit.Orchestration.BuildTerrainAssetIntent;
+using AssetOpIntent           = Fdp.Toolkit.Orchestration.AssetOpIntent;
 using ManageEpisodeIntent     = Fdp.Toolkit.Orchestration.ManageEpisodeIntent;
 using ExecuteStorageOpIntent  = Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent;
 using StorageOpType           = Fdp.Toolkit.Orchestration.StorageOpType;
-using TakeCheckpointIntent    = Fdp.Toolkit.Orchestration.TakeCheckpointIntent;
 using SeekReplayIntent        = Fdp.Toolkit.Orchestration.SeekReplayIntent;
 using CancelOperationIntent   = Fdp.Toolkit.Orchestration.CancelOperationIntent;
 
@@ -41,6 +43,18 @@ public sealed class ClusterScenarioPanel
     private readonly FdpEventBus?   _bus;
     private readonly ClusterUiCache _uiCache;
 
+    /// <summary>⭐ E4 — per-node outcomes of the terrain build this panel requested (§8.3 N5).</summary>
+    private readonly TerrainBuildOutcomeTracker _terrainBuild = new();
+    private readonly Hrot.Orchestrator.Panels.AssetOpStatusTracker _assetOp = new();
+    private int _assetNodeId = -1;
+    private int _assetKindIndex;
+    private static readonly string[] AssetKinds =
+    {
+        Fdp.Toolkit.Orchestration.Assets.AssetTokens.Kinds.Blueprint,
+        Fdp.Toolkit.Orchestration.Assets.AssetTokens.Kinds.BTree,
+        Fdp.Toolkit.Orchestration.Assets.AssetTokens.Kinds.Hsm,
+    };
+
     // ── Helper: send a request via whichever channel is available ─────────
     private void SendRequest(ClusterOpRequest req)
     {
@@ -54,39 +68,8 @@ public sealed class ClusterScenarioPanel
         // HEXAG2-S012: zero ClusterOpIntent references; each operation type is mapped directly.
         switch ((FdpClusterOpType)(int)req.OperationType)
         {
-            case FdpClusterOpType.PauseTime:
-                _bus!.PublishManaged(new PauseTimeIntent());
-                break;
-
-            case FdpClusterOpType.ResumeTime:
-                _bus!.PublishManaged(new ResumeTimeIntent());
-                break;
-
-            case FdpClusterOpType.StepTime:
-            {
-                StepTimePayloadDto? dto = null;
-                if (!string.IsNullOrWhiteSpace(req.PayloadJson))
-                {
-                    try { dto = JsonSerializer.Deserialize<StepTimePayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default); }
-                    catch { }
-                }
-                float delta = dto != null && dto.FixedDelta > 0f ? dto.FixedDelta : 1f / 60f;
-                _bus!.PublishManaged(new StepTimeIntent { DeltaSeconds = delta });
-                break;
-            }
-
-            case FdpClusterOpType.SetTimeScale:
-            {
-                SetTimeScalePayloadDto? dto = null;
-                if (!string.IsNullOrWhiteSpace(req.PayloadJson))
-                {
-                    try { dto = JsonSerializer.Deserialize<SetTimeScalePayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default); }
-                    catch { }
-                }
-                float scale = dto != null && dto.TimeScale > 0f ? dto.TimeScale : 1f;
-                _bus!.PublishManaged(new SetTimeScaleIntent { TimeScale = scale });
-                break;
-            }
+            // ⭐ CE-1439 — PauseTime / ResumeTime / StepTime / SetTimeScale / TakeCheckpoint are no longer built here: the panel's controls ask the host's transport and run choice
+            //   (ClusterPanelRunControls), the ONE place those intents are published. ⛔ A second mapping of them in this switch was the duplicate.
 
             case FdpClusterOpType.TransitionState:
             {
@@ -102,21 +85,14 @@ public sealed class ClusterScenarioPanel
                 break;
             }
 
-            case FdpClusterOpType.SaveScenario:
-                _bus!.PublishManaged(new ExecuteStorageOpIntent
-                {
-                    RequestId  = req.RequestId,
-                    Operation  = StorageOpType.SaveScenario,
-                    ExerciseId = ExtractGuidField(req.PayloadJson),
-                });
-                break;
+            // CE-278: FdpClusterOpType.SaveScenario (=2) retired — no local intent published.
 
             case FdpClusterOpType.ExportArchive:
                 _bus!.PublishManaged(new ExecuteStorageOpIntent
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Export,
-                    ExerciseId = ExtractGuidField(req.PayloadJson),
+                    ExerciseId = (Fdp.Core.ExerciseId)(ExtractGuidField(req.PayloadJson)),
                 });
                 break;
 
@@ -125,18 +101,41 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Import,
-                    ExerciseId = ExtractGuidField(req.PayloadJson),
+                    ExerciseId = (Fdp.Core.ExerciseId)(ExtractGuidField(req.PayloadJson)),
                 });
-                break;
-
-            case FdpClusterOpType.TakeCheckpoint:
-                _bus!.PublishManaged(new TakeCheckpointIntent { RequestId = req.RequestId });
                 break;
 
             case FdpClusterOpType.ReplaySeek:
             {
-                long ticks = TryParseWallTicks(req.PayloadJson);
-                _bus!.PublishManaged(new SeekReplayIntent { RequestId = req.RequestId, TargetWallTicks = ticks });
+                _bus!.PublishManaged(SeekReplayPayloadDto.Decode(req.RequestId, req.PayloadJson));   // ⭐ CE-3329 — the one decoding
+                break;
+            }
+
+            // ⭐ E4 — without this arm the build request would be silently DROPPED on the bus path
+            //    (remote / ExCon), so the button would work when the panel holds the master and do
+            //    nothing when it does not. ⛔ That asymmetry is the shape this switch exists to avoid.
+            case FdpClusterOpType.BuildTerrainAsset:
+                _bus!.PublishManaged(new BuildTerrainAssetIntent
+                {
+                    RequestId = req.RequestId,
+                    Kinds     = TryParseTerrainKinds(req.PayloadJson),
+                });
+                break;
+
+            // ⭐ CE-3021 — publish / refresh on the remote path (forwarded by ClusterOpEgressTranslator).
+            case FdpClusterOpType.PublishAssets:
+            case FdpClusterOpType.RefreshAssets:
+            {
+                AssetOpPayloadDto? dto = null;
+                try { dto = JsonSerializer.Deserialize<AssetOpPayloadDto>(req.PayloadJson ?? "", OrchestrationJsonOptions.Default); }
+                catch (JsonException) { }
+                _bus!.PublishManaged(new AssetOpIntent
+                {
+                    RequestId = req.RequestId,
+                    Refresh   = (FdpClusterOpType)(int)req.OperationType == FdpClusterOpType.RefreshAssets,
+                    Kind      = dto?.Kind,
+                    NodeId    = (Fdp.Core.NodeId)(dto?.NodeId ?? 0),
+                });
                 break;
             }
 
@@ -151,17 +150,17 @@ public sealed class ClusterScenarioPanel
 
     // ── Payload parsing helpers (bus path only) ────────────────────────────
 
-    private static long TryParseWallTicks(string? json)
+    /// <summary>⭐ E4 — the build op's kinds. ⚠ null means ALL kinds, never "none".</summary>
+    private static string[]? TryParseTerrainKinds(string? json)
     {
-        if (string.IsNullOrWhiteSpace(json)) return 0;
-        if (long.TryParse(json, out var v)) return v;
+        if (string.IsNullOrWhiteSpace(json)) return null;
         try
         {
-            var dto = JsonSerializer.Deserialize<SeekReplayPayloadDto>(json, OrchestrationJsonOptions.Default);
-            return dto?.TargetWallTicks ?? 0;
+            var dto = JsonSerializer.Deserialize<TerrainAssetBuildPayloadDto>(
+                json, OrchestrationJsonOptions.Default);
+            return dto?.Kinds;
         }
-        catch { }
-        return 0;
+        catch (JsonException) { return null; }
     }
 
     private static Guid ExtractGuidField(string? json)
@@ -181,14 +180,8 @@ public sealed class ClusterScenarioPanel
         try
         {
             var dto = JsonSerializer.Deserialize<TransitionPayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default);
-            return new TransitionStateIntent
-            {
-                TransactionId = req.RequestId,
-                TargetState   = dto?.TargetState.HasValue == true ? (FdpClusterState)(int)dto.TargetState.Value : default,
-                ScenarioId    = dto?.ScenarioId,
-                ExerciseId    = dto?.ExerciseId ?? Guid.Empty,
-                TimeMode      = dto?.TimeMode,
-            };
+            // ⭐ R-3055 — the ONE decoding (it dropped CheckpointingSeconds and TargetWallTicks here)
+            if (dto?.TargetState is not null) return dto.ToIntent(req.RequestId);
         }
         catch { }
         return new TransitionStateIntent { TransactionId = req.RequestId };
@@ -203,7 +196,7 @@ public sealed class ClusterScenarioPanel
             {
                 TransactionId = req.RequestId,
                 IsStart       = dto?.IsStart ?? false,
-                EpisodeId     = dto?.EpisodeId ?? Guid.Empty,
+                EpisodeId     = (Fdp.Core.EpisodeId)(dto?.EpisodeId ?? Guid.Empty),
                 ScenarioId    = dto?.ScenarioId,
             };
         }
@@ -225,13 +218,35 @@ public sealed class ClusterScenarioPanel
     private IReadOnlyCollection<Guid> EffectiveEpisodes
         => _uiCache.ActiveEpisodes;
 
-    // ── Scenario section state ────────────────────────────────────────────
-    private string _saveScenarioId  = string.Empty;
-
     // ── Asset combo state (S0504 / S0506) ────────────────────────────────
     private int _selectedLoadScenarioIdx = -1;
     private int _selectedExerciseIdx        = -1;
     private bool _startPaused = false;
+
+    // ⭐⭐⭐ CE-1439 (AQ108 §2.12) — this panel is the MONITOR; what it ASKS for (pause / resume / step / speed, the loads, Open AAR, the checkpoint) goes through the host's ONE run
+    //   surfaces — the transport's USER entry, the run choice and the scenario session — via ClusterPanelRunControls. ⛔ The panel's own ScenarioLoadSequence (CE-295's copy of the session's)
+    //   and its own pause / step / checkpoint / replay-transition requests are GONE.
+    private ClusterPanelRunControls? _controls;
+    private bool _controlsAreOwned;
+
+    /// <summary>
+    /// ⭐ The host's run surfaces. A host that HAS them (the Orchestrator, the editor) passes them — ⛔ a production caller that holds the dependency must pass it. A host that composes none (ExCon,
+    /// being retired — R-3067) gets the SAME shared classes built over this panel's own bus, advanced by <see cref="Update"/>; a panel with neither (the master-bound ctor, no bus) has its
+    /// controls disabled, with the reason shown.
+    /// </summary>
+    public ClusterPanelRunControls? RunControls
+    {
+        get => _controls ??= BuildOwnedControls();
+        set { _controls = value; _controlsAreOwned = false; }
+    }
+
+    private ClusterPanelRunControls? BuildOwnedControls()
+    {
+        if (_bus is null) return null;
+        _controlsAreOwned = true;
+        return ClusterPanelRunControls.OverBus(_bus, () => _uiCache.View, () => _uiCache.MasterSimTime);
+    }
+
     private int _selectedEpisodeIdx        = -1;
 
     // ── Replay section state ──────────────────────────────────────────────
@@ -254,6 +269,16 @@ public sealed class ClusterScenarioPanel
 
     /// <param name="clusterMaster">ClusterMaster — source of true internal state and command target (Orchestrator path).</param>
     /// <param name="uiCache">Network cache — used for asset inventory and time data.</param>
+    /// <summary>⭐ CE-4330 ⑥ — this host's storage transfers (the run choice's, composed once by the window controller): the archive section draws their job list.
+    /// Null ⇒ the section keeps its one-op progress block (a host that composes none).</summary>
+    public Func<Hrot.UI.Common.Storage.StorageTransfers?>? Transfers { get; set; }
+
+    /// <summary>⭐ CE-4330 ⑥ — the job list the archive section drew last (null before any).</summary>
+    internal Hrot.UI.Common.Panels.StorageJobList? JobList => _jobList;
+
+    private Hrot.UI.Common.Panels.StorageJobList? _jobList;
+    private Hrot.UI.Common.Storage.StorageTransfers? _jobListFor;
+
     public ClusterScenarioPanel(ClusterMaster clusterMaster, ClusterUiCache uiCache)
     {
         _master  = clusterMaster ?? throw new ArgumentNullException(nameof(clusterMaster));
@@ -273,17 +298,18 @@ public sealed class ClusterScenarioPanel
     /// <summary>Advances the seek debounce timer. Call once per frame from the subsystem Update().</summary>
     public void Update(float dt)
     {
+        if (_controlsAreOwned) RunControls?.Update();   // ⭐ CE-1439 — only controls this panel built itself; a host advances its own
         if (!_seekPending) return;
         _seekDebounceTimer -= dt;
         if (_seekDebounceTimer > 0f) return;
 
         _seekPending = false;
-        long wallTicks = (long)(_seekSliderValue * 10_000_000L);
+        // ⭐ CE-3330 E4 — the slider is on the session's axis (Sim: sim seconds; Wall: seconds after the zero)
         SendRequest(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.ReplaySeek,
-            PayloadJson   = JsonSerializer.Serialize(new SeekReplayPayloadDto(TargetWallTicks: wallTicks), OrchestrationJsonOptions.Default),
+            PayloadJson   = JsonSerializer.Serialize(ReplaySliderAxis.Seek(_uiCache.ReplayAxis, _seekSliderValue), OrchestrationJsonOptions.Default),
         });
     }
 
@@ -327,6 +353,8 @@ public sealed class ClusterScenarioPanel
 
         // ── 3. Checkpoint ─────────────────────────────────────────────────
         RenderCheckpointSection(EffectiveState, disableAll);
+        RenderTerrainSection(disableAll);
+        RenderAssetsSection(disableAll);
 
         // ── 4. Scenario ────────────────────────────────────────────────────
         RenderScenarioSection(disableAll);
@@ -347,17 +375,16 @@ public sealed class ClusterScenarioPanel
 
     private void RenderNodeHealthTable()
     {
-        if (!ImGui.CollapsingHeader("Node Health", ImGuiTreeNodeFlags.DefaultOpen)) return;
+        if (!SectionHeader.Draw("hdr.health", "Node Health", "section/health", ImGuiTreeNodeFlags.DefaultOpen)) return;
 
         double nowSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
-        if (ImGui.BeginTable("NodeHealth", 6,
+        if (ImGui.BeginTable("NodeHealth", 5,
                 ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
         {
             ImGui.TableSetupColumn("NodeId");
             ImGui.TableSetupColumn("Subsystem");
             ImGui.TableSetupColumn("Last HB (ms ago)");
             ImGui.TableSetupColumn("State");
-            ImGui.TableSetupColumn("CPU %");
             ImGui.TableSetupColumn("RAM (MB)");
             ImGui.TableHeadersRow();
 
@@ -375,7 +402,6 @@ public sealed class ClusterScenarioPanel
                     ImGui.TableNextColumn(); ImGui.Text(p.SubsystemName ?? "—");
                     ImGui.TableNextColumn(); ImGui.Text(msAgo >= 0 ? msAgo.ToString() : "—");
                     ImGui.TableNextColumn(); ImGui.Text(p.LocalClusterState.ToString());
-                    ImGui.TableNextColumn(); ImGui.Text($"{p.CpuUsagePercent:F1}");
                     ImGui.TableNextColumn(); ImGui.Text($"{ramMb:F1}");
                 }
             }
@@ -394,7 +420,6 @@ public sealed class ClusterScenarioPanel
                     ImGui.TableNextColumn(); ImGui.Text(hb.SubsystemName ?? "—");
                     ImGui.TableNextColumn(); ImGui.Text(msAgo >= 0 ? msAgo.ToString() : "—");
                     ImGui.TableNextColumn(); ImGui.Text(hb.LocalClusterState.ToString());
-                    ImGui.TableNextColumn(); ImGui.Text($"{hb.CpuUsagePercent:F1}");
                     ImGui.TableNextColumn(); ImGui.Text($"{ramMb:F1}");
                 }
             }
@@ -404,7 +429,7 @@ public sealed class ClusterScenarioPanel
 
     private void RenderTimeControl(bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("Time Control", ImGuiTreeNodeFlags.DefaultOpen)) return;
+        if (!SectionHeader.Draw("hdr.time", "Time Control", "section/time", ImGuiTreeNodeFlags.DefaultOpen)) return;
 
         long   wallTicks   = DateTimeOffset.UtcNow.Ticks;
         string wallTimeStr = new DateTime(wallTicks, DateTimeKind.Utc).ToString("HH:mm:ss.fff");
@@ -419,51 +444,39 @@ public sealed class ClusterScenarioPanel
 
         float timeScale = _uiCache.MasterTimeScale;
         bool isPaused = _uiCache.IsPaused;
+        var controls = RunControls;
+        if (controls is null) ImGui.TextDisabled("(no run controls on this host)");
+        // ⭐ CE-1439 — the USER's ▶ / Step / speed, through the host's transport + run choice (⛔ no intents of this panel's own)
+        bool canPlay = controls?.CanPlayPause ?? false;
+        if (!canPlay) ImGui.BeginDisabled();
         if (ImGui.Button(isPaused ? "Resume##OrcResume" : "Pause##OrcPause"))
-            SendRequest(new ClusterOpRequest
-            {
-                RequestId     = Guid.NewGuid(),
-                OperationType = isPaused ? ClusterOpType.ResumeTime : ClusterOpType.PauseTime,
-                PayloadJson   = string.Empty,
-            });
+            controls!.PauseOrResume();
+        if (!canPlay) ImGui.EndDisabled();
 
         ImGui.SameLine();
-        if (!isPaused) ImGui.BeginDisabled();
+        bool canStep = isPaused && (controls?.CanStep ?? false);
+        if (!canStep) ImGui.BeginDisabled();
         ImGui.SetNextItemWidth(80f);
         ImGui.InputFloat("Step (s)##OrcStepDelta", ref _stepDeltaSeconds, 0f, 0f, "%.4f");
         if (_stepDeltaSeconds <= 0f) _stepDeltaSeconds = 1f / 60f;
         ImGui.SameLine();
         if (ImGui.Button("Step##OrcStep"))
-        {
-            SendRequest(new ClusterOpRequest
-            {
-                RequestId     = Guid.NewGuid(),
-                OperationType = ClusterOpType.StepTime,
-                PayloadJson   = JsonSerializer.Serialize(
-                    new StepTimePayloadDto(FixedDelta: _stepDeltaSeconds),
-                    OrchestrationJsonOptions.Default),
-            });
-        }
-        if (!isPaused) ImGui.EndDisabled();
+            controls!.Step(_stepDeltaSeconds);
+        if (!canStep) ImGui.EndDisabled();
 
         ImGui.SameLine();
         ImGui.SetNextItemWidth(150f);
+        if (controls is null) ImGui.BeginDisabled();
         if (ImGui.SliderFloat("Speed##OrcSpeed", ref timeScale, 0.1f, 10.0f, "%.1fx"))
-            SendRequest(new ClusterOpRequest
-            {
-                RequestId     = Guid.NewGuid(),
-                OperationType = ClusterOpType.SetTimeScale,
-                PayloadJson   = JsonSerializer.Serialize(
-                    new SetTimeScalePayloadDto(TimeScale: timeScale),
-                    OrchestrationJsonOptions.Default),
-            });
+            controls?.SetTimeScale(timeScale);
+        if (controls is null) ImGui.EndDisabled();
 
         if (disableAll) ImGui.EndDisabled();
     }
 
     private void RenderTxHistory()
     {
-        if (!ImGui.CollapsingHeader("2PC History")) return;
+        if (!SectionHeader.Draw("hdr.2pc", "2PC History", "tab/history")) return;
 
         var history    = EffectiveTxHistory;
         float rowHeight = ImGui.GetTextLineHeightWithSpacing();
@@ -561,7 +574,7 @@ public sealed class ClusterScenarioPanel
         var currentState = EffectiveState;
         var currentExerciseId = EffectiveExerciseId;
 
-        if (ImGui.BeginChild("##OrcStatusBanner", new Vector2(-1, 74), ImGuiChildFlags.Borders))
+        if (ImGui.BeginChild("##OrcStatusBanner", new Vector2(-1, 96), ImGuiChildFlags.Borders))
         {
             if (hasInFlight && activeTx != null)
             {
@@ -580,18 +593,65 @@ public sealed class ClusterScenarioPanel
 
             if (currentExerciseId != Guid.Empty)
                 ImGui.Text($"Exercise Id: {currentExerciseId}");
+
+            // ⭐⭐ CE-4087 — the load gate: a scenario load waits for a Brain and a MuscleGround node, then is refused. The operator
+            //   reads WHICH role is missing here — a failed load is never silent.
+            if (_master?.LoadNotice is { } loadNotice)
+            {
+                ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.55f, 0.2f, 1f));
+                ImGui.TextWrapped($"Load: {loadNotice}");
+                ImGui.PopStyleColor();
+            }
         }
         ImGui.EndChild();
     }
 
+    /// <summary>⭐ CE-4100 ① — the cluster's run settings, through <see cref="ClusterPanelRunControls"/> (the ONE sender): <i>Record live runs</i> and <i>Ask to keep recordings</i>; enabled whenever this host has a cluster view.</summary>
+    private static readonly string[] ClusterLabels = { "Start Paused (Live/Preview)", "Record live runs", "Ask to keep recordings", "Start immediately", "Autosave" };
+
+    private void RenderRunSettings(bool disableAll)
+    {
+        var controls = RunControls;
+        bool enabled = !disableAll && controls is { RunSettingsEnabled: true };
+        if (!enabled) ImGui.BeginDisabled();
+        bool record = controls?.RecordLiveRuns ?? true;
+        bool ask = controls?.AskToKeepRecordings ?? false;
+        bool startNow = controls?.StartImmediately ?? false;
+        if (FormGrid.Begin("orc.cluster", ClusterLabels))
+        {
+            FormGrid.Row("Record live runs");
+            if (ImGui.Checkbox("##OrcRecordLive", ref record)) controls!.SetRecordLiveRuns(record);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Cluster-wide; applies from the next live load. Off: a live run writes no recording.");
+            FormGrid.Row("Ask to keep recordings");
+            if (ImGui.Checkbox("##OrcAskKeep", ref ask)) controls!.SetAskToKeepRecordings(ask);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("At ■ in a recorded live run, ask: Keep / Discard. Off: keep silently.");
+            FormGrid.Row("Start immediately");
+            if (ImGui.Checkbox("##OrcStartNow", ref startNow)) controls!.SetStartImmediately(startNow);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("a Live load starts running at once — no briefing pause");
+            FormGrid.Row("Autosave");   // ⭐ CE-4099 phase 2 (AQ108 §4c.1) — beside Start immediately: the same cluster-wide setting shape, sent through the same intent
+            int autosave = controls?.AutosaveMinutes ?? 0;
+            ImGui.SetNextItemWidth(-1);
+            if (ImGui.BeginCombo("##OrcAutosave", ClusterPanelRunControls.AutosaveLabel(autosave)))
+            {
+                foreach (int choice in ClusterPanelRunControls.AutosaveChoices)
+                    if (ImGui.Selectable(ClusterPanelRunControls.AutosaveLabel(choice), choice == autosave)) controls!.SetAutosaveMinutes(choice);
+                ImGui.EndCombo();
+            }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("While you edit a scenario, keep an autosave this often (not a save — a real save deletes it). Off: none. Cluster-wide.");
+            FormGrid.End();
+        }
+        if (!enabled) ImGui.EndDisabled();
+    }
+
     private void RenderClusterControl(bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("Cluster Control", ImGuiTreeNodeFlags.DefaultOpen)) return;
+        if (!SectionHeader.Draw("hdr.cluster", "Cluster Control", "tab/settings", ImGuiTreeNodeFlags.DefaultOpen)) return;
 
         if (ImGui.BeginChild("##OrcClusterControl", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
             if (disableAll) ImGui.BeginDisabled();
-            ImGui.Checkbox("Start Paused (Live/Preview)##OrcStartPaused", ref _startPaused);
+            if (FormGrid.Begin("orc.cluster", ClusterLabels)) { FormGrid.Row("Start Paused (Live/Preview)"); ImGui.Checkbox("##OrcStartPaused", ref _startPaused); FormGrid.End(); }
+            RenderRunSettings(disableAll);
             ImGui.Spacing();
 
             var reachable = EffectiveReachable;
@@ -626,29 +686,177 @@ public sealed class ClusterScenarioPanel
         ImGui.EndChild();
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>E4</c> — trigger a terrain-asset build, and show the outcome PER NODE.
+    ///
+    /// <para>⛔⛔ <b>Never one global OK</b> (§8.3 N5, §9.2 U3): the summary line says how many nodes
+    /// answered and turns red if ANY failed, and each node is listed with its own status. An operator
+    /// who sees a single green tick cannot tell which node is now missing terrain — and that node will
+    /// render and path incorrectly while the cluster reports healthy.</para>
+    ///
+    /// <para>⚠ The build is deliberately NOT gated on cluster state. A rebuild is meaningful whenever
+    /// the nodes are up; unlike a checkpoint it does not require <c>OperatingLive</c>.</para>
+    /// </summary>
+    private void RenderTerrainSection(bool disableAll)
+    {
+        if (!SectionHeader.Draw("hdr.terrain", "Terrain", "section/terrain")) return;
+
+        if (ImGui.BeginChild("##OrcTerrain", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
+        {
+            if (disableAll) ImGui.BeginDisabled();
+
+            if (ImGui.Button("Build Terrain Assets##OrcTerrainBuild"))
+            {
+                var requestId = Guid.NewGuid();
+                _terrainBuild.Watch(requestId);
+                SendRequest(new ClusterOpRequest
+                {
+                    RequestId     = requestId,
+                    OperationType = ClusterOpType.BuildTerrainAsset,
+                    // ⚠ No kinds ⇒ ALL kinds. An op that asked for nothing would never be published.
+                    PayloadJson   = JsonSerializer.Serialize(
+                        new TerrainAssetBuildPayloadDto(Kinds: null), OrchestrationJsonOptions.Default),
+                });
+            }
+
+            if (disableAll) ImGui.EndDisabled();
+
+            var outcomes = _terrainBuild.Outcomes;
+            if (_terrainBuild.WatchedRequestId == Guid.Empty)
+            {
+                ImGui.TextDisabled("No build requested this session.");
+            }
+            else if (outcomes.Count == 0)
+            {
+                ImGui.TextDisabled("Build in flight — waiting for node acknowledgements...");
+            }
+            else
+            {
+                // ⛔ The SUMMARY never stands alone: it is a count plus a per-node list, so "green" can
+                //    never hide a failed node.
+                if (_terrainBuild.AnyFailed)
+                    NodeEditor.Core.Widgets.RowMarks.ErrorLine($"{outcomes.Count} node(s) answered — AT LEAST ONE FAILED");
+                else
+                    ImGui.Text($"{outcomes.Count} node(s) answered — all OK so far");
+
+                foreach (var o in outcomes)
+                {
+                    string line = $"  node {o.NodeId}: {o.Status} ({o.Phase})";
+                    if (o.Failed)
+                        NodeEditor.Core.Widgets.RowMarks.ErrorLine(line);
+                    else
+                        ImGui.Text(line);
+                }
+            }
+        }
+        ImGui.EndChild();
+    }
+
+    /// <summary>
+    /// ⭐ CE-3021 — the explicit asset operations, any time (docs/DESIGN_Asset_Management.md §5, §7.3c, §10 D7): PUBLISH an
+    /// author's tree to NAS, or REFRESH it from NAS. ⛔ Never automatic. ⚠ A refresh OVERWRITES files on the author's node
+    /// (only where NAS is newer) — the button says so, and the orchestrator logs every file it replaces.
+    /// </summary>
+    private void RenderAssetsSection(bool disableAll)
+    {
+        if (!SectionHeader.Draw("hdr.assets", "Assets", "section/assets")) return;
+
+        if (_bus != null) _assetOp.Observe(_bus.ReadManaged<Fdp.Toolkit.Orchestration.ClusterOpCompletedEvent>());
+
+        if (ImGui.BeginChild("##OrcAssets", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
+        {
+            // ⭐ With the master here, offer only the nodes that AUTHOR something; remotely the roster has no tokens.
+            var nodes = AuthoringNodes();
+            if (nodes.Count == 0)
+            {
+                ImGui.TextDisabled("No authoring node is active.");
+            }
+            else
+            {
+                if (!nodes.Contains(_assetNodeId)) _assetNodeId = nodes[0];
+                if (FormGrid.Begin("orc.asset"))
+                {
+                    FormGrid.Row("Node");
+                    if (ImGui.BeginCombo("##OrcAssetNode", $"node {_assetNodeId}"))
+                    {
+                        foreach (var n in nodes)
+                            if (ImGui.Selectable($"node {n}", n == _assetNodeId)) _assetNodeId = n;
+                        ImGui.EndCombo();
+                    }
+                    FormGrid.Row("Kind");
+                    ImGui.Combo("##OrcAssetKind", ref _assetKindIndex, AssetKinds, AssetKinds.Length);
+                    FormGrid.End();
+                }
+
+                if (disableAll) ImGui.BeginDisabled();
+                if (ImGui.Button("Publish to NAS##OrcAssetPublish")) SendAssetOp(refresh: false);
+                ImGui.SameLine();
+                if (ImGui.Button("Refresh from NAS (overwrites older local files)##OrcAssetRefresh")) SendAssetOp(refresh: true);
+                if (disableAll) ImGui.EndDisabled();
+            }
+
+            if (_assetOp.WatchedRequestId == Guid.Empty)
+                ImGui.TextDisabled("No asset operation requested this session.");
+            else if (_assetOp.Status == null)
+                ImGui.TextDisabled($"{_assetOp.Description} — waiting...");
+            else if (_assetOp.Failed)
+                NodeEditor.Core.Widgets.RowMarks.ErrorLine($"{_assetOp.Description} — {_assetOp.Status}");
+            else
+                ImGui.Text($"{_assetOp.Description} — {_assetOp.Status}");
+        }
+        ImGui.EndChild();
+    }
+
+    private List<int> AuthoringNodes()
+    {
+        var list = new List<int>();
+        if (_master != null)
+        {
+            foreach (var (id, tokens) in _master.ActiveNodeCapabilitySnapshot())
+                if (Fdp.Toolkit.Orchestration.Assets.AssetTokens.Parse(tokens).Authors.Count > 0) list.Add(id);
+        }
+        else
+        {
+            foreach (var id in _uiCache.ActiveNodes.Keys) list.Add(id);
+        }
+        list.Sort();
+        return list;
+    }
+
+    private void SendAssetOp(bool refresh)
+    {
+        var kind = AssetKinds[Math.Clamp(_assetKindIndex, 0, AssetKinds.Length - 1)];
+        var requestId = Guid.NewGuid();
+        _assetOp.Watch(requestId, $"{(refresh ? "Refresh" : "Publish")} {kind} on node {_assetNodeId}");
+        SendRequest(new ClusterOpRequest
+        {
+            RequestId     = requestId,
+            OperationType = refresh ? ClusterOpType.RefreshAssets : ClusterOpType.PublishAssets,
+            PayloadJson   = JsonSerializer.Serialize(new AssetOpPayloadDto(kind, _assetNodeId), OrchestrationJsonOptions.Default),
+        });
+    }
+
     private void RenderCheckpointSection(ClusterState currentState, bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("Checkpoint")) return;
+        if (!SectionHeader.Draw("hdr.checkpoint", "Checkpoint", "section/checkpoint")) return;
 
         if (ImGui.BeginChild("##OrcCheckpoint", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
-            bool checkpointDisabled = disableAll || currentState != ClusterState.OperatingLive;
+            // ⭐ CE-1439 — the run choice's checkpoint (the session's TakeCheckpoint + the toast) and ITS reason; ⛔ not a second "is it Live?" test of this panel's own
+            var controls = RunControls;
+            string? why = controls is null ? "no run controls on this host" : controls.CheckpointDisabledReason;
+            bool checkpointDisabled = disableAll || why is not null;
             if (checkpointDisabled) ImGui.BeginDisabled();
 
             if (ImGui.Button("Take Checkpoint"))
-                SendRequest(new ClusterOpRequest
-                {
-                    RequestId     = Guid.NewGuid(),
-                    OperationType = ClusterOpType.TakeCheckpoint,
-                    PayloadJson   = string.Empty,
-                });
+                controls!.TakeCheckpoint();
 
             if (checkpointDisabled) ImGui.EndDisabled();
 
-            if (currentState != ClusterState.OperatingLive)
+            if (why is not null)
             {
                 ImGui.SameLine();
-                ImGui.TextDisabled("(requires RunningLive)");
+                ImGui.TextDisabled($"({why})");
             }
         }
         ImGui.EndChild();
@@ -656,7 +864,7 @@ public sealed class ClusterScenarioPanel
 
     private void RenderScenarioSection(bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("Scenario")) return;
+        if (!SectionHeader.Draw("hdr.scenario", "Scenario", "tab/scenario")) return;
 
         if (ImGui.BeginChild("##OrcScenario", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
@@ -665,50 +873,22 @@ public sealed class ClusterScenarioPanel
             if (_selectedLoadScenarioIdx >= _uiCache.AvailableScenarios.Length)
                 _selectedLoadScenarioIdx = -1;
 
-            // Save Scenario
-            ImGui.InputText("Save Scenario ID##OrcSaveId", ref _saveScenarioId, 128);
-            ImGui.SameLine();
-            if (ImGui.Button("Save Scenario##OrcBtn") && !string.IsNullOrWhiteSpace(_saveScenarioId))
-                SendRequest(new ClusterOpRequest
-                {
-                    RequestId     = Guid.NewGuid(),
-                    OperationType = ClusterOpType.SaveScenario,
-                    PayloadJson   = JsonSerializer.Serialize(
-                        new ArchivePayloadDto(ExerciseId: Guid.TryParse(_saveScenarioId, out var g) ? g : Guid.Empty),
-                        OrchestrationJsonOptions.Default),
-                });
-
-            ImGui.Spacing();
+            // CE-278: the "Save Scenario" (op=2) control is retired — the .fdp-archive scenario save stub
+            // is gone. Use "Export to NAS ▶" below to archive an exercise, or the JSON scenario save.
 
             // Load Scenario
             ImGui.Combo("Select Scenario##OrcLoadId", ref _selectedLoadScenarioIdx,
                 _uiCache.AvailableScenarios, _uiCache.AvailableScenarios.Length);
             ImGui.SameLine();
+            // ⭐ CE-1439 — Load into Edit = the run choice's guarded open (what File › Open Scenario ends in); Load into Live = the session's explicit live load
+            bool noControls = RunControls is null;
+            if (noControls) ImGui.BeginDisabled();
             if (ImGui.Button("Load into Edit##OrcLoadEdit") && _selectedLoadScenarioIdx >= 0)
-            {
-                string scenId = _uiCache.AvailableScenarios[_selectedLoadScenarioIdx];
-                SendRequest(new ClusterOpRequest
-                {
-                    RequestId     = Guid.NewGuid(),
-                    OperationType = ClusterOpType.TransitionState,
-                    PayloadJson   = JsonSerializer.Serialize(
-                        new TransitionPayloadDto(TargetState: ClusterState.OperatingEdit, ScenarioId: scenId, ExerciseId: Guid.Empty, TimeMode: null),
-                        OrchestrationJsonOptions.Default),
-                });
-            }
+                RunControls!.LoadIntoEdit(_uiCache.AvailableScenarios[_selectedLoadScenarioIdx]);
             ImGui.SameLine();
             if (ImGui.Button("Load into Live##OrcLoadLive") && _selectedLoadScenarioIdx >= 0)
-            {
-                string scenId = _uiCache.AvailableScenarios[_selectedLoadScenarioIdx];
-                SendRequest(new ClusterOpRequest
-                {
-                    RequestId     = Guid.NewGuid(),
-                    OperationType = ClusterOpType.TransitionState,
-                    PayloadJson   = JsonSerializer.Serialize(
-                        new TransitionPayloadDto(TargetState: ClusterState.OperatingLive, ScenarioId: scenId, ExerciseId: Guid.NewGuid(), TimeMode: _startPaused ? "Deterministic" : null),
-                        OrchestrationJsonOptions.Default),
-                });
-            }
+                RunControls!.LoadIntoLive(_uiCache.AvailableScenarios[_selectedLoadScenarioIdx]);
+            if (noControls) ImGui.EndDisabled();
 
             if (disableAll) ImGui.EndDisabled();
         }
@@ -717,7 +897,7 @@ public sealed class ClusterScenarioPanel
 
     private void RenderReplaySection(bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("Replay")) return;
+        if (!SectionHeader.Draw("OrcReplay", "AAR (After Action Review)", "mode/replay")) return;   // ⭐ AQ108 D17 — the user's word is AAR (the code keeps Replay)
 
         if (ImGui.BeginChild("##OrcReplay", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
@@ -745,32 +925,24 @@ public sealed class ClusterScenarioPanel
                 ImGui.EndCombo();
             }
             ImGui.SameLine();
-            if (ImGui.Button("Load Replay##OrcReplayBtn") && _selectedExerciseIdx >= 0)
-            {
-                Guid exerciseId = available[_selectedExerciseIdx].ExerciseId;
-
-                SendRequest(new ClusterOpRequest
-                {
-                    RequestId     = Guid.NewGuid(),
-                    OperationType = ClusterOpType.TransitionState,
-                    PayloadJson   = JsonSerializer.Serialize(
-                        new TransitionPayloadDto(TargetState: ClusterState.OperatingReplay, ScenarioId: null, ExerciseId: exerciseId, TimeMode: null),
-                        OrchestrationJsonOptions.Default),
-                });
-            }
+            if (RunControls is null) ImGui.BeginDisabled();
+            if (ImGui.Button("Open AAR##OrcReplayBtn") && _selectedExerciseIdx >= 0)
+                RunControls!.OpenAar(available[_selectedExerciseIdx].ExerciseId);   // ⭐ CE-1439 — the run choice's recording open (guard + unsaved check), what File › Open Recording ends in
+            if (RunControls is null) ImGui.EndDisabled();
 
             // Seek slider — only when RunningReplay
             if (EffectiveState == ClusterState.OperatingReplay)
             {
-                float currentExerciseTime = (float)_uiCache.MasterSimTime;
+                var axis = _uiCache.ReplayAxis;   // ⭐ CE-3330 E4 — R-3058: one axis for the whole session
                 if (!_seekPending)
-                    _seekSliderValue = currentExerciseTime;
+                    _seekSliderValue = ReplaySliderAxis.Value(_uiCache.ReplaySession, axis, _uiCache.MasterSimTime);
 
                 ImGui.Spacing();
-                ImGui.Text("Seek (s):");
+                ImGui.Text(axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim ? "Seek (sim s):" : "Seek (wall s):");
                 ImGui.SameLine();
                 ImGui.SetNextItemWidth(300f);
-                if (ImGui.SliderFloat("##OrcSeek", ref _seekSliderValue, 0f, _uiCache.ReplayDuration))
+                if (ImGui.SliderFloat("##OrcSeek", ref _seekSliderValue, 0f,
+                        ReplaySliderAxis.Max(_uiCache.ReplaySession, axis, _uiCache.ReplayDuration)))
                 {
                     _seekPending       = true;
                     _seekDebounceTimer = 0.5f;
@@ -784,7 +956,7 @@ public sealed class ClusterScenarioPanel
 
     private void RenderEpisodesSection(bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("Episodes")) return;
+        if (!SectionHeader.Draw("hdr.episodes", "Episodes", "section/episodes")) return;
 
         if (ImGui.BeginChild("##OrcEpisodes", new Vector2(-1, 180), ImGuiChildFlags.Borders))
         {
@@ -821,8 +993,13 @@ public sealed class ClusterScenarioPanel
 
             if (_selectedEpisodeIdx >= _uiCache.AvailableScenarios.Length) _selectedEpisodeIdx = -1;
 
-            ImGui.Combo("Episode Package##OrcInjectScen", ref _selectedEpisodeIdx,
-                _uiCache.AvailableScenarios, _uiCache.AvailableScenarios.Length);
+            if (FormGrid.Begin("orc.episode"))
+            {
+                FormGrid.Row("Episode Package");
+                ImGui.Combo("##OrcInjectScen", ref _selectedEpisodeIdx,
+                    _uiCache.AvailableScenarios, _uiCache.AvailableScenarios.Length);
+                FormGrid.End();
+            }
             if (ImGui.Button("Inject Episode##OrcInjectBtn") && _selectedEpisodeIdx >= 0)
             {
                 string scenId     = _uiCache.AvailableScenarios[_selectedEpisodeIdx];
@@ -843,7 +1020,7 @@ public sealed class ClusterScenarioPanel
 
     private void RenderArchiveSection(bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("Archive Management##OrcArchive")) return;
+        if (!SectionHeader.Draw("OrcArchive", "Archive Management", "section/archive")) return;
 
         // Auto-clear archive op ID once the operation has completed (SysOpStatus terminal arrived).
         if (_activeArchiveOpId != Guid.Empty && !_uiCache.HasInFlightTransaction)
@@ -930,6 +1107,16 @@ public sealed class ClusterScenarioPanel
         }
         if (disableAll || _selectedArchiveIdx < 0 || _activeArchiveOpId != Guid.Empty)
             ImGui.EndDisabled();
+
+        // ⭐ CE-4330 ⑥ (Recording Storage §7.3, §8 ②) — the cluster's transfers: the SAME list as the status bar's popover (every job, Cancel / Resume on the
+        // Author and Instructor seats), over the host's one StorageTransfers. The one-op progress block below stays only where no transfers are composed.
+        if (Transfers?.Invoke() is { } transfers)
+        {
+            ImGui.Separator();
+            if (!ReferenceEquals(_jobListFor, transfers)) { _jobList = new Hrot.UI.Common.Panels.StorageJobList(transfers); _jobListFor = transfers; }
+            _jobList!.Draw();
+            return;
+        }
 
         // — Progress / Cancel —
         if (_activeArchiveOpId != Guid.Empty)

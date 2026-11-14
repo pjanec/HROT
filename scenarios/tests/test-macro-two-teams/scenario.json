@@ -1,0 +1,36 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "bt-range",
+  "description": "What: macros S3a - the fire-team macro placed TWICE (one facing east, one turned 90 degrees) plus a lone observer whose side is the scenario param 'side' (default Hostile; --param side=Friend overrides it). Judge: 8 transient men appear around the two anchors (4 each, the second team rotated), each team's men carry MacroOrigin of their instance, both instances report Done, and the observer's ForceId equals the run's 'side'.",
+  "Params": [
+   { "Name": "side", "TypeId": "ForceId", "Default": "Hostile" }
+  ]
+ },
+ "entities": {
+  "a1c00000-0000-4000-8000-000000000001": {
+   "SimTransform": { "Position": [60.0, 100.0, 0], "Rotation": [0, 0, 0, 1] },
+   "TkbIdentity": { "TkbType": 8813 },
+   "EntityInfo": { "Name": "Team East" },
+   "MacroInstance": { "Macro": "test/fire-team", "Args": { "side": "Friend" } }
+  },
+  "a1c00000-0000-4000-8000-000000000002": {
+   "SimTransform": { "Position": [60.0, 140.0, 0], "Rotation": [0, 0, 0.70710678, 0.70710678] },
+   "TkbIdentity": { "TkbType": 8813 },
+   "EntityInfo": { "Name": "Team Turned" },
+   "MacroInstance": { "Macro": "test/fire-team", "Args": { "side": "Hostile" } }
+  },
+  "a1c00000-0000-4000-8000-000000000003": {
+   "SimTransform": { "Position": [40.0, 120.0, 0], "Rotation": [0, 0, 0, 1] },
+   "Health": { "Current": 100, "Max": 100 },
+   "TkbIdentity": { "TkbType": 2002 },
+   "EntityInfo": { "Name": "Observer", "ForceId": "Neutral" },
+   "ParamBindings": { "Bindings": { "EntityInfo.ForceId": "side" } }
+  }
+ }
+}

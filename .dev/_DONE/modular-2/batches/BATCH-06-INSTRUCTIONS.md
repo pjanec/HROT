@@ -420,7 +420,7 @@ to Hrot.Network.NED.Tests.csproj if OrchestrationSchemaTests.cs is included.
 
 ## TASK F: Update Solution File
 
-In `IOS-IG-SimHost.sln`:
+In `HROT.sln`:
 1. ADD `Hrot.Network.NED` (new GUID: `{F6A7B8C9-D0E1-2345-F012-345678901205}`)
 2. ADD `Hrot.Network.NED.Tests` (new GUID: `{A7B8C9D0-E1F2-3456-0123-456789012306}`)
 3. REMOVE `Hrot.NED` entry (project absorbed)
@@ -436,7 +436,7 @@ In `IOS-IG-SimHost.sln`:
 After all changes:
 ```
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln -v q 2>&1 | Select-String "error" | Select-Object -First 20
+dotnet build HROT.sln -v q 2>&1 | Select-String "error" | Select-Object -First 20
 ```
 
 Run tests:

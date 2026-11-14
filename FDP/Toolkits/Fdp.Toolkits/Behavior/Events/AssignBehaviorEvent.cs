@@ -27,5 +27,14 @@ namespace Fdp.Toolkit.Behavior.Events
         /// Empty string is valid when the behavior has no configurable parameters.
         /// </summary>
         public string JsonParams = string.Empty;
+        /// <summary>⭐ <c>CE-3034</c> — who asks (R-188/R-193); unmarked reads as Operator.</summary>
+        public Fdp.Toolkit.Behavior.Components.BehaviorOrigin Origin;
+        /// <summary>⭐ <c>CE-2078</c> — for <c>Origin = Reaction</c>: how urgent (R-199 ③).</summary>
+        public Fdp.Toolkit.Behavior.Components.ReactionUrgency Urgency;
+        /// <summary>⭐ <c>CE-1250</c> (BV-12) — for a reaction: the change in the unit's senses it answers (0 = not given). Only recorded —
+        /// the brain journal's start entry carries it ("started TakeCover after NearMiss"); nothing decides on it.</summary>
+        public Fdp.Toolkit.Perception.Events.SensorChange Cause;
+        /// <summary>⭐ CE-4306 (edit framework F5) — the order's request id (<see cref="System.Guid.Empty"/> = nobody asked); the gate (<c>BehaviorIngressSystem</c>) answers Applied / Refused under it.</summary>
+        public System.Guid RequestId;
     }
 }

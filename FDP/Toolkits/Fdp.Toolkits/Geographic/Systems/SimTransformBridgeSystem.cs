@@ -21,17 +21,7 @@ namespace Fdp.Modules.Geographic.Systems
         /// X=East, Y=North. 0=North, 90=East, clockwise.
         /// </summary>
         public static float RotationToHeadingDeg(Quaternion rotation)
-        {
-            // Degenerate guard: when the nose points nearly straight up/down, the body-forward
-            // axis projects to ~zero in the XY (ENU) plane and compass heading is undefined
-            // (gimbal lock) → fall back to 0. Non-degenerate headings are unchanged.
-            Vector3 fwd = Vector3.Transform(Vector3.UnitX, rotation);
-            if (new Vector2(fwd.X, fwd.Y).LengthSquared() < 1e-6f)
-                return 0f;
-
-            var (yawDeg, _, _) = SimMath.ToYawPitchRollDeg(rotation);
-            return (90f - yawDeg + 360f) % 360f;
-        }
+            => WorldRotation.ToHeadingDeg(rotation);   // ⭐ S0 — the convention lives on WorldRotation (Fdp.Core); this routes to it
 
         /// <summary>
         /// Extracts pitch and roll from a <see cref="SimTransform.Rotation"/> quaternion.
@@ -44,15 +34,7 @@ namespace Fdp.Modules.Geographic.Systems
         public static void RotationToPitchRollDeg(Quaternion rotation,
                                                    out float pitchDeg,
                                                    out float rollDeg)
-        {
-            // SimMath's pitch convention is nose-DOWN-positive (see SimMath docs); this bridge
-            // (and the DIS/aerospace wire protocol its consumers feed) uses nose-UP-positive.
-            // Negate to convert. Consumers (GeoSpatialEgressTranslator, BdcWorldPosTranslator)
-            // write this value straight to the wire, so the sign must be correct here.
-            var (_, p, r) = SimMath.ToYawPitchRollDeg(rotation);
-            pitchDeg = -p;
-            rollDeg = r;
-        }
+            => WorldRotation.ToPitchRollDeg(rotation, out pitchDeg, out rollDeg);
 
         /// <summary>
         /// Converts a compass heading in degrees [0, 360) back to a <see cref="Quaternion"/>
@@ -61,11 +43,23 @@ namespace Fdp.Modules.Geographic.Systems
         /// </summary>
         /// <param name="headingDeg">Compass heading in degrees (0=North, 90=East, clockwise).</param>
         public static Quaternion HeadingDegToRotation(float headingDeg)
-        {
-            // heading = (90 - mathYaw_deg + 360) % 360  →  mathYaw_rad = (90 - heading) * π/180
-            float mathYawRad = (90f - headingDeg) * (MathF.PI / 180f);
-            return SimMath.FromYaw(mathYawRad);
-        }
+            => WorldRotation.HeadingDegToQuaternion(headingDeg);
+
+        /// <summary>
+        /// ⭐ ui handoff P3 (docs/DESIGN_Dead_Reckoning.md §9) — the wire's full orientation back to a <see cref="Quaternion"/>: the exact
+        /// inverse of <see cref="RotationToHeadingDeg"/> + <see cref="RotationToPitchRollDeg"/> (pitch nose-UP positive, roll right-wing-down
+        /// positive). With pitch = roll = 0 it is <see cref="HeadingDegToRotation"/> exactly. The ONE ingress conversion (Q59-C1).
+        /// </summary>
+        public static Quaternion EulerDegToRotation(float headingDeg, float pitchDeg, float rollDeg)
+            => WorldRotation.EulerDegToQuaternion(headingDeg, pitchDeg, rollDeg);
+
+        /// <summary>
+        /// ⭐ STEER_Backend_P3_Every_Ingress_Restores_Attitude (row 7) — a HEADING-ONLY change to <paramref name="current"/>: the new
+        /// heading, the body's own pitch and roll KEPT (a heading patch on a banked aircraft must not level it). Built from the two
+        /// conversions above — no third formula.
+        /// </summary>
+        public static Quaternion WithHeadingDeg(Quaternion current, float headingDeg)
+            => WorldRotation.WithHeadingDeg(current, headingDeg);
 
         /// <summary>
         /// Converts a world-space ENU velocity vector to compass azimuth degrees [0, 360).

@@ -29,6 +29,83 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         // Number of primitives dropped due to capacity overflow.
         public int DroppedCount => _droppedCount;
 
+        // ⭐⭐ CE-1071 (docs/designs/gizmos-1/DESIGN.md §11.11) — THE LAYER MASK AT EMIT, AND THE PRIMITIVES OVERFLOW MAY NOT DROP.
+        //   📐 Measured 2026-10-14 in the live editor (ua-fire-and-movement, one rifleman possessed): 4 096 primitives a frame and
+        //   400-700 DROPPED, the hidden Navmesh / Cover / SpatialGrid layers filling 3 500 of the slots. The drops fell on whatever
+        //   came last — the LayerControlMask (so the 3-D triage drew EVERY hidden layer: 612 spheres and 2 255 draped lines), the
+        //   main-menu binding (View ▸ 2-D / 3-D Map and RTS Command Mode were missing) and a tool's InputCaptureBinding (the RTS
+        //   tool never received a click). ⭐ A hidden-layer primitive is now refused at emit (it is counted, not stored), and when
+        //   the buffer IS full a protected meta primitive takes the slot of the latest plain one instead of being dropped.
+        private LayerMask256 _activeLayers;
+        private bool _layersKnown;
+        private int _suppressedCount;
+        private int _evictFrom = int.MaxValue;
+        private readonly object _evictLock = new();
+
+        /// <summary>⭐ CE-1071 — primitives refused this frame because their layer is hidden (not an overflow).</summary>
+        public int SuppressedCount => _suppressedCount;
+
+        /// <summary>⭐ CE-1480 G5 — moves when the set of active layers changes (what <see cref="IsLayerActive"/> answers).</summary>
+        public long LayersVersion { get; private set; }
+
+        /// <inheritdoc/>
+        public void SetActiveLayers(in LayerMask256 activeLayers)
+        {
+            // ⭐ CE-1480 G5 — LayersVersion moves only when the mask (or "known") actually changes, so a rule that skips drawing on a hidden layer can be held
+            if (!_layersKnown || !System.Runtime.InteropServices.MemoryMarshal.AsBytes(System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(ref System.Runtime.CompilerServices.Unsafe.AsRef(in _activeLayers), 1))
+                    .SequenceEqual(System.Runtime.InteropServices.MemoryMarshal.AsBytes(System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(ref System.Runtime.CompilerServices.Unsafe.AsRef(in activeLayers), 1))))
+                LayersVersion++;
+            _activeLayers = activeLayers;
+            _layersKnown = true;
+        }
+
+        /// <inheritdoc/>
+        public bool IsLayerActive(byte layer) => !_layersKnown || _activeLayers.IsSet(layer);
+
+        /// <summary>⭐ CE-1071 — the meta primitives a frame cannot lose: the layer mask, the menus, a tool's input capture and a
+        /// panel. Never refused by layer, never dropped on overflow (they evict a plain primitive).</summary>
+        public static bool IsProtected(DebugPrimitiveShape shape)
+            => shape is DebugPrimitiveShape.LayerControlMask or DebugPrimitiveShape.InputCaptureBinding
+                     or DebugPrimitiveShape.ContextMenuBinding or DebugPrimitiveShape.MainMenuBinding
+                     or DebugPrimitiveShape.StructInspector;
+
+        /// <summary>⭐ CE-1160 — a PICK TARGET: an invisible <see cref="DebugPrimitiveShape.Box2D"/> carrying an anchor id, emitted purely so
+        /// the terminal's hit-test can find the entity (<c>EntityPresentationGizmoShared.EmitPickBox</c>, <c>DebugPrimitive.MakePickSegment</c>).
+        /// 🔒 User, 2026-10-16: <i>"I need the entity selection and right click work always independently of what i pick in the debug layers
+        /// menu."</i> 🔴 It sits on layer 0 (so a tool handle on a higher layer still wins the pick), and CE-1071 refused hidden layers at
+        /// emit ⇒ turning <c>Entities</c> off removed every pick box: no hover, no selection, no entity menu. Never refused by layer and
+        /// never evicted for a protected primitive (like an anchor); it is drawn by nobody, so the mask has nothing to hide.</summary>
+        public static bool IsPickTarget(in DebugPrimitive p)
+            => p.Shape == DebugPrimitiveShape.Box2D && p.BoxAnchorId != 0 && p.Color.A == 0 && p.FillColor.A == 0;
+
+        private bool RefusedByLayer(in DebugPrimitive p)
+        {
+            if (!_layersKnown || IsProtected(p.Shape) || p.Shape == DebugPrimitiveShape.SpatialAnchor || IsPickTarget(in p)) return false;
+            if (_activeLayers.IsSet(p.DebugLayer)) return false;
+            Interlocked.Increment(ref _suppressedCount);
+            return true;
+        }
+
+        /// <summary>The buffer is full: a protected primitive replaces the latest plain one (not an anchor, not another protected
+        /// one), so the frame keeps its mask, menus and bindings. The replaced one counts as dropped.</summary>
+        private void StoreProtectedWhenFull(in DebugPrimitive p)
+        {
+            lock (_evictLock)
+            {
+                for (int i = Math.Min(_evictFrom, _primitives.Length - 1); i >= 0; i--)
+                {
+                    var shape = _primitives[i].Shape;
+                    if (IsProtected(shape) || shape == DebugPrimitiveShape.SpatialAnchor || IsPickTarget(in _primitives[i])) continue;
+                    _primitives[i] = p;
+                    _evictFrom = i - 1;
+                    Interlocked.Increment(ref _droppedCount);
+                    return;
+                }
+                _evictFrom = -1;
+                Interlocked.Increment(ref _droppedCount);
+            }
+        }
+
         // Snapshot of the current transient write cursor (clamped to capacity).
         // Safe to call from the same thread that calls UpdateAndDraw. Used as a
         // mark before a gizmo draws so that StampGizmoTypeId can identify which
@@ -46,6 +123,39 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             _internMap     = internMap ?? new StringInternMap();
         }
 
+        // ⭐ EXPERIMENT (threaded kernel X-4, exp/threaded-kernel) — a PUBLISHED copy of the last finished frame for a reader on another thread.
+        //   Triple buffer: the writer (the kernel's thread) copies its finished frame into a slot that is neither the latest nor the leased one;
+        //   the reader (the drawing thread) leases the latest once per drawn frame. Off unless ReaderUsesPublished is set.
+        private readonly DebugPrimitive[][] _pub = new DebugPrimitive[3][];
+        private readonly int[] _pubCount = new int[3];
+        private int _pubLatest = -1, _pubLeased = -1;
+        private readonly object _pubLock = new();
+
+        /// <summary>⭐ EXPERIMENT (X-4) — the drawing thread reads <see cref="ReaderFrame"/> (the published copy) instead of the live buffer.</summary>
+        public bool ReaderUsesPublished { get; set; }
+
+        /// <summary>⭐ EXPERIMENT (X-4) — the writer's thread: copy this finished frame into a free slot and make it the latest.</summary>
+        public void PublishFrame()
+        {
+            int slot;
+            lock (_pubLock) { slot = 0; while (slot == _pubLatest || slot == _pubLeased) slot++; }
+            int n = Math.Min(_count, _primitives.Length);
+            if (_pub[slot] is not { } arr || arr.Length < n) _pub[slot] = arr = new DebugPrimitive[Math.Max(n, _primitives.Length)];
+            Array.Copy(_primitives, arr, n);
+            lock (_pubLock) { _pubCount[slot] = n; _pubLatest = slot; }
+        }
+
+        /// <summary>⭐ EXPERIMENT (X-4) — the reader's thread, once per drawn frame: lease the latest published frame.</summary>
+        public void LeasePublished() { lock (_pubLock) _pubLeased = _pubLatest; }
+
+        /// <summary>The frame a DRAWING reader uses: the leased published copy when <see cref="ReaderUsesPublished"/>, else <see cref="GetFrame"/>.</summary>
+        public ReadOnlySpan<DebugPrimitive> ReaderFrame()
+        {
+            if (!ReaderUsesPublished) return GetFrame();
+            int l = _pubLeased;
+            return l < 0 || _pub[l] is not { } a ? ReadOnlySpan<DebugPrimitive>.Empty : a.AsSpan(0, _pubCount[l]);
+        }
+
         // Returns a zero-copy span of all primitives written this frame.
         public ReadOnlySpan<DebugPrimitive> GetFrame()
         {
@@ -59,6 +169,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         {
             _count        = 0;
             _droppedCount = 0;
+            _suppressedCount = 0;
+            _evictFrom    = int.MaxValue;
         }
 
         /// <summary>
@@ -68,9 +180,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// </summary>
         public void AppendRaw(in DebugPrimitive primitive)
         {
+            // ⭐ §6.8 — the SAME invariant, on the other funnel. Every gizmo pick box, pick segment and
+            //   binding reaches the buffer through EmitRaw, so this is the arm that actually catches a
+            //   gizmo emitting without an identity.
+            DebugPrimitive.AssertHasIdentity(in primitive);
+            if (RefusedByLayer(in primitive)) return;   // ⭐ CE-1071
             int slot = Interlocked.Increment(ref _count) - 1;
             if ((uint)slot < (uint)_primitives.Length)
                 _primitives[slot] = primitive;
+            else if (IsProtected(primitive.Shape))
+                StoreProtectedWhenFull(in primitive);   // ⭐ CE-1071
             else
                 Interlocked.Increment(ref _droppedCount);
         }
@@ -105,6 +224,23 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         /// <summary>
+        /// ⭐ <c>CE-1382</c> — moves every primitive of the half-open range [<paramref name="fromIndex"/>, <see cref="Count"/>) that sits on the
+        /// default layer 0 onto <paramref name="layer"/> (a tool's handles and previews → <c>DebugTraceLayers.ToolHandles</c>, out of a film). Meta
+        /// primitives (bindings, the layer mask, anchors) are left alone — they are routed by shape, not by layer. A primitive the tool put on a layer
+        /// of its own stays there. Same mark-then-range shape as <see cref="StampGizmoTypeId"/>.
+        /// </summary>
+        public void MoveDefaultLayer(int fromIndex, byte layer)
+        {
+            int to = Count;
+            for (int i = fromIndex; i < to; i++)
+            {
+                ref var p = ref _primitives[i];
+                if (p.DebugLayer != 0 || IsProtected(p.Shape) || p.Shape == DebugPrimitiveShape.SpatialAnchor) continue;
+                p.DebugLayer = layer;
+            }
+        }
+
+        /// <summary>
         /// Advances the persistence clock, evicts expired entries, clears the transient buffer,
         /// and re-injects surviving persistent primitives. Call once per frame BEFORE gizmo
         /// systems execute (owned by DataDrivenGizmoSystem).
@@ -129,6 +265,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             // Reset the transient buffer.
             _count        = 0;
             _droppedCount = 0;
+            _suppressedCount = 0;
+            _evictFrom    = int.MaxValue;
 
             // Re-inject surviving persistent primitives into the start of the transient buffer.
             for (int i = 0; i < _persistentCount; i++)
@@ -194,6 +332,14 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             Append(DebugPrimitive.MakeBox2D(center, extents, color, angleDeg, thickness, sizeMode, target, layer, fillColor, style, anchorId, subElementId));
         }
 
+        public void DrawFilledTriangle(
+            Vector2 a, Vector2 b, Vector2 c, Rgba32 color,
+            byte layer = 0,
+            PipelineTarget target = PipelineTarget.All)
+        {
+            Append(DebugPrimitive.MakeFilledTriangle(a, b, c, color, target, layer));
+        }
+
         public void DrawArrow(
             Vector3 from, Vector3 to, Rgba32 color,
             float headSize = 1f,
@@ -207,13 +353,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             CoordinateSpace space = CoordinateSpace.World,
             byte layer = 0,
             float fontSizePx = 0f,
-            float lineOffsetPx = 0f)
+            float lineOffsetPx = 0f, GizmoTextStyle style = GizmoTextStyle.Plain)
         {
             // StringHash is always 0 for inline FixedString32 mode.
             // Fdp.Core.FixedString32 and GizmoMap.Contracts.FixedString32 share identical
             // 32-byte sequential layout; reinterpret for the MakeText factory method.
             var gizmoText = Unsafe.As<FixedString32, GizmoStr>(ref text);
-            Append(DebugPrimitive.MakeText(x, y, gizmoText, color, space, layer, fontSizePx, lineOffsetPx));
+            Append(DebugPrimitive.MakeText(x, y, gizmoText, color, space, layer, fontSizePx, lineOffsetPx, style));
         }
 
         public void DrawTextLong(
@@ -221,7 +367,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             CoordinateSpace space = CoordinateSpace.World,
             byte layer = 0,
             float fontSizePx = 0f,
-            float lineOffsetPx = 0f)
+            float lineOffsetPx = 0f, GizmoTextStyle style = GizmoTextStyle.Plain)
         {
             uint hash = StringInternMap.Fnv1a32(text);
             _internMap.Intern(hash, text);   // idempotent; allocates only on first call
@@ -243,9 +389,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             // ThicknessU16 repurposed for Text: carries desired screen-pixel font size (not * 10).
             if (fontSizePx > 0f)
                 p.ThicknessU16 = (ushort)fontSizePx;
-            // AnchorGeneration carries the screen-pixel line offset for Text primitives (signed).
+            // Offset 12 carries the screen-pixel line offset for Text primitives (S6, signed).
             if (lineOffsetPx != 0f)
-                p.AnchorGeneration = unchecked((ushort)(short)lineOffsetPx);
+                p.LineOffsetPx = (short)lineOffsetPx;
+            p.TextStyle = style;   // ⭐ B-17 P7 ⑥ — offset 14, Text only
             Append(p);
         }
 
@@ -264,7 +411,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         public void DrawEntityLocal(
-            Entity anchor, Vector3 localStart, Vector3 localEnd,
+            int anchorNetworkId, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, float thickness = 1f, byte layer = 0)
         {
             var p = default(DebugPrimitive);
@@ -276,15 +423,20 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.DebugLayer       = layer;
             p.SizeMode         = SizeMode.ScreenPixels;
             p.ThicknessU16     = (ushort)(thickness * 10f);
-            p.AnchorIndex      = anchor.Index;
-            p.AnchorGeneration = anchor.Generation;
+            // ⭐⭐⭐ CE-259z — offset 8 is the SpatialAnchor cache KEY, a NETWORK id.
+            //   ⛔ It used to be `anchor.Index` (an ECS index) against a cache keyed by
+            //     SpatialAnchor.NetworkId ⇒ the lookup missed and the primitive was SILENTLY SKIPPED.
+            //   ⛔ And no AnchorGeneration is stamped: the generation is not part of the key, and
+            //     stamping it here is what made offset 12 look like an identity component.
+            AssertFitsAnchorKey(anchorNetworkId);
+            p.AnchorIndex      = (int)anchorNetworkId;
             p.LineStart        = localStart;
             p.LineEnd          = localEnd;
             Append(p);
         }
 
         public void DrawEntityLocalInteractive(
-            Entity anchor, Vector3 localStart, Vector3 localEnd,
+            int anchorNetworkId, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, ushort subElementId,
             float thickness = 1f, byte layer = 0)
         {
@@ -297,8 +449,17 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.DebugLayer       = layer;
             p.SizeMode         = SizeMode.ScreenPixels;
             p.ThicknessU16     = (ushort)(thickness * 10f);
-            p.AnchorIndex      = anchor.Index;
-            p.AnchorGeneration = anchor.Generation;
+            // ⭐ CE-259z — see DrawEntityLocal.
+            // ⛔⛔ AND NO `BoxAnchorId`, THOUGH IT WOULD BE THE IDENTITY (S5) — IT PHYSICALLY DOES NOT
+            //   FIT. Measured 2026-09-10: for a Line the payload union is LineStart @24-35 and LineEnd
+            //   @36-47, with EndColor @48-51; `BoxAnchorId` is a long @44-51 ⇒ it OVERLAPS LineEnd.Z
+            //   AND EndColor. Stamping it corrupts the geometry, or is silently overwritten by it
+            //   (which is what the first attempt did — the rail read back 0).
+            //   ⇒ ⭐⭐ THIS IS THE DEEPER REASON A LINE CANNOT BE INTERACTIVE, and it is stronger than
+            //     "the hit-test does not handle Line" (CE-259ac): a Line has NO SLOT FOR AN IDENTITY.
+            //     Anything pickable must be Box2D or Sphere, whose payloads leave offset 44 free.
+            AssertFitsAnchorKey(anchorNetworkId);
+            p.AnchorIndex      = (int)anchorNetworkId;
             p.LineStart        = localStart;
             p.LineEnd          = localEnd;
             p.SubElementId     = subElementId;
@@ -306,7 +467,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         public void DrawEntitySphere(
-            Entity  anchor,
+            int    anchorNetworkId,
             Vector3 worldCenter,
             float   radius,
             Rgba32  color,
@@ -321,17 +482,36 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.SphereCenter     = worldCenter;
             p.SphereRadius     = radius;
             p.DebugLayer       = layer;
-            p.AnchorIndex      = anchor.Index;
-            p.AnchorGeneration = anchor.Generation;
+            // ⭐⭐ §6.7 — IDENTITY, in the field the hit-test actually routes on. ⛔ This was
+            //   `AnchorIndex = anchor.Index; AnchorGeneration = anchor.Generation` — an ECS handle in
+            //   the two offsets nothing reads for identity any more, which left the sphere pickable in
+            //   its doc comment and unpickable in fact. ⭐ A Sphere's payload (SphereCenter @24-35,
+            //   SphereRadius @36-39) leaves offset 44 free, so BoxAnchorId fits — unlike a Line, whose
+            //   LineEnd/EndColor overlap it (see DebugPrimitive.MakePickSegment's note).
+            p.BoxAnchorId      = anchorNetworkId;
             Append(p);
         }
+
+        /// <summary>
+        /// ⭐⭐ <b>C7 / CE-259z — the <c>EntityLocal</c> anchor key is 32 bits and the narrowing is
+        /// unchecked.</b> An id above <c>int.MaxValue</c> wraps, misses the <c>SpatialAnchor</c> cache and
+        /// the primitive is skipped in silence. ⛔ It cannot be widened (<c>SemanticShape</c>'s payload
+        /// union is full; 64 bytes is a DDS invariant) ⇒ assert, do not wrap.
+        /// ⚠ <c>Debug.Assert</c>, not a throw: a diagnostic emitter must never take down a frame, and
+        /// production ids count from 1 (<c>SequentialIdAllocator</c>), so this is a latent limit.
+        /// </summary>
+        private static void AssertFitsAnchorKey(int anchorNetworkId)
+            => System.Diagnostics.Debug.Assert(
+                   anchorNetworkId >= int.MinValue && anchorNetworkId <= int.MaxValue,
+                   $"EntityLocal anchor id {anchorNetworkId} does not fit the 32-bit SpatialAnchor cache "
+                 + "key; the primitive would silently fail to resolve. See DebugPrimitive.cs offset 8.");
 
         // ---- Internal helpers -----------------------------------------------
 
         // GZ057: SpatialAnchor and SemanticShape emit implementations.
 
         public void DrawSpatialAnchor(
-            long  networkId,
+            int  networkId,
             float worldX,
             float worldY,
             float worldZ,
@@ -355,7 +535,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         public void DrawSemanticShape(
-            long   networkId,
+            int   networkId,
             ulong  profileId,
             float  lengthMeters  = 0f,
             float  widthMeters   = 0f,
@@ -367,6 +547,20 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.Space         = CoordinateSpace.EntityLocal;
             p.TargetView    = PipelineTarget.All;
             p.DebugLayer    = layer;
+            // ⭐⭐⭐ S7 (DESIGN_Gizmo_Anchor_Identity.md §6, CE-259z) — offset 8 is the SpatialAnchor
+            //   cache KEY for an EntityLocal primitive, and it is 32 bits wide. The cache is FILLED with
+            //   the full 64-bit SpatialAnchor.NetworkId (DebugPrimitiveRenderer2D:63) and PROBED with
+            //   this value widened back to long (:105), so an id above int.MaxValue wraps here and the
+            //   lookup misses -- the shape is silently skipped, never drawn.
+            //   ⛔ It cannot be widened: SemanticShape's payload union is full and 64 bytes is a
+            //     DDS-marshalled invariant. ⇒ assert instead of wrapping in silence.
+            //   ⚠ Debug.Assert, not a throw: a diagnostic emitter must never take down a frame, and
+            //     production ids count from 1 (SequentialIdAllocator) so this is a latent limit, not a
+            //     live failure. A throw here would be a new way to lose the map.
+            System.Diagnostics.Debug.Assert(
+                networkId >= int.MinValue && networkId <= int.MaxValue,
+                $"SemanticShape anchor id {networkId} does not fit the 32-bit EntityLocal anchor key; " +
+                "the primitive would silently fail to resolve. See DebugPrimitive.cs offset 8.");
             p.AnchorIndex   = (int)networkId;
             p.ProfileId     = profileId;
             p.LengthMeters  = lengthMeters;
@@ -375,11 +569,19 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             Append(p);
         }
 
-        public void DrawContextMenuBinding(long networkId, string menuJson)
+        public void DrawContextMenuBinding(int networkId, string menuJson)
         {
             uint hash = StringInternMap.Fnv1a32(menuJson);
             _internMap.Intern(hash, menuJson);   // idempotent; allocates only on first call
             Append(DebugPrimitive.MakeContextMenuBinding(networkId, hash));
+        }
+
+        /// <summary>⭐ B-17 P2 — a context-menu binding keyed by a 64-bit anchor (a TOOL id is above int range): the same interning, the same primitive.</summary>
+        public void DrawContextMenuBinding(long anchorId, string menuJson)
+        {
+            uint hash = StringInternMap.Fnv1a32(menuJson);
+            _internMap.Intern(hash, menuJson);
+            Append(DebugPrimitive.MakeContextMenuBinding(anchorId, hash));
         }
 
         public void DrawMainMenuBinding(string menuJson)
@@ -390,9 +592,14 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         internal void Append(DebugPrimitive p)
-        {            int slot = Interlocked.Increment(ref _count) - 1;
+        {
+            DebugPrimitive.AssertHasIdentity(in p);
+            if (RefusedByLayer(in p)) return;   // ⭐ CE-1071 — a hidden layer is not stored, and not persisted either
+            int slot = Interlocked.Increment(ref _count) - 1;
             if ((uint)slot < (uint)_primitives.Length)
                 _primitives[slot] = p;
+            else if (IsProtected(p.Shape))
+                StoreProtectedWhenFull(in p);   // ⭐ CE-1071
             else
                 Interlocked.Increment(ref _droppedCount);
 

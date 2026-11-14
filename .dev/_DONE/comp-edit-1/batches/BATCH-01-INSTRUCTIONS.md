@@ -49,7 +49,7 @@ dotnet build FDP/FDP.sln --no-restore
 dotnet test FDP/ExtDeps/StructEdit/tests/StructEdit.Tests/StructEdit.Tests.csproj
 
 # Run all tests (do this before submitting report)
-dotnet test IOS-IG-SimHost.sln
+dotnet test HROT.sln
 ```
 
 ### Report Submission
@@ -183,7 +183,7 @@ This batch is DONE when:
 - [ ] `EditNodeMetadata.CustomAttributes` added and all CE02 tests pass
 - [ ] `ReflectionEditDocumentBuilder` extended and all CE03 tests pass
 - [ ] All pre-existing `StructEdit.Tests` tests still pass
-- [ ] `dotnet test IOS-IG-SimHost.sln` exits with 0 failures
+- [ ] `dotnet test HROT.sln` exits with 0 failures
 - [ ] Report submitted
 
 ---

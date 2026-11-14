@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Utility;
 
 namespace Fdp.Toolkit.Behavior.Diagnostics
 {
@@ -23,6 +24,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     /// </para>
     /// </remarks>
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class TraceBufferLifecycleSystem : IEcsModuleSystem
     {
         // Buffer reused across ticks to avoid allocating per-call.
@@ -30,6 +32,9 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         private readonly List<Entity> _toRemoveBTree = new();
         private readonly List<Entity> _toAddHsm = new();
         private readonly List<Entity> _toRemoveHsm = new();
+        private readonly List<Entity> _toAddUtility = new();
+        private readonly List<Entity> _toRemoveUtility = new();
+        private readonly List<Entity> _toAddLog = new();
 
         public void Execute(ISimulationView view, float deltaTime)
         {
@@ -42,6 +47,15 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             _toRemoveBTree.Clear();
             _toAddHsm.Clear();
             _toRemoveHsm.Clear();
+            _toAddUtility.Clear();
+            _toRemoveUtility.Clear();
+
+            // ⭐ CE-3069 G2 — the same switch arms the utility record (the decision log + its trace), on every brain tier:
+            //   ONE arming mechanism for "observe this unit's AI" (POST /trace/observe). Skipped on a world that does not
+            //   register the utility components (a test world, a non-Brain host).
+            bool utility = repo.IsComponentTypeRegistered<UtilityDecisionLog>()
+                        && repo.IsComponentTypeRegistered<UtilityDebugFlags>()
+                        && repo.IsComponentTypeRegistered<UtilityTraceWorkingMemory1024>();
 
             var q = repo.Query()
                 .With<DebugState>()
@@ -52,6 +66,13 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             {
                 ref readonly var dbg = ref repo.GetComponentRO<DebugState>(entity);
                 bool enabled = (dbg.Behavior & BehaviorDebugFlags.EnableTraceBuffer) != 0;
+
+                if (utility)
+                {
+                    bool traced = repo.HasComponent<UtilityTraceWorkingMemory1024>(entity);
+                    if (enabled && !traced) _toAddUtility.Add(entity);
+                    else if (!enabled && traced) _toRemoveUtility.Add(entity);
+                }
 
                 byte tier = repo.GetComponentRO<BehaviorState>(entity).BrainTier;
 
@@ -78,6 +99,32 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
                 repo.AddComponent(e, new HsmTraceWorkingMemory1024());
             foreach (var e in _toRemoveHsm)
                 repo.RemoveComponent<HsmTraceWorkingMemory1024>(e);
+            foreach (var e in _toAddUtility)
+            {
+                repo.AddComponent(e, new UtilityTraceWorkingMemory1024());
+                if (repo.HasComponent<UtilityDebugFlags>(e)) repo.GetComponentRW<UtilityDebugFlags>(e).TraceEnabled = 1;
+                else repo.AddComponent(e, new UtilityDebugFlags { TraceEnabled = 1 });
+            }
+            foreach (var e in _toRemoveUtility)
+            {
+                // ⭐ CE-1319 (BV-61) — the trace goes, the decision log STAYS (it is always on)
+                repo.RemoveComponent<UtilityTraceWorkingMemory1024>(e);
+                if (repo.HasComponent<UtilityDebugFlags>(e)) repo.RemoveComponent<UtilityDebugFlags>(e);
+            }
+
+            // ⭐⭐ CE-1319 (Brain View §12e BV-61, R-1040) — the "why did it pick this?" log is on EVERY brain unit, always, so the Brain
+            //   tab's Why section replays for every unit, not only the ones somebody watched while recording. It is small (4 decisions ×
+            //   8 ranked) and written only when a decision runs. ⚠ "every unit with a utility reasoner" is not knowable statically
+            //   (utility is reached through UtilityNodes at run time) ⇒ every BehaviorState unit; one that never decides keeps an empty log.
+            //   ⛔ The per-consideration TRACE stays observe-only (above): 1 KB per unit, written every evaluation.
+            if (utility)
+            {
+                _toAddLog.Clear();
+                foreach (var entity in repo.Query().With<BehaviorState>().Without<UtilityDecisionLog>().Build())
+                    _toAddLog.Add(entity);
+                foreach (var e in _toAddLog)
+                    repo.AddComponent(e, new UtilityDecisionLog());
+            }
         }
     }
 }

@@ -1,11 +1,14 @@
 using System;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 using System.Numerics;
 using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Trajectory;
 using Fdp.Core;
 using Fdp.ModuleHost;
+using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.SimHost.UI
 {
@@ -21,31 +24,80 @@ namespace Hrot.SimHost.UI
 
     // ─── Simulation control panel ─────────────────────────────────────────────────
 
-    /// <summary>Play / Pause / Step / Time-Scale controls.</summary>
+    /// <summary>
+    /// Play / Pause / Step / Time-Scale controls.
+    ///
+    /// <para><b>`T5`: these controls used to be INERT.</b> Pause toggled a private field, Step set a
+    /// private flag, and <c>ConsumeStepRequest</c> had no caller anywhere in the repo — so pressing
+    /// Pause on this panel did nothing, silently. The same shape as `AS-9`'s no-op tracer coordinator:
+    /// a control that looks wired because an identically-shaped one elsewhere (the CarKinem example's
+    /// <c>MainUI</c>) genuinely is.</para>
+    ///
+    /// <para>SimHost is a SLAVE node, so it must never pause itself — a pause is cluster-wide, issued
+    /// as an intent. It already builds a <see cref="ITimeTransportFacade"/> for its status bar
+    /// (<c>SimHostSubsystem:263</c>), which is exactly the seam these controls needed, so they are
+    /// routed onto it rather than given a control path of their own.</para>
+    ///
+    /// <para>With no facade the controls render DISABLED. Deliberately: a visibly dead button is a
+    /// bug report, and a silently dead one is what this fixed.</para>
+    /// </summary>
     public class SimHostSimulationControlsPanel
     {
-        public bool  IsPaused    { get; set; }
-        public float TimeScale   { get; set; } = 1.0f;
-        public bool  StepRequested { get; set; }
+        /// <summary>
+        /// The node's cluster transport, supplied by <c>SimHostSubsystem</c> once the orchestration
+        /// bus exists. Null in a host with no bus — see the class remarks for what that renders.
+        /// </summary>
+        public ITimeTransportFacade? TimeFacade { get; set; }
 
-        public bool ConsumeStepRequest()
-        {
-            bool v = StepRequested;
-            StepRequested = false;
-            return v;
-        }
+        /// <summary>Whether the cluster reports itself paused. Answers false with no transport.</summary>
+        public bool  IsPaused  => TimeFacade?.IsPaused  ?? false;
+
+        /// <summary>The cluster's time scale. Answers 1 with no transport.</summary>
+        public float TimeScale => TimeFacade?.TimeScale ?? 1.0f;
+
+        /// <summary>⭐ <c>CE-1437</c> (AQ108 D22) — ▶ / ⏸ is enabled by the USER entry's rule (<see cref="UserTransport"/>): from Edit with Live armed and no scenario session it is not.</summary>
+        public bool IsPlayEnabled => TimeFacade?.IsUserPlayEnabled() ?? false;
+
+        /// <summary>⭐ <c>CE-1437</c> — Step is enabled by the same user-entry rule.</summary>
+        public bool IsStepEnabled => TimeFacade?.IsUserStepEnabled() ?? false;
+
+        /// <summary>⭐ <c>CE-1437</c> — why ▶ is disabled from Edit (the choice's own text — the toolbar shows the same one); <see langword="null"/> when it is not.</summary>
+        public string? PlayDisabledReason => TimeFacade?.Mode == TransportMode.Edit ? TimeFacade.RunChoice?.PlayDisabledReason : null;
+
+        /// <summary>⭐ <c>CE-1437</c> — ▶ / ⏸ pressed: the USER entry (⛔ never the facade's raw toggle — from Edit that is a dry run whatever is armed).</summary>
+        public void PlayPause() => TimeFacade?.UserPlayPause();
+
+        /// <summary>⭐ <c>CE-1437</c> — Step pressed: the USER entry.</summary>
+        public void Step() => TimeFacade?.UserStep();
 
         public void Render(EntityRepository repo, ModuleHostKernel kernel)
         {
-            if (ImGui.Button(IsPaused ? "Play  " : "Pause ")) IsPaused = !IsPaused;
+            var facade = TimeFacade;
+            if (facade == null) ImGui.BeginDisabled();
+
+            // ⭐ CE-1437 — Play / Step go through UserTransport (the armed mode's start), like the toolbar's; disabled with the choice's reason when it cannot run here.
+            bool playOff = facade != null && !IsPlayEnabled;
+            if (playOff) ImGui.BeginDisabled();
+            if (ImGui.Button(IsPaused ? "Play  " : "Pause ")) PlayPause();
+            if (playOff) { ImGui.EndDisabled(); if (PlayDisabledReason is { } why && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(why); }
             ImGui.SameLine();
 
-            if (ImGui.Button("Step")) StepRequested = true;
+            bool stepOff = facade != null && !IsStepEnabled;
+            if (stepOff) ImGui.BeginDisabled();
+            if (ImGui.Button("Step")) Step();
+            if (stepOff) { ImGui.EndDisabled(); if (PlayDisabledReason is { } why && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(why); }
             ImGui.SameLine();
 
             ImGui.SetNextItemWidth(100);
             float ts = TimeScale;
-            if (ImGui.SliderFloat("Speed", ref ts, 0.1f, 5.0f)) TimeScale = ts;
+            if (ImGui.SliderFloat("Speed", ref ts, 0.1f, 5.0f)) facade?.SetTimeScale(ts);
+
+            if (facade == null)
+            {
+                ImGui.EndDisabled();
+                ImGui.SameLine();
+                ImGui.TextDisabled("(no cluster transport)");
+            }
 
             if (repo != null)
             {
@@ -65,23 +117,32 @@ namespace Hrot.SimHost.UI
         private int  _count         = 10;
         private bool _randomMovement = true;
 
+        private static readonly string[] SpawnLabels = { "Count", "Random movement", "Path interpolation", "Vehicle type" };
+
         public void Render(SimHostScenarioManager scenario, SimHostUIState uiState)
         {
-            ImGui.SliderInt("Count", ref _count, 1, 100);
-            ImGui.Checkbox("Random movement", ref _randomMovement);
-
-            // Interpolation Radio
             int iMode = (int)uiState.InterpolationMode;
-            ImGui.Text("Path interpolation:");
-            if (ImGui.RadioButton("Linear",      ref iMode, 0)) uiState.InterpolationMode = TrajectoryInterpolation.Linear;
-            ImGui.SameLine();
-            if (ImGui.RadioButton("Catmull-Rom", ref iMode, 1)) uiState.InterpolationMode = TrajectoryInterpolation.CatmullRom;
-
-            // Vehicle class combo
             string[] classNames = Enum.GetNames(typeof(VehicleClass));
             int selIdx = (int)uiState.SelectedVehicleClass;
-            if (ImGui.Combo("Vehicle type", ref selIdx, classNames, classNames.Length))
-                uiState.SelectedVehicleClass = (VehicleClass)selIdx;
+            if (FormGrid.Begin("simhost.spawn", SpawnLabels))
+            {
+                FormGrid.Row("Count");
+                ImGui.SliderInt("##count", ref _count, 1, 100);
+                FormGrid.Row("Random movement");
+                ImGui.Checkbox("##random", ref _randomMovement);
+
+                // Interpolation Radio
+                FormGrid.Row("Path interpolation");
+                if (ImGui.RadioButton("Linear",      ref iMode, 0)) uiState.InterpolationMode = TrajectoryInterpolation.Linear;
+                ImGui.SameLine();
+                if (ImGui.RadioButton("Catmull-Rom", ref iMode, 1)) uiState.InterpolationMode = TrajectoryInterpolation.CatmullRom;
+
+                // Vehicle class combo
+                FormGrid.Row("Vehicle type");
+                if (ImGui.Combo("##vehicletype", ref selIdx, classNames, classNames.Length))
+                    uiState.SelectedVehicleClass = (VehicleClass)selIdx;
+                FormGrid.End();
+            }
 
             // Spawn buttons
             if (ImGui.Button("Spawn"))
@@ -134,16 +195,32 @@ namespace Hrot.SimHost.UI
         private readonly SimHostSpawnPanel              _spawnPanel = new();
         public  readonly SimHostUIState                 UIState     = new();
 
-        // Forwarded properties for the visualization facade
-        public bool  IsPaused  { get => _simCtrl.IsPaused;  set => _simCtrl.IsPaused = value; }
-        public float TimeScale { get => _simCtrl.TimeScale; set => _simCtrl.TimeScale = value; }
-        public bool  ConsumeStepRequest() => _simCtrl.ConsumeStepRequest();
+        // Forwarded properties for the visualization facade.
+        //
+        // `T5`: read-only now, and the setters are gone with the private field they wrote. Nothing
+        // ever read them — the panel's pause state is the CLUSTER's, and a slave node cannot set it
+        // locally. ConsumeStepRequest went the same way: it had no caller in the repo, and a step is
+        // now an intent, not a flag someone must remember to poll.
+        public bool  IsPaused  => _simCtrl.IsPaused;
+        public float TimeScale => _simCtrl.TimeScale;
+
+        /// <summary>
+        /// Supplies the node's cluster transport to the simulation controls. Called by
+        /// <c>SimHostSubsystem</c> once the orchestration bus exists — the UI is built before it.
+        /// </summary>
+        public ITimeTransportFacade? TimeFacade
+        {
+            get => _simCtrl.TimeFacade;
+            set => _simCtrl.TimeFacade = value;
+        }
 
         public void Render(
             EntityRepository          repo,
             ModuleHostKernel          kernel,
-            SimHostScenarioManager    scenario,
-            SimHostInspectorAdapter   inspector)
+            // ⛔ UXI-11 S-3b — the SimHostInspectorAdapter parameter is GONE. 📐 It was never read by
+            //    this method or anything it calls; the adapter itself is deleted with
+            //    SimHostSelectionManager, the parallel store it wrapped.
+            SimHostScenarioManager    scenario)
         {
             ImGui.SetNextWindowPos(new Vector2(10, 10), ImGuiCond.FirstUseEver);
             ImGui.SetNextWindowSize(new Vector2(320, 520), ImGuiCond.FirstUseEver);
@@ -164,12 +241,12 @@ namespace Hrot.SimHost.UI
             ModuleHostKernel       kernel,
             SimHostScenarioManager scenario)
         {
-            if (ImGui.CollapsingHeader("Simulation", ImGuiTreeNodeFlags.DefaultOpen))
+            if (SectionHeader.Draw("hdr.simulation", "Simulation", "mode/live", ImGuiTreeNodeFlags.DefaultOpen))
                 _simCtrl.Render(repo, kernel);
 
             ImGui.Separator();
 
-            if (ImGui.CollapsingHeader("Spawning", ImGuiTreeNodeFlags.DefaultOpen))
+            if (SectionHeader.Draw("hdr.spawning", "Spawning", "section/spawn", ImGuiTreeNodeFlags.DefaultOpen))
                 _spawnPanel.Render(scenario, UIState);
         }
     }

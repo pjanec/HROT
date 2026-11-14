@@ -1,3 +1,4 @@
+using Fdp.Presentation.Forms;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 
@@ -28,11 +29,7 @@ internal sealed class ReadEqsResultNodeSession : INodeEditSession
     /// Returns the names of all EqsSensorHandle-typed variables on the asset.
     /// Internal test hook (InternalsVisibleTo Hrot.Blueprints.Tests).
     /// </summary>
-    internal string[] GetSensorVariableNamesForTest()
-        => _parent.Variables
-            .Where(v => v.Type.TypeId == "FDP.Eqs.EqsSensorHandle")
-            .Select(v => v.Name)
-            .ToArray();
+    internal string[] GetSensorVariableNamesForTest() => EqsSensorSourcePicker.SensorVariables(_parent);
 
     public void Draw()
     {
@@ -41,22 +38,19 @@ internal sealed class ReadEqsResultNodeSession : INodeEditSession
 
         if (_parent.Dispatch != BlueprintDispatchKind.Instance)
         {
-            ImGui.TextColored(EditorColors.Error,
-                "⚠ ReadEqsResultNode is only allowed in Instance Blueprints.");
+            NodeEditor.Core.Widgets.RowMarks.ErrorLine("ReadEqsResultNode is only allowed in Instance Blueprints.");
             ImGui.Separator();
         }
 
-        var sensorVars = GetSensorVariableNamesForTest();
-
-        int sensorIdx = Array.IndexOf(sensorVars, _node.SensorVariableName);
-        if (ImGui.Combo("Sensor", ref sensorIdx, sensorVars, sensorVars.Length))
+        // ⭐ CE-3054 D — a sensor variable, or the unit's own sensor of a kind (EqsSensorSourcePicker).
+        string name = _node.SensorVariableName;
+        byte kind = _node.UnitSensorKind;
+        if (EqsSensorSourcePicker.Draw("Sensor", _parent, ref name, ref kind))
         {
-            _node.SensorVariableName = sensorVars[sensorIdx];
+            _node.SensorVariableName = name;
+            _node.UnitSensorKind = kind;
             IsDirty = true;
         }
-
-        if (sensorVars.Length == 0)
-            ImGui.TextColored(EditorColors.Info, "(no EqsSensorHandle variables on this asset)");
 
         ImGui.TextDisabled("Index: drive via input pin (default 0)");
         ImGui.TextDisabled("Outputs: IsReady, ResultCount, Entity, Position, Score");

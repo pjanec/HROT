@@ -1,0 +1,190 @@
+using System;
+using System.Collections.Generic;
+using Hrot.NED.Descriptors;
+using CycloneDDS.Runtime;
+using Fdp.Core;
+using Fdp.Interfaces;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.ModuleHost.Abstractions;
+
+namespace Hrot.Map.Common.Replication.Egress
+{
+    /// <summary>
+    /// ⭐ <c>CE-3110</c> I-2b (R-224; 📄 docs/DESIGN_Entity_Interactions.md §7.1c) — publishes a vehicle's <see cref="PassengerBuffer"/> from
+    /// the node owning its <c>dtPassengerBuffer</c> (the vehicle's brain, where <c>EmbarkationSystem</c> writes it), on change. Every brained
+    /// entity carries an empty list (the TKB gives one), so a list that was never filled is never sent.
+    /// </summary>
+    public sealed class EntityPassengersEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
+    {
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityPassengers> _instances;
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPassengers>();
+        public long DescriptorOrdinal => (long)EDescriptorType.dtPassengerBuffer;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
+
+        public EntityPassengersEgressTranslator(DdsParticipant? participant)
+            => _instances = new(participant is not null ? new DdsWriter<EntityPassengers>(participant) : null, static key => new EntityPassengers { EntityId = (int)key });
+
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
+
+        public void ScanAndPublish(ISimulationView view)
+        {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+        /// destruction bookkeeping (it reads the bus).</summary>
+        public void BeginFrame(ISimulationView view)
+        {
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+        /// on the off-frame replica.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
+            if (view is EntityRepository r && !r.IsComponentTypeRegistered<PassengerBuffer>()) return;
+            long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            foreach (var vehicle in view.Query().With<PassengerBuffer>().DefaultRoutePublishable().Build())
+            {
+                if (!view.HasAuthority(vehicle, packedKey)) continue;
+                int netId = view.GetComponentRO<NetworkIdentity>(vehicle).Value;
+                var sample = ToSample(view, netId, view.GetComponentRO<PassengerBuffer>(vehicle));
+                if (_instances.TryGetLast(netId, out var prev) ? Fdp.Network.Cyclone.Translators.SampleEquality.Same(prev, sample) : sample.Count == 0) continue;   // unchanged, or never filled
+                _instances.Write(netId, sample);
+                SentSampleCount++;
+            }
+        }
+
+        /// <summary>The wire form (the test seam): seat i carries the network id of the passenger in seat i, 0 for an empty seat or one with
+        /// no network id; <c>Count</c> = the occupied seats. ⭐ CE-2151 B-b (R-2009 B4): slot-indexed — a slot IS a seat, so a hole is kept.</summary>
+        internal static EntityPassengers ToSample(ISimulationView view, int netId, in PassengerBuffer b)
+        {
+            Span<int> ids = stackalloc int[PassengerBuffer.Capacity];
+            int n = 0;
+            for (int i = 0; i < PassengerBuffer.Capacity; i++)
+            {
+                var p = b.Passengers[i];
+                if (!p.IsNull && view.IsAlive(p) && view.HasComponent<NetworkIdentity>(p)) { ids[i] = view.GetComponentRO<NetworkIdentity>(p).Value; n++; }
+            }
+            return new EntityPassengers
+            {
+                EntityId = netId, Count = (byte)n,
+                Passenger0 = ids[0], Passenger1 = ids[1], Passenger2 = ids[2], Passenger3 = ids[3],
+                Passenger4 = ids[4], Passenger5 = ids[5], Passenger6 = ids[6], Passenger7 = ids[7],
+                Passenger8 = ids[8], Passenger9 = ids[9], Passenger10 = ids[10], Passenger11 = ids[11],   // ⭐ F4 — appended
+                Modes = (ushort)(b.Modes & 0xFFFF),   // ⭐ CE-2152 (R-2011 C5) — carried / dragged travels with the seat
+                ModesHigh = (ushort)(b.Modes >> 16),  // ⭐ F4 — seats 8–11
+                // ⭐ T-a (R-2017 T1) — the second man of a team carry
+                Assistant = !b.Assistant.IsNull && view.IsAlive(b.Assistant) && view.HasComponent<NetworkIdentity>(b.Assistant)
+                    ? view.GetComponentRO<NetworkIdentity>(b.Assistant).Value : 0,
+            };
+        }
+
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
+
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
+    }
+}
+
+namespace Hrot.Map.Common.Replication.Ingress
+{
+    /// <summary>
+    /// ⭐ <c>CE-3110</c> I-2b — applies a vehicle's published passenger list on this node; <c>EmbarkedStateSystem</c> derives the passengers'
+    /// side from it. A sample naming a passenger this node does not know yet is HELD (the newest per vehicle) and applied once every id
+    /// resolves — it is sent once (TransientLocal), so dropping it would leave the list wrong until it next changed. The recorded owner
+    /// never takes its own sample back.
+    /// </summary>
+    public sealed class EntityPassengersIngressTranslator : IDescriptorTranslator, IDiscardableIngress
+    {
+        private const long OrdinalValue = (long)EDescriptorType.dtPassengerBuffer;
+        private readonly DdsReader<EntityPassengers>? _reader;
+        private readonly NetworkEntityMap _entityMap;
+        private readonly Dictionary<int, EntityPassengers> _pending = new();
+        private readonly List<int> _done = new();
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPassengers>();
+        public long DescriptorOrdinal => OrdinalValue;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
+        /// <summary>Samples waiting for a vehicle or a passenger this node does not know yet.</summary>
+        public int PendingCount => _pending.Count;
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
+
+        public EntityPassengersIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
+        {
+            _reader = participant is not null ? new DdsReader<EntityPassengers>(participant) : null;
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+        }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
+
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (_reader is not null)
+            {
+                using var loan = _reader.Take();
+                foreach (var sample in loan)
+                {
+                    if (!sample.IsValid || sample.Info.InstanceState != DdsInstanceState.Alive) continue;
+                    ReceivedSampleCount++;
+                    _pending[sample.Data.EntityId] = sample.Data;
+                }
+            }
+            Flush(cmd, view);
+        }
+
+        /// <summary>Takes one sample (the test seam) — it is applied by the next <see cref="Flush"/>.</summary>
+        internal void Receive(in EntityPassengers d) { ReceivedSampleCount++; _pending[d.EntityId] = d; }
+
+        /// <summary>Applies every held sample whose vehicle and passengers are all known.</summary>
+        internal void Flush(IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (_pending.Count == 0) return;
+            foreach (var (vehicleId, d) in _pending)
+                if (TryApply(in d, cmd, view)) _done.Add(vehicleId);
+            foreach (var id in _done) _pending.Remove(id);
+            _done.Clear();
+        }
+
+        private bool TryApply(in EntityPassengers d, IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (!_entityMap.TryGetEntity(d.EntityId, out var vehicle) || !view.IsAlive(vehicle)) return false;
+            if (view is EntityRepository repo
+                && AuthorityExtensions.IsRecordedOwner(repo, vehicle, OwnershipExtensions.PackKey(OrdinalValue, 0))) return true;   // ours: drop
+            var buffer = new PassengerBuffer();
+            Span<int> ids = stackalloc int[] { d.Passenger0, d.Passenger1, d.Passenger2, d.Passenger3, d.Passenger4, d.Passenger5, d.Passenger6, d.Passenger7,
+                                                 d.Passenger8, d.Passenger9, d.Passenger10, d.Passenger11 };   // ⭐ F4 — 12 seats
+            for (int i = 0; i < PassengerBuffer.Capacity; i++)   // ⭐ CE-2151 B-b — seat i from slot i; 0 = an empty seat
+            {
+                if (ids[i] == 0) continue;
+                if (!_entityMap.TryGetEntity(ids[i], out var passenger) || !view.IsAlive(passenger)) return false;   // not known yet: hold
+                buffer.Passengers[i] = passenger;
+                buffer.Count++;
+            }
+            buffer.Modes = d.Modes | ((uint)d.ModesHigh << 16);   // ⭐ CE-2152 (R-2011 C5) · ⭐ F4 — seats 8–11
+            if (d.Assistant != 0)    // ⭐ T-a — held, like a passenger, until the second man is known here
+            {
+                if (!_entityMap.TryGetEntity(d.Assistant, out var assistant) || !view.IsAlive(assistant)) return false;
+                buffer.Assistant = assistant;
+            }
+            cmd.AddComponent(vehicle, buffer);
+            return true;
+        }
+
+        public void ScanAndPublish(ISimulationView view) { }
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
+        public void Dispose(int networkEntityId) => _pending.Remove(networkEntityId);
+    }
+}

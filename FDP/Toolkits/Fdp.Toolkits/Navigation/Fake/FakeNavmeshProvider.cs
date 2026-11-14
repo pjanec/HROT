@@ -47,7 +47,7 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// In-memory navmesh provider backed by <see cref="FakeNavLayer"/> instances.
     /// Intended for unit testing of navigation systems; not for production use.
     ///
-    /// Walkability queries use (X, Z) plane point-in-polygon (winding number algorithm).
+    /// Walkability queries use (X, Y) ground-plane point-in-polygon (Z-up: Z is elevation) (winding number algorithm).
     /// Pathfinding uses Dijkstra over polygon adjacency lists and off-mesh links.
     /// </summary>
     public sealed class FakeNavmeshProvider : INavmeshProvider, IFakeNavmeshProviderTestApi
@@ -88,9 +88,9 @@ namespace Fdp.Toolkit.Navigation.Fake
                 snapped = position;
                 return false;
             }
-            // Return centroid Y from first vertex, keep caller's Y for flat terrain.
-            float y = poly.Vertices.Length > 0 ? poly.Vertices[0].Y : position.Y;
-            snapped = new Vector3(position.X, y, position.Z);
+            // Z-up: elevation is Z. Take it from the first vertex, keep the caller's (X, Y) plane position.
+            float z = poly.Vertices.Length > 0 ? poly.Vertices[0].Z : position.Z;
+            snapped = new Vector3(position.X, position.Y, z);
             return true;
         }
 
@@ -107,8 +107,8 @@ namespace Fdp.Toolkit.Navigation.Fake
                     if (poly.IsBlocked) continue;
                     var c = poly.Centroid();
                     float dx = c.X - center.X;
-                    float dz = c.Z - center.Z;
-                    if (dx * dx + dz * dz <= r2)
+                    float dy = c.Y - center.Y;
+                    if (dx * dx + dy * dy <= r2)
                     {
                         if (count < results.Length)
                             results[count] = c;
@@ -140,10 +140,8 @@ namespace Fdp.Toolkit.Navigation.Fake
             float cost = 0f;
             for (int i = 1; i < n; i++)
             {
-                float dx = waypointBuf[i].Position.X - waypointBuf[i - 1].Position.X;
-                float dz = waypointBuf[i].Position.Z - waypointBuf[i - 1].Position.Z;
-                float dy = waypointBuf[i].Position.Y - waypointBuf[i - 1].Position.Y;
-                cost += MathF.Sqrt(dx * dx + dz * dz + dy * dy);
+                var d = waypointBuf[i].Position - waypointBuf[i - 1].Position;
+                cost += d.Length();
             }
             return cost;
         }
@@ -293,7 +291,7 @@ namespace Fdp.Toolkit.Navigation.Fake
                 foreach (var poly in navLayer.Polygons)
                 {
                     var c = poly.Centroid();
-                    if (region.Contains(new System.Numerics.Vector2(c.X, c.Z)))
+                    if (region.Contains(new System.Numerics.Vector2(c.X, c.Y)))
                     {
                         overlaps = true;
                         break;
@@ -308,7 +306,7 @@ namespace Fdp.Toolkit.Navigation.Fake
 
         /// <summary>
         /// Find any walkable polygon in any matching layer that contains <paramref name="pos"/>
-        /// (X, Z plane).
+        /// (X, Y ground plane; Z is elevation).
         /// </summary>
         private NavPolygon? FindPolygon(Vector3 pos, uint layerMask)
         {
@@ -317,7 +315,7 @@ namespace Fdp.Toolkit.Navigation.Fake
                 if ((layer.Layer & layerMask) == 0) continue;
                 foreach (var poly in layer.Polygons)
                 {
-                    if (!poly.IsBlocked && PointInPolygon(pos.X, pos.Z, poly))
+                    if (!poly.IsBlocked && PointInPolygon(pos.X, pos.Y, poly))
                         return poly;
                 }
             }
@@ -331,7 +329,7 @@ namespace Fdp.Toolkit.Navigation.Fake
                 if ((layer.Layer & layerMask) == 0) continue;
                 foreach (var poly in layer.Polygons)
                 {
-                    if (!poly.IsBlocked && PointInPolygon(pos.X, pos.Z, poly))
+                    if (!poly.IsBlocked && PointInPolygon(pos.X, pos.Y, poly))
                         return (layer, poly);
                 }
             }
@@ -341,7 +339,7 @@ namespace Fdp.Toolkit.Navigation.Fake
         private static NavPolygon? FindPolygonInLayer(FakeNavLayer layer, Vector3 pos)
         {
             foreach (var poly in layer.Polygons)
-                if (!poly.IsBlocked && PointInPolygon(pos.X, pos.Z, poly))
+                if (!poly.IsBlocked && PointInPolygon(pos.X, pos.Y, poly))
                     return poly;
             return null;
         }
@@ -361,10 +359,10 @@ namespace Fdp.Toolkit.Navigation.Fake
         }
 
         /// <summary>
-        /// Winding-number point-in-polygon test using the (X, Z) plane.
+        /// Winding-number point-in-polygon test using the (X, Y) ground plane (Z is elevation).
         /// Works for arbitrary simple polygons (convex or concave).
         /// </summary>
-        private static bool PointInPolygon(float px, float pz, NavPolygon poly)
+        private static bool PointInPolygon(float px, float py, NavPolygon poly)
         {
             var verts = poly.Vertices;
             int n = verts.Length;
@@ -373,17 +371,17 @@ namespace Fdp.Toolkit.Navigation.Fake
             int winding = 0;
             for (int i = 0; i < n; i++)
             {
-                float x1 = verts[i].X,          z1 = verts[i].Z;
-                float x2 = verts[(i + 1) % n].X, z2 = verts[(i + 1) % n].Z;
+                float x1 = verts[i].X,          y1 = verts[i].Y;
+                float x2 = verts[(i + 1) % n].X, y2 = verts[(i + 1) % n].Y;
 
-                if (z1 <= pz)
+                if (y1 <= py)
                 {
-                    if (z2 > pz && IsLeft(x1, z1, x2, z2, px, pz) > 0)
+                    if (y2 > py && IsLeft(x1, y1, x2, y2, px, py) > 0)
                         winding++;
                 }
                 else
                 {
-                    if (z2 <= pz && IsLeft(x1, z1, x2, z2, px, pz) < 0)
+                    if (y2 <= py && IsLeft(x1, y1, x2, y2, px, py) < 0)
                         winding--;
                 }
             }
@@ -391,10 +389,10 @@ namespace Fdp.Toolkit.Navigation.Fake
         }
 
         /// <summary>
-        /// Positive if (px, pz) is to the left of the edge from (x1,z1) to (x2,z2).
+        /// Positive if (px, py) is to the left of the edge from (x1,y1) to (x2,y2).
         /// </summary>
-        private static float IsLeft(float x1, float z1, float x2, float z2, float px, float pz)
-            => (x2 - x1) * (pz - z1) - (px - x1) * (z2 - z1);
+        private static float IsLeft(float x1, float y1, float x2, float y2, float px, float py)
+            => (x2 - x1) * (py - y1) - (px - x1) * (y2 - y1);
 
         /// <summary>BFS: can we reach <paramref name="to"/> from <paramref name="from"/>?</summary>
         private static bool BfsPathExists(FakeNavLayer layer, NavPolygon from, NavPolygon to)
@@ -487,8 +485,7 @@ namespace Fdp.Toolkit.Navigation.Fake
         {
             var ca = a.Centroid();
             var cb = b.Centroid();
-            float dx = ca.X - cb.X, dz = ca.Z - cb.Z, dy = ca.Y - cb.Y;
-            return MathF.Sqrt(dx * dx + dz * dz + dy * dy);
+            return (ca - cb).Length();
         }
 
         private static OffMeshLink? FindLink(FakeNavLayer layer, int fromId, int toId)

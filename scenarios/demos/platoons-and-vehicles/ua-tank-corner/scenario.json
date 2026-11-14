@@ -1,0 +1,121 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: Test-town: an M1 (\"Tank\", BasicVehicleSop) at (250,70) beside a 4-storey block fights from hide and firing points against a Javelin team (\"AT Gunner\", 164 m, attacking it) and a rifleman (\"Rifleman\", 210 m). Shows the vehicle exposure cycle: rank the AT weapon first, peek, fire, withdraw. Judge: (1) the tank fires (2) its first rounds go at the AT gunner, not the rifleman (3) it fires from at least two points >= 4 m apart (or the gunner dies first) (4) it moves through hide and firing points (> 5 m from its start). Fail: the first rounds go at the rifleman, or the tank never moves or fires. Check: python3 scripts/utility-demo-check.py --launch ua-tank-corner"
+  },
+  "entities": {
+    "a2195d00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          250,
+          70,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a2195d00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          100,
+          225,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2006
+      },
+      "EntityInfo": {
+        "Name": "AT Gunner",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {"target":"a2195d00-0000-4000-8000-000000000001","assault":true},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a2195d00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          70,
+          222,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicInfantrySop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

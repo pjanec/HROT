@@ -3,6 +3,7 @@ using Fdp.Core;using Fdp.Interfaces;using Fdp.Network.Cyclone.Translators;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Events;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Animation.Replication.Translators.Events;
 
@@ -13,13 +14,12 @@ namespace Hrot.Animation.Replication.Translators.Events;
 internal sealed class StanceChangedEventTranslator
     : CycloneNativeEventTranslator<StanceChangedEvent, DdsStanceChangedEvent>
 {
-    private const string TopicNameConst = "hrot/anim/StanceChanged";
 
     public override TranslatorDirection Direction { get; }
 
     internal StanceChangedEventTranslator(
         DdsParticipant participant, NetworkEntityMap entityMap, TranslatorDirection direction)
-        : base(participant, TopicNameConst, entityMap)
+        : base(participant, entityMap, CycloneDDS.Schema.DdsTopicName.Of(typeof(DdsStanceChangedEvent).Namespace, new[] { nameof(DdsStanceChangedEvent) }))
     {
         Direction = direction;
     }
@@ -27,7 +27,7 @@ internal sealed class StanceChangedEventTranslator
     protected override bool TryEncode(
         in StanceChangedEvent ecs, out DdsStanceChangedEvent dds)
     {
-        if (!EntityMap.TryGetNetworkId(ecs.Target, out long netId))
+        if (!EntityMap.TryGetNetworkId(ecs.Target, out int netId))
         {
             dds = default;
             return false;

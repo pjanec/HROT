@@ -32,5 +32,23 @@ namespace Fdp.Toolkit.Behavior.Components
         /// without forcing Fdp.Toolkits to reference Hrot.Common.
         /// </summary>
         public const int DebugState = 148;
+
+        /// <summary>
+        /// <c>BehaviorStartRecord</c> — CE-452: the name + parameter text the entity's current root behaviour was started
+        /// with (transient). ⚠ 154 is the first of the "154–159 next free" block <c>GlobalComponentIds</c> names — measured
+        /// free by a repo-wide search of FDP/Hrot/Stride on 2026-09-30; that comment (Fdp.Core) is not updated from here.
+        /// </summary>
+        public const int BehaviorStartRecord = 154;
+
+        /// <summary>
+        /// <c>BehaviorOwnedPart</c> — CE-485: stamps a child part (an EQS sensor) with the behaviour run that created it, so the
+        /// run's end destroys it. ⚠ 155 measured free by a repo-wide search of FDP/Hrot/Stride on 2026-10-01 (154 above is the
+        /// precedent); the <c>GlobalComponentIds</c> free-block comment (Fdp.Core) is not updated from here.
+        /// </summary>
+        public const int BehaviorOwnedPart = 155;
+
+        /// <summary><c>BehaviorFaultLatch</c> — CE-482: the fault a running behaviour raised, consumed by <c>BrainTickSystem</c>.
+        /// ⚠ 156 measured free by a repo-wide search on 2026-10-01.</summary>
+        public const int BehaviorFaultLatch = 156;
     }
 }

@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
@@ -41,13 +42,13 @@ public sealed record CompiledEventScanner(EventScannerDelegate Delegate)
     private readonly List<SearchResultDto> _buffer = new(4);
 
     /// <summary>
-    /// Scans <paramref name="bus"/> for matching events.
+    /// Scans <paramref name="repo"/>'s events (through its repository reads — CE-3293 S3, rule 4) for matching ones.
     /// Returns <c>true</c> if at least one matching event is present.
     /// </summary>
-    public bool Evaluate(FdpEventBus bus, EntityRepository repo)
+    public bool Evaluate(EntityRepository repo)
     {
         _buffer.Clear();
-        Delegate(bus, 0, 0L, _buffer, repo, null);
+        Delegate(repo, 0, 0L, _buffer, null);
         return _buffer.Count > 0;
     }
 }
@@ -69,7 +70,9 @@ internal delegate Vector2 SpatialPositionDelegate<T>(ref T component) where T : 
 ///   0 → 1: calls <see cref="DebugSnapshotProvider.SetEnabled(bool)"/> with true.
 ///   1 → 0: calls SetEnabled with false.
 /// </summary>
-public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewProvider, IMutationInterceptor
+public sealed class DataBreakpointManager
+    : IDataBreakpointManager, IActiveViewProvider, IMutationInterceptor,
+      Fdp.ModuleHost.Abstractions.IStagedWrites, IDisposable
 {
     private readonly EntityRepository _liveRepo;
     private readonly EntityRepository _preTickSnapshot;
@@ -82,18 +85,20 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
 
     private readonly Dictionary<BreakpointId, Breakpoint> _breakpoints = new();
     private readonly Dictionary<BreakpointId, CompiledComponentPredicate> _componentPredicates = new();
+    private readonly Dictionary<BreakpointId, (BehaviourStepPredicateDto Step, Func<EntityRepository, Entity, bool>? Remaining)> _behaviourSteps = new();
+    private string? _pendingHitDetail;
     private readonly Dictionary<BreakpointId, CompiledEventScanner> _eventScanners = new();
 
     // Structural trackers: BreakpointId -> (Breakpoint, dto, set of entities known to have the component)
-    private readonly Dictionary<BreakpointId, (Breakpoint bp, StructuralPredicateDto dto, HashSet<Entity> knownSet)>
+    private readonly Dictionary<BreakpointId, (Breakpoint bp, StructuralPredicateDto dto, HashSet<Entity> knownSet, Func<EntityRepository, Entity, bool> has)>
         _structuralTrackers = new();
 
     // Spatial trackers: BreakpointId -> (Breakpoint, dto, set of entities currently inside the bounds, compiled position accessor)
-    private readonly Dictionary<BreakpointId, (Breakpoint bp, SpatialBoundingPredicateDto dto, HashSet<Entity> insideSet, Func<EntityRepository, Entity, Vector2>? posAccessor)>
+    private readonly Dictionary<BreakpointId, (Breakpoint bp, SpatialBoundingPredicateDto dto, HashSet<Entity> insideSet, Func<EntityRepository, Entity, bool> inside)>
         _spatialTrackers = new();
 
     // Lifecycle trackers: BreakpointId -> (Breakpoint, dto, set of known-alive entities)
-    private readonly Dictionary<BreakpointId, (Breakpoint bp, LifecyclePredicateDto dto, HashSet<Entity> knownAlive)>
+    private readonly Dictionary<BreakpointId, (Breakpoint bp, LifecyclePredicateDto dto, HashSet<Entity> knownAlive, Func<EntityRepository, Entity, bool> matches)>
         _lifecycleTrackers = new();
     // External-hit tag predicates: tag → list of (BreakpointId, optional remaining delegate).
     // Populated for ExternalHitTagPredicateDto conditions and for CompoundPredicateDto[And]
@@ -108,11 +113,16 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     private int _activeBreakpointCount;
     private bool _isPaused;
     private long _pausedTick;
+
+    /// ⭐⭐ <c>MX-009</c> — WHICH breakpoint is holding the pause. Meaningful only while
+    /// <see cref="_isPaused"/>; <see cref="BreakpointId.Invalid"/> otherwise. ⛔ Set in exactly one
+    /// place (<see cref="OnHit"/>) and cleared in exactly one place (<see cref="ClearPausedState"/>),
+    /// so it cannot drift out of step with <see cref="_isPaused"/>.
+    private BreakpointId _pausedBy = BreakpointId.Invalid;
     private readonly Queue<PendingDebugMutation> _pendingMutations = new();
 
     // Cache of component type -> CLR managed size (Unsafe.SizeOf<T>() via ComponentType<T>.Size).
     // Avoids repeated reflection on the hot path.
-    private static readonly Dictionary<Type, int> _componentSizeCache = new();
 
     // ---- IDataBreakpointManager.IsPaused --------------------------------
 
@@ -241,6 +251,16 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         _postTickSnapshot      = new EntityRepository();
     }
 
+    /// <summary>
+    /// ⭐ <c>QA-005</c> — releases the one repository this manager OWNS.
+    ///
+    /// <para>⛔ <c>_liveRepo</c> and <c>_preTickSnapshot</c> are passed IN and belong to the host
+    /// subsystem; only <c>_postTickSnapshot</c> is constructed here, and until this existed it was
+    /// leaked on every node teardown — a whole <see cref="EntityRepository"/> per CGF or editor
+    /// lifetime (<c>QA-004</c>'s <c>LiveInstanceCount</c> is how that became visible).</para>
+    /// </summary>
+    public void Dispose() => _postTickSnapshot.Dispose();
+
     // ---- Internal test seams --------------------------------------------
 
     /// <summary>
@@ -252,6 +272,32 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     /// Exposes the post-tick snapshot repository for testing.
     /// </summary>
     internal EntityRepository PostTickSnapshot => _postTickSnapshot;
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ <c>CE-1284</c> (DBG-8) — the PreFrame copy (<see cref="ChangeBaselineSystem"/>) when a host composes one, else the BeforeSync
+    /// rewind snapshot (which misses every change made in Input).</remarks>
+    public EntityRepository? ChangeBaseline => _changeBaseline ?? _preTickSnapshot;
+
+    private EntityRepository? _changeBaseline;
+
+    /// <summary>⭐ <c>CE-1284</c> — use <paramref name="baseline"/> (filled in PreFrame) for "changed" conditions.</summary>
+    public void UseChangeBaseline(EntityRepository baseline) => _changeBaseline = baseline;
+
+    /// <summary>⭐ <c>CE-1284</c> — the component types the mounted "changed" conditions compare (what the PreFrame copy must hold).</summary>
+    public BitMask512 ChangedComponentMask()
+    {
+        var mask = default(BitMask512);
+        foreach (var (bp, compiled) in MountedComponentPredicates)
+        {
+            if (!bp.Enabled || bp.Condition is not { } c || !Fdp.Toolkit.ReplayBrowser.Search.RecordingSearchService.UsesChanged(c)) continue;
+            foreach (var t in compiled.MandatoryComponents)
+                if (ComponentTypeRegistry.GetId(t) is var id and >= 0) mask.SetBit(id);
+        }
+        return mask;
+    }
+
+    /// <inheritdoc/>
+    public ISimulationView? PostTickView => _isPaused ? _postTickSnapshot : null;
 
     // ---- Registry -------------------------------------------------------
 
@@ -304,6 +350,10 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
 
         if (bp.Enabled)
             AdjustGate(-1);
+
+        // ⭐⭐⭐ MX-009 — the breakpoint that was HOLDING the pause is gone ⇒ nothing holds it.
+        //    See the ReleaseIfHeldBy note below for why this is a full resume and not a flag clear.
+        ReleaseIfHeldBy(id);
     }
 
     /// <inheritdoc/>
@@ -326,7 +376,73 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         {
             UnmountDelegate(id);
             AdjustGate(-1);
+
+            // ⭐⭐ MX-009 — disabling the holder is the same act as removing it, from the
+            //    simulation's point of view: it can no longer fire, so it can no longer hold.
+            ReleaseIfHeldBy(id);
         }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ MX-009 — **THE PAUSE IS HELD BY A SPECIFIC BREAKPOINT, AND ONLY IT CAN STOP HOLDING IT.**
+    //
+    // 🔴 THE BUG, measured by the time lane (HN-122): after ANY breakpoint fired, `_isPaused` stayed
+    //    true unless RequestStep/RequestContinue were called explicitly. Removing the breakpoint —
+    //    the natural operator gesture for "I'm done with this one" — left it set. `IsRewound` is
+    //    `_isPaused`, and the kernel's ResumeAndDrainSystem returns early on `IsRewound` ⇒ ⛔ EVERY
+    //    later staged write reported `pending = true` FOREVER. 📌 That is M-41's "accepted and
+    //    silently discarded" in its worst form: the write is accepted, shown as pending, and the
+    //    thing that would apply it is switched off with no way back.
+    //
+    // ⭐⭐ WHY A FULL RESUME AND NOT `_isPaused = false`. ⛔ The flag is not the state; it is a LABEL
+    //    for the state. When it is set, `_liveRepo` has been rewound to `_preTickSnapshot` (OnHit)
+    //    and the clock is halted. Clearing the flag alone would leave the world silently rewound and
+    //    time stopped — ⚠ a worse bug than the one being fixed, and one that looks fixed from the
+    //    drain's point of view. ⇒ ⭐ RequestContinue IS the release: restore post-tick, resume the
+    //    clock, clear the flags, raise OnPauseStateChanged. One implementation, per ruling 9.
+    //
+    // ⭐⭐ WHY *HELD-BY* AND NOT "no enabled breakpoints remain". 📐 Both fix the reported repro
+    //    (arm one, fire, delete it). They differ when TWO are armed: you are stopped at A, and you
+    //    delete B. ⛔ "None remain" keeps you stuck — the same bug, just rarer and harder to find.
+    //    ⛔ "Any removal resumes" would rip the world out from under an operator still reading it.
+    //    ⭐ Held-by is the only rule that is right in both: it resumes exactly when the thing you
+    //    are stopped AT stops existing. 📐 Safe because EVERY pause goes through OnHit with a
+    //    registered breakpoint — OnExternalHit routes through it too (:823), so the holder is never
+    //    unknown.
+    //
+    // ⚠ NO DESIGN RECORD COVERS THIS CASE. Searched `docs/designs/breakpoints-1/DESIGN.md` §9.1
+    //    ("Routing during a pause"), `universal-breakpoints-DESIGN.md`, and
+    //    `docs/UX/Design_Question_30_Debug_Pause_Resume.md` (which answers the CLUSTER question, not
+    //    this one): the design names exactly two release paths, Clean Step and Continue, and is
+    //    silent on removal. ⇒ ⭐ this rule is NEW, and it is recorded in the design by this batch
+    //    rather than left implicit in the code (obligation ⑤).
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ Releases the pause if — and only if — <paramref name="id"/> is the breakpoint currently
+    /// holding it. ⛔ A no-op when not paused, or when some OTHER breakpoint is the holder.
+    /// </summary>
+    private void ReleaseIfHeldBy(BreakpointId id)
+    {
+        if (!_isPaused || _pausedBy != id) return;
+
+        // ⭐ RequestContinue clears _pausedBy via ClearPausedState — the single release path.
+        RequestContinue();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>MX-009</c> — <b>THE ONE PLACE THE PAUSED STATE IS CLEARED.</b> ⛔ Both
+    /// <see cref="RequestStep"/> and <see cref="RequestContinue"/> route through it, so
+    /// <see cref="_pausedBy"/> can never survive a resume and strand a later
+    /// <see cref="ReleaseIfHeldBy"/> against a stale id. ⚠ It clears the BOOKKEEPING only — the
+    /// snapshot restore and the clock call belong to the caller, because they differ between step
+    /// and continue.
+    /// </summary>
+    private void ClearPausedState()
+    {
+        _isPaused   = false;
+        _pausedTick = 0L;
+        _pausedBy   = BreakpointId.Invalid;
     }
 
     /// <inheritdoc/>
@@ -475,8 +591,11 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         // Halt the clock.
         _timeController.RequestPause();
         _isPaused = true;
+        LastHitDetail = _pendingHitDetail;   // ⭐ CE-1323 — what a behaviour step said; null for every other source
+        // ⭐⭐ MX-009 — record the HOLDER. The only write to this field.
+        _pausedBy = updated.Id;
         _pausedTick = _liveRepo.HasSingletonUnmanaged<GlobalTime>()
-            ? _liveRepo.GetSingletonUnmanaged<GlobalTime>().TotalWallTicks
+            ? _liveRepo.GetSingletonUnmanagedRO<GlobalTime>().TotalWallTicks
             : (long)_preTickSnapshot.SimulationTick; // fallback: frame clock (not memory clock)
 
         // Notify subscribers.
@@ -484,7 +603,72 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         OnPauseStateChanged?.Invoke(true);
     }
 
+    // ---- Behaviour steps (CE-1323) ---------------------------------------
+
+    /// <inheritdoc/>
+    public IReadOnlyList<(Breakpoint Breakpoint, BehaviourStepPredicateDto Step)> MountedBehaviourSteps
+    {
+        get
+        {
+            // built per call (a few entries, read once a tick): the records carry Enabled / HitCount, which change without a remount
+            if (_behaviourSteps.Count == 0) return Array.Empty<(Breakpoint, BehaviourStepPredicateDto)>();
+            var list = new List<(Breakpoint, BehaviourStepPredicateDto)>(_behaviourSteps.Count);
+            foreach (var (id, mounted) in _behaviourSteps)
+                if (_breakpoints.TryGetValue(id, out var bp)) list.Add((bp, mounted.Step));
+            return list;
+        }
+    }
+
+    /// <inheritdoc/>
+    public void OnBehaviourStepHit(Breakpoint bp, Entity unit, string what)
+    {
+        if (bp == null || !_breakpoints.TryGetValue(bp.Id, out var current) || !current.Enabled) return;
+        if (current.FilterEntity is { } only && only != unit) return;
+        if (_behaviourSteps.TryGetValue(bp.Id, out var mounted) && mounted.Remaining is { } rest && !rest(_liveRepo, unit)) return;
+        _pendingHitDetail = what;
+        try { OnHit(current, unit); }
+        finally { _pendingHitDetail = null; }
+    }
+
+    /// <inheritdoc/>
+    public string? LastHitDetail { get; private set; }
+
     // ---- Step / Continue ------------------------------------------------
+
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ W5 — THE RESUME PATH IS NO LONGER A WRITE PATH. It restores; it does not drain.
+    //
+    // 📄 DESIGN_Staged_Live_Write.md §6's W5 row · DESIGN_Time_Architecture.md §10; 📌 R-63.
+    //
+    // 🔴 What stood here: BOTH methods restored the post-tick snapshot AND called
+    //    DrainPendingMutations. ⛔ After the kernel's PreFrame ResumeAndDrainSystem was wired
+    //    (design §8) that made TWO implementations of "apply the staged bytes" — ruling 9's exact
+    //    shape, and the one that is easy to miss because both were correct in isolation.
+    //
+    // ⭐⭐ Removing the drain here changes NO observable timing. 📐 Measured: DrainPendingMutations
+    //    writes into `((ISimulationView)repo).GetCommandBuffer()`, which the kernel plays back during
+    //    the tick — so the bytes already landed at the START OF THE NEXT TICK, which is exactly where
+    //    the PreFrame drain puts them. ⇒ same boundary, one implementation.
+    //
+    // ⭐⭐⭐ And it is what makes the TOOLBAR pause work at all (W3). A toolbar pause never calls
+    //    RequestStep/RequestContinue — no breakpoint is holding — so a drain that lived only here
+    //    could never apply that designer's edit. 📌 R-126's reason for making the drain a PULL:
+    //    "no path can forget to raise what is never raised."
+    //
+    // ⛔⛔ THE RESTORE STAYS, and that half of W5 is REPORTED rather than built. Three measured
+    //    reasons, in the order they were found:
+    //    ① 📐 THE SEAM IT WOULD MOVE THROUGH NO LONGER EXISTS. DESIGN_Time_Architecture.md §10 once
+    //       drew `ResumeAndDrainSystem --> IStagedWrites : restore-then-drain` with a
+    //       `RestorePostTick()` member — and that member was DELIBERATELY TRIMMED on 2026-08-21 while
+    //       W1/W2 were built. The shipped IStagedWrites is HasPending · IsRewound · DrainInto ·
+    //       TryGetPending. Putting it back means editing Fdp.Core AND ResumeAndDrainSystem.
+    //    ② ⛔ THAT IS A CROSS-LANE EDIT (R-128) — ResumeAndDrainSystem is the TIME lane's, and a
+    //       cross-lane edit is a STOP-and-report, not a judgement call.
+    //    ③ ⭐⭐ AND IT IS NOT A STAGED-WRITE CONCERN. The restore undoes THIS class's OWN rewind
+    //       (OnHit rewound _liveRepo to _preTickSnapshot); it is the manager's bookkeeping, not the
+    //       editor's write. R-63 reads "the resume path restores the post-tick snapshot AND DRAINS
+    //       ITSELF" — ⭐ the duplicate is the second half, and that is the half this batch removed.
+    // ────────────────────────────────────────────────────────────────────────────────────────────
 
     /// <inheritdoc/>
     public void RequestStep()
@@ -494,33 +678,60 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         // Restore end-of-tick state (clean step -- no resimulation, no event injection).
         _liveRepo.SyncFrom(_postTickSnapshot);
 
-        // Apply staged mutations at the N+1 boundary.
-        DrainPendingMutations(_liveRepo);
-
         _timeController.RequestStepOneTick();
-        _isPaused = false;
-        _pausedTick = 0L;
-        // _pendingMutations is empty after drain; no explicit clear needed.
+        ClearPausedState();
 
+        // ⭐ Anything staged is drained by the kernel's PreFrame system on the tick this steps into.
+        //   ⛔ Not here: see the W5 note above.
         OnPauseStateChanged?.Invoke(false);
     }
+
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ CE-035 — **CONTINUE AFTER A STEP WAS A NO-OP, AND THE OPERATOR STAYED HALTED.**
+    //
+    // 🔴 Measured `2026-08-25` by the CE-029 barrier rail, which had to write `controller.RequestResume()`
+    //    instead of `bp.RequestContinue()` and say so in a comment: `RequestStep` calls
+    //    `ClearPausedState()`, so `_isPaused` is FALSE immediately afterwards — while the CLOCK is not
+    //    running. 📐 The rail asserts exactly that: after a step, `SimGroupsEnabled == false` and
+    //    `ClusterPauseRequested == true`. ⇒ the guard below returned early on the one gesture that
+    //    matters most: *step, look, continue*.
+    //
+    // ⭐⭐ WHY NOT "make RequestStep leave _isPaused true". ⛔ Because the flag is a LABEL for the rewound
+    //    world (see MX-009 above): while it is set, `_liveRepo` is rewound to `_preTickSnapshot` and
+    //    `IsRewound` switches the kernel's drain off. A step deliberately restores the POST-tick state and
+    //    advances ⇒ the world is NOT rewound and the flag is correctly false. ⭐ The bug was never the
+    //    flag; it was `RequestContinue` reading it as *"is time running?"* when it means *"is the world
+    //    rewound?"*.
+    //
+    // ⇒ ⭐⭐ The split below: the REWIND-UNDO half is conditional on `_isPaused`; the RESUME half is
+    //    unconditional, because the time controller is the thing that knows whether it is halted
+    //    (`RequestResume` is idempotent — it publishes a ResumeTimeIntent, or re-enables the sim groups
+    //    on an offline node). ⛔ A `RequestContinue` on a genuinely running world stays a no-op in effect,
+    //    which is what it always was.
+    // ────────────────────────────────────────────────────────────────────────────────────────────
 
     /// <inheritdoc/>
     public void RequestContinue()
     {
-        if (!_isPaused) return;
-
-        // Restore end-of-tick state before resuming.
-        _liveRepo.SyncFrom(_postTickSnapshot);
-
-        // Apply staged mutations at the N+1 boundary.
-        DrainPendingMutations(_liveRepo);
+        if (_isPaused)
+        {
+            // Restore end-of-tick state before resuming — only meaningful while the world is rewound.
+            _liveRepo.SyncFrom(_postTickSnapshot);
+        }
 
         _timeController.RequestResume();
-        _isPaused = false;
-        _pausedTick = 0L;
-        // _pendingMutations is empty after drain; no explicit clear needed.
 
+        if (!_isPaused)
+        {
+            // ⭐ CE-035 — the after-a-step path: nothing to restore, nothing to clear, and no state
+            //   change to announce. The resume above is the whole act.
+            return;
+        }
+
+        ClearPausedState();
+
+        // ⭐ Anything staged is drained by the kernel's PreFrame system on the next advancing tick.
+        //   ⛔ Not here: see the W5 note above.
         OnPauseStateChanged?.Invoke(false);
     }
 
@@ -540,11 +751,209 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
             entity, typeId, isManaged, componentValue, sizeBytes));
     }
 
+    /// <inheritdoc/>
+    public void StageMutation(Entity entity, Type componentType, object componentValue, object? baseline)
+    {
+        if (componentType  == null) throw new ArgumentNullException(nameof(componentType));
+        if (componentValue == null) throw new ArgumentNullException(nameof(componentValue));
+
+        // ⛔ A managed component has no byte layout to diff, and a null baseline means the caller
+        //    cannot say what the designer changed — both fall back to the whole-component write.
+        if (baseline == null || !componentType.IsValueType)
+        {
+            StageMutation(entity, componentType, componentValue);
+            return;
+        }
+
+        int typeId    = ComponentTypeRegistry.GetId(componentType);
+        int sizeBytes = GetEcsComponentSize(componentType);
+
+        var after  = ToBytes(componentValue, sizeBytes);
+        var before = ToBytes(baseline,       sizeBytes);
+
+        int runs = 0;
+        int i = 0;
+        while (i < sizeBytes)
+        {
+            if (after[i] == before[i]) { i++; continue; }
+
+            int start = i;
+            while (i < sizeBytes && after[i] != before[i]) i++;
+            int length = i - start;
+
+            var payload = new byte[length];
+            Buffer.BlockCopy(after, start, payload, 0, length);
+            _pendingMutations.Enqueue(new PendingDebugMutation(
+                entity, typeId, isManaged: false, payload, length, byteOffset: start));
+            runs++;
+        }
+
+        // ⭐ An edit that changed nothing stages nothing — and that is a real case: the OK button
+        //   commits whether or not the designer altered a value.
+        _ = runs;
+    }
+
+    /// <inheritdoc/>
+    public void StageFieldMutation(Entity entity, Type componentType, int byteOffset, ReadOnlySpan<byte> bytes)
+    {
+        int typeId = GuardFieldWrite(componentType, byteOffset, bytes.Length);
+
+        // ⭐ COPIED, not aliased: the caller's span is very often a stack buffer or a slice of a
+        //   rented array, and the queue outlives this call by at least one step.
+        _pendingMutations.Enqueue(new PendingDebugMutation(
+            entity,
+            typeId,
+            isManaged:  false,
+            payload:    bytes.ToArray(),
+            sizeBytes:  bytes.Length,
+            byteOffset: byteOffset));
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐ <c>MIN</c> — <c>AS-1b</c>: the LIVE WORLD's singleton, never the controller's
+    /// <c>GetCurrentState()</c>.
+    /// <para>⚠ <b>No clock at all ⇒ HALTED</b>, deliberately and not as a fallback: a world with no
+    /// <c>GlobalTime</c> has no source of ticks, so nothing can overwrite a direct write. ⛔ The other
+    /// answer would refuse every edit in such a world and blame the designer for a running simulation
+    /// that does not exist.</para>
+    /// </remarks>
+    public bool IsClockHalted()
+        => !_liveRepo.HasSingletonUnmanaged<GlobalTime>()
+           || _liveRepo.GetSingletonUnmanagedRO<GlobalTime>().DeltaTime <= 0f;
+
+    // ⛔⛔⛔ W3 — `WriteFieldNow` IS GONE. 📄 DESIGN_Staged_Live_Write.md §1's run-state table and §6's
+    //    W3 row; 📌 R-130, verbatim: "yellow is an indication of staged change. makes no sense if value
+    //    is directly written now."
+    // 📐 It was MIN's stopgap for a missing drain: with nothing emptying the pending queue, a
+    //    toolbar-paused edit had to land immediately or be lost. ⭐ The kernel's PreFrame
+    //    ResumeAndDrainSystem now pulls staged writes at the next advancing tick (design §8), so the
+    //    stopgap's precondition is gone and keeping it would leave TWO ways a designer's edit reaches
+    //    the repository — one of which is invisible to the yellow.
+    // ⚠ The scratch-buffer trick it used (a private EntityCommandBuffer, played back synchronously) is
+    //    NOT lost knowledge: TheToolbarPauseWriteLandsTests still measures the kernel's dt=0 flush
+    //    behaviour it was built against.
+
+    /// <summary>
+    /// ⛔⛔ <b>The corruption gate, owned ONCE.</b> 📌 <c>Q32</c> §2.1: <i>"an out-of-range offset/size
+    /// is MEMORY CORRUPTION, not a wrong value. Bounds-check against the registered component size and
+    /// fail LOUDLY."</i>
+    ///
+    /// <para>⚠ The engine DOES check, in <c>ComponentTable.SetRawAt</c> — but that runs at PLAYBACK,
+    /// on the sim thread, where nothing remains to attribute it to. ⭐ Checking here fails at the
+    /// designer's OK button, naming the component and the range.</para>
+    ///
+    /// <para>⭐ <c>MIN</c> extracted this from <see cref="StageFieldMutation"/> so the staging arm and
+    /// the write-now arm cannot drift into two different notions of "in range".</para>
+    /// </summary>
+    /// <returns>The registered component type id, which both callers need next.</returns>
+    private static int GuardFieldWrite(Type componentType, int byteOffset, int length)
+    {
+        if (componentType == null) throw new ArgumentNullException(nameof(componentType));
+
+        // ⛔ A managed component has no byte layout to patch. ⭐ Loud, not a fallback: forwarding to
+        //    the whole-component path is R-65's clobber wearing the surgical path's name.
+        if (!componentType.IsValueType)
+            throw new ArgumentException(
+                $"{componentType.Name} is a managed component and has no byte layout to patch. "
+                + "Replace the object through StageMutation instead.", nameof(componentType));
+
+        int componentSize = GetEcsComponentSize(componentType);
+        if (byteOffset < 0 || length <= 0 || byteOffset + length > componentSize)
+            throw new ArgumentOutOfRangeException(nameof(byteOffset),
+                $"Field write [{byteOffset}, {byteOffset + length}) is outside "
+                + $"{componentType.Name}, which is {componentSize} bytes.");
+
+        return ComponentTypeRegistry.GetId(componentType);
+    }
+
+    /// <summary>
+    /// ⭐ The managed byte image of a boxed unmanaged component — the same layout the ECS stores, so a
+    /// diff over it names real component offsets. ⚠ <c>Marshal.StructureToPtr</c> is deliberately not
+    /// used: it writes the MARSHALLED layout, which differs from the managed one on <c>bool</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ BATCH 84 — the body moved to <see cref="ComponentBytes.Of"/> so the editor's live write and
+    /// this diff produce the SAME image. ⛔ Two copies would be two answers to "what are this value's
+    /// bytes?", and the wrong one is wrong only for <c>bool</c>.
+    /// </remarks>
+    private static byte[] ToBytes(object boxed, int sizeBytes) => ComponentBytes.Of(boxed, sizeBytes);
+
     /// <summary>
     /// Plays back all staged mutations into the repository via its command buffer.
     /// The ECB will be applied at the next tick boundary (when the kernel calls Tick()).
     /// No-op when the queue is empty.
     /// </summary>
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ W4 — IStagedWrites. 📄 DESIGN_Staged_Live_Write.md §5 (the seam) · §4 (fork A).
+    //    ⭐ This type ALREADY owned the staged set; W4 does not add a store, it EXPOSES the one that
+    //      exists — 📌 R-13 "route, don't duplicate", and the whole reason fork A was chosen.
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public bool HasPending => _pendingMutations.Count > 0;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐ <b>This IS <see cref="IsPaused"/></b>, and the seam names it <c>IsRewound</c> because that is
+    /// what the drain cares about: 📌 <c>R-63</c> — while a breakpoint holds, the LIVE repo has been
+    /// REWOUND to the pre-tick snapshot, and <c>RequestContinue</c> restores the post-tick one and
+    /// drains itself. ⛔ A drain here would be overwritten by that restore.
+    /// <para>⚠ Two names for one fact is deliberate: <c>IsPaused</c> is what the EDITOR asks,
+    /// <c>IsRewound</c> is what the DRAIN asks, and they mean the same thing only because this
+    /// implementation pauses by rewinding.</para>
+    /// </remarks>
+    public bool IsRewound => _isPaused;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐ The public face of the existing private drain. ⛔ Not a second implementation — 📌 <c>M-41</c>
+    /// measured <c>DrainPendingMutations</c> as having no production caller OUTSIDE this class; this is
+    /// the seam that finally gives it one.
+    /// </remarks>
+    public void DrainInto(Fdp.ModuleHost.Abstractions.ISimulationView view)
+    {
+        if (view is null) throw new ArgumentNullException(nameof(view));
+        if (view is EntityRepository repo) { DrainPendingMutations(repo); return; }
+
+        throw new ArgumentException(
+            $"DrainInto expects the live EntityRepository; got {view.GetType().Name}.", nameof(view));
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐⭐ <b>THE QUERY BEHIND THE YELLOW</b> — 📄 §4's fork A, and 📌 <c>R-130</c> in one line:
+    /// <i>pending ⟺ a mutation for this field sits un-drained.</i>
+    ///
+    /// <para>⭐⭐ <b>LAST WRITE WINS, and that is not an accident.</b> The queue may hold several
+    /// mutations for one field *(a designer edits, then edits again, before the drain)*. ⛔ The FIRST
+    /// match is the OLDEST — showing it would put a superseded number on screen in yellow. ⭐ The drain
+    /// applies them in order, so the LAST one is what the field will actually become ⇒ that is what the
+    /// panel must show.</para>
+    ///
+    /// <para>⚠ <b>Whole-component writes never match</b> *(<c>ByteOffset == -1</c>)*: this asks about a
+    /// FIELD, and a whole-component stage does not tell us which fields the designer meant. ⛔ Claiming
+    /// them all would yellow rows nobody touched.</para>
+    /// </remarks>
+    public bool TryGetPending(Entity entity, int typeId, int byteOffset, out byte[] bytes)
+    {
+        bytes = Array.Empty<byte>();
+        if (_pendingMutations.Count == 0) return false;
+
+        bool found = false;
+        foreach (var m in _pendingMutations)
+        {
+            if (!m.IsFieldWrite) continue;
+            if (m.ComponentTypeId != typeId || m.ByteOffset != byteOffset) continue;
+            if (!m.Target.Equals(entity)) continue;
+            if (m.Payload is not byte[] payload) continue;
+
+            bytes = payload;   // ⭐ keep going — the LAST match wins
+            found = true;
+        }
+        return found;
+    }
+
     private unsafe void DrainPendingMutations(EntityRepository repo)
     {
         if (_pendingMutations.Count == 0) return;
@@ -562,10 +971,23 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
                     m.Payload, GCHandleType.Pinned);
                 try
                 {
-                    ecb.SetComponentRaw(
-                        m.Target, m.ComponentTypeId,
-                        (void*)handle.AddrOfPinnedObject(),
-                        m.SizeBytes);
+                    if (m.IsFieldWrite)
+                    {
+                        // ⭐⭐ Ruling 14 — the surgical write. Only the bytes the designer actually
+                        //    changed are addressed, so the fields the SIM changed during the paused
+                        //    tick survive the drain instead of reverting to their pre-tick values.
+                        ecb.SetComponentFieldRaw(
+                            m.Target, m.ComponentTypeId, m.ByteOffset,
+                            (void*)handle.AddrOfPinnedObject(),
+                            m.SizeBytes);
+                    }
+                    else
+                    {
+                        ecb.SetComponentRaw(
+                            m.Target, m.ComponentTypeId,
+                            (void*)handle.AddrOfPinnedObject(),
+                            m.SizeBytes);
+                    }
                 }
                 finally
                 {
@@ -584,6 +1006,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
             {
                 if (!_breakpoints.TryGetValue(bpId, out var bp)) continue;
                 if (!bp.Enabled) continue;
+                if (bp.FilterEntity is { } only && only != entity) continue;   // ⭐ CE-1323 — the unit filter (it was ignored here)
 
                 bool shouldFire = remainingDelegate == null
                     || remainingDelegate(_liveRepo, entity);
@@ -618,7 +1041,8 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
                 Func<EntityRepository, Entity, bool>? remainingDelegate = null;
                 if (remainingConditions.Count > 0 && _predicateCompiler != null)
                 {
-                    SearchPredicateDto remainingPredicate = remainingConditions.Count == 1
+                    // ⚠ C1 — a None of one child is NOT that child: only And / Or collapse a single remainder.
+                    SearchPredicateDto remainingPredicate = remainingConditions.Count == 1 && compound.Operator != LogicalOperator.None
                         ? remainingConditions[0]
                         : new CompoundPredicateDto { Operator = compound.Operator, Conditions = remainingConditions };
                     remainingDelegate = _predicateCompiler.CompileComponentPredicate(remainingPredicate);
@@ -638,6 +1062,24 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
                 break;
             }
 
+            // ⭐ CE-1323 (DBG-9) — a behaviour step: watched by the editor's evaluator, never by the component path (a whole-ring scan
+            //   refires); inside an AND compound the rest is compiled and checked on the unit at the hit.
+            case BehaviourStepPredicateDto step:
+                _behaviourSteps[id] = (step, null);
+                break;
+
+            case CompoundPredicateDto stepCompound when stepCompound.Operator == LogicalOperator.And
+                                                       && stepCompound.Conditions.OfType<BehaviourStepPredicateDto>().Any():
+            {
+                var rest = stepCompound.Conditions.Where(c => c is not BehaviourStepPredicateDto).ToList();
+                Func<EntityRepository, Entity, bool>? restDelegate = null;
+                if (rest.Count > 0 && _predicateCompiler != null)
+                    restDelegate = _predicateCompiler.CompileComponentPredicate(
+                        rest.Count == 1 ? rest[0] : new CompoundPredicateDto { Operator = LogicalOperator.And, Conditions = rest });
+                _behaviourSteps[id] = (stepCompound.Conditions.OfType<BehaviourStepPredicateDto>().First(), restDelegate);
+                break;
+            }
+
             case ExternalHitTagPredicateDto tagDto:
             {
                 if (!_externalHitPredicates.TryGetValue(tagDto.Tag, out var tagListStandalone))
@@ -649,6 +1091,15 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
                 break;
             }
 
+            // ⛔ Do NOT add a "ComponentType is null -> skip mounting" arm here. It looks like the
+            //    natural third guard against the empty-breakpoint crash, and it is wrong: skipping
+            //    the compile also skips the throw that LoadWatches catches to mark the entry
+            //    BROKEN, so a watch whose component no longer resolves would come back silently
+            //    unmounted instead of visibly broken. That convention is deliberate and test-locked
+            //    (WatchPersistenceTests.Watches_Restore_FailsGracefullyOnDriftedSchema:
+            //    "present but marked broken, not silently discarded"). The crash is prevented
+            //    upstream instead -- PredicateCompiler.AddIfResolvable keeps the null out of
+            //    MandatoryComponents, and ComponentTypeRegistry.GetId tolerates null.
             case PropertyMatchDto _:
             case CompoundPredicateDto _:
             case BehaviorParamPredicateDto _:
@@ -671,16 +1122,25 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
                 break;
 
             case StructuralPredicateDto structuralDto:
-                _structuralTrackers[id] = (bp, structuralDto, new HashSet<Entity>());
+                // ⭐ CE-4205: "has the component" = the one compiler's level arm (Removed is an EDGE here, so the level is always "present")
+                if (_predicateCompiler != null)
+                    _structuralTrackers[id] = (bp, structuralDto, new HashSet<Entity>(),
+                        _predicateCompiler.CompileLevelPredicate(new StructuralPredicateDto
+                        {
+                            ComponentType = structuralDto.ComponentType,
+                            ModificationType = StructuralModification.AnyChange,
+                            AuthorityRequirement = structuralDto.AuthorityRequirement,
+                        }));
                 break;
 
             case SpatialBoundingPredicateDto spatialDto:
-                _spatialTrackers[id] = (bp, spatialDto, new HashSet<Entity>(),
-                    CompileSpatialPositionAccessor(spatialDto));
+                if (_predicateCompiler != null)   // ⭐ CE-4205: "is inside" = the level arm; the enter / exit edge stays here
+                    _spatialTrackers[id] = (bp, spatialDto, new HashSet<Entity>(), _predicateCompiler.CompileLevelPredicate(spatialDto));
                 break;
 
             case LifecyclePredicateDto lifecycleDto:
-                _lifecycleTrackers[id] = (bp, lifecycleDto, new HashSet<Entity>());
+                if (_predicateCompiler != null)   // ⭐ CE-4205: "matches the criteria" = the level arm
+                    _lifecycleTrackers[id] = (bp, lifecycleDto, new HashSet<Entity>(), _predicateCompiler.CompileLevelPredicate(lifecycleDto));
                 break;
         }
         _cachedComponentPredicates = null;
@@ -689,6 +1149,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
 
     private void UnmountDelegate(BreakpointId id)
     {
+        _behaviourSteps.Remove(id);
         _componentPredicates.Remove(id);
         _eventScanners.Remove(id);
         _structuralTrackers.Remove(id);
@@ -704,11 +1165,20 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
 
     // ---- Stateful tracker evaluation ------------------------------------
 
+    private EntityRepository? _destructionRepo;   // ⭐ CE-3335 — the world this manager's destruction mark belongs to
+    private long _destructionMark;
+    private readonly List<Entity> _destroyedThisFrame = new();
+
     /// <inheritdoc/>
     public void EvaluateStatefulBreakpoints(EntityRepository repo)
     {
         _statefulHitsBuffer.Clear();
         var hits = _statefulHitsBuffer;
+
+        // ⭐ CE-3335 — this frame's deaths, ONCE, by this manager's own mark (the recorder no longer empties the log under it)
+        if (!ReferenceEquals(repo, _destructionRepo)) { _destructionRepo = repo; _destructionMark = repo.DestructionMark; }
+        _destroyedThisFrame.Clear();
+        foreach (var dead in repo.ReadDestructions(ref _destructionMark)) _destroyedThisFrame.Add(dead);
 
         EvaluateStructuralTrackers(repo, hits);
         EvaluateSpatialTrackers(repo, hits);
@@ -722,17 +1192,13 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     {
         if (_structuralTrackers.Count == 0) return;
 
-        foreach (var (bpId, (bp, dto, knownSet)) in _structuralTrackers)
+        foreach (var (bpId, (bp, dto, knownSet, hasLevel)) in _structuralTrackers)
         {
             if (!bp.Enabled) continue;
-
-            int typeId = ComponentTypeRegistry.GetId(dto.ComponentType);
-            if (typeId < 0) continue;
 
             int maxIdx = repo.MaxEntityIndex;
             for (int i = 0; i <= maxIdx; i++)
             {
-                ref var compMask = ref repo.GetComponentMask(i);
                 ref var meta     = ref repo.GetMetadata(i);
                 if (!meta.IsActive) continue;
 
@@ -741,7 +1207,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
 
                 if (bp.FilterEntity is { } fe && fe != entity) continue;
 
-                bool present = ComputeEffectivePresence(ref compMask, ref meta, typeId, dto.AuthorityRequirement);
+                bool present = hasLevel(repo, entity);
                 bool was     = knownSet.Contains(entity);
 
                 if (present && !was)
@@ -761,7 +1227,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
             }
 
             // Remove destroyed entities from the known set.
-            var destroyed = repo.GetDestructionLog();
+            var destroyed = _destroyedThisFrame;
             for (int i = 0; i < destroyed.Count; i++)
                 knownSet.Remove(destroyed[i]);
         }
@@ -771,7 +1237,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     {
         if (_spatialTrackers.Count == 0) return;
 
-        foreach (var (bpId, (bp, dto, insideSet, posAccessor)) in _spatialTrackers)
+        foreach (var (bpId, (bp, dto, insideSet, insideLevel)) in _spatialTrackers)
         {
             if (!bp.Enabled) continue;
 
@@ -785,10 +1251,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
                 if (entity.IsNull) continue;
                 if (bp.FilterEntity is { } fe && fe != entity) continue;
 
-                Vector2 pos = posAccessor != null
-                    ? posAccessor(repo, entity)
-                    : ReadPosition2D(repo, entity, dto);  // fallback for managed components
-                bool isInside  = IsInBounds(pos, dto.Bounds);
+                bool isInside  = insideLevel(repo, entity);   // ⭐ CE-4205: the one compiler's level arm (AreaLink.Contains inside)
                 bool wasInside = insideSet.Contains(entity);
 
                 if (isInside && !wasInside)
@@ -808,7 +1271,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
             }
 
             // Remove destroyed entities from inside-set.
-            var destroyed = repo.GetDestructionLog();
+            var destroyed = _destroyedThisFrame;
             for (int i = 0; i < destroyed.Count; i++)
                 insideSet.Remove(destroyed[i]);
         }
@@ -818,7 +1281,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     {
         if (_lifecycleTrackers.Count == 0) return;
 
-        foreach (var (bpId, (bp, dto, knownAlive)) in _lifecycleTrackers)
+        foreach (var (bpId, (bp, dto, knownAlive, matchesLevel)) in _lifecycleTrackers)
         {
             if (!bp.Enabled) continue;
 
@@ -834,7 +1297,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
                 if (bp.FilterEntity is { } fe && fe != entity) continue;
                 if (knownAlive.Contains(entity)) continue;
 
-                if (MatchesLifecycleCriteria(repo, entity, dto))
+                if (matchesLevel(repo, entity))
                 {
                     knownAlive.Add(entity);
                     hits.Add((bp, entity));
@@ -842,7 +1305,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
             }
 
             // Death detection via destruction log.
-            var destroyed = repo.GetDestructionLog();
+            var destroyed = _destroyedThisFrame;
             for (int i = 0; i < destroyed.Count; i++)
             {
                 Entity dead = destroyed[i];
@@ -854,226 +1317,13 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
 
     // ---- Static helpers for stateful trackers ---------------------------
 
-    private static bool ComputeEffectivePresence(
-        ref BitMask512 componentMask,
-        ref EntityMetadataCold meta,
-        int typeId,
-        AuthorityRequirement req) =>
-        req switch
-        {
-            AuthorityRequirement.RequireAuthority =>
-                componentMask.IsSet(typeId) && meta.AuthorityMask.IsSet(typeId),
-            AuthorityRequirement.RequireGhost =>
-                componentMask.IsSet(typeId) && !meta.AuthorityMask.IsSet(typeId),
-            _ => componentMask.IsSet(typeId)
-        };
-
-    private static bool IsInBounds(Vector2 pos, BoundingBox2D bounds) =>
-        pos.X >= bounds.Min.X && pos.X <= bounds.Max.X
-     && pos.Y >= bounds.Min.Y && pos.Y <= bounds.Max.Y;
-
     /// <summary>
     /// Returns the CLR managed size of <paramref name="type"/> in bytes.
     /// Uses <c>ComponentType&lt;T&gt;.Size</c> (= <c>Unsafe.SizeOf&lt;T&gt;()</c>) rather than
     /// <c>Marshal.SizeOf</c>, which gives the interop layout size that may differ for
     /// components containing <c>fixed</c> buffers or bool fields with <c>[MarshalAs(UnmanagedType.I1)]</c>.
     /// </summary>
-    private static int GetEcsComponentSize(Type type)
-    {
-        lock (_componentSizeCache)
-        {
-            if (_componentSizeCache.TryGetValue(type, out int cached))
-                return cached;
-            // ComponentType<T>.Size = Unsafe.SizeOf<T>() -- matches the ECS chunk stride.
-            var genericType = typeof(ComponentType<>).MakeGenericType(type);
-            var prop        = genericType.GetProperty("Size",
-                BindingFlags.Public | BindingFlags.Static)!;
-            int size        = (int)prop.GetValue(null)!;
-            _componentSizeCache[type] = size;
-            return size;
-        }
-    }
-
-    /// <summary>
-    /// Builds a compiled position accessor for unmanaged component type <paramref name="dto"/>.PositionComponentType.
-    /// Returns null if the type is null, not a value type, or its field paths cannot be resolved.
-    /// </summary>
-    private static Func<EntityRepository, Entity, Vector2>? CompileSpatialPositionAccessor(
-        SpatialBoundingPredicateDto dto)
-    {
-        Type? compType = dto.PositionComponentType;
-        if (compType == null || !compType.IsValueType) return null;
-
-        int typeId = ComponentTypeRegistry.GetId(compType);
-        if (typeId < 0) return null;
-
-        try
-        {
-            var method = typeof(DataBreakpointManager)
-                .GetMethod(nameof(CompileSpatialPositionAccessorGeneric),
-                    BindingFlags.NonPublic | BindingFlags.Static)!
-                .MakeGenericMethod(compType);
-            return (Func<EntityRepository, Entity, Vector2>)method.Invoke(null, new object[] { dto, typeId })!;
-        }
-        catch
-        {
-            return null; // Fall back to reflection-based ReadPosition2D if compilation fails.
-        }
-    }
-
-    private static Func<EntityRepository, Entity, Vector2>
-        CompileSpatialPositionAccessorGeneric<T>(SpatialBoundingPredicateDto dto, int typeId)
-        where T : unmanaged
-    {
-        // Build an expression tree: (ref T comp) => new Vector2(comp.XPath, comp.YPath)
-        var param = Expression.Parameter(typeof(T).MakeByRefType(), "comp");
-
-        Expression xExpr = param;
-        foreach (string seg in dto.PositionXPath.Split('.'))
-            xExpr = Expression.PropertyOrField(xExpr, seg);
-        if (xExpr.Type != typeof(float))
-            xExpr = Expression.Convert(xExpr, typeof(float));
-
-        Expression yExpr = param;
-        foreach (string seg in dto.PositionYPath.Split('.'))
-            yExpr = Expression.PropertyOrField(yExpr, seg);
-        if (yExpr.Type != typeof(float))
-            yExpr = Expression.Convert(yExpr, typeof(float));
-
-        var ctor     = typeof(Vector2).GetConstructor(new[] { typeof(float), typeof(float) })!;
-        var bodyExpr = Expression.New(ctor, xExpr, yExpr);
-        var accessor = Expression.Lambda<SpatialPositionDelegate<T>>(bodyExpr, param).Compile();
-
-        return (repo, entity) =>
-        {
-            if (!repo.HasComponentByTypeId(entity, typeId)) return Vector2.Zero;
-            ref readonly T comp = ref repo.GetComponentRO<T>(entity);
-            return accessor(ref Unsafe.AsRef(in comp));
-        };
-    }
-
-    private static Vector2 ReadPosition2D(EntityRepository repo, Entity entity, SpatialBoundingPredicateDto dto)
-    {
-        Type compType = dto.PositionComponentType;
-        if (compType == null) return Vector2.Zero;
-
-        int typeId = ComponentTypeRegistry.GetId(compType);
-        if (typeId < 0) return Vector2.Zero;
-
-        object? comp = null;
-        if (compType.IsValueType)
-        {
-            unsafe
-            {
-                void* ptr = repo.GetComponentPointer(entity, typeId);
-                if (ptr == null) return Vector2.Zero;
-                comp = Marshal.PtrToStructure(new IntPtr(ptr), compType);
-            }
-        }
-        else
-        {
-            comp = repo.GetManagedComponentByTypeId(entity, typeId);
-        }
-
-        if (comp == null) return Vector2.Zero;
-
-        float x = ReadFloatField(comp, dto.PositionXPath);
-        float y = ReadFloatField(comp, dto.PositionYPath);
-        return new Vector2(x, y);
-    }
-
-    private static float ReadFloatField(object obj, string fieldPath)
-    {
-        object? cur = obj;
-        string[] segments = fieldPath.Split('.');
-        foreach (string seg in segments)
-        {
-            if (cur == null) return 0f;
-            Type t = cur.GetType();
-            FieldInfo? fi = t.GetField(seg,
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            if (fi != null) { cur = fi.GetValue(cur); continue; }
-            PropertyInfo? pi = t.GetProperty(seg,
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            if (pi != null) { cur = pi.GetValue(cur); continue; }
-            return 0f;
-        }
-        return cur is float f ? f : (cur is double d ? (float)d : 0f);
-    }
-
-    /// <exception cref="NotSupportedException">
-    /// Thrown when <paramref name="dto"/> uses <see cref="EntityIdentifierType.NetworkId"/>,
-    /// which requires an <c>INetworkEntityMap</c> that is not yet wired into this manager.
-    /// </exception>
-    private static bool MatchesLifecycleCriteria(EntityRepository repo, Entity entity, LifecyclePredicateDto dto)
-    {
-        return dto.IdentifierType switch
-        {
-            EntityIdentifierType.EcsHandle =>
-                entity.Index.ToString() == dto.TargetValue ||
-                entity.ToString() == dto.TargetValue,
-
-            EntityIdentifierType.NameSubstring =>
-                dto.NameComponentType != null
-                    ? ReadEntityName(repo, entity, dto) is { } n &&
-                      n.Contains(dto.TargetValue, StringComparison.OrdinalIgnoreCase)
-                    : entity.ToString().Contains(dto.TargetValue, StringComparison.OrdinalIgnoreCase),
-
-            // Network-id lookup requires INetworkEntityMap, which is not injected into this manager.
-            // To support this, pass an INetworkEntityMap to the DataBreakpointManager constructor
-            // and resolve the entity in this branch. Until then, using NetworkId as identifier will throw.
-            EntityIdentifierType.NetworkId => throw new NotSupportedException(
-                "LifecyclePredicateDto with EntityIdentifierType.NetworkId requires an INetworkEntityMap " +
-                "injected into DataBreakpointManager. Wire the network map via the constructor, " +
-                "or use EcsHandle or NameSubstring instead."),
-            _ => false
-        };
-    }
-
-    private static string? ReadEntityName(EntityRepository repo, Entity entity, LifecyclePredicateDto dto)
-    {
-        int typeId = ComponentTypeRegistry.GetId(dto.NameComponentType!);
-        if (typeId < 0) return null;
-        if (!repo.HasComponentByTypeId(entity, typeId)) return null;
-
-        object? comp = null;
-        if (dto.NameComponentType!.IsValueType)
-        {
-            unsafe
-            {
-                void* ptr = repo.GetComponentPointer(entity, typeId);
-                if (ptr == null) return null;
-                comp = Marshal.PtrToStructure(new IntPtr(ptr), dto.NameComponentType);
-            }
-        }
-        else
-        {
-            comp = repo.GetManagedComponentByTypeId(entity, typeId);
-        }
-
-        if (comp == null) return null;
-
-        return ReadStringField(comp, dto.NamePropertyPath);
-    }
-
-    private static string? ReadStringField(object obj, string fieldPath)
-    {
-        object? cur = obj;
-        string[] segments = fieldPath.Split('.');
-        foreach (string seg in segments)
-        {
-            if (cur == null) return null;
-            Type t = cur.GetType();
-            FieldInfo? fi = t.GetField(seg,
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            if (fi != null) { cur = fi.GetValue(cur); continue; }
-            PropertyInfo? pi = t.GetProperty(seg,
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            if (pi != null) { cur = pi.GetValue(cur); continue; }
-            return null;
-        }
-        return cur?.ToString();
-    }
+    private static int GetEcsComponentSize(Type type) => Fdp.Core.TypeLayout.SizeOf(type);   // ⭐ CE-2030
 
     private static bool HasExternalHitTag(CompoundPredicateDto compound)
         => compound.Conditions.Any(c => c is ExternalHitTagPredicateDto);

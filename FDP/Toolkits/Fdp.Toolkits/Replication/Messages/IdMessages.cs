@@ -4,7 +4,7 @@ using Fdp.Core;
 namespace Fdp.Toolkit.Replication.Messages
 {
     [EventId(9020)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public class IdBlockRequest
     {
         public string ClientId = string.Empty;
@@ -13,12 +13,12 @@ namespace Fdp.Toolkit.Replication.Messages
     }
 
     [EventId(9021)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public class IdBlockResponse
     {
         public string ClientId = string.Empty;
         
-        public long StartId;
+        public int StartId;
         
         public int Count;
     }

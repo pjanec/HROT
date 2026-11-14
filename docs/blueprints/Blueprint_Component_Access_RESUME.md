@@ -1,5 +1,7 @@
 # Blueprint Component Access — RESUME / HANDOFF (2026-08-01)
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 Self-contained resume point for the **ECS component read/write** workstream. Read this + the tracker
 (`Blueprint_Component_Access_TASK_TRACKER.md`) + design (`Blueprint_Component_Access_Design.md`) to continue.
 
@@ -31,7 +33,7 @@ blackboard Variables/Shared). Approved by the architect in **Q#15 (read)** + **Q
 CA-07a `66cf4432` (collection pin + GetComponent out-pin), CA-07b `3b294552` (consumer nodes
 ForEach/Get[i]/Count + IR + emit; `IrOp_ForEach` reused, one new `IrOp_ComponentAccessorCall`),
 CA-07c `3d480e5b` (wire-bake in `ApplyAddLink` + palette + titles + demo). All gated (184 serial +
-broad). **Feature is editor-wireable now.** Demo: `Hrot.AI.Behaviors/Assets/Blueprints/ComponentCollectionDemo.bp.json`
+broad). **Feature is editor-wireable now.** Demo: `Hrot.AI.Behaviors/Assets/Blueprints/Samples/ComponentCollectionDemo.bp.json`
 (GetComponent<BpCollectionDemo> "Values" → ForEach/Get/Count). **Awaiting the user's visual check.**
 **Remaining:** CA-07d (managed collections + `Contains`/`Find`, deferred) → then PR
 `claude/blueprint-component-read` → `main`. Full detail in the TASK_TRACKER running log.
@@ -75,6 +77,14 @@ dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/Hrot.AiEditor.Gene
 Component tests: `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/... --filter "FullyQualifiedName~Component"`.
 
 ## PRE-EXISTING test reds (DO NOT chase — verified on the base, not ours)
+
+> ⚠ **STALE as of 2026-08-04 — the count below is no longer the baseline.** A full
+> `Hrot.Blueprints.Tests` run now shows **2574 passed with ~1 varying failure**, not ~8–9. Taking
+> "~8–9 reds are expected" at face value today could wave through eight genuine regressions.
+> Current baseline, plus the two distinct pre-existing defects (a parallel-load flake and an
+> order-dependent test), are recorded in
+> [Blueprint_Issues_Detail.md § Test baseline](Blueprint_Issues_Detail.md#appendix--test-baseline-what-green-means-in-this-repo).
+> Historical content follows unchanged.
 
 Full `Hrot.Blueprints.Tests` (parallel) shows ~8–9 reds that are pre-existing/flaky and unrelated to this
 workstream: `Stage4_TypeResolveTests` BP1500 (UnknownFieldType), `NodeCoverageTests.AllNodeKinds` re

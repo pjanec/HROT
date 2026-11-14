@@ -139,18 +139,12 @@ public static class AnimationNodeRegistrar
     }
 
     /// <summary>
-    /// Compute a simple hash of the struct type for change detection.
-    /// For now, uses sizeof as a basic hash; full versioning can be added later.
+    /// ⭐ <c>CE-2042</c> — the node struct's layout hash: <see cref="Fdp.Core.FlightRecorder.ComponentLayoutHasher.ComputeHash"/>,
+    /// FNV over each field's name, type and (managed) offset — the engine's one "did this struct's layout change" hash.
+    /// 🔴 It folded <c>string.GetHashCode()</c>, which .NET randomises per process, so the same node registered a different
+    /// <c>StructureHash</c> on every run (a hot-reload or cross-process comparison could never match), and its size was the
+    /// interop <c>Marshal.SizeOf</c>.
     /// </summary>
     private static ulong ComputeStructureHash(Type nodeType)
-    {
-        // Simple hash based on type name and size
-        // In production, would use full field introspection for robustness
-        unchecked
-        {
-            ulong hashCode = (ulong)(nodeType.FullName?.GetHashCode() ?? 0);
-            hashCode = (hashCode << 32) | (uint)System.Runtime.InteropServices.Marshal.SizeOf(nodeType);
-            return hashCode;
-        }
-    }
+        => Fdp.Core.FlightRecorder.ComponentLayoutHasher.ComputeHash(nodeType);
 }

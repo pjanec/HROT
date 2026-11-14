@@ -69,7 +69,7 @@ Every task below has a unique ID and verifiable success conditions, usually expr
 - `NextRecord()` zeros the 16-byte slot before returning, stamps `record->InstanceId = LastInstanceId`, and returns the typed pointer.
 
 **Constraints:**
-- Component decorated `[ComponentId(BehaviorApplicationComponentIds.BTreeTraceWorkingMemory)]` `[DataPolicy(DataPolicy.NoSave)]`.
+- Component decorated `[ComponentId(BehaviorApplicationComponentIds.BTreeTraceWorkingMemory)]` `[DataPolicy(DataPolicy.NoScenario)]`.
 - `sizeof(BTreeTraceWorkingMemory1024) == 1024` and `sizeof(BTreeTraceRecord) == 16` — assert via static unit test.
 
 **Success conditions:**
@@ -90,7 +90,7 @@ Every task below has a unique ID and verifiable success conditions, usually expr
 **Scope:**
 - New file `Fdp.Toolkit.Behavior.Diagnostics/HsmTraceWorkingMemory1024.cs`.
 - Identical 1024-byte layout to BTree variant (`WritePos`, `RecordCount`, `LastInstanceId` header, 1016-byte buffer).
-- Decorated `[ComponentId(BehaviorApplicationComponentIds.HsmTraceWorkingMemory)]` `[DataPolicy(DataPolicy.NoSave)]`.
+- Decorated `[ComponentId(BehaviorApplicationComponentIds.HsmTraceWorkingMemory)]` `[DataPolicy(DataPolicy.NoScenario)]`.
 
 **Success conditions:**
 - Unit test `HsmTraceWorkingMemory1024_SizeIs1024_Test` in `Fdp.Toolkits.Tests`.
@@ -227,7 +227,7 @@ Every task below has a unique ID and verifiable success conditions, usually expr
 
 **Success conditions:**
 - `Hrot.SimHost.Tests/GlobalDebugSettingsMigrationTests.cs`: registering the singleton from `Hrot.Common.GlobalDebugSettings` succeeds; the field `AutoEnableAiTracing` is reachable and defaults to `false`.
-- `IOS-IG-SimHost.sln` builds cleanly with no leftover references to `Hrot.IG.Gizmos.GlobalDebugSettings`.
+- `HROT.sln` builds cleanly with no leftover references to `Hrot.IG.Gizmos.GlobalDebugSettings`.
 
 ---
 
@@ -472,7 +472,7 @@ Every task below has a unique ID and verifiable success conditions, usually expr
 
 ## Phase 6 — Out-of-Solution Examples & Unit Tests
 
-**Important — these tasks address projects NOT in `IOS-IG-SimHost.sln`** (they live in the FastBTree / FastHSM sub-solutions). Without these tasks, the kernel sub-solutions will fail to build even though the main solution is green.
+**Important — these tasks address projects NOT in `HROT.sln`** (they live in the FastBTree / FastHSM sub-solutions). Without these tasks, the kernel sub-solutions will fail to build even though the main solution is green.
 
 ### T6.1 — Fix Fbt.Tests for ITreeTracer constraint
 
@@ -529,8 +529,8 @@ Every task below has a unique ID and verifiable success conditions, usually expr
 
 When all tasks are complete, run the following from repo root to confirm a clean final state:
 
-1. `dotnet build IOS-IG-SimHost.sln` — green.
-2. `dotnet test IOS-IG-SimHost.sln` — green.
+1. `dotnet build HROT.sln` — green.
+2. `dotnet test HROT.sln` — green.
 3. `dotnet build FDP/ExtDeps/FastBTree/FastBTree.sln` — green.
 4. `dotnet test FDP/ExtDeps/FastBTree/FastBTree.sln` — green.
 5. `dotnet build FDP/ExtDeps/FastHSM/FastHSM.sln` — green.

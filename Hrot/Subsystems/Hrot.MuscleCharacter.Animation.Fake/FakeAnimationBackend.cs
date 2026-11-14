@@ -4,6 +4,7 @@ using Fdp.Core;
 using Hrot.MuscleCharacter.Animation.Baking;
 using Hrot.MuscleCharacter.Animation.Contracts;
 using Hrot.MuscleCharacter.Animation.Fake.Components;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.MuscleCharacter.Animation.Fake;
 

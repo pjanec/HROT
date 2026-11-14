@@ -31,27 +31,27 @@ namespace Hrot.Map.Common.Replication.Ingress
 	///
 	/// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
 	/// </summary>
-	public class EntityInfoIngressTranslator : IDescriptorTranslator
+	public class EntityInfoIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityInfo";
         private const long OrdinalValue = (long)EDescriptorType.dtEntityInfo; 
 
         private readonly DdsReader<Hrot.NED.Descriptors.EntityInfo>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly FdpEventBus _eventBus;
         private readonly GhostCreationSystem _ghostCreationSystem;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         // Keyed by commander net ID. Value = list of subordinate entities waiting for that commander.
-        private readonly Dictionary<long, List<(Entity Subordinate, TacticalDesignation Designation)>> _pendingSubordinates = new();
+        private readonly Dictionary<long, List<(Entity Subordinate, TacticalDesignation Designation, FireTeam Team)>> _pendingSubordinates = new();
 
         // Keyed by subordinate net ID. Used when the subordinate itself has not yet spawned.
-        private readonly Dictionary<long, (long CommanderNetId, TacticalDesignation Designation)> _pendingUnspawnedSubordinates = new();
+        private readonly Dictionary<long, (int CommanderNetId, TacticalDesignation Designation, FireTeam Team)> _pendingUnspawnedSubordinates = new();
 
         // Fired by NetworkEntityMap when a new entity is registered. Used to drain both pending queues.
-        private readonly List<long> _recentlyRegistered = new();
+        private readonly List<int> _recentlyRegistered = new();
+        private int _worldEpoch;   // ⭐ CE-3076 — per-id bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<Hrot.NED.Descriptors.EntityInfo>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -62,26 +62,33 @@ namespace Hrot.Map.Common.Replication.Ingress
             NetworkEntityMap entityMap,
             FdpEventBus eventBus,
             GhostCreationSystem ghostCreationSystem,
-            long localNodeId)
+            int localNodeId)
         {
 			// participant may be null in unit-test mode — PollIngress becomes a no-op
 			_reader = participant is not null ? new DdsReader<Hrot.NED.Descriptors.EntityInfo>( participant ) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _entityMap.EntityRegistered += OnEntityRegistered;
         }
 
-        private void OnEntityRegistered(long netId, Entity entity)
+        private void OnEntityRegistered(int netId, Entity entity)
         {
             _recentlyRegistered.Add(netId);
         }
 
         // ── Ingress ──────────────────────────────────────────────────────────
 
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
+
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            // ⭐ CE-3076 (CE-2101's rule, as MapRouteIngressTranslator does) — deferred subordinate assignments belong to the last
+            //   world: drained against a reused id they would assign a dead handle, or a new unit under the wrong commander.
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _pendingSubordinates.Clear(); _pendingUnspawnedSubordinates.Clear(); _recentlyRegistered.Clear(); }
+
             if (_reader is not null)
             {
                 using var loan = _reader.Take();
@@ -93,7 +100,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
                     ReceivedSampleCount++;
                     var info   = sample.Data;
-                    long netId = info.EntityId;
+                    int netId = info.EntityId;
                     var repo   = view as EntityRepository;
 
                     if (!_entityMap.TryGetEntity(netId, out _))
@@ -133,14 +140,14 @@ namespace Hrot.Map.Common.Replication.Ingress
                 repo.SetComponent(entity, new Fdp.Core.EntityInfo
                 {
                     Name    = info.Name,
-                    ForceId = (ForceId)(int)info.ForceIdentifier,
+                    ForceId = Utils.ForceIdMapping.FromWire(info.ForceIdentifier),
                 });
             }
         }
 
         // ── Lifecycle ─────────────────────────────────────────────────────────
 
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
             // Remove as a pending commander.
             _pendingSubordinates.Remove(networkEntityId);
@@ -159,30 +166,40 @@ namespace Hrot.Map.Common.Replication.Ingress
         /// <summary>Unsubscribes from <see cref="NetworkEntityMap.EntityRegistered"/>.</summary>
         internal void Shutdown() => _entityMap.EntityRegistered -= OnEntityRegistered;
 
-        internal void ProcessSample(Hrot.NED.Descriptors.EntityInfo info, long netId, EntityRepository? repo = null)
+        internal void ProcessSample(Hrot.NED.Descriptors.EntityInfo info, int netId, EntityRepository? repo = null)
         {
-            var igData = new Fdp.Core.EntityInfo
+            var playerData = new Fdp.Core.EntityInfo
             {
                 Name    = info.Name,
-                ForceId = (ForceId)(int)info.ForceIdentifier,
+                ForceId = Utils.ForceIdMapping.FromWire(info.ForceIdentifier),
             };
 
             bool hasAuthority = false;
 
             if (repo != null && _entityMap.TryGetEntity(netId, out var entity))
             {
-                repo.SetComponent(entity, igData);
-
                 // Check if the local node owns the EntityInfo descriptor
                 long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
-                hasAuthority = repo.HasAuthority(entity, packedKey);
+
+                // ⭐ The owner is the source of truth (see "Loopback Prevention" below): it must not take
+                // its OWN samples back. It used to set the component first and check authority after, so
+                // an owner's runtime change (e.g. an Affiliation write) was overwritten by its own stale
+                // loopback sample, then republished from that stale value — measured `2026-09-30`: a
+                // SimHost force change to Hostile read Neutral 60 frames later on BOTH nodes
+                // (EqsDistributedTests T-DIS4, which sets forces through EntityWriteRouter).
+                // ⚠ Only when authority is actually TRACKED: HasAuthority answers true for an entity with no
+                // NetworkAuthority yet, which includes a ghost still being created — and a ghost must take
+                // its EntityInfo from this sample or it never promotes (MiniExConIntegrationTests).
+                hasAuthority = Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(repo, entity, packedKey);
+                if (!hasAuthority)
+                    repo.SetComponent(entity, playerData);
             }
             else
             {
                 _eventBus.PublishManaged(new UpdateEntityCommand
                 {
                     NetworkId          = netId,
-                    ComponentsToUpdate = new List<object> { igData },
+                    ComponentsToUpdate = new List<object> { playerData },
                     RequestId          = Guid.Empty,
                 });
             }
@@ -191,13 +208,17 @@ namespace Hrot.Map.Common.Replication.Ingress
             // If this node owns the EntityInfo descriptor, it is the absolute source of truth.
             // We must drop incoming hierarchy payloads to prevent loopback packets 
             // from destroying the local ECS hierarchy.
+            // ⚠ RECORDED ownership only (IsRecordedOwner above): a ghost still being built has no
+            //   NetworkAuthority and must take its commander from this sample, exactly as it takes its
+            //   EntityInfo. An earlier version used the raw gate here and dropped it.
             if (hasAuthority)
                 return;
 
 
             // Commander assignment / removal.
-            long commanderNetId = info.CommanderId;
+            int commanderNetId = info.CommanderId;
             var designation     = TacticalDesignationMapper.ToEcs(info.TacticalDesignation);
+            var team            = info.FireTeam <= (byte)FireTeam.D ? (FireTeam)info.FireTeam : FireTeam.None;   // ⭐ CE-2281 / R-3019
 
             if (commanderNetId == 0)
             {
@@ -216,7 +237,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             // Case 1: subordinate entity is not yet spawned.
             if (!_entityMap.TryGetEntity(netId, out _))
             {
-                _pendingUnspawnedSubordinates[netId] = (commanderNetId, designation);
+                _pendingUnspawnedSubordinates[netId] = (commanderNetId, designation, team);
                 return;
             }
 
@@ -229,6 +250,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                     Subordinate = subEntity2,
                     Commander   = cmdEntity,
                     Designation = designation,
+                    FireTeam    = team,
                 });
                 return;
             }
@@ -236,14 +258,14 @@ namespace Hrot.Map.Common.Replication.Ingress
             // Case 3: subordinate is alive, commander is not yet spawned — defer by commander.
             if (!_pendingSubordinates.TryGetValue(commanderNetId, out var list))
             {
-                list = new List<(Entity, TacticalDesignation)>();
+                list = new List<(Entity, TacticalDesignation, FireTeam)>();
                 _pendingSubordinates[commanderNetId] = list;
             }
             if (_entityMap.TryGetEntity(netId, out var subEntity3))
-                list.Add((subEntity3, designation));
+                list.Add((subEntity3, designation, team));
         }
 
-        private void DrainPendingForRegistered(long registeredNetId, EntityRepository? repo)
+        private void DrainPendingForRegistered(int registeredNetId, EntityRepository? repo)
         {
             // 1. If a previously un-spawned subordinate just appeared:
             if (_pendingUnspawnedSubordinates.TryGetValue(registeredNetId, out var pending))
@@ -259,6 +281,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                         Subordinate = subEntity,
                         Commander   = cmdEntity,
                         Designation = pending.Designation,
+                        FireTeam    = pending.Team,
                     });
                 }
                 else
@@ -266,10 +289,10 @@ namespace Hrot.Map.Common.Replication.Ingress
                     // Commander not yet alive — move to deferred-by-commander queue.
                     if (!_pendingSubordinates.TryGetValue(pending.CommanderNetId, out var list))
                     {
-                        list = new List<(Entity, TacticalDesignation)>();
+                        list = new List<(Entity, TacticalDesignation, FireTeam)>();
                         _pendingSubordinates[pending.CommanderNetId] = list;
                     }
-                    list.Add((subEntity, pending.Designation));
+                    list.Add((subEntity, pending.Designation, pending.Team));
                 }
                 return;
             }
@@ -278,19 +301,20 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (!_pendingSubordinates.TryGetValue(registeredNetId, out var subs)) return;
             if (!_entityMap.TryGetEntity(registeredNetId, out var cmdEnt)) return;
 
-            foreach (var (sub, desig) in subs)
+            foreach (var (sub, desig, team) in subs)
             {
                 _eventBus.Publish(new CmdAssignSubordinate
                 {
                     Subordinate = sub,
                     Commander   = cmdEnt,
                     Designation = desig,
+                    FireTeam    = team,
                 });
             }
             _pendingSubordinates.Remove(registeredNetId);
         }
 
-        private void RemoveFromAllPendingQueues(long subordinateNetId)
+        private void RemoveFromAllPendingQueues(int subordinateNetId)
         {
             _pendingUnspawnedSubordinates.Remove(subordinateNetId);
 

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Threading;
 using CycloneDDS.Runtime;
@@ -43,7 +44,7 @@ public sealed class NodeOpMasterTranslatorTests
         // Publish intent to bus (write buffer)
         bus.PublishManaged(new ExecuteNodeOpIntent
         {
-            TargetNodeId  = 2,
+            TargetNodeId  = (Fdp.Core.NodeId)(2),
             TransactionId = Guid.NewGuid(),
             Operation     = FdpNodeOpType.PrepareLive,
             DomainPayload = new EditLoadHandlerPayload("scene1", false, (FdpClusterState)(int)NedClusterState.LoadingLive),
@@ -75,6 +76,91 @@ public sealed class NodeOpMasterTranslatorTests
         Assert.Contains("TargetState", received[0].PayloadJson);
     }
 
+    /// <summary>⭐ CE-4090 (AQ108 D14) — the master's "do not record" decision is ON THE WIRE: a PrepareLive whose payload says <c>RecordingOff</c>
+    /// reaches the node's reader as <c>"RecordingOff":true</c> (the slave's decoding is rail-tested in <c>NodeOpSlaveTranslatorTests</c>).</summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4090_PrepareLive_WithRecordingOff_PutsItOnTheWire()
+    {
+        using var participant     = new DdsParticipant(TestDomain);
+        using var nodeOpCmdReader = new DdsReader<NodeOpCommand>(participant);
+        using var statusReader    = new DdsReader<NodeOpStatus>(participant);
+        using var nodeWriter2     = new DdsWriter<NodeOpCommand>(participant);
+
+        var bus = new FdpEventBus();
+        var translator = new NodeOpMasterTranslator(new Dictionary<int, DdsWriter<NodeOpCommand>> { [2] = nodeWriter2 }, statusReader, bus);
+        bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TargetNodeId = (Fdp.Core.NodeId)(2), TransactionId = Guid.NewGuid(), Operation = FdpNodeOpType.PrepareLive,
+            DomainPayload = new EditLoadHandlerPayload("scene1", false, (FdpClusterState)(int)NedClusterState.LoadingLive, RecordingOff: true),
+        });
+        bus.SwapBuffers();
+        Thread.Sleep(300);
+        translator.Tick();
+
+        var received = new List<NodeOpCommand>();
+        var deadline = DateTime.UtcNow.AddSeconds(4);
+        while (DateTime.UtcNow < deadline && received.Count == 0)
+        {
+            using var scope = nodeOpCmdReader.Take();
+            foreach (var s in scope) if (s.IsValid) received.Add(s.Data);
+            if (received.Count == 0) Thread.Sleep(30);
+        }
+
+        Assert.Contains("\"RecordingOff\":true", Assert.Single(received).PayloadJson);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4210 MA-9 — Save selection as macro rides the node-op wire: a scenario save whose payload carries <c>OnlyGuids</c> and a macro header puts BOTH on the wire; a plain save's payload carries NEITHER key (it is
+    /// byte-for-byte what it was). The slave's decoding is rail-tested in <c>NodeOpSlaveTranslatorTests</c>.
+    /// </summary>
+    [Theory(Timeout = 10_000)]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CE4210_MA9_ASelectionSave_PutsItsFilterAndHeaderOnTheWire_APlainSaveNeitherKey(bool selection)
+    {
+        using var participant     = new DdsParticipant(TestDomain);
+        using var nodeOpCmdReader = new DdsReader<NodeOpCommand>(participant);
+        using var statusReader    = new DdsReader<NodeOpStatus>(participant);
+        using var nodeWriter2     = new DdsWriter<NodeOpCommand>(participant);
+
+        var bus = new FdpEventBus();
+        var translator = new NodeOpMasterTranslator(new Dictionary<int, DdsWriter<NodeOpCommand>> { [2] = nodeWriter2 }, statusReader, bus);
+        var g1 = Guid.NewGuid(); var g2 = Guid.NewGuid();
+        bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TargetNodeId = (Fdp.Core.NodeId)(2), TransactionId = Guid.NewGuid(), Operation = FdpNodeOpType.SerializeLocal,
+            DomainPayload = selection
+                ? new ScenarioSaveHandlerPayload("macros/test/sel", new[] { g1, g2 }, "{\"Kind\":\"macro\"}")
+                : new ScenarioSaveHandlerPayload("scn"),
+        });
+        bus.SwapBuffers();
+        Thread.Sleep(300);
+        translator.Tick();
+
+        var received = new List<NodeOpCommand>();
+        var deadline = DateTime.UtcNow.AddSeconds(4);
+        while (DateTime.UtcNow < deadline && received.Count == 0)
+        {
+            using var scope = nodeOpCmdReader.Take();
+            foreach (var smp in scope) if (smp.IsValid) received.Add(smp.Data);
+            if (received.Count == 0) Thread.Sleep(30);
+        }
+
+        var json = Assert.Single(received).PayloadJson;
+        if (selection)
+        {
+            Assert.Contains("\"OnlyGuids\":[\"" + g1 + "\",\"" + g2 + "\"]", json);
+            Assert.Contains("\"MacroHeaderJson\":", json);
+            Assert.Contains("\"ScenarioId\":\"macros/test/sel\"", json);
+        }
+        else
+        {
+            Assert.DoesNotContain("OnlyGuids", json);
+            Assert.DoesNotContain("MacroHeaderJson", json);
+            Assert.Contains("\"ScenarioId\":\"scn\"", json);
+        }
+    }
+
     // ── Test 2: Egress — null DomainPayload → empty PayloadJson ──────────────
 
     [Fact(Timeout = 10_000)]
@@ -91,7 +177,7 @@ public sealed class NodeOpMasterTranslatorTests
 
         bus.PublishManaged(new ExecuteNodeOpIntent
         {
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             TransactionId = Guid.NewGuid(),
             Operation     = FdpNodeOpType.CommitState,
             DomainPayload = null,
@@ -184,7 +270,7 @@ public sealed class NodeOpMasterTranslatorTests
         var txId = Guid.NewGuid();
         masterBus.PublishManaged(new ExecuteNodeOpIntent
         {
-            TargetNodeId  = nodeId,
+            TargetNodeId  = (Fdp.Core.NodeId)(nodeId),
             TransactionId = txId,
             Operation     = FdpNodeOpType.CommitState,
             DomainPayload = new CommitStatePayload(FdpClusterState.LoadingLive),
@@ -246,6 +332,66 @@ public sealed class NodeOpMasterTranslatorTests
         Assert.Single(entries);
         Assert.Equal("\\\\NODE01\\c$\\file.fdp", entries[0].SourceUnc);
         Assert.Equal("exercises/file.fdp", entries[0].RelativeDest);
+    }
+
+    /// <summary>⭐ <c>CE-4093</c> — a node's CheckUnsaved answer crosses the wire as a JSON string and reaches the master as the plain word.
+    /// 🔴 Mutation: no <c>CheckUnsaved</c> case in <c>DeserializeResultPayload</c> ⇒ the payload is null (the master reads a silent node).</summary>
+    [Fact(Timeout = 10_000)]
+    public void NodeOpStatus_CheckUnsaved_ReturnsTheAnswerWord()
+    {
+        using var participant  = new DdsParticipant(TestDomain);
+        using var statusWriter = new DdsWriter<NodeOpStatus>(participant);
+        using var statusReader = new DdsReader<NodeOpStatus>(participant);
+        using var nodeWriter   = new DdsWriter<NodeOpCommand>(participant);
+
+        var bus = new FdpEventBus();
+        var translator = new NodeOpMasterTranslator(_ => nodeWriter, statusReader, bus);
+
+        statusWriter.Write(new NodeOpStatus
+        {
+            TransactionId = Guid.NewGuid(), Operation = NedNodeOpType.CheckUnsaved, NodeId = 5,
+            StatusCode = 0, IsParticipating = true, ResultJson = "\"changed\"",
+        });
+
+        Thread.Sleep(300);
+        translator.Tick();
+        bus.SwapBuffers();
+
+        var events = bus.ReadManaged<NodeOpCompletedEvent>();
+        Assert.Single(events);
+        Assert.Equal(FdpNodeOpType.CheckUnsaved, events[0].Operation);
+        Assert.Equal("changed", events[0].ResultPayload);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3345</c> (R-3070) — a node's FAILURE ack carries its reason (a JSON string on the wire, whatever the operation) and reaches the master as the plain text: ⛔ not through the per-op decoder (for <c>PrepareLive</c> that reads a
+    /// <c>LiveBranchResult</c> and would hand the master the raw quoted JSON). A text that is not JSON passes through as it is; an empty one is null; and a SUCCESS ack's result still decodes the old way (control).
+    /// 🔴 Mutation: the <c>IsError()</c> reason branch removed ⇒ the PrepareLive cell yields the quoted raw JSON (red).
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE3345_AFailureAck_CarriesTheNodesReason_AsPlainText()
+    {
+        using var participant  = new DdsParticipant(TestDomain);
+        using var statusWriter = new DdsWriter<NodeOpStatus>(participant);
+        using var statusReader = new DdsReader<NodeOpStatus>(participant);
+        using var nodeWriter   = new DdsWriter<NodeOpCommand>(participant);
+
+        var bus = new FdpEventBus();
+        var translator = new NodeOpMasterTranslator(_ => nodeWriter, statusReader, bus);
+        var failure = (int)Fdp.Toolkit.Orchestration.OrchestrationStatusCode.Failure;
+        statusWriter.Write(new NodeOpStatus { TransactionId = Guid.NewGuid(), Operation = NedNodeOpType.PrepareLive, NodeId = 2, StatusCode = failure, IsParticipating = true, ResultJson = "\"cancelled by the user on node 2\"" });
+        statusWriter.Write(new NodeOpStatus { TransactionId = Guid.NewGuid(), Operation = NedNodeOpType.PrepareState, NodeId = 3, StatusCode = failure, IsParticipating = true, ResultJson = "terrain missing (not json)" });
+        statusWriter.Write(new NodeOpStatus { TransactionId = Guid.NewGuid(), Operation = NedNodeOpType.PrepareEdit, NodeId = 4, StatusCode = failure, IsParticipating = true, ResultJson = "" });
+
+        Thread.Sleep(300);
+        translator.Tick();
+        bus.SwapBuffers();
+
+        var events = bus.ReadManaged<NodeOpCompletedEvent>().ToList();
+        Assert.Equal(3, events.Count);
+        Assert.Equal("cancelled by the user on node 2", events.Single(e => e.NodeId == 2).ResultPayload);
+        Assert.Equal("terrain missing (not json)",     events.Single(e => e.NodeId == 3).ResultPayload);
+        Assert.Null(events.Single(e => e.NodeId == 4).ResultPayload);
     }
 
     // ── Test 6: Ingress — non-SerializeLocal with ResultJson → null ResultPayload

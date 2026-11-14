@@ -82,6 +82,39 @@ public sealed class OrchestratorSubsystemBusTests
         }
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4087</c> — the silent-default rail, asserted on the CONSTRUCTED object: the orchestrator host hands its debug provider the
+    /// master's load-gate text, so <c>GET /cluster/roster</c> can say why a load waits. A headless orchestrator has no Brain and no
+    /// MuscleGround node, so a scenario load is held — and the provider reads it. ⛔ Also proves the host passes no <c>LocalRoles</c>:
+    /// the orchestrator plays none, so the gate is live in it.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4087_TheOrchestratorHostExposesTheLoadGatesNoticeThroughItsDebugProvider()
+    {
+        var subsystem = new OrchestratorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+        try
+        {
+            var provider = subsystem.CreateDebugProvider()!;
+            Assert.Null(provider.ClusterLoadNotice);   // nothing waits yet
+
+            subsystem.TimeBusForTest!.PublishManaged(new TransitionStateIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetState   = FdpClusterState.OperatingLive,
+                ScenarioId    = "s1",
+            });
+            subsystem.Update(0.016f);
+            subsystem.Update(0.016f);
+
+            Assert.Equal("waiting for: Brain (CGF), MuscleGround (SimHost)", provider.ClusterLoadNotice);
+        }
+        finally
+        {
+            subsystem.Shutdown();
+        }
+    }
+
     // ── RT-016: ClusterUiCache default SourceDsmState/TargetDsmState ──────────
 
     /// <summary>
@@ -107,7 +140,7 @@ public sealed class OrchestratorSubsystemBusTests
         bus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = FdpNodeOpType.NodeReplaySeek,
             DomainPayload = new ReplaySeekPayload(12345L),
         });
@@ -119,5 +152,42 @@ public sealed class OrchestratorSubsystemBusTests
         Assert.Equal(ClusterState.OperatingReplay, tx.SourceDsmState);
         Assert.Equal(ClusterState.OperatingReplay, tx.TargetDsmState);
         uiCache.Dispose();
+    }
+
+    /// <summary>
+    /// ⭐ Q86 §4-B (R-215) — the scenario-load handler is built WITHOUT a network: a headless orchestrator resets its
+    /// clock on a load exactly as a networked one does. ⛔ Before, the handler needed a DDS participant to write its
+    /// context topic, so headless it was never built and a load left the clock running at its old time.
+    /// </summary>
+    [Fact]
+    public void Q86B_AHeadlessOrchestrator_ResetsItsClockOnAScenarioLoad()
+    {
+        var subsystem = new OrchestratorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+        try
+        {
+            var bus = subsystem.TimeBusForTest!;
+            bus.PublishManaged(new Fdp.Toolkit.Time.Domain.ResumeTimeIntent());
+            subsystem.Update(0.016f);
+            System.Threading.Thread.Sleep(200);
+            subsystem.Update(0.016f);
+            Assert.True(subsystem.TestHook_CurrentSimTime > 0.05, $"the clock must be running first ({subsystem.TestHook_CurrentSimTime})");
+
+            bus.PublishManaged(new TransitionStateIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetState   = FdpClusterState.OperatingLive,
+                ScenarioId    = "q86b_" + Guid.NewGuid().ToString("N"),   // no saved context ⇒ the fresh-scenario path: t = 0
+                TimeMode      = GlobalContextProcessManager.StartPausedTimeMode,
+            });
+            subsystem.Update(0.016f);   // the load handler asks for the jump (S3: a SnapTimeIntent)…
+            subsystem.Update(0.016f);   // …which the clock applies on its next Update — one frame, by design (Q86 §4-C)
+
+            Assert.Equal(0.0, subsystem.TestHook_CurrentSimTime, 3);
+        }
+        finally
+        {
+            subsystem.Shutdown();
+        }
     }
 }

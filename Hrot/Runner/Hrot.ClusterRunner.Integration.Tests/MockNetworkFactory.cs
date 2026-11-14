@@ -26,8 +26,6 @@ internal class MockNetworkFactory : INetworkFactory
     /// <inheritdoc/>
     public ICommandGateway CreateCommandGateway() => new NullCommandGateway();
 
-    /// <inheritdoc/>
-    public IExConEgressWriters CreateExConEgressWriters() => new NullExConEgressWriters();
 
     /// <inheritdoc/>
     public ITimeControlGateway CreateTimeControlGateway() => new NullTimeControlGateway();
@@ -49,29 +47,17 @@ internal class MockNetworkFactory : INetworkFactory
         => System.Array.Empty<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>();
 
     /// <inheritdoc/>
-    public IIgTranslators CreateIgTranslators() => new NullIgTranslators();
+    public IIgTranslators CreatePlayerTranslators() => new NullPlayerTranslators();
 
     /// <inheritdoc/>
-    public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, long nodeId = 0)
-        => NullIgNetworkAdapter.Instance;
+    public IIgNetworkAdapter CreatePlayerNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, int nodeId = 0)
+        => NullPlayerNetworkAdapter.Instance;
 
-    /// <inheritdoc/>
-    public System.Collections.Generic.IEnumerable<Fdp.Toolkit.DER.IIngressHandler> CreateExConIngressHandlers(
-        CycloneDDS.Runtime.DdsParticipant?                participant,
-        long                                              localNodeId,
-        Fdp.Toolkit.DER.IDerRepo                         repo,
-        Action<MapClickEventDto>                         onMapClick,
-        Action<SelectionChangedEventDto>                 onSelectionChanged,
-        Action<EntityLifecycleAckDto>                    onEntityLifecycleAck,
-        Action<MapCommandAckDto>                         onMapCommandAck)
-    {
-        yield break;
-    }
 
     /// <inheritdoc/>
     public INetworkFactory ConfigureForNode(
         Hrot.Common.Infrastructure.HrotNodeContext       context,
-        Hrot.Common.NodeRole                             role,
+        Fdp.Core.NodeRole                             role,
         Fdp.Toolkit.Behavior.BehaviorRegistry?           behaviorRegistry = null)
         => this;
 
@@ -79,7 +65,7 @@ internal class MockNetworkFactory : INetworkFactory
     public INetworkFactory ConfigureForNode(
         CycloneDDS.Runtime.DdsParticipant? participant,
         int                                nodeId,
-        Hrot.Common.NodeRole               role)
+        Fdp.Core.NodeRole               role)
         => this;
 
     /// <inheritdoc/>
@@ -87,11 +73,10 @@ internal class MockNetworkFactory : INetworkFactory
     public long WorldPosDescriptorId => 0;
     public long NavigationStatusDescriptorId => 0;
     public ICgfEntityLifecycleAdapters? CreateCgfEntityLifecycleAdapters() => null;
-    public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreateIgEgressTranslators(
+    public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreatePlayerEgressTranslators(
         CycloneDDS.Runtime.DdsParticipant participant,
         Fdp.Core.FdpEventBus bus,
-        Fdp.Modules.Geographic.IGeographicTransform geoTransform,
-        long nodeId)
+        int nodeId)
         => System.Array.Empty<Fdp.Interfaces.IDescriptorTranslator>();
 
     /// <inheritdoc/>
@@ -114,22 +99,20 @@ internal class MockNetworkFactory : INetworkFactory
     public ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(Fdp.Core.FdpEventBus bus, int nodeId)
         => new NullSlaveOrchestrationTranslator();
 
-    /// <inheritdoc/>
-    public IOrchestrationObserver CreateOrchestrationObserver(Fdp.Core.FdpEventBus bus)
-        => new NullOrchestrationObserver();
 
     /// <inheritdoc/>
     public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(
-        Fdp.Core.FdpEventBus interactionBus, long localNodeId, bool headless)
+        Fdp.Core.FdpEventBus interactionBus, int localNodeId, bool headless)
         => System.Array.Empty<Fdp.Interfaces.INetworkTranslator>();
 
     /// <inheritdoc/>
     public Fdp.ModuleHost.Abstractions.IEcsModuleSystem? CreateGizmoPublisherSystem(
-        Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer, long localNodeId)
+        Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer, int localNodeId)
         => null;
 
     // ---- null stubs -------------------------------------------------------
 
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class NullReplicationModule : IReplicationModule
     {
         private readonly GhostCreationSystem _ghostCreationSystem = new(new NetworkEntityMap());
@@ -157,15 +140,6 @@ internal class MockNetworkFactory : INetworkFactory
         public void Dispose() { }
     }
 
-    private sealed class NullExConEgressWriters : IExConEgressWriters
-    {
-        public void WriteMapConfig(MapConfigDto config) { }
-        public void WriteDeleteEntity(int entityId) { }
-        public void WriteCreateEntity(CreateEntityCommand cmd) { }
-        public void WriteMapCommand(MapCommandDto cmd) { }
-        public void PushContextActions(int mapGroupId, System.Collections.Generic.IReadOnlyList<int>? forSelection, string actionsJson) { }
-        public void Dispose() { }
-    }
 
     private sealed class NullTimeControlGateway : ITimeControlGateway
     {
@@ -177,7 +151,7 @@ internal class MockNetworkFactory : INetworkFactory
 
     private sealed class NullSimHostMissionSender : ISimHostMissionSender
     {
-        public void SendNavigateToPoint(long entityNetworkId, Vector2 destination, float speed, float arrivalRadius) { }
+        public void SendNavigateToPoint(int entityNetworkId, Vector2 destination, float speed, float arrivalRadius) { }
         public void Dispose() { }
     }
 

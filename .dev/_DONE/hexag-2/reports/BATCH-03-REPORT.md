@@ -20,7 +20,7 @@ completing the hexagonal architecture boundary for time control.
 **File:** `Hrot/Runner/Hrot.ClusterRunner.Tests/ExConSubsystemClusterTests.cs`
 
 - Replaced 4-level relative `".."` path with a `FindWorkspaceRoot()` helper that
-  walks up the directory tree until `IOS-IG-SimHost.sln` is found.
+  walks up the directory tree until `HROT.sln` is found.
 - New path: `Path.Combine(FindWorkspaceRoot(), "Hrot", "Subsystems", "Hrot.ExCon", "ExConSubsystem.cs")`
 
 ### HEXAG2-S010 — Sever _unhandledRequestCallback from ClusterOpMasterTranslator
@@ -103,7 +103,7 @@ plain-float payload format.
 
 ## Build and Test Results
 
-- **Build:** `dotnet build IOS-IG-SimHost.sln -v q` → 0 errors, pre-existing warnings only.
+- **Build:** `dotnet build HROT.sln -v q` → 0 errors, pre-existing warnings only.
 - **Hrot.Orchestrator.Tests:** 94/94 passed.
 - **Hrot.ClusterRunner.Tests:** 214/214 passed.
 - **Fdp.Toolkits.Tests:** 730/731 passed (1 pre-existing failure in `PhysicsQueryActionNode` unrelated to this batch).

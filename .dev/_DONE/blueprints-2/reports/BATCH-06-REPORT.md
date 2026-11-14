@@ -9,7 +9,7 @@ Build succeeded.
     0 Error(s)
 ```
 
-### IOS-IG-SimHost.sln
+### HROT.sln
 ```
 Build succeeded.
     0 Warning(s)

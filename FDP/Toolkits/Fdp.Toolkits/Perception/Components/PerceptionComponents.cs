@@ -12,6 +12,7 @@ namespace Fdp.Toolkit.Perception.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(251)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct PerceptionReceptor
     {
         /// <summary>Maximum distance (meters) at which this entity can hear audio stimuli.</summary>
@@ -35,13 +36,14 @@ namespace Fdp.Toolkit.Perception.Components
     /// <summary>
     /// Fixed-size unmanaged threat table attached to entities with perception.
     /// Holds up to <see cref="PerceptionConstants.MaxTrackedTargets"/> perceived targets,
-    /// sorted descending by <see cref="ThreatScores"/>.
+    /// sorted descending by <see cref="Freshness"/>.
     /// <para>
     /// All fixed array sizes use <see cref="PerceptionConstants.MaxTrackedTargets"/> — never raw literals.
     /// </para>
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.TargetMemory)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public unsafe struct TargetMemory
     {
         /// <summary>Number of valid entries currently stored (0–<see cref="PerceptionConstants.MaxTrackedTargets"/>).</summary>
@@ -61,11 +63,13 @@ namespace Fdp.Toolkit.Perception.Components
         public fixed float PositionsZ[PerceptionConstants.MaxTrackedTargets];
 
         /// <summary>
-        /// Accumulated threat score per slot.
-        /// Boosted by perception events, decayed every frame by
-        /// <see cref="PerceptionConstants.ThreatScoreDecayPerSecond"/>.
+        /// How RECENTLY each slot was perceived — boosted while a sensor reports the contact, decayed every frame by
+        /// <see cref="PerceptionConstants.ThreatScoreDecayPerSecond"/>, forgotten below the floor unless tracked.
+        /// ⭐ <c>CE-3054</c> A (R-201) — renamed from <c>ThreatScores</c>: it never held a DANGER. Memory stores identity +
+        /// freshness; danger is judged at read time (<c>ThreatDanger</c>). 📄 docs/DESIGN_Sensors_And_Doctrine.md §7.8.
+        /// ⚠ The scenario save key stays the literal <c>"Score"</c> (<c>TargetMemoryTranslator</c>) — saved files are unchanged.
         /// </summary>
-        public fixed float ThreatScores[PerceptionConstants.MaxTrackedTargets];
+        public fixed float Freshness[PerceptionConstants.MaxTrackedTargets];
 
         /// <summary>Simulation tick when this target was last perceived.</summary>
         public fixed uint LastSeenTick[PerceptionConstants.MaxTrackedTargets];
@@ -84,6 +88,72 @@ namespace Fdp.Toolkit.Perception.Components
         /// </summary>
         public uint ChangeEpoch;
 
+        // ── ⭐ CE-3063 — ANONYMOUS contacts (heard, never identified; R-205 / R-207) ─────────────────────────────────────
+        //    📄 docs/DESIGN_Thermal_And_Acoustic_Sensing.md §6 D′–D″, §6.1a. One memory, one freshness rule (R-194).
+
+        /// <summary>⭐ K1 — 1 when the slot is a heard, unidentified contact ("something about here"). ⛔ Its id is a synthetic
+        /// NEGATIVE serial, never an entity: read <see cref="IsAnonymous"/> before turning an id into an entity.</summary>
+        public fixed byte Anonymous[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>How uncertain the slot's position is (metres); 0 for an identified contact.</summary>
+        public fixed float Radius[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>⭐ K3 — what the contact SOUNDED like (<c>Tkb.Domain.SoundSourceClass</c>); 0 = unknown.</summary>
+        public fixed byte SourceClass[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>The last synthetic serial given to an anonymous contact (its id is <c>-serial</c>), so a behaviour can
+        /// follow ONE heard contact across ticks.</summary>
+        public int AnonymousSerial;
+
+        /// <summary>⭐ <c>CE-2326</c> (R-3030; DESIGN_Peek_And_Fire §11.6a) — the LOGICAL stance he was in when last SEEN, as
+        /// <c>StanceId + 1</c>; 0 = unknown (heard only, or never seen standing still). A blind burst at the spot is aimed as at that
+        /// body (<see cref="StanceSeen"/>).</summary>
+        public fixed byte SeenStance[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>⭐ <c>R-3039</c> S1 — the unit's OWN health as <c>ThreatEvaluationSystem</c> last saw it, for the Hit edge (valid when
+        /// <see cref="HasLastHealth"/> is 1). Was a field of the system: a checkpoint restored into a fresh system lost it, and a hit in the first
+        /// step after the restore raised no Hit. 📄 docs/DESIGN_System_State_Inventory.md §6 #6.</summary>
+        public float LastHealth;
+        public byte HasLastHealth;
+
+        /// <summary>⭐ <c>CE-2326</c> — the stance slot <paramref name="slot"/> was last seen in, or null when unknown.</summary>
+        public static Fdp.Toolkit.Tkb.Domain.StanceId? StanceSeen(in TargetMemory mem, int slot)
+        {
+            fixed (byte* s = mem.SeenStance)
+                return (uint)slot < (uint)mem.Count && s[slot] != 0 ? (Fdp.Toolkit.Tkb.Domain.StanceId)(s[slot] - 1) : null;
+        }
+
+        // ⛔ CE-2238 part 4 — the KNOWN COMBATANTS list moved OUT of this component to Fdp.Toolkit.Combat.KnownCombatantList: the
+        //    ThreatEvaluationSystem copies this memory and writes the copy back through the command buffer, which erased a mark made
+        //    later in the same frame (measured: ua-armed-blend-back). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §5h.6 KC-1.
+
+        /// <summary>⭐ The ONE rule every reader calls: true when slot <paramref name="slot"/> is a heard, unidentified
+        /// contact. ⛔ An ENTITY reader (aim, fire, entity reads) skips it; a POSITION reader may use it.</summary>
+        public static bool IsAnonymous(in TargetMemory mem, int slot)
+        {
+            fixed (byte* a = mem.Anonymous) return (uint)slot < (uint)mem.Count && a[slot] != 0;
+        }
+
+        /// <summary>⭐ <c>CE-2348</c> ③ (R-2071 E-1, Sensing §8.6b) — the slot is a heard BURST: anonymous, sounding like an explosion. A
+        /// burst says where a round LANDED, never where an enemy is: every "is an enemy here?" reader skips it; the alert readers and
+        /// hide-from-a-point keep it.</summary>
+        public static bool IsBurst(in TargetMemory mem, int slot)
+        {
+            fixed (byte* c = mem.SourceClass) return IsAnonymous(in mem, slot) && c[slot] == BurstClass;
+        }
+
+        /// <summary>The class a burst carries — <c>Tkb.Domain.SoundSourceClass.Explosion</c>.</summary>
+        public const byte BurstClass = (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Explosion;
+
+        /// <summary>⭐ <c>CE-3063</c> ② — the first slot that names an ENTITY (the most threatening identified contact, slots being
+        /// sorted), or -1 when every remembered contact is heard only.</summary>
+        public static int FirstIdentified(in TargetMemory mem)
+        {
+            for (int i = 0; i < mem.Count; i++)
+                if (!IsAnonymous(in mem, i)) return i;
+            return -1;
+        }
+
         // ── Mutation API ──────────────────────────────────────────────────────────
 
         /// <summary>
@@ -91,7 +161,7 @@ namespace Fdp.Toolkit.Perception.Components
         /// <list type="bullet">
         ///   <item>If <paramref name="entityId"/> already exists, its score is incremented by <paramref name="scoreBoost"/> and its position updated.</item>
         ///   <item>If not found and <see cref="Count"/> &lt; <see cref="PerceptionConstants.MaxTrackedTargets"/>, a new slot is allocated.</item>
-        ///   <item>If the table is full, the slot with the lowest current score is replaced (if it is lower than <paramref name="scoreBoost"/>).</item>
+        ///   <item>If the table is full, the slot with the lowest current score is replaced — a new contact always enters (CE-3046).</item>
         ///   <item>The table is then sorted descending by threat score so slot 0 is always the highest threat.</item>
         /// </list>
         /// </summary>
@@ -110,7 +180,8 @@ namespace Fdp.Toolkit.Perception.Components
             float scoreBoost,
             uint tick,
             SensorModality modality = SensorModality.Visual,
-            float posZ = 0f)
+            float posZ = 0f,
+            byte seenStance = 0)
         {
             // 1. Look for an existing slot with the same entity ID.
             int foundSlot = -1;
@@ -126,13 +197,14 @@ namespace Fdp.Toolkit.Perception.Components
             if (foundSlot >= 0)
             {
                 // Accumulate score and refresh position / tick.
-                mem.ThreatScores[foundSlot] += scoreBoost;
+                mem.Freshness[foundSlot] += scoreBoost;
                 mem.PositionsX[foundSlot]    = posX;
                 mem.PositionsY[foundSlot]    = posY;
                 mem.PositionsZ[foundSlot]    = posZ;
                 mem.LastSeenTick[foundSlot]  = tick;
                 // OR the new modality into the existing modality bitmask.
                 mem.Modalities[foundSlot]   |= (byte)modality;
+                if (seenStance != 0) mem.SeenStance[foundSlot] = seenStance;   // ⭐ CE-2326 — 0 keeps the last one seen
             }
             else if (mem.Count < PerceptionConstants.MaxTrackedTargets)
             {
@@ -142,61 +214,82 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.PositionsX[slot]   = posX;
                 mem.PositionsY[slot]   = posY;
                 mem.PositionsZ[slot]   = posZ;
-                mem.ThreatScores[slot] = scoreBoost;
+                mem.Freshness[slot] = scoreBoost;
                 mem.LastSeenTick[slot] = tick;
                 mem.Modalities[slot]   = (byte)modality;
+                mem.Anonymous[slot]    = 0;
+                mem.Radius[slot]       = 0f;
+                mem.SourceClass[slot]  = 0;
+                mem.SeenStance[slot]   = seenStance;
                 mem.Count++;
                 mem.ChangeEpoch++;
             }
             else
             {
-                // Table is full — replace the lowest-score slot if the new score exceeds it.
+                // ⭐ CE-3046 — the table is full: a NEW contact ALWAYS enters, evicting the least dangerous entry (lowest
+                //   score; ties: the oldest sighting, then the later slot). 🔴 It used to enter only when its first boost beat
+                //   the lowest ACCUMULATED score — which a fresh contact (50 x dt) never does, so a unit holding 16 contacts
+                //   was blind to every new threat. 📄 docs/DESIGN_Sensors_And_Doctrine.md §5.4, §11.1.
                 int lowestIdx = 0;
-                float lowestScore = mem.ThreatScores[0];
                 for (int i = 1; i < PerceptionConstants.MaxTrackedTargets; i++)
                 {
-                    if (mem.ThreatScores[i] < lowestScore)
-                    {
-                        lowestScore = mem.ThreatScores[i];
-                        lowestIdx   = i;
-                    }
+                    float si = mem.Freshness[i], sl = mem.Freshness[lowestIdx];
+                    if (si < sl || (si == sl && mem.LastSeenTick[i] <= mem.LastSeenTick[lowestIdx]))
+                        lowestIdx = i;
                 }
 
-                if (scoreBoost > lowestScore)
                 {
                     mem.EntityIds[lowestIdx]    = entityId;
                     mem.PositionsX[lowestIdx]   = posX;
                     mem.PositionsY[lowestIdx]   = posY;
                     mem.PositionsZ[lowestIdx]   = posZ;
-                    mem.ThreatScores[lowestIdx] = scoreBoost;
+                    mem.Freshness[lowestIdx] = scoreBoost;
                     mem.LastSeenTick[lowestIdx] = tick;
                     // Fresh modality for the new entry (eviction resets the bitmask).
                     mem.Modalities[lowestIdx]   = (byte)modality;
+                    mem.Anonymous[lowestIdx]    = 0;
+                    mem.Radius[lowestIdx]       = 0f;
+                    mem.SourceClass[lowestIdx]  = 0;
+                    mem.SeenStance[lowestIdx]   = seenStance;
                     mem.ChangeEpoch++;
                 }
             }
 
-            // 2. Sort descending by ThreatScore (insertion sort — MaxTrackedTargets is tiny).
+            Sort(ref mem);
+        }
+
+        /// <summary>Sorts the table descending by threat score (insertion sort — <see cref="PerceptionConstants.MaxTrackedTargets"/>
+        /// is tiny), carrying every per-slot field.</summary>
+        public static void Sort(ref TargetMemory mem)
+        {
             for (int i = 1; i < mem.Count; i++)
             {
                 long   idTmp    = mem.EntityIds[i];
                 float  pxTmp    = mem.PositionsX[i];
                 float  pyTmp    = mem.PositionsY[i];
                 float  pzTmp    = mem.PositionsZ[i];
-                float  scoreTmp = mem.ThreatScores[i];
+                float  scoreTmp = mem.Freshness[i];
                 uint   tickTmp  = mem.LastSeenTick[i];
                 byte   modTmp   = mem.Modalities[i];
+                byte   anonTmp  = mem.Anonymous[i];
+                float  radTmp   = mem.Radius[i];
+                byte   clsTmp   = mem.SourceClass[i];
+                byte   stTmp    = mem.SeenStance[i];
 
                 int j = i - 1;
-                while (j >= 0 && mem.ThreatScores[j] < scoreTmp)
+                while (j >= 0 && mem.Freshness[j] < scoreTmp)
                 {
                     mem.EntityIds[j + 1]    = mem.EntityIds[j];
                     mem.PositionsX[j + 1]   = mem.PositionsX[j];
                     mem.PositionsY[j + 1]   = mem.PositionsY[j];
                     mem.PositionsZ[j + 1]   = mem.PositionsZ[j];
-                    mem.ThreatScores[j + 1] = mem.ThreatScores[j];
+                    mem.Freshness[j + 1] = mem.Freshness[j];
                     mem.LastSeenTick[j + 1] = mem.LastSeenTick[j];
                     mem.Modalities[j + 1]   = mem.Modalities[j];
+                    mem.Anonymous[j + 1]    = mem.Anonymous[j];
+                    mem.Radius[j + 1]       = mem.Radius[j];
+                    mem.SourceClass[j + 1]  = mem.SourceClass[j];
+                    mem.SeenStance[j + 1]   = mem.SeenStance[j];
                     j--;
                 }
 
@@ -204,10 +297,156 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.PositionsX[j + 1]   = pxTmp;
                 mem.PositionsY[j + 1]   = pyTmp;
                 mem.PositionsZ[j + 1]   = pzTmp;
-                mem.ThreatScores[j + 1] = scoreTmp;
+                mem.Freshness[j + 1] = scoreTmp;
                 mem.LastSeenTick[j + 1] = tickTmp;
                 mem.Modalities[j + 1]   = modTmp;
+                mem.Anonymous[j + 1]    = anonTmp;
+                mem.Radius[j + 1]       = radTmp;
+                mem.SourceClass[j + 1]  = clsTmp;
+                mem.SeenStance[j + 1]   = stTmp;
             }
+        }
+
+        /// <summary>⭐ CE-3063 (§6.1a K3) — two sound classes may be the same source: equal, or either unknown (0).</summary>
+        public static bool ClassesCompatible(byte a, byte b) => a == 0 || b == 0 || a == b;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3063</c> — a unit HEARD something at (<paramref name="x"/>, <paramref name="y"/>) within
+        /// <paramref name="radius"/>, sounding like <paramref name="sourceClass"/>. 📄 DESIGN_Thermal_And_Acoustic_Sensing §5.1, §6 D′.
+        /// <list type="number">
+        ///   <item>an IDENTIFIED contact inside the radius is refreshed (nearest; the Acoustic kind is added) — hearing what you know;</item>
+        ///   <item>else an ANONYMOUS contact of a compatible class whose circle meets the estimate is FUSED: the position moves
+        ///     to the inverse-variance mean and the radius SHRINKS (<c>1/r² = 1/r₁² + 1/r₂²</c>) — repeated shots narrow it;</item>
+        ///   <item>else a new anonymous slot (a synthetic negative id; full table: the weakest entry is evicted, as for sight).</item>
+        /// </list>
+        /// Returns the slot's id. ⛔ Never an identity: the source is not known here, only "something about here".
+        /// </summary>
+        public static long HearContact(ref TargetMemory mem, float x, float y, float z, float radius, byte sourceClass,
+                                       float scoreBoost, uint tick)
+        {
+            radius = radius > 0f ? radius : 1f;
+            bool burst = sourceClass == BurstClass;   // ⭐ R-2071 E-1 — a burst refreshes no known contact and fuses only with a burst
+            int best = -1; float bestD2 = float.MaxValue;
+            for (int i = 0; !burst && i < mem.Count; i++)
+            {
+                if (mem.Anonymous[i] != 0) continue;
+                float dx = mem.PositionsX[i] - x, dy = mem.PositionsY[i] - y, d2 = dx * dx + dy * dy;
+                if (d2 <= radius * radius && d2 < bestD2) { best = i; bestD2 = d2; }
+            }
+            if (best >= 0)
+            {
+                mem.Freshness[best] += scoreBoost;
+                mem.LastSeenTick[best]  = tick;
+                mem.Modalities[best]   |= (byte)SensorModality.Acoustic;
+                if (mem.SourceClass[best] == 0) mem.SourceClass[best] = sourceClass;
+                long known = mem.EntityIds[best];
+                Sort(ref mem);
+                return known;
+            }
+
+            best = -1; bestD2 = float.MaxValue;
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.Anonymous[i] == 0 || !ClassesCompatible(mem.SourceClass[i], sourceClass)) continue;
+                if (burst != (mem.SourceClass[i] == BurstClass)) continue;
+                float dx = mem.PositionsX[i] - x, dy = mem.PositionsY[i] - y, d2 = dx * dx + dy * dy;
+                float reach = mem.Radius[i] + radius;
+                if (d2 <= reach * reach && d2 < bestD2) { best = i; bestD2 = d2; }
+            }
+            if (best >= 0)
+            {
+                float r1 = mem.Radius[best], w1 = 1f / (r1 * r1), w2 = 1f / (radius * radius), w = w1 + w2;
+                mem.PositionsX[best]   = (mem.PositionsX[best] * w1 + x * w2) / w;
+                mem.PositionsY[best]   = (mem.PositionsY[best] * w1 + y * w2) / w;
+                mem.PositionsZ[best]   = (mem.PositionsZ[best] * w1 + z * w2) / w;
+                mem.Radius[best]       = 1f / System.MathF.Sqrt(w);
+                mem.Freshness[best] += scoreBoost;
+                mem.LastSeenTick[best]  = tick;
+                if (mem.SourceClass[best] == 0) mem.SourceClass[best] = sourceClass;
+                long fused = mem.EntityIds[best];
+                Sort(ref mem);
+                return fused;
+            }
+
+            long id = -(long)(++mem.AnonymousSerial);
+            AddOrUpdateTarget(ref mem, id, x, y, scoreBoost, tick, SensorModality.Acoustic, z);
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.EntityIds[i] != id) continue;
+                mem.Anonymous[i]   = 1;
+                mem.Radius[i]      = radius;
+                mem.SourceClass[i] = sourceClass;
+                break;
+            }
+            return id;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3063</c> — a sense confirmed <paramref name="entityId"/> at (<paramref name="x"/>, <paramref name="y"/>): an
+        /// anonymous contact whose circle holds that position and whose class is compatible with what the entity can sound
+        /// like (<paramref name="entityClasses"/>, any match; empty = unknown) BECOMES it — no duplicate. Its freshness is kept
+        /// (the higher of the two when the entity already has a slot). Returns true when one was absorbed.
+        /// </summary>
+        public static bool AbsorbBySighting(ref TargetMemory mem, long entityId, float x, float y, System.ReadOnlySpan<byte> entityClasses)
+        {
+            int anon = -1; float bestD2 = float.MaxValue;
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.Anonymous[i] == 0) continue;
+                byte c = mem.SourceClass[i];
+                if (c == BurstClass) continue;   // ⭐ R-2071 E-1 — the man seen there did not make the bang
+                bool compatible = c == 0 || entityClasses.Length == 0;
+                for (int k = 0; !compatible && k < entityClasses.Length; k++) compatible = ClassesCompatible(c, entityClasses[k]);
+                if (!compatible) continue;
+                float dx = mem.PositionsX[i] - x, dy = mem.PositionsY[i] - y, d2 = dx * dx + dy * dy;
+                if (d2 <= mem.Radius[i] * mem.Radius[i] && d2 < bestD2) { anon = i; bestD2 = d2; }
+            }
+            if (anon < 0) return false;
+
+            int known = -1;
+            for (int i = 0; i < mem.Count; i++) if (mem.Anonymous[i] == 0 && mem.EntityIds[i] == entityId) { known = i; break; }
+            if (known >= 0)
+            {
+                if (mem.Freshness[anon] > mem.Freshness[known]) mem.Freshness[known] = mem.Freshness[anon];
+                mem.Modalities[known] |= mem.Modalities[anon];
+                if (mem.SourceClass[known] == 0) mem.SourceClass[known] = mem.SourceClass[anon];
+                Forget(ref mem, anon);
+            }
+            else
+            {
+                mem.EntityIds[anon] = entityId;
+                mem.Anonymous[anon] = 0;
+                mem.Radius[anon]    = 0f;
+                mem.PositionsX[anon] = x;
+                mem.PositionsY[anon] = y;
+                mem.ChangeEpoch++;
+            }
+            Sort(ref mem);
+            return true;
+        }
+
+        /// <summary>
+        /// ⭐ CE-3046 — removes entry <paramref name="slot"/>; the entries after it move up, so the table stays sorted.
+        /// </summary>
+        public static void Forget(ref TargetMemory mem, int slot)
+        {
+            if ((uint)slot >= (uint)mem.Count) return;
+            for (int i = slot; i < mem.Count - 1; i++)
+            {
+                mem.EntityIds[i]    = mem.EntityIds[i + 1];
+                mem.PositionsX[i]   = mem.PositionsX[i + 1];
+                mem.PositionsY[i]   = mem.PositionsY[i + 1];
+                mem.PositionsZ[i]   = mem.PositionsZ[i + 1];
+                mem.Freshness[i] = mem.Freshness[i + 1];
+                mem.LastSeenTick[i] = mem.LastSeenTick[i + 1];
+                mem.Modalities[i]   = mem.Modalities[i + 1];
+                mem.Anonymous[i]    = mem.Anonymous[i + 1];
+                mem.Radius[i]       = mem.Radius[i + 1];
+                mem.SourceClass[i]  = mem.SourceClass[i + 1];
+                mem.SeenStance[i]   = mem.SeenStance[i + 1];   // ⭐ CE-2326
+            }
+            mem.Count--;
+            mem.ChangeEpoch++;
         }
     }
 
@@ -236,7 +475,7 @@ namespace Fdp.Toolkit.Perception.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(PerceptionApplicationComponentIds.SensorContactList)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct SensorContactList
     {
         /// <summary>Number of valid contact entries (0 to <see cref="PerceptionConstants.MaxTrackedTargets"/>).</summary>
@@ -251,18 +490,32 @@ namespace Fdp.Toolkit.Perception.Components
         /// <summary>Hysteresis state of each contact slot.</summary>
         public fixed byte State[PerceptionConstants.MaxTrackedTargets];
 
+        /// <summary>⭐ <c>CE-3260</c> (BR-7, §5.7 AQ-5) — when the current unbroken run of sightings began (sim s): a man unseen longer than
+        /// the lost threshold starts a new run.</summary>
+        public fixed float VisibleSince[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>⭐ <c>CE-3260</c> (AQ-1/AQ-2) — how long he must stay seen before he is acquired (s), from the latest sighting's range,
+        /// exposure and the observer's proficiency. 0 ⇒ the tick he is seen (a fully exposed man within 100 m).</summary>
+        public fixed float AcquireAfter[PerceptionConstants.MaxTrackedTargets];
+
         /// <summary>
         /// Updates the last-seen tick for an existing contact, or adds a new
         /// <see cref="SensorContactState.Pending"/> slot if the entity is not yet tracked.
         /// Does nothing if the list is full and the entity is not already tracked.
         /// </summary>
-        public static void UpdateSighting(ref SensorContactList list, long entityId, uint tick)
+        public static void UpdateSighting(ref SensorContactList list, long entityId, uint tick) => UpdateSighting(ref list, entityId, tick, 0f, 0f);
+
+        /// <summary>⭐ <c>CE-3260</c> — <see cref="UpdateSighting(ref SensorContactList, long, uint)"/> with the time and the dwell this
+        /// sighting needs (<see cref="AcquireAfter"/>); a sighting after a silence longer than the lost threshold starts a new run.</summary>
+        public static void UpdateSighting(ref SensorContactList list, long entityId, uint tick, float now, float acquireAfter)
         {
             for (int i = 0; i < list.Count; i++)
             {
                 if (list.EntityIds[i] == entityId)
                 {
+                    if (tick - list.LastSeenTick[i] > Fdp.Toolkit.Perception.Systems.ContactHysteresis.TrackLostThresholdTicks) list.VisibleSince[i] = now;
                     list.LastSeenTick[i] = tick;
+                    list.AcquireAfter[i] = acquireAfter;
                     return;
                 }
             }
@@ -273,6 +526,8 @@ namespace Fdp.Toolkit.Perception.Components
                 list.EntityIds[idx]    = entityId;
                 list.LastSeenTick[idx] = tick;
                 list.State[idx]        = (byte)SensorContactState.Pending;
+                list.VisibleSince[idx] = now;
+                list.AcquireAfter[idx] = acquireAfter;
             }
         }
     }
@@ -286,7 +541,7 @@ namespace Fdp.Toolkit.Perception.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(PerceptionApplicationComponentIds.ActiveSensorTracks)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct ActiveSensorTracks
     {
         /// <summary>Number of currently acquired tracks (0 to <see cref="PerceptionConstants.MaxTrackedTargets"/>).</summary>
@@ -300,5 +555,9 @@ namespace Fdp.Toolkit.Perception.Components
 
         /// <summary>Last-known Y position (ground plane) for each acquired target.</summary>
         public fixed float PositionsY[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>⭐ <c>CE-3060</c> — the <see cref="SensorModality"/> kinds that hold each target (OR); feeds
+        /// <c>TargetMemory.Modalities</c> instead of an assumed Visual.</summary>
+        public fixed byte Modalities[PerceptionConstants.MaxTrackedTargets];
     }
 }

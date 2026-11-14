@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using FluentAssertions;
 using Fbt;
 using Hrot.BTree.Editor.Model;
@@ -170,5 +171,85 @@ public sealed class BehaviorTreeAssetModelTests
         asset.FindNode(idB).Should().NotBeNull();
         asset.FindBlobIndex(idA).Should().Be(0);
         asset.FindBlobIndex(idB).Should().Be(1);
+    }
+
+    // ── CE-3193: working state is derived from the bindings ──────────────────
+
+    /// <summary>⭐ <c>CE-3193</c> — working state is the variables a binding names as its <c>WorkingStateTargetField</c>;
+    /// nothing about it is authored on the variable.</summary>
+    [Fact]
+    public void WorkingStateVariableNames_are_the_ones_a_binding_names()
+    {
+        var asset = MakeAsset();
+        asset.AddVariable(new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry("Cursor", typeof(int), Comment: null));
+        asset.AddVariable(new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry("Plain", typeof(int), Comment: null));
+        asset.WorkingStateVariableNames().Should().BeEmpty("no binding names either yet");
+    }
+
+    // ── CE-1061 (U5a, R-3001): naming the params DTO ──────────────────────────
+
+    public struct DtoA { public float Radius; }
+    public struct DtoB { public int Rounds; }
+
+    /// <summary>⭐ <c>CE-1061</c> (U5a, acceptance 4 — the half that is built): picking a DTO writes <c>ParamsDtoTypeId</c>, rebuilds the
+    /// reserved <c>Params</c> entry over the new type, clears the old DTO's default overrides and marks the asset dirty; re-picking the
+    /// same DTO changes nothing.</summary>
+    [Fact]
+    public void CE1061_PickingAParamsDto_WritesTheTypeId_AndRebuildsTheParamsEntry()
+    {
+        var asset = MakeAsset();
+        asset.IsBlackboardEditorManaged = true;
+        asset.ParamsDtoTypeId = typeof(DtoA).FullName;
+        asset.ParamsDefaultJson = "{\"radius\":3}";
+        asset.SetBlackboardVariables(new[]
+        {
+            new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry("Params", typeof(DtoA), null, DefaultValueJson: "{\"radius\":3}", IsReservedParams: true),
+            new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry("Counter", typeof(int), null),
+        });
+        int changed = 0;
+        asset.Changed += () => changed++;
+
+        ((Hrot.Editor.AiShared.Blackboard.IParamsDtoAsset)asset).SetParams(typeof(DtoB).FullName!, null);   // the chooser's write
+
+        asset.ParamsDtoTypeId.Should().Be(typeof(DtoB).FullName);
+        asset.ParamsDefaultJson.Should().BeNull("DtoA's overrides name DtoA's fields");
+        var reserved = asset.BlackboardVariables.Single(v => v.IsReservedParams);
+        reserved.FieldType.Should().Be(typeof(DtoB));
+        reserved.DefaultValueJson.Should().BeNull();
+        asset.BlackboardVariables.Select(v => v.Name).Should().Contain("Counter");
+        asset.IsDirty.Should().BeTrue();
+        changed.Should().BeGreaterThan(0);
+
+        int before = changed;
+        asset.SetParams(typeof(DtoB).FullName!, null);
+        changed.Should().Be(before, "the same DTO again is a no-op");
+    }
+
+    /// <summary>⭐ <c>CE-1062</c> — the params edits are ONE undo entry each on the document's undo stack, through the BTree sink's
+    /// <c>AssetEditCommand</c> arm: a default edit and the DTO choice undo back to the exact previous pair and redo again.</summary>
+    [Fact]
+    public void CE1062_ParamsEdits_UndoAndRedo_OnTheDocumentsStack()
+    {
+        var asset = MakeAsset();
+        asset.IsBlackboardEditorManaged = true;
+        asset.SetParams(typeof(DtoA).FullName, "{\"Radius\":3}");
+        var undo = new NodeEditor.Core.Commands.UndoStack(new Hrot.BTree.Editor.Host.BTreeCommandSink(asset, graph: null!));
+
+        Assert.True(Hrot.Editor.AiShared.Documents.AssetEdits.Run(undo, "Edit params default Radius",
+            () => asset.SetParams(typeof(DtoA).FullName, "{\"Radius\":5}"), () => asset.SetParams(typeof(DtoA).FullName, "{\"Radius\":3}")));
+        asset.CurrentParamsDefaults.Should().Be("{\"Radius\":5}");
+        Assert.True(Hrot.Editor.AiShared.Documents.AssetEdits.Run(undo, "Params DTO: DtoB",
+            () => asset.SetParams(typeof(DtoB).FullName, null), () => asset.SetParams(typeof(DtoA).FullName, "{\"Radius\":5}")));
+        asset.ParamsDtoTypeId.Should().Be(typeof(DtoB).FullName);
+        asset.CurrentParamsDefaults.Should().BeNull();
+
+        undo.Undo().Should().BeTrue();
+        (asset.ParamsDtoTypeId, asset.CurrentParamsDefaults).Should().Be((typeof(DtoA).FullName, "{\"Radius\":5}"));
+        asset.BlackboardVariables.Single(v => v.IsReservedParams).FieldType.Should().Be(typeof(DtoA));
+        undo.Undo().Should().BeTrue();
+        asset.CurrentParamsDefaults.Should().Be("{\"Radius\":3}");
+        asset.ParamsDefaultJson.Should().Be("{\"Radius\":3}", "the save falls back to the field, so it must follow too");
+        undo.Redo().Should().BeTrue();
+        asset.CurrentParamsDefaults.Should().Be("{\"Radius\":5}");
     }
 }

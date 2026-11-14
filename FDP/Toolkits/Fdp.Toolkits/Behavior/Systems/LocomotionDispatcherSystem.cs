@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     // [UpdateAfter(typeof(ChannelArbitrationSystem))] -- ordering maintained by array position in ActionDispatchModule.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class LocomotionDispatcherSystem : DispatcherSystemBase<LocomotionChannel>
     {
         public override void Execute(ISimulationView view, float deltaTime)
@@ -54,6 +55,18 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // first-activation bypass where Status is Inactive before OnEnter sets Running.
                 if (!caps.Capabilities.HasFlag(ActorCapabilities.CanMove))
                 {
+                    // ⭐ CE-3091 — losing CanMove (death, a mobility hit, embarking) ENDS the running move: its executor's OnExit runs
+                    //   ONCE here — for MoveTo that is the STOP (NavigationIntent Mode None) the mover on SimHost follows. ⛔ Before,
+                    //   this `continue` skipped the lifecycle block below, so OnExit never ran and SimHost kept driving the last path:
+                    //   measured live, a killed unit walked ~80 m to its mission's destination (U4). BD1 §1.0b: finishing clears every
+                    //   channel. If the capability comes back, the behaviour's re-issued action (a new ActionInstanceId) enters afresh.
+                    ushort running = channel.DispatchedAction;
+                    if (running != 0)
+                    {
+                        _executors[running]?.OnExit(entity, ref channel, repo);
+                        channel.DispatchedAction = 0;
+                        channel.DispatchedInstanceId = channel.ActionInstanceId;
+                    }
                     channel.Status = NodeStatus.Failure;
                     continue;
                 }
@@ -61,17 +74,24 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // Lifecycle: detect when a new action has been dispatched.
                 if (channel.ActionInstanceId != channel.DispatchedInstanceId)
                 {
-                    EnsurePreviousActionCapacity(entity.Index + 1);
-                    ushort oldAction = _previousAction[entity.Index];
+                    ushort oldAction = channel.DispatchedAction;
 
                     // Note: at the time OnExit is called, channel.ActiveAction and channel.ActionInstanceId
                     // still hold the OUTGOING action's values. DispatchedInstanceId is updated after this call.
                     // This allows OnExit to identify what it is cleaning up.
                     _executors[oldAction]?.OnExit(entity, ref channel, repo);
                     _executors[channel.ActiveAction]?.OnEnter(entity, ref channel, repo);
+                    // ⭐ CE-1249 (BV-10) — a NEW move command, once (not per tick), with the point its executor just set
+                    if (channel.ActiveAction != 0)
+                        Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(repo, entity,
+                            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.MoveStarted, a: channel.ActiveAction,
+                            cause: (byte)Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.MoveSourceOf(repo, entity, channel.ActionInstanceId),
+                            point: repo.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(entity)
+                                ? repo.GetComponentRO<Fdp.Toolkit.Navigation.NavigationIntent>(entity).FinalDestination
+                                : default);
 
                     channel.DispatchedInstanceId = channel.ActionInstanceId;
-                    _previousAction[entity.Index] = channel.ActiveAction;
+                    channel.DispatchedAction = channel.ActiveAction;
                 }
 
                 // ── Same-frame OnEnter + Execute safety invariant ────────────────────────────
@@ -88,6 +108,15 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (channel.ActiveAction != 0 && channel.Status == NodeStatus.Running)
                 {
                     _executors[channel.ActiveAction]?.Execute(entity, ref channel, repo, deltaTime);
+                    // ⭐ CE-3136 (T1) — the locomotion row of ActionStatus, generic over every locomotion executor: what it is doing
+                    //   now (moving / done / failed). The weapon row's richer reasons come from the fire executors themselves.
+                    Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.Locomotion(repo, entity, channel.ActiveAction,
+                        channel.Status switch
+                        {
+                            NodeStatus.Success => Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Done,
+                            NodeStatus.Failure => Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Failed,
+                            _                  => Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Moving,
+                        });
                 }
             }
         }

@@ -407,4 +407,9 @@ public class ComponentReflectorTests
         reflector.DrawComponents(session, entity); // must NOT throw
         fixture.Render();
     }
+
+    /// <summary>⭐ CE-3378 (N-1) — forwarding rail: the reflector's catalogue (what its edit windows and its in-place editor are constructed with) draws Quaternion, Guid and Type.</summary>
+    [Fact]
+    public void CE3378_TheReflectorsCatalogue_DrawsQuaternionGuidAndType()
+        => Assert.Null(Fdp.Presentation.Editing.Types.TypeCatalogueExtensions.MissingStandardLeaf(CreateReflector().Types));
 }

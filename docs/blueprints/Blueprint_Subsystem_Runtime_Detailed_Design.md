@@ -1,5 +1,21 @@
 # Blueprint Subsystem — Runtime Detailed Design
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** variable Role (Input/State) and Scope are DELETED (CE-3193): params = ONE named DTO in the reserved `Params` variable; a variable is working state exactly when a binding names it as its WorkingStateTargetField (derived); WorkingStateScope survives only as the slot-key formula; StatefulSlotRole, StateVariableStorage, BTREE0003/HSM0002 are gone. Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
+> ## Storage model — per-occurrence slots in the tier ladder
+>
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** is the authority for
+> where behaviour params and AiPrimitive working state live: **per-occurrence slots**, allocated by the
+> partition allocator inside the tier components this document specifies. There is no per-entity
+> brain-state component (no root-params component, no shared AiPrimitive working-state component) — every
+> occurrence (a Blueprint Instance, a BTree stateful node, an HSM region) gets its own slot. It is the
+> build-out of [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), which the user
+> parked on `2026-08-17` and reopened on `2026-09-19`.
+>
+> ⭐⭐ **§4–§5's allocator contract is UNCHANGED** — header, slot entry, free list, tier promotion all
+> stay exactly as specified here.
+
+
 > **Status:** Detailed design, derived from `Blueprint_Subsystem_Architecture_v1.2.md` + Final Resolutions + Inline Patches + Implementation Roadmap v1.1 + Compiler DD + Compiler DD Inline Patches. All Runtime DD inline patches integrated.
 > **Audience:** Implementation agent and human reviewer.
 > **Drives:** Milestones M8 (BlueprintRegistry), M9 (Blackboard tiers + partition allocator), M10 (BlueprintTickSystem + BlueprintMaintenanceSystem).
@@ -34,7 +50,7 @@ The runtime layer is the engine-side machinery that makes generated Blueprint co
 Specifically, the runtime owns:
 
 - **`BlueprintRegistry`** — the in-memory store of compiled `BlueprintDefinition`s, populated by `[BlueprintRegistrar]` classes during hot reload, queried by tick systems.
-- **`BlueprintBlackboard{1024,4096,16384}` components** — the three storage tiers for Instance-dispatch state.
+- **`BlueprintBlackboard{256,1024,4096,16384}` components** — the four storage tiers for Instance-dispatch state.
 - **`BlueprintBlackboardPartitions`** — the partition allocator that slices a tier component into per-Blueprint slots.
 - **`BlueprintTickSystem`** — the Simulation-phase system that ticks all Instance Blueprints across all entities, with per-slot reload reconciliation.
 - **`BlueprintMaintenanceSystem`** — the BeforeSync-phase system that performs tier upgrades.
@@ -43,8 +59,8 @@ Specifically, the runtime owns:
 
 ### 1.2 What this layer does NOT own
 
-- **AiPrimitive ticking.** AiPrimitives are invoked exclusively by `BTreeTickSystem` and `HsmTickSystem<T>` through registered thunks, never by `BlueprintTickSystem`. The runtime layer registers AiPrimitives into `BehaviorRegistry` and `HsmActionDispatcher` via `[BlueprintRegistrar].Register`, but does not tick them.
-- **AiPrimitive working state allocation.** Generated thunks project directly over `Blackboard1024` inline (per Compiler DD §10.4); the runtime does not provide a helper class for this.
+- **AiPrimitive ticking.** AiPrimitives are invoked exclusively by `BrainTickSystem` — either arm — through registered thunks, never by `BlueprintTickSystem`. The runtime layer registers AiPrimitives into `BehaviorRegistry` and `HsmActionDispatcher` via `[BlueprintRegistrar].Register`, but does not tick them.
+- **AiPrimitive working state allocation.** Generated thunks project directly over the AiPrimitive's own node working-state occurrence slot, inline (per Compiler DD §10.4); the runtime does not provide a helper class for this.
 - **Hot reload coordination.** The hot-reload coordinator is a separate (engine-modified) component; the runtime exposes `BlueprintRegistry.BeginStaging/CommitStaging` for it to call.
 - **Compilation.** The runtime knows nothing about `.bp.json` or the compiler pipeline; it consumes the artifacts (registrars in the loaded DLL).
 - **Editor concerns.** The runtime is invisible to the editor's StructEdit code paths.
@@ -113,7 +129,7 @@ At engine boot:
 
 1. `Fdp.Toolkits.Blueprints` assembly loads.
 2. Static catalog instances (`EngineEventCatalog.Instance`, etc.) construct themselves with their hand-curated entries.
-3. `BlueprintBlackboard{1024,4096,16384}` ComponentIds are registered with `GlobalComponentIds` (this happens at engine boot via the standard component-registration mechanism).
+3. `BlueprintBlackboard{256,1024,4096,16384}` ComponentIds are registered with `GlobalComponentIds` (this happens at engine boot via the standard component-registration mechanism).
 4. The host application constructs a `BlueprintRegistry` singleton.
 5. `BlueprintTickSystem` and `BlueprintMaintenanceSystem` are constructed with a reference to the registry.
 6. The `AiHotReloadCoordinator` (engine-side, modified per v1.2 §8) is constructed with a reference to the registry plus existing references to `BehaviorRegistry` and `HsmActionDispatcher`.
@@ -508,8 +524,8 @@ The total size is the entire component, including header, slot table, and payloa
 
 | Tier | Total | Header | Slot table | Payload | MaxSlots |
 |---|---|---|---|---|---|
-| 1024 | 1024 | 32 | 64 | 928 | 4 |
-| 4096 | 4096 | 32 | 128 | 3936 | 8 |
+| 1024 | 1024 | 32 | 192 | 800 | 12 |
+| 4096 | 4096 | 32 | 256 | 3808 | 16 |
 | 16384 | 16384 | 32 | 256 | 16096 | 16 |
 
 ### 4.2 Tier component definitions
@@ -526,7 +542,7 @@ public unsafe struct BlueprintBlackboard1024
     public const int MaxSlots      = 4;
     public const int SlotTableSize = MaxSlots * BlueprintBlackboardPartitions.SlotEntrySize; // 64
     public const int PayloadStart  = HeaderSize + SlotTableSize;                              // 96
-    public const int PayloadSize   = TotalSize - PayloadStart;                                // 928
+    public const int PayloadSize   = TotalSize - PayloadStart;                                // 800
 
     public fixed byte Memory[TotalSize];
 }
@@ -540,7 +556,7 @@ public unsafe struct BlueprintBlackboard4096
     public const int MaxSlots      = 8;
     public const int SlotTableSize = MaxSlots * BlueprintBlackboardPartitions.SlotEntrySize; // 128
     public const int PayloadStart  = HeaderSize + SlotTableSize;                              // 160
-    public const int PayloadSize   = TotalSize - PayloadStart;                                // 3936
+    public const int PayloadSize   = TotalSize - PayloadStart;                                // 3808
 
     public fixed byte Memory[TotalSize];
 }
@@ -1491,7 +1507,7 @@ sequenceDiagram
     Note over TS: Frame N
     TS->>TS: TryAttach fails (1024 full)
     TS->>ECB: AddEmptyComponent<BB4096>(entity)
-    Note over TS: BB1024 still has the old data;<br/>BB4096 zeroed, will be initialized<br/>at first encounter
+    Note over TS: BB1024 still has the old data —<br/>BB4096 zeroed, will be initialized<br/>at first encounter
     ECB->>Sync: Playback at end of frame
     Note over Sync: Entity now has both BB1024 and BB4096
 
@@ -1815,21 +1831,34 @@ Soft reload of a Blueprint with running latent execution: the entity continues m
 
 ### 9.6 Cross-AiPrimitive reconciliation
 
-AiPrimitive working state lives in `Blackboard1024`, not in `BlueprintBlackboard*`. The reconciliation logic is different — it's *inline* in the generated thunk (per Compiler DD §10.4 and v1.2 Inline Patch 1):
+AiPrimitive working state lives in its own **occurrence slot** in the tier ladder, keyed per
+placement — never in a shared per-entity component. The reconciliation logic is still *inline*
+in the generated thunk (per Compiler DD §10.4 and v1.2 Inline Patch 1), but it now guards a
+slot rather than a fixed component offset:
 
 ```csharp
 ulong storedHash = *(ulong*)memory;
 if (storedHash != StructureHash)
 {
-    Unsafe.InitBlock(memory, 0, (uint)sizeof(Blackboard1024));
+    Unsafe.InitBlock(memory, 0, (uint)slot.PayloadSize);
     *(ulong*)memory = StructureHash;
     InitDefaultWorkingState((WorkingState*)(memory + 8));
 }
 ```
 
-The runtime layer (`BlueprintTickSystem`) does not participate in AiPrimitive reconciliation. AiPrimitives are invoked by BTree/HSM kernels, which call directly into the generated thunk; the thunk checks the hash itself.
+The runtime layer (`BlueprintTickSystem`) does not participate in AiPrimitive reconciliation. AiPrimitives are invoked by BTree/HSM kernels, which call directly into the generated thunk; the thunk checks the hash itself, scoped to its own slot.
 
-This separation is intentional. AiPrimitive working state has a different invariant (one Blueprint per entity's Blackboard1024 in Slice 1), so its reconciliation is layout-aware in a way that's unsuitable for the general `BlueprintBlackboard*` partition path.
+This separation is intentional. AiPrimitive working state has a different invariant from the general Instance-dispatch path, so its reconciliation is layout-aware in a way that's unsuitable for the general `BlueprintBlackboard*` partition path.
+
+| Host | Working-state storage | Multiple AiPrimitives per entity? |
+|---|---|---|
+| **BTree** | occurrence slot — `ComposeAiPrimitiveAction` auto-creates a distinct `Role=State, Scope=Node` host variable per placement (16 refs in `BTreeBridgeEmitCore`) | ✅ **yes**, they separate correctly |
+| **HSM** | occurrence slot, keyed by `HsmOccurrence.KeyFor(instance, …)` — one slot per `(region, state)` placement, the same shape as the BTree path | ✅ **yes**, they separate correctly |
+
+Both hosts key AiPrimitive working state by occurrence rather than by a shared fixed offset, so two
+stateful AiPrimitives on one entity — whether BTree- or HSM-hosted — land in two distinct slots and
+never collide. This lifted the earlier "one stateful AiPrimitive per entity" restriction, which
+existed only because of a single shared `StructureHash` guard on one shared block.
 
 ### 9.7 Diagnostic surface
 

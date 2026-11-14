@@ -1,0 +1,65 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 AW-5/AW-21 surrender, then the feint. From the header's Judge (1)-(4): hands up; no round and no hurt while surrendered; hands down 15-25 s after; then the rifleman engages. 'Hands up' is the gesture cue; 'hands down' is Gesture.Kind != HandsUp (an absent Gesture reads as not HandsUp). NOT expressed: the rifle laid down (laid_down_on is not a component read) and 'on every node' (one world here).",
+  "runFor": 45,
+  "golden": {
+    "every": 5
+  },
+  "expect": [
+    {
+      "name": "he raises his hands",
+      "on": "gesture",
+      "who": "Enemy Soldier",
+      "is": "HandsUp"
+    },
+    {
+      "name": "his hands stay up for the first 15 s",
+      "never": {
+        "on": "field",
+        "who": "Enemy Soldier",
+        "path": "Gesture.Kind",
+        "op": "!=",
+        "value": "HandsUp"
+      },
+      "after": "he raises his hands",
+      "before": "he raises his hands+15"
+    },
+    {
+      "name": "his hands come down 15-25 s after",
+      "on": "field",
+      "who": "Enemy Soldier",
+      "path": "Gesture.Kind",
+      "op": "!=",
+      "value": "HandsUp",
+      "after": "he raises his hands+15",
+      "before": "he raises his hands+25"
+    },
+    {
+      "name": "the rifleman spends no round while he is surrendered",
+      "never": {
+        "on": "shot",
+        "by": "Rifleman"
+      },
+      "after": "he raises his hands",
+      "before": "his hands come down 15-25 s after-0.25"
+    },
+    {
+      "name": "he is not hurt while surrendered",
+      "never": {
+        "on": "field",
+        "who": "Enemy Soldier",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      },
+      "after": "he raises his hands",
+      "before": "his hands come down 15-25 s after-0.25"
+    },
+    {
+      "name": "armed again, the rifleman engages him",
+      "on": "shot",
+      "by": "Rifleman",
+      "at": "Enemy Soldier",
+      "after": "his hands come down 15-25 s after"
+    }
+  ]
+}

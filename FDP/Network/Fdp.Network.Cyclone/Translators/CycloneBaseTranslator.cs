@@ -9,7 +9,7 @@ namespace Fdp.Network.Cyclone.Translators
     /// Carries the shared INetworkTranslator members (TopicName, counts, Direction).
     /// Derived classes supply the generic DDS types and method implementations.
     /// </summary>
-    public abstract class CycloneBaseTranslator : INetworkTranslator
+    public abstract class CycloneBaseTranslator : INetworkTranslator, IDiscardableIngress
     {
         public string TopicName { get; }
         public long ReceivedSampleCount { get; protected set; }
@@ -23,5 +23,9 @@ namespace Fdp.Network.Cyclone.Translators
 
         public abstract void PollIngress(IEntityCommandBuffer cmd, ISimulationView view);
         public abstract void ScanAndPublish(ISimulationView view);
+
+        /// <inheritdoc />
+        /// <remarks>⭐ CE-3329 W5 — every Cyclone translator says how its readers are emptied (a join, a replay's exit).</remarks>
+        public abstract int DiscardIngress();
     }
 }

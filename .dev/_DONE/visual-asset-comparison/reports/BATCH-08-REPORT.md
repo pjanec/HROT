@@ -70,7 +70,7 @@ None significant. One observation:
 ## Build + Test Output
 
 ```
-Build succeeded.   (IOS-IG-SimHost.sln, Debug, --no-restore)
+Build succeeded.   (HROT.sln, Debug, --no-restore)
 
 Hrot.Hsm.Editor.Tests:
   Passed!  - Failed: 0, Passed: 253, Skipped: 0, Total: 253, Duration: 232 ms

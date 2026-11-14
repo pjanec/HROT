@@ -331,9 +331,9 @@ Search for all test files in `Hrot.ClusterRunner.Tests/` and
 ```powershell
 cd D:\Work\IOS-IG-SimHost-FDP-2
 
-dotnet build IOS-IG-SimHost.sln -v quiet
+dotnet build HROT.sln -v quiet
 
-dotnet test IOS-IG-SimHost.sln --filter "FullyQualifiedName!~Integration" -v quiet
+dotnet test HROT.sln --filter "FullyQualifiedName!~Integration" -v quiet
 ```
 
 **Success conditions:**

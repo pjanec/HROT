@@ -1,0 +1,16 @@
+{
+  "Name": "FindThreatsInView",
+  "BlueprintId": 4192311439,
+  "Count": 1,
+  "Rows": [
+    {
+      "EntityId": 4294967298,
+      "PositionX": 10,
+      "PositionY": 0,
+      "Score": 0.8333333,
+      "Flags": 1,
+      "FlagsMeaningful": 1
+    }
+  ],
+  "MaxAbsPositionZ": 0
+}

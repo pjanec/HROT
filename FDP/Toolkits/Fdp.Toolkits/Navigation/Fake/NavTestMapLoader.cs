@@ -10,11 +10,14 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// <summary>
     /// Loads a <see cref="NavTestMap"/> from a JSON file or string.
     ///
+    /// ⭐ Every vector is in engine space, <b>Z-up</b>: <c>[x_east, y_north, z_up]</c> — a polygon vertex is
+    /// <c>[x, y, elevation]</c>; altitude bounds are Z (DESIGN_Terrain_World W7).
+    ///
     /// JSON schema:
     /// <code>
     /// {
-    ///   "min_altitude": 0.0,       // optional, default 0
-    ///   "max_altitude": 5000.0,    // optional, default 5000
+    ///   "min_altitude": 0.0,       // optional, default 0 (Z)
+    ///   "max_altitude": 5000.0,    // optional, default 5000 (Z)
     ///   "no_fly_zones": [          // optional
     ///     { "min": [x,y,z], "max": [x,y,z] }
     ///   ],
@@ -24,7 +27,7 @@ namespace Fdp.Toolkit.Navigation.Fake
     ///       "polygons": [
     ///         {
     ///           "id": 0,
-    ///           "vertices": [[x,y,z], ...],
+    ///           "vertices": [[x,y,elev], ...],   // [x_east, y_north, z_up]
     ///           "is_blocked": false,       // optional
     ///           "surface_type": "Generic"  // optional
     ///         }

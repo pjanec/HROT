@@ -1,0 +1,35 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — AQ (CE-3079): hold short of a watched crossing, cross once the watcher leaves (BTree). Only Judge (3)'s walk-away and (4)'s arrival are expressible: (1) the sensor's ratings and (2) 'holds within 4 m of the near side for 10 s' live in the danger sensor and the crossing's near handle, neither a component nor a known point; the take's HoldShort/Cross are tree nodes that never fire as a task.",
+  "runFor": 240,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the rifleman runs DangerCrossing",
+      "on": "task",
+      "who": "Rifleman",
+      "is": "DangerCrossing"
+    },
+    {
+      "name": "the watcher walks away to (395,290)",
+      "on": "near",
+      "who": "Watcher",
+      "point": [
+        395,
+        290
+      ],
+      "within": 4
+    },
+    {
+      "name": "the rifleman crosses and arrives within 6 m of (285,220)",
+      "on": "near",
+      "who": "Rifleman",
+      "point": [
+        285,
+        220
+      ],
+      "within": 6
+    }
+  ]
+}

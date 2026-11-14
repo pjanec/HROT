@@ -1,5 +1,6 @@
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Debug;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Hsm.Editor.Host;
 
@@ -7,18 +8,18 @@ namespace Hrot.Hsm.Editor.Host;
 /// Declares the trace lane structure for the HSM asset type.
 /// Consumed by the shared trace panel to build the timeline column headers.
 /// </summary>
-public sealed class HsmTraceLaneProvider : ITraceLaneProvider
+public sealed class HsmTraceLaneProvider : ITimelineLaneProvider
 {
-    private static readonly IReadOnlyList<TraceLaneDescriptor> _lanes =
+    private static readonly IReadOnlyList<TimelineLaneDescriptor> _lanes =
     [
-        new TraceLaneDescriptor("hsm.states",    "States",    TraceLevel.Lifecycle),
-        new TraceLaneDescriptor("hsm.events",    "Events",    TraceLevel.Decisions),
-        new TraceLaneDescriptor("hsm.actions",   "Actions",   TraceLevel.Decisions),
-        new TraceLaneDescriptor("hsm.guards",    "Guards",    TraceLevel.Decisions),
-        new TraceLaneDescriptor("hsm.timers",    "Timers",    TraceLevel.Decisions),
-        new TraceLaneDescriptor("hsm.conflicts", "Conflicts", TraceLevel.Errors),
+        new TimelineLaneDescriptor("hsm.states",    "States",    TraceLevel.Lifecycle),
+        new TimelineLaneDescriptor("hsm.events",    "Events",    TraceLevel.Decisions),
+        new TimelineLaneDescriptor("hsm.actions",   "Actions",   TraceLevel.Decisions),
+        new TimelineLaneDescriptor("hsm.guards",    "Guards",    TraceLevel.Decisions),
+        new TimelineLaneDescriptor("hsm.timers",    "Timers",    TraceLevel.Decisions),
+        new TimelineLaneDescriptor("hsm.conflicts", "Conflicts", TraceLevel.Errors),
     ];
 
-    public AssetKind Kind => AssetKind.Hsm;
-    public IReadOnlyList<TraceLaneDescriptor> Lanes => _lanes;
+    public bool Applies(TimelineLaneContext context) => context.AssetKind == nameof(AssetKind.Hsm);
+    public IReadOnlyList<TimelineLaneDescriptor> Lanes => _lanes;
 }

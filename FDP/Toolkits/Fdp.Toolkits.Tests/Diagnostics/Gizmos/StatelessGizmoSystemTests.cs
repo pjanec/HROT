@@ -48,21 +48,32 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         }
 
         // SC-GZ022-2: Register with an unregistered component type → InvalidOperationException.
-        // STABILITY(Flaky): Order-dependent — passes in isolation but fails in full suite when static ComponentTypeRegistry has UnregisteredComp[249] registered by a prior test in the process
-        [Trait("Stability", "Flaky")]
+        /// ⭐ <c>QA-009</c> — the STABILITY(Flaky) trait and its order-dependence note are GONE: the
+        /// sentinel no longer carries a <c>[ComponentId]</c>, so no prior test in the process can put it
+        /// in the registry. See the type's own comment for why that is the invariant.
         [Fact]
         public void SC_GZ022_2_Register_UnregisteredType_Throws()
         {
             var registry  = new StatelessGizmoRegistry();
             var projector = new MockStatelessGizmo();
 
+            // ⭐ State the precondition — see the sibling case in GizmosSystemTests for why.
+            Assert.Equal(-1, ComponentTypeRegistry.GetId(typeof(UnregisteredComp)));
+
             Assert.Throws<InvalidOperationException>(() =>
                 registry.Register(projector, new[] { typeof(UnregisteredComp) }));
         }
     }
 
-    // Sentinel type never registered with any EntityRepository.
-    [ComponentId(249)]
+    // ⭐⭐⭐ QA-009 — a sentinel that CANNOT be registered, by construction.
+    //
+    // ⛔ This used to carry [ComponentId(249)], which made it registerable — and something in a full
+    //    suite run registered it, after which GetId returned 249 and SC_GZ022_2 could not throw. That
+    //    is exactly what the STABILITY(Flaky) note above described and never fixed.
+    //
+    // ⭐ ComponentTypeRegistry.GetOrRegisterManaged REQUIRES a [ComponentId] and throws without one, so
+    //    an attribute-less struct can never enter the registry by ANY path. The ABSENCE of the
+    //    attribute is the invariant — do not add one back.
     internal struct UnregisteredComp { }
 
     // ==========================================================================
@@ -78,6 +89,107 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var buf      = new DebugPrimitiveBuffer(512);
             var registry = new StatelessGizmoRegistry();
             return (repo, buf, registry);
+        }
+
+        /// <summary>⭐ CE-2394 — one pass over the entities collects every rule's matches; the draw order is unchanged (rule by rule, each in
+        /// ascending entity order), a dead slot is skipped, and a steady frame allocates nothing. ✅ Red-proof: append matches without
+        /// resetting the per-rule counts ⇒ the second frame draws twice.</summary>
+        [Fact]
+        public void CE2394_OnePass_KeepsTheOrder_AndAllocatesNothingInASteadyFrame()
+        {
+            var (repo, buf, registry) = CreateContext();
+            var order = new List<string>(64);
+            var pa = new OrderGizmo("A", order); var pb = new OrderGizmo("B", order);
+            registry.Register(pa, new[] { typeof(GizmoTestCompA) });
+            registry.Register(pb, new[] { typeof(GizmoTestCompB) });
+            var sys = new StatelessGizmoSystem(registry, buf);
+            var e1 = repo.CreateEntity(); repo.AddComponent(e1, new GizmoTestCompA()); repo.AddComponent(e1, new GizmoTestCompB());
+            var dead = repo.CreateEntity(); repo.AddComponent(dead, new GizmoTestCompA());
+            var e3 = repo.CreateEntity(); repo.AddComponent(e3, new GizmoTestCompB());
+            var e4 = repo.CreateEntity(); repo.AddComponent(e4, new GizmoTestCompA());
+            repo.DestroyEntity(dead);
+
+            sys.Execute(repo, 0f);
+            Assert.Equal(new[] { $"A{e1.Index}", $"A{e4.Index}", $"B{e1.Index}", $"B{e3.Index}" }, order);
+
+            order.Clear(); sys.Execute(repo, 0f); order.Clear();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            sys.Execute(repo, 0f);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Equal(4, order.Count);
+            Assert.Equal(0, allocated);
+        }
+
+        /// <summary>
+        /// ⭐ CE-2402 (DESIGN_Evaluation_Cost_And_Cadence §10) — with more matched entities than <c>FreshEntitiesPerFrame</c>, a rule draws a SLICE
+        /// fresh per frame and re-emits the rest from their held pictures: every frame still holds EXACTLY one picture per entity in ascending
+        /// entity order, no picture is older than the period, a new entity is drawn at once and a destroyed one is gone at once, a steady frame
+        /// allocates nothing, and with the default (0) every entity is drawn every frame.
+        /// 🔴 Red-proof: the held branch skipping the re-emit ⇒ the frame holds only the slice and the per-frame count fails.
+        /// </summary>
+        [Fact]
+        public void CE2402_ASliceIsDrawnFresh_TheRestIsHeld_EveryFrameShowsEveryEntityOnce()
+        {
+            var (repo, _, registry) = CreateContext();
+            var buf = new DebugPrimitiveBuffer(4096);
+            var projector = new LineGizmo();
+            registry.Register(projector, new[] { typeof(GizmoTestCompA) });
+            var sys = new StatelessGizmoSystem(registry, buf) { FreshEntitiesPerFrame = 10, MaxHeldFrames = 3 };   // 40 entities ⇒ period 4
+            var ents = new List<Entity>();
+            for (int i = 0; i < 40; i++) { var e = repo.CreateEntity(); repo.AddComponent(e, new GizmoTestCompA()); ents.Add(e); }
+
+            var lastDrawn = new Dictionary<int, int>();
+            int[] Frame(int f)
+            {
+                buf.EndFrame(0f); projector.Drawn.Clear();
+                sys.Execute(repo, 0f);
+                foreach (var i in projector.Drawn) lastDrawn[i] = f;
+                var frame = buf.GetFrame(); var xs = new int[frame.Length];
+                for (int k = 0; k < frame.Length; k++) xs[k] = (int)frame[k].LineStart.X;
+                return xs;
+            }
+            int[] Expected() { var l = new List<int>(); foreach (var e in ents) if (repo.IsAlive(e)) l.Add(e.Index); return l.ToArray(); }
+
+            Assert.Equal(Expected(), Frame(0));
+            Assert.Equal(40, projector.Drawn.Count);                                     // no picture yet: all fresh
+            for (int f = 1; f <= 12; f++)
+            {
+                Assert.Equal(Expected(), Frame(f));                                      // one picture per entity, in order
+                Assert.InRange(projector.Drawn.Count, 9, 11);                            // a quarter drawn fresh
+                foreach (var e in ents) Assert.True(f - lastDrawn[e.Index] < 4, $"entity {e.Index} held {f - lastDrawn[e.Index]} frames");
+            }
+
+            var born = repo.CreateEntity(); repo.AddComponent(born, new GizmoTestCompA()); ents.Add(born);
+            repo.DestroyEntity(ents[3]);
+            Assert.Equal(Expected(), Frame(13));
+            Assert.Contains(born.Index, projector.Drawn);                                // new ⇒ drawn at once
+
+            Frame(14); Frame(15);
+            long a0 = GC.GetAllocatedBytesForCurrentThread();
+            for (int f = 16; f < 20; f++) { buf.EndFrame(0f); projector.Drawn.Clear(); sys.Execute(repo, 0f); }
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - a0);
+
+            sys.FreshEntitiesPerFrame = 0;                                               // off ⇒ every entity every frame
+            Frame(20);
+            Assert.Equal(Expected().Length, projector.Drawn.Count);
+        }
+
+        private sealed class LineGizmo : IStatelessGizmo
+        {
+            public readonly List<int> Drawn = new(128);
+            public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder b)
+            {
+                Drawn.Add(entity.Index);
+                b.DrawLine(new System.Numerics.Vector3(entity.Index, 0, 0), new System.Numerics.Vector3(entity.Index, 1, 0), default);
+            }
+        }
+
+        private sealed class OrderGizmo : IStatelessGizmo
+        {
+            private readonly string _tag; private readonly List<string> _order;
+            private readonly string[] _names = new string[64];
+            public OrderGizmo(string tag, List<string> order) { _tag = tag; _order = order; for (int i = 0; i < 64; i++) _names[i] = tag + i; }
+            public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder drawBuilder) => _order.Add(_names[entity.Index]);
         }
 
         // SC-GZ022-3: Execute → Draw called for every matching entity.
@@ -203,5 +315,197 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             Assert.Equal(0, projector.DrawCount);
         }
+
+        // ── CE-188: a rule registered AFTER construction ──────────────────────
+        //
+        // ⚠ Named MockGlobalStatelessGizmo: this assembly already has a MockGlobalGizmo, and it
+        // implements a DIFFERENT interface (IEntityStatefulGizmo).
+
+
+        /// <summary>
+        /// <b>The live defect: this system threw once per frame in every editor run.</b>
+        ///
+        /// <para>The visibility caches are sized in the constructor from the registry's counts, and the
+        /// constructor's own documentation states that everything must be registered first. Production
+        /// violates that: the registry is mutable (<c>Register</c>/<c>RegisterGlobal</c> append) and
+        /// projectors arrive later, including on every AI hot-reload. The second global-rules loop then
+        /// indexed the stale cache without a bounds check and threw
+        /// <c>IndexOutOfRangeException</c>.</para>
+        ///
+        /// <para>⛔ The cost was not the throw. <c>TogglablePostSimulationGroup.Execute</c> is a plain
+        /// <c>foreach</c> with no <c>try</c>, so <b>every system after this one in the group was skipped,
+        /// every frame</b> — and <c>ModuleHostKernel</c> swallowed the exception, so the node kept
+        /// answering healthy.</para>
+        ///
+        /// <para>⚠ Guarding the loop would have stopped the throw and left late-registered gizmos
+        /// silently never drawing. The caches are grown instead, so registration order stops mattering.</para>
+        /// </summary>
+        [Fact]
+        public void CE188_AGlobalRuleRegisteredAfterConstruction_DrawsInsteadOfThrowing()
+        {
+            var (repo, buf, registry) = CreateContext();
+
+            // Constructed while the registry is EMPTY — exactly the production sequence.
+            var sys = new StatelessGizmoSystem(registry, buf);
+
+            var late = new MockGlobalStatelessGizmo();
+            registry.RegisterGlobal(late);
+
+            sys.Execute(repo, 0f);
+
+            Assert.Equal(1, late.DrawCount);
+        }
+
+        /// <summary>The same for entity-scoped rules — one cache, one defect, two arms.</summary>
+        [Fact]
+        public void CE188_AnEntityRuleRegisteredAfterConstruction_DrawsInsteadOfBeingSkipped()
+        {
+            var (repo, buf, registry) = CreateContext();
+
+            var sys = new StatelessGizmoSystem(registry, buf);
+
+            var late = new MockStatelessGizmo();
+            registry.Register(late, new[] { typeof(GizmoTestCompA) });
+
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new GizmoTestCompA { Value = 7 });
+
+            sys.Execute(repo, 0f);
+
+            Assert.Equal(1, late.DrawCount);
+        }
+
+        /// <summary>And repeated growth keeps working — hot reload registers more than once.</summary>
+        [Fact]
+        public void CE188_RulesRegisteredAcrossSeveralFramesAllDraw()
+        {
+            var (repo, buf, registry) = CreateContext();
+            var sys = new StatelessGizmoSystem(registry, buf);
+
+            var first = new MockGlobalStatelessGizmo();
+            registry.RegisterGlobal(first);
+            sys.Execute(repo, 0f);
+
+            var second = new MockGlobalStatelessGizmo();
+            registry.RegisterGlobal(second);
+            sys.Execute(repo, 0f);
+
+            Assert.Equal(2, first.DrawCount);
+            Assert.Equal(1, second.DrawCount);
+        }
+
+        // ── ⭐ CE-4388 — the map's view filter (docs/DESIGN_Map_View_Filter.md, R-1049) ───────────────────────────────────────────────
+
+        private sealed class FakeView : IGizmoViewFilter
+        {
+            public readonly HashSet<int> Visible = new();
+            public bool Active { get; set; } = true;
+            public float MetresPerPixel { get; set; }
+            public int Tests;
+            public bool InView(ISimulationView view, Entity entity) { Tests++; return Visible.Contains(entity.Index); }
+            public bool Is3D => false;
+            public bool Overlaps(System.Numerics.Vector2 min, System.Numerics.Vector2 max) => true;
+        }
+
+        [GizmoProjector(typeof(GizmoTestCompA))]
+        private sealed class PlainGizmo : IStatelessGizmo
+        {
+            public readonly List<int> Drawn = new(16);
+            public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder drawBuilder) => Drawn.Add(entity.Index);
+        }
+
+        [GizmoProjector(typeof(GizmoTestCompA), DrawsOffScreen = true)]
+        private sealed class OffScreenGizmo : IStatelessGizmo
+        {
+            public readonly List<int> Drawn = new(16);
+            public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder drawBuilder) => Drawn.Add(entity.Index);
+        }
+
+        [GizmoProjector(typeof(GizmoTestCompA), MaxMetresPerPixel = 1f)]
+        private sealed class CloseOnlyGizmo : IStatelessGizmo
+        {
+            public readonly List<int> Drawn = new(16);
+            public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder drawBuilder) => Drawn.Add(entity.Index);
+        }
+
+        /// <summary>⭐ CE-4388 (D-1, D-4, D-7) — an entity OUT of view reaches no rule — tested once however many rules match it — except a
+        /// <c>DrawsOffScreen</c> one, which sees every match as before; a filter that is not active changes nothing. 🔴 Red-proof (compiles): the view
+        /// test skipped in the match pass ⇒ the plain rule draws the out-of-view entity.</summary>
+        [Fact]
+        public void CE4388_AnEntityOutOfView_ReachesNoRule_ButAnOffScreenOne_AndIsTestedOnce()
+        {
+            var (repo, buf, registry) = CreateContext();
+            var plain = new PlainGizmo(); var plain2 = new PlainGizmo(); var off = new OffScreenGizmo();
+            registry.Register(plain, new[] { typeof(GizmoTestCompA) });
+            registry.Register(plain2, new[] { typeof(GizmoTestCompA) });
+            registry.Register(off, new[] { typeof(GizmoTestCompA) });
+            var view = new FakeView();
+            var sys = new StatelessGizmoSystem(registry, buf) { ViewFilter = view };
+            var seen = repo.CreateEntity(); repo.AddComponent(seen, new GizmoTestCompA());
+            var away = repo.CreateEntity(); repo.AddComponent(away, new GizmoTestCompA());
+            view.Visible.Add(seen.Index);
+
+            sys.Execute(repo, 0f);
+            Assert.Equal(new[] { seen.Index }, plain.Drawn);
+            Assert.Equal(new[] { seen.Index }, plain2.Drawn);
+            Assert.Equal(new[] { seen.Index, away.Index }, off.Drawn);
+            Assert.Equal(2, view.Tests);                 // once per entity, not once per rule
+            Assert.Equal(1, sys.EntitiesOutOfView);
+
+            view.Active = false; plain.Drawn.Clear(); off.Drawn.Clear();
+            sys.Execute(repo, 0f);
+            Assert.Equal(new[] { seen.Index, away.Index }, plain.Drawn);   // no view ⇒ everything, as before
+        }
+
+        /// <summary>⭐ CE-4388 (D-3) — a rule coarser than its <c>MaxMetresPerPixel</c> is skipped for the frame; closer in it draws; an unknown scale (0)
+        /// gates nothing. 🔴 Red-proof (compiles): the zoom gate removed ⇒ the close-only rule draws at 5 m/px.</summary>
+        [Fact]
+        public void CE4388_ARuleCoarserThanItsZoomLimit_IsSkipped()
+        {
+            var (repo, buf, registry) = CreateContext();
+            var close = new CloseOnlyGizmo(); var plain = new PlainGizmo();
+            registry.Register(close, new[] { typeof(GizmoTestCompA) });
+            registry.Register(plain, new[] { typeof(GizmoTestCompA) });
+            var view = new FakeView { MetresPerPixel = 5f };
+            var sys = new StatelessGizmoSystem(registry, buf) { ViewFilter = view };
+            var e = repo.CreateEntity(); repo.AddComponent(e, new GizmoTestCompA());
+            view.Visible.Add(e.Index);
+
+            sys.Execute(repo, 0f);
+            Assert.Empty(close.Drawn);
+            Assert.Single(plain.Drawn);
+            Assert.Equal(1, sys.RulesSkippedForZoom);
+
+            view.MetresPerPixel = 0.5f; sys.Execute(repo, 0f);
+            Assert.Single(close.Drawn);
+            view.MetresPerPixel = 0f; sys.Execute(repo, 0f);
+            Assert.Equal(2, close.Drawn.Count);
+        }
+
+        /// <summary>⭐ CE-4388 (R-2084) — a steady frame with the view filter on allocates nothing.</summary>
+        [Fact]
+        public void CE4388_ASteadyFilteredFrame_AllocatesNothing()
+        {
+            var (repo, buf, registry) = CreateContext();
+            var plain = new PlainGizmo();
+            registry.Register(plain, new[] { typeof(GizmoTestCompA) });
+            var view = new FakeView { MetresPerPixel = 2f };
+            var sys = new StatelessGizmoSystem(registry, buf) { ViewFilter = view };
+            for (int k = 0; k < 20; k++) { var e = repo.CreateEntity(); repo.AddComponent(e, new GizmoTestCompA()); if (k % 2 == 0) view.Visible.Add(e.Index); }
+            for (int k = 0; k < 3; k++) { plain.Drawn.Clear(); sys.Execute(repo, 0f); }
+            plain.Drawn.Clear();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            sys.Execute(repo, 0f);
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.Equal(10, plain.Drawn.Count);
+        }
+    }
+
+    /// <summary>A global (entity-less) stateless projector double.</summary>
+    internal sealed class MockGlobalStatelessGizmo : IGlobalStatelessGizmo
+    {
+        public int DrawCount;
+
+        public void Draw(ISimulationView view, IDebugDrawBuilder drawBuilder) => DrawCount++;
     }
 }

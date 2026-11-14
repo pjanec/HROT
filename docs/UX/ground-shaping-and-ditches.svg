@@ -1,0 +1,424 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1240' height='1530' viewBox='0 0 1240 1530'>
+<rect x='0' y='0' width='1240' height='1530' fill='#1B1B1F' rx='0' opacity='1'/>
+<text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Earthworks — ground shaping, ditches, foxholes (DESIGN_Ground_Patches_And_Road_Blockage.md §4a, §4c, §4c-1, §4d; house style)</text>
+<text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scope: the Earthworks group, the Ground / Ditch / Foxhole drawing and their Details, the cover points. Context (Add Entity, the map, the draw panel, the hint backdrop) is UNCHANGED. Grey notes are not drawn by the app.</text>
+<text x='20' y='68' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>A — Add Entity ▸ the NEW Earthworks group, beside the six terrain groups (one family, G-30: the same picks and the point / line / area tools)</text>
+<rect x='20' y='76' width='1200' height='330' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='76' width='1200' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='90' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Add Entity</text>
+<rect x='30' y='106' width='300' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='35' y='120' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Search all groups</text>
+<path d='M416 240Q415 170 376 117L503 -9Q512 -19 512 -32Q512 -45 503 -55Q493 -64 480 -64Q467 -64 457 -55L331 72Q278 33 208 32Q120 34 61 93Q2 152 0 240Q2 328 61 387Q120 446 208 448Q296 446 355 387Q414 328 416 240ZM208 96Q247 96 280 115Q313 134 333 168Q352 202 352 240Q352 278 333 312Q313 346 280 365Q247 384 208 384Q169 384 136 365Q103 346 83 312Q64 278 64 240Q64 202 83 168Q103 134 136 115Q169 96 208 96Z' fill='#808080' fill-opacity='1' transform='translate(310,119.7578125) scale(0.0234375,-0.0234375)'/>
+<path d='M317 430Q308 447 288 448Q269 447 259 430L195 298L51 276Q32 273 26 255Q20 236 34 222L138 119L113 -27Q111 -46 126 -58Q142 -69 160 -60L288 8L417 -60Q434 -69 450 -58Q466 -46 463 -27L439 119L543 222Q556 236 551 255Q544 273 525 276L381 298L317 430Z' fill='#F2C033' fill-opacity='0.5' transform='translate(38,153.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='58' y='154' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Recent &amp; favourites</text>
+<text x='222' y='154' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>8</text>
+<text x='38' y='180' fill='#808080' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>…  8 more groups</text>
+<path d='M480 400Q479 420 466 434Q452 447 432 448H336Q316 447 302 434Q289 420 288 400V352H224V424Q222 446 200 448Q178 446 176 424V352H112V424Q110 446 88 448Q66 446 64 424V352H48Q28 351 14 338Q1 324 0 304V208V-16Q1 -36 14 -50Q28 -63 48 -64H304H592Q612 -63 626 -50Q639 -36 640 -16V208Q639 228 626 242Q612 255 592 256H480V400ZM576 80V48V80V48Q575 33 560 32H528Q513 33 512 48V80Q513 95 528 96H560Q575 95 576 80ZM240 32H208H240H208Q193 33 192 48V80Q193 95 208 96H240Q255 95 256 80V48Q255 33 240 32ZM128 48Q127 33 112 32H80Q65 33 64 48V80Q65 95 80 96H112Q127 95 128 80V48ZM560 192Q575 191 576 176V144Q575 129 560 128H528Q513 129 512 144V176Q513 191 528 192H560ZM256 272V240V272V240Q255 225 240 224H208Q193 225 192 240V272Q193 287 208 288H240Q255 287 256 272ZM112 288Q127 287 128 272V240Q127 225 112 224H80Q65 225 64 240V272Q65 287 80 288H112ZM256 144Q255 129 240 128H208Q193 129 192 144V176Q193 191 208 192H240Q255 191 256 176V144ZM112 128H80H112H80Q65 129 64 144V176Q65 191 80 192H112Q127 191 128 176V144Q127 129 112 128ZM416 176V144V176V144Q415 129 400 128H368Q353 129 352 144V176Q353 191 368 192H400Q415 191 416 176ZM400 384Q415 383 416 368V336Q415 321 400 320H368Q353 321 352 336V368Q353 383 368 384H400ZM416 272V240V272V240Q415 225 400 224H368Q353 225 352 240V272Q353 287 368 288H400Q415 287 416 272Z' fill='#F29B38' fill-opacity='1' transform='translate(38,205.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='58' y='206' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Blocks</text>
+<text x='222' y='206' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>10</text>
+<path d='M544 160Q557 161 566 170Q575 179 576 192Q577 206 565 216L512 263V384Q512 398 503 407Q494 416 480 416H448Q434 416 425 407Q416 398 416 384V347L310 441Q300 448 289 448Q278 449 267 440L10 216Q0 206 0 192Q0 179 9 170Q18 161 32 160H64V91Q64 89 64 88Q64 88 64 88V-24Q64 -41 76 -52Q87 -64 104 -64H120Q122 -64 124 -64Q125 -64 126 -64Q127 -64 128 -64H160H184Q201 -64 212 -52Q224 -41 224 -24V0V64Q224 78 233 87Q242 96 256 96H320Q334 96 343 87Q352 78 352 64V0V-24Q352 -41 364 -52Q375 -64 392 -64H416H449Q451 -64 453 -64Q454 -64 456 -64H472Q489 -64 500 -52Q512 -41 512 -24V-8Q512 -4 513 0L512 160H544Z' fill='#F29B38' fill-opacity='1' transform='translate(38,231.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='58' y='232' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Buildings</text>
+<text x='222' y='232' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>9</text>
+<path d='M211 442 62 279 211 442 62 279Q56 272 56 263Q58 242 79 240H104L31 167Q24 160 24 151Q26 130 47 128H80L5 38Q0 32 0 23Q2 2 24 0H192V-32Q192 -46 201 -55Q210 -64 224 -64Q238 -64 247 -55Q256 -46 256 -32V0H425Q446 2 448 23Q448 32 443 38L368 128H401Q422 130 424 151Q424 160 417 167L344 240H369Q390 242 392 263Q392 272 386 279L237 442Q232 448 224 448Q216 448 211 442Z' fill='#5BD06A' fill-opacity='1' transform='translate(38,257.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='58' y='258' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Vegetation</text>
+<text x='222' y='258' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>3</text>
+<path d='M32 160Q18 160 9 151Q0 142 0 128Q0 114 9 105Q18 96 32 96H416Q430 96 439 105Q448 114 448 128Q448 142 439 151Q430 160 416 160H32ZM32 288Q18 288 9 279Q0 270 0 256Q0 242 9 233Q18 224 32 224H416Q430 224 439 233Q448 242 448 256Q448 270 439 279Q430 288 416 288H32Z' fill='#A0A0AA' fill-opacity='1' transform='translate(38,283.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='58' y='284' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Walls &amp; fences</text>
+<text x='222' y='284' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>3</text>
+<path d='M50 416Q33 415 27 399L1 315Q0 312 0 309Q2 290 21 288H115L141 416H50ZM272 288V416V288V416H173L148 288H272ZM304 288H429H304H429L403 416H304V288ZM461 288H555H461H555Q574 290 576 309Q576 312 575 315L549 399Q543 415 526 416H436L461 288ZM32 256 36 224 32 256 36 224H32Q18 224 9 215Q0 206 0 192Q0 178 9 169Q18 160 32 160H44L64 0Q64 -14 73 -23Q82 -32 96 -32Q110 -32 119 -23Q128 -14 128 0H448Q448 -14 457 -23Q466 -32 480 -32Q494 -32 503 -23Q512 -14 512 0L532 160H544Q558 160 567 169Q576 178 576 192Q576 206 567 215Q558 224 544 224H540L544 256H32Z' fill='#A0A0AA' fill-opacity='1' transform='translate(38,309.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='58' y='310' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Clutter</text>
+<text x='222' y='310' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>7</text>
+<path d='M270 378Q288 390 307 378Q342 353 384 352Q426 354 461 378Q482 391 501 376Q523 358 551 351Q564 348 571 337Q578 326 575 313Q572 300 561 293Q550 286 537 289Q499 299 479 314Q434 289 384 288Q335 291 304 307Q295 311 288 315Q281 311 272 307Q241 291 192 288Q142 289 98 314Q77 299 39 289Q26 286 15 293Q4 300 1 313Q-2 326 5 337Q12 348 25 351Q53 358 75 376Q94 391 115 378Q150 354 192 352Q235 353 270 378ZM307 90Q342 65 384 64Q426 66 461 90Q482 103 501 88Q523 70 551 63Q564 60 571 49Q578 38 575 25Q572 12 561 5Q550 -2 537 1Q499 11 479 26Q434 1 384 0Q335 3 304 19Q295 23 288 27Q281 23 272 19Q241 3 192 0Q142 1 98 26Q77 11 39 1Q26 -2 15 5Q4 12 1 25Q-2 38 5 49Q12 60 25 63Q53 70 75 88Q94 102 115 90Q150 66 192 64Q235 65 270 90Q288 102 307 90ZM307 234Q342 209 384 208Q426 210 461 234Q482 247 501 232Q523 214 551 207Q564 204 571 193Q578 182 575 169Q572 156 561 149Q550 142 537 145Q499 155 479 170Q434 145 384 144Q335 147 304 163Q295 167 288 171Q281 167 272 163Q241 147 192 144Q142 145 98 170Q77 155 39 145Q26 142 15 149Q4 156 1 169Q-2 182 5 193Q12 204 25 207Q53 214 75 232Q94 247 115 234Q150 210 192 208Q235 209 270 234Q288 246 307 234Z' fill='#5AA9FF' fill-opacity='1' transform='translate(38,335.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='58' y='336' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Water &amp; bridges</text>
+<text x='222' y='336' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>2</text>
+<rect x='30' y='346' width='200' height='23' fill='#34343E' rx='3' opacity='1'/>
+<path d='M208 384Q209 411 232 426Q256 438 280 426Q303 411 304 384Q303 357 280 342Q256 330 232 342Q209 357 208 384ZM10 233Q20 253 41 246L61 238L84 276Q111 319 161 320Q200 319 231 297Q261 275 274 238L309 135L388 101L422 147Q433 160 450 160Q466 159 475 144L571 -16Q580 -32 572 -48Q562 -63 544 -64H288Q270 -64 261 -49Q252 -34 259 -18L275 14Q285 31 304 32H336L359 62L23 202Q3 212 10 233ZM93 141 205 93 93 141 205 93Q223 85 224 64V-32Q224 -46 215 -55Q206 -64 192 -64Q178 -64 169 -55Q160 -46 160 -32V43L99 69L62 -42Q58 -55 46 -61Q35 -66 22 -62Q9 -58 3 -46Q-2 -35 2 -22L50 122L61 155L93 141Z' fill='#C8965A' fill-opacity='1' transform='translate(38,361.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='58' y='362' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Earthworks</text>
+<text x='222' y='362' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>7</text>
+<rect x='150' y='351' width='28.85384615384615' height='13' fill='#4296FA' rx='6' opacity='1'/>
+<text x='164.42692307692306' y='361' fill='#0F0F0F' font-size='9.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>NEW</text>
+<line x1='238' y1='132' x2='238' y2='396' stroke='#4A4A55' stroke-width='1'/>
+<rect x='252' y='138' width='176' height='118' fill='#1C1C22' rx='4' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='256' y='142' width='168' height='72' fill='#26262E' rx='0' opacity='1'/>
+<path d='M0 112Q1 92 14 78Q28 65 48 64H592Q612 65 626 78Q639 92 640 112V272Q639 292 626 306Q612 319 592 320H528V240Q527 225 512 224Q497 225 496 240V320H432V240Q431 225 416 224Q401 225 400 240V320H336V240Q335 225 320 224Q305 225 304 240V320H240V240Q239 225 224 224Q209 225 208 240V320H144V240Q143 225 128 224Q113 225 112 240V320H48Q28 319 14 306Q1 292 0 272V112Z' fill='#C8965A' fill-opacity='1' transform='translate(324,188.6875) scale(0.0625,-0.0625)'/>
+<text x='420' y='154' fill='#8A8A96' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>TERRAIN</text>
+<text x='260' y='232' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Level ground</text>
+<text x='260' y='248' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>area · level to one height</text>
+<rect x='438' y='138' width='176' height='118' fill='#34343E' rx='4' stroke='#4296FA' stroke-width='1.5' opacity='1'/>
+<rect x='442' y='142' width='168' height='72' fill='#26262E' rx='0' opacity='1'/>
+<path d='M32 352H544H32H544Q558 352 567 361Q576 370 576 384Q576 398 567 407Q558 416 544 416H32Q18 416 9 407Q0 398 0 384Q0 370 9 361Q18 352 32 352ZM9 215Q0 205 0 192Q0 179 9 169Q19 160 32 160Q45 160 55 169L96 211V0Q96 -14 105 -23Q114 -32 128 -32Q142 -32 151 -23Q160 -14 160 0V211L201 169Q211 160 224 160Q237 160 247 169Q256 179 256 192Q256 205 247 215L151 311Q141 320 128 320Q115 320 105 311L9 215ZM329 169Q339 160 352 160Q365 160 375 169L416 211V0Q416 -14 425 -23Q434 -32 448 -32Q462 -32 471 -23Q480 -14 480 0V211L521 169Q531 160 544 160Q557 160 567 169Q576 179 576 192Q576 205 567 215L471 311Q461 320 448 320Q435 320 425 311L329 215Q320 205 320 192Q320 179 329 169Z' fill='#C8965A' fill-opacity='1' transform='translate(510,188.6875) scale(0.0625,-0.0625)'/>
+<text x='606' y='154' fill='#8A8A96' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>TERRAIN</text>
+<text x='446' y='232' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Raise ground</text>
+<text x='446' y='248' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>area · raise by dZ</text>
+<rect x='624' y='138' width='176' height='118' fill='#1C1C22' rx='4' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='628' y='142' width='168' height='72' fill='#26262E' rx='0' opacity='1'/>
+<path d='M544 32H32H544H32Q18 32 9 23Q0 14 0 0Q0 -14 9 -23Q18 -32 32 -32H544Q558 -32 567 -23Q576 -14 576 0Q576 14 567 23Q558 32 544 32ZM567 169Q576 179 576 192Q576 205 567 215Q557 224 544 224Q531 224 521 215L480 173V384Q480 398 471 407Q462 416 448 416Q434 416 425 407Q416 398 416 384V173L375 215Q365 224 352 224Q339 224 329 215Q320 205 320 192Q320 179 329 169L425 73Q435 64 448 64Q461 64 471 73L567 169ZM247 215Q237 224 224 224Q211 224 201 215L160 173V384Q160 398 151 407Q142 416 128 416Q114 416 105 407Q96 398 96 384V173L55 215Q45 224 32 224Q19 224 9 215Q0 205 0 192Q0 179 9 169L105 73Q115 64 128 64Q141 64 151 73L247 169Q256 179 256 192Q256 205 247 215Z' fill='#C8965A' fill-opacity='1' transform='translate(696,188.6875) scale(0.0625,-0.0625)'/>
+<text x='792' y='154' fill='#8A8A96' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>TERRAIN</text>
+<text x='632' y='232' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Lower ground</text>
+<text x='632' y='248' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>area · lower by dZ</text>
+<rect x='810' y='138' width='176' height='118' fill='#1C1C22' rx='4' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='814' y='142' width='168' height='72' fill='#26262E' rx='0' opacity='1'/>
+<path d='M38 444Q21 453 7 441Q-5 427 4 410L116 247L17 215Q1 209 0 192Q1 175 17 169L120 136L67 35Q60 20 71 7Q84 -4 99 3L200 56L233 -47Q239 -63 256 -64Q273 -63 279 -47L312 56L413 3Q428 -4 441 7Q452 20 445 35L392 136L495 169Q511 175 512 192Q511 209 495 215L389 249L415 320Q419 334 409 345Q398 355 384 351L313 325L279 431Q273 447 256 448Q239 447 233 431L201 332L38 444Z' fill='#F29B38' fill-opacity='1' transform='translate(882,188.6875) scale(0.0625,-0.0625)'/>
+<text x='978' y='154' fill='#8A8A96' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>OBSTACLE</text>
+<text x='818' y='232' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Crater (authored)</text>
+<text x='818' y='248' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>click · a crater record (V-14)</text>
+<rect x='252' y='266' width='176' height='118' fill='#1C1C22' rx='4' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='256' y='270' width='168' height='72' fill='#26262E' rx='0' opacity='1'/>
+<path d='M208 384Q209 411 232 426Q256 438 280 426Q303 411 304 384Q303 357 280 342Q256 330 232 342Q209 357 208 384ZM10 233Q20 253 41 246L61 238L84 276Q111 319 161 320Q200 319 231 297Q261 275 274 238L309 135L388 101L422 147Q433 160 450 160Q466 159 475 144L571 -16Q580 -32 572 -48Q562 -63 544 -64H288Q270 -64 261 -49Q252 -34 259 -18L275 14Q285 31 304 32H336L359 62L23 202Q3 212 10 233ZM93 141 205 93 93 141 205 93Q223 85 224 64V-32Q224 -46 215 -55Q206 -64 192 -64Q178 -64 169 -55Q160 -46 160 -32V43L99 69L62 -42Q58 -55 46 -61Q35 -66 22 -62Q9 -58 3 -46Q-2 -35 2 -22L50 122L61 155L93 141Z' fill='#F29B38' fill-opacity='1' transform='translate(324,316.6875) scale(0.0625,-0.0625)'/>
+<text x='420' y='282' fill='#8A8A96' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>OBSTACLE</text>
+<text x='260' y='360' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Ditch</text>
+<text x='260' y='376' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>line · width, depth, banks</text>
+<rect x='438' y='266' width='176' height='118' fill='#1C1C22' rx='4' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='442' y='270' width='168' height='72' fill='#26262E' rx='0' opacity='1'/>
+<path d='M32 416Q18 416 9 407Q0 398 0 384V0Q0 -14 9 -23Q18 -32 32 -32Q46 -32 55 -23Q64 -14 64 0V182L149 352H64V384Q64 398 55 407Q46 416 32 416ZM405 352H331H405H331L325 341L235 160H309L315 171L405 352ZM363 160H437H363H437L442 171L533 352H459L453 341L363 160ZM203 352 197 341 203 352 197 341 107 160H181L187 171L277 352H203ZM491 160H576H491H576V0Q576 -14 585 -23Q594 -32 608 -32Q622 -32 631 -23Q640 -14 640 0V384Q640 398 631 407Q622 416 608 416Q594 416 585 407Q576 398 576 384V330L491 160Z' fill='#F29B38' fill-opacity='1' transform='translate(510,316.6875) scale(0.0625,-0.0625)'/>
+<text x='606' y='282' fill='#8A8A96' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>OBSTACLE</text>
+<text x='446' y='360' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Anti-tank ditch</text>
+<text x='446' y='376' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>line · ≥ 3 m wide, ≥ 1.5 m deep</text>
+<rect x='624' y='266' width='176' height='118' fill='#1C1C22' rx='4' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='628' y='270' width='168' height='72' fill='#26262E' rx='0' opacity='1'/>
+<path d='M265 256Q304 256 336 236V-64H144V110L90 20Q81 5 66 1Q50 -3 36 6Q21 15 17 30Q13 46 22 60L98 189Q117 221 147 238Q178 256 215 256H265ZM160 368Q161 413 200 437Q240 459 280 437Q319 413 320 368Q319 323 280 299Q240 277 200 299Q161 323 160 368ZM448 448Q463 447 464 432V316Q479 307 480 288V179L496 184V240Q497 255 512 256H528Q543 255 544 240V155Q543 144 533 140L480 123V96H528Q543 95 544 80V64Q543 49 528 48H484L507 -44Q509 -62 492 -64H432Q417 -63 416 -48V48H400Q386 48 377 57Q368 66 368 80V224Q368 238 377 247Q386 256 400 256V288Q401 307 416 316V416Q401 417 400 432Q401 447 416 448H432Z' fill='#F29B38' fill-opacity='1' transform='translate(696,316.6875) scale(0.0625,-0.0625)'/>
+<text x='792' y='282' fill='#8A8A96' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>OBSTACLE</text>
+<text x='632' y='360' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Foxhole</text>
+<text x='632' y='376' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>click + heading · 2 × 1.5 × 1 m</text>
+<line x1='1002' y1='132' x2='1002' y2='396' stroke='#4A4A55' stroke-width='1'/>
+<rect x='1010' y='138' width='200' height='100' fill='#26262E' rx='3' opacity='1'/>
+<path d='M32 352H544H32H544Q558 352 567 361Q576 370 576 384Q576 398 567 407Q558 416 544 416H32Q18 416 9 407Q0 398 0 384Q0 370 9 361Q18 352 32 352ZM9 215Q0 205 0 192Q0 179 9 169Q19 160 32 160Q45 160 55 169L96 211V0Q96 -14 105 -23Q114 -32 128 -32Q142 -32 151 -23Q160 -14 160 0V211L201 169Q211 160 224 160Q237 160 247 169Q256 179 256 192Q256 205 247 215L151 311Q141 320 128 320Q115 320 105 311L9 215ZM329 169Q339 160 352 160Q365 160 375 169L416 211V0Q416 -14 425 -23Q434 -32 448 -32Q462 -32 471 -23Q480 -14 480 0V211L521 169Q531 160 544 160Q557 160 567 169Q576 179 576 192Q576 205 567 215L471 311Q461 320 448 320Q435 320 425 311L329 215Q320 205 320 192Q320 179 329 169Z' fill='#C8965A' fill-opacity='1' transform='translate(1092,202.06640625) scale(0.07421875,-0.07421875)'/>
+<text x='1010' y='262' fill='#FFFFFF' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Raise ground</text>
+<text x='1010' y='282' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Draw an area; the ground inside</text>
+<text x='1010' y='296' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>rises, its edge blends over a skirt.</text>
+<text x='1010' y='310' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Houses and roads in it are kept</text>
+<text x='1010' y='324' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>out (islands). Roads follow it;</text>
+<text x='1010' y='338' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>SUMO's net at save.</text>
+<rect x='1010' y='372' width='200' height='20' fill='#3369AD' rx='3' opacity='1'/>
+<path d='M216 -51Q243 -18 282 38Q321 93 352 152Q382 211 384 256Q382 338 328 392Q274 446 192 448Q110 446 56 392Q2 338 0 256Q2 211 32 152Q63 93 102 38Q141 -18 168 -51Q178 -63 192 -63Q206 -63 216 -51ZM192 320Q228 319 247 288Q265 256 247 224Q228 193 192 192Q156 193 137 224Q119 256 137 288Q156 319 192 320Z' fill='#E65555' fill-opacity='1' transform='translate(1017,386.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='1034' y='386.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Place on map</text>
+<text x='20' y='424' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The SAME gallery and pane (§15a U-1); NEW: the Earthworks group (its icon in the sidebar like the six) and seven tiles, each naming its TOOL — an area, a line or a click — and its class (G-31:</text>
+<text x='20' y='438' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>TERRAIN = heights only, never a blocker G-15 · OBSTACLE = heights + a navmesh area + cover points). Glyph tiles stand in for thumbnails, as on the other terrain groups.</text>
+<text x='20' y='468' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>B — drawing a Ground area (Raise by 2.5 m): the live preview, the islands, the grade hint</text>
+<rect x='20' y='476' width='760' height='440' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<clipPath id='bmap'><rect x='21' y='477' width='758' height='438'/></clipPath><g clip-path='url(#bmap)'>
+<rect x='20' y='476' width='760' height='440' fill='#33452C' rx='0' opacity='1'/>
+<polygon points='267.2,762.8 272.6,782.3 244.7,795.0 211.0,804.8 178.6,800.8 143.7,795.0 132.0,779.6 107.2,762.8 118.5,742.7 154.7,729.6 179.0,724.2 215.9,720.9 239.6,724.5 258.3,740.9' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='233.0,762.8 227.7,772.9 222.9,782.3 205.6,786.9 186.5,792.3 170.5,785.6 160.8,775.3 162.1,762.8 158.2,752.1 169.2,739.2 188.0,737.5 204.7,737.3 223.9,742.4 226.1,752.5' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='603.4,869.5 590.2,889.7 576.8,906.1 546.6,909.2 517.8,919.2 491.1,905.8 473.4,886.8 471.9,869.5 464.5,850.6 486.7,832.3 515.2,819.3 547.7,818.9 582.1,833.2 602.7,849.9' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='572.7,869.5 560.9,879.4 556.9,885.8 541.4,887.1 525.2,888.6 510.7,884.2 504.3,878.1 492.3,869.5 497.8,860.4 511.8,850.8 524.5,847.7 539.5,850.8 557.3,851.6 568.8,860.1' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='445.5,724.6 442.2,738.9 414.0,759.0 372.1,763.4 334.3,766.4 297.8,752.7 276.6,743.7 254.6,724.6 284.2,709.8 307.2,694.7 337.3,682.6 375.9,691.0 411.5,695.8 435.6,709.2' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='383.3,724.6 381.9,731.9 374.5,741.7 362.1,745.4 349.5,743.5 339.2,741.2 331.2,733.6 327.9,724.6 330.1,717.2 337.4,710.1 347.8,706.6 361.6,705.1 375.8,711.0 382.3,716.0' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='602.4,860.4 589.1,885.3 584.9,899.7 555.1,919.2 531.0,905.1 510.3,905.3 485.0,882.8 481.1,860.4 486.8,838.0 505.4,820.8 529.8,813.5 554.0,810.3 576.8,816.9 601.2,836.1' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='579.9,860.4 578.8,870.7 563.7,876.5 551.2,881.9 533.0,882.3 517.6,877.9 506.1,870.4 501.7,860.4 510.5,850.3 519.4,843.7 533.2,837.4 552.5,843.2 565.3,845.1 576.3,852.4' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='495.6,548.0 479.2,578.1 471.4,591.5 444.8,610.0 418.5,603.2 390.6,593.2 383.2,577.2 379.6,548.0 384.0,520.7 398.1,502.0 417.5,489.1 445.2,486.4 466.7,504.9 483.6,523.3' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='458.2,548.0 463.0,564.2 448.4,575.5 438.1,583.4 425.3,579.6 416.4,575.9 408.6,562.4 402.8,548.0 406.4,534.4 412.0,517.8 425.6,518.3 438.4,514.7 451.4,522.7 461.9,531.1' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<circle cx='660' cy='536' r='16' fill='#286E32' fill-opacity='0.9'/>
+<circle cx='700' cy='566' r='16' fill='#286E32' fill-opacity='0.9'/>
+<circle cx='720' cy='526' r='16' fill='#286E32' fill-opacity='0.9'/>
+<circle cx='80' cy='856' r='16' fill='#286E32' fill-opacity='0.9'/>
+<circle cx='115' cy='876' r='16' fill='#286E32' fill-opacity='0.9'/>
+<polyline points='10.0,776.0 240.0,744.0 440.0,708.0 640.0,646.0 790.0,616.0' fill='none' stroke='#8A7A40' stroke-width='12' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='10.0,776.0 240.0,744.0 440.0,708.0 640.0,646.0 790.0,616.0' fill='none' stroke='#E8D58A' stroke-width='8' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<mask id='isl'><rect x='0' y='0' width='1240' height='1580' fill='white'/><rect x='399' y='740' width='78' height='66' rx='10' fill='black'/><polyline points='10,776 240,744 440,708 640,646 790,616' fill='none' stroke='black' stroke-width='30' stroke-linejoin='round'/></mask>
+<g mask='url(#isl)'>
+<polygon points='146.4,583.2 426.4,538.4 605.6,616.8 583.2,818.4 314.4,874.4 124.0,784.8' fill='#E8A040' fill-opacity='0.1'/>
+<polygon points='170.0,596.0 420.0,556.0 580.0,626.0 560.0,806.0 320.0,856.0 150.0,776.0' fill='#E8A040' fill-opacity='0.18'/>
+<polygon points='209.3,617.3 409.3,585.3 537.3,641.3 521.3,785.3 329.3,825.3 193.3,761.3' fill='#E8A040' fill-opacity='0.22'/>
+<polygon points='258.5,644.0 396.0,622.0 484.0,660.5 473.0,759.5 341.0,787.0 247.5,743.0' fill='#E8A040' fill-opacity='0.26'/>
+<polygon points='307.7,670.7 382.7,658.7 430.7,679.7 424.7,733.7 352.7,748.7 301.7,724.7' fill='#E8A040' fill-opacity='0.3'/>
+</g>
+<polygon points='146.4,583.2 426.4,538.4 605.6,616.8 583.2,818.4 314.4,874.4 124.0,784.8' fill='none' fill-opacity='1.0' stroke='#E8C890' stroke-width='1.2' stroke-dasharray='3 4'/>
+<rect x='415' y='756' width='46' height='34' fill='#E1CDA0' rx='0' stroke='#2A2A2A' stroke-width='0.8' opacity='1'/>
+<rect x='399' y='740' width='78' height='66' fill='none' rx='10' stroke='#FFFFFF' stroke-width='1.2' stroke-dasharray='4 3' opacity='1'/>
+<polyline points='148.0,749.0 240.0,729.0 440.0,693.0 595.0,644.0' fill='none' stroke='#FFFFFF' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='0.9' stroke-dasharray='4 3'/>
+<polyline points='148.0,779.0 240.0,759.0 440.0,723.0 595.0,674.0' fill='none' stroke='#FFFFFF' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='0.9' stroke-dasharray='4 3'/>
+<polyline points='170.0,596.0 420.0,556.0 580.0,626.0 560.0,806.0 320.0,856.0 150.0,776.0' fill='none' stroke='#5BD06A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='150.0,776.0 170.0,596.0' fill='none' stroke='#5BD06A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='0.8' stroke-dasharray='6 4'/>
+<rect x='166' y='592' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#4296FA' stroke-width='1.4' opacity='1'/>
+<rect x='416' y='552' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#5BD06A' stroke-width='1.4' opacity='1'/>
+<rect x='576' y='622' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#5BD06A' stroke-width='1.4' opacity='1'/>
+<rect x='556' y='802' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#5BD06A' stroke-width='1.4' opacity='1'/>
+<rect x='316' y='852' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#5BD06A' stroke-width='1.4' opacity='1'/>
+<rect x='146' y='772' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#5BD06A' stroke-width='1.4' opacity='1'/>
+<rect x='146' y='772' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#4296FA' stroke-width='2' opacity='1'/>
+</g>
+<path d='M490 596 L604 572' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='610' y='576' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>+2.5 m (the tint: the change,</text>
+<text x='610' y='590' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>strongest inside — NEW)</text>
+<path d='M580 856 L604 876' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='610' y='880' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>skirt 8 m (dashed)</text>
+<path d='M477 790 L484 828' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='472' y='844' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>island: house + 4 m skirt untouched (G-18)</text>
+<path d='M300 724 L174 690' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='84' y='682' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>island: road corridor locked —</text>
+<text x='84' y='696' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>re-levelled along the shape (G-24, V-28)</text>
+<rect x='320' y='496' width='424.9576923076923' height='40' fill='#0F0F12' rx='3' opacity='0.88'/>
+<text x='328' y='513' fill='#F2C033' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>steepest road grade 18 % (over 15 %) — roads follow; SUMO's net after save</text>
+<text x='328' y='529' fill='#5BD06A' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>kept out: 1 house, 1 road corridor</text>
+<rect x='30' y='808' width='330' height='98' fill='#141418' rx='4' stroke='#3A3A44' stroke-width='1' opacity='0.97'/>
+<path d='M144 269Q167 308 205 330Q243 352 288 352Q333 352 371 330Q409 308 432 269L540 80Q549 63 540 48Q532 33 513 32H63Q44 33 36 48Q27 63 36 80L144 269Z' fill='#C8965A' fill-opacity='1' transform='translate(40,827.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='60' y='828' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Ground — click to add a point</text>
+<text x='40' y='852' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Mode</text>
+<rect x='88' y='838' width='49.457692307692305' height='21' fill='#23415F' rx='3' opacity='1'/>
+<text x='112.72884615384615' y='853' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Level</text>
+<rect x='140.4576923076923' y='838' width='49.457692307692305' height='21' fill='#3369AD' rx='3' stroke='#4296FA' stroke-width='1' opacity='1'/>
+<text x='165.18653846153845' y='853' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Raise</text>
+<rect x='192.9153846153846' y='838' width='54.411538461538456' height='21' fill='#23415F' rx='3' opacity='1'/>
+<text x='220.12115384615382' y='853' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Lower</text>
+<rect x='316' y='842' width='28.85384615384615' height='13' fill='#4296FA' rx='6' opacity='1'/>
+<text x='330.42692307692306' y='852' fill='#0F0F0F' font-size='9.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>NEW</text>
+<text x='40' y='880' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Raise by</text>
+<rect x='92' y='866' width='62' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='97' y='880' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>2.5 m</text>
+<text x='166' y='880' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Skirt</text>
+<rect x='198' y='866' width='52' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='203' y='880' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>8 m</text>
+<text x='40' y='900' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>1.2 ha · Enter ends</text>
+<text x='20' y='934' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The polygon is the existing area tool (U-7). NEW: the tint of the CHANGE (the 2-D map draws no heights today — P-3),</text>
+<text x='20' y='948' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the dashed skirt, the two ISLANDS outlined white, the Mode row in the draw panel, and the hint lines on the shared ghost</text>
+<text x='20' y='962' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>backdrop: amber over ~15 % (G-19 — shown, never refused), else green ( steepest road grade 6 % — roads follow; … ).</text>
+<text x='20' y='976' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Newest wins where shapes overlap (V-28). Our road graph and navmesh follow at once; SUMO's cars and the drawn road</text>
+<text x='20' y='990' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>ribbon keep the old z until save + reload (V-25).</text>
+<text x='800' y='468' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>C — Details of a Ground feature (a NEW tab, label-first)</text>
+<rect x='800' y='476' width='420' height='440' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='800' y='476' width='420' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='808' y='490' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Details — Ground 1</text>
+<path d='M806 523 L806 506 Q806 502 810 502 L886.1 502 Q890.1 502 890.1 506 L890.1 523 Z' fill='#3A3A48'/>
+<rect x='808' y='502' width='80.1' height='2' fill='#3369AD' rx='0' opacity='1'/>
+<path d='M144 269Q167 308 205 330Q243 352 288 352Q333 352 371 330Q409 308 432 269L540 80Q549 63 540 48Q532 33 513 32H63Q44 33 36 48Q27 63 36 80L144 269Z' fill='#C8965A' fill-opacity='1' transform='translate(814,517.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='833' y='517' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Ground</text>
+<rect x='806' y='523' width='408' height='1.5' fill='#3369AD' rx='0' opacity='1'/>
+<text x='812' y='552' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Mode</text>
+<rect x='884' y='538' width='78.06153846153846' height='21' fill='#23415F' rx='3' opacity='1'/>
+<text x='923.0307692307692' y='553' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Level to Z</text>
+<rect x='965.0615384615385' y='538' width='84.43076923076923' height='21' fill='#3369AD' rx='3' stroke='#4296FA' stroke-width='1' opacity='1'/>
+<text x='1007.2769230769231' y='553' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Raise by dZ</text>
+<rect x='1052.4923076923078' y='538' width='89.60000000000001' height='21' fill='#23415F' rx='3' opacity='1'/>
+<text x='1097.2923076923078' y='553' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Lower by dZ</text>
+<rect x='1145.0923076923077' y='538' width='59.784615384615385' height='21' fill='#23415F' rx='3' opacity='1'/>
+<text x='1174.9846153846154' y='553' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Crater</text>
+<text x='812' y='584' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Raise by</text>
+<rect x='884' y='570' width='90' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='889' y='584' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>2.5 m</text>
+<text x='984' y='584' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>dZ — Level reads  Level to  [212.0 m]</text>
+<text x='812' y='612' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Skirt</text>
+<rect x='884' y='598' width='90' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='889' y='612' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>8 m</text>
+<text x='984' y='612' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the blend to natural ground</text>
+<text x='812' y='640' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Seed</text>
+<rect x='884' y='626' width='90' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<text x='889' y='640' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>—</text>
+<text x='984' y='640' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>none: a shape is exact</text>
+<text x='812' y='670' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Effect</text>
+<line x1='863.1' y1='666' x2='1208' y2='666' stroke='#4A4A55' stroke-width='1'/>
+<path d='M256 416Q279 415 291 396L507 28Q517 8 507 -12Q495 -31 472 -32H40Q17 -31 5 -12Q-5 8 5 28L222 396Q234 415 256 416ZM256 288Q234 286 232 264V152Q234 130 256 128Q278 130 280 152V264Q278 286 256 288ZM288 64Q288 78 279 87Q270 96 256 96Q242 96 233 87Q224 78 224 64Q224 50 233 41Q242 32 256 32Q270 32 279 41Q288 50 288 64Z' fill='#F2C033' fill-opacity='1' transform='translate(814,697.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='834' y='698' fill='#F2C033' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>steepest road grade 18 % — over 15 %</text>
+<path d='M144 269Q167 308 205 330Q243 352 288 352Q333 352 371 330Q409 308 432 269L540 80Q549 63 540 48Q532 33 513 32H63Q44 33 36 48Q27 63 36 80L144 269Z' fill='#C8965A' fill-opacity='1' transform='translate(814,721.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='834' y='722' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>area 1.2 ha · raised 2.5 m</text>
+<path d='M144 304V256V304V256H304V304Q303 338 281 361Q258 383 224 384Q190 383 167 361Q145 338 144 304ZM80 256V304V256V304Q82 365 122 406Q163 446 224 448Q285 446 326 406Q366 365 368 304V256H384Q411 255 429 237Q447 219 448 192V0Q447 -27 429 -45Q411 -63 384 -64H64Q37 -63 19 -45Q1 -27 0 0V192Q1 219 19 237Q37 255 64 256H80Z' fill='#C8C8D0' fill-opacity='1' transform='translate(814,745.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='834' y='746' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>kept out: 1 house + skirt · 1 road corridor</text>
+<path d='M265 443Q288 453 312 443L530 342Q543 335 544 320Q543 305 530 298L311 197Q288 187 264 197L46 298Q33 305 32 320Q33 335 46 342L265 443ZM477 238 530 214 477 238 530 214Q543 207 544 192Q543 177 530 170L311 69Q288 59 264 69L46 170Q33 177 32 192Q33 207 46 214L99 238L251 168Q288 152 325 168L477 238ZM325 40 477 110 325 40 477 110 530 86Q543 79 544 64Q543 49 530 42L311 -59Q288 -69 264 -59L46 42Q33 49 32 64Q33 79 46 86L99 110L251 40Q288 24 325 40Z' fill='#B07CF0' fill-opacity='1' transform='translate(814,769.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='834' y='770' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>drawn over Raise 1 — the newest wins (V-28)</text>
+<path d='M256 416H181H256H181Q160 416 144 404Q128 393 121 373L3 41Q0 32 0 23Q1 -1 16 -16Q31 -31 55 -32H256V32Q256 46 265 55Q274 64 288 64Q302 64 311 55Q320 46 320 32V-32H521Q545 -31 560 -16Q575 -1 576 23Q576 32 573 41L455 373Q448 393 432 404Q416 416 395 416H320V352Q320 338 311 329Q302 320 288 320Q274 320 265 329Q256 338 256 352V416ZM320 224V160V224V160Q320 146 311 137Q302 128 288 128Q274 128 265 137Q256 146 256 160V224Q256 238 265 247Q274 256 288 256Q302 256 311 247Q320 238 320 224Z' fill='#F2C033' fill-opacity='1' transform='translate(814,793.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='834' y='794' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>SUMO net re-elevated at save (our roads follow now)</text>
+<text x='812' y='824' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Crater chosen?</text>
+<line x1='915.0' y1='820' x2='1208' y2='820' stroke='#4A4A55' stroke-width='1'/>
+<text x='812' y='842' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Crater is not a ground shape: it saves a crater RECORD</text>
+<text x='812' y='856' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(obstacle class — a navmesh area, rim cover, the road</text>
+<text x='812' y='870' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>closure), V-14 over G-14. The form then shows its</text>
+<text x='812' y='884' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>radius and depth, and the tile Crater (authored) is its click.</text>
+<text x='800' y='934' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Mode, height and skirt are the sibling GroundFeature component (V-27 —</text>
+<text x='800' y='948' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>TerrainFeature's 4 fields are not enough). Every edit = one</text>
+<text x='800' y='962' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>undo step and one live bake, like a placed house (§18e B).</text>
+<text x='20' y='1012' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>D — a Ditch drawn with the line tool, and its Details</text>
+<rect x='20' y='1020' width='440' height='410' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<clipPath id='dmap'><rect x='21' y='1021' width='438' height='408'/></clipPath><g clip-path='url(#dmap)'>
+<rect x='20' y='1020' width='440' height='410' fill='#33452C' rx='0' opacity='1'/>
+<polygon points='356.5,1268.4 353.5,1283.2 322.0,1298.9 284.3,1310.3 245.1,1304.5 202.8,1299.1 190.4,1283.8 177.1,1268.4 183.1,1250.9 211.3,1235.8 242.7,1231.0 285.3,1235.8 312.2,1234.6 338.7,1253.4' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='311.5,1268.4 308.6,1280.9 292.7,1292.8 275.8,1297.6 254.1,1295.1 236.5,1295.3 213.8,1282.1 218.0,1268.4 222.7,1255.7 236.3,1245.8 254.1,1240.9 277.0,1238.5 297.3,1245.2 312.8,1253.8' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='247.2,1084.0 241.5,1099.3 215.9,1115.8 186.9,1129.0 156.1,1120.2 129.5,1117.4 119.0,1099.7 101.4,1084.0 111.0,1066.5 129.3,1054.1 155.3,1038.2 187.7,1049.6 214.1,1048.8 231.3,1068.2' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='203.4,1084.0 200.4,1098.2 193.7,1110.0 178.9,1116.2 164.9,1116.8 152.4,1108.3 145.4,1098.5 141.4,1084.0 147.7,1072.5 155.0,1059.8 165.6,1057.2 178.5,1050.6 188.7,1057.4 201.6,1070.6' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='455.7,1284.0 456.2,1307.5 437.2,1324.7 424.7,1348.5 405.8,1336.4 389.1,1335.8 373.5,1313.3 366.1,1284.0 372.4,1261.4 391.9,1231.2 404.7,1227.7 422.8,1227.6 439.6,1236.4 452.1,1259.9' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='438.1,1284.0 437.8,1291.7 432.5,1299.9 420.3,1304.3 409.0,1300.7 399.9,1298.9 391.5,1292.0 389.4,1284.0 394.0,1275.4 398.4,1269.3 408.1,1266.0 419.6,1266.4 433.4,1269.0 435.7,1274.0' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='343.3,1374.7 350.4,1399.3 332.1,1417.3 306.0,1422.7 277.1,1424.5 256.7,1423.8 237.6,1401.5 234.4,1374.7 229.8,1349.3 256.3,1328.4 275.7,1314.8 304.3,1321.4 324.3,1327.1 340.0,1352.3' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='315.2,1374.7 311.4,1382.9 307.9,1388.0 296.0,1393.6 284.8,1395.9 275.1,1387.9 265.9,1384.3 263.0,1374.7 269.3,1366.1 274.1,1357.4 285.5,1355.9 296.3,1355.7 306.9,1360.6 313.3,1365.3' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='202.6,1144.3 207.1,1172.3 187.2,1185.5 160.0,1206.3 134.9,1202.6 106.1,1195.5 96.2,1166.6 96.3,1144.3 93.1,1120.7 106.7,1096.8 133.4,1082.1 159.5,1085.1 182.2,1101.7 194.1,1116.9' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='203.3,1144.3 193.5,1151.1 184.0,1157.0 158.8,1159.8 136.2,1159.2 118.5,1155.4 98.8,1152.0 91.5,1144.3 92.5,1138.0 114.8,1131.9 136.4,1125.8 159.6,1129.8 176.8,1130.1 192.8,1137.5' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polyline points='350.0,1010.0 365.0,1220.0 380.0,1440.0' fill='none' stroke='#8A7A40' stroke-width='14' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='350.0,1010.0 365.0,1220.0 380.0,1440.0' fill='none' stroke='#E8D58A' stroke-width='10' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='333.0,1010.0 348.0,1220.0 363.0,1440.0' fill='none' stroke='#FFFFFF' stroke-width='1.1' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='0.7' stroke-dasharray='4 3'/>
+<polyline points='367.0,1010.0 382.0,1220.0 397.0,1440.0' fill='none' stroke='#FFFFFF' stroke-width='1.1' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='0.7' stroke-dasharray='4 3'/>
+<polyline points='60.0,1320.0 140.0,1270.0 240.0,1250.0 346.0,1242.0' fill='none' stroke='#2A2418' stroke-width='22' stroke-linecap='butt' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='60.0,1320.0 140.0,1270.0 240.0,1250.0 346.0,1242.0' fill='none' stroke='#4A3C26' stroke-width='14' stroke-linecap='butt' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='60.0,1320.0 140.0,1270.0 240.0,1250.0 346.0,1242.0' fill='none' stroke='#1E1810' stroke-width='5' stroke-linecap='butt' stroke-linejoin='round' stroke-opacity='1.0'/>
+<rect x='56' y='1316' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#5BD06A' stroke-width='1.4' opacity='1'/>
+<rect x='136' y='1266' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#5BD06A' stroke-width='1.4' opacity='1'/>
+<rect x='236' y='1246' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#5BD06A' stroke-width='1.4' opacity='1'/>
+<rect x='342' y='1238' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#5BD06A' stroke-width='1.4' opacity='1'/>
+<rect x='56' y='1316' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#4296FA' stroke-width='1.6' opacity='1'/>
+<circle cx='74.9' cy='1313.6' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='74.89297021408936' y1='1313.6400127199618' x2='80.72295855412435' y2='1322.9679940640178' stroke='#00C850' stroke-width='2'/>
+<circle cx='72.2' cy='1309.4' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='72.24297551407346' y1='1309.4000211999364' x2='66.41298717403849' y2='1300.0720398558803' stroke='#00C850' stroke-width='2'/>
+<circle cx='103.7' cy='1295.6' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='103.72491255026235' y1='1295.6200487598537' x2='109.55490089029733' y2='1304.9480301039098' stroke='#00C850' stroke-width='2'/>
+<circle cx='101.1' cy='1291.4' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='101.07491785024645' y1='1291.3800572398284' x2='95.24492951021148' y2='1282.0520758957723' stroke='#00C850' stroke-width='2'/>
+<circle cx='132.6' cy='1277.6' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='132.55685488643533' y1='1277.6000847997454' x2='138.38684322647032' y2='1286.9280661438015' stroke='#00C850' stroke-width='2'/>
+<circle cx='129.9' cy='1273.4' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='129.90686018641944' y1='1273.36009327972' x2='124.07687184638446' y2='1264.032111935664' stroke='#00C850' stroke-width='2'/>
+<circle cx='156.2' cy='1269.3' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='156.17958114890018' y1='1269.3135935270163' x2='158.3368586354202' y2='1280.0999809596165' stroke='#00C850' stroke-width='2'/>
+<circle cx='155.2' cy='1264.4' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='155.19900047320925' y1='1264.4106901485618' x2='153.04172298668922' y2='1253.6243027159617' stroke='#00C850' stroke-width='2'/>
+<circle cx='189.5' cy='1262.6' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='189.51932412239148' y1='1262.645644932318' x2='191.6766016089115' y2='1273.432032364918' stroke='#00C850' stroke-width='2'/>
+<circle cx='188.5' cy='1257.7' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='188.53874344670055' y1='1257.7427415538634' x2='186.38146596018052' y2='1246.9563541212633' stroke='#00C850' stroke-width='2'/>
+<circle cx='222.9' cy='1256.0' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='222.85906709588275' y1='1255.9776963376198' x2='225.01634458240278' y2='1266.76408377022' stroke='#00C850' stroke-width='2'/>
+<circle cx='221.9' cy='1251.1' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='221.87848642019182' y1='1251.0747929591653' x2='219.7212089336718' y2='1240.2884055265652' stroke='#00C850' stroke-width='2'/>
+<circle cx='256.1' cy='1251.3' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='256.14277010146253' y1='1251.2887875896856' x2='256.9706044656401' y2='1262.2575929150385' stroke='#00C850' stroke-width='2'/>
+<circle cx='255.8' cy='1246.3' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='255.76648175410907' y1='1246.3029669872524' x2='254.9386473899315' y2='1235.3341616618995' stroke='#00C850' stroke-width='2'/>
+<circle cx='290.0' cy='1248.7' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='290.0463501980074' y1='1248.7300268276822' x2='290.874184562185' y2='1259.698832153035' stroke='#00C850' stroke-width='2'/>
+<circle cx='289.7' cy='1243.7' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='289.67006185065395' y1='1243.744206225249' x2='288.84222748647636' y2='1232.775400899896' stroke='#00C850' stroke-width='2'/>
+<circle cx='323.9' cy='1246.2' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='323.94993029455225' y1='1246.1712660656788' x2='324.77776465872984' y2='1257.1400713910316' stroke='#00C850' stroke-width='2'/>
+<circle cx='323.6' cy='1241.2' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='323.5736419471988' y1='1241.1854454632455' x2='322.7458075830212' y2='1230.2166401378927' stroke='#00C850' stroke-width='2'/>
+<circle cx='346' cy='1242' r='7' fill='none' stroke='#E65555' stroke-width='2'/>
+<line x1='341' y1='1237' x2='351' y2='1247' stroke='#E65555' stroke-width='2'/>
+</g>
+<rect x='168' y='1176' width='180.09615384615384' height='40' fill='#0F0F12' rx='3' opacity='0.88'/>
+<text x='176' y='1193' fill='#F2C033' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>stops at the road — G-29</text>
+<text x='176' y='1209' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>64 m · 2.0 × 1.2 m · Enter ends</text>
+<path d='M170 1272 L84 1372' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='90' y='1376' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>cover points on the FLOOR,</text>
+<text x='90' y='1390' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a pair facing each bank (V-30)</text>
+<text x='20' y='1448' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The line is the wall / fence / hedge tool (U-7); NEW: the ditch drawn as a dug band, its floor</text>
+<text x='20' y='1462' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>points (the existing cover marker: a dot by stance + a tick toward the cover), and the stop at</text>
+<text x='20' y='1476' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the locked road corridor — a roadside ditch runs beside it; a culvert is later.</text>
+<rect x='470' y='1020' width='360' height='410' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='470' y='1020' width='360' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='478' y='1034' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Details — Ditch 1</text>
+<path d='M476 1067 L476 1050 Q476 1046 480 1046 L546.3 1046 Q550.3 1046 550.3 1050 L550.3 1067 Z' fill='#3A3A48'/>
+<rect x='478' y='1046' width='70.3' height='2' fill='#3369AD' rx='0' opacity='1'/>
+<path d='M208 384Q209 411 232 426Q256 438 280 426Q303 411 304 384Q303 357 280 342Q256 330 232 342Q209 357 208 384ZM10 233Q20 253 41 246L61 238L84 276Q111 319 161 320Q200 319 231 297Q261 275 274 238L309 135L388 101L422 147Q433 160 450 160Q466 159 475 144L571 -16Q580 -32 572 -48Q562 -63 544 -64H288Q270 -64 261 -49Q252 -34 259 -18L275 14Q285 31 304 32H336L359 62L23 202Q3 212 10 233ZM93 141 205 93 93 141 205 93Q223 85 224 64V-32Q224 -46 215 -55Q206 -64 192 -64Q178 -64 169 -55Q160 -46 160 -32V43L99 69L62 -42Q58 -55 46 -61Q35 -66 22 -62Q9 -58 3 -46Q-2 -35 2 -22L50 122L61 155L93 141Z' fill='#F29B38' fill-opacity='1' transform='translate(484,1061.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='503' y='1061' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Ditch</text>
+<rect x='476' y='1067' width='348' height='1.5' fill='#3369AD' rx='0' opacity='1'/>
+<text x='482' y='1096' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Preset</text>
+<rect x='562' y='1082' width='49.457692307692305' height='21' fill='#3369AD' rx='3' stroke='#4296FA' stroke-width='1' opacity='1'/>
+<text x='586.7288461538461' y='1097' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Ditch</text>
+<rect x='614.4576923076924' y='1082' width='105.01153846153846' height='21' fill='#23415F' rx='3' opacity='1'/>
+<text x='666.9634615384616' y='1097' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Anti-tank ditch</text>
+<rect x='722.4692307692308' y='1082' width='61.66538461538462' height='21' fill='#23415F' rx='3' opacity='1'/>
+<text x='753.3019230769231' y='1097' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Foxhole</text>
+<text x='482' y='1128' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Width</text>
+<rect x='562' y='1114' width='80' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='567' y='1128' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>2.0 m</text>
+<text x='482' y='1156' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Depth</text>
+<rect x='562' y='1142' width='80' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='567' y='1156' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>1.2 m</text>
+<text x='482' y='1184' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Bank slope</text>
+<rect x='562' y='1170' width='80' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='567' y='1184' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>45°</text>
+<text x='652' y='1184' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>walls ≤ 60°: infantry climb</text>
+<text x='482' y='1214' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Effect</text>
+<line x1='533.1' y1='1210' x2='818' y2='1210' stroke='#4A4A55' stroke-width='1'/>
+<path d='M256 448Q263 448 269 445L458 365Q475 358 485 343Q496 328 496 308Q497 257 479 188Q461 119 414 54Q368 -12 282 -55Q256 -67 230 -55Q144 -12 98 54Q51 119 33 188Q15 257 16 308Q16 328 27 343Q37 358 54 365L243 445Q249 448 256 448ZM256 381V3V381V3Q324 38 363 92Q401 146 417 203Q432 261 432 307L256 381Z' fill='#00C850' fill-opacity='1' transform='translate(484,1239.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='504' y='1240' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>cover: crouch along both banks</text>
+<text x='504' y='1255' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(floor points, a pair facing each bank — V-30)</text>
+<path d='M135 331 109 256 135 331 109 256H403L377 331Q369 351 347 352H165Q143 351 135 331ZM40 251 75 352 40 251 75 352Q85 381 110 398Q134 416 165 416H347Q378 416 402 398Q427 381 437 352L472 251Q490 244 501 228Q512 212 512 192V48V0Q512 -14 503 -23Q494 -32 480 -32H448Q434 -32 425 -23Q416 -14 416 0V48H96V0Q96 -14 87 -23Q78 -32 64 -32H32Q18 -32 9 -23Q0 -14 0 0V48V192Q0 212 11 228Q22 244 40 251ZM128 160Q128 174 119 183Q110 192 96 192Q82 192 73 183Q64 174 64 160Q64 146 73 137Q82 128 96 128Q110 128 119 137Q128 146 128 160ZM416 128Q430 128 439 137Q448 146 448 160Q448 174 439 183Q430 192 416 192Q402 192 393 183Q384 174 384 160Q384 146 393 137Q402 128 416 128Z' fill='#E65555' fill-opacity='1' transform='translate(484,1278.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='504' y='1279' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>vehicles: wheeled closed · tracked closed</text>
+<text x='504' y='1294' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(every vehicle avoids a ditch area — D-2)</text>
+<path d='M160 400Q161 427 184 442Q208 454 232 442Q255 427 256 400Q255 373 232 358Q208 346 184 358Q161 373 160 400ZM127 249Q126 248 125 248Q124 248 124 247L116 244Q90 232 81 206L78 198Q74 185 62 180Q51 174 38 178Q25 182 19 194Q14 205 18 218L20 226Q39 279 90 303L98 306Q129 320 164 320Q198 320 225 302Q252 283 266 252L281 215L302 205Q314 198 318 186Q322 174 317 162Q310 150 298 146Q286 142 274 147L247 161Q231 169 224 185L215 208L195 143L245 89Q253 80 256 68L279 -24Q282 -37 275 -48Q269 -59 256 -63Q242 -66 231 -59Q221 -53 217 -40L195 48L124 126Q102 152 110 185L126 249ZM69 50 94 112 69 50 94 112Q97 108 101 104L141 59L127 23Q123 14 116 7L55 -55Q45 -64 32 -64Q19 -64 9 -55Q0 -45 0 -32Q0 -19 9 -9L69 50Z' fill='#5BD06A' fill-opacity='1' transform='translate(484,1317.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='504' y='1318' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>infantry passes (a small cost)</text>
+<path d='M256 416H181H256H181Q160 416 144 404Q128 393 121 373L3 41Q0 32 0 23Q1 -1 16 -16Q31 -31 55 -32H256V32Q256 46 265 55Q274 64 288 64Q302 64 311 55Q320 46 320 32V-32H521Q545 -31 560 -16Q575 -1 576 23Q576 32 573 41L455 373Q448 393 432 404Q416 416 395 416H320V352Q320 338 311 329Q302 320 288 320Q274 320 265 329Q256 338 256 352V416ZM320 224V160V224V160Q320 146 311 137Q302 128 288 128Q274 128 265 137Q256 146 256 160V224Q256 238 265 247Q274 256 288 256Q302 256 311 247Q320 238 320 224Z' fill='#F2C033' fill-opacity='1' transform='translate(484,1341.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='504' y='1342' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>stops at the road corridor (G-29)</text>
+<path d='M265 443Q288 453 312 443L530 342Q543 335 544 320Q543 305 530 298L311 197Q288 187 264 197L46 298Q33 305 32 320Q33 335 46 342L265 443ZM477 238 530 214 477 238 530 214Q543 207 544 192Q543 177 530 170L311 69Q288 59 264 69L46 170Q33 177 32 192Q33 207 46 214L99 238L251 168Q288 152 325 168L477 238ZM325 40 477 110 325 40 477 110 530 86Q543 79 544 64Q543 49 530 42L311 -59Q288 -69 264 -59L46 42Q33 49 32 64Q33 79 46 86L99 110L251 40Q288 24 325 40Z' fill='#B07CF0' fill-opacity='1' transform='translate(484,1365.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='504' y='1366' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>64 m · 3 vertices · newest on top</text>
+<text x='482' y='1396' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Anti-tank ditch: ≥ 3 m wide, ≥ 1.5 m deep (G-28); Foxhole: below.</text>
+<text x='482' y='1410' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Stance by depth: ≥ 1.5 stand · ≥ 0.9 crouch · ≥ 0.45 prone (G-27).</text>
+<text x='850' y='1012' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>E — a Foxhole: a click, then the heading (R turns)</text>
+<rect x='850' y='1020' width='370' height='200' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<clipPath id='fmap'><rect x='851' y='1021' width='368' height='198'/></clipPath><g clip-path='url(#fmap)'>
+<rect x='850' y='1020' width='370' height='200' fill='#33452C' rx='0' opacity='1'/>
+<polygon points='1090.8,1126.7 1079.9,1139.4 1058.4,1153.6 1031.0,1162.0 988.6,1159.1 948.4,1152.0 937.0,1143.1 914.5,1126.7 937.1,1113.7 943.9,1103.1 987.1,1088.7 1025.2,1094.5 1063.8,1096.6 1081.7,1113.0' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='1041.5,1126.7 1036.1,1133.1 1029.1,1140.9 1015.4,1142.4 1000.1,1143.9 987.5,1140.2 981.5,1134.0 973.2,1126.7 980.5,1118.6 986.0,1115.3 1001.6,1111.5 1014.0,1108.9 1028.7,1113.3 1041.0,1119.7' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='1008.9,1057.8 999.8,1079.3 985.4,1097.6 958.2,1116.1 931.0,1115.7 910.2,1104.6 894.7,1079.0 889.0,1057.8 888.8,1035.3 904.0,1008.6 933.2,994.2 958.5,1009.2 984.1,1008.1 1002.6,1032.6' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='983.1,1057.8 982.1,1068.5 967.4,1073.5 955.9,1080.0 938.2,1078.6 920.1,1076.9 914.7,1068.4 903.1,1057.8 909.9,1047.5 923.1,1039.9 936.9,1039.4 954.1,1037.3 967.9,1038.6 978.9,1049.2' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='1123.6,1124.4 1110.9,1143.6 1106.0,1156.9 1078.3,1161.5 1048.6,1165.6 1024.3,1154.7 1014.3,1142.5 999.7,1124.4 1012.9,1107.1 1029.7,1097.0 1051.7,1091.6 1075.6,1087.3 1101.1,1092.3 1114.6,1109.2' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='1120.1,1124.4 1109.3,1137.2 1095.3,1147.8 1076.8,1148.3 1050.8,1149.1 1035.3,1143.9 1014.7,1138.2 1003.5,1124.4 1016.6,1110.3 1026.6,1099.8 1052.8,1098.4 1074.4,1098.5 1096.1,1100.0 1114.2,1113.2' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='1039.7,1112.1 1032.1,1131.4 995.1,1146.5 962.2,1152.6 921.3,1159.9 883.0,1148.4 865.2,1128.8 855.6,1112.1 868.7,1094.1 875.0,1077.9 922.5,1064.7 959.1,1072.9 999.5,1075.6 1018.3,1091.5' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='991.9,1112.1 988.1,1121.4 973.8,1131.3 950.9,1135.4 926.8,1132.1 904.6,1129.8 886.8,1120.7 889.7,1112.1 896.4,1101.0 907.2,1095.0 926.7,1092.9 949.8,1088.1 972.9,1092.5 986.7,1100.9' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='1063.8,1076.6 1055.7,1098.3 1044.7,1108.9 1007.4,1125.9 964.1,1123.2 929.3,1115.2 905.6,1099.5 891.3,1076.6 892.3,1053.4 927.6,1044.4 964.7,1025.4 1003.8,1034.5 1038.4,1043.1 1075.4,1056.2' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='1013.6,1076.6 1007.1,1086.3 1002.9,1096.5 990.3,1100.3 979.8,1102.7 968.9,1096.6 962.4,1086.4 959.9,1076.6 960.9,1065.0 970.3,1058.9 978.8,1049.4 991.5,1047.5 1000.9,1054.7 1007.8,1064.9' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<ellipse cx='970' cy='1124' rx='40' ry='30' fill='#4A3C26' stroke='#2A2418' stroke-width='3' transform='rotate(-30 970 1124)'/>
+<ellipse cx='970' cy='1124' rx='22' ry='15' fill='#1E1810' transform='rotate(-30 970 1124)'/>
+<rect x='926' y='1088' width='88' height='72' fill='none' rx='3' stroke='#4296FA' stroke-width='1.6' stroke-dasharray='5 3' opacity='1'/>
+<path d='M970 1124 L1023.7 1093.0' stroke='#4296FA' stroke-width='2.5'/>
+<polygon points='1031.5,1088.5 1023.0,1100.0 1017.3,1090.2' fill='#4296FA' fill-opacity='1.0'/>
+<circle cx='977.8' cy='1119.5' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='977.7942286340599' y1='1119.5' x2='987.3205080756887' y2='1114.0' stroke='#00C850' stroke-width='2'/>
+<circle cx='974.5' cy='1131.8' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='974.5' y1='1131.79422863406' x2='980.0' y2='1141.3205080756886' stroke='#00C850' stroke-width='2'/>
+<circle cx='962.2' cy='1128.5' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='962.2057713659401' y1='1128.5' x2='952.6794919243113' y2='1134.0' stroke='#00C850' stroke-width='2'/>
+<circle cx='965.5' cy='1116.2' r='3.6' fill='#00C850' fill-opacity='0.9'/>
+<line x1='965.5' y1='1116.20577136594' x2='960.0' y2='1106.6794919243114' stroke='#00C850' stroke-width='2'/>
+</g>
+<text x='1019.6935750346352' y='1111.0' fill='#4296FA' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>heading</text>
+<rect x='1036' y='1156' width='166.82692307692307' height='40' fill='#0F0F12' rx='3' opacity='0.88'/>
+<text x='1044' y='1173' fill='#F2C033' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>height grid 2 m:</text>
+<text x='1044' y='1189' fill='#F2C033' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a foxhole will not form here</text>
+<text x='1072' y='1044' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>4 cover points all round</text>
+<text x='1072' y='1058' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(V-29) — not one facing</text>
+<text x='1072' y='1072' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the heading (G-36 is</text>
+<text x='1072' y='1086' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>superseded) · crouch, 1 m</text>
+<text x='850' y='1236' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The point tool (U-2: click, R = a quarter turn, drag turns).</text>
+<text x='850' y='1250' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The amber line shows on a grid coarser than ~1.5 m (G-37);</text>
+<text x='850' y='1264' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>on a 1 m grid it is green: 1 m grid — a ≈ 3 × 3 m dip.</text>
+<text x='850' y='1292' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>F — context for the cover rule: a crater's rim, after 60 s (G-35)</text>
+<rect x='850' y='1300' width='370' height='170' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<clipPath id='gmap'><rect x='851' y='1301' width='368' height='168'/></clipPath><g clip-path='url(#gmap)'>
+<rect x='850' y='1300' width='370' height='170' fill='#33452C' rx='0' opacity='1'/>
+<polygon points='969.3,1446.3 956.4,1468.6 947.3,1494.3 925.5,1499.5 902.9,1497.3 880.3,1487.5 867.9,1470.6 861.3,1446.3 872.0,1421.5 881.7,1399.9 904.0,1398.0 925.0,1389.9 942.3,1400.8 957.9,1424.3' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='970.9,1446.3 957.4,1453.5 945.0,1461.9 924.0,1464.3 902.7,1462.9 885.7,1461.3 869.4,1454.1 861.6,1446.3 863.9,1437.5 884.6,1430.8 901.8,1429.7 924.2,1430.8 944.4,1432.3 959.1,1438.5' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='1103.5,1334.0 1095.3,1357.6 1086.5,1373.7 1061.0,1379.2 1036.5,1381.2 1013.9,1366.0 997.1,1352.8 997.7,1334.0 993.6,1313.9 1013.9,1300.0 1035.7,1291.1 1061.7,1285.1 1085.5,1297.4 1100.7,1316.4' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='1106.5,1334.0 1099.1,1346.3 1083.1,1352.8 1060.6,1363.4 1038.1,1360.6 1012.6,1353.4 994.8,1345.7 986.4,1334.0 1000.5,1322.7 1017.1,1313.2 1037.3,1308.3 1063.1,1308.9 1079.4,1311.1 1098.5,1323.9' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='1183.6,1415.7 1178.4,1443.0 1166.8,1460.8 1127.5,1474.9 1091.7,1471.1 1067.5,1458.1 1035.6,1436.7 1033.8,1415.7 1034.9,1392.9 1066.7,1370.5 1092.3,1364.0 1128.0,1352.3 1161.6,1370.8 1172.0,1391.3' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='1135.2,1415.7 1133.9,1428.9 1127.3,1445.0 1115.2,1454.4 1104.3,1455.2 1096.8,1446.8 1086.2,1429.9 1088.8,1415.7 1091.0,1400.2 1093.5,1389.0 1105.1,1382.2 1115.2,1385.9 1126.1,1385.5 1135.9,1402.2' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='1042.8,1428.1 1031.2,1453.6 1017.0,1466.4 989.1,1485.4 963.8,1486.0 935.2,1473.9 922.7,1453.5 910.9,1428.1 931.3,1402.2 936.5,1383.2 963.9,1378.4 991.6,1371.3 1018.4,1383.2 1034.9,1406.2' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='1021.4,1428.1 1019.4,1437.1 1007.2,1440.5 988.1,1447.0 965.2,1447.9 944.9,1442.2 932.2,1434.9 931.4,1428.1 931.3,1421.4 949.9,1415.2 967.2,1410.8 988.7,1411.6 1002.3,1416.1 1022.3,1420.6' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='1289.5,1350.9 1263.5,1365.7 1241.5,1382.1 1201.5,1384.7 1155.5,1387.0 1122.3,1377.4 1104.7,1367.5 1093.3,1350.9 1086.0,1332.7 1120.0,1322.9 1156.9,1314.2 1203.8,1309.9 1245.8,1322.5 1273.1,1334.4' fill='#3B5131' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='1211.4,1350.9 1206.0,1357.8 1199.7,1365.3 1186.8,1370.7 1172.7,1371.3 1160.4,1366.2 1152.5,1359.4 1148.5,1350.9 1146.9,1342.3 1157.6,1334.7 1172.2,1334.3 1187.0,1332.5 1197.8,1334.5 1211.5,1342.2' fill='#4A5C36' fill-opacity='0.85' stroke='#2A3824' stroke-width='0.6'/>
+<circle cx='960' cy='1392' r='52' fill='#5A4A30' fill-opacity='0.7'/><circle cx='960' cy='1392' r='40' fill='#3A2E1E'/><circle cx='960' cy='1392' r='20' fill='#221A10'/>
+<circle cx='1004.0' cy='1392.0' r='3.6' fill='#6E7A72' fill-opacity='0.55'/>
+<line x1='1004.0' y1='1392.0' x2='993.0' y2='1392.0' stroke='#6E7A72' stroke-width='2'/>
+<circle cx='991.1' cy='1423.1' r='3.6' fill='#6E7A72' fill-opacity='0.55'/>
+<line x1='991.1126983722081' y1='1423.1126983722081' x2='983.3345237791561' y2='1415.3345237791561' stroke='#6E7A72' stroke-width='2'/>
+<circle cx='960.0' cy='1436.0' r='3.6' fill='#6E7A72' fill-opacity='0.55'/>
+<line x1='960.0' y1='1436.0' x2='960.0' y2='1425.0' stroke='#6E7A72' stroke-width='2'/>
+<circle cx='928.9' cy='1423.1' r='3.6' fill='#6E7A72' fill-opacity='0.55'/>
+<line x1='928.8873016277919' y1='1423.1126983722081' x2='936.6654762208439' y2='1415.3345237791561' stroke='#6E7A72' stroke-width='2'/>
+<circle cx='916.0' cy='1392.0' r='3.6' fill='#6E7A72' fill-opacity='0.55'/>
+<line x1='916.0' y1='1392.0' x2='927.0' y2='1392.0' stroke='#6E7A72' stroke-width='2'/>
+<circle cx='928.9' cy='1360.9' r='3.6' fill='#6E7A72' fill-opacity='0.55'/>
+<line x1='928.8873016277919' y1='1360.8873016277919' x2='936.6654762208439' y2='1368.6654762208439' stroke='#6E7A72' stroke-width='2'/>
+<circle cx='960.0' cy='1348.0' r='3.6' fill='#6E7A72' fill-opacity='0.55'/>
+<line x1='960.0' y1='1348.0' x2='960.0' y2='1359.0' stroke='#6E7A72' stroke-width='2'/>
+<circle cx='991.1' cy='1360.9' r='3.6' fill='#6E7A72' fill-opacity='0.55'/>
+<line x1='991.1126983722081' y1='1360.8873016277919' x2='983.3345237791561' y2='1368.6654762208439' stroke='#6E7A72' stroke-width='2'/>
+</g>
+<path d='M256 448Q326 447 384 414Q442 380 478 320Q512 259 512 192Q512 125 478 64Q442 4 384 -30Q326 -63 256 -64Q186 -63 128 -30Q70 4 34 64Q0 125 0 192Q0 259 34 320Q70 380 128 414Q186 447 256 448ZM232 328V192V328V192Q232 179 243 172L339 108Q358 97 372 115Q383 134 365 148L280 205V328Q278 350 256 352Q234 350 232 328Z' fill='#F2C033' fill-opacity='1' transform='translate(1046,1341.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='1066' y='1342' fill='#F2C033' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>cover after 60 s — 47 s left</text>
+<text x='1046' y='1366' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>rim points drawn greyed until</text>
+<text x='1046' y='1380' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>BornAt + coverAfterSeconds;</text>
+<text x='1046' y='1394' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the EQS skips them before.</text>
+<text x='1046' y='1408' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>A man already in it is hidden</text>
+<text x='1046' y='1422' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>by the ground (TH-D).</text>
+<text x='850' y='1486' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>A crater is a runtime RECORD (P-4) or an authored one (V-14) — not</text>
+<text x='850' y='1500' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>an Earthworks shape. Drawn here only for the cover rule.</text>
+</svg>

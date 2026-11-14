@@ -78,11 +78,12 @@ namespace Fdp.Toolkit.Navigation.Tests
 
             Assert.True(ok);
             Assert.Equal(2, count);
+            // Z-up (R-182 / W7): the 2-D trajectory point (x, y) is NavWaypoint (x, y, altitude 0) — no swizzle.
             Assert.Equal(1f, buf[0].Position.X, precision: 4);
-            Assert.Equal(0f, buf[0].Position.Y, precision: 4);
-            Assert.Equal(2f, buf[0].Position.Z, precision: 4);
+            Assert.Equal(2f, buf[0].Position.Y, precision: 4);
+            Assert.Equal(0f, buf[0].Position.Z, precision: 4);
             Assert.Equal(3f, buf[1].Position.X, precision: 4);
-            Assert.Equal(4f, buf[1].Position.Z, precision: 4);
+            Assert.Equal(4f, buf[1].Position.Y, precision: 4);
         }
 
         [Fact]
@@ -196,6 +197,32 @@ namespace Fdp.Toolkit.Navigation.Tests
 
             // Distance from (0,0) to (3,4) = 5 metres.
             Assert.Equal(5f, summary.TotalDistanceMeters, precision: 3);
+        }
+
+        /// <summary>
+        /// ⭐ Buildings 5d-3 (N4) — a door mark the planner put on a waypoint survives the trajectory pool and comes back out of the
+        /// registry (both read-backs): it was forced to <see cref="TraversalKind.Walk"/> before.
+        /// </summary>
+        [Fact]
+        public void Stage5d_TheDoorMark_SurvivesThePoolAndTheRegistry()
+        {
+            var positions = new[] { new Vector3(0, 0, 0), new Vector3(5, 0, 0), new Vector3(6, 0, 0), new Vector3(12, 0, 0) };
+            var marks = new byte[] { 0, (byte)TraversalKind.Door, (byte)TraversalKind.Door, 0 };
+            _pool.RegisterTrajectoryWithKey(positions, 77, marks);
+            _registry.Register(77, 0, 12f, 0);
+
+            Span<NavWaypoint> wps = stackalloc NavWaypoint[8];
+            Assert.True(_registry.TryGetWaypoints(77, 0, wps, out int n));
+            Assert.Equal(4, n);
+            Assert.Equal(new[] { TraversalKind.Walk, TraversalKind.Door, TraversalKind.Door, TraversalKind.Walk },
+                new[] { wps[0].Traversal, wps[1].Traversal, wps[2].Traversal, wps[3].Traversal });
+
+            Assert.True(_registry.TryGetWaypointsSlice(77, 1, 2, wps, out int m));
+            Assert.Equal(TraversalKind.Door, wps[0].Traversal);
+
+            _pool.RegisterTrajectoryWithKey(positions, 78);                                // no marks ⇒ all Walk
+            Assert.True(_pool.TryGetTrajectory(78, out var plain));
+            for (int i = 0; i < plain.Waypoints.Length; i++) Assert.Equal(0, plain.Waypoints[i].Traversal);
         }
     }
 }

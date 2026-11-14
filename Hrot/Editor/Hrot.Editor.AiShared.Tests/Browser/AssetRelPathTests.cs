@@ -138,43 +138,135 @@ public sealed class AssetRelPathTests
         Assert.Equal("MyScenario", relPath);
     }
 
-    // ── Contributor_BaseFolder_MatchesAssetRoot ─────────────────────
+    // ── Contributor_BaseFolder_IsTheRootItActuallyScans ─────────────
+    //
+    // ⭐⭐⭐ F2 (asset-management review round 4). THIS REPLACES A RAIL THAT WAS GREEN AND BLIND.
+    //
+    // ⛔⛔ What was here — `Contributor_BaseFolder_MatchesAssetRoot` — built a FakeContributor with
+    //    `BaseFolder = AssetRoots.AssetsFor(kind)` and then asserted that `BaseFolder` equalled
+    //    `AssetRoots.AssetsFor(kind)`. That is `Assert.Equal(x, x)` against a test double's own
+    //    auto-property: it touched NO production contributor and would have stayed green if every
+    //    real `BaseFolder` returned garbage. Its own comment named the assumption it never
+    //    tested — "matches what a real file contributor would return".
+    //
+    // 🔴 The assumption was FALSE. `AssetsFor(kind)` is `ConfiguredRoot ?? AppContext.BaseDirectory`
+    //    (AssetRoots.cs:260) — no source walk-up — while the composition roots construct these
+    //    contributors from `ResolveAssetsRoot(...)` (ConfiguredRoot → walk-up → output dir). On a
+    //    host with a source tree and no configured root the property named the bin dir while the
+    //    contributor enumerated the source tree, silently: `ReportBase` warns only when NEITHER
+    //    arm answered.
+    //
+    // ⭐ So the rule this pins is the one the old rail assumed instead of checking:
+    //    BaseFolder is THE ROOT THE CONTRIBUTOR WAS GIVEN — for every production contributor,
+    //    whatever `AssetsFor` would have said.
+    //
+    // ⚠ This class does NOT call `AssetRoots.Configure`, so it does not belong in
+    //   AssetRootsTestCollection; the fallback assertion below only READS `AssetsFor`, and that
+    //   collection is `DisableParallelization = true`, so it cannot mutate the static underneath us.
 
     [Fact]
-    public void Contributor_BaseFolder_MatchesAssetRoot()
+    public void Contributor_BaseFolder_IsTheRootItActuallyScans()
     {
-        // File contributor's BaseFolder equals AssetRoots.AssetsFor(its Kind).
-        // Non-file contributor's BaseFolder is null (default).
+        // A root that is deliberately NOT AssetsFor(kind) for any kind — so returning the
+        // re-derived root instead of the injected one FAILS rather than coincidentally passing.
+        var root = Path.Combine(Path.GetTempPath(), "hrot-f2-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
 
-        // Verify by construction: the FakeContributor with explicit BaseFolder
-        // matches what a real file contributor would return.
-        var bpContrib = new FakeContributor
+        try
         {
-            Kind = AssetKind.Blueprint,
-            BaseFolder = AssetRoots.AssetsFor(AssetKind.Blueprint)
-        };
-        Assert.Equal(AssetRoots.AssetsFor(AssetKind.Blueprint), bpContrib.BaseFolder);
-        Assert.NotNull(bpContrib.BaseFolder);
+            // ── Blueprint: the root is a constructor argument ──
+            var bp = new Hrot.Blueprints.Editor.Catalog.BlueprintAssetContributor(root);
+            Assert.Equal(root, bp.BaseFolder);
 
-        var btreeContrib = new FakeContributor
+            // ── BTree JSON: the root arrives via Discover ──
+            var btree = new Hrot.BTree.Editor.Catalog.BTreeJsonAssetContributor();
+            btree.Discover(rootDirectory: root);
+            Assert.Equal(root, btree.BaseFolder);
+
+            // ── HSM JSON: same shape ──
+            var hsm = new Hrot.Hsm.Editor.Catalog.HsmJsonAssetContributor();
+            hsm.Discover(rootDirectory: root);
+            Assert.Equal(root, hsm.BaseFolder);
+
+            // ⭐ And none of them silently answered the re-derived root — the exact F2 regression.
+            Assert.NotEqual(AssetRoots.AssetsFor(AssetKind.Blueprint), bp.BaseFolder);
+            Assert.NotEqual(AssetRoots.AssetsFor(AssetKind.BTree), btree.BaseFolder);
+            Assert.NotEqual(AssetRoots.AssetsFor(AssetKind.Hsm), hsm.BaseFolder);
+        }
+        finally
         {
-            Kind = AssetKind.BTree,
-            BaseFolder = AssetRoots.AssetsFor(AssetKind.BTree)
-        };
-        Assert.Equal(AssetRoots.AssetsFor(AssetKind.BTree), btreeContrib.BaseFolder);
-        Assert.NotNull(btreeContrib.BaseFolder);
+            try { Directory.Delete(root, recursive: true); } catch { /* best-effort */ }
+        }
+    }
 
-        var hsmContrib = new FakeContributor
+    [Fact]
+    public void JsonContributor_WithNoRootSupplied_KeepsTheAssetsForFallback()
+    {
+        // ⭐ The fallback is deliberate, so it is pinned rather than left to drift: a contributor
+        //   driven by an explicit jsonPaths list has no single base folder, and `AssetsFor(Kind)`
+        //   stays the answer — exactly as before F2.
+        var btree = new Hrot.BTree.Editor.Catalog.BTreeJsonAssetContributor();
+        Assert.Equal(AssetRoots.AssetsFor(AssetKind.BTree), btree.BaseFolder);
+
+        var hsm = new Hrot.Hsm.Editor.Catalog.HsmJsonAssetContributor();
+        Assert.Equal(AssetRoots.AssetsFor(AssetKind.Hsm), hsm.BaseFolder);
+
+        // ⚠ And a jsonPaths-only Discover must NOT invent one.
+        btree.Discover(jsonPaths: Array.Empty<string>());
+        Assert.Equal(AssetRoots.AssetsFor(AssetKind.BTree), btree.BaseFolder);
+    }
+
+    [Fact]
+    public void Contributor_BaseFolder_FeedsRelPath_WithoutTheDotDotRecovery()
+    {
+        // ⭐⭐ WHY F2 mattered, pinned as behaviour rather than asserted in prose.
+        //    `AssetRelPath.RelPath` carries a "../"-recovery branch written for this very mismatch
+        //    ("the contributor scanned the source project dir … while baseFolder resolves to the
+        //    bin/output dir … surfacing as bogus '..' tree levels in the browser").
+        //    With BaseFolder naming the scanned root, the relpath is clean by construction and that
+        //    branch is never entered.
+        var root = Path.Combine(Path.GetTempPath(), "hrot-f2-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        try
         {
-            Kind = AssetKind.Hsm,
-            BaseFolder = AssetRoots.AssetsFor(AssetKind.Hsm)
-        };
-        Assert.Equal(AssetRoots.AssetsFor(AssetKind.Hsm), hsmContrib.BaseFolder);
-        Assert.NotNull(hsmContrib.BaseFolder);
+            var bp = new Hrot.Blueprints.Editor.Catalog.BlueprintAssetContributor(root);
+            var asset = new FakeAsset
+            {
+                SourceFilePath = Path.Combine(root, "combat", "Guard.bp.json"),
+                Name = "Guard",
+            };
 
-        // Default (non-file) contributor: BaseFolder should be null.
-        var defaultContrib = new FakeContributor { Kind = AssetKind.Blueprint };
-        Assert.Null(defaultContrib.BaseFolder);
+            var relPath = AssetRelPath.RelPath(asset, bp.BaseFolder);
+
+            Assert.Equal("combat/Guard.bp.json", relPath);
+            Assert.DoesNotContain("..", relPath);
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch { /* best-effort */ }
+        }
+    }
+
+    [Fact]
+    public void FileContributor_BaseFolder_IsNeverNull()
+    {
+        // ⭐ The §7.3a predicate the asset-management design keys on — "a kind is syncable iff its
+        //   contributor exposes a non-null BaseFolder" — needs the file-backed contributors to keep
+        //   answering non-null. F2's fix must not turn one of them into a null.
+        var root = Path.Combine(Path.GetTempPath(), "hrot-f2-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            Assert.NotNull(new Hrot.Blueprints.Editor.Catalog.BlueprintAssetContributor(root).BaseFolder);
+            Assert.NotNull(new Hrot.BTree.Editor.Catalog.BTreeJsonAssetContributor().BaseFolder);
+            Assert.NotNull(new Hrot.Hsm.Editor.Catalog.HsmJsonAssetContributor().BaseFolder);
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch { /* best-effort */ }
+        }
     }
 
     [Fact]

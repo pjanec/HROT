@@ -112,7 +112,7 @@ Hrot.ClusterRunner.Integration.Tests/
 Build the full solution from the workspace root:
 
 ```powershell
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 Run only the Editor authoring integration tests:

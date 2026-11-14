@@ -136,8 +136,32 @@ internal sealed class ContainerRenderer
         DrawCollapseIndicator(dl, container, pMin, headerHt, zoom);
         DrawTitle(dl, container, pMin, pMax, headerHt, view.Host.Theme, zoom);
 
+        // CE-1004 (R1): the bottom-right resize grip — brighter while hovered or dragged.
+        if (!container.IsCollapsed)
+            DrawResizeGrip(view, dl, container, pMax, outlineColor, zoom);
+
         // Selection outline (drawn over the body outline).
         DrawSelectionOutline(view, dl, container, pMin, pMax, corner);
+    }
+
+    // Three diagonal ticks in the bottom-right corner; the hit area is HitTester.ContainerGripPx.
+    private static void DrawResizeGrip(GraphView view, ImDrawListPtr dl, IContainerNodeModel container,
+        Vector2 pMax, Vector4 baseColor, float zoom)
+    {
+        var hover = view.Interaction.Hover;
+        bool active = (view.Interaction.ContainerResize is { } cr && cr.Container == container.Id && cr.RegionIndex < 0)
+            || (hover.Kind == HoverKind.Container && hover.Node == container.Id
+                && hover.ContainerZone == ContainerHoverZone.ResizeEdge);
+        uint color = active
+            ? ImGui.GetColorU32(view.Host.Theme.SelectionAccent)
+            : ImGui.GetColorU32(baseColor with { W = 0.8f });
+        float grip = MathF.Max(8f, HitTester.ContainerGripPx * zoom);
+        var c = pMax - new Vector2(3f, 3f);
+        for (int k = 1; k <= 3; k++)
+        {
+            float d = grip * k / 3f;
+            dl.AddLine(new Vector2(c.X - d, c.Y), new Vector2(c.X, c.Y - d), color, 1.5f);
+        }
     }
 
     // Draws dashed region dividers and region header bands.
@@ -158,7 +182,17 @@ internal sealed class ContainerRenderer
             new RectF(rect.Min, rect.Size),
             headerHt,
             OutlinePx,
-            paddingScale: zoom);
+            paddingScale: zoom,
+            preferredOverride: i => view.Interaction.RegionSizePreview(container.Id, i));
+
+        // CE-1004 (R1): the divider under the cursor (or being dragged) is drawn solid — it is a handle.
+        var hover = view.Interaction.Hover;
+        int activeDivider =
+            view.Interaction.ContainerResize is { } cr && cr.Container == container.Id ? cr.RegionIndex
+            : hover.Kind == HoverKind.Container && hover.Node == container.Id
+              && hover.ContainerZone == ContainerHoverZone.RegionDivider ? hover.ContainerRegionIndex
+            : -1;
+        uint activeDividerColor = ImGui.GetColorU32(view.Host.Theme.SelectionAccent);
 
         uint dividerColor  = ImGui.GetColorU32(new Vector4(catColor.X, catColor.Y, catColor.Z, 0.5f));
         uint regionBgColor = ImGui.GetColorU32(new Vector4(catColor.X, catColor.Y, catColor.Z, 0.25f));
@@ -185,7 +219,8 @@ internal sealed class ContainerRenderer
                 var hBandMax = new Vector2(MathF.Min(sMin.X + regionHeaderH, sMax.X), sMax.Y);
                 dl.AddRectFilled(sMin, hBandMax, regionBgColor);
                 dl.AddText(new Vector2(sMin.X + 4f, sMin.Y + 4f), textColor, strip.Descriptor.Name ?? string.Empty);
-                if (i > 0) DrawDashedVerticalLine(dl, sMin.X, sMin.Y, sMax.Y, dividerColor);
+                if (i > 0 && activeDivider == i - 1) dl.AddLine(new Vector2(sMin.X, sMin.Y), new Vector2(sMin.X, sMax.Y), activeDividerColor, 2f);
+                else if (i > 0) DrawDashedVerticalLine(dl, sMin.X, sMin.Y, sMax.Y, dividerColor);
             }
             else
             {
@@ -193,7 +228,8 @@ internal sealed class ContainerRenderer
                 dl.AddRectFilled(sMin, hBandMax, regionBgColor);
                 dl.AddText(new Vector2(sMin.X + 4f, sMin.Y + (regionHeaderH - ImGui.GetTextLineHeight()) * 0.5f),
                     textColor, strip.Descriptor.Name ?? string.Empty);
-                if (i > 0) DrawDashedHorizontalLine(dl, sMin.Y, sMin.X, sMax.X, dividerColor);
+                if (i > 0 && activeDivider == i - 1) dl.AddLine(new Vector2(sMin.X, sMin.Y), new Vector2(sMax.X, sMin.Y), activeDividerColor, 2f);
+                else if (i > 0) DrawDashedHorizontalLine(dl, sMin.Y, sMin.X, sMax.X, dividerColor);
             }
         }
     }

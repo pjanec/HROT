@@ -134,7 +134,7 @@ network-factory infrastructure.  No migration to `MockNetworkFactory` is needed.
 ## 3. Build Result
 
 ```
-dotnet build IOS-IG-SimHost.sln -v quiet
+dotnet build HROT.sln -v quiet
 ```
 
 **Result: 0 errors, 0 new warnings.**

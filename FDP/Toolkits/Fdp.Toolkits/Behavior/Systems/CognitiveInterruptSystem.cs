@@ -7,7 +7,7 @@ using Fdp.Toolkit.Behavior.Events;
 namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
-    /// Edge-triggered system that writes interrupt bytes into <see cref="BrainBlackboard"/>
+    /// Edge-triggered system that writes interrupt bytes into <see cref="BrainInterrupts"/>
     /// when capability transitions are detected.  Uses a paradigm-agnostic blackboard field
     /// rather than injecting HSM events directly, so that BTree behaviors can
     /// also react to the same signal without coupling to the HSM event queue.
@@ -44,8 +44,19 @@ namespace Fdp.Toolkit.Behavior.Systems
     // v241: promoted from internal → public so cross-assembly UpdateBefore
     // (e.g. AnimationCapabilityChangeReactorSystem in the animation project)
     // can reference this type via `typeof(...)`.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class CognitiveInterruptSystem : IEcsModuleSystem
     {
+        /// <summary>
+        /// ⭐⭐⭐ <c>P3</c> step <c>3b</c> — the EXECUTION gate; see
+        /// <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.5. ⚠ Defaults to <c>false</c>: a promoted
+        /// ghost owns nothing until a policy or grant says otherwise, so enabling it before the node has
+        /// a policy would stop it processing every entity it did not create.
+        /// </summary>
+        private readonly bool _gateOnAuthority;
+
+        public CognitiveInterruptSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
+
 
         // Reused list for deferred structural adds (cold path: once per entity lifetime).
         private readonly List<(Entity entity, ActorCapabilities caps)> _toInit =
@@ -56,9 +67,12 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (view is not EntityRepository repo) return;
 
             // Pass A: initialise PreviousCapabilities for brand-new entities.
+            // ⭐⭐ P3 step 3b — gated on BrainInterrupts (O2: was BrainBlackboard), NOT BehaviorState: this query never required
+            //   BehaviorState, and gating on a component it did not demand would silently NARROW the
+            //   matched set even with the gate OFF. Gate only on what is already required.
             var qNew = repo.Query()
                 .With<ActorCapabilityState>()
-                .With<BrainBlackboard>()
+                .WithOwnedWhen<BrainInterrupts>(_gateOnAuthority)
                 .Without<PreviousCapabilities>()
                 .Build();
 
@@ -76,9 +90,10 @@ namespace Fdp.Toolkit.Behavior.Systems
             var q = repo.Query()
                 .With<ActorCapabilityState>()
                 .With<PreviousCapabilities>()
-                .With<BrainBlackboard>()
+                .WithOwnedWhen<BrainInterrupts>(_gateOnAuthority)
                 .Build();
 
+            bool embarkedRegistered = repo.IsComponentTypeRegistered<IsEmbarkedTag>();
             foreach (var entity in q)
             {
                 var curr = repo.GetComponent<ActorCapabilityState>(entity);
@@ -87,9 +102,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                 bool wasAbleToMove = (prev.Capabilities & ActorCapabilities.CanMove) != 0;
                 bool canMoveNow    = (curr.Capabilities & ActorCapabilities.CanMove) != 0;
 
-                if (wasAbleToMove && !canMoveNow)
+                // ⭐ CE-3110 I-2b: a seat is not "mobility lost" (that means damage) — boarding strips CanMove, no interrupt.
+                if (wasAbleToMove && !canMoveNow && !(embarkedRegistered && repo.HasComponent<IsEmbarkedTag>(entity)))
                 {
-                    ref var bb = ref repo.GetComponentRW<BrainBlackboard>(entity);
+                    ref var bb = ref repo.GetComponentRW<BrainInterrupts>(entity);
                     bb.Interrupt_MobilityLost = 1;
                     repo.Bus.Publish(new CognitiveInterruptEvent
                     {

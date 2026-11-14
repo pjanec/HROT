@@ -1,0 +1,86 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Urban Battle L6 (dry): the live check kills Blue Squad 2's four men (encoded as `do` health 0 at 3 s) AND POSTs a faked SPOT of a six-man enemy at (8,110) — the SPOT cannot be made by `do`. Encoded: Judge (2) the HQ sends the reserve (SquadDefend or PlatoonDefend) and (3) the reserve moves (> 10 m: within 26 m of the platoon at (8,8), from (40,25) = 36 m). UNCERTAIN: without the SPOT the platoon may never ask (Judge (1) REQUEST Reinforce is not readable), so these rows may be red for lack of the stimulus — PARTIAL, see the report. DEMO: no golden.",
+  "runFor": 90,
+  "golden": false,
+  "do": [
+    {
+      "name": "Squad 2 Leader down",
+      "at": 3,
+      "set": {
+        "who": "Blue Squad 2 Leader",
+        "component": "Health",
+        "patch": {
+          "Current": 0
+        }
+      }
+    },
+    {
+      "name": "Squad 2 Rifleman 1 down",
+      "at": 3,
+      "set": {
+        "who": "Blue Squad 2 Rifleman 1",
+        "component": "Health",
+        "patch": {
+          "Current": 0
+        }
+      }
+    },
+    {
+      "name": "Squad 2 Rifleman 2 down",
+      "at": 3,
+      "set": {
+        "who": "Blue Squad 2 Rifleman 2",
+        "component": "Health",
+        "patch": {
+          "Current": 0
+        }
+      }
+    },
+    {
+      "name": "Squad 2 Rifleman 3 down",
+      "at": 3,
+      "set": {
+        "who": "Blue Squad 2 Rifleman 3",
+        "component": "Health",
+        "patch": {
+          "Current": 0
+        }
+      }
+    }
+  ],
+  "expect": [
+    {
+      "name": "the HQ runs SupportCommand",
+      "on": "task",
+      "who": "Blue HQ",
+      "is": "SupportCommand"
+    },
+    {
+      "name": "the platoon defends (PlatoonDefend)",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "PlatoonDefend"
+    },
+    {
+      "name": "the HQ sends the reserve to defend (SquadDefend / PlatoonDefend)",
+      "on": "task",
+      "who": "Blue Reserve",
+      "is": [
+        "SquadDefend",
+        "PlatoonDefend"
+      ],
+      "after": "Squad 2 Rifleman 3 down"
+    },
+    {
+      "name": "the reserve goes to the platoon (within 26 m of it, from 36 m)",
+      "on": "near",
+      "who": "Blue Reserve",
+      "point": [
+        8,
+        8
+      ],
+      "within": 26,
+      "after": "Squad 2 Rifleman 3 down"
+    }
+  ]
+}

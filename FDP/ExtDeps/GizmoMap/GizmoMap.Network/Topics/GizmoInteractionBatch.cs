@@ -6,7 +6,7 @@ namespace GizmoMap.Network
     /// DDS topic that carries a single gizmo interaction event across the network.
     /// One record per event (not batched) because interactions are low-frequency.
     /// </summary>
-    [DdsTopic("GizmoInteractionBatch")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable,
             Durability  = DdsDurability.Volatile,
             HistoryKind = DdsHistoryKind.KeepLast,

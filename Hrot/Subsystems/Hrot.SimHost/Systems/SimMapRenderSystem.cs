@@ -16,6 +16,7 @@ namespace Hrot.SimHost.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Export)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class SimMapRenderSystem : IEcsModuleSystem
     {
         private readonly MapCanvas? _canvas;

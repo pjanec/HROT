@@ -44,18 +44,23 @@ public sealed class ScenarioPhase2Tests : IDisposable
         Assert.True(JsonEnvelope.HasEnvelope(dom));
         var meta = JsonEnvelope.Read(dom);
         Assert.Equal(DocType, meta.DocType);
-        Assert.Equal(1, meta.SchemaVersion);
+        // ⚠ Assert against the CONSTANT, not a literal. This line read `Assert.Equal(1, ...)` and
+        //   had been failing since the serializer moved to v2 — a literal here cannot survive a
+        //   schema bump, which is the whole reason ScenarioSchemaVersionAgreementTests exists.
+        Assert.Equal(ScenarioSerializer.CurrentSchemaVersion, meta.SchemaVersion);
     }
 
     // ── T02 ──────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void ScenarioSerializer_Serialize_TkbName_StoredInHeader()
+    public void ScenarioSerializer_Serialize_TerrainName_StoredInHeader_AndNoTkbName()
     {
+        // ⛔ R-4018 — was "TkbName stored in header"; a scenario never names a TKB.
         var serializer = BuildSerializer();
-        var dom = serializer.Serialize(_repo, new ScenarioHeader(DocType, TkbName: "Alpha_v2"));
+        var dom = serializer.Serialize(_repo, new ScenarioHeader(DocType, TerrainName: "basic-desert"));
 
-        Assert.Equal("Alpha_v2", dom["Header"]!["TkbName"]!.GetValue<string>());
+        Assert.Equal("basic-desert", dom["Header"]!["TerrainName"]!.GetValue<string>());
+        Assert.Null(dom["Header"]!["TkbName"]);
     }
 
     // ── T03 ──────────────────────────────────────────────────────────────────

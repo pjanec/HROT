@@ -168,7 +168,7 @@ public sealed class ReferenceCatalogCrossAssetTests
                 VisualId     = nodeId,
                 KernelType   = NodeType.Action,
                 DisplayLabel = "UseSpeed",
-                Action       = new BTreeActionPayload { MethodFqn = "AI.Actions.UseSpeed", ExpressionTargetField = "speed" },
+                Action       = new BehaviorActionBinding { MethodFqn = "AI.Actions.UseSpeed", ExpressionTargetField = "speed" },
             },
         });
 

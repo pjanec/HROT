@@ -11,7 +11,7 @@
 ## Scope Verification
 
 ### CMC-S006 — ClusterSlave Event Bus Integration
-- ✅ `NodeHeartbeatEvent` added to `ClusterCqrsEvents.cs` (EventId 9014, `DataPolicy.NoRecord`, `string SubsystemName` field, correctly uses `PublishManaged`)
+- ✅ `NodeHeartbeatEvent` added to `ClusterCqrsEvents.cs` (EventId 9014, `DataPolicy.NoReplay`, `string SubsystemName` field, correctly uses `PublishManaged`)
 - ✅ `OrchestrationStatusCode.Failure = 13` added
 - ✅ `ClusterSlave.Tick()` publishes `NodeHeartbeatEvent` at 1 Hz via `_eventBus?.PublishManaged`
 - ✅ `ClusterSlave.Tick()` drains `ExecuteNodeOpIntent` via `_eventBus.ConsumeManaged<ExecuteNodeOpIntent>()`

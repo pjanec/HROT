@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using CycloneDDS.Runtime;
 using Fdp.Core.Logging;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.DER
 {
@@ -24,21 +25,20 @@ namespace Fdp.Toolkit.DER
         private readonly Func<T, int> _getEntityId;
         private readonly Func<T, long> _getTkbType;
         private readonly ConcurrentDictionary<long, int> _handleMap = new();
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public MasterIngressHandler(
             DdsParticipant participant, 
             IDerRepo repo, 
-            string topicName, 
             Func<T, int> getEntityId,
             Func<T, long> getTkbType,
-            long localNodeId = 0)
+            int localNodeId = 0)
         {
             _reader = new DdsReader<T>(participant);
             _repo = repo;
             _getEntityId = getEntityId;
             _getTkbType = getTkbType;
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         public void Poll()
@@ -89,7 +89,6 @@ namespace Fdp.Toolkit.DER
         public DescriptorIngressHandler(
             DdsParticipant participant, 
             IDerRepo repo, 
-            string topicName, 
             Func<T, int> getEntityId, 
             Func<T, int>? getPartId = null)
         {

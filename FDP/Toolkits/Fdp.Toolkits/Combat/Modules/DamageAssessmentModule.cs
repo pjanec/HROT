@@ -26,6 +26,8 @@ namespace Fdp.Toolkit.Combat.Modules
     {
         /// <summary>Systems that run in the Simulation phase.</summary>
         public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; } =
-            new IEcsModuleSystem[] { new DamageCalculationSystem() };
+            new IEcsModuleSystem[] { new DamageCalculationSystem(), new AreaEffectSystem(),   // ⭐ CE-1032 W-5 — the area effect beside the direct hit
+                                     new Fdp.Toolkit.Squad.DangerArea.ShelledAreaSystem(),   // ⭐ CE-4583 — the shelled areas, from the same bursts
+                                     new Fdp.Toolkit.Terrain.BuildingDamageSystem() };   // ⭐ CE-4391 S-1 — the breaches it decided, written into the building's damage entity (after it: B-5)
     }
 }

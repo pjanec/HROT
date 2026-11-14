@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Player debrief / HUD mockup (SR-112, docs/DESIGN_Scenario_Rules.md). Static, self-contained: open in a browser. Live canvas: https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k -->
+<title>Trainee debrief</title>
+</head>
+<body>
+<style>
+body{margin:0}
+a{color:#7fb6ff}a:hover{color:#a9ceff}
+</style>
+<div style="width: 1440px; height: 960px; box-sizing: border-box; padding: 28px 32px; background: #1b1d21; color: #e4e6ea; font-family: Inter, Segoe UI, system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column; gap: 20px;">
+
+  <div style="display: flex; align-items: flex-end; gap: 16px;">
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <span style="color: #9aa0a8; font-size: 12px; letter-spacing: 0.06em;">DEBRIEF · PLATOON ATTACK ON THE VILLAGE · 1 NOV 2026</span>
+      <span style="font-size: 28px; font-weight: 700;">Rifleman Kral</span>
+      <span style="color: #9aa0a8;">Squad 2 · 1st Platoon · role Rifleman · 58 min</span>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div style="padding: 12px 18px; border-radius: 10px; background: #3a1f1f; border: 1px solid #6b2a2a; display: flex; flex-direction: column; align-items: center; gap: 2px;">
+      <span style="color: #ff8a80; font-size: 22px; font-weight: 700;">NO-GO</span>
+      <span style="color: #f0b2ad; font-size: 12px;">2 of 4 standards met</span>
+    </div>
+    <div style="padding: 12px 18px; border-radius: 10px; background: #202328; border: 1px solid #353941; display: flex; flex-direction: column; gap: 4px; min-width: 220px;">
+      <span style="color: #9aa0a8; font-size: 12px;">Your score</span>
+      <div style="display: flex; align-items: baseline; gap: 10px;"><span style="font-size: 26px; font-weight: 700;">0.22</span><span style="color: #9aa0a8; font-size: 12px;">squad 0.29 · platoon 0.42</span></div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px;">
+    <div style="padding: 14px; border-radius: 10px; background: #202328; border: 1px solid #353941; display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; justify-content: space-between;"><span style="font-weight: 600;">Hit ratio</span><span style="color: #e5534b; font-weight: 700;">NO-GO</span></div>
+      <span style="font-size: 26px; font-weight: 700;">0.12</span>
+      <div style="position: relative; height: 8px; border-radius: 4px; background: #2a3a55;"><div style="width: 12%; height: 8px; border-radius: 4px; background: #e5534b;"></div><div style="position: absolute; left: 25%; top: -4px; width: 2px; height: 16px; background: #e4e6ea;"></div></div>
+      <span style="color: #9aa0a8; font-size: 12px;">standard 0.25 · squad avg 0.14 · 41 shots, 5 hits</span>
+    </div>
+    <div style="padding: 14px; border-radius: 10px; background: #202328; border: 1px solid #353941; display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; justify-content: space-between;"><span style="font-weight: 600;">Exposure</span><span style="color: #e5534b; font-weight: 700;">NO-GO</span></div>
+      <span style="font-size: 26px; font-weight: 700;">34 %</span>
+      <div style="position: relative; height: 8px; border-radius: 4px; background: #2a3a55;"><div style="width: 34%; height: 8px; border-radius: 4px; background: #e5534b;"></div><div style="position: absolute; left: 20%; top: -4px; width: 2px; height: 16px; background: #e4e6ea;"></div></div>
+      <span style="color: #9aa0a8; font-size: 12px;">standard ≤ 20 % of time in enemy view</span>
+    </div>
+    <div style="padding: 14px; border-radius: 10px; background: #202328; border: 1px solid #353941; display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; justify-content: space-between;"><span style="font-weight: 600;">Contact report</span><span style="color: #4fbf85; font-weight: 700;">GO</span></div>
+      <span style="font-size: 26px; font-weight: 700;">38 s</span>
+      <div style="position: relative; height: 8px; border-radius: 4px; background: #2a3a55;"><div style="width: 38%; height: 8px; border-radius: 4px; background: #4fbf85;"></div><div style="position: absolute; left: 60%; top: -4px; width: 2px; height: 16px; background: #e4e6ea;"></div></div>
+      <span style="color: #9aa0a8; font-size: 12px;">standard ≤ 60 s from first sight to report</span>
+    </div>
+    <div style="padding: 14px; border-radius: 10px; background: #202328; border: 1px solid #353941; display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; justify-content: space-between;"><span style="font-weight: 600;">No harm to own / civilians</span><span style="color: #4fbf85; font-weight: 700;">GO</span></div>
+      <span style="font-size: 26px; font-weight: 700;">0</span>
+      <span style="color: #9aa0a8; font-size: 12px;">required · no friendly or neutral hit</span>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 20px;">
+    <div style="flex-grow: 1; padding: 16px; border-radius: 10px; background: #202328; border: 1px solid #353941; display: flex; flex-direction: column; gap: 12px;">
+      <span style="font-weight: 600;">Your exercise, moment by moment</span>
+      <div style="position: relative; height: 70px;">
+        <div style="position: absolute; left: 0; top: 30px; width: 100%; height: 4px; border-radius: 2px; background: #30343b;"></div>
+        <div style="position: absolute; left: 22%; top: 30px; width: 20%; height: 4px; background: #e5534b;"></div>
+        <span style="position: absolute; left: 22%; top: 40px; color: #ff8a80; font-size: 11px;">exposed in the open 4:10</span>
+        <div style="position: absolute; left: 18%; top: 24px; width: 12px; height: 12px; background: #e4e6ea; transform: rotate(45deg);"></div>
+        <span style="position: absolute; left: 14%; top: 4px; font-size: 11px; color: #c9ccd2;">first contact 09:11</span>
+        <div style="position: absolute; left: 25%; top: 24px; width: 12px; height: 12px; background: #4fbf85; transform: rotate(45deg);"></div>
+        <span style="position: absolute; left: 26%; top: 4px; font-size: 11px; color: #4fbf85;">report sent</span>
+        <div style="position: absolute; left: 44%; top: 24px; width: 12px; height: 12px; background: #d9a83f; transform: rotate(45deg);"></div>
+        <span style="position: absolute; left: 41%; top: 4px; font-size: 11px; color: #f0d08a;">wounded 09:21</span>
+        <div style="position: absolute; left: 70%; top: 24px; width: 12px; height: 12px; background: #5aa8ff; transform: rotate(45deg);"></div>
+        <span style="position: absolute; left: 66%; top: 4px; font-size: 11px; color: #a9ceff;">bridge held</span>
+      </div>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button style="background: #2f6fd6; color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; font: inherit; font-weight: 600;">▶ Replay from my eyes · 09:11</button>
+        <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 6px; padding: 8px 14px; font: inherit;">▶ Replay from above</button>
+        <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 6px; padding: 8px 14px; font: inherit;">Show my route on the map</button>
+      </div>
+    </div>
+    <div style="width: 420px; display: flex; flex-direction: column; gap: 14px;">
+      <div style="padding: 14px 16px; border-radius: 10px; background: #1d2a22; border: 1px solid #2f5a40; display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-weight: 600; color: #8fe0b0;">Went well</span>
+        <span>Reported contact in 38 s — fastest in your squad.</span>
+        <span>No harm to own forces or civilians.</span>
+      </div>
+      <div style="padding: 14px 16px; border-radius: 10px; background: #2b2420; border: 1px solid #5c4a2f; display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-weight: 600; color: #f0d08a;">Work on</span>
+        <span>4 min crossing the open ground at 09:14 — move from cover to cover.</span>
+        <span>Long bursts at 300 m: 41 shots, 5 hits — aimed single shots.</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 20px;">
+    <div style="flex-grow: 1; padding: 14px 16px; border-radius: 10px; background: #202328; border: 1px solid #353941; display: flex; flex-direction: column; gap: 6px;">
+      <span style="font-weight: 600;">Instructor's note</span>
+      <span style="color: #c9ccd2;">Good report discipline. Repeat the village approach in variant 3 — focus on bounding with your fire team.</span>
+      <span style="color: #9aa0a8; font-size: 12px;">— Sgt. Novotny · added during the debrief</span>
+    </div>
+    <div style="width: 420px; padding: 14px 16px; border-radius: 10px; background: #202328; border: 1px solid #353941; display: flex; flex-direction: column; gap: 6px;">
+      <span style="font-weight: 600;">Compared to your earlier runs</span>
+      <span style="font-size: 12px; color: #c9ccd2;">Hit ratio 0.09 → 0.11 → <b>0.12</b> · Exposure 41 % → 38 % → <b>34 %</b></span>
+      <span style="color: #9aa0a8; font-size: 11px;">needs the trainee record across sessions (gap G7)</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

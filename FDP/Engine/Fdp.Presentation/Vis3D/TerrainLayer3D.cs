@@ -1,0 +1,292 @@
+using System;
+using System.Numerics;
+using Fdp.Core;
+using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.World;
+using Raylib_cs;
+
+namespace Fdp.Toolkit.Vis3D
+{
+    /// <summary>
+    /// ⭐ CE-1033 S1 — the terrain in the map's 3-D mode (<c>docs/DESIGN_Map_3D_Mode.md</c> M4, M5): the triangles the world query
+    /// hands out through <see cref="ITerrainRenderGeometry"/> (the stand-in: its navmesh soup, unchanged), one colour per kind, lit
+    /// and fogged by <see cref="LitShader"/>. Flat shading by un-indexing (each triangle its own normal). The mesh is rebuilt only
+    /// when the geometry's <see cref="ITerrainRenderGeometry.Identity"/> changes — ⭐ R-1046: built on a worker (<see cref="BackgroundMeshBuild{TStreams}"/>), uploaded on the frame. Nothing in 2-D.
+    /// 🔒 R-250/R-252: the map sees triangles and a kind, never how the terrain is modelled.
+    /// </summary>
+    public sealed class TerrainLayer3D : ISceneLayer, IMeshLayer3D, IDisposable   // ⭐ CE-3289 — the world: filmed
+    {
+        public static readonly Color GroundColor = new(112, 142, 86, 255);
+        public static readonly Color WallColor = new(206, 200, 188, 255);
+        /// <summary>⭐ <c>CE-1341</c> — slate grey, not terracotta: a building's floors arrive as the same upward triangles as its roof, and a red
+        /// floor read as the brick walls. 🔒 User, 2026-10-25: "change the roof texture to something non-red what can work as the floor as well".</summary>
+        public static readonly Color RoofColor = new(112, 114, 118, 255);
+
+        private readonly Func<ITerrainRenderGeometry?> _source;
+        private Mesh _mesh;
+        private bool _hasMesh;
+        /// <summary>⭐ R-1046 — the CPU streams are built on a worker, keyed by the geometry's identity; the frame thread uploads them (<see cref="PumpBuild"/>).</summary>
+        private readonly BackgroundMeshBuild<Streams> _build = new();
+
+        /// <summary>The terrain's un-indexed vertex streams.</summary>
+        private sealed record Streams(Vector3[] Positions, Vector3[] Normals, Color[] Colors);
+
+        public TerrainLayer3D(Func<ITerrainRenderGeometry?> source)
+            => _source = source ?? throw new ArgumentNullException(nameof(source));
+
+        public string Name => "Terrain (3-D)";
+        public int LayerBitIndex => -1;
+        public bool Has3D => true;
+
+        /// <summary>Triangles in the uploaded mesh (0 before the first 3-D frame with a world) — for a chunked terrain, the triangles DRAWN last frame.</summary>
+        public int TriangleCount { get => _chunks?.TrianglesDrawn ?? _triangles; private set => _triangles = value; }
+        private int _triangles;
+
+        /// <summary>⭐ CE-3423 (DESIGN_Map_3D_Mode §6ah) — the chunked terrain's meshes, when the source is chunked (null otherwise: the whole-mesh path, L-11).</summary>
+        private TerrainChunks3D? _chunks;
+        internal TerrainChunks3D? Chunks => _chunks;
+
+        /// <summary>
+        /// ⭐ U-6 — asked ONLY when the chunked source's identity changed: given the identity of the world the chunks were built for, the rectangles (world metres) the new world differs in, or null when that is unknown (everything is rebuilt, as
+        /// before). The editor's map wires it to the live bake's <c>LiveTerrainBakeInfo</c> — the bake already knows where it changed.
+        /// </summary>
+        public Func<object, System.Collections.Generic.IReadOnlyList<(Vector2 Min, Vector2 Max)>?>? ChangedAreas { get; set; }
+
+        /// <summary>How many times the chunk set was ADOPTED by a new world (kept, only the changed chunks rebuilt) instead of rebuilt whole (a rail).</summary>
+        public int Adoptions { get; private set; }
+
+        /// <summary>The chunk set for a chunked source, rebuilt when its identity changes; null for a plain source.</summary>
+        private TerrainChunks3D? ChunksFor(ITerrainRenderGeometry? geometry)
+        {
+            if (geometry is not ITerrainChunkedGeometry chunked) { if (_chunks != null) { _chunks.Dispose(); _chunks = null; } return null; }
+            if (_chunks != null && Equals(_chunks.Identity, chunked.Identity)) { _chunks.SetDamage(chunked); return _chunks; }   // ⭐ CE-4392 — the damage of this frame's view
+            // ⭐ U-6 — a NEW world over the same chunk grid whose change is known (the live bake's dirty rectangles): keep the meshes, rebuild only the chunks under them
+            if (_chunks != null && ChangedAreas?.Invoke(_chunks.Identity) is { } areas && _chunks.Adopt(chunked, areas)) { Adoptions++; _chunks.SetDamage(chunked); return _chunks; }
+            _chunks?.Dispose();
+            Release(); _build.Reset();
+            _chunks = new TerrainChunks3D(chunked);
+            _chunks.SetDamage(chunked);
+            return _chunks;
+        }
+
+        // ⭐ R-1046 — the upload is pumped by the map's Map3DBuild (every frame, 2-D too), not here
+        public void Update(float dt) { }
+        public void Draw(RenderContext ctx) { }
+
+        string IMeshLayer3D.BuildName => "terrain";
+        bool IMeshLayer3D.HasSource => _source() != null;
+        bool IMeshLayer3D.IsBuilt => _source() is { } g && (ChunksFor(g) is { } c ? c.CoarseBuilt : _build.IsBuiltFor(g.Identity));
+        string? IMeshLayer3D.BuildFailure => _chunks?.Failure ?? _build.Failure;
+
+        /// <summary>The build state of the mesh (for the rails).</summary>
+        public MeshBuildState BuildState => _chunks is { } c ? (c.Failure != null ? MeshBuildState.Failed : c.CoarseBuilt ? MeshBuildState.Built : MeshBuildState.Building) : _build.State;
+
+        void IMeshLayer3D.RequestBuild()
+        {
+            if (_source() is not { } geometry)
+            {
+                if (_hasMesh || _build.State != MeshBuildState.Idle) { Release(); _build.Reset(); }
+                ChunksFor(null);
+                return;
+            }
+            if (ChunksFor(geometry) is { } chunks) { chunks.Pump(); return; }   // ⭐ CE-3423 — the chunks schedule their own builds
+            RequestBuild(geometry);
+        }
+
+        void IMeshLayer3D.PumpBuild()
+        {
+            if (_chunks != null) { _chunks.Pump(); return; }
+            _build.Pump(Upload);
+        }
+        public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;
+        public Entity? PickEntity(Vector2 worldPos) => null;
+
+        public void Draw3D(RenderContext ctx)
+        {
+            var geometry = _source();
+            if (geometry == null) return;
+            var chunks = ChunksFor(geometry);
+            if (chunks == null)
+            {
+                // a frame drawn in 3-D wants its mesh: ask (a no-op when asked), and upload what a worker has finished — the build itself never runs here
+                RequestBuild(geometry);
+                _build.Pump(Upload);
+                if (!_hasMesh) return;
+            }
+            else chunks.Pump();
+            Rlgl.DisableBackfaceCulling();
+            var lit = LitShader.Shared;
+            lit.SetGroundDetail(1f);   // ⭐ CE-1328 / CE-1333 — the materials' patterns (grass, brick, concrete, sandbags, roof tiles …)
+            if (chunks != null) chunks.Draw();   // ⭐ CE-3423 — per chunk, by level of detail, culled
+            else Raylib.DrawMesh(_mesh, lit.Tinted(Color.White), Matrix4x4.Identity);
+            lit.SetGroundDetail(0f);
+            Rlgl.EnableBackfaceCulling();
+        }
+
+        /// <summary>
+        /// ⭐ R-1046 — starts the CPU build for <paramref name="geometry"/> on a worker. 📐 Safe off the frame thread: <see cref="ITerrainRenderGeometry.BuildTagged"/> of the terrain reads only its
+        /// <c>TerrainWorld</c> (init-only, never mutated after the terrain is committed — <c>TerrainWorldMesh.Build</c> is static and pure).
+        /// </summary>
+        private void RequestBuild(ITerrainRenderGeometry geometry)
+            => _build.Request(geometry.Identity, () =>
+            {
+                // ⭐ CE-1033 S4 — the tagged build: each triangle's material, and the water surfaces.
+                geometry.BuildTagged(out var verts, out var indices, out var kinds, out var materials);
+                BuildVertexData(verts, indices, kinds, materials, out var positions, out var normals, out var colors);
+                return new Streams(positions, normals, colors);
+            });
+
+        /// <summary>FRAME THREAD: the finished streams onto the GPU, replacing the previous mesh.</summary>
+        private void Upload(Streams streams)
+        {
+            Release();
+            var positions = streams.Positions;
+            TriangleCount = positions.Length / 3;
+            if (TriangleCount == 0) return;
+
+            var mesh = new Mesh(positions.Length, TriangleCount);
+            mesh.AllocVertices();
+            mesh.AllocNormals();
+            mesh.AllocColors();
+            positions.AsSpan().CopyTo(mesh.VerticesAs<Vector3>());
+            streams.Normals.AsSpan().CopyTo(mesh.NormalsAs<Vector3>());
+            streams.Colors.AsSpan().CopyTo(mesh.ColorsAs<Color>());
+            Raylib.UploadMesh(ref mesh, false);
+            _mesh = mesh;
+            _hasMesh = true;
+        }
+
+        /// <summary>
+        /// The un-indexed, flat-shaded vertex streams in Raylib coordinates: three vertices per triangle, each carrying the
+        /// triangle's normal and its kind's colour. Pure — the rail tests it without a window.
+        /// </summary>
+        public static void BuildVertexData(Vector3[] verts, int[] indices, TerrainSurfaceKind[] kinds,
+            out Vector3[] positions, out Vector3[] normals, out Color[] colors)
+            => BuildVertexData(verts, indices, kinds, null, out positions, out normals, out colors);
+
+        /// <summary>⭐ CE-1033 S4 — as above, coloured by kind AND material (<see cref="ColourOf(TerrainSurfaceKind, string?)"/>).</summary>
+        public static void BuildVertexData(Vector3[] verts, int[] indices, TerrainSurfaceKind[] kinds, string?[]? materials,
+            out Vector3[] positions, out Vector3[] normals, out Color[] colors)
+        {
+            int tris = indices.Length / 3;
+            positions = new Vector3[tris * 3];
+            normals = new Vector3[tris * 3];
+            colors = new Color[tris * 3];
+            for (int t = 0; t < tris; t++)
+            {
+                var a = HrotToRaylib.Position(verts[indices[3 * t]]);
+                var b = HrotToRaylib.Position(verts[indices[3 * t + 1]]);
+                var c = HrotToRaylib.Position(verts[indices[3 * t + 2]]);
+                var n = Vector3.Cross(b - a, c - a);
+                float len = n.Length();
+                n = len > 1e-12f ? n / len : Vector3.UnitY;
+                var kind = t < kinds.Length ? kinds[t] : TerrainSurfaceKind.Ground;
+                string? material = materials != null && t < materials.Length ? materials[t] : null;
+                var colour = ColourOf(kind, material);
+                colour.A = MaterialCode(kind, material);   // ⭐ CE-1333 — the shader's pattern, carried in the alpha (the terrain draws opaque)
+                positions[3 * t] = a; positions[3 * t + 1] = b; positions[3 * t + 2] = c;
+                normals[3 * t] = normals[3 * t + 1] = normals[3 * t + 2] = n;
+                colors[3 * t] = colors[3 * t + 1] = colors[3 * t + 2] = colour;
+            }
+        }
+
+        public static Color ColourOf(TerrainSurfaceKind kind) => kind switch
+        {
+            TerrainSurfaceKind.Wall => WallColor,
+            TerrainSurfaceKind.Roof => RoofColor,
+            TerrainSurfaceKind.Water => WaterColor,
+            _ => GroundColor,
+        };
+
+        public static readonly Color WaterColor = new(66, 112, 158, 255);
+        public static readonly Color ForestColor = new(66, 100, 54, 255);
+        /// <summary>⭐ The apron round the terrain (<c>TerrainWorldMesh.BuildApron</c>): the ground's grass pattern on a slightly duller, browner green, so
+        /// the real terrain's edge stays visible.</summary>
+        public static readonly Color ApronColor = new(104, 124, 84, 255);
+
+        /// <summary>
+        /// ⭐ CE-1033 S4 — a triangle's colour from its kind and its material (the shared material library's names). A building's
+        /// concrete or brick roof keeps the roof colour; a fence, a hedge, sandbags, a berm, glass or a car body shows its own.
+        /// </summary>
+        public static Color ColourOf(TerrainSurfaceKind kind, string? material)
+        {
+            // ⭐ CE-4392 X-8 — a material burnt by a blast: its own colour, darkened
+            if (Burnt(material, out var unburnt, out float shade)) return Shade(ColourOf(kind, unburnt), shade);
+            if (kind == TerrainSurfaceKind.Water) return WaterColor;
+            if (kind == TerrainSurfaceKind.Ground) return material switch { "forest" => ForestColor, "apron" => ApronColor, _ => GroundColor };
+            Color? own = material switch
+            {
+                "brick" => new Color(172, 96, 72, 255),
+                "glass" => new Color(150, 184, 206, 255),
+                "steel-plate" or "fence-metal-sheet" => new Color(124, 130, 138, 255),
+                "fence-wood" or "door-wood" => new Color(140, 104, 68, 255),
+                "fence-chainlink" => new Color(156, 158, 160, 255),
+                "hedge" => new Color(56, 94, 46, 255),
+                "sandbags" => new Color(182, 162, 112, 255),
+                "earth-berm" => new Color(128, 108, 78, 255),
+                "car-body" => new Color(92, 98, 112, 255),
+                // ⭐ CE-4377 (§6ai T-4) — the drawn trees: bark, two crown greens, the far canopy
+                "tree-trunk" => new Color(96, 72, 52, 255),
+                "tree-crown" => new Color(62, 104, 48, 255),
+                "tree-crown-dark" => new Color(50, 88, 40, 255),
+                "canopy" => new Color(56, 96, 44, 255),
+                "painted-window" => new Color(46, 60, 78, 255),   // ⭐ a solid building's painted windows: dark glass
+                "rubble" => new Color(128, 118, 104, 255),
+                "scorch" => new Color(24, 21, 19, 255),   // ⭐ CE-4392 X-7 — soot round a breach (the mottled earth pattern breaks it up)
+                "scorch-light" => new Color(70, 58, 50, 255),   // … and its lighter streaks further out   // ⭐ CE-4392 X-2 — a collapsed building's heap: dusty grey-brown (the earth pattern)
+                "roof-pitched" => new Color(64, 66, 74, 255),   // ⭐ CE-4377 R-2 — a drawn pitched roof: dark ANTHRACITE tiles (user, `2026-11-10`: the clay red was "very similar to the brick wall") — apart from the brick walls in hue AND value, darker than the slate flat roofs
+                _ => null,   // concrete and unknown: the kind's colour
+            };
+            if (kind == TerrainSurfaceKind.Roof)
+                return material is null or "concrete" or "brick" ? RoofColor : material is "roof-pitched" or "rubble" ? own!.Value : Shade(own ?? RoofColor, 0.85f);
+            return own ?? WallColor;
+        }
+
+        /// <summary>⭐ <c>CE-1333</c> — which pattern the lit shader paints on a terrain triangle (<see cref="LitShader.SetGroundDetail"/>), carried
+        /// in its vertex colour's alpha: 250 open ground (grass) · 249 forest floor · 248 brick · 247 concrete · 246 sandbags · 245 roof tiles ·
+        /// 244 wood · 243 earth · 242 hedge · 241 a brick building's roof (tiles on top, brick on its sides) · 240 a drawn pitched roof (tiles, CE-4377) · 255 none (water, glass, metal,
+        /// a car body).</summary>
+        /// <summary>⭐ CE-4392 X-8 — <c>&lt;material&gt;-scorched</c> / <c>-singed</c> → the material and how much of its colour is left.</summary>
+        private static bool Burnt(string? material, out string? unburnt, out float shade)
+        {
+            unburnt = material; shade = 1f;
+            if (material == null) return false;
+            if (material.EndsWith(Fdp.Toolkit.Terrain.TerrainWorldMesh.ScorchedSuffix, StringComparison.Ordinal)) { unburnt = material[..^Fdp.Toolkit.Terrain.TerrainWorldMesh.ScorchedSuffix.Length]; shade = 0.38f; return true; }
+            if (material.EndsWith(Fdp.Toolkit.Terrain.TerrainWorldMesh.SingedSuffix, StringComparison.Ordinal)) { unburnt = material[..^Fdp.Toolkit.Terrain.TerrainWorldMesh.SingedSuffix.Length]; shade = 0.62f; return true; }
+            return false;
+        }
+
+        public static byte MaterialCode(TerrainSurfaceKind kind, string? material) => Burnt(material, out var unburnt, out _) ? CodeFor(kind, unburnt) : CodeFor(kind, material);
+
+        private static byte CodeFor(TerrainSurfaceKind kind, string? material) => kind switch
+        {
+            TerrainSurfaceKind.Water => 255,
+            TerrainSurfaceKind.Ground => material == "forest" ? (byte)249 : (byte)250,
+            TerrainSurfaceKind.Roof => material == "brick" ? (byte)241 : material == "roof-pitched" ? (byte)240 : material is null or "concrete" ? (byte)245 : CodeOf(material),
+            _ => CodeOf(material),
+        };
+
+        private static byte CodeOf(string? material) => material switch
+        {
+            null or "concrete" => 247,
+            "brick" => 248,
+            "sandbags" => 246,
+            "fence-wood" or "door-wood" or "tree-trunk" => 244,
+            "tree-crown" or "tree-crown-dark" or "canopy" => 242,   // ⭐ CE-4377 — the leaf pattern (the hedge's)
+            "earth-berm" or "rubble" or "scorch" or "scorch-light" => 243,   // ⭐ CE-4392 — rubble: the mottled earth
+            "hedge" => 242,
+            _ => 255,
+        };
+
+        private static Color Shade(Color c, float k) => new((byte)(c.R * k), (byte)(c.G * k), (byte)(c.B * k), c.A);
+
+        private void Release()
+        {
+            if (_hasMesh) Raylib.UnloadMesh(_mesh);
+            _hasMesh = false;
+            TriangleCount = 0;
+        }
+
+        public void Dispose() { Release(); _chunks?.Dispose(); _chunks = null; }
+    }
+}

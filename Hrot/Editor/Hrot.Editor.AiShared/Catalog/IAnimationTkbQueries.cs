@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Hrot.MuscleCharacter.Animation.Components;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Editor.AiShared.Catalog
 {

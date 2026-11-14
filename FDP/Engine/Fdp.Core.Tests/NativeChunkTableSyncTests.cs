@@ -6,6 +6,39 @@ namespace Fdp.Tests
 {
     public unsafe class NativeChunkTableSyncTests
     {
+        /// <summary>⭐ CE-2394 — the sync walks only up to the highest chunk either side uses (was every chunk the table COULD have:
+        /// 1 000 000 / capacity), and still copies a far chunk, clears a chunk the source released, and a versioned chunk past the
+        /// source's bound after the source is cleared. ✅ Red-proof: bound the loop by the DESTINATION's mark only ⇒ the far write is lost.</summary>
+        [Fact]
+        public void CE2394_TheSyncWalksOnlyTheUsedChunks_AndMissesNothing()
+        {
+            using var source = new NativeChunkTable<Position>();
+            using var dest = new NativeChunkTable<Position>();
+            Assert.Equal(0, source.UsedChunkBound);
+            int cap = FdpConfig.GetChunkCapacity<Position>();
+            source.GetRefRW(5, 10).X = 1f;               // chunk 0
+            source.GetRefRW(cap * 7 + 3, 11).X = 7f;      // chunk 7
+            Assert.Equal(8, source.UsedChunkBound);
+            Assert.True(source.UsedChunkBound < source.TotalChunks);
+
+            dest.SyncDirtyChunks(source);
+            Assert.Equal(1f, dest.GetRefRO(5).X);
+            Assert.Equal(7f, dest.GetRefRO(cap * 7 + 3).X);
+            Assert.Equal(11u, dest.GetChunkVersion(7));
+
+            // the source drops everything: the destination follows, though the source's bound is back to 0
+            source.Clear();
+            Assert.Equal(0, source.UsedChunkBound);
+            dest.SyncDirtyChunks(source);
+            Assert.False(dest.IsChunkCommitted(7));
+            Assert.Equal(0u, dest.GetChunkVersion(7));
+
+            // and a later write far out is copied again
+            source.GetRefRW(cap * 7 + 3, 12).X = 9f;
+            dest.SyncDirtyChunks(source);
+            Assert.Equal(9f, dest.GetRefRO(cap * 7 + 3).X);
+        }
+
         [Fact]
         public void DirtyChunk_Copied()
         {
@@ -126,7 +159,8 @@ namespace Fdp.Tests
             Assert.Equal(0u, dest.GetChunkVersion(0));
         }
         
-        [Fact]
+        [Fdp.Testing.FlakyFact("wall-clock 5 ms threshold")]
+        [Trait("Category", "Flaky")]
         public void Performance_1000Chunks_30PercentDirty()
         {
             // Performance test

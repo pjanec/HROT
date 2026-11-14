@@ -1,5 +1,6 @@
 using System;
 using Fhsm.Compiler.Graph;
+using Fhsm.Kernel.Data;
 
 namespace Fhsm.Compiler
 {
@@ -26,8 +27,13 @@ namespace Fhsm.Compiler
 
         /// <summary>
         /// Adds a global transition that fires for any active state when <paramref name="eventName"/> is raised.
+        /// ⭐ <c>CE-506</c>: an optional <paramref name="guard"/>, effect <paramref name="action"/> and <paramref name="priority"/>
+        /// — the kernel's <c>GlobalTransitionDef</c> always had the slots; this overload never filled them, so an authored
+        /// global guard/action was silently dropped. The guard is evaluated against the ACTIVE leaf (region 0), as before.
+        /// Among global transitions on one event the highest priority is tried first (ties keep declaration order).
         /// </summary>
-        public HsmBuilder GlobalTransition(string eventName, string targetStateName, Guid visualId = default)
+        public HsmBuilder GlobalTransition(string eventName, string targetStateName, Guid visualId = default,
+            string? guard = null, string? action = null, byte? priority = null)
         {
             if (!_graph.EventNameToId.TryGetValue(eventName, out ushort eventId))
                 throw new InvalidOperationException($"Event '{eventName}' not registered");
@@ -40,8 +46,11 @@ namespace Fhsm.Compiler
                 Source = null,  // global transitions have no source state
                 Target = target,
                 EventId = eventId,
-                VisualId = visualId == default ? Guid.NewGuid() : visualId
+                VisualId = visualId == default ? Guid.NewGuid() : visualId,
+                GuardFunction = guard,
+                ActionFunction = action,
             };
+            if (priority.HasValue) t.Priority = priority.Value;
             _graph.GlobalTransitions.Add(t);
             return this;
         }
@@ -97,6 +106,17 @@ namespace Fhsm.Compiler
             _state.OnEntryAction = actionName;
             return this;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3163</c> — register an action NAME on the graph from a state (the validator requires every name a state
+        /// uses to be registered, and a typed binding helper only holds the <see cref="StateBuilder"/>). Same effect as
+        /// <see cref="HsmBuilder.RegisterAction(string)"/>.
+        /// </summary>
+        public StateBuilder RegisterAction(string actionName)
+        {
+            _graph.RegisteredActions.Add(actionName);
+            return this;
+        }
         
         public StateBuilder OnExit(string actionName)
         {
@@ -109,7 +129,52 @@ namespace Fhsm.Compiler
             _state.ActivityAction = actionName;
             return this;
         }
-        
+
+        /// <summary>
+        /// Declares the output lanes this state's actions write to, for orthogonal-region arbitration.
+        ///
+        /// <para>When two regions of the same parallel composite are simultaneously active and their active
+        /// leaves share a lane bit, <c>HsmKernelCore.ArbitrateOutputLanes</c> lets the first region win and
+        /// traces the conflict. A state that declares no lane contributes no bits and is never arbitrated.</para>
+        ///
+        /// <para>This is the only way to fill <see cref="StateNode.OutputLaneMask"/>, and therefore
+        /// <c>StateDef.OutputLaneMask</c>: the compiler takes actions as NAMES and does no reflection, so it
+        /// cannot read a lane off an action's attribute. The caller — a code generator that can see the
+        /// attributes, or a hand author who knows what the state drives — supplies it.</para>
+        ///
+        /// <para>Calls accumulate, so a state may declare its lanes in one call or several.
+        /// <see cref="CommandLane.None"/> and <see cref="CommandLane.Count"/> are not lanes and are ignored.</para>
+        /// </summary>
+        public StateBuilder OutputLanes(params CommandLane[] lanes)
+        {
+            if (lanes == null) return this;
+            foreach (var lane in lanes)
+            {
+                if ((byte)lane >= (byte)CommandLane.Count) continue;   // None (0xFF) or out of range
+                _state.OutputLaneMask |= (byte)(1 << (byte)lane);
+            }
+            return this;
+        }
+
+        /// <summary>
+        /// The raw bitmask form of <see cref="OutputLanes"/>: bit N set means the state writes
+        /// <c>(CommandLane)N</c>. Accumulates with any lanes already declared.
+        ///
+        /// <para>This overload exists for GENERATED code. A generator that emitted the enum form would have to
+        /// carry its own copy of the lane names — and a code generator often lives in an assembly that cannot
+        /// reference this one at all, so that copy could mis-map silently if the enum were ever reordered.
+        /// A mask needs no name table. Hand-written machines should prefer <see cref="OutputLanes"/>, which reads.</para>
+        ///
+        /// <para>Bits at or above <see cref="CommandLane.Count"/> are ignored: they address no lane, and the
+        /// kernel's arbitration would otherwise see a conflict on a lane that does not exist.</para>
+        /// </summary>
+        public StateBuilder OutputLaneMask(byte mask)
+        {
+            byte valid = (byte)((1 << (byte)CommandLane.Count) - 1);
+            _state.OutputLaneMask |= (byte)(mask & valid);
+            return this;
+        }
+
         public StateBuilder Initial()
         {
             _state.IsInitial = true;
@@ -128,9 +193,55 @@ namespace Fhsm.Compiler
             return this;
         }
 
+        /// <summary>
+        /// ⭐ CE-1003 (Q84 A0) — declare which orthogonal region of its PARALLEL parent this child belongs to.
+        /// Children sharing an index form one region (a sub-state machine); <see cref="Initial"/> marks that region's
+        /// initial state. A child that never calls this is a region of its own.
+        /// </summary>
+        public StateBuilder InRegion(int regionIndex)
+        {
+            if (regionIndex < 0) throw new ArgumentOutOfRangeException(nameof(regionIndex));
+            _state.RegionIndex = regionIndex;
+            return this;
+        }
+
         public StateBuilder DeepHistory()
         {
             _state.IsDeepHistory = true;
+            return this;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b><c>CE-383</c> — bake an EXPLICIT activity action id, bypassing the name hash.</b>
+        /// ⛔ Not for hand-written actions: use <see cref="Activity(string)"/>, whose FQN hash is the
+        /// identity (<c>E6</c>(A)). ⭐ This exists for a BLUEPRINT-hosted activity, which registers
+        /// under its <c>BlueprintId</c> — a value no authorable name hashes to. 📄
+        /// <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.2.
+        /// </summary>
+        public StateBuilder ActivityId(ushort actionId)
+        {
+            _state.ActivityActionId = actionId;
+            return this;
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-388</c> / <c>Q74 D-B1</c> — bake an EXPLICIT exit action id.</b>
+        /// The mirror of <see cref="ActivityId(ushort)"/>, and it exists for the same reason: a
+        /// BLUEPRINT-hosted activity's exit-cleanup registers under an id no authorable name hashes
+        /// to. ⛔ Not for hand-written cleanups — use <see cref="OnExit(string)"/>, whose FQN hash
+        /// is the identity.
+        ///
+        /// <para>⚠⚠ <b>THE FILL-AN-EMPTY-SLOT RULE IS ENFORCED BY THE EMITTER, NOT HERE.</b>
+        /// 📐 <c>HsmFlattener:173</c> reads <c>ExitActionId != 0 ? ExitActionId : hash(OnExitAction)</c>
+        /// — the explicit id WINS over the name — so this builder cannot express "only if unset".
+        /// ⭐ <c>HsmEmitCore</c> therefore emits <c>.OnExitId(n)</c> only for a state that has no
+        /// <c>OnExitAction</c>, which is what keeps an authored cleanup authoritative. ⛔ A caller
+        /// that sets both gets the id, silently — do not do that.</para>
+        /// </summary>
+        public StateBuilder OnExitId(ushort actionId)
+        {
+            // ⭐ The SAME field the JSON parser and CE-383's ActivityId shape already use; 0 = unset.
+            _state.ExitActionId = actionId;
             return this;
         }
 
@@ -223,7 +334,32 @@ namespace Fhsm.Compiler
             _transition.GuardFunction = guardName;
             return this;
         }
+
+        /// <summary>⭐ <c>CE-3163</c> — register a guard NAME on the graph from a transition (see <see cref="StateBuilder.RegisterAction"/>).</summary>
+        public TransitionBuilder RegisterGuard(string guardName)
+        {
+            _graph.RegisteredGuards.Add(guardName);
+            return this;
+        }
+
+        /// <summary>⭐ <c>CE-3163</c> — register an action NAME on the graph from a transition.</summary>
+        public TransitionBuilder RegisterAction(string actionName)
+        {
+            _graph.RegisteredActions.Add(actionName);
+            return this;
+        }
         
+        /// <summary>
+        /// ⭐⭐ <b><c>CE-383</c> — bake an EXPLICIT guard id, bypassing the name hash.</b>
+        /// ⛔ Not for hand-written guards: use <see cref="Guard(string)"/>. ⭐ This exists for a
+        /// BLUEPRINT-hosted guard, which registers under its <c>BlueprintId</c>. 📄 §3.2.
+        /// </summary>
+        public TransitionBuilder GuardId(ushort guardId)
+        {
+            _transition.GuardId = guardId;
+            return this;
+        }
+
         public TransitionBuilder Action(string actionName)
         {
             _transition.ActionFunction = actionName;
@@ -233,6 +369,26 @@ namespace Fhsm.Compiler
         public TransitionBuilder Priority(byte priority)
         {
             _transition.Priority = priority;
+            return this;
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>CE-381 — mark this transition POLLED: its guard is evaluated every quiescent
+        /// tick, with no event.</b>
+        ///
+        /// <para>⛔⛔ <b>This is NOT "a transition with no event".</b> An eventless transition
+        /// (<c>EventId 0</c>) is already selected by the RTC loop's completion pass and fires ONCE,
+        /// as a consequence of another transition firing. A polled transition fires whenever its
+        /// guard passes while the machine is otherwise idle. 🔒 The two were deliberately NOT
+        /// collapsed onto one encoding — 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §2.3,
+        /// §3.1, §10 ③.</para>
+        ///
+        /// <para>⚠ A polled transition normally carries a <see cref="Guard"/>. One without a guard
+        /// fires on the first quiescent tick, which is legal and occasionally what you want.</para>
+        /// </summary>
+        public TransitionBuilder Polled(bool polled = true)
+        {
+            _transition.IsPolled = polled;
             return this;
         }
     }

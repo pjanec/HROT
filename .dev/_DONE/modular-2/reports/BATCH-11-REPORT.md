@@ -157,7 +157,7 @@ dotnet list Hrot.Orchestrator/Hrot.Orchestrator.csproj reference
 ## Build Result
 
 ```
-dotnet build IOS-IG-SimHost.sln -v quiet
+dotnet build HROT.sln -v quiet
     20 Warning(s)   (pre-existing, no new warnings introduced)
     0 Error(s)
 ```

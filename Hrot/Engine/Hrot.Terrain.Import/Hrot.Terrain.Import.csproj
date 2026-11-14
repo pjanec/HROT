@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The terrain IMPORTER (docs/DESIGN_Terrain_Import_UTM.md §11, CE-4368): an input set -> assets/terrain/<name>/.
+       No UI; the CLI hrot-terrain-import and the editor's wizard both call TerrainImporter. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Hrot.Terrain.Import</RootNamespace>
+    <AssemblyName>Hrot.Terrain.Import</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Hrot.Terrain.InputSet\Hrot.Terrain.InputSet.csproj" />
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- ⭐ CE-4393 — the navmesh prefill bakes through the SAME baker a node's load uses (UTM §12.1 N-2) -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Navigation.Recast\Fdp.Toolkits.Navigation.Recast.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hrot.Terrain.Import.Tests" />
+    <InternalsVisibleTo Include="Hrot.Terrain.Random" />   <!-- ⭐ T-3 part 2 (CE-4430) — SynthUniqueBuildings turns a site's generated buildings into templates through BuildingTemplateGenerator -->
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Clipper2" Version="1.5.4" />
+  </ItemGroup>
+</Project>

@@ -223,7 +223,7 @@ For Roslyn generator tests, place them in `FDP/Toolkits/Fdp.Toolkits.Tests/` in 
 - **Minimum:** All 8 success conditions for GZ022, 5 for GZ023 (SC-GZ023-1 through SC-GZ023-5), 5 for GZ024, 5 for GZ040.
 - **Quality bar:** Tests must verify ACTUAL behavior — entity count processed, invocation counts, no exceptions from parallel code.
 - **Regression:** Run the full `Hrot.IG.Tests` suite after GZ023 migration. All 36+ existing tests must still pass.
-- **Build verification:** After GZ024, run `dotnet build IOS-IG-SimHost.sln`. Zero errors.
+- **Build verification:** After GZ024, run `dotnet build HROT.sln`. Zero errors.
 
 **DO NOT** skip any success conditions from TASK-DETAIL.md. They are the acceptance criteria.
 
@@ -255,7 +255,7 @@ This batch is DONE when:
 - [ ] TASK-GZ022 complete: `IStatelessGizmo`, `StatelessGizmoRegistry`, `StatelessGizmoSystem` created; 8 unit tests passing.
 - [ ] TASK-GZ023 complete: Four gizmos migrated to correct assemblies as `IStatelessGizmo` implementations; all 36+ IG.Tests pass.
 - [ ] TASK-GZ024 complete: `GizmoProjectorAttribute` + Roslyn generator emitting `GizmoRegistrar.g.cs`; hand-written `GizmoRegistrar.cs` deleted; generator tests pass.
-- [ ] `dotnet build IOS-IG-SimHost.sln` → zero errors.
+- [ ] `dotnet build HROT.sln` → zero errors.
 - [ ] `dotnet test Hrot\Subsystems\Hrot.IG.Tests\Hrot.IG.Tests.csproj` → all pass.
 - [ ] `dotnet test FDP\Toolkits\Fdp.Toolkits.Tests\Fdp.Toolkits.Tests.csproj` → all pass.
 - [ ] Report submitted to `.dev/gizmos-1/reports/BATCH-10-REPORT.md`.

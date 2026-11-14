@@ -47,11 +47,11 @@ namespace Fdp.Toolkit.CarKinem.Tests
             repo.AddComponent(e, new SimTransform { Position = new Vector3(0, 0, 0), Rotation = SimMath.FacingNorth });
             repo.SetAuthority<SimTransform>(e, true); // mark as locally-owned so WithOwned filter passes
             repo.AddComponent(e, new SimVelocity  { Linear = Vector3.Zero });
-            repo.AddComponent(e, new VehicleState { Speed = 10f, SteerAngle = 0f, Accel = 0f, CurrentLaneIndex = 0 });
+            repo.AddComponent(e, new VehicleState { Speed = 10f, SteerAngle = (Fdp.Core.Angle)(0f), Accel = 0f, CurrentLaneIndex = 0 });
             repo.AddComponent(e, new NavState     { TargetSpeed = 10f, Mode = KinematicsMode.None }); 
             
             repo.AddComponent(e, new VehicleParams {
-                WheelBase = 2.7f, MaxSpeedFwd=30f, MaxAccel=3f, MaxDecel=6f, MaxSteerAngle=0.6f, 
+                WheelBase = 2.7f, MaxSpeedFwd=30f, MaxAccel=3f, MaxDecel=6f, MaxSteerAngle=(Fdp.Core.Angle)(0.6f), 
                 LookaheadTimeMin=2f, LookaheadTimeMax=10f, AccelGain=2.0f, AvoidanceRadius=2.5f,
                 Length = 4f, Width = 2f, MaxLatAccel = 10f, MaxSteerRate = 1f
             });
@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.CarKinem.Tests
             
             // Should move North (Y+)
             // 10 m/s * 0.016 = 0.16m
-            Assert.NotEqual(Vector3.Zero, tf.Position); 
+            Assert.NotEqual<System.Numerics.Vector3>(Vector3.Zero, tf.Position); 
             Assert.True(tf.Position.Y > 0);
             
             roadNetwork.Dispose();

@@ -18,7 +18,7 @@
 
 **Part B (CGF1-S0306)** is **substantively delivered**:
 
-- Projects **`FDP.Toolkit.Scenario`** and **`FDP.Toolkit.Scenario.Tests`** exist, reference **`Fdp.Kernel`** only (no Hrot), and are in **`IOS-IG-SimHost.sln`**.
+- Projects **`FDP.Toolkit.Scenario`** and **`FDP.Toolkit.Scenario.Tests`** exist, reference **`Fdp.Kernel`** only (no Hrot), and are in **`HROT.sln`**.
 - **Non-generic** **`IEntityScenarioTranslator`** with **`BitMask256`**, **`Dictionary<string, object>`**, **`IGuidResolver`** — matches task detail.
 - **`ScenarioSerializer`**: two-pass save/load, **`GetSaveableMask`** ∩ entity mask, translators then **`FdpAutoSerializer`**, subsystem header peek, **`ScenarioIgnoreTag`** skip, **`StoryTag`** on story load.
 - **`FdpAutoSerializer`**: **`Expression.Field`**-based extract/inject, **`GetSaveableTypeIds()`** at build time.
@@ -33,7 +33,7 @@
 
 ## Alignment with design §5.6
 
-- N:M translators, consumption mask, auto fallback, **`SubsystemType`** filter, and exclusion mechanisms (**`DataPolicy.NoSave`**, **`[ScenarioIgnore]`**, **`ScenarioIgnoreTag`**) are reflected in code and tests.
+- N:M translators, consumption mask, auto fallback, **`SubsystemType`** filter, and exclusion mechanisms (**`DataPolicy.NoScenario`**, **`[ScenarioIgnore]`**, **`ScenarioIgnoreTag`**) are reflected in code and tests.
 - **`StoryTag` as `class`** is a justified deviation (managed component constraint on **`EntityRepository`**) — documented in the report; acceptable.
 
 **Minor API deviation:** Task detail shows **`FdpAutoSerializer.Build(ComponentTypeRegistry registry)`**; implementation uses **`Build()`** and the **static** **`ComponentTypeRegistry`**. Behaviour matches the intended registry; the parameter is omitted (P3 hygiene / API alignment).
@@ -61,7 +61,7 @@ The following are **intentional no-op** where the spec requires it:
 
 ## Verdict on tests
 
-Tests **do** exercise the behaviours that matter for **happy-path** CGF1-S0306: round-trip, N:M compression, mask deduplication, **`Entity`** GUID refs, **`NoSave`**, field ignore, entity ignore tag, story tag, subsystem filter. They **do not** yet enforce **strict** DOM validation or **fail-loud** semantics above — track as debt.
+Tests **do** exercise the behaviours that matter for **happy-path** CGF1-S0306: round-trip, N:M compression, mask deduplication, **`Entity`** GUID refs, **`NoScenario`**, field ignore, entity ignore tag, story tag, subsystem filter. They **do not** yet enforce **strict** DOM validation or **fail-loud** semantics above — track as debt.
 
 ---
 

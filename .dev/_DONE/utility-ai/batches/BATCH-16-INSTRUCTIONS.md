@@ -363,7 +363,7 @@ Use the `MakeAsset()` helper from `UtilityFluentEmitterTests.cs` as a template f
 
 After implementing all tasks:
 
-1. `dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln -c Debug` → **0 errors**
+1. `dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln -c Debug` → **0 errors**
 2. `dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot\Editor\Hrot.Utility.Editor.Tests\Hrot.Utility.Editor.Tests.csproj`
    → all tests pass; at least **122 tests** total (100 existing + at least 22 new)
 3. No regressions in `Hrot\Editor\Hrot.Editor.AiShared.Tests`

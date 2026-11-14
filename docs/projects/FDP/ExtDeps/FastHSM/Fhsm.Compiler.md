@@ -488,7 +488,7 @@ builder.GlobalTransition("GameOver", "GameOverScreen");
 
 4. **`HsmEmitter.BuildMachineMetadata()` should be called alongside `Emit()`.** Store the `MachineMetadata` alongside the blob. It is needed by `TraceSymbolicator` to translate raw `StateIndex` values in trace records back to human-readable names.
 
-5. **`StructureHash` is the primary identity of a machine.** The kernel uses `blob.Header.StructureHash` as the `MachineId` stored in `InstanceHeader`. If two different definitions produce the same hash (collision), the kernel will incorrectly process instances. The XxHash64 used makes collisions astronomically unlikely but not impossible for adversarial inputs.
+5. **`MachineId` — not `StructureHash` — is the identity of a machine** *(⭐ `CE-2001`, `2026-10-03`)*. `StructureHash` hashes the SHAPE only (two machines of one topology share it — hot reload's "did it reshape?"). The emitter also sets `HsmDefinitionBlob.IdentityHash` from the graph's NAME, and `blob.MachineId` mixes the two; the kernel stamps and validates `InstanceHeader.MachineId` against `blob.MachineId`. An unnamed, hand-built blob keeps `MachineId == StructureHash`. 📄 `docs/blueprints/DESIGN_Unified_Behaviour_Run.md` "S8j". ~~The kernel uses `blob.Header.StructureHash` as the `MachineId` stored in `InstanceHeader`.~~ SUPERSEDED. If two different definitions produce the same hash (collision), the kernel will incorrectly process instances. The XxHash64 used makes collisions astronomically unlikely but not impossible for adversarial inputs.
 
 6. **JSON parser is for tooling, not production runtime.** Parse JSON at startup or in editor tools; do not parse JSON in the game loop. Compile to blob once and cache the blob.
 

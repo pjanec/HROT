@@ -31,9 +31,9 @@ This batch establishes the **POC data contracts** (ECS event structs + simplifie
   - `FDP/Toolkits/FDP.Toolkit.Combat.Tests/`
 
 ### Build & Test Commands (repo root)
-- **Build:** `dotnet build IOS-IG-SimHost.sln`
+- **Build:** `dotnet build HROT.sln`
 - **Run focused tests:** `dotnet test FDP/Toolkits/FDP.Toolkit.Combat.Tests/FDP.Toolkit.Combat.Tests.csproj`
-- **Run everything (before report):** `dotnet test IOS-IG-SimHost.sln`
+- **Run everything (before report):** `dotnet test HROT.sln`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -187,7 +187,7 @@ This batch is DONE when:
 - [ ] BS1-T002 complete (types + tests)
 - [ ] BS1-T003 complete (authority guard + tests)
 - [ ] BS1-T004 complete (executor publishes `WeaponFireIntent` + tests)
-- [ ] `dotnet test IOS-IG-SimHost.sln` passes
+- [ ] `dotnet test HROT.sln` passes
 - [ ] Report submitted at `.dev-workstream/reports/BS-1-BATCH-01-REPORT.md`
 
 ---

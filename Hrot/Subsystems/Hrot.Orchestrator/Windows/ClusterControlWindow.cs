@@ -14,7 +14,7 @@ public sealed class ClusterControlWindow : ManagedWindow
     private readonly ClusterUiCache?       _cache;
 
     public ClusterControlWindow(ClusterScenarioPanel? panel, ClusterUiCache? cache)
-        : base("excon_cluster_control", "Cluster Control", string.Empty, WindowScope.Global)
+        : base("cluster_control", "Cluster Control", string.Empty, WindowScope.Global)
     {
         _panel = panel;
         _cache = cache;

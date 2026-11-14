@@ -54,9 +54,9 @@ public sealed class BlueprintTierSummaryTests : IDisposable
         byte* mem = bb.Memory;
         BlueprintBlackboardPartitions.Initialize(mem, BlueprintBlackboard1024.TotalSize, BlueprintBlackboard1024.MaxSlots);
 
-        bool attached1 = BlueprintBlackboardPartitions.TryAttach(mem, id1, 64, 0xAAAABBBBCCCCDDDD, out _);
-        bool attached2 = BlueprintBlackboardPartitions.TryAttach(mem, id2, 128, 0x1111222233334444, out _);
-        bool attached3 = BlueprintBlackboardPartitions.TryAttach(mem, id3, 256, 0x5555666677778888, out _);
+        bool attached1 = BlueprintBlackboardPartitions.TryAttach(mem, id1, 64,  0xAAAABBBBCCCCDDDD, OccurrenceKind.Blueprint, out _);
+        bool attached2 = BlueprintBlackboardPartitions.TryAttach(mem, id2, 128, 0x1111222233334444, OccurrenceKind.Blueprint, out _);
+        bool attached3 = BlueprintBlackboardPartitions.TryAttach(mem, id3, 256, 0x5555666677778888, OccurrenceKind.Blueprint, out _);
 
         Assert.True(attached1);
         Assert.True(attached2);
@@ -83,7 +83,7 @@ public sealed class BlueprintTierSummaryTests : IDisposable
 
         byte* mem = bb.Memory;
         BlueprintBlackboardPartitions.Initialize(mem, BlueprintBlackboard1024.TotalSize, BlueprintBlackboard1024.MaxSlots);
-        BlueprintBlackboardPartitions.TryAttach(mem, id, 64, 0xDEADBEEFDEADBEEF, out _);
+        BlueprintBlackboardPartitions.TryAttach(mem, id, 64, 0xDEADBEEFDEADBEEF, OccurrenceKind.Blueprint, out _);
 
         var result = BlueprintTierSummary.Read(mem, _registry);
         Assert.Single(result);
@@ -145,7 +145,7 @@ public sealed class BlueprintTierSummaryTests : IDisposable
         var bb = default(BlueprintBlackboard1024);
         byte* mem = bb.Memory;
         BlueprintBlackboardPartitions.Initialize(mem, BlueprintBlackboard1024.TotalSize, BlueprintBlackboard1024.MaxSlots);
-        BlueprintBlackboardPartitions.TryAttach(mem, id, 64, 0, out _);
+        BlueprintBlackboardPartitions.TryAttach(mem, id, 64, 0, OccurrenceKind.Blueprint, out _);
 
         // GetSummary(entity-aware) should return the count-based string when registry is set
         var summary = renderer.GetSummary(null!, default, bb);

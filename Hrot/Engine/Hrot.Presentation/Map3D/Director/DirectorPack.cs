@@ -1,0 +1,182 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+using Fdp.Presentation.Panels.Timeline;
+using Fdp.Presentation.WindowManager;
+
+namespace Hrot.UI.Common.Map3D.Director
+{
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P1 (docs/DESIGN_Director_Timeline_Editor.md §11j) — what a host hands <see cref="DirectorPack.Attach"/>: ITS film host,
+    /// the window manager and layer control its adapters drive, its pilot camera and timeline, and — optionally — the one runner extension
+    /// (the editor's verifier) and the Director window tabs it contributes. ⛔ Nothing here names a host.
+    /// </summary>
+    /// <param name="Host">The host the runner drives (load, preview, step, clock, the takes).</param>
+    /// <param name="Wm">The window manager (late-bound: the cinema hides its panels).</param>
+    /// <param name="Layers">The map's layer control (a take's layer override).</param>
+    /// <param name="Headless">No renderer: no frame sink.</param>
+    /// <param name="Pilot">The pilot camera as a key's camera (<see cref="PilotCamera.FromMap"/>).</param>
+    /// <param name="Timeline">The host's Event Timeline panel; the pack gives it the open take's tracks and undo / redo.</param>
+    /// <param name="Extension">The runner's one seam for a kind of run (null: films only).</param>
+    /// <param name="WindowTabs">Tabs the Director window draws after its film tabs.</param>
+    /// <param name="EventAt">CR-6: the nearest event of THIS host's timeline index (K hangs the key on it); null = no index.</param>
+    /// <param name="TitleBarColor">The host's title-bar colour for the window.</param>
+    /// <param name="Perspective">⭐ CE-1303 P2a (§11m D11) — the perspective the Director window belongs to (the editor's "Scenario", the RB's "ReplayBrowser").</param>
+    /// <param name="Index">⭐ CE-4059 (§11q D1) — the index THIS host's Event Timeline shows (the editor's live / review index, the recording's); null = no drafts.</param>
+    /// <param name="Scenario">⭐ CE-4059 — the scenario the shown run belongs to (a draft is a take of it).</param>
+    /// <param name="ScenarioTakes">⭐ CE-1304 P4 (§11s) — the SCENARIOS root's takes, when this host's own takes are a recording's (the Replay Browser): promote
+    /// copies a take there. Null = this host's takes are the scenario's (the editor): nothing to promote to.</param>
+    /// <param name="Recordings">⭐ CE-1391 (§11u "as built: CE-1391") — the host's ONE recording opener (the Replay Browser's <c>IReplayBrowserControl</c>, the one
+    /// <c>POST /replay</c> ends in): the render queue opens a job's recording and the runner a reel item's through it — with or without a debug HTTP host. Null = this
+    /// host opens no recordings (the editor): such a job fails, such a reel is refused.</param>
+    public sealed record DirectorPackHost(
+        IDirectorHost Host,
+        Func<WindowManager?> Wm,
+        Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> Layers,
+        bool Headless,
+        Func<CameraSpec?> Pilot,
+        TimelinePanel Timeline,
+        IRunExtension? Extension = null,
+        IReadOnlyList<IDirectorWindowTab>? WindowTabs = null,
+        Func<double, EventAnchor?>? EventAt = null,
+        Vector4? TitleBarColor = null,
+        string Perspective = "Scenario",
+        Func<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex?>? Index = null,
+        Func<string?>? Scenario = null,
+        Func<TakeStore?>? ScenarioTakes = null,
+        Hrot.Presentation.DebugApi.IRecordingOpener? Recordings = null,
+        Func<bool>? IndexComplete = null,
+        Hrot.Presentation.Edits.EditHistory? History = null);   // ⭐ U4 — the host's ONE edit history (the editor's); null ⇒ the take session keeps a private one
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P1 (§11j, CR-2) — the ONE registrar of the film director: builds the runner (with the window / layer / audio / frame
+    /// adapters), the take session and the window, and wires the host's Event Timeline to the open take. A host calls <see cref="Attach"/>
+    /// once, <see cref="Tick"/> once per frame, and <see cref="RegisterWindow"/> where it registers its windows.
+    /// </summary>
+    public sealed class DirectorPack
+    {
+        private DirectorPack(DirectorRunner runner, DirectorTakeSession session, DirectorWindow window, MapLayerOverride layers, WindowCinema cinema, TakeStore takes,
+                             Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> layerControl, DirectorDrafts? drafts, DirectorStills stills,
+                             TakePromotion promotion, DirectorRenders renders, ReelComposer composer)
+        {
+            Takes = takes; Runner = runner; Session = session; Window = window; Layers = layers; Cinema = cinema; LayerControl = layerControl; Drafts = drafts;
+            Stills = stills; Promotion = promotion; Renders = renders; Composer = composer;
+        }
+
+        /// <summary>⭐ CE-1306 R4 (§11u) — the RENDER QUEUE: renders run one after another through this runner and these stills (the Director window's
+        /// <i>Queue render</i>, <c>/director/renders</c>); refused on a headless host.</summary>
+        public DirectorRenders Renders { get; }
+
+        /// <summary>⭐ CE-1306 R4 (§11u) — the reel being composed in the Director window (the one reel editing model).</summary>
+        public ReelComposer Composer { get; }
+
+        /// <summary>⭐ CE-1304 P4 (§11s) — promote a recording's take to its scenario (the Director window's button, <c>POST /director/promote</c>);
+        /// <see cref="TakePromotion.Available"/> only on a host whose takes are a recording's.</summary>
+        public TakePromotion Promotion { get; }
+
+        /// <summary>⭐ CE-4059 P3 (§11r) — the stills of a take and their contact sheet, over the same runner and frame sink a film uses (the
+        /// <c>/director/stills</c> route); it refuses on a host that cannot seek or has no renderer.</summary>
+        public DirectorStills Stills { get; }
+
+        /// <summary>⭐ CE-4059 (§11q) — the drafter over this host's shown index (null: the host handed no index): the event menu's item and the editor's routes.</summary>
+        public DirectorDrafts? Drafts { get; }
+
+        public DirectorRunner Runner { get; }
+        /// <summary>The take open for editing (one <see cref="TakeEditor"/> shared by the window and the Event Timeline).</summary>
+        public DirectorTakeSession Session { get; }
+        public DirectorWindow Window { get; }
+        public MapLayerOverride Layers { get; }
+        public WindowCinema Cinema { get; }
+        /// <summary>The scenarios root's takes and reels.</summary>
+        public TakeStore Takes { get; }
+        /// <summary>⭐ CE-1303 P3 — the host's map layer control (the debug routes' <c>/map/layers</c> read and write it).</summary>
+        public Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> LayerControl { get; }
+
+        public static DirectorPack Attach(DirectorPackHost h)
+        {
+            if (h == null) throw new ArgumentNullException(nameof(h));
+            var cinema = new WindowCinema(h.Wm);
+            var layers = new MapLayerOverride(h.Layers);
+            DirectorRunner? runner = null;
+            var sink = h.Headless ? null : new FilmFrameSink();
+            runner = new DirectorRunner(h.Host, cinema, layers,
+                sink,
+                new AudioDirectorSound(() => runner?.FilmSimTime ?? double.NaN),
+                extension: h.Extension);
+            cinema.EscapePressed = () => runner.Stop();
+            // ⭐ CE-1364 T3 — the open take: the Event Timeline shows ITS Camera / Time tracks, Ctrl+Z on the panel undoes an edit of them
+            var session = new DirectorTakeSession(() => h.Host.Takes, () => runner, h.Pilot, h.EventAt, h.History);
+            // ⭐ CE-4262 — under one collapsible Director row, COLLAPSED each time a take opens (a take opened from a timeline event stays out of the way until asked for)
+            int opened = -1;
+            h.Timeline.Tracks = () =>
+            {
+                if (session.Opened != opened) { opened = session.Opened; h.Timeline.SetCollapsed(DirectorTracks.GroupId, true); }
+                return session.Tracks;
+            };
+            // ⭐ U4 — on a host with the shared history, Ctrl+Z / Ctrl+Y (Edit ▸ Undo / Redo) already reach the take steps: the panel's own chord would undo TWICE
+            if (!session.SharedHistory)
+            {
+                h.Timeline.Undo = () => session.UndoLast();
+                h.Timeline.Redo = () => session.RedoLast();
+            }
+            // ⭐ CE-1303 P2a — CR-4 (§11m D4): the runner plays the OPEN take, unsaved edits included (the same take the tracks edit)
+            runner.OpenTake = session.OpenTakeOf;
+            // ⭐⭐ CE-1304 CR-5 (§11s) — the take's event anchors are found in the index THIS host shows (live, or the open recording's): one resolver, every host
+            runner.Index = h.Index;
+            // ⭐ CE-1304 P4 (§11s) — promote, wired ONCE: from this host's takes to the scenario's (none on the editor)
+            var promotion = new TakePromotion(() => h.Host.Takes, h.ScenarioTakes, h.Scenario, session);
+            // ⭐ CE-4059 P3 (§11r) — stills: the runner's play-from and the SAME sink (one capture path), on a host that seeks
+            var stills = new DirectorStills(runner, sink, () => h.Host.CanSeek)
+            {
+                // ⭐ CE-4130 — a still waits for the shown map's 3-D scene (built after a far jump): ViewTelemetry's last drawn frame says it is 3-D, not waiting on the build and built
+                SceneReady = () => h.Host.World is not { } w || ViewTelemetry.Of(w) is not { } v || (v.Mode != "2D" && !v.Pending3D && v.MapBuilt != false),
+            };
+            // ⭐ CE-1306 R4 (§11u D3) — the render queue over the SAME runner and stills (one at a time), and the reel composer (the one reel model)
+            var renders = new DirectorRenders(runner, stills, sink, () => h.Host.CanSeek, () => h.Host.Takes, h.Scenario ?? (() => null));
+            // ⭐⭐ CE-1391 (§11u "as built: CE-1391") — the host's ONE recording opener, wired ONCE: the queue opens a job's recording, the runner a reel item's
+            //   (one movie over several recordings), the composer stamps the open one on a take it adds — ⛔ no HTTP host needed, no second opener
+            runner.Recordings = h.Recordings;
+            renders.Recordings = h.Recordings;
+            var composer = new ReelComposer(() => h.Host.Takes, h.Recordings is { } rec ? () => rec.Shown?.Text : null);
+            var window = new DirectorWindow(() => runner, () => h.Host.Takes, session, h.WindowTabs, h.TitleBarColor, h.Perspective,
+                                            playhead: () => h.Host.SimTime, promotion: promotion, renders: renders, composer: composer);
+            // ⭐ CE-4059 (§11q D1) — the drafter wired ONCE for every host: names and kinds from the host's world, the event menu on its Event Timeline
+            DirectorDrafts? drafts = null;
+            if (h.Index != null)
+            {
+                drafts = new DirectorDrafts(h.Index, id => DirectorUnits.NameOf(h.Host.World, id), id => DirectorUnits.KindOf(h.Host.World, id),
+                                            h.Scenario ?? (() => null), session,
+                                            // ⭐ CE-4120 (§11n-1 B5) — a blast's ground point: the host world's terrain, read the way the map reads it (ONE reader, CachedGroundHeight)
+                                            groundAt: new Hrot.UI.Common.Map3D.CachedGroundHeight(() => h.Host.World).At,
+                                            indexComplete: h.IndexComplete,   // ⭐ CE-4121
+                                            census: () => DirectorUnits.Census(h.Host.World));   // ⭐ CE-4119 part 1 — both hosts: the drafter says what the shown world holds
+                h.Timeline.EventMenu = drafts.MenuItems;
+                session.Templates = drafts.TemplateCamera;   // ⭐ CE-1305 (§11v T2) — the shot templates: the drafter's rule, through the ONE drafts object
+            }
+            return new DirectorPack(runner, session, window, layers, cinema, h.Host.Takes, h.Layers, drafts, stills, promotion, renders, composer);
+        }
+
+        /// <summary>The director's frame: once per host frame, after the routes drained and before the map's update (§0, R-3038). ⭐ CE-4059 — a stills
+        /// job after the runner (it reads the phase the runner's tick reached and asks the map for this frame's capture). ⭐ CE-1306 — the render queue
+        /// last (it reads what the runner and the stills reached, and starts the next job only when both are idle).</summary>
+        public void Tick()
+        {
+            Runner.Tick();
+            Stills.Tick();
+            Renders.Tick();
+        }
+
+        /// <summary>Puts the Director window (View › Director) among the host's windows.</summary>
+        public void RegisterWindow(WindowManager wm) => wm.RegisterWindow(Window);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P3 (docs/DESIGN_Director_Timeline_Editor.md §11j) — a host subsystem that owns a film director (the Replay Browser).
+    /// The process's debug HTTP host attaches it, so <c>/director/*</c> answers on every host that has a director, by construction — ⛔ no
+    /// host-specific route code.
+    /// </summary>
+    public interface IProvidesDirector
+    {
+        DirectorPack? Director { get; }
+    }
+}

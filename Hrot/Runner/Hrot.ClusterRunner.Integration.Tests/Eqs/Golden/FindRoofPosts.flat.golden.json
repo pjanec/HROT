@@ -1,0 +1,32 @@
+{
+  "Name": "FindRoofPosts",
+  "BlueprintId": 4158063172,
+  "Count": 3,
+  "Rows": [
+    {
+      "EntityId": 0,
+      "PositionX": 7.25,
+      "PositionY": 13.15,
+      "Score": 1.3531802,
+      "Flags": 2,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 9.25,
+      "PositionY": 13.15,
+      "Score": 1.3135774,
+      "Flags": 2,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 6.15,
+      "PositionY": 16.25,
+      "Score": 1.264734,
+      "Flags": 2,
+      "FlagsMeaningful": 2
+    }
+  ],
+  "MaxAbsPositionZ": 6
+}

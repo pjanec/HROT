@@ -11,6 +11,7 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Scheduling;
+using Fdp.Testing;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
@@ -25,8 +26,14 @@ namespace Hrot.SimHost.Tests
     /// the recording module is properly installed for the branched exercise.
     /// </para>
     /// </summary>
+    [Xunit.Collection(RecordReplayKernelLoopCollection.Name)]
     public sealed class LiveFromReplayTests : IDisposable
     {
+        // ⚠ CE-1046 — wall-clock waits (Task.Delay(20)) on a self-driven kernel: red under machine load, green alone (measured
+        // 2026-10-11 and again 2026-10-13, TeardownReplay in a full-suite run). Skipped by default; the separate run is
+        // HROT_RUN_FLAKY=1 dotnet test <proj> --no-build --filter Category=Flaky. The fix (frame-count waits) stays open on CE-1046.
+        private const string Why = "CE-1046: Task.Delay wall-clock waits, red under machine load";
+
         private readonly EntityRepository _world;
         private readonly EventAccumulator  _evtAcc;
         private readonly ModuleHostKernel  _kernel;
@@ -36,6 +43,7 @@ namespace Hrot.SimHost.Tests
         {
             _world  = new EntityRepository();
             _world.RegisterComponent<SimTransform>();
+            _world.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();   // O1
             _evtAcc = new EventAccumulator();
             _kernel = new ModuleHostKernel(_world, _evtAcc);
             _kernel.InitializeForTest();
@@ -65,7 +73,7 @@ namespace Hrot.SimHost.Tests
         /// Assert <c>EntityCount == 5</c> after teardown.
         /// </para>
         /// </summary>
-        [Fact(Timeout = 20_000)]
+        [FlakyFact(Why, Timeout = 20_000), Trait("Category", "Flaky")]
         public async Task TeardownReplay_PreservesEntityRepositoryState()
         {
             // ── Step 1: create 5 entities ──────────────────────────────────────
@@ -110,13 +118,17 @@ namespace Hrot.SimHost.Tests
             var cts2      = new CancellationTokenSource();
             var loopTask2 = RunKernelLoop(_kernel, cts2.Token);
 
+            Assert.False(Fdp.Toolkit.Replay.ReplayState.IsActive(_world));   // ⭐ CE-3329 P2 — live: the world is not a replay
             await controller.PrepareReplayAsync(exerciseId, _tempDir);
+            Assert.True(Fdp.Toolkit.Replay.ReplayState.IsActive(_world));    // ⭐ the controller says so, no host wiring
 
             // Seek to frame 2 (mid-point) — blasts historical entity state into _world.
             await controller.ActiveReplayModule!.SeekToFrameAsync(2);
+            Assert.True(Fdp.Toolkit.Replay.ReplayState.IsActive(_world));    // ⭐ a seek's keyframe does not carry it away (Transient)
 
             // ── Step 4: teardown replay ───────────────────────────────────────
             await controller.TeardownReplayAsync();
+            Assert.False(Fdp.Toolkit.Replay.ReplayState.IsActive(_world));   // ⭐ live again
             cts2.Cancel();
             await loopTask2;
 
@@ -132,7 +144,7 @@ namespace Hrot.SimHost.Tests
         /// the <see cref="EcsRecordReplayController"/> must have an active
         /// <see cref="Fdp.Toolkit.Replay.RecordingModule"/> installed in the kernel scheduler.
         /// </summary>
-        [Fact(Timeout = 20_000)]
+        [FlakyFact(Why, Timeout = 20_000), Trait("Category", "Flaky")]
         public async Task AfterBranch_RecordingModuleIsInstalled()
         {
             // ── Step 1: create entities and record ────────────────────────────
@@ -178,7 +190,7 @@ namespace Hrot.SimHost.Tests
             var branchCmd       = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
                 DomainPayload = branchedExerciseId,
             };
@@ -203,7 +215,7 @@ namespace Hrot.SimHost.Tests
         /// <see cref="TogglableSimulationGroup.Enabled"/> must be <c>true</c> and
         /// <see cref="GhostCreationSystem.BypassLifecycle"/> must be <c>false</c>.
         /// </summary>
-        [Fact(Timeout = 20_000)]
+        [FlakyFact(Why, Timeout = 20_000), Trait("Category", "Flaky")]
         public async Task AfterBranch_SimGroupsReEnabled()
         {
             // ── Step 1: create entities and record ────────────────────────────
@@ -250,7 +262,7 @@ namespace Hrot.SimHost.Tests
             var prepCmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareReplay,
                 DomainPayload = exerciseId,
             };
@@ -264,7 +276,7 @@ namespace Hrot.SimHost.Tests
             var branchCmd       = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
                 DomainPayload = branchedExerciseId,
             };

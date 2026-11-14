@@ -119,7 +119,7 @@ No runtime `using` or type reference to `Fdp.Toolkit*` in the serialized model l
 
 `Count2.bp.json.setaside` restored to `Count2.bp.json` (Move-Item, not git-tracked).
 
-`dotnet build IOS-IG-SimHost.sln -c Debug` result:
+`dotnet build HROT.sln -c Debug` result:
 - **0 errors** (was `BP0002: FileNotFoundException: Fdp.Toolkits`)
 - Generated: `obj/GeneratedFiles/Hrot.Blueprints.Generators/Hrot.Blueprints.Generators.BlueprintIncrementalGenerator/Count2_F5F6F285_Bp.g.cs` (timestamp 2026-06-05 21:52)
 - `Hrot.AI.Behaviors.dll` compiled successfully

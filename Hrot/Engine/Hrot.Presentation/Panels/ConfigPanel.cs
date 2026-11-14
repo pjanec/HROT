@@ -1,9 +1,37 @@
+using System.Text.Json.Nodes;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
 using Fdp.Core.Logging;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
+using Fdp.Core;
 
 namespace Hrot.UI.Common.Panels;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="ConfigPanel"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+///
+/// <para>⚠⚠ <b>Group 5 twin finding — read before touching this file.</b> This CLASS is physically
+/// duplicated in the (unreferenced, not in any <c>.sln</c>) <c>Hrot.UI.Common</c> PROJECT under the
+/// same path shape, but both copies declare namespace <c>Hrot.UI.Common.Panels</c> — the copy that
+/// actually SHIPS is this one, compiled into <c>Hrot.Presentation.dll</c> (which <c>Hrot.Editor</c> and
+/// <c>Hrot.ExCon</c> both reference). The <c>Hrot.UI.Common</c> project itself has zero
+/// <c>ProjectReference</c>s anywhere in the repo — measured, and confirmed against
+/// <c>docs/projects/Hrot/Engine/Hrot.UI.Common.md</c>'s own intent (a shared hexagonal-ports library
+/// meant to be referenced, not source-copied). ⇒ only THIS copy is converted; the orphaned project's
+/// copy is left untouched and reported as a finding for the coordinator (ruling-9 question: delete the
+/// dead project, or wire it up as a real reference and delete this copy).</para>
+/// </summary>
+public sealed record ConfigPanelViewModel(
+    string PanelId, string PanelKind,
+    bool SatelliteLayer, bool GroundUnits, bool AirUnits, bool Vehicles,
+    bool TacticalGraphics, bool RoadGraphs, bool Grid, float IconScale) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Shared UI panel that lets the operator configure the map layer visibility interactively.
@@ -19,7 +47,7 @@ namespace Hrot.UI.Common.Panels;
 public sealed class ConfigPanel
 {
     // ── State ─────────────────────────────────────────────────────────────────
-    private readonly long _localNodeId;
+    private readonly NodeId _localNodeId;
     private bool  _satelliteLayer   = true;
     private bool  _groundUnits      = true;
     private bool  _airUnits         = true;
@@ -30,7 +58,7 @@ public sealed class ConfigPanel
     private float _iconScale        = PanelConstants.IconScaleDefault;
 
     /// <summary>Creates a new <see cref="ConfigPanel"/> with an optional node ID for log messages.</summary>
-    public ConfigPanel(long localNodeId = 0) => _localNodeId = localNodeId;
+    public ConfigPanel(int localNodeId = 0) => _localNodeId = (Fdp.Core.NodeId)(localNodeId);
 
     // ── Public state accessors ────────────────────────────────────────────────
 
@@ -92,25 +120,37 @@ public sealed class ConfigPanel
         ctrl.ApplyConfig(new MapLayerState(_satelliteLayer, _groundUnits, _airUnits, _vehicles, _tacticalGraphics, _roadGraphs, _grid));
     }
 
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of current state. No ImGui.</summary>
+    public ConfigPanelViewModel BuildViewModel(string panelId, string panelKind) => new(
+        panelId, panelKind, _satelliteLayer, _groundUnits, _airUnits, _vehicles,
+        _tacticalGraphics, _roadGraphs, _grid, _iconScale);
+
     // ── Draw ──────────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Renders only the panel body content (no <c>ImGui.Begin</c>/<c>End</c>).
     /// Called by the Window Manager when this panel is hosted as a managed window.
     /// </summary>
+    private static readonly string[] Labels = { "Satellite Layer", "Ground Units", "Air Units", "Vehicles", "Tactical Graphics", "Routes", "Grid", "Icon Scale" };
+
     public void DrawContent(IMapConfigController ctrl)
     {
-        ImGui.Checkbox("Satellite Layer",   ref _satelliteLayer);
-        ImGui.Checkbox("Ground Units",      ref _groundUnits);
-        ImGui.Checkbox("Air Units",         ref _airUnits);
-        ImGui.Checkbox("Vehicles",          ref _vehicles);
-        ImGui.Checkbox("Tactical Graphics", ref _tacticalGraphics);
-        ImGui.Checkbox("Routes",            ref _roadGraphs);
-        ImGui.Checkbox("Grid",              ref _grid);
-
         float scale = _iconScale;
-        if (ImGui.SliderFloat("Icon Scale", ref scale, PanelConstants.IconScaleMin, PanelConstants.IconScaleMax))
-            IconScale = scale;
+        if (FormGrid.Begin("cfg.form", Labels))
+        {
+            FormGrid.Row("Satellite Layer");   ImGui.Checkbox("##satellite", ref _satelliteLayer);
+            FormGrid.Row("Ground Units");      ImGui.Checkbox("##ground", ref _groundUnits);
+            FormGrid.Row("Air Units");         ImGui.Checkbox("##air", ref _airUnits);
+            FormGrid.Row("Vehicles");          ImGui.Checkbox("##vehicles", ref _vehicles);
+            FormGrid.Row("Tactical Graphics"); ImGui.Checkbox("##graphics", ref _tacticalGraphics);
+            FormGrid.Row("Routes");            ImGui.Checkbox("##routes", ref _roadGraphs);
+            FormGrid.Row("Grid");              ImGui.Checkbox("##grid", ref _grid);
+            FormGrid.Row("Icon Scale");
+            if (ImGui.SliderFloat("##iconscale", ref scale, PanelConstants.IconScaleMin, PanelConstants.IconScaleMax))
+                IconScale = scale;
+            FormGrid.End();
+        }
 
         if (ImGui.Button("SEND CONFIG PATCH"))
             HandleSendConfigPatch(ctrl);

@@ -456,7 +456,7 @@ Document any skipped tests in the report with reason.
 ## Build & Test Validation
 
 ```
-dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln --no-incremental -clp:ErrorsOnly
+dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln --no-incremental -clp:ErrorsOnly
 ```
 → **Must show 0 errors.**
 

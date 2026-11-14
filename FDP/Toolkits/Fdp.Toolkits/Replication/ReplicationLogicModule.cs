@@ -9,6 +9,7 @@ using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.Replication
 {
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class ReplicationLogicModule : IEcsModule
     {
         public string Name => "ReplicationLogic";

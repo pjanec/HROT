@@ -37,57 +37,8 @@ namespace GizmoMap.Presentation
             MenuIconResolver? icons)
         {
             if (items == null) return;
-            var list = items as IReadOnlyList<ContextMenuItemDto> ?? new List<ContextMenuItemDto>(items);
-            bool reserve = icons != null && MenuIconRenderer.AnyHasIcon(list);
-            foreach (var item in list)
-                DrawItem(item, onAction, icons, reserve);
-        }
-
-        // Recursively renders a menu item: separator, submenu, checkable item, or plain item.
-        private static void DrawItem(
-            ContextMenuItemDto item, Action<int>? onAction, MenuIconResolver? icons, bool reserve)
-        {
-            // A null/empty label is treated as a separator.
-            if (string.IsNullOrEmpty(item.Label) || item.IsSeparator == true)
-            {
-                ImGui.Separator();
-                return;
-            }
-
-            bool hasChildren = item.Children != null && item.Children.Length > 0;
-            bool enabled     = item.Enabled != false;
-
-            // Reserve the gutter (pad the label) so every row at this level aligns.
-            Vector2 p0 = ImGui.GetCursorScreenPos();
-            float gutter = 0f;
-            string label = reserve ? MenuIconRenderer.Pad(item.Label!, out gutter) : item.Label!;
-
-            if (hasChildren)
-            {
-                bool open = ImGui.BeginMenu(label, enabled);
-                MenuIconRenderer.DrawIcon(icons, item.Icon, p0, gutter);
-                if (open)
-                {
-                    var children = item.Children!;
-                    bool childReserve = icons != null && MenuIconRenderer.AnyHasIcon(children);
-                    foreach (var child in children)
-                        DrawItem(child, onAction, icons, childReserve);
-                    ImGui.EndMenu();
-                }
-            }
-            else if (item.IsChecked.HasValue)
-            {
-                bool ticked = item.IsChecked.Value;
-                bool clicked = ImGui.MenuItem(label, string.Empty, ticked, enabled);
-                MenuIconRenderer.DrawIcon(icons, item.Icon, p0, gutter);
-                if (clicked) onAction?.Invoke(item.Id);
-            }
-            else
-            {
-                bool clicked = ImGui.MenuItem(label, string.Empty, false, enabled);
-                MenuIconRenderer.DrawIcon(icons, item.Icon, p0, gutter);
-                if (clicked) onAction?.Invoke(item.Id);
-            }
+            // ⭐ CE-1243 MB-1 — the rows are MenuRows', the same the shell's menu tree draws.
+            MenuRows.Dtos(items as IReadOnlyList<ContextMenuItemDto> ?? new List<ContextMenuItemDto>(items), onAction, icons);
         }
     }
 }

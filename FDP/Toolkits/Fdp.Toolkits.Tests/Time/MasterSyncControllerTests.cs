@@ -146,8 +146,13 @@ namespace Fdp.Toolkit.Time.Tests
         }
 
         /// <summary>
-        /// TCU-MC001 §5 — Step() is blocked while _pendingAcks is non-empty;
-        /// it unblocks only after all slave ACKs are drained by Update().
+        /// TCU-MC001 §5 — Step() does not ISSUE a frame while _pendingAcks is non-empty; the
+        /// cluster is unblocked only after all slave ACKs are drained by Update().
+        /// <para>AS-14 update: a step requested during that window is now QUEUED rather than
+        /// discarded, so <c>Update()</c> releases one as soon as the ACK set clears. The frame
+        /// numbers asserted here are unchanged — what changed is that the deferred requests are
+        /// no longer lost. See <c>MasterSyncController_StepDuringPendingAcks_IsQueuedThenApplied</c>
+        /// for the queueing contract itself.</para>
         /// </summary>
         [Fact]
         public void MasterSyncController_Step_BlocksUntilAllAcksReceived()
@@ -170,7 +175,7 @@ namespace Fdp.Toolkit.Time.Tests
             Assert.Equal(1L, blocked1.FrameNumber);
 
             // Slave 1 ACKs — still waiting for slave 2
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 1 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(1) });
             bus.SwapBuffers();
             ctrl.Update();
 
@@ -178,13 +183,71 @@ namespace Fdp.Toolkit.Time.Tests
             Assert.Equal(1L, blocked2.FrameNumber);
 
             // Slave 2 ACKs — now unlocked
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 2 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(2) });
             bus.SwapBuffers();
             ctrl.Update();
 
             // 3rd Step advances to frame 2
             var frame2 = ctrl.Step(0.016f);
             Assert.Equal(2L, frame2.FrameNumber);
+        }
+
+        /// <summary>
+        /// ⭐ P3 (Q91 §4-D′) — a node that LEAVES the participating set mid-step stops gating it. 📐 Before, the set was
+        /// read only at the next pause, so a departed slave froze stepping for good.
+        /// </summary>
+        [Fact]
+        public void P3_A_slave_removed_from_the_set_mid_step_no_longer_gates_it()
+        {
+            long ticks  = 0;
+            var bus     = new FdpEventBus();
+            var ctrl    = CreateController(bus, config: new TimeConfig { LookaheadWallTicks = 0 }, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1, 2 });
+            ticks = 1;
+            ctrl.Update();
+            Assert.Equal(1L, ctrl.Step(0.016f).FrameNumber);       // waits for {1, 2}
+
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(1) });
+            bus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = new HashSet<int> { 1 } });   // node 2 left
+            bus.SwapBuffers();
+            ctrl.Update();
+
+            Assert.False(ctrl.IsAwaitingStepAcks, "the departed node 2 must no longer hold the step");
+            Assert.Equal(2L, ctrl.Step(0.016f).FrameNumber);       // and the next step waits for {1} only
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4087 (S2) — the other half of P3: a node that registers AFTER the pause (a SimHost that restarts mid-run, or comes
+        /// up late) is in the step set at the NEXT step. 📐 The pause was issued with {1}; node 2 arrives while the master is
+        /// paused and the roster says so — the next step must wait for it and must not complete until it ACKs. ⛔ Before this rail
+        /// nothing pinned that the set APPLIES when it arrives rather than only at the next pause.
+        /// </summary>
+        [Fact]
+        public void CE4087_A_node_that_registers_after_the_pause_is_in_the_step_set_at_the_next_step()
+        {
+            long ticks  = 0;
+            var bus     = new FdpEventBus();
+            var ctrl    = CreateController(bus, config: new TimeConfig { LookaheadWallTicks = 0 }, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });   // paused with only node 1 known
+            ticks = 1;
+            ctrl.Update();
+
+            bus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = new HashSet<int> { 1, 2 } });   // node 2 registers later
+            bus.SwapBuffers();
+            ctrl.Update();
+
+            ctrl.Step(0.016f);                                                              // the next step …
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(1) });    // … node 1 acks
+            bus.SwapBuffers();
+            ctrl.Update();
+            Assert.True(ctrl.IsAwaitingStepAcks, "node 2 joined the step set after the pause and must gate the next step");
+
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(2) });
+            bus.SwapBuffers();
+            ctrl.Update();
+            Assert.False(ctrl.IsAwaitingStepAcks);
         }
 
         /// <summary>
@@ -225,20 +288,27 @@ namespace Fdp.Toolkit.Time.Tests
         }
 
         /// <summary>
-        /// TCU-MC001 §7 — SwitchToContinuous() is idempotent when already in
-        /// Continuous mode with no pending barrier.
+        /// TCU-MC001 §7 (REWRITTEN by CE-4087) — SwitchToContinuous() is idempotent in STATE and never swallowed on the wire.
+        /// <para>⛔ It used to return silently when the master was already running: a node left behind (it missed the first
+        /// resume, or sits on a stale pause) could not be brought back by pressing play, and the command left no trace on the
+        /// master. ⭐ Now the mode, the sim time and the rate are untouched, and the running state is announced AGAIN — a
+        /// Continuous sample carrying the master's own sim time and a real anchor — every time.</para>
         /// </summary>
         [Fact]
-        public void MasterSyncController_SwitchToContinuous_IdempotentWhenAlreadyContinuous()
+        public void MasterSyncController_SwitchToContinuous_WhenAlreadyContinuous_ReannouncesTheRunningStateAndChangesNothing()
         {
+            long ticks = 0;
             var bus  = new FdpEventBus();
-            var ctrl = CreateController(bus);
+            var ctrl = CreateController(bus, tickSource: () => ticks);
 
             // Drain the initial baseline event published by the constructor (Bug 3 fix).
             bus.SwapBuffers();
             bus.Read<SwitchTimeModeEvent>();
 
-            // Both calls should be no-ops (already Continuous, no pending barrier).
+            ticks = TicksFromSeconds(2.0);
+            ctrl.Update();                                   // the master runs: sim time 2 s
+            double simBefore = ctrl.GetCurrentState().TotalTime;
+
             ctrl.SwitchToContinuous();
             bus.SwapBuffers();
             var firstCallEvents = bus.Read<SwitchTimeModeEvent>().ToArray();
@@ -247,8 +317,38 @@ namespace Fdp.Toolkit.Time.Tests
             bus.SwapBuffers();
             var secondCallEvents = bus.Read<SwitchTimeModeEvent>().ToArray();
 
-            Assert.Empty(firstCallEvents);
-            Assert.Empty(secondCallEvents);
+            // the command is never swallowed: one fresh Continuous sample per call …
+            var first  = Assert.Single(firstCallEvents);
+            var second = Assert.Single(secondCallEvents);
+            Assert.Equal(TimeMode.Continuous, first.TargetMode);
+            Assert.Equal(simBefore, first.SimTimeSnapshot, 6);   // … at the master's own sim time (a node already right re-anchors to itself)
+            Assert.True(first.BarrierWallTicks > 0, "the sample must carry a real anchor so a follower can re-baseline");
+            Assert.Equal(TimeMode.Continuous, second.TargetMode);
+            // … and nothing else moved
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+            Assert.Equal(simBefore, ctrl.GetCurrentState().TotalTime, 6);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4087 — the same through the bus the host drives: a <see cref="ResumeTimeIntent"/> arriving while the master runs
+        /// reaches the wire. (The measured defect: CGF and SimHost stuck paused, the master running, "play" answering nothing.)
+        /// </summary>
+        [Fact]
+        public void CE4087_A_ResumeTimeIntent_to_a_running_master_still_reaches_the_wire()
+        {
+            long ticks = 0;
+            var bus  = new FdpEventBus();
+            var ctrl = CreateController(bus, tickSource: () => ticks);
+            bus.SwapBuffers();
+            bus.Read<SwitchTimeModeEvent>();                 // the constructor's baseline
+
+            bus.PublishManaged(new ResumeTimeIntent());
+            bus.SwapBuffers();
+            ctrl.Update();
+            bus.SwapBuffers();
+
+            var ev = Assert.Single(bus.Read<SwitchTimeModeEvent>().ToArray());
+            Assert.Equal(TimeMode.Continuous, ev.TargetMode);
         }
 
         /// <summary>TCU-MC001 §8 — SeedState() restores TotalTime and FrameNumber.</summary>
@@ -291,8 +391,10 @@ namespace Fdp.Toolkit.Time.Tests
         // ── Edge cases (TCU-T001) ────────────────────────────────────────────
 
         /// <summary>
-        /// Edge case 1 — Step() called while in Continuous mode is a no-op;
-        /// FrameNumber must not advance.
+        /// Edge case 1 — Step() called while in Continuous mode does not advance FrameNumber.
+        /// <para>AS-14 update: it is no longer a SILENT no-op — the call is counted in
+        /// <c>RefusedStepCount</c> and logged. See
+        /// <c>MasterSyncController_StepInContinuousMode_IsCountedAsRefused</c>.</para>
         /// </summary>
         [Fact]
         public void MasterSyncController_Step_InContinuousMode_IsNoOp()
@@ -330,7 +432,7 @@ namespace Fdp.Toolkit.Time.Tests
             bus.SwapBuffers();
 
             // ACK from an unknown node (99 is not in _expectedSlaves)
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 99 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(99) });
             bus.SwapBuffers();
             ctrl.Update(); // drains unknown ACK — should be silently discarded
 
@@ -440,8 +542,8 @@ namespace Fdp.Toolkit.Time.Tests
             ctrl.Step(0.016f); // frame → 1, _pendingAcks = {1, 2}
 
             // Publish ACKs for both nodes
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 1 });
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 2 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(1) });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(2) });
             bus.SwapBuffers();
             ctrl.Update(); // drains ACKs → _pendingAcks = {}
 
@@ -469,8 +571,8 @@ namespace Fdp.Toolkit.Time.Tests
 
             ctrl.Step(0.016f); // frame → 1, _pendingAcks = {1, 2}
             // ACK both so we can step again
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 1 });
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 2 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(1) });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(2) });
             bus.SwapBuffers();
             ctrl.Update();
 
@@ -486,8 +588,8 @@ namespace Fdp.Toolkit.Time.Tests
             ctrl.Step(0.016f); // frame → 2, _pendingAcks = {3}
 
             // ACKs from old nodes (1, 2) must be silently discarded
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 2, NodeID = 1 });
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 2, NodeID = 2 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 2, NodeID = (Fdp.Core.NodeId)(1) });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 2, NodeID = (Fdp.Core.NodeId)(2) });
             bus.SwapBuffers();
             ctrl.Update();
 
@@ -496,7 +598,7 @@ namespace Fdp.Toolkit.Time.Tests
             Assert.Equal(2L, blocked.FrameNumber);
 
             // Now ACK from node 3 unblocks
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 2, NodeID = 3 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 2, NodeID = (Fdp.Core.NodeId)(3) });
             bus.SwapBuffers();
             ctrl.Update();
 
@@ -563,12 +665,12 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Sync slave.
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
             slaveBus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 0L });
             slaveBus.SwapBuffers();
             slave.Update();
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
 
             // Drain constructor event from masterBus before SwitchToDeterministic.
             masterBus.SwapBuffers();
@@ -669,12 +771,12 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Sync slave so _isTimeSynced = true.
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
             slaveBus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 0L });
             slaveBus.SwapBuffers();
             slave.Update();
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
 
             // Transition master to Stepping
             // Drain constructor event first so only the Deterministic event is relayed.
@@ -811,8 +913,9 @@ namespace Fdp.Toolkit.Time.Tests
         // ── TC3-P2-T03: Debug log emission ───────────────────────────────────
 
         /// <summary>
-        /// TC3-P2-T03-SC2 — After Step(), a debug message containing "[TC3][Master] STEP"
-        /// must have been emitted.
+        /// TC3-P2-T03-SC2 — After Step(), a message containing "STEP #" must have been emitted
+        /// when per-step tracing is on. ⭐ CE-4412: that line is at TRACE now (it was Debug + Info and
+        /// crawled Run to) — see the Steps_PrintNoLineAtInfo rail for the default-level half.
         /// </summary>
         [Fact]
         public void MasterSyncController_Step_EmitsDebugLog()
@@ -820,7 +923,7 @@ namespace Fdp.Toolkit.Time.Tests
             var memTarget = new NLog.Targets.MemoryTarget("test_master_step_debug");
             memTarget.Layout = "${message}";
             var logConfig = new NLog.Config.LoggingConfiguration();
-            logConfig.AddRule(NLog.LogLevel.Debug, NLog.LogLevel.Fatal, memTarget, "*");
+            logConfig.AddRule(NLog.LogLevel.Trace, NLog.LogLevel.Fatal, memTarget, "*");
             var prevConfig = NLog.LogManager.Configuration;
             NLog.LogManager.Configuration = logConfig;
 
@@ -837,7 +940,7 @@ namespace Fdp.Toolkit.Time.Tests
 
                 ctrl.Step(0.016f);
 
-                Assert.Contains(memTarget.Logs, m => m.Contains("[TC3][Master] STEP"));
+                Assert.Contains(memTarget.Logs, m => m.Contains("STEP #"));
             }
             finally
             {
@@ -991,6 +1094,57 @@ namespace Fdp.Toolkit.Time.Tests
             Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
         }
 
+        // ── CE-3329 P1 (R4 as amended, F14): the NON-PAUSING jump of the sim axis ─────────────
+
+        /// <summary>
+        /// ⭐⭐ CE-3329 — a RUNNING clock jumps to a new sim time and KEEPS RUNNING: the mode and the timeline epoch are untouched (a snap
+        /// moves the epoch and the kernel resets every slot), slaves get a Continuous event carrying the new time, wall ticks move by
+        /// the same amount. A paused clock ignores it.
+        /// </summary>
+        [Fact]
+        public void CE3329_A_jump_moves_a_running_clock_without_pausing_or_moving_the_epoch()
+        {
+            long ticks = 1000L;
+            var bus  = new FdpEventBus();
+            var ctrl = CreateController(bus, tickSource: () => ticks);
+            bus.SwapBuffers(); bus.Read<SwitchTimeModeEvent>();   // the constructor's baseline event
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+            long epoch = ctrl.TimelineEpoch;
+            var before = ctrl.GetCurrentState();
+
+            ctrl.JumpWhileRunning(before.TotalTime + 12.5);
+
+            var after = ctrl.GetCurrentState();
+            Assert.Equal(before.TotalTime + 12.5, after.TotalTime, 6);
+            Assert.Equal(before.TotalWallTicks + TicksFromSeconds(12.5), after.TotalWallTicks);
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+            Assert.Equal(epoch, ctrl.TimelineEpoch);
+            bus.SwapBuffers();
+            var evt = Assert.Single(bus.Read<SwitchTimeModeEvent>().ToArray());
+            Assert.Equal(TimeMode.Continuous, evt.TargetMode);
+            Assert.Equal(after.TotalTime, evt.SimTimeSnapshot, 6);
+
+            ctrl.SwitchToDeterministic(new HashSet<int>());
+            ticks += TicksFromSeconds(1);
+            ctrl.Update();
+            var paused = ctrl.GetCurrentState().TotalTime;
+            ctrl.JumpWhileRunning(paused + 100);
+            Assert.Equal(paused, ctrl.GetCurrentState().TotalTime, 6);   // a paused clock is moved by a seek, never a jump
+        }
+
+        /// <summary>⭐ CE-3329 — the request travels as a bus intent (ITimeCommands.JumpTo), read in Update like a snap.</summary>
+        [Fact]
+        public void CE3329_A_jump_intent_is_applied_in_Update()
+        {
+            long ticks = 1000L;
+            var bus  = new FdpEventBus();
+            var ctrl = CreateController(bus, tickSource: () => ticks);
+            new Fdp.Toolkit.Time.IntentTimeCommands(bus).JumpTo(40.0);
+            bus.SwapBuffers();
+            ctrl.Update();
+            Assert.True(ctrl.GetCurrentState().TotalTime >= 40.0);
+        }
+
         // ── RT-014: SnapAndPause tests ───────────────────────────────────────
 
         /// <summary>
@@ -1003,7 +1157,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus    = new FdpEventBus();
             var ctrl   = CreateController(bus, tickSource: () => ticks);
 
-            ctrl.SnapAndPause(12345L, 99.5, new HashSet<int>());
+            ctrl.SnapAndPause(new GlobalTime { TotalWallTicks = 12345L, TotalTime = 99.5 }, new HashSet<int>());
 
             Assert.Equal(12345L, ctrl.GetCurrentState().TotalWallTicks);
         }
@@ -1018,7 +1172,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus    = new FdpEventBus();
             var ctrl   = CreateController(bus, tickSource: () => ticks);
 
-            ctrl.SnapAndPause(12345L, 99.5, new HashSet<int>());
+            ctrl.SnapAndPause(new GlobalTime { TotalWallTicks = 12345L, TotalTime = 99.5 }, new HashSet<int>());
 
             Assert.Equal(TimeMode.Deterministic, ctrl.GetMode());
         }
@@ -1039,7 +1193,7 @@ namespace Fdp.Toolkit.Time.Tests
             bus.Read<SwitchTimeModeEvent>();
 
             double targetSim = 77.25;
-            ctrl.SnapAndPause(9999L, targetSim, new HashSet<int>());
+            ctrl.SnapAndPause(new GlobalTime { TotalWallTicks = 9999L, TotalTime = targetSim }, new HashSet<int>());
 
             bus.SwapBuffers();
             var events = bus.Read<SwitchTimeModeEvent>().ToArray();
@@ -1047,6 +1201,76 @@ namespace Fdp.Toolkit.Time.Tests
             Assert.Single(events);
             Assert.Equal(TimeMode.Deterministic, events[0].TargetMode);
             Assert.Equal(targetSim, events[0].SimTimeSnapshot, 6);
+        }
+
+        /// <summary>
+        /// ⭐ CE-122 — the jump applies the WHOLE position: frame number, sim time, unscaled time and wall ticks. ⛔ Before,
+        /// the snap took only wall ticks + sim time, so frame number and unscaled time kept the old timeline's values.
+        /// The time scale is a rate, not a position, and is left alone.
+        /// </summary>
+        [Fact]
+        public void SnapAndPause_AppliesTheWholePosition_AndLeavesTheTimeScale()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, tickSource: () => ticks);
+            ctrl.SwitchToContinuous();
+            ctrl.SetTimeScale(2f);
+            for (int i = 0; i < 10; i++) { ticks += TimeSpan.TicksPerSecond; ctrl.Update(); }
+            Assert.True(ctrl.GetCurrentState().FrameNumber > 0);
+
+            ctrl.SnapAndPause(new GlobalTime { FrameNumber = 7, TotalTime = 3.5, UnscaledTotalTime = 1.75, TotalWallTicks = 4242L, TimeScale = 9f });
+
+            var now = ctrl.GetCurrentState();
+            Assert.Equal(7, now.FrameNumber);
+            Assert.Equal(3.5, now.TotalTime, 6);
+            Assert.Equal(1.75, now.UnscaledTotalTime, 6);
+            Assert.Equal(4242L, now.TotalWallTicks);
+            Assert.Equal(2f, ctrl.GetTimeScale());
+        }
+
+        /// <summary>
+        /// ⭐ CE-122 — no roster given ⇒ the slave roster is KEPT (the next step still waits on both ACKs); a roster given
+        /// replaces it. ⛔ The live-branch caller used to pass an EMPTY set, so its steps stopped waiting for the slaves.
+        /// </summary>
+        [Fact]
+        public void SnapAndPause_KeepsTheSlaveRoster_UnlessANewOneIsGiven()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, slaves: new HashSet<int> { 2, 3 }, tickSource: () => ticks);
+
+            ctrl.SnapAndPause(new GlobalTime());
+            ctrl.Step(0.1f);
+            Assert.True(ctrl.IsAwaitingStepAcks, "the roster was kept — the step waits on the slaves");
+
+            ctrl.SnapAndPause(new GlobalTime(), new HashSet<int>());
+            ctrl.Step(0.1f);
+            Assert.False(ctrl.IsAwaitingStepAcks, "an empty roster was given — nobody to wait for");
+        }
+
+        /// <summary>
+        /// ⭐ Q86 §4-C — a snap REQUEST (<see cref="SnapTimeIntent"/>, what <c>ITimeCommands.SnapTo</c> publishes) is applied
+        /// by the clock's own Update, BEFORE a resume in the same frame: "jump to 0, then run" lands in that order.
+        /// </summary>
+        [Fact]
+        public void Q86C_ASnapRequest_IsAppliedBeforeAResumeInTheSameFrame()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, tickSource: () => ticks);
+            ctrl.SwitchToContinuous();
+            for (int i = 0; i < 5; i++) { ticks += TimeSpan.TicksPerSecond; ctrl.Update(); }
+            Assert.True(ctrl.GetCurrentState().TotalTime > 3.0);
+
+            var commands = new Fdp.Toolkit.Time.IntentTimeCommands(bus);
+            commands.SnapTo(new GlobalTime { TotalTime = 0.0, TotalWallTicks = ticks });
+            commands.Resume();
+            bus.SwapBuffers();
+            ctrl.Update();
+
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+            Assert.True(ctrl.GetCurrentState().TotalTime < 0.5, $"ran on from the snapped 0, not the old time ({ctrl.GetCurrentState().TotalTime})");
         }
 
         /// <summary>
@@ -1059,12 +1283,298 @@ namespace Fdp.Toolkit.Time.Tests
             var bus    = new FdpEventBus();
             var ctrl   = CreateController(bus, tickSource: () => ticks);
 
-            ctrl.SnapAndPause(500L, 10.0, new HashSet<int>());
+            ctrl.SnapAndPause(new GlobalTime { TotalWallTicks = 500L, TotalTime = 10.0 }, new HashSet<int>());
 
             ticks = 100L;
             ctrl.Update();
 
             Assert.Equal(TimeMode.Deterministic, ctrl.GetMode());
+        }
+
+        // ── AS-14: a step request must not vanish silently ───────────────────
+        //
+        // Before the fix, Step() returned early whenever _pendingAcks was non-empty: the request
+        // was DISCARDED and the caller was never told, so N step requests produced ONE step's
+        // worth of sim time. The ACK guard itself is correct (a lockstep cluster must not run
+        // ahead of its slaves) — what was wrong is that the blocked request was dropped instead
+        // of deferred. These rails pin the new contract: deferred, then applied; and when it
+        // genuinely cannot be honoured, refused audibly via RefusedStepCount.
+
+        /// <summary>
+        /// TM-001 §1 — a step requested while ACKs are outstanding is QUEUED, and applied as soon
+        /// as the ACK set clears. This is the defect the cluster integration suite caught.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_StepDuringPendingAcks_IsQueuedThenApplied()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 0 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+            ticks = 1;
+            ctrl.Update(); // → Stepping
+
+            var first = ctrl.Step(1.0f);
+            Assert.Equal(1L, first.FrameNumber);
+            Assert.Equal(1.0, first.TotalTime, 3);
+
+            // One frame of the host loop, as in production: it reports the step's delta and
+            // drains _pendingStepDelta. Slave 1 has not ACKed, so nothing is released.
+            var stillWaiting = ctrl.Update();
+            Assert.Equal(1.0f, stillWaiting.DeltaTime, 3);
+
+            // Slave 1 has not ACKed yet — this request must be kept, not dropped.
+            ctrl.Step(1.0f);
+            Assert.Equal(1, ctrl.QueuedStepCount);
+            Assert.Equal(0L, ctrl.RefusedStepCount);
+            Assert.Equal(1.0, ctrl.GetCurrentState().TotalTime, 3);
+
+            // ACK clears → the queued step is released inside Update().
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(1) });
+            bus.SwapBuffers();
+            var released = ctrl.Update();
+
+            Assert.Equal(0, ctrl.QueuedStepCount);
+            Assert.Equal(2L, released.FrameNumber);
+            Assert.Equal(2.0, released.TotalTime, 3);
+            Assert.Equal(1.0f, released.DeltaTime, 3);
+        }
+
+        /// <summary>
+        /// TM-001 §2 — the headline symptom: three step requests issued back-to-back must produce
+        /// three steps' worth of sim time, not one. Measured on the cluster net as
+        /// "3 steps ⇒ 1.000s"; here as ~3 s for three 1 s steps.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_ThreeRapidSteps_AdvanceByThreeStepsWorthOfTime()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 0 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+            ticks = 1;
+            ctrl.Update();
+
+            // Three requests with no chance to ACK in between: 1 issued, 2 deferred.
+            ctrl.Step(1.0f);
+            ctrl.Step(1.0f);
+            ctrl.Step(1.0f);
+            Assert.Equal(2, ctrl.QueuedStepCount);
+
+            // Drain: each ACK releases exactly one deferred step.
+            for (long frame = 1; frame <= 3; frame++)
+            {
+                bus.PublishManaged(new FrameStepCompletedEvent { FrameID = frame, NodeID = (Fdp.Core.NodeId)(1) });
+                bus.SwapBuffers();
+                ctrl.Update();
+            }
+
+            Assert.Equal(0, ctrl.QueuedStepCount);
+            Assert.Equal(0L, ctrl.RefusedStepCount);
+            Assert.Equal(3.0, ctrl.GetCurrentState().TotalTime, 3);
+            Assert.Equal(3L, ctrl.GetCurrentState().FrameNumber);
+        }
+
+        /// <summary>
+        /// TM-001 §3 — past <see cref="TimeConfig.MaxQueuedSteps"/> the request is REFUSED, and the
+        /// refusal is countable. A slave that has stopped ACKing must not build an unbounded burst.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_QueueFull_RefusesAudibly()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 0, MaxQueuedSteps = 2 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+            ticks = 1;
+            ctrl.Update();
+
+            ctrl.Step(1.0f);                      // issued
+            ctrl.Step(1.0f); ctrl.Step(1.0f);     // queued to the bound
+            Assert.Equal(2, ctrl.QueuedStepCount);
+            Assert.Equal(0L, ctrl.RefusedStepCount);
+
+            ctrl.Step(1.0f); ctrl.Step(1.0f);     // beyond the bound
+            Assert.Equal(2, ctrl.QueuedStepCount);
+            Assert.Equal(2L, ctrl.RefusedStepCount);
+        }
+
+        /// <summary>
+        /// TM-001 §4 — a step while the controller is not in Stepping mode is refused, and counted.
+        /// It used to return the current state with no signal whatsoever.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_StepInContinuousMode_IsCountedAsRefused()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, tickSource: () => ticks);
+
+            ctrl.Step(0.016f);
+
+            Assert.Equal(1L, ctrl.RefusedStepCount);
+            Assert.Equal(0, ctrl.QueuedStepCount);
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+        }
+
+        /// <summary>
+        /// TM-001 §5 — Resume drops whatever was deferred. A step queued during one pause must not
+        /// fire into the next one; the count is stated in the RESUME log line, so it is not silent.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_SwitchToContinuous_DropsQueuedSteps()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 0 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+            ticks = 1;
+            ctrl.Update();
+
+            ctrl.Step(1.0f);
+            ctrl.Step(1.0f);
+            Assert.Equal(1, ctrl.QueuedStepCount);
+
+            ctrl.SwitchToContinuous();
+            Assert.Equal(0, ctrl.QueuedStepCount);
+        }
+
+        // ── T7: the Future Barrier window ────────────────────────────────────
+        //
+        // AS-14 made a blocked step DEFER instead of vanish, but only for the ACK guard. The mode
+        // guard above it still refused, and for the first 200 ms after every pause the mode is
+        // BarrierPending — which is exactly when an operator who just pressed pause presses step.
+        // The window is short, so the loss is intermittent, which is the worst shape for it.
+
+        /// <summary>
+        /// TM-031 — a step pressed inside the barrier window is QUEUED, not refused, and it is
+        /// released once the barrier lands. Nothing else in the pause path changes.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_StepDuringPauseBarrier_IsQueuedNotRefused()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 100 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+            Assert.True(ctrl.IsPauseBarrierPending);
+
+            // Inside the window: mode still reads Continuous, but the pause IS in effect.
+            ticks = 10;
+            ctrl.Update();
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+
+            ctrl.Step(1.0f);
+            Assert.Equal(1, ctrl.QueuedStepCount);
+            Assert.Equal(0L, ctrl.RefusedStepCount);   // this was 1 before TM-031
+
+            // Past the barrier the controller enters Stepping; the next frame releases the step.
+            ticks = 500;
+            ctrl.Update();                              // BarrierPending -> Stepping
+            var released = ctrl.Update();               // UpdateStepping releases the queued delta
+
+            Assert.Equal(0, ctrl.QueuedStepCount);
+            Assert.Equal(1.0f, released.DeltaTime, 3);
+            Assert.Equal(1L, ctrl.GetCurrentState().FrameNumber);
+        }
+
+        /// <summary>
+        /// TM-031 — the bound still applies inside the window: a queue that cannot grow must refuse
+        /// audibly rather than silently absorb. Same contract as the ACK-guard case.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_BarrierQueueFull_StillRefusesAudibly()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 100, MaxQueuedSteps = 2 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+
+            ctrl.Step(1.0f); ctrl.Step(1.0f);
+            Assert.Equal(2, ctrl.QueuedStepCount);
+            Assert.Equal(0L, ctrl.RefusedStepCount);
+
+            ctrl.Step(1.0f);
+            Assert.Equal(2, ctrl.QueuedStepCount);
+            Assert.Equal(1L, ctrl.RefusedStepCount);
+        }
+
+        /// <summary>
+        /// TM-031 — the probe itself: true only for the window, false either side of it. `T6`'s
+        /// resolver answered <c>Unknown</c> for this state because nothing exposed it.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_ReportsThePendingPauseBarrier()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 100 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            Assert.False(ctrl.IsPauseBarrierPending);   // continuous
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+            Assert.True(ctrl.IsPauseBarrierPending);    // window open
+
+            ticks = 500;
+            ctrl.Update();
+            Assert.False(ctrl.IsPauseBarrierPending);   // barrier crossed
+            Assert.Equal(TimeMode.Deterministic, ctrl.GetMode());
+        }
+
+        /// <summary>
+        /// CE-4412 — <i>Run to</i> is thousands of steps; a console line (and its allocations) per step
+        /// crawled it. At the default level (Info) N steps print NOTHING, and a steady step (with a slave
+        /// that ACKs, so the pending set is re-armed every step) allocates 0 B.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_Steps_PrintNoLineAtInfo_AndAllocateNothing()
+        {
+            var target = new NLog.Targets.MemoryTarget("ce4412") { Layout = "${message}" };
+            var oldCfg = NLog.LogManager.Configuration;
+            var cfg = new NLog.Config.LoggingConfiguration();
+            cfg.AddRule(NLog.LogLevel.Info, NLog.LogLevel.Fatal, target, "Fdp.Toolkit.Time.Controllers.MasterSyncController");
+            NLog.LogManager.Configuration = cfg;
+            try
+            {
+                long ticks = 0;
+                var bus    = new FdpEventBus();
+                var ctrl   = CreateController(bus, config: new TimeConfig { LookaheadWallTicks = 0 }, tickSource: () => ticks);
+                ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+                ticks = 1;
+                ctrl.Update();                                   // -> Stepping
+                int before = target.Logs.Count;
+
+                long best = long.MaxValue;
+                for (int w = 0; w < 6; w++)
+                {
+                    long a0 = GC.GetAllocatedBytesForCurrentThread();
+                    for (int i = 0; i < 200; i++)
+                    {
+                        ctrl.Step(0.016f);                       // issues a step, arms the ACK set
+                        bus.PublishManaged(new FrameStepCompletedEvent { NodeID = (Fdp.Core.NodeId)(1) });
+                        bus.SwapBuffers();
+                        ctrl.Update();                           // drains the ACK
+                    }
+                    best = Math.Min(best, GC.GetAllocatedBytesForCurrentThread() - a0);
+                }
+
+                Assert.Equal(before, target.Logs.Count);         // 1 200 steps, not one line
+                Assert.Equal(0L, best);
+            }
+            finally { NLog.LogManager.Configuration = oldCfg; }
         }
     }
 }

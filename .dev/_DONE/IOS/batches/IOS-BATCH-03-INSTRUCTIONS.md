@@ -23,7 +23,7 @@ Great progress so far! BATCH-02 successfully yielded our abstract Operator panel
 
 ### Source Code Location
 - **Primary Work Area:** `Hrot.ExCon/`
-- **Solution File:** `IOS-IG-SimHost.sln`
+- **Solution File:** `HROT.sln`
 
 ### Report Submission
 **When done, submit your report to:**  

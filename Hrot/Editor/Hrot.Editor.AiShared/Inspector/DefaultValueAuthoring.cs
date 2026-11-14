@@ -2,6 +2,7 @@ using System;
 using System.Text.Json;
 using Hrot.Editor.AiShared.Blackboard;
 using StructEdit.Core;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Editor.AiShared.Inspector;
 
@@ -35,13 +36,10 @@ public static class DefaultValueAuthoring
 
     /// <summary>
     /// Shared serializer options used for default-value JSON round-trips.
-    /// <c>IncludeFields = true</c> ensures public struct fields (in addition to properties)
-    /// are serialized/deserialized, which is the common pattern for game-dev DTO structs.
+    /// ⭐ CE-3187 (R-2005 / R-2007): the platform's shared options — the SAME ones the runtime parses a default with
+    /// (fields, enums as names, vectors as arrays), so the editor writes what the runtime reads.
     /// </summary>
-    public static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        IncludeFields = true,
-    };
+    public static readonly JsonSerializerOptions JsonOptions = FdpJsonOptionsRegistry.DefaultRelaxed;
 
     // ── Hydration ─────────────────────────────────────────────────────────────
 
@@ -82,12 +80,53 @@ public static class DefaultValueAuthoring
     /// <param name="editService">The StructEdit edit-service (from the composition root).</param>
     /// <param name="varEntry">The variable whose default value is being edited.</param>
     /// <returns>An open <see cref="IEditSession"/> for the hydrated DTO instance.</returns>
+    /// <remarks>
+    /// ⭐⭐⭐ <b><c>C-dialog</c> (Batch 68) — this is THE one call site that opens a variable edit
+    /// session, and <paramref name="scope"/> is the only thing that differs between the two menu
+    /// items.</b> §3: <i>"Edit value…"</i> passes <see cref="EditScope.ForField"/>, <i>"Properties…"</i>
+    /// passes <see cref="EditScope.WholeComponent"/> — ⛔ <b>same lifecycle, same OK/Cancel, same
+    /// validation.</b> §9's rail is a reflection test asserting exactly one such call site exists.
+    ///
+    /// <para>
+    /// 🔴 <b>The rail FAILED before the change.</b> <c>InspectorWindow:352-365</c> inlined its own copy
+    /// of <see cref="Hydrate"/> — the same deserialize-or-<c>Activator</c> try/catch — and called
+    /// <c>Open</c> itself, so a variable default-value session had <b>two</b> implementations. It now
+    /// routes here.
+    /// </para>
+    /// </remarks>
+    /// <param name="seed">
+    /// ⭐⭐⭐ <b>The value to OPEN OVER, when it is not the declaration's default.</b>
+    ///
+    /// <para>🔴🔴 <b>The defect this closes</b> *(user, <c>2026-08-20</c>: "opened Edit on a variable row
+    /// which was showing '312'. The Edit variable dialog opened with value '0'")*. 📐 This method only
+    /// ever hydrated <c>varEntry.DefaultValueJson</c> ⇒ ⛔ <b>a PAUSED edit opened at the DECLARATION's
+    /// default while the row showed the LIVE value</b>, and an OK would then have written that default
+    /// over the running value — 📌 the <c>BP-367</c> shape, one layer up.</para>
+    ///
+    /// <para>⚠ <b>Fails SAFE</b>: null, or a value of the wrong type, falls back to the declaration —
+    /// ⛔ a variable the run has not written yet must not open over a guess.</para>
+    /// </summary>
+    /// <remarks>⭐ Callers pass this only when the edit TARGETS the live blackboard; deciding that is
+    /// <c>VariableEditCommit.TargetFor</c>'s job, ⛔ not this method's.</remarks>
     public static IEditSession OpenSession(
         IComponentEditService editService,
-        BlackboardVariableEntry varEntry)
+        BlackboardVariableEntry varEntry,
+        EditScope? scope = null,
+        object? seed = null)
     {
-        var instance = Hydrate(varEntry.FieldType, varEntry.DefaultValueJson);
-        return editService.Open(instance, varEntry.FieldType);
+        var instance = varEntry.FieldType.IsInstanceOfType(seed)
+            ? seed!
+            : Hydrate(varEntry.FieldType, varEntry.DefaultValueJson);
+
+        // ⭐⭐⭐ Batch 97 (97a) — A SCALAR IS OPENED THROUGH A ONE-FIELD WRAPPER.
+        // 🔴🔴 BP-356: CreateLeafBinding needs a MEMBER and a document ROOT has none, so a scalar
+        //    variable's root came back with Binding == null and DrawLeafNode's
+        //    `node.Binding?.SetBoxed(value)` silently discarded the designer's typing.
+        // ⭐ ScalarEditBox<T> gives the root a bound CHILD; ⛔ the wrapper never escapes the session —
+        //   CommitAndSerialize and the live-bytes arm both unwrap. ⛔ StructEdit is untouched.
+        var editType = ScalarEditBox.EditTypeFor(varEntry.FieldType);
+        return editService.Open(
+            ScalarEditBox.Wrap(instance, varEntry.FieldType), editType, scope);
     }
 
     // ── Commit + serialize ────────────────────────────────────────────────────
@@ -102,14 +141,28 @@ public static class DefaultValueAuthoring
     /// <returns>The JSON-serialized committed value.</returns>
     public static string CommitAndSerialize(IEditSession session, Type fieldType)
     {
-        var committed = session.Commit();
+        // ⭐⭐⭐ Batch 97 (97a) — UNWRAP FIRST. ⛔ A scalar session commits a ScalarEditBox<T>, and the
+        //    declaration must receive `7`, ⛔ never `{"Value":7}`. ⚠ Serializing the box AS fieldType
+        //    would not even fail loudly — it would write `{}` through the catch below and look like a
+        //    serialisation quirk rather than the wrapper leaking.
+        var committed = ScalarEditBox.Unwrap(session.Commit(), fieldType);
+        return TrySerialize(committed, fieldType) ?? "{}";
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1433</c> — the ONE value → default-value-JSON serializer (<see cref="JsonOptions"/>): what <see cref="CommitAndSerialize"/>
+    /// writes after an edit, and what the projection of a C#-built tree writes for a variable whose default is its block's constructor.
+    /// Returns <c>null</c> on a value it cannot serialize (never throws).
+    /// </summary>
+    public static string? TrySerialize(object? value, Type fieldType)
+    {
         try
         {
-            return JsonSerializer.Serialize(committed, fieldType, JsonOptions);
+            return JsonSerializer.Serialize(value, fieldType, JsonOptions);
         }
         catch
         {
-            return "{}";
+            return null;
         }
     }
 

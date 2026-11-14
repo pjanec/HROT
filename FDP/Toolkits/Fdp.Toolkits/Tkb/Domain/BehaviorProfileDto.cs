@@ -29,6 +29,37 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// </summary>
         public int DefaultBehaviorHash { get; init; }
 
+        /// <summary>⭐ <c>CE-4151</c> — the unit type's default TASK by behaviour NAME, like <see cref="DefaultSop"/>; <c>null</c> = fall back to
+        /// <see cref="DefaultBehaviorHash"/> (no params). Started through the ingress at spawn, origin Sop, with
+        /// <see cref="DefaultBehaviorParamsJson"/>; ⭐ one place decides (<c>BehaviorTkbTranslator.Inject</c>).</summary>
+        public string? DefaultBehavior { get; init; }
+
+        /// <summary>⭐ <c>CE-4151</c> — the default task's params as JSON (R-191); <c>null</c> = its authored defaults.</summary>
+        public string? DefaultBehaviorParamsJson { get; init; }
+
+        /// <summary>⭐ <c>CE-2074</c> (R-200) — the unit type's default ROE fire rule; <c>Unset</c> = fire at will.</summary>
+        public Fdp.Toolkit.Behavior.Components.RoeFire DefaultRoeFire { get; init; }
+
+        /// <summary>⭐ <c>CE-2074</c> (R-200) — the unit type's default reaction rule; <c>Unset</c> = reactions allowed.</summary>
+        public Fdp.Toolkit.Behavior.Components.RoeReactions DefaultRoeReactions { get; init; }
+
+        /// <summary>⭐ <c>CE-2095</c> — the unit type's ReturnFire window in seconds; <c>0</c> = the default (5 s).</summary>
+        public float DefaultRoeReturnFireWindowSeconds { get; init; }
+
+        /// <summary>⭐ <c>CE-2239</c> part 1 (CV-8) — the unit type's force level; <c>ForceUnset</c> = lethal (the security types: non-lethal).</summary>
+        public Fdp.Toolkit.Behavior.Components.RoeForceLevel DefaultRoeForceLevel { get; init; }
+
+        /// <summary>⭐ <c>CE-2077</c> — the unit type's SOP (its own logic: idle choice + reactions, R-198) by behaviour NAME;
+        /// <c>null</c> = no SOP (the unit does only what it is told). Started through the ingress at spawn, origin Sop.</summary>
+        public string? DefaultSop { get; init; }
+
+        /// <summary>⭐ <c>CE-2077</c> — the SOP's params as JSON (R-191); <c>null</c> = its authored defaults.</summary>
+        public string? DefaultSopParamsJson { get; init; }
+
+        /// <summary>⭐ <c>CE-2273</c> DA-A (DA-1) — the unit type's combat proficiency 0–1 (Militia 0.35 for insurgents); <c>0</c> = none
+        /// (reads Regular). Projected at spawn into <c>CombatProficiency.TypeDefault</c>, under an authored or a unit value.</summary>
+        public float DefaultProficiency { get; init; }
+
         /// <summary>Whether the entity can move under its own power.</summary>
         public bool CanMove { get; init; }
 

@@ -1,4 +1,8 @@
-using System;
+﻿using System;
+using System.Linq;
+using Hrot.Common.EntityCreation;
+using Hrot.Common;
+using Hrot.Common.Infrastructure;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
@@ -49,7 +53,6 @@ using Hrot.CGF.Systems;
 using Hrot.Editor.Windows;
 using Hrot.Orchestrator.Panels;
 using Hrot.Presentation.Windows;
-using Hrot.Common.Orchestration.Handlers;
 using Hrot.Common.Diagnostics;
 using Hrot.Common.Constants;
 using Hrot.Common.Interactions;
@@ -57,14 +60,15 @@ using Hrot.Common.Systems;
 using Hrot.Common.Scenario;
 using Hrot.Editor;
 using Hrot.Editor.Adapters;
+// ⭐ CE-061 — the four host-agnostic adapters moved to Hrot.Presentation/Adapters
+//   (namespace Hrot.UI.Common.Adapters, beside the facades they implement).
+using Hrot.UI.Common.Adapters;
 using Hrot.Editor.AiShared.Adapters;
-using Hrot.Editor.Events;
 using Hrot.Editor.Modules;
 using Hrot.Editor.Rendering;
 using Hrot.Editor.UI;
-using Hrot.IG.Components;
-using Hrot.IG.Systems;
-using Hrot.IG.Modules;
+using Hrot.Player.Systems;
+using Hrot.Player.Modules;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Config;
@@ -75,6 +79,7 @@ using Hrot.ScenarioEditor.Rendering;
 using Hrot.ScenarioEditor.Services;
 using Hrot.SimHost;
 using Hrot.SimHost.Modules;
+using Hrot.Presentation.Map;
 using Hrot.Presentation.Facades;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
@@ -97,7 +102,6 @@ using Fdp.Toolkit.Spatial;
 using CarKinem.Tkb;
 using Fdp.Toolkit.Behavior.Translators;
 using Fdp.Toolkit.Combat.Translators;
-using Hrot.Editor.Commands;
 using Hrot.Common.Events;
 using Hrot.Diagnostics.Breakpoints;
 using Hrot.Blueprints.Core;
@@ -143,6 +147,9 @@ using Hrot.Hsm.Editor.Blackboard;
 using Hrot.Hsm.Editor.Comparison;
 using Hrot.Blueprints.Editor.Comparison;
 
+using Hrot.Blueprints.Core.Debug;
+using NodeId = NodeEditor.Primitives.NodeId;
+
 namespace Hrot.Editor
 {
     /// <summary>
@@ -162,9 +169,80 @@ namespace Hrot.Editor
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable, Fdp.Toolkit.Runner.IAppExitGuard
+    public sealed class EditorSubsystem : ISubsystem, Fdp.Toolkit.Runner.ISimSteppedSubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable, Fdp.Toolkit.Runner.IAppExitGuard,
+        Fdp.Toolkit.Runner.IWindowTitleSource,
+        Hrot.Common.EntityCreation.IEntityCreationHost,
+        Hrot.Presentation.DebugApi.IHostsClusterMaster,
+        Fdp.Presentation.WindowManager.IClusterRestSource,
+        Hrot.UI.Common.RunMode.IProvidesRunControls
     {
-        private const int EditorNodeId = 0;
+        /// <summary>⭐ CE-4432 — the editor's map-feed address (BP-485), built once; the publish reads it every frame.</summary>
+        private static readonly string GizmoFeedAddress = Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.AddressFor("editor");
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — what the start gate reads here: the editor HOSTS the (in-process) master, so it can always
+        /// operate it, its master is never "gone", and the state is the one its own session announces (Idle until a scenario is opened).
+        /// ⛔ The editor builds no <c>ISubsystemDebugProvider</c> in the runner, so this is its one answer.
+        /// </summary>
+        public Fdp.Presentation.WindowManager.ClusterRest ReadClusterRest()
+            => new(UiClusterState, MasterGone: false, CanOperate: true);   // ⭐ D-9 — read on the UI thread
+
+        /// <summary>⭐ <c>CE-3228</c> (Entity Creation §3.4d) — the editor's node id. 🔒 User, <c>2026-10-17</c>: <i>"No valid node ID should be
+        /// 0."</i> 0 means "no node" and, on a creation request, "the system picks"; the editor is an offline one-node cluster, so 1.</summary>
+        internal const int EditorNodeId = 1;
+
+        /// <summary>⭐ <c>CE-3354</c> ② — this editor node's unique name (<c>--node-name</c>); null ⇒ <c>Editor-1</c>.</summary>
+        private string? _nodeName;
+        /// <summary>⭐ <c>CE-3354</c> ② — the name the editor node heartbeats (the default when none was configured).</summary>
+        /// <summary>⭐ CE-3354 ⑥ — the master intents the runner's command-line startup load publishes: onto the editor's embedded core's bus (null before the core exists).</summary>
+        public Hrot.Presentation.DebugApi.IClusterMasterControl? ClusterMasterControl
+            => _orchestratorCore is null ? null : new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus);
+
+        /// <summary>⭐ CE-3354 ⑥ — the cluster state the editor's node sees (null before the editor application exists).</summary>
+        public Fdp.Toolkit.Orchestration.ClusterState? ClusterStateNow => _editorApp == null ? null : UiClusterState;   // ⭐ D-9 — the quit guard reads it on the UI thread
+        /// <summary>⭐ CE-4330 ⑨ — the transfer this host's master runs now (the quit guard asks about it here only).</summary>
+        public Fdp.Toolkit.Orchestration.StorageJob? RunningTransfer => _orchestratorCore?.Master.StorageJobs.Running;
+
+        public string NodeName => string.IsNullOrWhiteSpace(_nodeName) ? Fdp.Toolkit.Orchestration.ClusterSlave.DefaultNodeName("Editor", EditorNodeId) : _nodeName!;
+
+        /// <summary>
+        /// ⭐ The editor's terrain residency — the one its load chain commits through and the terrain picker
+        /// (W13) switches. 📄 docs/DESIGN_Terrain_World.md §7.3. Null until the cluster handlers are composed.
+        /// </summary>
+        public Hrot.Map.Common.Services.TerrainResidency? TerrainResidency { get; private set; }
+
+        /// <summary>⭐ Terrain authoring U-2 — the base terrain and its folder the placing ghost fits a block to (none until a terrain is resident).</summary>
+        private (Fdp.Toolkit.Terrain.TerrainWorld? Base, string? Folder) GhostBase()
+        {
+            if (TerrainResidency is not { } r) return (null, null);
+            var b = r.ExpansionBase();
+            return (b.Base, b.Folder);
+        }
+
+        /// <summary>Owns the editor's published road graph (the editor runs its kinematics locally).</summary>
+        private readonly CarKinem.Road.RoadNetworkHolder _roadNetworkHolder = new();
+
+        /// <summary>
+        /// ⭐ CE-3017 — the editor's navmesh: ONE provider shared by the <c>INavmeshProvider</c> singleton and the background
+        /// <c>NavigationSolverModule</c>; each terrain load re-bakes it (<c>TerrainResidency.AttachNavmesh</c>). Same shape as
+        /// SimHost's (docs/DESIGN_Terrain_World.md §7.1 W6) — CGF ≡ editor (R-182).
+        /// </summary>
+        private readonly Fdp.Toolkit.Navigation.SwitchableNavmeshProvider _navmesh = new();
+
+        /// <summary>⭐ CE-3017 — the composed navigation module; its providers go in after kernel Initialize. Null on the
+        /// injected (Stride) arm, which brings its own navigation.</summary>
+        private Fdp.Toolkit.Navigation.EngineBacked.EngineBackedNavigationModule? _navModule;
+
+        /// <summary>⭐ CE-3017 — the solver capability, kept so its modules join the hot-swappable logic packs.</summary>
+        private SimHostCapabilities.NavigationSolver? _navSolverCapability;
+        /// <summary>⭐ AQ93 R-4047 — SUMO traffic (default arm only): cars, replicas, light states. Null on the injected arm.</summary>
+        private Hrot.Traffic.TrafficPack? _trafficPack;
+
+        /// <summary>⭐ AQ93 — the traffic pack (the road and car layers and the debug API read it). Null on the injected arm or before compose.</summary>
+        public Hrot.Traffic.TrafficPack? Traffic => _trafficPack;
+
+        /// <summary>⭐ CE-515 — this node's entity-creation pack (null until initialised), the same seam every host exposes.</summary>
+        public Hrot.Common.EntityCreation.EntityCreation? EntityCreation { get; private set; }
 
         // ?? Subsystem identity ????????????????????????????????????????????????
 
@@ -177,21 +255,252 @@ namespace Hrot.Editor
 
         // ?? Network factory (no-op stubs for offline editor) ?????????????????
 
+        // ⭐ CE-516 — the factory the composition root CHOSE for this node. The editor is an offline node
+        //   (ruling 66 "the editor is a one-node cluster"; Q26 constraint 2), so the runner passes
+        //   OfflineNetworkFactory and the parameterless (test) ctor defaults to it — the editor builds with
+        //   what it is given instead of discarding it and constructing its own.
         private readonly INetworkFactory _networkFactory = new OfflineNetworkFactory();
 
         // ?? Core state ????????????????????????????????????????????????????????
 
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-203</c> — the shared node context this host is built from. Everything below that
+        /// used to be constructed here (<see cref="_world"/>, <see cref="_kernel"/>, the bus, the time
+        /// controller, the entity map, the cluster slave, the TKB, the geo transform) now comes off it,
+        /// and it owns the world+kernel teardown. 📄 <c>§4.1y</c>.
+        /// </summary>
+        private HrotNodeContext?        _node;
+        private EditorNodeBootstrapper? _bootstrapper;
+        private ScenarioFileService?    _scenarioFileService;
+
         private EntityRepository?       _world;
+        private StructEdit.Core.IComponentEditService? _runSetupEditService;   // ⭐ AQ108 D24 — built on first use by the scenario picker's Run setup
+        private readonly Hrot.Editor.Scenario.HeaderParamsSchemaSource _headerParams;   // ⭐ CE-4210 P2 (MA-5)
+        private Hrot.Editor.Scenario.ParametersDrawer? _parametersDrawer;
+        private Hrot.Editor.Scenario.SaveSelectionAsMacroWindow? _saveSelectionWindow;   // ⭐ CE-4210 MA-9
+        private Hrot.Presentation.Windows.ProblemsWindow? _problemsWindow;   // ⭐ CE-4318 (L-6)
+        /// <summary>⭐ CE-4318 — the Problems count sits right after the time control group (0) and its separator (10).</summary>
+        internal const int ProblemsCountSortOrder = 15;
+        /// <summary>⭐ CE-4318 — the editor's Problems window (rails).</summary>
+        internal Hrot.Presentation.Windows.ProblemsWindow? ProblemsWindow => _problemsWindow;
+        private Action<Action<string>>? _openMacroPicker;   // ⭐ CE-4210 MA-8 — the scenario picker's Macros group, for the instance's "Change…" (set once the picker exists)
+
+        // ⭐ CE-3330 (DAR §9e, row 28; DESIGN_Director_Timeline_Editor.md §2d) — the event timeline on the EDITOR is its NODE CONTEXT's: the
+        //   lanes, the live index and the lane context are the ones every ECS node has (HrotNodeContext.Timeline); the editor runs its own
+        //   frame, so it steps the index itself (StepTimeline) where the context's Tick would. Drawn by the shared TimelinePanel.
+        private readonly Fdp.Presentation.Panels.Timeline.TimelinePanel _eventTimeline = new();
+        /// <summary>⭐ W-1 / P-8 8c-2 — the Event Timeline's Tasks rows (forwarding rails).</summary>
+        internal Hrot.Presentation.Orders.TasksTimelineTracks? TasksTracks { get; private set; }
+        /// <summary>⭐ R-6 / V7 — the Event Timeline's Search hits and Breakpoint stops rows (the ONE class both hosts compose).</summary>
+        internal Hrot.Editor.AiShared.Review.ReviewTimelineTracks? ReviewTracks { get; private set; }
+        /// <summary>⭐ R-6 / V7 — the data-breakpoint stops of this session (what the Breakpoint stops row draws).</summary>
+        internal Hrot.Editor.AiShared.Review.ReviewStopLog ReviewStops { get; } = new();
+
+        /// <summary>⭐ CE-3330 — the live event timeline's index: the node context's (null before Initialize / after Shutdown).</summary>
+        internal Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource? LiveTimeline => _node?.Timeline;
+
+        /// <summary>⭐ CE-3330 (R-4087 addendum 5) — a timeline event clicked selects its unit through the ONE selection; ⛔ never a seek.</summary>
+        internal bool SelectTimelineEvent(Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent e)
+        {
+            // ⭐ CE-4263 — the click selects the subject as before, and the Details ▸ Event view shows THIS event (it applies only while the subject is the one selected unit)
+            if (!SelectNetworkEntity(e.Subject)) return false;
+            _eventFocus.Set(e, _eventTimeline.LaneNameOf(e.Lane), _eventTimeline.LastSelectedWallText, _eventTimeline.LastSelectedSimText);
+            return true;
+        }
+
+        /// <summary>⭐ CE-4263 — the timeline event last clicked (Details ▸ Event reads it).</summary>
+        internal Hrot.Editor.AiShared.Shell.TimelineEventFocus EventFocus => _eventFocus;
+        private readonly Hrot.Editor.AiShared.Shell.TimelineEventFocus _eventFocus = new();
+
+        /// <summary>⭐ CE-4216 — the ONE selection by network id (a timeline event's subject, a rules-view row's subject).</summary>
+        /// <summary>⭐ CE-4218 (R5a) — what the rule editor needs: the params form's service, the behaviour registry, the AI section's own apply (edit mode = AssignNow), the shared undo, the brain journal's text.</summary>
+        // ⭐ CE-4292 — the rule editor services are built by the ONE RuleEditorServicesFactory (Hrot.Editor.AiShared.Rules), through the RulesBundle below
+
+        internal bool SelectNetworkEntity(int networkId)
+        {
+            _eventFocus.Clear();   // ⭐ CE-4263 — a plain pick (a rules-view row, an event view's Other link) shows no event; SelectTimelineEvent sets it AFTER this
+            if (networkId <= 0 || _world is not { } world || !world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()) return false;
+            if (world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() is not { } map
+                || !map.TryGetEntity(networkId, out var entity) || !world.IsAlive(entity)) return false;
+            SetSelection2D(entity);
+            return true;
+        }
+
+        /// <summary>⭐ CE-4216 (R2) — Window ▸ Rules; kept so the Details panel's Objectives tab can open a rule in it (RV-7).</summary>
+        /// <summary>⭐ CE-4218 (R5a) — THE editor undo history: the Parameters window and the rule editor push to it.</summary>
+        internal Hrot.Presentation.Edits.EditHistory EditHistory { get; } = new();
+
+        private bool _undoRecorderInstalled, _undoSessionWired;
+
+        /// <summary>⭐ U5 — Edit ▸ History… (null until the windows are registered).</summary>
+        private Hrot.Presentation.Windows.EditHistoryWindow? _historyWindow;
+        internal Hrot.Presentation.Windows.EditHistoryWindow? HistoryWindow => _historyWindow;
+
+        /// <summary>⭐ B-14 — the station is in Edit mode (the only mode undo works in, R-4120).</summary>
+        private bool InEditMode => _world is { } uw && Hrot.Common.Editing.StationMode.Of(uw) == Hrot.Common.Editing.EditingMode.Edit;
+
+        /// <summary>⭐ B-14 / Edit-mode undo U2 + U5 (📄 docs/UX/DESIGN_Edit_Mode_Undo.md §2.2) — the world's step recorder writes world steps onto the ONE
+        /// <see cref="EditHistory"/> (Edit mode only); the session's Save marks the clean point and an open / create / clear (or a Live load) starts over.
+        /// Called where the world + ring and where the session come into being (either order); each half once.</summary>
+        private void WireWorldUndo()
+        {
+            // ⭐ N-7 (CE-4469, U-1) — mode 3: the recorder is installed on S (where every write happens, on the sim thread) and hands its steps to the
+            //   UI's history through the staging (ThreadedUndoSink); the session's Saved / Opened (raised on the sim thread) reach the history the same way
+            var undoWorld = Staged ? _nodeWorld : _world;
+            if (!_undoRecorderInstalled && undoWorld is { } world && _clusterHandlers is { } handlers && (!Staged || _staging != null))   // mode 3: once the staging exists
+            {
+                _undoRecorderInstalled = true;
+                Hrot.Presentation.Edits.IUndoStepSink sink = Staged
+                    ? _threadedUndo = new Hrot.Presentation.Edits.ThreadedUndoSink(EditHistory, _staging!, PostToSim, handlers.UndoRing)
+                    : EditHistory;
+                Fdp.Toolkit.Replication.Edits.EditSteps.Install(world, UndoRecorder = new Hrot.Presentation.Edits.WorldUndoRecorder(sink, handlers.UndoRing,
+                    recording: () => Hrot.Common.Editing.StationMode.Of(world) == Hrot.Common.Editing.EditingMode.Edit));
+            }
+            if (!_undoSessionWired && _editorApp?.ScenarioSession is Hrot.Editor.AiShared.Scenarios.EditorScenarioSession session)
+            {
+                _undoSessionWired = true;
+                if (_threadedUndo is { } threaded)
+                {
+                    session.Saved  += threaded.MarkSaved;
+                    session.Opened += () => { threaded.Cleared(); _clusterHandlers?.UndoRing.Clear(); };
+                }
+                else
+                {
+                    session.Saved  += EditHistory.MarkSaved;
+                    session.Opened += () => { EditHistory.Clear(); _clusterHandlers?.UndoRing.Clear(); };
+                }
+            }
+        }
+        private Hrot.Presentation.Edits.ThreadedUndoSink? _threadedUndo;
+
+        /// <summary>⭐ B-14 — the world's step recorder (null until the world exists); a rail reads it.</summary>
+        internal Hrot.Presentation.Edits.WorldUndoRecorder? UndoRecorder { get; private set; }
+        private Hrot.Presentation.Windows.RulesWindow? _rulesWindow;
+        private Hrot.Editor.AiShared.Rules.RulesBundle? _rulesBundle;
+        // ⭐ R-2 / V2 — the Review bundle's own-part replay access, the analysis over its file, and the bundle (see RegisterWindows)
+        private Hrot.Editor.Review.OwnPartReplay? _ownPartReplay;
+        private Hrot.Editor.AiShared.Review.FileReview? _fileReview;
+        // ⭐ R-5 / V6 — the source of the ONE world while a participant group with no part of this node is open (Merged / a part), and the editor's ONE AAR transport over it
+        private Fdp.Toolkit.ReplayBrowser.Federation.ReplicaViews? _replicaViews;                          // ⭐ G-7 S5 — the merged view's lens (By node, the lane)
+        private Fdp.Toolkit.ReplayBrowser.Federation.IReviewChannel? _reviewChannel;
+        private Hrot.Editor.Review.ReviewUi? _reviewUi;
+        private Fdp.Toolkit.ReplayBrowser.Federation.ReviewModelPublisher? _reviewPublisher;   // ⭐ CE-4498 — mode 3: the sim side's model publisher
+        private Fdp.Toolkit.ReplayBrowser.Federation.ThreadedReviewChannel? _reviewThreaded;
+        internal Hrot.Editor.Review.ReviewUi? ReviewUiForTest => _reviewUi;                       // ⭐ CE-4496 R-2 — what the review UI reads / commands through (inline; threaded in mode 3)
+        private Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection? _byNodeSection;
+        private Hrot.Editor.AiShared.Review.ReplicaWatchLane? _replicaLane;
+        private Hrot.Editor.AiShared.Review.ReplicaWatchKit? _watchKit;   // ⭐ §6.13 — the eye + the lane's settings popup
+        /// <summary>⭐ §6.13 — this session's replica watch (per unit items, the lane's threshold); session state, not saved.</summary>
+        internal Fdp.Toolkit.ReplayBrowser.Federation.ReplicaWatchList ReplicaWatch { get; } = new();
+        internal Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection? ByNodeSectionForTest => _byNodeSection;
+        internal Hrot.Editor.AiShared.Review.ReplicaWatchLane? ReplicaLaneForTest => _replicaLane;
+        private Hrot.Editor.Review.ReviewSource? _reviewSource;
+        internal Hrot.Editor.Review.ReviewSource? ReviewSourceForTest => _reviewSource;
+        private Fdp.Toolkit.ReplayBrowser.Federation.TransientMasterBuilder? _reviewMerge;
+        private Hrot.Editor.Review.ReviewSourceStatusSection? _reviewStatus;
+        internal Hrot.Editor.Review.ReviewSourceStatusSection? ReviewStatusForTest => _reviewStatus;
+        private Hrot.Editor.Review.ReviewFederationWindowHost? _reviewFederation;
+        internal Hrot.Editor.Review.ReviewFederationWindowHost? ReviewFederationForTest => _reviewFederation;
+        private Hrot.Editor.Review.ReviewSourceToolbarCombo? _reviewSourceCombo;
+        internal Hrot.Editor.Review.ReviewSourceToolbarCombo? ReviewSourceComboForTest => _reviewSourceCombo;
+        private Hrot.Editor.Review.ReplayTransportSelector? _reviewTransport;
+        private Hrot.Editor.Review.AarTransportSegment? _aarTransport;
+        internal Hrot.Editor.Review.AarTransportSegment? AarTransportForTest => _aarTransport;
+        private Hrot.Editor.AiShared.Review.ReviewBundle? _reviewBundle;
+        private Hrot.Editor.AiShared.Review.ReviewLayoutSwitch? _reviewSwitch;
+        private readonly Dictionary<Hrot.Editor.AiShared.Review.ReviewLayout.Role, string> _reviewIds = new();
+        internal Hrot.Editor.AiShared.Review.ReviewLayoutSwitch? ReviewSwitchForTest => _reviewSwitch;
+        private Hrot.Presentation.DebugApi.IClusterMasterControl? _reviewMaster;
+        /// <summary>⭐ CE-4325 (E7) — this host's ONE marks controller (B, the timeline corner's ⚑, the popup, the Marks window); null before the windows are registered. For the frame rails and the HTTP surface.</summary>
+        internal Hrot.UI.Common.Marks.MarksController? MarksController { get; private set; }
+        /// <summary>⭐ CE-4325 — the Event Timeline's cursor (set where that window registers): a click on a Marks row seeks through it. Null in a headless editor (no timeline there).</summary>
+        internal Fdp.Presentation.Panels.Timeline.ITimelineCursor? MarksCursor { get; private set; }
+        internal Hrot.Editor.AiShared.Review.ReviewBundle? ReviewBundleForTest => _reviewBundle;
+        internal Hrot.Editor.AiShared.Review.FileReview? FileReviewForTest => _fileReview;
+
+        /// <summary>
+        /// ⭐ R-5 / V6 — the editor's ONE <see cref="Hrot.Editor.Review.ReviewSource"/> (built on first ask; every dependency is a resolver, as the rest of this host's review wiring — the world, the merge's serializer and the
+        /// cluster come up at different times).
+        /// </summary>
+        /// <remarks>
+        /// ⭐⭐ CE-4497 R-3 (docs/DESIGN_Threaded_Review_Source.md §1.2, §1.3, §2) — the source is SIMULATION-side, like the own-run replay: it merges into the NODE's world (S in mode 3; the one world with the
+        /// switch off), its world boundary is <c>NewScenario(S)</c>, its clock is the sim side's transport, and it is stepped from ONE call site — the end of the node frame (<see cref="TickNodeFrame"/>), after
+        /// the kernel tick, in both kernel modes. ⛔ SUPERSEDED: a UI frame overlay stepped it and it merged into A. The selection is the UI's: in mode 3 the UI frame hands the selected network id over
+        /// (<see cref="_reviewUiSelection"/>, an int) and a re-select after a refill is posted to the UI with the next publish.
+        /// </remarks>
+        private Hrot.Editor.Review.ReviewSource ReviewSourceOf() => _reviewSource ??= new Hrot.Editor.Review.ReviewSource(
+            world:       () => ReviewWorld,
+            builder:     () => _reviewMerge ??= _bootstrapper?.ScenarioSerializer is { } ser ? new Fdp.Toolkit.ReplayBrowser.Federation.TransientMasterBuilder(ser) : null,
+            clearWorld:  () => { if (ReviewWorld is { } w) _scenarioFileService?.NewScenario(w); },   // the world boundary a scenario load starts from (reset observers, SoftClear, epoch) — on S
+            stagingRoot: Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot,
+            thisNode:    EditorNodeId,
+            ready:       () => _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay
+                               && ReviewWorld is { } w && Fdp.Toolkit.Replay.ReplayState.IsActive(w) && !Fdp.Toolkit.Replay.ReplayState.IsRestoring(w),   // the replay is up and THIS node listens: its listener cleared the world once, nothing writes it after
+            inReplay:    () => _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay,
+            selection:   () => Staged ? (_reviewUiSelection > 0 ? _reviewUiSelection : null) : SelectedNetworkId(),
+            select:      n => { if (Staged && _staging is { } st) { st.Post(_ => SelectNetworkEntity(n)); return true; } return SelectNetworkEntity(n); },
+            facade:      () => _simTimeTransport);
+
+        /// <summary>⭐ CE-4497 R-3 — the world the review source fills: the node's (S in mode 3, the same as <c>_world</c> with the switch off).</summary>
+        private EntityRepository? ReviewWorld => Staged ? _nodeWorld : _world;
+
+        /// <summary>⭐ CE-4497 R-3 — mode 3: the UI's selected network id, handed to the sim-side review source each UI frame (0 = none). An int: a torn read is impossible.</summary>
+        private volatile int _reviewUiSelection;
+
+        /// <summary>⭐ R-5 / V6 — the picker's row notes, read once when the picker opens: <c>"4 participants — opens MERGED"</c> / <c>"this editor's run"</c> (the inventory scan the Replay Browser's group loader uses).</summary>
+        private IReadOnlyDictionary<Guid, string> ReviewPickerNotes()
+        {
+            var notes = new Dictionary<Guid, string>();
+            var source = ReviewSourceOf();
+            foreach (var g in Fdp.Toolkit.ReplayBrowser.Federation.RecordingGroupInventory.Scan(Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot()))
+                if (source.PickerNote(source.Classify(g)) is { } note) notes[g.ExerciseId.Value] = note;
+            return notes;
+        }
+
+        /// <summary>⭐ R-2 / V2 — the shared selection's network id (null when nothing, or a unit with no network identity).</summary>
+        private int? SelectedNetworkId()
+            => _world is { } w && _selectionState?.PrimarySelected is { } sel && w.IsAlive(sel) && w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(sel)
+                ? w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(sel).Value : null;
+        /// <summary>⭐ CE-4292 — the rules bundle this host composed (forwarding rails).</summary>
+        internal Hrot.Editor.AiShared.Rules.RulesBundle? RulesBundleForTest => _rulesBundle;
+        // ⭐ L-2 / CE-4320 — CE-4240's "open Mission summary when the exercise ends" moved INTO the RulesBundle (RulesBundle.WatchTheRun): every host that composes it now does it, and on Live start too
+        private Fdp.Presentation.WindowManager.WindowManager? _rulesWindowManager;
+        internal Hrot.Presentation.Windows.RulesWindow? RulesWindow => _rulesWindow;
+        private void OpenRuleInRulesView(int networkId)
+        {
+            _rulesWindow?.SelectNetworkId(networkId);
+            if (_rulesWindow != null) _rulesWindowManager?.FocusWindow(_rulesWindow.Id);
+        }
         private ModuleHostKernel?       _kernel;
         private MasterSyncController?   _timeController;
+        private Fdp.Toolkit.Time.ITimeCommands? _timeCommands;
+        /// <summary>⭐ BATCH 84 / R-66 — the frozen-time signal for the variable surfaces (ruling 15).</summary>
+        private MasterSyncTimeControllerAdapter? _bpTimeAdapter;
+        /// <summary>⭐ BATCH 84 — the AI debug-session registry built in RegisterWindows; see the test accessor.</summary>
+        private Hrot.Editor.AiShared.Debug.DebugSessionRegistry? _aiDebugRegistry;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-071</c> — the shared comparison session registry, kept on the instance so the three
+        /// document-factory <c>Build</c> sites can hand the canvas annotation renderer to
+        /// <c>extraRenderers</c>. 📄 <c>docs/DESIGN_Comparison_Ui_Mounting.md</c>.
+        /// <para>⚠ It is constructed as a LOCAL in the composition root and also flows to
+        /// <c>PerspectiveWorkspaceServices.SessionRegistry</c>; this field is the SAME instance, not a
+        /// second one — ⛔ two registries would key comparison state in two places.</para>
+        /// </summary>
+        private Hrot.Editor.AiShared.Comparison.ComparisonSessionRegistry? _comparisonSessionRegistry;
         private PhysicsToolkitModule?   _physicsModule;
         private IEditorLogic?           _editorLogic;
         private EditorApplication?      _editorApp;
         private MapCanvas?              _canvas;
         private MapCamera?              _camera;
+        private readonly Hrot.ScenarioEditor.Map.UnitDebugSettingsMemory _debugSettingsMemory =
+            new(Hrot.ScenarioEditor.Map.UnitDebugSettingsMemory.DefaultDirectory);   // ⭐ CE-1329
         private bool                    _headless;
         // GZH-016: gate — false when another subsystem owns the map view.
         private Func<bool>              _isActiveMapOwner = () => true;
+        // Asks the host runner to leave its frame loop gracefully (SubsystemConfig.RequestAppExit,
+        // bound to SubsystemOrchestrator.Stop). Used by the AI-debug API's POST /shutdown.
+        private Action                  _requestAppExit = () => { };
 
         // ── Universal breakpoints (UBP-P10T1) ────────────────────────────────────
         private EntityRepository?       _bpPreTickSnapshot;
@@ -205,25 +514,36 @@ namespace Hrot.Editor
 
         // ── Adapters (canvas-dependent; null in headless) ─────────────────────
 
-        private EditorSpawnAdapter?             _spawnAdapter;
-        private EditorMissionService?           _missionService;
-        private EditorOrbatAdapter?             _orbatAdapter;
-        private EditorMapConfigAdapter?         _mapConfigAdapter;
-        private EditorMapPickAdapter?           _mapPickAdapter;
+        private ScenarioSpawnAdapter?             _spawnAdapter;
+        private ScenarioMissionService?           _missionService;
+        private ScenarioMissionService?           _simMissionService;   // ⭐ N-8 — mode 3: the sim side's own (over S); otherwise the same object
+        private ScenarioOrbatAdapter?             _orbatAdapter;
+        private ScenarioMapConfigAdapter?         _mapConfigAdapter;
+        private CanvasMapPickAdapter?           _mapPickAdapter;
+        /// <summary>⭐ CE-3402 (Y-8) — the Details forms' pick context: ONE broker, built on first use (the map adapter is resolved at request time).</summary>
+        internal Hrot.Presentation.Facades.MapPickBroker FormsPick => _formsPick ??= new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter) { EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _world, () => _shellPickers) };
+        private Hrot.Presentation.Facades.MapPickBroker? _formsPick;   // ⭐ U-23 / D4 — the Details forms' pick context (a list's add)
         private EditorZoneAdapter?              _zoneAdapter;
-        private JsonEntityContextMenuHandler? _contextMenuHandler;
         private EditorPreviewController?        _previewController;
+
+        /// <summary>⭐⭐⭐ CE-3329 row 21 — <b>THE time facade</b>, the one every host uses (user: *"One facade."*): built ONCE, read each
+        /// frame beside the cluster cache, handed to the status bar, the toolbar, the timeline, the debug API and the director.</summary>
+        private Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? _timeTransport;
+        /// <summary>⭐ CE-4316 — Run to … (Preview); ticked once per frame in <see cref="Update"/>.</summary>
+        private Hrot.UI.Common.RunMode.RunToController? _runTo;
+        /// <summary>⭐ CE-4316 — Run to …, for the debug API and the mode menu.</summary>
+        internal Hrot.UI.Common.RunMode.RunToController? RunTo => _runTo;
+        Hrot.UI.Common.RunMode.IRunTo? Hrot.UI.Common.RunMode.IProvidesRunControls.RunTo => Staged ? _uiRunTo : _runTo;   // ⭐ N-5 — mode 3: the UI's view (requests as jobs, state from the readout)
+        private Hrot.UI.Common.RunMode.ThreadedRunTo? _uiRunTo;
         private MapViewConfig?                  _mapViewConfig;
 
         // ?? UI panels (legacy, always created) ????????????????????????????????
 
         private EditorToolbarPanel?   _toolbarPanel;
-        private EditorOrbatPanel?     _orbatPanel;
 
         // ?? Shared UI panels (skipped in headless) ????????????????????????????
 
         private SpawnerPanel?    _spawnerPanel;
-        private MissionPanel?    _missionPanel;
         private ConfigPanel?     _configPanel;
         private SharedOrbatPanel? _sharedOrbatPanel;
         private PreviewPanel?    _previewPanel;
@@ -235,43 +555,168 @@ namespace Hrot.Editor
         private FdpEventBrowserPanel                 _fdpEventBrowser    = null!;
         private DiagnosticEventHistoryService        _fdpEventHistory    = new();
         private FdpRepositoryAdapter?   _fdpRepoAdapter;
+
+        // ── AI-debug API (MCP) host — ported from feat/ai-debug-api. Enabled by setting the
+        //    HROT_DEBUG_API_PORT environment variable to a port number; off otherwise, so it costs
+        //    nothing in normal runs. Agents drive it over plain HTTP (GET /help, CE-4525). See docs/MCP_Integration.md.
+        private Hrot.Editor.DebugApi.MainThreadJobQueue? _debugApiJobQueue;
+
+        // ⭐ CE-4038 (docs/DESIGN_Film_Director.md) — the film director: one runner, two remotes (the /director/* routes, the Director panel)
+        private Hrot.UI.Common.Map3D.Director.DirectorPack? _directorPack;
+        /// <summary>⭐ CE-1364 T3 — the take open for editing (one <c>TakeEditor</c> shared by the Director window and the Event Timeline) and the editor's undo stack for it.</summary>
+        /// <summary>⭐ CE-4097 — this host's one run choice (what ▶ runs; default Preview), for the wiring rail.</summary>
+        /// <summary>
+        /// ⭐ CE-3391 (presets §5a) — the preset editor's three host seams (the silent-default rule: the drawer is built where the world / session / run choice are held, so it is handed all three):
+        /// what the map holds (the loaded preset by ARGS — <c>PresetText.IsLoaded</c> — and whether it can be saved), whether the scenario uses variants (any entity keeps its <c>VariantForms</c>), and
+        /// <i>Preview this preset</i> (Preview armed, the preset armed, ▶).
+        /// </summary>
+        internal Hrot.Editor.Scenario.ParametersDrawer WireParametersDrawer(Hrot.Editor.Scenario.ParametersDrawer drawer)
+        {
+            drawer.Picks = () => FormsPick;   // ⭐ CE-3402 (Y-8) — the editor's ONE pick broker (the Details forms'): a link-type parameter default picks on the map
+            drawer.MapHolds = () =>
+            {
+                if (_editorApp is null || _world is null) return null;
+                string name = Fdp.Toolkit.Scenario.ScenarioPreset.DefaultName;
+                string? args = UiLoadedArgsJson;
+                foreach (var p in Fdp.Toolkit.Scenario.ScenarioPresets.Of(Fdp.Toolkit.Scenario.ScenarioDescription.HeaderOf(_world)))
+                    if (Hrot.UI.Common.RunMode.PresetText.IsLoaded(p, args)) { name = p.Name; break; }
+                string? why = UiSession?.SaveDisabledReason;
+                return new Hrot.Editor.Scenario.MapHolding(name, why is null, why);
+            };
+            drawer.UsesVariants = () =>
+            {
+                if (_world is not { } w || !w.GetRegisteredComponentTypes().ContainsKey(typeof(Fdp.Toolkit.Scenario.VariantForms))) return false;
+                foreach (var _ in w.Query().WithManaged<Fdp.Toolkit.Scenario.VariantForms>().Build()) return true;
+                return false;
+            };
+            drawer.PreviewPreset = name =>
+            {
+                if (_timeTransport?.RunChoice is not { } choice) return;
+                choice.Choose(Hrot.UI.Common.RunMode.RunArmed.Preview);   // the mode first (nothing running: it arms at once), then the preset, then ▶ — the same path as the split ▶
+                choice.ArmPreset(name);
+                choice.Play();
+            };
+            return drawer;
+        }
+
+        internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _timeTransport?.RunChoice;
+        /// <summary>⭐ CE-4102 — the host's ONE time transport (what the choice and the toolbar read: mode, recording flag, active exercise), for the end-to-end armed-mode rail.</summary>
+        internal Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? TimeTransportForTest => _timeTransport;
+        /// <summary>⭐ CE-4101 — the host's scenario session (the GUARDED surface every caller holds), for the constructed-host door rails.</summary>
+        internal Hrot.Editor.AiShared.Scenarios.IScenarioSession? ScenarioSessionForTest => _editorApp?.ScenarioSession;
+
+        // ⭐ CE-1437 (AQ108 §2.10) — the editor OFFERS its transport + choice; the window composer registers the ONE toolbar time control (this host no longer does).
+        Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.Editor;
+        string Hrot.UI.Common.RunMode.IProvidesRunControls.StationName => NodeName;   // ⭐ CE-4330 ui half — a transfer this station asked for is marked (yours)
+        Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _timeTransport;
+        Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _timeTransport?.RunChoice;
+        /// <summary>⭐ AQ108 D24 — the running scenario's variant and changed params, for the mode indicator's menu (from what the load stamped resident).</summary>
+        System.Collections.Generic.IReadOnlyList<string> Hrot.UI.Common.RunMode.IProvidesRunControls.RunSetupLines => Hrot.UI.Common.RunMode.RunSetupText.Of(_world);
+
+        // ⭐ CE-4101 follow-up (AQ108 §2.11a ⑤) — the scenario menu registered ONCE, by the composer's picked ▶ owner; built in RegisterWindows.
+        private System.Action<Fdp.Presentation.WindowManager.WindowManager>? _composeScenarioMenu;
+        /// <summary>⭐ CE-4375 — the OSM terrain wizard (File › New › Terrain from OpenStreetMap…).</summary>
+        private Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow? _osmWizard;
+        private Hrot.UI.Common.TerrainSave.TerrainSaveAsWindow? _terrainSaveAs;   // ⭐ Terrain authoring U-5
+        private Hrot.UI.Common.TerrainRandom.RandomTerrainWizardWindow? _randomTerrain;   // ⭐ Terrain authoring U-8
+        /// <summary>The OSM wizard the File ▸ New item opens (a rail reads its DisabledReason, CE-4381).</summary>
+        internal Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow? OsmWizard => _osmWizard;
+        /// <summary>⭐ CE-4378 — the New-asset launcher, for the OSM wizard's "Open in New Scenario" (set where the launcher is built).</summary>
+        private Hrot.Editor.AiShared.Browser.NewAssetLauncher? _newAssetLauncherForOsm;
+        void Hrot.UI.Common.RunMode.IProvidesRunControls.ComposeScenarioActions(Fdp.Presentation.WindowManager.WindowManager windowManager) => _composeScenarioMenu?.Invoke(windowManager);
+        internal Hrot.UI.Common.Map3D.Director.DirectorTakeSession? DirectorTakesForTest => _directorPack?.Session;
+        internal Hrot.UI.Common.Map3D.Director.DirectorPack? DirectorPackForTest => _directorPack;
+        internal Fdp.Presentation.Panels.Timeline.TimelinePanel EventTimelineForTest => _eventTimeline;
+        /// <summary>CE-1364 — a rail puts a 3-D map camera in (a headless editor has none).</summary>
+        internal void SetMapCameraForTest(MapCamera camera) => _camera = camera;
+        // ⭐ CE-4042 (docs/DESIGN_Scenario_Regression.md §2a) — a --verify run's start and exit (null when the runner did not ask for one)
+        private Hrot.Editor.Director.CommandLineVerify? _commandLineVerify;
+        private Hrot.UI.Common.Map3D.Director.TakeStore? _takeStore;
+
+        /// <summary>⭐ <c>HN-017</c> — the offline id allocator, held so the preview bracket can restore it.</summary>
+        private Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator? _idAllocator;
+        private Hrot.Editor.DebugApi.DebugApiHost?       _debugApiHost;
+        private Hrot.Editor.DebugApi.EditorAiTracerCoordinator?          _debugApiTracer;
+        private Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? _debugApiRrController;
+
+        /// <summary>⭐ D16 — what the shared host composition built: the ONE recorder and the ONE dry-run handler.</summary>
+        private Hrot.SimHost.Modules.Orchestration.EcsHostClusterHandlers? _clusterHandlers;
         private FdpInspectorState       _fdpInspectorState  = new();
         private uint                    _fdpFrameCount;
-        private Hrot.SimHost.Modules.CognitiveSpatialModule? _perceptionMod;
+
+        /// <summary>
+        /// The capability set this host resolved from <see cref="EditorCapabilities.DefaultRole"/>
+        /// (S2a — host (d) on the capability axis). Held so the module-registration step can ask the
+        /// same set that contributed the systems, rather than re-deriving it and risking a divergence.
+        /// </summary>
+        private IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> _capabilities =
+            System.Array.Empty<Hrot.Common.Infrastructure.INodeCapability>();
+
+
+
+        // `ST-010` backing fields: both were locals inside Initialize; promoted so the
+        // host-integration accessors above can project them. Nothing else reads them.
+        // ⚠ CE-203 widened this from TkbDatabase to the interface: the instance now comes from
+        //   HrotNodeContext.TkbDb, which is typed ITkbDatabase. 📐 Measured — nothing reads a concrete
+        //   member off it. ⛔⛔ CE-204: this comment used to claim the only outside consumer,
+        //   EditorStrideSubsystem:996, "assigns it straight into an ITkbDatabase-typed field". IT DID
+        //   NOT — that property was TkbDatabase, and Stride stopped compiling for a whole commit. The
+        //   grep saw the NAME and could not see the TYPE. Stride is now widened to match, and
+        //   scripts/stride-check.sh compiles it in 43 s so the next one is caught.
+        private ITkbDatabase?                       _tkbDatabase;
 
         // ?? Offline orchestrator (single-node scenario listing) ???????????????????
 
         private FdpEventBus?           _orchestrationBus;
-        private ClusterMaster?                _clusterMaster;
-        private ReplaySeekProcessManager?     _seekProcessManager;
-        private ReplayProcessManager?         _replayProcessManager;
-        private AssetInventoryProcessManager?  _assetInventoryProcessManager;
-        private AssetPrefetchProcessManager?   _assetPrefetchProcessManager;
-        private StorageGatewayModule?          _storageGateway;
-        private ClusterUiCache?                _uiCache;
-        private ClusterScenarioPanel?          _clusterPanel;
-        private ClusterDiagnosticsPanel?       _clusterDiagnosticsPanel;
+        private OrchestratorCore?             _orchestratorCore;   // ⭐ Q86 — the ONE core, shared with the cluster
+        private ClusterMaster?                _clusterMaster;      //   = _orchestratorCore.Master (kept for its readers)
         private IFileDialogService?            _fileDialogService;
-        private DiagnosticsDumpProcessManager? _diagnosticsDumpProcessManager;
-        private DiagnosticLogMergeWorker?      _logMergeWorker;
 
         // ?? Selection state ???????????????????????????????????????????????????????
 
-        private DefaultSelectionState? _selectionState;
+        // ⭐⭐⭐ UXI-11 S-1 -- the VIEW, not a store. 📄 UX_Feature_Selection.md §2.7.
+        // ⛔ This was a DefaultSelectionState: a HashSet with no connection to the world, while
+        //   SelectionInteractionSystem wrote the SelectionState component. ⇒ Update() fed the
+        //   Mission Editor from the hash set and ctx.Entities read the component, and the two
+        //   disagreed on every map click -- the divergence the retired Mission view's remarks recorded.
+        private ISelectionState? _selectionState;
+
+        /// ⭐ UXI-11 — the shared map pack, kept so the selection view and the systems this host
+        ///   schedules are the SAME instances. ⛔ Two packs would mean two selections.
+        private Hrot.ScenarioEditor.Map.MapInteraction? _editorMapInteraction;
         private Hrot.ScenarioEditor.Gizmos.RubberBandState? _rubberBandState;
         private Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? _selectionSystem;
-        private Hrot.Editor.AiShared.Selection.EditorSelectionStore _aiEditorSelectionStore = new();
-        private Hrot.Editor.AiShared.Selection.CallbackSelectionBridge? _selectionBridge;
+        // ⭐⭐⭐ Batch 95 (95b) — THE SELECTED ENTITY, ONCE, for every store this subsystem holds.
+        // 🔴🔴 Measured (Batch 95): this editor builds FOUR EditorSelectionStores and called
+        //    CallbackSelectionBridge.Connect exactly ONCE, on _aiEditorSelectionStore below. ⇒
+        //    SelectedEntity was null on all three PERSPECTIVE stores, always ⇒ every live-value
+        //    provider returned null on its second line ⇒ every Details/Watch row on every host read
+        //    "(pending)" for ever. ⚠ The comment beside the two AI providers further down asserted the
+        //    opposite ("Both selection stores share the same entity selection (global)") — it was
+        //    false, and that is why the gap survived four batches of fixes on the same two paths.
+        // 📄 AI_Editor_Shared_Infrastructure.md:450 — "SelectedEntity stays global because entities
+        //    exist independently of which asset is being edited"; :45 — the store is "the single
+        //    selection bus all three editors subscribe to". ⇒ this restores the design, it does not
+        //    invent a policy.
+        // ⛔ NOT three more Connect() calls: that is the shape PerspectiveWorkspaceServices exists to
+        //    abolish. ⭐ One fact, read by every store; the bridge still connects exactly one.
+        private readonly Hrot.Editor.AiShared.Selection.SharedEntitySelection _sharedEntitySelection = new();
+        private readonly Hrot.Editor.AiShared.Selection.EditorSelectionStore _aiEditorSelectionStore;
         // ?? Behavior registry (promoted for tooltip rendering) ?????????????????
 
         private BehaviorRegistry? _behaviorRegistry;
+        /// <summary>The AI-debug service, kept so late-built collaborators can be handed to it.</summary>
+        private Hrot.Editor.DebugApi.DebugApiService? _debugApiService;
 
         // ?? AI behavior hot-reload coordinator ?????????????????????????????????
 
         private AiHotReloadCoordinator?    _aiCoordinator;
         private HotReloadMessageLogSource? _hotReloadSource;
         private BlueprintRegistry          _blueprintRegistry = new();
-        private Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry? _blueprintNodeDrawers;
+        private Hrot.Editor.AiComposition.AiBlueprintNodeAuthoring? _blueprintNodeAuthoring;
+
+        /// <summary>The Blueprint node drawers this host built (rail access — asserted on the constructed host).</summary>
+        internal Hrot.Editor.AiComposition.AiBlueprintNodeAuthoring? BlueprintNodeAuthoringForTest => _blueprintNodeAuthoring;
         private Hrot.Blueprints.Editor.NodeDrawers.NodeKindRegistry? _blueprintPaletteEntries;
         // AN7: unified behavior-action catalog (channel commands + [SharedAiAction]/AiPrimitive
         // schema entries). Constructed once after the shared ActionSchemaExporter and reused by the
@@ -292,17 +737,20 @@ namespace Hrot.Editor
         private BTreeJsonAssetContributor?          _btreeJsonContrib;
         private HsmJsonAssetContributor?            _hsmJsonContrib;
         // MTB-P5-T2: Scenario catalog contributor (non-file-backed; refreshed on scenario list change).
-        private Hrot.Editor.Catalog.ScenarioCatalogContributor? _scenarioContributor;
+        private Hrot.Editor.AiShared.Catalog.ScenarioCatalogContributor? _scenarioContributor;
         // AIE-026: save → emit → reload scheduler (ticked in Update)
         private Hrot.Editor.AiShared.Emit.RegenerationScheduler? _regenerationScheduler;
         // AIE-026 (Blueprint): Quick Reload trigger — null until Phase 4 wires QuickReloadService.
         // Receives IEditableAsset (a BlueprintFileAsset in Phase 2; a loaded BlueprintAsset in Phase 4).
         private Action<Hrot.Editor.AiShared.IEditableAsset>? _blueprintQuickReloadTrigger;
-        // QR-03: BTree quick-reload trigger — wired in Phase 4 alongside _blueprintQuickReloadTrigger.
-        // Invokes ToDto → EmitTopologyCore + EmitBridge → TriggerFromSourcesAsync (no IEditableAsset param).
-        private Action? _btreeQuickReloadTrigger;
-        // QR-04: HSM quick-reload trigger — symmetric to QR-03 via HsmEmitCore / HsmBridgeEmitCore.
-        private Action? _hsmQuickReloadTrigger;
+        // ⭐⭐⭐ PHASE 2 SLICE ① — QR-03/QR-04's `_btreeQuickReloadTrigger` / `_hsmQuickReloadTrigger`
+        //    fields are DELETED. 📐 Their bodies were line-for-line copies of CGF's and now live once in
+        //    `AiAssetReload.ReloadBTree`/`.ReloadHsm`; their only two callers each were the two
+        //    kind-switches (the toolbar's and the MCP route's) that this slice replaces with the ONE
+        //    shared dispatcher. ⇒ nothing is left to hold.
+        // ⭐ What replaces them is the compiler ADAPTER — the one step that names a type AiShared cannot.
+        // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.6.
+        private Hrot.Editor.AiShared.Documents.AiAssetReload.CompileSources? _compileSources;
         // CF-7-rev: QuickReloadService and asset catalog stored for auto-instrumentation callback.
         private QuickReloadService? _blueprintQuickReloadService;
         private Hrot.Blueprints.Editor.BlueprintPeerSource? _blueprintAssetCatalog;
@@ -311,18 +759,86 @@ namespace Hrot.Editor
         // TODO: wire from BlueprintEditorPreferences.AutoReloadOnSave when the prefs instance is
         //       reachable here (the prefs window lives in a different composition scope).
         private bool _blueprintAutoReloadOnEdit = false;
-        private EditorSelectionStore           _btreeSelectionStore  = new();
-        private EditorSelectionStore           _hsmSelectionStore    = new();
-        private EditorSelectionStore           _blueprintSelectionStore = new();
+
+        // ⭐ BP-93 (policy decided by the user 2026-10-06): BTree/HSM edits are written to disk ONLY by Save /
+        //    Save All, like blueprints. The debounced scheduler kept writing the asset's JSON 0.5 s after every
+        //    change, so exploratory edits became committed-asset changes with no Save in the path. Opt-in only.
+        private bool _aiJsonAutoSaveOnEdit = false;
+        // ⭐⭐ Batch 95 (95b) — all three join _sharedEntitySelection, assigned in the constructor.
+        //    ⛔ Not a field initializer: C# forbids one instance field initializer reading another,
+        //    and the whole point is that these four stores read ONE cell.
+        private readonly EditorSelectionStore  _btreeSelectionStore;
+        private readonly EditorSelectionStore  _hsmSelectionStore;
+        private readonly EditorSelectionStore  _blueprintSelectionStore;
         private PerspectiveWorkspaceRegistrar? _btreeRegistrar;
         private PerspectiveWorkspaceRegistrar? _hsmRegistrar;
         private PerspectiveWorkspaceRegistrar? _blueprintRegistrar;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>L6.1c</c> — the SCENARIO perspective's workspace.</b>
+        /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L6</c> stage 2 · §5.
+        ///
+        /// <para>⛔⛔ <b>Not a <c>PerspectiveWorkspaceRegistrar</c>, and that is the point of
+        /// <c>L6.1a</c>.</b> 📐 §5: the registrar's constructor is a <b>21-parameter AI-authoring
+        /// service bag</b> — validators, breakpoints, blackboard aggregation, facet drawers, live
+        /// value providers. ⚠ Scenario has none of those; ⭐ it needs only the GENERIC half, which is
+        /// exactly what <see cref="Hrot.Editor.AiShared.Shell.PerspectiveWorkspace"/> now is.</para>
+        ///
+        /// <para>⭐⭐⭐ <b>The persisted key is <c>"Scenario"</c> — <c>L6.1b</c> is DONE</b>
+        /// *(<c>A1</c>, <c>2026-08-23</c>; charter <c>D2</c>)*.
+        /// ⚠⚠ <b>The deferral's stated reason was measurably WRONG and is recorded so nobody re-defers
+        /// on it:</b> it claimed <i>"<c>CurrentPerspective</c> and every <c>OwningPerspective</c> are
+        /// persisted"</i>. 📐 Measured: <c>WindowManagerSettings</c> persists window <b>ids</b> plus
+        /// <c>IsOpen</c>/<c>IsPinned</c>, and <b>exactly ONE</b> perspective name —
+        /// <c>ActivePerspective</c>; <c>ManagedWindow.WindowInternalName</c> is
+        /// <c>$"{Title}###{Id}"</c>, so the ImGui ini carries no perspective either. ⇒ ⭐ the rename
+        /// orphans ONE string, and <c>A0</c>'s validated restore is what handles it.</para>
+        /// </summary>
+        private Hrot.Editor.AiShared.Shell.PerspectiveWorkspace? _scenarioWorkspace;
+
+        /// <summary>⭐ <c>L6.1c</c> — the Scenario perspective's Details panel. ⭐ Exposed for rails:
+        /// 📌 <c>R-67</c>, a rail must reach the CONSTRUCTED object.</summary>
+        internal Hrot.Editor.AiShared.Windows.DetailsWindow? ScenarioDetails { get; private set; }
+
+        /// <summary>⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1) — THIS host's actions, made with the host: the map registers its
+        /// actions on them, the inspector menu and the Details bundle request through them.</summary>
+        internal readonly Hrot.Common.Interactions.HostActions HostActions = Hrot.ScenarioEditor.Map.SharedHostActions.Create();
+
+        /// <summary>⭐ CE-1150 (HA-4) — builds the Scenario Details panel (the shared one every ECS host builds) and its actions.</summary>
+        private Hrot.Editor.AiShared.Windows.EntityDetailsBundle? _scenarioDetailsBundle;
+
+
+        /// <summary>⭐ <c>L6.1c</c> — exposed so a rail can assert the Scenario workspace was built and
+        /// carries a REAL entity source *(<c>R-67</c>)</summary>
+        internal Hrot.Editor.AiShared.Shell.PerspectiveWorkspace? ScenarioWorkspace => _scenarioWorkspace;
         private AssetBrowserDockedWindow?       _aiAssetBrowser;
+
+        /// <summary>⭐ The docked Asset Browser production built — 📌 <c>R-67</c>: a rail asks the
+        /// CONSTRUCTED window which row commands this root opted into, ⛔ never the call site.</summary>
+        internal AssetBrowserDockedWindow? AssetBrowserForTest => _aiAssetBrowser;
+
+        /// <summary>CE-4054 test hook: the preview controller <c>/status</c> reads <c>inPreview</c> from.</summary>
+        internal IPreviewController? PreviewControllerForTest => _previewController;
+
+        /// <summary>⭐ CE-4326 §9a.2 test hook: the node's dry run (a preset's params are bound through ITS serializer — the forwarding rail reads it).</summary>
+        internal Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler? DryRunForTest => _clusterHandlers?.DryRun;
+
+        /// <summary>Q86 test hook: this node's clock (the editor's own master — Q86 keeps it here).</summary>
+        internal MasterSyncController? TimeControllerForTest => _timeController;
+
+        /// <summary>CE-3330 test hook: the node context the editor was built from (its world, kernel and timeline).</summary>
+        internal HrotNodeContext? NodeForTest => _node;
+        /// <summary>⭐ CE-4293 — the capabilities the editor's shared bootstrap composed (host list, then node extensions).</summary>
+        internal System.Collections.Generic.IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> CapabilitiesForTest
+            => _bootstrapper?.Capabilities ?? System.Array.Empty<Hrot.Common.Infrastructure.INodeCapability>();
+
+        /// <summary>Q86 test hook: the orchestration bus the shared orchestrator core runs on.</summary>
+        internal FdpEventBus? OrchestrationBusForTest => _orchestrationBus;
+
+        /// <summary>CE-4087 test hook: the editor's in-process cluster master (its load gate, its roles).</summary>
+        internal ClusterMaster? ClusterMasterForTest => _clusterMaster;
         // AIE-047: My Blueprint window (hosts NodeEdit MyBlueprintPanel).
         private Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow? _blueprintMyBlueprintWindow;
-        // AIE-048: Blueprint Details + Variables windows.
-        private Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow? _blueprintDetailsWindow;
-        private Hrot.Blueprints.Editor.Windows.BlueprintVariablesManagedWindow? _blueprintVariablesWindow;
         // BATCH-03D2: Graph Signature window (edits Function graph Inputs/Outputs).
         private Hrot.Blueprints.Editor.Windows.GraphSignatureWindow? _blueprintSignatureWindow;
         // AIE-048: legacy selection store bridging AiShared → BlueprintVariablesWindow.
@@ -369,11 +885,9 @@ namespace Hrot.Editor
         // When the window [X] is clicked with dirty documents open, IAppExitGuard.OnExitRequested opens
         // the modal instead of exiting; the loop keeps running until the user resolves it.
         private Hrot.Editor.AiShared.Documents.AppExitPromptController? _exitPrompt;
-        private bool _exitPopupOpened;
 
-        // BATCH-06: perspective-level shell hotkey dispatcher (Ctrl+S/Ctrl+Shift+S fix, §20).
-        private ImGuiInputSource? _shellInputSource;
-        private Hrot.Editor.AiShared.Windows.EditorHotkeyDispatcher? _shellHotkeyDispatcher;
+        // ⭐ B-10 K1 — the shell's hotkeys (Ctrl+S …) are the Global scope of the WindowManager's ONE KeyRouter now, on every host;
+        //   ⛔ SUPERSEDED: BATCH-06's editor-only shell hotkey pump (_shellInputSource / _shellHotkeyDispatcher).
 
         // BATCH-20 (DEC-9): per-kind INewAssetService registry for SaveAsDialog.
         // Initialized before ShellSaveCommands.Register so the requestSaveAs seam
@@ -394,11 +908,46 @@ namespace Hrot.Editor
 
         // BATCH-26: Asset-pick action router — routes file kinds → AiDocumentManager.Open,
         // Scenario → IEditorLogic.LoadScenarioByName.
-        private Hrot.Editor.AssetPickActionRouter? _assetPickRouter;
+        private Hrot.Editor.AiShared.Browser.AssetPickActionRouter? _assetPickRouter;
 
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
+
+        // ⭐ A-3 (threaded-analysis instruments, exp/threaded-analysis) — what the §13 treatments other than the masked copy would cost, timed by
+        // PublishProbe at its probe frame (opt-in HROT_PUBLISH_PROBE=1; nothing here runs otherwise). Each returns the item count it handled.
+        private bool _publishProbeExtras;
+        private NetworkEntityMap? _probeMapKept;
+        private void RegisterPublishProbeExtras()
+        {
+            _publishProbeExtras = true;
+            // §13 "rebuild": a presentation-side NetworkEntityMap rebuilt from the published copy — from empty, and kept (only the changes)
+            Fdp.ModuleHost.PublishProbe.Extras.Add(("NetworkEntityMap.RebuildFromWorld full", (_, copy) => { var m = new NetworkEntityMap(); m.RebuildFromWorld(copy); return m.Entries.Count; }));
+            Fdp.ModuleHost.PublishProbe.Extras.Add(("NetworkEntityMap.RebuildFromWorld kept", (_, copy) => { _probeMapKept ??= new NetworkEntityMap(); _probeMapKept.RebuildFromWorld(copy); return _probeMapKept.Entries.Count; }));
+            // §13 "publish an immutable view": ClusterUiCache's mutable collections copied once (shallow — the transactions inside stay shared objects)
+            Fdp.ModuleHost.PublishProbe.Extras.Add(("ClusterUiCache immutable view (shallow)", (_, _) =>
+            {
+                if (_orchestratorCore?.UiCache is not { } c) return 0;
+                var nodes = System.Linq.Enumerable.ToArray(c.ActiveNodes);   // an instrument, at the probe frame only
+                var tx = new Hrot.Orchestrator.DistributedTransaction[c.TxHistory.Count];
+                for (int i = 0; i < tx.Length; i++) tx[i] = c.TxHistory[i];
+                var eps = new HashSet<Guid>(c.ActiveEpisodes);
+                GC.KeepAlive(nodes); GC.KeepAlive(eps);
+                return nodes.Length + tx.Length + eps.Count;
+            }));
+            // §13 "copy": the traffic lists the 3-D view draws (cars, pedestrians, light states) copied out of the TrafficFrame singleton
+            Fdp.ModuleHost.PublishProbe.Extras.Add(("TrafficFrame lists copy", (live, _) =>
+            {
+                if (Hrot.Traffic.TrafficFrame.Of(live) is not { } f) return 0;
+                var cars = new Hrot.Traffic.TrafficCarPose[f.Cars.Count];
+                for (int i = 0; i < cars.Length; i++) cars[i] = f.Cars[i];
+                var peds = new Hrot.Traffic.TrafficPedPose[f.Pedestrians.Count];
+                for (int i = 0; i < peds.Length; i++) peds[i] = f.Pedestrians[i];
+                var lights = new Dictionary<int, byte>(f.Lights.Count);
+                foreach (var kv in f.Lights) lights[kv.Key] = kv.Value;
+                return cars.Length + peds.Length + lights.Count;
+            }));
+        }
         // ?? Production visualizer dependencies ???????????????????????????????????
 
         private readonly MapUserConfig     _userConfig     = new();
@@ -406,6 +955,13 @@ namespace Hrot.Editor
         private DebugPrimitiveBuffer? _gizmoBuffer;
         private DataDrivenGizmoSystem? _editorDataDrivenGizmoSystem;
         private GlobalGizmoManager?  _globalGizmoManager;
+
+        /// <summary>
+        /// ⭐⭐ <c>UXI-07</c> step 3b — this host's ONE tool arbiter, built by <c>MapInteractionPack</c>
+        /// alongside the two focus arbiters it reconciles. ⚠ A FIELD and not a local because the module is
+        /// registered (~:1562) BEFORE the pack is built (~:1815); the resolver closes over this.
+        /// </summary>
+        private Hrot.ScenarioEditor.Tools.ToolController? _editorToolController;
         private FdpEventBus?         _interactionBus;
         private GizmoExecutionController? _gizmoController;
         // DEBT-002: hub broadcasts DTO state to all connected terminals.
@@ -423,86 +979,418 @@ namespace Hrot.Editor
         // ?? Context menu (ImGui popup trigger) ????????????????????????????????????
 
         private DebugGizmoLayer? _gizmoLayer;
+        private Fdp.Toolkit.Vis3D.Map3DBuild? _map3DBuild;   // ⭐ R-1046 — the shown map's 3-D build: the film director waits on it
 
         // ?? Rename dialog state ???????????????????????????????????????????????????
 
-        private long   _renameTargetNetworkId;
-        private bool   _openRenameModalThisFrame;
-        private string _renameBuffer = string.Empty;
+        /// <summary>
+        /// ⭐⭐ <c>CE-051</c> — the shared entity-rename modal, replacing this host's three
+        /// <c>_rename*</c> fields and its inline ImGui block. ⛔ Windowed hosts only *(ruling 49)*.
+        /// </summary>
+        private Hrot.Editor.AiShared.Browser.EntityRenameModal? _entityRenameModal;
 
         // ?? Private helpers ???????????????????????????????????????????????????
 
         /// <summary>
-        /// Lightweight IPreviewController that wraps <see cref="PreviewClusterOpHandler"/>
-        /// and tracks preview state internally without requiring <c>IScenarioStateProvider</c>.
+        /// ⭐⭐⭐ <b>The editor's <see cref="IPreviewController"/> — a CLIENT of the cluster's dry run</b> (user, `2026-10-26`: *"One facade."*,
+        /// and *"What the play has to do with UI?"*). Enter and exit publish the cluster transition every host publishes
+        /// (<c>DryRunIntents</c>); "in preview" is the cluster's state. The dry-run handler, the world's rewind and the clock's put-back
+        /// are the cluster's: <c>ReferencePreviewHandler</c> on this node's slave (D14) and the master's <c>PreviewClockProcessManager</c>
+        /// (CE-3299 B2 / D5, which closed for the cluster path what CE-3156 closed here).
+        /// ⛔ SUPERSEDED: the local shortcut that triggered the handler and drove the clock directly (CE-3156's own put-back) —
+        /// DESIGN_Http_Control_Through_The_Cluster_Master §7 "no shortcuts". 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §12m.
         /// </summary>
-        private sealed class EditorPreviewController : IPreviewController
+        internal sealed class EditorPreviewController : IPreviewController
         {
-            private readonly PreviewClusterOpHandler _handler;
-            private readonly MasterSyncController    _timeController;
-            private bool _inPreview;
+            private readonly Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler _handler;
+            private readonly System.Func<FdpEventBus?> _bus;
+            private readonly System.Func<Fdp.Toolkit.Orchestration.ClusterState> _state;
+            private readonly Fdp.Toolkit.Time.ITimeCommands _timeCommands;
 
-            internal EditorPreviewController(EntityRepository world, MasterSyncController timeController)
+            /// <param name="dryRun">⭐ D14 — THE dry-run handler this node's cluster slave holds; used here only to FORGET a dry run a load
+            /// interrupts (CE-1025).</param>
+            /// <param name="bus">The orchestration bus the editor's master reads (the intents' bus, T3).</param>
+            /// <param name="state">The cluster state as this host knows it.</param>
+            /// <param name="timeCommands">The clock's command seam — <see cref="ForgetPreview"/> pauses through it.</param>
+            internal EditorPreviewController(
+                Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler dryRun,
+                System.Func<FdpEventBus?> bus,
+                System.Func<Fdp.Toolkit.Orchestration.ClusterState> state,
+                Fdp.Toolkit.Time.ITimeCommands timeCommands)
             {
-                _handler        = new PreviewClusterOpHandler(world);
-                _timeController = timeController;
+                _handler      = dryRun ?? throw new System.ArgumentNullException(nameof(dryRun));
+                _bus          = bus ?? throw new System.ArgumentNullException(nameof(bus));
+                _state        = state ?? throw new System.ArgumentNullException(nameof(state));
+                _timeCommands = timeCommands ?? throw new System.ArgumentNullException(nameof(timeCommands));
             }
 
-            public bool IsInPreviewMode => _inPreview;
+            /// <summary>The cluster runs the dry run (its operating state — ⛔ not while it is still loading).</summary>
+            public bool IsInPreviewMode => _state() == Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview;
 
             public void EnterPreviewMode(bool startPaused = false)
-            {
-                _handler.TriggerLoadingPreview();
-                if (!startPaused)
-                    _timeController.SwitchToContinuous();
-                _inPreview = true;
-            }
+                => _bus()?.PublishManaged(Hrot.UI.Common.Facades.DryRunIntents.Enter(startPaused));
 
             public void ExitPreviewMode()
+                => _bus()?.PublishManaged(Hrot.UI.Common.Facades.DryRunIntents.Exit());
+
+            /// <summary>⭐ <c>CE-1025</c> (R-1031) — a load during the dry run: the restore point is dropped (the load's way out of the dry
+            /// run then rewinds nothing) and the clock paused; ⛔ not put back — every load resets it to 0 (AQ86 §4-G).</summary>
+            public void ForgetPreview()
             {
-                _handler.TriggerUnloadingPreview();
-                _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
-                _inPreview = false;
+                if (!IsInPreviewMode) return;
+                _handler.TriggerForgetPreview();
+                _timeCommands.Pause();
             }
         }
 
-        // ?? Nested helper: offline sequential ID allocator ????????????????????
-
-        private sealed class SequentialIdAllocator : INetworkIdAllocator
-        {
-            private long _next = 1000;
-            public long AllocateId()            => _next++;
-            public void Reset(long startId = 0) => _next = startId;
-            public void Dispose() { }
-        }
+        // ⛔⛔⛔ CE-203 `E2` — THE PRIVATE `SequentialIdAllocator` THAT STOOD HERE IS GONE.
+        //
+        // 📐 It was the SECOND of three copies of one class, and the shared one
+        //    (`Hrot.Core.Network.SequentialIdAllocator`) records in its own remarks that the two DISAGREED:
+        //    `Reset(1000)` issued 1001 there and 1000 here, until `HN-037` corrected the contract. ⭐ The
+        //    editor now takes the shared instance off `HrotNodeContext.IdAllocator`, which
+        //    `OfflineNetworkFactory` was already building for every other offline host.
+        //
+        // ⚠ Deliberately DESCRIBED, not quoted: a source-scan rail that looks for a second declaration must
+        //   not be satisfied by a comment containing the old code.
 
         // ?? Internal test accessors ???????????????????????????????????????????
 
-        /// <summary>Internal test hook: direct access to the ECS world.</summary>
-        internal EntityRepository World =>
+        /// <summary>Host-integration (`ST-010`): the live ECS world. Was an internal test hook; the
+        /// Stride host reaches it across an assembly boundary, and reflection would be worse.</summary>
+        public EntityRepository World =>
             _world ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
 
-        /// <summary>Internal test hook: direct access to the kernel.</summary>
-        internal ModuleHostKernel Kernel =>
+        /// <summary>Host-integration (`ST-010`): the module-host kernel.</summary>
+        public ModuleHostKernel Kernel =>
             _kernel ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
 
-        /// <summary>Internal test hook: direct access to the editor logic facade.</summary>
-        internal IEditorLogic EditorLogic =>
+        /// <summary>Host-integration (`ST-010`): the editor logic facade.</summary>
+        public IEditorLogic EditorLogic =>
             _editorLogic ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
 
-        /// <summary>Internal test hook: direct access to the time controller.</summary>
-        internal MasterSyncController TimeController =>
+        /// <summary>
+        /// ⭐⭐ Internal test hook: the AI debug-session registry, so a rail can reproduce <c>R-66</c>'s
+        /// exact state — <b>a document open while the sim is DOWN</b> — and assert what the variable
+        /// surfaces read then. ⛔ Null until <see cref="RegisterWindows"/> has run.
+        /// </summary>
+        internal Hrot.Editor.AiShared.Debug.DebugSessionRegistry? AiDebugRegistry => _aiDebugRegistry;
+
+        /// <summary>
+        /// ⭐⭐⭐ Batch 95 (<c>95b</c>) — internal test hook: <b>the ONE store the selection bridge
+        /// writes to.</b>
+        ///
+        /// <para>⚠⚠ <b><c>CE-300</c> CORRECTED THIS.</b> It used to read: <i>"CallbackSelectionBridge
+        /// .Connect's entire action is store.SelectedEntity = entity on this store, so writing here IS
+        /// how production selects an entity."</i> ⛔ That bridge is DELETED. ⭐ Production now writes
+        /// the SHARED CELL from <c>SelectionChangedNotification</c>, so writing to ANY of the four
+        /// stores is equivalent — they are one cell. 📄
+        /// <c>DESIGN_Editor_Entity_Selection_Source.md</c> §3.1.</para>
+        /// </summary>
+        internal Hrot.Editor.AiShared.Selection.EditorSelectionStore AiEditorSelectionStore
+            => _aiEditorSelectionStore;
+
+        /// <summary>
+        /// ⭐⭐⭐ Batch 95 (<c>95a</c>) — internal test hook: the registrar a perspective actually got.
+        ///
+        /// <para>📌 <c>R-67</c>, verbatim: <i>"a rail that builds its own composition root cannot see a
+        /// composition-root defect."</i> ⛔ The edit-gesture binder is reachable only through its
+        /// registrar, so a rail that must assert <b>a session opened</b> has to be given the REAL one.
+        /// ⭐ Same shape as <see cref="AiDebugRegistry"/> above, and null until
+        /// <c>RegisterWindows</c> has run.</para>
+        /// </summary>
+        internal Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar? RegistrarFor(string perspective)
+            => perspective?.ToLowerInvariant() switch
+            {
+                "btree"     => _btreeRegistrar,
+                "hsm"       => _hsmRegistrar,
+                "blueprint" => _blueprintRegistrar,
+                _           => null,
+            };
+
+        /// <summary>Host-integration (`ST-010`): the master time controller.</summary>
+        public MasterSyncController TimeController =>
             _timeController ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
 
-        /// <summary>Internal test hook: direct access to the preview controller.</summary>
-        internal IPreviewController PreviewController =>
+        /// <summary>Host-integration (`ST-010`): the preview controller.</summary>
+        public IPreviewController PreviewController =>
             _previewController ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
+
+        // ── Host-integration surface (`ST-010`) ──────────────────────────────────────
+        // Added by the Stride integration on origin/stride-integ-1 FOR THIS PURPOSE: the seam an
+        // external host assembly (HrotStrideApp.Game) uses to reach the live ECS world, kernel and
+        // time controller without reflection. Ported here so the hosted-editor mode can build.
+        // Every member below is either a widened accessor or a read-only projection of state that
+        // already existed -- none of them changes what the editor does.
+
+        /// <summary>
+        /// True when the subsystem was initialized headless (no MapCanvas, no ImGui panels).
+        /// Exposed so the Stride layer can assert on it without a GPU context.
+        /// </summary>
+        public bool IsHeadless => _headless;
+
+        /// <summary>
+        /// The editor's authoritative spawn TKB (NED catalog + UrbanCombat templates) -- the instance
+        /// <c>NetworkSpawningSystem</c> and every <c>ITkbEntityTranslator</c> resolve from. Exposed so
+        /// an in-process host binds to the SAME database rather than a duplicate, which is what
+        /// template-resolution drift would otherwise look like. Null until <see cref="Initialize"/>.
+        /// </summary>
+        public ITkbDatabase? TkbDatabase => _tkbDatabase;
+
+        /// <summary>
+        /// Invoked with the frame delta immediately BEFORE <c>Kernel.Update()</c>. Null by default,
+        /// so an editor with no host attached behaves exactly as before.
+        /// </summary>
+        public Action<float>? PreKernelUpdateHook { get; set; }
+
+        /// <summary>
+        /// Invoked immediately AFTER <c>Kernel.Update()</c>. Null by default.
+        /// </summary>
+        public Action? PostKernelUpdateHook { get; set; }
+
+        /// <summary>
+        /// The primary selected entity in the 2D editor map. Null when nothing is selected or in
+        /// headless mode.
+        /// </summary>
+        public Fdp.Core.Entity? Selected2DEntity
+        {
+            // ⭐ The GETTER stays a read-through — it is a VIEW read, not a second store (S-1).
+            get => _selectionState?.PrimarySelected;
+            // ⭐⭐⭐ CE-306 — the SETTER routes to SetSelection2D, so the two seams are ONE operation
+            //    with one implementation. 🔒 User: "same operation should not be done in different
+            //    ways." ⛔ Two setters that both wrote the view was the duplication, not the sync-ness.
+            set => SetSelection2D(value);
+        }
+
+        /// <summary>Monotonic version of the 2D selection; 0 in headless.</summary>
+        public int Selection2DVersion => _selectionState?.Version ?? 0;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Whether this editor actually HAS a 2-D selection to share.</b>
+        /// <c>false</c> in headless, where <c>_selectionState</c> is never built.
+        ///
+        /// <para>🔴 <b>Why it exists (<c>UXI-11</c> <c>S-3d</c>):</b> the Stride 3-D view binds its
+        /// selection to this editor's. ⛔ Binding unconditionally would make <c>Select</c> a SILENT
+        /// NO-OP on a headless subsystem — <c>SetSelection2D</c> would write nothing and
+        /// <see cref="Selection2DVersion"/> would answer a constant 0, which is indistinguishable
+        /// from "nothing is selected". ⚠ <c>0</c> is also a legitimate version, so the caller cannot
+        /// infer absence from it; this says so explicitly.</para>
+        /// </summary>
+        public bool Has2DSelection => _selectionState != null;
+
+        /// <summary>
+        /// Sets the 2D editor selection to <paramref name="entity"/> (or clears it when null),
+        /// updating BOTH the UI-level primary AND the ECS <c>SelectionState</c> components the 2D map
+        /// overlay renders -- i.e. exactly what an in-map click does. Used by the 3D-to-2D sync.
+        /// </summary>
+        public void SetSelection2D(Fdp.Core.Entity? entity)
+        {
+            // ⭐⭐⭐ CE-306 — THIS PUBLISHES A REQUEST, like every other surface.
+            // 🔒 User, 2026-09-21: "same operation should not be done in different ways for
+            //    consistency, unification is desired." ⇒ selecting an entity is ONE operation with ONE
+            //    implementation: publish, and let SelectionRequestSystem (the one writer) apply and
+            //    announce it. 📄 UX_Feature_Selection.md §2.7.7 deviation ③, now CLOSED.
+            //
+            // ⚠⚠ THE OLD JUSTIFICATION FOR STAYING SYNCHRONOUS WAS STALE, and it is worth saying why
+            //    rather than deleting it. It read: "its ONE caller is
+            //    EditorStrideSubsystem.SyncSelection2D3D, which reads Selection2DVersion BACK IN THE
+            //    SAME FRAME to arm its anti-bounce tracker." 📐 Measured 2026-09-21:
+            //      · SyncSelection2D3D was DELETED by S-3d — its own commit comment says so;
+            //      · its replacement, StrideInspectorWindow.SelectionState.BindTo, calls _write(...)
+            //        and RETURNS — it does not read the version;
+            //      · `.Version` has NO consumer anywhere in the Stride app.
+            //    ⇒ the anti-bounce tracker the exception protected no longer exists.
+            //
+            // ⚠ THE ONE BEHAVIOUR CHANGE, named: the write now lands on the next drain rather than
+            //   immediately, so a 3-D click's own highlight reads the PREVIOUS entity for one frame
+            //   (SelectionState.SelectedEntity reads back through `read`). 🔒 User: "one frame lag is
+            //   neglectable in terms of perceptibility." ⛔ It cannot affect the CONTEXT MENU —
+            //   measured: the menu's subject is the entity the GESTURE hit (ContextMenuSystem builds
+            //   the request from `target`'s NetworkIdentity, and the cache is a per-entity component),
+            //   never the selection store. That is why §2.3's same-frame constraint is SUPERSEDED.
+            if (_world == null) return;
+
+            _world.Bus.PublishManaged(entity is { } e
+                ? Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(e, Selection2DReason)
+                : Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ClearAll(Selection2DReason));
+        }
+
+        /// <summary>
+        /// ⭐ The reason both facade seams publish under. ⚠ NOT <c>SelectionEgressSystem</c>'s
+        /// <c>Remote.</c> prefix: a 3-D click is a LOCAL cause and must reach remote observers like any
+        /// other. ⛔ Naming it once is what stops the two seams drifting into two reasons.
+        /// </summary>
+        internal const string Selection2DReason = "Editor.Facade2D";
+
+        /// <summary>
+        /// Replaces the muscle tier built during <see cref="Initialize"/> with a host's own
+        /// CAPABILITIES.
+        ///
+        /// <para><b>Null is the default and means exactly today's behaviour</b> —
+        /// <c>SimHostCoreLogicPack</c> + <c>CognitiveSpatialModule</c>. Non-null means a host
+        /// (today only Stride mode 1, with Bullet physics and DotRecast navigation) supplies its own
+        /// muscle capabilities, which are resolved alongside the Brain and perception ones.</para>
+        ///
+        /// <para><b>⚠ This REPLACED <c>MuscleModuleFactory</c>, which returned bare
+        /// <c>IEcsModule</c>s (S2b / CE-208).</b> The old shape was a private, single-slot
+        /// substitute for the capability seam: it could swap the muscle tier and nothing else, and it
+        /// could not express a shared resource because a <c>Func</c> returning modules has nowhere to
+        /// say <c>Needs</c>. Keeping both would be two mechanisms for one concern — the duplication
+        /// this programme exists to remove. Hosts now hand over the same
+        /// <see cref="Hrot.Common.Infrastructure.INodeCapability"/> the other four roots use.</para>
+        /// </summary>
+        public Func<MuscleModuleContext, IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability>>?
+            MuscleCapabilitiesFactory { get; set; }
+
+        /// <summary>
+        /// 🔴🔴 <b><c>CE-237</c> — order-sensitive TKB translator additions a HOST contributes.</b>
+        /// <c>null</c>/empty means plain <c>Base()</c>, this host's unchanged default.
+        ///
+        /// <para><see cref="MuscleCapabilitiesFactory"/> hands over the MUSCLE tier and nothing else, so
+        /// a host's contribution to entity CREATION was silently lost in hosted mode. 📐 Measured:
+        /// <c>InfantryVehicleStateStripTkbTranslator</c> (which removes the bogus
+        /// <c>VehicleState</c>/<c>VehicleParams</c> from capsule infantry) is placed by
+        /// <c>EditorStrideSubsystem</c>'s STANDALONE arm and was unreachable in mode 1 — so infantry kept
+        /// <c>VehicleState</c>, was refused crowd registration, was driven by the vehicle nav system while
+        /// the vehicle motor skipped its capsule, and never moved. No motion means no pose delta, so
+        /// <c>SimVelocity</c> stayed zero and the animation blend sat at Idle.</para>
+        ///
+        /// <para>⛔ <c>Hrot.Editor</c> does not reference <c>Hrot.Stride.Core</c> by design, so the
+        /// contribution must be INVERTED in rather than named here.</para>
+        /// </summary>
+        public IReadOnlyList<Hrot.Core.Tkb.TranslatorPlacement>? TranslatorPlacements { get; set; }
 
         /// <summary>Internal test hook: exposes the data breakpoint manager (UBP-P10T1).</summary>
         internal IDataBreakpointManager? DataBreakpointManager => _bpManager;
 
         /// <summary>Internal test hook: exposes the debug snapshot provider (UBP-P10T1).</summary>
         internal DebugSnapshotProvider? BpSnapshotProvider => _bpSnapshotProvider;
+
+        private Hrot.Editor.Debugging.NodeBreakpointEvaluator? _stepEvaluator;
+
+        /// <summary>⭐ CE-1323 — the behaviour-breakpoint reader (the API names a step that cannot resolve through it).</summary>
+        internal Hrot.Editor.Debugging.NodeBreakpointEvaluator? StepEvaluator => _stepEvaluator;
+
+        private static int NetIdOf(EntityRepository w, Entity e)
+            => w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>() && w.IsAlive(e)
+                ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(w, e) : 0;
+
+        /// <summary>⭐ <c>CE-1291</c> / <c>CE-1323</c> — every element whose "Breakpoint" is ticked in an open document, as the step it means: a
+        /// BTree node runs · an HSM state is entered · an HSM transition fires (empty before the documents exist).</summary>
+        private IEnumerable<Hrot.Editor.Debugging.MarkedStep> MarkedSteps()
+        {
+            if (_aiDocumentManager == null) yield break;
+            foreach (var doc in _aiDocumentManager.OpenDocuments)
+            {
+                if (doc.Asset is Hrot.BTree.Editor.Model.BehaviorTreeAsset bt)
+                {
+                    foreach (var n in bt.Nodes)
+                        if (n.IsBreakpoint)
+                            yield return Hrot.Editor.Debugging.MarkedStep.Of(new Hrot.Editor.Debugging.MarkedNode(bt.Name, n.VisualId, n.DisplayLabel));
+                }
+                else if (doc.Asset is Hrot.Hsm.Editor.Model.HsmAsset hsm)
+                {
+                    foreach (var st in hsm.AllStates)
+                        if (st.IsBreakpoint) yield return new Hrot.Editor.Debugging.MarkedStep(Hrot.Hsm.Editor.Debug.HsmBreakpointSteps.Enter(hsm, st), st.StableId);
+                    foreach (var tr in hsm.AllTransitions)
+                        if (tr.IsBreakpoint) yield return new Hrot.Editor.Debugging.MarkedStep(Hrot.Hsm.Editor.Debug.HsmBreakpointSteps.Fires(hsm, tr), tr.VisualId);
+                    foreach (var gt in hsm.AllGlobalTransitions)
+                        if (gt.IsBreakpoint) yield return new Hrot.Editor.Debugging.MarkedStep(Hrot.Hsm.Editor.Debug.HsmBreakpointSteps.Fires(hsm, gt), gt.VisualId);
+                }
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Is the simulation clock HALTED this frame?</b> — <c>DeltaTime == 0</c> on the
+        /// <c>GlobalTime</c> singleton the kernel pushes into the live world every frame.
+        ///
+        /// <para>⛔⛔ <b>This is the ONE reading of the clock that is true.</b> 📐 <c>M-42</c>, measured
+        /// <c>2026-08-21</c>: <c>GlobalTime.IsPaused</c> is <c>TimeScale == 0</c> and a pause never sets
+        /// <c>TimeScale</c> to <c>0</c> — it switches the master to <c>MasterMode.Stepping</c>, whose
+        /// <c>UpdateStepping</c> returns <c>BuildGlobalTime(dt: _pendingStepDelta, …)</c> with
+        /// <c>TimeScale</c> untouched. ⇒ <b>the convenience flag is FALSE while paused</b>, and it has
+        /// zero production readers, which is the only reason that has never bitten.</para>
+        ///
+        /// <para>⚠ <b>And it must be read from the WORLD, not the controller.</b>
+        /// <c>MasterSyncController.GetCurrentState()</c> is <c>BuildGlobalTime(0.0f, 0.0f)</c> — it
+        /// hard-codes the delta to zero, so a delta-based predicate read through it answers
+        /// <i>"halted"</i> forever.</para>
+        ///
+        /// <para>⭐ <c>true</c> when there is no world or no singleton yet: nothing is advancing before
+        /// the first tick, and a surface with no way to observe the clock must not claim the sim is
+        /// running.</para>
+        /// </summary>
+        /// <summary>
+        /// T5, first site. This was a hand-rolled copy of the guarded singleton read that
+        /// <c>SimClock</c> now owns — null world, missing singleton and the DeltaTime predicate, all
+        /// three identical. Routed rather than kept: the point of `T1` is that "is the simulation
+        /// running" has ONE named answer, and a second copy of the predicate is how the codebase
+        /// arrived at a dozen of them.
+        /// </summary>
+        private bool ClockIsHalted() => Fdp.Toolkit.Time.SimClock.Of(_world).IsHalted;
+
+        /// <summary>
+        /// ⭐⭐⭐ PHASE 2 SLICE ① — the editor's ONE reload dispatcher, routed through the policy shared
+        /// with CGF (<c>Hrot.Editor.AiShared.Documents.AiAssetReload</c>).
+        ///
+        /// <para>📐 <b>Before this there were THREE kind-switches for one concept:</b> CGF's
+        /// <c>ReloadActiveAiDocument</c>, this host's toolbar <c>CompileReload</c>, and this host's MCP
+        /// <c>reloadAsset</c> route — and the three disagreed on the wording for the same condition
+        /// (<i>"has no compilable canvas context"</i> vs <i>"is not a reloadable kind"</i> vs a silent
+        /// fall-through). ⇒ ⭐ the wording, the try/catch and ruling 53's log now come from one place.</para>
+        ///
+        /// <para>⚠⚠ <b>The Blueprint arm is a PARAMETER, deliberately.</b> 📐 Measured: this host's two
+        /// dispatchers used two DIFFERENT Blueprint paths — the toolbar went through
+        /// <c>_blueprintCompileCallback</c> (a captured registrar toolbar callback) and the MCP route
+        /// through <c>_blueprintQuickReloadTrigger</c>. ⛔ Merging them is NOT this slice's business:
+        /// their equivalence is unproven, and silently collapsing two paths on a guess is the mistake
+        /// this programme keeps writing rules against. ⭐ Filed as a finding instead; the BTree/HSM arms
+        /// and the whole policy ARE shared, which is what slice ① claimed.</para>
+        ///
+        /// <para>📄 <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §5c.6.</para>
+        /// </summary>
+        private string ReloadActiveAiDocument(Func<string?> blueprintArm)
+        {
+            var compile = _compileSources;
+            var ctx     = _aiDocumentManager?.Active?.ViewState
+                as Hrot.Editor.AiShared.Windows.AiCanvasContext;
+
+            // ⚠ An arm returning null means "right kind, nothing to compile" — the shared policy then
+            //   supplies the one `NoCompilableContext` wording, byte-identical to CGF's.
+            var arms = new Hrot.Editor.AiShared.Documents.AiReloadArms(
+                Blueprint: blueprintArm,
+                BTree: () => compile != null
+                          && ctx?.AssetRef is Hrot.BTree.Editor.Model.BehaviorTreeAsset bt
+                    ? Hrot.Editor.AiShared.Documents.AiAssetReload.ReloadBTree(
+                          Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(bt), compile)
+                    : null,
+                Hsm: () => compile != null
+                        && ctx?.AssetRef is Hrot.Hsm.Editor.Model.HsmAsset hsm
+                    ? Hrot.Editor.AiShared.Documents.AiAssetReload.ReloadHsm(
+                          Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsm), compile)
+                    : null);
+
+            return _blueprintCompileStatus = Hrot.Editor.AiShared.Documents.AiAssetReload.Reload(
+                _aiDocumentManager,
+                arms,
+                // ⭐⭐ Ruling 53's origin-side log — which this host did NOT have before this slice.
+                //    📄 DESIGN_Cgf_Editor_Sharing_Slice3_Editing_HotReload.md §10.4: "the origin-side
+                //    log is the whole safety net, so it is a requirement, not a nicety."
+                log: (name, status) => FdpLog<EditorSubsystem>.Info(
+                    "[Editor] AI asset reload requested for '{0}' — {1}", name, status));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-021</c> — make the named asset's open document ACTIVE, so save/reload act on the
+        /// document the caller meant. ⚠ A no-op when it is not open: the API route has already
+        /// refused that case with a typed hint, and answering it twice is two answers to one question.
+        /// </summary>
+        private void ActivateAiDocumentByAssetId(string assetId)
+        {
+            if (_aiDocumentManager == null || !Guid.TryParse(assetId, out var id)) return;
+            var doc = _aiDocumentManager.OpenDocuments.FirstOrDefault(d => d.Asset.AssetId == id);
+            if (doc != null) _aiDocumentManager.Activate(doc);
+        }
 
         /// <summary>Internal test hook: exposes the mutation interceptor wired to the entity inspector (UBP-P10T5).</summary>
         internal Fdp.Toolkit.Diagnostics.Gizmos.IMutationInterceptor? BpMutationInterceptor
@@ -533,6 +1421,92 @@ namespace Hrot.Editor
         /// <summary>Internal test hook: exposes the "Save All" callback (PU-603).</summary>
         internal Action? SaveAllCallback => _saveAllCallback;
 
+        /// <summary>
+        /// ⭐ CE-1237 — what the Blueprint Tools window shows (MVE-BATCH-03/04/05 + PU-603 merged, CF-5's debug controls): run the open
+        /// blueprint on the selected entity, save, compile / reload, save all, step a debug session. Drawn by
+        /// <see cref="Hrot.Editor.Windows.EditorBlueprintToolsWindow"/> — a managed window with a close box, in the Blueprint perspective.
+        /// </summary>
+        internal void DrawBlueprintToolsContent()
+        {
+            bool any = _blueprintRunButtonCallback != null || _blueprintSaveCallback != null || _blueprintCompileCallback != null
+                       || _saveAllCallback != null || _blueprintDebugSession != null;
+            if (!any)
+            {
+                ImGuiNET.ImGui.TextDisabled("Open a blueprint to run, save or compile it.");
+                return;
+            }
+
+            // -- 1. Run Blueprint --
+            if (_blueprintRunButtonCallback != null)
+            {
+                if (ImGuiNET.ImGui.Button(
+                        Hrot.Blueprints.Editor.Runtime.RunBlueprintOnEntityCommand.ToolbarLabel))
+                    _blueprintRunButtonCallback.Invoke();
+
+                if (!string.IsNullOrEmpty(_blueprintRunStatus))
+                {
+                    ImGuiNET.ImGui.SameLine();
+                    ImGuiNET.ImGui.TextUnformatted(_blueprintRunStatus);
+                }
+            }
+
+            // -- 2. Save Blueprint (hotkey via shell.save command, §20) --
+            if (_blueprintSaveCallback != null)
+            {
+                ImGuiNET.ImGui.SameLine();
+                if (ImGuiNET.ImGui.Button("Save Blueprint"))
+                    _blueprintSaveCallback.Invoke();
+
+                if (!string.IsNullOrEmpty(_blueprintSaveStatus))
+                {
+                    ImGuiNET.ImGui.SameLine();
+                    ImGuiNET.ImGui.TextUnformatted(_blueprintSaveStatus);
+                }
+            }
+
+            // -- 3. Compile / Reload Blueprint --
+            if (_blueprintCompileCallback != null)
+            {
+                ImGuiNET.ImGui.SameLine();
+                if (ImGuiNET.ImGui.Button("Compile / Reload"))
+                    _blueprintCompileCallback.Invoke();
+
+                if (_blueprintFullRebuildCallback != null)
+                {
+                    ImGuiNET.ImGui.SameLine();
+                    if (ImGuiNET.ImGui.Button("Full Rebuild"))
+                        _blueprintFullRebuildCallback.Invoke();
+                }
+
+                if (!string.IsNullOrEmpty(_blueprintCompileStatus))
+                {
+                    ImGuiNET.ImGui.SameLine();
+                    ImGuiNET.ImGui.TextUnformatted(_blueprintCompileStatus);
+                }
+            }
+
+            // -- 4. Save All (hotkey via shell.saveAll command, §20) --
+            if (_saveAllCallback != null)
+            {
+                ImGuiNET.ImGui.SameLine();
+                if (ImGuiNET.ImGui.Button("Save All"))
+                    _saveAllCallback.Invoke();
+
+                if (!string.IsNullOrEmpty(_saveAllStatus))
+                {
+                    ImGuiNET.ImGui.SameLine();
+                    ImGuiNET.ImGui.TextUnformatted(_saveAllStatus);
+                }
+            }
+
+            // -- 5. Debug step controls (when session is available) --
+            if (_blueprintDebugSession != null)
+            {
+                ImGuiNET.ImGui.Separator();
+                Hrot.Blueprints.Editor.Debug.DebugStepControls.Draw(_blueprintDebugSession);
+            }
+        }
+
         /// <summary>Internal test hook: exposes the BlueprintRegistry instance (MVE-BATCH-05).</summary>
         internal Fdp.Toolkit.Blueprints.BlueprintRegistry BlueprintRegistry => _blueprintRegistry;
 
@@ -545,19 +1519,47 @@ namespace Hrot.Editor
         // Non-interface helper kept for backward-compat with tests.
         public MapCamera? GetMapCamera() => _camera;
 
+        /// <summary>
+        /// ⭐ CR-6 (docs/DESIGN_Director_Timeline_Editor.md §11e) — K's anchor: the nearest combat event at or before <paramref name="sim"/> in the index the Event Timeline SHOWS
+        /// (<c>HrotNodeContext.ShownTimeline</c>: the live index on a live / review run), named by the unit's <see cref="EntityInfo.Name"/> — the name the take's anchors use.
+        /// Null when no index, no sim clock, or nothing precedes the playhead (K then stores a fixed time).
+        /// </summary>
+        private Hrot.UI.Common.Map3D.Director.EventAnchor? EventAnchorAt(double sim)
+        {
+            if (_node?.ShownTimeline?.Index is not { } index) return null;
+            return Hrot.UI.Common.Map3D.Director.EventAnchors.NearestBefore(index, sim, UnitNameOf);
+        }
+
+        // ⭐ CE-4059 (§11q D3) — the ONE network-id → name reading, shared with the Replay Browser
+        private string? UnitNameOf(int networkId) => Hrot.UI.Common.Map3D.Director.DirectorUnits.NameOf(_world, networkId);
+
         // ?? ISubsystem lifecycle ??????????????????????????????????????????????
 
         // ctor for unit tests
         public EditorSubsystem()
         {
+            _headerParams = new Hrot.Editor.Scenario.HeaderParamsSchemaSource(() => _world, EditHistory);   // ⭐ CE-4218 — the ONE undo history, the rule editor pushes to it too
+            // ⭐⭐⭐ Batch 95 (95b) — EVERY selection store this editor holds reads ONE entity cell.
+            // 🔴🔴 The bridge connects exactly one store (_aiEditorSelectionStore), and the three
+            //    PERSPECTIVE stores were connected to nothing ⇒ their SelectedEntity was null for
+            //    ever ⇒ every live-value provider bailed on its second line and every Details/Watch
+            //    row on every host rendered "(pending)".
+            // ⛔ NOT three more Connect() calls — that is the shape PerspectiveWorkspaceServices
+            //    exists to abolish. ⭐ The selected entity is ONE FACT ABOUT THE WORLD, held once.
+            // 📄 AI_Editor_Shared_Infrastructure.md:450 already specified it global; this restores it.
+            // ⚠ In the constructor and not a helper: the fields are readonly, which is what stops a
+            //   later edit from quietly giving one store a cell of its own.
+            _aiEditorSelectionStore  = new Hrot.Editor.AiShared.Selection.EditorSelectionStore(_sharedEntitySelection);
+            _btreeSelectionStore     = new EditorSelectionStore(_sharedEntitySelection);
+            _hsmSelectionStore       = new EditorSelectionStore(_sharedEntitySelection);
+            _blueprintSelectionStore = new EditorSelectionStore(_sharedEntitySelection);
         }
 
 
         // ctor for ClusterRunner
-        public EditorSubsystem( INetworkFactory _ )
+        public EditorSubsystem( INetworkFactory networkFactory ) : this()
         {
-            // we do not use the injected network factory in the offline editor,
-            // but we accept it in the constructor to satisfy the dependency graph and allow for future online features.
+            _networkFactory = networkFactory ?? throw new ArgumentNullException(nameof(networkFactory));
         }
 
         /// <summary>
@@ -573,67 +1575,655 @@ namespace Hrot.Editor
         public void Initialize(SubsystemConfig config)
         {
             _headless = config.Headless;
+            _nodeName = config.NodeName;   // ⭐ CE-3354 ②
+
+            // ⭐ CE-3340 ③ — the content seed (repository → NAS) is NOT here: SubsystemOrchestrator.Initialize runs it, once, before any subsystem
+            // initialises (the asset catalogue below resolves its roots from the NAS).
+
             // GZH-016: store active-map-owner predicate injected by SubsystemOrchestrator.
             _isActiveMapOwner = config.IsActiveMapOwner;
+            _requestAppExit   = config.RequestAppExit;
 
-            // ?? 1. ECS world ?????????????????????????????????????????????????
-            _world = new EntityRepository();
-            _orchestrationBus = new FdpEventBus(); // Control Plane bus (cluster management)
-            Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(_orchestrationBus);
-            Hrot.Orchestrator.OrchestratorEventRegistry.RegisterInternalEvents(_orchestrationBus);
-            var accumulator = new EventAccumulator();
-            _kernel = new ModuleHostKernel(_world, accumulator);
-            _physicsModule = new PhysicsToolkitModule();
-            _physicsModule.Initialize(_world);
+            // ⭐⭐⭐ CE-1446 B2 — THE NODE IS BUILT BY THE SHARED BOOTSTRAPPER, like SimHost, IG, Stride, the traffic node and CGF (R-1045). The editor is OFFLINE (no participant, decision B), owns its
+            //   clock (Standalone) and composes every simulation role; its host glue is RegisterHostSystems. 📄 DESIGN_Subsystem_Composition_Unification.md §4.1af.
+            string isolatedTempRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(EditorNodeId);
+            _bootstrapper = new EditorNodeBootstrapper(EditorNodeId, isolatedTempRoot, _fdpEventHistory, _navmesh, _blueprintRegistry, MuscleCapabilitiesFactory, TranslatorPlacements);
+            _bootstrapper.ApplicationSystemsRegistrar = RegisterHostSystems;
+            _bootstrapper.MapBuildStatus = () => _map3DBuild;   // ⭐ CE-3354 ③ — lazy: the map layers are attached after the bootstrap
+            _node = _bootstrapper.BootstrapNode(
+                new HrotNodeConfig { NodeId = (Fdp.Core.NodeId)(EditorNodeId), SubsystemName = "Editor", Headless = true, NodeName = _nodeName,
+                                    HasPresentation = true },   // ⭐ CE-3446 — a UI draws this node: staged when the threaded node is on (§15)
+                EditorCapabilities.DefaultRole,
+                _networkFactory);
 
-            // ?? 1b. Register all components BEFORE building serializers ???????
-            // FdpAutoSerializer compiles property-extraction delegates at Build() time
-            // against the current ComponentTypeRegistry, so all types must be registered
-            // first ? otherwise the serializer schema is empty and Save/Load is a no-op.
-            SimHostComponentRegistry.RegisterAll(_world);
-            CgfComponentRegistry.RegisterAll(_world);
-            _world.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
-            // MapDisplayComponent is used by MapLayerAssignmentSystem to tag entities
-            // with the layer bitmask used by the DebugGizmoLayer for visibility culling.
-            _world.RegisterComponent<MapDisplayComponent>();
-            // IG presentation components required by MapCullingModule / StyleResolutionModule.
-            _world.RegisterComponent<Hrot.IG.Components.CullingState>();
-            _world.RegisterComponent<Hrot.IG.Components.ResolvedStyle>();
-            _world.RegisterManagedComponent<Hrot.IG.Components.IgSymbolOverride>();
-            // Visual effect components required by EventEffectModule (EventToEffectSystem).
-            _world.RegisterComponent<VisualEffectState>();
-            _world.RegisterComponent<TracerTarget>();
-            _world.RegisterEvent<ActivateEditorToolEvent>();
-            _world.RegisterEvent<CenterOnEntityCommand>();
+            if (_node.Presentation != null) BindStagedPresentation();   // ⭐ CE-3446 — the shared presentation, composed by the bootstrap (§15)
 
-            // ?? 2. Time controller (MasterSyncController in Deterministic/frozen mode) ??
-            var timeConfig = new TimeControllerConfig { Role = TimeRole.Standalone };
-            _timeController = (MasterSyncController)TimeControllerFactory.Create(_world.Bus, timeConfig);
-            _kernel.SetTimeController(_timeController);
-            // Start in Deterministic mode so authoring starts paused (dt == 0 every frame).
-            _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
+            // The registrar ran inside the bootstrap; the values the rest of this method reads:
+            var scenarioSerializer = _bootstrapper.ScenarioSerializer;
+            var fileService = _scenarioFileService!;
+            var elm = _bootstrapper.Elm;
+            var tkbDb = _node.TkbDb!;
+            var behaviorRegistry = _behaviorRegistry!;
+            var geoTransform = _geoTransform!;
+            var creation = EntityCreation!;
+            var interactionBus = _editorMapInteraction!.InteractionBus;
 
-            // ?? 3. Shared services ????????????????????????????????????????????
-            var geoTransform     = HrotEnvironment.CreateGeoTransform();
+            // ?? 6. Editor application (IEditorLogic facade) ??????????????????
+            var appWorld = Staged ? _nodeWorld! : _world!;   // ⭐ N-6 — mode 3: the editor logic is SIM side (it clears, saves and loads S)
+            var app = new EditorApplication(
+                fileService, appWorld.Bus, _orchestrationBus!, () => _node?.ClusterSlave.View, appWorld,
+                hotReloadSource: _hotReloadSource,
+                aiProjectPathSegments: AiBehaviorsProjectPath,
+                // ⭐ CE-1025 (R-1031) — every load (menu, HTTP edit, the film director) leaves the editor's dry run first, WITHOUT a
+                //   rewind. Late-bound: the preview controller is built below (step 8).
+                leaveRun: () => _previewController?.ForgetPreview());
+            if (Staged && app.ScenarioSession is Hrot.Editor.AiShared.Scenarios.EditorScenarioSession simSession)
+            {   // ⭐ N-6 / D-9 — the UI's session: its own door (asks on the UI thread), verbs as sim jobs, reads from the sim's readout
+                simSession.ReadsOnSimThread = true;
+                _uiScenarioSession = new Hrot.Editor.AiShared.Scenarios.ThreadedScenarioSession(simSession, simSession, PostToSim,
+                    () => _uiClusterView!.State, simSession.LeaveRaw, simSession.AutosaveOf);
+                var uiSession = _uiScenarioSession;   // ⭐ D-9 / CE-3446 — what the UI reads of the session: the shared readout channel (published after each step)
+                _presentation!.AddReadout<Hrot.Editor.AiShared.Scenarios.ThreadedScenarioSession.Readout>(
+                    last => Hrot.Editor.AiShared.Scenarios.ThreadedScenarioSession.ReadIfChanged(last, simSession), uiSession.Apply);
+                _editorLogic = new ThreadedEditorLogic(app, _uiScenarioSession, _world!.Bus);
+            }
+            else _editorLogic = app;
+            _editorApp   = app;
+            WireWorldUndo();   // ⭐ B-14 — the session exists now
+
+            // ⭐⭐ CE-1321 (BV-68) — THE C# behaviour rebuild (toolbar button and POST /ai/reload): build, copy into the watched
+            //   directory, await the swap. The signal subscribes to the coordinator only when a rebuild runs, so it fires AFTER the
+            //   catalog refresh and the document reconcile (subscribed later, in RegisterWindows).
+            app.SetAiRebuild(new AiBehaviorsRebuild(
+                app.AiProjectFilePath,
+                AppDomain.CurrentDomain.BaseDirectory, "Hrot.AI.Behaviors.dll",
+                new DotnetBuildRunner(line => _hotReloadSource?.PushLine(line)),
+                _aiCoordinator != null ? new AiHotReloadSignal(_aiCoordinator) : null,
+                () => _behaviorRegistry?.GetRegisteredNames() ?? (IReadOnlyCollection<string>)Array.Empty<string>(),
+                () => _aiDocumentManager?.OpenDocuments.Count ?? 0,
+                log: line => _hotReloadSource?.PushLine(line)));
+
+            // ⭐⭐ Q86 (R-215) — the editor runs the ONE orchestrator core, the same one the cluster's
+            //    OrchestratorSubsystem hosts; it replaced a hand-built copy that had drifted (no scenario-load
+            //    handler — the clock never reset on load —, no episodes, no live branch, diagnostics dumped into the
+            //    scenarios folder). 📄 docs/blueprints/Architect_Question_86_Editor_Runs_The_Orchestrator_Core.md
+            //    ⭐ The CLOCK stays here: this node's kernel creates and advances it (pause/step stay immediate —
+            //    the editor has no followers); the core only asks, through _timeCommands.
+            _fileDialogService = FileDialogServiceFactory.Create();
+            _orchestratorCore = new OrchestratorCore(new OrchestratorCoreOptions
+            {
+                Bus               = _orchestrationBus!,
+                Config            = ClusterConfiguration.LoadFromWorkingDirectory().ForOneNodeCluster(),
+                TimeCommands      = _timeCommands!,
+                TimeReads         = _timeController!,
+                StagingNodeId     = (Fdp.Core.NodeId)(EditorNodeId),
+                // ⭐⭐ CE-4087 — the editor plays every simulation role in-process (the SAME mask it declares to the roster), so its
+                //   own master's load gate is satisfied at once — the editor never refuses itself, nor waits for its own advert.
+                LocalRoles        = EditorCapabilities.DefaultRole,
+                // ⭐⭐⭐ HN-037 — the editor's ONE allocator IS its world's authority; a load resets it to 1000.
+                //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11. 🔒 User: "Editor is no exception".
+                IdAuthority       = Fdp.Toolkit.NetworkSpawning.WorldIdAuthority.FromAllocator(_idAllocator!),
+                FileDialogService = _fileDialogService,
+                View              = _node?.ClusterSlave.View,   // ⭐ CE-1436 — the editor's node and its core's cache share ONE cluster read model (same bus)
+            });
+            _clusterMaster = _orchestratorCore.Master;
+            if (Staged)
+            {   // ⭐ D-9 — the UI's cluster cache and scenario panel, over its mirror (the core's own stay with the sim side)
+                _uiClusterCache = new Hrot.Orchestrator.Panels.ClusterUiCache(_uiOrchestrationBus!, localTimeController: null, view: _uiClusterView);
+                _uiScenarioPanel = new Hrot.Orchestrator.Panels.ClusterScenarioPanel(_uiOrchestrationBus!, _uiClusterCache);
+            }
+            // ⭐ CE-4089 — the content seed (scenarios/, assets/, recipes/ → the NAS) ran at the top of Initialize, before the asset catalogue read it.
+
+            // ⭐ L6 (CE-4089) — the scenario SEEDS are NOT staged under the scenarios root any more: a recipe is loaded by its own name,
+            //    `recipes/scenarios/<seed>` (ContentLayout.ScenarioRecipeName), which the master resolves against the NAS recipes root
+            //    (ContentLayout.ResolveScenarioDirectory). The old H2/U9 staging into `scenarios/Recipes/` is gone.
+
+            app.SetAvailableScenariosSource(() => ScenarioEnumeration.EnumerateNames(EditorBootstrap.ScenariosRoot));   // ⭐ CE-4360 — the LEAF names (Q-S2)
+
+            // ?? 7. Map canvas + camera (skipped in headless) ??????????????????
+            if (!_headless)
+            {
+                _camera = new MapCamera();
+                _canvas = new MapCanvas(new RaylibInputProvider());
+                _canvas.Camera = _camera;
+            }
+
+            // ?? 8. Preview controller (works headless too ? no canvas dep) ????
+            // ⭐⭐⭐ D14 — the toolbar's Play/Stop drives the ONE dry-run handler the shared host composition registered on this
+            //   node's slave (above), so the editor's world, id pool, entity map and ELM queues (HN-017/HN-018 — the
+            //   participants are listed there, once) come back the same way whoever starts the dry run.
+            // ⭐⭐ CE-3329 row 21 (one facade) — the controller is a CLIENT of the cluster's dry run: Play/Stop publish the transition every
+            //   host publishes; the master puts the clock back (PreviewClockProcessManager), so CE-3156's local put-back is gone.
+            _previewController = new EditorPreviewController(_clusterHandlers!.DryRun, () => _orchestrationBus,
+                () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle, _timeCommands!);
+            // ⭐⭐⭐ the ONE time facade (the cluster nodes' own), its readout on this node's clock (the master's — the editor hosts it)
+            // ⭐⭐⭐ CE-1445 (R-1044) — the ONE factory builds the adapter + attaches the choice over the node frame (`_orchestrationBus` IS `_node.EventBus`); only the readout clock and the profile are the editor's.
+            // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice: ▶ / ■ from here follow its armed mode (the editor's default is Preview);
+            //   it drives the SAME session the File menu uses (IScenarioSession : IRunScenarioControl) — ⛔ no second implementation of the actions.
+            //   ⭐ part two (D20): the unsaved check is the in-process master's ONE round (CE-4093), its answer read off the core's ClusterUiCache — the same reads /scenario/load/live's gate uses.
+            _simTimeTransport = Hrot.UI.Common.RunMode.NodeRunControls.ForSimSide(_node!, new Hrot.UI.Common.RunMode.NodeRunProfile(
+                    Hrot.UI.Common.RunMode.RunHostKind.Editor,
+                    Control: _editorApp?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
+                    UnsavedReads: new Hrot.UI.Common.RunMode.UnsavedCheckReads(
+                        () => _orchestratorCore != null,
+                        id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id))),
+                simTime: () => _timeController!.GetCurrentState().TotalTime);   // the editor's readout is on the master's clock (it hosts it)
+            // ⭐⭐ D-9 — mode 3: the UI's OWN transport over its mirror of the orchestration bus (its intents go up with the staging, its readouts
+            //   come from its cluster view and A's clock), its run choice over the UI session; the sim side keeps the node's for its routes and Run to …
+            //   ⭐ CE-3446 — the SHARED staged form (NodeRunControls.For over the node's presentation); only the profile is the editor's
+            _timeTransport = Staged
+                ? Hrot.UI.Common.RunMode.NodeRunControls.For(_node!, new Hrot.UI.Common.RunMode.NodeRunProfile(
+                        Hrot.UI.Common.RunMode.RunHostKind.Editor,
+                        Control: _uiScenarioSession,
+                        UnsavedReads: new Hrot.UI.Common.RunMode.UnsavedCheckReads(() => _uiClusterCache != null, id => _uiClusterCache?.UnsavedCheckOutcomeFor(id))))
+                : _simTimeTransport;
+            // ⭐⭐ CE-4316 (lifecycle LC-10, option A) — Run to … in Preview: the ACK-gated stepped run on THIS host's transport and master, the frame cap lifted while it runs.
+            //   ⭐ N-5 — it steps the node frame, so it is SIM side: the sim's transport, and the world it watches is S
+            _runTo = new Hrot.UI.Common.RunMode.RunToController(_simTimeTransport,
+                acksPending: () => _timeController?.IsAwaitingStepAcks ?? false,
+                inPreview:   () => _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview,
+                world:       () => Staged ? _nodeWorld : _world,
+                // ⭐⭐ the TURBO strategy (DESIGN_Time_Architecture.md §20) — only on a NETWORKLESS node: no ACK leaves the process, so a step can land in place
+                turbo:       _networkFactory is OfflineNetworkFactory ? TurboStep : null,
+                // ⭐ W-4 — Run to … from Edit: the run choice's dry run, paused at its first frame, then the run (one door into Preview)
+                enterPreview: () => _simTimeTransport?.RunChoice?.EnterPreviewPaused() ?? false);
+            if (Staged)
+            {   // ⭐ N-5 / CE-3446 — the run's visible state rides the shared readout channel
+                var uiRunTo = _uiRunTo = new Hrot.UI.Common.RunMode.ThreadedRunTo(_runTo, PostToSim, () => _world);
+                var simRunTo = _runTo;
+                _presentation!.AddReadout<Hrot.UI.Common.RunMode.ThreadedRunTo.Readout>(last => Hrot.UI.Common.RunMode.ThreadedRunTo.ReadIfChanged(last, simRunTo), uiRunTo.Apply);
+            }
+            // ⭐ CE-1439 (AQ108 §2.12) — the cluster-control panel (the monitor window) asks through THIS host's transport, run choice and session: a caller that HAS them passes them,
+            //   so the panel builds none of its own and its Pause / Load / Open AAR / Checkpoint are the toolbar's and the File menu's, not a second surface.
+            if (UiScenarioPanel is { } uiPanel && _timeTransport.RunChoice is { } panelChoice
+                && (Staged ? _uiScenarioSession : _editorApp?.ScenarioSession) is { } panelSession)   // ⭐ D-9 — mode 3: the UI's panel, transport and session
+                uiPanel.RunControls = new Hrot.Orchestrator.Panels.ClusterPanelRunControls(_timeTransport, panelChoice, panelSession);
+
+            // ── 8a. ⭐ CE-4038 — the film director (docs/DESIGN_Film_Director.md §1a): built from what this method HOLDS (the load, the
+            //    cluster state, the preview controller, ITimeCommands, the world) — ⛔ none of it defaulted (the silent-default rule).
+            {
+                _takeStore = new Hrot.UI.Common.Map3D.Director.TakeStore(() => EditorBootstrap.ScenariosRoot,
+                                                                         Hrot.UI.Common.Map3D.Director.TakeStore.FindFilmsDirectory);
+                var directorTime = _timeTransport!;
+                var directorHost = new Hrot.Editor.Director.EditorDirectorHost(
+                    world:          () => _world,
+                    load:           name => _editorLogic!.LoadScenarioByName(name),
+                    operatingEdit:  () => _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit,
+                    inPreview:      () => _previewController!.IsInPreviewMode,
+                    enterPreview:   paused => _previewController!.EnterPreviewMode(paused),
+                    exitPreview:    () => _previewController!.ExitPreviewMode(),
+                    paused:         () => directorTime.IsPaused,
+                    pause:          () => { if (!directorTime.IsPaused) directorTime.TogglePlayPause(); },
+                    stepBy:         seconds => _timeCommands!.StepBy(seconds),
+                    behaviourName:  hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null,
+                    takes:          _takeStore,
+                    slotRunInFlight: () => _kernel?.SlotRunInFlight ?? false,   // ⭐ CE-3316 — R1 writes its checkpoint on a quiet step
+                    // ⭐ CE-3299 B5 (R1, restore design §1k) — a checkpoint file written by the recorder, and put back by the SAME
+                    //   sequence the cluster restore runs (PutBack: keyframe, after-restore with this node's step window, the ELM),
+                    //   then the clock asked to the mark (D5)
+                    // ⭐ N-15 (CE-4477; status §5) — in a threaded node both act on the SIMULATION world (S) as sim jobs: the checkpoint is
+                    //   written between ticks, and the restore's put-back + clock snap run there too; the verify run already waits until the
+                    //   clock reaches the mark (RestoringCheckpoint polls), so the restore answers the mark at once and lands a tick later.
+                    //   ⛔ Was the world it was handed — A, the presentation copy, in mode 3 — and the kernel, from the UI thread.
+                    writeCheckpoint: (path, label) =>
+                    {
+                        if (Staged) PostToSim("director: write checkpoint", () => Fdp.Toolkit.Replay.CheckpointFile.Write(_nodeWorld!, path, label));
+                        else Fdp.Toolkit.Replay.CheckpointFile.Write(_world!, path, label);
+                    },
+                    restoreCheckpoint: path =>
+                    {
+                        var (keyframe, mark) = Fdp.Toolkit.Replay.CheckpointFile.Read(path);
+                        void PutBack()
+                        {
+                            Fdp.Toolkit.Orchestration.Handlers.ReferenceCheckpointHandler.PutBack(
+                                Staged ? _nodeWorld! : _world!, keyframe, _node!.EventAccumulator, elm == null ? null : elm.OnWorldReplaced,
+                                _kernel!.ResumeAfterRestore);   // ⭐ CE-3316
+                            _timeCommands!.SnapTo(mark.ToGlobalTime());
+                        }
+                        if (Staged) PostToSim("director: restore checkpoint", PutBack); else PutBack();
+                        return mark.TotalTime;
+                    },
+                    // ⭐ CE-4045 H1a (Scenario Regression §10-1, R-4085) — a LIVE run and its recording: loaded by the SAME load as
+                    //   POST /scenario/load/live (the debug service, late-bound as the verify world is), stopped through the editor's master,
+                    //   its file named by the ONE recorder, and played back in this process by the product's player
+                    loadLive: name => (_debugApiService ?? throw new InvalidOperationException(
+                        "a live verify run loads through the debug service — set HROT_DEBUG_API_PORT (--verify sets one)")).LoadScenarioLive(name, startPaused: true, forceRecording: true,
+                            scenarioArgsJson: "{\"" + ScenarioVariants.ArgName + "\":0}"),   // ⭐ CE-4090 D14 — a verify run always records · ⭐ AQ108 D24 — and judges the scenario AS AUTHORED (variant 0), never the live default's random draw
+                    master: new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus),   // ⭐ H5 — stop and review
+                    state: () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle,
+                    recordingPath: () => _clusterHandlers!.RecordReplayController?.ActiveRecordingModule?.FilePath,
+                    openRecording: path => new Hrot.Editor.Director.RecordedRun(path, scenarioSerializer,
+                        hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null),
+                    mapBuild: () => _map3DBuild,   // ⭐ R-1046 — a take waits for the shown map's 3-D build
+                    // ⭐ CE-4267 — the director's load goes through the ONE scenario door with its own asker, and knows when it went (the silent-default rule: the editor HAS the door)
+                    door: () => Staged ? _uiScenarioSession?.Door : _editorApp?.Door,   // ⭐ D-9 — the director is UI side: the UI's door
+                    loadedScenario: () => UiSession?.LoadedScenarioName);
+                // ⭐ CE-1303 P1 (§11j) — the film director is ONE pack (Hrot.Presentation); the editor contributes its host, the verifier
+                //   (CE-4061: the runner's one extension seam — CE-4042: late-bound to the debug service 8b builds below) and the Verify tab
+                _directorPack = Hrot.UI.Common.Map3D.Director.DirectorPack.Attach(new Hrot.UI.Common.Map3D.Director.DirectorPackHost(
+                    Host:      directorHost,
+                    Wm:        () => _wm,
+                    Layers:    () => _gizmoBuffer is { } b ? Hrot.ScenarioEditor.Map.MapInteractionPack.LayerControlFor(b) : null,
+                    Headless:  _headless,
+                    Pilot:     () => Hrot.UI.Common.Map3D.Director.PilotCamera.FromMap(_camera, _world, Selected2DEntity),
+                    Timeline:  _eventTimeline,
+                    Extension: new Hrot.Editor.Director.ScenarioVerifyRun(directorHost,
+                        units => new Hrot.Editor.Director.EditorVerifyWorld(() => _world, units,
+                            hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null,
+                            () => _debugApiService)),
+                    WindowTabs: new Hrot.UI.Common.Map3D.Director.IDirectorWindowTab[] { new Hrot.Editor.Director.VerifyTab() },
+                    EventAt:   EventAnchorAt,
+                    TitleBarColor: Hrot.Editor.Windows.EditorWindowColor.TitleBar,
+                    // ⭐ CE-4059 (§11q D1) — the drafter over the index the Event Timeline shows, a take of the loaded scenario
+                    Index:     () => _node?.ShownTimeline?.Index,
+                    Scenario:  () => _editorLogic?.LoadedScenarioName,
+                    IndexComplete: () => _node?.ShownTimeline?.IsComplete ?? false,   // ⭐ CE-4121 — the live source: always complete
+                    History:   EditHistory));   // ⭐ U4 — the take editor's steps ride the editor's ONE history (Edit ▸ Undo / Redo / History)
+                _commandLineVerify = Hrot.Editor.Director.CommandLineVerify.FromEnvironment();
+            }
+
+            // ── 8b. AI-debug API (MCP) host — ported from feat/ai-debug-api. Works headless. Enabled only
+            //    when HROT_DEBUG_API_PORT names a port, so it costs nothing in normal runs; agents drive it over plain HTTP (GET /help).
+            //    Full surface: the behavior-trace tracer and the record/replay controller are wired below
+            //    (own instances, dedicated to the API). See docs/MCP_Integration.md.
+            {
+                var portEnv = EnvVars.Read(EnvVars.HrotDebugApiPort);
+                if (!string.IsNullOrWhiteSpace(portEnv) && int.TryParse(portEnv, out var debugApiPort) && debugApiPort > 0)
+                {
+                    // MX9-cap — panels publish their view-models only while this is on, and the UI lane
+                    // deliberately left the flag for the consumer to own. The debug API being enabled
+                    // IS the "somebody wants dumps" signal, so it is turned on here and nowhere else:
+                    // a normal run never sets HROT_DEBUG_API_PORT, so production stays off and pays
+                    // one branch per panel per frame.
+                    // ⭐ CE-4432 — HROT_PANEL_CAPTURE=0 keeps the API but not the per-frame panel models: a measuring run then pays what a user's run pays
+                    //   (every panel building + registering its snapshot model each frame was part of every frame measured over the API before).
+                    Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = EnvVars.Read(EnvVars.HrotPanelCapture) != "0";
+
+                    _debugApiJobQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
+                    if (Staged) _debugApiJobQueue.UiQueue = _debugApiUiJobQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();   // ⭐ N-8
+                    // POST /shutdown asks the HOST RUNNER to leave its frame loop, so the process
+                    // exits through the same ordered teardown as the window's [X] — subsystems get
+                    // Shutdown(), recordings flush. ⛔ Deliberately not Environment.Exit: that skips
+                    // the runner's finally. The call arrives on the HttpListener thread and only
+                    // sets a volatile flag; the loop observes it on its next frame, so the client
+                    // still receives its 200 first.
+                    _debugApiHost     = new Hrot.Editor.DebugApi.DebugApiHost(
+                        debugApiPort, _debugApiJobQueue, () => _requestAppExit());
+
+                    var debugWorld = Staged ? _nodeWorld! : _world!;   // ⭐ N-8 — mode 3: the sim-side routes run on the sim thread, over S
+                    var debugExtraction = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(debugWorld, _entityMap!, scenarioSerializer);
+                    var debugTimeFacade = _simTimeTransport!;   // ⭐ CE-3329 row 21 — the one facade (⭐ D-9 — the routes run on the sim thread: the sim side's)
+                    // The behavior-trace arming coordinator (Hrot.Editor.DebugApi.*) — distinct from the
+                    // time-control tracer of the same short name in Hrot.Editor.Debug. Self-contained.
+                    _debugApiTracer = new Hrot.Editor.DebugApi.EditorAiTracerCoordinator(debugWorld);
+                    // ⭐ D15 — the API's /recording/* and /replay/* endpoints drive the editor's ONE recorder (the shared host
+                    //   composition's), ⛔ not a second instance on the same world.
+                    _debugApiRrController = _clusterHandlers!.RecordReplayController;
+
+                    var debugService = new Hrot.Editor.DebugApi.DebugApiService(
+                        debugWorld,
+                        _entityMap!,
+                        debugExtraction,
+                        debugTimeFacade,
+                        _previewController!,
+                        Staged ? _editorApp! : _editorLogic!,   // ⭐ N-8 — the routes run on the sim thread: the real logic
+                        _fdpEventHistory,
+                        _timeController!,
+                        clusterState: () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle,
+                        tkbDb:            tkbDb,
+                        geoTransform:     _geoTransform,
+                        bpManager:        _bpManager,
+                        rrController:     _debugApiRrController,
+                        editorTracer:     _debugApiTracer,
+                        btreeSession:     _btreeDebugSession,
+                        hsmSession:       _hsmDebugSession,
+                        // ⛔ MX1 measured this MISSING: BTree and HSM were handed their sessions here
+                        // and Blueprint's — built ~400 lines above — was not, so every Group O call
+                        // answered "no blueprint debug session is available in this editor". A held
+                        // dependency that is not passed is the silent-default defect, not a default.
+                        blueprintSession: _blueprintDebugSession,
+                        primitiveBuffer:  _gizmoBuffer,
+                        // MX4a — behaviour discovery. The registry carries behaviourId -> JsonParamsDtoType,
+                        // so GET /behaviors emits the schema from the same definition the runtime parses
+                        // params with. Held here already; passing it is the whole wiring.
+                        behaviorRegistry: behaviorRegistry,
+                        // MX1 (Group O): turns a blackboard slot's int blueprintId into the asset Guid
+                        // the debug session addresses variables by.
+                        blueprintRegistry: _blueprintRegistry,
+                        // ⭐ CE-515 — create-request through this node's pack, as on every cluster node.
+                        entityCreation:    _ => EntityCreation,
+                        // ⭐⭐ HN-029: the editor is NOT special — it is a ONE-NODE cluster whose own
+                        //    ClusterMaster reads this very bus (_clusterMaster = new ClusterMaster(
+                        //    _orchestrationBus, offlineConfig)). ⇒ publishing a TransitionStateIntent here is
+                        //    the SAME 2PC path a multi-node cluster takes, which is exactly what makes
+                        //    scenario/load/live work in the editor at all.
+                        // ⛔ The editor holds this bus, so not passing it would be the silent-default defect —
+                        //    the forwarding rail in DebugApiCompositionTests asserts this argument by name.
+                        //    ⭐⭐⭐ R-3052…R-3055 — and every other master intent (save, preview, checkpoint, replay, seek, cancel, dump).
+                        master:            new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus),
+                        // ⭐⭐ CE-4002 — the in-process master's roster. ⛔ The editor HOLDS it, so not passing it is the silent-default defect.
+                        clusterRoster:     () => _orchestratorCore?.Master.DescribeRoster(),
+                        clusterLoadNotice: () => _orchestratorCore?.Master.LoadNotice,   // ⭐⭐ CE-4087 — the in-process master's load gate text
+                        // ⭐ R-3055 — the core's cluster read model: what can be replayed, and the loaded replay's length.
+                        exercises:         () => _orchestratorCore?.UiCache.AvailableExercises,
+                        replayDuration:    () => _orchestratorCore?.UiCache.ReplayDuration,
+                        replayAxis:        () => _orchestratorCore?.UiCache.ReplayAxis,   // ⭐ CE-3329 R-3058
+                        runNotRecorded:    () => _orchestratorCore?.UiCache.RunNotRecorded,   // ⭐ CE-4090 D14
+                        recordLiveRunsOff: () => _orchestratorCore?.UiCache.RecordLiveRunsOff,
+                        askToKeepRecordings: () => _orchestratorCore?.UiCache.AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
+                        startLiveImmediately: () => _orchestratorCore?.UiCache.StartLiveImmediately,   // ⭐ CE-3415 (AQ108 §0 D31)
+                        autosaveMinutes:   () => _orchestratorCore?.UiCache.AutosaveMinutes,   // ⭐ CE-4099 phase 2
+                        armedMode:         () => _orchestratorCore?.UiCache.ArmedMode,   // ⭐ CE-3341 R-3068
+                        clusterView:       () => _orchestratorCore?.UiCache.View,   // ⭐ CE-3344 R-3069 — the node's one read model (CanOperate): the HTTP cluster routes' 409 gate. ⛔ The editor HOLDS it.
+                        // ⭐ CE-4093 (AQ108 D20) — the in-process master's check round answer and last verdict (the core's ClusterUiCache). ⛔ The editor HOLDS it.
+                        unsavedCheck:      id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id),
+                        scenarioDirty:     () => _orchestratorCore?.UiCache.LastUnsavedCheck?.Changed,
+                        // ⭐⭐⭐ MD-001 — the sinks GET /logs reads. 📄 DESIGN_Mcp_Diagnostics_Federation §2.1.
+                        // ⛔⛔ Measured: NEITHER composition root passed this, so `_logSinks` fell to
+                        //    Array.Empty and get_logs answered [] on EVERY host — while the SAME records
+                        //    fed the on-screen Message Log window. 📌 The silent-default shape again: the
+                        //    value existed and nobody handed it over.
+                        // ⚠ The registry may be absent here (a minimally-constructed subsystem has no
+                        //   WindowManager); the helper still answers with the process-wide NLog targets.
+                        // ⚠ A Func, not a list: `_wm` is null RIGHT HERE (it is assigned in
+                        //   RegisterWindows, which has not run yet) — so an eager call would capture
+                        //   the empty pre-registration state and get_logs would stay empty forever.
+                        logSinks: () => Fdp.Core.Logging.MessageLogSinks.ForDiagnostics(
+                            _wm?.MessageLogRegistry));
+
+                    // ⭐⭐ MD-002 — the editor path has no PerspectiveScopedDispatcher, so it hands its own
+                    //    kernel snapshot over directly. ⛔ On the cluster path this is NOT repeated: there
+                    //    the four subsystems fill `ISubsystemDebugProvider.Architecture`, which is the seam
+                    //    that makes the answer per-SUBSYSTEM instead of per-node.
+                    // ⚠ A Func over `_kernel`, the same shape the DiagnosticsDumpClusterOpHandler above
+                    //   already uses — the kernel is replaced across a hot reload, so a captured service
+                    //   would answer for a dead one.
+                    debugService.RunToControl = _runTo;   // ⭐ CE-4316 — a held dependency is passed (the silent-default rule)
+                    if (Staged) { debugService.PresentationWorld = _world; debugService.PresentationMap = _twPresMap; }   // ⭐ N-8 / R-4211 — the UI-side routes act on the shown world
+                    debugService.AttachArchitectureDiagnostics(
+                        () => _kernel is null
+                              ? null
+                              : new ArchitectureDiagnosticsService(() => _kernel));
+
+                    // ⭐ CE-3330 — GET /timeline/* reads the editor's LIVE event timeline (the Replay Browser hands its recording's over its provider)
+                    debugService.AttachTimeline(() => _node is { } timelineNode ? Hrot.Presentation.DebugApi.EcsNodeDebugProvider.TimelineOf(timelineNode) : null);
+
+                    _debugApiService = debugService;
+                    _debugApiHost.AttachService(debugService);
+                    // ⭐ CE-4038 B5/B10 — /director/* and /map/layers reach the same runner and layer control the panel does
+                    _debugApiHost.AttachDirector(_directorPack!);
+                    _debugApiHost.Start();
+                    // ⛔⛔ TWO TRAPS THIS LINE EXISTS TO DEFUSE, both measured 2026-09-20 and both
+                    //    cost a Windows session a round trip:
+                    //    ① It used to be Console.WriteLine. A host that captures the LOG but not
+                    //       stdout therefore had no record at all, and "the debug API is absent in
+                    //       -m editor" was reported when it was running fine. ⇒ it goes through
+                    //       FdpLog like every other lifecycle line.
+                    //    ② The phrase must MATCH the cluster's (Program.cs "Debug API listening on"),
+                    //       because that is the string people grep. It used to read "AI-debug API
+                    //       (MCP control plane) listening on", so grepping the cluster's wording
+                    //       found nothing here and read as "never started".
+                    // ⚠ And the URL is spelled out because HttpListener binds the HOSTNAME: a request
+                    //    to 127.0.0.1 404s on EVERY route (RUNBOOK_Cluster_Debugging_Over_Http §2.1).
+                    Fdp.Core.Logging.FdpLog<EditorSubsystem>.Info(
+                        "[Editor] Debug API listening on {0} — AI-debug/MCP control plane at http://localhost:{0}/ (use localhost, NOT 127.0.0.1).",
+                        debugApiPort);
+                }
+            }
+
+            // ?? 9. Mission service (no canvas dependency) ?????????????????????
+            _missionService = new ScenarioMissionService(_world!.Bus, _world, behaviorRegistry);
+            // ⭐ N-8 — mode 3: the UI's mission facade stays over A (the Orders tab reads it on the UI thread); the sim side (the HTTP mission routes, the
+            //   node's map services) gets its OWN over S, polled on the sim thread — ⛔ never one object read from both threads
+            _simMissionService = Staged ? new ScenarioMissionService(_nodeWorld!.Bus, _nodeWorld, behaviorRegistry) : _missionService;
+            // MX4a: GET /behaviors?entityId= answers with the SAME list the mission-task combo shows
+            // only if it goes through this service. Built after the API host, so it is handed over
+            // here rather than passed to the constructor.
+            if (_debugApiService is not null)
+                _debugApiService.MissionService = _simMissionService;
+
+            // ?? 10. Canvas-dependent adapters, layers, and interaction tool ???
+            if (!_headless)
+            {
+                _mapViewConfig    = new MapViewConfig();
+                // 🔒 UXI-07 step 4b — picks SUSPEND the active tool instead of arming beside it.
+                // ⭐ CE-063 — THE shared adapter, built with the editor's capabilities (DESIGN_Map_Picking_Unification P2):
+                //   the domain filter (⭐ CE-1060: the adapter's default now), geodetic location picks and the modal area gizmo.
+                _mapPickAdapter   = new CanvasMapPickAdapter(
+                    _canvas!, _world,
+                    globalGizmoManager: _globalGizmoManager!,
+                    tools:              () => _editorToolController,
+                    geoTransform:       geoTransform,
+                    areaGizmo:          (onPicked, onRemove) => new Hrot.Editor.Gizmos.ModalBoxSelectionGizmo(onPicked, onRemove: onRemove));
+                // ⭐ CE-3169 — the map menu's Move Here / Engage follow-up picks.
+                _editorMapInteraction!.MenuOrders.PickService = () => _mapPickAdapter;   // built above (the lines below assume it too)
+
+                // ⭐ CE-1017 — THE shared spawn adapter, built by the map pack (EntityAuthoring) over this host's
+                //   request queue, TKB and geo transform, with the tool arbiter PASSED (UXI-07 step 4a).
+                _spawnAdapter     = _editorMapInteraction.EntityAuthoring?.Spawn
+                    ?? throw new InvalidOperationException("The map's entity-authoring surface has no spawn adapter (no creation request queue).");
+                // ⭐ Terrain authoring follow-up 2 — the recipes the area scatter can draw from (those with a `scatter` section; none ships until backend's T-3)
+                try { _spawnAdapter.ScatterRecipes = Hrot.UI.Common.AddEntity.TerrainPickCatalog.ScatterRecipes(new[] { Fdp.Toolkit.Orchestration.ContentLayout.TerrainRecipeAssets(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot) }); }
+                catch (Exception e) when (e is InvalidOperationException or System.IO.IOException or UnauthorizedAccessException) { }
+                // 🔒 UXI-07 step 4a — the arbiter is PASSED, so obstacle placement displaces the
+                //    active tool instead of quietly taking focus beside it (§4.8's inventory).
+                _zoneAdapter      = new EditorZoneAdapter(
+                    _canvas!, _world!.Bus, _globalGizmoManager!, _editorToolController);
+                _mapConfigAdapter = new ScenarioMapConfigAdapter(_mapViewConfig, _canvas!);
+                // ⭐⭐⭐ UXI-11 S-1 -- read through to the ECS SelectionState component, the one truth.
+                //   ⚠ Same lifecycle as _fdpRepoAdapter below: nulled on teardown and rebuilt here,
+                //     because both hold the World and the World is replaced on reload.
+                // ⭐⭐⭐ UXI-11 — the PACK's view, so this host and the systems it schedules read the
+                //   same one. ⛔ A locally-built view would be a second one over the same world.
+                _selectionState   = _editorMapInteraction!.Selection;
+                // ⭐⭐⭐ UXI-11 S-3 — the entity inspector stops owning a selection.
+                // 🔒 Ruling ① (2026-09-10): inspector selection IS the global selection, on every host.
+                //    ⛔ ChainToMap -- the opt-in that gated exactly this -- is retired with the panel's
+                //    toggle; it defaulted to OFF here, which is why an inspector click never moved the
+                //    editor's map. 📄 UX_Feature_Selection.md §2.6 ruling ① / §2.7.8.
+                _fdpEntityInspector.Selection = _selectionState;
+                _fdpEntityInspector.RequestSelectionChange =
+                    req => _world!.Bus.PublishManaged(req);
+
+                // ⭐⭐ CE-051 — the shared rename modal. ⭐ CE-4274: it submits the "Name" attribute through Edits.Submit (the owner writes it,
+                //    a non-owner asks the owner) — ⛔ HISTORY: IEditorLogic.CommitPropertyEdit's local UpdateEntityCommand, lost on a non-owner.
+                _entityRenameModal = new Hrot.Editor.AiShared.Browser.EntityRenameModal();
+                _orbatAdapter     = new ScenarioOrbatAdapter(_world, _world.Bus, _spawnAdapter)
+                {
+                    PickOffer = e => _mapPickAdapter?.TryOfferEntity(e) == true,   // ⭐ CE-1346 — an ORBAT row answers a map entity pick
+                };
+                _fdpRepoAdapter = new FdpRepositoryAdapter(_world);
+
+                // Register context menu handlers with the FDP entity inspector.
+                // ⭐ CE-1134 — the MAP's entity menu heads it (MapEntityMenuHandler, registered for every host by
+                //   DiagnosticsWindowsBundle): Center View (2-D and 3-D), Select, Properties…, Rotate, Edit Shape / Route, the orders,
+                //   the AI trace. ⛔ The JsonEntityContextMenuHandler that was item 1 read only ContextMenuState (written on the IG),
+                //   so it added nothing here; item 2's Center / Rotate / Edit Shape / Edit Route copied the map's items.
+                // 2) What the inspector adds: rename, and delete for a unit (an area or a route has Delete in the map's menu).
+                _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
+                {
+                    if (!_world.IsAlive(entity)) return;
+                    if (entity == FdpRepositoryAdapter.SingletonEntity) return;
+
+                    int networkId = _world.HasComponent<NetworkIdentity>(entity)
+                        ? _world.GetComponentRO<NetworkIdentity>(entity).Value
+                        : 0;
+
+                    bool hasPolyline = _world.HasManagedComponent<EditablePolyline>(entity);
+                    bool hasRoute    = _world.HasManagedComponent<RoutePlan>(entity);
+
+                    builder.AddSeparator();
+                    if (networkId != 0)
+                        builder.AddItem("Rename...", () => _editorLogic?.OpenRenameDialog(networkId));
+                    if (!hasPolyline && !hasRoute)
+                        builder.AddItem("Delete", () =>   // ⭐ CE-4276 — through the edit framework (the request id end to end)
+                        {
+                            if (_world != null) Fdp.Toolkit.Replication.Edits.Edits.Submit(_world, Fdp.Toolkit.Replication.Edits.EditOp.Delete(entity, "Delete"));
+                        });
+                }));
+                // 3) Perception seeding actions (mark target memory entries for selected perceivers).
+                _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
+                {
+                    if (!_world.HasComponent<TargetMemory>(entity)) return;
+
+                    int perceiverCount = _selectionState?.SelectedEntities.Count ?? 0;
+
+                    builder.AddSeparator();
+
+                    builder.AddItem(
+                        $"Mark Target for {perceiverCount} Units...",
+                        async void () =>
+                        {
+                            // ⭐⭐⭐ CE-259o — CANCELLING A PICK IS A NORMAL OUTCOME, NOT AN ERROR.
+                            //   🔴 Measured by an operator 2026-09-09: right-clicking to cancel the picker
+                            //   surfaced "A task was cancelled". EntityPickerGizmo's right-press calls
+                            //   onCancelled -> tcs.TrySetCanceled(), and this is `async void`, so the
+                            //   OperationCanceledException had NO caller to observe it and escaped to the
+                            //   top level. ⛔ The gizmo and the TCS are both correct; the missing half was
+                            //   here. ⚠ Every `async void` that awaits a cancellable pick owes this catch.
+                            int targetNetId;
+                            try
+                            {
+                                targetNetId = await _mapPickAdapter!.PickEntityAsync();
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                return;   // the operator changed their mind — nothing to report
+                            }
+
+                            Entity target = FindEntityByNetworkId(targetNetId);
+                            if (!_world.IsAlive(target)) return;
+
+                            foreach (var perceiver in _selectionState?.SelectedEntities ?? System.Array.Empty<Entity>())
+                                Hrot.Common.Orders.KnowledgeOrders.SeedTarget(_world, perceiver, target);
+                        });
+
+                    builder.AddItem(
+                        $"Mark Area Targets for {perceiverCount} Units...",
+                        async void () =>
+                        {
+                            // ⭐ CE-259o — same as above: a cancelled box-select is an outcome, not a fault.
+                            IReadOnlyList<int> targetNetIds;
+                            try
+                            {
+                                targetNetIds = await _mapPickAdapter!.PickAreaEntitiesAsync();
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                return;
+                            }
+
+                            foreach (var perceiver in _selectionState?.SelectedEntities ?? System.Array.Empty<Entity>())
+                                foreach (int netId in targetNetIds)
+                                {
+                                    Entity target = FindEntityByNetworkId(netId);
+                                    if (!_world.IsAlive(target)) continue;
+                                    Hrot.Common.Orders.KnowledgeOrders.SeedTarget(_world, perceiver, target);
+                                }
+                        });
+                }));
+
+                // ⭐ CE-1134 — 4) the AI-trace toggles were here: the map menu's "AI trace" submenu (the same two action ids) now
+                //   heads the inspector's menu (MapEntityMenuHandler, DiagnosticsWindowsBundle).
+
+                // Entity query ? all networked simulation entities with a location.
+                var entityQuery = _world.Query()
+                    .With<NetworkIdentity>()
+                    .With<SimTransform>()
+                    .WithLifecycle(EntityLifecycle.All)
+                    .Build();
+
+                // Gizmo layer ? renders entity presentation primitives produced locally by StatelessGizmoSystem.
+
+                // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked
+                //   anchor's network id to an Entity. ⚠ NOT a revival of R3's deleted `view` parameter,
+                //   which was stored nowhere. See DebugGizmoLayer._world.
+                // ⭐ CE-1033 — the shared attach: gizmo layer + draw buffer + the 3-D mode (View › 2-D / 3-D Map), the same on
+                //   every host. The TKB is passed because this host HOLDS it (silent-default rule), not left to the singleton.
+                // ⭐ CE-1288 — the 2-D helper grid is the shared attach's now (the layer panel's "Grid (2-D)" row, on by default, and under
+                //   the entities — this host used to add its own above them). The Config window's "Grid" tick (MapViewConfig.ShowGrid) is
+                //   passed so it still forces the grid on rather than becoming a control that does nothing.
+                var editorMapLayers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
+                    _canvas!, _gizmoBuffer!, interactionBus, () => _world, () => _tkbDatabase,
+                    gridAlsoWhen: () => _mapViewConfig?.ShowGrid ?? false,
+                    featureGate: () => _node?.Features);   // ⭐ CE-4148 — the hud.* features
+                _gizmoLayer = editorMapLayers.GizmoLayer;
+                _map3DBuild = editorMapLayers.Map3D;
+
+
+                // (Phase 5: StandardInteractionTool removed; entity interaction via ECS gizmos)
+            }
+
+            // ?? 11. UI panels ?????????????????????????????????????????????????
+            _toolbarPanel = new EditorToolbarPanel(() => _editorToolController?.ActiveModal?.Id);   // ⭐ B-17 P1 — the armed tool is lit
+
+            if (!_headless)
+            {
+                // ⭐⭐ CE-1017 S4 — the type list is BUILT FROM THE TKB (EntityTypeCatalog, D7), replacing the
+                //   hand-written ScenarioSpawnerCatalog (CE-061's one list). With the shell picker the panel's
+                //   "Entity Type" opens the grouped Add Entity picker and a pick arms the tool; the list is the
+                //   fallback combo. Both resolve at call time: the pickers are built later.
+                _spawnerPanel     = new SpawnerPanel(Hrot.UI.Common.AddEntity.EntityTypeCatalog.SpawnerEntries(_tkbDatabase))
+                {
+                    Tkb        = () => _tkbDatabase,
+                    OpenPicker = () => _shellPickers is { } pickers ? pickers.OpenPicker : null,
+                };
+                _configPanel      = new ConfigPanel();
+                _sharedOrbatPanel = new SharedOrbatPanel
+                {
+                    RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => HostActions, () => _world),   // ⭐ CE-1230 — the map's entity menu (CE-1150: the host's actions)
+                    NewGroup = () => _editorMapInteraction?.EntityAuthoring?.AddEntity.OpenNewGroup(),   // ⭐ L-13 (LC-5) — the ONE Add Entity picker, rooted at the units
+                };
+                _previewPanel     = new PreviewPanel();
+                _zoneEditorPanel  = new ZoneEditorPanel();
+            }
+            WalkComposition();   // ⭐ POC 3 C-1 — HROT_POC3_WALK (opt-in): what the composed objects hold
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1446</c> B2 — the editor's HOST glue, run as the shared bootstrapper's <c>ApplicationSystemsRegistrar</c> (phase 6d, before the kernel initialises): the node-field sync, statics, AI hot reload,
+        /// AI debug sessions, asset catalogue, the scenario file service and editor module, event history, the map-interaction pack, gizmos and the breakpoint stack.
+        /// ⛔ Nothing here builds the NODE — that is <see cref="EditorNodeBootstrapper"/>.
+        /// </summary>
+        private void RegisterHostSystems(HrotNodeContext ctx)
+        {
+            _node = ctx;
+            _nodeWorld = ctx.World;
+            _presentation = ctx.Presentation;   // ⭐ CE-3446 — composed by the bootstrap when a UI draws this node and the threaded node is on
+            _world = ctx.PresentationWorld;   // ⭐ POC 3 — the presentation's world is A; the node's is ctx.World (S)
+            _orchestrationBus = ctx.EventBus; // Control Plane bus (cluster management)
+            _kernel = ctx.Kernel;
+            var bootstrapper = _bootstrapper!;
+            _physicsModule = bootstrapper.PhysicsModule;
+            _timeController = (MasterSyncController)ctx.TimeController!;
+            var geoTransform = ctx.GeoTransform!;
             _geoTransform = geoTransform;
-            var entityMap        = new NetworkEntityMap();
+            var entityMap = ctx.EntityMap;
             _entityMap = entityMap;
-            _world.SetSingletonManaged<NetworkEntityMap>(entityMap);
-            // Behavior resolvers (Phase 2b) read the geographic transform from this world singleton;
-            // publish it so the editor's behavior preview/activation resolves geo-aware params correctly.
-            _world.SetSingletonManaged<IGeographicTransform>(geoTransform);
-            var behaviorRegistry = new BehaviorRegistry();
+            var behaviorRegistry = bootstrapper.BehaviorRegistry;
             _behaviorRegistry = behaviorRegistry;
-            // Register Urban Combat behaviors so MissionAdapterSystem can resolve Ambush
-            // and InfantryCombat behavior trees when loading UrbanCombatNew scenario files.
-            // CGF behaviors (MoveToLocation, FollowRoute, ...) are loaded asynchronously
-            // from Hrot.AI.Behaviors.dll via TriggerInitialLoad() below.
-            UrbanCombatNewScenario.RegisterUrbanCombatBehaviors(behaviorRegistry);
+            var scenarioSerializer = bootstrapper.ScenarioSerializer;
+            EntityCreation = bootstrapper.EntityCreation;   // CE-515
+            var creation = EntityCreation!;
+            var elm = bootstrapper.Elm;
+            var tkbDb = ctx.TkbDb!;
+            _tkbDatabase = tkbDb;   // `ST-010`: expose the authoritative spawn DB to in-process hosts
+            _idAllocator = ctx.IdAllocator;   // ⭐ HN-017 — held so the preview bracket can be given it
+            _navModule = bootstrapper.NavModule;
+            _navSolverCapability = bootstrapper.NavSolverCapability;
+            _trafficPack = bootstrapper.TrafficPack;
+            _capabilities = bootstrapper.ResolvedCapabilities;
+            _clusterHandlers = bootstrapper.Orchestration.Handlers;
+            WireWorldUndo();   // ⭐ B-14 — the world and the ring exist now
+            TerrainResidency = bootstrapper.Orchestration.TerrainResidency;
 
             // Expose the registry to the diagnostic renderers so the entity inspector
             // can project BrainBlackboard memory and visualize the BTree execution state.
-            Hrot.Presentation.Renderers.BrainBlackboardRenderer.BehaviorRegistryAccessor = behaviorRegistry;
-            Hrot.Presentation.Renderers.Blackboard1024Renderer.BehaviorRegistryAccessor = behaviorRegistry;
+            // ⭐ P4-③: see CgfSubsystem. ⚠ This host also sets the same static at the
+            //   StatefulWorkingStateProjection line below; they are one static now, so the
+            //   duplicate is harmless — kept so each section's wiring stays visible.
+            Hrot.Presentation.Renderers.BlueprintBlackboardRenderers.BehaviorRegistry = behaviorRegistry;
+            // ⛔ P4-①: Blackboard1024Renderer is gone with its component (§30.13).
             Hrot.Presentation.Renderers.BTreeVisualizerRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             Hrot.Presentation.Renderers.BehaviorStateRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             Hrot.Presentation.Renderers.BTreeTraceWorkingMemoryRenderer.BehaviorRegistryAccessor = behaviorRegistry;
@@ -641,9 +2231,9 @@ namespace Hrot.Editor
 
             // Expose the blueprint registry to the Entity Inspector renderers so
             // BlueprintBlackboard* components can show per-tier slot summaries.
-            Hrot.Presentation.Renderers.BlueprintBlackboard1024Renderer.BlueprintRegistryAccessor  = _blueprintRegistry;
-            Hrot.Presentation.Renderers.BlueprintBlackboard4096Renderer.BlueprintRegistryAccessor  = _blueprintRegistry;
-            Hrot.Presentation.Renderers.BlueprintBlackboard16384Renderer.BlueprintRegistryAccessor = _blueprintRegistry;
+            // ⭐ O3a / B3: ONE static for the whole renderer family. ⛔ Was one line per tier,
+            //   here and in the other host — a per-tier, per-host chance to forget (CE-161).
+            Hrot.Presentation.Renderers.BlueprintBlackboardRenderers.Registry = _blueprintRegistry;
 
             // Feature A (BATCH-10): expose the behavior registry to the shared stateful
             // working-state projection helper so BlueprintBlackboard* renderers can decode
@@ -659,7 +2249,7 @@ namespace Hrot.Editor
             string aiAssemblyDir = AppDomain.CurrentDomain.BaseDirectory;
             _aiCoordinator = new AiHotReloadCoordinator(
                 aiAssemblyDir, "Hrot.AI.Behaviors.dll",
-                _world!, _behaviorRegistry!,
+                ctx.World, _behaviorRegistry!,   // ⭐ POC 3 C-2 — the drain rewrites the SIMULATED behaviour instances (the guard: it read A from the tick)
                 _blueprintRegistry,
                 new AiHotReloadCoordinatorOptions(LoadPdbOnDeveloperMode: true),
                 _geoTransform, _entityMap);
@@ -671,94 +2261,68 @@ namespace Hrot.Editor
             _aiCoordinator.TriggerInitialLoad();
 
             // ── AIE-030: Shared debug session infrastructure (created before contributor, wired in RegisterWindows) ──
-            _aiTracerCoordinator = new AiTracerCoordinator();
-            _btreeDebugSession   = new Hrot.BTree.Editor.Debug.BTreeDebugSession(_aiTracerCoordinator);
-            _hsmDebugSession     = new Hrot.Hsm.Editor.Debug.HsmDebugSession(_aiTracerCoordinator);
+            // ⭐⭐⭐ CE-349 (2026-09-26) — THE AI DEBUGGERS NOW USE THE HOST'S ONE TIME CONTROL.
+            //    📄 DESIGN_Occurrence_Scoped_Storage.md §32.24.
+            //    🔒 User: "editor also has its local cluster orchestrator, so for consistency they
+            //       should be using same time control means."
+            // 🔴 What was here: `new EditorAiTracerCoordinator(_timeCommands)` -- a host-specific
+            //    subclass over ITimeCommands, a SECOND time abstraction with one implementation on
+            //    one host, while this same method already builds an IEngineDebugTimeController for
+            //    the Blueprint session and the breakpoint manager. Now all four debuggers share it.
+            // ⭐⭐ THE ADAPTER IS HOISTED, NOT DUPLICATED. It used to be built at the breakpoint block
+            //    ~500 lines below; building a second one here would be two instances of one concept
+            //    (ruling 9), and capturing the field before it is assigned would pin null -- the
+            //    CE-343 lesson. `_timeController` is assigned above (:1151), so hoisting is legal and
+            //    the breakpoint block reads this same instance.
+            _bpTimeAdapter       = new MasterSyncTimeControllerAdapter(_timeController!);
+            // ⚠ _timeCommands stays: the transport facade and the toolbar still publish intents
+            //   through it (:5051, :5064). ⛔ It is no longer the AI debuggers' route to time.
+            _timeCommands        = new Fdp.Toolkit.Time.IntentTimeCommands(_orchestrationBus!);
+            var aiDebug          = Hrot.Editor.AiComposition.AiDebugSessionComposer.Compose(_bpTimeAdapter, _behaviorRegistry);
+            _aiTracerCoordinator = aiDebug.Coordinator;
+            _btreeDebugSession   = aiDebug.BTree;
+            _hsmDebugSession     = aiDebug.Hsm;
             // ────────────────────────────────────────────────────────────────────────────────────
 
             // ── AIE-015: Build the shared AI asset catalog ───────────────────────────────────────
-            // Contributors are created and registered in one step via AiAssetCatalogBuilder.
-            // The blueprints directory mirrors the path used by the retired CreateBlueprintWindowRegistrar.
-            // AIE-030: pass _btreeDebugSession so LoadFrom wires NodeDebugMetadata for symbolication.
-            var btreeContrib  = new BTreeAssetContributor(_btreeDebugSession);
-            var hsmContrib    = new HsmAssetContributor();
-
-            // PU-301/PU-402: JSON file-based contributors for the dual-load strategy (§3 D4).
-            // Editor-owned *.btree.json / *.hsm.json live in the SOURCE tree (Trees/ Machines/ under
-            // the Hrot.AI.Behaviors project) — committed + regenerated to C# on build. The editor's
-            // BaseDirectory is the deploy/bin dir, NOT the source tree, so we resolve the project
-            // directory the same robust way RebuildAndReloadAI does: walk up from CWD and BaseDirectory
-            // looking for the .csproj (AiBehaviorsProjectPath). A hard-coded "../../../" is fragile and
-            // breaks when the editor runs from a different bin depth (BATCH-11 fix).
-            static string? ResolveAiBehaviorsDir(string[] csprojSegments)
-            {
-                var relative = System.IO.Path.Combine(csprojSegments);
-                foreach (var start in new[] { Environment.CurrentDirectory, AppDomain.CurrentDomain.BaseDirectory })
+            // ⭐⭐⭐ CE-342 (2026-09-26) — ONE CATALOGUE COMPOSITION, SHARED WITH CGF.
+            //    🔒 User: "lets first finish the deduplication before adding new stuff."
+            // 🔴 What was here: ~45 lines that CgfSubsystem.BuildAssetCatalog mirrored — the same
+            //    three roots, the same five contributors, the same thirteen-argument builder call and
+            //    the same two RefreshJsonContributors lines.
+            // ⭐⭐ Most of this path was ALREADY unified by J1/J2 (CE-091/093/095/098): AssetRoots's
+            //    resolver and reporter, and RefreshJsonContributors. ⛔ What those could NOT absorb is
+            //    the CONSTRUCTION, because AiShared cannot NAME the contributor types — their projects
+            //    reference it. ⭐ Hrot.Editor.AiComposition is the first place that can.
+            // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.19.
+            var aiCatalog = Hrot.Editor.AiComposition.AiAssetCatalogComposer.Compose(
+                new Hrot.Editor.AiComposition.AiAssetCatalogOptions
                 {
-                    var dir = start;
-                    while (!string.IsNullOrEmpty(dir))
-                    {
-                        var candidate = System.IO.Path.Combine(dir, relative);
-                        if (System.IO.File.Exists(candidate))
-                            return System.IO.Path.GetDirectoryName(candidate);
-                        dir = System.IO.Path.GetDirectoryName(dir);
-                    }
-                }
-                return null;
-            }
+                    ProjectPath       = AiBehaviorsProjectPath,
+                    // ⭐ The editor HAS a BTree debug session, so symbolication is wired (AIE-030).
+                    BTreeDebugSession = _btreeDebugSession,
+                    HsmDebugSession   = _hsmDebugSession,   // ⭐ CE-1253
+                    Info = m => Console.WriteLine($"[EditorSubsystem] {m}"),
+                    Warn = m => Console.WriteLine($"[EditorSubsystem] WARNING: {m}"),
+                });
 
-            var aiRootDir  = ResolveAiBehaviorsDir(AiBehaviorsProjectPath);
-            // BUG-A6: store scan roots and JSON contributors as fields so RegisterWindows
-            // can target new-asset writes at the source dir and refresh the right contributor.
-            _bpRootDir       = aiRootDir != null
-                ? System.IO.Path.Combine(aiRootDir, AssetRoots.AssetsRelative(AssetKind.Blueprint))
-                : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Blueprints");
-            _btreeJsonRootDir = aiRootDir != null
-                ? System.IO.Path.Combine(aiRootDir, AssetRoots.AssetsRelative(AssetKind.BTree))
-                : null;
-            _hsmJsonRootDir  = aiRootDir != null
-                ? System.IO.Path.Combine(aiRootDir, AssetRoots.AssetsRelative(AssetKind.Hsm))
-                : null;
-            var bpRootDir        = _bpRootDir;
-            var bpContrib        = new BlueprintAssetContributor(bpRootDir);
-            _btreeJsonContrib    = new BTreeJsonAssetContributor(_btreeDebugSession);
-            _hsmJsonContrib      = new HsmJsonAssetContributor();
-            var btreeJsonContrib = _btreeJsonContrib;
-            var hsmJsonContrib   = _hsmJsonContrib;
-            var btreeJsonRootDir = _btreeJsonRootDir;
-            var hsmJsonRootDir   = _hsmJsonRootDir;
-            if (aiRootDir == null)
-            {
-                Console.WriteLine("[EditorSubsystem] WARNING: Hrot.AI.Behaviors project dir not found " +
-                    $"(searched up from CWD + BaseDirectory for {System.IO.Path.Combine(AiBehaviorsProjectPath)}); " +
-                    "editor-owned BTree/HSM JSON assets will not load with layout.");
-            }
-            else
-            {
-                if (System.IO.Directory.Exists(btreeJsonRootDir!))
-                    btreeJsonContrib.Refresh(rootDirectory: btreeJsonRootDir);
-                else
-                    Console.WriteLine($"[EditorSubsystem] WARNING: BTree JSON root not found: {btreeJsonRootDir}");
-
-                if (System.IO.Directory.Exists(hsmJsonRootDir!))
-                    hsmJsonContrib.Refresh(rootDirectory: hsmJsonRootDir);
-                else
-                    Console.WriteLine($"[EditorSubsystem] WARNING: HSM JSON root not found: {hsmJsonRootDir}");
-            }
-
-            _aiCatalogBuilder = new AiAssetCatalogBuilder(
-                btreeContrib,
-                hsmContrib,
-                bpContrib,
-                asm => btreeContrib.LoadFrom(asm),
-                asm => hsmContrib.LoadFrom(asm),
-                ()  => bpContrib.Refresh(),
-                bTreeJsonContributor: btreeJsonContrib,
-                hsmJsonContributor:   hsmJsonContrib);
+            _aiCatalogBuilder = aiCatalog.Builder;
+            // ⚠ BUG-A6 — CREATE must write into the SAME directory this catalogue scans and then
+            //   refresh the SAME contributor, so these stay host fields.
+            _bpRootDir        = aiCatalog.BlueprintRootDir;
+            _btreeJsonRootDir = aiCatalog.BTreeJsonRootDir;
+            _hsmJsonRootDir   = aiCatalog.HsmJsonRootDir;
+            _btreeJsonContrib = aiCatalog.BTreeJsonContributor;
+            _hsmJsonContrib   = aiCatalog.HsmJsonContributor;
 
             // MTB-P5-T2: Add scenario contributor (non-file-backed; projects AvailableScenarios).
-            _scenarioContributor = new Hrot.Editor.Catalog.ScenarioCatalogContributor(
-                () => _editorLogic?.AvailableScenarios ?? Array.Empty<string>());
+            _scenarioContributor = new Hrot.Editor.AiShared.Catalog.ScenarioCatalogContributor(
+                () => _editorLogic?.AvailableScenarios ?? Array.Empty<string>(),
+                // ⭐⭐ CE-064 — the same root EditorApplication's own AvailableScenarios source enumerates
+                //   (`SetAvailableScenariosSource` at :1812), so the listed name and the advertised file
+                //   path cannot disagree. ⛔ Withholding it would be a silent default — the value is right
+                //   here.
+                scenariosRoot: () => EditorBootstrap.ScenariosRoot);
             _aiCatalogBuilder.Catalog.AddContributor(_scenarioContributor);
 
             // Wire hot-reload: refresh the catalog whenever AI behaviors are reloaded.
@@ -784,177 +2348,56 @@ namespace Hrot.Editor
             _aiCoordinator.OnReloadCompleted += info => _hotReloadSource.OnReloadCompleted(info.DllPath ?? "__ai_behaviors__");
             _aiCoordinator.OnReloadFailed    += _hotReloadSource.OnReloadFailed;
 
-            var clusterSlave     = new ClusterSlave(EditorNodeId, "Editor", _orchestrationBus);
-            var zoneService      = new ZoneManagerService();
-
-            // Build the serializer with custom translators AFTER component registration
-            // so FdpAutoSerializer compiles extraction delegates for all registered types.
-            var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry, _blueprintRegistry);
-
             // Wire the unified serialization path so the entity inspector Copy JSON
             // buttons produce readable DTO output for BrainBlackboard and Blackboard1024.
             _fdpEntityInspector.Serializer = scenarioSerializer;
             _fdpEntityInspector.ExtractionService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap, scenarioSerializer);
 
-            // Inject bus and zoneService so file ops trigger WorldResetEvent and persist zone data.
-            var fileService = new ScenarioFileService(scenarioSerializer, _world.Bus, zoneService);
+            // Inject the bus so file ops trigger WorldResetEvent.
+            // ⛔ No zone service (F1): a zone is an authored entity and rides the ordinary save gate.
+            var fileService = new ScenarioFileService(scenarioSerializer, (Staged ? _nodeWorld! : _world).Bus);   // ⭐ N-6 — mode 3: the file service clears / saves S (sim side), so its reset event goes on S's bus (A hears it through the staging carry)
 
-            // ?? 3b. TKB + ELM + offline spawning ?????????????????????????????
-            var tkbDb       = HrotEnvironment.CreateTkb();
-            // Register Urban Combat entity blueprints (TKB types 1001?2003) so the
-            // ScenarioSerializer can resolve MilitaryApc, InfantrySoldier, and Insurgent.
-            UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkbDb);
-            if (!_world.HasSingletonManaged<ITkbDatabase>()) _world.SetSingletonManaged<ITkbDatabase>(tkbDb);
-            var translators = new List<ITkbEntityTranslator>
-            {
-                new SpatialCoreTkbTranslator(),
-                new VehicleKinematicsTkbTranslator(),
-                new BehaviorTkbTranslator(),
-                new CombatTkbTranslator(),
-                new PerceptionTkbTranslator()
-            }.AsReadOnly();
-            var elm               = new EntityLifecycleModule(tkbDb, Array.Empty<int>());
-            elm.SetTranslators(translators);
-            var idAllocator       = new SequentialIdAllocator();
-            var spawnSys          = new NetworkSpawningSystem(tkbDb, elm, entityMap, idAllocator, localNodeId: EditorNodeId, translators: translators);
-            var scenarioLoadSource = new ScenarioEntityCreationRequestSource();
-            var extractor          = new StagingEntityExtractor();
-            string isolatedTempRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(EditorNodeId);
+            // ⭐⭐⭐ HN-037 — the world boundary must forget the network id → entity index too.
+            // 📄 docs/DESIGN_Deterministic_Network_Ids.md §11 (the as-built §11g).
+            // 🔴 Measured `2026-08-24`: with the authority reset to 1000 the SECOND load re-issues 1000–1007,
+            //    and NetworkSpawningSystem's duplicate guard ("silently drop if already spawned") drops every
+            //    one of them — 8 entities on the first load, 0 on the second, no exception, no log.
+            //    SoftClear does not touch this map, and the old id DRIFT was the only reason that never
+            //    showed. ⇒ unifying the allocator required closing this at the same time.
+            // ⭐ RegisterWorldResetObserver is the seam that already exists for exactly this — its contract is
+            //   "flush cached entity handles before the repo is wiped", and this map IS cached entity handles.
+            //   ⛔ No new mechanism, and it fires on BOTH NewScenario and LoadScenario, which are the two
+            //   world boundaries this service owns.
+            fileService.RegisterWorldResetObserver(() => _entityMap?.Clear());
+            _scenarioFileService = fileService;
 
-            // ?? 3c. Offline scenario load handler ?????????????????????????????
-            var storageProvider = new LocalDiskStorageProvider(isolatedTempRoot);
-            var scenarioLoader  = new HrotScenarioLoader(storageProvider, "Hrot.Scenario");
-            clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferencePrefetchHandler(storageProvider));
+            // ⭐⭐⭐ CE-051 (Axis-C E3) — the module's interaction systems replace this host's own
+            //    DrainToolActivationEvents + center/rename handlers. 📄
+            //    docs/DESIGN_Cgf_Tool_Selection_Camera_Slice.md §3 ②/④. Finishes PACK2-E002.
+            // ⚠⚠ EVERY dep is a RESOLVER, and that is measured, not stylistic: this line runs at :1273,
+            //    kernel.Initialize() (which calls RegisterSystems) at :1733 — but `_camera` is built at
+            //    :1801, `_spawnAdapter` at :1942 and `_selectionState` at :1945, and all three are set
+            //    back to null on teardown. ⛔ Capturing instances here would wire the systems to
+            //    permanent nulls with no error at all.
+            var interactionDeps = new ScenarioEditorModule.InteractionDeps(
+                    Selection:          () => _selectionState,
+                    // ⭐⭐⭐ UXI-11 — the pack's ordered pair, not systems this module builds.
+                    SelectionSystems:   () => _editorMapInteraction?.SelectionSystemsInOrder,
+                    Gizmos:             () => _editorDataDrivenGizmoSystem,
+                    Camera:             () => _camera,
+                    Tools:              () => _editorToolController);
+            // ⭐⭐ R-4211 / §4 ② — mode 3: the viewport interaction systems run on the UI thread over A (the SAME builder, MapPresentationStep);
+            //   the kernel's module schedules none of them
+            if (Staged) _uiInteractionDeps = interactionDeps;
+            var scenarioMod      = new ScenarioEditorModule(fileService, Staged ? null : interactionDeps);
 
-            // FIX: EcsRecordReplayController now handles NetworkEntityMap resync internally for all subsystems.
-            // Pass null (no downstream callbacks for offline Editor); the controller will rebuild the map.
-            var rrController    = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
-                _kernel, EditorNodeId, _world!);
-            clusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(
-                scenarioSerializer, scenarioLoader, zoneService, extractor, scenarioLoadSource, idAllocator, _world));
-            clusterSlave.RegisterHandler(new Hrot.SimHost.Orchestration.Handlers.HrotScenarioLoadHandler(
-                scenarioSerializer, scenarioLoader, zoneService, extractor, scenarioLoadSource, idAllocator, _world,
-                controller: rrController,
-                storageDirectory: isolatedTempRoot));
-            clusterSlave.RegisterHandler(new DiagnosticsDumpClusterOpHandler(
-                _fdpEventHistory,
-                new ArchitectureDiagnosticsService(() => _kernel),
-                new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap, scenarioSerializer),
-                new Hrot.Core.Diagnostics.LogArchiveExtractionService(
-                    System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs"),
-                    "Editor",
-                    0),
-                new Hrot.Common.Infrastructure.HrotNodeConfig
-                {
-                    NodeId = EditorNodeId,
-                    SubsystemName = "Editor",
-                    LocalTempRoot = isolatedTempRoot,
-                    LogDirectory = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs"),
-                }));
-
-            // ?? 4. Module registration (offline ? no translator packs) ????????
-            var simHostCorePack  = new SimHostCoreLogicPack(entityMap);
-            var perceptionMod    = new CognitiveSpatialModule(
-                _world,
-                colliderRadiusReader: (view, e) => view.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e)
-                    ? view.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).Radius
-                    : 0f);
-            _perceptionMod = perceptionMod;
-            var mapperRegistry = new TacticalIntentMapperRegistry();
-            mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.DefendAreaMapper());
-            mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
-            var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, entityMap,
-                scenarioLoadSource,
-                mapperRegistry);
-
-            var toggleInput = new TogglableInputGroup(
-                "EditorInput",
-                cgfLogicPackInst.InputSystems.Concat(simHostCorePack.InputSystems).ToArray());
-
-            // ── Blueprint runtime (MVE-BATCH-02) ──────────────────────────────────────
-            // Wire the Instance-Blueprint runtime into THIS kernel (the real composition the
-            // running editor uses — no sandbox world). The shared helper registers the three
-            // blackboard tier components on _world and registers BlueprintMaintenanceSystem
-            // (BeforeSync) as a global system; it returns the Simulation-phase tick system,
-            // which must be scheduled inside a module's sim list. We tick against the SAME
-            // _blueprintRegistry the editor's AiHotReloadCoordinator compiles blueprints into
-            // (see field declaration + _aiCoordinator construction above), so editor-registered
-            // blueprints run live. Both this composition and the integration-test EditorHarness
-            // call WireBlueprintRuntime so the wiring stays a single source of truth.
-            var bpTick = Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.WireBlueprintRuntime(
-                _kernel, _world!, _blueprintRegistry);
-
-            var toggleSim = new TogglableSimulationGroup(
-                "EditorSim",
-                cgfLogicPackInst.SimulationSystems.Concat(simHostCorePack.SimulationSystems).Append(bpTick).ToArray());
-
-            var togglePostSim = new TogglablePostSimulationGroup(
-                "EditorPostSim",
-                simHostCorePack.PostSimulationSystems.ToArray());
-            var orchPack         = new OrchestrationLogicPack(clusterSlave);
-            var scenarioMod      = new ScenarioEditorModule(fileService);
-
-            _kernel.RegisterModule(new BehaviorDiagnosticsModule());
-            _kernel.RegisterModule(perceptionMod);
-            _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.AreaQueryResultMaterializationSystem());
-            _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
 
             // Register the event history service and its capture system.
             _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
-            _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("World", _fdpEventHistory, _world.Bus));
+            _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("World", _fdpEventHistory, (Staged ? _nodeWorld! : _world).Bus));   // ⭐ N-3 — the kernel ticks S: it captures S's bus
             if (_orchestrationBus != null)
                 _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Orchestration", _fdpEventHistory, _orchestrationBus));
-
-            // ?? 4a. Multi-phase system registration for SimHostCorePack and CgfLogicPack ??
-            _kernel.RegisterGlobalSystem(toggleInput);
-            _kernel.RegisterGlobalSystem(togglePostSim);
-            // Simulation-phase systems must go through a module (kernel forbids global registration).
-            _kernel.RegisterModule(new EditorSimulationModule(toggleSim));
-
-            // Register replay handler before live handler so the replay branch can claim
-            // PrepareLive while replay is active.
-            clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
-                rrController,
-                inputGroup:            toggleInput,
-                simGroup:              toggleSim,
-                postSimGroup:          togglePostSim,
-                lifecycleGroup:        null,
-                bypassLifecycleToggle: null,
-                storageDirectory:      isolatedTempRoot,
-                suspendGlobalTimePush: _kernel.SuspendGlobalTimePush,
-                resumeGlobalTimePush:  _kernel.ResumeGlobalTimePush));
-            clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler(
-                checkpointWorker: null,
-                controller: rrController,
-                storageDirectory: isolatedTempRoot));
-
-            // NOTE: SimHostComponentRegistry.RegisterAll was moved to step 1b above.
-            _kernel.RegisterModule(new EditorSystemsModule());
-
-            // ?? 4c. ELM + offline spawning module + scenario genesis pipeline ??????????????????
-            // CreateEntityRequestSystem drains scenarioLoadSource each Input tick and emits
-            // SpawnEntityCommand events for NetworkSpawningSystem (BeforeSync tick), which
-            // sets AuthorityMask = ComponentMask for locally owned entities.
-            var requestSystem = new CreateEntityRequestSystem(
-                requestSource:      scenarioLoadSource,
-                ackSink:            new NullEntityAckSink(),
-                tkbDb:              tkbDb,
-                idAllocator:        idAllocator,
-                localNodeId:        EditorNodeId,
-                isDefaultProcessor: true);
-            _kernel.RegisterModule(elm);
-            _kernel.RegisterModule(new SimHostModule(spawnSys));
-            _kernel.RegisterGlobalSystem(requestSystem);
-            _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(entityMap));
-            // BSA-WIRE: register the blueprint genesis + event-ingress systems so that
-            // InitialBlueprintsIntent (written by BlueprintStateTranslator on scenario load)
-            // is consumed in the offline editor just as it is on a CGF node.
-            Hrot.SimHost.Systems.BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems(
-                _kernel, _blueprintRegistry);
-
-            // ?? 4b. Logic-pack list used by EditorApplication.SwitchToExternalAsync ??
-            var logicPacks = new List<IEcsModule> { simHostCorePack, perceptionMod, cgfLogicPackInst };
 
             // ?? 4d. MapLayerAssignmentSystem ? must be registered BEFORE Initialize() ??
             // Stamps MapDisplayComponent.LayerMask on each entity so the DebugGizmoLayer
@@ -966,45 +2409,146 @@ namespace Hrot.Editor
             _kernel.RegisterModule(new MapCullingModule(_cameraViewport));
             _kernel.RegisterModule(new StyleResolutionModule(_userConfig, localNodeId: EditorNodeId));
 
-            // ?? 4f. Visual effects module ? spawns and cleans up tracers / explosions ??
-            _kernel.RegisterModule(new EventEffectModule());
+            // ── 4f. ⛔ EventEffectModule RETIRED here (CE-1042 E2) — the map pack's effect systems make the muzzle flashes,
+            //    tracers, explosions and decals on every map host (docs/DESIGN_Visual_Effects.md VE-A); both would double them.
 
             // ── Universal breakpoints (UBP-P10T1) ────────────────────────────────────
             // Allocate the pre-tick snapshot repo and mirror all component registrations.
             // Placed here (before gizmo systems) so _bpManager can be passed as
             // breakpointManager: to the gizmo system constructors (UBP-P10T4).
-            _bpPreTickSnapshot = new EntityRepository();
-            SimHostComponentRegistry.RegisterAll(_bpPreTickSnapshot);
-            CgfComponentRegistry.RegisterAll(_bpPreTickSnapshot);
-            _bpPreTickSnapshot.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
-            _bpPreTickSnapshot.RegisterComponent<MapDisplayComponent>();
-            _bpPreTickSnapshot.RegisterComponent<Hrot.IG.Components.CullingState>();
-            _bpPreTickSnapshot.RegisterComponent<Hrot.IG.Components.ResolvedStyle>();
-            _bpPreTickSnapshot.RegisterManagedComponent<Hrot.IG.Components.IgSymbolOverride>();
-            _bpPreTickSnapshot.RegisterComponent<VisualEffectState>();
-            _bpPreTickSnapshot.RegisterComponent<TracerTarget>();
+            // ⭐ CE-1284 — ONE recipe for a world that mirrors the live one (the rewind snapshot and the PreFrame change baseline)
+            static EntityRepository MirrorWorld()
+            {
+                var mirror = new EntityRepository();
+                SimHostComponentRegistry.RegisterAll(mirror);
+                CgfComponentRegistry.RegisterAll(mirror);
+                mirror.RegisterComponent<MapDisplayComponent>();
+                mirror.RegisterComponent<Hrot.Map.Common.Components.CullingState>();
+                mirror.RegisterComponent<Hrot.Map.Common.Components.ResolvedStyle>();
+                mirror.RegisterManagedComponent<Hrot.Map.Common.Components.MapSymbolOverride>();
+                mirror.RegisterComponent<VisualEffectState>();
+                mirror.RegisterComponent<TracerTarget>();
+                Hrot.Map.Common.PresentationComponentRegistry.RegisterEffects(mirror);   // ⭐ CE-1042 E2 — mirror the effects
+                return mirror;
+            }
+            _bpPreTickSnapshot = MirrorWorld();
 
-            var bpTimeAdapter           = new MasterSyncTimeControllerAdapter(_timeController!);
+            // ⭐ BATCH 84 / R-66: kept as a FIELD so RunStateSource's "is time frozen?" signal reads
+            //   through this adapter -- the same one the breakpoint manager drives time with. ⛔ A
+            //   second reading of _timeController.GetMode() here would be a duplicate rule.
+            // ⭐ CE-349: built ONCE, up at the AI debug block, so the AI tracer coordinator and the
+            //   breakpoint manager drive the SAME adapter instance. ⛔ Not re-constructed here.
+            var bpTimeAdapter           = _bpTimeAdapter!;
             var bpEditSvc               = new ComponentEditServiceBuilder().Build();
-            var bpPredicateCompiler     = new PredicateCompiler(bpEditSvc, _behaviorRegistry);
+            // _blueprintRegistry is required for BlueprintVariablePredicateDto -- the predicate that
+            // "Add Conditional Data Breakpoint..." synthesizes. Omitting it makes
+            // CompileBlueprintVariablePredicate return a constant-false delegate, so blueprint
+            // conditional breakpoints silently never fire (BP-29).
+            var bpPredicateCompiler     = new PredicateCompiler(bpEditSvc, _behaviorRegistry, _blueprintRegistry);
             var bpEventScannerCompiler  = new EventScannerCompiler(bpEditSvc);
             _bpSnapshotProvider         = new DebugSnapshotProvider(_bpPreTickSnapshot);
             _bpManager                  = new DataBreakpointManager(
-                _world!, _bpPreTickSnapshot, _bpSnapshotProvider,
+                ctx.World, _bpPreTickSnapshot, _bpSnapshotProvider,   // ⭐ POC 3 C-1 — a breakpoint watches the SIMULATED world (the node's; = _world outside mode 3)
                 bpTimeAdapter, bpPredicateCompiler, bpEventScannerCompiler);
-            _bpSystem                   = new DataBreakpointSystem(_bpManager, _world!.Bus);
+            _bpSystem                   = new DataBreakpointSystem(_bpManager, ctx.World.Bus);
 
             _kernel.RegisterGlobalSystem(_bpSnapshotProvider);
             _kernel.RegisterGlobalSystem(_bpSystem);
+            // ⭐ CE-1284 (DBG-8) — "changed" compares against a copy taken BEFORE Input (where a task change lands), not the BeforeSync one
+            _kernel.RegisterGlobalSystem(new ChangeBaselineSystem(_bpManager, MirrorWorld()));
+            // ⭐⭐ CE-1291 (DBG-7) — a breakpoint marked on a BTree node in an open document BREAKS: after the tick the armed units' trace
+            //   rings are read and a marked node that ran is a hit through the manager (one breakpoint per marked node, in the one list)
+            Hrot.Editor.AiShared.Shell.BrainStopWhen.Manager = () => _bpManager;
+            // ⭐ CE-1325 (docs/DESIGN_Utility_Decision_View.md) — the Decision tab and the Brain tab's Why: the registry, the world, the unit a
+            //   graph follows (its pin, else the selection — the overlay's rule), the trace switch and a unit's name
+            Hrot.Editor.AiShared.Utility.UtilityDecisionHost.Registry = () => _behaviorRegistry;
+            Hrot.Editor.AiShared.Utility.UtilityDecisionHost.World = () => _world;
+            Hrot.Editor.AiShared.Utility.UtilityDecisionHost.FollowedUnit = () =>
+                _aiDocumentManager?.Active?.PinnedEntity is { } pin && _world != null && _world.IsAlive(pin) ? pin : _btreeSelectionStore.SelectedEntity;
+            Hrot.Editor.AiShared.Utility.UtilityDecisionHost.Trace = u =>
+            {
+                if (_world != null && _world.IsAlive(u))
+                    Hrot.Common.Diagnostics.Gizmos.AiTraceActions.Set(_world, u, Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EnableTraceBuffer, true);   // the user's (remembered)
+            };
+            Hrot.Editor.AiShared.Utility.UtilityDecisionHost.UnitLabel = u => _world != null ? Hrot.Editor.AiShared.Shell.EntityBrainView.PinLabelOf(_world, u) : $"#{u.Index}";   // ⭐ CE-1323 — the Brain tab's "Stop when…"
+            // ⭐ CE-1323 (§9) — and every behaviour step (the HSM's five kinds), from the canvas, the Brain tab or the API; a step scoped to a
+            //   unit arms its traces
+            _kernel.RegisterGlobalSystem(_stepEvaluator = new Hrot.Editor.Debugging.NodeBreakpointEvaluator(
+                () => MarkedSteps(),
+                _bpManager,
+                () => _behaviorRegistry,
+                arm: (w, u, on) =>
+                {
+                    var flag = Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EnableTraceBuffer;
+                    // ⭐ CE-1329 — a breakpoint's arming is its own temporary request in the one store: it never clears the user's switch
+                    if (Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.NetIdOf(w, u) is var nid and not 0)
+                    {
+                        var store = Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(w);
+                        if (on == store.IsArmed(nid)) return false;
+                        Hrot.Common.Diagnostics.Gizmos.AiTraceActions.Set(w, u, flag, on, Hrot.Common.Diagnostics.Gizmos.AiTraceActions.Requester.Armed);
+                        return true;
+                    }
+                    if (on == Hrot.Common.Diagnostics.Gizmos.AiTraceActions.IsOn(w, u, flag)) return false;
+                    Hrot.Common.Diagnostics.Gizmos.AiTraceActions.Set(w, u, flag, on);
+                    return true;
+                }));
+
+            // ⭐ CE-1257 / CE-1258 (BV-26, BV-28) — "Debug this unit" lives where the debuggers live: the editor composes the ONE controller
+            //   (the Brain tab, the map's AI-trace menu and POST /entities/{id}/debug are buttons on it) and gives it the journal break.
+            // ⭐ CE-1317 (BV-48, R-1038) — viewing a unit's Brain tab arms its traces (refcounted by draw, released ~1 s after)
+            Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current = new Hrot.Common.Diagnostics.Gizmos.BrainObservation();
+            Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current = new Hrot.Common.Diagnostics.Gizmos.UnitDebugController
+            {
+                ArmJournalBreak = (w, e) => _bpManager?.AddBreakpoint(
+                    Fdp.Toolkit.ReplayBrowser.Search.BrainJournalBreak.Condition(), e, 1, "journal (Brain tab)").ToString(),
+                // ⭐ CE-1254 (BV-21) — the catalog entry of that name (BTree, HSM or Blueprint), opened in its perspective.
+                OpenGraph = name =>
+                {
+                    if (_aiCatalogBuilder?.Catalog is not { } catalog || _aiDocumentManager == null) return false;
+                    var asset = catalog.All.FirstOrDefault(a => a.Name == name && a.Kind is AssetKind.BTree or AssetKind.Hsm or AssetKind.Blueprint);
+                    if (asset == null) return false;
+                    _aiDocumentManager.Open(asset);
+                    return true;
+                },
+                // ⭐ CE-1318 (BV-55) — the same, PINNED to a unit (from a pinned Brain tab): its own document, its tab names the unit
+                OpenGraphPinned = (name, unit, label) =>
+                {
+                    if (_aiCatalogBuilder?.Catalog is not { } catalog || _aiDocumentManager == null) return false;
+                    var asset = catalog.All.FirstOrDefault(a => a.Name == name && a.Kind is AssetKind.BTree or AssetKind.Hsm or AssetKind.Blueprint);
+                    if (asset == null) return false;
+                    _aiDocumentManager.Open(asset, unit, label);
+                    return true;
+                },
+            };
+
+            // ⭐⭐⭐ THE STAGED-WRITE DRAIN WIRE. 📄 DESIGN_Staged_Live_Write.md §8.
+            //   The PreFrame drain (time lane's W1/W2) is fed the breakpoint manager AS IStagedWrites
+            //   (its W4 role) and the kernel's publishing signal (closes AS-10's replay-prep residual).
+            //   ⇒ a staged live edit is PULLED into the repo at the next advancing tick — R-126.
+            _kernel.RegisterGlobalSystem(new Fdp.ModuleHost.Time.ResumeAndDrainSystem(
+                _bpManager, () => _kernel.IsPublishingGlobalTime));
 
             // ── Blueprint debug session bridge (UBP-P10T6) ───────────────────────────────────
-            var bpBlueprintSession = new Hrot.Blueprints.Core.Debug.BlueprintDebugSession(
-                _blueprintRegistry, _world!, bpTimeAdapter);
-            bpBlueprintSession.SetDataBreakpointManager(_bpManager);
-            bpBlueprintSession.SetLiveRepository(_world);  // NGS-2.0: wire live repo for sub-tick recording
-            Hrot.Blueprints.Core.Debug.DebugProbe.Sink = bpBlueprintSession;
-            bpBlueprintSession.Attach();
+            // ⭐ CE-476 — the ONE composition, shared with CGF (Attach makes it the DebugProbe sink).
+            var bpBlueprintSession = Hrot.Editor.AiComposition.AiDebugSessionComposer.ComposeBlueprint(
+                _blueprintRegistry, ctx.World, bpTimeAdapter, _bpManager, _behaviorRegistry);   // ⭐ POC 3 C-1 — the debug probe reads the SIMULATED entities (S)
             _blueprintDebugSession = bpBlueprintSession;
+            // ⛔ CE-1329 (BV-72) — the "debugged unit" is gone; the Blueprint highlight is filtered by the graph opened pinned to a unit (below)
+            // ⭐ CE-1326 — the Brain tab's blueprint rows open their graph pinned to the unit, and the blueprint overlay shows HIS values
+            Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsPanel.OpenGraph = (name, unit) =>
+            {
+                if (Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current?.OpenGraphPinned is not { } open || _world == null) return;
+                if (open(name, unit, Hrot.Editor.AiShared.Shell.EntityBrainView.PinLabelOf(_world, unit))) bpBlueprintSession.SetEntityFilter(unit);
+            };
+            // ⭐ CE-1327 — the Brain tab's contact rows bring the map's camera (2-D or 3-D) to where the unit believes a contact is; a
+            //   camera following a unit lets go first (the station's first-person eye is left alone — FocusOn ignores a driven camera)
+            Hrot.Editor.AiShared.Shell.EntityBrainView.JumpCamera = (world, at) =>
+            {
+                if (_canvas?.Camera is not { } camera) return false;
+                Hrot.UI.Common.Map3D.ViewControl.Of(world)?.StopFollowing();
+                camera.FocusOn(new System.Numerics.Vector2(at.X, at.Y));
+                return true;
+            };
 
             // ── CF-8: Debounced save on breakpoint/session changes ────────────────────────
             bpBlueprintSession.OnBreakpointListChanged += _ => ScheduleDebugSessionSave();
@@ -1020,7 +2564,6 @@ namespace Hrot.Editor
             // Dependencies: use existing breakpoint infrastructure components.
             var channelCatalog = Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInChannelCommandCatalog.Instance;
             var engineEventCatalog = Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInEngineEventCatalog.Instance;
-            var eqsTemplates = new Hrot.Blueprints.Editor.NodeDrawers.EqsTemplateRegistry();
 
             // IEditService stub - no-op for now since the interface is marked as stub.
             // AIE-049: real IEditService — context (CommandHistory + markDirty) is injected
@@ -1030,15 +2573,42 @@ namespace Hrot.Editor
 
             // Note: These registries are created but not yet wired to UI components.
             // Final wiring happens in the canvas/UI initialization below (section 10+).
-            _blueprintNodeDrawers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
-                channelCatalog, engineEventCatalog, blueprintEditService, bpPredicateCompiler, eqsTemplates);
+            // BP-08 / BP-66: the CallPeerBlueprint drawer's peer list, scanned from the SAME root
+            // (_bpRootDir, resolved at §715 via AssetRoots.AssetsRelative) that every other blueprint
+            // consumer uses. NOT "{BaseDirectory}/blueprints" — that directory does not exist; see
+            // BP-66, where the long-standing pin-projection catalog had the same wrong path and so
+            // never resolved a peer either. Leaving the provider null would ship a picker that always
+            // reports "no peer Blueprints discovered" — the inert-default failure this programme
+            // keeps finding (BP-29, BP-61).
+            var blueprintPeerProvider = new Hrot.Blueprints.Editor.NodeDrawers.BlueprintPeerSourceProvider(
+                new Hrot.Blueprints.Editor.BlueprintPeerSource(
+                    _bpRootDir ?? Hrot.Editor.AiShared.AssetRoots.AssetsFor(
+                        Hrot.Editor.AiShared.AssetKind.Blueprint)));
+
+            // ⭐⭐⭐ The drawers — and the EQS template picker inside them — come from the binder CGF calls
+            //    too (user, 2026-09-30: "the EQS brain part must be a shared code including the startup
+            //    code for editor and CGF alike"). 📄 EQS design §17.8.
+            _blueprintNodeAuthoring = Hrot.Editor.AiComposition.AiBlueprintNodeAuthoringBinder.CreateDrawers(
+                new Hrot.Editor.AiComposition.AiBlueprintNodeAuthoringServices
+                {
+                    EditService       = blueprintEditService,
+                    PredicateCompiler = bpPredicateCompiler,
+                    PeerProvider      = blueprintPeerProvider,
+                    // ⭐ S7a — the Behaviour Task picker lists what this host's registry can actually run.
+                    BehaviourNames    = () => _behaviorRegistry?.GetRegisteredNames() ?? (IReadOnlyList<string>)Array.Empty<string>(),
+                    // ⭐ S8 / CE-2022 — and what each one takes as parameters (the task's typed Params pin).
+                    BehaviourParamsType = Hrot.Editor.AiComposition.ChildInputTypes.Lookup(() => _behaviorRegistry),
+                    SopParamsType       = Hrot.Editor.AiComposition.ChildInputTypes.ParamsDtoLookup(() => _behaviorRegistry),   // CE-2083
+                });
             // Blueprint palette is built below (after the BehaviorActionCatalog is constructed) with BOTH
             // the channel-command catalog (AN4: per-channel-action entries) AND the unified behavior-action
             // catalog (AN7: non-channel "Action:{FQN}" entries). _blueprintPaletteEntries is only consumed
             // later at doc-open, so the single build below suffices.
-            var blueprintAttachmentProviders = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateAttachmentProviders(
-                eqsTemplates, peerNameResolver: _ => null);
-            var blueprintCanvasRenderers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateCanvasRenderers();
+            // ⭐ The canvas pills (When summary · EQS template · ReadEqsResult · cross-asset badge) are in
+            //    _blueprintNodeAuthoring.AttachmentProviders and reach the canvas through the shared
+            //    document binder below. 🔴 They WERE built here as locals nobody read, so no pill ever
+            //    rendered on either host. The When pulse renderer is built inside
+            //    BlueprintDocumentFactory itself. 📄 EQS design §17.8.
 
             // Store registries for later use by blueprint editor windows (opened on-demand).
             // The actual UI panels that consume these will be initialized in headless gate below.
@@ -1064,69 +2634,109 @@ namespace Hrot.Editor
             // ?? 4g. Gizmo subsystem ? local stateless gizmo rendering ?????????????????
             // The Editor has no DDS transport; primitives are produced locally and consumed
             // by a DebugGizmoLayer on the canvas.
-            _gizmoBuffer = new DebugPrimitiveBuffer();
-            var editorGizmoRegistry = new GizmoRegistry();
-            var editorStatelessGizmoRegistry = new StatelessGizmoRegistry();
-            var editorGizmoSettings = new GizmoSettingsRegistry();
-            // Auto-register all [GizmoProjector]-decorated gizmos in Hrot.ScenarioEditor.Gizmos
-            // (IgEntityPresentationGizmo, RouteGizmo, MapOverlayGizmo, EffectPresentationGizmo, ...).
-            Hrot.ScenarioEditor.Gizmos.GizmoRegistrar.RegisterAll(
-                editorGizmoRegistry, editorStatelessGizmoRegistry, editorGizmoSettings);
-            Hrot.SimHost.Gizmos.GizmoRegistrar.RegisterAll(
-                editorGizmoRegistry, editorStatelessGizmoRegistry, editorGizmoSettings);
-            // Register gizmos from Hrot.Common.Diagnostics (SelectionHighlightGizmo, HealthBarGizmo, ...).
-            Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar.RegisterAll(
-                editorGizmoRegistry, editorStatelessGizmoRegistry, editorGizmoSettings);
-            // Register gizmos from Hrot.IG.Gizmos (EffectPresentationGizmo, ...).
-            Hrot.IG.Gizmos.GizmoRegistrar.RegisterAll(
-                editorGizmoRegistry, editorStatelessGizmoRegistry, editorGizmoSettings);
-            // Register CanvasContextMenuGizmo so empty-space right-click resolves through the binding pipeline.
-            Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(
-                editorGizmoRegistry, editorStatelessGizmoRegistry, editorGizmoSettings);
-            // behavior gizmos
-            Hrot.AI.Behaviors.Gizmos.GizmoRegistrar.RegisterAll(editorGizmoRegistry, editorStatelessGizmoRegistry, editorGizmoSettings);
+            // ── UXI-23 S2b: the shared pack constructs the map's machinery ──────────────────────
+            // 🔒 The pack CONSTRUCTS; the editor still SCHEDULES (below, into its own kernel).
+            // ⚠ The three manual registrations go through ContributeExtras, which the pack invokes AFTER
+            // the reflection pass and BEFORE building StatelessGizmoSystem — the system sizes its
+            // visibility cache from registry.Rules.Count, so a rule added later would silently ignore its
+            // visibility policy. ⭐ CE-3123: the mission and label gizmos get their services through Services now.
+            _editorMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+                new Hrot.ScenarioEditor.Map.MapInteractionContext
+                {
+                    World = _world,
+                    FeatureGate = () => _node?.Features,   // ⭐ CE-4148 — the hud.* features
+                    DimTransientEntities = true,   // ⭐ SR-191 — the authoring map shows what a save will NOT write, dimmed
+                    Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
+                    // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
+                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(geoTransform, _behaviorRegistry, (System.Func<object?>)(() => _missionService)),   // ⭐ R-4211 — read by the gizmo rules, which run on the UI thread over A   // ⭐ 8d-2 — the mission facade is built after the map: resolved when asked
+                    GizmoUiPublisher = _gizmoUiHub,
+                    Inspector = () => _fdpInspectorState,
+                    // ⭐⭐⭐ CE-300 — the AI editors' entity cell follows the ANNOUNCEMENT, not a map
+                    //   gesture. 📄 DESIGN_Editor_Entity_Selection_Source.md §3.1.
+                    // 🔒 R-67 — this caller HOLDS the cell, so it PASSES it.
+                    AiEntitySelection = e => _sharedEntitySelection.Selected = e,
+                    // ⭐ CE-1161 (CE-3217; Weather and Time §7) — an EMPTY-map click (2-D or 3-D) hands Details the map background,
+                    //   so the Scenario and Zones views show. ⛔ An entity click leaves the latch alone: those views also need "no entity
+                    //   selected" (DetailsViewPredicates.MapBackgroundWithNothingSelected).
+                    OnMapSelectionChanged = OnMapSelectionChanged,
+                    // ⭐ UXI-11 — the pack builds the gesture system, so it needs the marquee state.
+                    RubberBand = _rubberBandState ??= new Hrot.ScenarioEditor.Gizmos.RubberBandState(),
+                    IsSelectedPredicate = static (view, entity) =>
+                        view.HasComponent<SelectionState>(entity) &&
+                        view.GetComponentRO<SelectionState>(entity).IsSelected,
+                    // ⭐ R-4211 (§4 hazard) — mode 3: the gizmo managers run on the UI thread and draw the UI's world; the breakpoint manager is the sim's
+                    BreakpointManager = Staged ? new Fdp.Toolkit.Diagnostics.Gizmos.PresentationViewProvider(() => _world!) : _bpManager,
+                    // ⭐⭐⭐ CE-1017 — the map's ENTITY-AUTHORING surface comes from the PACK, the same for Editor, CGF,
+                    //   SimHost and IG: the shared spawn adapter (it also backs the Spawn tool — UXI-07's "the Spawn
+                    //   tool's behaviour goes to the pack"), the Add Entity picker and submenu, the canvas menu. The
+                    //   shell picker registry is the editor's own (built later, its asset pickers live there too).
+                    //   Windowed only: a headless editor reports Spawn unserviceable, as before.
+                    EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
+                        Tkb:          () => _tkbDatabase,
+                        Creation:     () => EntityCreation)   // ⭐ CE-259ax — the pack itself: authors call its RequestEntityCreation
+                    {
+                        // ⭐ CE-1226 (R-1012, user: "When preview, adding new entities is disabled in the menu, i need it enabled") —
+                        //   Add Entity stays on in Preview. ⛔ Was: SuspendedReason "suspended in Preview". An entity added in Preview
+                        //   lives until Stop: leaving Preview rewinds the whole world and the id allocator (the one dry-run handler, D14).
+                        HostPickers     = () => _shellPickers,
+                        // ⭐ CE-4210 MA-7 — Add Entity ▸ Macros: the macro files on the NAS root the load resolves against (the same listing the scenario picker's Macros group uses)
+                        Macros          = Hrot.Editor.AiShared.Browser.MacroPickerEntries.Paths,
+                        // ⭐ Terrain authoring U-1 / U-2 — Add Entity's terrain groups (the shipped recipes + building templates) and the ghost's ground (the live base terrain): the editor shows its blocks live (O-7 B), so it is the host that offers them
+                        Terrain         = Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped,
+                        TerrainContext  = new Hrot.UI.Common.AddEntity.TerrainGhostContextCache(GhostBase).Get,
+                    },
+                    // GZH-003: the editor is interactive and always has a window at startup. It is not
+                    // under the cluster runner, so PerspectiveCoordinatorSystem never attaches a viewer
+                    // for it — starting disabled would shut its gate permanently (§3.2d ①).
+                    StartEnabled = true,
+                    ContributeExtras = regs =>
+                    {
+                        // ⭐ CE-3123 — the mission and label gizmos are reflected now (Services above).
+                        regs.Gizmos.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
+                            writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));   // ⭐ AX-007
+                    },
+                });
 
-            // MissionPresentationGizmo requires IGeographicTransform ? register manually.
-            editorStatelessGizmoRegistry.Register(
-                new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(geoTransform),
-                new[] { typeof(SimTransform), typeof(SelectionState) });
-            // EntityEditorLabelGizmo requires BehaviorRegistry ? register manually.
-            editorStatelessGizmoRegistry.Register(
-                new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(_behaviorRegistry!),
-                new[] { typeof(SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
-            // EntityDragGizmoDefinition has an optional callback constructor ? register manually.
-            editorGizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
+            _gizmoBuffer                 = _editorMapInteraction.Buffer;
+            var editorGizmoRegistry      = _editorMapInteraction.GizmoRegistry;
+            var editorStatelessGizmoRegistry = _editorMapInteraction.StatelessRegistry;
+            var editorGizmoSettings      = _editorMapInteraction.Settings;
             // Editor has no DDS transport so no network ingress/egress translators.
-            var interactionBus = new FdpEventBus();
-            Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(interactionBus);
-            _interactionBus = interactionBus;
-            _editorDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
-                editorGizmoRegistry,
-                _gizmoBuffer,
-                isSelectedPredicate: static (view, entity) =>
-                    view.HasComponent<SelectionState>(entity) &&
-                    view.GetComponentRO<SelectionState>(entity).IsSelected,
-                interactionBus: interactionBus,
-                breakpointManager: _bpManager);
-            _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, interactionBus,
-                breakpointManager: _bpManager);
-            var actionRegistry = new GlobalActionRegistry();
-            long layerControlId = GlobalGizmoManager.NewId();
-            var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(layerControlId, interactionBus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(), _gizmoUiHub);
-            _globalGizmoManager.Register(layerControlId, layerControlGizmo);
-            actionRegistry.Register(GlobalActionIds.OpenLayerControl, (_, _) =>
-            {
-                interactionBus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
-            });
-            actionRegistry.Register(GlobalActionIds.Rotate, (view, target) =>
+            var interactionBus           = _editorMapInteraction.InteractionBus;
+            _interactionBus              = interactionBus;
+            _editorDataDrivenGizmoSystem = _editorMapInteraction.DataDrivenSystem;
+            _globalGizmoManager          = _editorMapInteraction.GlobalManager;
+            _editorToolController        = _editorMapInteraction.Tools;
+            // ⭐ The registry, its dispatcher and the layer control come from the shared map pack.
+            var actionRegistry = _editorMapInteraction.Actions;
+            // ⭐⭐⭐ UXI-07 step 3 — the D′ DUPLICATE IS GONE. Rotate / EditOverlay / EditRoute carried a
+            //    VERBATIM copy of ToolActivationDrainSystem's three arms (guards, netId lookup, toggle,
+            //    EntityWriteRouter and all). ⇒ they now do exactly what Measure and PlaceEntity below
+            //    already did: publish ActivateEditorToolEvent and let the ONE drain arm the tool through
+            //    the ONE ToolController, which cancels the other arbiter's modal first.
+            // 🔒 The caller SELECTS, then activates — ToolActivationDrainSystem.ActivateRotate's own
+            //    remarks: a context menu acts on the entity under the cursor, a toolbar on the selection,
+            //    and reconciling that is a CALLER concern, so the shared body needs no host branch.
+            // ⚠ The per-tool component guards are NOT lost: the drain applies the same ones and now
+            //   REPORTS the reason (ruling 49) where these handlers returned in silence.
+            // ⭐⭐⭐ ONE RULE FOR ACTIVATING A TOOL, and every host now obeys it (UXI-07 §4.7d):
+            //     • TARGET-LESS  (toolbar, orbat, a menu item with no entity)
+            //           → publish ActivateEditorToolEvent; the drain supplies the primary selection.
+            //     • TARGETED     (a context menu ON an entity)
+            //           → call Tools.Activate(id, target) directly. The controller takes the target.
+            // 🔴 CORRECTION to step 3, and it removes a behaviour change that was never flagged: step 3
+            //    routed these three through the EVENT, which meant setting PrimarySelected first just to
+            //    smuggle the target to the drain. ⛔ The original handlers did NOT touch the selection, so
+            //    that silently made a context-menu Rotate also re-select. ⇒ direct activation restores the
+            //    old behaviour AND matches SimHost and IG, which had to call directly anyway.
+            void ActivateToolOnEntity(string toolId, Entity target)
             {
                 if (target == Entity.Null) return;
-                if (!view.HasComponent<SimTransform>(target)) return;
-                _editorDataDrivenGizmoSystem!.DeactivateGizmo(target);
-                var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
-                    view, target, onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(target));
-                _editorDataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
-            });
+                _editorToolController?.Activate(toolId, target);
+            }
+
+            actionRegistry.Register(GlobalActionIds.Rotate, (_, target) =>
+                ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Rotate, target));
             actionRegistry.Register(GlobalActionIds.Measure, (_, _) =>
             {
                 _world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Measure));
@@ -1135,443 +2745,553 @@ namespace Hrot.Editor
             {
                 _world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Spawn));
             });
-            actionRegistry.Register(GlobalActionIds.EditOverlay, (view, target) =>
+            actionRegistry.Register(GlobalActionIds.EditOverlay, (_, target) =>
+                ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Edit, target));
+            actionRegistry.Register(GlobalActionIds.EditRoute, (_, target) =>
+                ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Route, target));
+            actionRegistry.Register(GlobalActionIds.EditPlan, (_, target) =>   // ⭐ W-1 / P-8 8d-2
+                ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Plan, target));
+            // ⭐ CE-3024 (E2) — "Load zone" on a terrain zone publishes the CLUSTER op on the orchestration bus; the
+            //    editor's in-process master drains it and runs the PrepareZone/CommitZone round (design §9.6).
+            actionRegistry.Register(GlobalActionIds.LoadZone, (view, target) =>
             {
-                if (target == Entity.Null || !view.HasManagedComponent<EditablePolyline>(target)) return;
-
-                if (_editorDataDrivenGizmoSystem!.HasInjectedGizmo(target))
-                {
-                    _editorDataDrivenGizmoSystem!.DeactivateGizmo(target);
-                }
-                else
-                {
-                    long netId = view.HasComponent<NetworkIdentity>(target)
-                        ? view.GetComponentRO<NetworkIdentity>(target).Value
-                        : 0L;
-                    var gizmo = new Hrot.ScenarioEditor.Gizmos.VertexEditGizmo(
-                        _world!, target, netId,
-                        onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(target));
-                    _editorDataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
-                }
+                if (target == Entity.Null || view is not EntityRepository repo) return;
+                var intent = Hrot.Map.Common.Services.TerrainLoadService.LoadZoneIntentFor(repo, target);
+                if (intent is { } i) _orchestrationBus?.PublishManaged(i);
             });
-            actionRegistry.Register(GlobalActionIds.EditRoute, (view, target) =>
-            {
-                if (target == Entity.Null || !view.HasManagedComponent<RoutePlan>(target)) return;
-
-                if (_editorDataDrivenGizmoSystem!.HasInjectedGizmo(target))
-                {
-                    _editorDataDrivenGizmoSystem!.DeactivateGizmo(target);
-                }
-                else
-                {
-                    long netId = view.HasComponent<NetworkIdentity>(target)
-                        ? view.GetComponentRO<NetworkIdentity>(target).Value
-                        : 0L;
-                    var gizmo = new Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo(
-                        _world!, target, netId,
-                        onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(target));
-                    _editorDataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
-                }
-            });
-            actionRegistry.Register(GlobalActionIds.CenterOnEntity, (view, target) =>
-            {
-                if (target == Entity.Null) return;
-                long netId = view.HasComponent<NetworkIdentity>(target)
-                    ? view.GetComponentRO<NetworkIdentity>(target).Value
-                    : 0L;
-                if (netId != 0)
-                    _world!.Bus.Publish(new Hrot.Editor.Commands.CenterOnEntityCommand { NetworkId = netId });
-            });
+            // ⭐ CE-1134 / CE-1150 — Center View and Select are SharedHostActions' (every host); Properties… is the Details bundle's.
             actionRegistry.Register(GlobalActionIds.Delete, (view, target) =>
             {
                 if (target == Entity.Null) return;
-                long netId = view.HasComponent<NetworkIdentity>(target)
-                    ? view.GetComponentRO<NetworkIdentity>(target).Value
-                    : 0L;
-                if (netId != 0)
-                    _world!.Bus.PublishManaged(new DestroyEntityCommand { NetworkId = netId, Reason = "ContextMenu" });
-                else
-                    _world!.DestroyEntity(target);
+                Hrot.ScenarioEditor.Systems.SelectionInteractionSystem.DeleteEntity(_world!, target);   // ⭐ CE-4410 — the Delete key's one path (CE-4276 F2)
             });
-            actionRegistry.Register(GlobalActionIds.Select, (_, target) =>
-            {
-                if (target == Entity.Null) return;
-
-                var q = _world!.Query().With<SelectionState>().WithLifecycle(EntityLifecycle.All).Build();
-                foreach (var e in q)
-                {
-                    if (_world.IsAlive(e))
-                        _world.SetComponent(e, new SelectionState { IsSelected = false, IsPrimarySelection = false });
-                }
-
-                _world.SetComponent(target, new SelectionState { IsSelected = true, IsPrimarySelection = true });
-                if (_selectionState != null) _selectionState.PrimarySelected = target;
-                _fdpInspectorState.SelectedEntity = target;
-            });
-            actionRegistry.Register(GlobalActionIds.ToggleAiTrace, (view, target) =>
-            {
-                if (target == Entity.Null) return;
-                if (view is not EntityRepository repo) return;
-                if (!repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(target)) return;
-
-                const Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags flag = Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EnableTraceBuffer;
-                bool current = repo.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target)
-                    && (repo.GetComponentRO<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target).Behavior & flag) != 0;
-                bool next = !current;
-                string nextStr = next ? "true" : "false";
-                string patchJson = $$"""
-                {
-                    "{{nameof(Fdp.Toolkit.Behavior.Diagnostics.DebugState.Behavior)}}": {
-                        "{{flag}}": {{nextStr}}
-                    }
-                }
-                """;
-
-                repo.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Diagnostics.PatchDebugStateCommand
-                {
-                    Target = target,
-                    PatchJson = patchJson,
-                });
-            });
-            actionRegistry.Register(GlobalActionIds.ToggleAiTraceLog, (view, target) =>
-            {
-                if (target == Entity.Null) return;
-                if (view is not EntityRepository repo) return;
-                if (!repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(target)) return;
-
-                const Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags flag = Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EmitToLog;
-                bool current = repo.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target)
-                    && (repo.GetComponentRO<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target).Behavior & flag) != 0;
-                bool next = !current;
-                string nextStr = next ? "true" : "false";
-                string patchJson = $$"""
-                {
-                    "{{nameof(Fdp.Toolkit.Behavior.Diagnostics.DebugState.Behavior)}}": {
-                        "{{flag}}": {{nextStr}}
-                    }
-                }
-                """;
-
-                repo.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Diagnostics.PatchDebugStateCommand
-                {
-                    Target = target,
-                    PatchJson = patchJson,
-                });
-            });
+            // ⭐ Terrain authoring U-3 — a placed block's menu: Re-roll, Rotate, Unpack (T-4), Change recipe…; each ONE edit step
+            new Hrot.UI.Common.AddEntity.TerrainBlockActions(() => _world, () => _shellPickers is { } sp ? sp.OpenPicker : null, Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped,
+                expansion: () => TerrainResidency is { } tr ? Hrot.Map.Common.Services.BlockExpansionContext.Of(tr) : null,
+                refused: m => Console.WriteLine($"[EditorSubsystem] WARNING: {m}")).RegisterOn(actionRegistry);
+            // ⭐ CE-3123 — ToggleAiTrace / ToggleAiTraceLog are registered by MapInteractionPack (AiTraceActions) on every map
+            //   host; the inspector menu below still publishes the same action ids.
 
             var contextIngress = new ContextActionIngressSystem(entityMap, interactionBus);
-            _rubberBandState = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
-            editorStatelessGizmoRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(_rubberBandState));
-            _selectionSystem = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(_world, interactionBus, _rubberBandState);
-            _selectionSystem.OnSelectionChanged += (entity, _) =>
-            {
-                if (entity == Entity.Null)
-                {
-                    if (_selectionState != null) _selectionState.PrimarySelected = null;
-                    _fdpInspectorState.SelectedEntity = null;
-                }
-                else if (_world.IsAlive(entity))
-                {
-                    if (_selectionState != null) _selectionState.PrimarySelected = entity;
-                    _fdpInspectorState.SelectedEntity = entity;
-                }
-            };
-            // Wire the AI editor selection store so AI editor windows track the selected entity.
-            _selectionBridge = new Hrot.Editor.AiShared.Selection.CallbackSelectionBridge(onEntitySelected =>
-            {
-                Action<Entity, System.Numerics.Vector3> handler = (entity, _) =>
-                {
-                    onEntitySelected(_world != null && entity != Entity.Null && _world.IsAlive(entity)
-                        ? entity
-                        : (Entity?)null);
-                };
-                _selectionSystem!.OnSelectionChanged += handler;
-                return new DelegateDisposable(() =>
-                {
-                    if (_selectionSystem != null)
-                        _selectionSystem.OnSelectionChanged -= handler;
-                });
-            });
-            _selectionBridge.Connect(_aiEditorSelectionStore);
-            var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
-                _editorDataDrivenGizmoSystem,
-                _globalGizmoManager,
-                new StatelessGizmoSystem(editorStatelessGizmoRegistry, _gizmoBuffer));
-            // GZH-003: Editor is interactive, always has a window at startup.
-            gizmoGroup.Enabled = true;
-            _gizmoController = new GizmoExecutionController(gizmoGroup, _globalGizmoManager, _editorDataDrivenGizmoSystem);
+            // ⛔ The RubberBandGizmo registration MOVED into MapInteractionPack (2026-09-20, §2.7.16) —
+            //    the marquee belongs to every host with a 2-D map. The editor still creates the STATE
+            //    early (see the MapInteractionContext above) because it needs the handle; the pack
+            //    adopts that instance rather than making a second one.
+            // ⭐⭐⭐ UXI-11 — the PACK's gesture system. 📐 The state itself is created before the pack
+            //    is built (see the MapInteractionContext above), because the pack hands it to the
+            //    system it constructs.
+            _selectionSystem = _editorMapInteraction!.SelectionInteraction;
+            // ⭐⭐⭐ UXI-11 S-2 — the two _selectionState writes that used to live here are DELETED as
+            //    PROVABLY REDUNDANT, not merely moved. 📐 Since S-1 the view is a read-through over the
+            //    SelectionState component, and SelectionInteractionSystem has ALREADY written that
+            //    component through the very same view before it raises this callback
+            //    (ClearAllSelections + SetSelected, then Invoke). ⇒ assigning PrimarySelected here
+            //    re-derived a state that was already true.
+            //
+            // ⭐⭐⭐ UXI-11 S-3 — AND THE CALLBACK ITSELF IS GONE. 📄 §2.7.4 listed this hand-sync for
+            //    retirement; SelectionNotificationSystem below does it from the NOTIFICATION instead.
+            // ⚠⚠ The difference is not cosmetic: this callback fired ONLY for a MAP click, because it
+            //    hung off SelectionInteractionSystem. ⇒ an inspector click, a context-menu Select, a
+            //    CMD_SET_SELECTION from ExCon — none of them moved _fdpInspectorState. 📌 That is the
+            //    whole argument for an announcement: one publisher, every cause, one consumer.
+            // ⭐⭐⭐ CE-300 — CallbackSelectionBridge IS DELETED, and the gap is the point.
+            // 🔴 It subscribed to _selectionSystem.OnSelectionChanged — a MAP GESTURE — two lines below
+            //    the comment above explaining why the neighbouring hand-sync was retired for exactly
+            //    that. ⇒ an inspector click, an orbat select, a context-menu Select or a remote
+            //    CMD_SET_SELECTION never moved the AI editors' entity, so every Watch/Details
+            //    live-value row kept projecting the PREVIOUS one.
+            // ⭐ The cell is now a SINK of SelectionChangedNotification, passed to the pack as
+            //    MapInteractionContext.AiEntitySelection above.
+            // 📄 DESIGN_Editor_Entity_Selection_Source.md §3.1; the third instance of the shape S-3
+            //    fixed inbound and S-6 outbound.
+            // UXI-23 S2b: the group, its three members and the gate come from the pack.
+            _gizmoController = _editorMapInteraction.Gate;
+            // ⭐⭐ UXI-23 S3: report anything constructed but not scheduled (§3.2e).
+            foreach (string problem in _editorMapInteraction.Unserviceable(_editorMapInteraction.InteractionSystems))
+                Fdp.Core.Logging.FdpLog<EditorSubsystem>.Info("[Map] {0}", problem);
+            if (_presentation != null)
+            {   // ⭐⭐ R-4211 / CE-3446 — mode 3: the map pack's threaded split, the SHARED one (MapPresentationStep): the tick keeps the world writers;
+                //   the interaction bus, the gizmo group and the editor's viewport systems (its one extra) run on the UI thread over A
+                _mapStep = new Hrot.ScenarioEditor.Map.MapPresentationStep(_editorMapInteraction, _presentation, GizmoFeedAddress) { Selection = () => _selectionState };
+                _mapStep.AddLateHostUiSystems(() => _uiInteractionDeps is { } deps ? ScenarioEditorModule.BuildInteractionSystems(deps) : null);
+                _kernel.RegisterModule(_mapStep.NodeModule());
+            }
+            else
             _kernel.RegisterModule(new GizmoInteractionModule(
                 interactionBus,
                 contextIngress: contextIngress,
-                interactionSystems: new IEcsModuleSystem[]
-                {
-                    new GlobalActionDispatchSystem(actionRegistry, interactionBus),
-                    gizmoGroup,
-                },
+                interactionSystems: _editorMapInteraction.InteractionSystems,
                 gizmoIngress: null,
                 gizmoEgress:  null));
             _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, interactionBus));
             // Register canvas menu update so CanvasContextMenuGizmo has state to project.
-            _kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
-
-            // ── 5. Kernel initialization ─────────────────────────────────────────────
-            _kernel.Initialize();
-
-            // ?? 6. Editor application (IEditorLogic facade) ??????????????????
-            var app = new EditorApplication(
-                fileService, _world.Bus, _orchestrationBus!, _world, _kernel, logicPacks,
-                hotReloadSource: _hotReloadSource,
-                aiProjectPathSegments: AiBehaviorsProjectPath);
-            _editorLogic = app;
-            _editorApp   = app;
-
-            // ?? 6b. Offline orchestrator ? scenario listing via ClusterMaster + UICache ??
-            var offlineConfig = new ClusterConfiguration { Mandatory = Array.Empty<string>() };
-            _clusterMaster  = new ClusterMaster(_orchestrationBus!, offlineConfig);
-
-            // Register the seek aggregator and process manager so the clock snaps on seek
-            _seekProcessManager = new ReplaySeekProcessManager(_orchestrationBus!, _timeController);
-            _clusterMaster.RegisterAggregator(new ReplaySeekAggregator());
-
-            // Register replay manager and aggregator so duration payload flows through 2PC
-            _replayProcessManager = new ReplayProcessManager(_orchestrationBus!, _timeController);
-            _clusterMaster.RegisterAggregator(_replayProcessManager.CreateAggregator());
-
-            _storageGateway = new StorageGatewayModule();
-            _assetInventoryProcessManager = new AssetInventoryProcessManager(
-                _orchestrationBus!,
-                _storageGateway,
-                ClusterConfiguration.Default.NasBasePath,
-                OrchestrationConstants.ResolveStagingRoot(),
-                EditorNodeId);
-            _assetPrefetchProcessManager = new AssetPrefetchProcessManager(
-                _orchestrationBus!,
-                _storageGateway,
-                ClusterConfiguration.Default.NasBasePath,
-                OrchestrationConstants.ResolveStagingRoot());
-            _uiCache = new ClusterUiCache(_orchestrationBus!, _timeController);
-            _clusterPanel = new ClusterScenarioPanel(_orchestrationBus!, _uiCache);
-            _fileDialogService = FileDialogServiceFactory.Create();
-            _clusterDiagnosticsPanel = new ClusterDiagnosticsPanel(
-                _uiCache,
-                _orchestrationBus!,
-                _fileDialogService,
-                EditorBootstrap.ScenariosRoot);
-            var diagnosticsAggregator = new DiagnosticsConsensusAggregator();
-            _clusterMaster.RegisterAggregator(diagnosticsAggregator);
-            _diagnosticsDumpProcessManager = new DiagnosticsDumpProcessManager(
-                _orchestrationBus!,
-                _storageGateway,
-                EditorBootstrap.ScenariosRoot,
-                diagnosticsAggregator);
-            _logMergeWorker = new DiagnosticLogMergeWorker(_orchestrationBus!);
-            app.SetAvailableScenariosSource(() => ScenarioEnumeration.EnumerateRelPaths(EditorBootstrap.ScenariosRoot));
-
-            // ?? 7. Map canvas + camera (skipped in headless) ??????????????????
-            if (!_headless)
-            {
-                _camera = new MapCamera();
-                _canvas = new MapCanvas(new RaylibInputProvider());
-                _canvas.Camera = _camera;
-            }
-
-            // ?? 8. Preview controller (works headless too ? no canvas dep) ????
-            _previewController = new EditorPreviewController(_world, _timeController!);
-
-            // ?? 9. Mission service (no canvas dependency) ?????????????????????
-            _missionService = new EditorMissionService(_world.Bus, _world, behaviorRegistry);
-
-            // ?? 10. Canvas-dependent adapters, layers, and interaction tool ???
-            if (!_headless)
-            {
-                _mapViewConfig    = new MapViewConfig();
-                _mapPickAdapter   = new EditorMapPickAdapter(_canvas!, geoTransform, _world, _globalGizmoManager!);
-
-                // Build the JSON?ECS attribute compiler with the geo-transform so that
-                // geodetic spawn coordinates are projected correctly on entity placement.
-                var jsonCompiler  = Hrot.SimHost.AttributeCompilerFactory.Build(geoTransform);
-                _spawnAdapter     = new EditorSpawnAdapter(_world.Bus, jsonCompiler, tkbDb, scenarioLoadSource, _globalGizmoManager!);
-                _zoneAdapter      = new EditorZoneAdapter(_canvas!, _world.Bus, _globalGizmoManager!);
-                _mapConfigAdapter = new EditorMapConfigAdapter(_mapViewConfig, _canvas!);
-                _selectionState   = new DefaultSelectionState();
-                _orbatAdapter     = new EditorOrbatAdapter(_world, _world.Bus, _editorLogic, _spawnAdapter);
-                _contextMenuHandler = new JsonEntityContextMenuHandler(_world, interactionBus);
-                _fdpRepoAdapter = new FdpRepositoryAdapter(_world);
-
-                // Register context menu handlers with the FDP entity inspector.
-                // 1) JSON-driven domain actions (populated by ExCon via ContextMenuState.MenuJson).
-                _fdpEntityInspector.RegisterContextMenuHandler(_contextMenuHandler);
-                // 2) Local editor authoring actions (centre, rename, edit, delete).
-                _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
-                {
-                    if (!_world.IsAlive(entity)) return;
-                    if (entity == FdpRepositoryAdapter.SingletonEntity) return;
-
-                    long networkId = _world.HasComponent<NetworkIdentity>(entity)
-                        ? _world.GetComponentRO<NetworkIdentity>(entity).Value
-                        : 0L;
-
-                    bool hasPolyline = _world.HasManagedComponent<EditablePolyline>(entity);
-                    bool hasRoute    = _world.HasManagedComponent<RoutePlan>(entity);
-
-                    builder.AddItem("Center on Entity", () => _editorLogic?.CenterOnEntity(networkId));
-                    if (networkId != 0)
-                        builder.AddItem("Rename...", () => _editorLogic?.OpenRenameDialog(networkId));
-                    if (hasPolyline)
-                        builder.AddItem("Edit Shape", () => { _editorLogic?.SelectEntity(networkId); _editorLogic?.ActivateTool(EditorTool.Edit); });
-                    if (hasRoute)
-                        builder.AddItem("Edit Route", () => { _editorLogic?.SelectEntity(networkId); _editorLogic?.ActivateTool(EditorTool.Route); });
-                    builder.AddItem("Rotate", () => { _editorLogic?.SelectEntity(networkId); _editorLogic?.ActivateTool(EditorTool.Rotate); });
-                    builder.AddSeparator();
-                    builder.AddItem("Delete", () => _world?.Bus.PublishManaged(
-                        new DestroyEntityCommand { NetworkId = networkId, Reason = "EditorContextMenu" }));
-                }));
-                // 3) Perception seeding actions (mark target memory entries for selected perceivers).
-                _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
-                {
-                    if (!_world.HasComponent<TargetMemory>(entity)) return;
-
-                    int perceiverCount = _selectionState?.SelectedEntities.Count ?? 0;
-
-                    builder.AddSeparator();
-
-                    builder.AddItem(
-                        $"Mark Target for {perceiverCount} Units...",
-                        async void () =>
-                        {
-                            int targetNetId = await _mapPickAdapter!.PickEntityAsync();
-                            Entity target   = FindEntityByNetworkId(targetNetId);
-                            if (!_world.IsAlive(target)) return;
-
-                            foreach (var perceiver in _selectionState?.SelectedEntities ?? System.Array.Empty<Entity>())
-                                _world.Bus.Publish(new SeedTargetCommand
-                                {
-                                    Perceiver  = perceiver,
-                                    Target     = target,
-                                    ScoreBoost = 1.0f,
-                                });
-                        });
-
-                    builder.AddItem(
-                        $"Mark Area Targets for {perceiverCount} Units...",
-                        async void () =>
-                        {
-                            IReadOnlyList<int> targetNetIds = await _mapPickAdapter!.PickAreaEntitiesAsync();
-                            foreach (var perceiver in _selectionState?.SelectedEntities ?? System.Array.Empty<Entity>())
-                                foreach (int netId in targetNetIds)
-                                {
-                                    Entity target = FindEntityByNetworkId(netId);
-                                    if (!_world.IsAlive(target)) continue;
-                                    _world.Bus.Publish(new SeedTargetCommand
-                                    {
-                                        Perceiver  = perceiver,
-                                        Target     = target,
-                                        ScoreBoost = 1.0f,
-                                    });
-                                }
-                        });
-                }));
-
-                // 4) AI tracing toggles (behav-diag-1). Only shown on entities with a brain.
-                _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
-                {
-                    if (!_world.IsAlive(entity)) return;
-                    if (!_world.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(entity)) return;
-
-                    builder.AddSeparator();
-                    builder.AddItem("Toggle AI Trace Buffer", () =>
-                        interactionBus.Publish(new Hrot.Common.Events.GlobalActionRequestedEvent
-                        {
-                            ActionId = Hrot.Common.Constants.GlobalActionIds.ToggleAiTrace,
-                            Target   = entity,
-                        }));
-                    builder.AddItem("Toggle AI Trace Log", () =>
-                        interactionBus.Publish(new Hrot.Common.Events.GlobalActionRequestedEvent
-                        {
-                            ActionId = Hrot.Common.Constants.GlobalActionIds.ToggleAiTraceLog,
-                            Target   = entity,
-                        }));
-                }));
-
-                // Entity query ? all networked simulation entities with a location.
-                var entityQuery = _world.Query()
-                    .With<NetworkIdentity>()
-                    .With<SimTransform>()
-                    .WithLifecycle(EntityLifecycle.All)
-                    .Build();
-
-                // Gizmo layer ? renders entity presentation primitives produced locally by StatelessGizmoSystem.
-                var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
-                var layerControlEditService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
-                using var layerControlSchemaSession = layerControlEditService.Open(
-                    new Hrot.Common.Diagnostics.Gizmos.LayerControlDto
-                    {
-                        Entities = true,
-                        Perception = true,
-                        AiHelpers = true
-                    },
-                    typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
-                schemaRegistry.Register(
-                    Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash,
-                    layerControlSchemaSession.Document);
-                _gizmoLayer = new DebugGizmoLayer(
-                    31,
-                    _gizmoBuffer!,
-                    interactionBus,
-                    _world,
-                    _canvas!.Camera,
-                    new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
-                    schemaRegistry);
-                _canvas!.AddLayer(_gizmoLayer);
-                if (_canvas != null) _canvas.DrawBuffer = _gizmoBuffer;
-
-                // Grid map layer ? reads MapViewConfig.ShowGrid each frame.
-                var gridLayer = new GridMapLayer(() => _mapViewConfig!.ShowGrid);
-                _canvas!.AddLayer(gridLayer);
-
-                // (Phase 5: StandardInteractionTool removed; entity interaction via ECS gizmos)
-            }
-
-            // ?? 11. UI panels ?????????????????????????????????????????????????
-            _toolbarPanel = new EditorToolbarPanel();
-            _orbatPanel   = new EditorOrbatPanel();
-
-            if (!_headless)
-            {
-                var tkbCatalog = new TkbCatalogEntry[]
-                {
-                    new(TkbEntityTypes.Tank_M1Abrams,      "M1 Abrams"),
-                    new(TkbEntityTypes.IFV_Bradley,        "M2 Bradley IFV"),
-                    new(TkbEntityTypes.Truck_HMMWV,        "HMMWV"),
-                    new(TkbEntityTypes.Tank_T72,           "T-72"),
-                    new(TkbEntityTypes.Infantry_Rifleman,  "Infantry Rifleman"),
-                    new(TkbEntityTypes.Infantry_Officer,   "Infantry Officer"),
-                    new(TkbEntityTypes.CivilianPedestrian, "Civilian Pedestrian"),
-                    new(TkbEntityTypes.CivilianCar,        "Civilian Car"),
-                    new(TkbEntityTypes.MilitaryApc,        "Military APC"),
-                    new(TkbEntityTypes.InfantrySoldier,    "Infantry Soldier"),
-                    new(TkbEntityTypes.Insurgent,          "Insurgent"),
-                    new(TkbEntityTypes.Unit_TankPlatoon,   "Tank Platoon"),
-                    new(TkbEntityTypes.Unit_InfantrySquad, "Infantry Squad"),
-                    new(TkbEntityTypes.Unit_TankPlatoon_Auto, "Tank Platoon (Auto-Spawn)"),
-                };
-
-                _spawnerPanel     = new SpawnerPanel(tkbCatalog);
-                _missionPanel     = new MissionPanel(0, Hrot.Presentation.Behavior.BehaviorUiSetup.CreateRegistry());
-                _configPanel      = new ConfigPanel();
-                _sharedOrbatPanel = new SharedOrbatPanel();
-                _previewPanel     = new PreviewPanel();
-                _zoneEditorPanel  = new ZoneEditorPanel();
-            }
+            //   ⭐ CE-3446 — mode 3: on the UI thread over A instead (MapPresentationStep.RunEveryFrame)
+            if (_presentation == null) _kernel.RegisterGlobalSystem(_editorMapInteraction.CanvasMenu);   // ⭐ CE-1017 — built by the pack
         }
 
         /// <inheritdoc/>
+        // ⭐ EXPERIMENT (threaded kernel X-4, exp/threaded-kernel) — the node frame on a worker thread.
+        private System.Threading.Thread? _kernelWorker;
+        private readonly object _workerDtLock = new();
+        private double _workerPendingDt;
+        private volatile bool _kernelWorkerStop;
+        private long _kernelWorkerFaults;
+
+        private static bool MapOnlyLayer(Fdp.Toolkit.Vis2D.Abstractions.IMapLayer l)
+            => l is Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer || l.GetType().Name is "GridMapLayer" or "TerrainLayer2D";
+
+        // ⭐⭐ EXPERIMENT — POC 2 (CE-4439, exp/threaded-poc-2, HROT_THREADED_KERNEL=2; 📄 DESIGN_Threaded_Simulation_Presentation.md §14): TWO worlds.
+        //   While a preview runs (playing or paused), the kernel ticks World S on the worker and the presentation keeps World A (= _world, the object
+        //   every binding is keyed by); after each tick A takes S's entity index + the presentation's TABLE mask + the ROWS of the selected entities, and
+        //   a NetworkEntityMap of its own rebuilt from them. Outside a preview the editor is single-world as today (loads, edits and saves write A).
+        private EntityRepository? _simWorld;                       // S
+        private Fdp.Core.BitMask512 _twTableMask, _twSingletonExcept;
+        private bool _twMaskAll;
+        private Fdp.Toolkit.Replication.Services.NetworkEntityMap? _twPresMap, _twSimMap;
+        private Fdp.Core.EntityQuery? _twSelQuery;
+        private readonly Entity[] _twRows = new Entity[64];
+        private double _twSyncSum, _twRowSum; private long _twSyncN;
+
+        // ⭐⭐ POC 3 (CE-4442) — the node COMPOSED over S (ctx.World), the presentation over A (_presWorld = _world) from the start.
+        private Hrot.Common.Infrastructure.StagedPresentation? _presentation;   // ⭐ CE-3446 — the shared presentation side (A, staging, jobs)
+        private EntityRepository? _presWorld => _presentation?.World;   // A
+        private EntityRepository? _nodeWorld;   // S = the node's ctx.World (every mode; in mode 3 it differs from _world)
+
+        // ⭐⭐⭐ N-1 / N-3 (CE-4463 / CE-4465; R-4216, R-4217) — the threaded editor, mode 3: NO lock between the threads. The UI → S direction is the
+        //   ONE sim job queue (drained on the sim thread between ticks); the S → A direction is the two staging buffers (published by the sim after
+        //   each tick, pulled by the UI at its frame start). 📄 docs/DESIGN_Threaded_Work_Inventory.md §8.2a.
+        private Fdp.Core.Threading.SimJobQueue? _simJobs;
+        private Fdp.Core.Threading.StagingWorlds? _staging;
+        private Hrot.Editor.DebugApi.MainThreadJobQueue? _debugApiUiJobQueue;   // ⭐ N-8 — the UI-side routes (drained on the UI thread)
+        // ⭐⭐ D-9 — the UI side's OWN read models in mode 3: a mirror of the orchestration bus (carried by the staging), the cluster view, cache and
+        //   scenario panel over it, the UI's time transport and scenario session. The sim side keeps the node's (its HTTP routes, Run to …).
+        private FdpEventBus? _uiOrchestrationBus;
+        private Fdp.Toolkit.Orchestration.ClusterView? _uiClusterView;
+        private Hrot.Orchestrator.Panels.ClusterUiCache? _uiClusterCache;
+        private Hrot.Orchestrator.Panels.ClusterScenarioPanel? _uiScenarioPanel;
+        private Hrot.Editor.AiShared.Scenarios.ThreadedScenarioSession? _uiScenarioSession;
+        private Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? _simTimeTransport;   // mode 3: the sim side's; otherwise the same object as _timeTransport
+        /// <summary>The cluster state as the UI thread may read it: its own view in mode 3, the session's otherwise.</summary>
+        private Fdp.Toolkit.Orchestration.ClusterState UiClusterState
+            => Staged && _uiClusterView != null ? _uiClusterView.State : _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle;
+        /// <summary>The scenario session the UI thread calls (mode 3: the UI's, whose door asks on the UI thread and whose verbs are jobs).</summary>
+        private Hrot.Editor.AiShared.Scenarios.IScenarioSession? UiSession => Staged ? _uiScenarioSession : _editorApp?.ScenarioSession;
+        /// <summary>The loaded scenario's args as the UI thread may read them.</summary>
+        private string? UiLoadedArgsJson => Staged ? ((Hrot.UI.Common.RunMode.IRunScenarioControl?)_uiScenarioSession)?.LoadedArgsJson : _editorApp?.LoadedArgsJson;
+        /// <summary>The cluster cache the UI's surfaces read.</summary>
+        private Hrot.Orchestrator.Panels.ClusterUiCache? UiClusterCache => Staged ? _uiClusterCache : _orchestratorCore?.UiCache;
+        /// <summary>The cluster scenario panel the UI draws.</summary>
+        private Hrot.Orchestrator.Panels.ClusterScenarioPanel? UiScenarioPanel => Staged ? _uiScenarioPanel : _orchestratorCore?.ScenarioPanel;
+
+        /// <summary>⭐ The threaded editor without the world lock: mode 3.</summary>
+        private static bool Staged => Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds;
+        /// <summary>Posts a named action to the sim thread (the decorators' entry).</summary>
+        private void PostToSim(string label, Action a) => _simJobs!.Post(_ => a(), label);
+
+
+        private Hrot.ScenarioEditor.Map.MapPresentationStep? _mapStep;   // ⭐ CE-3446 — the map pack's threaded split (shared)
+        private ScenarioEditorModule.InteractionDeps? _uiInteractionDeps;   // the editor's viewport systems, built at the first block (MapPresentationStep)
+
+        /// <summary>⭐ POC 3 C-4 — the presentation step: after the sync, on the main thread, against A (the caller holds the world).</summary>
+        /// <summary>The Brain tabs' observation and the per-unit debug settings' load / save — UI state, on the presentation's world (A). ⭐ POC 4 F-2 ②:
+        /// in mode 3 the presentation step runs it on the main thread (it used to run in the node frame's afterKernel hook — the worker — writing A).</summary>
+        private void TickDebugSettingsUi()
+        {
+            // ⭐ CE-1317 (BV-48) — disarm the traces of units no Brain tab has drawn for ~1 s
+            using (Fdp.Core.AccessTrace.Scope("node: afterKernel BrainObservation")) if (_world != null) Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current?.Tick(_world);
+            // ⭐ CE-1329 (BV-70) — the per-unit debug settings: loaded with a scenario, saved when they change
+            using (Fdp.Core.AccessTrace.Scope("node: afterKernel UnitDebugSettingsMemory")) if (_world != null) _debugSettingsMemory.Tick(_world, _editorLogic?.LoadedScenarioName);
+        }
+
+        private void RunPresentationStep(float dt)
+        {
+            var a = _world!;
+            try { TickDebugSettingsUi(); }
+            catch (Exception ex) { if (System.Threading.Interlocked.Increment(ref _presentationStepFaults) <= 20) Console.WriteLine("[POC3] presentation step fault: " + ex); }
+            _mapStep?.RunEveryFrame(dt);   // ⭐ CE-3446 — the canvas menu over A
+        }
+        private long _presentationStepFaults;
+
+        /// <summary>⭐⭐ CE-3446 (§15) — the editor's view of the shared presentation the bootstrap composed, and its HOOKS (its differences): the
+        /// sim-side work (debug API routes, the logic pump, Run to …), the readouts it publishes, and its UI read models + interaction block.</summary>
+        private void BindStagedPresentation()
+        {
+            var p = _presentation = _node!.Presentation!;
+            var s = _simWorld = p.Sim;
+            _twSimMap = p.SimMap;
+            _twPresMap = p.Map;
+            _twTableMask = p.TableMask; _twSingletonExcept = p.SingletonExcept; _twMaskAll = p.MaskAll;
+            _simJobs = p.Jobs;
+            _staging = p.Staging;
+            _uiOrchestrationBus = p.UiEventBus;   // ⭐ D-9 — the orchestration bus, mirrored for the UI
+            _uiClusterView = p.UiClusterView;
+            p.SimBefore = SimBeforeNodeFrame;
+            p.NodeFrame = TickNodeFrame;
+            p.SimAfter = SimAfterNodeFrame;
+            p.UiAfterPull = UiAfterPull;
+        }
+
+        /// <summary>⭐ POC 3 C-1 — the rail: walk what was BUILT. No node object (the kernel: modules, systems) may reach A; no presentation object (the
+        /// canvas, the panels / windows / layers / views held by the editor) may reach S. <c>HROT_POC3_WALK=1</c> logs, <c>=exit</c> logs and exits.</summary>
+        private void WalkComposition()
+        {
+            var mode = EnvVars.Read(EnvVars.HrotPoc3Walk);
+            if (mode is not ("1" or "exit") || _presWorld == null || _nodeWorld == null) return;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var stop = new object[] { this, _bootstrapper! };   // the composition roots: they hold both worlds by design (⛔ not the node context: a presentation object holding it reads S)
+            // ⭐ VERIFIED exceptions (reachable, not accessed): the breakpoint-hit handler DebugApiService registers (DebugApiService.cs:644-651) only
+            //   writes five "last hit" scalars and asks S's NetworkEntityMap — it never touches A; the walk reaches A through the closure's `this`.
+            var nodeStop = new object[] { this, _bootstrapper!, _debugApiService! };
+            var nodeHits = Fdp.Core.WorldReferenceWalker.Find(_kernel!, "kernel", _presWorld, stopAt: nodeStop);
+            var presHits = new List<Fdp.Core.WorldReferenceWalker.Hit>();
+            if (_canvas != null) presHits.AddRange(Fdp.Core.WorldReferenceWalker.Find(_canvas, "canvas", _nodeWorld, stopAt: stop));
+            foreach (var f in GetType().GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public))
+            {
+                var tn = f.FieldType.Name;
+                if (!(tn.EndsWith("Panel") || tn.EndsWith("Window") || tn.EndsWith("Layer") || tn.EndsWith("View") || tn.EndsWith("Browser") || tn.EndsWith("Inspector"))) continue;
+                if (f.GetValue(this) is { } root) presHits.AddRange(Fdp.Core.WorldReferenceWalker.Find(root, "editor." + f.Name, _nodeWorld, stopAt: stop));
+            }
+            var report = Fdp.Core.WorldReferenceWalker.Report("[POC3-WALK] NODE objects reaching A", nodeHits)
+                       + Fdp.Core.WorldReferenceWalker.Report("[POC3-WALK] PRESENTATION objects reaching S", presHits);
+            Console.WriteLine(report + $"[POC3-WALK] walked in {sw.Elapsed.TotalSeconds:F1} s");
+            var outPath = EnvVars.Read(EnvVars.HrotPoc3WalkOut);
+            if (!string.IsNullOrEmpty(outPath)) System.IO.File.WriteAllText(outPath, report);
+            if (mode == "exit") Environment.Exit(0);
+        }
+
+        private bool TwoWorldsStep()
+        {
+            bool want = _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview;
+            if (want && _simWorld == null) EngageTwoWorlds();
+            else if (!want && _simWorld != null) DisengageTwoWorlds();
+            return _simWorld != null;
+        }
+
+        private void EngageTwoWorlds()
+        {
+            var a = _world!;
+            Fdp.ModuleHost.ThreadedKernelGate.MainAdoptLock();   // this frame did its world work unlocked (the gate was idle at its start)
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            _twSimMap = a.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() ? a.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() : null;
+            var s = a.CloneForSimulation();
+            // the map the simulation keeps mutating stays S's (systems captured it); A reads its own, rebuilt from A's NetworkIdentity rows
+            _twSingletonExcept = default;
+            _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Fdp.Toolkit.Replication.Services.NetworkEntityMap>.ID);
+            _twPresMap = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            _twPresMap.RebuildFromWorld(a);
+            a.SetSingletonManaged(_twPresMap);
+            // the TABLE mask: a named mask of the A-1 masks file, or every type
+            string? maskPath = EnvVars.Read(EnvVars.HrotTwoWorldsMasks);
+            string maskName = EnvVars.Read(EnvVars.HrotTwoWorldsMask) is { Length: > 0 } mn ? mn : "ui-no-inspector";
+            var loaded = maskPath != null ? Fdp.ModuleHost.PublishProbe.LoadMask(maskPath, maskName) : null;
+            _twMaskAll = loaded == null;
+            _twTableMask = loaded?.Mask ?? a.GetSnapshotableMask(true);
+            // ⚠ SelectionState comes from S for now: the selection systems still run INSIDE the tick (on S) until P-3 moves them to the main thread;
+            //   then it leaves the mask and A keeps it by the "outside the mask" rule
+            _twTableMask.SetBit(Fdp.Core.ComponentType<Hrot.Map.Common.Components.SelectionState>.ID);
+            _twSelQuery = s.Query().With<Hrot.Map.Common.Components.SelectionState>().Build();
+            _simWorld = s;
+            Fdp.Core.WorldGuard.ArmSyncMask(_twTableMask, _twSingletonExcept);
+            _kernel!.RetargetLiveWorld(s);
+            Console.WriteLine($"[POC2] two worlds ENGAGED in {sw.Elapsed.TotalMilliseconds:F0} ms — S cloned from A ({_twPresMap.Entries.Count} networked entities); table mask "
+                + (_twMaskAll ? "ALL types" : $"'{maskName}' ({loaded!.Value.Types} types, {loaded.Value.Missing} not registered)")
+                + $"; lock whole tick: {Fdp.ModuleHost.ThreadedKernelGate.LockWholeTick}; guard: {Fdp.Core.WorldGuard.On}");
+            Fdp.ModuleHost.ThreadedKernelGate.Engaged = true;
+        }
+
+        private void DisengageTwoWorlds()
+        {
+            _kernelWorkerStop = true;
+            Fdp.ModuleHost.ThreadedKernelGate.MainReleaseForStop();   // the worker may be waiting for the lock this frame holds
+            _kernelWorker?.Join(5000);
+            Fdp.ModuleHost.ThreadedKernelGate.MainAdoptLock();
+            _kernelWorker = null; _kernelWorkerStop = false;
+            Fdp.ModuleHost.ThreadedKernelGate.Engaged = false;
+            Fdp.Core.WorldGuard.Disarm();
+            if (_gizmoBuffer != null) _gizmoBuffer.ReaderUsesPublished = false;
+            var a = _world!; var s = _simWorld!;
+            // A takes ALL of S once (the editor is single-world again), and the simulation's own NetworkEntityMap back
+            a.SyncPresentationFrom(s, a.GetSnapshotableMask(true), default);
+            if (_twSimMap != null) a.SetSingletonManaged(_twSimMap);
+            _kernel!.RetargetLiveWorld(a);
+            _simWorld = null;
+            Console.WriteLine($"[POC2] two worlds DISENGAGED — A took all of S; syncs {_twSyncN}, mean {(_twSyncN > 0 ? _twSyncSum / _twSyncN : 0):F2} ms, rows mean {(_twSyncN > 0 ? _twRowSum / _twSyncN : 0):F3} ms; guard hits {Fdp.Core.WorldGuard.DistinctHits}");
+            _twSyncSum = _twRowSum = 0; _twSyncN = 0;
+        }
+
+        /// <summary>POC 2 — the S→A sync of one tick (the caller holds the world lock).</summary>
+        private void SyncPresentationWorld()
+        {
+            if (Fdp.Core.AccessTrace.On) Fdp.Core.AccessTrace.Mute();   // ⭐ POC 3 — the WHOLE sync is the one legitimate crossing (the map rebuild and the event forward included)
+            try { SyncPresentationWorldCore(); } finally { if (Fdp.Core.AccessTrace.On) Fdp.Core.AccessTrace.Unmute(); }
+        }
+
+        private void SyncPresentationWorldCore()
+        {
+            var a = _world!; var s = _simWorld!;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            a.SyncPresentationFrom(s, _twTableMask, _twSingletonExcept);
+            double tables = sw.Elapsed.TotalMilliseconds;
+            int n = 0;
+            if (!_twMaskAll && _twSelQuery != null)
+                foreach (var e in _twSelQuery)
+                {
+                    if (!s.GetComponentRO<Hrot.Map.Common.Components.SelectionState>(e).IsSelected) continue;
+                    _twRows[n++] = e;
+                    if (n == _twRows.Length) break;
+                }
+            a.SyncRowsFrom(s, new ReadOnlySpan<Entity>(_twRows, 0, n));
+            _twPresMap!.RebuildFromWorld(a);
+            // events, both ways (§14.1 "logs and events forwarded"): what the UI published on A's bus since the last sync reaches S's systems after S's
+            // next swap (the baseline COMMAND path: a forwarded request, one tick late); what S made readable this tick becomes readable on A
+            var ab = a.Bus; var sbus = s.Bus;
+            ab.SwapBuffers();                                   // A: the UI's publishes → current
+            sbus.PublishCurrentOf(ab, addMissingStreams: true); // → S pending
+            ab.PublishCurrentOf(sbus, addMissingStreams: true); // S's readable events → A pending
+            ab.SwapBuffers();                                   // → A current, for the UI's readers
+            // ⭐ POC 4 F-2 ② — UI state the simulation reads rides A → S here, while no tick runs (§14.1 row 6)
+            if (Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Peek(a) is { } uiDebug)
+                Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(s).TakeRequestsFrom(uiDebug);
+            _twSyncSum += tables; _twRowSum += sw.Elapsed.TotalMilliseconds - tables; _twSyncN++;
+        }
+
+        /// <summary>
+        /// ⭐⭐ N-1 / N-3 / CE-3446 — the editor's sim-side work in the shared step (<see cref="Hrot.Common.Infrastructure.StagedPresentation.Step"/>:
+        /// jobs, uplinks, THIS, the node frame, <see cref="SimAfterNodeFrame"/>, the publish): the HTTP routes, the scenario session's load pump, Run to ….
+        /// </summary>
+        private void SimBeforeNodeFrame()
+        {
+            using (Fdp.Core.AccessTrace.Scope("sim: debug-API jobs (sim-side routes)", Fdp.Core.TraceContext.Tick)) _debugApiJobQueue?.DrainAll();   // ⭐ N-8
+            using (Fdp.Core.AccessTrace.Scope("sim: editor logic Update (load pump)", Fdp.Core.TraceContext.Tick)) _editorApp?.Update();          // ⭐ N-6 — the real session, on S
+            if (!ReferenceEquals(_simMissionService, _missionService)) _simMissionService?.PollAcks();   // ⭐ N-8
+            _runTo?.Tick();   // ⭐ N-5 — Run to …: its turbo steps ARE node frames, so it belongs to the sim thread
+        }
+
+        /// <summary>⭐ The editor's readouts, published with this tick (applied on the UI thread, in order with the pull).</summary>
+        private void SimAfterNodeFrame()
+        {
+            DrainStagingRemap();   // ⭐ N-4 — the orchestration bus is read on the sim thread only; its UI half rides the publish queue
+            (_editorApp?.ScenarioSession as Hrot.Editor.AiShared.Scenarios.EditorScenarioSession)?.RefreshOnSim();   // ⭐ N-6 — the values the session's readout reads
+            //   ⭐ CE-3446 — the readouts (session, Run to …, review model) follow on the shared channel (StagedPresentation.AddReadout)
+        }
+
+
+        /// <summary>⭐ N-3 / CE-3446 — after the shared pull took a newer tick: the editor's UI read models drain their mirror, then the interaction
+        /// block runs once per pulled tick (the shared pull then sends the per-unit debug requests to S).</summary>
+        private void UiAfterPull(float pulledDt)
+        {
+            _uiClusterCache?.Update();
+            _timeTransport?.Update();
+            _mapStep?.RunPerPulledTick(pulledDt);   // ⭐ R-4211 / CE-3446 — once per pulled tick, the shared map step
+        }
+
+        // ⭐ N-13 (CE-4475) / CE-3446 — the host runs every kernel of the process on ITS one sim worker: the shared presentation's step runs there
+        private bool _hostSimWorker;
+
+        /// <inheritdoc/>
+        public void UseHostSimWorker() { if (_presentation != null) { _hostSimWorker = true; _presentation.UseHostSimWorker(); } }
+
+        /// <inheritdoc/>
+        public bool SimStepOnHostWorker() => _presentation?.StepOnHostWorker() ?? false;
+
+        private void EnsureKernelWorker()
+        {
+            if (_kernelWorker != null) return;
+            if (_presentation != null)
+            {   // ⭐ N-13 / CE-3446 — the host's worker (or the shared presentation's own) runs the step; only the presentation-side switches here
+                if (_gizmoBuffer != null) _gizmoBuffer.ReaderUsesPublished = true;
+                if (!_hostSimWorker) _presentation.EnsureOwnWorker();
+                return;
+            }
+            if (_canvas != null) Console.WriteLine("[X-4] map layers: " + string.Join(", ", _canvas.Layers.Select(x => x.GetType().Name)));
+            if (_gizmoBuffer != null) _gizmoBuffer.ReaderUsesPublished = true;
+            _kernelWorker = new System.Threading.Thread(KernelWorkerLoop) { IsBackground = true, Name = "HROT kernel (X-4)" };
+            _kernelWorker.Start();
+            Console.WriteLine("[X-4] the node frame runs on a worker thread (HROT_THREADED_KERNEL=1)");
+        }
+
+        private void KernelWorkerLoop()
+        {
+            Fdp.Core.Threading.WindowsScheduling.OptOutCurrentThread();   // ⭐ N-14 — the sim thread (a no-op off Windows)
+            if (_simWorld != null) Fdp.Core.WorldGuard.Arm(_simWorld, _world!, Environment.CurrentManagedThreadId);   // ⭐ POC 2
+            var tickWatch = new System.Diagnostics.Stopwatch();
+            double tickSum = 0; long tickN = 0, lastReport = Environment.TickCount64;
+            var k1 = new System.Diagnostics.Stopwatch();
+            var k1Work = new double[2]; var k1Acquire = new double[2]; var k1Hold = new double[2]; var k1Yield = new double[2]; var k1N = new long[2];   // [0] playing · [1] paused
+            while (!_kernelWorkerStop)
+            {
+                int k1S = _timeTransport?.IsPaused == true ? 1 : 0;
+                k1.Restart();
+                Fdp.ModuleHost.ThreadedKernelGate.WorkerYield();
+                double k1Y = k1.Elapsed.TotalMilliseconds;
+                float dt;
+                lock (_workerDtLock)
+                {
+                    dt = (float)System.Math.Min(_workerPendingDt, 0.25);
+                    _workerPendingDt = _workerPendingDt - dt > 0.25 ? 0 : _workerPendingDt - dt;   // never more than one quarter second behind
+                }
+                if (dt <= 0f) { System.Threading.Thread.Sleep(1); continue; }
+                if (_simWorld != null && !Fdp.ModuleHost.ThreadedKernelGate.LockWholeTick)
+                {   // ⭐ POC 2 — the tick runs on S beside the drawing thread; the lock is taken for the S→A sync only
+                    tickWatch.Restart();
+                    try
+                    {
+                        if (_gizmoBuffer != null) Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer, GizmoFeedAddress);
+                        _gizmoBuffer?.EndFrame(dt);
+                        k1.Restart();
+                        TickNodeFrame(dt);
+                        k1Work[k1S] += k1.Elapsed.TotalMilliseconds; k1Yield[k1S] += k1Y;
+                        _gizmoBuffer?.PublishFrame();
+                        // ⭐ K-1 (CE-4450) — the wait to ACQUIRE the world, then the sync's HOLD, timed apart
+                        k1.Restart();
+                        Fdp.ModuleHost.ThreadedKernelGate.WorkerEnter();
+                        k1Acquire[k1S] += k1.Elapsed.TotalMilliseconds;
+                        k1.Restart();
+                        try { SyncPresentationWorld(); DrainStagingRemap(); }   // ⭐ K-1 — the orchestration bus read inside the lock (the main thread is shut out)
+                        finally { k1Hold[k1S] += k1.Elapsed.TotalMilliseconds; Fdp.ModuleHost.ThreadedKernelGate.WorkerExit(); }
+                        k1N[k1S]++;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (System.Threading.Interlocked.Increment(ref _kernelWorkerFaults) <= 20) Console.WriteLine("[X-4] worker fault: " + ex);
+                    }
+                    tickSum += tickWatch.Elapsed.TotalMilliseconds; tickN++;
+                    Fdp.ModuleHost.ThreadedKernelGate.Ticks++;
+                    goto report;
+                }
+                lock (Fdp.ModuleHost.ThreadedKernelGate.WorldLock)
+                {
+                    tickWatch.Restart();
+                    try
+                    {
+                        if (_gizmoBuffer != null)
+                            Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer, GizmoFeedAddress);
+                        _gizmoBuffer?.EndFrame(dt);
+                        TickNodeFrame(dt);
+                        if (_simWorld != null) SyncPresentationWorld();   // ⭐ POC 2, the whole tick under the lock (HROT_TWO_WORLDS_LOCK_TICK=1)
+                        else Fdp.ModuleHost.PublishProbe.AfterFrame(_world);
+                        _gizmoBuffer?.PublishFrame();
+                    }
+                    catch (Exception ex)
+                    {
+                        if (System.Threading.Interlocked.Increment(ref _kernelWorkerFaults) <= 20) Console.WriteLine("[X-4] worker fault: " + ex);
+                    }
+                    tickSum += tickWatch.Elapsed.TotalMilliseconds; tickN++;
+                    Fdp.ModuleHost.ThreadedKernelGate.Ticks++;
+                }
+                report:
+                if (Environment.TickCount64 - lastReport > 5000 && tickN > 0)
+                {
+                    if (_presentation != null)
+                        Console.WriteLine(_presentation.Report());
+                    if (_simWorld != null && _twSyncN > 0)
+                        Console.WriteLine($"[POC2] syncs {_twSyncN}: tables mean {_twSyncSum / _twSyncN:F2} ms, rows+map mean {_twRowSum / _twSyncN:F3} ms · guard hits {Fdp.Core.WorldGuard.DistinctHits}");
+                    var g = Fdp.ModuleHost.ThreadedKernelGate.WorldFrames; var m = Fdp.ModuleHost.ThreadedKernelGate.MapOnlyFrames;
+                    var f = Fdp.ModuleHost.ThreadedKernelGate.TakeFrameStats();
+                    Console.WriteLine($"[X-4] {tickN} ticks, node frame mean {tickSum / tickN:F1} ms · drawing frames: {g} with the world, {m} map-only (cumulative) · yields {Fdp.ModuleHost.ThreadedKernelGate.YieldWaits} · faults {_kernelWorkerFaults}");
+                    Console.WriteLine($"[X-4F] world frames {f.WN} mean {f.WMean:F1} p95 {f.WP95:F1} ms · map-only frames {f.MN} mean {f.MMean:F1} p95 {f.MP95:F1} ms");
+                    for (int st = 0; st < 2; st++)
+                    {
+                        if (k1N[st] == 0) continue;
+                        long n = k1N[st];
+                        Console.WriteLine($"[K-1] {(st == 1 ? "PAUSED" : "PLAYING")} {n} ticks · per tick: work {k1Work[st] / n:F1} ms · lock acquire {k1Acquire[st] / n:F1} ms · sync hold {k1Hold[st] / n:F1} ms · yield {k1Yield[st] / n:F1} ms"
+                            + $" · main exits while the worker waited {Fdp.ModuleHost.ThreadedKernelGate.MainExitsWhileWorkerWaits} · hand-over waits {Fdp.ModuleHost.ThreadedKernelGate.MainHandoverWaits} · fair {Fdp.ModuleHost.ThreadedKernelGate.FairHandover}");
+                        k1Work[st] = k1Acquire[st] = k1Hold[st] = k1Yield[st] = 0; k1N[st] = 0;
+                    }
+                    tickSum = 0; tickN = 0; lastReport = Environment.TickCount64;
+                }
+            }
+        }
+
         public void Update(float deltaTime)
         {
+            // ⭐ EXPERIMENT (threaded kernel X-4) — HROT_THREADED_KERNEL=1: the node frame runs on a worker (KernelWorkerLoop); this frame does the
+            //   world work only when the drawing thread holds the world (ThreadedKernelGate); otherwise it moves the camera and returns.
+            bool threaded = Fdp.ModuleHost.ThreadedKernelGate.Enabled && _node != null && !_headless;
+            if (threaded && Fdp.ModuleHost.ThreadedKernelGate.TwoWorlds) threaded = TwoWorldsStep();   // ⭐ POC 2 — only while a preview runs
+            if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && (Fdp.ModuleHost.ThreadedKernelGate.ComposedSingleThread || _simWorld == null)) threaded = false;   // ⭐ POC 3 single-threaded
+            if (threaded && Staged)
+            {   // ⭐⭐ N-3 (R-4216 / R-4217) — NO world lock: the sim runs on its worker; this frame pulls the latest complete tick into A (when newer),
+                //   then runs the UI's own systems on A. Every UI → S effect is a job (N-1).
+                Fdp.ModuleHost.ThreadedKernelGate.Engaged = true;
+                EnsureKernelWorker();
+                _presentation!.AddTime(deltaTime);   // ⭐ CE-3446 — the shared presentation: the sim worker's time, then the pull
+                _presentation.Pull();
+                RunPresentationStep(deltaTime);
+            }
+            else if (threaded)
+            {
+                EnsureKernelWorker();
+                lock (_workerDtLock) _workerPendingDt += deltaTime;
+                if (!Fdp.ModuleHost.ThreadedKernelGate.MainHasWorld) { _canvas?.Camera.Update(deltaTime); return; }
+            }
+            else if (!Staged)
+            _runTo?.Tick();   // ⭐ CE-4316 — Run to …: one ACK-gated step per frame until reached   (⚠ X-4 shortcut: not in threaded mode — its turbo step ticks the node frame here)
+            // ⭐⭐⭐ MX-006 — THE FRAME BOUNDARY for the panel snapshot. FIRST LINE OF THE FRAME.
+            //   📄 DESIGN_UI_Observability_Snapshot.md §"Perf & correctness".
+            //   🔴 Why: the snapshot is latest-wins, so a panel whose window the user CLOSED kept
+            //      reporting its last model forever — measured by the time lane over GET /panels
+            //      (HN-122). An agent could not tell a live panel from a ghost.
+            //   ⭐⭐ CLEAR-THEN-FILL, not fill-then-clear: everything published later THIS frame — the
+            //      gizmo feed below, then every panel in DrawUI() — refills it, so a reader between
+            //      frames always sees a COMPLETE frame. ⛔ Clearing at the END would leave it empty
+            //      exactly when an out-of-band consumer (the HTTP endpoint, a test) actually looks.
+            //   ⛔⛔ IT MUST BE HERE, NOT IN DrawUI(). The gizmo feed publishes inside THIS method
+            //      (:~1901, before EndFrame); DrawUI runs afterwards ⇒ clearing there would wipe the
+            //      map feed every single frame, and it would look like the feed was never wired.
+            //      📌 Written that way first and caught by tracing the order, not by a rail — no rail
+            //      spans Update and DrawUI.
+            //   ⛔⛔ ClearCaptured, NEVER Clear: Clear() drops the INSTRUMENTED set too, and that set is
+            //      declared once at each panel's CONSTRUCTION ⇒ calling it per frame would empty
+            //      RegisteredPanels permanently after frame one, collapsing the two sets the opt-in
+            //      registry exists to keep apart.
+            //   ⛔⛔⛔ AND THE DRAIN MUST COME FIRST — measured 2026-08-23, see the block below.
+            //      The comment above says a reader "between frames always sees a COMPLETE frame". 🔴 That
+            //      was TRUE of the intent and FALSE of the only reader it names: the HTTP reader does not
+            //      run between frames, it runs INSIDE this one, on the very next line.
+
+            // ⭐⭐⭐ Pump AI-debug API (MCP) jobs onto the main thread once per frame.
+            //
+            // 🔴🔴 MOVED ABOVE ClearCaptured() — 2026-08-23, HN-007. It used to sit one line BELOW it, so
+            //    EVERY `GET /panels` served through this queue ran exactly one statement after the
+            //    captured set was emptied and BEFORE anything refilled it (the gizmo feed publishes later
+            //    in this method; every panel publishes in DrawUI(), later still).
+            // ⇒ ⛔⛔ `captured` was STRUCTURALLY ALWAYS EMPTY for every out-of-band reader, and
+            //    `GET /panels/{id}` therefore answered null for every panel that exists. 📌 Measured, not
+            //    reasoned: PanelSnapshotTests.A_panels_model_can_be_read_and_a_field_asserted failed on
+            //    `Assert.NotEmpty(captured)` — and it failed identically before the perspective rename, so
+            //    it is older than that batch.
+            // ⭐⭐ Draining FIRST does not weaken the "consistent world" guarantee the old comment claimed:
+            //    nothing else has run yet either way. It only changes WHICH frame's capture the reader
+            //    sees — the previous, COMPLETE one instead of this one's empty prefix. ⭐ That is exactly
+            //    what DESIGN_Regression_Net.md §6's capture protocol already assumes: act, step a tick,
+            //    then read.
+            // ⚠ The cost, stated: a reader sees a capture one frame old. ⛔ The alternative — reading a
+            //    half-built frame — is worse, and reading an EMPTY one is what we had.
+            using (Fdp.Core.AccessTrace.Scope("api-job: debug-API jobs (HTTP routes run on the main thread)", Fdp.Core.TraceContext.Other))
+                if (Staged) _debugApiUiJobQueue?.DrainAll();   // ⭐ N-8 — mode 3: only the UI-side routes here; the sim drains the rest between ticks
+                else _debugApiJobQueue?.DrainAll();   // ⭐ A-1
+
+            // ⭐ CE-4038 (DESIGN_Film_Director §1a) — THE new edge: the director's frame, after the routes drained (a /director/play lands
+            //   this frame) and before the map's update (its held shot and its capture are served there). ⭐⭐ At most ONE step per frame
+            //   (§0, R-3038) — the runner asserts it.
+            using (Fdp.Core.AccessTrace.Scope("editor: film director")) _directorPack?.Tick();   // ⭐ A-1
+            // ⭐ CE-4042 — --verify: start the run once the editor is Idle; leave with the verdict when it is done
+            if (_directorPack != null)
+                _commandLineVerify?.Tick(_directorPack.Runner, _editorApp != null && UiClusterState == Fdp.Toolkit.Orchestration.ClusterState.Idle, _requestAppExit);
+
+            // ⭐ K-1 (CE-4450) — in threaded mode the drain reads the ORCHESTRATION bus, which the worker's node frame publishes to and swaps outside the
+            //   world lock: "Collection was modified" 3 of 3 runs once the hand-over was fair (the starved worker had hidden it). It runs in the worker's
+            //   locked sync instead (SyncPresentationWorld below). ⚠ An experiment's patch: the UI's PUBLISHES onto that bus still race — commands (§14.1).
+            if (!Staged)   // ⭐ N-4 — mode 3: the sim thread reads the orchestration bus (SimStep)
+                using (Fdp.Core.AccessTrace.Scope("editor: staging remap drain")) DrainStagingRemap();   // ⭐ A-1
+
+            Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
+
             // Process input pipeline BEFORE kernel update so authored tools
             // (CreationTool, ObstaclePlacementTool, etc.) receive mouse events this frame.
-            _canvas?.Update(deltaTime);
-            _selectionSystem?.Tick(deltaTime);
+            using (Fdp.Core.AccessTrace.Scope("editor: map canvas Update (camera, input, layers)")) _canvas?.Update(deltaTime);   // ⭐ A-1
+            using (Fdp.Core.AccessTrace.Scope("editor: selection system")) _selectionSystem?.Tick(deltaTime);   // ⭐ A-1
             // Update camera viewport so MapCullingModule knows what area is on-screen.
             if (_camera != null)
             {
@@ -1590,64 +3310,111 @@ namespace Hrot.Editor
             // This must happen before kernel.Update() and after canvas.Update() so that
             // tool-emitted primitives (written during canvas.Update ? ActiveTool.Draw) are
             // already in the buffer when StatelessGizmoSystem runs.
-            _gizmoBuffer?.EndFrame(deltaTime);
+            // ⭐⭐⭐ U-obs-3 — PUBLISH THE MAP FEED BEFORE THE BUFFER IS RESET.
+            //   📄 DESIGN_UI_Observability_Snapshot.md §Adoption U-obs-3 — the peer feed its §UML has
+            //      drawn since the design was written (DebugPrimitiveBuffer ..> PanelSnapshotService).
+            //   ⛔⛔ ORDER IS LOAD-BEARING AND FRAGILE: EndFrame resets the transient write cursor, so
+            //      publishing after it would register an EMPTY frame every single time — and it would
+            //      look perfectly healthy (the id present, the model well-formed, `count: 0`). ⇒ the
+            //      one line above this is the whole correctness argument.
+            //   ⚠ The comment above explains why EndFrame sits HERE rather than at the end of the
+            //      frame; the publish inherits that placement, so it reports the primitives the
+            //      PREVIOUS Update produced — which is exactly what is on screen right now.
+            using var traceGizmoFeed = Fdp.Core.AccessTrace.Scope("editor: gizmo feed publish + EndFrame");   // ⭐ A-1
+            if (!threaded && _gizmoBuffer != null)   // ⭐ X-4: in threaded mode the worker publishes and ends the gizmo frame
+                Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(
+                    _gizmoBuffer,
+                    // ⭐ BP-485 — the ADDRESS names the host; the KIND stays shared, so a
+                    //   cross-host conformance diff can still group every host's map feed.
+                    GizmoFeedAddress);   // ⭐ CE-4432 — built once (was a new string per frame)
 
-            // Kernel.Update() internally calls bus.SwapBuffers() then ticks registered modules.
-            _kernel?.Update();
+            if (!threaded) _gizmoBuffer?.EndFrame(deltaTime);
+            traceGizmoFeed.Dispose();   // ⭐ A-1 — a using var cannot end early (a second Dispose at the method end is harmless): the node frame is not the gizmo feed
 
-            // Drain AI hot-reload callbacks safely on the main thread.
-            // Any BTreeInterpreter pointer swaps queued by the background ALC worker
-            // are applied here, between kernel ticks, so no active simulation tick
-            // can observe a half-swapped pointer.
-            _aiCoordinator?.DrainPendingCallbacks();
+            // ⭐⭐⭐ CE-1446 B2 (decision C) — THE SHARED FRAME, `HrotNodeContext.Tick`: the slave's translator and the slave tick, then the kernel, then the node's live timeline step, then
+            //   the orchestration-bus swap — the order every other ECS host runs (the slave used to be ticked INSIDE the kernel as OrchestrationLogicPack, and the swap and timeline step
+            //   were spelled out here). The editor's own per-frame work rides the two seams the frame offers. ⚠ The kernel's world-bus swap is its own (Kernel.Update).
+            if (!threaded)
+            {
+                if (_presentation != null) { _presentation.StepAndPull(deltaTime); RunPresentationStep(deltaTime); }   // ⭐ N-3 — HROT_THREADED_SINGLE=1: the same step, on one thread
+                else TickNodeFrame(deltaTime);   // ⭐ CE-4316 — the node frame, extracted so Run to …'s turbo loop runs the SAME one (EditorSubsystem.TurboStep)
+                if (Fdp.ModuleHost.PublishProbe.Enabled && !_publishProbeExtras) RegisterPublishProbeExtras();   // ⭐ A-3
+                Fdp.ModuleHost.PublishProbe.AfterFrame(_world);   // ⭐ EXPERIMENT (threaded kernel X-1) — opt-in HROT_PUBLISH_PROBE=1
+            }
+            using (Fdp.Core.AccessTrace.Scope("editor: editor logic Update (loads, SoftClear, scenario)")) _editorLogic?.Update();   // ⭐ A-1
+            if (!Staged) using (Fdp.Core.AccessTrace.Scope("editor: orchestrator ScenarioPanel.Update")) _orchestratorCore?.ScenarioPanel.Update(deltaTime);   // ⭐ A-1
 
-            // AIE-026: tick the regeneration scheduler — flushes debounced dirty saves
-            // (BTree/HSM emit-on-dirty).  Safe in headless mode; no-op when nothing is pending.
-            _regenerationScheduler?.Tick();
-
-            // Swap the Control Plane bus so intents published by the UI this frame
-            // are readable by ClusterMaster/ClusterUiCache on the orchestration bus.
-            _orchestrationBus?.SwapBuffers();
-            _clusterMaster?.Tick();
-            _seekProcessManager?.Tick(); // Pump the seek Saga
-            _replayProcessManager?.Tick(); // Pump the replay manager for duration extraction
-            _assetInventoryProcessManager?.Tick();
-            _assetPrefetchProcessManager?.Tick();
-            _diagnosticsDumpProcessManager?.Tick();
-            _logMergeWorker?.Tick();
-            _uiCache?.Update();
-            _editorLogic?.Update();
-            _clusterPanel?.Update(deltaTime);
-
-            // Drain ActivateEditorToolEvent ? published by toolbar / context menu.
-            if (!_headless)
-                DrainToolActivationEvents();
+            // ⭐⭐⭐ CE-051 — the drain MOVED to the shared ToolActivationDrainSystem /
+            //    SelectEntitySystem / CenterOnEntitySystem, registered by ScenarioEditorModule (:1273).
+            //    ⛔ Nothing to call here: the kernel executes them. 📄 design §3 ④.
+            // ⭐ The rename half is the one piece that could not become a system — it needs ImGui — so it
+            //   is the shared EntityRenameModal, drained just below and drawn in DrawUI.
+            if (!_headless && _world != null)
+                using (Fdp.Core.AccessTrace.Scope("editor: entity rename modal drain")) _entityRenameModal?.Drain(_world);   // ⭐ A-1
 
             // Poll mission ACKs so async CommitMissionAsync tasks can resolve.
-            _missionService?.PollAcks();
-
-            // Synchronise map selection to the MissionPanel using Network ID.
-            if (_missionPanel != null && _selectionState != null && _world != null)
-            {
-                var selected = _selectionState.PrimarySelected;
-                int selectedNetId = 0;
-
-                if (selected.HasValue && selected.Value != Entity.Null && _world.IsAlive(selected.Value))
-                {
-                    if (_world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(selected.Value))
-                    {
-                        selectedNetId = (int)_world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(selected.Value).Value;
-                    }
-                }
-
-                _missionPanel.SelectedEntityId = selectedNetId;
-            }
+            using (Fdp.Core.AccessTrace.Scope("editor: mission service PollAcks")) _missionService?.PollAcks();   // ⭐ A-1
 
             // Feed the FDP event browser each frame.
             if (!_headless && _world != null)
             {
                 _fdpFrameCount++;
             }
+        }
+
+        /// <summary>
+        /// ⭐ CE-4316 — ONE pass of this host's node frame: the shared node tick (<c>HrotNodeContext.Tick</c>: the slave, the kernel, the timeline, the
+        /// bus swap), then the cluster orchestrator and the transport's read-back. <see cref="Update"/> runs it once per frame; Run to …'s turbo loop
+        /// (<see cref="TurboStep"/>) runs it once per step — the SAME frame, never a second copy of it.
+        /// </summary>
+        private static readonly bool K3Log = EnvVars.Read(EnvVars.HrotInsyncLog) == "1";   // ⭐ K-3 (CE-4450)
+        private void TickNodeFrame(float deltaTime)
+        {
+            using var traceNode = Fdp.Core.AccessTrace.Scope("node: shared frame (slave, bus swap, timeline)", Fdp.Core.TraceContext.Tick);   // ⭐ A-1 — the whole node frame is the TICK context
+            if (_node != null)
+            {
+                _node.Tick(
+                    beforeKernel: () => { using (Fdp.Core.AccessTrace.Scope("node: beforeKernel hook")) PreKernelUpdateHook?.Invoke(deltaTime); },
+                    afterKernel: () =>
+                    {
+                        using (Fdp.Core.AccessTrace.Scope("node: afterKernel PostKernelUpdateHook")) PostKernelUpdateHook?.Invoke();
+
+                        // Drain AI hot-reload callbacks safely on the main thread: any BTreeInterpreter pointer swaps queued by the background ALC worker are applied here, between kernel
+                        // ticks, so no active simulation tick can observe a half-swapped pointer.
+                        using (Fdp.Core.AccessTrace.Scope("node: afterKernel hot-reload drain"))
+                        {
+                            long k3 = K3Log ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+                            _aiCoordinator?.DrainPendingCallbacks();   // ⭐ A-1
+                            if (K3Log) { double ms = (System.Diagnostics.Stopwatch.GetTimestamp() - k3) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                                         if (ms > 1.0) Console.WriteLine($"[K-3] {DateTime.Now:HH:mm:ss.fff} hot-reload drain {ms:F1} ms on thread {Environment.CurrentManagedThreadId} (the node frame, blocked)"); }
+                        }
+                        // ⭐ CE-1317 (BV-48) — disarm the traces of units no Brain tab has drawn for ~1 s
+                        if (!Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds) TickDebugSettingsUi();   // ⭐ POC 4 F-2 ② — mode 3: the presentation step runs it (main thread, A)
+                        // AIE-026: tick the regeneration scheduler — flushes debounced dirty saves (BTree/HSM emit-on-dirty). Safe in headless mode.
+                        using (Fdp.Core.AccessTrace.Scope("node: afterKernel RegenerationScheduler")) _regenerationScheduler?.Tick();
+                    });
+            }
+
+            // The cluster orchestrator's own order (Q86): it reads the orchestration bus AFTER the frame swapped it, so intents published by the UI this frame are readable by it.
+            using (Fdp.Core.AccessTrace.Scope("node: orchestrator core Tick")) _orchestratorCore?.Tick();                 // ⭐ Q86 — the cluster orchestrator's own order
+            using (Fdp.Core.AccessTrace.Scope("node: ClusterUiCache.Update")) _orchestratorCore?.UiCache.Update();
+            using (Fdp.Core.AccessTrace.Scope("node: time transport Update")) _simTimeTransport?.Update();   // ⭐ D-9 — mode 3: the UI's own is updated on the UI thread (PullStaging)                  // ⭐ CE-3329 row 21 — the one facade reads what the cache reads
+            // ⭐⭐ CE-4497 R-3 — THE review source's ONE call site: after the kernel tick, in both kernel modes (the sim thread in mode 3; the one thread with the switch off) — it merges a participant
+            //   group into the node's world like any replayed state, so the staging carries it to A by the same pull.
+            if (_reviewSource is { } review) using (Fdp.Core.AccessTrace.Scope("node: review source Update")) review.Update(System.Math.Min(deltaTime, 0.25f));
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4316 — Run to …'s TURBO step, the ONE documented exception to the shared clock (📄 docs/blueprints/DESIGN_Time_Architecture.md §20):
+        /// on this NETWORKLESS all-in-one node (it always builds with <c>OfflineNetworkFactory</c>) there is no ACK round trip to wait for, so a
+        /// fixed step is taken on the master and the node frame runs at once — many per rendered frame, the map drawn once. Deterministic (every step
+        /// is <paramref name="stepSeconds"/>); used ONLY by <see cref="Hrot.UI.Common.RunMode.RunToController"/>, which passes <paramref name="step"/> =
+        /// false for a frame that only waits for the last step to land. A networked cluster takes the shared ACK-gated step instead.
+        /// </summary>
+        private void TurboStep(float stepSeconds, bool step)
+        {
+            if (step && _timeController is { IsAwaitingStepAcks: false }) _timeController.Step(stepSeconds);   // the controller asks a step only once the last has landed
+            TickNodeFrame(stepSeconds);
         }
 
         /// <inheritdoc/>
@@ -1659,8 +3426,18 @@ namespace Hrot.Editor
         public void DrawWorld()
         {
             if (_headless) return;
+            // ⭐ X-4 — this frame draws the worker's latest finished gizmo frame. ⭐ Keyed on the READER's switch, not on `_kernelWorker`: the shared
+            //   presentation (N-13 / CE-3446, the threaded node) turns ReaderUsesPublished on WITHOUT a kernel worker of its own, and a reader that
+            //   reads the published copy but never leases one reads an EMPTY frame — no unit symbols, no labels, no "Tactical Map Layers…" menu.
+            if (_gizmoBuffer is { ReaderUsesPublished: true } published) published.LeasePublished();
+            // ⭐ X-4 (finding X4-1) — a frame WITHOUT the world draws only the layers that read no world: the gizmo primitives, the grid, the 2-D
+            //   terrain (its retained geometry). Effects, projectiles, the cursor and the 3-D bodies query World A in Draw ⇒ drawn on world frames only.
+            if (_canvas != null) _canvas.DrawFilter = _kernelWorker != null && !Fdp.ModuleHost.ThreadedKernelGate.MainHasWorld ? MapOnlyLayer : null;
             _canvas?.Draw();
         }
+
+        /// <summary>⭐ CE-1290 — the loaded scenario's name, for the window title (null after New / clear).</summary>
+        public string? WindowTitleDetail => EditorWindowTitle.Detail(_editorLogic?.LoadedScenarioName, _world is { } w ? Fdp.Toolkit.Terrain.TerrainDefinition.LoadedName(w) : null, dirty: EditHistory.IsDirty);   // ⭐ B-14 / U5 — the dirty dot   // ⭐ CE-4210 MA-6 — "Macro: <path>" · N4 the terrain
 
         /// <inheritdoc/>
         /// <remarks>
@@ -1683,54 +3460,14 @@ namespace Hrot.Editor
         public bool ExitApproved => _exitPrompt?.ExitApproved ?? false;
 
         /// <summary>
-        /// Renders the app-exit unsaved-changes modal while a close is pending. ImGui-only; the button
-        /// actions delegate to the headless-testable <see cref="AiShared.Documents.AppExitPromptController"/>.
+        /// ⭐⭐ <c>CE-1438</c> (R-3066 audit #5) — the app-exit unsaved-changes prompt (⭐ CE-1443: the <i>New Exercise</i> confirmation left with the item) is a
+        /// <see cref="Hrot.UI.Common.RunMode.RunModeConfirmation"/>s their controllers produce, drawn through the ONE
+        /// <see cref="Hrot.UI.Common.RunMode.ConfirmationModal"/> the toolbar also uses — ⛔ no per-prompt ImGui here any more. A dismissal (Esc / [X]) is Cancel,
+        /// the last button: the destructive reset must never be the default outcome of walking away. (The load-over-a-run warning is the run choice's own, drawn by the toolbar.)
         /// </summary>
-        private void DrawExitPromptModal()
+        private void DrawPromptModals()
         {
-            if (_exitPrompt == null || !_exitPrompt.IsPrompting) return;
-
-            const string popupId = "Unsaved Changes###ai_app_exit_confirm";
-            if (!_exitPopupOpened)
-            {
-                ImGuiNET.ImGui.OpenPopup(popupId);
-                _exitPopupOpened = true;
-            }
-
-            var center = ImGuiNET.ImGui.GetMainViewport().GetCenter();
-            ImGuiNET.ImGui.SetNextWindowPos(center, ImGuiNET.ImGuiCond.Appearing, new System.Numerics.Vector2(0.5f, 0.5f));
-
-            bool stayOpen = true;
-            if (ImGuiNET.ImGui.BeginPopupModal(popupId, ref stayOpen,
-                    ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize | ImGuiNET.ImGuiWindowFlags.NoSavedSettings))
-            {
-                var dirty = _exitPrompt.DirtyDocuments;
-                ImGuiNET.ImGui.TextUnformatted(
-                    $"You have {dirty.Count} document{(dirty.Count == 1 ? "" : "s")} with unsaved changes:");
-                ImGuiNET.ImGui.Spacing();
-                foreach (var d in dirty)
-                    ImGuiNET.ImGui.BulletText($"{d.Asset.Name}  ({d.Kind})");
-                ImGuiNET.ImGui.Spacing();
-                ImGuiNET.ImGui.TextUnformatted("Save them before exiting?");
-                ImGuiNET.ImGui.Spacing();
-
-                if (ImGuiNET.ImGui.Button("Save All & Exit"))
-                { ImGuiNET.ImGui.CloseCurrentPopup(); _exitPopupOpened = false; _exitPrompt.ResolveSaveAndExit(); }
-                ImGuiNET.ImGui.SameLine();
-                if (ImGuiNET.ImGui.Button("Discard & Exit"))
-                { ImGuiNET.ImGui.CloseCurrentPopup(); _exitPopupOpened = false; _exitPrompt.ResolveDiscardAndExit(); }
-                ImGuiNET.ImGui.SameLine();
-                if (ImGuiNET.ImGui.Button("Cancel"))
-                { ImGuiNET.ImGui.CloseCurrentPopup(); _exitPopupOpened = false; _exitPrompt.ResolveCancel(); }
-
-                ImGuiNET.ImGui.EndPopup();
-            }
-            else if (!stayOpen)
-            {
-                // Dismissed via the popup's [X] / Esc — treat as Cancel (stay open, nothing saved).
-                _exitPopupOpened = false;
-                _exitPrompt.ResolveCancel();
-            }
+            Hrot.UI.Common.RunMode.ConfirmationModal.Draw(_exitPrompt?.Pending);
         }
 
         public void DrawUI()
@@ -1739,111 +3476,20 @@ namespace Hrot.Editor
 
             // App-exit unsaved-changes modal — rendered on top when a window-close was deferred.
             if (ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
-                DrawExitPromptModal();
-
-            // ── BATCH-06: perspective-level shell hotkey dispatch (Ctrl+S fix, §20) ───────────
-            // Pump the shell command hotkeys once per frame so Ctrl+S/Ctrl+Shift+S fire
-            // regardless of which sub-window is focused. Skip while the user is typing in
-            // a text field so keystrokes are not stolen from text inputs.
-            if (_shellHotkeyDispatcher != null && _wm?.ShellCommands != null)
             {
-                var io = ImGuiNET.ImGui.GetIO();
-                if (!io.WantTextInput)
-                    _shellHotkeyDispatcher.ProcessThisFrame(_wm.ShellCommands);
+                DrawPromptModals();
             }
-            // ───────────────────────────────────────────────────────────────────────────────────
 
-            // ── Unified Blueprint Tools Panel ──────────────────────────────────────────────────
-            // Merges MVE-BATCH-03/04/05 + PU-603 into a single "Blueprint Tools" window.
-            // Gate on ImGui context availability (skipped in non-ImGui headless test paths).
-            if (ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
-            {
-                bool showBlueprintTools = _blueprintRunButtonCallback != null
-                    || _blueprintSaveCallback != null
-                    || _blueprintCompileCallback != null
-                    || _saveAllCallback != null
-                    || _blueprintDebugSession != null;
+            // ⭐ B-10 K1 — the shell's hotkeys fire through the WindowManager's KeyRouter (its Global scope), on every host.
 
-                if (showBlueprintTools && ImGuiNET.ImGui.Begin("Blueprint Tools"))
-                {
-                    // -- 1. Run Blueprint --
-                    if (_blueprintRunButtonCallback != null)
-                    {
-                        if (ImGuiNET.ImGui.Button(
-                                Hrot.Blueprints.Editor.Runtime.RunBlueprintOnEntityCommand.ToolbarLabel))
-                            _blueprintRunButtonCallback.Invoke();
-
-                        if (!string.IsNullOrEmpty(_blueprintRunStatus))
-                        {
-                            ImGuiNET.ImGui.SameLine();
-                            ImGuiNET.ImGui.TextUnformatted(_blueprintRunStatus);
-                        }
-                    }
-
-                    // -- 2. Save Blueprint (hotkey via shell.save command, §20) --
-                    if (_blueprintSaveCallback != null)
-                    {
-                        ImGuiNET.ImGui.SameLine();
-                        if (ImGuiNET.ImGui.Button("Save Blueprint"))
-                            _blueprintSaveCallback.Invoke();
-
-                        if (!string.IsNullOrEmpty(_blueprintSaveStatus))
-                        {
-                            ImGuiNET.ImGui.SameLine();
-                            ImGuiNET.ImGui.TextUnformatted(_blueprintSaveStatus);
-                        }
-                    }
-
-                    // -- 3. Compile / Reload Blueprint --
-                    if (_blueprintCompileCallback != null)
-                    {
-                        ImGuiNET.ImGui.SameLine();
-                        if (ImGuiNET.ImGui.Button("Compile / Reload"))
-                            _blueprintCompileCallback.Invoke();
-
-                        if (_blueprintFullRebuildCallback != null)
-                        {
-                            ImGuiNET.ImGui.SameLine();
-                            if (ImGuiNET.ImGui.Button("Full Rebuild"))
-                                _blueprintFullRebuildCallback.Invoke();
-                        }
-
-                        if (!string.IsNullOrEmpty(_blueprintCompileStatus))
-                        {
-                            ImGuiNET.ImGui.SameLine();
-                            ImGuiNET.ImGui.TextUnformatted(_blueprintCompileStatus);
-                        }
-                    }
-
-                    // -- 4. Save All (hotkey via shell.saveAll command, §20) --
-                    if (_saveAllCallback != null)
-                    {
-                        ImGuiNET.ImGui.SameLine();
-                        if (ImGuiNET.ImGui.Button("Save All"))
-                            _saveAllCallback.Invoke();
-
-                        if (!string.IsNullOrEmpty(_saveAllStatus))
-                        {
-                            ImGuiNET.ImGui.SameLine();
-                            ImGuiNET.ImGui.TextUnformatted(_saveAllStatus);
-                        }
-                    }
-
-                    // -- 5. Debug step controls (when session is available) --
-                    if (_blueprintDebugSession != null)
-                    {
-                        ImGuiNET.ImGui.Separator();
-                        Hrot.Blueprints.Editor.Debug.DebugStepControls.Draw(_blueprintDebugSession);
-                    }
-                }
-
-                if (showBlueprintTools)
-                    ImGuiNET.ImGui.End();
-            }
+            // ⭐ CE-1237 — the Blueprint Tools window is a managed window now (EditorBlueprintToolsWindow, registered in RegisterWindows):
+            //   it had no close box and drew in EVERY perspective (a raw ImGui.Begin here). Its content is DrawBlueprintToolsContent.
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // Render hover tooltip with entity info (label, health, cognitive state).
-            if (_isActiveMapOwner() && !ImGuiNET.ImGui.GetIO().WantCaptureMouse && _canvas != null && _world != null)
+            // ⭐ CE-1073 — not in first person: the locked cursor sits at the crosshair, so the card was the possessed man's own
+            if (_isActiveMapOwner() && !ImGuiNET.ImGui.GetIO().WantCaptureMouse && _canvas != null && _world != null
+                && _canvas.Camera is not Fdp.Toolkit.Vis3D.MapCamera3D { Driver: not null })
             {
                 var mouseWorld = _canvas.Camera.ScreenToWorld(Raylib_cs.Raylib.GetMousePosition());
                 var hovered = _canvas.PickTopmostEntity(mouseWorld);
@@ -1852,9 +3498,9 @@ namespace Hrot.Editor
                 {
                     var sb = new System.Text.StringBuilder();
 
-                    if (_world.HasComponent<Hrot.IG.Components.ResolvedStyle>(hovered.Value))
+                    if (_world.HasComponent<Hrot.Map.Common.Components.ResolvedStyle>(hovered.Value))
                     {
-                        ref readonly var style = ref _world.GetComponentRO<Hrot.IG.Components.ResolvedStyle>(hovered.Value);
+                        ref readonly var style = ref _world.GetComponentRO<Hrot.Map.Common.Components.ResolvedStyle>(hovered.Value);
                         string label = style.GetLabelText();
                         if (!string.IsNullOrEmpty(label)) sb.AppendLine(label);
                     }
@@ -1889,83 +3535,42 @@ namespace Hrot.Editor
             _gizmoLayer?.DrawContextMenu();
             _gizmoLayer?.DrawStructInspector();
 
-            // Render gizmo-contributed main menu items (e.g. "View > Tactical Map Layers...").
-            var gizmoMenus = _gizmoLayer?.ConsumeMainMenu();
-            if (gizmoMenus != null && gizmoMenus.Count > 0)
-            {
-                if (ImGuiNET.ImGui.BeginMainMenuBar())
-                {
-                    GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenus, actionId =>
-                    {
-                        _interactionBus?.Publish(new GizmoMenuActionEvent { AnchorId = 0, ActionId = actionId });
-                    });
-                    ImGuiNET.ImGui.EndMainMenuBar();
-                }
-            }
+            // ⭐ CE-1243 — the map's menus (View ▸ Tactical Map Layers…) are a contributor of the one menu bar (RegisterWindows).
 
-            // Trigger rename modal when requested by DrainToolActivationEvents.
-            if (_openRenameModalThisFrame)
-            {
-                ImGuiNET.ImGui.OpenPopup("Rename Entity");
-                _openRenameModalThisFrame = false;
-            }
-
-            // Render the rename modal.
-            bool isRenameOpen = true;
-            if (ImGuiNET.ImGui.BeginPopupModal("Rename Entity", ref isRenameOpen, ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize))
-            {
-                if (ImGuiNET.ImGui.IsKeyPressed(ImGuiNET.ImGuiKey.Escape))
-                    ImGuiNET.ImGui.CloseCurrentPopup();
-
-                ImGuiNET.ImGui.InputText("New Name", ref _renameBuffer, 64);
-                ImGuiNET.ImGui.Separator();
-
-                bool canSave = !string.IsNullOrWhiteSpace(_renameBuffer);
-                if (!canSave) ImGuiNET.ImGui.BeginDisabled();
-                if (ImGuiNET.ImGui.Button("Save") && canSave)
-                {
-                    // Find entity by network id, read existing EntityInfo and update name.
-                    if (_world != null)
-                    {
-                        var q = _world.Query()
-                            .With<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
-                            .With<EntityInfo>()
-                            .Build();
-						EntityInfo updatedInfo = default;
-                        foreach (var e in q)
-                        {
-                            if (_world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == _renameTargetNetworkId)
-                            {
-                                updatedInfo = _world.GetComponent<EntityInfo>(e);
-                                break;
-                            }
-                        }
-                        updatedInfo.Name = new Fdp.Core.FixedString64(_renameBuffer.Trim());
-                        _editorLogic?.CommitPropertyEdit(_renameTargetNetworkId, new List<object> { updatedInfo });
-                    }
-                    ImGuiNET.ImGui.CloseCurrentPopup();
-                }
-                if (!canSave) ImGuiNET.ImGui.EndDisabled();
-
-                ImGuiNET.ImGui.SameLine();
-                if (ImGuiNET.ImGui.Button("Cancel"))
-                    ImGuiNET.ImGui.CloseCurrentPopup();
-
-                ImGuiNET.ImGui.EndPopup();
-            }
+            // ⭐⭐⭐ CE-051 — the ~35-line inline rename modal MOVED to the shared
+            //    Hrot.Editor.AiShared.Browser.EntityRenameModal. 📄 design §3 ③.
+            // ⭐ CGF gains the same modal from the same type; before E3 it had no rename affordance at all.
+            if (_world != null) _entityRenameModal?.DrawFrame(_world);
 
             // BATCH-29 (MTB-P8-T3): Draw the shell-global picker frame (Open Asset via Tree layout).
             _shellPickers?.DrawFrame();
+            // ⭐ CE-1059 — the map's order form (its entity list opens in the shell pickers drawn above).
+            _editorMapInteraction?.DrawOperatorUi();
 
             // BATCH-42 (MTB2-T8b): Draw the Save-As browser dialog (New flow).
             if (_saveAsBrowser != null && _iconProvider != null)
                 _saveAsBrowser.DrawFrame(_iconProvider);
+
+            // ⭐ Edit framework F7 (B-12) — the sticky notification stack for a refused / lost / conflicting edit, LAST so it is on top. It also folds the journal's outcomes in
+            //   (EditJournal.Refresh — this is its one caller). Reload / Overwrite (a mission-plan Conflict) are not wired here: the plan's conflict state is the Orders tab's own (P-7 7c).
+            _editNotifications ??= new Hrot.Presentation.Edits.EditNotificationOverlay(show: id => SelectNetworkEntity(id));
+            _editNotifications.Draw(_world);
         }
+
+        private Hrot.Presentation.Edits.EditNotificationOverlay? _editNotifications;
 
         /// <inheritdoc/>
         public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager windowManager)
         {
             _wm = windowManager;
+
+            // ⭐⭐⭐ CE-058 — the perspective → atlas-key table, ONE shared list, registered here rather
+            //    than inside the `MainToolbar != null` block it used to sit in. ⚠ Two reasons, both
+            //    measured: it needs NOTHING but the WindowManager, and inside that guard it was
+            //    unreachable from the bare-ctor `RegisterWindows` path every window unit rail uses — so
+            //    no rail could see whether a host registers the keys. 📌 That blindness is what let CGF
+            //    ship with the text-button fallback.
+            Hrot.Editor.AiShared.Windows.PerspectiveIconKeys.Register(windowManager);
 
             // Colored menu icons: resolve semantic keys (e.g. "shell/save", "asset/btree") to
             // silk-atlas sprites, drawn in an aligned gutter by the shared menu renderers. Bound
@@ -1973,6 +3578,9 @@ namespace Hrot.Editor
             windowManager.MenuIcons = Hrot.Editor.AiShared.Adapters.SilkMenuIconResolver.Create(windowManager.Atlas);
             if (_gizmoLayer != null)
                 _gizmoLayer.ContextMenuIconResolver = windowManager.MenuIcons; // gizmo right-click menus
+            // ⭐ Terrain authoring — a menu row whose icon key is one of the icon table's (terrain/reroll …) draws that coloured FontAwesome glyph
+            GizmoMap.Presentation.MenuIconRenderer.GlyphResolver = Hrot.UI.Common.Menus.MenuGlyphs.Resolve;
+
 
             // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
             // Harmless no-op for the Win32 backend: WindowManager only draws the service
@@ -1984,6 +3592,19 @@ namespace Hrot.Editor
             // Wire the perspective switcher to the window manager so manual toolbar
             // switches can activate the most-recently-opened doc of that kind.
             _perspectiveSwitcher = new WindowManagerPerspectiveSwitcher(windowManager);
+
+            // ⭐⭐⭐ N0 — HAND IT TO THE DEBUG API, ON THE NEXT LINE, DELIBERATELY.
+            //   📄 DESIGN_Regression_Net.md §7 N0.
+            // ⛔⛔ This is the 2026-08-16 silent-default rule made structural: DebugApiService is built in
+            //    Initialize, where the window manager does not exist yet, so the dependency HAS to arrive
+            //    late — and "arrives late" is exactly how HsmValidator, BlackboardAuthoringWindow and
+            //    ParameterSync each ended up holding an inert default. ⭐ The checkable rule is "a
+            //    production caller that HAS a dependency must PASS it", so the pass sits on the line
+            //    after the construction where a reader cannot miss it, ⛔ not in a later wiring block.
+            // ⚠ Null when the debug API is off (no HROT_DEBUG_API_PORT) — that is the correct no-op, and
+            //   it is why the rail asserts through a service that EXISTS rather than asserting non-null
+            //   unconditionally.
+            _debugApiService?.AttachPerspectives(_perspectiveSwitcher);
 
             // Build shared services needed by registrars.
             var catalog = _aiCatalogBuilder?.Catalog ?? new AssetCatalog();
@@ -2013,7 +3634,9 @@ namespace Hrot.Editor
                 new NoOpMetaEnvelopeSanitizer(),
                 catalog));
             var comparisonExportBuilder = new ComparisonExportBuilder();
-            var comparisonSessionRegistry = new ComparisonSessionRegistry();
+            // ⭐⭐ CE-071 — kept on the instance too, so the document Build sites can compose the canvas
+            //    annotation renderer. ⚠ The SAME instance flows to PerspectiveWorkspaceServices below.
+            var comparisonSessionRegistry = _comparisonSessionRegistry = new ComparisonSessionRegistry();
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── AIE-052: Blackboard aggregator service + strategies ───────────────────────────────
@@ -2052,7 +3675,11 @@ namespace Hrot.Editor
             aggregatorService.Register(new HsmBlackboardAggregatorStrategy(aggregatorService));
             // ─────────────────────────────────────────────────────────────────────────────────────
 
-            var debugRegistry   = new DebugSessionRegistry();
+            // ⭐ BATCH 84 — kept on the instance so a rail can put the editor into the exact state
+            //   R-66 describes (a document open, the sim DOWN) and check what the variable surfaces
+            //   then read. ⛔ Without this the anti-vacuity probe for R-66 is not expressible, and a
+            //   rail that cannot be reddened is not a rail.
+            var debugRegistry   = _aiDebugRegistry = new DebugSessionRegistry();
             var liveProvider    = new LiveSessionRegistry();
 
             // ── AIE-030: Register BTree/HSM debug session factories ─────────────────────────────
@@ -2071,8 +3698,13 @@ namespace Hrot.Editor
             // BATCH-11: Build the live-value provider for the Blackboard Authoring window's Value column.
             // Captures _fdpRepoAdapter (set in Initialize, null until simulation runs) and _behaviorRegistry
             // via lambdas so both perspectives share the same live-world source.
-            // Both selection stores share the same entity selection (global), so we use one provider
-            // instance per perspective; both read the same entity via their respective store.
+            // ⭐⭐⭐ Batch 95 (95b) — this sentence is now TRUE BY CONSTRUCTION, and it was FALSE when
+            //    it was written: the four stores each held a private entity field and only
+            //    _aiEditorSelectionStore was ever written, so "both read the same entity via their
+            //    respective store" described an intention, not the code. ⇒ every provider below
+            //    returned null on its entity gate and every row read "(pending)" for ever.
+            // ⭐ All four stores now share one SharedEntitySelection (see the constructor), so one
+            //    provider instance per perspective is again the right shape.
             var btreeLiveValueProvider = new LiveBlackboardValueProvider(
                 sessionFactory:  () => _fdpRepoAdapter,
                 registryFactory: () => _behaviorRegistry,
@@ -2095,135 +3727,430 @@ namespace Hrot.Editor
             // store dynamically. Per SE1 scope, picker drawers are deferred — facet picker
             // fields fall through to plain text inputs (acceptable). The edit service alone is
             // the core win.
-            var facetEditService = new ComponentEditServiceBuilder().Build();
-            _btreeRegistrar    = new PerspectiveWorkspaceRegistrar(
-                "BTree", _btreeSelectionStore, catalog, refactorService, debugRegistry,
+            // ⭐ CE-417 slice 4b — the ONE facet edit service both hosts build (it makes every binding one drawn leaf).
+            var facetEditService = Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build();
+
+            // ⭐⭐⭐ Batch 97 (97c) — THE WRITE SIDE, and the reason a paused edit never landed.
+            //    🔴🔴 Measured by Batch 96: TryWriteWorkingStateField (Batch 84) and the WriteLiveValue
+            //    delegate both shipped with ZERO production call sites, so VariableEditCommit.Commit
+            //    answered LiveWriteUnavailable for every paused edit on every host. ⛔ R-67's seventh
+            //    instance -- and it hid for six batches because a refusal is a LEGITIMATE outcome, so a
+            //    refusing editor is indistinguishable from a correctly-gated one.
+            //    ⭐ Same store as the READ (blueprintLiveValueProvider, below), deliberately: the write
+            //      must target whatever the read displayed. See BlueprintLiveValueWriter's remarks
+            //      (R-78's chameleon sentinel).
+            // ⭐⭐⭐ W4 (2026-08-21) — MOVED UP from beside the Blueprint registrar, because the shared
+            //    yellow needs it BEFORE perspectiveServices is built: StagedWriteView resolves a row's
+            //    address through THIS object, so that the yellow and the write cannot disagree about
+            //    where a variable lives (R-13). ⛔ Nothing else about it changed.
+            var blueprintLiveValueWriter = new BlueprintLiveValueWriter(
+                sessionFactory: () => debugRegistry.ActiveSession as IBlueprintDebugSession,
+                store:          _blueprintSelectionStore);
+
+            // ⭐⭐⭐ BATCH 84 / R-67 — ONE shared-service bundle instead of three hand-written argument
+            //    lists. 🔴🔴 The lists had diverged: facetEditService went to BTree and HSM and NOT to
+            //    Blueprint, so "Edit value…" and "Properties…" did nothing on the Blueprint
+            //    perspective; expressionTargetFieldAccessor, aggregatorService and liveValueProvider
+            //    were dropped there too. ⛔ That is the FOURTH instance of "a production caller that
+            //    HAS a dependency must PASS it", and passing one more argument does not compose --
+            //    the next shared service is one more thing three call sites must remember.
+            // ⭐ PerspectiveWorkspaceServices REQUIRES facetEditService and both clock signals, so the
+            //   omission is no longer expressible. What stays below is what genuinely differs per
+            //   perspective.
+            // ⭐⭐⭐ L6.1c — THE TWO CLOCK SIGNALS ARE HOISTED, so Scenario reads the SAME rule.
+            //   ⛔ Not copied: 📌 R-13/ruling 9 — a second pair of predicates on the Scenario side is
+            //     how "is the sim up?" comes to have two answers, and M-38/M-40 already cost this
+            //     programme three sessions over exactly that.
+            //   ⚠ Behaviour is unchanged for the AI perspectives: these ARE the lambdas that were
+            //     inline in the call below, moved out verbatim.
+            Func<bool> isSimUpSignal  = () => _previewController?.IsInPreviewMode ?? false;
+            Func<bool> isFrozenSignal = () => (_bpManager?.IsPaused ?? false)
+                                           || (_bpTimeAdapter?.IsPausedByDebugger ?? false)
+                                           || ClockIsHalted();
+
+            // ⭐⭐⭐ BP-511 — the staging⇄runtime identity bridge every Watch needs for a pin to survive a scenario
+            //    reload (📄 DESIGN_Variable_Watch_Pinning.md §5/§8a), and the source of the Watch's entity picker.
+            // ⭐ Method groups: `_world` is nulled on shutdown, so it is read AT CALL TIME rather than captured.
+            var watchIdentity = new Hrot.Editor.AiShared.Variables.WatchEntityIdentity(
+                _stagingRemap,
+                runtimeId => FindEntityByNetworkId(runtimeId),
+                RuntimeNetworkIdOf);
+
+            var perspectiveServices = new Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceServices(
+                catalog, refactorService, debugRegistry, facetEditService,
+                // ⭐⭐ R-66 — the run state comes from the CLOCK, not from "is a document open".
+                //    IPreviewController.IsInPreviewMode is what "the sim is up" means in this editor:
+                //    EnterPreviewMode switches the clock to continuous, ExitPreviewMode switches it
+                //    back to deterministic.
+                isSimUp:  isSimUpSignal,
+                // ⭐ Ruling 15's two arms: a breakpoint pause OR deterministic stepping. ⛔ Read
+                //   through the SAME adapter the Blueprint debugger uses -- not a second rule.
+                // ⭐⭐⭐ THIRD ARM (2026-08-21, M-40) -- THE SIMULATION CLOCK ITSELF.
+                // 🔴🔴 User: "it is fail in the value changing point - value does not change although
+                //    I do it when sim is paused." 📐 Measured: the two arms below see only the DEBUGGER.
+                //    The pause a designer actually presses is ITimeTransportFacade.TogglePlayPause
+                //    (MainToolbarTimeControlSection:42), which
+                //    sets the clock's TimeScale to 0 -- and NOTHING here asked the clock. ⇒ the panel
+                //    answered Running, TargetFor(Running) is Nowhere, and the dialog refused with
+                //    "only when the simulation is paused" WHILE IT WAS PAUSED.
+                // ⛔⛔⛔ 2026-08-21, CORRECTED THE SAME DAY -- the first version of this third arm was
+                //    `_timeController.GetCurrentState().IsPaused`, and it CAN NEVER BE TRUE. Two
+                //    independent reasons, both measured (M-42):
+                //      (a) GlobalTime.IsPaused is `TimeScale == 0`, and a pause NEVER sets TimeScale
+                //          to 0 -- PauseTimeIntent switches the master to MasterMode.Stepping, which
+                //          returns BuildGlobalTime(dt: 0, ...) with TimeScale UNCHANGED.
+                //      (b) GetCurrentState() is `BuildGlobalTime(0.0f, 0.0f)` -- it hard-codes dt to
+                //          zero, so no delta-based predicate can be read through it either.
+                //    ⚠ The comment it replaced asserted "the toolbar sets the clock's TimeScale to 0".
+                //    That was inferred, not measured, and it was false.
+                // ⭐⭐⭐ The clock's real answer is DeltaTime on the ECS singleton the kernel pushes
+                //    every frame (ModuleHostKernel.UpdateInternal). `_world` IS the kernel's live world
+                //    (:661), so this reads the same struct every system sees this tick.
+                isFrozen: isFrozenSignal)
+            {
+                BreakpointManager             = _bpManager,
+                SanitizerRegistry             = sanitizerRegistry,
+                ExportBuilder                 = comparisonExportBuilder,
+                SessionRegistry               = comparisonSessionRegistry,
+                AggregatorService             = aggregatorService,
+                SchemaExporter                = sharedSchemaExporter,
+                ExpressionTargetFieldAccessor = ResolveExpressionTargetField,
+                // ⭐⭐⭐ L0.4 (R-122) — "entity selection is on the entity". The Details context reads
+                //    SelectionState from the WORLD, not from an editor-side copy.
+                // ⭐ `_world` IS the kernel's live world (:661) — the same one SelectionInteractionSystem
+                //   writes and the ring gizmos read. ⛔ A production caller that HAS it must PASS it.
+                EntitySelection               = new Hrot.Editor.AiShared.Shell.WorldEntitySelectionSource(() => _world),
+
+                // ⭐⭐⭐ W4 — THE ONE SHARED STAGED SET, built here and nowhere else.
+                //    📄 DESIGN_Staged_Live_Write.md §4 fork A / §7; 📌 R-120 (shared state lives at the
+                //    composition root, not in a view).
+                // 🔒 User, 2026-08-21: "both yellow, both showing the same staged value, immediately
+                //    after user edit." ⇒ ONE instance, forwarded to every IVariableTableHost by the
+                //    registrar — ⛔ one per perspective would let two surfaces disagree.
+                // ⭐⭐ All three arms are RESOLVED AT CALL TIME, not captured: _bpManager is assigned at
+                //    :1127, AFTER this bag is built. ⛔ Capturing it here would bind null for the
+                //    editor's whole lifetime and nothing would ever go yellow — 📌 the same
+                //    construction-order shape as L0.4's world and L3.3's first wiring.
+                StagedWrites                  = new Hrot.Editor.AiShared.Variables.StagedWriteView(
+                    writes:         () => _bpManager,
+                    resolve:        blueprintLiveValueWriter.ResolveStagedField,
+                    selectedEntity: () => blueprintLiveValueWriter.SelectedEntity),
+
+                // ⭐⭐⭐ AQ55 — the map picker every perspective's Watch gets, built by the ONE shared
+                //    WatchEntityIdentity.PickerOver (CGF uses the same; DESIGN_Map_Picking_Unification).
+                // ⭐ _mapPickAdapter is read AT CALL TIME — it is assigned later and nulled at shutdown.
+                EntityPicker                  = watchIdentity.PickerOver(
+                    ct => _mapPickAdapter?.PickEntityAsync(null, ct) ?? Task.FromResult(-1)),
+
+                EntityIdentity                = watchIdentity,   // BP-511 — built above
+            };
+
+            _btreeRegistrar    = perspectiveServices.CreateRegistrar(
+                "BTree", _btreeSelectionStore,
                 validators: new Hrot.Editor.AiShared.Validation.IAssetValidator[]
                 {
                     new Hrot.BTree.Editor.Validation.BTreeAssetValidator(
                         new Hrot.BTree.Editor.Validation.BTreeValidator()),
                 },
-                breakpointManager:             _bpManager,
-                sanitizerRegistry:             sanitizerRegistry,
-                exportBuilder:                 comparisonExportBuilder,
-                sessionRegistry:               comparisonSessionRegistry,
-                aggregatorService:             aggregatorService,
-                schemaExporter:                sharedSchemaExporter,
-                facetEditService:              facetEditService,
-                expressionTargetFieldAccessor: ResolveExpressionTargetField,
-                liveValueProvider:             btreeLiveValueProvider);
-            _hsmRegistrar      = new PerspectiveWorkspaceRegistrar(
-                "HSM", _hsmSelectionStore, catalog, refactorService, debugRegistry,
+                liveValueProvider: btreeLiveValueProvider);
+            _hsmRegistrar      = perspectiveServices.CreateRegistrar(
+                "HSM", _hsmSelectionStore,
                 validators: new Hrot.Editor.AiShared.Validation.IAssetValidator[]
                 {
-                    new Hrot.Hsm.Editor.Validation.HsmAssetValidator(sharedSchemaExporter),
+                    new Hrot.Hsm.Editor.Validation.HsmAssetValidator(
+                        sharedSchemaExporter,
+                        // ⭐⭐⭐ ONE ARGUMENT, §32.17 (2026-09-26). The validator derives rules 8/8b's
+                        //    two predicates AND item 7's cycle walk from this single catalogue.
+                        // 🔴 This used to pass two private resolvers that were BYTE-IDENTICAL to
+                        //    CgfSubsystem's copies — two hosts running two copies of one policy.
+                        //    ⭐ IStatefulScopeAsset (CE-338) made deriving them centrally possible;
+                        //    the duplicate was mine and is deleted.
+                        catalog: _aiCatalogBuilder?.Catalog),
                 },
-                breakpointManager:             _bpManager,
-                sanitizerRegistry:             sanitizerRegistry,
-                exportBuilder:                 comparisonExportBuilder,
-                sessionRegistry:               comparisonSessionRegistry,
-                aggregatorService:             aggregatorService,
-                schemaExporter:                sharedSchemaExporter,
-                facetEditService:              facetEditService,
-                expressionTargetFieldAccessor: ResolveExpressionTargetField,
-                liveValueProvider:             hsmLiveValueProvider);
-            _blueprintRegistrar = new PerspectiveWorkspaceRegistrar(
-                "Blueprint", _blueprintSelectionStore, catalog, refactorService, debugRegistry,
-                breakpointManager:    _bpManager,
-                sanitizerRegistry:    sanitizerRegistry,
-                exportBuilder:        comparisonExportBuilder,
-                sessionRegistry:      comparisonSessionRegistry,
-                schemaExporter:       sharedSchemaExporter);
+                liveValueProvider: hsmLiveValueProvider);
+
+            // ⭐⭐⭐ THE HSM EVENTS DETAILS VIEW, added by the ROOT and only by the root.
+            // 🔒 User ruling, 2026-08-23: *"the hsm event one is a good candidate for details panel
+            //    view if hsm details panel."*
+            // ⛔⛔ Why it cannot self-wire through the claim chain — the SAME reference wall the
+            //    Scenario Components view hits (:2570): `HsmEventsDetailsView` lives in
+            //    `Hrot.Hsm.Editor`, `IDetailsViewInstance` and `PerspectiveWorkspaceRegistrar` live in
+            //    `Hrot.Editor.AiShared` BELOW it, and AiShared does NOT reference Hsm.Editor (its only
+            //    mention is an InternalsVisibleTo). ⇒ ⭐ this assembly is the ONLY one that can see
+            //    both, so the registration belongs here by construction, not by convenience.
+            // ⚠⚠ Without this line the view is BUILT AND UNREACHABLE — 📌 BP-327's shape, the defect
+            //    this whole programme keeps finding. The conversion is not done until it is REGISTERED.
+            _hsmRegistrar.DetailsViews.Add(
+                Hrot.Hsm.Editor.Windows.HsmEventsDetailsViewDescriptor.For(
+                    refactorService: refactorService,
+                    findResults:     _hsmRegistrar.FindResults,
+                    breakpoints:     () => _bpManager));   // ⭐ CE-1323 — an event row's "Break when handled"
+
+            // ⭐⭐⭐ Batch 88a — Blueprint's live-value provider, row 58's unbuilt half.
+            //    🔴 This call used to say "no live-value provider yet" and pass none, so the Details
+            //    Value column rendered (pending) forever — the DESIGNED output for a source with no
+            //    reader, which is exactly why nothing looked broken and the row was merged half-built.
+            //    ⭐ Same INTERFACE as BTree/HSM, different SOURCE: theirs reads BrainBlackboard through
+            //    BehaviorRegistry; this one reads the blueprint debug session's state snapshot.
+            //    📌 R-67 — the Blueprint registrar is the one that has forgotten a service four times,
+            //    so the argument is passed here rather than defaulted somewhere downstream.
+            //    ⭐⭐ The composition root resolves the blueprint session and hands the READ — so the
+            //    provider never type-tests the shared registry, and BlueprintRuntimeInspectorPane keeps
+            //    sole ownership of the paused-pointer-vs-live rule.
+            var blueprintLiveValueProvider = new BlueprintLiveValueProvider(
+                readerFactory: () => debugRegistry.ActiveSession is IBlueprintDebugSession bp
+                    ? (self, assetId) =>
+                          Hrot.Blueprints.Editor.Inspector.BlueprintRuntimeInspectorPane
+                              .ResolveInspectorSnapshot(bp, self, assetId)
+                    : null,
+                store: _blueprintSelectionStore);
+
+            // ⭐ `blueprintLiveValueWriter` is built ABOVE, beside `facetEditService` — W4 moved it so
+            //   the shared StagedWriteView could resolve addresses through the same object the write
+            //   uses. See its comment there.
+
+            // ⭐ Blueprint still has no host-specific validator -- and it SAYS so, rather than
+            //   expressing that by omitting a whole argument list's worth of shared services.
+            _blueprintRegistrar = perspectiveServices.CreateRegistrar(
+                "Blueprint", _blueprintSelectionStore,
+                validators: Array.Empty<Hrot.Editor.AiShared.Validation.IAssetValidator>(),
+                liveValueProvider: blueprintLiveValueProvider,
+                // ⛔⛔ BTree and HSM pass NONE, above, and that is not an omission: neither host has a
+                //    staged surgical write, so their paused edits keep answering LiveWriteUnavailable.
+                //    ⭐ Faking one would be "the unsafe route wearing the safe one's name"
+                //    (VariableEditCommit's own remark). ⚠ When they grow one, it is passed HERE.
+                //    ⭐⭐ Batch 102 (102b) — WriteLive, not Write: it carries the REASON a refusal
+                //      happened, so the dialog names the cause instead of the "no writer installed OR it
+                //      refused" sentence that made a missing capability look like a correct gate (M-36).
+                writeLive: blueprintLiveValueWriter.WriteLive);
+
+            // ⭐⭐⭐ L6.1c — THE SCENARIO PERSPECTIVE GETS A DETAILS HOST.
+            // 📄 DESIGN_Details_Panel_View_Switching.md §6 L6 stage 2.
+            // 📐 As-built (b), measured 2026-08-22: "the Scenario perspective has NO
+            //    PerspectiveWorkspaceRegistrar, no DetailsWindow, no registry — it uses a bespoke
+            //    RegisterPane and ResolveDocumentForCurrentPerspective returns null for it." ⇒ ⭐ THIS
+            //    is L6's real work, and it is only cheap because L6.1a split the generic half out.
+            // ⛔ Built from SCENARIO services, not the AI bag: a formatter, the shared clock signals,
+            //    the entity source, and nothing else. ⚠ No validators/breakpoints/blackboard —
+            //    Scenario authors entities, not AI assets.
+            // ⭐⭐⭐ A1 — the persisted key IS "Scenario" now: L6.1b is DONE, not deferred.
+            //    📄 DESIGN_Perspective_Unification.md §3 A1 · charter D2.
+            // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — the SHARED Details panel every ECS host builds: the workspace, the shell,
+            //   its own view and the Components view, plus Properties… and View ▸ Details on this host's actions. The Editor keeps its id
+            //   and adds its own views below. ⭐ THE SAME two clock signals the AI perspectives read (hoisted above) — ⛔ not a second rule.
+            //   ⭐ R-122 — the entities come from the World. ⛔ SUPERSEDED: the workspace + shell built here by hand, and (BP-515 DS-7) the
+            //   shell ANSWERING a "show its properties" event — 🔒 user, 2026-10-22: "the global action handler should open the detail panel".
+            _scenarioDetailsBundle = new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(new Hrot.Editor.AiShared.Windows.EntityDetailsHostServices(
+                WindowId:       "scenario_details",
+                Perspective:    "Scenario",
+                World:          () => _world,
+                // ⚠ It BORROWS _fdpEntityInspector — the panel this root wires with the reflector, the buffer-view providers, the
+                //   serializer and the mutation interceptor (§6 L6.3).
+                Inspector:      () => _fdpEntityInspector,
+                // ⭐ Re-asked every frame: null until a scenario is open, REPLACED on reload.
+                Session:        () => _fdpRepoAdapter,
+                RunState:       Hrot.Editor.AiShared.Variables.RunStateSource.For(isSimUpSignal, isFrozenSignal),
+                Host:           () => HostActions,
+                SelectionStore: _aiEditorSelectionStore,
+                OpenRule:       OpenRuleInRulesView,   // ⭐ CE-4216 RV-7
+                EventFocus:     _eventFocus,           // ⭐ CE-4263 — Details ▸ Event for a clicked timeline event
+                SelectNetworkEntity: n => SelectNetworkEntity(n),
+                Rules:          () => _rulesWindow,     // ⭐ U-18 / RX2 — the rule's detail in Details, through the one window
+                ScenarioFooter: () => _parametersDrawer?.DrawHeader(),   // ⭐ CE-4346 — the Parameters header under the ONE Scenario tab (the form)
+                Pick:           () => FormsPick,   // ⭐ P-7 7d — + the CE-1059 entity list the retired Mission panel had   // ⭐ U-23 / D4 — Put aboard… picks on the map
+                Missions:       () => _missionService,   // ⭐ P-7 / 7a — the Orders tab over the one mission facade
+                ParamsTypeOf:   name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry),   // ⭐ P-7 7b — a task's fields
+                RowTrailer:     () => _watchKit?.Eye,
+                Pickers:        () => _shellPickers));   // ⭐ CE-4359 — + Add task opens the task picker in the shell's registry   // ⭐ §6.13 — the replica watch's eye on the Details forms (the merged view only)
+            _scenarioWorkspace = _scenarioDetailsBundle.Workspace;
+            ScenarioDetails    = _scenarioDetailsBundle.Window;
+
+            // ⭐ Player Join D-9 — the PLAYABLE section: a toggle + side + slot name that adds / removes `Playable` on the selected unit (authored, recorded, saved).
+            _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.EntityPlayableViewDescriptor.For(() => _world));
+            // ⭐ Terrain authoring U-3 — the BLOCK tab of Details for a placed terrain block (recipe, seed, fit to the site, contents)
+            _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.TerrainBlockDetailsViewDescriptor.For(() => _world, Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped));
+
+            // ⭐⭐ CE-4210 MA-8 (SR-39a) — the MACRO section of Details for a macro instance: status, the macro (the same picker's Macros group), the args form.
+            //   ⚠ Its own StructEdit service (the facet service is built later); picks resolved at call time like the AI section's.
+            var macroArgsEditService = Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build();
+            var macroArgPicks = new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter);
+            _scenarioWorkspace.DetailsViews.Add(
+                Hrot.Editor.Scenario.MacroInstanceDetailsViewDescriptor.For(
+                    world:      () => _world,
+                    session:    () => _fdpRepoAdapter,
+                    macrosRoot: () => Hrot.Editor.AiShared.Browser.MacroPickerEntries.Root(),
+                    editService: () => macroArgsEditService,
+                    picks:      () => macroArgPicks,
+                    pickMacro:  cb => _openMacroPicker?.Invoke(cb)));
+
+            // ⭐⭐ CE-4346 — the MAP-BACKGROUND views: the ONE Scenario tab is the Scenario FORM (EntityDetailsBundle, every host) with this editor's Parameters
+            //   header under it (ScenarioFooter); ⛔ SUPERSEDED (CE-1161): a second raw "Scenario" view (ScenarioEnvironmentView) beside it — retired. The Zones view stays.
+            _parametersDrawer ??= WireParametersDrawer(new Hrot.Editor.Scenario.ParametersDrawer(_headerParams, () => macroArgsEditService));   // ⭐ CE-4253 — the parameter editor
+            _scenarioWorkspace.DetailsViews.Add(
+                Hrot.Editor.AiShared.Shell.ZonesDetailsViewDescriptor.For(
+                    rows:     () => Hrot.Presentation.Zones.ZoneStatusReader.Read(_world!),
+                    // ⭐ The context menu's own "Load zone" action — one path, not a copy of it.
+                    loadZone: id => LoadZoneById(id),
+                    renderer: new Hrot.Editor.Scenario.ImGuiZoneRowRenderer()));
+
+            // ⭐⭐ CE-3043 — THE AI SECTION: the unit's task, SOP and ROE, edited LIVE through the one gate (paused: the
+            //   ingress's own pipeline at once; running: the events). 📄 DESIGN_Sensors_And_Doctrine.md §7.6.
+            //   ⚠ Its own StructEdit service: the facet service is built later in RegisterWindows' AI half.
+            var aiParamsEditService = Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build();
+            var aiParamPicks = new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter)
+            {
+                // ⭐ CE-1059 — and the searchable entity list, in the shell's picker registry
+                EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _world, () => _shellPickers),
+            };
+            // ⭐⭐ CE-1314 (R-1036, BV-38) — the AI tab is RETIRED as a tab: its editing (task, SOP, ROE, instance params) is a section of
+            //   the Brain tab, drawn unchanged. ⛔ SUPERSEDED: _scenarioWorkspace.DetailsViews.Add (a separate "AI" tab).
+            _scenarioDetailsBundle!.BrainSections.Add(
+                Hrot.Editor.Scenario.EntityAiDetailsViewDescriptor.For(
+                    world:       () => _world,
+                    registry:    () => _behaviorRegistry,
+                    editService: () => aiParamsEditService,
+                    blueprints:  () => _blueprintRegistry,     // ⭐ CE-2086: the instance params rows
+                    // ⭐ CE-1023 — the editor HOLDS the pick adapter, so the params form's EntityRef / point fields get it
+                    //   (⛔ it was not passed: no Pick button). Read at request time — the adapter is built later.
+                    picks:       () => aiParamPicks,
+                    history:     EditHistory));   // ⭐ CE-4219 ① — an edit-mode Apply is ONE entry on the editor's shared undo history
 
             // Document manager — activated doc drives perspective switch.
             _aiDocumentManager = new AiDocumentManager(_perspectiveSwitcher);
             _perspectiveSwitcher.SetDocumentManager(_aiDocumentManager);
 
-            // Toolbar debug icons (AiDebugCommands) gate IsEnabled on debugRegistry.ActiveSession. Mirror the active
-            // document's debug session into the registry so those icons enable/disable live. Side-effect-free setter
-            // (NOT TryAcquire/Release) — the blueprint session is eagerly attached + is DebugProbe.Sink and must NOT be
-            // detached. Blueprint only: BTree/HSM debug sessions are not yet attached/working → mapped to null for now.
-            void SyncActiveDebugSession()
-            {
-                Hrot.Editor.AiShared.Debug.IAiDebugSession? session = _aiDocumentManager?.Active?.Kind switch
+            // ⭐⭐⭐ cgf==editor SLICE 2 (CE-014) — HAND THE ASSET SHELL TO THE DEBUG API, ON THE NEXT LINE.
+            //    📄 DESIGN_Cgf_Editor_Sharing_Slice2_Open_Asset.md §3/§5.
+            // ⛔⛔ Same structural rule as N0's AttachPerspectives twenty lines up, and for the same
+            //    measured reason: DebugApiService is built in Initialize, where none of these three
+            //    exist yet, so the dependency HAS to arrive late — and "arrives late" is exactly how a
+            //    silent default gets left behind. ⭐ The pass sits on the line after the manager is
+            //    constructed where a reader cannot miss it.
+            // ⚠ Null when the debug API is off (no HROT_DEBUG_API_PORT) — the correct no-op.
+            // ⭐ WITHOUT THIS the editor answers 503 on GET /assets, and the conformance suite could not
+            //   open the same asset on both hosts — which is slice 2's whole acceptance criterion.
+            _debugApiService?.AttachAssetShell(
+                _aiCatalogBuilder!.Catalog, _aiDocumentManager, windowManager);
+
+            // ⭐⭐ AQ56 §10 (MA-013) — the action-schema exporter, for the DTO-field half of a node kind's
+            //    schema. ⛔ Passed because this host HAS one: the silent-default rule says a production
+            //    caller holding a dependency must pass it, and `sharedSchemaExporter` is built earlier
+            //    in this same method for the validators and the Inspector. ⚠ Optional on the API side, so
+            //    a host without one degrades to `paramsSource: "none:no-exporter-wired"` rather than
+            //    looking param-less.
+            _debugApiService?.AttachSchemaExporter(sharedSchemaExporter);
+
+            // ⭐⭐ AQ56 §10.7 (MA-015) — the editor command bus.
+            // ⚠⚠ A LAMBDA, not the object, and the reason is measured: the command set is built PER
+            //    DOCUMENT by the per-kind factory and hangs off `AiCanvasContext.Commands`. ⇒ capturing
+            //    one instance here would pin the API to whichever document was open when this ran, and
+            //    every later invoke would target the wrong graph. ⭐ Resolving the ACTIVE document's set
+            //    at call time is what "the editor's commands" means to a caller.
+            // ⚠⚠ MD-008 measured this call REDUNDANT: `ResolveEditorCommands` already falls back to
+            //    `_documents.Active -> ContextOf(...).Commands`, and `_documents` is the same manager
+            //    `AttachAssetShell` receives above. ⇒ this attach computes the same expression from the
+            //    same object. ⭐ KEPT rather than deleted because it is the documented OVERRIDE hook — it
+            //    is checked FIRST, so a host with a non-document command source can supply one.
+            // ⛔ Do NOT read its presence as "the fallback needs help": a cluster node has no such call
+            //   and answers 68 commands (see The_editor_command_bus_answers_on_a_non_editor_node).
+            _debugApiService?.AttachEditorCommands(() =>
+                _aiDocumentManager?.Active?.ViewState
+                    is Hrot.Editor.AiShared.Windows.AiCanvasContext ctx ? ctx.Commands : null);
+
+            // ⭐⭐ cgf==editor SLICE 3 (CE-021) — the same save/reload seam on this host, so the two
+            //    can be driven identically and compared. ⭐ Both callbacks are the editor's OWN
+            //    existing ones (_saveAllCallback, _blueprintQuickReloadTrigger and the BTree/HSM
+            //    triggers) — ⛔ no second save or reload path is introduced here.
+            // ⚠ Assigned LATE (they are wired further down in this method), so the lambdas resolve
+            //   the fields AT CALL TIME rather than capturing null.
+            _debugApiService?.AttachAssetEditing(
+                saveAsset: assetId =>
                 {
-                    Hrot.Editor.AiShared.AssetKind.Blueprint => _blueprintDebugSession,
-                    // BTree/HSM debug sessions are not yet attached/working — intentionally null until wired.
-                    _ => null,
-                };
-                debugRegistry.SetActiveSession(session);
-            }
-            _aiDocumentManager.ActiveChanged += SyncActiveDebugSession;
-            SyncActiveDebugSession(); // initialise for whatever doc (if any) is already active
+                    ActivateAiDocumentByAssetId(assetId);
+                    _saveAllCallback?.Invoke();
+                    return _saveAllStatus;
+                },
+                reloadAsset: assetId =>
+                {
+                    ActivateAiDocumentByAssetId(assetId);
+                    // ⭐⭐ PHASE 2 SLICE ① — was a kind-switch of its own, one of THREE for this concept.
+                    //    ⚠ Its default arm said "is not a reloadable kind"; the shared policy says
+                    //    "has no compilable canvas context" — ONE wording across both hosts and both
+                    //    entry points (design §5c.6 E3/E4).
+                    var active = _aiDocumentManager?.Active;
+                    return ReloadActiveAiDocument(
+                        blueprintArm: () =>
+                        {
+                            if (active == null) return null;
+                            _blueprintQuickReloadTrigger?.Invoke(active.Asset);
+                            return _blueprintCompileStatus;
+                        });
+                });
+
+            // Toolbar debug icons (AiDebugCommands) gate IsEnabled on debugRegistry.ActiveSession. Mirror the active
+            // document's debug session into the registry so those icons enable/disable live.
+            // ⭐⭐⭐ CE-059 — this was a LOCAL FUNCTION, so CGF could not reach it and its own
+            //    DebugSessionRegistry stayed empty for the process lifetime. The policy (and the
+            //    SetActiveSession-not-TryAcquire reasoning) now lives once in AiShared.
+            Hrot.Editor.AiShared.Debug.ActiveDebugSessionMirror.Wire(
+                _aiDocumentManager, debugRegistry, () => _blueprintDebugSession);
 
             // BATCH-26: Asset-pick action router — file kinds → AiDocumentManager.Open,
             // Scenario → IEditorLogic.LoadScenarioByName. Null-safe delegates guard
             // against bare-ctor scenarios.
-            _assetPickRouter = new Hrot.Editor.AssetPickActionRouter(
+            _assetPickRouter = new Hrot.Editor.AiShared.Browser.AssetPickActionRouter(
                 openDocument: a => _aiDocumentManager?.Open(a),
-                loadScenario: name => _editorLogic?.LoadScenarioByName(name));
+                loadScenario: name => UiSession?.LoadScenario(name));   // ⭐ CE-1443 (R-1043) — a picked scenario loads into the cluster's armed mode, through the ONE door
 
             // AIE-025: Retarget per-perspective selection stores when the active document changes.
             // Each BlackboardAuthoringWindow reads its store's ActiveAsset every frame (pull model),
             // so updating ActiveAsset here is all that is needed for the window to show the right schema.
             // AIE-047/048: Also retarget My Blueprint + Details + Variables windows for Blueprint.
-            _aiDocumentManager.ActiveChanged += () =>
-            {
-                var active = _aiDocumentManager.Active;
-                _btreeSelectionStore.ActiveAsset       = (active?.Kind == Hrot.Editor.AiShared.AssetKind.BTree)      ? active.Asset : null;
-                _hsmSelectionStore.ActiveAsset         = (active?.Kind == Hrot.Editor.AiShared.AssetKind.Hsm)        ? active.Asset : null;
-                _blueprintSelectionStore.ActiveAsset   = (active?.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint)  ? active.Asset : null;
+            // ⭐⭐⭐ CE-343 (2026-09-26) — ONE ACTIVE-DOCUMENT BINDER, SHARED WITH CGF.
+            //    🔒 User: "lets first finish the deduplication before adding new stuff."
+            // 🔴 The three selection stores and the seven-argument Blueprint-outline retarget were
+            //    duplicated in CgfSubsystem ("the editor's handler, trimmed" — slice-2 §11 ②).
+            //    ⛔ That retarget is where a copy silently degrades a panel: drop currentGraphId and
+            //    Local Variables edits the wrong graph (BP-57/BP-72); drop indicators and BP-223's
+            //    refusal toast is discarded. ⇒ written ONCE now.
+            // ⭐ Everything below stays here because it is genuinely editor-only: the BTree/HSM
+            //    picker-drawer maps and facet dispatchers, the legacy variables bridge, the
+            //    graph-signature window. CGF has none of them.
+            // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.19.
+            Hrot.Editor.AiComposition.AiActiveDocumentBinder.Bind(
+                new Hrot.Editor.AiComposition.AiActiveDocumentServices
+                {
+                    DocumentManager  = _aiDocumentManager,
+                    BTreeStore       = _btreeSelectionStore,
+                    HsmStore         = _hsmSelectionStore,
+                    BlueprintStore   = _blueprintSelectionStore,
+                    // ⚠ A PROVIDER: this field is assigned ~900 lines below, long after this Bind.
+                    BlueprintOutline = () => _blueprintMyBlueprintWindow,
+                    AfterRetarget    = active =>
+                    {
 
-                // SE2: Rebuild picker-drawer maps for the newly active BTree / HSM asset so that
-                // attribute-dispatched dropdowns (BehaviorHash, BlackboardField, HSM action/guard/
-                // state/event) reflect the fields and methods of the live document rather than a
-                // stale, fixed-at-ctor asset.  The maps are small (1–2 entries) and built cheaply
-                // from the asset already in memory — no I/O.  Calling SetFacetEditService also
-                // drops the cached StructEdit session so the next render opens a fresh one against
-                // the correct facet type (harmless when the asset type did not change).
-                if (active?.Kind == Hrot.Editor.AiShared.AssetKind.BTree
-                    && active.Asset is Hrot.BTree.Editor.Model.BehaviorTreeAsset btreeAsset
-                    && _behaviorRegistry is not null)
-                {
-                    // BB1D: share ONE BTreeFacetFqnContext between the dispatcher (writer)
-                    // and the drawer (reader) so the blackboard-field picker filters by the
-                    // current action's DtoType in the same frame.
-                    var btreeCtx     = new BTreeFacetFqnContext();
-                    var btreeDrawers = BTreePickerDrawerFactory.BuildDrawers(
-                        btreeAsset, _behaviorRegistry, sharedSchemaExporter, btreeCtx);
-                    _btreeRegistrar?.Inspector.SetFacetEditService(facetEditService, btreeDrawers);
-                    // FIX-A + BB1D: wire the per-asset facet dispatcher with the shared context
-                    // so InspectorWindow.GetCurrentFacet() returns a non-null facet and
-                    // the picker reads the updated FQN on the same frame.
-                    _btreeRegistrar?.Inspector.SetFacetDispatcher(
-                        BTreeSelectionBridgeHelper.BuildFacetDispatcher(btreeAsset, btreeCtx));
-                }
-                else if (active?.Kind == Hrot.Editor.AiShared.AssetKind.Hsm
-                    && active.Asset is Hrot.Hsm.Editor.Model.HsmAsset hsmAsset)
-                {
-                    // BB1D: share ONE HsmFacetFqnContext between the dispatcher (writer)
-                    // and the drawer (reader) so the blackboard-field picker filters by the
-                    // current transition action's DtoType in the same frame.
-                    var hsmCtx     = new HsmFacetFqnContext();
-                    var hsmDrawers = HsmPickerDrawerFactory.BuildDrawers(
-                        hsmAsset, sharedSchemaExporter, hsmCtx);
-                    _hsmRegistrar?.Inspector.SetFacetEditService(facetEditService, hsmDrawers);
-                    // FIX-A + BB1D: wire the per-asset facet dispatcher with the shared context
-                    // so InspectorWindow.GetCurrentFacet() returns a non-null facet and
-                    // the picker reads the updated FQN on the same frame.
-                    _hsmRegistrar?.Inspector.SetFacetDispatcher(
-                        HsmSelectionBridgeHelper.BuildFacetDispatcher(hsmAsset, hsmCtx));
-                }
-                else
-                {
-                    // Switching to Blueprint or clearing: reset pickers to null (plain-text fallback).
-                    // The edit service itself remains so the inspector still renders struct fields.
-                    _btreeRegistrar?.Inspector.SetFacetEditService(facetEditService, null);
-                    _hsmRegistrar?.Inspector.SetFacetEditService(facetEditService, null);
-                    // FIX-A: clear facet dispatchers when no BTree/HSM is active.
-                    _btreeRegistrar?.Inspector.SetFacetDispatcher(null);
-                    _hsmRegistrar?.Inspector.SetFacetDispatcher(null);
-                }
+                // ⭐⭐⭐ CE-347 (2026-09-26) — THE PICKER REBUILD IS SHARED WITH CGF NOW.
+                //    🔒 User: "why hosts differ in … picker drawer … I would expect these 3 to be
+                //    same in both cgf and editor." 📐 They should: CGF has the same two registrars
+                //    and made 0 picker calls to this file's 13, with no design behind the gap.
+                // ⛔ Copying these three arms into CgfSubsystem would have been a FIFTH duplicate in
+                //    the session that removed four ⇒ one implementation, both callers.
+                // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.21.
+                Hrot.Editor.AiComposition.AiFacetPickerBinder.Rebuild(
+                    active,
+                    new Hrot.Editor.AiComposition.AiFacetPickerServices
+                    {
+                        BTreeRegistrar   = _btreeRegistrar,
+                        HsmRegistrar     = _hsmRegistrar,
+                        FacetEditService = facetEditService,
+                        BehaviorRegistry = _behaviorRegistry,
+                        ActionSchema     = sharedSchemaExporter,
+                        // ⭐ §11.1a — feeds the hosted-subtree picker on StateFacet, and the
+                        //   dispatcher's pick-time Guid capture. ⛔ This host HAS a catalogue.
+                        Catalog          = _aiCatalogBuilder?.Catalog,
+                        // ⭐ CE-1008 — every inspector choice opens the shell's searchable picker (drawn each frame by this host)
+                        OpenPicker       = _shellPickers is { } pickers ? pickers.OpenPicker : null,
+                    });
 
                 // AIE-047/048: Retarget Blueprint-specific windows.
                 if (active?.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint)
@@ -2232,44 +4159,134 @@ namespace Hrot.Editor
                     var ctx = active.ViewState as Hrot.Editor.AiShared.Windows.AiCanvasContext;
                     var bpAsset = ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset;
 
-                    // Retarget My Blueprint window.
-                    // BCP-BATCH-02-FIX Task 3: pass the document's real command set (ctx.Commands)
-                    // so the panel's "+ Variable" hits the registered editor.create-variable handler
-                    // (which appends a VariableDecl) instead of a fresh, empty command instance.
-                    _blueprintMyBlueprintWindow?.Retarget(
-                        editableAsset:  active.Asset,
-                        blueprintAsset: bpAsset,
-                        hostServices:   ctx?.View.Host,
-                        commands:       ctx?.Commands ?? new NodeEditor.Core.Action.EditorCommandsImpl());
-
-                    // Retarget Details window (just needs the BlueprintAsset).
-                    _blueprintDetailsWindow?.Retarget(bpAsset);
-
                     // Retarget Variables window via legacy bridge store.
                     _blueprintLegacySelectionStore.SelectAsset(bpAsset);
 
                     // BATCH-03D2: Retarget Graph Signature window.
-                    _blueprintSignatureWindow?.Retarget(bpAsset);
+                    // BP-72: also hand it the canvas's current-graph provider. Unlike the three
+                    // windows above (all asset-scoped) this one is GRAPH-scoped, so after a BP-24
+                    // graph switch it would otherwise sit on functionGraphs[0] and edit the
+                    // signature of a graph the designer is not looking at.
+                    _blueprintSignatureWindow?.Retarget(bpAsset, ctx?.CurrentGraphId);
                 }
                 else
                 {
                     // Clear Blueprint windows when switching away from Blueprint perspective.
-                    _blueprintMyBlueprintWindow?.Retarget(null, null, null, null);
-                    _blueprintDetailsWindow?.Retarget(null);
                     _blueprintLegacySelectionStore.SelectAsset(null);
                     _blueprintSignatureWindow?.Retarget(null);
                 }
-            };
+                    },
+                });
 
             // Global Asset Browser — single instance, Global scope, shows Open-docs section.
+            // ⚠⚠ MEASURED 2026-08-22: this window was CONSTRUCTED HERE AND NEVER USED — zero other
+            //    references, never registered, so no find-references result could ever be seen. It is
+            //    the destination §16.1 names, and it finally has both a caller and a registration.
+            // ⭐⭐⭐ A5 — GLOBAL SCOPE, EMPTY PERSPECTIVE. 📄 DESIGN_Perspective_Unification.md §1c.
+            // 🔴 It used to pass owningPerspective: "Global" — the comment above says "Global scope", so
+            //    WindowScope.Global was the intent, but FindResultsWindow hard-coded PerspectiveBound and
+            //    the string landed in the PERSPECTIVE slot. TWO bugs from one line:
+            //      ① a phantom perspective named "Global" — GetPerspectives() returned it and
+            //         PerspectiveToolbarSection drew one icon per entry ⇒ the icon the user never asked
+            //         for ("the global perspective should have no icon");
+            //      ② the window was NOT globally available — a PerspectiveBound window shows only while
+            //         its perspective is current, so the asset browser's results were reachable ONLY
+            //         from the phantom.
+            // ⭐ This is the OrchestratorWindow/DiagnosticsWindow pattern: Global + string.Empty ⇒ always
+            //    visible, and invisible to GetPerspectives() (which filters to PerspectiveBound).
+            // ⛔ Do NOT "fix" the Windows menu's "Global" GROUP — that is a menu grouping of Global-scope
+            //    windows and it is exactly right (§1c).
             var assetBrowserFindResults = new FindResultsWindow(
+                owningPerspective: string.Empty,
                 idOverride:        "ai_asset_browser_find_results",
-                owningPerspective: "Global");
+                scope:             Fdp.Presentation.WindowManager.WindowScope.Global);
+            windowManager.RegisterWindow(assetBrowserFindResults);
+
+            // ⭐⭐⭐ THE ASSET ROW'S RIGHT-CLICK MENU (2026-08-22).
+            // 🔒 User: "go to definition and rename and find references, these all sound like context
+            //    menu items … asset related context menu items then, still nothing for a details panel
+            //    view." · "picker should not have that menu."
+            // 📄 AI_Editor_Shared_Infrastructure.md §16.1: "Find References … Used by THE RIGHT-CLICK
+            //    MENU, the Find Results window, and indirectly by the rename preview" — operations 1
+            //    and 4. ⇒ this is the design's own home for them, not a new idea.
+            // ⛔ These two moved OFF InspectorWindow's asset header, which is deleted in this commit.
+            //    Its third item — "Go to Definition" — is NOT here: it was a placeholder with an empty
+            //    body, and the real one is CommandCatalog.GoToDefinition on the graph (BP-76).
+            var assetRenameModal = new Hrot.Editor.AiShared.Browser.AssetRenameModal(
+                refactorService: refactorService,
+                showPreview:     assetBrowserFindResults.ShowRenamePreview);
+            windowManager.RegisterFrameOverlay(assetRenameModal.Draw);
+
+            // ⭐ CE-4375 (OSM §6 / §6b, W-3) — the "New terrain from OpenStreetMap" wizard: one modal, drawn as a frame overlay like the modals above. Its services are composed ONCE
+            //   (the menu reads the wizard's DisabledReason every frame). ⭐ The pipeline is the real one (CE-4373/4374), through the ONE composition the CLI uses (OsmPipelines).
+            // ⭐ CE-4381 (E-1) — the REAL map tiles (OsmTileSource, the URL a setting: HROT_OSM_TILE_URL) and place search (NominatimPlaceSearch), on the pipeline's ONE HTTP client
+            //   (HttpRetry's User-Agent) ⇒ the File ▸ New item is enabled. Their usage policies (≤ 2 tiles in flight, a header-honouring disk cache, 1 search a second) live in them.
+            // ⭐ CE-4378 (D-4) — the coordinator's importer (CE-4368) writes into the NAS's assets/terrain, the folder the New Scenario picker lists
+            //   (NewScenarioTerrains: TerrainCatalog.ForNode(null, NasRoot)); "Open in New Scenario" opens that picker on the new terrain.
+            string nas = Fdp.Toolkit.Orchestration.ContentLayout.NasRoot;
+            string osmCache = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-terrain-osm-cache");
+            var osmHttp = Hrot.Terrain.Osm.HttpRetry.CreateClient();
+            var osmServices = new Hrot.UI.Common.TerrainOsm.OsmWizardServices(
+                Pipeline: Hrot.Terrain.Osm.OsmPipelines.Online(osmCache, osmHttp),
+                Tiles: new Hrot.Terrain.Osm.OsmTileSource(osmHttp, System.IO.Path.Combine(osmCache, "map-tiles"),
+                                                          EnvVars.Read(EnvVars.HrotOsmTileUrl) ?? Hrot.Terrain.Osm.OsmTileSource.DefaultUrl),
+                Search: new Hrot.Terrain.Osm.NominatimPlaceSearch(osmHttp),
+                // ⭐ CE-4393 (UTM §12.1) — the wizard's import bakes the navmesh into the terrain folder too: its first open bakes nothing
+                Importer: new Hrot.Terrain.Import.TerrainImporter(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas), Fdp.Toolkit.Orchestration.ContentLayout.Scenarios(nas))
+                          { NavmeshPrefill = new Hrot.Terrain.Import.NavmeshPrefill() },
+                TerrainsRoot: Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas),
+                InputSetRoot: System.IO.Path.Combine(nas, "terrain-input"))
+            {
+                OpenNewScenario = folder => _newAssetLauncherForOsm?.OpenScenarioOn(System.IO.Path.GetFileName(folder.TrimEnd('/', '\\'))),
+                ShowFolder = folder =>
+                {
+                    try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = folder, UseShellExecute = true }); }
+                    catch (Exception ex) { _saveAllStatus = "[Terrain] Could not open the folder: " + ex.Message; }   // no default file manager on this host
+                },
+            };
+            _osmWizard = new Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow(() => osmServices);
+            windowManager.RegisterFrameOverlay(_osmWizard.Draw);
+            // ⭐ Terrain authoring U-5 — File ▸ Save Terrain As…: the dialog over backend's TerrainBake.SaveAs; the new scenario (when asked for) is loaded through the scenario door once the terrain is written
+            _terrainSaveAs = new Hrot.UI.Common.TerrainSave.TerrainSaveAsWindow(() => new Hrot.Editor.TerrainSave.EditorTerrainSaveService(() => _editorLogic?.LoadedScenarioName));
+            _terrainSaveAs.Saved += outcome =>
+            {
+                _saveAllStatus = $"[OK] Saved terrain '{System.IO.Path.GetFileName(outcome.TerrainFolder)}'" + (outcome.ScenarioName is { } sn ? $" and scenario '{sn}'." : ".");
+                if (outcome.ScenarioName is { } name) UiSession?.LoadScenario(name);
+            };
+            windowManager.RegisterFrameOverlay(_terrainSaveAs.Draw);
+            // ⭐ Terrain authoring U-8 — File ▸ New ▸ Random terrain…: the wizard over backend's RandomTerrainPipeline; the scenario it writes is opened through the scenario door
+            var randomTerrainService = new Hrot.Editor.TerrainRandom.EditorRandomTerrainService();
+            _randomTerrain = new Hrot.UI.Common.TerrainRandom.RandomTerrainWizardWindow(() => randomTerrainService);
+            _randomTerrain.Opened += scenario => { _saveAllStatus = $"[OK] Generated terrain and scenario '{scenario}'."; UiSession?.LoadScenario(scenario); };
+            windowManager.RegisterFrameOverlay(_randomTerrain.Draw);
+            // ⭐ Terrain authoring follow-up 2 — the panel beside the map while a wall / fence / hedge, a bridge or an area scatter is DRAWN (kind, height, recipe, density, seed)
+            var terrainDrawPanel = new Hrot.UI.Common.AddEntity.TerrainDrawPanel(() => _spawnAdapter);
+            windowManager.RegisterFrameOverlay(terrainDrawPanel.Draw);
+
+            var assetRowCommands = new[]
+            {
+                new Hrot.Editor.AiShared.Browser.AssetRowCommand(
+                    Label:  "Find References",
+                    Invoke: a => assetBrowserFindResults.ShowReferences(
+                                     a.Name, refactorService.FindReferences(a.Name))),
+                new Hrot.Editor.AiShared.Browser.AssetRowCommand(
+                    Label:  "Rename…",
+                    Invoke: a => assetRenameModal.Open(a.Name)),
+            };
+
             var assetBrowserIconProvider = new SilkIconProvider(windowManager.Atlas);
             _aiAssetBrowser = new AssetBrowserDockedWindow(
                 catalog:          catalog,
                 icons:            assetBrowserIconProvider,
-                options:          new AssetBrowserPanelOptions { Kinds = AssetKindFilter.All, ShowAllTab = false },
+                // ⭐ The DOCKED browser opts IN. ⛔ AssetPickerModal does not — it shares this panel but
+                //   only PICKS an asset, and "Rename…" mid-pick is a different job (user ruling).
+                options:          new AssetBrowserPanelOptions
+                                  {
+                                      Kinds       = AssetKindFilter.All,
+                                      ShowAllTab  = false,
+                                      RowCommands = assetRowCommands,
+                                      Recent      = Hrot.UI.Common.Picker.UserRecentPicks.Shared,   // ⭐ CE-4098 — the SAME store the shell pickers use
+                                  },
                 onAssetActivated: asset => _aiDocumentManager?.Open(asset),
                 id:               "ai_asset_browser"); // prior global Asset Browser id (MTB-P7-T4: register docked host with the prior id/scope)
 
@@ -2280,11 +4297,32 @@ namespace Hrot.Editor
             _hsmRegistrar.RegisterWindows(windowManager);
             _blueprintRegistrar.RegisterWindows(windowManager);
 
+            // ⭐⭐ L6.1c — the Scenario Details panel joins the window manager beside the other three.
+            //    ⛔ Not through a registrar: Scenario has a PerspectiveWorkspace, not the AI bag.
+            // ⭐⭐ CE-1243 MB-4 — this host's map menus join the ONE menu bar as a contributor (Scenario, where the map is).
+            Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(windowManager.GlobalMenu, "editor/map-menus", "Scenario",
+                () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
+            // ⭐ R-4 / V4 — the map is in the Review layout too: the same menus there (only the current perspective's contributor is asked, so the gizmo layer's menu is consumed once)
+            Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(windowManager.GlobalMenu, "editor/map-menus-review", Hrot.Editor.AiShared.Review.ReviewLayout.Perspective,
+                () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
+            // ⭐ CE-1329 (Brain View §12r BV-71) — forget every unit's remembered debug settings (pins, traces, the followed unit) of the
+            //   loaded scenario; the Brain tab's Debug section resets one unit
+            Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, "debug.reset-all-unit-settings", GlobalMenuRegistry.SettingsMenuPath + "/Reset all debug settings for this scenario", () =>
+            {
+                if (_world != null) Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(_world).ResetAll();
+            });   // ⭐ B-10 K5
+
+            // ⭐ CE-1150 — composed as a bundle: the panel AND its actions (Properties…, View ▸ Details ▸ Float / Pin).
+            if (_scenarioDetailsBundle is not null)
+                Fdp.Toolkit.Runner.UiBundleHost.Compose(
+                    new Fdp.Toolkit.Runner.IUiBundle[] { _scenarioDetailsBundle },
+                    new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+
             // ── MVE-BATCH-03: "Run Blueprint on Selected Entity" toolbar button ────────────────
             // Register via IWindowRegistrar.RegisterToolbarEntry so the button appears in the
             // Blueprint toolbar. The callback is ImGui-free and headlessly testable; DrawUI renders
             // the ImGui button gated on ImGui.GetCurrentContext() != Zero.
-            var bpWindowRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureWindowRegistrar();
+            var bpWindowRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureShellCommandRegistrar();
             bpWindowRegistrar.RegisterToolbarEntry(
                 Hrot.Blueprints.Editor.Runtime.RunBlueprintOnEntityCommand.ToolbarLabel,
                 () =>
@@ -2307,7 +4345,7 @@ namespace Hrot.Editor
             // ── MVE-BATCH-04: "Save Blueprint" toolbar entry + Ctrl+S ────────────────────────────
             // Resolves active asset via AiDocumentManager (same path as run-button).
             // _blueprintSaveDirtyTracker is initialised at field declaration; reused here.
-            var saveRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureWindowRegistrar();
+            var saveRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureShellCommandRegistrar();
             saveRegistrar.RegisterToolbarEntry(
                 "Save Blueprint",
                 () =>
@@ -2327,7 +4365,7 @@ namespace Hrot.Editor
             // triggers the _blueprintQuickReloadTrigger which calls QuickReloadService.TriggerAsync
             // with the live in-memory BlueprintAsset.  If the user WANTS the compiled output
             // persisted they should Save first (MVE-04) — but compilation itself works from RAM.
-            var compileRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureWindowRegistrar();
+            var compileRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureShellCommandRegistrar();
             compileRegistrar.RegisterToolbarEntry(
                 "Compile / Reload Blueprint",
                 () =>
@@ -2351,18 +4389,41 @@ namespace Hrot.Editor
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── BSA-205: "Entity Blueprints" perspective window ───────────────────────────────
-            // Registered via RegisterExtraWindow so it appears in the Window → Blueprint menu.
-            var entityBpWindow = new Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsManagedWindow(
-                () =>
-                {
-                    var model = new Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsEditModel(
-                        _world!, _blueprintRegistry!, Entity.Null);
-                    var panel = new Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsPanel(
-                        model, _world!, _blueprintRegistry!,
-                        entityResolver: () => _aiEditorSelectionStore?.SelectedEntity);
-                    return panel;
-                });
-            _blueprintRegistrar!.RegisterExtraWindow(windowManager, entityBpWindow);
+            // ⭐⭐⭐ CE-302 — ENTITY BLUEPRINTS IS A DETAILS VIEW, not a standalone window.
+            // 🔒 User, 2026-09-21: "EntityBlueprintsManagedWindow … sound[s] like [it] needs converting
+            //    into [a] proper details panel view[] with all the pinning support."
+            // 🔴 What it was: a ManagedWindow whose panel read `_aiEditorSelectionStore.SelectedEntity`
+            //    — a GLOBAL. ⇒ it could only show "whoever is selected", and a pinned copy on a second
+            //    entity was not expressible at all.
+            // ⭐ As a view it is handed a DetailsContext per draw: LIVE when docked, FROZEN when pinned
+            //    (R-100's snapshot) ⇒ pinning costs the panel nothing and is opted into nowhere.
+            // ⛔⛔ REGISTERED HERE BY CONSTRUCTION, NOT CONVENIENCE — the reference wall: the view lives
+            //    in Hrot.Blueprints.Editor and the registrar in Hrot.Editor.AiShared BELOW it, so the
+            //    root is the only assembly that sees both ends. 📌 The same wall BP-475 hit.
+            // ⚠ AND IT MUST BE REACHABLE: 📌 BP-475 shipped a view that was BUILT AND UNREGISTERED with
+            //   every one of its unit rails passing. TheEntityBlueprintsViewIsRegisteredTests asserts
+            //   the Blueprint catalogue OFFERS it, on the CONSTRUCTED editor.
+            // 📄 DESIGN_Editor_Entity_Selection_Source.md §5.
+            // ⚠ DELEGATES, not values: RegisterWindows runs BEFORE Initialize assigns _world, so an
+            //   eager For(_world!, …) throws here. 📌 The retired window hid that inside its lazy
+            //   factory lambda — which is exactly why the eager form looked equivalent.
+            // ⭐⭐ CE-1316 (R-1037, BV-46, BV-47) — Entity Blueprints is RETIRED as a tab: the panel is a section of the Brain tab, on the
+            //   Scenario perspective AND the Blueprint one (which gains the Brain tab for it), drawn unchanged; the tab applies to every
+            //   single entity, so a unit with no brain keeps its blueprints. ⛔ SUPERSEDED: _blueprintRegistrar.DetailsViews.Add of the view.
+            _scenarioDetailsBundle?.BrainSections.Add(
+                Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsDetailsViewDescriptor.For(
+                    () => _world, () => _blueprintRegistry));
+            var blueprintBrainSections = new Hrot.Editor.AiShared.Shell.DetailsViewRegistry();
+            blueprintBrainSections.Add(
+                Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsDetailsViewDescriptor.For(
+                    () => _world, () => _blueprintRegistry));
+            _blueprintRegistrar!.DetailsViews.Add(Hrot.Editor.AiShared.Shell.EntityBrainViewDescriptor.For(
+                () => _world,
+                hash => _behaviorRegistry is { } reg && reg.TryGetName(hash, out var n) ? n : null,
+                hash => _behaviorRegistry is { } reg && reg.TryGetDefinition(hash, out var d) ? d : null,
+                registry:   () => _behaviorRegistry,
+                blueprints: () => _blueprintRegistry,
+                embeds:     () => blueprintBrainSections));
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── PU-603/PU-D11: "Save All" callback — FlushNow + SaveAllAiDocumentsCommand ─────────
@@ -2371,41 +4432,43 @@ namespace Hrot.Editor
             // BTree/HSM: mapper → JSON serializer → AtomicFileWriter.
             // PU-D11 (PU-402): these delegates are also reused by the debounced RegenerationScheduler
             // flushAction so BTree/HSM flush writes JSON (not C#) — see the scheduler wiring below.
+            // ⭐⭐⭐ PHASE 2 SLICE ① — the three bodies below are now ONE implementation, shared with
+            //    CGF: `Hrot.Editor.AiShared.Documents.AiAssetSavers`. 📐 Before this, CGF carried its
+            //    own semantically-identical, syntactically-drifted copies (it used `is not … return`
+            //    and inlined the flatten; this file used `as` + a null check and a `prettyJson` local).
+            //    ⛔ What stays here is only what names the concrete asset types — AiShared cannot,
+            //    without a circular project reference (design §5c.6.2 / §PU-602).
+            // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.6.
             Hrot.Editor.AiShared.SaveAllAiDocumentsCommand.SaveDelegate saveBlueprintDelegate =
                 (asset, path) =>
                 {
                     // doc.Asset is BlueprintFileAsset (IEditableAsset wrapper); the real
-                    // BlueprintAsset is stored in the AiCanvasContext.AssetRef of the document.
-                    // Find the matching document by AssetId to get the canvas context.
-                    var doc = _aiDocumentManager?.OpenDocuments
-                        .FirstOrDefault(d => d.Asset.AssetId == asset.AssetId);
-                    var ctx     = doc?.ViewState as Hrot.Editor.AiShared.Windows.AiCanvasContext;
-                    var bpAsset = ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset;
-                    if (bpAsset == null) return;
+                    // BlueprintAsset is stored in the AiCanvasContext.AssetRef of the document —
+                    // which is the lookup AiAssetSavers.ResolveAssetRef now owns for both hosts.
+                    if (Hrot.Editor.AiShared.Documents.AiAssetSavers.ResolveAssetRef(
+                            _aiDocumentManager, asset.AssetId)
+                        is not Hrot.Blueprints.Core.Assets.BlueprintAsset bpAsset) return;
                     Hrot.Blueprints.Editor.SaveActiveBlueprintCommand.Save(bpAsset, path);
+                    // ⭐ The dirty TRACKER stays here: 📐 only this host constructs one, and a
+                    //   null-tolerant shared field would be a capability that silently does nothing on
+                    //   CGF (ruling 49). Design §5c.6 E5.
                     _blueprintSaveDirtyTracker.MarkClean(bpAsset.AssetId);
                 };
 
             Hrot.Editor.AiShared.SaveAllAiDocumentsCommand.SaveDelegate saveBTreeDelegate =
                 (asset, path) =>
                 {
-                    var btreeAsset = asset as Hrot.BTree.Editor.Model.BehaviorTreeAsset;
-                    if (btreeAsset == null) return;
-                    var dto        = Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(btreeAsset);
-                    var json       = Hrot.AiEditor.Persistence.BTree.BTreeJsonServices.Serialize(dto);
-                    var prettyJson = Fdp.Toolkit.Serialization.JsonAestheticFormatter.FlattenNumericArrays(json);
-                    Hrot.AiEditor.Persistence.AtomicFileWriter.Write(path, prettyJson);
+                    if (asset is not Hrot.BTree.Editor.Model.BehaviorTreeAsset btreeAsset) return;
+                    Hrot.Editor.AiShared.Documents.AiAssetSavers.SaveBTree(
+                        Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(btreeAsset), path);
                 };
 
             Hrot.Editor.AiShared.SaveAllAiDocumentsCommand.SaveDelegate saveHsmDelegate =
                 (asset, path) =>
                 {
-                    var hsmAsset   = asset as Hrot.Hsm.Editor.Model.HsmAsset;
-                    if (hsmAsset == null) return;
-                    var dto        = Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsmAsset);
-                    var json       = Hrot.AiEditor.Persistence.Hsm.HsmJsonServices.Serialize(dto);
-                    var prettyJson = Fdp.Toolkit.Serialization.JsonAestheticFormatter.FlattenNumericArrays(json);
-                    Hrot.AiEditor.Persistence.AtomicFileWriter.Write(path, prettyJson);
+                    if (asset is not Hrot.Hsm.Editor.Model.HsmAsset hsmAsset) return;
+                    Hrot.Editor.AiShared.Documents.AiAssetSavers.SaveHsm(
+                        Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsmAsset), path);
                 };
 
             _saveAllCallback = () =>
@@ -2444,8 +4507,21 @@ namespace Hrot.Editor
             // The editor app (_editorLogic) is guaranteed non-null at this point.
             if (_editorApp != null)
             {
+                // ⭐⭐⭐ H1 — the 2-ARG ctor, over AssetRoots.ScenariosRecipesRoot.
+                // 🔴 This line used to call the 1-arg ctor, so the Scenario kind offered exactly one
+                //    recipe ("Empty") and the seed-discovering ctor had ZERO production callers while
+                //    the root was referenced only by tests — the silent-default shape, where the caller
+                //    HAD the value (a static property) and did not pass it. 📄 design §2.1e ⑤c G1.
+                // ⭐ ContentSeed.CuratedRelPaths is reused as the discoverer: "every folder holding
+                //    a scenario.json, nested, forward-slashed, sorted" is already exactly this question
+                //    (ruling 9 — no second enumerator). ⚠ It is called through a LAMBDA so the list is
+                //    re-read on every AvailableRecipes(), not snapshotted at composition.
                 _newAssetServices[Hrot.Editor.AiShared.AssetKind.Scenario] =
-                    new ScenarioNewAssetService(new EditorLogicSessionAdapter(_editorApp));
+                    new ScenarioNewAssetService(
+                        new EditorLogicSessionAdapter(_editorApp),
+                        () => Fdp.Toolkit.Orchestration.ContentSeed.CuratedRelPaths(
+                                  Hrot.Editor.AiShared.AssetRoots.ScenariosRecipesRoot),
+                        () => _world);   // ⭐ CE-4210 MA-6 — New macro… stamps its header into the edit world
             }
 
             // Save-As blueprint file-save delegate (mint-only, so the dialog performs the save).
@@ -2483,12 +4559,11 @@ namespace Hrot.Editor
             // ── BATCH-06: register shell save commands (Ctrl+S/Ctrl+Shift+S fix, §20) ──────────
             // Wire the three save commands into the global shell command set with production
             // save delegates and a requestSaveAs seam (DEC-9: connected to SaveAsDialog model).
-            _shellInputSource = new ImGuiInputSource();
-            _shellHotkeyDispatcher = new Hrot.Editor.AiShared.Windows.EditorHotkeyDispatcher(
-                _shellInputSource);
 
             // BATCH-43 (MTB2-T8b): scenario Save-As → SaveAsBrowserDialog (same browser as New + doc Save-As).
-            Action openScenarioSaveAs = () =>
+            // ⭐ CE-4097 — the optional `onNamed` is the run choice's "Save as… and go live": called with the saved name once the save was published
+            // ⭐ B-9 N3 — `asRecipe`: the same browser over the RECIPE catalog (Replace? asks about recipes/scenarios/<name>), saved under that recipe name
+            Action<Action<string>?, bool> openScenarioSaveAsCore = (onNamed, asRecipe) =>
             {
                 if (_editorLogic == null || _newAssetServices == null) return;
 
@@ -2504,6 +4579,7 @@ namespace Hrot.Editor
                 var req = BuildSaveAsRequest(
                     Hrot.Editor.AiShared.AssetKind.Scenario, "Save Scenario As",
                     initialName, "", "Save", fp);
+                if (asRecipe) req = Hrot.Editor.AiShared.Recipes.RecipeFiles.AsScenarioRecipeRequest(req);
 
                 _saveAsBrowser?.Open(req, result =>
                 {
@@ -2515,10 +4591,29 @@ namespace Hrot.Editor
                         ? result.Name
                         : dest + "/" + result.Name;
 
+                    if (asRecipe)
+                    {
+                        var recipeName = Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipeName(fullName);
+                        _editorLogic?.SaveScenarioAs(recipeName);
+                        _saveAllStatus = $"[OK] Saved scenario as recipe '{recipeName}'.";
+                        return;
+                    }
                     _editorLogic?.SaveScenarioAs(fullName);
                     _saveAllStatus = $"[OK] Saved scenario as '{fullName}'.";
+                    onNamed?.Invoke(fullName);
                 });
             };
+            Action<Action<string>?> openScenarioSaveAsThen = onNamed => openScenarioSaveAsCore(onNamed, false);
+            Action openScenarioSaveAs = () => openScenarioSaveAsThen(null);
+            if (_timeTransport?.RunChoice is { } runChoice) runChoice.SaveAsPrompt = onNamed => openScenarioSaveAsThen(onNamed);
+            if (_timeTransport?.RunChoice is { } presetsChoice) presetsChoice.EditPresets = () => _parametersDrawer?.RequestOpen();
+            // ⭐ G-7 S4 (M-7) — the toolbar ▶ is ENABLED over the MERGED Review too: ReviewSource.Update plays every participant and merges each frame. ⛔ SUPERSEDED: Next_2 A-9's HostPlayDisabledReason (▶ greyed in Merged)
+
+            // ⭐ B-14 / undo U2 — Edit ▸ Undo / Redo (Ctrl+Z / Ctrl+Y) over the ONE history, Edit mode only
+            _debugApiService?.AttachShellCommands(() => windowManager.ShellCommands);   // ⭐ N-15 — the shell's commands (Edit ▸ Undo / Redo …) over HTTP, ?scope=shell
+            Hrot.Editor.AiShared.Documents.EditUndoCommands.Register(windowManager.ShellCommands.Register, EditHistory,
+                inEdit: () => InEditMode,
+                showHistory: () => _historyWindow?.Show());   // ⭐ U5 — Edit ▸ History…
 
             Hrot.Editor.AiShared.Documents.ShellSaveCommands.Register(
                 register:          windowManager.ShellCommands.Register,
@@ -2527,6 +4622,8 @@ namespace Hrot.Editor
                 saveBTree:         saveBTreeDelegate,
                 saveHsm:           saveHsmDelegate,
                 saveScenario:      null, // Scenario saved via IEditorLogic, not file delegate
+                openSaveAsBrowser: (req, onChosen) => _saveAsBrowser?.Open(req, onChosen),   // ⭐ B-9 N3 — "Save … as Recipe…" asks Replace? through the same browser (assigned later, hence the lambda)
+                runChoice:         () => _timeTransport?.RunChoice,   // ⭐ CE-3408 — the Save slot: floppy / amber flag
                 requestSaveAs:     doc =>
                 {
                     // BATCH-43 (MTB2-T8b): open the SaveAsBrowserDialog;
@@ -2554,6 +4651,7 @@ namespace Hrot.Editor
 
                         dialog.Name = result.Name;
                         dialog.FolderPicker.SelectedRelPath = result.DestinationPath;
+                        dialog.Overwrite = result.Overwrite;   // ⭐ B-9 N3 — the browser already asked Replace?
                         var r = dialog.Confirm();
                         _saveAllStatus = r.IsSuccess
                             ? $"[OK] Saved as '{result.Name}'."
@@ -2561,25 +4659,19 @@ namespace Hrot.Editor
                     });
                 },
                 report:               msg => _saveAllStatus = msg,
-                isScenarioContext:    () => windowManager.CurrentPerspective == "Editor",
+                isScenarioContext:    () => windowManager.CurrentPerspective == "Scenario",
                 hasLoadedScenario:    () => !string.IsNullOrEmpty(_editorLogic?.LoadedScenarioName),
                 saveScenarioAction:   () => { _editorLogic?.SaveCurrentScenario(); _saveAllStatus = $"[OK] Saved scenario '{_editorLogic?.LoadedScenarioName}'."; },
                 requestScenarioSaveAs: openScenarioSaveAs,
-                describeActiveTarget: () =>
-                {
-                    if (windowManager.CurrentPerspective == "Editor")
-                    {
-                        var n = _editorLogic?.LoadedScenarioName;
-                        return string.IsNullOrEmpty(n) ? "Save Scenario" : $"Save [scenario: {n}]";
-                    }
-                    // BUG-A12: resolve from the current perspective, not docManager.Active.
-                    var act = ResolveDocumentForCurrentPerspective(windowManager, _aiDocumentManager);
-                    return act != null
-                        ? $"Save [{act.Kind.ToString().ToLowerInvariant()}: {act.Asset.Name}]"
-                        : "Save";
-                },
+                scenarioName:         () => _editorLogic?.LoadedScenarioName,   // ⭐ CE-1443 part B — the shared label rule (SaveLabels) names it
                 resolveActiveDocument: () =>
-                    ResolveDocumentForCurrentPerspective(windowManager, _aiDocumentManager));
+                    ResolveDocumentForCurrentPerspective(windowManager, _aiDocumentManager),
+                saveBlueprintRecipe: (asset, path) =>
+                {
+                    if (Hrot.Editor.AiShared.Documents.AiAssetSavers.ResolveAssetRef(_aiDocumentManager, asset.AssetId)
+                        is not Hrot.Blueprints.Core.Assets.BlueprintAsset bp) return;
+                    Hrot.Blueprints.Editor.SaveActiveBlueprintCommand.SaveAsRecipe(bp, path, asset.Name);   // ⭐ CE-1443 B2 — the copy carries the recipe card
+                });
             // ───────────────────────────────────────────────────────────────────────────────────
 
             // SAVE-ON-CLOSE FIX: saving is DECOUPLED from closing. The former
@@ -2625,35 +4717,24 @@ namespace Hrot.Editor
             };
             // ─────────────────────────────────────────────────────────────────────────────────────
 
-            // ── AIE-031: Register BTree/HSM runtime inspector panes ─────────────────────────────
-            // Each pane holds a reference to its session; the window selects the matching pane
-            // at draw time based on the active asset kind.
-            if (_btreeDebugSession != null)
+            // ── AIE-031: Register BTree/HSM/Blueprint runtime panes ─────────────────────────────
+            // ⭐⭐⭐ CE-351 (2026-09-26) — ONE BINDER, CALLED BY BOTH HOSTS.
+            //    📄 DESIGN_Occurrence_Scoped_Storage.md §32.25.
+            // 🔴 What was here: three guarded blocks that CGF had NO equivalent of — measured, CGF
+            //    made ZERO RegisterRuntimePane calls and therefore offered no details.runtime.<kind>
+            //    view at all. ⛔ Copying them would have been a fifth duplicate in the programme that
+            //    removed four; the binder keeps the guards and the Blueprint asset-id resolver in one
+            //    place. Each pane holds its session; the Details registry selects by asset kind.
+            Hrot.Editor.AiComposition.AiRuntimePaneBinder.Bind(new Hrot.Editor.AiComposition.AiRuntimePaneServices
             {
-                var btreePane = new BTreeRuntimeInspectorPane();
-                btreePane.SetSession(_btreeDebugSession);
-                _btreeRegistrar.RuntimeInspector.RegisterPane(btreePane);
-            }
-            if (_hsmDebugSession != null)
-            {
-                var hsmPane = new HsmRuntimeInspectorPane();
-                hsmPane.SetSession(_hsmDebugSession);
-                _hsmRegistrar.RuntimeInspector.RegisterPane(hsmPane);
-            }
-            if (_blueprintDebugSession != null)
-            {
-                var blueprintPane = new Hrot.Blueprints.Editor.Inspector.BlueprintRuntimeInspectorPane();
-                blueprintPane.SetSession(_blueprintDebugSession);
-                blueprintPane.SetResolvers(
-                    selectedEntityResolver: () => _aiEditorSelectionStore?.SelectedEntity,
-                    activeAssetIdResolver:  () =>
-                    {
-                        var ctx = _aiDocumentManager?.Active?.ViewState
-                            as Hrot.Editor.AiShared.Windows.AiCanvasContext;
-                        return (ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset)?.AssetId;
-                    });
-                _blueprintRegistrar.RuntimeInspector.RegisterPane(blueprintPane);
-            }
+                BTreeRegistrar        = _btreeRegistrar,
+                HsmRegistrar          = _hsmRegistrar,
+                BlueprintRegistrar    = _blueprintRegistrar,
+                BTreeDebugSession     = _btreeDebugSession,
+                HsmDebugSession       = _hsmDebugSession,
+                BlueprintDebugSession = _blueprintDebugSession,
+                Documents             = () => _aiDocumentManager,
+            });
             // ────────────────────────────────────────────────────────────────────────────────────
 
             // ── AIE-032: Register BTree/HSM trace lane providers ────────────────────────────────
@@ -2672,8 +4753,8 @@ namespace Hrot.Editor
             // Replaces the AssetPickerModal production path with the Tree-layout entry-driven
             // picker (PickerRegistry.OpenPicker). Separate from adapterBundle.PickerRegistry
             // (which canvas windows already DrawFrame) to avoid double-DrawFrame.
-            _shellPickers = new NodeEditor.UI.Picker.PickerRegistry();
-            _shellPickers.SetServices(adapterBundle.IconProvider, adapterBundle.EditorTheme);
+            // ⭐ CE-1017 S5 — the ONE picker factory: entity icons + the silk atlas for every other key.
+            _shellPickers = Hrot.UI.Common.AddEntity.EntityAuthoring.CreatePickers(adapterBundle.IconProvider, adapterBundle.EditorTheme);
 
             // BATCH-42 (MTB2-T8b): capture icon provider + init Save-As browser dialog.
             _iconProvider = adapterBundle.IconProvider;
@@ -2681,55 +4762,36 @@ namespace Hrot.Editor
 
             // Null-safe guard: _assetPickRouter may be null in bare-ctor tests.
             var assetPickerLauncher = _assetPickRouter != null
-                ? new Hrot.Editor.AssetPickerLauncher(
-                    openPicker: _shellPickers.OpenPicker,
-                    catalog:    catalog,
-                    router:     _assetPickRouter)
+                ? new Hrot.Editor.AiShared.Browser.AssetPickerLauncher(
+                    openPicker:   _shellPickers.OpenPicker,
+                    catalog:      catalog,
+                    router:       _assetPickRouter,
+                    hasInventory: () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true,   // ⭐ CE-1442
+                    runChoice:    () => _timeTransport?.RunChoice,   // ⭐ CE-4141 — Open and go live
+                    // ⭐ CE-4210 MA-6 — the Macros group: the NAS macros/ root, the root the load resolves against (ContentLayout.ResolveScenarioDirectory)
+                    macroPaths:   Hrot.Editor.AiShared.Browser.MacroPickerEntries.Paths,
+                    macrosRoot:   Hrot.Editor.AiShared.Browser.MacroPickerEntries.Root,
+                    // ⭐ AQ108 D24 — the run setup's typed scenario-param rows (the same one-field form as MA-8's args)
+                    paramEditService: () => _runSetupEditService ??= Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build())
                 : null;
 
-            // Local helper: directory part of an asset's relative path for the given kind.
-            // Promoted from ShowNewAssetDialog so BuildSaveAsRequest can also use it.
+            // ⭐⭐ CE-049 (Axis-C E2) — both helpers now live in the shared
+            //    `Hrot.Editor.AiShared.Browser.AssetSaveAsRequests`, so CGF's Save-As dialog is the SAME
+            //    builder rather than a third copy. 📄 docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md §8.
+            //    ⭐ Kept as local wrappers so the three existing call sites below are untouched.
             static string FolderOf(
                 Hrot.Editor.AiShared.IEditableAsset a,
                 Hrot.Editor.AiShared.AssetKind k,
                 Func<Hrot.Editor.AiShared.AssetKind, string?> bf)
-            {
-                var rel = Hrot.Editor.AiShared.Browser.AssetRelPath.RelPath(a, bf(k));
-                int lastSlash = rel.LastIndexOf('/');
-                return lastSlash >= 0 ? rel.Substring(0, lastSlash) : "";
-            }
+                => Hrot.Editor.AiShared.Browser.AssetSaveAsRequests.FolderOf(a, k, bf);
 
-            // ── BATCH-43 (MTB2-T8b): shared SaveAsRequest builder for New + Save-As flows. ──
             NodeEditor.UI.Dialogs.SaveAsRequest BuildSaveAsRequest(
                 Hrot.Editor.AiShared.AssetKind kind, string title, string initialName,
                 string initialDestination, string confirmLabel,
                 Hrot.Editor.AiShared.Browser.FolderPickerState folderPicker)
-            {
-                return new NodeEditor.UI.Dialogs.SaveAsRequest
-                {
-                    Title              = title,
-                    InitialName        = initialName,
-                    InitialDestination = initialDestination,
-                    ConfirmLabel       = confirmLabel,
-                    GetFolderTree = () => Hrot.Editor.AiShared.Browser.AssetFolderDerivation.ToCategoryNode(
-                        folderPicker.FolderPaths.ToList()),
-                    GetFolderContents = folder => catalog.All
-                        .Where(a => a.Kind == kind &&
-                            FolderOf(a, kind, baseFolderFor) == folder)
-                        .Select(a => new NodeEditor.UI.Dialogs.SaveAsContentItem(
-                            a.Name,
-                            Hrot.Editor.AiShared.AssetKindIcons.GetIconKey(kind)))
-                        .ToList(),
-                    OnCreateFolder = (parent, newName) => folderPicker.AddFolder(parent, newName),
-                    NameExists = (name, dest) => catalog.All.Any(a =>
-                        a.Kind == kind &&
-                        FolderOf(a, kind, baseFolderFor) == dest &&
-                        a.Name == name),
-                    ValidateName = name => string.IsNullOrWhiteSpace(name)
-                        ? "Name must not be empty."
-                        : null,
-                };
-            }
+                => Hrot.Editor.AiShared.Browser.AssetSaveAsRequests.Build(
+                    catalog, kind, title, initialName, initialDestination, confirmLabel,
+                    folderPicker, baseFolderFor);
 
             // ── BATCH-36 (MTB2-T7): NewAssetLauncher — opens the recipe Tree picker; ──
             // on pick → ShowNewAssetDialog opens the Save-As browser (BATCH-42: MTB2-T8b).
@@ -2741,7 +4803,7 @@ namespace Hrot.Editor
                     Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
                         catalog.All, kind, baseFolderFor));
 
-                string initialName = string.Equals(recipe.Name, "Empty", System.StringComparison.OrdinalIgnoreCase)
+                string initialName = _newAssetServices[kind].IsBlankTemplate(recipe)
                     ? $"New{kind}"
                     : recipe.Name;
 
@@ -2750,62 +4812,165 @@ namespace Hrot.Editor
                 _saveAsBrowser?.Open(request, result =>
                 {
                     if (!result.Confirmed) return;
-                    var minted = _newAssetServices![kind].CreateNew(recipe, result.Name, result.DestinationPath);
-                    // Blueprint is mint-only — write its file at the chosen folder;
-                    // BTree/HSM/Scenario persist in CreateNew.
-                    if (kind == Hrot.Editor.AiShared.AssetKind.Blueprint)
-                    {
-                        // BUG-A6: pass _bpRootDir as the asset-root override so the file
-                        // lands in the SOURCE project dir that BlueprintAssetContributor
-                        // scans (_bpRootDir), not the bin/output dir (AssetRoots.AssetsFor).
-                        var bpPath = Hrot.Editor.AiShared.AssetSavePath.Compose(
-                            Hrot.Editor.AiShared.AssetKind.Blueprint,
-                            result.DestinationPath, result.Name,
-                            assetRootOverride: _bpRootDir);
-                        saveAsBlueprintToFile(minted, bpPath);
-                    }
-                    // Refresh the catalog then open the catalogued (concrete) asset (document kinds).
-                    if (kind is Hrot.Editor.AiShared.AssetKind.Blueprint
-                        or Hrot.Editor.AiShared.AssetKind.BTree
-                        or Hrot.Editor.AiShared.AssetKind.Hsm)
-                    {
-                        var aiAsm = AppDomain.CurrentDomain.GetAssemblies()
-                            .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
-                        if (aiAsm != null) _aiCatalogBuilder?.RefreshFromAssembly(aiAsm);
-                        // BUG-A6: RefreshFromAssembly only refreshes assembly-based contributors;
-                        // JSON contributors must be refreshed separately so the newly-written
-                        // .btree.json / .hsm.json file is discovered and FindByAssetId succeeds.
-                        if (kind == Hrot.Editor.AiShared.AssetKind.BTree && _btreeJsonRootDir != null)
-                            _btreeJsonContrib?.Refresh(rootDirectory: _btreeJsonRootDir);
-                        if (kind == Hrot.Editor.AiShared.AssetKind.Hsm && _hsmJsonRootDir != null)
-                            _hsmJsonContrib?.Refresh(rootDirectory: _hsmJsonRootDir);
-                        var catalogued = _aiCatalogBuilder?.Catalog?.FindByAssetId(minted.AssetId);
-                        if (catalogued != null)
-                            _aiDocumentManager?.Open(catalogued);
-                        else
-                            _saveAllStatus = $"[INFO] Created '{minted.Name}'.";
-                    }
-                    else
-                        _saveAllStatus = $"[OK] Created {kind}: '{minted.Name}'.";
+                    var (_, status) = CreateAssetCore(kind, recipe, result.Name, result.DestinationPath);
+                    _saveAllStatus  = status;
                 });
             }
 
+            // ⭐ New scenario N1 (R-4135) — a BLANK scenario on a terrain: the same Save-As naming as a recipe's, then ScenarioNewAssetService.CreateBlank
+            //   (the guarded open, then the master writes the header-only file — N2). The terrain is chosen here and never changes (R-4124).
+            // ⭐ New scenario N1 — the terrains of the master's catalog (the NAS), read live; ONE place builds it (the list, the pane's facts and its still all ask it)
+            static Fdp.Toolkit.Terrain.TerrainCatalog NewScenarioTerrains()
+                => Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null,
+                       Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedRoot(Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot()));
+
+            void ShowNewBlankDialog(string terrain)
+            {
+                if (_newAssetServices == null || !_newAssetServices.TryGetValue(Hrot.Editor.AiShared.AssetKind.Scenario, out var svc) || svc is not ScenarioNewAssetService scenarios) return;
+                var request = BuildSaveAsRequest(Hrot.Editor.AiShared.AssetKind.Scenario, "New Scenario", terrain, "", "Create",
+                    new Hrot.Editor.AiShared.Browser.FolderPickerState(Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
+                        catalog.All, Hrot.Editor.AiShared.AssetKind.Scenario, baseFolderFor)));
+                _saveAsBrowser?.Open(request, result =>
+                {
+                    if (!result.Confirmed) return;
+                    try { scenarios.CreateBlank(terrain, result.Name, result.DestinationPath ?? ""); _saveAllStatus = $"Creating '{result.Name}' on {terrain}…"; }
+                    catch (ArgumentException ex) { _saveAllStatus = ex.Message; }
+                });
+            }
+
+            // ⭐ CE-4210 MA-6 — New macro…: the same dialog, the name lands under macros/ (ContentLayout.MacroName), and ScenarioNewAssetService.CreateNew stamps the macro header (IsMacroName).
+            void ShowNewMacroDialog(Hrot.Editor.AiShared.AssetKind kind, Hrot.Editor.AiShared.IEditableAsset recipe)
+            {
+                if (_newAssetServices == null) return;
+                var request = BuildSaveAsRequest(kind, "New Macro", "NewMacro", "", "Create",
+                    new Hrot.Editor.AiShared.Browser.FolderPickerState(Array.Empty<string>()));
+                _saveAsBrowser?.Open(request, result =>
+                {
+                    if (!result.Confirmed) return;
+                    string dest = (result.DestinationPath ?? "").Trim('/');
+                    var (_, status) = CreateAssetCore(kind, recipe, result.Name,
+                        dest.Length == 0 ? Fdp.Toolkit.Orchestration.ContentLayout.MacrosDirectoryName : Fdp.Toolkit.Orchestration.ContentLayout.MacroName(dest));
+                    _saveAllStatus = status;
+                });
+            }
+
+            _openMacroPicker = cb => assetPickerLauncher?.OpenMacros(cb);   // ⭐ CE-4210 MA-8
+
+            // ⭐⭐⭐ AQ56 / MA-001 — THE CREATE PATH: TWO surfaces, ONE implementation.
+            //    📄 docs/DESIGN_Mcp_Authoring.md §7 ③.
+            //
+            // ⭐⭐⭐ CE-049 (Axis-C E2) — the body MOVED to the shared
+            //    `Hrot.Editor.AiShared.Browser.AssetCreateController`. 📄
+            //    docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md §3 ②.
+            //    📐 Measured: `CgfSubsystem.AssetShellCreate` was a near-verbatim RE-DERIVATION of this
+            //    body, and the two had already DRIFTED in three places (the non-document-kind branch, the
+            //    try/catch around the Blueprint write, and the "not in the catalog" remedy text). ⇒ ruling 9.
+            //
+            // ⛔⛔ Why the body is not just "call CreateNew" — the four composition facts a duplicate gets
+            //    wrong (BUG-A6's source-dir write, the assembly-vs-JSON contributor split, and returning
+            //    the id only once the catalog resolves it) now live in the controller's own remarks.
+            var assetCreateController = _newAssetServices != null
+                // ⭐⭐ CE-091 (J2 K1) — the SIX-LINE JSON kind-dispatch lambda that stood here is gone:
+                //    `AiAssetCatalogBuilder.RefreshJsonContributors` owns that policy now — the method its
+                //    own doc had promised and nobody had built. ⭐ CGF passes the same method group.
+                // ⛔⛔ The OTHER four delegates STAY, and that is a deliberate reversal of this slice's
+                //    first design (§5c.10 K2, WITHDRAWN): 📐 measured, SEVEN tests in
+                //    `TheCreateCoreIsOneImplementationTests` inject them to assert the create SEQUENCE
+                //    (refresh-before-lookup, write-before-refresh, no-open-on-failure). ⇒ they are a
+                //    TEST SEAM, not accidental duplication, and collapsing them would have traded a
+                //    7-test rail suite for ~7 lines.
+                ? new Hrot.Editor.AiShared.Browser.AssetCreateController(
+                    services:               _newAssetServices,
+                    saveMintOnlyAsset:      saveAsBlueprintToFile,
+                    findCatalogued:         id => _aiCatalogBuilder?.Catalog?.FindByAssetId(id),
+                    refreshFromAssembly:    asm => _aiCatalogBuilder?.RefreshFromAssembly(asm),
+                    refreshJsonContributor: k => _aiCatalogBuilder?.RefreshJsonContributors(k),
+                    openDocument:           a => _aiDocumentManager?.Open(a),
+                    blueprintRootDir:       () => _bpRootDir)
+                : null;
+
+            (Guid? AssetId, string Status) CreateAssetCore(
+                Hrot.Editor.AiShared.AssetKind kind,
+                Hrot.Editor.AiShared.IEditableAsset? recipe,
+                string name,
+                string relPath)
+                => assetCreateController?.Create(kind, recipe, name, relPath)
+                   ?? (null, $"[ERROR] This host composes no INewAssetService for {kind}.");
+
+            // ⭐⭐ AQ56 / MA-002 — hand the create path to the debug API.
+            // ⭐ The STRING surface is the controller's own `CreateByName`, so the kind-parse and the
+            //   MA-021 recipe-by-name resolve are shared with CGF rather than written twice.
+            if (assetCreateController != null)
+                _debugApiService?.AttachAssetAuthoring(assetCreateController.CreateByName);
+
+            // ⭐⭐ MA-020 — recipe discovery over MCP reads the SAME registry the picker below does.
+            if (_newAssetServices != null)
+                _debugApiService?.AttachRecipes(
+                    _newAssetServices,
+                    Hrot.Blueprints.Editor.RecipeMetadataAdapter.DescribeRecipe,
+                    Hrot.Blueprints.Editor.RecipeMetadataAdapter.RecipeCategory);
+
+            // ⚠ MA-020 — the two describe seams were OPTIONAL and NOBODY PASSED THEM, so every recipe in
+            //   the New-Asset tree rendered with a null description while `EditorMetadata.Recipe` carried
+            //   one. 📌 The silent-default shape: the caller HAD the value and did not pass it.
+            var terrainSources = new Hrot.Editor.TerrainSave.EditorTerrainSourceService(
+                catalog: () => NewScenarioTerrains(),
+                open:    name => UiSession?.LoadScenario(name));
             var newAssetLauncher = _newAssetServices != null
-                ? new Hrot.Editor.NewAssetLauncher(
+                ? new Hrot.Editor.AiShared.Browser.NewAssetLauncher(
                     openPicker:         _shellPickers.OpenPicker,
                     services:           _newAssetServices,
-                    showNewAssetDialog: ShowNewAssetDialog)
+                    showNewAssetDialog: ShowNewAssetDialog,
+                    // ⭐ CE-4140 — a scenario recipe's description is its scenario.json header's (the Blueprint seam knows only blueprints)
+                    describe:           a => Hrot.Blueprints.Editor.RecipeMetadataAdapter.DescribeRecipe(a) ?? ScenarioNewAssetService.DescribeRecipe(a),
+                    recipeCategory:     Hrot.Blueprints.Editor.RecipeMetadataAdapter.RecipeCategory,
+                    showNewMacroDialog: ShowNewMacroDialog,   // ⭐ CE-4210 MA-6
+                    // ⭐ New scenario N1 — the terrains of the master's catalog (the NAS), read live per open; the same catalog the master's create checks
+                    terrains:           () => NewScenarioTerrains().List(),
+                    // ⭐ B-9 N1 pane — the same catalog locates the terrain's terrain.json (facts) and preview.jpg (still)
+                    terrainDefinition:  name => NewScenarioTerrains().ResolveDefinition(name),
+                    showNewBlankDialog: ShowNewBlankDialog,
+                    // ⭐ Terrain authoring E-2 — the SOURCE chip and Edit terrain… of a terrain row (the staged copy opens through the scenario door, by name)
+                    terrainSource:      terrain => terrainSources.Offer(terrain))
+                : null;
+            _newAssetLauncherForOsm = newAssetLauncher;   // ⭐ CE-4378 — the OSM wizard's "Open in New Scenario" (the wizard is built earlier)
+
+            // ⭐ CE-4210 MA-6 — File ▸ New ▸ Macro…  (a macro starts from a scenario recipe's terrain, like New Scenario…) — ⭐ CE-4253/4255: it was Scenario/New Macro…
+            if (newAssetLauncher is { CanOpenMacro: true })
+                Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, "file.new-macro", Hrot.Editor.AiShared.Scenarios.FileMenuLayout.NewMacro, () => newAssetLauncher.OpenMacro(), "Scenario", allowedInIdle: false);
+
+            // ⭐⭐ CE-4098 (AQ108 D16/D19) — File › Open Recording: the master's exercise inventory (the core's cluster read model, the SAME
+            //   list GET /exercises serves) in the shared picker; a pick opens into AAR through the session's ONE replay intent.
+            var recordingPickerLauncher = _editorApp != null
+                ? new Hrot.Editor.AiShared.Scenarios.RecordingPickerLauncher(
+                    openPicker:     _shellPickers.OpenPicker,
+                    listExercises:  () => UiClusterCache?.AvailableExercises   // ⭐ D-9 — the UI's own read model
+                                          ?? Array.Empty<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>(),
+                    // ⭐ CE-4101 — the session's own open IS the guarded door (Stop & Load over a run, Save / Discard / Cancel over unsaved edits); no host seam, no unguarded fallback
+                    openRecording:  id => UiSession!.OpenRecording(id),
+                    hasInventory:   () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true,   // ⭐ CE-1442
+                    sourceNotes:    ReviewPickerNotes,   // ⭐ R-5 / V6 — each row says what opening it GIVES
+                    // ⭐ CE-4330 ⑤ — where each run is: the master's jobs (fact ①) and this node's own recordings (fact ③)
+                    storageJobs:    () => _timeTransport?.StorageJobs ?? System.Array.Empty<Fdp.Toolkit.Orchestration.StorageJob>(),
+                    localRecordings: () => _node?.ClusterSlave.LocalRecordings.Current(),
+                    actions: x => _timeTransport?.RunChoice?.Transfers?.ActionsFor(x),
+                    import:  x => _timeTransport?.RunChoice?.Transfers?.OpenOrImport(x) ?? false)
                 : null;
 
             // Guard: a minimally-constructed EditorSubsystem (e.g. window-registration unit tests)
             // has no IEditorLogic. Skip the scenario-menu wiring in that case so RegisterWindows
             // still registers the perspective windows. Production always has _editorLogic set.
-            if (_editorLogic != null)
-            ScenarioMenuCommands.Register(
-                registerCommand:      windowManager.ShellCommands.Register,
-                menu:                 windowManager.GlobalMenu,
-                commands:             windowManager.ShellCommands,
-                editorLogic:          _editorLogic,
+            // ⭐ CE-4101 follow-up (AQ108 §2.11a ⑤) — NOT registered here any more: BUILT here (the pickers, Save-As and status wiring live in this method) and handed to the composer, which asks only the
+            //   picked ▶ owner to run it (IProvidesRunControls.ComposeScenarioActions) — one owner by rule, never the last RegisterWindows.
+            if (_editorApp != null)
+            _composeScenarioMenu = wm => Hrot.Editor.AiShared.Scenarios.ScenarioMenuCommands.Register(
+                registerCommand:      wm.ShellCommands.Register,
+                menu:                 wm.GlobalMenu,
+                commands:             wm.ShellCommands,
+                closedReason:         () => _timeTransport?.RunChoice?.ClosedReason,   // ⭐ CE-1442 — the run gate's reason greys every gated item (the host HAS the choice)
+                // ⭐⭐ CE-046 — the registrar now binds to the SHARED session, which is what lets CGF
+                //    register the identical items. 📄 design §3 ④.
+                session:              UiSession!,   // ⭐ D-9 — the menu is UI side
                 openPicker:           (kinds, callback) =>
                 {
                     // BATCH-29 (MTB-P8-T3): scenario.load opens via AssetPickerLauncher.
@@ -2814,6 +4979,7 @@ namespace Hrot.Editor
                     assetPickerLauncher?.Open(kinds, callback);
                 },
                 openSaveAsDialog:     cb => openScenarioSaveAs(),
+                openSaveAsRecipeDialog: cb => openScenarioSaveAsCore(null, true),   // ⭐ B-9 N3 — the callback is ignored like openSaveAsDialog's: the core saves under the recipe name itself
                 showMigrationHistory:  sidecars =>
                 {
                     // Log migration sidecars to the save status line for visibility.
@@ -2821,7 +4987,41 @@ namespace Hrot.Editor
                         ? "[Migration] No sidecars found for current scenario."
                         : $"[Migration] {sidecars.Count} sidecar(s): "
                           + string.Join(", ", sidecars.Select(s => $"{s.Kind} v{s.Version}"));
-                });
+                },
+                // ⭐ CE-4089 — Save to Git: enabled only from a source checkout; copies the NAS content back into the repository
+                // (scenarios: the curated names; assets and recipes: every new or changed file; nothing is deleted).
+                // No-op/disabled in a deployed build.
+                isCuratedSaveEnabled: () => Hrot.ScenarioEditor.Services.CuratedScenarios.CanSaveToGit(),
+                saveCuratedToGit:     () =>
+                {
+                    var written = Hrot.ScenarioEditor.Services.CuratedScenarios.SaveToGit(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot);
+                    _saveAllStatus = written.Count == 0
+                        ? "[Git] Nothing saved (not a source checkout, or the repository is already current)."
+                        : $"[Git] Saved {written.Count} file(s): " + string.Join(", ", written.Take(8)) + (written.Count > 8 ? ", …" : "");
+                },
+                openRecordingPicker: recordingPickerLauncher is null ? null : recordingPickerLauncher.Open,   // ⭐ CE-4098 (File › Load Scenario / Open Recording end in the session's guarded door — CE-4101)
+                // ⭐ CE-1443 — Save Checkpoint is the run choice's (the session's checkpoint + the toast, and ITS reason when it cannot); the host HAS the choice, so it passes it
+                takeCheckpoint:      () => _timeTransport?.RunChoice?.TakeCheckpoint(),
+                checkpointDisabledReason: () => _timeTransport?.RunChoice?.CheckpointDisabledReason,
+                // ⭐ CE-1443 part B — File/Save and File/Save As… are drawn only while a DOCUMENT is the target (the scenario has its own items)
+                documentToSave: () => wm.CurrentPerspective != "Scenario"
+                                   && ResolveDocumentForCurrentPerspective(wm, _aiDocumentManager) != null,
+                // ⭐ CE-4140 — File › New Scenario…: the New-asset picker over the SCENARIO recipes only → Save-As naming → CreateNew. This host HAS the scenario recipes service, so it passes it (the silent-default rule).
+                openNewScenario: newAssetLauncher != null && _newAssetServices!.ContainsKey(Hrot.Editor.AiShared.AssetKind.Scenario)
+                    ? () => newAssetLauncher.Open(Hrot.Editor.AiShared.AssetKind.Scenario)
+                    : null,
+                // ⭐ CE-4375 — File › New › Terrain from OpenStreetMap…: this host HAS the wizard, so it passes it; the wizard says why it is greyed (no pipeline yet)
+                openTerrainFromOsm: _osmWizard != null ? _osmWizard.Open : null,
+                terrainFromOsmDisabledReason: () => _osmWizard?.DisabledReason,
+                // ⭐ Terrain authoring U-5 — File › Save Terrain As…: this host HAS the dialog
+                openSaveTerrainAs: _terrainSaveAs != null ? _terrainSaveAs.Open : null,
+                saveTerrainAsDisabledReason: () => _terrainSaveAs?.DisabledReason,
+                openSaveTerrain: _terrainSaveAs != null ? _terrainSaveAs.OpenSave : null,
+                saveTerrainDisabledReason: () => _terrainSaveAs?.SaveDisabledReason,
+                openEditTerrain: newAssetLauncher is { CanOpenEditTerrain: true } ? newAssetLauncher.OpenEditTerrain : null,
+                editTerrainDisabledReason: () => null,
+                openRandomTerrain: _randomTerrain != null ? _randomTerrain.Open : null,
+                randomTerrainDisabledReason: () => _randomTerrain?.DisabledReason);
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
             var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();
@@ -2898,21 +5098,55 @@ namespace Hrot.Editor
             var blueprintSelectionAfterDraw =
                 Hrot.Blueprints.Editor.Host.BlueprintSelectionBridgeHelper.BuildAfterDrawAction(
                     _blueprintSelectionStore);
+            // BP-223: the missing consumer. IEditorIndicators.Notify has been enqueueing into a
+            // ToastQueue nothing drained (the only TryDequeue in the repo was NodeEditor.Demo's own
+            // shell), so bookmark notifications were discarded and BP-74's collapse refusal would
+            // have been too. Drawn on the same per-frame hook as the bookmark overlay.
+            var blueprintToasts = new Hrot.Blueprints.Editor.NotificationOverlay();
             blueprintCanvasWindow.AfterDraw = ctx =>
             {
                 blueprintSelectionAfterDraw(ctx);
                 if (ctx.Bookmarks != null)
                     Hrot.Blueprints.Editor.BlueprintEditorBootstrap.DrawBookmarkEdgeMarkers(
                         ctx.View, ctx.Bookmarks, adapterBundle.EditorTheme);
+                blueprintToasts.Draw(ctx.Indicators, ImGuiNET.ImGui.GetIO().DeltaTime);
             };
             // FIX-A: wire per-frame canvas selection→Inspector bridges for BTree and HSM.
             // Each AfterDraw reads ctx.AssetRef (set by the document factory) and maps
             // the single selected node to a BTreeNodeSelection / HsmStateSelection published
             // to the perspective's EditorSelectionStore so GetCurrentFacet() returns non-null.
-            btreeCanvasWindow.AfterDraw =
-                BTreeSelectionBridgeHelper.BuildAfterDrawAction(_btreeSelectionStore);
-            hsmCanvasWindow.AfterDraw =
-                HsmSelectionBridgeHelper.BuildAfterDrawAction(_hsmSelectionStore);
+            // ⭐⭐⭐ CE-348 (2026-09-26) — THE KERNEL ADAPTER THE DESIGN DEFERRED AT "Slice 3+".
+            //    🔒 User: "zero callers for btreedebugsession and trace loop is again a sign of under
+            //    adoption, not un-necessity." 📐 The corpus agrees: Hrot.BTree.Editor.md:58 says the
+            //    editor "connects a BTreeDebugSession to the KERNEL ADAPTER", and :294 says its
+            //    Record* methods exist "for the FUTURE kernel adapter". It was never built.
+            // ⭐ Four overlays were already registered and sitting dark — the runtime outline, the
+            //   heatmap, the breakpoint gutter and the subtree boundary.
+            // ⭐⭐ ANCHOR = option (1), approved by the user: the graph follows the ENTITY-INSPECTOR
+            //   SELECTION (SharedEntitySelection, CE-301 — the ONE selection every cause moves), so
+            //   canvas and inspector agree by construction. ⛔ Per-tab PINNING is deliberately out.
+            // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.22.
+            var aiPumpServices = new Hrot.Editor.AiComposition.AiDebugSessionPumpServices
+            {
+                // ⚠ PROVIDERS: _world is assigned during Initialize, after this hook is built.
+                World          = () => _world,
+                // ⭐⭐ CE-1318 (BV-55, R-1039) — the ACTIVE document's pin while it has one (a graph opened from a pinned Brain tab), else
+                //   the selection. ⛔ SUPERSEDED: one global debug pin for every graph (UnitDebugController.Follow, CE-1257 BV-22) — one
+                //   canvas could not show two units, and a pinned tab's graph lost its unit when another tab moved the pin.
+                SelectedEntity = () => _aiDocumentManager?.Active?.PinnedEntity is { } pin && _world != null && _world.IsAlive(pin)
+                    ? pin
+                    : _btreeSelectionStore.SelectedEntity,
+            };
+
+            btreeCanvasWindow.AfterDraw = Hrot.Editor.AiComposition.AiDebugSessionPump.Then(
+                BTreeSelectionBridgeHelper.BuildAfterDrawAction(_btreeSelectionStore),
+                Hrot.Editor.AiComposition.AiDebugSessionPump.ForBTree(_btreeDebugSession, aiPumpServices));
+
+            hsmCanvasWindow.AfterDraw = Hrot.Editor.AiComposition.AiDebugSessionPump.Then(
+                HsmSelectionBridgeHelper.BuildAfterDrawAction(_hsmSelectionStore),
+                Hrot.Editor.AiComposition.AiDebugSessionPump.ForHsm(
+                    _hsmDebugSession,
+                    aiPumpServices with { SelectedEntity = () => _hsmSelectionStore.SelectedEntity }));
 
             // ── AIE-047: Blueprint "My Blueprint" panel window ────────────────────────────────
             _blueprintMyBlueprintWindow = new Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow();
@@ -2924,98 +5158,112 @@ namespace Hrot.Editor
                 new Hrot.Blueprints.Editor.Windows.BlueprintBookmarksWindow(_aiDocumentManager!);
             _blueprintRegistrar!.RegisterExtraWindow(windowManager, blueprintBookmarksWindow);
 
-            // ── AIE-048: Blueprint Details + Variables windows ────────────────────────────────
-            _blueprintDetailsWindow = new Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow(
-                selectionStore:  _blueprintSelectionStore,
-                drawerRegistry:  _blueprintNodeDrawers ?? new Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry());
-            _blueprintRegistrar!.RegisterExtraWindow(windowManager, _blueprintDetailsWindow);
+            // ── ⭐⭐⭐ S1 (BP-399) — BLUEPRINT'S DETAILS IS THE SHARED SHELL ────────────────────
+            // 📄 DESIGN_Details_Panel_View_Switching.md §7.3 ① — one DetailsWindow class on all four
+            //    perspectives; BlueprintDetailsWindow is DELETED and its node arm is now a view.
+            // ⛔⛔ The shell is already built and registered by _blueprintRegistrar (it keeps the SAME
+            //    persisted id, `ai_details_blueprint` — §7.3 ④). ⇒ nothing is constructed here; what
+            //    this root supplies is the two things the reference wall keeps out of AiShared: the
+            //    node view and the Properties form. 📌 One call, so a rail on the constructed editor
+            //    covers all of it (the 2026-08-16 control).
+            // ⭐⭐⭐ Through the binder CGF calls too — the active Blueprint is PULLED from the document
+            //    manager every frame (R-126), the same on both hosts. 📄 EQS design §17.8.
+            Hrot.Editor.AiComposition.AiBlueprintNodeAuthoringBinder.InstallDetails(
+                registrar:       _blueprintRegistrar!,
+                windowManager:   windowManager,
+                documentManager: _aiDocumentManager!,
+                authoring:       _blueprintNodeAuthoring ?? new Hrot.Editor.AiComposition.AiBlueprintNodeAuthoring(
+                                     new Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry(),
+                                     new Hrot.Blueprints.Editor.NodeDrawers.EqsTemplateRegistry(),
+                                     System.Array.Empty<Hrot.Blueprints.Editor.Visuals.IAttachmentProvider>()),
+                // ⭐⭐ Batch 99 (99a) — the Properties form's RENAME runs this. 📌 The silent-default
+                //    ruling: "a production caller that HAS a dependency must PASS it" — this method
+                //    hands the SAME service to BlueprintVariablesManagedWindow seven lines below, and
+                //    the first draft of 99a left this one defaulted to null. ⭐ S1 made the parameter
+                //    REQUIRED, so that mistake is now unrepresentable.
+                refactorService: refactorService);
 
-            // BlueprintVariablesWindow (wrapped in a ManagedWindow adapter) uses the legacy
-            // Blueprints.Editor.EditorSelectionStore (which holds a BlueprintAsset? directly);
-            // we bridge it from the AiShared store via _blueprintLegacySelectionStore in ActiveChanged.
-            _blueprintVariablesWindow = new Hrot.Blueprints.Editor.Windows.BlueprintVariablesManagedWindow(
-                legacySelectionStore: _blueprintLegacySelectionStore,
-                refactorService:      refactorService);
-            _blueprintRegistrar!.RegisterExtraWindow(windowManager, _blueprintVariablesWindow);
+            // ⛔⛔ L5 — BlueprintVariablesManagedWindow / BlueprintVariablesWindow are RETIRED
+            //    (Q38's retire list). ⭐ Their replacement is LIVE and that is the precondition §6 L5
+            //    sets: BlueprintDetailsWindow hosts the SHARED VariableDetailsSection (U-6, Batch 82),
+            //    and the per-perspective AiVariablesWindow is the standalone table.
+            //    ⚠ The legacy store bridge (_blueprintLegacySelectionStore) STAYS — GraphSignatureWindow
+            //      below still uses it.
 
             // BATCH-03D2: Graph Signature window — edits Function graph Inputs/Outputs.
             // Uses the same legacy selection store bridge (SelectAsset is called in ActiveChanged).
             _blueprintSignatureWindow = new Hrot.Blueprints.Editor.Windows.GraphSignatureWindow(
                 selectionStore: _blueprintLegacySelectionStore,
-                dirtyTracker:   _blueprintSaveDirtyTracker);
+                dirtyTracker:   _blueprintSaveDirtyTracker,
+                // BP-125: without this the window only marked the asset dirty — a declared output never
+                // became a pin on the Return node, and the edit was not undoable (BP-102). Passed as an
+                // accessor because the edit service is created after this window.
+                editServiceAccessor: () => _blueprintEditService);
             _blueprintRegistrar!.RegisterExtraWindow(windowManager, _blueprintSignatureWindow);
 
             // BATCH-03C2: blueprint asset catalog used by BlueprintDocumentFactory to build the
             // peer-signature lookup so CallPeerBlueprintNodes project typed argument pins from the
             // peer blueprint's exported function signature (read on demand from disk).
+            //
+            // BP-66: this scanned "{BaseDirectory}/blueprints" — a directory that does not exist.
+            // Every other blueprint consumer uses Assets/Blueprints (AssetRoots.AssetsRelative), so
+            // EnumerateAll() returned nothing and the lookup silently fell back to the untyped
+            // exec+Return pin shape for every CallPeerBlueprint node. It matched the other path in
+            // this same file at §715 and §3099.
             var blueprintPeerCatalog = new Hrot.Blueprints.Editor.BlueprintPeerSource(
-                System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints"));
+                _bpRootDir ?? Hrot.Editor.AiShared.AssetRoots.AssetsFor(
+                    Hrot.Editor.AiShared.AssetKind.Blueprint));
 
             // Wire AiDocumentManager.Open so that opening a BTree/HSM/Blueprint asset populates
             // ViewState via the matching document factory.
-            _aiDocumentManager.DocumentOpened += doc =>
-            {
-                if (doc.ViewState != null) return; // already populated (re-open of existing doc)
-                switch (doc.Kind)
+            // ⭐⭐⭐ CE-340 (2026-09-26) — ONE BINDER, SHARED WITH CGF.
+            //    🔒 User: "you mention editor path is wired and then you go cgf, that seems like
+            //    editor is running different code, not unified, which is undesired."
+            // 🔴 This WAS a hand-rolled DocumentOpened handler with a three-case switch, and
+            //    CgfSubsystem carried a structurally identical copy — same guard, same three
+            //    factories, same extraRenderers expression, differing only in the VALUES supplied.
+            //    ⛔ That is how CGF came to be silently missing HSM rules 8/8b (CE-338) and how both
+            //    hosts ended up with byte-identical resolver copies (CE-341).
+            // ⚠ The copies were NOT carelessness: slice-2's design says "must NOT modify
+            //    Hrot.Editor.AiShared (freeze owner = variable-model lane)", so copying was the only
+            //    legal move at the time. ⭐ That freeze was LIFTED 2026-08-25.
+            // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.18.
+            Hrot.Editor.AiComposition.AiDocumentViewStateBinder.Bind(
+                new Hrot.Editor.AiComposition.AiDocumentHostServices
                 {
-                    case Hrot.Editor.AiShared.AssetKind.BTree:
-                        // AIE-033: inject BTree debug session + breakpoint manager so runtime
-                        // overlay and breakpoint-gutter renderers bind to the active session.
-                        doc.ViewState = Hrot.BTree.Editor.Host.BTreeDocumentFactory.Build(
-                            doc.Asset, adapterBundle, _btreeSelectionStore,
-                            btreeDebugSession:   _btreeDebugSession,
-                            breakpointManager:   _bpManager,
-                            actionSchema:        sharedSchemaExporter,
-                            // Phase D (AIE-053): "Open Blueprint" context-menu item on composed
-                            // AiPrimitive nodes — resolve via the shared asset catalog, open via
-                            // the shared AiDocumentManager (which also switches perspective).
-                            assetCatalog:        _aiCatalogBuilder?.Catalog,
-                            openBlueprint:       a => _aiDocumentManager?.Open(a));
-                        break;
-                    case Hrot.Editor.AiShared.AssetKind.Hsm:
-                        // AIE-033: inject HSM debug session + breakpoint manager.
-                        doc.ViewState = Hrot.Hsm.Editor.Host.HsmDocumentFactory.Build(
-                            doc.Asset, adapterBundle,
-                            hsmDebugSession:   _hsmDebugSession,
-                            breakpointManager: _bpManager);
-                        break;
-                    case Hrot.Editor.AiShared.AssetKind.Blueprint:
-                        // AIE-046: Blueprint canvas binding via BlueprintDocumentFactory.
-                        // Injects per-document EditServiceContext into the shared EditService
-                        // so node drawers route property edits through this document's CommandHistory.
-                        // BCP-BATCH-03 Task 1: forward the channel-command catalog so
-                        // ChannelCommandNodes project their parameter data-IN pins (projection-only).
-                        doc.ViewState = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.Build(
-                            doc.Asset, adapterBundle, _blueprintEditService,
-                            _blueprintPaletteEntries,
-                            channelCommands: Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInChannelCommandCatalog.Instance,
-                            peerAssetCatalog: blueprintPeerCatalog,
-                            // AN7: forward the behavior-action catalog so non-channel ChannelCommandNodes
-                            // (ActionFqn set) project their parameter data-IN pins from the matching entry.
-                            behaviorActions: _behaviorActionCatalog,
-                            debugSession: _blueprintDebugSession);
-                        break;
-                    default:
-                        // Other kinds (Scenario, Blackboard, Utility) have no ViewState factory —
-                        // they are not document-backed kinds.
-                        break;
-                }
-
-                // AIE-026: subscribe to this asset's Changed event so dirty edits
-                // get queued into the regeneration scheduler.
-                // PU-BATCH-10: also mark the document dirty so SaveAllAiDocumentsCommand
-                // includes it (it skips docs where doc.IsDirty == false).
-                if (_regenerationScheduler != null)
-                {
-                    var schedulerRef = _regenerationScheduler;
-                    doc.Asset.Changed += () =>
+                    Adapters             = adapterBundle,
+                    DocumentManager      = _aiDocumentManager,
+                    BTreeSelectionStore  = _btreeSelectionStore,
+                    Catalog              = _aiCatalogBuilder?.Catalog,
+                    ActionSchema         = sharedSchemaExporter,
+                    BreakpointManager    = _bpManager,
+                    ComparisonSessions   = _comparisonSessionRegistry,
+                    BlueprintEditService = _blueprintEditService,
+                    BlueprintPalette     = _blueprintPaletteEntries,
+                    BlueprintPeerCatalog = blueprintPeerCatalog,
+                    BlueprintNodeAuthoring = _blueprintNodeAuthoring,
+                    BehaviorActions      = _behaviorActionCatalog,
+                    ChannelCommands      = Hrot.Blueprints.Core.Compiler.Catalogs
+                                               .BuiltInChannelCommandCatalog.Instance,
+                    // ⭐ The editor HAS all three debug sessions; CGF passes none and says so.
+                    BTreeDebugSession     = _btreeDebugSession,
+                    HsmDebugSession       = _hsmDebugSession,
+                    BlueprintDebugSession = _blueprintDebugSession,
+                    // ⭐⭐ THE ONE GENUINE HOST DIFFERENCE (AIE-026 / PU-BATCH-10): mark the document
+                    //    dirty AND queue the asset into the regeneration scheduler. ⛔ CGF has no
+                    //    scheduler and marks dirty only — a real difference, so it is a parameter.
+                    OnDocumentOpened = doc =>
                     {
-                        doc.MarkDirty();
-                        if (doc.Asset.IsDirty)
-                            schedulerRef.Schedule(doc.Asset);
-                    };
-                }
-            };
+                        if (_regenerationScheduler == null) return;
+                        var schedulerRef = _regenerationScheduler;
+                        doc.Asset.Changed += () =>
+                        {
+                            doc.MarkDirty();
+                            if (doc.Asset.IsDirty)
+                                schedulerRef.Schedule(doc.Asset);
+                        };
+                    },
+                });
 
             // ── AIE-026: Build the BTree/HSM emit service + RegenerationScheduler ───────────────
             var btreeEmitter = new Hrot.BTree.Editor.Emit.BTreeFluentEmitter();
@@ -3056,28 +5304,11 @@ namespace Hrot.Editor
             // .GetAwaiter().GetResult() is safe here — it never yields to the thread pool.
             // Result/diagnostics are surfaced to _blueprintCompileStatus.
             {
-                string? quickReloadProjectDir = null;
-                var quickReloadRelativeProjectPath = System.IO.Path.Combine(AiBehaviorsProjectPath);
-                foreach (var start in new[] { Environment.CurrentDirectory, AppDomain.CurrentDomain.BaseDirectory })
-                {
-                    var dir = start;
-                    while (!string.IsNullOrEmpty(dir))
-                    {
-                        var candidate = System.IO.Path.Combine(dir, quickReloadRelativeProjectPath);
-                        if (System.IO.File.Exists(candidate))
-                        {
-                            quickReloadProjectDir = System.IO.Path.GetDirectoryName(candidate);
-                            break;
-                        }
-                        dir = System.IO.Path.GetDirectoryName(dir);
-                    }
-
-                    if (quickReloadProjectDir != null)
-                        break;
-                }
-                var bpDir      = quickReloadProjectDir != null
-                    ? System.IO.Path.Combine(quickReloadProjectDir, AssetRoots.AssetsRelative(AssetKind.Blueprint))
-                    : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Blueprints");
+                // ⭐⭐⭐ CE-018 — the THIRD copy of the walk-up in this file. ⚠ The handoff named TWO;
+                //    📐 measured `2026-08-25` there were FOUR in the editor lane (three here, one in
+                //    EditorApplication). ⭐ Routed to the one implementation, which also brings ruling 67's
+                //    configured root to the quick-reload catalog — ⛔ it was the arm this copy could not see.
+                var bpDir = AssetRoots.ResolveAssetsRoot(AssetKind.Blueprint, AiBehaviorsProjectPath);
                 var qrsCatalog = new Hrot.Blueprints.Editor.BlueprintPeerSource(bpDir);
                 _blueprintAssetCatalog = qrsCatalog;
                 var qrsState   = new Hrot.Blueprints.Editor.EditorState();
@@ -3170,25 +5401,12 @@ namespace Hrot.Editor
                 }, TaskScheduler.Default);
                 // ───────────────────────────────────────────────────────────────────────────
 
-                string? fullRebuildProjectDir = null;
-                var relativeProjectPath = System.IO.Path.Combine(AiBehaviorsProjectPath);
-                foreach (var start in new[] { Environment.CurrentDirectory, AppDomain.CurrentDomain.BaseDirectory })
-                {
-                    var dir = start;
-                    while (!string.IsNullOrEmpty(dir))
-                    {
-                        var candidate = System.IO.Path.Combine(dir, relativeProjectPath);
-                        if (System.IO.File.Exists(candidate))
-                        {
-                            fullRebuildProjectDir = System.IO.Path.GetDirectoryName(candidate);
-                            break;
-                        }
-                        dir = System.IO.Path.GetDirectoryName(dir);
-                    }
-
-                    if (fullRebuildProjectDir != null)
-                        break;
-                }
+                // ⭐⭐⭐ CE-018 — the SECOND of two inline `.csproj` walk-ups this file carried, both
+                //    line-for-line copies of AssetRoots.ResolveProjectDir. 📌 Ruling 9: one implementation
+                //    per concept. ⛔ The copies also predated ruling 67's configured root, so a deployed
+                //    node that had been told where its tree lives was still walking up from CWD.
+                //    📄 Hrot.Editor.AiShared/Identity/AssetRoots.cs.
+                string? fullRebuildProjectDir = AssetRoots.ResolveProjectDir(AiBehaviorsProjectPath);
 
                 string buildTarget = fullRebuildProjectDir != null
                     ? $"\"{System.IO.Path.Combine(fullRebuildProjectDir, "Hrot.AI.Behaviors.csproj")}\""
@@ -3210,53 +5428,28 @@ namespace Hrot.Editor
                         : $"Compile failed: {result.ErrorMessage}";
                 };
 
-                // QR-03: BTree quick-reload trigger — active BehaviorTreeAsset → ToDto →
-                // EmitTopologyCore + EmitBridge → TriggerFromSourcesAsync (self-registering bridge).
-                _btreeQuickReloadTrigger = () =>
-                {
-                    var ctx     = _aiDocumentManager?.Active?.ViewState
-                        as Hrot.Editor.AiShared.Windows.AiCanvasContext;
-                    var btAsset = ctx?.AssetRef as Hrot.BTree.Editor.Model.BehaviorTreeAsset;
-                    if (btAsset == null) { _blueprintCompileStatus = "No active BTree document."; return; }
+                // ⭐⭐⭐ PHASE 2 SLICE ① — the emit → compile → status bodies below were LINE-FOR-LINE
+                //    identical to CGF's, down to the `BTreePatch_{id:N}_{guid:N}` assembly-name format.
+                //    They are now ONE implementation in `AiAssetReload.ReloadBTree` / `.ReloadHsm`, and
+                //    what remains here is the `ToDto` map plus the QuickReloadService adapter — the two
+                //    steps that name types AiShared cannot reference (design §5c.6.2).
+                // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.6.
+                // ⭐ The compiler, expressed in terms AiShared can name — `QuickReloadResult` lives on
+                //   the far side of the reference cycle, so the adapter belongs here.
+                // ⚠ QR-03/QR-04's per-kind trigger FIELDS are gone: their only two callers were the
+                //   two kind-switches this slice replaces with the shared dispatcher, so a field whose
+                //   every caller became `AiAssetReload.Reload` is a field with no callers.
+                _compileSources = (sources, asmName) =>
+                    {
+                        var r = quickReloadService.TriggerFromSourcesAsync(
+                            System.Linq.Enumerable.ToArray(
+                                System.Linq.Enumerable.Select(sources, s => (s.Source, s.FileName))),
+                            asmName).GetAwaiter().GetResult();
+                        return new Hrot.Editor.AiShared.Documents.AiAssetReload.CompileOutcome(
+                            r.Succeeded, r.ErrorMessage, r.DurationMs);
+                    };
 
-                    var dto      = Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(btAsset);
-                    var topology  = Hrot.AiEditor.Persistence.Emit.BTreeEmitCore.EmitTopologyCore(dto);
-                    var bridge    = Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.EmitBridge(dto);
-
-                    var asmName = $"BTreePatch_{dto.AssetId:N}_{Guid.NewGuid():N}";
-                    var result = quickReloadService.TriggerFromSourcesAsync(
-                        new[] { (topology, dto.Name + ".g.cs"), (bridge, dto.Name + ".Registrar.g.cs") },
-                        asmName).GetAwaiter().GetResult();
-
-                    _blueprintCompileStatus = result.Succeeded
-                        ? $"Compiled BTree '{dto.Name}' in {result.DurationMs}ms"
-                        : $"BTree compile failed: {result.ErrorMessage}";
-                };
-
-                // QR-04: HSM quick-reload trigger — active HsmAsset → ToDto →
-                // EmitTopologyCore + EmitBridge → TriggerFromSourcesAsync (self-registering bridge).
-                _hsmQuickReloadTrigger = () =>
-                {
-                    var ctx      = _aiDocumentManager?.Active?.ViewState
-                        as Hrot.Editor.AiShared.Windows.AiCanvasContext;
-                    var hsmAsset = ctx?.AssetRef as Hrot.Hsm.Editor.Model.HsmAsset;
-                    if (hsmAsset == null) { _blueprintCompileStatus = "No active HSM document."; return; }
-
-                    var dto      = Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsmAsset);
-                    var topology = Hrot.AiEditor.Persistence.Emit.HsmEmitCore.EmitTopologyCore(dto);
-                    var bridge   = Hrot.AiEditor.Persistence.Emit.HsmBridgeEmitCore.EmitBridge(dto);
-
-                    var asmName = $"HsmPatch_{dto.AssetId:N}_{Guid.NewGuid():N}";
-                    var result = quickReloadService.TriggerFromSourcesAsync(
-                        new[] { (topology, dto.Name + ".g.cs"), (bridge, dto.Name + ".Registrar.g.cs") },
-                        asmName).GetAwaiter().GetResult();
-
-                    _blueprintCompileStatus = result.Succeeded
-                        ? $"Compiled HSM '{dto.Name}' in {result.DurationMs}ms"
-                        : $"HSM compile failed: {result.ErrorMessage}";
-                };
-
-                var rebuildRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureWindowRegistrar();
+                var rebuildRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureShellCommandRegistrar();
                 rebuildRegistrar.RegisterToolbarEntry(
                     "Full Rebuild",
                     () =>
@@ -3297,6 +5490,10 @@ namespace Hrot.Editor
                     //   - Blueprint path: UNCHANGED (handled above).
                     // NOTE: end-to-end edit→MSBuild-regen→hot-reload latency is Phase 9 / manual smoke.
                     // This change ensures the flush PERSISTS correctly (valid JSON, not C#).
+                    // ⭐ BP-93: no write without an explicit Save (the document stays dirty; Save / Save All persist it).
+                    if (!_aiJsonAutoSaveOnEdit)
+                        return;
+
                     try
                     {
                         var path = asset.SourceFilePath;
@@ -3341,44 +5538,22 @@ namespace Hrot.Editor
                     _aiDocumentManager.ReconcileFromCatalog(_aiCatalogBuilder.Catalog.All);
                 };
             }
+
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── BATCH-29 (MTB-P8-T3): "Open Asset" command (shell.openAsset) — leftmost toolbar
             // button, File→Open Asset… menu item, Ctrl+O hotkey. Opens the Tree-layout
             // picker via AssetPickerLauncher with Kinds=All. ────────────────────────────
-            string openAssetId = "shell.openAsset";
-            windowManager.ShellCommands.Register(
-                new EditorCommandDescriptor(
-                    Id:          openAssetId,
-                    DisplayName: "Open Asset…",
-                    Category:    "File",
-                    Description: "Open an AI asset (blueprint, behavior tree, HSM, scenario, etc.)",
-                    IconKey:     "browser/open",
-                    DefaultKey:  new KeyBinding(EditorKey.O, KeyModifiers.Ctrl),
-                    IsEnabled:   () => true),
-                _ =>
-                {
-                    // BATCH-29 (MTB-P8-T3): Open Asset via the Tree-layout picker launcher.
-                    // router.Route is the default pick action (no onPicked callback).
-                    assetPickerLauncher?.Open(AssetKindFilter.All);
-                });
-
-            // ── BATCH-36 (MTB2-T7): "New Asset" command (shell.newAsset) — opens the recipe
-            // Tree picker via NewAssetLauncher. Ctrl+N hotkey. ───────────────────────
-            string newAssetId = "shell.newAsset";
-            windowManager.ShellCommands.Register(
-                new EditorCommandDescriptor(
-                    Id:          newAssetId,
-                    DisplayName: "New Asset…",
-                    Category:    "File",
-                    Description: "Create a new AI asset from a recipe",
-                    IconKey:     "asset/new",
-                    DefaultKey:  new KeyBinding(EditorKey.N, KeyModifiers.Ctrl),
-                    IsEnabled:   () => true),
-                _ =>
-                {
-                    newAssetLauncher?.Open();
-                });
+            // ⭐⭐⭐ CE-016 §7 — the descriptors and the whole toolbar LAYOUT moved to the shared
+            //    `CgfEditorShellToolbar`, which CGF calls too. 📄 DESIGN_Cgf_Shell_Command_Toolbar_Slice.md.
+            // ⛔⛔ This block used to BE the list — which made EditorSubsystem the sole writer of the shell
+            //    registries (ruling 58 / seam-law 30) and left CGF with two ad-hoc ImGui.Buttons.
+            // ⚠ Called OUTSIDE the `MainToolbar != null` guard below, deliberately: `shell.openAsset` and
+            //   `shell.newAsset` were registered out here before, so a bare EditorSubsystem (the
+            //   window-registration unit tests) still gets them and their File-menu items. The helper
+            //   takes a NULL toolbar and registers descriptors only in that case.
+            // ⭐ UXI-05 — the `openAssetId`/`newAssetId` locals are gone with the menu registrations that
+            //   used them: the helper now emits BOTH surfaces from `CgfEditorShellToolbar.Layout`.
 
             // ── BATCH-24: Main toolbar groups (Perspective §8 + AI-debug §9) ──────────────────
             // All wiring is null-safe so RegisterWindows does not throw on a bare EditorSubsystem.
@@ -3386,114 +5561,92 @@ namespace Hrot.Editor
             {
                 var toolbarIconProvider = new SilkIconProvider(windowManager.Atlas);
 
-                // ── BATCH-36: "New Asset" button (sortOrder -11, left of Open Asset) ──
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    newAssetId, toolbarIconProvider, sortOrder: -11);
+                // ── A. Perspective icon keys — ⭐⭐⭐ CE-058: the five inline calls that stood here are
+                //    now ONE shared table (`PerspectiveIconKeys`, AiShared) called at the TOP of this
+                //    method, so CGF gets them too and a bare-ctor rail can see them. 📐 Still ordered
+                //    before the section below, which is what BuildRadioModel's first frame needs.
 
-                // ── BATCH-26: "Open Asset" button (leftmost, sortOrder -10) ─────────
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    openAssetId, toolbarIconProvider, sortOrder: -10);
-
-                // ── BATCH-31: "Save" button (sortOrder -9, right of Open Asset) ──
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveId,
-                    toolbarIconProvider, sortOrder: -9);
-
-                // Separator after Open Asset + Save (between toolbar group and Perspective).
-                windowManager.MainToolbar.RegisterSeparator("ToolbarSep_OpenAsset", sortOrder: 0);
-
-                // ── A. Perspective icon keys — register before creating the section so
-                //    PerspectiveToolbarSection.BuildRadioModel() resolves icons on first frame.
-                windowManager.RegisterPerspectiveIconKey("BTree",      "asset/btree");
-                windowManager.RegisterPerspectiveIconKey("HSM",        "asset/hsm");
-                windowManager.RegisterPerspectiveIconKey("Blueprint",  "asset/blueprint");
-                windowManager.RegisterPerspectiveIconKey("Blueprints", "asset/blueprint");
-                windowManager.RegisterPerspectiveIconKey("Editor",     "perspective/editor");
-
-                // MTB2-T5: Show "Editor" perspective as "Scenario" in the Perspective menu.
-                windowManager.RegisterPerspectiveLabel("Editor", "Scenario");
+                // ⭐⭐ A2 — NO LABEL ALIAS. 📄 DESIGN_Perspective_Unification.md §3 A2.
+                // 📐 MTB2-T5 registered RegisterPerspectiveLabel("Editor", "Scenario") because the id and
+                //    the display name disagreed. ⭐ A1 renamed the ID, so they now agree and
+                //    GetPerspectiveLabel's pass-through returns "Scenario" on its own.
+                // ⛔ Re-adding an alias would be a second name for one thing — and the icon KEY keeps its
+                //    "perspective/editor" asset path deliberately: that is an atlas key, not a
+                //    perspective, and renaming it would be an unrelated asset rename.
 
                 // ── A. Perspective group (§8, sortOrder range 20–29) ──────────────────────
                 _perspectiveToolbarSection = new PerspectiveToolbarSection(
                     windowManager, toolbarIconProvider, windowManager.MainToolbar, sortOrder: 20);
 
-                // Separator between Perspective and AI-debug.
-                windowManager.MainToolbar.RegisterSeparator("ToolbarSep_PerspToAiDebug", sortOrder: 30);
-
-                // ── B. AI-debug group (§9, sortOrder range 40–49) ────────────────────────
+                // ── B. AI-debug descriptors — a SHARED registrar already, so it stays a direct call.
+                //    ⛔ Duplicating these descriptors into the toolbar helper would be a second
+                //    definition of one command; the helper only lays out the BUTTONS.
                 AiDebugCommands.Register(windowManager.ShellCommands.Register, debugRegistry);
-
-                int aiSort = 40;
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    AiDebugCommands.ContinueId, toolbarIconProvider, aiSort++);
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    AiDebugCommands.StepOverId, toolbarIconProvider, aiSort++);
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    AiDebugCommands.StepIntoId, toolbarIconProvider, aiSort++);
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    AiDebugCommands.StepOutId, toolbarIconProvider, aiSort++);
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    AiDebugCommands.PauseId, toolbarIconProvider, aiSort++);
-                // Blueprint-only StepBack — registered too; toolbar adapter resolves enabled state live.
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    AiDebugCommands.StepBackId, toolbarIconProvider, aiSort++);
-
-                // ── C. Build / reload (§9, sortOrder range 50–51) ──────────────────────
-                windowManager.ShellCommands.Register(
-                    new EditorCommandDescriptor(
-                        Id:          "blueprint.compileReload",
-                        DisplayName: "Compile / Reload",
-                        Category:    "Blueprint",
-                        Description: "Compile & hot-reload the active blueprint / BTree / HSM",
-                        IconKey:     "build/compile",
-                        DefaultKey:  null,
-                        IsEnabled:   () => _aiDocumentManager?.Active?.Kind
-                            is Hrot.Editor.AiShared.AssetKind.Blueprint
-                            or Hrot.Editor.AiShared.AssetKind.BTree
-                            or Hrot.Editor.AiShared.AssetKind.Hsm),
-                    _ =>
-                    {
-                        switch (_aiDocumentManager?.Active?.Kind)
-                        {
-                            case Hrot.Editor.AiShared.AssetKind.Blueprint: _blueprintCompileCallback?.Invoke(); break;
-                            case Hrot.Editor.AiShared.AssetKind.BTree:     _btreeQuickReloadTrigger?.Invoke();  break;
-                            case Hrot.Editor.AiShared.AssetKind.Hsm:       _hsmQuickReloadTrigger?.Invoke();    break;
-                        }
-                    });
-
-                windowManager.ShellCommands.Register(
-                    new EditorCommandDescriptor(
-                        Id:          "blueprint.fullRebuild",
-                        DisplayName: "Full Rebuild",
-                        Category:    "Build",
-                        Description: "Rebuild all AI behavior assets",
-                        IconKey:     "build/rebuild",
-                        DefaultKey:  null,
-                        IsEnabled:   () => true),
-                    _ => _blueprintFullRebuildCallback?.Invoke());
-
-                windowManager.MainToolbar.RegisterSeparator("ToolbarSep_AiDebugToBuild", sortOrder: 49);
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    "blueprint.compileReload", toolbarIconProvider, sortOrder: 50);
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    "blueprint.fullRebuild", toolbarIconProvider, sortOrder: 51);
             }
+
+            // ⭐⭐⭐ CE-016 §7 — THE ONE registration list, called LAST so every shared registrar has run
+            //    (ShellSaveCommands earlier in this method; AiDebugCommands just above). The helper emits
+            //    a button only for a command this shell can service, so the editor — which registers the
+            //    most — gets the most buttons, from the same table CGF calls.
+            // ⚠ OUTSIDE the guard: a bare EditorSubsystem has no MainToolbar, and openAsset/newAsset were
+            //   registered out here before so their File-menu items still work. A null toolbar means
+            //   "descriptors only".
+            // ⭐⭐⭐ PHASE 1 — COMPOSED AS A BUNDLE, the SAME one CGF composes. 📄
+            //    docs/DESIGN_Subsystem_Composition_Unification.md §5b.
+            // ⭐⭐ The shared table, this host's HostServices subset and the derivation are all UNCHANGED:
+            //    `ShellCommandCoreBundle` calls the very same `RegisterCommonCore`. ⭐ What the seam adds
+            //    is that the toolbar and the menu are taken off ONE context ⇒ they cannot be different
+            //    hosts' registries, which the six-argument static could not prevent.
+            // ⚠⚠ THE `MainToolbar != null` TERNARY IS GONE, and it was a DEAD BRANCH: 📐 measured,
+            //    `WindowManager.MainToolbar` returns an inline-initialised readonly field and is NEVER
+            //    null. ⛔ The comment above once explained a "bare EditorSubsystem has no MainToolbar"
+            //    path — that state cannot occur; what a bare host lacks is the WindowManager itself.
+            //    ⭐ Icons are now supplied unconditionally, which is what actually happened before.
+            var shellCoreBundle = new Hrot.Editor.AiShared.Windows.ShellCommandCoreBundle(
+                windowManager.ShellCommands,
+                new SilkIconProvider(windowManager.Atlas),
+                new Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.HostServices(
+                    OpenAsset:     () => assetPickerLauncher?.Open(AssetKindFilter.All),
+                    NewAsset:      () => newAssetLauncher?.Open(),
+                    // ⭐ CE-460 (E4) — the product-first New entries, off the SAME launcher.
+                    NewProduct:    newAssetLauncher != null ? p => newAssetLauncher.Open(p) : null,
+                    // ⭐⭐ PHASE 2 SLICE ① — was the SECOND of this host's two kind-switches, and it fell
+                    //    through in SILENCE for any other kind. ⛔ The shared policy reports instead.
+                    CompileReload: () => ReloadActiveAiDocument(
+                        blueprintArm: () =>
+                        {
+                            if (_blueprintCompileCallback == null) return null;
+                            _blueprintCompileCallback.Invoke();
+                            return _blueprintCompileStatus;
+                        }),
+                    FullRebuild:   () => _blueprintFullRebuildCallback?.Invoke(),
+                    CompileReloadEnabled: () => _aiDocumentManager?.Active?.Kind
+                        is Hrot.Editor.AiShared.AssetKind.Blueprint
+                        or Hrot.Editor.AiShared.AssetKind.BTree
+                        or Hrot.Editor.AiShared.AssetKind.Hsm));
+            // ⭐⭐⭐ UXI-05 — the SAME table also emits the File menu items. ⛔ GLOBAL scope
+            //    (menuPerspective left null): design §6 — these are cross-perspective on both hosts, and a
+            //    per-perspective binding here would change the editor's menu, which item ②'s gate forbids.
+            // ⚠ The menu is no longer an ARGUMENT — the bundle reads it off the shared context.
+
+            // ⭐ ONE list. ⛔ A host with fewer bundles is a SUBSET, never a branch (§3.3 / ruling 58).
+            //   ⚠ The editor's list is the same ONE entry as CGF's today: the first adopter proves the
+            //     seam, it does not populate it. 📌 Later phases append here, and the day these two lists
+            //     differ, the difference is a host's declared capability — not a conditional.
+            Fdp.Toolkit.Runner.UiBundleHost.Compose(
+                new Fdp.Toolkit.Runner.IUiBundle[] { shellCoreBundle },
+                new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
             // ───────────────────────────────────────────────────────────────────────────────────
 
-            // BATCH-26: File → Open Asset… menu item (Ctrl+O shortcut attached via descriptor).
-            MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
-                openAssetId, "File/Open Asset…");
-
-            // BATCH-36: File → New Asset… menu item (Ctrl+N shortcut attached via descriptor).
-            MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
-                newAssetId, "File/New Asset…");
+            // ⭐⭐⭐ UXI-05 — `File/Open Asset…`, `File/New Asset…` and `File/Save` are now emitted by the
+            //    SHARED helper above, from the SAME Layout table that drives the toolbar. ⛔ Registering
+            //    them again here would be a second list for one menu (ruling 58) — the very duplication
+            //    this slice removes. 📄 DESIGN_Cgf_Menu_Follows_Focus_Slice.md §3 ③.
+            // ⚠ Save-As and Save-All stay HERE: the shared common core does not carry them *(the toolbar
+            //   has no Save-All either — CE-016 §9.2)*, and they are editor-only affordances today.
 
             // ── MTB2-T5 (BATCH-34): File menu save entries ──────────────────────────
             // Guard each with Get(id) != null so the bare-ctor RegisterWindows path is null-safe.
-            if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveId) != null)
-                MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
-                    Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveId, "File/Save");
-
             if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveAsId) != null)
                 MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
                     Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveAsId, "File/Save As…");
@@ -3502,16 +5655,27 @@ namespace Hrot.Editor
                 MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
                     Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveAllId, "File/Save All");
 
+            // ⭐ B-14 — the Edit menu names the step it undoes / redoes (design §2.9)
+            if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.EditUndoCommands.UndoId) != null)
+            {
+                MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands, Hrot.Editor.AiShared.Documents.EditUndoCommands.UndoId, "Edit/Undo");
+                MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands, Hrot.Editor.AiShared.Documents.EditUndoCommands.RedoId, "Edit/Redo");
+                if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.EditUndoCommands.HistoryId) != null)   // ⭐ U5 — right under Redo
+                    MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands, Hrot.Editor.AiShared.Documents.EditUndoCommands.HistoryId, "Edit/History…");
+            }
+
             // ─────────────────────────────────────────────────────────────────────────
 
             if (_editorLogic == null) return;
 
             // ?? Legacy editor-specific windows ????????????????????????????????
             windowManager.RegisterWindow(new EditorToolbarWindow(_toolbarPanel!, _editorLogic));
-            if (_clusterPanel != null && _uiCache != null)
-                windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.ClusterControlWindow(_clusterPanel, _uiCache));
-            if (_clusterDiagnosticsPanel != null)
-                windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.DiagnosticsWindow(_clusterDiagnosticsPanel));
+            if (_orchestratorCore != null)
+            {
+                windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.ClusterControlWindow(
+                    UiScenarioPanel!, UiClusterCache!));   // ⭐ D-9 — mode 3: the UI's own panel and cache
+                windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.DiagnosticsWindow(_orchestratorCore.DiagnosticsPanel));
+            }
 
             // ?? Data Breakpoint Manager window (UBP-P10T3) ??? registered unconditionally ???????????
             // Registered before the headless guard so the window is available in headless mode (tests).
@@ -3519,9 +5683,12 @@ namespace Hrot.Editor
             {
                 var bpBannerState = new Hrot.Diagnostics.Breakpoints.TemporalStatusBannerState();
                 var bpPanel       = new Hrot.Presentation.Panels.Breakpoints.DataBreakpointManagerPanel(
-                    _bpManager, bpBannerState);
+                    _bpManager, bpBannerState,
+                    // ⭐ CE-1285 — a unit by its network id, and a click on its row selects it (the ONE selection, SelectEntityCommand)
+                    entityLabel:  e => _world is { } w && NetIdOf(w, e) is var n && n != 0 ? $"#{n}" : $"Entity {e}",
+                    selectEntity: e => { if (_world is { } w && NetIdOf(w, e) is var n && n != 0) _editorLogic?.SelectEntity(n); });
                 var bpWin         = new Hrot.Presentation.Windows.DataBreakpointManagerWindow(
-                    "editor_bp_manager", "Editor", bpPanel, EditorWindowColor.TitleBar);
+                    "editor_bp_manager", "Scenario", bpPanel, EditorWindowColor.TitleBar);
                 windowManager.RegisterWindow(bpWin);
             }
 
@@ -3529,20 +5696,293 @@ namespace Hrot.Editor
             if (_bpManager != null)
                 _fdpEntityInspector.Reflector.MutationInterceptor = _bpManager;
 
+            // ⭐⭐ CE-4216 (rules view R2; DESIGN_Rules_View_UI RV-3/5/6) — Window ▸ Rules: the scenario's rule tree on the ONE timeline panel, over this node's world and its shown timeline (live, or a recording)
+            // ⭐⭐ CE-4292 (Rules bundle R3) — Rules · Game master · Mission summary · Trainee debrief · Game summary: the ONE bundle every host composes
+            //   (was hand-built here, on CGF and on the Replay Browser); editing is the SEAT's (Author here), the editor passes its ONE undo history
+            //   ⭐ Composed BEFORE the headless guard (as the breakpoint manager above): a headless editor has its rules windows too, so the composition is railed
+            Func<Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineSource?> rulesTimeline = () => _node?.ShownTimeline;
+            _rulesWindowManager = windowManager;
+            var rules = new Hrot.Editor.AiShared.Rules.RulesBundle(new Hrot.Editor.AiShared.Rules.RulesHostServices(
+                World:          () => _world,
+                TimelineSource: rulesTimeline,
+                Cursor:         () => new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => _timeTransport, rulesTimeline),
+                IdPrefix:       "editor_", Perspective: "Scenario", Colour: EditorWindowColor.TitleBar,
+                SelectEntity:   n => SelectNetworkEntity(n),
+                ShowOnMap:      n => _editorLogic?.CenterOnEntity(n),
+                Seat:           () => Hrot.Common.Infrastructure.StationSeat.Of(_node?.Features),
+                Registry:       () => _behaviorRegistry,
+                Blueprints:     () => _blueprintRegistry,
+                EntityCreation: () => EntityCreation,
+                SpawnAdapter:   () => _spawnAdapter,
+                TimeTransport:  () => _timeTransport,
+                Pickers:        () => _shellPickers,
+                MapPicks:       () => _mapPickAdapter,
+                History:        EditHistory,
+                Selection:      () =>
+                {
+                    if (_world is not { } w || _selectionState?.PrimarySelected is not { } sel || !w.IsAlive(sel) || !w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(sel)) return null;
+                    return (w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(sel).Value, w.HasComponent<EntityInfo>(sel) ? w.GetComponentRO<EntityInfo>(sel).ForceId : ForceId.Neutral);
+                },
+                GamePaletteEnabled: () => Hrot.Common.Infrastructure.HudFeatures.IsOn(_node?.Features, Hrot.Common.Infrastructure.HudFeatures.GamePalette),
+                Actions: () => HostActions));   // ⭐ CE-4308 — the map menu's rule entries (silent-default rule: the editor holds them)
+            _rulesWindow = rules.Rules; _rulesBundle = rules;
+            Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { rules }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+
+            // ⭐⭐ R-2 / V2 (docs/UX/DESIGN_Review_Perspective.md §3 D2/D3/D4, §4 V2) — Frame diff · Replay search · Recording info · JSON export: the ONE ReviewBundle, over THIS node's own-part replay
+            //   (the file it replays, a throwaway reader over it, THE seek — OwnPartReplay, which the debug API shares) and the editor's shared selection. Listed in the Window menu in EVERY layout
+            //   (closed until opened); outside AAR the two analysis windows say so. Composed BEFORE the headless guard (as the rules above) so the composition is railed.
+            if (_bootstrapper?.ScenarioSerializer is { } reviewSerializer)
+            {
+                _ownPartReplay ??= new Hrot.Editor.Review.OwnPartReplay(
+                    recordingPath: () => _clusterHandlers?.RecordReplayController?.ActiveReplayFilePath,
+                    position:      () => Hrot.Editor.Review.OwnPartReplay.PositionOf(_clusterHandlers?.RecordReplayController),
+                    master:        () => _reviewMaster ??= new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus),
+                    state:         () => _editorApp?.CurrentClusterState);
+                var reviewSource = ReviewSourceOf();
+                // ⭐ G-7 S5 (I5, I7) — the merged view's lens: Details ▸ a component ▸ By node, the Replica differs lane's data, the "local to <node>" tag. ONE ReplicaViews over the merge's own ownership rule (the same map).
+                _replicaViews = new Fdp.Toolkit.ReplayBrowser.Federation.ReplicaViews(new Fdp.Toolkit.ReplayBrowser.Federation.OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap), reviewSerializer);
+                // ⭐ CE-4496 R-2 (docs/DESIGN_Threaded_Review_Source.md §1.1) — the review UI's ONE channel: the panels read its model and command through it; ⛔ none of them holds the manager.
+                //   Switch OFF: inline over the source (same thread). ⭐⭐ CE-4498 R-4 — mode 3: THREADED — a command is a sim job, the model is built on the sim thread after the step
+                //   (the shared readout channel, CE-3446) and carried to the UI by the staging; the request rides up only when it changes. ReviewUi holds the ONE Federation panel, the transport and the
+                //   Offsets… request (UI-only).
+                var reviewBuilder = new Fdp.Toolkit.ReplayBrowser.Federation.ReviewModelBuilder(_replicaViews);
+                Fdp.Toolkit.ReplayBrowser.Federation.IReviewChannel reviewChannel;
+                if (Staged)
+                {
+                    _reviewPublisher = new Fdp.Toolkit.ReplayBrowser.Federation.ReviewModelPublisher(reviewBuilder);
+                    var threaded = new Fdp.Toolkit.ReplayBrowser.Federation.ThreadedReviewChannel(reviewSource, _reviewPublisher,
+                        a => { if (_simJobs is { } q) q.Post(_ => a(), "review command"); else a(); });   // the queue exists once the two worlds are composed; before that nothing runs on another thread
+                    _reviewThreaded = threaded;
+                    reviewChannel = threaded;
+                    var publisher = _reviewPublisher;   // ⭐ CE-4498 R-4 / CE-3446 — the model rides the shared readout channel: built after the step, only when it changed
+                    _presentation!.AddReadout<Fdp.Toolkit.ReplayBrowser.Federation.ReviewReadModel>(
+                        _ => _reviewSource is { } src ? publisher.PublishIfChanged(src) : null, threaded.Apply);
+                }
+                else reviewChannel = new Fdp.Toolkit.ReplayBrowser.Federation.InlineReviewChannel(reviewSource, reviewBuilder);
+                _reviewChannel = reviewChannel;
+                var reviewUi = new Hrot.Editor.Review.ReviewUi(reviewChannel, () => _timeTransport);
+                _reviewUi = reviewUi;
+                windowManager.RegisterFrameOverlay(() =>
+                {
+                    reviewChannel.EndFrame();
+                    if (Staged) _reviewUiSelection = SelectedNetworkId() ?? 0;   // ⭐ CE-4497 R-3 — mode 3: the UI's selection, for the sim-side source's re-select
+                });
+                _byNodeSection = new Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection(reviewChannel,
+                    e => _world is { } w && w.IsAlive(e) && w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) ? w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value : 0,
+                    n => reviewUi.Model.Participant(n)?.Name ?? "Node " + n);   // ⭐ CE-4498 — the names the model carries (the source's own cache is the sim thread's)
+                _byNodeSection.Watch = ReplicaWatch;   // ⭐ RW-6 — the header eye and the attribute view share the session's watch
+                _fdpEntityInspector.Reflector.ComponentFooter = _byNodeSection.Draw;
+                _fdpEntityInspector.EntityNote = reviewUi.LocalOriginNote;   // ⭐ CE-4498 — from the model's local origins (never the merger across threads)
+                _replicaLane = new Hrot.Editor.AiShared.Review.ReplicaWatchLane(_replicaViews, ReplicaWatch, reviewChannel, SelectedNetworkId,
+                    n => _world is { } w && Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(w, n) is { IsNull: false } u && w.HasComponent<EntityInfo>(u) ? w.GetComponentRO<EntityInfo>(u).Name.ToString() : null);
+                _watchKit = new Hrot.Editor.AiShared.Review.ReplicaWatchKit(_replicaLane, () => _world, () => _byNodeSection);
+                // ⭐ R-5 / V6 — while a participant group is open the analysis reads ITS file and a seek drives ITS transport; otherwise the own part (below)
+                _fileReview = new Hrot.Editor.AiShared.Review.FileReview(new Hrot.Editor.AiShared.Review.ReviewFileServices(
+                    RecordingFiles: () => reviewUi.Model.IsOpen ? reviewUi.RecordingFiles() : _ownPartReplay.RecordingFiles(),
+                    CurrentFrame:   () => reviewUi.Model.IsOpen ? reviewUi.Transport.CurrentFrame : _ownPartReplay.CurrentFrame(),
+                    Seek:           frame => { if (reviewUi.Model.IsOpen) reviewUi.Transport.Seek((int)frame); else _ownPartReplay.SeekToFrame((int)frame, "review"); },
+                    Selection:      SelectedNetworkId,
+                    Select:         SelectNetworkEntity,
+                    Serializer:     reviewSerializer,
+                    Behaviors:      _behaviorRegistry,
+                    Blueprints:     _blueprintRegistry,
+                    Reader:         _ownPartReplay.Reader,
+                    History:        () => _reviewTransport?.Waypoints,     // ⭐ R-6 / V7 — a hit is a history waypoint
+                    Review:         reviewChannel,                         // ⭐ G-7 S5 (I6) — in Merged the search runs per participant file (CE-4496: read from the model) …
+                    Ownership:      new Fdp.Toolkit.ReplayBrowser.Federation.OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap)));   // … keeping the components each node owned (the merge's own map)
+                var reviewBundle = new Hrot.Editor.AiShared.Review.ReviewBundle(_fileReview.Host(Hrot.Editor.AiShared.Review.ReviewLayout.Perspective, "editor_review_", EditorWindowColor.TitleBar, () => _world));
+                Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { reviewBundle }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+                reviewBundle.FrameDiff.IsOpen = false; reviewBundle.ReplaySearch.IsOpen = false;   // listed in the Window menu, closed until opened
+                var reviewFiles = _fileReview; var reviewDiff = reviewBundle.FrameDiff;
+                windowManager.RegisterFrameOverlay(() => reviewFiles.Update(reviewDiff.IsOpen));
+                // ⭐⭐ R-3 / V3 (docs/UX/DESIGN_Review_Perspective.md §3 D8) — the editor's AAR segment of the ONE transport: its OWN toolbar entry (ui's time control is untouched), the Replay Browser's drawer
+                //   over OwnPartReplay (the ONE seek), shown only while the run mode is AAR
+                //   ⭐ R-5 / V6 — the SAME segment over the source's transport while a participant group is open (ReplayTransportSelector): Merged steps / scrubs and its ▶ is greyed with the reason,
+                //   a part plays. The Recording info / JSON export windows read the group's manager; a compact Source combo sits beside the segment, only while a group is open.
+                _reviewTransport = new Hrot.Editor.Review.ReplayTransportSelector(new Hrot.Editor.Review.OwnPartReplayTransport(_ownPartReplay, () => _timeTransport), reviewUi);
+                _aarTransport = new Hrot.Editor.Review.AarTransportSegment(
+                    _reviewTransport,
+                    inAar: () => _timeTransport?.RunChoice?.Shown == Hrot.UI.Common.RunMode.RunArmed.AAR || reviewUi.Model.IsOpen,
+                    merged: () => reviewUi.Model.IsMerged);
+                if (windowManager.MainToolbar is { } aarToolbar)
+                {
+                    _aarTransport.RegisterInto(aarToolbar);
+                    _reviewSourceCombo = new Hrot.Editor.Review.ReviewSourceToolbarCombo(reviewUi);
+                    _reviewSourceCombo.RegisterInto(aarToolbar);
+                }
+                _reviewStatus = Hrot.Editor.Review.ReviewSourceStatusSection.Register(windowManager.StatusBar, reviewUi);   // D9 — the bar's LEFT end
+                _reviewFederation = new Hrot.Editor.Review.ReviewFederationWindowHost(reviewUi, w => windowManager.RegisterWindow(w), Hrot.Editor.AiShared.Review.ReviewLayout.Perspective, EditorWindowColor.TitleBar);   // G-7 S5 — the Source menu's Offsets… opens it
+                _fileReview.TimelinePanel.SetReview(reviewChannel);   // ⭐ CE-4498 — bound once: a closed review's model has no participants (Recording info lists none)
+                if (_editorApp is { } reviewApp) reviewApp.RecordingOpened += id => reviewSource.OnRecordingOpened(id);   // ⭐ THE one branch where a recording opens: a group with no part of this node ⇒ the source
+                // ⛔ CE-4497 R-3 — no frame overlay steps the source any more (it ran on the UI thread and merged into A): TickNodeFrame does, after the kernel tick.
+                _reviewBundle = reviewBundle;
+            }
+
+            // ⭐ R-6 / V7 — (composed with the review bundle, before the headless guard, so it is railed) Search hits (the review search panel's) and Breakpoint stops (this session's) as Event Timeline rows; a click seeks through the AAR transport / the panel's hit path and selects
+            if (ReviewTracks == null)
+            {
+                ReviewTracks = new Hrot.Editor.AiShared.Review.ReviewTimelineTracks(() => _node?.ShownTimeline, _fileReview?.SearchPanel, ReviewStops,
+                    transport: () => _reviewTransport, selectUnit: n => SelectNetworkEntity(n), replica: _replicaLane) { Settings = _watchKit?.Settings };
+                _eventTimeline.AddTracks(ReviewTracks.Tracks);
+                if (_bpManager is { } stopManager)
+                    stopManager.OnBreakpointHit += (bp, entity) =>
+                    {
+                        string who = "";
+                        int net = 0;
+                        if (!entity.IsNull && _world is { } w && w.IsAlive(entity))
+                        {
+                            who = w.IsComponentTypeRegistered<Fdp.Core.EntityInfo>() && w.HasComponent<Fdp.Core.EntityInfo>(entity) && w.GetComponentRO<Fdp.Core.EntityInfo>(entity).Name.ToString() is { Length: > 0 } nm ? nm + " · " : "";
+                            if (_entityMap != null) _entityMap.TryGetNetworkId(entity, out net);
+                        }
+                        string what = Hrot.Diagnostics.Breakpoints.BreakpointConditionSummarizer.Summarize(bp.Condition);
+                        ReviewStops.Add(stopManager.PausedTick, who + bp.DisplayName + (what.Length > 0 ? " · " + what : "") + (stopManager.LastHitDetail is { Length: > 0 } d ? " · " + d : ""), net);
+                    };
+            }
+
+            // ⭐⭐ R-4 / V4 (docs/UX/DESIGN_Review_Perspective.md §3 D1 / D10 / D11) — the Review LAYOUT: the bundle's windows are owned by it; Details, the Event Timeline, the Mission summary and the data
+            //   breakpoints are the Scenario layout's windows, SHARED (shown in both, never copied); the first time Review comes up its windows open and the ONE preset (ReviewLayout, the Replay Browser's
+            //   too) docks them around the map. It switches by itself on an AAR of THIS all-in-one node — ⛔ never a cluster station's. Composed before the headless guard (railed); the timeline joins it where it registers.
+            if (_reviewBundle != null)
+            {
+                var reviewIds = _reviewIds;
+                void Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role role, string? id) { if (id != null && windowManager.TryGetWindow(id, out _)) reviewIds[role] = id; }
+                Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role.MissionSummary, _rulesBundle?.MissionSummary.Id);
+                Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role.Details, "scenario_details");
+                Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role.FrameDiff, _reviewBundle.FrameDiff.Id);
+                Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role.Search, _reviewBundle.ReplaySearch.Id);
+                Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role.Breakpoints, "editor_bp_manager");
+                Hrot.Editor.AiShared.Review.ReviewLayout.ShareWindows(windowManager, reviewIds);
+                                bool reviewLaidOut = false;
+                windowManager.OnPerspectiveChanged += (_, now) =>
+                {
+                    if (now != Hrot.Editor.AiShared.Review.ReviewLayout.Perspective || reviewLaidOut) return;
+                    reviewLaidOut = true;
+                    Hrot.Editor.AiShared.Review.ReviewLayout.OpenWindows(windowManager, reviewIds);
+                    windowManager.RequestDockPreset(Hrot.Editor.AiShared.Review.ReviewLayout.PresetFor(reviewIds));
+                };
+                _reviewSwitch = new Hrot.Editor.AiShared.Review.ReviewLayoutSwitch(
+                    inAar:         () => _timeTransport?.RunChoice?.Shown == Hrot.UI.Common.RunMode.RunArmed.AAR || _reviewUi?.Model.IsOpen == true,   // ⭐ V6 / D10 — a participant group opening is an AAR entry too
+                    allInOne:      () => _networkFactory is OfflineNetworkFactory,   // ⭐ the editor is a one-node cluster (ruling 66): no real node around it ⇒ its AAR is analysis; a networked node's is the debrief
+                    current:       () => windowManager.CurrentPerspective,
+                    trySwitch:     p => windowManager.TrySwitchPerspective(p, out _),
+                    startShowing:  () => windowManager.IsStartShowing,
+                    retargetStart: windowManager.RetargetRememberedPerspective);
+                var reviewSwitch = _reviewSwitch;
+                windowManager.RegisterFrameOverlay(reviewSwitch.Update);
+            }
+
+            // ⭐ U5 (Edit mode undo) — Edit ▸ History…: the ONE EditHistory's steps, a click goes to one
+            _historyWindow = new Hrot.Presentation.Windows.EditHistoryWindow(EditHistory, () => InEditMode, "edit_history", "Scenario", EditorWindowColor.TitleBar);
+            windowManager.RegisterWindow(_historyWindow);
+
+            // ⭐ CE-4318 (L-6, Scenario Lifecycle LC-13) — the ONE Problems window over backend's ScenarioProblems; its count on the toolbar (nothing when there are none)
+            _problemsWindow = new Hrot.Presentation.Windows.ProblemsWindow(() => _world, n => SelectNetworkEntity(n), "problems", "Scenario", EditorWindowColor.TitleBar);
+            windowManager.RegisterWindow(_problemsWindow);
+            windowManager.MainToolbar?.RegisterEntry("ProblemsCount", sortOrder: ProblemsCountSortOrder, declaredHeight: Fdp.Presentation.WindowManager.MainToolbarManager.DefaultEntryHeight, _problemsWindow.DrawToolbarCount);
+
+            // ⭐⭐ CE-4325 (E7, R-4177) — bookmarks and notes: ONE controller (B / the ⚑ in the timeline's corner → a mark in Live, a note at a time in a DAR / AAR), the popup, the Marks window; the S / W axis toggle moved into the same corner
+            var marksTransport = _timeTransport;   // ⭐ CE-3329 row 21 — the one facade
+            if (marksTransport != null)
+            {
+                var markCandidates = new List<Hrot.UI.Common.Marks.MarkSubject>(1);
+                Hrot.UI.Common.Marks.MarkSubject? SelectedUnit()
+                {
+                    if (SelectedNetworkId() is not { } net || _world is not { } mw || _selectionState?.PrimarySelected is not { } sel) return null;
+                    return new Hrot.UI.Common.Marks.MarkSubject(net, mw.HasComponent<EntityInfo>(sel) && mw.GetComponentRO<EntityInfo>(sel).Name.ToString() is { Length: > 0 } nm ? nm : "unit " + net);
+                }
+                string stationName = null!; Hrot.Common.Infrastructure.Seat stationSeat = (Hrot.Common.Infrastructure.Seat)255;
+                string Station()
+                {
+                    var seat = Hrot.Common.Infrastructure.StationSeat.Of(_node?.Features);
+                    if (seat != stationSeat || stationName == null) { stationName = $"{seat}-{EditorNodeId}"; stationSeat = seat; }
+                    return stationName;
+                }
+                var marks = new Hrot.UI.Common.Marks.MarksController(marksTransport, () => Hrot.Common.Infrastructure.StationSeat.Of(_node?.Features), Station, SelectedUnit, () => ImGuiNET.ImGui.GetTime());
+                MarksController = marks;
+                windowManager.RegisterWindow(new Hrot.Presentation.Windows.MarksWindow("editor_marks", "Scenario", EditorWindowColor.TitleBar, marks, () => MarksCursor, n => SelectNetworkEntity((int)n)));
+                windowManager.RegisterWindow(new Hrot.Presentation.Windows.MarkPopupWindow("editor_mark_popup", "Scenario", EditorWindowColor.TitleBar, marks, () =>
+                {
+                    markCandidates.Clear();
+                    if (SelectedUnit() is { } u) markCandidates.Add(u);
+                    return markCandidates;
+                }, picks: () => FormsPick));   // ⭐ CE-1467 (f) — the unit is THE entity field over the editor's pick context (every named unit, pick on the map)
+                // ⭐ B — the ONE key: a shell command, so the keymap shows it (Keyboard shortcuts) and a key / button / HTTP call run the very same code
+                windowManager.ShellCommands.Register(new NodeEditor.Core.Action.EditorCommandDescriptor("marks.mark", "Mark this moment", "Run",
+                    "Take a mark (a checkpoint) in a recorded Live run — in a DAR / AAR add a note at the playhead (B)", "mark/flag",
+                    new NodeEditor.Core.Action.KeyBinding(NodeEditor.Primitives.EditorKey.B, NodeEditor.Primitives.KeyModifiers.None), () => marks.MarkDisabledReason == null),
+                    _ => marks.Mark());
+            }
+
             if (_headless) return;
 
             // ?? Shared UI panels ??????????????????????????????????????????????
             if (_spawnerPanel     != null && _spawnAdapter     != null)
-                windowManager.RegisterWindow(new EditorSpawnerWindow(_spawnerPanel, _spawnAdapter));
-
-            if (_missionPanel     != null && _missionService   != null && _mapPickAdapter != null)
-                windowManager.RegisterWindow(new EditorMissionWindow(_missionPanel, _missionService, _mapPickAdapter));
+                windowManager.RegisterWindow(new Hrot.Presentation.Windows.SpawnerPanelWindow(
+                    _spawnerPanel, _spawnAdapter,
+                    Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorSpawner, "Scenario",
+                    EditorWindowColor.TitleBar));
 
             if (_configPanel      != null && _mapConfigAdapter  != null)
-                windowManager.RegisterWindow(new EditorConfigWindow(_configPanel, _mapConfigAdapter));
+                windowManager.RegisterWindow(new Hrot.Presentation.Windows.ConfigPanelWindow(
+                    _configPanel, _mapConfigAdapter,
+                    Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorConfig, "Scenario",
+                    EditorWindowColor.TitleBar));
 
             if (_sharedOrbatPanel != null && _orbatAdapter     != null)
-                windowManager.RegisterWindow(new EditorSharedOrbatWindow(_sharedOrbatPanel, _orbatAdapter, _orbatAdapter));
+                windowManager.RegisterWindow(new Hrot.Presentation.Windows.SharedOrbatPanelWindow(
+                    _sharedOrbatPanel, _orbatAdapter, _orbatAdapter,
+                    Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorOrbat, "Scenario",
+                    EditorWindowColor.TitleBar));
+
+            // ⭐ CE-1096 (ROUTES1 §11.4 W-1) — the waypoint editor: the editor drew and moved routes but could set nothing on a waypoint
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.WaypointEditorWindow(
+                Hrot.UI.Common.Panels.WaypointEditorPanelFactory.Create(() => _world, () => _entityMap),   // CE-4214
+                Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorWaypoint, "Scenario", EditorWindowColor.TitleBar));
+
+            // ⭐ CE-3330 (DAR row 28; Director Timeline §2d / §2e) — the shared event timeline on the cluster: live (enters a review from the menu),
+            //   review, replay — all through the ONE facade (ClusterTimelineCursor); Space plays / pauses through its transport.
+            //   ⭐ CE-3330 E6 — the window and the cursor share ONE source func: the node's SHOWN timeline — live, or in a cluster replay the
+            //   node's OWN recording (HrotNodeContext.ShownTimeline; null while the recording is not loaded yet). ⛔ No null-in-Replay hack.
+            var timelineTransport = _timeTransport;   // ⭐ CE-3329 row 21 — the one facade
+            Func<Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineSource?> timelineSource = () => _node?.ShownTimeline;
+            var timelineCursor = new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => timelineTransport, timelineSource);
+            MarksCursor = timelineCursor;   // ⭐ CE-4325 — the Marks window seeks through the SAME cursor the timeline draws
+            // ⭐ CE-4325 (E7) — the corner (⚑ and S / W) of THIS window; the marks controller itself is composed before the headless guard (railed), above
+            var timelineCorner = timelineTransport != null && MarksController is { } timelineMarks ? new Hrot.UI.Common.Marks.TimelineCornerBinding(timelineMarks, timelineTransport) : null;
+            windowManager.RegisterWindow(new Fdp.Presentation.Windows.Timeline.EventTimelineWindow(
+                "editor_event_timeline", "Event Timeline", "Scenario", _eventTimeline, timelineSource,
+                timelineCursor,
+                () => _node?.TimelineLanes.Lanes(_node.ShownTimelineContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneDescriptor>(), EditorWindowColor.TitleBar,
+                onSelect: e => SelectTimelineEvent(e), rowMenu: menuContext => _node?.TimelineLanes.MenuItems(menuContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuItem>(),
+                corner: timelineCorner)
+            { IsOpen = false });
+            // ⭐ W-1 / P-8 8c-2 (Mission plan E4) — the ONE Tasks row (all units) + the selection's task bars, over the same shown timeline
+            if (TasksTracks == null)
+            {
+                TasksTracks = new Hrot.Presentation.Orders.TasksTimelineTracks(timelineSource, () => _world,
+                    () => Hrot.Presentation.Orders.TasksTimelineTracks.NetIdOf(_world, _selectionState?.PrimarySelected), n => SelectNetworkEntity(n));
+                _eventTimeline.AddTracks(TasksTracks.Tracks);
+            }
+
+            // ⭐ R-4 / V4 — the Event Timeline is the last window the Review layout names (registered after the headless guard)
+            if (_reviewBundle != null && _reviewIds.ContainsKey(Hrot.Editor.AiShared.Review.ReviewLayout.Role.Details))
+            {
+                _reviewIds[Hrot.Editor.AiShared.Review.ReviewLayout.Role.EventTimeline] = "editor_event_timeline";
+                windowManager.AlsoShowWindowIn("editor_event_timeline", Hrot.Editor.AiShared.Review.ReviewLayout.Perspective);
+            }
+
+            // ⭐⭐ CE-4247 (rules runnable ⑨c; Node Features F-11 / S2) — Window ▸ Features: nodes × features from the master's roster; a tick replaces the cluster's override list through the run settings
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.FeatureGridWindow("editor_feature_grid", "Scenario", EditorWindowColor.TitleBar,
+                nodes: () => _clusterMaster?.NodeRoster.ActiveNodes.Values.OrderBy(p => p.NodeName, StringComparer.Ordinal).Select(p => new Hrot.Presentation.Windows.FeatureGridNode(p.NodeName, p.Roles.ToString(),
+                    p.Capabilities.Where(c => c.StartsWith("hrot.feature.", StringComparison.Ordinal)).Select(c => c.Substring("hrot.feature.".Length)).ToHashSet(), p.FeaturesOn.ToHashSet())).ToList()
+                    ?? (IReadOnlyList<Hrot.Presentation.Windows.FeatureGridNode>)Array.Empty<Hrot.Presentation.Windows.FeatureGridNode>(),
+                overrides: () => UiClusterCache?.View.FeatureOverrides ?? (IReadOnlyList<Fdp.Toolkit.Orchestration.FeatureOverrideSpec>)Array.Empty<Fdp.Toolkit.Orchestration.FeatureOverrideSpec>(),
+                send: list => ClusterMasterControl?.SetRunSettings(new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = Guid.NewGuid(), FeatureOverrides = list })) { IsOpen = false });
+
+
+            // ⭐ CE-1191 (UI-6, DESIGN_Command_Display §6 D3) — the Reports window over this node's SquadReportLog (filled where the staff runs)
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.ReportsWindow(
+                () => _world, Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorReports, "Scenario", EditorWindowColor.TitleBar));
 
             if (_previewPanel     != null && _previewController != null)
                 windowManager.RegisterWindow(new EditorPreviewWindow(_previewPanel, _previewController));
@@ -3550,101 +5990,120 @@ namespace Hrot.Editor
             if (_zoneEditorPanel  != null && _zoneAdapter       != null)
                 windowManager.RegisterWindow(new EditorZoneEditorWindow(_zoneEditorPanel, _zoneAdapter));
 
+            // ⭐ CE-1237 — Blueprint Tools: a normal panel (close box, View menu), bound to the Blueprint perspective
+            windowManager.RegisterWindow(new EditorBlueprintToolsWindow(DrawBlueprintToolsContent));
+
+            // ⭐ CE-4038 B6 — View › Director: the same runner the /director/* routes drive
+            _directorPack!.RegisterWindow(windowManager);
+
             // ?? FDP framework panels (entity inspector + event browser) ???????
-            windowManager.RegisterWindow(new FdpEntityInspectorWindow(
-                "editor_fdp_inspector", "Editor Entity Inspector", "Editor",
-                _fdpEntityInspector,
-                () => _fdpRepoAdapter,
-                () => _fdpInspectorState,
-                EditorWindowColor.TitleBar));
-
-            // Wire component-editor reflector and "Inspect..." context menu.
-            MapPickServiceBridge? editorPickBridge = _mapPickAdapter != null && _world != null
-                ? new MapPickServiceBridge(_mapPickAdapter, _world)
+            // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites are now ONE shared bundle,
+            //    `Hrot.Presentation.Windows.DiagnosticsWindowsBundle`, composed by all FOUR hosts
+            //    (20 sites before this). 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.7.
+            //
+            // ⭐⭐⭐ THE `_kernel != null` GUARD IS PRESERVED, and this is the load-bearing detail:
+            //    📐 this host guarded its architecture + profiler windows on a non-null kernel and bound
+            //    the kernel EAGERLY, while the other three bound it lazily and did not guard. ⛔ Unifying
+            //    to the lazy form would make this host register two windows it currently may not — which
+            //    MOVES the registered window set and therefore the ui-baseline golden. ⇒ ⭐ passing null
+            //    for both is how the guard survives: ruling 49, a host that cannot service a window does
+            //    not register it (design §5c.7.2 G1).
+            var editorArchitecturePanel = _kernel != null
+                ? new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
+                      new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_kernel))
                 : null;
-            FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu(
-                _fdpEntityInspector,
-                windowManager,
-                "Editor",
-                () => _fdpRepoAdapter,
-                editorPickBridge,
-                EditorWindowColor.TitleBar);
+            Func<System.Collections.Generic.List<Fdp.ModuleHost.ModuleStats>?>? editorExecutionStats =
+                _kernel != null ? () => _kernel?.GetExecutionStats() : null;
 
-            // Register the blackboard view provider so the editor projects typed DTO params.
-            _fdpEntityInspector.Reflector.AddBufferViewProvider(new Hrot.Presentation.Renderers.BrainBlackboardViewProvider());
-            // Register the heavy blackboard view provider for Blackboard1024.
-            _fdpEntityInspector.Reflector.AddBufferViewProvider(new Hrot.Presentation.Renderers.Blackboard1024ViewProvider());
+            // ⭐ CE-4253 — the Scenario menu is gone: the parameters live in Details ▸ Scenario (a collapsible header; the drawer is created with that view)
+            _parametersDrawer ??= WireParametersDrawer(new Hrot.Editor.Scenario.ParametersDrawer(_headerParams));
 
-            // Inject EditContextFactory so TryOpenEditWindow passes ParamsDtoType/HeavyDtoType to StructEdit.
-            var capturedEditorRegistry = _behaviorRegistry;
-            _fdpEntityInspector.Reflector.EditContextFactory = (session, e, type) =>
+            // ⭐ CE-4210 MA-9 — Save selection as macro…: the Scenario menu AND the map's unit menu (the same gesture, one window). The save is the cluster's ONE save path with a filter and a header.
+            if (_editorApp is not null)
             {
-                if (type != typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard)
-                 && type != typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024)) return null;
-                if (!session.HasComponent(e, typeof(Fdp.Toolkit.Behavior.Components.BehaviorState))) return null;
-                var ds = session.GetComponent(e, typeof(Fdp.Toolkit.Behavior.Components.BehaviorState))
-                    as Fdp.Toolkit.Behavior.Components.BehaviorState?;
-                if (ds == null) return null;
-                if (capturedEditorRegistry?.TryGetDefinition(ds.Value.ActiveBehaviorHash, out var def) != true) return null;
-                if (def == null) return null;
-                if (type == typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard))
+                var selectionFlow = new Hrot.Editor.Scenario.SaveSelectionAsMacroFlow(
+                    world:     () => _world,
+                    selection: () => (System.Collections.Generic.IReadOnlyCollection<Fdp.Core.Entity>?)_selectionState?.SelectedEntities ?? System.Array.Empty<Fdp.Core.Entity>(),
+                    save:      (name, guids, header) => UiSession!.SaveSelectionAs(name, guids, header),
+                    // ⭐ CE-4210 W-M6 — a reference inside a unit's params blob (a task / SOP / mission task) is part of the closure; the editor HOLDS the registry, so it passes the remapper (silent-default rule)
+                    behaviorRemapper: _behaviorRegistry is null ? null : Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(_behaviorRegistry));
+                _saveSelectionWindow = new Hrot.Editor.Scenario.SaveSelectionAsMacroWindow(selectionFlow);
+                windowManager.RegisterWindow(_saveSelectionWindow);
+                Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, "file.save-selection-as-macro", Hrot.Editor.AiShared.Scenarios.FileMenuLayout.SaveSelectionAsMacro, () => _saveSelectionWindow?.Start(), "Scenario");   // ⭐ CE-4253 — it was Scenario/…
+                HostActions.Actions.RegisterLocal(Hrot.Common.Constants.GlobalActionIds.SaveSelectionAsMacro, (view, target) =>
                 {
-                    if (def.ParamsDtoType == null) return null;
-                    return new StructEdit.Core.EditContext().With("ParamsDtoType", def.ParamsDtoType);
-                }
-                // Blackboard1024
-                if (def.HeavyDtoType == null) return null;
-                return new StructEdit.Core.EditContext().With("HeavyDtoType", def.HeavyDtoType);
-            };
+                    if (!target.IsNull && _selectionState is { SelectedEntities.Count: 0 } sel) sel.PrimarySelected = target;   // a right-click on an unselected unit saves that unit
+                    _saveSelectionWindow?.Start();
+                });
+            }
 
-            windowManager.RegisterWindow(new FdpEventBrowserWindow(
-                "editor_fdp_events", "Editor Event Browser", "Editor",
-                _fdpEventBrowser,
-                EditorWindowColor.TitleBar));
+            Fdp.Toolkit.Runner.UiBundleHost.Compose(
+                new Fdp.Toolkit.Runner.IUiBundle[]
+                {
+                    new DiagnosticsWindowsBundle(new DiagnosticsHostServices(
+                        IdPrefix:       "editor_",
+                        TitlePrefix:    "Editor",
+                        // ⭐⭐ A1 — the PERSPECTIVE, despite the helper's old "ownerName" spelling.
+                        //    📐 Measured 2026-08-23: it becomes Reflector.EditOwningPerspective, the
+                        //    watch window's owningPerspective, AND that window's id prefix. ⇒ ⛔ leaving
+                        //    "Editor" here would spawn every "Inspect…" watch window into a perspective
+                        //    NO window claims — invisible, with nothing to explain why.
+                        Perspective:    "Scenario",
+                        Inspector:      _fdpEntityInspector,
+                        RepoAdapter:    () => _fdpRepoAdapter,
+                        InspectorState: () => _fdpInspectorState,
+                        EventBrowser:   _fdpEventBrowser,
+                        TitleBarColor:  EditorWindowColor.TitleBar,
+                        Host:           () => HostActions,   // ⭐ CE-1150 — the inspector's map menu requests on the host's actions
+                        World:          () => _world,
+                        ArchitecturePanel: editorArchitecturePanel,
+                        ExecutionStats:    editorExecutionStats,
+                        PickBroker: _mapPickAdapter != null
+                            ? new MapPickBroker(_mapPickAdapter)
+                            : null,
+                        WireParticipant: () => _networkFactory.Participant,   // ⭐ AQ109 X5 — null offline
+                        // ⭐ CE-4210 P2 — the inspector's bind popup declares a parameter through the SAME source the Parameters window edits.
+                        DeclareParam: (t, n, v) => { var p = _headerParams.Declare(t, n, v); if (p is not null) _parametersDrawer?.RequestOpen(); return p; })),   // ⭐ CE-4253 — the Scenario view's Parameters header opens (the next time that view draws)
+                },
+                new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
-            // ?? Message Log: register hot-reload source ???????????????????????
+            // ⭐⭐ PHASE 2 SLICE ② — the ~30-line blackboard-reflection block that used to sit here was
+            //    duplicated VERBATIM in CgfSubsystem. ⛔ NOT in the bundle: IG/SimHost do none of it
+            //    (§5c.7 F5 / G3). ⭐ One implementation, exactly two callers.
+            Hrot.Presentation.Windows.BlackboardReflection.Apply(_fdpEntityInspector, _behaviorRegistry);
+
+            // ── Message Log: register hot-reload source ───────────────────────
             // The NLog source and the global window are created by Program.cs.
             // Here we attach the Editor-specific Hot Reload source so its messages
             // appear as a second tab in the shared Message Log window.
+            // ⚠ Unrelated to the diagnostics bundle above — kept verbatim, and kept HERE so its
+            //   ordering relative to the windows above is unchanged.
             if (_hotReloadSource != null)
                 windowManager.MessageLogRegistry?.RegisterSource(_hotReloadSource);
             // Register the AI Behaviors log tab (dedicated tab for structured AI diagnostics).
             windowManager.MessageLogRegistry?.RegisterSource(AiBehaviorLogTarget.SharedInstance);
+            // ⭐ CE-484 — the operator's "Behaviour Faults" tab (red until looked at). 📄 DESIGN_Behaviour_Fault_And_Teardown.md §4c
+            windowManager.MessageLogRegistry?.RegisterSource(Fdp.Toolkit.Behavior.Events.BehaviorFaultLog.Shared);
 
-            if (_kernel != null)
-            {
-                windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
-                    "editor_architecture_diagnostics", "Editor Architecture Diagnostics", "Editor",
-                    new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
-                        new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_kernel)),
-                    EditorWindowColor.TitleBar));
-            }
-
-            // ?? Time transport controls in status bar ?????????????????????????
+            // ── Time transport: the main toolbar's, and ONLY there ────────────────
+            // ⭐ CE-4083 (AQ108 D13) — the status bar carries NO time control any more ("the picker exists once").
             if (_previewController != null && _timeController != null && _world != null
                 && windowManager.MainToolbar != null)
             {
-                var timeControls = new TimeControlStatusBarSection(_previewController, _timeController, _world);
-                windowManager.StatusBar.RegisterSection(
-                    id:             "editor_time_controls",
-                    sortOrder:      100,
-                    renderDelegate: timeControls.Render,
-                    perspective:    "Editor");
-
                 // ── BATCH-24: Main toolbar time-control group (§7, sortOrder range 0–9) ──
-                var timeTransportFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(
-                    _previewController, _timeController, _world);
-                var toolbarTimeSection = new Hrot.UI.Common.Panels.MainToolbarTimeControlSection(
-                    timeTransportFacade);
-                windowManager.MainToolbar.RegisterEntry(
-                    "TimeControlGroup", sortOrder: 0,
-                    declaredHeight: Fdp.Presentation.WindowManager.MainToolbarManager.DefaultEntryHeight,
-                    toolbarTimeSection.Render);
-
-                // Separator between Time-control and Perspective groups.
-                windowManager.MainToolbar.RegisterSeparator(
-                    "ToolbarSep_TimeToPersp", sortOrder: 10);
+                // ⭐⭐ PHASE 2 SLICE ③ — these four lines were duplicated verbatim in CgfSubsystem and now
+                //    live once in `ShellTimeControlToolbar`. 📄 design §5c.8 H1.
+                // ⭐⭐⭐ CE-090 — the `withSeparator` parameter is GONE: both hosts emit the separator, and
+                //    a shared surface takes no host gate. 📄 §5c.14.
+                var timeTransportFacade = _timeTransport!;   // ⭐ CE-3329 row 21 — the one facade
+                // ⭐ CE-1437 (AQ108 §2.10) — the toolbar time control is NOT registered here any more: this host offers it (IProvidesRunControls) and
+                //   LocalWindowController.ComposeRunControls registers the ONE entry for the process, by rule.
+                // ⭐ CE-4097 part two (AQ108 D11) — the status-bar note while a Preview / Live run goes (CGF registers the same section)
+                Hrot.UI.Common.Panels.RunNoteStatusBarSection.Register(windowManager.StatusBar, timeTransportFacade, "Scenario");
             }
+
+            // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.
+            Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => _canvas, "Scenario");
 
             // ?? Message Log notification icon in status bar ???????????????????
             // The MessageLogWindow is registered globally by Program.cs; we look it
@@ -3662,6 +6121,10 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void Shutdown()
         {
+            _kernelWorkerStop = true; _kernelWorker?.Join(2000);   // ⭐ X-4
+            _bootstrapper?.DisposeResources();   // ⭐ CE-1446 B2 — the node's one-per-world resources (the trajectory pool) are the node's to dispose
+            // ⭐ CE-1329 — the scenario's per-unit debug settings, once more on exit (they are saved on change already)
+            if (_world != null) _debugSettingsMemory.Save(Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(_world));
             // ── SAVE-ON-CLOSE FIX: app-exit does NOT save open documents ───────────────────────────
             // Saving is decoupled from closing (see AiGraphCanvasWindow.ResolveCloseSave): only an
             // explicit prompt-"Save" persists a doc; every other close path — including app-exit —
@@ -3670,7 +6133,8 @@ namespace Hrot.Editor
             // pin-stripped file over the source — persisting exploratory/invalid edits the user never
             // chose to keep. Removed.
             // FlushNow() is kept: it only drains the debounced BTree/HSM regen (blueprints are
-            // in-memory-only there and never written), consistent with their auto-save-on-edit design.
+            // in-memory-only there and never written). ⭐ BP-93: since 2026-10-06 that flush writes nothing either
+            // (auto-save is opt-in), so app-exit discards unsaved BTree/HSM edits exactly like blueprint ones.
             // FOLLOW-UP (user-requested): a real app-exit "you have unsaved changes" prompt — until
             // then, app-exit silently discards.
             _regenerationScheduler?.FlushNow();
@@ -3703,12 +6167,30 @@ namespace Hrot.Editor
             // ─────────────────────────────────────────────────────────────────────────────────────
             _aiCoordinator?.Dispose();
             _aiCoordinator = null;
-            _kernel?.Dispose();
-            _kernel = null;
+            // ⭐⭐ CE-203 — the node context OWNS the kernel and the world, and its Dispose() releases them
+            //    in that order. 🔒 HrotNodeContext's own contract (QA-001): "every consumer must call
+            //    context.Dispose(), NOT context.Kernel.Dispose()" — disposing the kernel alone is exactly
+            //    how four hosts came to leak their world. 📐 The two lines this replaces already disposed
+            //    kernel-then-world, so that ORDER is unchanged; what changes is who owns the decision.
+            // ⚠ _physicsModule now runs BEFORE the kernel instead of between kernel and world. 📐 Measured:
+            //    it is never registered on the kernel (only `new` + Initialize(_world) at :998), so its
+            //    position relative to the kernel is immaterial — what matters is that it still precedes
+            //    the world's disposal, and it does.
             _physicsModule?.Dispose();
+            _trafficPack?.Dispose();   // ⭐ AQ93 — stops SUMO (its session is not the kernel's to release)
             _physicsModule = null;
-            _world?.Dispose();
-            _world = null;
+            _node?.Dispose();
+            _node = null;
+            _kernel = null;
+            _world  = null;
+            // QA-005: the breakpoint machinery owns TWO more repositories — the pre-tick snapshot
+            // built here and the post-tick snapshot the manager builds for itself. Both leaked until
+            // now; the world beside them was already being released, which is what made the omission
+            // invisible.
+            _bpManager?.Dispose();
+            _bpManager = null;
+            _bpPreTickSnapshot?.Dispose();
+            _bpPreTickSnapshot = null;
             _editorLogic = null;
             _editorApp   = null;
             _timeController = null;
@@ -3720,33 +6202,22 @@ namespace Hrot.Editor
             _mapConfigAdapter = null;
             _mapPickAdapter   = null;
             _zoneAdapter      = null;
-            _contextMenuHandler = null;
+            _debugApiHost?.Dispose();
+            _debugApiHost     = null;
             _previewController  = null;
             _mapViewConfig      = null;
             _spawnerPanel     = null;
-            _missionPanel     = null;
             _configPanel      = null;
             _sharedOrbatPanel = null;
             _previewPanel     = null;
             _zoneEditorPanel  = null;
             _fdpRepoAdapter   = null;
             _selectionState   = null;
-            _selectionBridge?.Dispose();
-            _selectionBridge  = null;
             // (Phase 5: _interactionTool was here; removed)
-            _clusterMaster?.Dispose();
-            _clusterMaster  = null;
-            _assetInventoryProcessManager = null;
-            _assetPrefetchProcessManager = null;
-            _diagnosticsDumpProcessManager = null;
-            _logMergeWorker?.Dispose();
-            _logMergeWorker = null;
-            _uiCache?.Dispose();
-            _uiCache        = null;
-            _clusterPanel = null;
-            _clusterDiagnosticsPanel = null;
+            _orchestratorCore?.Dispose();
+            _orchestratorCore = null;
+            _clusterMaster    = null;
             _fileDialogService = null;
-            _storageGateway = null;
         }
 
         // ?? Private helpers ???????????????????????????????????????????????????
@@ -3758,171 +6229,118 @@ namespace Hrot.Editor
         /// request to the appropriate canvas tool or adapter.
         /// Called once per frame from <see cref="Update"/> (non-headless only).
         /// </summary>
-        private Entity FindEntityByNetworkId(long networkId)
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>BP-511</c> — the editor's view of the current load's staging⇄runtime id table.</b>
+        /// 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §5 · §8a.
+        ///
+        /// <para>⭐ Held ONCE and shared with every perspective's Watch through the services bag: the
+        /// table is <b>one fact about the loaded world</b>, ⛔ not a per-perspective one — the same
+        /// argument that puts <c>EntitySelection</c> and <c>StagedWrites</c> in that bag.</para>
+        /// </summary>
+        private readonly Hrot.Editor.AiShared.Variables.StagingRemapView _stagingRemap = new();
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>BP-511</c> — the load boundary: a new id table arrived, so re-bind every concrete
+        /// pin.</b>
+        ///
+        /// <para>⭐⭐ <b>This is the ONE place resolution happens</b> — 📌 §4's <b>two-clocks rule</b>: a
+        /// binding resolves on a LOAD or a selection change, ⛔ <b>never on the tick</b>. A per-frame
+        /// resolve would be O(pins × entities) per frame, which is why <c>NetworkIdResolver</c> refuses to
+        /// carry a cache.</para>
+        ///
+        /// <para>⚠ <b>Drained here and not in <c>EditorApplication</c></b>, even though that class already
+        /// reads this bus: the three Watch windows hang off THIS class's registrars. ⭐ Reads are
+        /// non-destructive *(the bus clears on swap)*, so nothing is taken from another reader.</para>
+        ///
+        /// <para>⚠ <b>Every published table is applied, last-wins within a frame.</b> A multi-node run can
+        /// publish more than one; ⛔ merging them would keep a previous world's ids alive, which is the
+        /// wrong-entity failure the whole mechanism removes.</para>
+        /// </summary>
+        private void DrainStagingRemap()
         {
-            if (_world == null) return default;
-            var query = _world.Query().With<NetworkIdentity>().Build();
-            foreach (var e in query)
-                if (_world.GetComponent<NetworkIdentity>(e).Value == networkId)
-                    return e;
-            return default;
+            if (_orchestrationBus == null) return;
+
+            bool published = false;
+            foreach (var ev in _orchestrationBus.ReadManaged<Fdp.Toolkit.Orchestration.StagingRemapPublishedEvent>())
+            {
+                if (_staging != null) { var map = ev.GuidToRuntime; _staging.Post(_ => _stagingRemap.Publish(map)); }   // ⭐ N-4 — the remap is read by UI objects: published on the UI thread, in order
+                else _stagingRemap.Publish(ev.GuidToRuntime);
+                published = true;
+            }
+            if (!published) return;
+
+            if (_staging != null) { _staging.Post(_ => RebindWatchPins()); return; }   // ⭐ N-4 — the watch pins are UI objects: the UI thread re-binds them
+            RebindWatchPins();
         }
 
-        private void DrainToolActivationEvents()
+        private void RebindWatchPins()
         {
-            if (_world == null || _canvas == null || _selectionState == null) return;
+            int rebound = 0;
+            foreach (var registrar in PerspectiveRegistrars)
+                rebound += registrar?.Watch?.RebindConcretePins() ?? 0;
 
-            foreach (ref readonly var evt in _world.Bus.Read<Hrot.Editor.Events.ActivateEditorToolEvent>())
-            {
-                switch (evt.Tool)
-                {
-                    case Hrot.Editor.EditorTool.Select:
-                        // (Phase 5: _interactionTool removed; selection via ECS gizmos)
-                        break;
-
-                    case Hrot.Editor.EditorTool.Spawn:
-                        // Start placement with the last selected type (tracked by the adapter).
-                        _spawnAdapter?.StartPlacementModeWithLastType();
-                        break;
-
-                    case Hrot.Editor.EditorTool.Edit:
-                    {
-                        // Inject VertexEditGizmo directly via the gizmo system (toggle if already active).
-                        var entity = _selectionState.PrimarySelected;
-                        if (entity is { } e && e != Entity.Null && _world.HasManagedComponent<Hrot.IG.Components.EditablePolyline>(e))
-                        {
-                            if (_editorDataDrivenGizmoSystem!.HasInjectedGizmo(e))
-                            {
-                                _editorDataDrivenGizmoSystem!.DeactivateGizmo(e);
-                            }
-                            else
-                            {
-                                long netId = _world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
-                                    ? _world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value
-                                    : 0L;
-                                var gizmo = new Hrot.ScenarioEditor.Gizmos.VertexEditGizmo(
-                                    _world!, e, netId,
-                                    onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(e));
-                                _editorDataDrivenGizmoSystem!.ActivateGizmo(e, gizmo);
-                            }
-                        }
-                        break;
-                    }
-
-                    case Hrot.Editor.EditorTool.Route:
-                    {
-                        // Inject RouteWaypointGizmo directly via the gizmo system (toggle if already active).
-                        var entity = _selectionState.PrimarySelected;
-                        if (entity is { } e && e != Entity.Null && _world.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(e))
-                        {
-                            if (_editorDataDrivenGizmoSystem!.HasInjectedGizmo(e))
-                            {
-                                _editorDataDrivenGizmoSystem!.DeactivateGizmo(e);
-                            }
-                            else
-                            {
-                                long netId = _world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
-                                    ? _world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value
-                                    : 0L;
-                                var gizmo = new Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo(
-                                    _world!, e, netId,
-                                    onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(e));
-                                _editorDataDrivenGizmoSystem!.ActivateGizmo(e, gizmo);
-                            }
-                        }
-                        break;
-                    }
-
-                    case Hrot.Editor.EditorTool.Measure:
-                        if (_globalGizmoManager != null)
-                        {
-                            var id = GlobalGizmoManager.NewId();
-                            var gizmo = new Hrot.ScenarioEditor.Gizmos.MeasureGizmo(onRemove: () => _globalGizmoManager?.Unregister(id));
-                            _globalGizmoManager.Register(id, gizmo);
-                        }
-                        break;
-
-                    case Hrot.Editor.EditorTool.Rotate:
-                    {
-                        // Inject EntityRotatorGizmo directly via the gizmo system.
-                        var entity = _selectionState.PrimarySelected;
-                        if (entity is { } e && e != Entity.Null && _world.HasComponent<Fdp.Core.SimTransform>(e))
-                        {
-                            _editorDataDrivenGizmoSystem!.DeactivateGizmo(e);
-                            var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
-                                _world!, e,
-                                onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(e));
-                            _editorDataDrivenGizmoSystem!.ActivateGizmo(e, gizmo);
-                        }
-                        break;
-                    }
-                }
-            }
-
-            // ?? Drain camera-center requests ??????????????????????????????????
-            foreach (ref readonly var cmd in _world.Bus.Read<Hrot.Editor.Commands.CenterOnEntityCommand>())
-            {
-                if (_camera == null) continue;
-                var q = _world.Query()
-                    .With<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
-                    .With<Fdp.Core.SimTransform>()
-                    .Build();
-                foreach (var e in q)
-                {
-                    if (_world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == cmd.NetworkId)
-                    {
-                        ref readonly var tf = ref _world.GetComponentRO<Fdp.Core.SimTransform>(e);
-                        _camera.FocusOn(new System.Numerics.Vector2(tf.Position.X, tf.Position.Y));
-                        break;
-                    }
-                }
-            }
-
-            // ?? Drain rename-dialog requests ??????????????????????????????????
-            foreach (ref readonly var cmd in _world.Bus.Read<Hrot.Common.Events.OpenRenameDialogCommand>())
-            {
-                _renameTargetNetworkId    = cmd.NetworkId;
-                _openRenameModalThisFrame = true;
-                _renameBuffer             = string.Empty;
-
-                // Pre-fill buffer with the entity's current name.
-                var q = _world.Query()
-                    .With<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
-                    .With<EntityInfo>()
-                    .Build();
-                foreach (var e in q)
-                {
-                    if (_world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == cmd.NetworkId)
-                    {
-                        _renameBuffer = _world.GetComponent<EntityInfo>(e).Name.ToString();
-                        break;
-                    }
-                }
-            }
+            Console.WriteLine($"[94g] staging remap published ({_stagingRemap.Generation}); {rebound} watch pin(s) re-bound.");
         }
+
+        /// <summary>
+        /// ⭐⭐ <b><c>BP-511</c> — the runtime <c>NetworkIdentity.Value</c> of a live entity, or <c>0</c>.</b>
+        /// ⭐ The inverse direction of <see cref="FindEntityByNetworkId"/>, and the half
+        /// <c>WatchEntityIdentity</c> needs to make a pin durable at PIN time.
+        /// ⚠ <c>0</c> for the sentinel entity, a dead handle, or an entity with no <c>NetworkIdentity</c>
+        /// — ⛔ all three mean "nothing durable to key on", which the pin reports rather than hides.
+        /// </summary>
+        private int RuntimeNetworkIdOf(Entity entity)
+            // ⭐ AX-008 — ROUTED to the shared resolver `2026-08-25`; see NetworkIdResolver's own note.
+            => Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(_world, entity);
+
+        /// <summary>
+        /// ⭐ <c>BP-508</c> — routed through the ONE resolver *(<c>R-77</c>)*. ⛔ This copy used
+        /// <c>GetComponent</c> *(a struct copy)* and had no non-positive-id guard.
+        /// </summary>
+        private Entity FindEntityByNetworkId(int networkId)
+            => Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(_world, networkId);
+
+        // ⭐⭐⭐ CE-051 (Axis-C E3) — `DrainToolActivationEvents` IS GONE. Its three concerns became
+        //    shared systems in `Hrot.ScenarioEditor.Systems`, registered by `ScenarioEditorModule`:
+        //      · the EditorTool switch  -> ToolActivationDrainSystem
+        //      · CenterOnEntityCommand  -> CenterOnEntitySystem   (and it FIXED a live CGF bug — see that
+        //                                                          class's remarks on MapCamera.FocusOn)
+        //      · OpenRenameDialogCommand-> EntityRenameModal.Drain (ImGui, so not a system)
+        //    ⛔ SelectEntityCommand had NO handler here at all — measured: nothing in the repo read it, so
+        //       IEditorLogic.SelectEntity was a silent no-op. SelectEntitySystem is its first consumer.
+        //    📄 docs/DESIGN_Cgf_Tool_Selection_Camera_Slice.md §3 ②/④ and §9.
 
         // ── CF-8: Debug session persistence helpers ──────────────────────────────
 
         /// <summary>
-        /// Resolves the repo root directory by walking up from <see cref="AppDomain.CurrentDomain.BaseDirectory"/>
-        /// looking for IOS-IG-SimHost.sln.
+        /// ⭐ The per-user data folder name. ⚠ Duplicated from
+        /// <c>RaylibPresentationShell.AppFolderName</c> / <c>FdpApplication</c> because both are
+        /// <c>internal</c> to assemblies this one does not reference — ⛔ <c>Fdp.Presentation</c>
+        /// deliberately never learns the name *(<c>LayoutPaths</c>'s own documented constraint)*, so the
+        /// host carries it. ⚠ It MUST match, or the session file lands beside a different app's layout.
         /// </summary>
-        private static string? ResolveRepoRoot()
-        {
-            var dir = AppDomain.CurrentDomain.BaseDirectory;
-            while (dir != null)
-            {
-                if (File.Exists(Path.Combine(dir, "IOS-IG-SimHost.sln")))
-                    return dir;
-                dir = Path.GetDirectoryName(dir);
-            }
-            return null;
-        }
+        private const string UserAppFolderName = "HROT";
 
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>BP-505</c> — the debug session file, in the USER-LOCAL folder.</b>
+        ///
+        /// <para>🔒 The user's ruling, <c>2026-08-24</c>: <i>"ad file path - user local folder"</i>.
+        /// ⚠⚠ It USED to be <c>&lt;repo-root&gt;/.debug/bpsession.json</c> *(<c>CF-8</c>)* — ⛔ that path is
+        /// gitignored *(<c>.gitignore:65</c>)*, so it could not host the git-maintained curated copy the
+        /// same ruling asks for. 📄 <c>DebugSessionPaths</c> carries the reasoning and the reset.</para>
+        /// </summary>
         private string? GetDebugSessionPath()
         {
-            var root = ResolveRepoRoot();
-            return root != null ? Path.Combine(root, ".debug", "bpsession.json") : null;
+            try
+            {
+                return DebugSessionPaths.UserPath(
+                    Fdp.Presentation.WindowManager.LayoutPaths.UserDirectory(UserAppFolderName));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CF8] Failed to resolve the debug session path: {ex.Message}");
+                return null;
+            }
         }
 
         /// <summary>
@@ -3933,24 +6351,96 @@ namespace Hrot.Editor
             var path = GetDebugSessionPath();
             if (path == null) return;
 
+            WriteDebugSession(_blueprintDebugSession, _bpManager, PerspectiveRegistrars, path);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The three per-perspective registrars as ONE sequence</b> — every place that must ask
+        /// all of them *(the session save, below)* asks here, so a fourth perspective is a change in one
+        /// place. ⛔ <c>internal</c> only so the rail can hand in registrars it built; ⚠ it is not a
+        /// mutation seam — the fields stay private and are set exactly where they are created.
+        /// </summary>
+        internal IReadOnlyList<Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar?> PerspectiveRegistrars
+            => new[] { _btreeRegistrar, _hsmRegistrar, _blueprintRegistrar };
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>BP-506</c> — writes the debug session file, PINS INCLUDED.</b>
+        ///
+        /// <para>⛔⛔ <b>Split out of <see cref="SaveDebugSession"/> so the forwarding is RAILABLE.</b>
+        /// 📌 <c>R-67</c>: the control for a silent default is an assertion on the CONSTRUCTED OBJECT —
+        /// here, on the FILE this produces — ⛔ never on the call site's source. <see cref="SaveDebugSession"/>
+        /// is now a one-line delegation with no defaultable argument left to forget.</para>
+        ///
+        /// <para>⭐ <c>static</c> and fully parameterised on purpose: everything it needs is an argument,
+        /// so a rail drives the real production path rather than a re-implementation of it.</para>
+        /// </summary>
+        internal static void WriteDebugSession(
+            Hrot.Blueprints.Core.Debug.IBlueprintDebugSession? blueprintSession,
+            Hrot.Diagnostics.Breakpoints.IDataBreakpointManager? breakpointManager,
+            IEnumerable<Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar?> registrars,
+            string path)
+        {
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
-                var nodeBps = _blueprintDebugSession?.GetBreakpoints();
-                var watches = _blueprintDebugSession?.GetWatches();
-                var dbmBps  = _bpManager?.AllBreakpoints;
+                var nodeBps = blueprintSession?.GetBreakpoints();
+                var watches = blueprintSession?.GetWatches();
+                var dbmBps  = breakpointManager?.AllBreakpoints;
 
                 DebugSessionPersistence.Save(
                     nodeBps ?? Array.Empty<Hrot.Blueprints.Core.Debug.Breakpoint>(),
                     watches ?? Array.Empty<Hrot.Blueprints.Core.Debug.Watch>(),
                     dbmBps  ?? Array.Empty<Hrot.Diagnostics.Breakpoints.Breakpoint>(),
-                    path);
+                    path,
+                    CapturePinnedVariables(registrars));
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[CF8] Failed to save debug session: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>BP-506</c> — the Watch window's pinned rows, from EVERY perspective, ready for
+        /// <c>DebugSessionPersistence.Save</c>.</b> 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §5.
+        ///
+        /// <para>⛔⛔ <b>This closes a SILENT DEFAULT</b> *(<c>BP-502</c>)*: <c>Save</c>'s
+        /// <c>pinnedVariables</c> parameter is optional and this — its only production caller — did not
+        /// pass it, so <b>no pin was ever written by the shipped editor</b> however complete the
+        /// persistence layer was. ⭐ The rule it broke: <i>a production caller that HAS a dependency must
+        /// PASS it</i> — and it HAD one: the three registrars are fields on this class, wired long before
+        /// the save runs.</para>
+        ///
+        /// <para>⭐ <b>THREE sources, one list.</b> Each perspective owns its own
+        /// <c>AiWatchWindow</c> and therefore its own <c>PinnedVariableRowSource</c>; the file is
+        /// perspective-agnostic because a pin is keyed by <c>AssetId</c> + section + path, which already
+        /// says which perspective owns it.</para>
+        ///
+        /// <para>⚠ <b>Unpersistable pins are skipped and COUNTED</b>, never written as
+        /// <c>NetworkId 0</c> — <c>PinnedVariablePersistence.Capture</c>'s own honesty rule. The count is
+        /// logged so a designer whose pin vanished can see why.</para>
+        /// </summary>
+        internal static IReadOnlyList<Hrot.Diagnostics.Breakpoints.PinnedVariableEntry> CapturePinnedVariables(
+            IEnumerable<Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar?> registrars)
+        {
+            var entries = new List<Hrot.Diagnostics.Breakpoints.PinnedVariableEntry>();
+            int skipped = 0;
+
+            foreach (var registrar in registrars)
+            {
+                var pinned = registrar?.Watch?.Pinned;
+                if (pinned == null) continue;
+
+                entries.AddRange(
+                    Hrot.Editor.AiShared.Variables.PinnedVariablePersistence.Capture(pinned, out var s));
+                skipped += s;
+            }
+
+            if (skipped > 0)
+                Console.WriteLine($"[CF8] {skipped} pinned variable row(s) skipped — no durable entity id to key on.");
+
+            return entries;
         }
 
         /// <summary>
@@ -3977,6 +6467,24 @@ namespace Hrot.Editor
         {
             var path = GetDebugSessionPath();
             if (path == null) return;
+
+            // ── BP-505: the git-maintained curated session overwrites the user's copy, BEFORE the load ──
+            // 🔒 The user's ruling, 2026-08-24: "during development we need clean env controlled from git
+            // only … always overwrite the user's copy with git maintained curated copy on start."
+            // ⛔ It must run BEFORE TryLoad — a copy afterwards would be ignored until the next run.
+            // ⚠ Also the standing recovery for FINDINGS_Empty_Breakpoint_Bricks_The_Editor.md: a poisoned
+            //   session now survives at most one launch instead of bricking every one.
+            try
+            {
+                var dir = Path.GetDirectoryName(path);
+                if (dir != null && DebugSessionPaths.TryResetUserSession(dir))
+                    Console.WriteLine($"[CF8] Debug session reset to the curated copy: {path}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CF8] Failed to reset the debug session from the curated copy: {ex.Message}");
+            }
+            // ─────────────────────────────────────────────────────────────────────────────────────────────
 
             Hrot.Diagnostics.Breakpoints.DebugSessionFile? file;
             try
@@ -4040,19 +6548,33 @@ namespace Hrot.Editor
         // Shared between both BTree and HSM perspective registrars so the
         // "Static Parameters" panel in InspectorWindow knows which blackboard variable
         // is currently bound.
+        // ⭐⭐⭐ THE TWO RESOLVERS LIVED HERE AND ARE GONE (2026-09-26, §32.17).
+        //    🔴 They were BYTE-IDENTICAL to CgfSubsystem's private copies — two hosts running two
+        //    copies of one policy, which is what ruling 9 forbids and what had let CGF sit silently
+        //    without rules 8/8b until CE-338 (where I wired CGF by COPYING them, rather than sharing).
+        //    ⭐ The one definition is now StatefulScopeQueries.IsStatefulSubtree / .SharedScopeKeysOf
+        //    in Hrot.Editor.AiShared, and HsmValidator derives both from the catalogue it is handed.
+        //    ⚠ Their old doc-comment claimed they had to live here "because this is the only place
+        //    that can see both BehaviorTreeAsset and HsmAsset" — TRUE until CE-338 added
+        //    IStatefulScopeAsset, and false the moment it did.
+        //    ⛔ What still gates rules 8/8b on a REAL asset is AUTHORING: no inspector surface writes
+        //    StateNode.SubtreeAssetId/SubtreeName. 📄 DESIGN_Occurrence_Scoped_Storage.md §32.15.
+
         private static string? ResolveExpressionTargetField(object? facet) => facet switch
         {
-            BTreeActionFacet af          => af.ExpressionTargetField,
-            BTreeConditionFacet cf       => cf.ExpressionTargetField,
-            TransitionFacet tf           => tf.ExpressionTargetField,
-            GlobalTransitionFacet gtf    => gtf.ExpressionTargetField,
+            // ⭐ CE-417 slice 4b — a transition has two bindings, each with its own variable (B-2): the action's is the
+            //   one it writes, so it leads; else the guard's.
+            BTreeActionFacet af          => af.Action.ExpressionTargetField,
+            BTreeConditionFacet cf       => cf.Condition.ExpressionTargetField,
+            TransitionFacet tf           => tf.Action.ExpressionTargetField ?? tf.Guard.ExpressionTargetField,
+            GlobalTransitionFacet gtf    => gtf.Action.ExpressionTargetField ?? gtf.Guard.ExpressionTargetField,
             _                            => null,
         };
 
         /// <summary>
         /// BUG-A12: Resolves the open document that belongs to the CURRENT canvas perspective.
-        /// Returns null when the current perspective is the Scenario/"Editor" perspective (the
-        /// scenario branch handles it) or when no document of the matching kind is open.
+        /// Returns null when the current perspective is <c>"Scenario"</c> (the scenario branch handles
+        /// it) or when no document of the matching kind is open.
         /// <para>
         /// Path: <c>windowManager.CurrentPerspective</c> (string) → canonical
         /// <see cref="AssetKind"/> via reverse of <see cref="AssetKindExtensions.ToPerspectiveName"/>
@@ -4067,7 +6589,7 @@ namespace Hrot.Editor
             if (docManager == null) return null;
 
             // Map the current perspective name back to an AssetKind.
-            // "Editor" (Scenario perspective) is handled by the scenario branch — return null here.
+            // ⭐ "Scenario" is handled by the scenario branch and has no arm below — return null here.
             var perspectiveName = windowManager.CurrentPerspective;
             Hrot.Editor.AiShared.AssetKind? targetKind = perspectiveName switch
             {
@@ -4094,13 +6616,7 @@ namespace Hrot.Editor
         // The kernel forbids registering SystemPhase.Simulation systems as global systems;
         // they must be routed through a module.
 
-        private sealed class DelegateDisposable : IDisposable
-        {
-            private Action? _action;
-            public DelegateDisposable(Action action) => _action = action;
-            public void Dispose() { _action?.Invoke(); _action = null; }
-        }
-
+        [TickMode(TickPolicy.WhenTimeAdvances)]
         private sealed class EditorSimulationModule : IEcsModule        {
             private readonly TogglableSimulationGroup _simulationGroup;
 
@@ -4168,6 +6684,23 @@ namespace Hrot.Editor
 #pragma warning disable CS0067
             public event Action? Changed;
 #pragma warning restore CS0067
+        }
+
+        /// <summary>⭐ CE-1161 (CE-3217) — the map's selection callback: an EMPTY click (2-D or 3-D, <c>Entity.Null</c>) hands Details the map
+        /// background. ⛔ An entity click changes nothing here (the views also need "no entity selected").</summary>
+        internal void OnMapSelectionChanged(Entity picked, System.Numerics.Vector3 at)
+        {
+            if (picked.IsNull) _aiEditorSelectionStore.NotifySurfaceFocused(Hrot.Editor.AiShared.Selection.SelectionOrigin.MapBackground);
+        }
+
+        /// <summary>⭐ CE-1161 (CE-3217) — the Zones view's Load: the zone row's network id, run through the map's own "Load zone" action
+        /// (the context menu's), so there is one load path.</summary>
+        private void LoadZoneById(string zoneId)
+        {
+            if (_world == null || !int.TryParse(zoneId, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int id)) return;
+            var zone = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(_world, id);
+            if (zone.IsNull) return;
+            if (_editorMapInteraction?.Actions.TryGetHandler(GlobalActionIds.LoadZone, out var load) == true) load(_world, zone);
         }
     }
 }

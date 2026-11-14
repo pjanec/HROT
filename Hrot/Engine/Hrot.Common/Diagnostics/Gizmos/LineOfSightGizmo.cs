@@ -6,11 +6,12 @@ using Fdp.Toolkit.Perception.Components;
 
 namespace Hrot.Common.Diagnostics.Gizmos
 {
-    [GizmoProjector(typeof(TargetMemory), typeof(SimTransform))]
+    [GizmoProjector(typeof(TargetMemory), typeof(SimTransform), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory, DrawsOffScreen = true)]
     public sealed class LineOfSightGizmo : IStatelessGizmo
     {
         public unsafe void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
+            if (!draw.IsLayerActive(DebugTraceLayers.Contacts)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-1), split from Perception
             ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
             ref readonly var mem = ref view.GetComponentRO<TargetMemory>(entity);
 
@@ -26,20 +27,12 @@ namespace Hrot.Common.Diagnostics.Gizmos
                     continue;
 
                 float ageFade = 1.0f - System.Math.Clamp(ageTicks / 60.0f, 0f, 1f);
-                byte startAlpha = (byte)(255 * ageFade);
-                byte endAlpha = (byte)(64 * ageFade);
-                var targetPos = new Vector3(mem.PositionsX[i], mem.PositionsY[i], 0f);
+                // ⭐ CE-3117 — at the stored height (a unit on a roof is not on the ground), and a HEARD (anonymous) slot drawn as what
+                //   it is: an estimate — dashed, with its uncertainty circle. A sighted slot stays a solid line.
+                var targetPos = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
+                bool heard = TargetMemory.IsAnonymous(in mem, i);
 
-                draw.DrawLineGradient(
-                    perceiverPos,
-                    targetPos,
-                    new Rgba32(255, 60, 60, startAlpha),
-                    new Rgba32(255, 60, 60, endAlpha),
-                    thickness: 1.5f,
-                    sizeMode: SizeMode.ScreenPixels,
-                    target: PipelineTarget.Map2D,
-                    layer: 1,
-                    style: LineStyle.Dashed);
+                ContactLine.Draw(draw, perceiverPos, targetPos, ageFade, heard, mem.Radius[i], DebugTraceLayers.Contacts);   // ⭐ CE-1318 BV-52
             }
         }
     }

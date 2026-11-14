@@ -1,0 +1,53 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — BC-1 (CE-2257): a squad clears one room. The header has no Judge text, so the conditions are its 'Ends with' line and the twin CE2257_*: the stack beside the door (the take's proven cue), a round fired, both insurgents down, no friend hit by a friend. The RoomClear report is a squad report, not a component: left out. CE-2341: about 1 run in 4 loses the entry men; the editor is deterministic, so one run stays one.",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "stack": {
+      "on": "near",
+      "who": "Blue Rifleman 1",
+      "point": [
+        47,
+        112
+      ],
+      "within": 3
+    }
+  },
+  "expect": [
+    {
+      "name": "Rifleman 1 stacks beside the north side door",
+      "on": "near",
+      "who": "Blue Rifleman 1",
+      "point": [
+        47,
+        112
+      ],
+      "within": 3
+    },
+    {
+      "name": "the room is fought for: a round is fired",
+      "on": "shot",
+      "after": "stack"
+    },
+    {
+      "name": "both insurgents are down",
+      "on": "field",
+      "who": "*Insurgent",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "quantifier": "all",
+      "atEnd": true
+    },
+    {
+      "name": "no Blue round hits a Blue man",
+      "never": {
+        "on": "shot",
+        "by": "*Blue",
+        "hit": "*Blue"
+      }
+    }
+  ]
+}

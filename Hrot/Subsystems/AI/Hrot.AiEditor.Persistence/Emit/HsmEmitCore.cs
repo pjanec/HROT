@@ -26,9 +26,17 @@ public static class HsmEmitCore
     /// Byte-identical to <c>HsmFluentEmitter.Emit(model)</c> when given
     /// <c>mapper.ToDto(model)</c>.  Used by the editor adapter + BATCH-02 gate.
     /// </remarks>
-    public static string Emit(HsmAssetDto dto)
+    public static string Emit(HsmAssetDto dto) => Emit(dto, laneOf: null);
+
+    /// <summary>
+    /// ⭐ <c>HSM-020</c> overload: the editor's save path supplies the output-lane resolver by REFLECTION over the
+    /// loaded behaviour assemblies, where the generator supplies it from the Roslyn compilation. Same answer, two
+    /// hosts — so the editor's emitted file and the build's generated file declare the same lanes.
+    /// ⚠ Absent ⇒ no <c>.OutputLaneMask(...)</c> is emitted and the state's mask stays 0, exactly as before.
+    /// </summary>
+    public static string Emit(HsmAssetDto dto, System.Func<string, byte?>? laneOf)
     {
-        return EmitInternal(dto, includeLayout: true);
+        return EmitInternal(dto, includeLayout: true, laneOf: laneOf);
     }
 
     /// <summary>
@@ -38,13 +46,118 @@ public static class HsmEmitCore
     /// Layout lives in JSON; read by the future JSON loader (PU-301).
     /// </summary>
     public static string EmitTopologyCore(HsmAssetDto dto)
+        => EmitTopologyCore(dto, sizeResolver: null);
+
+    /// <summary>
+    /// ⭐ <c>E7b</c> overload: an optional struct-size resolver, so a transition bound to a
+    /// struct-typed managed variable can bake that variable's packed offset into its action key.
+    /// Primitive-typed variables need no resolver and are unaffected.
+    /// </summary>
+    public static string EmitTopologyCore(HsmAssetDto dto, System.Func<string, int?>? sizeResolver)
+        => EmitTopologyCore(dto, sizeResolver, blueprintIdResolver: null);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-384</c> overload: resolves a BLUEPRINT ASSET ID to the <c>ushort</c> its
+    /// generated thunk registers under, so a state's activity or a transition's guard can be a
+    /// blueprint.</b>
+    ///
+    /// <para>🔴 <b>It is a delegate, and it has to be.</b> The blueprint's <c>BlueprintId</c> lives in
+    /// <c>GeneratedBlueprintSchemaCatalog</c>, which is <c>internal</c> to the GENERATOR assembly and
+    /// derives it from the <c>.bp.json</c> AdditionalTexts. ⛔ Sibling Roslyn generators cannot see
+    /// each other's output — the generated <c>{Name}_{BlueprintId:X8}_Bp</c> class is unresolvable by
+    /// symbol <i>"not even in a fully successful real build"</i> — so the id cannot be looked up here
+    /// and must be handed in. ⭐ Exactly the shape <paramref name="sizeResolver"/> already uses.</para>
+    /// </summary>
+    public static string EmitTopologyCore(
+        HsmAssetDto dto,
+        System.Func<string, int?>? sizeResolver,
+        System.Func<System.Guid, ushort?>? blueprintIdResolver)
+        => EmitTopologyCore(dto, sizeResolver, blueprintIdResolver, blueprintClassNameResolver: null);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-388</c> / <c>Q74 D-B1</c> overload: also resolves a blueprint asset id to its
+    /// GENERATED CLASS NAME, so a state whose activity is a blueprint gets that blueprint's
+    /// exit-cleanup auto-bound as its <c>OnExit</c>.</b>
+    ///
+    /// <para>🔒 <b>The default that needs no authoring</b> (user, <c>2026-09-28</c>): a state whose
+    /// activity drives an actuator channel releases it on exit, with nothing declared anywhere.</para>
+    ///
+    /// <para>⚠ <b>Why the CLASS NAME and not another <c>ushort</c>.</b> The id is
+    /// <c>HsmActionKey.ForExitCleanup(className)</c>, and that formula is a LINKED file shared with
+    /// the blueprint emitter that registers the thunk (<c>Q74 D-F</c>). Passing the NAME and hashing
+    /// it here — rather than passing a pre-computed id — keeps exactly one place that knows the
+    /// formula. ⛔ <c>CE-403</c> measured what a second place costs: the sibling C# table is keyed
+    /// on the SHORT method name while an asset holds the FQN, so its lookup misses in silence.</para>
+    ///
+    /// <para>⛔ <c>null</c> for a non-AiPrimitive or unknown asset — never a fallback string. A
+    /// wrong name hashes to a plausible id that nothing registered, which is the failure this whole
+    /// id story exists to avoid.</para>
+    /// </summary>
+    public static string EmitTopologyCore(
+        HsmAssetDto dto,
+        System.Func<string, int?>? sizeResolver,
+        System.Func<System.Guid, ushort?>? blueprintIdResolver,
+        System.Func<System.Guid, string?>? blueprintClassNameResolver)
+        => EmitTopologyCore(dto, sizeResolver, blueprintIdResolver, blueprintClassNameResolver,
+                            csharpWritesChannel: null);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-388</c> / <c>Q74 D-D1</c> overload: ONE RULE FOR BOTH ROUTES.</b>
+    ///
+    /// <para>🔒 User, <c>2026-09-28</c>: <i>"same auto-bind"</i> ⇒ a C# activity that declares
+    /// <c>[WritesChannel]</c> gets its generated cleanup bound on exit too, not just a blueprint
+    /// one. Before this the C# author had the cleanup BODY generated for them and still had to
+    /// bind it by hand.</para>
+    ///
+    /// <para><paramref name="csharpWritesChannel"/> answers <i>"does this action FQN declare
+    /// <c>[WritesChannel]</c>?"</i> — the caller reads it off the Roslyn compilation, which is the
+    /// only place that knows. ⛔ <c>null</c> ⇒ no C# auto-bind, so a host without a compilation
+    /// emits exactly what it did before.</para>
+    ///
+    /// <para>⚠⚠ <b>This CHANGES A SHIPPED CONTRACT</b> and is deliberately a separate, revertible
+    /// step: an asset binding a channel-writing C# activity now gets an <c>OnExit</c> it did not
+    /// author. 📐 Measured blast radius: <c>HsmTwoChannelRegionsDemo</c>, whose two activities
+    /// gained <c>[WritesChannel]</c> in <c>CE-403</c> — and which leaks both channels on state exit
+    /// today. That is the fix working, not a regression.</para>
+    /// </summary>
+    public static string EmitTopologyCore(
+        HsmAssetDto dto,
+        System.Func<string, int?>? sizeResolver,
+        System.Func<System.Guid, ushort?>? blueprintIdResolver,
+        System.Func<System.Guid, string?>? blueprintClassNameResolver,
+        System.Func<string, bool>? csharpWritesChannel,
+        System.Func<string, SharedAiMethodInfo?>? sharedAi = null,
+        // ⭐ HSM-020 — "what CommandLane does this action FQN write to?", answered by the caller from the Roslyn
+        //   compilation (the attribute lives on the method symbol and Fhsm.Compiler does no reflection).
+        //   Optional: absent ⇒ no .OutputLanes(...) is emitted and the mask stays 0, exactly as before.
+        System.Func<string, byte?>? laneOf = null,
+        // ⭐ CE-3182 — the field layouts a binding path (Variable.Field) walks; null ⇒ bindings name whole variables only.
+        FieldLayoutResolver? fields = null)
     {
-        return EmitInternal(dto, includeLayout: false);
+        return EmitInternal(dto, includeLayout: false, sizeResolver, blueprintIdResolver,
+                            blueprintClassNameResolver, csharpWritesChannel, sharedAi, laneOf, fields);
     }
 
     /// <summary>Core emitter: shared implementation for both <see cref="Emit"/> and <see cref="EmitTopologyCore"/>.</summary>
-    private static string EmitInternal(HsmAssetDto dto, bool includeLayout)
+    private static string EmitInternal(HsmAssetDto dto, bool includeLayout,
+        System.Func<string, int?>? sizeResolver = null,
+        System.Func<System.Guid, ushort?>? bpId = null,
+        // ⭐ CE-388 — resolves an asset id to its GENERATED CLASS NAME, the string both
+        //   sides hash to get the exit-cleanup id (Q74 D-F). Optional: a caller with no
+        //   blueprint catalogue simply gets no auto-bound cleanup.
+        System.Func<System.Guid, string?>? bpClassName = null,
+        // ⭐ D-D1 — "does this C# activity declare [WritesChannel]?", answered from the
+        //   Roslyn compilation by the caller. Optional: absent ⇒ no C# auto-bind.
+        System.Func<string, bool>? csharpWritesChannel = null,
+        System.Func<string, SharedAiMethodInfo?>? sharedAi = null,
+        System.Func<string, byte?>? laneOf = null,          // ⭐ HSM-020
+        FieldLayoutResolver? fields = null)                 // ⭐ CE-3182
     {
+        // ⭐ Q84 C1/D1 — an old file's childless History pseudo-state becomes its parent's flag BEFORE emit, so the
+        //    generator and the editor build the same machine (idempotent; a migrated asset is untouched).
+        Hrot.AiEditor.Persistence.Hsm.HsmHistoryMigration.Apply(dto);
+        WorkingStateVariables.Mark(dto);   // ⭐ CE-3193 — working state is derived from the bindings, not read from the file
+
         var sb = new StringBuilder();
         var usings = includeLayout ? CollectUsings(dto) : CollectUsingsTopologyOnly(dto);
 
@@ -72,7 +185,7 @@ public static class HsmEmitCore
         sb.AppendLine($"public static class {className}");
         sb.AppendLine("{");
 
-        EmitCreateBuilder(sb, dto);
+        EmitCreateBuilder(sb, dto, sizeResolver, bpId, bpClassName, csharpWritesChannel, sharedAi, laneOf, fields);
         sb.AppendLine();
         EmitCompile(sb, dto);
 
@@ -108,20 +221,20 @@ public static class HsmEmitCore
         // Collect namespaces from action/guard FQNs in states, transitions, global transitions.
         foreach (var s in dto.States)
         {
-            AddNsFromFqn(set, s.OnEntryAction);
-            AddNsFromFqn(set, s.OnExitAction);
-            AddNsFromFqn(set, s.ActivityAction);
-            AddNsFromFqn(set, s.TimerAction);
+            AddNsFromFqn(set, s.OnEntry?.MethodFqn);
+            AddNsFromFqn(set, s.OnExit?.MethodFqn);
+            AddNsFromFqn(set, s.Activity?.MethodFqn);
+            AddNsFromFqn(set, s.Timer?.MethodFqn);
         }
         foreach (var t in dto.Transitions)
         {
-            AddNsFromFqn(set, t.GuardFunction);
-            AddNsFromFqn(set, t.ActionFunction);
+            AddNsFromFqn(set, t.Guard?.MethodFqn);
+            AddNsFromFqn(set, t.Action?.MethodFqn);
         }
         foreach (var gt in dto.GlobalTransitions)
         {
-            AddNsFromFqn(set, gt.GuardFunction);
-            AddNsFromFqn(set, gt.ActionFunction);
+            AddNsFromFqn(set, gt.Guard?.MethodFqn);
+            AddNsFromFqn(set, gt.Action?.MethodFqn);
         }
 
         return AiEmitCoreBase.SortUsings(set);
@@ -148,20 +261,20 @@ public static class HsmEmitCore
         // Collect namespaces from action/guard FQNs in states, transitions, global transitions.
         foreach (var s in dto.States)
         {
-            AddNsFromFqn(set, s.OnEntryAction);
-            AddNsFromFqn(set, s.OnExitAction);
-            AddNsFromFqn(set, s.ActivityAction);
-            AddNsFromFqn(set, s.TimerAction);
+            AddNsFromFqn(set, s.OnEntry?.MethodFqn);
+            AddNsFromFqn(set, s.OnExit?.MethodFqn);
+            AddNsFromFqn(set, s.Activity?.MethodFqn);
+            AddNsFromFqn(set, s.Timer?.MethodFqn);
         }
         foreach (var t in dto.Transitions)
         {
-            AddNsFromFqn(set, t.GuardFunction);
-            AddNsFromFqn(set, t.ActionFunction);
+            AddNsFromFqn(set, t.Guard?.MethodFqn);
+            AddNsFromFqn(set, t.Action?.MethodFqn);
         }
         foreach (var gt in dto.GlobalTransitions)
         {
-            AddNsFromFqn(set, gt.GuardFunction);
-            AddNsFromFqn(set, gt.ActionFunction);
+            AddNsFromFqn(set, gt.Guard?.MethodFqn);
+            AddNsFromFqn(set, gt.Action?.MethodFqn);
         }
 
         return AiEmitCoreBase.SortUsings(set);
@@ -182,8 +295,28 @@ public static class HsmEmitCore
 
     // ---- CreateBuilder ----
 
-    private static void EmitCreateBuilder(StringBuilder sb, HsmAssetDto dto)
+    private static void EmitCreateBuilder(StringBuilder sb, HsmAssetDto dto,
+        System.Func<string, int?>? sizeResolver = null,
+        System.Func<System.Guid, ushort?>? bpId = null,
+        // ⭐ CE-388 — resolves an asset id to its GENERATED CLASS NAME, the string both
+        //   sides hash to get the exit-cleanup id (Q74 D-F). Optional: a caller with no
+        //   blueprint catalogue simply gets no auto-bound cleanup.
+        System.Func<System.Guid, string?>? bpClassName = null,
+        // ⭐ D-D1 — "does this C# activity declare [WritesChannel]?", answered from the
+        //   Roslyn compilation by the caller. Optional: absent ⇒ no C# auto-bind.
+        System.Func<string, bool>? csharpWritesChannel = null,
+        // ⭐ CE-417 B-2 — "is this FQN a [SharedAi*] method, and what does it take?", from the Roslyn compilation.
+        System.Func<string, SharedAiMethodInfo?>? sharedAi = null,
+        System.Func<string, byte?>? laneOf = null,          // ⭐ HSM-020
+        FieldLayoutResolver? fields = null)                 // ⭐ CE-3182
     {
+        // ⭐⭐ E7b — the packed offsets of the managed blackboard's inline params, computed once for
+        //    the whole asset. An unbound transition never touches this map, so an asset with no
+        //    ExpressionTargetField emits byte-identically.
+        var paramOffsets = HsmParamOffsets(dto, sizeResolver, fields);
+        var namer = new BindingNamer(paramOffsets, sharedAi, dto.AssetId);   // ⭐ CE-417: ONE naming rule for every binding (S8: stateful keys are per asset)
+        var regions = RegionPlan.For(dto);   // ⭐ CE-1003: the editor's declared regions reach the builder as STRUCTURE
+
         sb.AppendLine($"{Indent}public static HsmBuilder CreateBuilder()");
         sb.AppendLine($"{Indent}{{");
 
@@ -194,14 +327,8 @@ public static class HsmEmitCore
         // Build event-id map from the DTO.
         // EventId is stored in the DTO for byte-identical emit (from original builder calls).
         // For assets without stored IDs (EventId==0), fall back to sequential assignment.
-        var eventIdMap = new Dictionary<string, ushort>(StringComparer.Ordinal);
-        ushort fallbackId = 1;
-        foreach (var ev in dto.Events)
-        {
-            ushort id = ev.EventId != 0 ? ev.EventId : fallbackId;
-            eventIdMap[ev.Name] = id;
-            if (ev.EventId == 0) fallbackId++;
-        }
+        // ⭐ CE-3040: one assignment shared with the editor's mapper — an engine-raised event's name wins its reserved id.
+        var eventIdMap = HsmEventIds.Assign(dto.Events.Select(e => (e.Name, e.EventId)));
 
         // Events emitted in original order (sorted by EventId to match HsmFluentEmitter's
         // AllEvents.OrderBy(e => e.EventId) behavior)
@@ -212,8 +339,8 @@ public static class HsmEmitCore
             var sortedEvents = new System.Collections.Generic.List<EventDefinitionDto>(dto.Events);
             sortedEvents.Sort((a, b) =>
             {
-                ushort idA = a.EventId != 0 ? a.EventId : (eventIdMap.TryGetValue(a.Name, out var va) ? va : (ushort)0);
-                ushort idB = b.EventId != 0 ? b.EventId : (eventIdMap.TryGetValue(b.Name, out var vb) ? vb : (ushort)0);
+                ushort idA = eventIdMap.TryGetValue(a.Name, out var va) ? va : a.EventId;
+                ushort idB = eventIdMap.TryGetValue(b.Name, out var vb) ? vb : b.EventId;
                 return idA.CompareTo(idB);
             });
             foreach (var ev in sortedEvents)
@@ -226,7 +353,7 @@ public static class HsmEmitCore
         }
 
         // RegisterAction calls (alphabetical)
-        var allActions = CollectActions(dto);
+        var allActions = CollectActions(dto, namer);
         if (allActions.Count > 0)
         {
             sb.AppendLine();
@@ -235,7 +362,7 @@ public static class HsmEmitCore
         }
 
         // RegisterGuard calls (alphabetical)
-        var allGuards = CollectGuards(dto);
+        var allGuards = CollectGuards(dto, namer);
         if (allGuards.Count > 0)
         {
             sb.AppendLine();
@@ -316,13 +443,13 @@ public static class HsmEmitCore
             // Pass 1: declarations only (no transitions).
             var pendingTransitions = new System.Collections.Generic.List<(string VarName, TransitionNodeDto T)>();
             foreach (var topState in userTopLevel)
-                EmitTopLevelStateDecl(sb, dto, topState, stableIdToState, pad, eventIdMap, pendingTransitions, stateVarNames);
+                EmitTopLevelStateDecl(sb, dto, topState, stableIdToState, pad, eventIdMap, pendingTransitions, stateVarNames, bpId, bpClassName, csharpWritesChannel, namer, regions, laneOf);
 
             // Pass 2: emit transitions after all states are declared (avoids GoTo forward-ref error).
             // Each state's own transitions are appended consecutively in document order, so the
             // per-state TransitionNode order (and thus the compiled blob) is unchanged.
             foreach (var (varName, t) in pendingTransitions)
-                EmitTransitionCall(sb, stableIdToState, varName, t, pad, eventIdMap);
+                EmitTransitionCall(sb, stableIdToState, varName, t, pad, eventIdMap, paramOffsets, bpId, bpClassName, csharpWritesChannel, namer);
         }
 
         // Global transitions sorted by EventId (matching original emitter: OrderBy(g => g.EventId))
@@ -342,9 +469,16 @@ public static class HsmEmitCore
                 string evRef     = gt.EventName ?? "";
                 string targetName = stableIdToState.TryGetValue(gt.TargetStableId, out var tgt)
                     ? tgt.Name : "???";
+                // ⭐⭐ CE-506 — the guard, the effect action and the priority. ⛔ They used to be dropped here: the facet drew
+                //   them and the DTO saved them, and nothing ran them. Named by the SAME BindingNamer a transition uses, so
+                //   CollectGuards/CollectActions register exactly what the global transition addresses.
+                string extra = "";
+                if (namer.Name(gt.Guard) is string gName) extra += $", guard: {QuoteStr(gName)}";
+                if (namer.Name(gt.Action, legacyCompound: true) is string aName) extra += $", action: {QuoteStr(aName)}";
+                if (gt.Priority != 0) extra += $", priority: {gt.Priority}";
                 sb.AppendLine(
                     $"{pad}builder.GlobalTransition({QuoteStr(evRef)}, {QuoteStr(targetName)}," +
-                    $" visualId: new Guid({QuoteStr(gt.VisualId.ToString("D"))}));");
+                    $" visualId: new Guid({QuoteStr(gt.VisualId.ToString("D"))}){extra});");
             }
         }
 
@@ -366,7 +500,11 @@ public static class HsmEmitCore
         string pad,
         Dictionary<string, ushort> eventIdMap,
         System.Collections.Generic.List<(string VarName, TransitionNodeDto T)> pendingTransitions,
-        Dictionary<Guid, string> stateVarNames)
+        Dictionary<Guid, string> stateVarNames,
+        System.Func<System.Guid, ushort?>? bpId,
+        System.Func<System.Guid, string?>? bpClassName,
+        System.Func<string, bool>? csharpWritesChannel, BindingNamer namer, RegionPlan regions,
+        System.Func<string, byte?>? laneOf = null)          // ⭐ HSM-020
     {
         var outgoing = dto.Transitions
             .Where(t => t.SourceStableId == state.StableId)
@@ -382,7 +520,7 @@ public static class HsmEmitCore
         bool needsVar = varName != null;
 
         string decl = $"builder.State({QuoteStr(state.Name)}, stableId: new Guid({QuoteStr(state.StableId.ToString("D"))}))";
-        var config   = BuildStateConfig(state, eventIdMap);
+        var config   = BuildStateConfig(state, eventIdMap, bpId, bpClassName, csharpWritesChannel, namer, regions, laneOf);
 
         if (needsVar)
             sb.Append($"{pad}var {varName} = {decl}");
@@ -393,7 +531,7 @@ public static class HsmEmitCore
         sb.AppendLine(";");
 
         foreach (var child in children)
-            EmitChildCall(sb, dto, child, stableIdToState, varName!, pad, depth: 2, eventIdMap, pendingTransitions, stateVarNames);
+            EmitChildCall(sb, dto, child, stableIdToState, varName!, pad, depth: 2, eventIdMap, pendingTransitions, stateVarNames, bpId, bpClassName, csharpWritesChannel, namer, regions, laneOf);
 
         // Collect transitions for Pass 2 (not emitted here to avoid forward-ref errors).
         foreach (var t in outgoing)
@@ -407,12 +545,16 @@ public static class HsmEmitCore
         string parentVar, string pad, int depth,
         Dictionary<string, ushort> eventIdMap,
         System.Collections.Generic.List<(string VarName, TransitionNodeDto T)> pendingTransitions,
-        Dictionary<Guid, string> stateVarNames)
+        Dictionary<Guid, string> stateVarNames,
+        System.Func<System.Guid, ushort?>? bpId,
+        System.Func<System.Guid, string?>? bpClassName,
+        System.Func<string, bool>? csharpWritesChannel, BindingNamer namer, RegionPlan regions,
+        System.Func<string, byte?>? laneOf = null)          // ⭐ HSM-020
     {
         string stableGuid  = QuoteStr(child.StableId.ToString("D"));
         string lambdaParam = $"sb{depth}";
         string innerPad    = pad + "    ";
-        var config = BuildStateConfig(child, eventIdMap);
+        var config = BuildStateConfig(child, eventIdMap, bpId, bpClassName, csharpWritesChannel, namer, regions, laneOf);
 
         var children = child.ChildStableIds
             .Where(id => stableIdToState.ContainsKey(id))
@@ -452,7 +594,7 @@ public static class HsmEmitCore
             }
 
             foreach (var grandchild in children)
-                EmitChildCall(sb, dto, grandchild, stableIdToState, lambdaParam, innerPad, depth + 1, eventIdMap, pendingTransitions, stateVarNames);
+                EmitChildCall(sb, dto, grandchild, stableIdToState, lambdaParam, innerPad, depth + 1, eventIdMap, pendingTransitions, stateVarNames, bpId, bpClassName, csharpWritesChannel, namer, regions, laneOf);
 
             // Transitions are deferred to Pass 2 (referenced via captureVar) — no inline GoTo here.
 
@@ -468,7 +610,11 @@ public static class HsmEmitCore
         StringBuilder sb,
         Dictionary<Guid, StateNodeDto> stableIdToState,
         string stateVar, TransitionNodeDto t, string pad,
-        Dictionary<string, ushort> eventIdMap)
+        Dictionary<string, ushort> eventIdMap,
+        IReadOnlyDictionary<string, int> paramOffsets,
+        System.Func<System.Guid, ushort?>? bpId,
+        System.Func<System.Guid, string?>? bpClassName,
+        System.Func<string, bool>? csharpWritesChannel, BindingNamer namer)
     {
         string onCall = t.EventName != null
             ? $"{stateVar}.On({QuoteStr(t.EventName)})"
@@ -479,10 +625,23 @@ public static class HsmEmitCore
         string chain =
             $".GoTo({QuoteStr(targetName)}, visualId: new Guid({QuoteStr(t.VisualId.ToString("D"))}))";
 
-        if (!string.IsNullOrEmpty(t.GuardFunction))
-            chain += $".Guard({QuoteStr(t.GuardFunction!)})";
-        if (!string.IsNullOrEmpty(t.ActionFunction))
-            chain += $".Action({QuoteStr(t.ActionFunction!)})";
+        string? guardFn = t.Guard?.MethodFqn, actionFn = t.Action?.MethodFqn;   // CE-417
+        Guid guardBp = t.Guard?.BlueprintAssetId ?? Guid.Empty;
+        if (!string.IsNullOrEmpty(guardFn))
+            chain += $".Guard({QuoteStr(namer.Name(t.Guard)!)})";
+        // ⭐⭐⭐ CE-384 — a BLUEPRINT guard, same reasoning as the activity above.
+        if (guardBp != Guid.Empty && bpId != null)
+        {
+            ushort? gid = bpId(guardBp);
+            if (gid.HasValue) chain += $".GuardId({gid.Value})";
+        }
+        // ⭐⭐ CE-381 — the POLLED marker. ⛔ Deliberately NOT expressed by omitting the event: an
+        //   eventless transition is a COMPLETION transition (§2.3). The flattener normalises a
+        //   polled transition onto ReservedEventIds.Polled so the two stay disjoint.
+        if (t.IsPolled)
+            chain += ".Polled()";
+        if (!string.IsNullOrEmpty(actionFn))
+            chain += $".Action({QuoteStr(namer.Name(t.Action, legacyCompound: true)!)})";
         if (t.Priority != 0)
             chain += $".Priority({t.Priority})";
 
@@ -574,10 +733,56 @@ public static class HsmEmitCore
             sb.AppendLine($"{Indent}{Indent}.SuppressUnusedWarning(\"{sup}\")");
         }
 
+        // ⭐ W7b (§9.4) -- per-VARIABLE "allow concurrent writes". Sorted like its neighbours so the
+        //   emitted layout method stays deterministic; omitted entirely when empty, so every existing
+        //   asset emits byte-identically.
+        foreach (var allowed in (dto.Suppressions.ConcurrentWritesAllowed ?? new()).OrderBy(s => s))
+        {
+            sb.AppendLine($"{Indent}{Indent}.AllowConcurrentWrites(\"{allowed}\")");
+        }
+
         sb.AppendLine($"{Indent}{Indent}.Build();");
     }
 
     // ---- Helpers ----
+
+    /// <summary>
+    /// ⭐ CE-1003 (docs/blueprints/Architect_Question_84 §6, A0 + B) — the editor's DECLARED regions, as the builder
+    /// needs them: which children of a parallel state belong to which region, and which child is each region's
+    /// initial state. Before this the regions were emitted only into the layout method, so the compiler made every
+    /// child of a parallel state a region of its own (HsmCuratedBindingDemo: drawn as 2 regions, ran 3).
+    /// A parallel state that owns no <see cref="RegionNodeDto"/> is left alone (each child stays its own region).
+    /// </summary>
+    internal sealed class RegionPlan
+    {
+        public Dictionary<Guid, int> RegionOf { get; } = new();
+        public HashSet<Guid> RegionInitials { get; } = new();
+
+        public static RegionPlan For(HsmAssetDto dto)
+        {
+            var plan = new RegionPlan();
+            var byId = dto.States.ToDictionary(s => s.StableId);
+            foreach (var parallel in dto.States.Where(s => s.IsParallel))
+            {
+                var owned = dto.Regions.Where(r => OwnerOf(r, byId) == parallel.StableId).ToList();
+                if (owned.Count == 0) continue;
+                foreach (var childId in parallel.ChildStableIds)
+                {
+                    if (!byId.TryGetValue(childId, out var child)) continue;
+                    plan.RegionOf[childId] = child.RegionIndex;
+                }
+                foreach (var r in owned)
+                    if (r.InitialChildStableId is { } init) plan.RegionInitials.Add(init);
+            }
+            return plan;
+        }
+
+        // The owner field is authoritative; files saved before it existed fall back to the initial child's parent
+        // (the HsmAssetMapper rule).
+        private static Guid? OwnerOf(RegionNodeDto r, Dictionary<Guid, StateNodeDto> byId)
+            => r.OwnerStableId
+               ?? (r.InitialChildStableId is { } c && byId.TryGetValue(c, out var child) ? child.ParentStableId : null);
+    }
 
     private static string QuoteStr(string s) => $"\"{s}\"";
     private static string BoolStr(bool b) => b ? "true" : "false";
@@ -626,34 +831,151 @@ public static class HsmEmitCore
         return name;
     }
 
+    // ⭐ CE-2039 (S8g G4) — the HSM's CLASS uses the strip shape its own _Block/_Blackboard structs already used (via
+    //   BlackboardOwner → BTreeEmitCore): it replaced with '_' instead, so "Guard-Patrol" made class Guard_Patrol but
+    //   GuardPatrol_Block, and a second HSM "GuardPatrol" collided on that struct. bare: a keyword name gets '_'.
     private static string SanitizeIdentifier(string name)
-    {
-        var sb = new StringBuilder(name.Length);
-        foreach (char c in name)
-        {
-            if (char.IsLetterOrDigit(c) || c == '_')
-                sb.Append(c);
-            else
-                sb.Append('_');
-        }
-        string result = sb.ToString();
-        if (result.Length == 0 || char.IsDigit(result[0]))
-            result = "_" + result;
-        return result;
-    }
+        => global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.StripInvalid(name, "HsmAsset", bare: true);
 
-    private static List<string> BuildStateConfig(StateNodeDto s, Dictionary<string, ushort> eventIdMap)
+    private static List<string> BuildStateConfig(StateNodeDto s, Dictionary<string, ushort> eventIdMap,
+        System.Func<System.Guid, ushort?>? bpId, System.Func<System.Guid, string?>? bpClassName, System.Func<string, bool>? csharpWritesChannel, BindingNamer namer,
+        RegionPlan? regions = null,
+        System.Func<string, byte?>? laneOf = null)          // ⭐ HSM-020
     {
         var parts = new List<string>();
-        if (s.IsInitial)     parts.Add(".Initial()");
+        // ⭐ CE-1003 (Q84 B): a child of a parallel state with declared regions is initial iff its REGION names it
+        //    (RegionNodeDto.InitialChildStableId — the one owner); everywhere else the child's own IsInitial.
+        bool inRegion = regions != null && regions.RegionOf.TryGetValue(s.StableId, out _);
+        if (inRegion ? regions!.RegionInitials.Contains(s.StableId) : s.IsInitial) parts.Add(".Initial()");
+        if (inRegion) parts.Add($".InRegion({regions!.RegionOf[s.StableId]})");
         if (s.IsHistory)     parts.Add(".History()");
         if (s.IsDeepHistory) parts.Add(".DeepHistory()");
         if (s.IsParallel)    parts.Add(".Parallel()");
         if (s.IsFinal)       parts.Add(".Final()");
-        if (s.OnEntryAction  != null) parts.Add($".OnEntry({QuoteStr(s.OnEntryAction)})");
-        if (s.OnExitAction   != null) parts.Add($".OnExit({QuoteStr(s.OnExitAction)})");
-        if (s.ActivityAction != null) parts.Add($".Activity({QuoteStr(s.ActivityAction)})");
-        if (s.TimerAction    != null) parts.Add($".TimerAction({QuoteStr(s.TimerAction)})");
+        // ⭐ CE-417: the four slots are BehaviorActionBindingDto now; read once, emit exactly as before.
+        string? onEntry = s.OnEntry?.MethodFqn, onExit = s.OnExit?.MethodFqn;
+        string? activity = s.Activity?.MethodFqn, timer = s.Timer?.MethodFqn;
+        Guid activityBp = s.Activity?.BlueprintAssetId ?? Guid.Empty;
+        // ⭐ CE-417 B-2: a bound [SharedAi*] slot is addressed by its own Fqn@hostOffset (BindingNamer).
+        if (onEntry  != null) parts.Add($".OnEntry({QuoteStr(namer.Name(s.OnEntry)!)})");
+        if (onExit   != null) parts.Add($".OnExit({QuoteStr(namer.Name(s.OnExit)!)})");
+        if (activity != null) parts.Add($".Activity({QuoteStr(namer.Name(s.Activity)!)})");
+        // ⭐ CE-2083 (§4.10 D1/D3) — an SOP order RUNS AS the state's activity, under its ActionKey (the bridge registers the
+        //   SopActions thunk there). ⛔ An order AND an activity binding is one slot with two owners: fail loud (HSM0001).
+        if (s.SopOrder != null)
+        {
+            if (activity != null || activityBp != Guid.Empty)
+                throw new InvalidOperationException(
+                    $"State '{s.Name}' carries an SOP order AND an Activity binding — the order runs as the activity; remove one.");
+            parts.Add($".Activity({QuoteStr(namer.SopOrderName(s.SopOrder, $"in state '{s.Name}'")!)})");
+        }
+        // ⭐⭐⭐ CE-384 — a BLUEPRINT activity is addressed by ASSET ID and baked as an EXPLICIT id.
+        //   ⛔ There is no name to emit: the thunk registers under BlueprintId = FNV-1a32(assetId),
+        //   which no authorable string hashes to (§3.2), and the generated class name embeds that
+        //   hash so it is not a stable handle either.
+        //   ⚠ Emitted ONLY when the resolver finds it. An unresolved reference falls through with
+        //   NO .ActivityId(...) — the state simply has no activity, which is the same failure mode
+        //   as a dangling subtree name and is caught by the validator, not papered over with a 0.
+        if (activityBp != Guid.Empty && bpId != null)
+        {
+            ushort? id = bpId(activityBp);
+            if (id.HasValue)
+            {
+                parts.Add($".ActivityId({id.Value})");
+
+                // ⭐⭐⭐ CE-388 / Q74 D-B1 — THE DEFAULT THAT NEEDS NO AUTHORING.
+                //
+                // 🔒 User, 2026-09-28: "the most common use case is a default so the user does not
+                //    need to author unless he needs something extra." ⇒ a state whose activity is a
+                //    blueprint releases that blueprint's channels on exit, automatically.
+                //
+                // ⭐⭐ FILL-AN-EMPTY-SLOT, and this `== null` IS the rule. HsmFlattener:173 reads
+                //    `ExitActionId != 0 ? ExitActionId : hash(OnExitAction)`, so the baked id WINS
+                //    over an authored name — the builder cannot express "only if unset". Guarding
+                //    here is therefore what keeps an authored cleanup authoritative.
+                //
+                // ⚠ Emitted unconditionally for a blueprint activity, even one that commands no
+                //   channel. The alternative — emit only when the blueprint HAS channels — would
+                //   require this side to know each blueprint's derived channel set, i.e. ship that
+                //   set across the netstandard wall and keep two producers in step. ⛔ CE-403
+                //   measured what that costs. An empty cleanup is a no-op; the coupling is not.
+                //
+                // ⛔⛔ THE ID MUST MATCH WHAT THE BLUEPRINT REGISTRAR REGISTERED. Both sides call
+                //    the SAME linked HsmActionKey (Q74 D-F) on the SAME string — the generated
+                //    class name. If they ever diverge the state binds an action nothing registered,
+                //    and the only symptom is a channel that is never released.
+                if (onExit == null && bpClassName != null)
+                {
+                    string? className = bpClassName(activityBp);
+                    if (className != null)
+                        parts.Add($".OnExitId({Fdp.Toolkit.Behavior.Shared.HsmActionKey.ForExitCleanup(className)})");
+                }
+            }
+        }
+        // ⭐⭐⭐ CE-388 / Q74 D-D1 — THE SAME DEFAULT FOR THE C# ROUTE (user, 2026-09-28).
+        //
+        // 🔒 One rule, not two: "a channel-writing activity releases its channel on exit unless you
+        //    say otherwise." Before this, a C# [WritesChannel] activity had its cleanup body
+        //    GENERATED but the author had to bind it by hand.
+        //
+        // ⛔⛔ THE KEY IS THE SHORT METHOD NAME, AND THAT IS NOT A STYLE CHOICE.
+        //    HsmActionGenerator.cs:565 registers the cleanup under ForExitCleanup(m.Name) — the
+        //    SHORT name — while an asset names its activity by FQN. 📌 CE-403 measured exactly this
+        //    mismatch as break ③ of three, and CE403_R2 pins it. Hashing the FQN here would compute
+        //    an id nothing registered and bind a non-existent action, silently.
+        //
+        // ⭐ Same fill-an-empty-slot guard as the blueprint arm, for the same reason.
+        if (activity != null && onExit == null && csharpWritesChannel != null
+            && csharpWritesChannel(activity))
+        {
+            int dot = activity.LastIndexOf('.');
+            string shortName = dot >= 0 ? activity.Substring(dot + 1) : activity;
+            parts.Add($".OnExitId({Fdp.Toolkit.Behavior.Shared.HsmActionKey.ForExitCleanup(shortName)})");
+        }
+        if (timer    != null) parts.Add($".TimerAction({QuoteStr(namer.Name(s.Timer)!)})");
+
+        // ⭐⭐⭐ HSM-020 — THE STATE'S OUTPUT LANES, so the kernel's orthogonal-region arbitration has something to
+        //    arbitrate. 📄 HSM_Editor_NodeEditor_Host_Design.md §10.3a.
+        //
+        // 🔴 Why this emission has to exist: HsmKernelCore.ArbitrateOutputLanes runs on EVERY transition and reads
+        //    StateDef.OutputLaneMask of each region's active leaf — but the only writer of that field was a test.
+        //    §10.3 step 5 said the editor need not emit it because "the kernel computes it at compile time";
+        //    measured 2026-10-06, nothing in Fhsm.Compiler computes it, so two parallel regions driving the same
+        //    lane were never detected at runtime.
+        //
+        // ⭐ Derived here, at BUILD time, from the attributes of the actions this state actually binds — the same
+        //    rule HsmOutputLaneMaskInferrer applies in the editor (§10.3 steps 1-3), and the same four slots.
+        //    ⛔ NOT persisted in the .hsm.json: a stored mask goes stale the moment a [HsmAction(Lane=…)] changes
+        //    without the asset being reopened, and a stale mask makes the kernel suppress the WRONG region.
+        // ⚠ Transitions are deliberately excluded: the kernel arbitrates a state's STEADY-STATE output (its active
+        //    leaf), and the editor's inferrer ORs the same four state slots. Two rules would drift.
+        //
+        // ⛔⛔ EMITTED AS A MASK, NOT AS `CommandLane.Animation` — AND THAT IS THE ASSEMBLY BOUNDARY TALKING.
+        //    This project is netstandard2.0 with ZERO project references by design (see the .csproj: everything
+        //    shared is LINKED source, never referenced), so `CommandLane` is not a type it can name. Emitting the
+        //    readable form would mean keeping a COPY of the lane names here — which would mis-map silently if the
+        //    enum were ever reordered, the very duplicate-table failure the linked-source comments in that .csproj
+        //    exist to prevent. ⭐ `StateBuilder.OutputLaneMask(byte)` is FastHSM's overload for exactly this; its
+        //    `OutputLanes(params CommandLane[])` twin is the readable form for HAND-written machines.
+        //    ⚠ The emitted file is machine-owned and regenerated whole (R-50), so its readability is worth less
+        //    than the guarantee that the bit means what the enum says.
+        if (laneOf != null)
+        {
+            byte mask = 0;
+            foreach (var fqn in new[] { onEntry, onExit, activity, timer })
+            {
+                if (fqn == null) continue;
+                var lane = laneOf(fqn);
+                // ⚠ The guard here is about the MASK'S WIDTH, not the enum's Count — deliberately, so this
+                //   assembly needs no constant from FastHSM. `CommandLane.None` is 0xFF and C# would shift it by
+                //   255 & 31, setting a bit that means nothing. The BUILDER drops anything >= CommandLane.Count,
+                //   which is the question only it can answer. Two guards, two different questions.
+                if (lane is null || lane.Value > 7) continue;
+                mask |= (byte)(1 << lane.Value);
+            }
+            if (mask != 0)
+                parts.Add($".OutputLaneMask(0x{mask:X2})");
+        }
         // Deferred events in ascending ID order (matching HsmFluentEmitter: OrderBy(id => id))
         var deferredIds = s.DeferredEventNames
             .Where(name => eventIdMap.ContainsKey(name))
@@ -674,30 +996,87 @@ public static class HsmEmitCore
         }
     }
 
-    private static List<string> CollectActions(HsmAssetDto dto)
+    private static List<string> CollectActions(HsmAssetDto dto, BindingNamer namer)
     {
         var set = new SortedSet<string>(StringComparer.Ordinal);
+        void Add(string? n) { if (n != null) set.Add(n); }
         foreach (var s in dto.States)
         {
-            if (s.OnEntryAction  != null) set.Add(s.OnEntryAction);
-            if (s.OnExitAction   != null) set.Add(s.OnExitAction);
-            if (s.ActivityAction != null) set.Add(s.ActivityAction);
-            if (s.TimerAction    != null) set.Add(s.TimerAction);
+            Add(namer.Name(s.OnEntry));
+            Add(namer.Name(s.OnExit));
+            Add(namer.Name(s.Activity));
+            Add(namer.Name(s.Timer));
+            Add(namer.SopOrderName(s.SopOrder, $"in state '{s.Name}'"));   // CE-2083
         }
+        // ⭐⭐ E7b / CE-417 — the SAME naming the transition itself emits (BindingNamer). ⛔ If these two disagreed the
+        //    builder would register one name and the transition would address another, which is
+        //    exactly the silent TryGetValue miss E6 was.
         foreach (var t in dto.Transitions)
-            if (t.ActionFunction != null) set.Add(t.ActionFunction);
+            Add(namer.Name(t.Action, legacyCompound: true));
         foreach (var gt in dto.GlobalTransitions)
-            if (gt.ActionFunction != null) set.Add(gt.ActionFunction);
+            Add(namer.Name(gt.Action, legacyCompound: true));   // CE-506: the same name the global transition now emits
         return new List<string>(set);
     }
 
-    private static List<string> CollectGuards(HsmAssetDto dto)
+    // ---- E7b: expression-target binding ----------------------------------------
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E7b</c> — the action name a bound transition is addressed by:
+    /// <c>{ActionFqn}@{byteOffset}</c> when <paramref name="expressionTargetField"/> names a packed
+    /// managed variable; the bare FQN otherwise.</b>
+    ///
+    /// <para>
+    /// 🔴🔴 <b>What this closes.</b> <c>ExpressionTargetField</c> — <i>"the blackboard field that
+    /// receives the expression result of <c>ActionFunction</c>"</i> — round-tripped
+    /// (<c>HsmAssetMapper</c>), was maintained by the command sink, was counted as a reference by
+    /// <c>HsmAsset.CountNodesReferencingVariable</c>, and was treated as a WRITER STYLE by
+    /// <c>HsmValidator</c> rule 9 — and appeared <b>zero times</b> in either emit core. ⛔ A producer
+    /// with no consumer: the binding could never reach the blob, so there were no bytes to write.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>The mechanism already existed and was unreachable.</b> <c>HsmActionGenerator</c> emits a
+    /// per-binding thunk for every <c>[SharedAiAction]</c> — it projects the bound field at its byte
+    /// offset and calls the method — and registers it under the compound key
+    /// <c>HsmActionKey.ForCompoundKey</c>. ⚠ Nothing ever produced a compound key on the ASSET side,
+    /// so those registrations were addressable by nobody.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>The <c>"@"</c> spelling IS <c>HsmActionKey.CompoundKeyName</c></b> (<c>CE-2032</c>). ⛔ HISTORY: it was a hand
+    /// mirror, called "forced" because this assembly references nothing — true of the ASSEMBLY, never of the FILE, which
+    /// this project links (user ruling 2026-09-28). The rest of this note predates that: ⇒ <b>the drift is the defect</b> — same shape as
+    /// <c>HsmActionKey.Compute</c> mirroring <c>HsmFlattener.ComputeHash</c>, and
+    /// <c>BehaviorParameterSizeAnalyzer</c>'s inlined size constant. ⭐ An agreement test compares the
+    /// two sides across the wall rather than restating either.
+    /// </para>
+    /// </summary>
+    internal static string EffectiveActionName(
+        string actionFqn, string? expressionTargetField, IReadOnlyDictionary<string, int> paramOffsets)
+    {
+        if (string.IsNullOrEmpty(expressionTargetField)) return actionFqn;
+        if (!paramOffsets.TryGetValue(expressionTargetField!, out int byteOffset)) return actionFqn;
+        return Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(actionFqn, byteOffset);   // ⭐ CE-2032 — the one spelling
+    }
+
+    /// <summary>
+    /// ⭐ The managed blackboard's inline param offsets by variable name — <b>the shared packer's
+    /// own answer</b> (<see cref="BTreeBlackboardPackHelper"/>), so an expression target and the
+    /// <c>ParseParams</c> that writes it can never land on different bytes. Empty for a non-managed
+    /// blackboard, for <c>State</c>-role-only variables, or when a type cannot be sized.
+    /// </summary>
+    private static IReadOnlyDictionary<string, int> HsmParamOffsets(
+        HsmAssetDto dto, System.Func<string, int?>? sizeResolver, FieldLayoutResolver? fields = null)
+        // ⭐ CE-3182 — the ONE target resolver: every packed variable, plus each Variable.Field path a binding names.
+        => BindingTargets.For(HsmBridgeEmitCore.PackParamsFor(dto, sizeResolver), fields).Offsets(SharedAiBindings.BoundTargets(dto));
+
+    private static List<string> CollectGuards(HsmAssetDto dto, BindingNamer namer)
     {
         var set = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var t in dto.Transitions)
-            if (t.GuardFunction != null) set.Add(t.GuardFunction);
+            if (namer.Name(t.Guard) is string g) set.Add(g);
         foreach (var gt in dto.GlobalTransitions)
-            if (gt.GuardFunction != null) set.Add(gt.GuardFunction);
+            if (namer.Name(gt.Guard) is string gg) set.Add(gg);
         return new List<string>(set);
     }
 }

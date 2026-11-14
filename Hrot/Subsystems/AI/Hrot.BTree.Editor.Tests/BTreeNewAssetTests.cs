@@ -152,4 +152,28 @@ public sealed class BTreeNewAssetTests : IDisposable
         var svc = new BTreeNewAssetService(_tempRoot);
         Assert.Equal(AssetKind.BTree, svc.Kind);
     }
+
+    /// <summary>
+    /// ⭐ CE-1443 B2 — <i>New BTree</i> lists the on-disk recipes of <c>recipes/behaviors/BTrees</c> (the ONE shared lister, <c>RecipeFiles</c>), after Empty and Starter —
+    /// so what <i>Save BTree as Recipe…</i> writes is offered. ⛔ It was a TODO (only the in-code recipes). 🔴 Mutation: the <c>RecipeFiles.Read</c> line removed ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1443_B2_NewBTree_ListsTheRecipesOnDisk()
+    {
+        var saved = AssetRoots.ConfiguredRoot;
+        AssetRoots.Configure(_tempRoot);
+        try
+        {
+            var svc = new BTreeNewAssetService(Path.Combine(_tempRoot, "work"));
+            var made = svc.CreateNew(null, "MyRecipe", "");
+            var recipes = AssetRoots.RecipesFor(AssetKind.BTree);
+            Directory.CreateDirectory(recipes);
+            File.Copy(made.SourceFilePath, Path.Combine(recipes, "MyRecipe.btree.json"));
+
+            var listed = svc.AvailableRecipes();
+            Assert.Contains(listed, r => r.Name == "MyRecipe" && r.SourceFilePath.EndsWith("MyRecipe.btree.json", StringComparison.Ordinal));
+            Assert.True(listed.Count >= 3, "Empty and Starter stay first");
+        }
+        finally { AssetRoots.Configure(saved); }
+    }
 }

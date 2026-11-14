@@ -21,7 +21,7 @@
 - `Hrot.Network.BDC.Tests/Hrot.Network.BDC.Tests.csproj`
 - `Hrot.Network.BDC.Tests/BdcNetworkFactoryTests.cs`
 
-Both projects added to `IOS-IG-SimHost.sln`.
+Both projects added to `HROT.sln`.
 
 ---
 

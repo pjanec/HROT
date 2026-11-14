@@ -14,6 +14,10 @@ namespace Fdp.Toolkit.Navigation.Executors
     /// <see cref="NavigationConstants.FleeReplanIntervalTicks"/> ticks.
     /// Reports <see cref="NodeStatus.Success"/> when the threat is dead or safe distance is reached.
     ///
+    /// <para>⛔ <b>LEGACY — not part of the behaviour library</b> (<c>R-259</c>, <c>docs/REVIEW_Behaviour_Library_Genericity.md</c> §6):
+    /// the library's one retreat is <c>EqsTacticsNodes.FallBack</c> (an EQS safe-retreat point, one pathed move). This executor
+    /// is kept for its tests and the old FDP cognitive example; do not compose new behaviours on it.</para>
+    ///
     /// <para><b>CQRS compliance (BS1-T018):</b> navigation commands are issued via
     /// <see cref="NavigationIntent"/> (Brain-side CQRS component) rather than writing
     /// <see cref="CarKinem.Core.NavState"/> directly, so this executor is safe to run on a
@@ -37,7 +41,7 @@ namespace Fdp.Toolkit.Navigation.Executors
             channel.Status = Fbt.NodeStatus.Running;
 
             // Compute initial flee destination immediately.
-            var gt = world.GetSingletonUnmanaged<GlobalTime>();
+            var gt = world.GetSingletonUnmanagedRO<GlobalTime>();
             ComputeAndWriteFleeDestination(entity, p, world);
             WriteFleeState(ref channel, new FleeState
             {
@@ -80,7 +84,7 @@ namespace Fdp.Toolkit.Navigation.Executors
             }
 
             // ── Throttled replan ──────────────────────────────────────────────────────────────
-            var gt         = world.GetSingletonUnmanaged<GlobalTime>();
+            var gt         = world.GetSingletonUnmanagedRO<GlobalTime>();
             var fleeState  = ReadFleeState(ref channel);
             uint currentTick = (uint)gt.FrameNumber;
 

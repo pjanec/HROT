@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using Fdp.Core.Logging;
@@ -13,7 +14,43 @@ namespace Fdp.Core.FlightRecorder
     {
         private readonly byte[] _scratchBuffer = new byte[FdpConfig.CHUNK_SIZE_BYTES];
 
-        private delegate void ManagedRestorerDelegate(object table, int chunkIndex, byte[] data, EntityRepository repo);
+        // ⭐ CE-1478 P2 (DES-006 §5.1 "touchedChunkIds → partial repair") — what ONE apply wrote, so the two repair passes walk only that instead of
+        //   every entity of the world (RepairManagedComponentMasks was 34 of 61 ms of a 1 000-man apply, 15 ms even for a frame with NO chunks).
+        //   Reused arrays, grown never shrunk: no allocation in the steady state.
+        private struct TouchedManagedChunk { public int TableSlot; public int Chunk; }
+        private TouchedManagedChunk[] _touchedManaged = new TouchedManagedChunk[64];
+        private int _touchedManagedCount;
+        private int[] _touchedHot = new int[64];
+        private int _touchedHotCount;
+        private int[] _touchedCold = new int[64];
+        private int _touchedColdCount;
+        private int[] _destroyed = new int[64];
+        private int _destroyedCount;
+        private EntityRepository? _repairedRepo;   // the world the last FULL repair left consistent: a partial repair is only sound on top of one
+
+        // the managed tables, by slot (rebuilt with _tablesByTypeId)
+        private IComponentTable[] _managedTables = Array.Empty<IComponentTable>();
+        private int[] _managedCapacity = Array.Empty<int>();
+        private int _managedTableCount;
+
+        /// <summary>
+        /// ⭐ CE-1478 P2 — repair the WHOLE world after every frame, as before P2. A keyframe, the first apply onto a world, and an apply that registered a
+        /// component table always do; set this for the equivalence rail (partial == full) or as a safety valve.
+        /// </summary>
+        public bool ForceFullRepair { get; set; }
+
+        /// <summary>Entities the last apply's repair passes looked at (entity-index pass + managed-mask pass; diagnostic — a full repair visits the whole index per pass).</summary>
+        public long LastRepairEntitiesVisited { get; private set; }
+        /// <summary>Diagnostics of the last apply (HROT_REPLAY_STATS=1 prints them): repair time and what the frame touched.</summary>
+        public double LastRepairMilliseconds { get; private set; }
+        public int LastTouchedHot { get; private set; }
+        public int LastTouchedCold { get; private set; }
+        public int LastTouchedManaged { get; private set; }
+        public int LastDestroyed { get; private set; }
+        /// <summary>Was the last apply's repair the full one?</summary>
+        public bool LastRepairWasFull { get; private set; }
+
+        private delegate void ManagedRestorerDelegate(object table, int chunkIndex, ArraySegment<byte> data, EntityRepository repo);
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, ManagedRestorerDelegate> _managedRestorers = new();
         
         /// <summary>
@@ -24,12 +61,21 @@ namespace Fdp.Core.FlightRecorder
         /// <param name="reader">Binary reader to read from</param>
         /// <param name="eventBus">Optional event bus for event restoration</param>
         /// <param name="processEvents">If false, skips event processing (for seeking/fast-forward)</param>
-        public void ApplyFrame(EntityRepository repo, BinaryReader reader, FdpEventBus? eventBus = null, bool processEvents = true)
+        /// <param name="unconsumedEvents">⭐ <c>CE-4118</c> — inject what was still UNCONSUMED when a keyframe was written (its trailing section,
+        /// a checkpoint restore — <c>WorldKeyframes.ApplyKeepingUnconsumedEvents</c>) instead of the frame's own events (what its readers saw,
+        /// the replay's). A keyframe written before CE-4118 has no such section: its main block, which then held the unconsumed events.</param>
+        public void ApplyFrame(EntityRepository repo, BinaryReader reader, FdpEventBus? eventBus = null, bool processEvents = true,
+                               bool unconsumedEvents = false)
         {
             ulong tick = reader.ReadUInt64();
             repo.SetGlobalVersion((uint)tick);
             byte frameType = reader.ReadByte();
             reader.ReadInt64(); // Skip WallClockTicks (FORMAT_VERSION 3+, 8 bytes)
+
+            // ⭐ CE-1478 P2 — the tables as they are NOW (a type registered during this apply changes the count ⇒ a full repair), and an empty touched list
+            EnsureTables(repo, repo.GetRegisteredComponentTypes());
+            int tablesAtStart = repo.GetRegisteredComponentTypes().Count;
+            _touchedManagedCount = _touchedHotCount = _touchedColdCount = _destroyedCount = 0;
             
             // 1. APPLY DESTRUCTIONS (Delta Only)
             if (frameType == 0)
@@ -40,6 +86,7 @@ namespace Fdp.Core.FlightRecorder
                 {
                     int idx = reader.ReadInt32();
                     ushort gen = reader.ReadUInt16();
+                    Touch(ref _destroyed, ref _destroyedCount, idx);
                     
                     // Logic: If entity exists and matches gen, kill it.
                     var e = new Entity(idx, gen);
@@ -59,7 +106,8 @@ namespace Fdp.Core.FlightRecorder
             }
             
             // 2. RESTORE EVENTS (if eventBus provided)
-            ReadAndInjectEvents(reader, eventBus, processEvents);
+            long eventsAt = reader.BaseStream.Position;
+            ReadAndInjectEvents(reader, unconsumedEvents ? null : eventBus, processEvents && !unconsumedEvents);
 
             
             // 3. RESTORE SINGLETONS
@@ -95,9 +143,14 @@ namespace Fdp.Core.FlightRecorder
                     int typeId = reader.ReadInt32();
                     int len = reader.ReadInt32();
                     
-                    if (len > 0)
+                    if (len > 0 && typeId > 0 && (typeId & RecorderSystem.BlockRecordFlag) != 0)
                     {
-                        byte[] data = reader.ReadBytes(len);
+                        // ⭐ CE-1478 P6 (format v8) — a BLOCK-RUN record: only the 64-byte blocks that moved
+                        ApplyBlockRuns(repo, typeId & ~RecorderSystem.BlockRecordFlag, chunkId, reader, len);
+                    }
+                    else if (len > 0)
+                    {
+                        var data = ChunkView(reader, len);   // ⭐ CE-4432 — a view of the frame's own buffer (no copy, no array), else the pooled copy
                         
                         // LOGIC:
                         // 1. Find the component table for typeId
@@ -114,15 +167,46 @@ namespace Fdp.Core.FlightRecorder
             // After applying all chunk data, we need to synchronize the EntityIndex
             // Metadata (ActiveCount, MaxIssuedIndex, etc.) needs to be rebuilt from the restored headers
             repo.GetEntityIndex().RebuildMetadata();
-            RepairEntityIndex(repo);
-            
-            // 5. MANAGED COMPONENT MASK REPAIR (defensive)
-            // In the normal case, EntityIndex chunks are written first by the recorder,
-            // so masks are already correct after restoration in step 4 above.
-            // However, SetChunk() does NOT update EntityHeader.ComponentMask, so if a
-            // delta frame contains a managed chunk update without a corresponding
-            // EntityIndex update, masks could drift. This scan ensures correctness.
-            RepairManagedComponentMasks(repo);
+
+            // ⭐ CE-1478 P2 — a keyframe (a whole new world), the first apply onto this world and an apply that registered a table repair EVERYTHING; a delta repairs
+            //   only what it wrote (the entity-index chunks and managed chunks it restored, the entities it destroyed)
+            long repairStart = System.Diagnostics.Stopwatch.GetTimestamp();
+            bool full = ForceFullRepair || frameType == 1 || !ReferenceEquals(_repairedRepo, repo) || repo.GetRegisteredComponentTypes().Count != tablesAtStart;
+            LastRepairWasFull = full;
+            LastRepairEntitiesVisited = 0;
+            if (full)
+            {
+                RepairEntityIndex(repo);
+
+                // 5. MANAGED COMPONENT MASK REPAIR (defensive)
+                // In the normal case, EntityIndex chunks are written first by the recorder,
+                // so masks are already correct after restoration in step 4 above.
+                // However, SetChunk() does NOT update EntityHeader.ComponentMask, so if a
+                // delta frame contains a managed chunk update without a corresponding
+                // EntityIndex update, masks could drift. This scan ensures correctness.
+                RepairManagedComponentMasks(repo);
+                _repairedRepo = repo;
+            }
+            else
+            {
+                RepairEntityIndexPartial(repo);
+                RepairManagedComponentMasksPartial(repo);
+            }
+            LastRepairMilliseconds = (System.Diagnostics.Stopwatch.GetTimestamp() - repairStart) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            LastTouchedHot = _touchedHotCount; LastTouchedCold = _touchedColdCount; LastTouchedManaged = _touchedManagedCount; LastDestroyed = _destroyedCount;
+
+            // ⭐ CE-4118 — the unconsumed events: the trailing section, else (a pre-CE-4118 keyframe) the main block
+            if (unconsumedEvents && eventBus != null && processEvents)
+            {
+                var stream = reader.BaseStream;
+                if (stream.Length - stream.Position >= sizeof(int) && reader.ReadInt32() == RecorderSystem.UnconsumedEventsMagic)
+                    ReadAndInjectEvents(reader, eventBus, processEvents: true);
+                else
+                {
+                    stream.Position = eventsAt;
+                    ReadAndInjectEvents(reader, eventBus, processEvents: true);
+                }
+            }
         }
 
         /// <summary>
@@ -137,48 +221,68 @@ namespace Fdp.Core.FlightRecorder
         /// </summary>
         private void RepairManagedComponentMasks(EntityRepository repo)
         {
-            var componentTables = repo.GetRegisteredComponentTypes();
             var entityIndex = repo.GetEntityIndex();
             int maxIndex = entityIndex.MaxIssuedIndex;
 
             // Strictly guard against empty worlds. Do not clamp maxIndex to 0.
             if (maxIndex < 0 || entityIndex.ActiveCount == 0) return;
 
-            foreach (var kvp in componentTables)
+            // ⭐ CE-1478 — the live entities are gathered ONCE (the index is mostly dead slots), then every managed table walks only those
+            if (_activeScratch.Length < maxIndex + 1) _activeScratch = new int[maxIndex + 1];
+            int n = 0;
+            for (int i = 0; i <= maxIndex; i++)
+                if (entityIndex.GetMetadataUnsafe(i).IsActive) _activeScratch[n++] = i;
+            for (int s = 0; s < _managedTableCount; s++)
             {
-                var table = kvp.Value;
-
-                // Only process managed component tables
-                if (!table.GetType().IsGenericType ||
-                    table.GetType().GetGenericTypeDefinition() != typeof(ManagedComponentTable<>))
-                    continue;
-
+                var table = _managedTables[s];
                 int typeId = table.ComponentTypeId;
-
-                for (int i = 0; i <= maxIndex; i++)
+                LastRepairEntitiesVisited += n;
+                for (int k = 0; k < n; k++)
                 {
-                    // Double-check bounds to prevent state-drift crashes
-                    if (i > entityIndex.MaxIssuedIndex) break;
-
-                    // Safe to bypass standard bounds check since we manually validated
-                    ref readonly var metaRMCM = ref entityIndex.GetMetadataUnsafe(i);
-
-                    if (!metaRMCM.IsActive) continue;
-
-                    // Check if the managed table has non-null data for this entity
-                    object rawObj = table.GetRawObject(i);
-
-                    if (rawObj != null)
-                    {
-                        // Data exists -- ensure mask bit is set
-                        entityIndex.GetComponentMaskUnsafe(i).SetBit(typeId);
-                    }
-                    else
-                    {
-                        // No data -- ensure mask bit is clear
-                        entityIndex.GetComponentMaskUnsafe(i).ClearBit(typeId);
-                    }
+                    int i = _activeScratch[k];
+                    if (table.GetRawObject(i) != null) entityIndex.GetComponentMaskUnsafe(i).SetBit(typeId);
+                    else entityIndex.GetComponentMaskUnsafe(i).ClearBit(typeId);
                 }
+            }
+        }
+
+        private int[] _activeScratch = Array.Empty<int>();
+
+        // one managed table over the entity indexes [lo, hi] (hi clamped to what is issued): the mask bit follows the data (non-null = set, null = clear)
+        private void RepairMaskRange(EntityIndex entityIndex, IComponentTable table, int lo, int hi)
+        {
+            int typeId = table.ComponentTypeId;
+            if (hi > entityIndex.MaxIssuedIndex) hi = entityIndex.MaxIssuedIndex;
+            for (int i = lo; i <= hi; i++)
+            {
+                LastRepairEntitiesVisited++;
+                ref readonly var metaRMCM = ref entityIndex.GetMetadataUnsafe(i);
+                if (!metaRMCM.IsActive) continue;
+
+                if (table.GetRawObject(i) != null) entityIndex.GetComponentMaskUnsafe(i).SetBit(typeId);   // data exists -- the bit is set
+                else entityIndex.GetComponentMaskUnsafe(i).ClearBit(typeId);                               // no data -- the bit is clear
+            }
+        }
+
+        /// <summary>
+        /// ⭐ CE-1478 P2 — the mask repair of a DELTA: a managed table only over the chunks the apply restored (its data moved — the drift this pass exists for, see
+        /// <see cref="RepairManagedComponentMasks"/>). 📐 MEASURED 2026-11-11 (1 000-man recording): also scanning every managed table over the entities of each restored
+        /// entity-index (hot / mask) chunk visited 500 000–800 000 entity-table pairs per frame and cost 50–90 ms — MORE than the whole-world pass (~34 ms) — so it is not done:
+        /// a restored mask chunk carries the masks the recorder saw next to the managed data it saw. ⛔ What this therefore does NOT re-derive is a mask the recording ITSELF
+        /// carries inconsistent; the keyframe's full repair settled that for the keyframe's state, and the equivalence rail pins partial == full over random structural deltas.
+        /// </summary>
+        private void RepairManagedComponentMasksPartial(EntityRepository repo)
+        {
+            var entityIndex = repo.GetEntityIndex();
+            int maxIndex = entityIndex.MaxIssuedIndex;
+            if (maxIndex < 0 || entityIndex.ActiveCount == 0) return;
+
+            for (int k = 0; k < _touchedManagedCount; k++)
+            {
+                int cap = _managedCapacity[_touchedManaged[k].TableSlot];
+                int lo = _touchedManaged[k].Chunk * cap;
+                if (lo > maxIndex) continue;
+                RepairMaskRange(entityIndex, _managedTables[_touchedManaged[k].TableSlot], lo, lo + cap - 1);
             }
         }
 
@@ -287,12 +391,174 @@ namespace Fdp.Core.FlightRecorder
 
 
         
-        private void ApplyChunkData(EntityRepository repo, int typeId, int chunkIndex, byte[] data)
+        private readonly HashSet<int> _unresolvedTypes = new();   // ⭐ CE-4050 — said once per type
+
+        /// <summary>⭐ CE-4050 — the component type ids whose recorded data this playback skipped (no assembly declares them).</summary>
+        public IReadOnlyCollection<int> UnresolvedTypes => _unresolvedTypes;
+
+        // ⭐ CE-4407 (R-2084) — a chunk's bytes were `reader.ReadBytes(len)` per component per chunk: 11–65 MB of garbage per applied frame of a 1 000-man recording. The restorers
+        //   COPY out of the array (native memcpy / a MemoryStream deserialise) and never keep it, and a table's chunk length is the same for every chunk ⇒ one array per EXACT length
+        //   is reused (a restorer may read `data.Length`). Bounded: a managed blob's length varies, so at most MaxChunkBuffers distinct lengths are pooled — the rest allocate as before.
+        private readonly Dictionary<int, byte[]> _chunkBuffers = new();
+        private const int MaxChunkBuffers = 64;
+
+        /// <summary>⭐ CE-4432 (R-2084) — the chunk's bytes as a VIEW of the frame's buffer when the reader is over one (the prefetched and the inline
+        /// paths both are), advancing the reader past them; else <see cref="ChunkBuffer"/>'s copy. ⛔ The copy fell back to <c>ReadBytes</c> once 64
+        /// distinct managed-blob lengths were pooled — ~3 MB/s of garbage while a 1 000-man replay played (measured on Windows).</summary>
+        private ArraySegment<byte> ChunkView(BinaryReader reader, int len)
+        {
+            if (reader.BaseStream is MemoryStream ms && ms.TryGetBuffer(out var seg))
+            {
+                long at = ms.Position;
+                if (at + len > ms.Length) throw new EndOfStreamException("The recording ended inside a chunk.");
+                ms.Position = at + len;
+                return new ArraySegment<byte>(seg.Array!, seg.Offset + (int)at, len);
+            }
+            return new ArraySegment<byte>(ChunkBuffer(reader, len), 0, len);
+        }
+
+        private byte[] ChunkBuffer(BinaryReader reader, int len)
+        {
+            if (!_chunkBuffers.TryGetValue(len, out var buffer))
+            {
+                if (_chunkBuffers.Count >= MaxChunkBuffers) return reader.ReadBytes(len);
+                _chunkBuffers[len] = buffer = new byte[len];
+            }
+            int got = 0;
+            while (got < len)
+            {
+                int n = reader.Read(buffer, got, len - got);
+                if (n <= 0) throw new EndOfStreamException("The recording ended inside a chunk.");
+                got += n;
+            }
+            return buffer;
+        }
+
+        // ⭐ CE-4407 — the table of a type id: the registered tables were walked (an interface enumerator, boxed) for EVERY chunk of EVERY component; now one lookup, rebuilt when the repository
+        //   or its table count changes (a type registered on first use, CE-3299).
+        private readonly Dictionary<int, IComponentTable> _tablesByTypeId = new();
+        private EntityRepository? _tablesRepo;
+        private int _tablesCount = -1;
+
+        private IComponentTable? TableOf(EntityRepository repo, IReadOnlyDictionary<Type, IComponentTable> tables, int typeId)
+        {
+            if (!ReferenceEquals(_tablesRepo, repo) || _tablesCount != tables.Count)
+            {
+                _tablesByTypeId.Clear();
+                foreach (var kvp in tables) _tablesByTypeId.TryAdd(kvp.Value.ComponentTypeId, kvp.Value);   // the first of a type id wins, as the walk did
+                _tablesRepo = repo; _tablesCount = tables.Count;
+                RebuildManagedList(tables);
+            }
+            return _tablesByTypeId.TryGetValue(typeId, out var table) ? table : null;
+        }
+
+        private void EnsureTables(EntityRepository repo, IReadOnlyDictionary<Type, IComponentTable> tables)
+        {
+            if (!ReferenceEquals(_tablesRepo, repo) || _tablesCount != tables.Count) TableOf(repo, tables, int.MinValue);
+        }
+
+        private void RebuildManagedList(IReadOnlyDictionary<Type, IComponentTable> tables)
+        {
+            if (_managedTables.Length < tables.Count) { _managedTables = new IComponentTable[tables.Count]; _managedCapacity = new int[tables.Count]; }
+            int n = 0;
+            foreach (var kvp in tables)
+            {
+                if (kvp.Value is IManagedChunkedTable managed)
+                {
+                    _managedTables[n] = kvp.Value;
+                    _managedCapacity[n] = managed.ChunkCapacity;
+                    n++;
+                }
+            }
+            _managedTableCount = n;
+        }
+
+        private static void Touch(ref int[] list, ref int count, int value)
+        {
+            if (count == list.Length) Array.Resize(ref list, list.Length * 2);
+            list[count++] = value;
+        }
+
+        private void NoteManagedChunk(IComponentTable table, int chunkIndex)
+        {
+            for (int s = 0; s < _managedTableCount; s++)
+            {
+                if (!ReferenceEquals(_managedTables[s], table)) continue;
+                if (_touchedManagedCount == _touchedManaged.Length) Array.Resize(ref _touchedManaged, _touchedManaged.Length * 2);
+                _touchedManaged[_touchedManagedCount++] = new TouchedManagedChunk { TableSlot = s, Chunk = chunkIndex };
+                return;
+            }
+        }
+
+        /// <summary>⭐ CE-1478 P6 — applies a v8 block-run record: [totalBytes][runCount] then per run [firstBlock][blockCount][bytes]. Reads the payload in place when the frame is a
+        /// publicly-visible <see cref="MemoryStream"/> (the controller's), else through the pooled buffer.</summary>
+        private void ApplyBlockRuns(EntityRepository repo, int typeId, int chunkIndex, BinaryReader reader, int len)
+        {
+            ReadOnlySpan<byte> payload;
+            var stream = reader.BaseStream;
+            if (stream is MemoryStream ms && ms.TryGetBuffer(out var seg))
+            {
+                payload = new ReadOnlySpan<byte>(seg.Array!, seg.Offset + (int)ms.Position, len);
+                ms.Position += len;
+            }
+            else
+                payload = ChunkBuffer(reader, len);
+
+            var tables = repo.GetRegisteredComponentTypes();
+            var table = ResolveTable(repo, tables, typeId);
+            if (table is not IUnmanagedComponentTable unmanaged)
+                return;   // an unresolved type (CE-4050, said once) — or a table a block run cannot address: skipped
+
+            int runs = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(4));
+            int at = 8;
+            for (int r = 0; r < runs; r++)
+            {
+                int first = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(at));
+                int blocks = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(at + 4));
+                at += 8;
+                int byteOffset = first * RecorderSystem.BlockSize;
+                int total = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload);
+                int bytes = Math.Min(blocks * RecorderSystem.BlockSize, total - byteOffset);
+                unmanaged.RestoreChunkRangeFromBuffer(chunkIndex, byteOffset, payload.Slice(at, bytes));
+                at += bytes;
+            }
+        }
+
+        // the table of a type id, registering a type this process has not used yet (CE-3299 B5) and saying ONCE per type when no assembly declares it (CE-4050); null = skip
+        private IComponentTable? ResolveTable(EntityRepository repo, IReadOnlyDictionary<Type, IComponentTable> componentTables, int typeId)
+        {
+            IComponentTable? targetTable = TableOf(repo, componentTables, typeId);
+
+            
+            // ⭐ CE-3299 B5 (D10) — a type the recording's process registered on first use, which this world has not used yet: register it
+            //   now (its [ComponentId] names it), as a fresh process restoring a checkpoint or replaying a recording must
+            if (targetTable == null && ComponentTypeRegistry.FindType(typeId) is { } missing)
+            {
+                typeof(EntityRepository).GetMethod(nameof(EntityRepository.RegisterComponent))!.MakeGenericMethod(missing)
+                    .Invoke(repo, new object?[] { null });
+                repo.TryGetTable(missing, out targetTable!);
+            }
+
+            if (targetTable == null)
+            {
+                // ⭐ CE-4050 — a type no assembly here declares (a legacy recording that does not name its assembly, or an assembly this
+                //   install does not carry): its data is skipped, said once per type, and the rest of the world plays on.
+                //   ⛔ SUPERSEDED: an InvalidOperationException that stopped playback (the browser, the dumper, the index builder).
+                if (_unresolvedTypes.Add(typeId))
+                    Fdp.Core.Logging.FdpLog<PlaybackSystem>.Warn(
+                        "[Playback] CE-4050: component type id {0} is declared by no loaded assembly — its recorded data is skipped.", typeId);
+                return null;
+            }
+            return targetTable;
+        }
+
+        private void ApplyChunkData(EntityRepository repo, int typeId, int chunkIndex, ArraySegment<byte> data)
         {
             
             // Case 0: Special Entity Index hot (component-mask) chunk
             if (typeId == -1)
             {
+                Touch(ref _touchedHot, ref _touchedHotCount, chunkIndex);
                 repo.GetEntityIndex().RestoreHotChunkFromBuffer(chunkIndex, data);
                 return;
             }
@@ -300,30 +566,16 @@ namespace Fdp.Core.FlightRecorder
             // Case 0b: Special Entity Index cold (metadata) chunk
             if (typeId == -2)
             {
+                Touch(ref _touchedCold, ref _touchedColdCount, chunkIndex);
                 repo.GetEntityIndex().RestoreColdChunkFromBuffer(chunkIndex, data);
                 return;
             }
 
             // Find the component table by type ID
             var componentTables = repo.GetRegisteredComponentTypes();
-            
-            IComponentTable? targetTable = null;
-            foreach (var kvp in componentTables)
-            {
-                if (kvp.Value.ComponentTypeId == typeId)
-                {
-                    targetTable = kvp.Value;
-                    break;
-                }
-            }
-            
-            if (targetTable == null)
-            {
-                throw new InvalidOperationException(
-                    $"Component type ID {typeId} not found in repository. " +
-                    "Ensure all component types are registered before playback.");
-            }
-            
+            IComponentTable? targetTable = ResolveTable(repo, componentTables, typeId);
+            if (targetTable == null) return;
+
             // For unmanaged tables, we can do raw memory copy
             if (targetTable is IUnmanagedComponentTable unmanagedTable)
             {
@@ -350,6 +602,7 @@ namespace Fdp.Core.FlightRecorder
                     }
                     
                     restorer(targetTable, chunkIndex, data, repo);
+                    NoteManagedChunk(targetTable, chunkIndex);
                 }
                 else
                 {
@@ -358,15 +611,15 @@ namespace Fdp.Core.FlightRecorder
             }
         }
         
-        private static void RestoreManagedTableAdapter<T>(object tableObj, int chunkIndex, byte[] data, EntityRepository repo) where T : class
+        private static void RestoreManagedTableAdapter<T>(object tableObj, int chunkIndex, ArraySegment<byte> data, EntityRepository repo) where T : class
         {
              // Pass the repository to RestoreManagedTable so it can update component masks
              RestoreManagedTable((ManagedComponentTable<T>)tableObj, chunkIndex, data, repo);
         }
 
-        private static void RestoreManagedTable<T>(ManagedComponentTable<T> table, int chunkIndex, byte[] data, EntityRepository repo) where T : class
+        private static void RestoreManagedTable<T>(ManagedComponentTable<T> table, int chunkIndex, ArraySegment<byte> data, EntityRepository repo) where T : class
         {
-             using (var ms = new MemoryStream(data))
+             using (var ms = new MemoryStream(data.Array!, data.Offset, data.Count, writable: false))
              using (var reader = new BinaryReader(ms))
              {
                  T?[] chunkData = FdpAutoSerializer.Deserialize<T?[]>(reader);
@@ -388,7 +641,7 @@ namespace Fdp.Core.FlightRecorder
             {
                 // We need to auto-register the singleton if it doesn't exist on playback.
                 // This requires the Type.
-                Type? type = ComponentTypeRegistry.GetType(typeId);
+                Type? type = ComponentTypeRegistry.FindType(typeId);   // ⭐ B5 (D10) — also a type this process has not touched yet
                 if (type == null) 
                 {
                     // Warn or skip? If we don't know the type, we can't restore.
@@ -440,7 +693,7 @@ namespace Fdp.Core.FlightRecorder
             }
         }
 
-        private void RestoreChunkData(IUnmanagedComponentTable table, int chunkIndex, byte[] data)
+        private void RestoreChunkData(IUnmanagedComponentTable table, int chunkIndex, ReadOnlySpan<byte> data)
         {
             // Copy data directly into the chunk
             table.RestoreChunkFromBuffer(chunkIndex, data);
@@ -450,31 +703,66 @@ namespace Fdp.Core.FlightRecorder
         /// Repairs the EntityIndex after loading chunk data.
         /// This is the "Index Repair Pass" from FDP-DES-005.
         /// </summary>
+        private int[] _componentIds = Array.Empty<int>();   // ⭐ CE-4407 — reused by RepairEntityIndex
+
         private void RepairEntityIndex(EntityRepository repo)
         {
             var entityIndex = repo.GetEntityIndex();
+            var ids = PrepareComponentIds(repo, out int idCount);
+            RepairEntityRange(repo, entityIndex, ids, idCount, 0, entityIndex.MaxIssuedIndex);
+        }
+
+        private int[] PrepareComponentIds(EntityRepository repo, out int idCount)
+        {
             var componentTables = repo.GetRegisteredComponentTypes();
-            
+            idCount = 0;
+            if (_componentIds.Length < componentTables.Count) _componentIds = new int[componentTables.Count];
+            var ids = _componentIds;
+            foreach (var kvp in componentTables) ids[idCount++] = kvp.Value.ComponentTypeId;
+            return ids;
+        }
+
+        /// <summary>⭐ CE-1478 P2 — the entity-index repair of a DELTA: the entities of the hot / cold index chunks it restored and the ones it destroyed.</summary>
+        private void RepairEntityIndexPartial(EntityRepository repo)
+        {
+            var entityIndex = repo.GetEntityIndex();
             int maxIndex = entityIndex.MaxIssuedIndex;
-            int chunkCapacity = entityIndex.GetChunkCapacity();
-            
-            // Iterate all entities and check if they have components
-            for (int i = 0; i <= maxIndex; i++)
+            var ids = PrepareComponentIds(repo, out int idCount);
+
+            int hotCap = entityIndex.GetChunkCapacity();
+            for (int k = 0; k < _touchedHotCount; k++)
+                RepairEntityRange(repo, entityIndex, ids, idCount, _touchedHot[k] * hotCap, Math.Min(_touchedHot[k] * hotCap + hotCap - 1, maxIndex));
+            int coldCap = entityIndex.GetColdChunkCapacity();
+            for (int k = 0; k < _touchedColdCount; k++)
+                RepairEntityRange(repo, entityIndex, ids, idCount, _touchedCold[k] * coldCap, Math.Min(_touchedCold[k] * coldCap + coldCap - 1, maxIndex));
+            for (int k = 0; k < _destroyedCount; k++)
+                RepairEntityRange(repo, entityIndex, ids, idCount, _destroyed[k], Math.Min(_destroyed[k], maxIndex));
+        }
+
+        private void RepairEntityRange(EntityRepository repo, EntityIndex entityIndex, int[] ids, int idCount, int lo, int hi)
+        {
+            // Iterate the entities and check if they have components
+            for (int i = lo < 0 ? 0 : lo; i <= hi; i++)
             {
+                LastRepairEntitiesVisited++;
                 ref readonly var metaREI  = ref entityIndex.GetMetadata(i);
+                if (metaREI.IsActive) continue;   // ⭐ CE-1478 — only a DEAD entity can be revived: a live one needs no look at its mask
                 ref var          compREI  = ref entityIndex.GetComponentMask(i);
-                
+                if (compREI.IsEmpty()) continue;   // ⭐ CE-1478 — and an empty mask has nothing to revive (the index is mostly dead, empty slots: 5 647 live of ~500 000)
+
                 // Check if this entity has any components
+                // ⭐ CE-4407 (R-2084) — over a plain array of the type ids, built once per pass: this walked the interface dictionary (a boxed enumerator, and every registered
+                //   table) for EVERY entity of EVERY applied frame
                 bool hasComponents = false;
-                foreach (var kvp in componentTables)
+                for (int k = 0; k < idCount; k++)
                 {
-                    if (compREI.IsSet(kvp.Value.ComponentTypeId))
+                    if (compREI.IsSet(ids[k]))
                     {
                         hasComponents = true;
                         break;
                     }
                 }
-                
+
                 // If entity has components but is marked dead, revive it
                 if (hasComponents && !metaREI.IsActive)
                 {
@@ -530,11 +818,12 @@ namespace Fdp.Core.FlightRecorder
             // Read version
             FormatVersion = _reader.ReadUInt32();
             
-            if (FormatVersion != FdpConfig.FORMAT_VERSION)
+            // ⭐ CE-3329 P0 — v6 differs from v7 only in the outer header (FrameOuterHeader.SizeFor)
+            if (FormatVersion < FdpConfig.MIN_READABLE_FORMAT_VERSION || FormatVersion > FdpConfig.FORMAT_VERSION)
             {
                 throw new InvalidDataException(
                     $"Format version mismatch. File version: {FormatVersion}, " +
-                    $"Expected: {FdpConfig.FORMAT_VERSION}");
+                    $"Expected: {FdpConfig.MIN_READABLE_FORMAT_VERSION}–{FdpConfig.FORMAT_VERSION}");
             }
             
             // Read timestamp
@@ -558,22 +847,24 @@ namespace Fdp.Core.FlightRecorder
                 }
                 
                 // Read entire outer header in one bulk read via the typed struct
-                if (_fileStream.Position + FrameOuterHeader.Size > _fileStream.Length)
+                int outerSize = FrameOuterHeader.SizeFor(FormatVersion);
+                if (_fileStream.Position + outerSize > _fileStream.Length)
                 {
                     Console.WriteLine($"[KERNEL-DEBUG] ReadNextFrame: Not enough bytes for outer header at {_fileStream.Position}/{_fileStream.Length}");
                     return false;
                 }
 
                 Span<byte> outerHeaderBytes = stackalloc byte[FrameOuterHeader.Size];
+                outerHeaderBytes = outerHeaderBytes.Slice(0, outerSize);
                 _fileStream.Read(outerHeaderBytes);
-                FrameOuterHeader outerHeader = System.Runtime.InteropServices.MemoryMarshal.Read<FrameOuterHeader>(outerHeaderBytes);
+                FrameOuterHeader outerHeader = FrameOuterHeader.Read(outerHeaderBytes, FormatVersion);
 
                 int compSize = outerHeader.CompressedSize;
                 int uncompSize = outerHeader.UncompressedSize;
 
                 if (compSize <= 0)
                 {
-                    Console.WriteLine($"[KERNEL-DEBUG] ReadNextFrame: Invalid compSize {compSize} at {_fileStream.Position - FrameOuterHeader.Size}/{_fileStream.Length}");
+                    Console.WriteLine($"[KERNEL-DEBUG] ReadNextFrame: Invalid compSize {compSize} at {_fileStream.Position - outerSize}/{_fileStream.Length}");
                     return false;
                 }
                 

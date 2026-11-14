@@ -50,6 +50,27 @@ public sealed class StaticTypeRegistry : ITypeRegistry
                 IsEntityHandle = true,
             },
 
+            // ⭐ The AUTHORED entity reference (DESIGN_Entity_Reference.md) -- a network id, 4 bytes (CE-4200: int32), unmanaged. ⛔ NOT an
+            //   entity handle: it never compares with Entity and is resolved by a node (Entity From Ref), not by IsEntityHandle.
+            ["Fdp.Toolkit.Replication.EntityRef"] = Unmanaged("Fdp.Toolkit.Replication.EntityRef", 4),
+            ["EntityRef"]                         = Unmanaged("Fdp.Toolkit.Replication.EntityRef", 4),
+
+            // ⭐ S0 item 5 (DESIGN_Scenario_Rules §9.8.0) -- the AUTHORED types and the internal place / bearing: unmanaged structs a params DTO (and so a blueprint's
+            //   "Get All Parameters" / SendIntent pins) now carries. Composite, so SizeReliable=false: the layout comes from the runtime (Marshal.OffsetOf), never baked offsets.
+            ["Fdp.Toolkit.Replication.EntityLink"] = new IrTypeRef { FullName = "Fdp.Toolkit.Replication.EntityLink", IsUnmanaged = true, SizeBytes = 40, SizeReliable = false },
+            ["Fdp.Toolkit.Replication.PointLink"]  = new IrTypeRef { FullName = "Fdp.Toolkit.Replication.PointLink",  IsUnmanaged = true, SizeBytes = 48, SizeReliable = false },
+            ["Fdp.Toolkit.Replication.AreaLink"]   = new IrTypeRef { FullName = "Fdp.Toolkit.Replication.AreaLink",   IsUnmanaged = true, SizeBytes = 72, SizeReliable = false },
+            ["Fdp.Core.WorldPoint"]                = Unmanaged("Fdp.Core.WorldPoint", 12),
+            ["Fdp.Core.Bearing"]                   = Unmanaged("Fdp.Core.Bearing", 4),
+            ["Fdp.Core.Angle"]                     = Unmanaged("Fdp.Core.Angle", 4),   // ⭐ CE-4202 SV-4: a relative angle (radians) — a float's memory
+            ["Fdp.Core.SimInstant"]                = Unmanaged("Fdp.Core.SimInstant", 8),   // ⭐ CE-4201 SV-1: a point in sim time — a double's memory
+            ["Fdp.Core.SimDuration"]               = Unmanaged("Fdp.Core.SimDuration", 4),   // ⭐ CE-4201 SV-1: a length of sim time — a float's memory
+            ["Fdp.Core.WorldRotation"]             = Unmanaged("Fdp.Core.WorldRotation", 16),   // S0 item 6: a world orientation — a Quaternion's memory
+            ["Fdp.Core.TkbTypeId"]                 = Unmanaged("Fdp.Core.TkbTypeId", 8),   // ⭐ CE-4200 SV-2: a template id — a long's memory
+            ["Fdp.Core.NodeId"]                    = Unmanaged("Fdp.Core.NodeId", 4),   // ⭐ CE-4200 SV-3: a cluster node id — an int's memory
+            ["Fdp.Core.ExerciseId"]                = Unmanaged("Fdp.Core.ExerciseId", 16),   // ⭐ CE-4204 SV-6: an exercise id — a Guid's memory
+            ["Fdp.Core.EpisodeId"]                 = Unmanaged("Fdp.Core.EpisodeId", 16),   // ⭐ CE-4204 SV-6: an episode id — a Guid's memory
+
             // EQS sensor handle -- wraps Entity (8 bytes), unmanaged value type
             ["FDP.Eqs.EqsSensorHandle"] = new IrTypeRef
             {
@@ -61,50 +82,201 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             // Fdp.Core fixed-length string value types (unmanaged, blittable; preferred over System.String in state)
             ["Fdp.Core.FixedString32"] = Unmanaged("Fdp.Core.FixedString32", 32),
             ["Fdp.Core.FixedString64"] = Unmanaged("Fdp.Core.FixedString64", 64),
+            ["Fdp.Core.FixedString128"] = Unmanaged("Fdp.Core.FixedString128", 128),
 
             // Curated blittable structs used as Blueprint WorkingState vars (reflection-free compiler ->
             // FQN + size declared here, exactly like Entity/EqsSensorHandle/FixedString above; the
             // `global::` acceptance path below deliberately does NOT cover these because it can only guess
-            // a 4-byte enum-int32 size). MemberSlotList (Hill-attack wave core, architect Q#8) is the SoA
-            // runner tracker: int Count (4) + 4 pad + long[8] (64) + byte[8]x3 (24) = 96 (Marshal.SizeOf).
+            // a 4-byte enum-int32 size). (MemberSlotList / WaveState, the hill-attack wave-core structs of
+            // architect Q#8, were registered here; retired with the HillAssault2_* twins, 2026-10-01.)
             // NOTE: for an AiPrimitive WorkingState var the slot is sized at RUNTIME (Marshal.SizeOf<WorkingState>()),
             // so SizeBytes here is cosmetic for that path; it is declared correctly anyway for the offset/
             // debug-map bookkeeping that does read it. (A general curated-struct registration mechanism --
             // vs. hardcoding each here -- is future work if the curated-struct set grows.)
-            ["Hrot.AI.Behaviors.Brains.MemberSlotList"] = Unmanaged("Hrot.AI.Behaviors.Brains.MemberSlotList", 96),
-            // WaveState bundles MemberSlotList (96) + 2x ushort (4) -> 8-aligned (contains long) = 104.
-            // Same cosmetic-size caveat as MemberSlotList (AiPrimitive WorkingState sized at runtime).
-            ["Hrot.AI.Behaviors.Brains.WaveState"] = Unmanaged("Hrot.AI.Behaviors.Brains.WaveState", 104),
-            // HillAttackSharedState (tree-integration shared commander struct, architect Q9): int + 3x
-            // ushort + MemberSlotList (96, 8-aligned) + long + int + float + byte -> 8-aligned = 136.
-            ["Hrot.AI.Behaviors.Brains.HillAttackSharedState"] = Unmanaged("Hrot.AI.Behaviors.Brains.HillAttackSharedState", 136),
 
-            // Common aliases used in test assets
+            // Common aliases used in test assets -- and, since BP-87, the exact strings the editor's
+            // type picker writes into an asset. Every alias here maps to the CANONICAL FullName, so
+            // the coercion table below (keyed on FullName) sees `uint` and `System.UInt32` alike.
             ["bool"]   = Unmanaged("System.Boolean", 1),
             ["byte"]   = Unmanaged("System.Byte",    1),
+            ["sbyte"]  = Unmanaged("System.SByte",   1),
             ["short"]  = Unmanaged("System.Int16",   2),
+            ["ushort"] = Unmanaged("System.UInt16",  2),
             ["int"]    = Unmanaged("System.Int32",   4),
+            ["uint"]   = Unmanaged("System.UInt32",  4),
             ["long"]   = Unmanaged("System.Int64",   8),
+            ["ulong"]  = Unmanaged("System.UInt64",  8),
             ["float"]  = Unmanaged("System.Single",  4),
             ["double"] = Unmanaged("System.Double",  8),
+
+            // BP-87: the vector types were registered under their FQN only, so the bare name the
+            // picker offered ("Vector3") failed to resolve -- BP1500 on an asset the editor itself
+            // produced.
+            ["Vector2"]    = Unmanaged("System.Numerics.Vector2",    8),
+            ["Vector3"]    = Unmanaged("System.Numerics.Vector3",    12),
+            ["Vector4"]    = Unmanaged("System.Numerics.Vector4",    16),
+            ["Quaternion"] = Unmanaged("System.Numerics.Quaternion", 16),
+
+            // BP-87: the blittable fixed-length strings the user asked to be able to pick. Bare
+            // aliases for symmetry with the vectors above.
+            ["FixedString32"] = Unmanaged("Fdp.Core.FixedString32", 32),
+            ["FixedString64"] = Unmanaged("Fdp.Core.FixedString64", 64),
+            ["FixedString128"] = Unmanaged("Fdp.Core.FixedString128", 128),
         };
 
+    /// <summary>
+    /// BP-87: the type IDs a blueprint editor may offer in a parameter/variable type picker.
+    ///
+    /// <para>
+    /// ⚠ <b>Every entry MUST be a key of <see cref="TypeTable"/> above</b>, and any numeric pair the
+    /// designer can plausibly wire together must have a rung in <see cref="CoercionTable"/> below.
+    /// Both are locked by <c>BP87_TypePickerTests</c>. This list lives here, beside the two tables it
+    /// depends on, precisely so the drift that caused BP-87 is visible in one file: the picker used to
+    /// be a hand-maintained array in <c>Hrot.Editor.AiShared</c> that offered <b>eight types the
+    /// compiler could not resolve</b> (<c>sbyte ushort uint ulong</c> unregistered under any name;
+    /// <c>Vector2/3/4 Quaternion</c> registered under their FQN only).
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Deliberately <b>not</b> just <c>TypeTable.Keys</c>: that table also carries curated project
+    /// structs (<c>Fdp.Core.FixedString64</c>, …), the managed <c>System.String</c>/
+    /// <c>System.Object</c>, and every FQN spelling of the aliases — none of which belong in a picker.
+    /// </para>
+    /// </summary>
+    public static readonly IReadOnlyList<string> EditorOfferableTypeIds = new[]
+    {
+        "bool", "byte", "sbyte", "short", "ushort", "int", "uint", "long", "ulong",
+        "float", "double",
+        "Vector2", "Vector3", "Vector4", "Quaternion",
+        "FixedString32", "FixedString64", "FixedString128",
+        "EntityRef",   // ⭐ DESIGN_Entity_Reference.md D6 — its two rungs (int <-> EntityRef) are below
+    };
+
     // Coercion table: (fromFullName, toFullName) --> C# expression template
+    //
+    // BP-87 item 4: this is C#'s own implicit-numeric-conversion table (minus `decimal`, which the
+    // registry does not carry), and nothing more. Widening only -- there is deliberately no
+    // Int32->UInt32 or Int64->Int32 rung, because C# itself demands an explicit cast for those and a
+    // silent lossy coercion in a visual graph is a wrong-VALUES bug the designer cannot see.
+    //
+    // ⚠ Why the unsigned rungs are not optional. Before BP-87 this table had exactly eight entries
+    // and EVERY ONE was signed: registering `uint`/`ushort` as pickable types without them would have
+    // produced types that RESOLVE but cannot be WIRED -- a worse failure than the BP1500 they replace,
+    // because it surfaces later and reads as an editor glitch rather than a type error. The user's
+    // condition for keeping the unsigned types was explicit: "as long as it can be seamlessly
+    // converted to ints (wiring possible between uint <-> ushort <-> int pins)".
     private static readonly IReadOnlyDictionary<(string From, string To), string> CoercionTable =
         new Dictionary<(string, string), string>
         {
+            // S0: an authored point reads as its Vector3 (PointLink has the implicit conversion; the reverse is not offered)
+            { ("Fdp.Toolkit.Replication.PointLink", "System.Numerics.Vector3"), "(global::System.Numerics.Vector3)($expr)" },
+            { ("Fdp.Toolkit.Replication.PointLink", "Fdp.Core.WorldPoint"),     "(global::Fdp.Core.WorldPoint)($expr)" },   // its Local IS a WorldPoint
+            // S0: a literal reference (an EntityRef from a node) fills an authored link — implicit in C# (an empty RefSpec = "not authored by reference")
+            { ("Fdp.Toolkit.Replication.EntityRef", "Fdp.Toolkit.Replication.EntityLink"), "(global::Fdp.Toolkit.Replication.EntityLink)($expr)" },
+            // S0: the three semantic value types and their storage types — SAME BYTES, implicit both ways in C# (DESIGN_Scenario_Rules §9.8.11),
+            //     so a Vector3 node output wires into a WorldPoint pin (a retyped component field) and back
+            { ("System.Numerics.Vector3",    "Fdp.Core.WorldPoint"),             "(global::Fdp.Core.WorldPoint)($expr)" },
+            { ("Fdp.Core.WorldPoint",        "System.Numerics.Vector3"),         "(global::System.Numerics.Vector3)($expr)" },
+            { ("System.Numerics.Quaternion", "Fdp.Core.WorldRotation"),          "(global::Fdp.Core.WorldRotation)($expr)" },
+            { ("Fdp.Core.WorldRotation",     "System.Numerics.Quaternion"),      "(global::System.Numerics.Quaternion)($expr)" },
+            { ("System.Single",              "Fdp.Core.Bearing"),                "(global::Fdp.Core.Bearing)($expr)" },
+            { ("Fdp.Core.Bearing",           "System.Single"),                   "(float)($expr)" },
+
+            // sbyte -> short, int, long, float, double
+            { ("System.SByte",  "System.Int16"),  "(short)$expr"  },
+            { ("System.SByte",  "System.Int32"),  "(int)$expr"    },
+            { ("System.SByte",  "System.Int64"),  "(long)$expr"   },
+            { ("System.SByte",  "System.Single"), "(float)$expr"  },
+            { ("System.SByte",  "System.Double"), "(double)$expr" },
+
+            // byte -> short, ushort, int, uint, long, ulong, float, double
+            { ("System.Byte",   "System.Int16"),  "(short)$expr"  },
+            { ("System.Byte",   "System.UInt16"), "(ushort)$expr" },
             { ("System.Byte",   "System.Int32"),  "(int)$expr"    },
+            { ("System.Byte",   "System.UInt32"), "(uint)$expr"   },
+            { ("System.Byte",   "System.Int64"),  "(long)$expr"   },
+            { ("System.Byte",   "System.UInt64"), "(ulong)$expr"  },
             { ("System.Byte",   "System.Single"), "(float)$expr"  },
+            { ("System.Byte",   "System.Double"), "(double)$expr" },
+
+            // short -> int, long, float, double
             { ("System.Int16",  "System.Int32"),  "(int)$expr"    },
+            { ("System.Int16",  "System.Int64"),  "(long)$expr"   },
             { ("System.Int16",  "System.Single"), "(float)$expr"  },
+            { ("System.Int16",  "System.Double"), "(double)$expr" },
+
+            // ushort -> int, uint, long, ulong, float, double
+            { ("System.UInt16", "System.Int32"),  "(int)$expr"    },
+            { ("System.UInt16", "System.UInt32"), "(uint)$expr"   },
+            { ("System.UInt16", "System.Int64"),  "(long)$expr"   },
+            { ("System.UInt16", "System.UInt64"), "(ulong)$expr"  },
+            { ("System.UInt16", "System.Single"), "(float)$expr"  },
+            { ("System.UInt16", "System.Double"), "(double)$expr" },
+
+            // int -> long, float, double
             { ("System.Int32",  "System.Int64"),  "(long)$expr"   },
             { ("System.Int32",  "System.Single"), "(float)$expr"  },
             { ("System.Int32",  "System.Double"), "(double)$expr" },
+
+            // uint -> long, ulong, float, double
+            { ("System.UInt32", "System.Int64"),  "(long)$expr"   },
+            { ("System.UInt32", "System.UInt64"), "(ulong)$expr"  },
+            { ("System.UInt32", "System.Single"), "(float)$expr"  },
+            { ("System.UInt32", "System.Double"), "(double)$expr" },
+
+            // long -> float, double  (implicit in C# despite the precision loss)
+            { ("System.Int64",  "System.Single"), "(float)$expr"  },
+            { ("System.Int64",  "System.Double"), "(double)$expr" },
+
+            // ulong -> float, double  (likewise)
+            { ("System.UInt64", "System.Single"), "(float)$expr"  },
+            { ("System.UInt64", "System.Double"), "(double)$expr" },
+
+            // float -> double
             { ("System.Single", "System.Double"), "(double)$expr" },
+
+            // ⛔ No Int32 <-> EntityRef rung (DESIGN_Entity_Reference.md §5): a rung is inserted SILENTLY, and a silent
+            //   crossing between a bare number and a reference is exactly the ambiguity the type removes. A graph crosses
+            //   explicitly — Ref From Entity / Entity From Ref.
         };
 
     public bool TryResolve(BlueprintTypeRef typeRef, out IrTypeRef irType)
     {
+        // FC-2/LV-1 (Q#19-B): fixed-capacity list variable. Capacity -- not IsArray -- is the list
+        // discriminator (review F7). The element must itself resolve UNMANAGED (a managed element
+        // fails resolve -> the standard BP1500 unresolvable-type path; Q#19 settled: no managed
+        // elements, ever) and must not itself be a list (nested lists forbidden -- open point #5).
+        // The resolved type is the per-class generated `__List_{Elem}_{N}` wrapper: genuinely
+        // unmanaged with a REAL computed size (so it passes BP1503 and participates in the tier
+        // budget), but SizeReliable=false (review F3: the SizeBytes-keyed alignment heuristic
+        // over-pads composite types, so state layout must use the runtime Marshal.OffsetOf path --
+        // CSharpEmitter's layoutFromRuntime fallback).
+        if (typeRef.Capacity > 0)
+        {
+            if (typeRef.IsArray) { irType = null!; return false; }   // list-of-array is not a shape
+            var elementRef = new BlueprintTypeRef { TypeId = typeRef.TypeId };
+            if (!TryResolve(elementRef, out var elem) || !elem.IsUnmanaged || elem.Capacity > 0
+                || elem.SizeBytes <= 0)
+            {
+                irType = null!;
+                return false;
+            }
+
+            int n = typeRef.Capacity;
+
+            irType = new IrTypeRef
+            {
+                FullName      = $"__List_{Sanitize(elem.FullName)}_{n}",
+                IsUnmanaged   = true,
+                SizeBytes     = ListWrapperSize(n, elem.SizeBytes),
+                SizeReliable  = false,   // F3: runtime Marshal.OffsetOf layout, never baked offsets
+                Capacity      = n,
+                InitialLength = typeRef.InitialLength,
+                ElementType   = elem,
+            };
+            return true;
+        }
+
         if (typeRef.IsArray)
         {
             // Resolve element type first.
@@ -174,4 +346,30 @@ public sealed class StaticTypeRegistry : ITypeRegistry
         IsUnmanaged = true,
         SizeBytes   = sizeBytes,
     };
+
+    /// <summary>
+    /// FC-2/LV-1 — the size of the generated <c>__List_{Elem}_{N}</c> wrapper:
+    /// <c>alignUp(alignUp(4, align(elem)) + N*sizeof(elem), max(4, align(elem)))</c>
+    /// (an <c>int Count</c> padded to the element's alignment, then <c>N</c> elements).
+    ///
+    /// <para>
+    /// ⭐ <c>S4</c> made this <c>public</c>: <c>Stage4_TypeResolve</c> recomputes it when the
+    /// struct-size oracle (<c>S2</c>) corrects an element whose size the registry could only guess.
+    /// ⛔ <b>Recomputing means calling THIS</b> — the formula existing twice is how the wrapper's
+    /// declared size and its real size come to disagree.
+    /// </para>
+    /// </summary>
+    public static int ListWrapperSize(int capacity, int elementSizeBytes)
+    {
+        int elemAlign = elementSizeBytes switch { 1 => 1, 2 => 2, <= 4 => 4, _ => 8 };
+        int header    = AlignUp(4, elemAlign);                     // int Count + pad to element
+        return AlignUp(header + capacity * elementSizeBytes, Math.Max(4, elemAlign));
+    }
+
+    /// <summary>FC-2/LV-1: element FQN → wrapper-name segment ('.'/'+' → '_', e.g. "System.Int32" → "System_Int32").</summary>
+    private static string Sanitize(string fullName)
+        => fullName.Replace('.', '_').Replace('+', '_');
+
+    private static int AlignUp(int offset, int align)
+        => (offset + align - 1) & ~(align - 1);
 }

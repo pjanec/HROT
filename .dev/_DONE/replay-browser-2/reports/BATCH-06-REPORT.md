@@ -10,7 +10,7 @@
 ## Summary
 
 All 9 tasks (A-I) implemented. All 6 required tests (SR-T28, SR-T29, SR-T32, SR-T33, SR-T39, FND-T11) pass.
-FDP.sln builds with 0 errors. IOS-IG-SimHost.sln has only the 2 pre-existing Hrot.SimHost.Tests errors (AreaQueryBatchData, EqsTargetPool — excluded per instructions).
+FDP.sln builds with 0 errors. HROT.sln has only the 2 pre-existing Hrot.SimHost.Tests errors (AreaQueryBatchData, EqsTargetPool — excluded per instructions).
 
 ---
 

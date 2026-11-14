@@ -31,7 +31,7 @@ Construct a `SanitizerRegistry`, register the BTree/HSM/Blueprint (+ Blackboard/
 
 ## Success Criteria
 - [ ] AIE-050/051/052 per success conditions.
-- [ ] `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 warnings (GizmoMap.Contracts on 0.2.2).
+- [ ] `dotnet build HROT.sln` 0 errors / 0 warnings (GizmoMap.Contracts on 0.2.2).
 - [ ] Green: `Hrot.Editor.AiShared.Tests`, `Hrot.Blueprints.Tests` (no new failures beyond DEBT-006's 10), `Hrot.BTree.Editor.Tests`, `Hrot.Hsm.Editor.Tests`, and `Hrot.ClusterRunner.Integration.Tests --filter FullyQualifiedName~EditorSubsystemBoot`.
 - [ ] No leftover TODO/debug; docs.
 - [ ] Report at `.dev/blueprint-integ-1/reports/BATCH-14-REPORT.md`.

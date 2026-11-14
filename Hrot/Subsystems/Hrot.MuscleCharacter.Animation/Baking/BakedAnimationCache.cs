@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Concurrent;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Core.Tkb;
 
 namespace Hrot.MuscleCharacter.Animation.Baking

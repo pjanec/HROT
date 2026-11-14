@@ -18,7 +18,7 @@
 
 - `Hrot.ClusterRunner.csproj` — added `ProjectReference` to `Hrot.StrideMock`.
 - `Hrot.Common.csproj` — added `InternalsVisibleTo` for `Hrot.StrideMock.Tests`.
-- `IOS-IG-SimHost.sln` — added all three new projects with build configurations and solution folder nesting.
+- `HROT.sln` — added all three new projects with build configurations and solution folder nesting.
 
 ### Build Results
 

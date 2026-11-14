@@ -33,7 +33,7 @@ namespace Hrot.ReplayBrowser;
 /// live simulation state. Does not implement <c>IMapCameraProvider</c> so the
 /// spatial camera remains independent of other subsystems.
 /// </summary>
-public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
+public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 {
     // ── ISubsystem ────────────────────────────────────────────────────────
 
@@ -53,8 +53,24 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
     private ViewMode _viewMode = ViewMode.SingleNode;
     private EntityRepository? _transientMaster;
-    private TransientMasterBuilder? _transientBuilder;
+    private TransientMasterBuilder? _transientBuilder;   // ⭐ G-7: no longer CALLED by the host (the oracle in rails) — its presence is the "Merged view is available" gate (non-headless)
+    private BinaryMerger? _merger;                       // ⭐ G-7 S1 — the ONE merge, paired with _transientMaster (the persistent merged repository)
     private FederationPanel? _federationPanel;
+
+    // ⭐ CE-4496 R-2 (docs/DESIGN_Threaded_Review_Source.md §1.1, §3 ③) — the review channel this host's panels read and command through: INLINE (no kernel here) over the live manager,
+    //   the SAME model and builder the editor's review uses. ⛔ The panels hold no manager; this host keeps it (merge, play clock, debug surface).
+    private InlineReviewChannel? _review;
+    internal InlineReviewChannel Review => _review ??= new InlineReviewChannel(
+        new ManagerReviewHost(() => _manager, () => _viewMode == ViewMode.Merged ? ReviewKind.Merged : ReviewKind.Part, Hrot.Orchestrator.NodeIdRanges.NameOf,
+            selectMerged: () => { if (_federationPanel != null) _federationPanel.SetMode(ViewMode.Merged); else SetViewMode(ViewMode.Merged); },
+            selectPart: n => { try { _manager?.SetLocalEntitiesProvider(n); } catch (ArgumentOutOfRangeException) { } if (_federationPanel != null) _federationPanel.SetMode(ViewMode.SingleNode); else SetViewMode(ViewMode.SingleNode); }),
+        new ReviewModelBuilder(_replicaViews));
+
+    /// <summary>⭐⭐⭐ U-obs-5 follow-up — kept so <c>OnLoadGroup</c> can RE-REGISTER
+    /// <see cref="Fdp.Presentation.Windows.ReplayBrowser.FederationWindow"/> under the same id every
+    /// time <see cref="_federationPanel"/> is replaced by a fresh group load; <c>RegisterWindows</c> is
+    /// called only once, before any group is loaded, so this is the only place that can do it.</summary>
+    private WindowManager? _windowManager;
 
     // ── Internal accessors for testing ────────────────────────────────────
 
@@ -75,6 +91,36 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private InspectorState? _inspectorState;
     private RepositoryAdapter? _session;
     private ReplayTimelinePanel? _timelinePanel;
+    // ⭐ CE-1302 R1-c (DESIGN_Director_Timeline_Editor.md §9) — the event timeline over the primary node's recording: its index comes from
+    //   the sidecar or a background pass on its own playback (TL-7), its clicks seek through the manager (D1, FederatedReplayCursor).
+    private readonly Fdp.Presentation.Panels.Timeline.TimelinePanel _eventTimeline = new();
+    /// <summary>⭐ W-1 / P-8 8c-2 — the Event Timeline's Tasks rows (forwarding rails).</summary>
+    internal Hrot.Presentation.Orders.TasksTimelineTracks? TasksTracks { get; private set; }
+    internal Fdp.Presentation.Panels.Timeline.TimelinePanel EventTimelineForTest => _eventTimeline;
+    /// <summary>⭐ R-6 / V7 — the Event Timeline's Search hits row (the ONE class both hosts compose); a recording has no breakpoint manager, so no stops row.</summary>
+    internal Hrot.Editor.AiShared.Review.ReviewTimelineTracks? ReviewTracks { get; private set; }
+    // ⭐ CE-3330 E6 — the ONE reopen-on-path-or-catalogue-change holder (shared with every ECS node's cluster-replay timeline)
+    private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSlot? _timelineSlotField;
+    private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSlot _timelineSlot => _timelineSlotField ??=
+        new(_timelineLanes, TimelineContext, () => new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCompiler(
+            new EventScannerCompiler(new ComponentEditServiceBuilder().Build())));
+    private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSource? _timelineSource => _timelineSlot.Source;
+
+    /// <summary>⭐ CE-4216 — Window ▸ Rules on a recording; the Details panel's Objectives tab opens a rule in it (RV-7).</summary>
+    private Hrot.Presentation.Windows.RulesWindow? _rulesWindow;
+    private Fdp.Presentation.WindowManager.WindowManager? _rulesWindowManager;
+    internal Hrot.Presentation.Windows.RulesWindow? RulesWindow => _rulesWindow;
+    private void OpenRuleInRulesView(int networkId)
+    {
+        _rulesWindow?.SelectNetworkId(networkId);
+        if (_rulesWindow != null) _rulesWindowManager?.FocusWindow(_rulesWindow.Id);
+    }
+    // ⭐ R-4078 / R-4079 (DESIGN_Director_Timeline_Editor.md §9c) — the lanes are REGISTERED by the toolkits that own their data; this host
+    //   only composes them (as the editor's §15.2 registers its trace providers) and hands the catalogue to the index and the panel.
+    private readonly Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog _timelineLanes = Fdp.Toolkit.ReplayBrowser.Timeline.ShippedTimelineLanes.Catalog();
+    private static readonly Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext TimelineContext = new(Recording: true);
+    internal Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog TimelineLanes => _timelineLanes;
+    internal Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSource? TimelineSource => _timelineSource;
     private IFileDialogService? _fileDialogService;
     private IRecordingExportService? _exportService;
     private ComponentDiffPanel? _diffPanel;
@@ -82,24 +128,66 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private EntityInspectorPanel? _inspectorPanel;
     private EventBrowserPanel? _eventPanel;
     private ReplaySearchPanel? _searchPanel;
+    private ReplicaViews? _replicaViews;                       // ⭐ G-7 S5 — the merged view's lens (By node, the Replica differs lane)
+    private ByNodeSection? _byNodeSection;
+    private Hrot.Editor.AiShared.Review.ReplicaWatchLane? _replicaLane;
+    private Hrot.Editor.AiShared.Review.ReplicaWatchKit? _watchKit;   // ⭐ §6.13 — the eye + the lane's settings popup
+        /// <summary>⭐ §6.13 — this session's replica watch (per unit items, the lane's threshold); session state, not saved.</summary>
+        internal Fdp.Toolkit.ReplayBrowser.Federation.ReplicaWatchList ReplicaWatch { get; } = new();
     private ScenarioSerializer _scenarioSerializer = null!;
     private BehaviorRegistry _behaviorRegistry = new();
+    // Required by PredicateCompiler for BlueprintVariablePredicateDto; without it, blueprint
+    // conditional breakpoints compile to a constant-false delegate (BP-29). Mirrors CgfSubsystem.
+    private Fdp.Toolkit.Blueprints.BlueprintRegistry _blueprintRegistry = new();
     // ── Continuous Diff Tracking ──────────────────────────────────────────
     private int _lastDiffFrame = -1;
     private Entity? _lastDiffEntity = null;
     private JsonNode? _lastDiffEntityJson = null;
-    private float _playbackAccumulator = 0f;
     private Task? _seekToChangeTask;
     private volatile int _pendingChangeSeekFrame = -1;
     // â”€â”€ Gizmo debug overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     private Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? _gizmoBuffer;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _globalGizmoManager;
+
+    /// <summary>🔒 <c>UXI-07</c> step 4b — this host's tool arbiter.</summary>
+    private Hrot.ScenarioEditor.Tools.ToolController? _replayToolController;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? _dataDrivenGizmoSystem;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem? _statelessGizmoSystem;
+    // ⭐ CE-1042 E2 — the realism effects, driven here like the other map systems (this host runs them from Update).
+    private Hrot.UI.Common.Effects.EffectSpawnSystem? _effectSpawn;
+
+    private Hrot.UI.Common.Facades.CanvasMapPickAdapter? _replayPickAdapter;   // ⭐ CE-4206 R2
+    private MapCanvas? _replayPickAdapterCanvas;
+
+    private Hrot.Common.Infrastructure.NodeFeatures? _features;
+
+    /// <summary>⭐ CE-4148 — this host's feature gate: a Replay Browser builds its own (no cluster node), the editor's defaults (the Player-only HUD aids OFF) plus this process's
+    /// <c>--feature</c> overrides. Live features are not recorded, so a replay uses THIS host's settings.</summary>
+    internal Hrot.Common.Infrastructure.NodeFeatures Features => _features ??= Hrot.Common.Infrastructure.HudFeatures.BootGate(playerDefault: false, seat: Hrot.Common.Infrastructure.Seat.Reviewer);   // ⭐ seats H1 — the Replay Browser is the Reviewer seat
+    private Fdp.Toolkit.Time.LifespanSystem? _lifespan;
+    private Hrot.UI.Common.Effects.WreckSpawnSystem? _wreckSpawn;
     private Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer? _gizmoLayer;
     private Fdp.Core.FdpEventBus? _interactionBus;
     private Hrot.Common.Systems.GlobalActionDispatchSystem? _actionDispatchSystem;
+    /// <summary>⭐ <c>CE-3179</c> — the map-menu clicks (GizmoMenuActionEvent) become GlobalActionRequestedEvent here, as on every
+    /// other map host; it follows the ACTIVE world's entity map, which changes when a recording is rebound.</summary>
+    private Hrot.Common.Systems.ContextActionIngressSystem? _contextIngress;
+    // ⭐ CE-3123 — applies the map menu's pin / AI-trace patches; the pack constructs it, this host ticks it (no kernel).
+    private Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem? _debugStatePatchSystem;
     private Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? _selectionSystem;
+
+    // ⭐⭐⭐ UXI-11 S-3b — ReplayBrowser is NOT SPECIAL either (user ruling, 2026-09-20).
+    // 🔴 S-3 claimed this host "inspects a RECORDING, there is no global selection for it to agree
+    //    with". 📐 MEASURED FALSE: it holds a real EntityRepository and runs SelectionInteractionSystem,
+    //    which writes the SelectionState component — so it had the same two-store split as the rest,
+    //    plus its own hand-written map->inspector callback. ⇒ same view, same request/notify pair.
+    // ⚠ Rebuilt with _activeRepo, which is REPLACED on load: a cached view would pin a dead world.
+    private Hrot.ScenarioEditor.Selection.EcsSelectionState?        _selectionView;
+    private Hrot.ScenarioEditor.Systems.SelectionRequestSystem?     _selectionRequests;
+    private Hrot.ScenarioEditor.Systems.SelectionNotificationSystem? _selectionNotifications;
+
+    /// <summary>⭐ <c>CE-259am</c> — the shared camera-centring system; see its tick in <see cref="Update"/>.</summary>
+    private Hrot.ScenarioEditor.Systems.CenterOnEntitySystem? _centerOnEntitySystem;
     private readonly Fdp.Toolkit.Diagnostics.Gizmos.Hub.GizmoUiStateHub _gizmoUiHub = new();
 
     // ── Constructors ──────────────────────────────────────────────────────
@@ -112,6 +200,10 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     public ReplayBrowserSubsystem(INetworkFactory networkFactory) { _ = networkFactory; }
 
     /// <summary>Parameterless constructor for unit tests.</summary>
+    /// <summary>⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1) — THIS host's actions, made with the host: the map registers its
+    /// actions on them, the Details bundle registers Properties… and View ▸ Details on them.</summary>
+    internal Hrot.Common.Interactions.HostActions HostActions { get; } = Hrot.ScenarioEditor.Map.SharedHostActions.Create();
+
     public ReplayBrowserSubsystem() { }
 
     // ── ISubsystem lifecycle ──────────────────────────────────────────────
@@ -123,11 +215,15 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         _activeRepo = null;
         _entityHistory = new EntitySelectionHistory();
         _playbackHistory = new PlaybackHistoryTracker();
+        if (_headless) WireHeadlessHistories();   // RB-3 — a windowed host wires them with its panels
 
         if (!_headless)
         {
             _activeRepo = new EntityRepository();
             Fdp.Toolkit.ReplayBrowser.Federation.RepositoryPriming.RegisterDiscoveredComponents(_activeRepo);
+            // ⭐ §6.7 — the map exists from boot, not only from the first rebind: the canvas and the
+            //   gizmo layer are constructed below and may resolve an anchor before any recording loads.
+            PrepareRepo(_activeRepo);
             _canvas = new MapCanvas();
 
             _inspectorState = new InspectorState();
@@ -135,106 +231,27 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
             var behaviorRegistry = new BehaviorRegistry();
             _behaviorRegistry = behaviorRegistry;
-            CgfBehaviorSetup.LoadFromAiAssembly(behaviorRegistry);
+            CgfBehaviorSetup.LoadFromAiAssembly(behaviorRegistry, _blueprintRegistry);
+            _behaviorsLoaded = true;
             _scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
-            Hrot.Presentation.Renderers.BrainBlackboardRenderer.BehaviorRegistryAccessor = behaviorRegistry;
-            Hrot.Presentation.Renderers.Blackboard1024Renderer.BehaviorRegistryAccessor = behaviorRegistry;
+            // ⭐ P4-③: see CgfSubsystem — the params section is on the tier renderers now.
+            Hrot.Presentation.Renderers.BlueprintBlackboardRenderers.BehaviorRegistry = behaviorRegistry;
+            // ⛔ P4-①: Blackboard1024Renderer is gone with its component (§30.13).
             Hrot.Presentation.Renderers.BTreeVisualizerRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             Hrot.Presentation.Renderers.BehaviorStateRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             Hrot.Presentation.Renderers.BTreeTraceWorkingMemoryRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             Hrot.Presentation.Renderers.HsmTraceWorkingMemoryRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             // â”€â”€ Gizmo Setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            _gizmoBuffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
-            _interactionBus = new Fdp.Core.FdpEventBus();
-            Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(_interactionBus);
+            BuildMapInteraction(_activeRepo!, behaviorRegistry);
 
-            var gizmoRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry();
-            var statelessRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.StatelessGizmoRegistry();
-            var settingsRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry();
-
-            // 1. Register SimHost presentation gizmos (safe for SandboxRepo: relies on SimTransform, skips CullingState)
-            Hrot.SimHost.Gizmos.GizmoRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settingsRegistry);
-            // 2. Register Common diagnostics (LayerControl, SelectionHighlight, etc)
-            Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settingsRegistry);
-            // 3. Register Canvas context menu
-            Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settingsRegistry);
-            // 4. Register AI behavior gizmos
-            Hrot.AI.Behaviors.Gizmos.GizmoRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settingsRegistry);
-
-            // 5. Register specific ScenarioEditor gizmos manually (Overlays, Routes, Areas)
-            statelessRegistry.Register(new Hrot.ScenarioEditor.Gizmos.MapOverlayGizmo(), new[] { typeof(Fdp.Core.SimTransform), typeof(Hrot.IG.Components.MapOverlayStyle) });
-            statelessRegistry.Register(new Hrot.ScenarioEditor.Gizmos.RouteGizmo(), new[] { typeof(Fdp.Toolkit.Replication.Components.TkbIdentity) });
-            statelessRegistry.Register(new Hrot.ScenarioEditor.Gizmos.TacticalAreaGizmo(), new[] { typeof(Fdp.Toolkit.Replication.Components.TkbIdentity) });
-            statelessRegistry.Register(
-                new Hrot.ScenarioEditor.Gizmos.EntityEditorPolylineGizmo(),
-                new[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
-            statelessRegistry.Register(
-                new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(behaviorRegistry),
-                new[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
-
-            _globalGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_gizmoBuffer, _interactionBus);
-
-            _dataDrivenGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
-                gizmoRegistry,
-                _gizmoBuffer,
-                isSelectedPredicate: static (view, entity) =>
-                    view.HasComponent<Hrot.IG.Components.SelectionState>(entity) &&
-                    view.GetComponentRO<Hrot.IG.Components.SelectionState>(entity).IsSelected,
-                interactionBus: _interactionBus);
-
-            // â”€â”€ Selection Interaction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            var rubberBandState = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
-            statelessRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(rubberBandState));
-            statelessRegistry.RegisterGlobal(new ReplaySpatialBoundsGizmo(() => _searchPanel?.ActiveSpatialBounds));
-            _statelessGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(statelessRegistry, _gizmoBuffer);
-
-            _selectionSystem = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(_activeRepo!, _interactionBus, rubberBandState);
-            _selectionSystem.OnSelectionChanged += (entity, worldPos) =>
-            {
-                if (entity == Fdp.Core.Entity.Null)
-                    _inspectorState.SelectedEntity = null;
-                else if (_activeRepo?.IsAlive(entity) ?? false)
-                    _inspectorState.SelectedEntity = entity;
-            };
-
-            // â”€â”€ Layer Control & Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            var actionRegistry = new Hrot.Common.Interactions.GlobalActionRegistry();
-            long layerControlId = Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager.NewId();
-            var editService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
-            var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(
-                layerControlId, _interactionBus, editService, _gizmoUiHub);
-
-            _globalGizmoManager.Register(layerControlId, layerControlGizmo);
-
-            actionRegistry.Register(Hrot.Common.Constants.GlobalActionIds.OpenLayerControl, (_, _) =>
-            {
-                _interactionBus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
-            });
-
-            actionRegistry.Register(Hrot.Common.Constants.GlobalActionIds.CenterOnEntity, (view, target) =>
-            {
-                if (target == Fdp.Core.Entity.Null) return;
-                if (view.HasComponent<Fdp.Core.SimTransform>(target))
-                {
-                    ref readonly var tf = ref view.GetComponentRO<Fdp.Core.SimTransform>(target);
-                    _canvas.Camera.FocusOn(new System.Numerics.Vector2(tf.Position.X, tf.Position.Y));
-                }
-            });
-
-            _actionDispatchSystem = new Hrot.Common.Systems.GlobalActionDispatchSystem(actionRegistry, _interactionBus);
-
-            var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
-            using var layerControlSchemaSession = editService.Open(
-                new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Entities = true, Perception = true, AiHelpers = true },
-                typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
-            schemaRegistry.Register(Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash, layerControlSchemaSession.Document);
-
-            _gizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(
-                31, _gizmoBuffer, _interactionBus, _activeRepo!, _canvas.Camera,
-                new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(), schemaRegistry);
-
-            _canvas.AddLayer(_gizmoLayer);
-            _canvas.DrawBuffer = _gizmoBuffer;
+            // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked anchor's
+            //   network id to an Entity, against the NetworkEntityMap this module now maintains
+            //   (EnsureNetworkEntityMap). ⚠ NOT a revival of R3's deleted `view` parameter, which was
+            //   stored nowhere. See DebugGizmoLayer._world.
+            // ⭐ CE-1033 — the shared attach (gizmo layer + draw buffer + the 3-D mode), the same on every host.
+            _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
+                _canvas, _gizmoBuffer!, _interactionBus!, () => _activeRepo,
+                featureGate: () => Features).GizmoLayer;   // ⭐ CE-4148 — the hud.* features   // set by BuildMapInteraction above
 
             _diffService = new ComponentDiffService();
             _exportService = new RecordingExportService(_scenarioSerializer, _diffService);
@@ -249,45 +266,14 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
             // Wire up group-load delegate and merged-view query so the timeline panel
             // can coordinate with the federation manager without knowing about it.
-            _timelinePanel.OnLoadGroup = paths =>
-            {
-                try
-                {
-                    _manager?.Dispose();
-                    _transientMaster?.Dispose();
-                    _transientMaster = null;
-
-                    _manager = FederatedReplayManager.LoadGroup(paths);
-                    _manager.OnTimeChanged += OnManagerTimeChanged;
-
-                    // Create/replace the federation panel for the new manager.
-                    if (_federationPanel != null)
-                        _federationPanel.OnViewModeChanged -= SetViewMode;
-                    _federationPanel = new FederationPanel(_manager);
-                    _federationPanel.OnViewModeChanged += SetViewMode;
-
-                    OnManagerTimeChanged();
-                    _timelinePanel?.SetManager(_manager!);
-                    return null;  // no rejection
-                }
-                catch (LoadGroupException ex)
-                {
-                    return ex.Message;
-                }
-                catch (System.IO.IOException ex)
-                {
-                    return $"Failed to read recording file: {ex.Message}";
-                }
-                catch (UnauthorizedAccessException ex)
-                {
-                    return $"Access denied reading recording file: {ex.Message}";
-                }
-                catch (System.Text.Json.JsonException ex)
-                {
-                    return $"Recording metadata is corrupt: {ex.Message}";
-                }
-            };
-            _timelinePanel.IsMergedViewQuery = () => _viewMode == ViewMode.Merged;
+            // ⭐ RB-1 — the panel's load and POST /replay are ONE path (OpenGroup).
+            _timelinePanel.OnLoadGroup = OpenGroup;
+            // ⭐ CE-3330 T13 (DAR row 34, R-3058) — the viewer's axis toggle on its own transport row; the event timeline follows it
+            _timelinePanel.AxisIsSim = () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
+            _timelinePanel.ToggleAxis = () => Axis = Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim
+                ? Fdp.Toolkit.Orchestration.ReplayAxis.Wall : Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
+            _timelinePanel.HasSimAxis = () => CachedTimeMap.HasSimTime;
+            _timelinePanel.SimAtWall = wall => CachedTimeMap.SimAt(wall);   // ⭐ Replay Browser UX ① — the seek bar's times on the sim axis
 
             _transientBuilder = new TransientMasterBuilder(_scenarioSerializer);
 
@@ -305,10 +291,132 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             // Search panel is created after WireDelegates so it receives the wired
             // seek/select intents.
         }
+
+        // ⭐ CE-1303 P2a (DESIGN_Director_Timeline_Editor.md §11m) — the ONE film director, through the pack (windowed and headless)
+        AttachDirector();
+    }
+
+    /// <summary>
+    /// ⭐⭐ The shared map pack's machinery for this host (selection, actions, gizmos) — ONE construction, used at boot by a windowed
+    /// host and (RB-7, <c>docs/DESIGN_Replay_Browser_Debug_Http.md</c>) on the first open by a headless one, which has no world before a
+    /// recording opens. ⭐ So <c>POST /selection</c> and the selection history work on a headless Replay Browser through the same
+    /// <c>SelectionRequestSystem</c> a click goes through.
+    /// </summary>
+    private void BuildMapInteraction(EntityRepository world, BehaviorRegistry behaviorRegistry)
+    {
+        // ── UXI-23 S2b: the shared pack constructs the map's machinery ──────────────────────
+        // 🔒 The pack CONSTRUCTS; this host still SCHEDULES (it holds the two systems directly rather
+        // than scheduling the togglable group, which remains its choice — the run-set is its role).
+        //
+        // ⚠⚠ The four projectors below go in through ContributeExtras, which the pack invokes AFTER
+        // the reflection pass and BEFORE constructing StatelessGizmoSystem. That ordering is
+        // load-bearing: the system sizes its visibility cache from registry.Rules.Count, so a rule
+        // registered afterwards lands beyond the cache and silently ignores its visibility policy.
+        //
+        // ⭐ CE-3123: EntityEditorLabelGizmo is reflected now (its BehaviorRegistry comes via Services).
+        var rubberBandState = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
+
+        var mapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext
+            {
+                World = world,
+                FeatureGate = () => Features,   // ⭐ CE-4148 — the hud.* features
+                // ⭐ CE-3327 RB-7 (DESIGN_Replay_Browser_Debug_Http.md §7.4) — the selection lives in the world SHOWN now (a node's sandbox
+                //   or the merged world), never the one the pack was built over: the views switch under one map.
+                SelectionWorld = () => _activeRepo ?? world,
+                Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
+                // ⭐ CE-3123 — constructor services for reflected projectors (behaviour labels, mission lines). ⭐ CE-3126 — the
+                //   replay's geo transform (origin from the recording), so MissionPresentationGizmo draws here too.
+                Services = Hrot.ScenarioEditor.Map.MapServices.Of(_geoTransform, behaviorRegistry),
+                GizmoUiPublisher = _gizmoUiHub,
+                // ⭐ UXI-11 — the shared predicate, no longer hand-written here.
+                IsSelectedPredicate = Hrot.ScenarioEditor.Map.MapInteractionContext.SelectedEntitiesOnly,
+                // ⭐⭐⭐ UXI-11 — the pack builds this host's selection too. Resolver: _inspectorState
+                //   is rebuilt whenever a recording loads.
+                Inspector  = () => _inspectorState,
+                RubberBand = rubberBandState,
+                // The replay browser is an interactive window: it has a viewer from startup.
+                StartEnabled = true,
+                ContributeExtras = regs =>
+                {
+                    // ⭐ CE-3123 — the label gizmo is reflected now (BehaviorRegistry via Services); the retired
+                    //   EntityEditorPolylineGizmo (superseded by EntityPresentationGizmo) is no longer drawn here.
+                    // ⛔ The RubberBandGizmo registration MOVED into MapInteractionPack (2026-09-20,
+                    //    §2.7.16): every host with a 2-D map gets the marquee, not just the two that
+                    //    remembered to register it. Registering here too would draw it TWICE.
+                    regs.Stateless.RegisterGlobal(new ReplaySpatialBoundsGizmo(() => _searchPanel?.ActiveSpatialBounds));
+                },
+            });
+
+        _gizmoBuffer           = mapInteraction.Buffer;
+        _interactionBus        = mapInteraction.InteractionBus;
+        _globalGizmoManager    = mapInteraction.GlobalManager;
+        _replayToolController  = mapInteraction.Tools;
+        _dataDrivenGizmoSystem = mapInteraction.DataDrivenSystem;
+        _statelessGizmoSystem  = mapInteraction.StatelessSystem;
+        _effectSpawn           = mapInteraction.EffectSpawn;
+        _lifespan              = mapInteraction.Lifespan;
+        _wreckSpawn            = mapInteraction.WreckSpawn;
+        var gizmoRegistry      = mapInteraction.GizmoRegistry;
+        var statelessRegistry  = mapInteraction.StatelessRegistry;
+        var settingsRegistry   = mapInteraction.Settings;
+        // ⭐⭐ UXI-23 S3: this host drives the three systems directly from its own Update rather than
+        // scheduling the group, so it declares exactly those three. §3.2e.
+        foreach (string problem in mapInteraction.Unserviceable(
+                     new object[] { _globalGizmoManager, _dataDrivenGizmoSystem, _statelessGizmoSystem, mapInteraction.ActionDispatch,
+                                    _effectSpawn, _wreckSpawn, _lifespan }))
+            Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info("[Map] {0}", problem);
+
+        // ⭐⭐⭐ UXI-11 — ALL FOUR COME FROM THE PACK NOW. 📐 This host used to construct the gesture
+        //    system, the view and both systems by hand, exactly as the other four did — which is
+        //    the duplication MapInteractionPack exists to remove.
+        // ⭐ The hand-written map->inspector callback went at S-3b: it fired for a MAP click and
+        //    nothing else, so an inspector click or a diff/event entity link left the map behind.
+        _selectionSystem        = mapInteraction.SelectionInteraction;
+        _selectionView          = mapInteraction.Selection;
+        _selectionRequests      = mapInteraction.SelectionRequests;
+        _selectionNotifications = mapInteraction.SelectionNotifications;
+
+        // â”€â”€ Layer Control & Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ⭐ The registry, its dispatcher and the layer control come from the shared map pack.
+        // ⭐ CE-1134 / CE-1150 — Center View is SharedHostActions' (every host; 2-D and 3-D, the replicated position first). This
+        //   host's own copy read SimTransform only and moved only the 2-D camera.
+
+        _actionDispatchSystem = mapInteraction.ActionDispatch;
+        // ⭐ CE-3179 — the dispatcher above was ticked here with nothing feeding it: no ingress turned a map-menu click (Center
+        //   View, the pins, the main menu's layer control) into a request, so none of them ran in the replay browser.
+        _contextIngress = new Hrot.Common.Systems.ContextActionIngressSystem(
+            () => _activeRepo is { } r && r.HasSingletonManaged<NetworkEntityMap>() ? r.GetSingletonManaged<NetworkEntityMap>() : null,
+            _interactionBus!);
+        _debugStatePatchSystem = mapInteraction.DebugStatePatch;
+        // ⭐⭐ CE-259am — a DELEGATE, not `_canvas.Camera`: the canvas is replaced on a view-mode
+        //    switch, and the system's own param doc gives that as the reason it takes a Func.
+        _centerOnEntitySystem = new Hrot.ScenarioEditor.Systems.CenterOnEntitySystem(() => _canvas?.Camera);
+    }
+
+    // ⭐ CE-3293 S2 (DESIGN_Paused_And_Stepped_Execution.md rule 3) — this host runs no ModuleHostKernel and ticks its systems
+    //   itself; every one still goes through a scheduler's gate, which reads its TickMode and (from S5) the replay clock.
+    private readonly Fdp.ModuleHost.Scheduling.SystemScheduler _systemRunner = new();
+
+    private System.Diagnostics.Stopwatch? _headlessClock;
+
+    private void RunSystem(Fdp.ModuleHost.Abstractions.IEcsModuleSystem? system, float deltaTime)
+    {
+        if (system != null && _activeRepo != null) _systemRunner.Run(system, _activeRepo, deltaTime);
     }
 
     public void Update(float deltaTime)
     {
+        _review?.EndFrame();   // ⭐ CE-4496 R-2 — last frame's panel asks (By node, the watch) become the review's request, when they changed (0 B otherwise)
+        // ⭐ CE-3327 RB-1 — a headless orchestrator hands a non-deterministic host NO time (SubsystemOrchestrator.GetDeltaTime: 0); a kernel
+        //   host keeps its own clock, and so must this one or POST /sim/play never moves (🔴 measured live: frame 0 after 1 s of play).
+        if (_headless && deltaTime <= 0f)
+        {
+            _headlessClock ??= System.Diagnostics.Stopwatch.StartNew();
+            deltaTime = (float)_headlessClock.Elapsed.TotalSeconds;
+            _headlessClock.Restart();
+        }
+
         int pendingSeek = _pendingChangeSeekFrame;
         if (pendingSeek >= 0)
         {
@@ -331,28 +439,30 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             }
         }
 
+        SyncTimelineSource();   // ⭐ RB-6 — a headless host keeps the index too (GET /timeline/*)
+
+        // ⭐ CE-1303 P2a (§11m) — the director's frame FIRST, so everything below draws the world its step moved to. ⚠ While it plays it owns
+        //   the playhead: the viewer's own playback stays paused (two advancing would be two steppers).
+        if (_directorPack is { } director)
+        {
+            director.Tick();
+            if (director.Runner.Busy) IsPlaying = false;
+        }
+        // ⭐ CE-1400 TE-11 — what the browser's own transport plays at is what the ear hears (4× / paused), unless a film plays and owns the rate
+        Hrot.UI.Common.Audio.AudioDirector.HostTransport(_directorPack?.Runner.Busy == true, IsPlaying, PlaybackRate);
+
+        // ⭐ RB-1 — playback runs on a headless host too (POST /sim/play): the one play state, the panel's or the headless host's.
+        if (IsPlaying)
+        {
+            // ⭐⭐ CE-1479 — play follows the recording's TIME: a clock (this viewer's own, advanced by the frame time × the rate on its axis) names the moment, and
+            //   the recorded frames DUE at it are applied in order — the editor's rule (ReplayClockRule), never one frame per 1/60 s whatever the recording holds.
+            if (!AdvancePlaybackClock(deltaTime * PlaybackRate))
+                IsPlaying = false;
+            TickLocalLoop();   // ⭐ CE-3329 §12n — the viewer's own loop wraps its playback
+        }
+
         if (!_headless)
         {
-            if (_timelinePanel != null && _timelinePanel.IsPlaying)
-            {
-                _playbackAccumulator += deltaTime * _timelinePanel.PlaybackRate;
-                float frameTime = 1.0f / 60.0f;
-
-                if (_playbackAccumulator > frameTime * 10f)
-                    _playbackAccumulator = frameTime * 10f;
-
-                while (_playbackAccumulator >= frameTime)
-                {
-                    _playbackAccumulator -= frameTime;
-                    if (!TryStepForwardViaManager())
-                    {
-                        _timelinePanel.IsPlaying = false;
-                        _playbackAccumulator = 0f;
-                        break;
-                    }
-                }
-            }
-
             int currentFrame = PrimaryNodeCurrentFrame();
             Entity? currentEntity = _inspectorState?.SelectedEntity;
             bool isPlaying = _timelinePanel != null && _timelinePanel.IsPlaying;
@@ -384,17 +494,58 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                 _canvas.Camera.HandleInput(new Fdp.Toolkit.Vis2D.Defaults.RaylibInputProvider());
 
             _canvas?.Update(deltaTime);
+        }
 
+        // ⭐ RB-7 — the map pack's systems run on a headless host too (it builds them on its first open): POST /selection goes through
+        //   the same SelectionRequestSystem a click does. Only the mouse gesture system needs a window.
+        {
             // Evict transient primitives before backend population
             _gizmoBuffer?.EndFrame(deltaTime);
 
             if (_activeRepo != null)
             {
-                _selectionSystem?.Tick(deltaTime);
-                _actionDispatchSystem?.Execute(_activeRepo, deltaTime);
-                _dataDrivenGizmoSystem?.Execute(_activeRepo, deltaTime);
-                _globalGizmoManager?.Execute(_activeRepo, deltaTime);
-                _statelessGizmoSystem?.Execute(_activeRepo, deltaTime);
+                // ⭐ CE-3327 RB-7 — the shown world's own bus, swapped once a frame as a kernel does (ModuleHostKernel.cs:657): what a
+                //   route or a panel published on it (SelectEntityCommand, SelectionChangeRequest, CenterOnEntityCommand) becomes readable
+                //   to the systems below. 🔴 Nothing swapped it before, so those events were never read. ⚠ The playback injects the recorded
+                //   events into the context's separate SandboxBus; a STEP hands them to this bus's pending buffer (CE-4062), read after this swap.
+                _activeRepo.Bus.SwapBuffers();
+                if (!_headless) _selectionSystem?.Tick(deltaTime);
+                // ⭐⭐⭐ UXI-11 — the shared request/notify pair, ticked directly like its neighbours
+                //    here because this host runs no ModuleHostKernel. ⚠ ORDER IS LOAD-BEARING:
+                //    requests apply, THEN the announcement is consumed, so a cause and its consequence
+                //    land in one frame (the order ScenarioEditorModule registers them in).
+                RunSystem(_selectionRequests, deltaTime);
+                RunSystem(_selectionNotifications, deltaTime);
+                RunSystem(_contextIngress, deltaTime);   // ⭐ CE-3179 — before the dispatch, the order every host keeps
+                RunSystem(_actionDispatchSystem, deltaTime);
+                // ⭐ CE-3123 — the order InteractionSystems gives: dispatch, patch, then the gizmos below.
+                RunSystem(_debugStatePatchSystem, deltaTime);
+                // ⭐⭐⭐ CE-259am — the SHARED CenterOnEntitySystem, ticked directly like its five
+                //    neighbours here because this host runs no ModuleHostKernel
+                //    (DESIGN_Subsystem_Composition_Unification.md:1153 measures zero kernel references).
+                //
+                // ⛔⛔ REGISTERING THE EVENT WITHOUT THIS WOULD HAVE MADE THE ROUTE LIE, which is worse
+                //    than the 500 it replaces: POST /entities/{id}/focus would answer ok:true and the
+                //    camera would not move. 🔒 DESIGN_Mcp_Diagnostics_Federation.md §9.3 — "a 200 with a
+                //    transaction id proves only that the ROUTE ran", a gap that surface has already been
+                //    bitten by twice (MA-004, MA-017).
+                // ⭐ Reuse, not a new mechanism: the system is the one the editor and CGF both run, and
+                //   its single dependency is a Func<MapCamera?> — written as a delegate for exactly this
+                //   host's shape ("the canvas is created during window registration"), so nothing had to
+                //   be adapted. ⚠ It also fixes the UI path: the entity-inspector context menu's
+                //   "Center on entity" published into a world that had never heard of the event.
+                RunSystem(_centerOnEntitySystem, deltaTime);
+                RunSystem(_dataDrivenGizmoSystem, deltaTime);
+                RunSystem(_globalGizmoManager, deltaTime);
+                RunSystem(_statelessGizmoSystem, deltaTime);
+                // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — the effects are IN the recording (with their Lifespan), so the layer draws
+                //   them at the recording's own sim time and a jump lands on the right ones. ⛔ The hand-spawning from the replayed
+                //   fire / hit events is gone (it lost every long effect on a jump). Both systems are still ticked so this host's
+                //   run-set is the map's whole set; ReplayState (PrepareRepo) keeps them standing down.
+                RunSystem(_effectSpawn, deltaTime);
+                RunSystem(_wreckSpawn, deltaTime);
+                RunSystem(_lifespan, deltaTime);
+                FollowTheSelectionIntoItsHistory();
             }
 
             // Swap the interaction bus so intent events are visible on the next frame
@@ -414,26 +565,21 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
         _gizmoLayer?.DrawContextMenu();
         _gizmoLayer?.DrawStructInspector();
+        Pickers?.DrawFrame();   // ⭐ CE-4323 — the recording picker
 
-        // Render gizmo-contributed main menu items (e.g., "View > Tactical Map Layers...")
-        var gizmoMenus = _gizmoLayer?.ConsumeMainMenu();
-        if (gizmoMenus != null && gizmoMenus.Count > 0)
-        {
-            if (ImGuiNET.ImGui.BeginMainMenuBar())
-            {
-                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenus, actionId =>
-                {
-                    _interactionBus?.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMenuActionEvent { AnchorId = 0, ActionId = actionId });
-                });
-                ImGuiNET.ImGui.EndMainMenuBar();
-            }
-        }
+        // ⭐ CE-1243 — the map's menus are a contributor of the one menu bar (RegisterWindowsCore).
     }
+
+    /// <summary>⭐ CE-1302 R1-c — re-opens the timeline's index when the primary node's recording changes (a new group, another node).</summary>
+    internal void SyncTimelineSource() => _timelineSlot.Sync(PrimaryNodeCurrentFdpPath());   // ⭐ CE-3330 E6 — the one reopen rule
 
     public void Shutdown()
     {
+        _timelineSlot.Dispose();
         _manager?.Dispose();
         _transientMaster?.Dispose();
+        _terrain?.Unload(_terrainCarrier);   // CE-3118 — the holder frees the road graph
+        _terrainCarrier.Dispose();
     }
 
     // ── Federation wiring (internal for tests) ────────────────────────────
@@ -458,6 +604,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                 RebindActiveRepo(ctx.SandboxRepo);
         }
 
+        CaptureEventsAtTheNewFrame();
+
         // Update EventBrowserPanel's history service to the primary node's service.
         if (_eventPanel != null && _manager != null
             && _manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var primaryCtxForEvent))
@@ -465,35 +613,44 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     }
 
     /// <summary>
-    /// Builds a fresh transient master from the current manager state and
-    /// rebinds <see cref="ActiveRepo"/> to it.
-    /// Disposes any previously allocated transient master.
+    /// ⭐ G-7 / CE-4354 S1 (docs/UX/DESIGN_Review_Perspective.md §6.12) — merges the current manager state into the ONE persistent merged repository
+    /// (created and bound ONCE per loaded group; <see cref="BinaryMerger.Merge"/> per seek / step / tick) and makes sure <see cref="ActiveRepo"/> is it.
+    /// A group change drops the repository (<c>OpenGroup</c> / <c>CloseGroup</c>) and with it the merger's map: the next merge starts a fresh pair.
+    /// ⛔ SUPERSEDED: a NEW repository from <see cref="TransientMasterBuilder.Build"/> (the JSON merge) every step, rebound every step.
     /// </summary>
     private void BuildAndBindTransientMaster()
     {
         if (_manager == null) return;
 
-        EntityRepository newMaster;
         if (TransientBuildOverride != null)
         {
-            newMaster = TransientBuildOverride(_manager);
+            // Test seam: a controlled repo per call (no merger).
+            var overridden = TransientBuildOverride(_manager);
+            _transientMaster?.Dispose();
+            _transientMaster = overridden;
+            _merger = null;
+            RebindActiveRepo(_transientMaster);
+            return;
         }
-        else if (_transientBuilder != null)
+
+        if (_transientBuilder == null)
         {
-            newMaster = _transientBuilder.Build(_manager);
-        }
-        else
-        {
-            // Fallback: no builder available — bind to single-node as before.
+            // Fallback: no merge available (headless) — bind to single-node as before.
             int nodeId = _manager.LocalEntitiesProviderNodeId;
             if (_manager.Contexts.TryGetValue(nodeId, out var ctx))
                 RebindActiveRepo(ctx.SandboxRepo);
             return;
         }
 
-        _transientMaster?.Dispose();
-        _transientMaster = newMaster;
-        RebindActiveRepo(_transientMaster);
+        if (_merger == null || _transientMaster == null)
+        {
+            _transientMaster?.Dispose();
+            _transientMaster = new EntityRepository();
+            RepositoryPriming.RegisterDiscoveredComponents(_transientMaster);   // every recorded component has a table (what Build primed per step)
+            _merger = new BinaryMerger(new OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap));   // ⭐ S2 — owners from the recorded ownership components
+        }
+        _merger.Merge(_manager, _transientMaster);
+        if (!ReferenceEquals(_activeRepo, _transientMaster)) RebindActiveRepo(_transientMaster);
     }
 
     /// <summary>
@@ -525,22 +682,269 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     /// </summary>
     internal void LoadFdpGroupForTest(string[] paths, TransientMasterBuilder builder)
     {
-        _manager?.Dispose();
-        _transientMaster?.Dispose();
-        _transientMaster = null;
-
+        // ⭐ CE-1393 — the ONE open path: the builder seam is set, then OpenGroup does the whole load (dispose, geo origin, terrain, panel, timeline, and the
+        //   LocalLoop / play-state / history reset). A refusal is thrown, as the seam always threw a bad group.
         _transientBuilder = builder;
-        _manager = FederatedReplayManager.LoadGroup(paths);
-        _manager.OnTimeChanged += OnManagerTimeChanged;
-        _timelinePanel?.SetManager(_manager);
-        OnManagerTimeChanged();
+        if (OpenGroup(paths) is { } refused) throw new LoadGroupException(refused);
+    }
+
+    /// <summary>⭐⭐⭐ U-obs-5 follow-up — creates (or replaces, on a subsequent group load) the
+    /// <see cref="FederationPanel"/> for the CURRENT <see cref="_manager"/>, and — when
+    /// <see cref="_windowManager"/> is already known (i.e. <see cref="RegisterWindows"/> already ran) —
+    /// (re)registers <see cref="Fdp.Presentation.Windows.ReplayBrowser.FederationWindow"/> under the
+    /// same id so <c>WindowManager</c>'s replace-by-id semantics swap in the new panel. Shared by the
+    /// real <c>OnLoadGroup</c> delegate and the <see cref="LoadFdpGroupForTest"/> test seam so both
+    /// paths exercise the identical wiring.</summary>
+    private void CreateOrReplaceFederationPanel()
+    {
+        if (_federationPanel != null)
+            _federationPanel.OnViewModeChanged -= SetViewMode;
+        _federationPanel = new FederationPanel(Review) { NodeName = Hrot.Orchestrator.NodeIdRanges.NameOf };   // ⭐ CE-4289 Q-B6 — the offsets rows named by the node role (the id's range, as the editor's Review source), not "Node N"
+        _federationPanel.OnViewModeChanged += SetViewMode;
+
+        if (_windowManager != null)
+            RegisterFederationWindow(_windowManager, _federationPanel);
     }
 
     private void RebindActiveRepo(EntityRepository repo)
     {
         _activeRepo = repo;
         _session = new RepositoryAdapter(repo);
+        PrepareRepo(repo);
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Everything a repo this subsystem BINDS must have before the shared viewport systems run on
+    /// it</b> — called from <see cref="Initialize"/> and from <see cref="RebindActiveRepo"/>, which between
+    /// them cover every repo this host ever ticks *(the boot transient master, each per-node sandbox, and
+    /// the Merged transient master)*.
+    ///
+    /// <para>🔴🔴 <b><c>CE-259am</c> — THE SECOND DEFECT, and it was PRE-EXISTING: this host ran the shared
+    /// viewport systems on worlds where their EVENTS WERE NEVER REGISTERED.</b> 📐 Measured `2026-09-11`
+    /// the moment <see cref="CreateDebugProvider"/> made the routes reachable:
+    /// <c>POST /entities/1001/focus</c> answered <c>500 "Strict Mode Violation: Unmanaged event type
+    /// 'CenterOnEntityCommand' (ID: 8104) was published without being explicitly registered."</c>
+    /// ⚠⚠ <b>Byte-for-byte the crash <c>CE-065</c> already fixed on CGF</b> — see
+    /// <c>PresentationComponentRegistry</c>'s own header, which records
+    /// <c>POST /entities/1000/focus → 500 … (ID: 8104)</c> as the reproduction. ⇒ the shared list was
+    /// adopted by four hosts *(Stride · CGF · SimHost · editor)* and this is the fifth that needed it.
+    /// 🔒 That header's standing instruction: <i>"If a fourth system joins ScenarioEditorModule, its event
+    /// belongs HERE"</i> — ⭐ so the fix is to ADOPT the list, not to hand-register three events beside it.
+    /// ⛔ <c>RepositoryPriming.RegisterDiscoveredComponents</c> above does NOT cover this: it registers
+    /// component tables, never events.</para>
+    ///
+    /// <para>⭐ Idempotent by construction — <c>RegisterAll</c>'s own remark: <i>"every call resolves to
+    /// GetOrCreate…, so a host that reaches this twice is fine."</i> ⇒ safe on every seek.</para>
+    /// </summary>
+    private void PrepareRepo(EntityRepository repo)
+    {
+        // ⭐⭐ The shared list, not a local copy of three RegisterEvent calls.
+        Hrot.Map.Common.PresentationComponentRegistry.RegisterAll(repo);
+        EnsureNetworkEntityMap(repo);
+        // ⭐ CE-3126 — the replay's ONE geo transform, on every repo this host binds, like every other node's world.
+        repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(_geoTransform);
+        // ⭐ CE-3329 P2 (DESIGN_Replay_Time_Axis_And_Review §12l) — this host only ever shows a recording: every world it binds says so,
+        //   and the systems that would write world state (the effect spawners, the lifespan collector) stand down by reading it.
+        Fdp.Toolkit.Replay.ReplayState.Enter(repo);
+        // ⭐ CE-3118 — the recording's terrain and road network, on every repo this host draws (docs/DESIGN_Geo_Origin.md §5).
+        Hrot.Map.Common.Services.TerrainResidency.MirrorTerrain(_terrainCarrier, repo);
+        // ⭐ CE-4058 ① (TE-12, R-4069) — the catalogue every node runs on, on every repo this host draws: the bodies, the effects and
+        //   the sounds read it from the world (MapInteractionPack's body layer). ⛔ Was none — every vehicle a plain box.
+        repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(_tkb);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4058</c> ① (Director Timeline TE-12, R-4069) — this host's TKB, made ONCE the way every node makes it at start
+    /// (<see cref="Hrot.Map.Common.HrotEnvironment.CreateTkb"/>: the built-in catalogue — what the knowledge-base load step falls back to
+    /// when no archive is staged, the default deployment). ⛔ Not from the recording's scenario: R-4018 — one TKB per deployment, named by
+    /// the file sync, never by a scenario. ⛔ No browser-only loader (CE-4013 D4/D5 removed four).
+    /// </summary>
+    private readonly Fdp.Toolkit.Tkb.TkbDatabase _tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+
+    /// <summary>The TKB every repo this host binds carries (test seam).</summary>
+    internal Fdp.Interfaces.ITkbDatabase Tkb => _tkb;
+
+    /// <summary>
+    /// ⭐ <c>CE-3118</c> — the terrain the loaded recording names (<c>RecordingMetadata.TerrainName</c>), made resident by the same
+    /// <see cref="Hrot.Map.Common.Services.TerrainResidency"/> every node uses, with its own road-graph holder and no navmesh (the
+    /// browser only draws it). It commits into <see cref="_terrainCarrier"/>, a world with no geo transform, so the terrain FILE's
+    /// origin never overrides the RECORDING's (§2 F); <see cref="PrepareRepo"/> mirrors it onto every repo it binds.
+    /// </summary>
+    private readonly EntityRepository _terrainCarrier = new();
+    private readonly CarKinem.Road.RoadNetworkHolder _terrainRoads = new();
+    private Hrot.Map.Common.Services.TerrainResidency? _terrain;
+
+    /// <summary>Where terrain names resolve (test seam): the shared NAS stand-in, then the shipped terrains.</summary>
+    internal Fdp.Toolkit.Terrain.TerrainCatalog TerrainCatalog { get; set; } = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(
+        localStagingRoot: null, Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedRoot());
+
+    /// <summary>⭐ O-8 — what is wrong with the recording's terrain additions on this machine (a missing or mismatched overlay), or null; the panels show it. The browser still opens on the base terrain.</summary>
+    public string? TerrainWarning { get; private set; }
+
+    private void Warn(string message)
+    {
+        TerrainWarning = message;
+        Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Warn($"[ReplayBrowser] {message}");
+    }
+
+    // ⭐ O-8 (G-7) — the recording's static obstacles, baked into the DISPLAYED terrain once per seek (never per frame): what the cluster's StaticObstacleBakeSystem does live
+    private readonly List<Fdp.Toolkit.Terrain.TerrainPrism> _obstaclePrisms = new();
+    private ulong _obstacleSignature;
+    private readonly Hrot.Map.Common.Services.ObstacleSignatureProbe _obstacleProbe = new();
+    private EntityRepository? _obstacleRepo;
+    private Fdp.Toolkit.Terrain.TerrainWorld? _obstacleBase;
+
+    /// <summary>
+    /// ⭐ O-8 (CE-4420, §17 G-7) — lays the static obstacles the replayed world holds over the displayed terrain: <c>TerrainObstacles.With(base, prisms)</c> through the node's own collector
+    /// (<see cref="Hrot.Map.Common.Services.StaticObstacleBakeSystem.CollectPrisms"/>). Called when the shown frame JUMPS (a load, a seek: the world is swapped), so a steady frame does nothing and
+    /// allocates nothing; a set that did not change (same obstacles, same base, same repo) rebuilds nothing. ⭐ T-6 (CE-3434): obstacles that appear during uninterrupted playback join within <see cref="ObstacleCheckEveryFrames"/> shown frames (the check is throttled — the signature walk is 1.56 ms at 2 000 obstacles).
+    /// The bake is the cheap world-only half (no navmesh, no cover): the browser only draws.
+    /// </summary>
+    internal void BakeRecordedObstacles()
+    {
+        _framesSinceObstacleCheck = 0;
+        var repo = _activeRepo;
+        if (repo == null || !_terrainCarrier.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()) return;
+        var baseWorld = _terrainCarrier.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>();
+        if (baseWorld == null) return;
+        // HOT PATH (0 B per steady frame): the cheap, allocation-free check first; the collector (which allocates a prism per obstacle) only when something changed
+        ulong signature = Hrot.Map.Common.Services.StaticObstacleBakeSystem.SignatureOfWorld(repo, _obstacleProbe);
+        if (ReferenceEquals(repo, _obstacleRepo) && ReferenceEquals(baseWorld, _obstacleBase) && signature == _obstacleSignature) return;
+        Hrot.Map.Common.Services.StaticObstacleBakeSystem.CollectPrisms(repo, _obstaclePrisms);
+        _obstacleRepo = repo; _obstacleBase = baseWorld; _obstacleSignature = signature;
+        repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+        repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainObstacles.With(baseWorld, _obstaclePrisms));   // no obstacles ⇒ the base itself
+    }
+
+    /// <summary>The name of the terrain the browser holds, or null (test seam).</summary>
+    internal string? ResidentTerrainName => _terrain?.ResidentTerrainName;
+
+    /// <summary>
+    /// ⭐ <c>CE-3118</c> — loads the terrain the loaded recording names (the local-entities provider node's, else any node's).
+    /// A recording that names none, or a terrain that no longer resolves, leaves the map without terrain and says so — the
+    /// replay itself still plays (🔒 §2 F: <i>"if it still exists"</i>).
+    /// </summary>
+    private void ApplyRecordingTerrain()
+    {
+        if (_manager == null) return;
+        _terrain ??= new Hrot.Map.Common.Services.TerrainResidency(TerrainCatalog, _terrainRoads);
+
+        string? name = null, overlayHash = null;
+        TerrainWarning = null;
+        if (_manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var primary))
+        {
+            name = primary.Playback?.Metadata?.TerrainName;
+            overlayHash = primary.Playback?.Metadata?.OverlayHash;
+        }
+        if (string.IsNullOrEmpty(name))
+            foreach (var ctx in _manager.Contexts.Values)
+                if (!string.IsNullOrEmpty(name = ctx.Playback?.Metadata?.TerrainName)) { overlayHash = ctx.Playback?.Metadata?.OverlayHash; break; }
+
+        if (string.IsNullOrEmpty(name))
+            Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info(
+                "[ReplayBrowser] the recording names no terrain — the map shows none.");
+        // ⭐ O-8 (CE-4420) — the recording's terrain ADDITIONS, by content hash: found in the node's staging or on the NAS, else the base opens with a clear warning (never a crash, never a fake).
+        string? overlayFolder = null;
+        if (!string.IsNullOrEmpty(overlayHash) && !string.IsNullOrEmpty(name))
+        {
+            overlayFolder = TerrainCatalog.ResolveOverlay(overlayHash);
+            if (overlayFolder == null)
+                Warn($"this recording's terrain additions {overlayHash} are not available on this machine — the map shows the base terrain '{name}' only.");
+        }
+        try
+        {
+            if (overlayFolder != null)
+            {
+                try { _terrain.Commit(_terrainCarrier, _terrain.Prepare(name, overlayFolder)); return; }
+                catch (Exception ex) when (ex is System.IO.IOException or System.Text.Json.JsonException or InvalidOperationException or ArgumentException)
+                {
+                    Warn($"this recording's terrain additions {overlayHash} cannot be used here ({ex.Message}) — the map shows the base terrain '{name}' only.");
+                }
+            }
+            _terrain.Commit(_terrainCarrier, _terrain.Prepare(string.IsNullOrEmpty(name) ? null : name));
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or System.Text.Json.JsonException or InvalidOperationException or ArgumentException)
+        {
+            Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Warn(
+                $"[ReplayBrowser] the recording's terrain '{name}' could not be loaded ({ex.Message}) — the map shows no terrain.");
+            _terrain.Unload(_terrainCarrier);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3126</c> (R-229) — the replay's geo transform. Its origin comes from the RECORDING
+    /// (<see cref="ApplyRecordingGeoOrigin"/>), never from the terrain file at replay time: 🔒 user — <i>"Origin can be saved in
+    /// recording metadata in case terrain with remembered name no longer exists"</i>. Held by the map's projectors
+    /// (MapServices) and published on every bound repo. 📄 docs/DESIGN_Geo_Origin.md §2 F.
+    /// </summary>
+    private readonly Fdp.Modules.Geographic.Transforms.SwitchableGeoTransform _geoTransform = new();   // ⭐ CE-4396 (UE-d): UTM by the recording's origin, or local-only
+
+    /// <summary>The replay's geo transform (test seam).</summary>
+    internal Fdp.Modules.Geographic.IGeographicTransform GeoTransform => _geoTransform;
+
+    /// <summary>
+    /// ⭐ <c>CE-3126</c> — sets the replay's origin from the loaded recording's metadata (the local-entities provider node's,
+    /// else any node's that has one). ⭐ CE-4396 (UE-d, R-4197): the recorded lat / lon IS the UTM frame (an OLD recording is read the same way — its local positions are kept, only
+    /// the geodetic read-outs are on the grid), with the optional zone override the recording carries; a recording with NO origin is local-only.
+    /// </summary>
+    private void ApplyRecordingGeoOrigin()
+    {
+        if (_manager == null) return;
+        Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord? origin = null;
+        if (_manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var primary))
+            origin = primary.Playback?.Metadata?.GeoOrigin;
+        if (origin == null)
+            foreach (var ctx in _manager.Contexts.Values)
+                if ((origin = ctx.Playback?.Metadata?.GeoOrigin) != null) break;
+        if (origin == null)
+        {
+            Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Warn(
+                "[ReplayBrowser] the recording carries no geo origin — the replay has no geo frame (local-only).");
+            _geoTransform.UseLocalOnly();
+            return;
+        }
+        _geoTransform.UseOrigin(origin.Lat, origin.Lon, origin.Alt, origin.UtmZoneOverride, origin.UtmSouthOverride);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>This module gets a <see cref="NetworkEntityMap"/>, like every other ECS module.</b>
+    /// 🔒 User, <c>2026-09-11</c>: *"what prevents adding network id map to replaybrowser? … replaybrowser
+    /// is ecs module like any else. i do not want such exceptions."*
+    /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.
+    ///
+    /// <para>⛔⛔ <b>What its absence was costing, and it was not local.</b> The gizmo pick token carried
+    /// the producer's raw ECS index+generation as a payload — a process-local handle in a network-stable
+    /// contract — and the justification on record was *this module*: it had no map, so a network-id
+    /// resolve "would silently drop its selection". ⇒ one module's missing service was shaping the
+    /// identity model of the whole gizmo pipeline. 📐 Nothing prevented it: the map is a world singleton
+    /// three other hosts already set (<c>CgfSubsystem.cs:637</c>, <c>SimHostApp.cs:546</c>,
+    /// <c>EditorSubsystem.cs:1122</c>).</para>
+    ///
+    /// <para>⭐⭐ <b>Called from <see cref="RebindActiveRepo"/>, which is the ONE choke point</b> —
+    /// <c>OnManagerTimeChanged</c> routes every seek, step and view-mode switch through it, in both the
+    /// per-node and Merged arms. ⇒ the map cannot drift behind the frame.</para>
+    ///
+    /// <para>⛔⛔ <b><see cref="NetworkEntityMap.Clear"/> FIRST, and that is not defensive noise.</b>
+    /// <see cref="NetworkEntityMap.RebuildFromWorld"/> prunes dead entries and adds missing ones, which is
+    /// right for a forward-running world. ⚠ A replay TIME-TRAVELS: the same network id can be a
+    /// DIFFERENT live handle after a seek, and an entry that is still alive survives the prune and blocks
+    /// the re-add — a stale map that answers with the wrong entity, which is the exact failure
+    /// <c>NetworkIdResolver</c>'s header warns a maintained index can produce. ⇒ rebuild from empty.</para>
+    /// </summary>
+    private static void EnsureNetworkEntityMap(EntityRepository repo)
+    {
+        if (!repo.HasSingletonManaged<NetworkEntityMap>())
+            repo.SetSingletonManaged(new NetworkEntityMap());
+
+        var map = repo.GetSingletonManaged<NetworkEntityMap>();
+        if (map == null) return;
+
+        map.Clear();
+        map.RebuildFromWorld(repo);
+    }
+
+    // ── IProvidesDebugSurface — ReplayBrowserSubsystem.DebugSurface.cs (RB-1) ──
+
 
     /// <summary>
     /// Loads one or more .fdp recording files via a fresh <see cref="FederatedReplayManager"/>
@@ -549,11 +953,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     /// </summary>
     internal void LoadFdpViaManager(string path)
     {
-        _manager?.Dispose();
-        _manager = FederatedReplayManager.LoadGroup(new[] { path });
-        _manager.OnTimeChanged += OnManagerTimeChanged;
-        _timelinePanel?.SetManager(_manager);
-        OnManagerTimeChanged();
+        // ⭐ CE-1393 — the ONE open path (it used to repeat part of OpenGroup and keep the old transient master, with no LocalLoop / play-state / history reset).
+        if (OpenGroup(new[] { path }) is { } refused) throw new LoadGroupException(refused);
     }
 
     // ── IWindowRegistrar ──────────────────────────────────────────────────
@@ -561,13 +962,18 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     public void RegisterWindows(WindowManager windowManager)
     {
         if (_headless) return;
+        _windowManager = windowManager;
         RegisterWindowsCore(
             windowManager,
             _timelinePanel!,
             _inspectorPanel!,
             _diffPanel!,
             _eventPanel!,
-            _searchPanel!);
+            _searchPanel!,
+            _federationPanel);
+
+        // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.
+        Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => _canvas, "ReplayBrowser");
 
         // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
         // Harmless no-op for the Win32 backend: WindowManager only draws the service
@@ -577,17 +983,29 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     }
 
     /// <summary>
-    /// Test seam: registers the five replay-browser windows using caller-supplied
+    /// Test seam: registers the replay-browser windows using caller-supplied
     /// panel instances. Skips the headless guard so tests can exercise window
     /// registration without initialising Raylib.
     /// </summary>
+    /// <param name="federationPanel">⭐⭐⭐ U-obs-5 follow-up — <c>null</c> until a replay group has
+    /// been loaded (the panel is created lazily); when non-null its window is registered too.</param>
+    /// <summary>⭐ CE-4261 — the browser's File items and its main-toolbar entry (one source for the rails).</summary>
+    /// <summary>⭐ CE-4323 — this host's shared pickers (the recording picker draws through them); settable for rails.</summary>
+    internal NodeEditor.UI.Picker.PickerRegistry? Pickers { get; set; }
+
+    /// <summary>⭐ CE-4323 — File ▸ Open Exercise Recording…'s launcher (the editor's class).</summary>
+    internal Hrot.Editor.AiShared.Scenarios.RecordingPickerLauncher? RecordingPicker { get; private set; }
+
+    public const string LoadFdpMenuPath = "File/Load .fdp…", JsonExportMenuPath = "File/JSON Export…", RecordingInfoMenuPath = "File/Recording info", TransportEntryId = "ReplayTransport";
+
     internal void RegisterWindowsCore(
         WindowManager windowManager,
         ReplayTimelinePanel timelinePanel,
         EntityInspectorPanel inspectorPanel,
         ComponentDiffPanel diffPanel,
         EventBrowserPanel eventPanel,
-        ReplaySearchPanel searchPanel)
+        ReplaySearchPanel searchPanel,
+        FederationPanel? federationPanel = null)
     {
         string perspective = "ReplayBrowser";
         Vector4 color = TitleBarColor;
@@ -595,24 +1013,170 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         // Capture safe references for the inspector window factories.
         InspectorState stateRef = _inspectorState ?? new InspectorState();
 
-        windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ReplayTimelineWindow(
-            "rb_timeline", "Replay Timeline", perspective, timelinePanel, color));
+        // ⭐ B-7 part 3 (R-4155, Q-B2) — the "Replay Timeline" window is RETIRED, nothing lost: its readout is the seek bar's tooltip, its meta row is in the Frame Diff window, its file path
+        //   and panel snapshot are File ▸ Recording info. The PANEL stays — the transport's and the export window's one drawer.
+        diffPanel.HasRecording = () => timelinePanel.HasRecording;
+        // ⭐ R-1 / V1 (docs/UX/DESIGN_Review_Perspective.md §4) — Frame diff · Replay search · Recording info · JSON export are the ONE ReviewBundle every host composes (their hand registrations are gone)
+        var review = new Hrot.Editor.AiShared.Review.ReviewBundle(new Hrot.Editor.AiShared.Review.ReviewHostServices(
+            Perspective: perspective, IdPrefix: "rb_", Colour: color, DiffPanel: diffPanel, SearchPanel: searchPanel, TimelinePanel: timelinePanel));
+        Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { review }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+        var recordingInfo = review.RecordingInfo;
+        Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, $"replay.recording-info.{perspective}", RecordingInfoMenuPath, () => recordingInfo.Show(), perspective);   // ⭐ B-10 K5
 
-        windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.FdpEntityInspectorWindow(
-            "rb_inspector", "Replay Entity Inspector", perspective,
-            inspectorPanel,
-            () => _session,
-            () => stateRef,
-            color));
+        // ⭐⭐ CE-4323 (scenario lifecycle LC-19, R-4166) — File ▸ Open Exercise Recording…: the editor's picker (RecordingPickerLauncher — ONE class
+        //   for every host), listing the exercises on this host's disk (the inventory GET /exercises serves) by scenario, start and length; a pick goes
+        //   to this host's ONE opener (ReplayBrowserControl.Open). ⛔ Before: only Load .fdp… over GUID-named per-node folders.
+        Pickers ??= Hrot.UI.Common.AddEntity.EntityAuthoring.CreatePickers();
+        RecordingPicker = new Hrot.Editor.AiShared.Scenarios.RecordingPickerLauncher(
+            openPicker:    Pickers.OpenPicker,
+            listExercises: ExercisesOnDisk,
+            openRecording: id => BrowserControl.Open(Hrot.Presentation.DebugApi.RecordingName.Exercise(id), 0));
+        Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, $"replay.open-exercise.{perspective}", Hrot.Editor.AiShared.Scenarios.FileMenuLayout.OpenExerciseRecording, () => RecordingPicker.Open(), perspective);
 
-        windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ComponentDiffWindow(
-            "rb_diff", "Frame Diff Viewer", perspective, diffPanel, color));
+        // ⭐ CE-4261 — the browser's own toolbar contents and File items (🔒 user, 2026-11-03): the replay transport bar is an entry of the MAIN toolbar (the timeline panel's ONE drawer),
+        //   File ▸ Load .fdp… runs the load the timeline's button ran, File ▸ JSON Export… opens the window holding the export options.
+        //   ⛔ The browser is NOT an IProvidesRunControls: that offer is the CLUSTER's transport (ITimeTransportFacade + RunModeChoice, gate policy, loading screen, scenario door) — a recording has none of them.
+        var jsonExport = review.JsonExport;
+        Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, $"replay.load-fdp.{perspective}", LoadFdpMenuPath, () => timelinePanel.RequestLoadFdp(), perspective);
+        Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, $"replay.json-export.{perspective}", JsonExportMenuPath, () => jsonExport.Show(), perspective);
+        windowManager.MainToolbar.RegisterEntry(TransportEntryId, sortOrder: 0, declaredHeight: MainToolbarManager.DefaultEntryHeight,
+            () => timelinePanel.DrawTransport(), perspective);
 
-        windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.FdpEventBrowserWindow(
-            "rb_events", "Replay Event Browser", perspective, eventPanel, color));
+        var cursor = new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager != null ? Review : null, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
+                isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),   // ⭐ CE-3330 — Space, "Play from here"
+                timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim,   // ⭐ CE-3330 T13 — the viewer's axis
+                checkpoints: () => RecordingCheckpoints, notes: () => RulerNotes);   // ⭐ CE-1467 (a) — the recording's ⚑ and its notes (read beside the files)
+        windowManager.RegisterWindow(new Fdp.Presentation.Windows.Timeline.EventTimelineWindow(
+            "rb_event_timeline", "Event Timeline", perspective, _eventTimeline, () => _timelineSource,
+            cursor,
+            () => _timelineLanes.Lanes(TimelineContext), color,
+            onSelect: e => SelectTimelineEvent(e),        // ⭐ CE-3330 (R-4087 addendum 5) — the ONE selection, RB-7's path
+            rowMenu: _timelineLanes.MenuItems));          // ⭐ CE-3330 (addendum 4) — the row's provider's items
+        // ⭐ CE-1467 (a) — the Marks list, READ-ONLY (Bookmarks §2: "the standalone Replay Browser reads it beside the files"): the editor's ONE window and controller over this browser's
+        //   facade, whose NotesReadOnlyReason refuses every edit with its reason; a row seeks the recording and selects its unit
+        var marks = new Hrot.UI.Common.Marks.MarksController(Transport, () => Hrot.Common.Infrastructure.Seat.Observer, () => "Replay Browser", () => null, () => Environment.TickCount64 / 1000.0);
+        windowManager.RegisterWindow(new Hrot.Presentation.Windows.MarksWindow("rb_marks", perspective, color, marks, () => cursor, n => SelectNetworkEntity((int)n)));
+        // ⭐ W-1 / P-8 8c-2 (Mission plan E4) — the ONE Tasks row (all units) + the selection's task bars, over the recording's index
+        if (TasksTracks == null)
+        {
+            TasksTracks = new Hrot.Presentation.Orders.TasksTimelineTracks(() => _timelineSource, () => _activeRepo,
+                () => Hrot.Presentation.Orders.TasksTimelineTracks.NetIdOf(_activeRepo, _inspectorState?.SelectedEntity), n => SelectNetworkEntity(n));
+            _eventTimeline.AddTracks(TasksTracks.Tracks);
+        }
+        // ⭐ R-6 / V7 — the Search hits row: a marker per hit of THIS panel, a click runs the panel's own row-click path (waypoint + seek + select)
+        if (ReviewTracks == null)
+        {
+            if (_replicaViews != null)   // wired with the delegates; a rail that registers the windows alone has no lens (and no lane)
+                _replicaLane = new Hrot.Editor.AiShared.Review.ReplicaWatchLane(_replicaViews, ReplicaWatch, Review,
+                    () => { int n = Hrot.Presentation.Orders.TasksTimelineTracks.NetIdOf(_activeRepo, _inspectorState?.SelectedEntity); return n > 0 ? n : null; },
+                    n => null);
+            if (_replicaLane != null) _watchKit = new Hrot.Editor.AiShared.Review.ReplicaWatchKit(_replicaLane, () => _activeRepo, () => _byNodeSection);
+            ReviewTracks = new Hrot.Editor.AiShared.Review.ReviewTimelineTracks(() => _timelineSource, searchPanel, stops: null,
+                transport: () => timelinePanel, selectUnit: n => SelectNetworkEntity(n), replica: _replicaLane) { Settings = _watchKit?.Settings };
+            _eventTimeline.AddTracks(ReviewTracks.Tracks);
+        }
 
-        windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ReplaySearchWindow(
-            "rb_search", "Replay Search", perspective, searchPanel, color));
+        // ⭐⭐ CE-4292 (Rules bundle R3) — the rules windows on a RECORDING: the ONE bundle every host composes (Rules · Mission summary · Trainee debrief ·
+        //   Game summary; no Game master on a recording); read-only by construction, the moments seeking the recording through the viewer's cursor
+        _rulesWindowManager = windowManager;
+        var rules = new Hrot.Editor.AiShared.Rules.RulesBundle(new Hrot.Editor.AiShared.Rules.RulesHostServices(
+            World:          () => _activeRepo,
+            TimelineSource: () => _timelineSource,
+            Cursor:         () => new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager != null ? Review : null, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
+                                isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),
+                                timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim),
+            IdPrefix:       "rb_", Perspective: perspective, Colour: color,
+            SelectEntity:   n => SelectNetworkEntity(n),   // ⭐ CE-4263 — a plain pick: no event is focused
+            ShowOnMap:      n => _activeRepo?.Bus.Publish(new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = n }),
+            Seat:           () => Hrot.Common.Infrastructure.Seat.Reviewer,
+            Blocked:        () => "a recording is read-only",
+            Recording:      true,
+            Actions:        () => HostActions));   // ⭐ CE-4308 — passed as every host does (the rule entries are Edit-mode only, so a recording never offers them)
+        _rulesWindow = rules.Rules;
+        Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { rules }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+
+        if (federationPanel != null)
+            RegisterFederationWindow(windowManager, federationPanel);
+
+        // ⭐ CE-1303 P2a — the Director window (View › Director), the pack's own (film tabs only: no verifier here)
+        _directorPack?.RegisterWindow(windowManager);
+
+        // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel, the same shared one every ECS host builds: the
+        //   Components view over the replayed world, and Properties… / View ▸ Details on this host's actions. 📐 Before: none here.
+        // ⭐⭐ CE-1243 MB-4 — this host's map menus join the ONE menu bar as a contributor.
+        Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(windowManager.GlobalMenu, "replay/map-menus", perspective,
+            () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
+
+        // ⭐⭐ CE-1244 (DESIGN_Subsystem_Composition_Unification §5c.7.8 RI-1…RI-3) — the entity inspector and the event browser come
+        //   from the SAME diagnostics bundle every host composes (with the map's entity menu and "Inspect…"); no kernel here ⇒ no
+        //   architecture / profiler window. ⛔ SUPERSEDED: this host's own copies of the two window classes (rb_inspector / rb_events).
+        Fdp.Toolkit.Runner.UiBundleHost.Compose(
+            new Fdp.Toolkit.Runner.IUiBundle[]
+            {
+                new Hrot.Presentation.Windows.DiagnosticsWindowsBundle(new Hrot.Presentation.Windows.DiagnosticsHostServices(
+                    IdPrefix:       "rb_",
+                    TitlePrefix:    "Replay",
+                    Perspective:    perspective,
+                    Inspector:      inspectorPanel,
+                    RepoAdapter:    () => _session,
+                    InspectorState: () => stateRef,
+                    EventBrowser:   eventPanel,
+                    TitleBarColor:  color,
+                    Host:           () => HostActions,
+                    World:          () => _activeRepo)),
+                new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(new Hrot.Editor.AiShared.Windows.EntityDetailsHostServices(
+                    WindowId:    "rb_details",
+                    Perspective: perspective,
+                    World:       () => _activeRepo,
+                    Inspector:   () => inspectorPanel,
+                    Session:     () => _session,
+                    RunState:    static () => Hrot.Editor.AiShared.Variables.VariableRunState.Replay,
+                    Host:        () => HostActions,
+                    OpenRule:    OpenRuleInRulesView,   // ⭐ CE-4216 RV-7
+                    EventFocus:  _eventFocus,           // ⭐ CE-4263 — Details ▸ Event for a clicked timeline event
+                    SelectNetworkEntity: n => SelectNetworkEntity(n),
+                    Rules:       () => _rulesWindow,   // ⭐ U-18 / RX2 — read-only on a recording (the window's blocked reason)
+                    RowTrailer:  () => _watchKit?.Eye)),   // ⭐ §6.13 — the replica watch's eye (the merged view only)
+            },
+            new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+
+        // ⭐ R-4 / V4 (docs/UX/DESIGN_Review_Perspective.md §3 D11) — the Replay Browser's default layout IS the Review layout: the SAME preset (Hrot.Editor.AiShared.Review.ReviewLayout) over this host's window ids,
+        //   laid out by the host's dockspace frame unless a saved layout already places these windows. (No data-breakpoints window here — that role is simply absent.)
+        windowManager.RequestDockPreset(ReviewLayoutIds(review, rules));
+
+        // ⭐ CE-4289 ④ (DESIGN_Replay_Browser_UX §2) — the debug windows are grouped under View ▸ Windows ▸ Replay ▸ Debug (the Details, Timeline, Marks and Rules windows stay in the main list)
+        windowManager.SetMenuGroup(DebugMenuGroup, DebugWindowIds(review));
+    }
+
+    /// <summary>⭐ CE-4289 ④ — the submenu the replay browser's debug windows are listed under.</summary>
+    public const string DebugMenuGroup = "Debug";
+
+    /// <summary>⭐ CE-4289 ④ — Entity Inspector · Wire Entity Inspector · Event Browser · Frame Diff · Replay Search · Federation.</summary>
+    internal static string[] DebugWindowIds(Hrot.Editor.AiShared.Review.ReviewBundle review) => new[]
+    {
+        Hrot.Presentation.Windows.DiagnosticsWindowsBundle.InspectorId("rb_"), Hrot.Presentation.Windows.DiagnosticsWindowsBundle.WireEntitiesId("rb_"),
+        Hrot.Presentation.Windows.DiagnosticsWindowsBundle.EventsId("rb_"), review.FrameDiff.Id, review.ReplaySearch.Id, "rb_federation",
+    };
+
+    /// <summary>⭐ R-4 / V4 — the Review layout over THIS host's window ids (a rail compares it with the editor's: one definition).</summary>
+    internal static Fdp.Presentation.WindowManager.DockPreset ReviewLayoutIds(Hrot.Editor.AiShared.Review.ReviewBundle review, Hrot.Editor.AiShared.Rules.RulesBundle rules)
+        => Hrot.Editor.AiShared.Review.ReviewLayout.PresetFor(new System.Collections.Generic.Dictionary<Hrot.Editor.AiShared.Review.ReviewLayout.Role, string>
+        {
+            [Hrot.Editor.AiShared.Review.ReviewLayout.Role.MissionSummary] = rules.MissionSummary.Id,
+            [Hrot.Editor.AiShared.Review.ReviewLayout.Role.Details]        = "rb_details",
+            [Hrot.Editor.AiShared.Review.ReviewLayout.Role.FrameDiff]      = review.FrameDiff.Id,
+            [Hrot.Editor.AiShared.Review.ReviewLayout.Role.Search]         = review.ReplaySearch.Id,
+            [Hrot.Editor.AiShared.Review.ReviewLayout.Role.EventTimeline]  = "rb_event_timeline",
+        });
+
+    /// <summary>⭐⭐⭐ U-obs-5 follow-up — shared by <see cref="RegisterWindowsCore"/> (the initial
+    /// registration, when a group happened to already be loaded) and <c>OnLoadGroup</c> (every
+    /// subsequent group load, which replaces <see cref="_federationPanel"/>).</summary>
+    private void RegisterFederationWindow(WindowManager windowManager, FederationPanel panel)
+    {
+        windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.FederationWindow(
+            "rb_federation", "Federation", "ReplayBrowser", panel, TitleBarColor));
+        windowManager.SetMenuGroup(DebugMenuGroup, "rb_federation");   // ⭐ CE-4289 ④ — a debug window (Q-B6)
     }
 
     // ── Delegate wiring ───────────────────────────────────────────────────
@@ -622,8 +1186,15 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         var (seekIntent, selectIntent, matchIntent) = WireDelegatesForTest(
             _entityHistory, _playbackHistory, _inspectorState!, null!, _diffPanel!, _eventPanel!);
 
+        // ⭐⭐ UXI-11 S-3 — ChainToMap is RETIRED; OnEntitySelected now fires on every explicit row
+        //    click. ⚠ It is no longer a selection WRITE — it is "the user clicked this entity", which
+        //    is exactly what this host's selection HISTORY wants to record.
+        // ⭐⭐⭐ S-3b — and this host IS given the shared pair. 🔴 S-3 said it should not be, on the
+        //    claim that a recording has no global selection; measured false — it runs
+        //    SelectionInteractionSystem over a real repository. 📄 §2.7.8.
         _inspectorPanel!.OnEntitySelected = selectIntent;
-        _inspectorPanel.ChainToMap = true;
+        _inspectorPanel.Selection = _selectionView;
+        _inspectorPanel.RequestSelectionChange = req => _activeRepo?.Bus.PublishManaged(req);
         _diffPanel!.IsMergedViewQuery = () => _viewMode == ViewMode.Merged;
         _diffPanel!.OnSeekToChangeRequested = direction =>
         {
@@ -633,16 +1204,13 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         };
 
         // Build search services.
-        var editSvc = new ComponentEditServiceBuilder()
-            .RegisterFieldEditor<Type>(new Fdp.Presentation.Editing.TypeFieldEditor())
-            .RegisterFieldEditor<BoundingBox2D>(new Fdp.Presentation.Editing.BoundingBoxFieldEditor())
-            .RegisterFieldEditor<SearchPredicateDto>(new Fdp.Presentation.Editing.PredicateValueFieldEditor())
-            .Build();
-        var predicateCompiler = new PredicateCompiler(editSvc, _behaviorRegistry);
+        var editSvc = Hrot.Editor.AiShared.Review.ReviewSearchServices.BuildEditService();   // ⭐ R-2 / V2 — the ONE search edit service (was built inline here; the editor's review windows use it too)
+        // See BP-29: the registry is what makes BlueprintVariablePredicateDto evaluable.
+        var predicateCompiler = new PredicateCompiler(editSvc, _behaviorRegistry, _blueprintRegistry);
         var eventScannerCompiler = new EventScannerCompiler(editSvc);
         var searchSvc = new RecordingSearchService(predicateCompiler, eventScannerCompiler);
         Func<Entity?> getSelectedEntity = () => _inspectorState?.SelectedEntity;
-        Func<long?> getSelectedNetworkId = () =>
+        Func<int?> getSelectedNetworkId = () =>
         {
             var e = _inspectorState?.SelectedEntity;
             if (e == null || e.Value.IsNull || !(_activeRepo?.IsAlive(e.Value) ?? false)) return null;
@@ -654,10 +1222,39 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         _searchPanel = new ReplaySearchPanel(
             editSvc, searchSvc, seekIntent, selectIntent, matchIntent,
             _behaviorRegistry, getSelectedEntity, getSelectedNetworkId);
-        if (_globalGizmoManager != null)
+        // ⭐ G-7 S5 (I6) — the Merged view searches EVERY participant file (owned components only, unioned by network id) instead of being disabled; a federated hit seeks the primary node's frame and selects the unit by network id
+        _searchPanel.Federated = new FederatedSearchSource(
+            new FederatedSearch(searchSvc, predicateCompiler, new OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap)),
+            () => _manager != null ? Review.Model : null);
+        _searchPanel.FederatedMatchSelected = (frame, net) =>
         {
-            _searchPanel.SpatialPickerCtx = new ReplaySpatialPickerContext(_globalGizmoManager);
-        }
+            _playbackHistory.PushWaypoint(PrimaryNodeCurrentFrame(), _inspectorState?.SelectedEntity ?? Entity.Null);
+            _playbackHistory.PushWaypoint(frame, Entity.Null);
+            SeekFrameViaManager(frame);
+            SelectNetworkEntity((int)net);
+        };
+        // ⭐ G-7 S5 (I5, I7) — the merged view's lens in THIS host: Details ▸ a component ▸ By node, the "local to <node>" tag and (below, with the review rows) the Replica differs lane
+        _replicaViews = new ReplicaViews(new OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap), _scenarioSerializer);
+        _review = null;   // the channel's builder takes the lens: (re)built on its next use, with it
+        _byNodeSection = new ByNodeSection(Review,
+            e => _activeRepo is { } r && r.IsAlive(e) && r.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) ? r.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value : 0,
+            n => _federationPanel?.NameOf(n) ?? "Node " + n);
+        _byNodeSection.Watch = ReplicaWatch;   // ⭐ RW-6 — the header eye and the attribute view share the session's watch
+        _inspectorPanel!.Reflector.ComponentFooter = _byNodeSection.Draw;
+        _inspectorPanel.EntityNote = e => _viewMode == ViewMode.Merged && _merger != null && _merger.Target.TryGetLocalNode(e, out int ln) ? "local to " + (_federationPanel?.NameOf(ln) ?? "Node " + ln) : null;
+        // ⭐ CE-4206 R2 — the search area is edited through the ONE pick context (DESIGN_Map_Picking_Unification P4): a broker over a canvas adapter
+        //   (the canvas is replaced on a view-mode switch, so the adapter follows it). 🔒 UXI-07 step 4b — the edit SUSPENDS the active tool.
+        _searchPanel.PickContext = new Hrot.Presentation.Facades.MapPickBroker(() =>
+        {
+            if (_canvas == null || _globalGizmoManager == null) return null;
+            if (_replayPickAdapter == null || !ReferenceEquals(_replayPickAdapterCanvas, _canvas))
+            {
+                _replayPickAdapterCanvas = _canvas;
+                _replayPickAdapter = new Hrot.UI.Common.Facades.CanvasMapPickAdapter(
+                    _canvas, _activeRepo, globalGizmoManager: _globalGizmoManager, tools: () => _replayToolController);
+            }
+            return _replayPickAdapter;
+        });
     }
 
     private async Task SeekToNextChangeAsync(Entity target, int direction)
@@ -675,80 +1272,11 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
         try
         {
-            int? foundFrame = await Task.Run(() =>
-            {
-                using var tempContext = new ReplayBrowserContext();
-                tempContext.LoadRecording(fdpPath);
-                var playback = tempContext.Playback;
-                if (playback == null)
-                    return (int?)null;
-
-                var repo = tempContext.SandboxRepo;
-                var resolver = new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver();
-                var mask512 = repo.GetSnapshotableMask();
-
-                bool IsActualIncludedDiff(JsonNode? before, JsonNode? after)
-                {
-                    var diffs = diffSvc.ComputeTreeDiff(before, after, epsilon);
-                    foreach (var node in diffs)
-                    {
-                        if (node.IsModified && !excludedNames.Contains(node.Name))
-                            return true;
-                    }
-
-                    return false;
-                }
-
-                if (direction > 0)
-                {
-                    tempContext.SeekToFrame(startFrame, suppressHistory: true);
-                    JsonNode? baseline = repo.IsAlive(target)
-                        ? serializer.SerializeEntity(repo, target, resolver, mask512)
-                        : null;
-                    while (tempContext.StepForward(suppressHistory: true))
-                    {
-                        JsonNode? current = repo.IsAlive(target)
-                            ? serializer.SerializeEntity(repo, target, resolver, mask512)
-                            : null;
-
-                        if (IsActualIncludedDiff(baseline, current))
-                            return playback.CurrentFrame;
-
-                        baseline = current;
-                    }
-                }
-                else
-                {
-                    if (startFrame <= 0)
-                        return null;
-
-                    tempContext.SeekToFrame(0, suppressHistory: true);
-                    int? lastChangeFrame = null;
-                    JsonNode? baseline = repo.IsAlive(target)
-                        ? serializer.SerializeEntity(repo, target, resolver, mask512)
-                        : null;
-
-                    if (IsActualIncludedDiff(null, baseline))
-                        lastChangeFrame = 0;
-
-                    while (playback.CurrentFrame < startFrame - 1)
-                    {
-                        if (!tempContext.StepForward(suppressHistory: true))
-                            break;
-
-                        JsonNode? current = repo.IsAlive(target)
-                            ? serializer.SerializeEntity(repo, target, resolver, mask512)
-                            : null;
-                        if (IsActualIncludedDiff(baseline, current))
-                            lastChangeFrame = playback.CurrentFrame;
-
-                        baseline = current;
-                    }
-                    return lastChangeFrame;
-                }
-
-                return (int?)null;
-            });
+            // ⭐ RB-2 — the ONE finder the debug API's POST /replay/seek {next} runs too (EntityChangeFinder).
+            int? foundFrame = await Task.Run(() => EntityChangeFinder.Find(
+                fdpPath, startFrame, _ => target, direction,
+                (repo, e) => serializer.SerializeEntity(repo, e, new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver(), repo.GetSnapshotableMask()),
+                name => !excludedNames.Contains(name), epsilon, diffSvc));
 
             if (foundFrame.HasValue)
             {
@@ -778,8 +1306,16 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         _entityHistory   = entityHistory;
         _playbackHistory = playbackHistory;
 
-        // History-driven selection: when the selection history changes, update inspector state.
-        entityHistory.OnSelectionChanged += e => inspectorState.SelectedEntity = e;
+        // ⭐⭐⭐ UXI-11 S-3b — history navigation REQUESTS a selection instead of writing the inspector
+        //    behind the map's back. 🔴 Before, stepping back through the selection history moved the
+        //    inspector and left the map ring where it was. ⚠ Falls back to the direct write when no
+        //    world is attached (headless / before a recording loads), which is not a second store —
+        //    there is nothing to be second to.
+        entityHistory.OnSelectionChanged += e =>
+        {
+            if (!RequestSelectionFromHistory(e))
+                inspectorState.SelectedEntity = e;
+        };
 
         // Seek history: when the playback history fires, seek frame + restore selection.
         playbackHistory.OnWaypointRequested += wp =>
@@ -851,6 +1387,43 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             ? ctx.CurrentFdpPath : null;
     }
 
+    // ⭐ CE-1479 — the playback clock: wall ticks of the moment play has reached. Kept apart from the manager's BaseWallTicks (the last APPLIED frame's) because a
+    //   recording whose frames are seconds apart needs the clock's progress BETWEEN frames; it follows BaseWallTicks again whenever something else moved it (a seek, a step, a load).
+    private long _playClockWall;
+    private long _playClockBase = long.MinValue;
+
+    /// <summary>
+    /// ⭐ CE-1479 — advances the clock by <paramref name="seconds"/> of this viewer's axis (sim: through the recording's wall ↔ sim map, so a paused stretch costs no time — CE-4064;
+    /// wall: as it is) and applies the frames due, in order: <see cref="Fdp.Toolkit.Replay.ReplayClockRule"/>, the editor's rule. A gap of more than
+    /// <see cref="Fdp.Toolkit.Replay.ReplayClockRule.SeekThreshold"/> frames is one seek to the clock. Returns false when play has nothing left (the end).
+    /// </summary>
+    internal bool AdvancePlaybackClock(double seconds)
+    {
+        if (_manager == null) return false;
+        if (!_manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var ctx) || ctx.Playback == null) return false;
+        var playback = ctx.Playback;
+        if (_playClockBase != _manager.BaseWallTicks) _playClockWall = _manager.BaseWallTicks;
+
+        var map = CachedTimeMap;
+        if (Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim && map.HasSimTime)
+            _playClockWall = Math.Max(_playClockWall, map.WallAt(map.SimAt(_playClockWall) + seconds));
+        else
+            _playClockWall += (long)Math.Round(seconds * TimeSpan.TicksPerSecond);
+        if (ReplayEndTicks is { } end && _playClockWall > end) _playClockWall = end;
+
+        int due = Fdp.Toolkit.Replay.ReplayClockRule.FramesDue(playback, _playClockWall);
+        if (Fdp.Toolkit.Replay.ReplayClockRule.IsSeekGap(due))
+            _manager.SetBaseWallTicks(_playClockWall);   // a seek delivers no events (many frames) — as the editor's Strategy B
+        else
+            for (int i = 0; i < due && !playback.IsAtEnd; i++)
+            {
+                _manager.StepForwardAll();
+                DeliverTheSteppedFrameEvents();
+            }
+        _playClockBase = _manager.BaseWallTicks;
+        return !(playback.IsAtEnd && _playClockWall >= playback.LastFrameWallTicks);
+    }
+
     private bool TryStepForwardViaManager()
     {
         if (_manager == null) return false;
@@ -858,8 +1431,53 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         if (!_manager.Contexts.TryGetValue(nodeId, out var ctx) || ctx.Playback == null) return false;
         int nextFrame = ctx.CurrentFrame + 1;
         if (nextFrame >= ctx.Playback.TotalFrames) return false;
+        // ⭐ CE-4064 (DESIGN_Replay_Time_Axis_And_Review §4 "a sim step") — on the Sim axis a step never lands inside a paused stretch: it
+        //   goes to the next frame whose sim time moved, in one seek, so play and the step button collapse a pause to an instant.
+        //   ⛔ Was: one recorded frame — 84 steps from 3.0 s reached 3.28 s on a recording with ~4 paused frames per sim step.
+        if (Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim)
+        {
+            int target = NextFrameWhoseSimMoves(ctx.Playback, ctx.CurrentFrame);
+            if (target < 0) return false;   // paused to the end: nothing on the sim axis is left
+            // ⭐ CE-4062 — the jump lands on the frame BEFORE the target and STEPS onto it, so the target frame's events (a blow struck on a
+            //   step of an HTTP-stepped run, whose every step is a jump over paused frames) are delivered like any step's. ⛔ Was a seek
+            //   straight onto the target: a seek delivers no events, so a stepped recording never showed the swing. The paused frames
+            //   jumped over carry no sim events (the clock stood).
+            if (target > nextFrame)
+                _manager.SetBaseWallTicks(ctx.Playback.GetFrameMetadata(target - 1).WallClockTicks);
+        }
         _manager.StepForwardAll();
+        DeliverTheSteppedFrameEvents();
         return true;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4062 — a STEPPED frame's recorded events reach the world this host draws. The playback injects them into the context's
+    /// own <c>SandboxBus</c> (kept apart on purpose: the shown world's bus is swapped once a frame for what routes and panels publish,
+    /// and a swap would drop injected events). ⇒ they are handed over through the ONE bus-to-bus path
+    /// (<see cref="FdpEventBus.PublishCurrentOf"/>, CE-3316): into the shown bus's PENDING buffer, read once after the frame's swap by
+    /// every system there — the strike that draws the swing included. ⛔ Was: nothing carried them, so no replayed event was ever seen.
+    /// ⚠ The single-node view only (the merged view's world holds copies whose entities differ); a SEEK delivers nothing (its events
+    /// span many frames).
+    /// </summary>
+    private void DeliverTheSteppedFrameEvents()
+    {
+        if (_manager == null || _activeRepo == null || _viewMode == ViewMode.Merged) return;
+        if (_manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var ctx) && ReferenceEquals(ctx.SandboxRepo, _activeRepo))
+            _activeRepo.Bus.PublishCurrentOf(ctx.SandboxBus, addMissingStreams: true);
+    }
+
+    /// <summary>⭐ CE-4064 — the first frame after <paramref name="frame"/> whose recorded sim time is later; the next frame when the recording
+    /// has no sim time (v6); -1 when the sim time never moves again.</summary>
+    internal static int NextFrameWhoseSimMoves(Fdp.Core.FlightRecorder.PlaybackController playback, int frame)
+    {
+        double sim = playback.GetFrameMetadata(frame).SimTime;
+        if (double.IsNaN(sim)) return frame + 1 < playback.TotalFrames ? frame + 1 : -1;
+        for (int i = frame + 1; i < playback.TotalFrames; i++)
+        {
+            double next = playback.GetFrameMetadata(i).SimTime;
+            if (double.IsNaN(next) || next > sim) return i;
+        }
+        return -1;
     }
 
     private void SeekFrameViaManager(int frame)
@@ -879,7 +1497,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         if (frame <= 0 || frame >= primaryCtx.Playback.TotalFrames)
             return Array.Empty<DiffNode>();
 
-        long? networkId = GetStableNetworkId(entity, _activeRepo);
+        int? networkId = GetStableNetworkId(entity, _activeRepo);
         var resolver = new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver();
         JsonNode? before = null;
 
@@ -919,24 +1537,22 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     internal void SetSerializerForTest(Fdp.Toolkit.Scenario.ScenarioSerializer serializer)
         => _scenarioSerializer = serializer;
 
-    private static long? GetStableNetworkId(Entity entity, EntityRepository? repo)
+    private static int? GetStableNetworkId(Entity entity, EntityRepository? repo)
     {
         if (repo == null || entity.IsNull || !repo.IsAlive(entity)) return null;
         if (!repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity)) return null;
         return repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value;
     }
 
-    private Entity FindEntityByNetworkId(long networkId)
-    {
-        if (_activeRepo == null) return Entity.Null;
-        foreach (var e in _activeRepo.Query().Build())
-        {
-            if (_activeRepo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) &&
-                _activeRepo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == networkId)
-                return e;
-        }
-        return Entity.Null;
-    }
+    /// <summary>
+    /// ⭐ <c>BP-508</c> — routed through the ONE resolver *(<c>R-77</c>)*. ⛔ This copy scanned
+    /// <b>every</b> entity and asked <c>HasComponent</c> per entity; the shared one filters the query.
+    /// ⭐⭐ §6.7 — now the MAP-FIRST entry point: this module maintains a <see cref="NetworkEntityMap"/>
+    /// like any other (see <see cref="EnsureNetworkEntityMap"/>), so the diff cycle's two lookups per
+    /// frame are O(1) instead of two scans.
+    /// </summary>
+    private Entity FindEntityByNetworkId(int networkId)
+        => Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(_activeRepo, networkId);
 
     // ── Null service stubs (used until real implementations are injected) ──
 
@@ -956,59 +1572,6 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
         public System.Threading.Tasks.Task<string[]?> ShowOpenMultipleFilesDialogAsync(string callSiteId, string extensionFilter)
             => System.Threading.Tasks.Task.FromResult<string[]?>(null);
-    }
-
-    private sealed class ReplaySpatialPickerContext : Fdp.Presentation.Editing.ISpatialPickerContext
-    {
-        private readonly Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager _gizmoManager;
-        private string? _pendingPath;
-        private Fdp.Toolkit.ReplayBrowser.Search.BoundingBox2D? _resolvedBox;
-        private long? _activeGizmoId;
-
-        public ReplaySpatialPickerContext(Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager gizmoManager)
-        {
-            _gizmoManager = gizmoManager;
-        }
-
-        public bool IsPickPendingFor(string jsonPath) => _activeGizmoId.HasValue && _pendingPath == jsonPath;
-
-        public void RequestBoundingBoxPick(string jsonPath)
-        {
-            if (_activeGizmoId.HasValue)
-            {
-                _gizmoManager.Unregister(_activeGizmoId.Value);
-                _activeGizmoId = null;
-            }
-
-            _pendingPath = jsonPath;
-            _resolvedBox = null;
-
-            long id = Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager.NewId();
-            var gizmo = new Fdp.Toolkit.ReplayBrowser.BoundingBoxPickerGizmo(
-                box => _resolvedBox = box,
-                () =>
-                {
-                    _gizmoManager.Unregister(id);
-                    _activeGizmoId = null;
-                });
-
-            _activeGizmoId = id;
-            _gizmoManager.Register(id, gizmo);
-        }
-
-        public bool TryConsumeBoundingBoxPick(string jsonPath, out Fdp.Toolkit.ReplayBrowser.Search.BoundingBox2D box)
-        {
-            if (_pendingPath == jsonPath && _resolvedBox.HasValue)
-            {
-                box = _resolvedBox.Value;
-                _pendingPath = null;
-                _resolvedBox = null;
-                return true;
-            }
-
-            box = default;
-            return false;
-        }
     }
 
     private sealed class ReplaySpatialBoundsGizmo : Fdp.Toolkit.Diagnostics.Gizmos.IGlobalStatelessGizmo

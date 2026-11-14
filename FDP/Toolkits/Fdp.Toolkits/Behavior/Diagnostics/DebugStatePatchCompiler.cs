@@ -24,7 +24,12 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         private static readonly Dictionary<string, DebugStateSetter> _setters
             = new(StringComparer.Ordinal);
 
-        private static bool _built;
+        // ⭐ CE-3123 — THREAD-SAFE. The flag used to be set BEFORE the table was filled, so a second thread constructing a
+        //   DebugStatePatchSystem saw "built" with an EMPTY table and every patch it applied was silently dropped. Measured: the
+        //   pin rail passed alone and failed under xunit's parallel classes. The map pack now builds one per host, so hosts
+        //   started side by side (--mode all) could hit it. Publish the flag only after the table is complete, under a lock.
+        private static readonly object _gate = new();
+        private static volatile bool _built;
 
         /// <summary>
         /// Compile all setter delegates. Idempotent — subsequent calls are no-ops.
@@ -32,8 +37,16 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         public static void Build()
         {
             if (_built) return;
-            _built = true;
+            lock (_gate)
+            {
+                if (_built) return;
+                BuildLocked();
+                _built = true;
+            }
+        }
 
+        private static void BuildLocked()
+        {
             var stateParam   = Expression.Parameter(typeof(DebugState).MakeByRefType(), "state");
             var elementParam = Expression.Parameter(typeof(JsonElement), "element");
 

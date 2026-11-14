@@ -3,6 +3,7 @@ using Fdp.Modules.Geographic.Systems;
 
 namespace Fdp.Modules.Geographic
 {
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class GeographicModule : IEcsModule
     {
         public string Name => "GeographicServices";

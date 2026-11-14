@@ -14,6 +14,7 @@ namespace Fdp.ModuleHost.Tests
         [ComponentId(13)]
         struct TestComponent { public int Value; }
 
+        [TickMode(TickPolicy.EveryFrame)]
         private class CommandModule : IEcsModule
         {
             public string Name => "CommandModule";

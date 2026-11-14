@@ -1,0 +1,140 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "bt-range",
+  "description": "What: Bt-range, ~50 m south of House A: two Bradleys (\"IFV\", \"IFV 2\", BasicVehicleSop) are ambushed by \"RPG Man\" at an upper window (z 3) running WindowDuel, one rocket per window. Shows an AT man moving between windows and IFVs fighting back on the move (V12). Judge: (1) the RPG man fires at an IFV and hurts it (health < 500) (2) he relocates: fires from a second window >= 3 m away, or moves >= 3 m along the floor after firing (3) an IFV fires back. Fail: no rocket hits an IFV, he never changes window, or the IFVs never fire. Check: python3 scripts/utility-demo-check.py --launch ua-rpg-window"
+ },
+ "entities": {
+  "a2209d00-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     108.5,
+     50,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 101
+   },
+   "EntityInfo": {
+    "Name": "IFV",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 500,
+    "Max": 500
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "BasicVehicleSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "a2209d00-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     107.1,
+     100.9,
+     3
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2003
+   },
+   "EntityInfo": {
+    "Name": "RPG Man",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": [
+     {
+      "Entity": "a2209d00-0000-4000-8000-000000000001",
+      "PosX": 108.5,
+      "PosY": 50.0,
+      "PosZ": 0,
+      "Score": 500,
+      "Tick": 0,
+      "Modality": 1
+     },
+     {
+      "Entity": "a2209d00-0000-4000-8000-000000000003",
+      "PosX": 96.0,
+      "PosY": 48.0,
+      "PosZ": 0,
+      "Score": 400,
+      "Tick": 0,
+      "Modality": 1
+     }
+    ]
+   },
+   "Behavior": {
+    "Name": "WindowDuel",
+    "Params": {"shape":0,"exposuresPerPosition":1},
+    "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "a2209d00-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     96,
+     48,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 101
+   },
+   "EntityInfo": {
+    "Name": "IFV 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 500,
+    "Max": 500
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "BasicVehicleSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  }
+ }
+}

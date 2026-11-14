@@ -7,6 +7,7 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.MuscleCharacter.Animation.Components;
+using Hrot.MuscleCharacter.Animation.Contracts;
 
 namespace Hrot.Animation.Replication.Translators.Channels;
 
@@ -14,27 +15,29 @@ namespace Hrot.Animation.Replication.Translators.Channels;
 /// Egress translator: reads <see cref="LookAtChannel"/> from locally-owned entities
 /// and publishes DDS intent samples (Brain -> Muscle direction).
 /// Only publishes when <see cref="LookAtChannel.ActionInstanceId"/> changes.
-/// Does NOT replicate Muscle-authored fields (DispatchedInstanceId, Status, State).
+/// The Muscle's report is a separate component, <see cref="LookAtChannelStatus"/> (CE-513 / R-180).
 /// </summary>
 internal sealed class LookAtChannelIntentEgressTranslator : INetworkTranslator
 {
-    private const string TopicNameConst = "hrot/anim/intent/LookAtChannel";
 
     private readonly IAnimDdsWriter<DdsLookAtChannelIntent> _writer;
     private readonly NetworkEntityMap _entityMap;
     private readonly Dictionary<Entity, uint> _lastPublishedActionInstanceId = new();
     // Tracks the ActionParams blob per entity (4 x ulong covers the 32-byte fixed array).
     private readonly Dictionary<Entity, (ulong p0, ulong p1, ulong p2, ulong p3)> _lastPublishedActionParams = new();
+    private int _worldEpoch;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DdsLookAtChannelIntent>();
     public TranslatorDirection Direction => TranslatorDirection.Egress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
     internal long DirtyFalsePositiveCount { get; private set; }
+    /// <summary>⭐ CE-3252 — LookAtEntity requests held back because the target has no network id (yet).</summary>
+    internal long UnmappedTargetCount { get; private set; }
 
     internal LookAtChannelIntentEgressTranslator(
         DdsParticipant participant, NetworkEntityMap entityMap)
-        : this(new DdsLiveWriter<DdsLookAtChannelIntent>(participant, TopicNameConst), entityMap)
+        : this(new DdsLiveWriter<DdsLookAtChannelIntent>(participant), entityMap)
     {
     }
 
@@ -49,6 +52,8 @@ internal sealed class LookAtChannelIntentEgressTranslator : INetworkTranslator
 
     public unsafe void ScanAndPublish(ISimulationView view)
     {
+        // ⭐ R-3039 S3 — a world replacement (a load, a restore): forget what was published, so every owner republishes (R-3041).
+        if (WorldEpoch.Moved(view, ref _worldEpoch)) { _lastPublishedActionInstanceId.Clear(); _lastPublishedActionParams.Clear(); }
         var query = view.Query()
             .With<LookAtChannel>()
             .With<NetworkIdentity>()
@@ -90,6 +95,21 @@ internal sealed class LookAtChannelIntentEgressTranslator : INetworkTranslator
             LookAtChannel* pCh = &ch;
             DdsLookAtChannelIntent* pMsg = &msg;
             Buffer.MemoryCopy(pCh->Params, pMsg->ActionParams, 32, 32);
+            // ⭐ CE-3252 (G7) — a LookAtEntity names THIS node's entity index; the ingress (DD-2 §2.3) reads a NETWORK id. ⛔ The raw
+            //   index used to cross, so the muscle looked at whichever entity happened to own that network id — or at nothing.
+            if (ch.ActiveAction == LookAtActionIds.LookAtEntity)
+            {
+                var p = (LookAtEntityParams*)pMsg->ActionParams;
+                int targetNetId = 0;
+                bool mapped = view is EntityRepository repo && repo.GetEntityByIndex((int)p->TargetEntityId) is var target
+                              && repo.IsAlive(target) && _entityMap.TryGetNetworkId(target, out targetNetId);
+                if (!mapped)
+                {
+                    UnmappedTargetCount++;
+                    continue;   // not sent, not remembered: tried again next frame
+                }
+                p->TargetEntityId = (uint)targetNetId;
+            }
 
             _writer.Write(msg);
             SentSampleCount++;

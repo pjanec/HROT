@@ -26,7 +26,7 @@
 
 **Lead added:** `FDP/Kernel/Fdp.Kernel.Tests/xunit.runner.json` and `FDP/ModuleHost/ModuleHost.Core.Tests/xunit.runner.json` with **`parallelizeAssembly: false`**, **`parallelizeTestCollections: false`**, **`maxParallelThreads: 1`**, copied to output via csproj.
 
-**Your job:** Confirm full **`dotnet test IOS-IG-SimHost.sln`** is improved; **document** in the report if any DDS flake remains. **Rule:** new or existing tests that open **`DdsParticipant`** must use **non-conflicting domain IDs** when run under solution-wide parallelism — domain 0 is not exclusive.
+**Your job:** Confirm full **`dotnet test HROT.sln`** is improved; **document** in the report if any DDS flake remains. **Rule:** new or existing tests that open **`DdsParticipant`** must use **non-conflicting domain IDs** when run under solution-wide parallelism — domain 0 is not exclusive.
 
 ### A.1 — `ClusterConfiguration.LoadFrom` fail-fast (P2)
 

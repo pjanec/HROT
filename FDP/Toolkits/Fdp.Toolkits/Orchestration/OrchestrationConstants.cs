@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.IO;
 
@@ -9,16 +10,87 @@ namespace Fdp.Toolkit.Orchestration
     public static class OrchestrationConstants
     {
         /// <summary>
-        /// Resolves the default root directory for scenario staging, checkpoints, and archives.
-        /// Honors the <c>FDP_STAGING_ROOT</c> environment variable when set, otherwise falls
-        /// back to a platform-appropriate temp directory (cross-platform; not a fixed Windows path).
+        /// Resolves the root directory for scenario staging, checkpoints, recordings and archives (the shared / NAS tree is
+        /// <c>{root}/shared</c>, each node's staging <c>{root}/nodes/node-N</c>, its recordings <c>…/exercises/&lt;id&gt;</c>).
+        /// <para>⭐⭐ <c>CE-4324</c> (scenario lifecycle LC-21, R-4166: <i>"a fixed data folder by default (beside the scenarios); temp only when
+        /// asked"</i>) — ⛔ it defaulted to TEMP (<c>$TMP/FDP_Temp</c>, <c>C:\FDP_Temp</c>), so an exercise recording could vanish with a temp clean-up.
+        /// Now, in order: <c>FDP_STAGING_ROOT</c> when set (THE way to ask for temp, or anything else) · <see cref="DataDirectoryName"/> beside the
+        /// content tree's <c>scenarios/</c> in a dev build (<see cref="ContentLayout.TryFindSourceTree"/>) · the machine's application data
+        /// (<c>%LOCALAPPDATA%\HROT\data</c>, <c>~/.local/share/HROT/data</c>) on an install. Every node and tool reads it through this ONE call.</para>
         /// </summary>
         public static string ResolveStagingRoot() =>
-            Environment.GetEnvironmentVariable("FDP_STAGING_ROOT")
-            ?? "C:\\FDP_Temp";
+            EnvVars.Read(EnvVars.FdpStagingRoot) ?? DefaultDataRoot.Value;
+
+        /// <summary>⭐ <c>CE-4324</c> — the default data folder's name (<c>data/</c> beside <c>scenarios/</c>; git-ignored in the repository).</summary>
+        public const string DataDirectoryName = "data";
+
+        /// <summary>⭐ <c>CE-4324</c> — is <paramref name="path"/> a dev build's default data folder (<c>&lt;source tree&gt;/data</c>)? Retention treats it as scratch.</summary>
+        public static bool IsDevDataRoot(string path)
+            => ContentLayout.TryFindSourceTree() is { } tree
+               && string.Equals(Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar),
+                                Path.GetFullPath(Path.Combine(tree, DataDirectoryName)).TrimEnd(Path.DirectorySeparatorChar), StringComparison.Ordinal);
+
+        private static readonly Lazy<string> DefaultDataRoot = new(() =>
+            ContentLayout.TryFindSourceTree() is { } tree
+                ? Path.Combine(tree, DataDirectoryName)
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.Create), "HROT", DataDirectoryName));
         public const string ScenariosDirectoryName = "scenarios";
         public const string ExercisesDirectoryName = "exercises";
         public const string EpisodesDirectoryName = "episodes";
+
+        /// <summary>The folder of the per-node staging roots, <c>{staging}/nodes/node-N</c> (<see cref="GetNodeStagingRoot(string,int)"/>).</summary>
+        public const string NodesDirectoryName = "nodes";
+
+        /// <summary>⭐ CE-3340 ② — the master's per-run ledger, inside its node staging root (<c>recording_ledger/</c>).</summary>
+        public const string RecordingLedgerDirectoryName = "recording_ledger";
+
+        /// <summary>⭐ CE-3340 ② — the archive's copy of a run's scenario, <c>{shared}/exercises/&lt;id&gt;/scenario/</c> (CE-3119).</summary>
+        public const string ArchivedScenarioDirectoryName = "scenario";
+
+        /// <summary>⭐ CE-3340 ② — the name of a run's start-time scenario copy in the ledger (<c>&lt;id&gt;.scenario</c>, beside its entry).</summary>
+        public static string GetScenarioSnapshotName(Guid exerciseId) => $"{exerciseId}.scenario";
+
+        /// <summary>⭐ CE-3340 ② — the archived scenario copy of <paramref name="exerciseId"/> under the shared (NAS) root.</summary>
+        public static string GetArchivedScenarioDirectory(string sharedRoot, Guid exerciseId)
+            => Path.Combine(sharedRoot, ExercisesDirectoryName, exerciseId.ToString(), ArchivedScenarioDirectoryName);
+
+        /// <summary>
+        /// Name of the cluster-wide SHARED directory — the NAS stand-in on a single box.
+        /// <para>
+        /// ⭐⭐⭐ This is where AUTHORED scenarios live, for every host. ⛔ Not to be confused with
+        /// <see cref="GetNodeScenariosRoot(int)"/>, which is one node's STAGING copy: the orchestrator
+        /// stages shared → node, so a node's own directory is empty until something is staged into it
+        /// and is never the list the operator picks from.
+        /// </para>
+        /// <para>
+        /// 📐 <b>Measured <c>2026-08-27</c></b> — this member exists because the two hosts disagreed:
+        /// <c>EditorBootstrap.ScenariosRoot</c> resolved <c>shared/scenarios</c> (3 scenarios) while
+        /// <c>CgfSubsystem</c> resolved <c>nodes/node-N/scenarios</c> (a directory that did not exist),
+        /// so <c>--mode all</c> — which composes CGF and NOT the editor — showed an empty picker.
+        /// ⇒ the path SHAPE now has one definition, reachable from every assembly that needs it
+        /// (<c>Fdp.Toolkits</c>), instead of a literal <c>"shared"</c> in <c>Hrot.Orchestrator</c> that
+        /// <c>Hrot.CGF</c> cannot reference.
+        /// </para>
+        /// </summary>
+        public const string SharedDirectoryName = "shared";
+
+        /// <summary>The cluster-wide shared (NAS) root. See <see cref="SharedDirectoryName"/>.</summary>
+        public static string GetSharedRoot()
+            => GetSharedRoot(ResolveStagingRoot());
+
+        /// <inheritdoc cref="GetSharedRoot()"/>
+        public static string GetSharedRoot(string stagingRoot)
+            => Path.Combine(stagingRoot, SharedDirectoryName);
+
+        /// <summary>
+        /// The root the operator's scenario list comes from on EVERY host — <c>{shared}/scenarios</c>.
+        /// </summary>
+        public static string GetSharedScenariosRoot()
+            => GetSharedScenariosRoot(ResolveStagingRoot());
+
+        /// <inheritdoc cref="GetSharedScenariosRoot()"/>
+        public static string GetSharedScenariosRoot(string stagingRoot)
+            => Path.Combine(GetSharedRoot(stagingRoot), ScenariosDirectoryName);
 
         public static string GetNodeRecordingFileName(int nodeId)
             => $"node_{nodeId}.fdp";
@@ -30,7 +102,7 @@ namespace Fdp.Toolkit.Orchestration
             => GetNodeStagingRoot(ResolveStagingRoot(), nodeId);
 
         public static string GetNodeStagingRoot(string stagingRoot, int nodeId)
-            => Path.Combine(stagingRoot, "nodes", GetNodeDirectoryName(nodeId));
+            => Path.Combine(stagingRoot, NodesDirectoryName, GetNodeDirectoryName(nodeId));
 
         public static string GetNodeScenariosRoot(int nodeId)
             => Path.Combine(GetNodeStagingRoot(nodeId), ScenariosDirectoryName);
@@ -44,8 +116,104 @@ namespace Fdp.Toolkit.Orchestration
         public static string GetNodeExercisesRoot(string stagingRoot, int nodeId)
             => Path.Combine(GetNodeStagingRoot(stagingRoot, nodeId), ExercisesDirectoryName);
 
+        // ══ S1a — THE TKB STAGING DIRECTORY ═══════════════════════════════════════════════════════
+        //
+        // ⭐⭐⭐ The artifact directory a node reads its TKB zip and its scenario header from, and the
+        //    one the orchestrator's prefetch writes them into. ⛔ Until 2026-09-18 the literal "TKB"
+        //    was built BY HAND in three places and written by NOBODY — see BP-550 and
+        //    DESIGN_Artifact_Staging.md §2.
+
+        /// <summary>
+        /// Name of the per-node TKB artifact directory. ⛔ This is the ONLY place the string is built.
+        /// </summary>
+        public const string TkbDirectoryName = "TKB";
+
+        /// <summary>
+        /// Name of the NAS directory TKB artifacts are PUBLISHED to, beside <c>scenarios/</c>.
+        /// ⚠ Lower-case, unlike the per-node <see cref="TkbDirectoryName"/>: it sits beside
+        /// <c>scenarios</c>/<c>exercises</c>/<c>episodes</c> and follows their casing, while the per-node
+        /// directory keeps the upper-case name the node-side readers have always used. ⛔ Two constants
+        /// rather than one, so neither side has to know about the other's convention.
+        /// </summary>
+        public const string NasTkbDirectoryName = "tkb";
+
+        /// <summary>⭐ The NAS folder holding the behaviour-asset trees, one sub-folder per kind id —
+        /// <c>{nas}/assets/&lt;kind&gt;/</c> (docs/DESIGN_Asset_Management.md §10 D5).</summary>
+        public const string NasAssetsDirectoryName = ContentTreeNames.Assets;   // CE-3340 (4) — one spelling, shared with the generators
+
+        /// <summary>The NAS tree of one asset-sync kind — ⭐ <c>CE-4089</c>: routed through <see cref="ContentLayout.AssetSyncRoot"/>, so a behaviour
+        /// kind (<c>blueprint</c>/<c>btree</c>/<c>hsm</c>) is <c>{nas}/assets/behaviors/&lt;Folder&gt;</c>, the SAME tree the dev seed fills.</summary>
+        public static string GetNasAssetRoot(string nasBasePath, string kind)
+            => ContentLayout.AssetSyncRoot(nasBasePath, kind);
+
+        /// <summary>Extension of a published TKB artifact. ⛔ One definition.</summary>
+        public const string TkbArtifactExtension = ".zip";
+
+        /// <summary>The NAS directory TKB artifacts are published to — <c>{nas}/tkb</c>.</summary>
+        public static string GetNasTkbRoot(string nasBasePath)
+            => Path.Combine(nasBasePath, NasTkbDirectoryName);
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The node's TKB staging directory, from a root that is ALREADY per-node.</b>
+        ///
+        /// <para>🔒 <b><c>V1</c> settled by measurement, <c>2026-09-18</c> — and the lean flipped.</b>
+        /// 📐 Every production host passes a per-node root as its <c>localTempRoot</c>:
+        /// <c>SimHostApp.cs:362</c> (<c>Combine(base, "nodes", $"node-{id}")</c>),
+        /// <c>CgfSubsystem.cs:612</c> (identical), <c>OrchestratorSubsystem.cs:137</c>
+        /// (<c>GetNodeStagingRoot(orchestratorNodeId)</c>). ⇒ the handler's "bare" root already IS
+        /// <c>{base}/nodes/node-N</c>, so it needs no node id — which is exactly the condition the plan
+        /// named as what would flip its lean.</para>
+        ///
+        /// <para>⛔ <b>And the precedent the plan cited argues the other way.</b> 📐
+        /// <c>ReferenceArchiveHandler(localTempRoot, nodeId)</c> uses the id to build a FILE NAME —
+        /// <c>node_{id}.fdp</c>, under the shared <c>exercises/</c> directory
+        /// (<c>ReferenceArchiveHandler.cs:73-74</c>) — not to make its root per-node. It is a precedent
+        /// for node-discriminated FILENAMES in a shared directory, the opposite shape.</para>
+        /// </summary>
+        /// <param name="nodeStagingRoot">
+        /// A root that is already this node's own — i.e. <see cref="GetNodeStagingRoot(string,int)"/>,
+        /// or the <c>localTempRoot</c> every host bootstrap already computes.
+        /// </param>
+        public static string GetTkbStagingRoot(string nodeStagingRoot)
+            => Path.Combine(nodeStagingRoot, TkbDirectoryName);
+
+        /// <summary>
+        /// ⭐⭐ The same directory, addressed the way the ORCHESTRATOR addresses it: from the shared base
+        /// root plus a node id. ⛔ Deliberately defined by COMPOSING the two existing helpers rather than
+        /// re-assembling the path, so the two sides cannot drift — a rail asserts the composition.
+        /// </summary>
+        public static string GetNodeTkbStagingRoot(string stagingRoot, int nodeId)
+            => GetTkbStagingRoot(GetNodeStagingRoot(stagingRoot, nodeId));
+
+        /// <inheritdoc cref="GetNodeTkbStagingRoot(string,int)"/>
+        public static string GetNodeTkbStagingRoot(int nodeId)
+            => GetNodeTkbStagingRoot(ResolveStagingRoot(), nodeId);
+
         public static string GetEpisodesRoot(string stagingRoot)
             => Path.Combine(stagingRoot, EpisodesDirectoryName);
+
+        /// <summary>
+        /// ⭐⭐ The full path of ONE node's exercise recording: <c>{root}/exercises/{exerciseId}/node_N.fdp</c>.
+        ///
+        /// <para>📌 <b>Why this exists</b> (added <c>2026-09-01</c>): the EPISODE side already had
+        /// <see cref="GetEpisodeRecordingFilePath"/>, but the EXERCISE side did not, so the same three-segment
+        /// shape was hand-composed at 8 call sites — and a test that hand-composed it <b>wrong</b> (omitting
+        /// the <c>exercises/</c> segment) failed as <i>"recording file not found"</i>, which reads as a broken
+        /// recorder and is not one. ⇒ ⭐ the two halves of the recording layout now have ONE definition each,
+        /// and asserting on a recording means calling the same function production called.</para>
+        ///
+        /// <para>⚠ Six other sites still compose this shape by hand
+        /// (<c>ReferenceArchiveHandler</c> ×2, <c>GlobalContextClusterOpHandler</c> ×2,
+        /// <c>StorageGatewayModule</c>, <c>ClusterMaster</c>, <c>DebugApiService</c>,
+        /// <c>RecordReplayWiringTests</c>) — they are correct today and are left alone; adopting them is a
+        /// separate, wider change that crosses lanes.</para>
+        /// </summary>
+        public static string GetExerciseRecordingFilePath(string stagingRoot, Guid exerciseId, int nodeId)
+            => Path.Combine(
+                stagingRoot,
+                ExercisesDirectoryName,
+                exerciseId.ToString(),
+                GetNodeRecordingFileName(nodeId));
 
         public static string GetEpisodeRecordingFileName(Guid episodeId, int nodeId)
             => $"{episodeId}_node{nodeId}.fdp";

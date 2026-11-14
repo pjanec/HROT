@@ -65,15 +65,7 @@ internal static class ClusterOpRequestAdapter
             throw new InvalidOperationException(
                 "[ClusterOpRequestAdapter] TransitionState JSON missing required 'TargetState'.");
 
-        return new TransitionStateIntent
-        {
-            TransactionId   = req.RequestId,
-            TargetState     = (FdpClusterState)(int)dto.TargetState.Value,
-            TargetWallTicks = 0,
-            ScenarioId      = dto.ScenarioId,
-            ExerciseId      = dto.ExerciseId,
-            TimeMode        = dto.TimeMode,
-        };
+        return dto.ToIntent(req.RequestId);   // ⭐ R-3055 — the ONE decoding (TargetWallTicks included)
     }
 
     /// <summary>
@@ -115,42 +107,44 @@ internal static class ClusterOpRequestAdapter
         {
             TransactionId = req.RequestId,
             IsStart       = dto.IsStart,
-            EpisodeId     = episodeId,
+            EpisodeId     = (Fdp.Core.EpisodeId)(episodeId),
             ScenarioId    = dto.ScenarioId,
         };
     }
 
     /// <summary>
-    /// Converts a <see cref="ClusterOpRequest"/> with <c>OperationType == ExportArchive</c>
-    /// or <c>ImportArchive</c> or <c>SaveScenario</c> to an <see cref="ExecuteStorageOpIntent"/>.
+    /// Converts a <see cref="ClusterOpRequest"/> with <c>OperationType == ExportArchive</c>,
+    /// <c>ImportArchive</c> or <c>SaveScenarioJson</c> to an <see cref="ExecuteStorageOpIntent"/>.
     /// </summary>
     public static ExecuteStorageOpIntent ToExecuteStorageOpIntent(ClusterOpRequest req)
     {
-        Guid exerciseId = Guid.Empty;
-        if (!string.IsNullOrWhiteSpace(req.PayloadJson))
-        {
-            try
-            {
-                var dto = JsonSerializer.Deserialize<ArchivePayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default);
-                exerciseId = dto?.ExerciseId ?? Guid.Empty;
-            }
-            catch (JsonException) { }
-        }
-
         var opType = req.OperationType switch
         {
-            ClusterOpType.ExportArchive  => StorageOpType.Export,
-            ClusterOpType.ImportArchive  => StorageOpType.Import,
-            ClusterOpType.SaveScenario   => StorageOpType.SaveScenario,
-            _ => StorageOpType.SaveScenario,
+            ClusterOpType.ExportArchive    => StorageOpType.Export,
+            ClusterOpType.ImportArchive    => StorageOpType.Import,
+            ClusterOpType.SaveScenario => StorageOpType.SaveScenario,
+            ClusterOpType.DeleteExercise   => StorageOpType.Delete,   // ⭐ CE-4090 D15
+            ClusterOpType.CreateBlankScenario => StorageOpType.CreateBlankScenario,   // ⭐ New scenario N2
+            // CE-278: SaveScenario=2 retired; reject an unmapped cluster op instead of silently
+            // mapping it to the dead SaveScenario storage op (previous default).
+            _ => throw new ArgumentOutOfRangeException(
+                     nameof(req.OperationType), req.OperationType,
+                     "Unsupported cluster op for storage intent (SaveScenario=2 retired, CE-278)."),
         };
 
-        return new ExecuteStorageOpIntent
-        {
-            RequestId  = req.RequestId,
-            Operation  = opType,
-            ExerciseId = exerciseId,
-        };
+        // CE-277(c0): the distributed JSON scenario save carries its relative name in PayloadJson.
+        string? scenarioName = null; Guid[]? onlyGuids = null; string? headerJson = null;
+        if (opType is StorageOpType.SaveScenario or StorageOpType.CreateBlankScenario)
+            (scenarioName, onlyGuids, headerJson) = Hrot.Network.Orchestration.SaveScenarioRequestJson.Decode(req.PayloadJson);   // ⭐ CE-4210 MA-9 — the one decoding
+
+        // ⭐ CE-4330 — the archive / import / delete payload has ONE decoding (ArchivePayloadJson), shared with the master's DDS translator
+        var intent = opType is StorageOpType.SaveScenario or StorageOpType.CreateBlankScenario
+            ? new ExecuteStorageOpIntent { RequestId = req.RequestId, Operation = opType }
+            : Hrot.Network.Orchestration.ArchivePayloadJson.Decode(req.RequestId, opType, req.PayloadJson);
+        intent.ScenarioName = scenarioName;
+        intent.OnlyGuids    = onlyGuids;
+        intent.HeaderJson   = headerJson;
+        return intent;
     }
 
     /// <summary>
@@ -159,21 +153,7 @@ internal static class ClusterOpRequestAdapter
     /// </summary>
     public static SeekReplayIntent ToSeekReplayIntent(ClusterOpRequest req)
     {
-        long ticks = 0;
-        if (!string.IsNullOrWhiteSpace(req.PayloadJson))
-        {
-            if (!long.TryParse(req.PayloadJson, out ticks))
-            {
-                try
-                {
-                    var dto = JsonSerializer.Deserialize<SeekReplayPayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default);
-                    ticks = dto?.TargetWallTicks ?? 0;
-                }
-                catch { }
-            }
-        }
-
-        return new SeekReplayIntent { RequestId = req.RequestId, TargetWallTicks = ticks };
+        return SeekReplayPayloadDto.Decode(req.RequestId, req.PayloadJson);   // ⭐ CE-3329 — the one decoding (atSimSeconds kept)
     }
 
     /// <summary>
@@ -188,4 +168,76 @@ internal static class ClusterOpRequestAdapter
         return new CancelOperationIntent { TargetRequestId = targetId };
     }
 
+    /// <summary>
+    /// Converts a <see cref="ClusterOpRequest"/> with <c>OperationType == LoadZone</c> to a
+    /// <see cref="LoadZoneIntent"/>.
+    ///
+    /// <para>⭐ This path exists because the zone-load action is ALWAYS cluster-wide
+    /// (📄 docs/DESIGN_Terrain_Zones_And_Assets.md §9.6) — including on the editor, which is a
+    /// single-node cluster driving the orchestrator through THIS injection path rather than the DDS
+    /// translator. ⛔ Without it the editor's zone load would fall through the request switch and do
+    /// nothing, silently, on the one host most likely to issue it.</para>
+    ///
+    /// <para>⚠ A bare (non-JSON) payload is accepted as the zone id itself, mirroring
+    /// <see cref="ToCancelOperationIntent"/>: panels and headless action handlers inject raw strings.</para>
+    /// </summary>
+    public static LoadZoneIntent ToLoadZoneIntent(ClusterOpRequest req)
+    {
+        string? zoneId = null;
+        var payload = req.PayloadJson;
+        if (!string.IsNullOrWhiteSpace(payload))
+        {
+            var trimmed = payload.Trim();
+            if (trimmed.StartsWith("{", StringComparison.Ordinal))
+            {
+                try
+                {
+                    var dto = JsonSerializer.Deserialize<ZonePayloadDto>(trimmed, OrchestrationJsonOptions.Default);
+                    zoneId = dto?.ZoneId;
+                }
+                catch (JsonException) { }
+            }
+            else
+            {
+                zoneId = trimmed;
+            }
+        }
+
+        return new LoadZoneIntent { RequestId = req.RequestId, ZoneId = zoneId };
+    }
+
+    /// <summary>
+    /// ⭐ <c>E4</c> — converts a <see cref="ClusterOpRequest"/> with
+    /// <c>OperationType == BuildTerrainAsset</c> to a <see cref="BuildTerrainAssetIntent"/>.
+    ///
+    /// <para>⚠ A null/empty <c>Kinds</c> means <b>ALL kinds</b>, not none — an op that asked for nothing
+    /// would never be published, so treating absence as "nothing" would silently turn every
+    /// unparameterised build into a no-op.</para>
+    /// </summary>
+    public static BuildTerrainAssetIntent ToBuildTerrainAssetIntent(ClusterOpRequest req)
+    {
+        string[]? kinds = null;
+        var payload = req.PayloadJson;
+        if (!string.IsNullOrWhiteSpace(payload) && payload.TrimStart().StartsWith("{", StringComparison.Ordinal))
+        {
+            try
+            {
+                var dto = JsonSerializer.Deserialize<TerrainAssetBuildPayloadDto>(
+                    payload, OrchestrationJsonOptions.Default);
+                kinds = dto?.Kinds;
+            }
+            catch (JsonException) { }
+        }
+
+        return new BuildTerrainAssetIntent { RequestId = req.RequestId, Kinds = kinds };
+    }
+
+    /// <summary>⭐ CE-3021 — the payload of a <c>PublishAssets</c> / <c>RefreshAssets</c> request; null when malformed.</summary>
+    public static AssetOpPayloadDto? ToAssetOpPayload(ClusterOpRequest req)
+    {
+        var payload = req.PayloadJson;
+        if (string.IsNullOrWhiteSpace(payload)) return null;
+        try { return JsonSerializer.Deserialize<AssetOpPayloadDto>(payload, OrchestrationJsonOptions.Default); }
+        catch (JsonException) { return null; }
+    }
 }

@@ -28,19 +28,33 @@ namespace Hrot.SimHost
         public static void RegisterAll(EntityRepository world)
         {
             world.RegisterComponent<PerceptionReceptor>();
+            world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorMount>();   // posture eye heights (DESIGN_Terrain_World §7.1 W5)
             world.RegisterComponent<TargetMemory>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.KnownCombatantList>();   // ⭐ CE-2238 part 4 — AW-22's knowledge, beside the memory (§5h.6 KC-1)
+            world.RegisterComponent<Fdp.Toolkit.Combat.WarningLog>();           // ⭐ CE-2239 part 3 — whom a police unit warned (§5k EL-3)
             world.RegisterComponent<SensorContactList>();
+            world.RegisterComponent<HeardTraces>();   // ⭐ CE-3117 — a listener's heard estimates, for the map (R-226)
             world.RegisterComponent<WeaponState>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.AmmoLoadout>();   // ⭐ M8 — a mount's rounds by type (Brain)
+            world.RegisterComponent<Fdp.Toolkit.Combat.HeldFuze>();   // ⭐ CE-3235 — a live round in a man's hands (Brain)
+            world.RegisterComponent<Fdp.Toolkit.Combat.LaidDownWeapons>();   // ⭐ CE-3232 — the mounts he laid down (Brain)
             world.RegisterComponent<EntityInfo>();
+            // ⭐⭐ MOVED HERE 2026-09-12 from CognitiveComponentRegistry (CE-259bf slice 2, §3.9a).
+            //   BehaviorTkbTranslator stamps ActorCapabilityState in the SAME block as EntityInfo
+            //   above, and HealthApplicationSystem / DamageSystem read it — both run on SimHost via
+            //   CombatModule. ⚠ BEHAVIOUR-PRESERVING: SimHost and CGF both already call this registry.
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
             // Health is registered in HrotSharedComponentRegistry (shared across all nodes).
             world.RegisterComponent<BallisticProjectile>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.GuidedRound>();   // ⭐ M4 — a guided round (Muscle)
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.Decoy>();                 // ⭐ CE-2188 — a flare / chaff (Muscle)
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.MissileWarning>();        // ⭐ CE-2189 — the last warning (Brain)
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.ShotOrdinal>();   // ⭐ AQ85 A — the deflection sequence index
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.UnderFire>();     // ⭐ AQ85 E — suppression
             world.RegisterComponent<PhysicsCollider>();
 
             // ── Perception pipeline events ────────────────────────────────────
-            world.RegisterEvent<AudioStimulusEvent>();
-            world.RegisterEvent<LosCheckRequestEvent>();
-            world.RegisterEvent<TargetVisibleEvent>();
-            world.RegisterEvent<TargetHeardEvent>();
+            // ⛔ CE-3062 — AudioStimulusEvent / TargetHeardEvent retired (the acoustic sensor replaces them).
             world.RegisterEvent<SensorTrackStateEvent>(); 
 
             // Target seeding command (edit-1/EDIT1-E002)
@@ -52,8 +66,12 @@ namespace Hrot.SimHost
             // EventToEffectSystem (visual effects) and network egress translators.
             world.RegisterEvent<WeaponFireNotification>();
             world.RegisterEvent<DetonationNotification>();
+            world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.RoundImpactNotification>();   // ⭐ CE-1128 — the marks rounds leave
+            world.RegisterEvent<Fdp.Toolkit.Combat.Events.NearMissEvent>();   // ⭐ CE-3064
+            world.RegisterEvent<Fdp.Toolkit.Combat.Events.MissileWarningEvent>();            // ⭐ CE-2189 — Muscle → Brain
             world.RegisterEvent<HitEvent>();
             world.RegisterEvent<DamageAssessedEvent>();
+            world.RegisterEvent<Fdp.Toolkit.Combat.Events.ManDownedEvent>();   // ⭐ CE-3364 — the one kill authority
             world.RegisterEvent<FireRequestEvent>();
         }
     }

@@ -101,20 +101,8 @@ public sealed class HsmBreakpointGutterRenderer : ICustomCanvasRenderer
                     // Count eligible transition breakpoints BEFORE geometry gate.
                     LastTransitionDotCount++;
 
-                    // Anchor off source state screen rect; fall back to target if source fails.
-                    Vector2 dotCenter;
-                    if (ctx.TryGetNodeScreenRect(new NodeId(trans.Source.StableId), out var srcRect))
-                    {
-                        dotCenter = srcRect.Min + new Vector2(-8f, 8f) * ctx.Zoom;
-                    }
-                    else if (ctx.TryGetNodeScreenRect(new NodeId(trans.Target.StableId), out var tgtRect))
-                    {
-                        dotCenter = tgtRect.Min + new Vector2(-8f, 8f) * ctx.Zoom;
-                    }
-                    else
-                    {
+                    if (!TryTransitionDotCenter(ctx, trans, out var dotCenter))
                         continue;
-                    }
 
                     float radius = 5f * ctx.Zoom;
                     ctx.DrawList.AddCircleFilled(dotCenter, radius,
@@ -168,20 +156,8 @@ public sealed class HsmBreakpointGutterRenderer : ICustomCanvasRenderer
                     // Count eligible transition breakpoints BEFORE geometry gate.
                     LastTransitionDotCount++;
 
-                    // Anchor off source state screen rect; fall back to target if source fails.
-                    Vector2 dotCenter;
-                    if (ctx.TryGetNodeScreenRect(new NodeId(trans.Source.StableId), out var srcRect))
-                    {
-                        dotCenter = srcRect.Min + new Vector2(-8f, 8f) * ctx.Zoom;
-                    }
-                    else if (ctx.TryGetNodeScreenRect(new NodeId(trans.Target.StableId), out var tgtRect))
-                    {
-                        dotCenter = tgtRect.Min + new Vector2(-8f, 8f) * ctx.Zoom;
-                    }
-                    else
-                    {
+                    if (!TryTransitionDotCenter(ctx, trans, out var dotCenter))
                         continue;
-                    }
 
                     float radius = 5f * ctx.Zoom;
                     ctx.DrawList.AddCircleFilled(dotCenter, radius,
@@ -189,5 +165,32 @@ public sealed class HsmBreakpointGutterRenderer : ICustomCanvasRenderer
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1002 — a transition's breakpoint dot sits ON its arrow, a quarter of the way from the source (the
+    /// canvas's own path, CE-1000). It used to sit on the source state's top-left corner — the very spot that state's
+    /// own breakpoint dot uses, so the two could not be told apart. Fallback when the path is not laid out (stub
+    /// contexts): the old corner.
+    /// </summary>
+    internal static bool TryTransitionDotCenter(ICanvasRenderContext ctx, TransitionNode trans, out Vector2 center)
+    {
+        if (ctx.TryGetLinkScreenPath(new LinkId(trans.VisualId), out var path))
+        {
+            center = path.Point(0.25f);
+            return true;
+        }
+        if (ctx.TryGetNodeScreenRect(new NodeId(trans.Source.StableId), out var srcRect))
+        {
+            center = srcRect.Min + new Vector2(-8f, 8f) * ctx.Zoom;
+            return true;
+        }
+        if (ctx.TryGetNodeScreenRect(new NodeId(trans.Target.StableId), out var tgtRect))
+        {
+            center = tgtRect.Min + new Vector2(-8f, 8f) * ctx.Zoom;
+            return true;
+        }
+        center = default;
+        return false;
     }
 }

@@ -34,7 +34,7 @@ Add to `Hrot.AI.Behaviors` (e.g. `Hrot/Subsystems/Hrot.AI.Behaviors/Trees/Sample
 **Tests required:** `Hrot.AI.Behaviors` compiles (incl. the `[Layout]` methods). `BTreeAssetContributor_LoadFrom_DiscoversSampleScout` and `HsmAssetContributor_LoadFrom_DiscoversSampleGuard` (load the built `Hrot.AI.Behaviors` assembly → contributor enumerates the sample by name + AssetId). A **round-trip** test: project the sample → run the fluent emitter → the emitted C# compiles (or at least the layout `using`/attribute references resolve against the contracts assembly).
 
 ## Success Criteria
-- [ ] **Full solution builds with 0 errors** (`dotnet build IOS-IG-SimHost.sln`).
+- [ ] **Full solution builds with 0 errors** (`dotnet build HROT.sln`).
 - [ ] `Hrot.AI.Behaviors` contains a discoverable sample BTree + sample HSM (with `[Layout]`), and the contributors find them (tested).
 - [ ] No editor assembly is referenced by `Hrot.AI.Behaviors`; layout contracts are in the new lightweight assembly referenced by both.
 - [ ] Green: `Hrot.Editor.AiShared.Tests`, `Hrot.BTree.Editor.Tests`, `Hrot.Hsm.Editor.Tests`, `EditorSubsystemBoot` filter. Blueprints no new failures beyond DEBT-006's 10.
@@ -43,7 +43,7 @@ Add to `Hrot.AI.Behaviors` (e.g. `Hrot/Subsystems/Hrot.AI.Behaviors/Trees/Sample
 
 ## Execution rules
 - Verify the exact dependency set of the moved types before moving (don't break AiShared). Keep namespaces identical to avoid editing dozens of usings.
-- Run `dotnet build IOS-IG-SimHost.sln` and the named suites yourself; fix root causes; never fake a pass. The sample definitions must use only types/methods that compile standalone in `Hrot.AI.Behaviors`.
+- Run `dotnet build HROT.sln` and the named suites yourself; fix root causes; never fake a pass. The sample definitions must use only types/methods that compile standalone in `Hrot.AI.Behaviors`.
 
 ## Report Requirements
 In `reports/BATCH-10-REPORT.md`: the new assembly's deps + exactly which types moved; how the duplicate HsmLayoutAttribute was resolved; the BTree emitter namespace fix; what the samples contain (GUIDs, node structure) and how discovery was verified; the round-trip result; full-solution build confirmation; actual test counts; suggested commit message. No comprehension questions.

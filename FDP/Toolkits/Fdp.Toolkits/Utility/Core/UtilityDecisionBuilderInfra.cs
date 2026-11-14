@@ -23,6 +23,15 @@ namespace Fdp.Toolkit.Utility
         public string Category    { get; }
         /// <summary>Score bonus applied to the currently-active posture before re-ranking (PostureSelect only).</summary>
         public float HysteresisBonus { get; }
+        /// <summary>⭐ <c>CE-3069</c> G2 — optional: an enum whose member values are this decision's option ids, so tooling
+        /// (the debug API's <c>/entities/{id}/utility</c>) can name an option (<c>typeof(Posture)</c>) instead of printing its
+        /// number. A named property: the source generator reads constructor arguments only.</summary>
+        public Type? OptionNames { get; set; }
+        /// <summary>⭐ <c>CE-4395</c> (docs/DESIGN_Evaluation_Cost_And_Cadence.md §11g-2, approved 2026-11-10) — optional: re-score this
+        /// decision for a unit at most every this many SIM seconds, staggered by entity index, and at once when the unit's senses change
+        /// (<c>SensorChangedEvent</c>); between, the last result is returned (<see cref="DecisionCadence"/>). 0 = every call (the default).
+        /// ⚠ A named property: the generated catalog (ctor arguments only) does not carry it — there the decision scores every call.</summary>
+        public double CadenceSeconds { get; set; }
 
         public UtilityDecisionAttribute(string assetId, string displayName,
             DecisionKind kind, string category = "", float hysteresisBonus = 0f)
@@ -79,20 +88,38 @@ namespace Fdp.Toolkit.Utility
         // ── Group C: EQS ──────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Top EQS result score for the sensor with blueprint matching FNV-1a-32 of
-        /// <paramref name="templateName"/>.
+        /// Top EQS result score for the sensor running the template whose AssetId is
+        /// <paramref name="templateAssetId"/> (e.g. <c>FindCoverFromTarget.AssetId</c>).
         /// </summary>
-        public static InputRef EqsTopScore(string templateName, InputContext ctx = InputContext.Self)
+        /// <exception cref="ArgumentException"><paramref name="templateAssetId"/> is not a GUID.</exception>
+        public static InputRef EqsTopScore(string templateAssetId, InputContext ctx = InputContext.Self)
             => new InputRef(StandardInputIds.EqsTopScore, ctx,
-                new InputParams { BlueprintId = Fnv1a32(templateName) });
+                new InputParams { BlueprintId = EqsTemplateId(templateAssetId) });
 
         /// <summary>
-        /// Fraction of EQS result slots filled for the sensor with blueprint matching
-        /// FNV-1a-32 of <paramref name="templateName"/>.
+        /// Fraction of EQS result slots filled for the sensor running the template whose AssetId is
+        /// <paramref name="templateAssetId"/>.
         /// </summary>
-        public static InputRef EqsResultCount(string templateName, InputContext ctx = InputContext.Self)
+        /// <exception cref="ArgumentException"><paramref name="templateAssetId"/> is not a GUID.</exception>
+        public static InputRef EqsResultCount(string templateAssetId, InputContext ctx = InputContext.Self)
             => new InputRef(StandardInputIds.EqsResultCount, ctx,
-                new InputParams { BlueprintId = Fnv1a32(templateName) });
+                new InputParams { BlueprintId = EqsTemplateId(templateAssetId) });
+
+        /// <summary>
+        /// ⭐ <c>CE-2046</c> — the id an EQS sensor running this template carries:
+        /// <see cref="global::Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.BlueprintIdOf"/> of the AssetId (EQS §6.2).
+        /// ⛔ It hashed the template's NAME, which no sensor carries, so <c>EqsTopScore</c> read 0 for every real sensor.
+        /// 📄 <c>DESIGN_Unified_Behaviour_Run.md</c> "S8i".
+        /// </summary>
+        /// <exception cref="ArgumentException"><paramref name="templateAssetId"/> is not a GUID.</exception>
+        public static uint EqsTemplateId(string templateAssetId)
+        {
+            if (!Guid.TryParse(templateAssetId, out var assetId))
+                throw new ArgumentException(
+                    $"An EQS input names its template by the template's AssetId GUID (e.g. FindCoverFromTarget.AssetId); " +
+                    $"'{templateAssetId}' is not a GUID.", nameof(templateAssetId));
+            return global::Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.BlueprintIdOf(assetId);
+        }
 
         // ── Group D: misc ─────────────────────────────────────────────────────────
 
@@ -107,15 +134,7 @@ namespace Fdp.Toolkit.Utility
         /// Used to derive blueprint IDs and decision asset IDs.
         /// </summary>
         public static uint Fnv1a32(string name)
-        {
-            uint hash = 2166136261u;
-            foreach (char c in name)
-            {
-                hash ^= (byte)c;
-                hash *= 16777619u;
-            }
-            return hash;
-        }
+            => global::Fdp.Toolkit.Behavior.Shared.UtilityIdHash.Fnv1a32(name);   // ⭐ CE-2035 — was the low byte only
     }
 
     // ── Curve presets ──────────────────────────────────────────────────────────────
@@ -169,6 +188,12 @@ namespace Fdp.Toolkit.Utility
         /// Appends a consideration (input reader + weight + response curve) to this option.
         /// </summary>
         IUtilityOptionBuilder Consider(InputRef input, float weight, ResponseCurve curve);
+
+        /// <summary>
+        /// ⭐ <c>CE-2271</c> (R-2075) — appends a MODIFIER: <c>curve(input) ^ weight</c> multiplies the option's score after its aggregate,
+        /// outside the product's compensation (<see cref="ConsiderationFlags.Modifier"/>) — 1.0 leaves the score exactly as it was.
+        /// </summary>
+        IUtilityOptionBuilder Modify(InputRef input, float weight, ResponseCurve curve);
     }
 
     /// <summary>Fluent builder for a <see cref="UtilityDecisionDef"/>.</summary>
@@ -236,6 +261,19 @@ namespace Fdp.Toolkit.Utility
             return this;
         }
 
+        /// <inheritdoc/>
+        public IUtilityOptionBuilder Modify(InputRef input, float weight, ResponseCurve curve)
+        {
+            _current!.Add(new UtilityConsideration(
+                inputId:  input.InputId,
+                context:  input.Context,
+                weight:   weight,
+                curve:    curve,
+                @params:  input.Params,
+                flags:    ConsiderationFlags.Modifier));
+            return this;
+        }
+
         /// <summary>
         /// Produces a <see cref="UtilityDecisionDef"/> from the accumulated options and the
         /// supplied <paramref name="attr"/> metadata.
@@ -247,7 +285,10 @@ namespace Fdp.Toolkit.Utility
                 BlueprintId = ComputeId(attr.AssetId),
                 Kind        = attr.Kind,
                 Options     = _options.ToArray(),
-                DebugName   = attr.DisplayName
+                DebugName   = attr.DisplayName,
+                AssetId     = attr.AssetId,     // ⭐ CE-2068 — what a UtilityDecisionRef saves as
+                OptionNames = attr.OptionNames, // ⭐ CE-3069 G2 — names the options in the debug API
+                CadenceSeconds = attr.CadenceSeconds, // ⭐ CE-4395 — re-scored at a cadence (DecisionCadence)
             };
         }
 

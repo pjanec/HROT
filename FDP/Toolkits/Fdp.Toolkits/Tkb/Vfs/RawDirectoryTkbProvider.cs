@@ -67,6 +67,16 @@ namespace Fdp.Toolkit.Tkb.Vfs
 
         /// <inheritdoc/>
         /// <remarks>No-op — file streams are closed per iteration by the enumerator.</remarks>
+        // ── IAssetStorageStrategy (B5) ──────────────────────────────────────────────
+        public IEnumerable<string> EnumerateFiles()
+        {
+            foreach (var filePath in Directory.EnumerateFiles(_rootPath, "*", SearchOption.AllDirectories))
+                yield return Path.GetRelativePath(_rootPath, filePath).Replace('\\', '/');
+        }
+
+        public Stream OpenRead(string relativePath)
+            => new FileStream(Path.Combine(_rootPath, relativePath), FileMode.Open, FileAccess.Read, FileShare.Read);
+
         public void Dispose() { }
     }
 }

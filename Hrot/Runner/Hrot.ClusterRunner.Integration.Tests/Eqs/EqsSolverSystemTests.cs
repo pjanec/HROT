@@ -59,7 +59,7 @@ public sealed class EqsSolverSystemTests : IDisposable
         // Arrange: create entity with required components
         var entity = _harness.Repo.CreateEntity();
         _harness.Repo.AddComponent(entity, new EqsSensor { BlueprintId = 1, Epoch = 1 });
-        _harness.Repo.AddComponent(entity, new NetworkIdentity { Value = 9001L });
+        _harness.Repo.AddComponent(entity, new NetworkIdentity { Value = 9001 });
 
         // Act: pump until IsReady or timeout (5 s >> 100 ms solver period)
         bool ready = _harness.PumpUntil(

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
+using Fdp.Core.Serialization;
 
 namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
 {
@@ -28,7 +29,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
                 });
             }
 
-            string json = JsonSerializer.Serialize(records);
+            string json = JsonSerializer.Serialize(records, FdpJsonOptionsRegistry.DefaultRelaxed);
             File.WriteAllText(filePath, json);
             registry.ClearDirty();
         }
@@ -43,7 +44,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
             if (!File.Exists(filePath)) return;
 
             string json = File.ReadAllText(filePath);
-            var records = JsonSerializer.Deserialize<List<SettingRecord>>(json);
+            var records = JsonSerializer.Deserialize<List<SettingRecord>>(json, FdpJsonOptionsRegistry.DefaultRelaxed);
             if (records == null) return;
 
             foreach (var rec in records)

@@ -486,7 +486,7 @@ dotnet test "Hrot/Subsystems/Hrot.MuscleCharacter.Animation.Tests/Hrot.MuscleCha
 
 Full solution build before submitting:
 ```
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 5
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 5
 ```
 
 **All tests must pass. Zero build errors. Zero warnings introduced.**

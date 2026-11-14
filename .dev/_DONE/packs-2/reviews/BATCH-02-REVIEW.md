@@ -11,7 +11,7 @@
 ## 1. Build Verification
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental
+dotnet build HROT.sln --no-incremental
 ```
 
 **Result:** Build **succeeded** — 0 errors. Pre-existing xUnit1030 warnings only (analyzer

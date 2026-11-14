@@ -1,7 +1,9 @@
 using System;
 using System.Runtime.InteropServices;
 using Hrot.NED.Descriptors;
+using System.Collections.Generic;
 using CycloneDDS.Runtime;
+using CycloneDDS.Runtime.Tracking;
 using Fdp.Core.Logging;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -23,23 +25,37 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// On disposal it publishes <see cref="DestroyEntityCommand"/> so the lifecycle module
     /// can tear the entity down cleanly.
     ///
-    /// For already-known entities the translator does not emit any ECS component updates.
+    /// For already-known entities the translator emits no ECS component updates, except to fill an unknown primary owner.
+    ///
+    /// ⭐ <b>CE-517 — the primary owner is the sample's WRITER.</b> Spec (<c>BDC_NED_SST_Descriptor_Rules.md</c>):
+    /// <i>"Ownership is determined by the most recent writer"</i>; <c>EntityMaster</c> carries no owner field. Every
+    /// production participant enables CycloneDDS sender tracking with <c>AppInstanceId</c> = its node id
+    /// (<c>BUG2-DESIGN.md</c> §1.2), so the reader resolves the writer of each sample to a node.
+    /// ⭐ <b>CE-4079 ① — the sender is resolved WHEN THE SAMPLE IS DELIVERED.</b> CycloneDDS.NET 1.2.20 drains the identity reader
+    /// synchronously on a lookup miss (<c>CHANGELOG.md</c> 1.2.20, "Sender identity could stay unresolved for a delivered
+    /// sample"), so a ghost is created with its owner on the first poll. The retry by publication handle this class used to keep
+    /// (for the 0.3.2 thread-pool-starvation window) is gone; a ghost still at -1 can only mean a participant WITHOUT sender
+    /// tracking, and is filled from a later sample's writer if one resolves.
+    /// A KNOWN owner is never overwritten here: a master move reaches every node as an <c>OwnershipUpdate</c> through
+    /// <c>OwnershipApplier</c>, and an old writer's late sample must not flip it back.
     ///
     /// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
-    public class EntityMasterIngressTranslator : IDescriptorTranslator
+    public class EntityMasterIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         // --- Named constants (§CODE-STANDARDS §1 — no magic numbers) ---
-        private const string DdsTopicName = "EntityMaster";
         private const long OrdinalValue = (long)EDescriptorType.dtEntityMaster;
 
         private readonly DdsReader<EntityMaster> _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
         private readonly FdpEventBus _eventBus;
         private readonly GhostCreationSystem _ghostCreationSystem;
+        private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
+        private readonly HashSet<long> _lightweight = new();   // ⭐ LR-2 — the replicated rounds this node holds, destroyed on dispose
+        private EntityRepository? _world;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityMaster>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -48,26 +64,34 @@ namespace Hrot.Map.Common.Replication.Ingress
         public EntityMasterIngressTranslator(
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
-            long localNodeId,
+            int localNodeId,
             FdpEventBus eventBus,
             GhostCreationSystem ghostCreationSystem)
         {
             // participant may be null in unit-test mode — PollIngress becomes a no-op
             _reader = participant is not null ? new DdsReader<EntityMaster>(participant) : null!;
+            // CE-517: resolve each sample's writer to a node (a participant without sender tracking yields none).
+            if (participant?.SenderRegistry is { } senders) _reader.EnableSenderTracking(senders);
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
         }
 
         // ── Ingress ──────────────────────────────────────────────────────────
 
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
+
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _lightweight.Clear();   // CE-2101
             if (_reader is null) return; // test mode — no DDS participant supplied
             using var loan = _reader.Take();
+            int index = -1;
             foreach (var sample in loan)
             {
+                index++;
                 var info = sample.Info;
                 if (info.InstanceState != CycloneDDS.Runtime.DdsInstanceState.Alive)
                 {
@@ -75,7 +99,8 @@ namespace Hrot.Map.Common.Replication.Ingress
                     // NOTE: dispose notifications have IsValid == false (no data payload,
                     // only key fields are valid). Must check instance state BEFORE IsValid.
                     var keyData = DdsTypeSupport.FromNative<EntityMaster>(sample.NativePtr);
-                    ProcessDispose(keyData.EntityId);
+                    // ⭐ CE-4000 F2 — a dispose sample still names its writer (measured), so the guard can check it.
+                    ProcessDispose(keyData.EntityId, loan.GetSender(index) is { } who ? who.AppInstanceId : UnknownOwner, view);
                     continue;
                 }
 
@@ -85,7 +110,8 @@ namespace Hrot.Map.Common.Replication.Ingress
 
                 ReceivedSampleCount++;
                 var master = sample.Data;
-                ProcessSample(in master, cmd, view);
+                int writer = loan.GetSender(index) is { } id ? id.AppInstanceId : UnknownOwner;
+                ProcessSample(in master, cmd, view, writer);
             }
         }
 
@@ -99,7 +125,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         // ── Lifecycle ─────────────────────────────────────────────────────────
 
-        public void Dispose(long networkEntityId) { /* IG does not write EntityMaster */ }
+        public void Dispose(int networkEntityId) { /* IG does not write EntityMaster */ }
 
         // ── Private helpers ──────────────────────────────────────────────────
 
@@ -107,8 +133,37 @@ namespace Hrot.Map.Common.Replication.Ingress
         /// Publishes a <see cref="DestroyEntityCommand"/> for a disposed DDS instance.
         /// Extracted as <c>internal</c> so tests can verify the teardown path without DDS.
         /// </summary>
-        internal void ProcessDispose(long networkEntityId)
+        /// <param name="senderNodeId">⭐⭐ <c>CE-4000</c> F2 / <c>R-4019</c> — the node that wrote the dispose, or -1 when unknown.</param>
+        /// <param name="view">The world, to read the entity's recorded owner; <see langword="null"/> skips the guard.</param>
+        /// <remarks>
+        /// ⭐⭐ <b>The guard:</b> a delete whose sender is KNOWN and differs from the entity's KNOWN primary owner is ignored and
+        /// logged — a node's late delete of an id the next run gave to another node must not destroy it. ⭐ Either side unknown ⇒
+        /// accepted, as before: rejecting a real delete would leave exactly the stale entity <c>CE-4000</c> removes.
+        /// 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §8.2.
+        /// </remarks>
+        internal void ProcessDispose(int networkEntityId, int senderNodeId = UnknownOwner, ISimulationView? view = null)
         {
+            if (senderNodeId != UnknownOwner && view != null
+                && _entityMap.TryGetEntity(networkEntityId, out var target) && view.IsAlive(target)
+                && view.HasComponent<NetworkAuthority>(target))
+            {
+                int owner = view.GetComponentRO<NetworkAuthority>(target).PrimaryOwnerId;
+                if (owner != UnknownOwner && owner != senderNodeId)
+                {
+                    FdpLog<EntityMasterIngressTranslator>.Warn(
+                        "[Node-{0}] Ignored a delete of NetID {1} from node {2}: its owner is node {3} (CE-4000).",
+                        _localNodeId, networkEntityId, senderNodeId, owner);
+                    return;
+                }
+            }
+
+            // ⭐ LR-2 (R-271) — a lightweight round has no lifecycle to tear down: it simply goes (the map prunes it as dead).
+            if (_lightweight.Remove(networkEntityId) && _entityMap.TryGetEntity(networkEntityId, out var round) && _world is { } world
+                && world.IsAlive(round))
+            {
+                world.DestroyEntity(round);
+                return;
+            }
             _eventBus.PublishManaged(new DestroyEntityCommand
             {
                 NetworkId = networkEntityId,
@@ -117,9 +172,13 @@ namespace Hrot.Map.Common.Replication.Ingress
             });
         }
 
-        internal void ProcessSample(in EntityMaster master, IEntityCommandBuffer cmd, ISimulationView view)
+        private const int UnknownOwner = -1;
+
+        /// <param name="writerNodeId">CE-517: the node that wrote this sample (sender identity), or -1 when unknown.</param>
+        internal void ProcessSample(in EntityMaster master, IEntityCommandBuffer cmd, ISimulationView view,
+                                    int writerNodeId = UnknownOwner)
         {
-            long netId = master.EntityId;
+            int netId = master.EntityId;
 
             if (!_entityMap.TryGetEntity(netId, out var entity))
             {
@@ -136,8 +195,25 @@ namespace Hrot.Map.Common.Replication.Ingress
                 entity = _ghostCreationSystem.CreateGhost(repo, netId, view.Tick);
             }
 
+            // ⭐⭐ LR-2 (DESIGN_Visual_Effects.md §8.5, R-271) — a LIGHTWEIGHT entity (a replicated round) is ACTIVE from this sample:
+            //   no ghost, no promotion, no lifecycle, no acks; WorldPos keeps it current; the master's dispose destroys it.
+            //   ⚠ It may already exist as a GHOST — a WorldPos sample can arrive before its master — so the ghost is converted here.
+            if ((master.Flags & (ulong)EntityMasterFlags.Lightweight) != 0 && view is EntityRepository lightRepo
+                && !(lightRepo.HasComponent<NetworkAuthority>(entity) && lightRepo.GetComponentRO<NetworkAuthority>(entity).HasAuthority))   // ⛔ not our own round, seen via loopback
+            {
+                _world = lightRepo;
+                if (lightRepo.GetLifecycleState(entity) != EntityLifecycle.Active) lightRepo.SetLifecycleState(entity, EntityLifecycle.Active);
+                if (lightRepo.HasComponent<GhostStateTracker>(entity)) lightRepo.RemoveComponent<GhostStateTracker>(entity);
+                if (lightRepo.IsComponentTypeRegistered<LightweightRound>() && !lightRepo.HasComponent<LightweightRound>(entity))
+                    lightRepo.AddComponent(entity, default(LightweightRound));
+                if (lightRepo.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>()
+                    && !lightRepo.HasComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>(entity))
+                    lightRepo.AddComponent(entity, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+                _lightweight.Add(netId);
+            }
+
             // Permanent identity component — drives GhostPromotionSystem.
-            cmd.AddComponent(entity, new TkbIdentity { TkbType = master.TkbType });
+            cmd.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(master.TkbType) });
 
             // Only set NetworkAuthority for entities that do not have it yet (new ghosts).
             // Entities that the local node created itself already have NetworkAuthority with the
@@ -148,9 +224,25 @@ namespace Hrot.Map.Common.Replication.Ingress
             {
                 cmd.AddComponent(entity, new NetworkAuthority
                 {
-                    PrimaryOwnerId = -1,
-                    LocalNodeId = (int)_localNodeId
+                    PrimaryOwnerId = writerNodeId,      // CE-517: the writer; -1 until its identity resolves
+                    LocalNodeId = (Fdp.Core.NodeId)((int)_localNodeId)
                 });
+
+                // Reliable-init barrier (CE-283, §3a.2): the creator marked this entity WaitForAcks,
+                // so this peer must report its Active status once the ghost finishes local
+                // construction. Tag only genuine remote ghosts (the branch that creates the
+                // ghost's NetworkAuthority), never a locally-owned entity seen via DDS loopback.
+                if ((master.Flags & (ulong)EntityMasterFlags.WaitForAcks) != 0
+                    && !view.HasComponent<ReportLifecycleOnActive>(entity))
+                {
+                    cmd.AddComponent(entity, new ReportLifecycleOnActive());
+                }
+            }
+            else if (view.GetComponentRO<NetworkAuthority>(entity).PrimaryOwnerId == UnknownOwner)
+            {
+                // CE-517: an owner still unknown is filled from the writer; a known one is never overwritten (see class doc).
+                if (writerNodeId != UnknownOwner)
+                    cmd.SetComponent(entity, new NetworkAuthority { PrimaryOwnerId = writerNodeId, LocalNodeId = (Fdp.Core.NodeId)((int)_localNodeId) });
             }
 
             // Reconstruct DISEntityType.Value from the 8 named DisTypeStruct fields.

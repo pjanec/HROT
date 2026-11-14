@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Fdp.Presentation.WindowManager;
 using Xunit;
 
@@ -160,5 +161,59 @@ public class GlobalMenuRegistryTests
         // The leaf "File" has OnClick set (or we at minimum verify no exception and the node exists).
         var leaf = registry.Root.Children["File"];
         Assert.NotNull(leaf.OnClick);
+    }
+
+    // ── CE-1443 (U2a, AQ108 §2.15a): Order, GetVisible and SetLayout ───────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-1443</c> — <c>SetLayout</c> ranks siblings whoever registers them and WHENEVER: items registered in the order C, A, B draw as A, B, C when ranked 10 / 20 / 30, a rule declared BEFORE an item exists applies when it is registered,
+    /// and an unranked menu draws in registration order (every other menu is unchanged). ⛔ A rule for an item nobody registers creates no node.
+    /// 🔴 Red-proofs: <c>OrderedChildren</c> returning the raw dictionary order ⇒ the ranked rows; <c>TraversePath</c> not applying the stored rule ⇒ the declared-before row; <c>SetLayout</c> creating the node ⇒ the phantom row.
+    /// </summary>
+    [Fact]
+    public void SetLayout_RanksSiblings_WhoeverRegistersThem_AndWhenever_AndCreatesNoPhantomNode()
+    {
+        var registry = new GlobalMenuRegistry();
+        registry.RegisterItem("File/C", () => { });
+        registry.SetLayout("File/A", 10);                  // declared BEFORE the node exists
+        registry.SetLayout("File/B", 20);
+        registry.SetLayout("File/C", 30);                  // declared AFTER: applied to the existing node
+        registry.SetLayout("File/Nobody", 40);             // nobody registers it
+        registry.RegisterItem("File/B", () => { });
+        registry.RegisterItem("File/A", () => { });
+
+        Assert.Equal(new[] { "A", "B", "C" }, registry.Root.Children["File"].OrderedChildren().Select(c => c.Name).ToArray());
+        Assert.False(registry.Root.Children["File"].Children.ContainsKey("Nobody"));
+
+        var plain = new GlobalMenuRegistry();
+        plain.RegisterItem("Tools/Z", () => { });
+        plain.RegisterItem("Tools/Y", () => { });
+        Assert.Equal(new[] { "Z", "Y" }, plain.Root.Children["Tools"].OrderedChildren().Select(c => c.Name).ToArray());   // unranked: registration order, as always
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1443</c> — <c>GetVisible</c> is part of the ONE visibility test: <c>Offers</c> is false while the node says hidden (and true again when it says visible), the published model (<c>BuildViewModel</c>) agrees, and the Start surface's
+    /// idle list never offers a hidden item. A rule set through <c>SetLayout</c> hides the same way. 🔴 Red-proof: <c>Offers</c> without the visibility term ⇒ the first assertion; <c>AllowedInIdleItems</c> without it ⇒ the idle row.
+    /// </summary>
+    [Fact]
+    public void GetVisible_IsPartOfTheOneVisibilityTest_ForTheBarTheModelAndTheStartSurface()
+    {
+        var registry = new GlobalMenuRegistry();
+        bool shown = false;
+        registry.RegisterItem("File/Always", () => { }, allowedInIdle: true);
+        registry.RegisterItem("File/Edit me", () => { }, allowedInIdle: true);
+        registry.SetLayout("File/Edit me", 5, () => shown);
+
+        var node = registry.Root.Children["File"].Children["Edit me"];
+        Assert.False(registry.Offers(node, null));
+        Assert.True(registry.Offers(registry.Root.Children["File"].Children["Always"], null));
+        Assert.DoesNotContain(registry.AllowedInIdleItems(), a => a.Path == "File/Edit me");
+        Assert.False(registry.BuildViewModel("Scenario").Items.Single(i => i.Path == "File/Edit me").Visible);
+
+        shown = true;
+        Assert.True(registry.Offers(node, null));
+        Assert.Contains(registry.AllowedInIdleItems(), a => a.Path == "File/Edit me");
+        Assert.True(registry.BuildViewModel("Scenario").Items.Single(i => i.Path == "File/Edit me").Visible);
+        Assert.Equal(new[] { "File/Always", "File/Edit me" }, registry.AllowedInIdleItems().Select(a => a.Path).ToArray());   // unranked (0) first, then rank 5: the Start surface walks the same order
     }
 }

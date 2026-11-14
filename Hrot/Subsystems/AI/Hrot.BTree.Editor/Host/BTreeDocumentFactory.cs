@@ -110,6 +110,53 @@ public static class BTreeDocumentFactory
                 $"Expected {nameof(BehaviorTreeAsset)} but got {asset.GetType().Name}.",
                 nameof(asset));
 
+        // ── 0. Reconcile the subtree references ───────────────────────────────
+        // ⭐⭐⭐ §S1 ② — RESOLVE BEFORE ANYTHING READS `IsResolved`.
+        // 🔴 THE DEFECT THIS CLOSES, measured 2026-09-26: `BTreeSubtreeResolver` had **ZERO
+        //    production callers** — only tests — so the heal rule it implements never ran on a real
+        //    document. ⇒ renaming a hosted tree left every referencing asset dangling for ever,
+        //    with Rule 6 reporting it and nothing able to repair it.
+        // ⚠ `BehaviorTreeAssetProjector:179` writes `IsResolved = false` on every projected Subtree
+        //    node, so that path in particular depended entirely on a resolve that never happened.
+        // ⭐ Opening a document is the right moment: the one place holding BOTH the asset and the
+        //   catalogue, and it re-runs after a hot reload for free. 🔒 The HSM twin does exactly this
+        //   (`HsmDocumentFactory` step 0) — user: *"no differences, consistency."*
+        // ⚠ A heal is a real edit — `MarkDirty` so it is saved rather than redone every load.
+        if (assetCatalog is not null &&
+            Hrot.BTree.Editor.Model.BTreeSubtreeResolver.Resolve(btAsset, assetCatalog) > 0)
+        {
+            btAsset.MarkDirty();
+        }
+
+        // ⭐⭐ CE-417 B-1 (slice 4c) — and the blueprint bindings: a legacy generated FQN becomes the blueprint's id + name,
+        //   a stale name heals from the id. Same moment and same reason as the subtree heal above.
+        if (assetCatalog is not null &&
+            Hrot.BTree.Editor.Model.BTreeBlueprintBindingResolver.Resolve(btAsset, assetCatalog) > 0)
+        {
+            btAsset.MarkDirty();
+        }
+
+        // ⭐⭐ CE-504 C-1 — the call shape is derived from each bound method (it is no longer in the file). Not a heal:
+        //   nothing persisted changes, so no MarkDirty.
+        Hrot.BTree.Editor.Model.BTreeCallShapeResolver.Resolve(
+            btAsset, Hrot.AiEditor.Persistence.Emit.BTreeCallShapes.LoadedAssemblySignatures());
+
+        // ⭐ CE-1360 (§3.4) — an auto-laid-out tree (a C#-built one: nobody saved positions) is laid out again with the canvas's REAL
+        //   font, so a node's width is the one it is drawn at (the catalog laid it out before any font existed, from an estimate).
+        // ⭐ CE-1368 — a STORED layout (a JSON asset) is left as authored unless two DRAWN rectangles overlap; then it is tidied the same way,
+        //   in memory only (no MarkDirty: it is saved only if the author saves). Checked once per asset instance. 🔒 User, 2026-10-27: "nodes
+        //   still overlap … it is just a big mess … BasicSquadSop".
+        float headerHeight = bundle.EditorTheme.NodeHeaderHeight;   // ⭐ CE-1367 — the theme's header height, as the canvas sizes a node with
+        Func<string, float> measureText = text => ImGuiNET.ImGui.CalcTextSize(text).X;
+        if (!btAsset.LaidOutWithFont && ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
+        {
+            if (btAsset.IsAutoLaidOut)
+                Hrot.BTree.Editor.Layout.BTreeAutoLayout.Layout(btAsset, measureText, headerHeight);
+            else
+                Hrot.BTree.Editor.Layout.BTreeLayoutCheck.RelayIfOverlapping(btAsset, measureText, headerHeight);
+            btAsset.LaidOutWithFont = true;
+        }
+
         // ── 1. Graph model ────────────────────────────────────────────────────
         var graphModel = new BTreeGraphModel(btAsset);
 
@@ -117,7 +164,10 @@ public static class BTreeDocumentFactory
         var nodeCatalog  = new BTreeNodeCatalog(actionSchema, btAsset.BlackboardTypeName);
         var typeSystem   = new BTreeTypeSystem();
         var validator    = new BTreeLinkValidator(graphModel);
-        var commandSink  = new BTreeCommandSink(btAsset, graphModel, actionSchema);
+        var commandSink  = new BTreeCommandSink(btAsset, graphModel, actionSchema, assetCatalog);
+        // ⭐ CE-1001: this document's node pickers live in its OWN scope of the shared registry — the last opened
+        //    document used to own "nodes.all" for every canvas.
+        var pickers = new NodeEditor.Core.Interfaces.ScopedPickerRegistry(bundle.PickerRegistry, $"doc:{btAsset.AssetId:N}");   // CE-417 B-1
 
         // ── 3. Custom renderers (built-in BTree set + caller extras) ──────────
         var store = selectionStore ?? new EditorSelectionStore();
@@ -129,7 +179,7 @@ public static class BTreeDocumentFactory
             typeSystem:      typeSystem,
             linkValidator:   validator,
             commandSink:     commandSink,
-            pickers:         bundle.PickerRegistry,
+            pickers:         pickers,
             clipboard:       bundle.ClipboardInterface,
             icons:           bundle.IconProvider,
             diagnostics:     bundle.DiagnosticsSink,
@@ -146,6 +196,7 @@ public static class BTreeDocumentFactory
         // Wire node context menu provider (DEC-03b: "Add Decorator →" submenu; Phase D/AIE-053:
         // "Open Blueprint" on composed AiPrimitive nodes when a catalog + open callback are supplied).
         hostServices.SetNodeContextMenuProvider(commandSink, graphModel, btAsset, assetCatalog, openBlueprint);
+        hostServices.SetCanvasContextMenuProvider(commandSink, btAsset, measureText, () => bundle.EditorTheme.NodeHeaderHeight);
 
         // ── 5. GraphView ──────────────────────────────────────────────────────
         var view = new GraphView(
@@ -160,13 +211,16 @@ public static class BTreeDocumentFactory
         // that the GraphView (and its undo stack) exists.
         hostServices.SetNodeContextMenuRecorder(view);
 
+        // ⭐ CE-1368 — "Reset layout" on the empty canvas (undoable; dirty on a writable asset, view state on a code-built one).
+        hostServices.SetCanvasContextMenuRecorder(view);
+
         // ── BCP-F: FindBar + IEditorCommands ─────────────────────────────────
         var commands = new EditorCommandsImpl();
         var findBar  = new FindBar(view, new FindEngine(graphModel, null));
         BuiltinCommandHandlers.RegisterAll(commands, view, findBar);
 
         // ── Picker sources ──────────────────────────────────────────────────
-        BTreePickerSources.Register(bundle.PickerRegistry, nodeCatalog);
+        BTreePickerSources.Register(pickers, nodeCatalog);
 
         // Store the BehaviorTreeAsset in AssetRef so the composition root can wire
         // the selection→Inspector bridge (BTreeSelectionBridgeHelper.BuildAfterDrawAction)

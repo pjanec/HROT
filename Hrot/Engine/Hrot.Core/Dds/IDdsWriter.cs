@@ -15,4 +15,11 @@ public interface IDdsWriter<T>
     /// late-joining subscribers.
     /// </summary>
     void DisposeInstance(T key);
+
+    /// <summary>
+    /// ⭐ CE-4079 ② — releases this writer's registration of the instance identified by <paramref name="key"/> WITHOUT disposing it:
+    /// readers keep it alive for the writer that owns it now. Only a release on a topic whose QoS sets
+    /// <c>AutodisposeUnregisteredInstances = false</c> (every descriptor topic). Default: nothing (a stub).
+    /// </summary>
+    void UnregisterInstance(T key) { }
 }

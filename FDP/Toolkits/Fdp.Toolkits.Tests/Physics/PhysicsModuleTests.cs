@@ -69,13 +69,16 @@ namespace Fdp.Toolkit.Physics.Tests
 
         /// <summary>
         /// <see cref="PhysicsCollider"/> must be an unmanaged value type with
-        /// <c>sizeof == 8</c> (one <see langword="float"/> + one <see langword="int"/>).
+        /// <c>sizeof == 12</c> (<c>Radius</c>, <c>CollisionLayer</c>, <c>Height</c>).
+        /// ⭐ Was 8 until <c>Height</c> was added for 3-D line of sight (docs/DESIGN_Terrain_World.md §4.3,
+        /// 2026-10-03) — a deliberate layout change: no wire topic carries the struct, and scenario JSON names its
+        /// fields, so an older file loads with <c>Height = 0</c> (unknown ⇒ blocks at every height, as before).
         /// </summary>
         [Fact]
         public void PhysicsCollider_IsUnmanagedValueType()
         {
             Assert.True(typeof(PhysicsCollider).IsValueType);
-            Assert.Equal(8, Marshal.SizeOf<PhysicsCollider>());
+            Assert.Equal(12, Marshal.SizeOf<PhysicsCollider>());
         }
     }
 }

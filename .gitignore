@@ -52,12 +52,51 @@ nunit-*.xml
 .dumps
 .tmp
 imgui.ini
+# ...except the SHIPPED DEFAULT LAYOUT, which is a deliberate asset (UX_Feature_Layout_Defaults.md).
+!layout/default/imgui.ini
 cyclonedds.log
 *.csproj.user
 .codebase
 .codebase-memory
-*.lscache
 build-output.txt
 
 # Blueprint debug session files (user-local, not committed)
 .debug/
+.type_index.json
+__pycache__/
+scenarios/perf-civ-*/
+.claude/worktrees/
+
+# CE-4324 — the default staging / recordings root (OrchestrationConstants.ResolveStagingRoot) in a dev build
+/data/
+
+# CE-4363: the scale terrains (scripts/terrain-scale.py) — regenerated, never committed
+assets/terrain/scale-*/
+# ⭐ CE-4425 (Terrain Authoring §18 C-11, G-14): generated terrain content is NEVER in git — a terrain folder is git's only if it is one of the
+#   committed demos below; a new one (generated, imported, baked by "Save terrain as") lives on the NAS / content root. Add a new DEMO here on purpose.
+assets/terrain/*
+!assets/terrain/basic-desert/
+!assets/terrain/berlin/
+!assets/terrain/bt-range/
+!assets/terrain/cqb-village/
+!assets/terrain/demo-city/
+!assets/terrain/highway-rest/
+!assets/terrain/indirect-fire-range/
+!assets/terrain/test-town/
+# CE-6003 — a hand-authored FEATURE terrain (showcases/city-battle/features/roadblock-blast: a wall with one 6 m gate), committed on purpose
+!assets/terrain/roadblock-street/
+# CE-6001 — the hand-planned CITY-BATTLE terrain (assets/terrain-plans/city-battle.plan.json, regenerate with HROT_GEN_CITY_BATTLE=1): committed on purpose, WITHOUT its kept source/ (ignored below)
+!assets/terrain/city-battle/
+# the authoring source kept inside a terrain (R-4201 — the source scenario + the ground base) and a scenario's compiled overlay (§18 C-1)
+assets/terrain/*/source/
+# the content-hash cache TerrainContentHash writes beside terrain.json (per machine, by length + mtime) — never in git, demos included
+assets/terrain/*/terrain.hash
+**/terrain.hash
+**/terrain-overlay/
+scenarios/scale-rig-*/
+
+# SUMO installed by scripts/install-sumo.* (Terrain From OSM §9.1) — never committed
+.local/
+
+# hrot-terrain-osm's default --out: OSM-derived input sets (ODbL) - regenerated, never committed
+terrain-input/

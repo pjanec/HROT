@@ -38,7 +38,8 @@ namespace Hrot.SimHost
     /// <para><b>Execution order:</b> matches the production order used by
     /// <see cref="SimulationLogicModule"/> for the <c>MuscleGround</c> role.</para>
     /// </summary>
-    public sealed class SimHostCoreLogicPack : IEcsModule
+    [TickMode(TickPolicy.WhenTimeAdvances)]
+    public sealed class SimHostCoreLogicPack : IEcsModule, IDisposable
     {
         /// <inheritdoc/>
         public string Name => "SimHostCoreLogicPack";
@@ -50,6 +51,9 @@ namespace Hrot.SimHost
         private readonly CombatModule                _combatModule;
         private readonly DamageAssessmentModule      _damageAssessmentModule;
         private readonly GroundKinematicsModule      _groundKinematicsModule;
+        // ⭐ CE-2171 / Air Ops slice 2 — ONE route source for the ground bridge and the air model: a route order names the route entity
+        private readonly Hrot.Map.Common.Components.HrotRouteSource _routes = new();
+        private readonly Fdp.Toolkit.Motion.AirMotionModule _airMotionModule;   // ⭐ M7 — after the motion
         private readonly NetworkEntityMap            _entityMap;
 
         // ── Navigation bridge systems ─────────────────────────────────────────
@@ -57,8 +61,9 @@ namespace Hrot.SimHost
         private readonly RouteTrajectorySyncSystem    _routeTrajSync;
         private readonly PersonalRouteAuthoringSystem _personalRouteAuthoring;
 
-        // ── Hierarchy system ──────────────────────────────────────────────────
-        private readonly UnitHierarchySystem          _unitHierarchySystem;
+        // CE-221: UnitHierarchySystem and EqsResultUpdateSystem moved OUT of this pack. They are
+        // cross-role infrastructure (no role selects them), contributed once per node by
+        // CoreInfrastructureCapabilities.UnitHierarchy / EqsResultUpdateCapability.
 
         // ── Public accessors (mirroring SimulationLogicModule) ────────────────
 
@@ -113,14 +118,13 @@ namespace Hrot.SimHost
                 roadNetwork,
                 trajectoryPool,
                 formationTemplateManager);
+            _airMotionModule        = new Fdp.Toolkit.Motion.AirMotionModule(_routes, new Fdp.Toolkit.Motion.DroneImpactSystem());   // ⭐ M7 + Air Ops slice 2
 
             // Navigation bridge systems
-            _navIntentBridge        = new NavigationIntentBridgeSystem();
+            _navIntentBridge        = new NavigationIntentBridgeSystem { RouteSource = _routes };   // ⭐ CE-2171
             _routeTrajSync          = new RouteTrajectorySyncSystem(_groundKinematicsModule.TrajectoryPool);
             _personalRouteAuthoring = new PersonalRouteAuthoringSystem();
 
-            // Hierarchy system
-            _unitHierarchySystem    = new UnitHierarchySystem();
 
             // Phase arrays
             var inputList   = new List<IEcsModuleSystem>();
@@ -134,11 +138,13 @@ namespace Hrot.SimHost
             simList.Add(_navIntentBridge);
             simList.Add(_routeTrajSync);
             foreach (var s in _groundKinematicsModule.SimulationSystems) simList.Add(s);
-            simList.Add(_unitHierarchySystem);
-            simList.Add(new EqsResultUpdateSystem());
+            // CE-221: UnitHierarchySystem + EqsResultUpdateSystem were appended here.
 
             foreach (var s in _combatModule.PostSimulationSystems)             postSimList.Add(s);
             foreach (var s in _groundKinematicsModule.PostSimulationSystems)   postSimList.Add(s);
+            // ⭐ CE-2168 (Motion Domains MD-B) — the AIR domain beside the ground one, on every host this pack runs on (SimHost, the
+            //   editor's Muscle): it moves the bodies whose Locomotion is an air class.
+            foreach (var s in _airMotionModule.PostSimulationSystems)          postSimList.Add(s);
 
             InputSystems          = inputList;
             SimulationSystems     = simList;
@@ -156,5 +162,22 @@ namespace Hrot.SimHost
         /// No per-frame work is executed directly in this pack.
         /// </summary>
         public void Tick(ISimulationView view, float deltaTime) { }
+
+        /// <summary>
+        /// Frees the trajectory pool and formation templates, when this pack's kinematics module
+        /// allocated them.
+        /// </summary>
+        /// <remarks>
+        /// <para><b><c>B3</c> — this closes a real gap.</b> <c>TrajectoryPoolManager</c> holds
+        /// <c>Allocator.Persistent</c> native arrays and is <see cref="IDisposable"/>, but before this
+        /// nothing in production disposed one, anywhere. This pack is the right owner because it is the
+        /// only production construction site of <see cref="GroundKinematicsModule"/>, and it has a real
+        /// caller: <c>ModuleHostKernel</c> disposes registered modules that implement
+        /// <see cref="IDisposable"/> on teardown.</para>
+        ///
+        /// <para>The kinematics module frees the pool only if it allocated it — a pool handed to this
+        /// pack's constructor belongs to whoever passed it and is merely borrowed. Safe to call twice.</para>
+        /// </remarks>
+        public void Dispose() => _groundKinematicsModule.Dispose();
     }
 }

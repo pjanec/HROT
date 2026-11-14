@@ -105,6 +105,98 @@ namespace Fdp.Toolkit.Lifecycle.Tests
             Assert.Equal(1, stats.timeouts);
         }
 
+        /// <summary>⭐ CE-3304 — a participant with its own (longer) timeout keeps the construction alive past the default; once only
+        /// default-timeout modules remain, the default applies again.</summary>
+        [Fact]
+        public void ELM_ModuleTimeout_OutlastsTheDefault_OnlyWhileThatModuleIsOutstanding()
+        {
+            var elm = new EntityLifecycleModule(null, new[] { 1, 2 }, timeoutFrames: 10);
+            elm.SetModuleTimeout(2, 100);
+            var cmd = CreateCommandBuffer();
+            var entity = new Entity(100, 1);
+            elm.BeginConstruction(entity, 1, currentFrame: 0, cmd);
+
+            elm.CheckTimeouts(currentFrame: 50, cmd);   // module 2 (100 frames) still outstanding
+            Assert.Equal(0, elm.GetStatistics().timeouts);
+
+            elm.ProcessConstructionAck(new ConstructionAck { Entity = entity, ModuleId = 2, Success = true }, 60, cmd);
+            elm.CheckTimeouts(currentFrame: 61, cmd);   // only module 1 left: the default 10 applies
+            Assert.Equal(1, elm.GetStatistics().timeouts);
+        }
+
+        /// <summary>⭐ CE-4419 — a construction waiting on a module that never times out (the terrain bake) survives any number of frames —
+        /// far past the old 18 000-frame budget — and completes when the module acks; once it has acked, the other modules' default applies
+        /// again. 🔴 Mutation: the Unbounded skip in CheckTimeouts removed (the sentinel then reads as int.MaxValue frames) ⇒ the frame 3e9 check
+        /// destroys the entity ⇒ red.</summary>
+        [Fact]
+        public void CE4419_ABakeSlowerThanAnyFrameBudget_KeepsItsEntity()
+        {
+            var elm = new EntityLifecycleModule(null, new[] { 2 }, timeoutFrames: 10);
+            elm.WaitWithoutTimeout(2);
+            var cmd = CreateCommandBuffer();
+            var entity = new Entity(100, 1);
+            elm.BeginConstruction(entity, 1, currentFrame: 0, cmd);
+
+            elm.CheckTimeouts(currentFrame: 18_001, cmd);        // past the old budget
+            elm.CheckTimeouts(currentFrame: 3_000_000_000u, cmd); // and past any frame count an int can hold
+            Assert.Equal(0, elm.GetStatistics().timeouts);
+
+            elm.ProcessConstructionAck(new ConstructionAck { Entity = entity, ModuleId = 2, Success = true }, 3_000_000_001u, cmd);
+            Assert.Equal(0, elm.GetStatistics().timeouts);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4427 R-5 — the unbounded wait applies ONLY while the terrain-like module is the last ack missing: with another module's ack still pending, that module's (default) timeout still destroys the
+        /// construction. 🔴 Red-proof: have <c>TimeoutFor</c> return <c>Unbounded</c> whenever ANY remaining module is unbounded (the CE-4419 rule) ⇒ the entity is never timed out.
+        /// </summary>
+        [Fact]
+        public void CE4427_R5_AnotherModulesTimeout_StillFires_WhileTheUnboundedModuleIsPending()
+        {
+            var elm = new EntityLifecycleModule(null, new[] { 1, 2 }, timeoutFrames: 10);
+            elm.WaitWithoutTimeout(2);
+            var cmd = CreateCommandBuffer();
+            var entity = new Entity(100, 1);
+            elm.BeginConstruction(entity, 1, currentFrame: 0, cmd);   // modules 1 AND 2 outstanding
+
+            elm.CheckTimeouts(currentFrame: 20, cmd);                 // module 1 never acks
+            Assert.Equal(1, elm.GetStatistics().timeouts);
+        }
+
+        /// <summary>⭐ CE-4427 R-5 — an entity whose ONLY missing ack is one module's is reported by <c>CollectSoleWaiters</c> (and not while another is outstanding): what the terrain bake uses to ack what it can never bake.</summary>
+        [Fact]
+        public void CE4427_R5_CollectSoleWaiters_ReportsAnEntityWhoseOnlyMissingAckIsThatModules()
+        {
+            var elm = new EntityLifecycleModule(null, new[] { 1, 2 }, timeoutFrames: 10);
+            var cmd = CreateCommandBuffer();
+            var entity = new Entity(100, 1);
+            elm.BeginConstruction(entity, 1, currentFrame: 0, cmd);
+            var list = new System.Collections.Generic.List<Entity>();
+            elm.CollectSoleWaiters(2, list);
+            Assert.Empty(list);                                        // module 1 is outstanding too
+
+            elm.ProcessConstructionAck(new ConstructionAck { Entity = entity, ModuleId = 1, Success = true }, 1, cmd);
+            elm.CollectSoleWaiters(2, list);
+            Assert.Equal(new[] { entity }, list);
+            elm.CollectSoleWaiters(1, list);
+            Assert.Empty(list);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4427 R-5 — an unbounded wait is never silent: past <c>UnboundedWaitWarnSeconds</c> it is reported ONCE per construction. 🔴 Red-proof: drop <c>p.Warned = true</c> ⇒ it is reported on every check.
+        /// </summary>
+        [Fact]
+        public void CE4427_R5_AnUnboundedWait_IsReportedOnce_AfterTheThreshold()
+        {
+            var elm = new EntityLifecycleModule(null, new[] { 2 }, timeoutFrames: 10) { UnboundedWaitWarnSeconds = 0.0 };
+            elm.WaitWithoutTimeout(2);
+            var cmd = CreateCommandBuffer();
+            elm.BeginConstruction(new Entity(100, 1), 1, currentFrame: 0, cmd);
+            System.Threading.Thread.Sleep(20);
+            elm.CheckTimeouts(5, cmd); elm.CheckTimeouts(6, cmd); elm.CheckTimeouts(7, cmd);
+            Assert.Equal(1, elm.UnboundedWarnings);
+            Assert.Equal(0, elm.GetStatistics().timeouts);
+        }
+
         [Fact]
         public void ELM_PartialAcks_RemainsPending()
         {
@@ -162,6 +254,180 @@ namespace Fdp.Toolkit.Lifecycle.Tests
             stats = elm.GetStatistics();
             Assert.Equal(1, stats.pending); // Entity 2 still pending
             Assert.Equal(1, stats.constructed); // Entity 1 finished
+        }
+
+        // ── ⭐ AQ107 (CE-3323) — the generic lifecycle notifications (docs/DESIGN_Entity_Creation_Unification.md §3.4e) ──────────
+
+        // A real world holding one entity with the identity a spawned network entity carries.
+        private static (EntityRepository world, Entity entity) NotifiedWorld(bool owned = true)
+        {
+            var world = new EntityRepository();
+            world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+            world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            world.RegisterEvent<ConstructionOrder>();
+            world.RegisterEvent<DestructionOrder>();
+            world.RegisterEvent<EntityConstructionCompleted>();
+            world.RegisterEvent<EntityDestructionCompleted>();
+            var e = world.CreateEntity();
+            world.SetLifecycleState(e, EntityLifecycle.Constructing);
+            world.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(4242));
+            world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(77) });
+            world.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkAuthority(owned ? 3 : 9, 3));
+            return (world, e);
+        }
+
+        // What the lifecycle system does at the end of its tick, then what the next frame can read.
+        private static void Publish(EntityLifecycleModule elm, EntityRepository world, EntityCommandBuffer cmd)
+        {
+            elm.PublishOutcomes(world, cmd);
+            cmd.Playback(world);
+            world.Bus.SwapBuffers();
+        }
+
+        private static EntityConstructionCompleted[] Constructions(EntityRepository w) => ((ISimulationView)w).ReadEvents<EntityConstructionCompleted>().ToArray();
+        private static EntityDestructionCompleted[] Destructions(EntityRepository w) => ((ISimulationView)w).ReadEvents<EntityDestructionCompleted>().ToArray();
+
+        [Fact]
+        public void AQ107_ConstructionCompleted_WhenTheLastModuleAcks_NamesTheEntity()
+        {
+            var (world, e) = NotifiedWorld();
+            var elm = new EntityLifecycleModule(null, new[] { 1, 2 });
+            var cmd = new EntityCommandBuffer();
+            elm.BeginConstruction(e, 77, 10, cmd);
+            elm.ProcessConstructionAck(new ConstructionAck { Entity = e, ModuleId = 1, Success = true }, 11, cmd);
+            Publish(elm, world, cmd);
+            Assert.Empty(Constructions(world));   // ⛔ not before the LAST ack
+
+            elm.ProcessConstructionAck(new ConstructionAck { Entity = e, ModuleId = 2, Success = true }, 12, cmd);
+            Publish(elm, world, cmd);
+            var done = Assert.Single(Constructions(world));
+            Assert.Equal(e, done.Entity);
+            Assert.Equal(4242L, done.NetworkId);
+            Assert.Equal(77L, done.TkbType);
+            Assert.True(done.IsLocallyOwned);
+            Assert.True(done.Succeeded);
+            Assert.False(done.Resumed);
+            Assert.Equal(12u, done.FrameNumber);
+            Assert.Equal(EntityLifecycle.Active, world.GetLifecycleState(e));
+        }
+
+        [Fact]
+        public void AQ107_ConstructionCompleted_OnAReplica_SaysItIsNotOurs()
+        {
+            var (world, e) = NotifiedWorld(owned: false);
+            var elm = new EntityLifecycleModule(null, new[] { 1 });
+            var cmd = new EntityCommandBuffer();
+            elm.BeginConstruction(e, 77, 10, cmd);
+            elm.ProcessConstructionAck(new ConstructionAck { Entity = e, ModuleId = 1, Success = true }, 11, cmd);
+            Publish(elm, world, cmd);
+            var done = Assert.Single(Constructions(world));
+            Assert.False(done.IsLocallyOwned);
+        }
+
+        [Fact]
+        public void AQ107_ConstructionCompleted_WhenAModuleRefuses_IsAFailure_WithItsReason()
+        {
+            var (world, e) = NotifiedWorld();
+            var elm = new EntityLifecycleModule(null, new[] { 1, 2 });
+            var cmd = new EntityCommandBuffer();
+            elm.BeginConstruction(e, 77, 10, cmd);
+            elm.ProcessConstructionAck(new ConstructionAck { Entity = e, ModuleId = 1, Success = false, ErrorMessage = new FixedString64("no terrain") }, 11, cmd);
+            Publish(elm, world, cmd);
+            var done = Assert.Single(Constructions(world));
+            Assert.False(done.Succeeded);
+            Assert.Equal("no terrain", done.Failure.ToString());
+            Assert.False(world.IsAlive(e));
+            Assert.Empty(Destructions(world));       // it was never constructed, so it is not "destroyed"
+        }
+
+        [Fact]
+        public void AQ107_ConstructionCompleted_OnATimeout_IsAFailure()
+        {
+            var (world, e) = NotifiedWorld();
+            var elm = new EntityLifecycleModule(null, new[] { 1 }, timeoutFrames: 5);
+            var cmd = new EntityCommandBuffer();
+            elm.BeginConstruction(e, 77, 10, cmd);
+            elm.CheckTimeouts(20, cmd);
+            Publish(elm, world, cmd);
+            var done = Assert.Single(Constructions(world));
+            Assert.False(done.Succeeded);
+            Assert.Equal("construction timed out", done.Failure.ToString());
+        }
+
+        [Fact]
+        public void AQ107_ConstructionCompleted_WithNoParticipants_ComesWithTheInstantPromotion()
+        {
+            var (world, e) = NotifiedWorld();
+            var elm = new EntityLifecycleModule(null, System.Array.Empty<int>());
+            var cmd = new EntityCommandBuffer();
+            elm.BeginConstruction(e, 77, 10, cmd);
+            elm.DrainInstantComplete(cmd, 10);
+            Publish(elm, world, cmd);
+            Assert.Empty(Constructions(world));      // the one-frame visibility delay holds
+            elm.DrainInstantComplete(cmd, 11);
+            Publish(elm, world, cmd);
+            Assert.True(Assert.Single(Constructions(world)).Succeeded);
+        }
+
+        [Fact]
+        public void AQ107_DestructionCompleted_WhenTheLastModuleAcks_CarriesWhatTheDeadHandleNoLongerCan()
+        {
+            var (world, e) = NotifiedWorld();
+            world.SetLifecycleState(e, EntityLifecycle.Active);
+            var elm = new EntityLifecycleModule(null, new[] { 1, 2 });
+            var cmd = new EntityCommandBuffer();
+            elm.BeginDestruction(e, 30, "killed", cmd);
+            elm.ProcessDestructionAck(new DestructionAck { Entity = e, ModuleId = 1, Success = true }, 31, cmd);
+            Publish(elm, world, cmd);
+            Assert.Empty(Destructions(world));
+            elm.ProcessDestructionAck(new DestructionAck { Entity = e, ModuleId = 2, Success = true }, 32, cmd);
+            Publish(elm, world, cmd);
+            var gone = Assert.Single(Destructions(world));
+            Assert.False(world.IsAlive(e));
+            Assert.Equal(e, gone.Entity);
+            Assert.Equal(4242L, gone.NetworkId);
+            Assert.Equal(77L, gone.TkbType);
+            Assert.Equal("killed", gone.Reason.ToString());
+            Assert.False(gone.Forced);
+        }
+
+        [Fact]
+        public void AQ107_DestructionCompleted_OnATimeout_IsForced()
+        {
+            var (world, e) = NotifiedWorld();
+            var elm = new EntityLifecycleModule(null, new[] { 1 }, timeoutFrames: 5);
+            var cmd = new EntityCommandBuffer();
+            elm.BeginDestruction(e, 30, "cleared", cmd);
+            elm.CheckTimeouts(40, cmd);
+            Publish(elm, world, cmd);
+            Assert.True(Assert.Single(Destructions(world)).Forced);
+        }
+
+        [Fact]
+        public void AQ107_AConstructionReopenedAfterARestore_SaysResumed()
+        {
+            var (world, e) = NotifiedWorld();
+            var elm = new EntityLifecycleModule(null, new[] { 1 });
+            var cmd = new EntityCommandBuffer();
+            elm.OnWorldReplaced(resumingToLive: true);
+            elm.ResumeFromRestoredWorld(world, 50, cmd);
+            elm.ProcessConstructionAck(new ConstructionAck { Entity = e, ModuleId = 1, Success = true }, 51, cmd);
+            Publish(elm, world, cmd);
+            Assert.True(Assert.Single(Constructions(world)).Resumed);
+        }
+
+        [Fact]
+        public void AQ107_AWorldReplacement_DropsTheOutcomesDecidedAgainstTheOldWorld()
+        {
+            var (world, e) = NotifiedWorld();
+            var elm = new EntityLifecycleModule(null, new[] { 1 });
+            var cmd = new EntityCommandBuffer();
+            elm.BeginConstruction(e, 77, 10, cmd);
+            elm.ProcessConstructionAck(new ConstructionAck { Entity = e, ModuleId = 1, Success = true }, 11, cmd);
+            elm.OnWorldReplaced(resumingToLive: false);
+            Publish(elm, world, cmd);
+            Assert.Empty(Constructions(world));
         }
     }
 }

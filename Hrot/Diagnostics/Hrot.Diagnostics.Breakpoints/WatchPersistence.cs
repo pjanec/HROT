@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using Fdp.Toolkit.ReplayBrowser.Search;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Diagnostics.Breakpoints;
 
@@ -25,11 +26,9 @@ internal sealed class WatchPersistenceEntry
 [Obsolete("Use DebugSessionPersistence for the full debug session (node BPs + data BPs + watches).")]
 public static class WatchPersistence
 {
-    private static readonly JsonSerializerOptions s_options = new()
-    {
-        WriteIndented = true,
-        IncludeFields = true,
-    };
+    // CE-3187 (R-2005 / R-2007): the shared options — enums as names, vectors as arrays. A file saved by an older
+    // build with numeric enums no longer loads and is reset.
+    private static readonly JsonSerializerOptions s_options = FdpJsonOptionsRegistry.Indented;
 
     /// <summary>
     /// Serializes all watch-flagged breakpoints to <paramref name="path"/>.

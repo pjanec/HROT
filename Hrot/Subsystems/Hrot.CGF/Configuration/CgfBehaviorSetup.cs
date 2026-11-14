@@ -11,7 +11,8 @@ namespace Hrot.CGF.Configuration
     ///
     /// <para>
     /// Registration is entirely self-registration: every behavior — curated
-    /// (<c>CgfCuratedBehaviorRegistrar</c>) and JSON-authored (generated per-asset registrars) —
+    /// (the generated <c>CuratedBehaviorRegistrar</c>, from <c>[BTreeDefinition]</c>/<c>[HsmDefinition]</c>
+    /// marked <c>Curated = true</c>) and JSON-authored (generated per-asset registrars) —
     /// is discovered through its <c>[BlueprintRegistrar]</c> attribute and registers under its own
     /// name. There is no reflection entry point and no closure over geographic/entity context;
     /// behaviors reach that context at activation time through world singletons via their named
@@ -47,22 +48,47 @@ namespace Hrot.CGF.Configuration
 
             // The AI behaviors assembly is compile-time referenced; scan that single instance so
             // behavior and blueprint definitions share one type identity across the process.
-            var aiAssembly = typeof(Hrot.AI.Behaviors.CgfCuratedBehaviorRegistrar).Assembly;
+            var aiAssembly = typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly;
 
             var bpStaging = new BlueprintRegistryStaging();
             BlueprintRegistrarScanner.Scan(aiAssembly, bpStaging, behaviorRegistry);
             (blueprintRegistry ?? new BlueprintRegistry()).CommitStaging(bpStaging);
+
+            // ⭐⭐ CE-235 — bind each behaviour's AUTHORED JSON CONTRACT, so GET /behaviors publishes
+            //   the shape a scenario or an agent actually writes rather than the blackboard layout.
+            //   Deliberately here and not in the registrars: [Behavior(Params = …)] on the behaviours (CE-2134,
+            //   read by ParamsDtoRegistry) is the one producer (R-132), and this is the one loader every host and test
+            //   goes through, so no caller can forget it. Order-independent, so it is safe after Scan.
+            //   ⛔ Pinned to the copy just scanned: a process that also holds a hot-reloaded copy would otherwise bind that
+            //   copy's DTO types to definitions built from this one.
+            Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindJsonParamsDtoTypes(behaviorRegistry,
+                Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Pinning(aiAssembly));
+            // ⭐ CE-2377 — and the optional [BehaviorValidator] statics, from the same pinned copy.
+            Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindValidators(behaviorRegistry, aiAssembly);
+            Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindKeepers(behaviorRegistry, aiAssembly);   // ⭐ rules ② R4 — beside the validators
+            // ⭐ CE-7035 — the AI assembly's cross reads for the brains' parallel phase (the toolkit's are BrainReads), here so no host or test can lack them
+            Hrot.AI.Behaviors.Brains.AiBrainReads.Contribute();
         }
 
         /// <summary>
-        /// Creates a <see cref="ScenarioBehaviorRemapper"/> pre-registered with all
-        /// CGF behavior param DTO types that carry <c>[RemapNetworkId]</c> properties.
-        /// Used by load handlers to rewrite network IDs after two-pass ID allocation.
+        /// Creates a <see cref="ScenarioBehaviorRemapper"/> pre-registered with every curated behaviour contract; each
+        /// contract's <c>EntityRef</c> members are rewritten after two-pass ID allocation
+        /// (<c>docs/blueprints/DESIGN_Entity_Reference.md</c> D3). Used by every scenario load step that loads
+        /// mission plans — CGF's and the editor's (CE-2056).
         /// </summary>
-        public static ScenarioBehaviorRemapper CreateBehaviorRemapper()
+        /// <param name="behaviorRegistry">
+        /// ⭐ <c>CE-2054</c> — the node's behaviour registry, so a behaviour whose contract is not a
+        /// <c>[Behavior(Params = …)]</c> DTO (a blueprint behaviour's generated <c>Params</c>) is remapped by its own
+        /// type. ⛔ A host that HAS one must pass it; <c>null</c> leaves only the curated contracts.
+        /// </param>
+        public static ScenarioBehaviorRemapper CreateBehaviorRemapper(BehaviorRegistry? behaviorRegistry = null)
         {
-            var remapper = new ScenarioBehaviorRemapper();
-            BehaviorSchemaDiscovery.AutoRegister(new BehaviorUiRegistry(), remapper);
+            var remapper = new ScenarioBehaviorRemapper(behaviorRegistry);
+            BehaviorSchemaDiscovery.AutoRegister(remapper);
+            // ⭐⭐ CE-4298 (mission plan G1, §5.7) — an ORDER task (`Order.<Kind>`) is not a behaviour, so its contract was never found and a
+            //   target saved as a GUID resolved to nobody: every order's DTO is registered under its intent id (the one order registry).
+            foreach (var order in Hrot.Common.Orders.OrderMenu.Orders)
+                remapper.Register(Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentFor(order.Name), order.Dto);
             return remapper;
         }
     }

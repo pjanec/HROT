@@ -1,0 +1,161 @@
+using System;
+using System.Numerics;
+using Fdp.Core;
+using Fdp.Toolkit.Combat;
+
+namespace Fdp.Toolkit.Physics.BodyParts
+{
+    /// <summary>
+    /// ⭐⭐ <c>CE-3209</c> (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-2, HL-5) — tiers ② and ③ of a round's test
+    /// against one body: its bounding sphere first, then its oriented boxes. The first box the segment ENTERS wins; the face is the side it
+    /// entered, read in the BODY frame (front / side / rear / top — <see cref="Facing"/>, the armour model's faces).
+    /// </summary>
+    public static class BodyPartHit
+    {
+        /// <summary>A face normal more upward than this (cos 45°) is the TOP — the armour model's descent rule (D-A) for a part.</summary>
+        public const float TopNormalZ = 0.7071f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4080</c> (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md §14) — the ONE rule for a rotation the part tests
+        /// turn a body or a box by: a unit quaternion is kept, a near-unit one is normalised, and a ZERO or NON-FINITE one is the IDENTITY.
+        /// ⛔ <c>Quaternion.Inverse</c> of a zero quaternion divides by its zero length and returns NaN; a NaN anywhere in the slab test makes
+        /// every comparison false and ended in <c>MathF.Sign(NaN)</c> — an <c>ArithmeticException</c> that took a Player node down from the FPS
+        /// crosshair. Identity (not "skip the body") because a body with no pose yet is UNTURNED — it is also what <c>Vector3.Transform</c>
+        /// already did with a zero quaternion in the bounding-sphere test, so the sphere and the boxes agree.
+        /// </summary>
+        public static Quaternion Usable(Quaternion q)
+        {
+            float l2 = q.LengthSquared();
+            if (!(l2 > 1e-12f) || float.IsInfinity(l2)) return Quaternion.Identity;   // zero, ±∞ and NaN (NaN fails every comparison)
+            return System.Math.Abs(l2 - 1f) <= 1e-4f ? q : q * (1f / MathF.Sqrt(l2));
+        }
+
+        /// <summary><paramref name="tf"/> with its rotation made <see cref="Usable"/>.</summary>
+        public static SimTransform Placed(in SimTransform tf) => tf with { Rotation = Usable(tf.Rotation) };
+
+        /// <summary>True when every component of <paramref name="v"/> is finite.</summary>
+        public static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
+
+        /// <summary>Does the segment <paramref name="a"/>→<paramref name="b"/> pass within <paramref name="radius"/> of <paramref name="centre"/>?</summary>
+        public static bool SegmentTouchesSphere(Vector3 a, Vector3 b, Vector3 centre, float radius)
+        {
+            var ab = b - a;
+            float len2 = ab.LengthSquared();
+            float t = len2 > 1e-12f ? System.Math.Clamp(Vector3.Dot(centre - a, ab) / len2, 0f, 1f) : 0f;
+            return Vector3.DistanceSquared(a + ab * t, centre) <= radius * radius;
+        }
+
+        /// <summary>
+        /// The first of <paramref name="boxes"/> (a body at <paramref name="position"/> turned by <paramref name="rotation"/>, its boxes scaled
+        /// by <paramref name="scale"/>) that the segment <paramref name="a"/>→<paramref name="b"/> enters. False when it meets none.
+        /// </summary>
+        /// <param name="arcFaces">⭐ <c>CE-2217</c> — a VEHICLE's part (its armour is stated per ARC, D-A): the face is the armour model's arc
+        /// the round ARRIVES from, read in the struck part's own frame (a turned turret still shows its front), and Top when it enters the roof
+        /// or descends ≥ 45°. ⛔ The face of the box entered dropped the glancing angle: a shot 16°–58° off a tank's nose entered the side
+        /// plate and was scored on the side armour, with no obliquity. A person's part keeps the face entered (a vest's plates).</param>
+        public static bool Segment(ReadOnlySpan<BodyBox> boxes, Vector3 position, Quaternion rotation, float scale, Vector3 a, Vector3 b,
+                                   out BodyPartHitResult hit, bool arcFaces = false)
+        {
+            hit = default;
+            // ⭐ CE-4080 — a degenerate input is a MISS (or an unturned body), never a throw: the FPS crosshair runs this over EVERY drawn entity
+            if (!(scale > 0f) || !float.IsFinite(scale) || !IsFinite(position) || !IsFinite(a) || !IsFinite(b)) return false;
+            rotation = Usable(rotation);
+            var toBody = Quaternion.Inverse(rotation);
+            var la = Vector3.Transform(a - position, toBody) / scale;
+            var lb = Vector3.Transform(b - position, toBody) / scale;
+            float best = float.MaxValue;
+            bool any = false;
+            foreach (ref readonly var box in boxes)
+            {
+                if (!IsFinite(box.Centre) || !IsFinite(box.Half) || !float.IsFinite(box.FaceYaw)) continue;   // ⭐ CE-4080 — a NaN-posed box (a NaN turret angle) is skipped
+                var boxRotation = Usable(box.Rotation);
+                var toBox = Quaternion.Inverse(boxRotation);
+                var pa = Vector3.Transform(la - box.Centre, toBox);
+                var pb = Vector3.Transform(lb - box.Centre, toBox);
+                if (!Slab(pa, pb, box.Half, out float t, out int axis, out float sign)) continue;
+                if (t >= best) continue;
+                best = t;
+                any = true;
+                var normalLocal = axis switch { 0 => new Vector3(sign, 0, 0), 1 => new Vector3(0, sign, 0), _ => new Vector3(0, 0, sign) };
+                var normalBody = Vector3.Transform(normalLocal, boxRotation);
+                if (box.FaceYaw != 0f) normalBody = Vector3.Transform(normalBody, Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -box.FaceYaw));
+                var at = pa + (pb - pa) * t;
+                var unit = new Vector3(Div(at.X, box.Half.X), Div(at.Y, box.Half.Y), Div(at.Z, box.Half.Z)) * 0.5f;   // −0.5 … 0.5
+                var face = FaceOf(normalBody);
+                if (arcFaces && face != Facing.Top)
+                {
+                    var travel = lb - la;
+                    if (box.FaceYaw != 0f) travel = Vector3.Transform(travel, Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -box.FaceYaw));
+                    face = ArcFaceOf(travel);
+                }
+                hit = new BodyPartHitResult(t, box.Part, face, unit);
+            }
+            return any;
+        }
+
+        /// <summary>The armour face a body-frame outward normal belongs to: TOP when it points up ≥ 45°, else by its bearing from the
+        /// body's forward (&lt; 60° front, &gt; 120° rear, else side — <see cref="ArmorModel"/>'s arcs). A downward face reads as a side.</summary>
+        public static Facing FaceOf(Vector3 normalBody)
+        {
+            if (normalBody.Z >= TopNormalZ) return Facing.Top;
+            var h = new Vector2(normalBody.X, normalBody.Y);
+            if (h.LengthSquared() < 1e-6f) return Facing.Side;
+            float cos = Vector2.Normalize(h).X;
+            return cos > 0.5f ? Facing.Front : cos < -0.5f ? Facing.Rear : Facing.Side;
+        }
+
+        /// <summary>⭐ <c>CE-2217</c> — the armour model's face for a round TRAVELLING along <paramref name="travelPart"/> in the part's frame
+        /// (<c>ArmorModel.FacingOfArrival</c>'s rule: Top when it descends ≥ 45°, else the bearing it came from — &lt; 60° front, &gt; 120°
+        /// rear, else side).</summary>
+        public static Facing ArcFaceOf(Vector3 travelPart)
+        {
+            float len = travelPart.Length();
+            if (len < 1e-6f) return Facing.Front;
+            if (-travelPart.Z / len >= TopNormalZ) return Facing.Top;
+            var from = new Vector2(-travelPart.X, -travelPart.Y);
+            if (from.LengthSquared() < 1e-6f) return Facing.Top;
+            float cos = Vector2.Normalize(from).X;
+            return cos > 0.5f ? Facing.Front : cos < -0.5f ? Facing.Rear : Facing.Side;
+        }
+
+        /// <summary>The slab test in the box's own frame: the entry t (0..1) and the axis / sign of the face entered. A segment that STARTS
+        /// inside enters at 0 through the face nearest its start.</summary>
+        private static bool Slab(Vector3 a, Vector3 b, Vector3 half, out float tEnter, out int axis, out float sign)
+        {
+            tEnter = 0f; axis = 0; sign = 1f;
+            if (!IsFinite(a) || !IsFinite(b)) return false;   // ⭐ CE-4080 — belt for the Sign(NaN) below: a huge-but-finite input can still overflow to NaN
+            float tMin = 0f, tMax = 1f;
+            var d = b - a;
+            for (int i = 0; i < 3; i++)
+            {
+                float o = i == 0 ? a.X : i == 1 ? a.Y : a.Z;
+                float v = i == 0 ? d.X : i == 1 ? d.Y : d.Z;
+                float h = i == 0 ? half.X : i == 1 ? half.Y : half.Z;
+                if (MathF.Abs(v) < 1e-9f)
+                {
+                    if (o < -h || o > h) return false;
+                    continue;
+                }
+                float t1 = (-h - o) / v, t2 = (h - o) / v;
+                float near = MathF.Min(t1, t2), far = MathF.Max(t1, t2);
+                if (near > tMin) { tMin = near; axis = i; sign = v > 0f ? -1f : 1f; }
+                if (far < tMax) tMax = far;
+                if (tMin > tMax) return false;
+            }
+            if (tMin <= 0f)
+            {
+                // starts inside: the face nearest the start
+                float rx = MathF.Abs(a.X) / MathF.Max(half.X, 1e-6f), ry = MathF.Abs(a.Y) / MathF.Max(half.Y, 1e-6f), rz = MathF.Abs(a.Z) / MathF.Max(half.Z, 1e-6f);
+                if (rx >= ry && rx >= rz) { axis = 0; sign = MathF.Sign(a.X) is var s0 && s0 != 0 ? s0 : 1f; }
+                else if (ry >= rz) { axis = 1; sign = MathF.Sign(a.Y) is var s1 && s1 != 0 ? s1 : 1f; }
+                else { axis = 2; sign = MathF.Sign(a.Z) is var s2 && s2 != 0 ? s2 : 1f; }
+                tEnter = 0f;
+                return true;
+            }
+            tEnter = tMin;
+            return true;
+        }
+
+        private static float Div(float v, float h) => h > 1e-6f ? v / h : 0f;
+    }
+}

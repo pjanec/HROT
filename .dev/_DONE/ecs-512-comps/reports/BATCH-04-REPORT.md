@@ -29,7 +29,7 @@
 - [x] TASK-E008 SC-1: `DualStream_Keyframe_WritesHotAndColdChunks` — binary parse confirms typeId==-1 hot chunk AND typeId==-2 cold chunk both present.
 - [x] TASK-E008 SC-2: `DualStream_HotChunkSize_EqualsCapacityTimes64` — data length == `GetChunkCapacity() * 64`.
 - [x] TASK-E008 SC-3: `DualStream_Sanitization_DeadEntitySlotIsAllZeros` — 64-byte zero block at destroyed-entity slot confirmed.
-- [x] TASK-E008 SC-4: `DualStream_RecordableMaskFilter_NonRecordableBitIsCleared` — bit 164 absent from recorded hot mask when component is `NoRecord`.
+- [x] TASK-E008 SC-4: `DualStream_RecordableMaskFilter_NonRecordableBitIsCleared` — bit 164 absent from recorded hot mask when component is `NoReplay`.
 - [x] TASK-E008 SC-5: `FormatVersion_WrittenInGlobalHeader_Is5` — `AsyncRecorder` writes `FORMAT_VERSION == 5u`.
 - [x] TASK-E009 SC-1/2/3: `RoundTrip_EntityIndexHotAndColdMatchOriginal` — entity count, hot mask bit, cold generation, and `IsActive` all match after playback.
 - [x] TASK-E009 SC-5: `VersionMismatch_OldFormat_ThrowsInvalidDataException` — `RecordingReader` throws `InvalidDataException` on FORMAT_VERSION 4 file.
@@ -94,8 +94,8 @@ is adjacent to the frame synchronisation subsystem and carries non-trivial test 
 
 - `ComponentTypeRegistry.Clear()` must be called at the start of the recordable-mask-filter
   test to prevent state leakage from parallel test classes. Without it, `IntComponent` could
-  already be registered as recordable (default) from a prior test, so the `NoRecord` policy
-  override via `RegisterComponent<IntComponent>(DataPolicy.NoRecord)` must be applied on a
+  already be registered as recordable (default) from a prior test, so the `NoReplay` policy
+  override via `RegisterComponent<IntComponent>(DataPolicy.NoReplay)` must be applied on a
   clean slate to guarantee the recorded mask omits bit 164.
 
 **Q5: Are there any performance concerns or optimization opportunities you noticed?**

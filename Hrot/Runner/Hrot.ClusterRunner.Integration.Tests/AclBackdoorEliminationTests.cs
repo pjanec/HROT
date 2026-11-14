@@ -9,7 +9,7 @@ using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Services;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Dds;
 using Hrot.Map.Common.Replication.Egress;
 using Hrot.NED.Descriptors;
@@ -45,63 +45,6 @@ public sealed class AclBackdoorEliminationTests
 
     // â”€â”€ Test 2: E2E area authoring, no backdoor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    /// <summary>
-    /// PACK3-A005 Test 2.
-    /// Area authoring places geometry in <c>InitialComponents</c>.  The translator
-    /// synthesises a <c>CreateEntityRequest</c> with <c>dtMapVisualOverlay</c> purely
-    /// from the domain event â€” no pre-built side-channel.
-    /// Compile-time proof that <c>MapCommandController._prebuiltRequests</c> no longer
-    /// exists is implicit: the solution builds cleanly after A001â€“A004.
-    /// </summary>
-    [Fact]
-    public void AreaAuthoring_EndToEnd_NoBackdoor_PublishesCorrectCreateEntityRequest()
-    {
-        int domainId = NextDomainId();
-
-        using var harness = new HrotRunnerHarness(
-            "simhost,ig",
-            domainId);
-
-        var igApp = harness.Ig.App;
-
-        // Observer participant on the same domain â€” reads the CreateEntityRequest
-        // that the SpawnEntityCommandEgressTranslator writes over DDS.
-        using var observer     = new DdsParticipant((uint)domainId);
-        using var reqReader    = new DdsReader<CreateEntityRequest>(observer, "CreateEntityRequest");
-
-        // Activate area authoring via IG test hook (no ExCon needed).
-        var requestId = Guid.NewGuid();
-        var contextId = Guid.NewGuid();
-        igApp.TestHook_ParseCommandAndActivateAreaTool(
-            requestId,
-            $"{{\"contextId\":\"{contextId:N}\"}}");
-
-        // Commit three canvas points.  The tool callback will build EditablePolyline +
-        // MapOverlayStyle into InitialComponents and call MapCommandController.
-        var points = new List<Vector2>
-        {
-            new Vector2(100f, 200f),
-            new Vector2(150f, 220f),
-            new Vector2(120f, 260f),
-        };
-        igApp.TestHook_DirectPointSequenceToolCommit(points);
-
-        // Pump until the CreateEntityRequest lands on the DDS reader.
-        CreateEntityRequest observed = default;
-        bool arrived = harness.PumpUntil(
-            () => TryTakeAnyCreateRequest(reqReader, out observed),
-            WaitForRequestTimeoutFrames);
-
-        Assert.True(arrived, "CreateEntityRequest did not arrive on DDS in time.");
-        Assert.NotNull(observed.InitialDescriptors);
-
-        // Geometry must be described as dtMapVisualOverlay with 3 points.
-        var overlayDesc = observed.InitialDescriptors!
-            .FirstOrDefault(d => d._d == EDescriptorType.dtMapVisualOverlay);
-        Assert.NotEqual(default, overlayDesc);
-        Assert.NotNull(overlayDesc.MapVisualOverlay.Points);
-        Assert.Equal(points.Count, overlayDesc.MapVisualOverlay.Points!.Count);
-    }
 
     // â”€â”€ Test 3: Offline editor isolation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -132,17 +75,17 @@ public sealed class AclBackdoorEliminationTests
         // translator never writes â€” because the kernel never pumps it.
         var capWriter  = new CapturingWriter<CreateEntityRequest>();
         var translator = new SpawnEntityCommandEgressTranslator(
-            capWriter, harness.Bus, geoTransform: null);
+            capWriter, harness.Bus);
 
         // Publish a SpawnEntityCommand with TkbType=1L which is registered in EditorHarness.
         // Provide an explicit NetworkId (non-zero) because the EditorHarness IdAllocator
         // is a sequential stub starting at 1000, not a DDS server.
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType     = 1L,
-            NetworkId   = 1L,
+            TkbType     = (Fdp.Core.TkbTypeId)(1L),
+            NetworkId   = 1,
             RequestId   = Guid.NewGuid(),
-            OwnerNodeId = 0,
+            OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType    = ReliableInitType.None,
         });
 

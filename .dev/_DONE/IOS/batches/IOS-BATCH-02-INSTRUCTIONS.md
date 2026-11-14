@@ -23,7 +23,7 @@ Welcome back! In BATCH-01, the core IOS services (Transaction Manager, Mission E
 
 ### Source Code Location
 - **Primary Work Area:** `Hrot.ExCon/Panels/`
-- **Solution File:** `IOS-IG-SimHost.sln`
+- **Solution File:** `HROT.sln`
 - **Tests Location:** `Hrot.ExCon.Tests/`
 
 ### Report Submission

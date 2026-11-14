@@ -7,7 +7,7 @@ AIE-053 — the last task. Two parts:
 2. **Dangling-reference classification**: `ReferenceCriticality` enum + `ClassifiedDanglingReference`; `DeletePreview` extended backward-compatibly (`DanglingReferences` kept; `ClassifiedReferences` init-default + computed `CriticalReferences`). `ApplyDelete` refuses (no file deletion) when Critical refs exist and dangling refs are disallowed.
 
 ## Verification performed (ran myself)
-- **`dotnet build IOS-IG-SimHost.sln` → 0 Warnings, 0 Errors** (GizmoMap.Contracts on 0.2.2; Hrot.IG/DDS untouched).
+- **`dotnet build HROT.sln` → 0 Warnings, 0 Errors** (GizmoMap.Contracts on 0.2.2; Hrot.IG/DDS untouched).
 - `Hrot.Editor.AiShared.Tests` **737 / 0** (+19). `Hrot.BTree.Editor.Tests` **380 / 0**. `Hrot.Hsm.Editor.Tests` **330 / 0**. `EditorSubsystemBoot` **10 / 0**.
 - `Hrot.Blueprints.Tests` **1027 / 10 / 8** on a **clean isolated run** — exactly the DEBT-006 set, no regression.
 

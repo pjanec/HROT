@@ -1,5 +1,6 @@
 using Fdp.Core;
 using Hrot.Editor.AiShared.Debug;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Editor.AiShared.Tests.Debug;
 

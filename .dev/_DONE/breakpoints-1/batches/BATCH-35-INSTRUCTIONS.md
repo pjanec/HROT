@@ -32,7 +32,7 @@
 ### How to Build and Test
 ```powershell
 # From repo root d:\Work\IOS-IG-SimHost-FDP-2\
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
 
 # Run relevant tests
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tests.csproj
@@ -118,7 +118,7 @@ Read §4 and §5 of `DESIGN.md` carefully before starting. The design talk conte
 **Task detail:** [TASK-DETAIL.md UBP-P1T1](../TASK-DETAIL.md#ubp-p1t1--debugsnapshotprovider-system)
 
 **Steps:**
-1. Create a new C# project `Hrot.Diagnostics.Breakpoints` under `Hrot/Diagnostics/`. Add it to `IOS-IG-SimHost.sln`. It references `Fdp.Core`, `Fdp.ModuleHost`.
+1. Create a new C# project `Hrot.Diagnostics.Breakpoints` under `Hrot/Diagnostics/`. Add it to `HROT.sln`. It references `Fdp.Core`, `Fdp.ModuleHost`.
 2. Implement `DebugSnapshotProvider : IEcsModuleSystem` in that project.
    - Decorated with `[UpdateInPhase(SystemPhase.BeforeSync)]`.
    - Constructor takes `EntityRepository preTickSnapshot` (pre-allocated, passed in from the owning manager).

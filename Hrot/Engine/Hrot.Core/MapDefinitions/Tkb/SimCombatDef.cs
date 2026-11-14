@@ -23,6 +23,79 @@ namespace Hrot.Map.Definitions.Tkb
         /// Rate of fire in rounds per minute.
         /// </summary>
         public float RateOfFire { get; set; }
+
+        /// <summary>⭐ <c>CE-3071</c> — armour penetration of the round, mm RHA.</summary>
+        public float Penetration { get; set; }
+
+        /// <summary>⭐ <c>CE-3071</c> — damage of one penetrating hit.</summary>
+        public float DamagePerHit { get; set; }
+
+        /// <summary>⭐ AQ85 C (R-216) — aim dispersion, mils; 0 = exact aim. Copied onto <c>WeaponMountDto.DispersionMils</c>.</summary>
+        public float DispersionMils { get; set; }
+
+        /// <summary>⭐ WL (DESIGN_Weapon_Layers W-5) — the weapon's category; selects its weapon-brain profile. Copied onto
+        /// <c>WeaponMountDto.Category</c>.</summary>
+        public Fdp.Toolkit.Tkb.Domain.WeaponCategory Category { get; set; }
+
+        /// <summary>⭐ WL-1 (W-9) — the turret this weapon sits on (<c>NedTkbBuilder.WithTurrets</c> order); null = fixed to the hull.</summary>
+        public int? TurretIndex { get; set; }
+
+        /// <summary>⭐ E4 (DESIGN_Visual_Effects VE-K) — the muzzle from the turret's trunnion (or from the hull's reference point when
+        /// fixed), metres, X forward / Y left / Z up. Copied onto <c>WeaponMountDto.MuzzleOffsetX/Y/Z</c>.</summary>
+        public System.Numerics.Vector3 MuzzleOffset { get; set; }
+
+        /// <summary>⭐ LR-1 (DESIGN_Visual_Effects.md §8.5, R-271: "Every ammo needs its tkb type, always") — the munition type it fires.</summary>
+        public TkbTypeId AmmoTkb { get; set; }
+
+        /// <summary>⭐ LR-1 — the tracer munition mixed in, one in <see cref="TracerEvery"/> (0 = none).</summary>
+        public TkbTypeId TracerAmmoTkb { get; set; }
+
+        /// <inheritdoc cref="TracerAmmoTkb"/>
+        public int TracerEvery { get; set; }
+
+        /// <summary>⭐ M5 (DESIGN_Missiles_And_Ammo §2) — the rounds this mount carries, by munition type: the weapon brain picks one
+        /// per target (<c>AmmoChoice</c>). Empty = the mount's one round (<see cref="AmmoTkb"/>). Copied onto <c>WeaponMountDto.Loadout</c>.</summary>
+        public List<(long AmmoTkb, int Rounds)> Loadout { get; set; }
+
+        /// <summary>⭐ M5 / D-L — may it fire while the unit moves; null = by category (an ATGM or a mortar stands). <c>WeaponMountDto.FireOnMove</c>.</summary>
+        public bool? FireOnMove { get; set; }
+
+        /// <summary>⭐ M5 — the aim (or lock) time, s; 0 = the engine fallback. <c>WeaponMountDto.AimSeconds</c>.</summary>
+        public SimDuration AimSeconds { get; set; }
+
+        /// <summary>⭐ M5 — rounds per magazine / belt (0 = no magazine) and the change time, s. <c>WeaponMountDto.MagazineSize</c> /
+        /// <c>ReloadSeconds</c>.</summary>
+        public int MagazineSize { get; set; }
+
+        /// <inheritdoc cref="MagazineSize"/>
+        public SimDuration ReloadSeconds { get; set; }
+
+        /// <summary>⭐ Air Ops slice 6a (AW-1) — a FIXED mount's nose cone, degrees off the body's forward (0 = no cone).
+        /// <c>WeaponMountDto.FixedConeDeg</c>.</summary>
+        public float FixedConeDeg { get; set; }
+
+        /// <summary>⭐ <c>CE-3254</c> (BR-9) — a scope on this mount: its magnification (0 = none) and field of view, degrees.
+        /// <c>WeaponMountDto.ScopeMagnification</c> / <c>ScopeFovDegrees</c>.</summary>
+        public float ScopeMagnification { get; set; }
+
+        /// <inheritdoc cref="ScopeMagnification"/>
+        public float ScopeFovDegrees { get; set; }
+
+        /// <summary>⭐ Indirect fire IF-1 (I2) — the arcs an indirect round may fly; Default = today's rule. <c>WeaponMountDto.Arc</c>.</summary>
+        public Fdp.Toolkit.Tkb.Domain.IndirectArc Arc { get; set; }
+
+        /// <summary>⭐ IF-1 (I2) — the barrel's elevation limits for an indirect solution, degrees; 0 = none. <c>WeaponMountDto.Min/MaxElevationDeg</c>.</summary>
+        public float MinElevationDeg { get; set; }
+        /// <inheritdoc cref="MinElevationDeg"/>
+        public float MaxElevationDeg { get; set; }
+
+        /// <summary>⭐ <c>CE-3233</c> (civilians B-11, §7.13 ST-7) — the muzzle speed, m/s; 0 = derived from <see cref="Range"/> (the engine
+        /// fallback). A hand weapon states it: the fallback would fly a 300 m rifle round at 150 m/s. Copied onto <c>WeaponMountDto.MuzzleVelocity</c>.</summary>
+        public float MuzzleVelocity { get; set; }
+
+        /// <summary>⭐ <c>CE-3233</c> (B-11, ST-7) — what the weapon LOOKS like to an observer; null = by <see cref="Category"/>. Copied onto
+        /// <c>WeaponMountDto.Appearance</c>.</summary>
+        public Fdp.Toolkit.Tkb.Domain.ItemLook? Look { get; set; }
     }
     
     /// <summary>
@@ -30,36 +103,120 @@ namespace Hrot.Map.Definitions.Tkb
     /// NOTE: Stubbed for future combat module integration.
     /// </summary>
     [ComponentId(GlobalComponentIds.SimCombatDef)]
-    public class SimCombatDef
+    [DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
+    public record SimCombatDef
     {
         /// <summary>
         /// Frontal armor thickness in mm RHA equivalent.
         /// </summary>
-        public float ArmorFront { get; set; } // mm RHA
+        public float ArmorFront { get; init; } // mm RHA
         
         /// <summary>
         /// Side armor thickness in mm RHA equivalent.
         /// </summary>
-        public float ArmorSide { get; set; }
+        public float ArmorSide { get; init; }
         
         /// <summary>
         /// Rear armor thickness in mm RHA equivalent.
         /// </summary>
-        public float ArmorRear { get; set; }
-        
+        public float ArmorRear { get; init; }
+
+        /// <summary>⭐ M6 (DESIGN_Armour_Hit_Model §2) — the roof, mm RHA; 0 ⇒ the rear value.</summary>
+        public float ArmorTop { get; init; }
+
+        /// <summary>⭐ M6 — each face against a SHAPED CHARGE (composite, ERA), mm RHA; 0 ⇒ that face's kinetic value.</summary>
+        public float ArmorFrontCe { get; init; }
+        /// <inheritdoc cref="ArmorFrontCe"/>
+        public float ArmorSideCe { get; init; }
+        /// <inheritdoc cref="ArmorFrontCe"/>
+        public float ArmorRearCe { get; init; }
+        /// <inheritdoc cref="ArmorFrontCe"/>
+        public float ArmorTopCe { get; init; }
+
+        /// <summary>⭐ M6 (D-F) — the hit points, stated; 0 ⇒ the front × 5 fallback (<c>EngineFallbacks.HealthFromArmour</c>).</summary>
+        public float MaxHealth { get; init; }
+
+        /// <summary>⭐ M6 — light vehicles opt into a mobility kill below this fraction of health (0 = none). <c>CombatPlatformDefDto</c>.</summary>
+        public float MobilityKillBelowFraction { get; init; }
+
+        /// <summary>⭐ R-2019 D-M2 — the share of a burst's blast this hull takes (0..1; a soft skin ≈ 1, an MBT 0); −1 ⇒ derived from the side
+        /// armour. <c>CombatPlatformDefDto.BlastSusceptibility</c>.</summary>
+        public float BlastSusceptibility { get; init; } = -1f;
+
+        /// <summary>⭐ CE-3203 — the area (m²) this type presents to fragments; stated ⇒ EQUIPMENT (a weapon). −1 ⇒ derived.
+        /// <c>CombatPlatformDefDto.PresentedAreaM2</c>.</summary>
+        public float PresentedAreaM2 { get; init; } = -1f;
+
+        /// <summary>⭐ M5 — where the crew sees from, m above the ground (the sight / the commander's hatch); 0 ⇒ a standing man's.</summary>
+        public float EyeHeight { get; init; }
+
         /// <summary>
         /// Weapon systems mounted on vehicle.
         /// </summary>
-        public List<WeaponMount> Weapons { get; set; } = new();
+        public IReadOnlyList<WeaponMount> Weapons { get; init; } = System.Array.Empty<WeaponMount>();
         
         /// <summary>
         /// Sensor detection range in meters.
         /// </summary>
-        public float SensorRange { get; set; } // meters
+        public float SensorRange { get; init; } // meters
+
+        /// <summary>
+        /// ⭐ <c>CE-2349</c> — the range (m) of a THERMAL sight the vehicle carries; 0 = none. A vehicle with one lists its sensors
+        /// explicitly — visual (<see cref="SensorRange"/>), acoustic (1.5 × it) and thermal — because a TKB that lists ANY sensor gets no
+        /// implicit ones (CE-3038, CE-2106). 📄 docs/DESIGN_Thermal_And_Acoustic_Sensing.md.
+        /// </summary>
+        public float ThermalRange { get; init; }
         
         /// <summary>
         /// Whether entity can engage threats autonomously.
         /// </summary>
+        public bool AutonomousEngagement { get; init; } = false;
+    }
+
+    /// <summary>
+    /// Mutable authoring surface for <see cref="SimCombatDef"/> (CE-4046: the component is an immutable record, so a
+    /// TKB builder's <c>configure</c> lambda fills this and the builder freezes it with <see cref="Build"/>).
+    /// </summary>
+    public sealed class SimCombatDefBuilder
+    {
+        public float ArmorFront { get; set; }
+        public float ArmorSide { get; set; }
+        public float ArmorRear { get; set; }
+        public float ArmorTop { get; set; }
+        public float ArmorFrontCe { get; set; }
+        public float ArmorSideCe { get; set; }
+        public float ArmorRearCe { get; set; }
+        public float ArmorTopCe { get; set; }
+        public float MaxHealth { get; set; }
+        public float MobilityKillBelowFraction { get; set; }
+        public float BlastSusceptibility { get; set; } = -1f;
+        public float PresentedAreaM2 { get; set; } = -1f;
+        public float EyeHeight { get; set; }
+        public List<WeaponMount> Weapons { get; } = new();
+        public float SensorRange { get; set; }
+        public float ThermalRange { get; set; }
         public bool AutonomousEngagement { get; set; } = false;
+
+        /// <summary>Freezes the authored values into the immutable component.</summary>
+        public SimCombatDef Build() => new SimCombatDef
+        {
+                ArmorFront = ArmorFront,
+                ArmorSide = ArmorSide,
+                ArmorRear = ArmorRear,
+                ArmorTop = ArmorTop,
+                ArmorFrontCe = ArmorFrontCe,
+                ArmorSideCe = ArmorSideCe,
+                ArmorRearCe = ArmorRearCe,
+                ArmorTopCe = ArmorTopCe,
+                MaxHealth = MaxHealth,
+                MobilityKillBelowFraction = MobilityKillBelowFraction,
+                BlastSusceptibility = BlastSusceptibility,
+                PresentedAreaM2 = PresentedAreaM2,
+                EyeHeight = EyeHeight,
+                Weapons = Weapons.ToArray(),
+                SensorRange = SensorRange,
+                ThermalRange = ThermalRange,
+                AutonomousEngagement = AutonomousEngagement,
+        };
     }
 }

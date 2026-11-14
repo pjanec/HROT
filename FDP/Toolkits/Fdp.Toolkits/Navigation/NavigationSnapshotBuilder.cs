@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Toolkit.Navigation.EngineBacked;
 using Fdp.Toolkit.Navigation.Fake;
+using Fdp.Core.Serialization;
 
 namespace Fdp.Toolkit.Navigation
 {
@@ -13,8 +14,7 @@ namespace Fdp.Toolkit.Navigation
     /// </summary>
     public static class NavigationSnapshotBuilder
     {
-        private static readonly JsonSerializerOptions s_indented =
-            new JsonSerializerOptions { WriteIndented = true };
+        private static readonly JsonSerializerOptions s_indented = FdpJsonOptionsRegistry.Indented;
 
         /// <summary>
         /// Serialises the current navigation singleton state held in <paramref name="repo"/>

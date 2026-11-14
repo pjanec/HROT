@@ -12,7 +12,7 @@ Replace all `SystemGroup`-based system registration patterns in composition root
 with the new `IReadOnlyList<IEcsModuleSystem>` array properties exposed by packs
 (`InputSystems`, `SimulationSystems`, `PostSimulationSystems`). Wrap those lists in
 `TogglableInputGroup`, `TogglableSimulationGroup`, and `TogglablePostSimulationGroup`
-and register them on the kernel. Ensure `dotnet build IOS-IG-SimHost.sln` passes
+and register them on the kernel. Ensure `dotnet build HROT.sln` passes
 with 0 errors and all tests pass.
 
 Tasks covered: T-RMF-13 through T-RMF-19.
@@ -55,7 +55,7 @@ Tasks covered: T-RMF-13 through T-RMF-19.
 
 **0 errors. Build succeeded.**
 
-Command: `dotnet build IOS-IG-SimHost.sln --no-incremental -v q`
+Command: `dotnet build HROT.sln --no-incremental -v q`
 
 ---
 

@@ -24,6 +24,10 @@ internal static class BTreeKinds
     public const string Wait             = "bt.leaf.wait";
     public const string Subtree          = "bt.leaf.subtree";
 
+    // ⭐ CE-2079 — the two SOP orders: ACTION nodes carrying an SOP-order payload (docs/DESIGN_Decision_Layer.md §4.6)
+    public const string SopDoWhenIdle    = "bt.leaf.sop.doWhenIdle";
+    public const string SopReact         = "bt.leaf.sop.react";
+
     // Encoded leaf kind prefixes (D-02)
     public const string ActionPrefix    = "bt.leaf.action::";
     public const string ConditionPrefix = "bt.leaf.condition::";
@@ -45,6 +49,8 @@ internal static class BTreeKinds
                id == Condition ||
                id == Wait      ||
                id == Subtree   ||
+               id == SopDoWhenIdle ||
+               id == SopReact  ||
                id.StartsWith(ActionPrefix) ||
                id.StartsWith(ConditionPrefix);
     }
@@ -104,6 +110,8 @@ internal static class BTreeKinds
             Condition        => NodeType.Condition,
             Wait             => NodeType.Wait,
             Subtree          => NodeType.Subtree,
+            SopDoWhenIdle    => NodeType.Action,   // ⭐ CE-2079 — an SOP order is an action node
+            SopReact         => NodeType.Action,
             Inverter         => NodeType.Inverter,
             Repeater         => NodeType.Repeater,
             Cooldown         => NodeType.Cooldown,

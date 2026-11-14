@@ -1,3 +1,16 @@
+<!--STATUS
+state: LIVE (toolkit reference, 2026-05-30 baseline)
+updated: 2026-10-03
+current-answer: the class reference below; for the terrain slice (sight, cover, generators, tests, starter templates) read
+  docs/designs/eqs-2/EQS_Design_v1.3_final.md §19 — it supersedes this file where they differ.
+known-rot: "BlockedLosService ... LOS always blocked" (~line 413) — DELETED; ILosService is a 3-D seam with TerrainLosService
+  as the default (§19.7 A1). The 2-D HasCheapLineOfSight is gone. "Design reference: .dev/eqs-2" — the live design is
+  docs/designs/eqs-2/. The generator/test inventory below predates §19 (Donut/Grid/Cone/OffsetFromContext, ThreatExposure,
+  DotProduct, HeightScore, TerrainCoverProvider, EqsContext). Flag bits now follow the design's §4.2 (LOS = bit <slot>).
+related-designs:
+  - docs/designs/eqs-2/EQS_Design_v1.3_final.md — owns the intent and the as-built (§16–§19).
+  - docs/DESIGN_Terrain_World.md — owns the terrain world EQS now reads (sight, ground, cover source).
+-->
 # Fdp.Toolkit.Spatial.Eqs -- Environment Query System (EQS) v1.3
 
 **Source folder**: `FDP/Toolkits/Fdp.Toolkits/Spatial/Eqs/`
@@ -72,7 +85,9 @@ mechanism -- no bespoke subscribe message exists.
 4. `EqsResultEventEgressTranslator` dereferences the pool and publishes an `EqsResult` DDS
    topic sample with a `[DdsManaged] List<EqsResultEntry>` payload.
 5. On the Brain, `EqsResultIngressTranslator` reads the DDS sample and publishes a managed
-   `EqsResultUpdateEvent` onto the Brain event bus.
+   `EqsResultUpdateEvent` onto the Brain event bus. ⭐ CE-4207 (`2026-11-02`, R-134): the event carries
+   ENGINE records (`List<EqsResult>`, `EntityId` = this node's packed entity) — the translator converts the
+   wire's `EqsResultEntry` (an `int` network id) and drops an entity not known here; no DDS type is on the event.
 6. `EqsResultUpdateSystem` (Brain-tier, `SystemPhase.Simulation`) writes results into the
    entity's `EqsCognitiveBuffer` component.
 7. BTree/HSM nodes read from the buffer synchronously via `GetTop` / `GetSpanRO`.
@@ -116,7 +131,7 @@ Brain-tier result cache. Written by `EqsResultUpdateSystem`; read by BTree nodes
 
 ```csharp
 [ComponentId(GlobalComponentIds.EqsCognitiveBuffer)]
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 public struct EqsCognitiveBuffer
 {
     public int            Count;                 // valid entries (0-16)
@@ -308,10 +323,11 @@ exceeds a threshold, so expensive scoring phases only operate on viable candidat
 
 ```csharp
 // Hand-authored C# template registered by the Roslyn source generator:
-[EqsTemplate("f8a3c1d2-4e5b-4f6a-8c9d-2b1e3f4a5c6d")]
+[EqsTemplate(AssetId)]
 public static class FindCoverFromTarget
 {
-    public const uint BlueprintId = 0x7F3A2B1Cu;
+    public const string AssetId = "f8a3c1d2-4e5b-4f6a-8c9d-2b1e3f4a5c6d";
+    public const uint BlueprintId = 0x082E6DADu;   // FNV-1a over AssetId's 16 bytes (CE-2034)
 
     public static EqsQueryTemplate Build(ILosService los) => new EqsQueryTemplate
     {
@@ -632,7 +648,7 @@ in the Blueprint compiler's code-generation pipeline:
 | Node | Description |
 |---|---|
 | `SpawnEqsSensorNode` | Spawns a child sensor entity. `TemplateAssetId` (Guid) resolves to `BlueprintId` at compile time. |
-| `ReadEqsResultNode` | Reads the top (or rank-i) result from the entity's `EqsCognitiveBuffer`. Uses `GetSpanRO()` to avoid the [InlineArray] defensive-copy trap. |
+| `ReadEqsResultNode` | Reads the top (or rank-i) result from the entity's `EqsCognitiveBuffer`. Uses `GetSpanRO()` to avoid the [InlineArray] defensive-copy trap. ⭐ `CE-3054`: or the unit's own sensor of a kind (`UnitSensorKind`, resolved by `UnitSensors.Of`). |
 | `ScoreDecisionNode` | Evaluates a `UtilityDecisionDef` asset and writes the winning option ID to an output variable. |
 | `ReadRankedResultNode` | Reads rank-i entry from a utility result buffer (0 = top-ranked). |
 | `WhenNode` (EqsResult mode) | Reactive trigger. Fires on `EqsTrigger` conditions: `FirstReady`, `TopChanged`, `ScoreCrossed`, `BecomesStale`. Requires `LastUpdateTimeSeconds` for staleness checks. |
@@ -670,8 +686,8 @@ pattern. Visualizer tests live in `Hrot/Subsystems/Hrot.IG.Tests/Eqs/`.
 ## Starter Template Pack
 
 `FindCoverFromTarget` ships as a hand-authored C# template demonstrating the authoring
-pattern. Its `BlueprintId` is the FNV-1a hash of AssetId GUID
-`"f8a3c1d2-4e5b-4f6a-8c9d-2b1e3f4a5c6d"` (= `0x7F3A2B1Cu`).
+pattern. Its `BlueprintId` is the FNV-1a hash of the AssetId GUID's 16 bytes
+`"f8a3c1d2-4e5b-4f6a-8c9d-2b1e3f4a5c6d"` (= `0x082E6DADu`; `CE-2034` — it was a hand-typed `0x7F3A2B1Cu` that matched no hash).
 
 Eight templates are specified in the design's starter pack; `FindCoverFromTarget` is the
 one currently implemented.

@@ -3,6 +3,8 @@ using System.Linq;
 using Fhsm.Compiler;
 using Fhsm.Kernel.Data;
 using FluentAssertions;
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
+using Fdp.Presentation.Editing.Types;
 using Hrot.Hsm.Editor.Inspector;
 using Hrot.Hsm.Editor.Model;
 using Xunit;
@@ -39,6 +41,15 @@ public sealed class HsmPickerDrawerTests
         return HsmAssetProjector.Project(blob, meta, null, Guid.NewGuid(), "Test", "", false, "");
     }
 
+    /// <summary>⭐ <c>CE-417</c> slice 4b — the action and guard lists now come from the ONE binding drawer the PRODUCTION
+    /// factory registers; the HSM host supplies only its method list (<see cref="HsmBindingMethods"/>).</summary>
+    private static ActionBindingSources Sources(
+        HsmAsset asset,
+        Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? exporter = null,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
+        => (HsmPickerDrawerFactory.BuildCatalogue(asset, exporter, catalog).DrawerOf(typeof(BehaviorActionBindingFacet))!
+               as ActionBindingDrawer)!.Sources;
+
     // ── HsmEventPickerDrawer tests ────────────────────────────────────────────
 
     [Fact]
@@ -50,7 +61,10 @@ public sealed class HsmPickerDrawerTests
 
         items.Should().Contain("Fire");
         items.Should().Contain("Reset");
-        items.Should().HaveCount(2, "exactly the two events defined in the builder");
+        // ⭐ CE-2088 — plus the ENGINE-RAISED events the asset has not declared (picking one declares it).
+        int builtIns = Hrot.AiEditor.Persistence.Emit.HsmEventIds.BuiltIns.Count;
+        items.Should().HaveCount(2 + builtIns, "the two events defined in the builder + every engine-raised one");
+        items.Should().Contain("Sensor.FirstThreat");
     }
 
     [Fact]
@@ -85,29 +99,314 @@ public sealed class HsmPickerDrawerTests
         drawer.GetItems().Should().BeInAscendingOrder();
     }
 
-    // ── HsmActionPickerDrawer tests ───────────────────────────────────────────
+    // ── the action list (was HsmActionPickerDrawer) ───────────────────────────────────────────
 
     [Fact]
     public void FieldPicker_HsmAction_ListsStateActions()
     {
         var asset  = MakeAsset();
-        var drawer = new HsmActionPickerDrawer(asset);
-        var items  = drawer.GetItems();
+        var items  = Sources(asset).GetMethods(BindingSlotKind.Action);
 
         // OnEntry and OnExit actions on "Idle" state must appear.
         items.Should().Contain("Ns.Actions.StartIdle");
         items.Should().Contain("Ns.Actions.StopIdle");
     }
 
-    // ── HsmGuardPickerDrawer tests ────────────────────────────────────────────
+    // ── the guard list (was HsmGuardPickerDrawer) ────────────────────────────────────────────
 
     [Fact]
     public void FieldPicker_HsmGuard_EmptyAsset_ReturnsEmpty()
     {
         // Asset with no guard functions.
         var asset  = MakeAsset();
-        var drawer = new HsmGuardPickerDrawer(asset);
         // No guards were set in the builder so list should be empty.
-        drawer.GetItems().Should().BeEmpty("no guard functions were registered");
+        Sources(asset).GetMethods(BindingSlotKind.Guard).Should().BeEmpty("no guard functions were registered");
+    }
+
+    // ── CE-386: the action/guard pickers read the REGISTERED catalog ─────────
+
+    private sealed class StubExporter : Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter
+    {
+        private readonly System.Collections.Generic.Dictionary<string,
+            Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry> _map = new(StringComparer.Ordinal);
+
+        public System.Collections.Generic.IReadOnlyDictionary<string,
+            Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry> All => _map;
+        public event Action? Changed { add { } remove { } }
+
+        public StubExporter Add(string fqn, Hrot.Editor.AiShared.Blackboard.ActionHosting hosting)
+        {
+            _map[fqn] = new Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry(
+                fqn, typeof(float), hosting,
+                Hrot.Editor.AiShared.Blackboard.BlackboardAccess.ReadWrite);
+            return this;
+        }
+
+        public Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry? Lookup(string fqn)
+            => _map.GetValueOrDefault(fqn);
+        public void Rebuild() { }
+    }
+
+    /// <summary>A catalog holding one HSM activity, one HSM guard, and one BTree-only action that
+    /// must appear in NEITHER HSM picker.</summary>
+    private static StubExporter ThreeKinds()
+    {
+        return new StubExporter()
+            .Add("Ns.Catalog.Chase",
+                 Hrot.Editor.AiShared.Blackboard.ActionHosting.Hsm
+               | Hrot.Editor.AiShared.Blackboard.ActionHosting.HsmActivity)
+            .Add("Ns.Catalog.InRange",
+                 Hrot.Editor.AiShared.Blackboard.ActionHosting.Hsm
+               | Hrot.Editor.AiShared.Blackboard.ActionHosting.HsmGuard)
+            .Add("Ns.Catalog.BTreeOnly",
+                 Hrot.Editor.AiShared.Blackboard.ActionHosting.BTree);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-386</c> — the FIRST binding is now makeable.</b> 📄 design §3.3, rail ⑧.
+    ///
+    /// <para>🔴 <b>The defect.</b> Both pickers built their list ONLY from names the asset already
+    /// bound ⇒ an action could be picked once it was already in use, and the first binding was
+    /// UNMAKEABLE from the inspector. ⛔ A picker that can only offer what you already chose is not
+    /// a picker.</para>
+    ///
+    /// <para>⚠ Asserted on the CONSTRUCTED drawer with a catalog holding entries the asset does NOT
+    /// mention — the shape rail ⑧ was re-aimed to, because the ONE production caller
+    /// (<c>AiFacetPickerBinder.Rebuild:95</c>) was already forwarding the exporter.</para>
+    /// </summary>
+    [Fact]
+    public void ActionPicker_OffersRegisteredHsmActivities_TheAssetDoesNotYetMention()
+    {
+        var items = Sources(MakeAsset(), ThreeKinds()).GetMethods(BindingSlotKind.Action);
+
+        items.Should().Contain("Ns.Catalog.Chase");
+        items.Should().NotContain("Ns.Catalog.InRange", "a GUARD is not an activity");
+        items.Should().NotContain("Ns.Catalog.BTreeOnly", "a BTree-only action is not HSM-hostable");
+    }
+
+    [Fact]
+    public void GuardPicker_OffersRegisteredHsmGuards_TheAssetDoesNotYetMention()
+    {
+        var items = Sources(MakeAsset(), ThreeKinds()).GetMethods(BindingSlotKind.Guard);
+
+        items.Should().Contain("Ns.Catalog.InRange");
+        items.Should().NotContain("Ns.Catalog.Chase", "an ACTIVITY is not a guard");
+        items.Should().NotContain("Ns.Catalog.BTreeOnly");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-462</c> (E4 ④) — every HSM guard is SHOWN with its technology.</b> A blueprint guard reads by
+    /// its authored name + <c>[Blueprint]</c> (its FQN is the generated <c>{Name}_{id:X8}_Bp.TickCore</c>), a
+    /// hand-written one by its FQN + <c>[C#]</c>, and a name the catalog does not know stays bare. ⭐ The
+    /// VALUES are unchanged — <c>GetItems</c> still returns FQNs. 🔴 Red-proof: return <c>fqn</c> from
+    /// <c>AiPrimitiveNaming.PickerLabel</c> ⇒ both labelled assertions fail.
+    /// </summary>
+    [Fact]
+    public void CE462_Guards_are_shown_with_their_technology()
+    {
+        const string bpFqn = "Hrot.Generated.GateConditionDemo_1A2B3C4D_Bp.TickCore";
+        var exporter = ThreeKinds();
+        ((System.Collections.Generic.Dictionary<string, Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry>)
+            exporter.All)[bpFqn] = new Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry(
+                bpFqn, typeof(float),
+                Hrot.Editor.AiShared.Blackboard.ActionHosting.Hsm | Hrot.Editor.AiShared.Blackboard.ActionHosting.HsmGuard,
+                Hrot.Editor.AiShared.Blackboard.BlackboardAccess.ReadWrite, IsCondition: true, IsAiPrimitive: true);
+
+        var drawer = Sources(MakeAsset(), exporter);
+
+        drawer.GetMethods(BindingSlotKind.Guard).Should().Contain(bpFqn, "the stored value is still the FQN");
+        drawer.MethodLabel(bpFqn).Should().Be("GateConditionDemo  [Blueprint]");
+        drawer.MethodLabel("Ns.Catalog.InRange").Should().Be("Ns.Catalog.InRange  [C#]");
+        drawer.MethodLabel("Ns.Unknown.Dangling").Should().Be("Ns.Unknown.Dangling");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The asset's own names stay in the union, even WITH a catalog.</b> ⛔ Dropping a name
+    /// the current assembly no longer exports would HIDE a dangling binding rather than show it —
+    /// the same never-erase reasoning as the subtree reference.
+    /// </summary>
+    [Fact]
+    public void TheAssetsOwnNamesSurviveAlongsideTheCatalog()
+    {
+        var items = Sources(MakeAsset(), ThreeKinds()).GetMethods(BindingSlotKind.Action);
+
+        items.Should().Contain("Ns.Actions.StartIdle", "the asset binds it, catalog or not");
+        items.Should().Contain("Ns.Catalog.Chase");
+    }
+
+    /// <summary>⚠ The no-catalog FALLBACK is unchanged — a headless host still gets the
+    /// self-referential list rather than an exception or an empty one.</summary>
+    [Fact]
+    public void WithNoExporter_ThePickersFallBackToTheAssetsOwnNames()
+    {
+        Sources(MakeAsset()).GetMethods(BindingSlotKind.Action)
+            .Should().Contain("Ns.Actions.StartIdle");
+        Sources(MakeAsset()).GetMethods(BindingSlotKind.Guard)
+            .Should().BeEmpty("the fixture binds no guards, and there is no catalog to add any");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ⑧ proper: the drawer the FACTORY builds uses the exporter it is handed.</b>
+    /// ⚠ Constructing the drawer directly (above) proves the drawer; this proves the WIRING, which
+    /// is the half that went silently inert twice before (<c>HsmValidator._isStatefulSubtree</c>,
+    /// <c>BlackboardAuthoringWindow._actionSchemaExporter</c>).
+    /// </summary>
+    [Fact]
+    public void TheFactoryWiresTheExporterIntoBothPickers()
+    {
+        var sources = Sources(MakeAsset(), ThreeKinds());
+
+        sources.GetMethods(BindingSlotKind.Action).Should().Contain("Ns.Catalog.Chase");
+        sources.GetMethods(BindingSlotKind.Guard).Should().Contain("Ns.Catalog.InRange");
+        sources.Exporter.Should().NotBeNull("the factory must hand the binding drawer the exporter it was given");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-396</c> / <c>CE-417</c> slice 4b — the binding drawer's blueprint list offers BLUEPRINTS only, from the
+    /// catalogue the factory was handed. ⛔ A blueprint combo listing BTree assets would bind a plausible, wrong id.
+    /// </summary>
+    [Fact]
+    public void TheBindingDrawersBlueprintList_IsTheCataloguesBlueprints()
+    {
+        var catalog = new FakeCatalog(
+            new CatalogAsset { Name = "PatrolTree",  Kind = Hrot.Editor.AiShared.AssetKind.BTree },
+            new CatalogAsset { Name = "ChaseTarget", Kind = Hrot.Editor.AiShared.AssetKind.Blueprint });
+
+        Sources(MakeAsset(), catalog: catalog).GetBlueprints().Should().Equal("ChaseTarget");
+        Sources(MakeAsset()).GetBlueprints().Should().BeEmpty("no catalogue, no blueprints — never a wrong list");
+    }
+
+    // ── CE-396: [AiAssetPicker] dispatches on the attribute's KIND ────────────
+
+    private sealed class CatalogAsset : Hrot.Editor.AiShared.IEditableAsset
+    {
+        public Guid AssetId { get; init; } = Guid.NewGuid();
+        public string Name { get; init; } = "";
+        public Hrot.Editor.AiShared.AssetKind Kind { get; init; }
+        public string SourceFilePath => "/x.json";
+        public bool IsDirty => false;
+        public bool IsEditorOwned => false;
+#pragma warning disable 67
+        public event Action? Changed;
+#pragma warning restore 67
+    }
+
+    private sealed class FakeCatalog : Hrot.Editor.AiShared.Catalog.IAssetCatalog
+    {
+        private readonly System.Collections.Generic.List<Hrot.Editor.AiShared.IEditableAsset> _a;
+        public FakeCatalog(params Hrot.Editor.AiShared.IEditableAsset[] assets) => _a = assets.ToList();
+        public System.Collections.Generic.IReadOnlyList<Hrot.Editor.AiShared.IEditableAsset> All => _a;
+        public Hrot.Editor.AiShared.IEditableAsset? FindByAssetId(Guid id) => _a.FirstOrDefault(x => x.AssetId == id);
+        public Hrot.Editor.AiShared.IEditableAsset? FindByName(string n) => _a.FirstOrDefault(x => x.Name == n);
+        public System.Collections.Generic.IReadOnlyList<Hrot.Editor.AiShared.IEditableAsset> WhereDependsOn(Guid id)
+            => Array.Empty<Hrot.Editor.AiShared.IEditableAsset>();
+#pragma warning disable 67
+        public event Action<Hrot.Editor.AiShared.AssetKind>? Changed;
+#pragma warning restore 67
+    }
+
+    private static StructEdit.Core.EditNode NodeWithAttribute(Attribute attr, Type? type = null)
+        => new StructEdit.Core.EditNode(
+               id:       new StructEdit.Core.EditNodeId(0),
+               name:     "F",
+               jsonPath: "$.F",
+               kind:     type == typeof(ushort) ? StructEdit.Core.EditNodeKind.Scalar : StructEdit.Core.EditNodeKind.String,
+               clrType:  type ?? typeof(string),
+               metadata: new StructEdit.Core.EditNodeMetadata { CustomAttributes = new[] { attr } });
+
+    /// <summary>⭐ CE-3398 — a transition's <c>[HsmEventPicker] ushort EventId</c> draws the EVENT picker (it drew the sync-group combo: the rule was keyed on <c>string</c>), and a
+    /// plain <c>ushort</c> still gets the sync-group drawer. Red-proof: the rule back on <c>string</c> ⇒ the first assert fails.</summary>
+    [Fact]
+    public void CE3398_AUshortEventId_DrawsTheEventPicker_APlainUshortTheSyncGroup()
+    {
+        var types = HsmPickerDrawerFactory.BuildCatalogue(MakeAsset());
+        types.DrawerFor(NodeWithAttribute(new HsmEventPickerAttribute(), typeof(ushort))).Should().BeOfType<HsmEventPickerDrawer>();
+        typeof(TransitionFacet).GetField(nameof(TransitionFacet.EventId))!.FieldType.Should().Be(typeof(ushort));
+        types.DrawerOf(typeof(ushort)).Should().BeOfType<HsmSyncGroupPickerDrawer>();
+    }
+
+    /// <summary>⭐ CE-3400 (Y-8) — a state's <i>Deferred events</i> (<c>[HsmEventPicker] List&lt;ushort&gt; DeferredEventIds</c>): each ELEMENT of the list draws the event picker, not the sync-group combo — the document builder hands a list member's custom
+    /// attributes to its element nodes, and a plain <c>List&lt;ushort&gt;</c> (no attribute) still gets the plain element drawer. 🔴 Red-proof: the builder not passing the attributes ⇒ the element resolves to <c>HsmSyncGroupPickerDrawer</c> ⇒ red.</summary>
+    [Fact]
+    public void CE3400_ADeferredEventsElement_DrawsTheEventPicker()
+    {
+        var types   = HsmPickerDrawerFactory.BuildCatalogue(MakeAsset());
+        var service = Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build();
+        using var session = service.Open(new StateFacet { DeferredEventIds = new System.Collections.Generic.List<ushort> { 1, 2 } }, typeof(StateFacet), StructEdit.Core.EditScope.WholeComponent, new StructEdit.Core.EditContext());
+        var list = session.Document.Root.Children.Single(c => c.Name == nameof(StateFacet.DeferredEventIds));
+        list.Children.Should().HaveCount(2);
+        foreach (var element in list.Children)
+            types.DrawerFor(element).Should().BeOfType<HsmEventPickerDrawer>("the list member\'s [HsmEventPicker] names what each element is");
+    }
+
+    /// <summary>⭐ CE-1008 (AI_Editor_Shared_Infrastructure §7.1b) — the HSM factory forwards the host's picker to the binding, the state
+    /// and the event pickers — one shared choice field.</summary>
+    [Fact]
+    public void CE1008_TheHostsPicker_ReachesTheBindingStateAndEventPickers_OneSharedField()
+    {
+        Action<NodeEditor.UI.Picker.PickerRequest, Action<NodeEditor.UI.Picker.PickerResult>> open = (_, _) => { };
+        var types   = HsmPickerDrawerFactory.BuildCatalogue(MakeAsset(), openPicker: open);
+        var binding   = (ActionBindingDrawer)types.DrawerOf(typeof(BehaviorActionBindingFacet))!;
+        var state = (HsmStateSelectorDrawer)types.DrawerFor(NodeWithAttribute(new HsmStateSelectorAttribute()))!;
+        var ev    = (HsmEventPickerDrawer)types.DrawerFor(NodeWithAttribute(new HsmEventPickerAttribute(), typeof(ushort)))!;
+        binding.Field.CanSearch.Should().BeTrue();
+        state.Field.Should().BeSameAs(binding.Field);
+        ev.Field.Should().BeSameAs(binding.Field);
+    }
+
+    private static System.Collections.Generic.IReadOnlyList<string> ItemsFor(
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog catalog, Hrot.Editor.AiShared.AssetKind kind)
+    {
+        var types   = HsmPickerDrawerFactory.BuildCatalogue(MakeAsset(), catalog: catalog);
+        var resolved  = types.DrawerFor(
+            NodeWithAttribute(new Hrot.Editor.AiShared.Inspector.AiAssetPickerAttribute(kind)));
+
+        resolved.Should().NotBeNull($"[AiAssetPicker({kind})] must resolve to a drawer");
+        return ((Hrot.Editor.AiShared.Inspector.IPickerListSource)resolved!).GetItems();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-396</c> — <c>[AiAssetPicker]</c> offers the kind the FIELD asks for.</b>
+    ///
+    /// <para>🔴 <b>The defect this pins.</b> the old composite string drawer keyed its registry by
+    /// attribute TYPE and <c>BuildDrawers</c> registered ONE drawer hard-wired to
+    /// <c>AssetKind.BTree</c>. With only <c>StateFacet.SubtreeName</c> in the tree that was
+    /// invisible; <c>CE-385</c>'s blueprint fields would have silently drawn the BTREE list.
+    /// ⛔ A picker offering the wrong KIND is worse than one offering nothing — the names are
+    /// plausible, so nothing looks broken until the emitted id addresses the wrong asset.</para>
+    ///
+    /// <para>⚠ Asserted on the CONSTRUCTED drawer, exactly as design rail ⑧ requires: the
+    /// registration existing is not the claim — what it hands back is.</para>
+    /// </summary>
+    [Fact]
+    public void AiAssetPicker_OffersTheKindTheFieldAsksFor_NotWhicheverWasRegisteredFirst()
+    {
+        var catalog = new FakeCatalog(
+            new CatalogAsset { Name = "PatrolTree",  Kind = Hrot.Editor.AiShared.AssetKind.BTree },
+            new CatalogAsset { Name = "ChaseTarget", Kind = Hrot.Editor.AiShared.AssetKind.Blueprint });
+
+        ItemsFor(catalog, Hrot.Editor.AiShared.AssetKind.BTree)
+            .Should().Equal("PatrolTree");
+
+        // ⚠ BeEquivalentTo, not Equal(params) — the params overload swallows the reason string as a
+        //   second expected item, which is how the first draft of this rail failed on a CORRECT
+        //   production result.
+        ItemsFor(catalog, Hrot.Editor.AiShared.AssetKind.Blueprint)
+            .Should().BeEquivalentTo(new[] { "ChaseTarget" },
+                "the blueprint field must not be offered the BTree list");
+    }
+
+    /// <summary>⚠ No catalogue ⇒ no asset-picker drawer at all, so an empty dropdown can never be
+    /// mistaken for "there are no assets of this kind". ⭐ The pre-existing contract, pinned because
+    /// <c>CE-396</c> rewrote the registration around it.</summary>
+    [Fact]
+    public void WithNoCatalogue_TheAssetPickerIsNotRegisteredAtAll()
+    {
+        var types   = HsmPickerDrawerFactory.BuildCatalogue(MakeAsset());
+
+        types.DrawerFor(NodeWithAttribute(
+            new Hrot.Editor.AiShared.Inspector.AiAssetPickerAttribute(
+                Hrot.Editor.AiShared.AssetKind.Blueprint)))
+            .Should().BeNull();
     }
 }

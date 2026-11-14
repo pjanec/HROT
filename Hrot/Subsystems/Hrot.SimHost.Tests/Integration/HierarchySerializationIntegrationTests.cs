@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
@@ -34,7 +35,9 @@ public sealed class HierarchySerializationIntegrationTests : IDisposable
     private static void RegisterAllComponents(EntityRepository repo)
     {
         repo.RegisterComponent<NetworkIdentity>();
+        if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.EntityGuid>()) repo.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();   // S8: references are GUID-keyed
         repo.RegisterComponent<UnitRoster>();
+        repo.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
         repo.RegisterComponent<UnitSubordinate>();
         repo.RegisterComponent<PassengerBuffer>();
         repo.RegisterComponent<IsEmbarkedTag>();
@@ -71,12 +74,14 @@ public sealed class HierarchySerializationIntegrationTests : IDisposable
     {
         // -- Arrange: build source repo with commander + subordinate --
 
-        const long commanderNetId = 42L;
+        const int commanderNetId = 42;
 
         var commander = _repo1.CreateEntity();
+        _repo1.SetComponent(commander, new Fdp.Toolkit.Scenario.EntityGuid(System.Guid.NewGuid()));
         _repo1.SetComponent(commander, new NetworkIdentity { Value = commanderNetId });
 
         var subordinate = _repo1.CreateEntity();
+        _repo1.SetComponent(subordinate, new Fdp.Toolkit.Scenario.EntityGuid(System.Guid.NewGuid()));
         _repo1.SetComponent(subordinate, new UnitSubordinate
         {
             Commander   = commander,
@@ -96,19 +101,6 @@ public sealed class HierarchySerializationIntegrationTests : IDisposable
 
         // -- Assert (post-deserialize): subordinate2 carries InitialUnitSubordinateIntent --
 
-        // Find commander2 in repo2 by its NetworkIdentity value.
-        Entity commander2 = Entity.Null;
-        foreach (var entity in _repo2.Query().With<NetworkIdentity>().Build())
-        {
-            if (_repo2.GetComponent<NetworkIdentity>(entity).Value == commanderNetId)
-            {
-                commander2 = entity;
-                break;
-            }
-        }
-
-        Assert.False(commander2.IsNull, "Commander entity not found in repo2 after deserialization.");
-
         // Find subordinate2 -- it should have InitialUnitSubordinateIntent but no UnitSubordinate yet.
         Entity subordinate2 = Entity.Null;
         foreach (var entity in _repo2.Query().Build())
@@ -123,8 +115,15 @@ public sealed class HierarchySerializationIntegrationTests : IDisposable
         Assert.False(subordinate2.IsNull, "Subordinate entity with InitialUnitSubordinateIntent not found after deserialization.");
 
         var intent = ((ISimulationView)_repo2).GetManagedComponentRO<InitialUnitSubordinateIntent>(subordinate2);
-        Assert.Equal(commanderNetId, intent.CommanderNetworkId);
+        Assert.Equal(Fdp.Core.RefForm.Exact, intent.CommanderNetworkId.Spec.Form);   // S8: a GUID link, resolved by the extractor
         Assert.Equal(TacticalDesignation.Wingman, intent.Designation);
+
+        // S8: the extractor resolves the GUID link into .Ref; do the same here, then find the commander by that GUID.
+        Entity commander2 = Entity.Null;
+        foreach (var entity in _repo2.Query().With<Fdp.Toolkit.Scenario.EntityGuid>().Build())
+            if (_repo2.GetComponent<Fdp.Toolkit.Scenario.EntityGuid>(entity).Value == intent.CommanderNetworkId.Spec.Exact) { commander2 = entity; break; }
+        Assert.False(commander2.IsNull, "Commander entity not found in repo2 by the intent's GUID.");
+        intent.CommanderNetworkId = intent.CommanderNetworkId.WithRef(new Fdp.Toolkit.Replication.EntityRef(commanderNetId));
 
         // -- Act: register commander2 in entity map and run genesis system --
 

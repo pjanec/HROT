@@ -28,7 +28,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
     <ProjectReference Include="..\..\Network\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
-    <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
+    <ProjectReference Include="..\..\Editor\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
+    <PackageReference Include="CycloneDDS.NET" Version="$(CycloneDdsNetVersion)" />
   </ItemGroup>
 
 </Project>

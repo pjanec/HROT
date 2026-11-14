@@ -1,10 +1,11 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Contracts;
 using Hrot.MuscleCharacter.Animation.Events;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.MuscleCharacter.Animation.Systems
 {
@@ -14,6 +15,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     /// (ANC-P7-09, DD-1 §11, §17)
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class NotifyEventEmitterSystem : IEcsModuleSystem
     {
         private readonly IAnimationBackend _backend;
@@ -25,6 +27,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(NotifyEventEmitterSystem)} requires direct EntityRepository access.");

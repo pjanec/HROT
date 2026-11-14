@@ -9,8 +9,8 @@
   },
   "AssetId": "00000000-aaaa-0001-0000-000000000002",
   "Name": "HealthThresholdReaction",
-  "Dispatch": 2,
-  "TierHint": 0,
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
   "Primitive": null,
   "Parameters": [],
   "WorkingState": [],
@@ -22,7 +22,7 @@
     {
       "Id": "b2000001-0001-0001-0001-000000000001",
       "Name": "Tick",
-      "Kind": 1,
+      "Kind": "Event",
       "Inputs": [],
       "Outputs": [],
       "Nodes": [
@@ -36,12 +36,12 @@
         {
           "kind": "When",
           "Id": "c2000001-0002-0002-0002-000000000002",
-          "Mode": 2,
-          "Edges": 1,
+          "Mode": "ConditionMet",
+          "Edges": "RisingEdge",
           "ConditionMet": {
             "Condition": {
               "$type": "Compound",
-              "Operator": 0,
+              "Operator": "And",
               "Conditions": [
                 {
                   "$type": "Numeric",

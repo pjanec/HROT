@@ -43,7 +43,7 @@ dotnet test "Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.c
 dotnet test "Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests/Hrot.BTree.Editor.Tests.csproj" -c Debug
 
 # Build everything to catch compilation errors
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4
 ```
 
 ### Report Submission
@@ -244,7 +244,7 @@ The text parsing strategy:
 
 Build the entire solution at the end to catch any integration issues:
 ```powershell
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4
 ```
 
 ---
@@ -292,7 +292,7 @@ This batch is DONE when:
 - [ ] TASK-C-02: `BTreeComparisonSanitizer` produces correct output for the §3.3 examples; all `BTreeComparisonSanitizerTests` pass; sanitizer registered in BTree DI
 - [ ] TASK-C-03: ≥3 fixture files created; all `BTreeSanitizationDeterminismTests` pass (10-run loop, reorder test)
 - [ ] TASK-C-04: All `BTreeSelfComparisonTests` pass
-- [ ] `dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4` succeeds with 0 errors
+- [ ] `dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4` succeeds with 0 errors
 - [ ] `dotnet test "Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj"` passes
 - [ ] `dotnet test "Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests/Hrot.BTree.Editor.Tests.csproj"` passes
 - [ ] Report submitted to `.dev\visual-asset-comparison\reports\BATCH-01-REPORT.md`

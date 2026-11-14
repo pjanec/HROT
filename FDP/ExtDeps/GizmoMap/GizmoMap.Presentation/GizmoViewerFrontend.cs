@@ -35,7 +35,7 @@ namespace GizmoMap.Presentation
             var renderer = new DebugPrimitiveRenderer2D(imGuiAdapter: propertyAdapter);
             var layer = new DebugGizmoLayer(renderer); // buffer data passed per-call
 
-            rlImGui.Setup(true);
+            Fdp.Presentation.Raylib.ImGuiRenderer.Setup(true);   // ⭐ CE-1495 — the shared renderer (VtxOffset)
 
             while (!Raylib.WindowShouldClose())
             {
@@ -67,8 +67,12 @@ namespace GizmoMap.Presentation
                 layer.DrawContextMenu(onMenuAction);
                 propertyAdapter.DrawScheduled((networkId, gizmoTypeId, json) =>
                     onInteraction(new GizmoPickToken { AnchorId = networkId, GizmoTypeId = gizmoTypeId },
-                        GizmoInteractionEventKind.StructUpdate, Vector3.Zero, 0, 0, json));
-                rlImGui.End();
+                        GizmoInteractionEventKind.StructUpdate, Vector3.Zero, 0, 0, json),
+                    // ⭐ CE-1066 — the panel's [X], sent as its own kind
+                    (networkId, gizmoTypeId) =>
+                        onInteraction(new GizmoPickToken { AnchorId = networkId, GizmoTypeId = gizmoTypeId },
+                            GizmoInteractionEventKind.InspectorClosed, Vector3.Zero, 0, 0, null));
+                Fdp.Presentation.Raylib.ImGuiRenderer.End();
 
                 Raylib.EndDrawing();
             }

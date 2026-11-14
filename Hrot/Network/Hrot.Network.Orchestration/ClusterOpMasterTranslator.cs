@@ -1,3 +1,4 @@
+using Hrot.Common.Orchestration;
 using System;
 using System.Text.Json;
 using CycloneDDS.Runtime;
@@ -9,6 +10,7 @@ using Hrot.NED.Messages;
 using NedClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using NedClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using FdpClusterState = Fdp.Toolkit.Orchestration.ClusterState;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Network.Orchestration;
 
@@ -21,10 +23,39 @@ namespace Hrot.Network.Orchestration;
 /// </summary>
 public sealed class ClusterOpMasterTranslator
 {
+    /// <summary>⭐ CE-3341 — the ONE encoding of the master's cluster-state broadcast onto the wire (the twin of <c>ClusterFactsIngress.StateOf</c>): a field added
+    /// to the broadcast is added here once, and a round-trip test can pin both halves.</summary>
+    internal static ClusterStateTopic StateTopicOf(in ClusterStateTransitionedEvent ev) => new()
+    {
+        CurrentState     = (NedClusterState)(int)ev.NewStateId,
+        ExerciseId       = ev.ExerciseId,
+        SessionId        = ev.SessionId,          // ⭐ C2
+        TransactionEpoch = ev.TransactionEpoch,   // ⭐ C4 — telemetry
+        ReplayAxis       = (int)ev.ReplayAxis,    // ⭐ CE-3329 R-3058
+        RunNotRecorded   = ev.RunNotRecorded ? 1 : 0,   // ⭐ CE-4090 D14
+        RecordLiveRunsOff = ev.RecordLiveRunsOff ? 1 : 0,
+        ArmedMode        = (int)ev.ArmedMode,   // ⭐ CE-3341 R-3068
+        LastLoadMode     = (int)ev.LastLoadMode,   // ⭐ R-1043
+        WaitingFor       = ev.WaitingFor ?? string.Empty,   // ⭐ CE-3344 R-3069
+        ErrorReason      = ev.ErrorReason ?? string.Empty,   // ⭐ CE-3345 R-3073
+        ClusterPlayReady = ev.ClusterPlayReady,              // ⭐ CE-3345 R-3070
+        LoadProgress     = ev.LoadProgress ?? string.Empty,
+        AskToKeepRecordings = ev.AskToKeepRecordings ? 1 : 0,   // ⭐ AQ108 D15 (CE-4100 ①)
+        StartLiveImmediately = ev.StartLiveImmediately ? 1 : 0, // ⭐ CE-3415 (AQ108 §0 D31)
+        AutosaveMinutes = ev.AutosaveMinutes,                   // ⭐ CE-4099 phase 2
+        LastLoadRequestId = ev.LastLoadRequestId,                  // ⭐ CE-3354 ⑦
+        LastLoadScenario = ev.LastLoadScenario ?? string.Empty,
+        FeatureOverrides = FeatureOverrideWires.ToWire(ev.FeatureOverrides),   // ⭐ Node Features F-16
+    };
+
     private readonly DdsReader<ClusterOpRequest>    _requestReader;
     private readonly DdsWriter<ClusterOpStatus>     _statusWriter;
     private readonly DdsWriter<AssetInventoryTopic>? _inventoryWriter;
     private readonly DdsWriter<ClusterStateTopic>?   _clusterStateWriter;
+    private readonly DdsWriter<ReplaySessionTopic>?  _sessionWriter;   // ⭐ CE-3329 rows 32, 45 — the session layer
+    private readonly DdsWriter<GeoReference>?       _geoReferenceWriter;   // ⭐ AQ107 C — the NED wire's frame origin
+    private readonly DdsWriter<StorageJobsTopic>?   _storageJobsWriter;    // ⭐ CE-4330 ③ fact ① — the master's storage job list
+    private readonly DdsWriter<ExerciseNotesTopic>? _notesWriter;          // ⭐ CE-4325 — the exercise's notes
     private readonly FdpEventBus                    _bus;
     private readonly JsonSerializerOptions          _jsonOptions;
 
@@ -35,7 +66,11 @@ public sealed class ClusterOpMasterTranslator
         FdpEventBus                    bus,
         JsonSerializerOptions?         jsonOptions = null,
         DdsWriter<AssetInventoryTopic>? inventoryWriter = null,
-        DdsWriter<ClusterStateTopic>?   clusterStateWriter = null)
+        DdsWriter<ClusterStateTopic>?   clusterStateWriter = null,
+        DdsWriter<ReplaySessionTopic>?  sessionWriter = null,
+        DdsWriter<GeoReference>?        geoReferenceWriter = null,
+        DdsWriter<StorageJobsTopic>?    storageJobsWriter = null,
+        DdsWriter<ExerciseNotesTopic>?  notesWriter = null)
     {
         _requestReader     = requestReader     ?? throw new ArgumentNullException(nameof(requestReader));
         _statusWriter      = statusWriter      ?? throw new ArgumentNullException(nameof(statusWriter));
@@ -43,6 +78,10 @@ public sealed class ClusterOpMasterTranslator
         _jsonOptions       = jsonOptions       ?? OrchestrationJsonOptions.Default;
         _inventoryWriter   = inventoryWriter;
         _clusterStateWriter = clusterStateWriter;
+        _sessionWriter      = sessionWriter;
+        _geoReferenceWriter = geoReferenceWriter;
+        _storageJobsWriter  = storageJobsWriter;
+        _notesWriter        = notesWriter;
     }
 
     /// <summary>Processes one frame: ingests DDS requests and publishes completed statuses.</summary>
@@ -85,13 +124,40 @@ public sealed class ClusterOpMasterTranslator
         {
             foreach (var ev in _bus.ReadManaged<ClusterStateTransitionedEvent>())
             {
-                _clusterStateWriter.Write(new ClusterStateTopic
-                {
-                    CurrentState = (NedClusterState)(int)ev.NewStateId,
-                    ExerciseId   = ev.ExerciseId,
-                });
+                _clusterStateWriter.Write(StateTopicOf(ev));
             }
         }
+
+        // ── ⭐ CE-3329 — Egress: Bus ReplaySessionPublishedEvent → DDS ReplaySessionTopic (TransientLocal: a late joiner gets the newest)
+        if (_sessionWriter != null)
+            foreach (var ev in _bus.ReadManaged<ReplaySessionPublishedEvent>())
+                if (ev.Session != null) _sessionWriter.Write(ReplaySessionWire.ToTopic(ev.Session));
+
+        // ── ⭐ CE-4330 ③ fact ① — Egress: Bus StorageJobsPublishedEvent → DDS StorageJobsTopic (TransientLocal: a late joiner gets the newest list)
+        if (_storageJobsWriter != null)
+            foreach (var ev in _bus.ReadManaged<StorageJobsPublishedEvent>())
+                _storageJobsWriter.Write(StorageJobsWire.ToTopic(ev.Jobs));
+
+        // ── ⭐ CE-4325 — Egress: Bus ExerciseNotesPublishedEvent → DDS ExerciseNotesTopic (TransientLocal: a late joiner gets the newest list)
+        if (_notesWriter != null)
+            foreach (var ev in _bus.ReadManaged<ExerciseNotesPublishedEvent>())
+                _notesWriter.Write(ExerciseNotesWire.ToTopic(ev.ExerciseId, ev.Notes));
+
+        // ── ⭐ AQ107 C — Egress: Bus GeoReferencePublishedEvent → DDS GeoReference (retained: a late gateway gets the newest origin)
+        if (_geoReferenceWriter != null)
+            foreach (var ev in _bus.ReadManaged<GeoReferencePublishedEvent>())
+                _geoReferenceWriter.Write(new GeoReference
+                {
+                    OriginLatitudeDeg  = ev.OriginLatitudeDeg,
+                    OriginLongitudeDeg = ev.OriginLongitudeDeg,
+                    OriginAltitudeM    = ev.OriginAltitudeM,
+                    Frame              = ev.Frame == 0 ? NedWire.FrameUtm : ev.Frame,
+                    UtmZoneOverride    = ev.UtmZoneOverride,
+                    UtmSouthOverride   = ev.UtmSouthOverride,
+                    TerrainName        = ev.TerrainName ?? string.Empty,
+                    Generation         = ev.Generation,
+                    ProtocolVersion    = NedWire.ProtocolVersion,
+                });
 
         if (_inventoryWriter != null)
         {
@@ -100,10 +166,10 @@ public sealed class ClusterOpMasterTranslator
                 _inventoryWriter.Write(new AssetInventoryTopic
                 {
                     NodeId                       = 0,
-                    LocalScenariosJson           = System.Text.Json.JsonSerializer.Serialize(ev.LocalScenarios),
-                    LocalExercisesJson           = System.Text.Json.JsonSerializer.Serialize(ev.LocalExercises),
-                    ArchivedExercisesJson        = System.Text.Json.JsonSerializer.Serialize(ev.ArchivedExercises),
-                    UnarchivedLocalExercisesJson = System.Text.Json.JsonSerializer.Serialize(ev.UnarchivedLocalExercises),
+                    LocalScenariosJson           = System.Text.Json.JsonSerializer.Serialize(ev.LocalScenarios, FdpJsonOptionsRegistry.DefaultRelaxed),
+                    LocalExercisesJson           = System.Text.Json.JsonSerializer.Serialize(ev.LocalExercises, FdpJsonOptionsRegistry.DefaultRelaxed),
+                    ArchivedExercisesJson        = System.Text.Json.JsonSerializer.Serialize(ev.ArchivedExercises, FdpJsonOptionsRegistry.DefaultRelaxed),
+                    UnarchivedLocalExercisesJson = System.Text.Json.JsonSerializer.Serialize(ev.UnarchivedLocalExercises, FdpJsonOptionsRegistry.DefaultRelaxed),
                 });
             }
         }
@@ -123,15 +189,7 @@ public sealed class ClusterOpMasterTranslator
                     WriteError(req.RequestId, (int)NedStatusCode.ValidationFailed);
                     break;
                 }
-                _bus.PublishManaged(new TransitionStateIntent
-                {
-                    TransactionId   = req.RequestId,
-                    TargetState     = (FdpClusterState)(int)dto.TargetState.Value,
-                    ScenarioId      = dto.ScenarioId,
-                    ExerciseId      = dto.ExerciseId,
-                    TimeMode        = dto.TimeMode,
-                    TargetWallTicks = 0,
-                });
+                _bus.PublishManaged(dto.ToIntent(req.RequestId));   // ⭐ R-3055 — the ONE decoding (TargetWallTicks included)
                 break;
             }
 
@@ -147,7 +205,7 @@ public sealed class ClusterOpMasterTranslator
                 {
                     TransactionId = req.RequestId,
                     IsStart       = epDto.IsStart,
-                    EpisodeId     = epDto.EpisodeId.Value,
+                    EpisodeId     = (Fdp.Core.EpisodeId)epDto.EpisodeId.Value,
                     ScenarioId    = epDto.ScenarioId,
                 });
                 break;
@@ -155,14 +213,21 @@ public sealed class ClusterOpMasterTranslator
 
             case NedClusterOpType.ReplaySeek:
             {
-                SeekReplayPayloadDto? seekDto = TryDeserialize<SeekReplayPayloadDto>(req.PayloadJson);
-                _bus.PublishManaged(new SeekReplayIntent
-                {
-                    RequestId       = req.RequestId,
-                    TargetWallTicks = seekDto?.TargetWallTicks ?? 0,
-                });
+                _bus.PublishManaged(SeekReplayPayloadDto.Decode(req.RequestId, req.PayloadJson));   // ⭐ CE-3329 — the one decoding
                 break;
             }
+
+            case NedClusterOpType.SetReplayAxis:   // ⭐ CE-3329 R-3058
+                _bus.PublishManaged(SetReplayAxisPayloadDto.Decode(req.RequestId, req.PayloadJson));
+                break;
+
+            case NedClusterOpType.SetRunSettings:   // ⭐ CE-4090 D14
+                _bus.PublishManaged(SetRunSettingsPayloadDto.Decode(req.RequestId, req.PayloadJson));
+                break;
+
+            case NedClusterOpType.SetReplayLoop:   // ⭐ CE-3329 §12n
+                _bus.PublishManaged(SetReplayLoopPayloadDto.Decode(req.RequestId, req.PayloadJson));
+                break;
 
             case NedClusterOpType.CancelOperation:
             {
@@ -175,35 +240,40 @@ public sealed class ClusterOpMasterTranslator
 
             case NedClusterOpType.ExportArchive:
             {
-                ArchivePayloadDto? archDto = TryDeserialize<ArchivePayloadDto>(req.PayloadJson);
-                _bus.PublishManaged(new ExecuteStorageOpIntent
-                {
-                    RequestId  = req.RequestId,
-                    Operation  = StorageOpType.Export,
-                    ExerciseId = archDto?.ExerciseId ?? Guid.Empty,
-                });
+                _bus.PublishManaged(ArchivePayloadJson.Decode(req.RequestId, StorageOpType.Export, req.PayloadJson));   // ⭐ CE-4330 — the one decoding
+                break;
+            }
+
+            case NedClusterOpType.DeleteExercise:   // ⭐ CE-4090 D15
+            {
+                _bus.PublishManaged(ArchivePayloadJson.Decode(req.RequestId, StorageOpType.Delete, req.PayloadJson));   // ⭐ CE-4330 — the one decoding
                 break;
             }
 
             case NedClusterOpType.ImportArchive:
             {
-                ArchivePayloadDto? impDto = TryDeserialize<ArchivePayloadDto>(req.PayloadJson);
-                _bus.PublishManaged(new ExecuteStorageOpIntent
-                {
-                    RequestId  = req.RequestId,
-                    Operation  = StorageOpType.Import,
-                    ExerciseId = impDto?.ExerciseId ?? Guid.Empty,
-                });
+                _bus.PublishManaged(ArchivePayloadJson.Decode(req.RequestId, StorageOpType.Import, req.PayloadJson));   // ⭐ CE-4330 — the one decoding
                 break;
             }
 
+            // CE-278: NedClusterOpType.SaveScenario (=2) retired — no master-side case. A stray legacy
+            // op=2 on the wire falls through to the default and is ignored/rejected rather than fanned out.
+
+            // ⭐⭐ CE-277(c0, HTTP): a remote node's /scenario/save reached the master as this request. Reconstruct
+            //    the intent WITH the relative name (carried as {"ScenarioName": ...} by the egress translator),
+            //    so ClusterMaster.ProcessStorageOpIntent fans the JSON save out to every node. ⛔ Without the
+            //    name the save would target null and produce nothing.
             case NedClusterOpType.SaveScenario:
             {
+                var (scenarioName, onlyGuids, headerJson) = SaveScenarioRequestJson.Decode(req.PayloadJson);   // ⭐ CE-4210 MA-9 — the one decoding
                 _bus.PublishManaged(new ExecuteStorageOpIntent
                 {
-                    RequestId  = req.RequestId,
-                    Operation  = StorageOpType.SaveScenario,
-                    ExerciseId = Guid.Empty,
+                    RequestId    = req.RequestId,
+                    Operation    = StorageOpType.SaveScenario,
+                    ExerciseId   = Fdp.Core.ExerciseId.Empty,
+                    ScenarioName = scenarioName,
+                    OnlyGuids    = onlyGuids,
+                    HeaderJson   = headerJson,
                 });
                 break;
             }
@@ -213,17 +283,64 @@ public sealed class ClusterOpMasterTranslator
                 _bus.PublishManaged(new TakeCheckpointIntent
                 {
                     RequestId = req.RequestId,
+                    Label     = ClusterMaster_LabelOf(req.PayloadJson),   // ⭐ CE-3299 B3
+                    Note      = TakeCheckpointPayloadDto.NoteOf(req.PayloadJson),   // ⭐ CE-1467 (e)
                 });
                 break;
             }
 
+            case NedClusterOpType.CollectCheckpoint:   // ⭐ CE-3299 B3 (R-3044 "collect")
+            {
+                _bus.PublishManaged(new CollectCheckpointIntent
+                {
+                    RequestId = req.RequestId,
+                    Label     = ClusterMaster_LabelOf(req.PayloadJson),
+                });
+                break;
+            }
+
+            case NedClusterOpType.RestoreCheckpoint:   // ⭐ CE-3299 B4
+            {
+                _bus.PublishManaged(new RestoreCheckpointIntent
+                {
+                    RequestId = req.RequestId,
+                    Label     = ClusterMaster_LabelOf(req.PayloadJson),
+                });
+                break;
+            }
+
+            case NedClusterOpType.CreateBlankScenario:   // ⭐ New scenario N2
+            {
+                var (blankName, _, blankHeader) = SaveScenarioRequestJson.Decode(req.PayloadJson);
+                _bus.PublishManaged(new ExecuteStorageOpIntent
+                {
+                    RequestId    = req.RequestId,
+                    Operation    = StorageOpType.CreateBlankScenario,
+                    ExerciseId   = Fdp.Core.ExerciseId.Empty,
+                    ScenarioName = blankName,
+                    HeaderJson   = blankHeader,
+                });
+                break;
+            }
+
+            case NedClusterOpType.EditExerciseNote:   // ⭐ CE-4325 — the ONE note CRUD message
+                _bus.PublishManaged(NoteEditPayloadDto.Decode(req.RequestId, req.PayloadJson));
+                break;
+
+            case NedClusterOpType.CheckUnsavedChanges:   // ⭐ CE-4093 D20
+                _bus.PublishManaged(new CheckUnsavedIntent { RequestId = req.RequestId });
+                break;
+
             case NedClusterOpType.LoadZone:
             {
-                ArchivePayloadDto? zoneDto = TryDeserialize<ArchivePayloadDto>(req.PayloadJson);
+                // ⭐ D2 — a purpose-built DTO. This arm used to deserialize ArchivePayloadDto and
+                //   stringify its ExerciseId into ZoneId, which named the wrong domain and silently
+                //   constrained zone ids to GUID shape.
+                ZonePayloadDto? zoneDto = TryDeserialize<ZonePayloadDto>(req.PayloadJson);
                 _bus.PublishManaged(new LoadZoneIntent
                 {
                     RequestId = req.RequestId,
-                    ZoneId    = zoneDto?.ExerciseId.ToString(),
+                    ZoneId    = zoneDto?.ZoneId,
                 });
                 break;
             }
@@ -254,6 +371,35 @@ public sealed class ClusterOpMasterTranslator
                 break;
             }
 
+            // ⭐ CE-3022 — the build op arrives from a remote panel (E4); without this arm it fell to the default.
+            case NedClusterOpType.BuildTerrainAsset:
+                _bus.PublishManaged(new BuildTerrainAssetIntent
+                {
+                    RequestId = req.RequestId,
+                    Kinds     = TryDeserialize<TerrainAssetBuildPayloadDto>(req.PayloadJson)?.Kinds,
+                });
+                break;
+
+            // ⭐ CE-3021 — publish / refresh (docs/DESIGN_Asset_Management.md §10 D7).
+            case NedClusterOpType.PublishAssets:
+            case NedClusterOpType.RefreshAssets:
+            {
+                AssetOpPayloadDto? dto = TryDeserialize<AssetOpPayloadDto>(req.PayloadJson);
+                if (dto == null || string.IsNullOrWhiteSpace(dto.Kind))
+                {
+                    WriteError(req.RequestId, (int)NedStatusCode.ValidationFailed);
+                    break;
+                }
+                _bus.PublishManaged(new AssetOpIntent
+                {
+                    RequestId = req.RequestId,
+                    Refresh   = req.OperationType == NedClusterOpType.RefreshAssets,
+                    Kind      = dto.Kind,
+                    NodeId    = (Fdp.Core.NodeId)(dto.NodeId),
+                });
+                break;
+            }
+
             case NedClusterOpType.DumpDiagnostics:
             {
                 _bus.PublishManaged(new ExecuteDiagnosticDumpIntent
@@ -267,6 +413,23 @@ public sealed class ClusterOpMasterTranslator
             default:
                 break;
         }
+    }
+
+    // ⭐ CE-3299 B3 — a checkpoint request's label: a JSON object's "label", else the payload text (the same rule as the master's).
+    private static string? ClusterMaster_LabelOf(string? payloadJson)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson)) return null;
+        var text = payloadJson.Trim();
+        if (!text.StartsWith("{")) return text.Trim('"');
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(text);
+            foreach (var p in doc.RootElement.EnumerateObject())
+                if (string.Equals(p.Name, "label", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == System.Text.Json.JsonValueKind.String)
+                    return p.Value.GetString();
+        }
+        catch (System.Text.Json.JsonException) { }
+        return null;
     }
 
     private void WriteError(Guid requestId, int statusCode)

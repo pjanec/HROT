@@ -17,7 +17,7 @@ public sealed class UrbanCombatRegistrationTests
 {
     // ── TKB IDs ───────────────────────────────────────────────────────────────
 
-    private const long TkbCivilianPedestrian = 1001L;
+    // ⛔ CE-3220 part 2 — 1001 (CivilianPedestrian) retired; the civilian family is CivilianTkbCatalog's
     private const long TkbCivilianCar        = 1002L;
     private const long TkbMilitaryApc        = 2001L;
     private const long TkbInfantrySoldier    = 2002L;
@@ -39,7 +39,6 @@ public sealed class UrbanCombatRegistrationTests
     /// <see cref="UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates"/> is called.
     /// </summary>
     [Theory]
-    [InlineData(TkbCivilianPedestrian)]
     [InlineData(TkbCivilianCar)]
     [InlineData(TkbMilitaryApc)]
     [InlineData(TkbInfantrySoldier)]
@@ -58,7 +57,6 @@ public sealed class UrbanCombatRegistrationTests
     /// Each registered TKB template must have the expected human-readable name.
     /// </summary>
     [Theory]
-    [InlineData(TkbCivilianPedestrian, "CivilianPedestrian")]
     [InlineData(TkbCivilianCar,        "CivilianCar")]
     [InlineData(TkbMilitaryApc,        "MilitaryAPC")]
     [InlineData(TkbInfantrySoldier,    "InfantrySoldier")]

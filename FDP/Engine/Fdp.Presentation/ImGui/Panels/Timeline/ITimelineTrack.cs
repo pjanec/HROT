@@ -1,0 +1,87 @@
+using System;
+using System.Collections.Generic;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
+
+namespace Fdp.Presentation.Panels.Timeline;
+
+/// <summary>What a track item is: a point in time (a camera key) or a stretch of it (a time segment).</summary>
+public enum TimelineTrackItemKind : byte { Key, Segment }
+
+/// <summary>
+/// ⭐ <c>CE-1364</c> T2 (docs/DESIGN_Director_Timeline_Editor.md §10) — one editable item of a track. Times are SIM seconds (§2c row 10): the panel
+/// places them on the active axis through the session's time map, the track never sees a tick.
+/// </summary>
+/// <param name="To">The end of a segment, else null (a key).</param>
+/// <param name="Colour">⭐ <c>CE-4059</c> — the item's own colour (ABGR; null = the row's): the director draws a key scoped to one segment apart.</param>
+/// <param name="Style">⭐ <c>CE-4167</c> X2 (docs/DESIGN_Rules_View_UI.md RV-1) — how the item is DRAWN; <see cref="TimelineTrackItemStyle.Solid"/> (the default) is today's look, so a track that never sets it is unchanged.</param>
+public sealed record TimelineTrackItem(string Id, double From, double? To, string Label, TimelineTrackItemKind Kind, bool Selected, uint? Colour = null,
+    TimelineTrackItemStyle Style = TimelineTrackItemStyle.Solid);
+
+/// <summary>
+/// ⭐ <c>CE-4167</c> X2 — an item's look. <b>Solid</b> today's. <b>Expected</b> a dashed outline, no fill (a thing that is planned, not yet real — a segment, or a hollow diamond for a key).
+/// <b>Hatched</b> diagonal hatch lines inside the segment (a wait: delay, cooldown). <b>Pinned</b> a diamond at the item's start with a vertical tick (bound to a clock instant; on a segment
+/// the segment is drawn solid and the diamond marks its start).
+/// </summary>
+public enum TimelineTrackItemStyle : byte { Solid, Expected, Hatched, Pinned }
+
+/// <summary>
+/// ⭐ <c>CE-4167</c> X3 — a track row header: the label column becomes a TREE row. <paramref name="Depth"/> indents it; <paramref name="Collapsible"/> adds an expand arrow (a collapsed node hides the
+/// FOLLOWING tracks whose depth is greater — tracks arrive in tree order); <paramref name="Status"/> is right-aligned in <paramref name="StatusColour"/> (ABGR). ⭐ <paramref name="TrailingGlyph"/> is a small button right AFTER the text (a settings gear): a click runs <paramref name="TrailingClick"/> and does not select the row — generic, the same shape as the leading <paramref name="Icon"/>.
+/// </summary>
+public sealed record TrackHeader(int Depth, string Text, string? Status = null, uint? StatusColour = null, string? Icon = null, bool Collapsible = false, string? TrailingGlyph = null, Action? TrailingClick = null, uint? TextColour = null);
+
+/// <summary>⭐ <c>CE-1364</c> — which part of an item a gesture grabbed: the body (moves the whole item) or, on a segment, one of its two edges.</summary>
+public enum TrackItemPart : byte { Body, StartEdge, EndEdge }
+
+/// <summary>
+/// ⭐ <c>CE-1364</c> T2 (§10, T-L1) — the seam between the timeline panel and an EDITABLE row (the director's Time / Camera tracks). ⛔ Not a lane
+/// provider: lanes are READ from an index, a track's items are EDITED — two lifetimes. The panel draws the rows, hit-tests, selects and drags;
+/// it knows nothing about takes. An edit is the track's business (undo, saving): the panel only says WHAT moved WHERE.
+/// </summary>
+public interface ITimelineTrack
+{
+    string Id { get; }
+    string Label { get; }
+
+    /// <summary>⭐ <c>CE-4167</c> X3 — a tree row header, or null (the default): the label is drawn flat, as before.</summary>
+    TrackHeader? Header => null;
+
+    /// <summary>⭐ <c>CE-4221</c> X1 — arrows from MY items to another track's items, drawn after all tracks (an elbow with an arrowhead); a link whose either end is not drawn (scrolled away, collapsed) is not drawn. Default: none.</summary>
+    IReadOnlyList<TrackLink> Links => Array.Empty<TrackLink>();
+
+    /// <summary>⭐ <c>CE-4221</c> X4 — does the item carry a CONNECT handle (a small grip at its right end)? Default: no — a track that does not opt in never shows one and is never the source of a drag.</summary>
+    bool ConnectsFrom(string itemId) => false;
+
+    /// <summary>⭐ <c>CE-4221</c> X4 — may a drag from <paramref name="fromItemId"/> end on <paramref name="toTrack"/>'s row? The panel highlights the rows that answer yes while dragging.</summary>
+    bool CanConnect(string fromItemId, ITimelineTrack toTrack) => false;
+
+    /// <summary>⭐ <c>CE-4221</c> X4 — the drag was dropped on <paramref name="toTrack"/> (only called when <see cref="CanConnect"/> said yes). The track does the writing; the panel only says WHAT was dropped WHERE.</summary>
+    void Connect(string fromItemId, ITimelineTrack toTrack) { }
+
+    /// <summary>The items now (SIM seconds); read every frame.</summary>
+    IReadOnlyList<TimelineTrackItem> Items { get; }
+
+    /// <summary>A left click on an item. ⛔ Never moves anything and never seeks.</summary>
+    void Select(string itemId);
+
+    /// <summary>⭐ <c>CE-4216</c> (rules view R2, RV-5) — a left click on the track's HEADER (the label column): the row is picked. Default: nothing (the director's tracks have no row selection).</summary>
+    void SelectRow() { }
+
+    /// <summary>Moves <paramref name="itemId"/> to <paramref name="toSimSeconds"/> (a segment's start; it keeps its length). While dragging the panel calls
+    /// this every frame with <paramref name="commit"/> false (a preview — not an undo step); on release ONCE with true.</summary>
+    void Move(string itemId, double toSimSeconds, bool commit);
+
+    /// <summary>⭐ <c>CE-1364</c> — the same drag for a grabbed <paramref name="part"/>: <see cref="TrackItemPart.StartEdge"/> / <see cref="TrackItemPart.EndEdge"/> move
+    /// that edge of a segment to <paramref name="toSimSeconds"/> (the other stays). A track with no edges keeps the default: a plain <see cref="Move(string, double, bool)"/>.</summary>
+    void Move(string itemId, double toSimSeconds, bool commit, TrackItemPart part) => Move(itemId, toSimSeconds, commit);
+
+    /// <summary>A key (<c>K</c> / <c>J</c> / <c>L</c>) pressed while the panel is focused and this track holds the selected item; the playhead is at
+    /// <paramref name="atSimSeconds"/>. True when the track took it.</summary>
+    bool Key(char key, double atSimSeconds);
+
+    /// <summary>The track's right-click items for <paramref name="itemId"/> (null = empty track space).</summary>
+    IEnumerable<TimelineMenuItem> MenuItems(string? itemId);
+
+    /// <summary>⭐ <c>CE-1364</c> — the same menu knowing WHERE (sim seconds) the right click landed, so empty space can offer "add one here". Default: the plain menu.</summary>
+    IEnumerable<TimelineMenuItem> MenuItems(string? itemId, double atSimSeconds) => MenuItems(itemId);
+}

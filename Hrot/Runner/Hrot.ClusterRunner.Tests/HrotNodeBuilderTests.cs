@@ -1,6 +1,10 @@
 using System;
+using System.Reflection;
+using Fdp.ModuleHost.Time;
+using Fdp.Toolkit.Time.Controllers;
 using Hrot.Common.Infrastructure;
 using Xunit;
+using Fdp.Core;
 
 namespace Hrot.ClusterRunner.Tests;
 
@@ -15,7 +19,7 @@ public sealed class HrotNodeBuilderTests
     private static HrotNodeConfig HeadlessConfig(int nodeId = 99) => new()
     {
         DomainId      = 99,
-        NodeId        = nodeId,
+        NodeId        = (Fdp.Core.NodeId)(nodeId),
         SubsystemName = "TestNode",
         LocalTempRoot = System.IO.Path.GetTempPath(),
         Headless      = true,
@@ -28,7 +32,7 @@ public sealed class HrotNodeBuilderTests
     {
         var config = HeadlessConfig();
         var ctx = new HrotNodeBuilder(config)
-            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround)
+            .WithRole("Test", Fdp.Core.NodeRole.MuscleGround)
             .Build();
 
         Assert.NotNull(ctx);
@@ -48,7 +52,7 @@ public sealed class HrotNodeBuilderTests
     {
         var config = HeadlessConfig();
         var ctx = new HrotNodeBuilder(config)
-            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround)
+            .WithRole("Test", Fdp.Core.NodeRole.MuscleGround)
             .Build();
 
         // Register base modules then call Initialize() to prove the time controller
@@ -67,7 +71,7 @@ public sealed class HrotNodeBuilderTests
     {
         var config  = HeadlessConfig();
         var builder = new HrotNodeBuilder(config)
-            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround);
+            .WithRole("Test", Fdp.Core.NodeRole.MuscleGround);
 
         builder.Build();   // first call — succeeds
 
@@ -77,4 +81,690 @@ public sealed class HrotNodeBuilderTests
     // ── SC4 — Code-review: BuildOrchestration NOT called ─────────────────────
     // This is a static structural assertion — the source file must not contain
     // "BuildOrchestration". Verified at implementation time, not runtime.
+
+    // ── T3b — the node bus must carry the orchestration intent registrations ──
+
+    /// <summary>
+    /// `T3b`. Every non-orchestrator node publishes its time-control intents onto
+    /// <c>HrotNodeContext.EventBus</c> — <c>ClusterTimeTransportAdapter</c> issues
+    /// <c>PauseTimeIntent</c>, <c>ResumeTimeIntent</c>, <c>StepTimeIntent</c>,
+    /// <c>SetTimeScaleIntent</c> and <c>TransitionStateIntent</c> through it.
+    ///
+    /// <para><c>Hrot.ClusterRunner/Program.cs:52</c> sets
+    /// <c>FdpConfig.EnforceExplicitEventRegistration = true</c> in production, and under that flag
+    /// <c>PublishManaged&lt;T&gt;</c> THROWS for a type whose stream was never registered. So if the
+    /// builder's bus has not had <c>OrchestrationEventRegistry.RegisterAll</c> called on it, pressing
+    /// pause on a CGF/SimHost/IG toolbar throws rather than pausing.</para>
+    ///
+    /// <para>The design guessed this would "make a toolbar silently do nothing". It is worse and
+    /// louder than that: it throws. Either way the registration is the thing to prove.</para>
+    /// </summary>
+    [Fact]
+    public void Build_NodeEventBus_HasTheTimeControlIntentsRegistered()
+    {
+        var ctx = new HrotNodeBuilder(HeadlessConfig())
+            .WithRole("Test", Fdp.Core.NodeRole.MuscleGround)
+            .Build();
+
+        bool previous = Fdp.Core.FdpConfig.EnforceExplicitEventRegistration;
+        Fdp.Core.FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+            // Exactly what ClusterTimeTransportAdapter does when the operator presses pause/step.
+            var ex = Record.Exception(() =>
+            {
+                ctx.EventBus.PublishManaged(new Fdp.Toolkit.Time.Domain.PauseTimeIntent());
+                ctx.EventBus.PublishManaged(new Fdp.Toolkit.Time.Domain.ResumeTimeIntent());
+                ctx.EventBus.PublishManaged(new Fdp.Toolkit.Time.Domain.StepTimeIntent { DeltaSeconds = 1f / 60f });
+                ctx.EventBus.PublishManaged(new Fdp.Toolkit.Time.Domain.SetTimeScaleIntent { TimeScale = 1f });
+            });
+
+            Assert.True(ex is null,
+                "the node's EventBus must have OrchestrationEventRegistry.RegisterAll applied — " +
+                "ClusterTimeTransportAdapter publishes these onto it, and production runs strict " +
+                $"registration. Got: {ex?.GetType().Name}: {ex?.Message}");
+        }
+        finally
+        {
+            Fdp.Core.FdpConfig.EnforceExplicitEventRegistration = previous;
+        }
+    }
+
+    /// <summary>
+    /// And the intents must actually round-trip on that bus — registration alone is not the point,
+    /// the drainer (<c>ClusterOpEgressTranslator</c>, or the master on an all-in-one node) has to
+    /// see them.
+    /// </summary>
+    [Fact]
+    public void Build_NodeEventBus_RoundTripsATimeIntent()
+    {
+        var ctx = new HrotNodeBuilder(HeadlessConfig())
+            .WithRole("Test", Fdp.Core.NodeRole.MuscleGround)
+            .Build();
+
+        ctx.EventBus.PublishManaged(new Fdp.Toolkit.Time.Domain.StepTimeIntent { DeltaSeconds = 0.5f });
+        ctx.EventBus.SwapBuffers();
+
+        var read = ctx.EventBus.ReadManaged<Fdp.Toolkit.Time.Domain.StepTimeIntent>();
+        Assert.Single(read);
+        Assert.Equal(0.5f, read[0].DeltaSeconds, 3);
+    }
+
+    // ── N₀ / CE-201 — the TIME ROLE is an input, and its default is the old behaviour ──────
+    //
+    // ⭐⭐⭐ WHY THIS MATTERS BEYOND THE BUILDER. Build() HARDWIRED TimeRole.Slave, while the editor
+    // is the time MASTER — it drives a MasterSyncController. So the editor could not adopt this
+    // builder without silently becoming a slave to a cluster it is meant to drive, and every
+    // editor-adoption item was blocked on that one line.
+    // 🔒 User, 2026-09-03: "add the time role change to the plan to unblock editor."
+
+    /// <summary>
+    /// ⭐ The DEFAULT is Slave — exactly what every caller got before N₀, so the three hosts that
+    /// already use this builder are unaffected. A default that changed behaviour would be a
+    /// migration disguised as a parameter.
+    /// </summary>
+    [Fact]
+    public void Build_WithoutDeclaringATimeRole_IsStillASlave()
+    {
+        var ctx = new HrotNodeBuilder(HeadlessConfig())
+            .WithRole("Test", Fdp.Core.NodeRole.MuscleGround)
+            .Build();
+
+        Assert.IsType<SlaveSyncController>(TimeControllerOf(ctx));
+    }
+
+    /// <summary>
+    /// ⭐⭐ THE RAIL THE EDITOR NEEDS: a declared Master is honoured, not quietly downgraded.
+    /// ⛔ Without this the unblocking is unverified — a WithTimeRole that was accepted and ignored
+    /// would compile, read as done, and leave the editor a slave.
+    /// </summary>
+    [Fact]
+    public void Build_WithTimeRoleMaster_TheNodeOwnsTheClock()
+    {
+        var ctx = new HrotNodeBuilder(HeadlessConfig())
+            .WithRole("Test", Fdp.Core.NodeRole.MuscleGround)
+            .WithTimeRole(TimeRole.Master)
+            .Build();
+
+        Assert.IsType<MasterSyncController>(TimeControllerOf(ctx));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-203</c> — <b>the context EXPOSES the controller it built, and it is THE SAME OBJECT the
+    /// kernel got.</b>
+    /// </summary>
+    /// <remarks>
+    /// ⛔ <b>Reference equality, not "is not null".</b> A property that returned a second, freshly-built
+    /// controller would satisfy a null check and hand the editor a clock nobody ticks — the silent-default
+    /// shape this programme has measured nine times. ⇒ the rail asserts the identity, which is the only
+    /// thing that makes the editor's adoption safe.
+    /// </remarks>
+    [Fact]
+    public void Build_ExposesTheSameTimeControllerTheKernelReceived()
+    {
+        var ctx = new HrotNodeBuilder(HeadlessConfig())
+            .WithRole("Test", Fdp.Core.NodeRole.MuscleGround)
+            .Build();
+
+        Assert.NotNull(ctx.TimeController);
+        Assert.Same(TimeControllerOf(ctx), ctx.TimeController);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-203</c> — <b>the EDITOR's exact configuration</b>: <c>TimeRole.Standalone</c> yields a
+    /// master, reachable off the context.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <c>Standalone</c> and not <c>Master</c>: 📐 measured, <c>EditorSubsystem</c> passed
+    /// <c>new TimeControllerConfig { Role = TimeRole.Standalone }</c>, and
+    /// <c>TimeControllerFactory</c> routes BOTH roles to <c>MasterSyncController</c>. ⛔ The rail above
+    /// covers <c>Master</c>; without this one the role the editor actually uses is untested, and the
+    /// editor casts the result to the concrete master — an unchecked cast that would throw at boot.
+    /// </remarks>
+    [Fact]
+    public void Build_WithTimeRoleStandalone_ExposesAMasterOnTheContext()
+    {
+        var ctx = new HrotNodeBuilder(HeadlessConfig())
+            .WithRole("Editor", Fdp.Core.NodeRole.None)
+            .WithTimeRole(TimeRole.Standalone)
+            .Build();
+
+        Assert.IsType<MasterSyncController>(ctx.TimeController);
+    }
+
+    /// <summary>The time controller the kernel was actually built with.</summary>
+    /// <remarks>
+    /// ⭐⭐ <b>The role is expressed as the controller TYPE, not as a stored field</b> — measured:
+    /// <c>TimeControllerFactory.Create</c> switches <c>TimeRole.Master =&gt; CreateMaster</c> /
+    /// <c>Slave =&gt; CreateSlave</c>, and neither controller keeps the enum. ⇒ asserting the type is
+    /// both simpler and STRONGER than reading a field back: it is the object whose behaviour differs.
+    ///
+    /// <para>⚠ Via reflection deliberately: the assertion must be about the CONSTRUCTED controller,
+    /// never about the config the test itself passed in — that is the <c>CE-053</c> shape, a rail
+    /// that supplies the input it is testing and therefore passes whatever the builder does.</para>
+    /// </remarks>
+    private static object TimeControllerOf(HrotNodeContext ctx)
+    {
+        foreach (var f in ctx.Kernel.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance))
+        {
+            object? v = f.GetValue(ctx.Kernel);
+            if (v is ITimeController controller) return controller;
+        }
+
+        throw new Xunit.Sdk.XunitException(
+            "The kernel holds no ITimeController. The rail must assert the CONSTRUCTED controller — " +
+            "fix the reader, do not weaken the assertion.");
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3126 — ONE geo transform per node: the builder adopts the one the composition root supplied (the network
+    /// factory's, else <c>ExternalGeoTransform</c>), and publishes it as the world singleton — the instance a terrain commit
+    /// sets the origin on. Before, the builder always made its own, so the wire and the world could disagree.
+    /// </summary>
+    [Fact]
+    public void CE3126_Build_UsesTheSuppliedGeoTransform_AndPublishesItOnTheWorld()
+    {
+        var supplied = Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(0, 0, 0);
+        var config = HeadlessConfig();
+        config.ExternalGeoTransform = supplied;
+        var ctx = new HrotNodeBuilder(config).WithRole("Test", Fdp.Core.NodeRole.MuscleGround).Build();
+
+        Assert.Same(supplied, ctx.GeoTransform);
+        Assert.Same(supplied, ctx.World.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>());
+
+        var plain = new HrotNodeBuilder(HeadlessConfig(98)).WithRole("Test", Fdp.Core.NodeRole.MuscleGround).Build();
+        Assert.Same(plain.GeoTransform, plain.World.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>());
+        Assert.Equal((0.0, 0.0, 0.0), plain.GeoTransform!.Origin);   // ⛔ no Berlin default
+    }
+
+    // ── CE-3330 — every ECS node keeps a LIVE event-timeline index, served on its debug surface ──────────
+
+    private static HrotNodeContext InitialisedNode(int nodeId)
+    {
+        var ctx = new HrotNodeBuilder(HeadlessConfig(nodeId)).WithRole("Test", Fdp.Core.NodeRole.MuscleGround).Build();
+        foreach (var m in ctx.BaseModules) ctx.Kernel.RegisterModule(m);
+        ctx.Kernel.Initialize();
+        return ctx;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> — the node's OWN frame (<see cref="HrotNodeContext.Tick"/>, the one every host runs) steps the live timeline: a unit
+    /// that gains a network id in frame 1 and is destroyed in frame 3 is a <c>Spawned</c> event at frame 1 and a <c>Left</c> event at frame 3,
+    /// with no host wiring. 🔴 Red-proof: the <c>Timeline.Step</c> call in <c>Tick</c> behind a runtime-false guard ⇒ no frame is indexed.
+    /// </summary>
+    [Fact]
+    public void CE3330_Node_Tick_IndexesTheShippedLanes_LiveOnTheNodesOwnFrame()
+    {
+        using var ctx = InitialisedNode(97);
+        var world = ctx.World;
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>())
+            world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        Entity unit = default;
+
+        ctx.Tick();                                                                   // frame 0
+        ctx.Tick(afterKernel: () =>                                                   // frame 1: the unit appears
+        {
+            unit = world.CreateEntity();
+            world.AddComponent(unit, new Fdp.Toolkit.Replication.Components.NetworkIdentity(4242));
+        });
+        ctx.Tick();                                                                   // frame 2
+        ctx.Tick(afterKernel: () => world.DestroyEntity(unit));                       // frame 3: it dies
+
+        var live = ctx.Timeline;
+        live.Step(world, DateTime.UtcNow.Ticks, force: true);                         // publish now (the throttle is a quarter second)
+        Assert.Equal(4, live.Frames);
+        var spawned = Assert.Single(live.Index.Lane(Fdp.Toolkit.Replication.ReplicationTimelineLanes.Spawned.Id));
+        Assert.Equal((1, 4242L), (spawned.Frame, spawned.Subject));
+        var left = Assert.Single(live.Index.Lane(Fdp.Toolkit.Replication.ReplicationTimelineLanes.Left.Id));
+        Assert.Equal((3, 4242L), (left.Frame, left.Subject));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> — the ONE node debug provider serves that source: <c>timeline.read</c> is true, <c>Timeline.Source()</c> IS the
+    /// context's live source and the catalogue its lanes; over no context (before Initialize / after Shutdown) there is no timeline and nothing throws.
+    /// 🔴 Red-proof: the provider's <c>timeline:</c> argument returns null behind a runtime-false guard ⇒ the capability reads false.
+    /// </summary>
+    [Fact]
+    public void CE3330_Node_TheEcsNodeDebugProvider_ServesTheContextsLiveTimeline()
+    {
+        using var ctx = InitialisedNode(96);
+        var provider = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => ctx);
+
+        Assert.True(provider.DescribeCapabilities()[Hrot.Presentation.DebugApi.DebugCapabilities.TimelineRead]);
+        var access = provider.Timeline!;
+        Assert.Same(ctx.Timeline, access.Source());
+        Assert.Same(ctx.TimelineLanes, access.Catalog);
+        Assert.True(access.Context.Live);
+        Assert.Same(access, provider.Timeline);                                       // one access per context, not one per request
+
+        HrotNodeContext? none = null;
+        var gone = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => none);
+        Assert.Null(gone.Timeline);
+        Assert.False(gone.DescribeCapabilities()[Hrot.Presentation.DebugApi.DebugCapabilities.TimelineRead]);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1436</c> (R-3066, design V5) — the ONE ECS-node provider reads the node's ONE cluster view for the unsaved-changes check, on the host
+    /// families CGF (Brain), SimHost (Muscle|Perception|Navigation) and IG (Map2D): <c>ObservesUnsavedChecks</c> is true by construction (it was false on
+    /// all three — ▶ asked no round), and a round the master answered reaches <c>UnsavedCheck(requestId)</c> and <c>ScenarioDirty</c> through the node's own
+    /// tick; leaving editing drops the verdict. 🔴 Mutation: the factory's <c>unsavedCheck:</c> argument removed ⇒ <c>ObservesUnsavedChecks</c> false ⇒
+    /// the first assertion fails; <c>scenarioDirty:</c> returning null ⇒ the verdict assertion fails.
+    /// </summary>
+    [Theory]
+    [InlineData(Fdp.Core.NodeRole.Brain, 93)]
+    [InlineData(Fdp.Core.NodeRole.MuscleGround | Fdp.Core.NodeRole.Perception | Fdp.Core.NodeRole.NavigationSolver, 92)]
+    [InlineData(Fdp.Core.NodeRole.Map2D, 91)]
+    public void CE1436_Node_TheEcsNodeDebugProvider_ObservesTheCheckRound_OnEveryHostFamily(Fdp.Core.NodeRole role, int nodeId)
+    {
+        using var ctx = new HrotNodeBuilder(HeadlessConfig(nodeId)).WithRole("Test", role).Build();
+        foreach (var m in ctx.BaseModules) ctx.Kernel.RegisterModule(m);
+        ctx.Kernel.Initialize();
+        var provider = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => ctx);
+        var round = Guid.NewGuid();
+        void Hear<T>(T ev) { ctx.EventBus.PublishManaged(ev); ctx.EventBus.SwapBuffers(); ctx.ClusterSlave.Tick(); }
+
+        Assert.True(provider.ObservesUnsavedChecks);
+        Assert.Null(provider.UnsavedCheck(round));                                    // not answered yet
+        Assert.Null(provider.ScenarioDirty);
+
+        Hear(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, SessionId = Guid.NewGuid() });
+        Hear(new Fdp.Toolkit.Orchestration.ClusterOpCompletedEvent
+        {
+            RequestId = round, StatusCode = Fdp.Toolkit.Orchestration.OrchestrationStatusCode.Success,
+            ResultPayload = new Fdp.Toolkit.Orchestration.UnsavedCheckResult(true, new[] { 3 }),
+        });
+
+        Assert.True(provider.UnsavedCheck(round)!.Result!.Changed);                   // ⭐ the master's answer, read off THIS node
+        Assert.True(provider.ScenarioDirty);
+
+        Hear(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.Idle });
+        Assert.Null(provider.ScenarioDirty);                                          // the scenario is no longer open
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — the ONE ECS-node provider answers the start gate's input through the node's <c>ClusterSlave</c>, on every
+    /// node (CGF, SimHost, IG, Traffic all go through it): <c>FollowedClusterState</c> is null until a master is heard, then the CLUSTER's state
+    /// (while the node's own committed <c>ClusterState</c> is still Idle), and <c>MasterGone</c> follows the MasterGone broadcast.
+    /// 🔴 Red-proof: <c>followedClusterState:</c> returning null behind a runtime-false guard ⇒ the follow assertions fail.
+    /// </summary>
+    [Fact]
+    public void CE4096_Node_TheEcsNodeDebugProvider_ReportsTheFollowedClusterState_AndMasterGone()
+    {
+        using var ctx = InitialisedNode(94);
+        var provider = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => ctx);
+        void Hear(Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent ev)
+        {
+            ctx.EventBus.PublishManaged(ev);
+            ctx.EventBus.SwapBuffers();
+            ctx.ClusterSlave.Tick();
+        }
+
+        Assert.Null(provider.FollowedClusterState);                                   // no master heard: distinguishable from Idle
+        Assert.False(provider.MasterGone);
+
+        Hear(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.LoadingLive, SessionId = Guid.NewGuid() });
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.LoadingLive, provider.FollowedClusterState);   // ⭐ the cluster's …
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.Idle, provider.ClusterState);                    // … not the node's own commit
+
+        Hear(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { MasterGone = true });
+        Assert.True(provider.MasterGone);
+
+        HrotNodeContext? none = null;                                                 // before Initialize / after Shutdown: nothing, no throw
+        var gone = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => none);
+        Assert.Null(gone.FollowedClusterState);
+        Assert.False(gone.MasterGone);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> — a host with its OWN frame (the editor) steps the node's timeline through <see cref="HrotNodeContext.StepTimeline"/>, with
+    /// no <c>Tick</c>: the entity that gained a network id is indexed into <c>ctx.Timeline</c>, and the access every host serves
+    /// (<c>EcsNodeDebugProvider.TimelineOf</c>) is the SAME for the context and reads that same source.
+    /// 🔴 Red-proof: <c>StepTimeline</c>'s body behind a runtime-false guard ⇒ nothing is indexed.
+    /// </summary>
+    [Fact]
+    public void CE3330_Node_StepTimeline_IndexesTheNodesTimeline_WithoutATick_AndTheAccessIsTheContextsOwn()
+    {
+        using var ctx = InitialisedNode(95);
+        if (!ctx.World.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>())
+            ctx.World.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        ctx.World.SetSingleton(new GlobalTime { FrameNumber = 1 });                   // one sim frame
+        var unit = ctx.World.CreateEntity();
+        ctx.World.AddComponent(unit, new Fdp.Toolkit.Replication.Components.NetworkIdentity(777));
+
+        ctx.StepTimeline();                                                           // the editor's frame, not ctx.Tick
+        Assert.Equal(1, ctx.Timeline.Frames);                                         // (a source's first step publishes at once)
+        var spawned = Assert.Single(ctx.Timeline.Index.Lane(Fdp.Toolkit.Replication.ReplicationTimelineLanes.Spawned.Id));
+        Assert.Equal(777L, spawned.Subject);
+
+        var access = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.TimelineOf(ctx);
+        Assert.Same(access, Hrot.Presentation.DebugApi.EcsNodeDebugProvider.TimelineOf(ctx));
+        Assert.Same(ctx.Timeline, access.Source());
+        Assert.Same(ctx.TimelineLanes, access.Catalog);
+    }
+    // -- CE-3330 E1 (docs/DESIGN_Director_Timeline_Editor.md 2e) - StepTimeline by the node's cluster state --------------------------------
+
+    private static void CommitState(HrotNodeContext ctx, Fdp.Toolkit.Orchestration.ClusterState to)
+        => ctx.ClusterSlave.EnqueueIntentForTest(new Fdp.Toolkit.Orchestration.ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetNodeId = ctx.NodeId, Operation = Fdp.Toolkit.Orchestration.NodeOpType.CommitState,
+            DomainPayload = new Fdp.Toolkit.Orchestration.CommitStatePayload(to),
+        });
+
+    private static void SimFrame(HrotNodeContext ctx, int n)
+    {
+        ctx.World.SetSingleton(new GlobalTime { FrameNumber = n, TotalTime = n * 0.1 });
+        ctx.StepTimeline();
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> E1 — in a REVIEW (loading, operating, unloading) or a replay the node's timeline is FROZEN: <c>StepTimeline</c> adds no frame,
+    /// though the world's sim frame advances. 🔴 Red-proof: the freeze return behind a runtime-false guard (<c>DateTime.UtcNow.Ticks &lt; 0</c>) ⇒ the
+    /// review adds frames.
+    /// </summary>
+    [Fact]
+    public void CE3330_Node_StepTimeline_AddsNoFrame_InAReviewOrAReplay()
+    {
+        using var ctx = InitialisedNode(94);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        SimFrame(ctx, 1); SimFrame(ctx, 2);
+        Assert.Equal(2, ctx.Timeline.Frames);
+
+        foreach (var state in new[]
+        {
+            Fdp.Toolkit.Orchestration.ClusterState.LoadingReview, Fdp.Toolkit.Orchestration.ClusterState.OperatingReview,
+            Fdp.Toolkit.Orchestration.ClusterState.UnloadingReview, Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay,
+        })
+        {
+            CommitState(ctx, state);
+            Assert.Equal(state, ctx.ClusterSlave.LocalClusterState);
+            SimFrame(ctx, 10 + (int)state);
+            Assert.Equal(2, ctx.Timeline.Frames);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> E1 — Live → Review → Live keeps the frames from before the review (no reset: the index continues from the live point, even
+    /// through the unloading state between) and steps on. 🔴 Red-proof: the "came from a review" test ignored (behind a runtime condition)
+    /// ⇒ the return to live resets.
+    /// </summary>
+    [Fact]
+    public void CE3330_Node_StepTimeline_ALiveReviewLiveRoundTrip_KeepsTheIndex()
+    {
+        using var ctx = InitialisedNode(93);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        SimFrame(ctx, 1); SimFrame(ctx, 2); SimFrame(ctx, 3);
+        Assert.Equal(3, ctx.Timeline.Frames);
+
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingReview);
+        SimFrame(ctx, 2);                                                             // the review rewound the world's frame counter
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.UnloadingReview);
+        SimFrame(ctx, 2);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        SimFrame(ctx, 4);
+
+        Assert.Equal(4, ctx.Timeline.Frames);                                         // 3 before the review + the first one after it
+        ctx.Timeline.Step(ctx.World, System.DateTime.UtcNow.Ticks, force: true);      // publish now
+        Assert.Equal(4, ctx.Timeline.Index.FrameSim.Count);
+        Assert.Equal(0.1, ctx.Timeline.Index.FrameSim[0], 6);                         // still the run's first frame
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1448</c> — the review's return does not restart the index: the state is <c>OperatingLive</c> a few frames BEFORE the master puts the clock back (measured on the real editor: the first live steps still read the
+    /// node's own last frame, then the clock snaps back to L, a few frames BEHIND it, and climbs). The node HOLDS (no step, no reset) until the world is past the index's last frame, then continues: the frame count never
+    /// drops, and runs on past where it was. 🔴 Red-proof: the hold removed ⇒ the snap-back reads as a rewind and the index restarts (count 1).
+    /// </summary>
+    [Fact]
+    public void CE1448_Node_StepTimeline_AfterAReviewsReturn_HoldsWhileTheWorldIsBehind_ThenContinues()
+    {
+        using var ctx = InitialisedNode(91);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        for (int f = 1; f <= 5; f++) SimFrame(ctx, f);
+        Assert.Equal(5, ctx.Timeline.Frames);
+        Assert.Equal(5, ctx.Timeline.LastFrame);
+
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingReview);
+        SimFrame(ctx, 2);                                                             // the review plays an earlier moment
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.UnloadingReview);
+        SimFrame(ctx, 2);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);       // the world is put back; the clock follows a few frames later
+        SimFrame(ctx, 5);                                                             // the first live step: still the node's own last frame (not behind, not new)
+        Assert.Equal(5, ctx.Timeline.Frames);
+        SimFrame(ctx, 3);                                                             // the clock snaps back to L: BEHIND the index's last (5) …
+        Assert.Equal(5, ctx.Timeline.Frames);
+        SimFrame(ctx, 4);
+        Assert.Equal(5, ctx.Timeline.Frames);                                         // … the count never drops
+        SimFrame(ctx, 5);                                                             // caught up: the same frame, nothing new
+        Assert.Equal(5, ctx.Timeline.Frames);
+        SimFrame(ctx, 6); SimFrame(ctx, 7);
+        Assert.Equal(7, ctx.Timeline.Frames);                                         // continues past where it was
+        ctx.Timeline.Step(ctx.World, System.DateTime.UtcNow.Ticks, force: true);
+        Assert.Equal(0.1, ctx.Timeline.Index.FrameSim[0], 6);                         // the run's first frame is still frame 0
+        Assert.Equal(0.7, ctx.Timeline.Index.FrameSim[6], 6);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1448</c> — the review's ENTRY does not restart the index either: the world is rewound to the review's moment while this node's state still reads <c>OperatingLive</c> (measured on the real editor: frame 314 → 299 under
+    /// a live state, the index reset to one frame). While a review is in flight (the handler holds the live point) the node steps nothing and resets nothing; the whole round trip keeps the index.
+    /// 🔴 Red-proof: the in-flight hold removed ⇒ the rewound frame under a live state reads as a rewind and the index restarts.
+    /// </summary>
+    [Fact]
+    public void CE1448_Node_StepTimeline_WhileAReviewIsInFlight_AnEarlierFrameUnderALiveState_DoesNotResetTheIndex()
+    {
+        using var ctx = InitialisedNode(90);
+        bool inFlight = false;
+        ctx.ReviewInFlightForTest = () => inFlight;
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        for (int f = 1; f <= 5; f++) SimFrame(ctx, f);
+        Assert.Equal(5, ctx.Timeline.Frames);
+
+        inFlight = true;                                                              // the review's prepare has committed: the handler holds the live point
+        SimFrame(ctx, 3);                                                             // the world is at the review's moment, the state still says live
+        Assert.Equal(5, ctx.Timeline.Frames);
+        Assert.Equal(5, ctx.Timeline.LastFrame);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingReview);
+        SimFrame(ctx, 2);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.UnloadingReview);
+        inFlight = false;                                                             // finalize committed
+        SimFrame(ctx, 0);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        SimFrame(ctx, 5); SimFrame(ctx, 3);                                           // the return: stale, then the clock snaps back
+        Assert.Equal(5, ctx.Timeline.Frames);
+        SimFrame(ctx, 6);
+        Assert.Equal(6, ctx.Timeline.Frames);
+        ctx.Timeline.Step(ctx.World, System.DateTime.UtcNow.Ticks, force: true);
+        Assert.Equal(0.1, ctx.Timeline.Index.FrameSim[0], 6);                         // still the run's first frame
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> E1 — entering <c>OperatingLive</c> from anything but a review (here an edit session that indexed frames) starts the index
+    /// AFRESH: frame 0 is the run's first frame. 🔴 Red-proof: the reset skipped (behind a runtime condition) ⇒ the edit's frames stay.
+    /// </summary>
+    [Fact]
+    public void CE3330_Node_StepTimeline_EnteringLiveFromEdit_StartsAFreshIndex()
+    {
+        using var ctx = InitialisedNode(92);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit);
+        SimFrame(ctx, 1); SimFrame(ctx, 2); SimFrame(ctx, 3);
+        Assert.Equal(3, ctx.Timeline.Frames);                                         // an edit session indexes (not frozen)
+
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        SimFrame(ctx, 4);                                                             // the live run's first frame (the counter did NOT go back)
+
+        Assert.Equal(1, ctx.Timeline.Frames);
+        Assert.Equal(0.4, ctx.Timeline.Index.FrameSim[0], 6);
+    }
+
+    // -- CE-3330 E6 (docs/DESIGN_Director_Timeline_Editor.md 2e) - a cluster replay shows the node's OWN recording -----------------------
+
+    /// <summary>The slice of <see cref="Fdp.Core.Orchestration.IRecordReplayController"/> the replay handler's <c>ReplayFilePath</c> reads: a fixed path.</summary>
+    private sealed class FixedPathController : Fdp.Core.Orchestration.IRecordReplayController
+    {
+        public FixedPathController(string? path) { ActiveReplayFilePath = path; }
+        public string? ActiveReplayFilePath { get; }
+        public long ActiveRecordingStartWallTicks => 0;
+        public long ActiveRecordingEndWallTicks => 0;
+        public long ReplayAnchorWallTicks { get; set; }
+        public bool IsRestoringReplay => false;
+        public System.Threading.Tasks.Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks) => System.Threading.Tasks.Task.FromResult(default(GlobalTime));
+        public System.Threading.Tasks.Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory) => System.Threading.Tasks.Task.CompletedTask;
+        public System.Threading.Tasks.Task FinalizeRecordingAsync(int maxNetworkId = 0) => System.Threading.Tasks.Task.CompletedTask;
+        public System.Threading.Tasks.Task PrepareReplayAsync(Guid exerciseId, string storageDirectory) => System.Threading.Tasks.Task.CompletedTask;
+        public void ProcessPlaybackTick(GlobalTime currentTime) { }
+        public System.Threading.Tasks.Task TeardownReplayAsync() => System.Threading.Tasks.Task.CompletedTask;
+        public bool IsReplayActive => true;
+        public GlobalTime GetCurrentReplayTime() => default;
+        public float ActiveReplayDurationSeconds => 0f;
+        public int ActiveMaxNetworkId => 0;
+    }
+
+    private static void RegisterReplayHandler(HrotNodeContext ctx, string? path)
+        => ctx.ClusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
+            new FixedPathController(path), null, null, null, null, null, System.IO.Path.GetTempPath()));
+
+    /// <summary>One keyframe, written with the engine's own recorder: a real, readable recording.</summary>
+    private static string WriteTinyRecording()
+    {
+        string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"e6-{Guid.NewGuid():N}.fdp");
+        using var repo = new Fdp.Core.EntityRepository();
+        using (var recorder = new Fdp.Core.FlightRecorder.AsyncRecorder(path))
+            recorder.CaptureKeyframe(repo, 100_000L, blocking: true, eventBus: repo.Bus);
+        return path;
+    }
+
+    private static void DeleteRecording(string path)
+    {
+        foreach (var f in new[] { path, path + ".meta.json", Fdp.Toolkit.ReplayBrowser.Timeline.TimelineSidecar.PathFor(path) })
+            try { System.IO.File.Delete(f); } catch { /* best effort */ }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> E6 — what the node SHOWS follows its cluster state: in a REPLAY (loading, operating, unloading) it is a recording source
+    /// over the node's OWN replay handler's file, lanes in the <c>Recording</c> context; in live, edit and REVIEW (the frozen live source, DAR 9e) it
+    /// is the live <c>Timeline</c>; and the ONE debug access (<c>EcsNodeDebugProvider.TimelineOf</c>) serves whichever is shown, source and context
+    /// together. Leaving the replay disposes the recording source.
+    /// 🔴 Red-proof: <c>IsRecordingShown</c> returning false behind a runtime-true guard (<c>DateTime.UtcNow.Ticks &gt; 0 ? false : ...</c>) ⇒ the
+    /// replay still shows the live timeline.
+    /// </summary>
+    [Fact]
+    public void CE3330_E6_Node_ShownTimeline_IsTheOwnRecording_InAClusterReplay_AndTheLiveOneOtherwise()
+    {
+        string recording = WriteTinyRecording();
+        try
+        {
+            using var ctx = InitialisedNode(91);
+            RegisterReplayHandler(ctx, recording);
+            var access = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.TimelineOf(ctx);
+            Assert.Equal(recording, ctx.ReplayRecordingPath);
+
+            CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+            SimFrame(ctx, 1);
+            Assert.Same(ctx.Timeline, ctx.ShownTimeline);
+            Assert.True(ctx.ShownTimelineContext.Live);
+            Assert.Same(ctx.Timeline, access.Source());
+            Assert.True(access.Context.Live);
+
+            CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay);
+            SimFrame(ctx, 2);
+            var shown = Assert.IsType<Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSource>(ctx.ShownTimeline);
+            Assert.Equal(recording, shown.Path);
+            Assert.True(ctx.ShownTimelineContext.Recording);
+            Assert.False(ctx.ShownTimelineContext.Live);
+            Assert.Same(shown, access.Source());                                      // the served access follows the mode
+            Assert.True(access.Context.Recording);
+            SimFrame(ctx, 3);
+            Assert.Same(shown, ctx.ShownTimeline);                                    // synced every frame, opened once
+
+            CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.UnloadingReplay);
+            Assert.Same(shown, ctx.ShownTimeline);
+
+            CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+            SimFrame(ctx, 4);
+            Assert.Same(ctx.Timeline, ctx.ShownTimeline);
+            Assert.True(shown.IsDisposed);
+
+            CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingReview);
+            SimFrame(ctx, 2);
+            Assert.Same(ctx.Timeline, ctx.ShownTimeline);                             // a review shows the frozen live source, not a recording
+            Assert.Same(ctx.Timeline, access.Source());
+            Assert.True(access.Context.Live);
+        }
+        finally { DeleteRecording(recording); }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> E6 — in a replay with no recording loaded yet (the handler has no file) there is NOTHING to show, not the live index of a
+    /// world that is not running. 🔴 Red-proof: the replay arm falling back to <c>Timeline</c> ⇒ the source is non-null.
+    /// </summary>
+    [Fact]
+    public void CE3330_E6_Node_ShownTimeline_InAReplayWithNoRecordingYet_IsNull()
+    {
+        using var ctx = InitialisedNode(90);
+        RegisterReplayHandler(ctx, null);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay);
+        SimFrame(ctx, 1);
+        Assert.Null(ctx.ReplayRecordingPath);
+        Assert.Null(ctx.ShownTimeline);
+        Assert.Null(Hrot.Presentation.DebugApi.EcsNodeDebugProvider.TimelineOf(ctx).Source());
+    }
+
+    private sealed class PlayControl : Hrot.UI.Common.RunMode.IRunScenarioControl
+    {
+        public readonly System.Collections.Generic.List<string> Calls = new();
+        public string? LoadedScenarioName => "s";
+        public void LoadForLive(string scenarioName) => Calls.Add("LoadForLive:" + scenarioName);
+        public void OpenForEdit(string scenarioName) { }
+        public void OpenRecording(System.Guid exerciseId) { }
+        public void SaveCurrent() => Calls.Add("SaveCurrent");
+        public void TakeCheckpoint() { }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ CE-1436 (R-3066; AQ108 §2.8a) — on a CGF-SHAPED host (a Brain node: the real <c>HrotNodeBuilder</c> context, its slave's ONE <c>ClusterView</c>, the real
+    /// <c>EcsNodeDebugProvider</c>) ▶ with Live armed over an UNSAVED node asks the master's check round and, once the master's answer arrives on the node bus, shows the
+    /// <i>Save and go live</i> confirmation — the answer read through the provider (<c>UnsavedCheckReads.From</c>), the adapter reading the same view. Nothing loads before the answer.
+    /// ⛔ The gap this closes: a CGF host had no reader, so ▶ skipped the prompt and loaded the saved scenario over the edits.
+    /// 🔴 Mutation: <c>EcsNodeDebugProvider</c>'s <c>unsavedCheck:</c> returning <c>null</c> (a provider that "observes" but never hears) ⇒ no prompt ever appears.
+    /// </summary>
+    [Fact]
+    public void CE1436_CgfShapedHost_PlayLive_OverAnUnsavedNode_OffersSaveAndGoLive_FromTheMastersAnswer()
+    {
+        using var ctx = new HrotNodeBuilder(HeadlessConfig(93)).WithRole("Test", Fdp.Core.NodeRole.Brain).Build();
+        foreach (var m in ctx.BaseModules) ctx.Kernel.RegisterModule(m);
+        ctx.Kernel.Initialize();
+        var provider = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => ctx);
+        var bus = ctx.EventBus;
+
+        var adapter = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus, () => ctx.ClusterSlave.View, () => 0);
+        var control = new PlayControl();
+        var choice = adapter.AttachRunChoice(control,
+            unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => provider));
+        void Frame(Action? publish = null) { publish?.Invoke(); bus.SwapBuffers(); ctx.ClusterSlave.Tick(); adapter.Update(); }
+
+        Frame(() =>
+        {
+            bus.PublishManaged(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent
+                { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, SessionId = Guid.NewGuid() });
+            bus.PublishManaged(new Fdp.Toolkit.Orchestration.InSyncSetChangedEvent { NodeIds = new[] { 93 } });   // ⭐ CE-1442 — the run gate is closed until this node is in the master's in-sync set
+        });
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, ctx.ClusterSlave.View.State);
+        Assert.True(choice.Gate.Open, choice.ClosedReason);
+
+        Hrot.UI.Common.RunMode.UserTransport.UserPlayPause(adapter);               // ▶, Live armed, in edit
+        bus.SwapBuffers();
+        var asked = System.Linq.Enumerable.Single(bus.ReadManaged<Fdp.Toolkit.Orchestration.CheckUnsavedIntent>());   // the master's ONE round
+        Frame();
+        Assert.Empty(control.Calls);                                                // undecided until the master answers
+        Assert.Null(choice.Pending);
+
+        Frame(() => bus.PublishManaged(new Fdp.Toolkit.Orchestration.ClusterOpCompletedEvent
+        {
+            RequestId = asked.RequestId, StatusCode = Fdp.Toolkit.Orchestration.OrchestrationStatusCode.Success,
+            ResultPayload = new Fdp.Toolkit.Orchestration.UnsavedCheckResult(true, new[] { 3 }),   // the node has unsaved changes
+        }));
+        Frame();                                                                    // the choice's per-frame poll delivers the answer
+
+        Assert.Empty(control.Calls);                                                // still nothing loaded: the user decides
+        Assert.NotNull(choice.Pending);
+        Assert.Equal(new[] { "Save and go live", "Cancel" }, System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(choice.Pending!.Buttons, b => b.Label)));
+    }
 }

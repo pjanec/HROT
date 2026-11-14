@@ -35,8 +35,8 @@ The project defines three orthogonal concerns:
 2. **Network abstraction** - Protocol-neutral interfaces (prefixed `I`) for
    every DDS concern: entity lifecycle, mission-control gateways, IG adapters,
    time-control, orchestration, and replication.  Concrete implementations live
-   in `Hrot.Network.NED` or `Hrot.Network.BDC`; Hrot.Core never references
-   them.
+   in `Hrot.Network.NED` (the one network stack -- the BDC stack was removed, R-4095); Hrot.Core never references
+   it.
 
 3. **Shared infrastructure** - `HrotNodeConfig` / `HrotNodeContext` (bootstrap
    carrier types), component registries, serialisation options, the zone
@@ -50,7 +50,7 @@ The project defines three orthogonal concerns:
 | **PackRole** | Enum distinguishing DDS Ingress (reader) packs from Egress (writer) packs |
 | **TkbEntityTypes** | Integer constants for every spawnable entity class (tanks, infantry, routes, zones, etc.) |
 | **MissionPlan / MissionTask** | Domain POCO representing the ordered list of behavior-parameterised tasks assigned to one entity |
-| **BehaviorContractAttribute** | Marker + metadata attribute linking a behavior-parameter DTO to its engine ID and valid entity categories |
+| **BehaviorAttribute** | `[Behavior(name, Params = typeof(Dto), Categories)]` — declares a behaviour, the ONE params DTO it takes (`NoParams` when none) and its valid entity categories (CE-2134; replaced `[BehaviorContract]`) |
 | **HrotNodeConfig / HrotNodeContext** | Bootstrap carrier types passed between the composition root and subsystem modules |
 | **ZoneManagerService** | ACL pivot that translates `ZoneDefinitionDto` into ECS physics-collider entities and a road-network singleton |
 | **HrotScenarioEnvelope** | JSON envelope helper that peeks the `Header.SubsystemType` field to route scenario files to the correct loader |
@@ -131,11 +131,11 @@ throughout domain code.
 method.  This pattern keeps the ECS bootstrap sequence explicit and makes it
 trivial to understand which components are available in a given deployment.
 
-**8. BehaviorContractAttribute reflection catalog**
-`BehaviorCatalog` builds its per-entity-type behavior lists at type initialisation
-time by scanning the assembly for `[BehaviorContract]` attributes.  Adding a new
-behavior DTO automatically populates the editor drop-down without any manual
-catalog update.
+**8. BehaviorAttribute reflection catalog**
+`BehaviorCatalog` builds its per-entity-type behavior lists from `ParamsDtoRegistry` (one scan of
+the loaded assemblies for `[Behavior(...)]` declarations; CE-2134, was a scan for
+`[BehaviorContract]`).  Declaring a new behavior automatically populates the editor drop-down
+without any manual catalog update.
 
 ---
 
@@ -215,16 +215,16 @@ EntityRepository (world)
     +---------------------------------> IReplicationModule (state sync)
 
   Concrete implementations (NOT in Hrot.Core):
-  +-------------------------------+    +-------------------------------+
-  |  NedNetworkFactory            |    |  BdcNetworkFactory            |
-  |  (Hrot.Network.NED)           |    |  (Hrot.Network.BDC)           |
-  +-------------------------------+    +-------------------------------+
+  +-------------------------------+
+  |  NedNetworkFactory            |
+  |  (Hrot.Network.NED)           |
+  +-------------------------------+
 ```
 
 ### Diagram 3: Entity Lifecycle Request Pipeline
 
 ```
-  Network adapter (NED/BDC)
+  Network adapter (NED)
           |
           | Enqueue()
           v
@@ -484,23 +484,18 @@ EntityRepository (world)
 | `MapDefinitions/Tkb/SimCombatDef.cs` | `Hrot.Map.Definitions.Tkb` | `class SimCombatDef` | Combat stats: armour (front/side/rear mm RHA), weapon mounts, sensor range, autonomous engagement flag |
 | `MapDefinitions/Tkb/SimVehicleDef.cs` | `Hrot.Map.Definitions.Tkb` | `class SimVehicleDef` | Vehicle physics: mass, dimensions, max speed (fwd/rev), acceleration, turn rate, terrain mobility, fuel |
 | `MapDefinitions/Tkb/IgVisualDef.cs` | `Hrot.Map.Definitions.Tkb` | `class IgVisualDef` | IG visual definition used during TKB builder calls: symbol code, model path, colour, scale, show-label, layer |
-| `MapDefinitions/Tkb/BdcTkbCatalog.cs` | `Hrot.Map.Definitions.Tkb` | `static class NedTkbCatalog` | Registers all entity types (M1 Abrams, Bradley, HMMWV, T-72, infantry, platoons, routes, areas) into a `TkbDatabase` |
-| `MapDefinitions/Tkb/BdcTkbBuilder.cs` | `Hrot.Map.Definitions.Tkb` | `class NedTkbBuilder` | Fluent builder for TKB templates; chains `DefineVehicle`, `WithVisual`, `WithPhysics`, `WithCombat`, `WithBehavior`, `WithDisType` |
+| `MapDefinitions/Tkb/NedTkbCatalog.cs` | `Hrot.Map.Definitions.Tkb` | `static class NedTkbCatalog` | Registers all entity types (M1 Abrams, Bradley, HMMWV, T-72, infantry, platoons, routes, areas) into a `TkbDatabase` |
+| `MapDefinitions/Tkb/NedTkbBuilder.cs` | `Hrot.Map.Definitions.Tkb` | `class NedTkbBuilder` | Fluent builder for TKB templates; chains `DefineVehicle`, `WithVisual`, `WithPhysics`, `WithCombat`, `WithBehavior`, `WithDisType` |
 | `MapDefinitions/Tkb/BehaviorCatalog.cs` | `Hrot.Map.Definitions.Tkb` | `static class BehaviorCatalog` | Reflection-built per-entity-type behavior name lists; `GetValidBehaviors(tkbType)` returns filtered list |
 | `MapDefinitions/Behavior/BehaviorIds.cs` | `Hrot.Map.Definitions.Behavior` | `internal static class BehaviorIds` | Integer constants for all behavior parameter DTOs (range 3001-3099 for CGF behaviors) |
 | `MapDefinitions/Behavior/BehaviorCategory.cs` | `Hrot.Map.Definitions.Behavior` | `[Flags] enum BehaviorCategory` | Entity category filter bits for behavior contracts (Civilian, MilitaryApc, Infantry, Insurgent, Commander) |
-| `MapDefinitions/Behavior/BehaviorContractAttribute.cs` | `Hrot.Map.Definitions.Behavior` | `sealed class BehaviorContractAttribute` | Metadata attribute linking a DTO to its engine behavior ID, wire name, and valid entity categories |
-| `MapDefinitions/Behavior/BehaviorTestHelper.cs` | `Hrot.Map.Definitions.Behavior` | `static class BehaviorTestHelper` | Reflection helper for unit tests to retrieve behavior name from a DTO type without hardcoding strings |
+| `MapDefinitions/Behavior/BehaviorAttribute.cs` | `Hrot.Map.Definitions.Behavior` | `sealed class BehaviorAttribute` | `[Behavior(name, Params = …, Categories)]` — links a behaviour to its params DTO, wire name and valid entity categories (CE-2134; replaced `BehaviorContractAttribute`) |
+| ~~`MapDefinitions/Behavior/BehaviorTestHelper.cs`~~ | — | — | deleted by CE-2134 (it read the `[BehaviorContract]` name off a DTO; names are `BehaviorNames` constants) |
 | `MapDefinitions/Behavior/MoveToLocationParamsJsonDto.cs` | `Hrot.Map.Definitions.Behavior` | DTO | `MoveToLocation` behavior: lat/lon/speed/arrivalRadius + pickable-geo-point facade |
 | `MapDefinitions/Behavior/FollowRouteParamsJsonDto.cs` | DTO | DTO | `FollowRoute` behavior: route entity network ID (long, remappable) |
 | `MapDefinitions/Behavior/JoinFormationParamsJsonDto.cs` | DTO | DTO | `JoinFormation` behavior: parameterless; anchors ID and Infantry category |
 | `MapDefinitions/Behavior/FireAtTargetParamsJsonDto.cs` | DTO | DTO | `FireAtTarget` behavior: target network ID, max rounds, cooldown seconds |
 | `MapDefinitions/Behavior/PlatoonHillAttackParamsJsonDto.cs` | DTO | DTO | `PlatoonHillAttack` commander behavior: firing-line segment, baseline segment, tank spacing, target area |
-| `MapDefinitions/Behavior/AmbushParamsJsonDto.cs` | DTO | DTO | `Ambush` behavior: parameterless; Insurgent category |
-| `MapDefinitions/Behavior/ConvoyEscortParamsJsonDto.cs` | DTO | DTO | `ConvoyEscort` behavior: parameterless; MilitaryApc category |
-| `MapDefinitions/Behavior/InfantryCombatParamsJsonDto.cs` | DTO | DTO | `InfantryCombat` behavior: parameterless; Infantry category |
-| `MapDefinitions/Behavior/IdleParamsJsonDto.cs` | DTO | DTO | `Idle` behavior: parameterless; AllMilitary category |
-| `MapDefinitions/Behavior/WanderMilitaryParamsJsonDto.cs` | DTO | DTO | `WanderMilitary` behavior: parameterless; MilitaryApc category |
 | `MapDefinitions/Behavior/Intents/DefendAreaIntentDto.cs` | DTO | DTO | `DefendArea` tactical intent: center lat/lon, radius in metres |
 
 #### Components/Map/
@@ -510,16 +505,16 @@ EntityRepository (world)
 | `RoutePlan.cs` | `Hrot.Map.Common.Components` | `sealed class RoutePlan` | Managed ECS component: ordered waypoint list + loop flag + monotonic version stamp; mutation via `Mutate()` callback |
 | `RouteWaypoint.cs` | (inside RoutePlan.cs) | `struct RouteWaypoint` | Position in ENU world-space, target speed, optional extension JSON |
 | `PersonalRouteRef.cs` | `Hrot.Map.Common.Components` | `struct PersonalRouteRef` | Blittable vehicle->route O(1) reference |
-| `RouteTrajectoryCache.cs` | `Hrot.Map.Common.Components` | `struct RouteTrajectoryCache` | Compiled trajectory ID + version stamp; marked `NoSave` |
+| `RouteTrajectoryCache.cs` | `Hrot.Map.Common.Components` | `struct RouteTrajectoryCache` | Compiled trajectory ID + version stamp; marked `NoScenario` |
 | `ZoneMembership.cs` | `Hrot.Map.Common.Components` | `sealed class ZoneMembership` | Managed component recording the zone name for an obstacle entity |
 | `EditablePolyline.cs` | `Hrot.IG.Components` | `sealed class EditablePolyline` | Managed component storing user-editable vertex list + version counter |
 | `MapOverlayStyle.cs` | `Hrot.IG.Components` | `struct MapOverlayStyle` | Blittable fill/border RGBA styling for map visual overlays |
-| `CullingState.cs` | `Hrot.IG.Components` | `struct CullingState` | Viewport visibility flag + LOD level (Full/Simplified/IconOnly); `NoSave` |
+| `CullingState.cs` | `Hrot.IG.Components` | `struct CullingState` | Viewport visibility flag + LOD level (Full/Simplified/IconOnly); `NoScenario` |
 | `CullingStateConstants.cs` | `Hrot.IG.Components` | `static class` | LOD level constants and zoom thresholds |
-| `SelectionState.cs` | `Hrot.IG.Components` | `struct SelectionState` | `IsSelected` + `IsPrimarySelection` flags; `NoSave` |
+| `SelectionState.cs` | `Hrot.IG.Components` | `struct SelectionState` | `IsSelected` + `IsPrimarySelection` flags; `NoScenario` |
 | `ResolvedStyle.cs` | `Hrot.IG.Components` | `unsafe struct ResolvedStyle` | Cached render state from 3-layer style merge (TKB / network override / user config); fixed-buffer strings for allocation-free hot path |
 | `ResolvedStyleConstants.cs` | `Hrot.IG.Components` | `static class` | Buffer sizes, affiliation tint colours (RGBA), damage range constants |
-| `IgHealthState.cs` | `Hrot.IG.Components` | `struct IgHealthState` | Damage level 0-100 for IG rendering; `NoSave` |
+| `IgHealthState.cs` | `Hrot.IG.Components` | `struct IgHealthState` | Damage level 0-100 for IG rendering; `NoScenario` |
 | `IgSymbolOverride.cs` | `Hrot.IG.Components` | `class IgSymbolOverride` | ExCon-sourced per-entity visual override (style-set, texture, label, history trail flag) |
 | `Color32.cs` | `Hrot.IG.Components` | `struct Color32` + `Color32ArrayConverter` | 4-byte RGBA colour with JSON array serialisation |
 | `CanvasContextMenuState.cs` | `Hrot.IG.Components` | `sealed class CanvasContextMenuState` | Managed singleton for empty-map-space context menu JSON |
@@ -699,13 +694,13 @@ Registers: `ZoneMembership`, `SpawnZoneObstacleCommand`, `UpdateZoneConfigComman
 | `int Version` | Monotonic version stamp |
 | `void Mutate(Action<List<RouteWaypoint>>)` | Increment-safe mutation callback |
 
-#### `CullingState` (struct, NoSave)
+#### `CullingState` (struct, NoScenario)
 `bool IsVisible`, `byte LodLevel` (0=Full, 1=Simplified, 2=IconOnly)
 
-#### `SelectionState` (struct, NoSave)
+#### `SelectionState` (struct, NoScenario)
 `bool IsSelected`, `bool IsPrimarySelection`
 
-#### `ResolvedStyle` (unsafe struct, NoSave)
+#### `ResolvedStyle` (unsafe struct, NoScenario)
 Fixed-buffer texture name (16 B) + label text (32 B), `Color32 Tint`, `ForceId Affiliation`, `float DamageLevel`, `bool ShowTrail`, `bool ShowSensors`.
 Total size under 64 bytes. Factory: `ResolvedStyle.CreateDefault()`.
 
@@ -744,7 +739,7 @@ Built on `FdpJsonOptionsRegistry.Indented`.
 
 #### `BehaviorCatalog.GetValidBehaviors(long tkbType)`
 Returns `IReadOnlyList<string>` of behavior name strings valid for the given entity type.
-Built at type init from `[BehaviorContract]` reflection.
+Built from `ParamsDtoRegistry` (the `[Behavior(...)]` declarations; CE-2134, was `[BehaviorContract]` reflection).
 
 ### Diagnostics
 
@@ -925,8 +920,8 @@ IReadOnlyList<string> validBehaviors = BehaviorCatalog.GetValidBehaviors(tkbType
 foreach (string name in validBehaviors)
     Console.WriteLine(name);
 
-// Verify behavior name in a unit test without hardcoding:
-string moveToName = BehaviorTestHelper.GetBehaviorName<MoveToLocationParamsJsonDto>();
+// Verify behavior name in a unit test without hardcoding (CE-2134: BehaviorTestHelper is deleted):
+string moveToName = BehaviorNames.MoveToLocation;
 // moveToName == "MoveToLocation"
 ```
 
@@ -980,10 +975,11 @@ IDs 160-186 are currently used.  Document each new ID with a `<summary>` comment
 following the existing block-comment style.  Never re-use a retired ID; add a comment
 explaining why the old value was retired.
 
-### Use `BehaviorTestHelper.GetBehaviorName<TDto>()` in tests
+### Use the `BehaviorNames` constants in tests
+*(CE-2134: `BehaviorTestHelper.GetBehaviorName<TDto>()` and `BehaviorContractAttribute` are deleted.)*
 This avoids string literals for behavior IDs in test code.  If a behavior is renamed
-or its `BehaviorContractAttribute` is updated, the test will fail to compile (breaking
-change) rather than silently comparing wrong strings at runtime.
+the test will fail to compile (breaking change) rather than silently comparing wrong
+strings at runtime.
 
 ### `SequentialIdAllocator` is for offline only
 When building a non-headless test that exercises the full ECS spawn path, check

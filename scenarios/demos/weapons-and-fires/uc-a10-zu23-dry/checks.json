@@ -1,0 +1,19 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Urban Battle L4 (dry): the live check POSTs two faked SPOTs (AirDefence at the ZU-23, IndirectFire at the tubes) — not a component edit, so `do` cannot make them (§9 report-injection gap). CE-4042 triage: only the HQ and the A-10's orbit are encoded. REMOVED two conditions that misread the run: 'the Apache gets no armed search without a report' (the cast includes the Spotter, whose mortar launch is heard and reported live — the HQ sends the Apache at 11.5 s with no injection, measured) and 'the A-10 is still on its orbit at the end' (that is the Judge's FAIL point once the AirDefence SPOT is injected — HQ-7 sends the A-10 first — so asserting it encodes the opposite). Judge (1)-(3) need the report-injection action — PARTIAL. DEMO: no golden.",
+  "runFor": 30,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the HQ runs SupportCommand",
+      "on": "task",
+      "who": "Blue HQ",
+      "is": "SupportCommand"
+    },
+    {
+      "name": "the A-10 flies its orbit (FollowRoute)",
+      "on": "task",
+      "who": "A-10",
+      "is": "FollowRoute"
+    }
+  ]
+}

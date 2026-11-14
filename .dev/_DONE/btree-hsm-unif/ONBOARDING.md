@@ -91,7 +91,7 @@ Hrot/
 ## Build
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 Or for the libraries only (faster iteration):
@@ -114,7 +114,7 @@ Copy the output DLL to the watch directory to trigger hot reload in a running ed
 
 Full solution:
 ```
-dotnet test IOS-IG-SimHost.sln
+dotnet test HROT.sln
 ```
 
 Library-only tests (fast):

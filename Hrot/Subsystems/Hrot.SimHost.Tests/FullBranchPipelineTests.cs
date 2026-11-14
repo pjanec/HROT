@@ -30,10 +30,12 @@ namespace Hrot.SimHost.Tests
     ///     <see cref="ReferenceReplayLoadHandler.PrepareAsync"/> /
     ///     <see cref="ReferenceReplayLoadHandler.Commit"/>.</item>
     ///   <item>Record a branched exercise that starts from the historical snapshot.</item>
-    ///   <item>Assert that the branched <c>.fdp</c> file's first frame is a keyframe
-    ///     containing the entity state captured at the seek point of the original recording.</item>
+    ///   <item>Assert that the branched <c>.fdp</c> file STARTS WITH a byte copy of the original's frames up to the branch point
+    ///     (⭐ D18, R-3047 — the branch keeps its history), then a keyframe containing the entity state at the seek point; and
+    ///     that the original recording is untouched.</item>
     /// </list>
     /// </summary>
+    [Xunit.Collection(RecordReplayKernelLoopCollection.Name)]
     public sealed class FullBranchPipelineTests : IDisposable
     {
         private readonly EntityRepository _world;
@@ -81,8 +83,8 @@ namespace Hrot.SimHost.Tests
         ///     original recording.</item>
         /// </list>
         /// </remarks>
-        // STABILITY(Broken): BranchedRecording pipeline fails — likely real bug in branch recording or keyframe capture; investigate
-        [Trait("Stability", "Broken")]
+        // ⭐ CE-3299 B4 (2026-10-22) — green with D18's assertions (the branch keeps its history); the `Stability: Broken` mark
+        //   (the QA-031 path bug, fixed earlier) is removed.
         [Fact(Timeout = 60_000)]
         public async Task BranchedRecording_CapturesHistoricalStateAsKeyframe()
         {
@@ -132,7 +134,14 @@ namespace Hrot.SimHost.Tests
             using var cts2     = new CancellationTokenSource();
             var       kernelL2 = RunKernelLoop(_kernel, cts2.Token);
 
-            await controller.PrepareReplayAsync(originalExerciseId, _tempDir);
+            await controller.PrepareReplayAsync(originalExerciseId, _tempDir);   // the module installs on a kernel tick
+
+            // ⭐ The seek runs on the KERNEL's thread in production (ReplayModule.SeekToFrameAsync: "strictly on the calling (main)
+            //   thread"). Here the kernel ticks on a background loop, so seeking from the test thread raced the playback tick on the
+            //   same entity index — 📐 measured: "Entity index 1 out of range [0, 4]" (the bound moved between check and message),
+            //   in about half the full SimHost runs. Stop the loop, seek and read frame 50, then tick again for the branch.
+            cts2.Cancel();
+            await kernelL2;
 
             // Seek blasts historical entity state (frame 50) into _world.
             await controller.ActiveReplayModule!.SeekToFrameAsync(50);
@@ -141,17 +150,33 @@ namespace Hrot.SimHost.Tests
             int frame50EntityCount = _world.EntityCount;
             var frame50Positions   = ReadSimTransformPositions(_world);
 
+            using var cts3 = new CancellationTokenSource();
+            kernelL2 = RunKernelLoop(_kernel, cts3.Token);
+
+            // ⭐⭐ QA-012 — state the precondition the whole branch hangs on.
+            // 📐 ReferenceReplayLoadHandler.CanHandle/PrepareAsync accept PrepareLive ONLY while
+            //    `_controller.IsReplayActive`; otherwise the branch is skipped SILENTLY — no
+            //    PrepareRecordingAsync, no file — and the failure surfaces 40 lines later as
+            //    "Branched recording file not found", which says nothing about why.
+            Assert.True(controller.IsReplayActive,
+                "the replay is not active, so the PrepareLive branch below will be skipped silently and "
+                + "the 'branched recording file not found' assertion at the end will fire for the wrong reason");
+
             // ══ Phase 3: execute the Live-from-Replay branch ═════════════════════════
             var simGroup       = new TogglableSimulationGroup("test");
             var entityMap      = new NetworkEntityMap();
             var ghostSys       = new GhostCreationSystem(entityMap);
             var lifecycleGroup = new NetworkLifecycleSystemGroup(ghostSys);
 
+            var originalFilePath = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetExerciseRecordingFilePath(
+                _tempDir, originalExerciseId, nodeId: 1);
+            var originalBytes = File.ReadAllBytes(originalFilePath);
+
             var branchedExerciseId = Guid.NewGuid();
             var branchCmd       = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
                 DomainPayload = branchedExerciseId,
             };
@@ -181,20 +206,44 @@ namespace Hrot.SimHost.Tests
             }
 
             await controller.FinalizeRecordingAsync();
-            cts2.Cancel();
+            cts3.Cancel();
             await kernelL2;
 
-            // ══ Phase 5: read branched recording frame 0 — must be a keyframe ══════════
-            var branchedFilePath = Path.Combine(_tempDir, branchedExerciseId.ToString("D"), "node_1.fdp");
+            // ══ Phase 5: the branch = the original's history up to the branch point, then a keyframe ══════════
+            // ⭐ Through the recorder's own path function — ⛔ the hand-built `{dir}/{id}/node_1.fdp` lacked the `exercises/`
+            //   segment, so this asserted "file not found" for a recording that existed (QA-031).
+            var branchedFilePath = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetExerciseRecordingFilePath(
+                _tempDir, branchedExerciseId, nodeId: 1);
             Assert.True(File.Exists(branchedFilePath),
                 $"Branched recording file not found: {branchedFilePath}");
+
+            // ⭐⭐ D18 ④ — the original recording is byte-identical after the branch (a branch never writes its parent).
+            Assert.Equal(originalBytes, File.ReadAllBytes(originalFilePath));
+
+            // ⭐⭐ D18 ② — the branch opens with the original's frames, byte for byte, up to the branch point (frame 50, or a
+            //   frame or two later if the replay ticked on before the branch); the first frame after them is the branch's own keyframe.
+            var originalFrames = ReadRawFrames(originalFilePath);
+            var branchedFrames = ReadRawFrames(branchedFilePath);
+            int copied = 0;
+            while (copied < originalFrames.Count && copied < branchedFrames.Count
+                   && originalFrames[copied].AsSpan().SequenceEqual(branchedFrames[copied]))
+                copied++;
+            Assert.True(copied >= 51, $"the branch must start with the original's frames 0..50; it shares only {copied}");
+            Assert.True(branchedFrames.Count > copied, "the branch must record frames of its own after the copied history");
+            Assert.Equal((byte)FrameType.Keyframe, branchedFrames[copied][16]);   // FrameOuterHeader.FrameType (after sizes + tick)
+
+            var branchedMeta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(
+                File.ReadAllText(branchedFilePath + ".meta.json"));
+            Assert.Equal(originalExerciseId, branchedMeta.ParentExerciseId);
+            Assert.Equal(branchedExerciseId, branchedMeta.ExerciseId);
 
             using var branchedRepo = new EntityRepository();
             branchedRepo.RegisterComponent<SimTransform>();
 
+            // the world at the branch's own first keyframe
             using var reader = new RecordingReader(branchedFilePath);
-            bool hasFrame = reader.ReadNextFrame(branchedRepo);
-            Assert.True(hasFrame, "Branched recording file must contain at least one frame.");
+            for (int i = 0; i <= copied; i++)
+                Assert.True(reader.ReadNextFrame(branchedRepo), $"the branched recording ends before frame {i}");
 
             // ── Assert entity count matches frame-50 snapshot ─────────────────────────
             Assert.Equal(frame50EntityCount, branchedRepo.EntityCount);
@@ -221,6 +270,23 @@ namespace Hrot.SimHost.Tests
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────────
+
+        /// <summary>Every frame of a recording as written: outer header + compressed payload (the global header skipped).</summary>
+        private static List<byte[]> ReadRawFrames(string path)
+        {
+            var frames = new List<byte[]>();
+            var bytes  = File.ReadAllBytes(path);
+            int pos    = RecordingSlice.GlobalHeaderSize;
+            while (pos + FrameOuterHeader.Size <= bytes.Length)
+            {
+                int compressed = BitConverter.ToInt32(bytes, pos);
+                int length     = FrameOuterHeader.Size + compressed;
+                if (pos + length > bytes.Length) break;
+                frames.Add(bytes.AsSpan(pos, length).ToArray());
+                pos += length;
+            }
+            return frames;
+        }
         /// <summary>
         /// Reads all <see cref="SimTransform"/> positions from <paramref name="repo"/>
         /// into a plain dictionary, avoiding <c>ref readonly</c> in async callers.

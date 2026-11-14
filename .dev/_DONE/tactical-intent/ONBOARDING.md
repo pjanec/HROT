@@ -76,10 +76,10 @@ path.
 
 ```powershell
 # Build the full solution
-dotnet build IOS-IG-SimHost.sln --no-restore -v quiet
+dotnet build HROT.sln --no-restore -v quiet
 
 # Run all unit tests
-dotnet test IOS-IG-SimHost.sln --no-build --nologo
+dotnet test HROT.sln --no-build --nologo
 
 # Run only the CGF and toolkit tests (faster feedback loop)
 dotnet test Hrot/Subsystems/Hrot.CGF/ --no-build --nologo

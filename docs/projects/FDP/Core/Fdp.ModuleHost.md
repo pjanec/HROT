@@ -91,9 +91,17 @@ isolation strategies are provided:
 | `GDB` (Global Double Buffer) | `DoubleBufferProvider` | Frame-synced background — replica synced at the sync point |
 | `SoD` (Snapshot-on-Demand) | `OnDemandProvider` | Async background — fresh snapshot taken at dispatch time |
 
-When multiple background modules share the same strategy and frequency, their providers are
+When multiple background modules share the same strategy, mode and frequency, their providers are
 promoted to a **convoy** (`SharedSnapshotProvider` for SoD, shared `DoubleBufferProvider`
 for GDB) so a single sync operation serves multiple modules.
+
+⭐ **Only modules the main thread waits for (`FrameSynced`) convoy — `Asynchronous` modules never do** *(the guard is
+`Mode != RunMode.Asynchronous` in the kernel's convoy query; pinned by `AutoGrouping_AsyncSameFreq_StaysExclusive` and
+`ProviderAssignment_AsyncSoD_MultipleModules_EachOwnSnapshot`, `TM-023`)*. A shared snapshot lives until its LAST reader
+releases it, so an async module that finishes early would re-acquire the snapshot a slower member still holds — frames
+stale, with its events read a second time. Each async SoD module keeps its own `OnDemandProvider` (a fresh snapshot at
+dispatch). ⚠ `FDP/Docs/projects/core/ModuleHost.Core.md`'s example (two `SlowBackground` modules in one convoy) predates
+this guard.
 
 **3. Deterministic system scheduling**
 
@@ -112,6 +120,65 @@ Each module entry owns a `ModuleCircuitBreaker`. After `FailureThreshold` consec
 the circuit opens and the module is skipped until `CircuitResetTimeoutMs` has elapsed, at which
 point a single probe execution is allowed (`HalfOpen`). This isolates a faulty module from the
 rest of the simulation.
+
+> ⚠ **Corrected 2026-09-04 (`CE-189`).** The paragraph above described the ASYNC path only. The
+> **synchronous** path caught its exception, wrote one line to stderr, and did nothing else — no
+> `RecordFailure`, so the circuit never opened and `GetExecutionStats()` reported a healthy module
+> however many times it threw. Measured consequence: `StatelessGizmoSystem` faulted on every frame of
+> every editor run for an entire working session while the node kept answering healthy (`CE-188`).
+> Both paths now route through one `ReportModuleFault` handler.
+>
+> ⭐⭐ **Corrected 2026-10-05 (`CE-3066`) — a TIMED-OUT run is no longer overlapped or freed under itself.** A run that
+> exceeds `MaxExpectedRuntimeMs` is abandoned but cannot be stopped, and 🔴 it used to be treated as finished: the harvest
+> **released its snapshot view to the pool while it was still reading it** (measured: `AccessViolationException` in
+> `EntityIndex.IsAlive` from `VisionBroadphase.Rebuild`, the editor process died), and the next dispatch **started a second
+> run of the same module beside it** on the module's shared state (measured: `NullReferenceException` in `ColliderIndex.Build`
+> every frame, swallowed). ⭐ Now: the entry keeps the abandoned run as its `ZombieTask` with its view and provider; the
+> module is **not re-dispatched** while it lives; once it ends, its command buffers are **discarded** (it was declared failed,
+> and its answers are for a snapshot several frames old) and the view goes back to the provider that issued it. ⭐ A run that
+> is due but blocked counts one `StillRunning` failure per scheduling period, so a module that hangs for good still opens
+> its circuit. ⛔ The frame never waits on it. Rail: `ResilienceIntegrationTests.Resilience_ASlowRunThatTimedOut_IsNeverOverlapped_AndTheModuleRunsAgainAfterIt_CE3066`
+> (red-proofed by disabling the guard).
+>
+> ⛔ **Recording a sync failure does NOT skip the module.** The sync path has no `CanRun()` gate (the
+> async path does, at the top of its dispatch), so opening the circuit is *reporting*, not execution
+> control. That asymmetry is deliberate and load-bearing: closing it would change which modules tick.
+
+**5b. Fail-fast is the DEFAULT — a module fault is fatal unless you opt out**
+
+`FdpConfig.FailFastOnModuleException` makes `ReportModuleFault` **rethrow** with the original stack
+instead of catching. The per-module catch exists so one faulty module cannot take down a distributed
+simulation; that is right in production and exactly wrong while debugging, where a system throwing on
+its first frame otherwise "runs" forever with every later system in its phase group silently skipped.
+
+> 🔒 **User ruling, 2026-09-04, verbatim:** *"the fail fast should be on by default as we are still in
+> a wild development phase, not even close to production."*
+
+⇒ **the default is `true`.** The opt-out is the environment variable `FDP_FAIL_FAST` set to
+`0` / `false` / `off` (case-insensitive on the latter two), which needs no rebuild. Nothing else reads it.
+
+| | |
+|---|---|
+| **who opts out today** | `ResilienceIntegrationTests` — its *subject* is the catch path, so it turns the flag off in its constructor and restores it in `Dispose`. ⛔ Its type-level comment forbids "fixing" a red there by weakening the shipped default instead |
+| **blast radius, measured** | flipping the default took `Fdp.ModuleHost.Tests` from **6 → 10 reds**; all 4 new ones were the `Resilience_*` family and the opt-out returned the project to **206 passed / 6 failed — exactly the baselined convoy+SoD six.** `Fdp.Toolkits.Tests` was unaffected at **2064/0** |
+| ⚠ **testing the switch** | it is a **mutable process-global**, and xUnit runs test classes in **parallel** ⇒ a rail that asserts *"the shipped default is ON"* may **not** read the live property — it races the opt-out's constructor and fails for the wrong reason (measured: red in 2/2 runs). `Fdp.ModuleHost.Tests/ShippedDefaults.cs` snapshots it in a `[ModuleInitializer]`, before any test can run, and the rail asserts the snapshot |
+| **live gate** | the editor booted on a real scenario (`hill-attack-close`), stepped ~290 frames to `simTime 7.59` with 8 entities and **zero module faults** — with fail-fast on by default and no env var set. A fault under this default is now a crash, so a green live run is part of the evidence, not a nicety |
+
+⚠ **This is not "no exceptions are swallowed ever" yet.** It covers `Fdp.ModuleHost`'s two module-fault
+paths only. `SystemScheduler`, the translators and the debug API still have their own `catch (Exception)`
+sites; a sweep of those is open follow-up work.
+
+**5c. Fault reporting is de-duplicated, because volume is a form of hiding**
+
+A module that faults every frame used to print a full stack every frame. `CE-188` produced 8 000–16 000
+identical lines per run and read as background noise for a whole session — the fault was never hidden,
+it was *drowned*. The handler now reports the first occurrence of each distinct signature (exception
+type + top frame) in full, counts repeats, and re-reports at powers of ten with the running total.
+
+⚠ **This path is only reachable with fail-fast OFF** (§5b) — under the shipped default the first fault
+is fatal, so there is no second occurrence to de-duplicate. It is the resilience mode's reporting, and
+every report names `FDP_FAIL_FAST` so a reader who arrived here via the opt-out knows which mode they
+are in and how to get back to a fatal one.
 
 **6. Time-controller injection**
 
@@ -232,7 +299,7 @@ or stepped controllers without modifying the kernel.
        |
        +-- Direct -----> live EntityRepository (main thread only)
        |
-       +-- GDB ----------> Same mode/freq convoy members exist?
+       +-- GDB ----------> Same mode/freq convoy members exist? (never for Asynchronous)
        |                         |
        |                    Yes: share DoubleBufferProvider
        |                    No:  new DoubleBufferProvider (exclusive)
@@ -240,7 +307,7 @@ or stepped controllers without modifying the kernel.
        |                    UnionMask expanded?
        |                         Yes: replace provider for whole convoy
        |
-       +-- SoD ----------> Same mode/freq convoy members exist?
+       +-- SoD ----------> Same mode/freq convoy members exist? (never for Asynchronous)
                                  |
                             No:  new OnDemandProvider (exclusive)
                             Yes: SharedSnapshotProvider already in convoy?
@@ -419,7 +486,7 @@ Creates the kernel. Neither argument may be null.
 | `void Initialize()` | Validates policies, registers component types, assigns providers, builds initial topology, and topologically sorts systems. Throws on misconfiguration. |
 | `void Update()` | Advances the `ITimeController` and runs one full simulation frame. |
 | `void StepFrame(float deltaTime)` | Requires `ISteppableTimeController`. Advances one manual frame without advancing wall clock. |
-| `void Dispose()` | Waits up to 2 s for in-flight tasks; disposes all providers; disposes time controller; clears module lists. |
+| `void Dispose()` | Waits up to 2 s for in-flight tasks — ⭐ **including a parked ZOMBIE run** (`CE-3077`; the park nulls `CurrentTask`, so the wait used to skip it); disposes every provider EXCEPT one a still-running zombie reads (leaked at teardown rather than freed under it — measured: AccessViolation in `EntityIndex.IsAlive` from `VisionBroadphase.Rebuild` as the editor shut down); disposes time controller; clears module lists. Rail: `ResilienceIntegrationTests.Resilience_TeardownUnderARunningZombie_DoesNotFreeItsSnapshot_CE3077`. |
 
 **Runtime hot-plug API**
 

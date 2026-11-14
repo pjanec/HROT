@@ -1,0 +1,103 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 Urban Armour \u00a78 / Exposure Cycle \u00a78: a tank hides from a drone under a garage deck, the tank in the open is hit. From the header's Judge (1)-(3), with the deck footprint x 240-290, y 40-80 read as four end-of-run bounds; the take's hide/hit anchors are proven. TRIAGE (CE-4042): the 'hit' cue cannot see a drone's dive in the verifier \u2014 measured, Drone B's blast rows carry area-effect entries whose 'entity' is null / totalDamage 0 and a 'struck' that is not a tank (1-2000), while the tank loses health at 20.75 s; AnchorBook.Hit (the take's, baked 20.55 s) matches Struck too, the verifier's 'hit' does not \u21d2 'hit' read false for the open tank and the deck tank's 'never hit' was vacuous. Both are now health reads (class A).",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the deck tank takes shelter (ShelterFromAir)",
+      "on": "task",
+      "who": "Tank by the deck",
+      "is": "ShelterFromAir"
+    },
+    {
+      "name": "the deck tank ends under the deck (x >= 240)",
+      "on": "field",
+      "who": "Tank by the deck",
+      "path": "SimTransform.Position.0",
+      "op": ">=",
+      "value": 240,
+      "atEnd": true
+    },
+    {
+      "name": "the deck tank ends under the deck (x <= 290)",
+      "on": "field",
+      "who": "Tank by the deck",
+      "path": "SimTransform.Position.0",
+      "op": "<=",
+      "value": 290,
+      "atEnd": true
+    },
+    {
+      "name": "the deck tank ends under the deck (y >= 40)",
+      "on": "field",
+      "who": "Tank by the deck",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 40,
+      "atEnd": true
+    },
+    {
+      "name": "the deck tank ends under the deck (y <= 80)",
+      "on": "field",
+      "who": "Tank by the deck",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 80,
+      "atEnd": true
+    },
+    {
+      "name": "Drone A is spent",
+      "on": "field",
+      "who": "Drone A",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "name": "the deck tank keeps 90% of its health",
+      "on": "field",
+      "who": "Tank by the deck",
+      "path": "Health.Current",
+      "op": ">=",
+      "value": 2700,
+      "atEnd": true
+    },
+    {
+      "name": "the deck tank is never hit (its health never falls below 2700)",
+      "never": {
+        "on": "field",
+        "who": "Tank by the deck",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 2700
+      }
+    },
+    {
+      "name": "Drone B is spent",
+      "on": "field",
+      "who": "Drone B",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "name": "the open tank is hit from above (its health falls below 2800 after Drone B is spent)",
+      "on": "field",
+      "who": "Tank in the open",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2800,
+      "after": "Drone B is spent"
+    },
+    {
+      "name": "the open tank is hurt",
+      "on": "field",
+      "who": "Tank in the open",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 3000
+    }
+  ]
+}

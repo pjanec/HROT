@@ -1,0 +1,32 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: 00000508-0000-0000-0000-000000000001
+
+using System;
+
+using Fhsm.Compiler;
+using Fhsm.Kernel.Attributes;
+using Fhsm.Kernel.Data;
+using Hrot.AI.Behaviors.Brains;
+
+namespace Hrot.AI.Behaviors.Machines;
+
+public static class HsmStatefulBindingDemo
+{
+    public static HsmBuilder CreateBuilder()
+    {
+        var builder = new HsmBuilder("HsmStatefulBindingDemo");
+
+        builder.RegisterAction("Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_CountSteps");
+        builder.RegisterAction("Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_EnterCounting");
+
+        builder.State("Counting", stableId: new Guid("58000000-0000-0000-0000-00000000000a"))
+            .Initial()
+            .OnEntry("Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_EnterCounting")
+            .Activity("Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_CountSteps");
+
+        return builder;
+    }
+
+    [HsmDefinition("HsmStatefulBindingDemo", AssetId = "00000508-0000-0000-0000-000000000001")]
+    public static HsmDefinitionBlob Compile() => CreateBuilder().Build().Compile();
+}

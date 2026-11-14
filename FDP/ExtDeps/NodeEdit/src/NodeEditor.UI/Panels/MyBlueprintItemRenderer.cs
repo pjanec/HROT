@@ -13,7 +13,6 @@ internal static class MyBlueprintItemRenderer
     private const float AccentDotRadius = 4f;
     private const float IconSize        = 16f;
     private const float RowHeight       = 20f;
-    private const float BadgeMaxWidth   = 80f;
 
     /// <summary>
     /// Render one item row.
@@ -111,20 +110,15 @@ internal static class MyBlueprintItemRenderer
         }
     }
 
-    // ── badge chip ────────────────────────────────────────────────────────────
+    // ── badge (the variable's type) ───────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐ CE-1012 — the badge (a variable's type name) is plain, MUTED text after the name: no filled box. 🔒 User: <i>"the type
+    /// should be plain, darker (grey) text after the name"</i> — the old violet chip read as a button.
+    /// </summary>
     private static void DrawBadge(string text, IEditorTheme theme, ImDrawListPtr dl)
     {
-        ImGui.SameLine();
-        var pos    = ImGui.GetCursorScreenPos();
-        float pad  = 4f;
-        float w    = Math.Min(ImGui.CalcTextSize(text).X + pad * 2f, BadgeMaxWidth);
-        float h    = ImGui.GetTextLineHeight() + pad;
-
-        uint bg = ImGui.GetColorU32(new Vector4(0.3f, 0.3f, 0.5f, 0.8f));
-        dl.AddRectFilled(pos, new Vector2(pos.X + w, pos.Y + h), bg, 3f);
-
-        ImGui.SetCursorScreenPos(new Vector2(pos.X + pad, pos.Y + pad * 0.5f));
-        ImGui.TextColored(theme.TextDefault, text);
+        ImGui.SameLine(0f, 8f);
+        ImGui.TextColored(theme.TextMuted, text);
     }
 }

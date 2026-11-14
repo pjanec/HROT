@@ -59,7 +59,7 @@ dotnet build Hrot.UI.Common
 dotnet test Hrot.ExCon.Tests --no-build
 
 # Full solution build check
-dotnet build IOS-IG-SimHost.sln 2>&1 | Select-String "error|Error" -NotMatch | Select-Object -Last 5
+dotnet build HROT.sln 2>&1 | Select-String "error|Error" -NotMatch | Select-Object -Last 5
 ```
 
 ### Important Codebase Facts

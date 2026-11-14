@@ -25,7 +25,6 @@
 *(Database, Networking, Messaging, External Adapters)*
 
 - [X] Fdp.Network.Cyclone (Path: FDP/Network/Fdp.Network.Cyclone/Fdp.Network.Cyclone.csproj) -> docs/projects/FDP/Network/Fdp.Network.Cyclone.md
-- [X] Hrot.Network.BDC (Path: Hrot/Network/Hrot.Network.BDC/Hrot.Network.BDC.csproj) -> docs/projects/Hrot/Network/Hrot.Network.BDC.md
 - [X] Hrot.Network.NED (Path: Hrot/Network/Hrot.Network.NED/Hrot.Network.NED.csproj) -> docs/projects/Hrot/Network/Hrot.Network.NED.md
 - [X] Hrot.Network.Orchestration (Path: Hrot/Network/Hrot.Network.Orchestration/Hrot.Network.Orchestration.csproj) -> docs/projects/Hrot/Network/Hrot.Network.Orchestration.md
 
@@ -45,7 +44,6 @@
 - [X] Hrot.Editor.AiShared (Path: Hrot/Editor/Hrot.Editor.AiShared/Hrot.Editor.AiShared.csproj) -> docs/projects/Hrot/Editor/Hrot.Editor.AiShared.md
 - [X] Hrot.ReplayBrowser (Path: Hrot/Subsystems/Hrot.ReplayBrowser/Hrot.ReplayBrowser.csproj) -> docs/projects/Hrot/Subsystems/Hrot.ReplayBrowser.md
 - [X] Hrot.ClusterRunner (Path: Hrot/Runner/Hrot.ClusterRunner/Hrot.ClusterRunner.csproj) -> docs/projects/Hrot/Runner/Hrot.ClusterRunner.md
-- [X] Hrot.FakeStrideApp (Path: Hrot/Runner/Hrot.FakeStrideApp/Hrot.FakeStrideApp.csproj) -> docs/projects/Hrot/Runner/Hrot.FakeStrideApp.md
 - [X] Fdp.Tools.RecordingDumper (Path: FDP/Tools/Fdp.Tools.RecordingDumper/Fdp.Tools.RecordingDumper.csproj) -> docs/projects/FDP/Tools/Fdp.Tools.RecordingDumper.md
 
 ## Phase 5-A: Domain / Simulation Subsystems
@@ -57,7 +55,7 @@
 - [X] Hrot.IG (Path: Hrot/Subsystems/Hrot.IG/Hrot.IG.csproj) -> docs/projects/Hrot/Subsystems/Hrot.IG.md
 - [X] Hrot.Orchestrator (Path: Hrot/Subsystems/Hrot.Orchestrator/Hrot.Orchestrator.csproj) -> docs/projects/Hrot/Subsystems/Hrot.Orchestrator.md
 - [X] Hrot.SimHost (Path: Hrot/Subsystems/Hrot.SimHost/Hrot.SimHost.csproj) -> docs/projects/Hrot/Subsystems/Hrot.SimHost.md
-- [X] Hrot.StrideMock (Path: Hrot/Subsystems/Hrot.StrideMock/Hrot.StrideMock.csproj) -> docs/projects/Hrot/Subsystems/Hrot.StrideMock.md
+- [X] Hrot.NodeComposition (Path: Hrot/Subsystems/Hrot.NodeComposition/Hrot.NodeComposition.csproj) -> docs/projects/Hrot/Subsystems/Hrot.NodeComposition.md
 
 ## Phase 5-B: Blueprints Subsystem
 *(Visual/Data-driven scripting for Hrot)*

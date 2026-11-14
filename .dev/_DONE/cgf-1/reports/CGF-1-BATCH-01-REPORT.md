@@ -10,7 +10,7 @@
 
 ```powershell
 # Build
-dotnet build IOS-IG-SimHost.sln --nologo -v quiet
+dotnet build HROT.sln --nologo -v quiet
 # Output: Build succeeded. 0 Warning(s). 0 Error(s).
 
 # Task 1 tests (DataModel)
@@ -26,7 +26,7 @@ dotnet test Hrot.SimHost.Integration.Tests/Hrot.SimHost.Integration.Tests.csproj
 # Output: Passed 29 / 29  (includes DdsIdAllocatorMigrationTests)
 
 # Full solution (for final check)
-dotnet test IOS-IG-SimHost.sln --no-build
+dotnet test HROT.sln --no-build
 ```
 
 ## Test Summary
@@ -45,7 +45,7 @@ dotnet test IOS-IG-SimHost.sln --no-build
 
 **Parallel full-suite run flakiness (pre-existing, not introduced by this batch):**
 
-When `dotnet test IOS-IG-SimHost.sln` runs all assemblies in parallel, 4 tests
+When `dotnet test HROT.sln` runs all assemblies in parallel, 4 tests
 show intermittent failures caused by CycloneDDS domain-0 participant interference
 between concurrently executing test hosts:
 
@@ -103,7 +103,7 @@ to unify these paths is noted below.
 
 **DDS parallel-test domain contention:** The suite has no cross-assembly test
 isolation policy for CycloneDDS domain IDs. Multiple assemblies default to
-domain 0, and when `dotnet test IOS-IG-SimHost.sln` spawns all test hosts in
+domain 0, and when `dotnet test HROT.sln` spawns all test hosts in
 parallel, domain 0 participants from different assemblies discover each other
 and cause unexpected DDS subscriptions/publications to appear. The four
 intermittent failures listed above are all manifestations of this. A test-infra

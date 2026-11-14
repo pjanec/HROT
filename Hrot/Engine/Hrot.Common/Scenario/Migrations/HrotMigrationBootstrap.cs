@@ -15,7 +15,7 @@ namespace Hrot.Common.Scenario.Migrations
         /// Creates <see cref="MigrationServices"/> for a SimHost or CGF node.
         /// Registers: Scenario, TKB, RoadNetwork (all read-only) + OrchestratorContext passthrough.
         /// </summary>
-        public static MigrationServices BuildSimHostCgf(string writerIdentifier = "Hrot.SimHost")
+        public static MigrationServices BuildSimHostCgf(string writerIdentifier = HrotSubsystemTypes.SimHost)
         {
             return MigrationBootstrap.BuildForProduction(reg =>
             {
@@ -31,7 +31,7 @@ namespace Hrot.Common.Scenario.Migrations
         /// Registers: Scenario, TKB (read-only) + OrchestratorContext + MapInteractionConfig passthroughs.
         /// Blueprint and BehaviorTree are intentionally NOT registered (M-2).
         /// </summary>
-        public static MigrationServices BuildIg()
+        public static MigrationServices BuildPlayer()
         {
             return MigrationBootstrap.BuildForProduction(reg =>
             {
@@ -39,7 +39,7 @@ namespace Hrot.Common.Scenario.Migrations
                 TkbMigrationModule.RegisterAll(reg);
                 reg.RegisterPassthroughDocType(HrotDocumentTypes.OrchestratorContext, 2);
                 reg.RegisterPassthroughDocType(HrotDocumentTypes.MapInteractionConfig, 1);
-            }, "Hrot.IG");
+            }, HrotSubsystemTypes.Player);
         }
 
         /// <summary>
@@ -56,7 +56,7 @@ namespace Hrot.Common.Scenario.Migrations
                 TkbMigrationModule.RegisterAll(reg);
                 RoadNetworkMigrationModule.RegisterAll(reg);
                 PassthroughFormatsModule.RegisterAll(reg);
-            }, "Hrot.Editor");
+            }, HrotSubsystemTypes.Editor);
         }
 
         /// <summary>

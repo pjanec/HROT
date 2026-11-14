@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior.Components;
@@ -10,14 +12,17 @@ namespace Fdp.Toolkit.Utility
     /// <summary>
     /// Scores each (member, target) pair using a registered decision definition and
     /// greedily assigns members to targets while respecting the focus-fire cap.
-    /// Writes results into the leader's <see cref="Blackboard1024"/> via
+    /// Writes results into the leader's <see cref="SquadCognitiveState"/> via
     /// <see cref="ThreatMatrixAssignmentState"/>.
     /// <para>
-    /// Algorithm: for each squad member in roster order, iterate all targets from
-    /// the leader's <see cref="TargetMemory"/> and pick the highest-scoring target
+    /// Algorithm: for each squad member in roster order, iterate all targets and pick the highest-scoring target
     /// whose focus-fire count is below the cap. Reads positions and perception data
     /// from each member via the supplied <see cref="UtilityDecisionDef"/>.
     /// </para>
+    /// <para>⭐ <c>CE-3088</c> (F4) — the TARGETS are the squad's merged pool (<see cref="SquadCognitiveState.Contacts"/>,
+    /// what Squad Coordination §4 says the leader's fire allocation reads) ∪ the leader's own identified memory (the merge
+    /// walks subordinates only), deduplicated, at most 16; heard (anonymous) contacts are never assignable.
+    /// 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §11. Called by <c>SquadCoordinationSystem</c> after each merge.</para>
     /// </summary>
     public sealed class ThreatMatrixAssignmentSystem
     {
@@ -46,26 +51,38 @@ namespace Fdp.Toolkit.Utility
         public unsafe void Run(EntityRepository repo, Entity leader)
         {
             if (!repo.HasComponent<UnitRoster>(leader))     return;
-            if (!repo.HasComponent<Blackboard1024>(leader)) return;
-            if (!repo.HasComponent<TargetMemory>(leader))   return;
+            if (!repo.HasComponent<SquadCognitiveState>(leader)) return;
 
             if (!UtilityDecisionCatalog.Shared.TryGet(_decisionId, out var def, out _) || def == null)
                 return;
 
             ref readonly var roster    = ref repo.GetComponentRO<UnitRoster>(leader);
-            ref readonly var leaderMem = ref repo.GetComponentRO<TargetMemory>(leader);
-            ref var bb                 = ref repo.GetComponentRW<Blackboard1024>(leader);
-            ref var state              = ref SquadCognitiveState.Project(ref bb).Assignment;
+            ref var cognitive          = ref repo.GetComponentRW<SquadCognitiveState>(leader);
+            ref var state              = ref cognitive.Assignment;
 
             int memberCount = roster.Count;
             if (memberCount <= 0) return;
-            int targetCount = leaderMem.Count;
-            if (targetCount <= 0) return;
-
-            int maxTargets = targetCount < 16 ? targetCount : 16;
             int maxMembers = memberCount < 16 ? memberCount : 16;
 
-            // Clear previous assignments.
+            // ⭐ CE-3088 — the targets: the merged pool's identified contacts, then the leader's own identified memory.
+            long* targets = stackalloc long[16];
+            int maxTargets = 0;
+            var pool = MemoryMarshal.CreateReadOnlySpan(
+                ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref cognitive.Contacts.Contacts), 16);
+            for (int i = 0; i < cognitive.Contacts.Count && i < 16 && maxTargets < 16; i++)
+            {
+                // ⭐ CE-3063 ② — a heard contact cannot be assigned as a target to fire at.
+                if ((pool[i].Flags & SquadContact.AnonymousFlag) != 0 || pool[i].EntityId <= 0) continue;
+                AddUnique(targets, ref maxTargets, pool[i].EntityId);
+            }
+            if (repo.HasComponent<TargetMemory>(leader))
+            {
+                ref readonly var leaderMem = ref repo.GetComponentRO<TargetMemory>(leader);
+                for (int i = 0; i < leaderMem.Count && maxTargets < 16; i++)
+                    if (!TargetMemory.IsAnonymous(in leaderMem, i)) AddUnique(targets, ref maxTargets, leaderMem.EntityIds[i]);
+            }
+
+            // Clear previous assignments — also when there is nothing to assign (a stale slot would keep a dead order).
             for (int i = 0; i < maxMembers; i++)
             {
                 ref var slot = ref state.GetSlot(i);
@@ -73,16 +90,19 @@ namespace Fdp.Toolkit.Utility
                 slot.AssignmentScore      = 0f;
                 slot.FocusFireCount       = 0;
             }
+            if (maxTargets <= 0) return;
 
             // Build flat score matrix on the stack.
             float* matrixBuf = stackalloc float[maxMembers * maxTargets];
             var tmpBuffer = new UtilityResultBuffer();
             for (int memberIdx = 0; memberIdx < maxMembers; memberIdx++)
             {
-                var member = new Entity((ulong)roster.SubordinateEntities[memberIdx]);
+                var member = roster.SubordinateEntities[memberIdx];
                 for (int tIdx = 0; tIdx < maxTargets; tIdx++)
                 {
-                    var target = new Entity((ulong)leaderMem.EntityIds[tIdx]);
+                    var target = new Entity((ulong)targets[tIdx]);
+                    // ⭐ CE-2282 DA-27 — a target outside the member's sector is never assigned to him (score 0 is never taken)
+                    if (!Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(repo, member, target)) { matrixBuf[memberIdx * maxTargets + tIdx] = 0f; continue; }
                     // Score this (member, target) pair directly via the static scorer.
                     // EvaluateOption will call readers with ctx.Self=member, ctx.Context=target.
                     UtilityScorer.Evaluate(repo, member, in def, target, ref tmpBuffer, null);
@@ -106,7 +126,7 @@ namespace Fdp.Toolkit.Utility
                 int bestTgtIdx = assignmentsSpan[memberIdx];
                 if (bestTgtIdx >= 0)
                 {
-                    ulong targetHandle = (ulong)leaderMem.EntityIds[bestTgtIdx];
+                    ulong targetHandle = (ulong)targets[bestTgtIdx];
                     state.SetAssignment(memberIdx, targetHandle);
                     state.GetSlot(memberIdx).AssignmentScore = matrixBuf[memberIdx * maxTargets + bestTgtIdx];
                     focusCount[bestTgtIdx]++;
@@ -120,13 +140,19 @@ namespace Fdp.Toolkit.Utility
                 if (handle == 0) continue;
                 for (int tIdx = 0; tIdx < maxTargets; tIdx++)
                 {
-                    if (leaderMem.EntityIds[tIdx] == handle)
+                    if (targets[tIdx] == handle)
                     {
                         state.GetSlot(memberIdx).FocusFireCount = (byte)focusCount[tIdx];
                         break;
                     }
                 }
             }
+        }
+
+        private static unsafe void AddUnique(long* targets, ref int count, long id)
+        {
+            for (int i = 0; i < count; i++) if (targets[i] == id) return;
+            targets[count++] = id;
         }
     }
 }

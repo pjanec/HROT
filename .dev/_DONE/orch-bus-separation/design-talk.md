@@ -18,9 +18,9 @@ However, the Editor is a completely offline monolith running without a DDS parti
 
 Your concern about polluting the simulation recording with cluster management events is spot-on. Clean architecture dictates that playback data must remain pure.
 
-To solve this, the FDP framework leverages declarative data policies rather than physical bus segregation. If you look at the definition of `NodeHeartbeatEvent` (and all other cluster CQRS events like `ClusterOpCompletedEvent` and `SystemStateUpdateEvent`), they are explicitly decorated with the `[DataPolicy(DataPolicy.NoRecord)]` attribute.
+To solve this, the FDP framework leverages declarative data policies rather than physical bus segregation. If you look at the definition of `NodeHeartbeatEvent` (and all other cluster CQRS events like `ClusterOpCompletedEvent` and `SystemStateUpdateEvent`), they are explicitly decorated with the `[DataPolicy(DataPolicy.NoReplay)]` attribute.
 
-During simulation execution, when the `RecorderSystem` or `EpisodeRecorderModule` iterates over the event streams to capture a delta frame or keyframe, its internal `ShouldRecordEvent` method actively checks the cache for this policy. Any event tagged with `NoRecord` is completely stripped from the pipeline.
+During simulation execution, when the `RecorderSystem` or `EpisodeRecorderModule` iterates over the event streams to capture a delta frame or keyframe, its internal `ShouldRecordEvent` method actively checks the cache for this policy. Any event tagged with `NoReplay` is completely stripped from the pipeline.
 
 Because of this attribute-driven filtering, you get the convenience of a unified bus for local UI rendering and diagnostics in the Editor, while mathematically guaranteeing that your `.fdprec` binary files will contain only pure simulation data.
 
@@ -196,7 +196,7 @@ Here is why the offline Editor deliberately uses a unified bus, and why refactor
 
 If we separated the Control Plane and Data Plane buses in the Editor, we would have to manually orchestrate bridging logic to pass commands between them and precisely align multiple `SwapBuffers()` calls. This would introduce fragile boilerplate into a system that already runs perfectly in-memory.
 
-**3\. Declarative Data Segregation** You correctly pointed out earlier that we must prevent orchestration events from polluting the simulation recordings. However, physical bus separation is not required to achieve this. The FDP framework relies on declarative policies: cluster management events like `ClusterOpCompletedEvent` and `NodeHeartbeatEvent` are explicitly decorated with `[DataPolicy(DataPolicy.NoRecord)]`. This attribute mathematically guarantees that the Flight Recorder natively ignores orchestration traffic while iterating the unified bus, preserving perfect simulation data purity without requiring multiple event buffers.
+**3\. Declarative Data Segregation** You correctly pointed out earlier that we must prevent orchestration events from polluting the simulation recordings. However, physical bus separation is not required to achieve this. The FDP framework relies on declarative policies: cluster management events like `ClusterOpCompletedEvent` and `NodeHeartbeatEvent` are explicitly decorated with `[DataPolicy(DataPolicy.NoReplay)]`. This attribute mathematically guarantees that the Flight Recorder natively ignores orchestration traffic while iterating the unified bus, preserving perfect simulation data purity without requiring multiple event buffers.
 
 In a distributed node (like ExCon, IG, or our newly refactored CGF), separating the Control Plane from the Data Plane is a hard requirement for network safety and lockstep stability. But in a purely offline authoring tool, unifying them around a single `FdpEventBus` is the optimal choice to keep the composition root clean and the 60Hz loop flawlessly synchronized.
 

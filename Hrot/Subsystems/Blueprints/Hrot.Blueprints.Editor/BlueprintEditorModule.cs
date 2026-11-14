@@ -9,7 +9,7 @@ namespace Hrot.Blueprints.Editor;
 /// </summary>
 public sealed class BlueprintEditorModule
 {
-    private readonly IWindowRegistrar _windowRegistrar;
+    private readonly IShellCommandRegistrar _windowRegistrar;
     private readonly DirtyTracker _dirtyTracker;
     private readonly EditorSelectionStore _selectionStore;
     private readonly EditorState _editorState;
@@ -20,7 +20,7 @@ public sealed class BlueprintEditorModule
     private bool _activated;
 
     public BlueprintEditorModule(
-        IWindowRegistrar windowRegistrar,
+        IShellCommandRegistrar windowRegistrar,
         DirtyTracker dirtyTracker,
         EditorSelectionStore selectionStore,
         EditorState editorState,
@@ -42,7 +42,7 @@ public sealed class BlueprintEditorModule
 
         _session?.Attach();
 
-        // Register menu entries for each window via IWindowRegistrar.
+        // Register menu entries for each window via IShellCommandRegistrar.
         foreach (var window in _windows)
             _windowRegistrar.RegisterMenuEntry($"Blueprint/{window.Title}", () => window.ToggleVisible());
 

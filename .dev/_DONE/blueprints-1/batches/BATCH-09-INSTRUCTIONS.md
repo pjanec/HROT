@@ -476,7 +476,7 @@ CP-005 adds it.
 
 ## Success criteria
 
-1. `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 warnings.
+1. `dotnet build HROT.sln` → 0 errors, 0 warnings.
 2. `dotnet test Hrot/.../Hrot.Blueprints.Tests.csproj --no-build` → 160 pass, 3 skip, 0 fail
    (all existing tests must continue passing; no new tests in this batch).
 3. `BlueprintIdHash.Compute` method exists and compiles.

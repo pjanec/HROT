@@ -28,7 +28,7 @@ public class ZombieEntityMapTests
     {
         using var harness = new HrotRunnerHarness();
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(
+        int networkId = harness.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.Tank_M1Abrams,
             new CoreGeoPoint { Latitude = 32.0, Longitude = 34.0 });
 
@@ -53,34 +53,34 @@ public class ZombieEntityMapTests
     }
 
     [Fact]
-    public void DestroyedEntity_IsRemovedFromNetworkEntityMap_OnIg()
+    public void DestroyedEntity_IsRemovedFromNetworkEntityMap_OnPlayer()
     {
         using var harness = new HrotRunnerHarness();
 
         // Spawn directly on SimHost so SimHost is the authority (NetworkOwnership.HasAuthority=true).
         // This ensures CycloneNetworkCleanupSystem fires on destroy and sends EntityMaster DISPOSE
         // to DDS, which allows IG to detect the removal and prune its NetworkEntityMap.
-        long networkId = harness.SimHost.TestHook_SpawnEntity(
+        int networkId = harness.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.Tank_M1Abrams,
             new CoreGeoPoint { Latitude = 32.0, Longitude = 34.0 });
 
-        var igMap = harness.Ig.App.TestHook_EntityMap;
-        bool igEntityAppeared = harness.PumpUntil(
-            () => igMap.TryGetEntity(networkId, out _),
+        var playerMap = harness.Player.App.TestHook_EntityMap;
+        bool playerEntityAppeared = harness.PumpUntil(
+            () => playerMap.TryGetEntity(networkId, out _),
             SpawnTimeoutFrames);
-        Assert.True(igEntityAppeared, "Entity did not appear in IG NetworkEntityMap.");
+        Assert.True(playerEntityAppeared, "Entity did not appear in Player NetworkEntityMap.");
 
         harness.SimHost.World.Bus.PublishManaged(new DestroyEntityCommand
         {
             NetworkId = networkId,
-            Reason = "ZombieEntityMapTests-IG"
+            Reason = "ZombieEntityMapTests-Player"
         });
 
-        bool removedFromIgMap = harness.PumpUntil(
-            () => !igMap.TryGetEntity(networkId, out _),
+        bool removedFromPlayerMap = harness.PumpUntil(
+            () => !playerMap.TryGetEntity(networkId, out _),
             MapPruneTimeoutFrames);
 
-        Assert.True(removedFromIgMap,
-            "NetworkEntityMap was not pruned after remote destroy on IG.");
+        Assert.True(removedFromPlayerMap,
+            "NetworkEntityMap was not pruned after remote destroy on Player.");
     }
 }

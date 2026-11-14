@@ -58,7 +58,7 @@ namespace Fdp.Toolkit.CarKinem.Tests
             _sys.Execute(_world, 1.0f);
 
             var tf = _world.GetComponent<SimTransform>(e);
-            Assert.Equal(new Vector3(10f, 0f, 0f), tf.Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(10f, 0f, 0f), tf.Position);
         }
 
         // ── Test 2 ────────────────────────────────────────────────────────────
@@ -80,7 +80,7 @@ namespace Fdp.Toolkit.CarKinem.Tests
             _sys.Execute(_world, 1.0f);
 
             var tf = _world.GetComponent<SimTransform>(e);
-            Assert.Equal(Vector3.Zero, tf.Position);
+            Assert.Equal<System.Numerics.Vector3>(Vector3.Zero, tf.Position);
         }
 
         // ── Test 3 ────────────────────────────────────────────────────────────
@@ -102,7 +102,7 @@ namespace Fdp.Toolkit.CarKinem.Tests
             _sys.Execute(_world, 1.0f);
 
             var tf = _world.GetComponent<SimTransform>(e);
-            Assert.Equal(startPos, tf.Position);
+            Assert.Equal<System.Numerics.Vector3>(startPos, tf.Position);
         }
 
         // ── Test 4 ────────────────────────────────────────────────────────────
@@ -128,8 +128,8 @@ namespace Fdp.Toolkit.CarKinem.Tests
             var tfA = _world.GetComponent<SimTransform>(eA);
             var tfB = _world.GetComponent<SimTransform>(eB);
 
-            Assert.Equal(new Vector3(1f, 0f, 0f), tfA.Position);
-            Assert.Equal(new Vector3(0f, 2f, 0f), tfB.Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(1f, 0f, 0f), tfA.Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(0f, 2f, 0f), tfB.Position);
         }
 
         // ── Test 5 ────────────────────────────────────────────────────────────
@@ -150,7 +150,7 @@ namespace Fdp.Toolkit.CarKinem.Tests
             _sys.Execute(_world, 1.0f);
 
             var tf = _world.GetComponent<SimTransform>(e);
-            Assert.Equal(startPos, tf.Position);
+            Assert.Equal<System.Numerics.Vector3>(startPos, tf.Position);
         }
     }
 }

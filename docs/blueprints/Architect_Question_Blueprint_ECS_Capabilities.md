@@ -1,5 +1,7 @@
 # Architect question — three blueprint capabilities the Hill-attack migration needs
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 **Context.** We're rebuilding the Platoon Hill-attack behavior as visually-authored blueprints, slice
 by slice, to find what's missing (`HillAssault_Blueprint_Migration.md`). Slices 0 (a trivial
 always-Success action) works end to end. Scoping the real nodes surfaced three capability gaps that

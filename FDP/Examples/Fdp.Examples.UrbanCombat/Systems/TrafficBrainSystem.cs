@@ -24,6 +24,7 @@ namespace Fdp.Examples.UrbanCombat.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class TrafficBrainSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)

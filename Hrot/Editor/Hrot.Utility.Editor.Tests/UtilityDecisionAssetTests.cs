@@ -102,7 +102,7 @@ public class UtilityDecisionAssetTests
     public void TraceLaneProvider_Kind_Is_Utility()
     {
         var provider = new UtilityTraceLaneProvider();
-        Assert.Equal(AssetKind.Utility, provider.Kind);
+        Assert.True(provider.Applies(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext(nameof(AssetKind.Utility))));
     }
 
     [Fact]

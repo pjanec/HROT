@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Text.Json;
 using Fdp.Toolkit.Blueprints;
 using Xunit;
@@ -7,20 +6,18 @@ using Xunit;
 namespace Fdp.Toolkit.Scenario.Tests
 {
     /// <summary>
-    /// BSA-201: Tests for BlueprintAssignmentDto JSON round-trip and
-    /// InitialBlueprintsIntent world round-trip.
+    /// BSA-201 / CE-3044: Tests for BlueprintAssignmentDto JSON round-trip. The persisted param form is a JSON
+    /// object keyed by parameter NAME (R-191) — never bytes.
     /// </summary>
     public sealed class BlueprintAssignmentDtoTests
     {
-        // ── Test 3: DTO JSON round-trip ────────────────────────────────────────
-
         [Fact]
-        public void Dto_RoundTrip_WithNullOverrides_OmitsOverridesKey()
+        public void Dto_RoundTrip_WithNullParams_OmitsParamsKey()
         {
             var dto = new BlueprintAssignmentDto
             {
                 AssetId = Guid.NewGuid(),
-                Overrides = null,
+                Params  = null,
             };
 
             var options = new JsonSerializerOptions
@@ -28,34 +25,31 @@ namespace Fdp.Toolkit.Scenario.Tests
                 DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
             };
             var json = JsonSerializer.Serialize(dto, options);
-            Assert.DoesNotContain("\"Overrides\"", json);
+            Assert.DoesNotContain("\"Params\"", json);
 
             var deserialized = JsonSerializer.Deserialize<BlueprintAssignmentDto>(json, options);
             Assert.NotNull(deserialized);
             Assert.Equal(dto.AssetId, deserialized!.AssetId);
-            Assert.Null(deserialized.Overrides);
+            Assert.Null(deserialized.Params);
         }
 
         [Fact]
-        public void Dto_RoundTrip_WithPopulatedOverrides_PreservesValues()
+        public void Dto_RoundTrip_WithParams_IsAJsonObjectByName()
         {
             var dto = new BlueprintAssignmentDto
             {
                 AssetId = Guid.NewGuid(),
-                Overrides = new Dictionary<string, object>
-                {
-                    ["Health"] = 100,
-                    ["Speed"] = 5.5,
-                },
+                Params  = new System.Text.Json.Nodes.JsonObject { ["Speed"] = 12.5, ["Name"] = "alpha" },
             };
 
             var json = JsonSerializer.Serialize(dto);
-            Assert.Contains("\"Overrides\"", json);
+            Assert.Contains("\"Params\":{\"Speed\":12.5,\"Name\":\"alpha\"}", json);   // readable, by name — not base64
 
             var deserialized = JsonSerializer.Deserialize<BlueprintAssignmentDto>(json);
             Assert.NotNull(deserialized);
             Assert.Equal(dto.AssetId, deserialized!.AssetId);
-            Assert.NotNull(deserialized.Overrides);
+            Assert.Equal(12.5, (double)deserialized.Params!["Speed"]!);
+            Assert.Equal("alpha", (string)deserialized.Params["Name"]!);
         }
     }
 }

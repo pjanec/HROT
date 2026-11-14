@@ -38,10 +38,81 @@ public sealed class BTreeValidator
         CheckCycles(asset, diagnostics);
         CheckOrphanedNodes(asset, diagnostics);
         CheckNestedDecorators(asset, diagnostics);
+        CheckResolverShape(asset, diagnostics);
         if (catalog != null)
+        {
             CheckDanglingBlueprintReferences(asset, catalog, diagnostics);
+            CheckSubtreeAssetCycles(asset, catalog, diagnostics);
+        }
 
         return diagnostics;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E5</c> item 7 — <c>SubtreeAssetCycle</c>: this asset hosts a sub-tree that hosts
+    /// this asset again.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.16.
+    ///
+    /// <para>⛔⛔ <b>NOT the same rule as <see cref="CheckCycles"/>, and the distinction is the point.</b>
+    /// That one walks <c>ChildVisualIds</c> — the NODE graph inside this one asset. This one walks the
+    /// ASSET graph through <c>ISubtreeHostingAsset</c>. 📐 A tree can be perfectly acyclic by the first
+    /// rule while hosting a sub-tree that hosts it back.</para>
+    ///
+    /// <para>⭐⭐ <b>This is the arm that can fire on a shipped asset today</b> — <c>BTreeSubtreePayload</c>
+    /// is authored and persisted, where the HSM side still has no authoring gesture.</para>
+    ///
+    /// <para>⭐⭐ <b>It targets THE SUBTREE NODE ON THE RING</b> — the node whose <c>SubtreeAssetId</c>
+    /// is the ring's next hop, i.e. the edge a designer can cut HERE. 🔴 The first cut targeted
+    /// <c>Guid.Empty</c> always, reasoning that <i>"for <c>A→B→A</c> opened at <c>B</c>, no node of
+    /// <c>B</c> is at fault."</i> ⛔ Wrong — a ring has no innocent edge. ⚠ When this asset is only on
+    /// the APPROACH path (<c>A→B→C→B</c> validated from <c>A</c>) nothing here IS at fault, and the
+    /// diagnostic correctly falls back to tree-level.</para>
+    ///
+    /// <para>⚠ The walk is shared with <c>HsmValidator</c> so the two cannot drift into two answers for
+    /// one question (ruling 9).</para>
+    /// </summary>
+    /// <summary>
+    /// ⭐ <c>CE-434</c> — a bound resolver whose recorded shape hash no longer matches the behaviour's block.
+    /// 📄 <c>Q76</c> §12.21. ⚠ A hash of <c>0</c> was never recorded (a hand-authored ref) — nothing to compare.
+    /// </summary>
+    private static void CheckResolverShape(BehaviorTreeAsset asset, List<BTreeDiagnostic> out_)
+    {
+        if (asset.Resolver is not { ShapeHash: not 0 } r) return;
+        uint now = Hrot.AiEditor.Persistence.Emit.BehaviorResolverShape
+            .Of(global::Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(asset)).ShapeHash;
+        if (now == r.ShapeHash) return;
+
+        out_.Add(new BTreeDiagnostic(
+            Guid.Empty,
+            BTreeDiagnosticSeverity.Warning,
+            BTreeDiagnosticCode.ResolverOutOfDate,
+            $"Resolver '{r.Name}' was derived for a different blackboard than this behaviour now has. "
+            + "Re-derive it, pick another resolver, or clear the binding."));
+    }
+
+    private static void CheckSubtreeAssetCycles(
+        BehaviorTreeAsset asset, IAssetCatalog catalog, List<BTreeDiagnostic> out_)
+    {
+        var cycle = Hrot.Editor.AiShared.SubtreeCycleDetector.FindCycleFrom(catalog, asset.AssetId);
+        if (cycle.Count == 0) return;
+
+        // ⭐ The edge to cut, if this asset sits on the ring at all.
+        var nextHop = Hrot.Editor.AiShared.SubtreeCycleDetector.NextHopInRing(cycle, asset.AssetId);
+        var target  = Guid.Empty;
+        if (nextHop is not null)
+        {
+            foreach (var n in asset.Nodes)
+            {
+                if (n.Subtree?.SubtreeAssetId == nextHop.Value) { target = n.VisualId; break; }
+            }
+        }
+
+        out_.Add(new BTreeDiagnostic(
+            target,
+            BTreeDiagnosticSeverity.Error,
+            BTreeDiagnosticCode.SubtreeAssetCycle,
+            $"Sub-tree hosting forms a cycle: " +
+            $"{Hrot.Editor.AiShared.SubtreeCycleDetector.DescribeCycle(catalog, cycle)}. " +
+            $"Hosted sub-trees are expanded inline every tick, so a cycle recurses without a base case."));
     }
 
     // ---- Rule implementations -----------------------------------------------
@@ -75,8 +146,19 @@ public sealed class BTreeValidator
         {
             switch (node.KernelType)
             {
+                case NodeType.Action when node.SopOrder is { } order:   // ⭐ CE-2079 — an SOP order, not a binding
+                    if (string.IsNullOrWhiteSpace(order.BehaviorName))
+                        out_.Add(new BTreeDiagnostic(node.VisualId, BTreeDiagnosticSeverity.Error,
+                            BTreeDiagnosticCode.SopOrderIncomplete, "SOP order names no behaviour."));
+                    else if (!string.IsNullOrEmpty(order.ParamsVariable)
+                             && !asset.BlackboardVariables.Any(v => v.Name == order.ParamsVariable))
+                        out_.Add(new BTreeDiagnostic(node.VisualId, BTreeDiagnosticSeverity.Error,
+                            BTreeDiagnosticCode.SopOrderIncomplete,
+                            $"SOP order binds params variable '{order.ParamsVariable}', which the blackboard does not have."));
+                    break;
+
                 case NodeType.Action:
-                    if (node.Action == null || string.IsNullOrEmpty(node.Action.MethodFqn))
+                    if (node.Action == null || node.Action.NamesNothing)   // CE-417 B-1: a method OR a blueprint
                     {
                         out_.Add(new BTreeDiagnostic(
                             node.VisualId,
@@ -87,7 +169,7 @@ public sealed class BTreeValidator
                     break;
 
                 case NodeType.Condition:
-                    if (node.Condition == null || string.IsNullOrEmpty(node.Condition.MethodFqn))
+                    if (node.Condition == null || node.Condition.NamesNothing)
                     {
                         out_.Add(new BTreeDiagnostic(
                             node.VisualId,
@@ -123,38 +205,42 @@ public sealed class BTreeValidator
     }
 
     // Phase C (AIE-053): a composed AiPrimitive node (Action or Condition with
-    // DelegateShape == AiPrimitiveTickCore) whose MethodFqn no longer resolves to any Blueprint
-    // asset in the catalog — the blueprint was renamed or deleted after the node was composed.
-    // Identity is by FQN (see ComposedBlueprintResolver), never by a persisted AssetId.
+    // DelegateShape == AiPrimitiveTickCore) whose blueprint no longer resolves in the catalog — deleted, or (for a
+    // legacy FQN binding) renamed. ⭐ CE-417 B-1: identity is the binding's BlueprintAssetId first (a rename no longer
+    // dangles); a legacy generated MethodFqn is still checked by FQN until the editor heals it on load.
+    // ⛔ SUPERSEDED: "Identity is by FQN, never by a persisted AssetId" (B-1, user 2026-10-01).
     private static void CheckDanglingBlueprintReferences(
         BehaviorTreeAsset asset, IAssetCatalog catalog, List<BTreeDiagnostic> out_)
     {
         foreach (var node in asset.Nodes)
         {
-            string? methodFqn = node.KernelType switch
+            var binding = node.KernelType switch
             {
-                NodeType.Action when node.Action?.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore
-                    => node.Action.MethodFqn,
-                NodeType.Condition when node.Condition?.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore
-                    => node.Condition.MethodFqn,
+                NodeType.Action when (node.Action is not null && node.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore)
+                    => node.Action,
+                NodeType.Condition when (node.Condition is not null && node.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore)
+                    => node.Condition,
                 _ => null,
             };
-            if (methodFqn is null)
+            if (binding is null)
                 continue;
 
-            // Not a composed-AiPrimitive-shaped FQN at all (shouldn't happen given the DelegateShape
-            // guard above, but Resolve/TryParse already handles it defensively) — nothing to flag.
-            if (!ComposedBlueprintResolver.TryParse(methodFqn, out _, out _))
+            // Neither a blueprint id nor a generated-blueprint FQN (a hand-written AiPrimitive-shaped C# method) —
+            // there is no blueprint to dangle.
+            bool namesBlueprint = binding.BlueprintAssetId != Guid.Empty
+                               || ComposedBlueprintResolver.TryParse(binding.MethodFqn, out _, out _);
+            if (!namesBlueprint)
                 continue;
 
-            if (ComposedBlueprintResolver.Resolve(methodFqn, catalog) != null)
+            if (ComposedBlueprintResolver.ResolveBinding(binding, catalog) != null)
                 continue; // resolves cleanly — no diagnostic.
 
+            string shown = binding.BlueprintName ?? binding.MethodFqn ?? binding.BlueprintAssetId.ToString();
             out_.Add(new BTreeDiagnostic(
                 node.VisualId,
                 BTreeDiagnosticSeverity.Error,
                 BTreeDiagnosticCode.DanglingReferenceAfterReload,
-                $"Node '{node.DisplayLabel}' references blueprint '{methodFqn}' which no longer exists — reselect or remove."));
+                $"Node '{node.DisplayLabel}' references blueprint '{shown}' which no longer exists — reselect or remove."));
         }
     }
 

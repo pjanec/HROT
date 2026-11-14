@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using NodeEditor.Core.Canvas;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Core.Layout;
 using NodeEditor.Core.Spatial;
 using NodeEditor.Core.View;
 using NodeEditor.Primitives;
@@ -23,6 +24,14 @@ internal sealed class HitTester
     private const float WireHitDistancePx = 9f;
     private const int   WireSampleCount   = 24;
 
+    /// <summary>CE-1000: width (screen px) of the band just inside a node's border that starts a link.</summary>
+    internal const float NodeEdgeBandPx = 8f;
+
+    /// <summary>CE-1004: half-height (screen px) of the clickable line between two bands.</summary>
+    internal const float RegionDividerHitPx = 4f;
+    /// <summary>CE-1004: size (px at zoom 1) of the container's bottom-right resize grip.</summary>
+    internal const float ContainerGripPx = 12f;
+
     // Visual Z-Layers. Higher value = later paint = wins hit test.
     // Ordering (low to high):
     //   BeforeContent < CommentBody < ContainerInterior < AfterWires < NodeBody
@@ -37,6 +46,8 @@ internal sealed class HitTester
     internal const int ZLayerCommentHeader     = 50;
     internal const int ZLayerContainerHeader   = 60;
     internal const int ZLayerContainerChevron  = 65;
+    internal const int ZLayerNodeEdge          = 67;   // CE-1000: link-start band (node-to-node routing only)
+    internal const int ZLayerContainerResize   = 68;   // CE-1004: region divider + container corner grip
     internal const int ZLayerTopMost           = 70;
     internal const int ZLayerAttachment        = 80;
     internal const int ZLayerWire              = 90;
@@ -50,6 +61,7 @@ internal sealed class HitTester
         Dictionary<PinId, Vector2> pinPositions,
         Dictionary<AttachmentId, RectF> attachmentScreenRects,
         Dictionary<NodeId, RectF> nodeScreenRects,
+        Dictionary<LinkId, LinkPath> linkPaths,
         IHitTestContext hitCtx)
     {
         var mouse = view.Host.Input.MousePosition;
@@ -119,10 +131,10 @@ internal sealed class HitTester
         foreach (var link in view.Model.Links)
         {
             wireIndex++;
-            if (!pinPositions.TryGetValue(link.FromPin, out var a)) continue;
-            if (!pinPositions.TryGetValue(link.ToPin, out var b)) continue;
+            if (!linkPaths.TryGetValue(link.Id, out var path)) continue;
 
-            if (HitsWire(mouse, a, b, link, view.Viewport, view.Model.Kind.Orientation))
+            // CE-1000: the clickable band is sampled from the SAME path the wire renderer draws.
+            if (path.DistanceTo(mouse, WireSampleCount) <= WireHitDistancePx)
                 SubmitHit(new HoverInfo { Kind = HoverKind.Link, Link = link.Id }, ZLayerWire, wireIndex, 1);
         }
 
@@ -134,6 +146,7 @@ internal sealed class HitTester
         float pinHitRadius = MathF.Max(10f, 7.5f * view.Viewport.Zoom);
         float containerHeaderHtPx = view.Host.Theme.NodeHeaderHeight * view.Viewport.Zoom;
         float collapseArrowWidthPx = 18f * view.Viewport.Zoom;
+        bool nodeToNode = view.Model.Kind.Routing == LinkRouting.NodeToNode;
 
         foreach (var node in view.Model.Nodes)
         {
@@ -146,10 +159,51 @@ internal sealed class HitTester
 
             var bounds = spatialIndex.GetBounds(node.Id);
 
+            // CE-1000: in node-to-node routing a band just inside the node's border starts a link. It sits above the
+            // node body / container header (so it wins there) and below pins, wires and attachments.
+            if (nodeToNode && nodeScreenRects.TryGetValue(node.Id, out var edgeRect)
+                && IsInBorderBand(mouse, edgeRect, NodeEdgeBandPx))
+            {
+                SubmitHit(new HoverInfo { Kind = HoverKind.NodeEdge, Node = node.Id }, ZLayerNodeEdge, nodeSubLayer, 1);
+            }
+
             if (node.AsContainer() is { } container)
             {
                 if (nodeScreenRects.TryGetValue(node.Id, out var containerScreenRect))
                 {
+                    // ⭐ CE-1004 (R1): the corner grip resizes the container; the line between two bands resizes the
+                    //    upper (left) band. Both win over the header / interior and the link-start border band.
+                    if (!container.IsCollapsed)
+                    {
+                        float grip = MathF.Max(8f, ContainerGripPx * view.Viewport.Zoom);
+                        var cornerRect = new RectF(containerScreenRect.Max - new Vector2(grip, grip), new Vector2(grip, grip));
+                        if (cornerRect.Contains(mouse))
+                            SubmitHit(new HoverInfo { Kind = HoverKind.Container, Node = node.Id,
+                                ContainerZone = ContainerHoverZone.ResizeEdge, ContainerEdge = ContainerResizeEdge.Corner },
+                                ZLayerContainerResize, nodeSubLayer, 1);
+
+                        if (container.Regions.Count > 1 && containerScreenRect.Contains(mouse))
+                        {
+                            var strips = RegionLayoutComputer.Compute(
+                                container, view.Model, id => spatialIndex.GetBounds(id)?.Size,
+                                containerScreenRect, containerHeaderHtPx, 1f, view.Viewport.Zoom,
+                                preferredOverride: i => view.Interaction.RegionSizePreview(node.Id, i));
+                            bool horiz = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
+                            for (int i = 0; i < strips.Count - 1; i++)
+                            {
+                                var end = strips[i].Min + strips[i].Size;
+                                float d = horiz ? MathF.Abs(mouse.X - end.X) : MathF.Abs(mouse.Y - end.Y);
+                                if (d <= RegionDividerHitPx)
+                                {
+                                    SubmitHit(new HoverInfo { Kind = HoverKind.Container, Node = node.Id,
+                                        ContainerZone = ContainerHoverZone.RegionDivider, ContainerRegionIndex = i },
+                                        ZLayerContainerResize, nodeSubLayer, 2);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
                     var headerScreenRect = new RectF(
                         containerScreenRect.Min,
                         new Vector2(containerScreenRect.Size.X, containerHeaderHtPx));
@@ -200,8 +254,9 @@ internal sealed class HitTester
                     SubmitHit(new HoverInfo { Kind = HoverKind.Node, Node = node.Id }, ZLayerNodeElement, nodeSubLayer, 3);
                 }
 
-                // Pins
-                foreach (var pin in node.Pins)
+                // Pins — CE-1000: not in node-to-node graphs, where the border band starts links and pins are
+                // only the link's identity (an invisible pin must never be the thing a user has to aim at).
+                foreach (var pin in nodeToNode ? Array.Empty<IPinModel>() : node.Pins)
                 {
                     if (!pinPositions.TryGetValue(pin.Id, out var screenPos)) continue;
                     if (Vector2.Distance(mouse, screenPos) <= pinHitRadius)
@@ -273,66 +328,15 @@ internal sealed class HitTester
         }
     }
 
-    private static bool HitsWire(Vector2 mouse, Vector2 a, Vector2 b, ILinkModel link, ViewportState viewport, PinOrientation orientation)
+    /// <summary>True when <paramref name="p"/> is inside <paramref name="r"/> and within <paramref name="band"/> of its border.</summary>
+    internal static bool IsInBorderBand(Vector2 p, RectF r, float band)
     {
-        var waypoints = link.Waypoints;
-        if (waypoints.Count == 0)
-        {
-            return BezierHit(mouse, a, b, orientation, viewport.Zoom);
-        }
-
-        var prev = a;
-        for (int i = 0; i < waypoints.Count; i++)
-        {
-            var wpt = viewport.GraphToScreen(waypoints[i]);
-            if (BezierHit(mouse, prev, wpt, orientation, viewport.Zoom)) return true;
-            prev = wpt;
-        }
-        return BezierHit(mouse, prev, b, orientation, viewport.Zoom);
+        if (!r.Contains(p)) return false;
+        float d = MathF.Min(MathF.Min(p.X - r.Min.X, r.Max.X - p.X), MathF.Min(p.Y - r.Min.Y, r.Max.Y - p.Y));
+        return d <= band;
     }
 
-    private static bool BezierHit(Vector2 mouse, Vector2 a, Vector2 b, PinOrientation orientation = PinOrientation.Horizontal, float zoom = 1f)
-    {
-        var (c1, c2) = WireTangents(a, b, orientation, zoom);
-        for (int s = 0; s <= WireSampleCount; s++)
-        {
-            float t = s / (float)WireSampleCount;
-            var pt = BezierPoint(a, c1, c2, b, t);
-            if (Vector2.DistanceSquared(mouse, pt) <= WireHitDistancePx * WireHitDistancePx)
-                return true;
-        }
-        return false;
-    }
-
+    /// <summary>Kept as the name the wire-tangent rails use; the geometry now lives in <see cref="LinkPathBuilder"/>.</summary>
     internal static (Vector2 c1, Vector2 c2) WireTangents(Vector2 a, Vector2 b, PinOrientation orientation = PinOrientation.Horizontal, float zoom = 1f)
-    {
-        // The minimum-tangent floor is expressed in GRAPH units and multiplied by zoom, so the
-        // curve keeps its shape as you zoom (a & b are already screen positions). A fixed screen
-        // floor would make short/zoomed-out wires bulge disproportionately (shape change).
-        float floor = 50f * zoom;
-
-        if (orientation == PinOrientation.Vertical)
-        {
-            // Pins face along Y: the From/output pin (a) is on the node's top edge
-            // and faces up; the To/input pin (b) is on the bottom edge and faces
-            // down. Tangents leave/enter vertically so the spline doesn't sprout
-            // sideways like a horizontal (Blueprint) wire.
-            float dy = MathF.Abs(b.Y - a.Y);
-            float tangentV = MathF.Max(floor, dy * 0.5f);
-            return (a - new Vector2(0f, tangentV), b + new Vector2(0f, tangentV));
-        }
-
-        float dx = MathF.Abs(b.X - a.X);
-        float tangent = MathF.Max(floor, dx * 0.5f);
-        return (a + new Vector2(tangent, 0f), b - new Vector2(tangent, 0f));
-    }
-
-    private static Vector2 BezierPoint(Vector2 p1, Vector2 c1, Vector2 c2, Vector2 p2, float t)
-    {
-        float u = 1f - t;
-        return u * u * u * p1
-            + 3f * u * u * t * c1
-            + 3f * u * t * t * c2
-            + t * t * t * p2;
-    }
+        => LinkPathBuilder.PinWireTangents(a, b, orientation, zoom);
 }

@@ -24,11 +24,12 @@ namespace Fdp.Toolkit.Navigation
         public byte MobilityProfile;
         /// <summary>Force a specific backend (0 = Auto); see <see cref="NavigationBackend"/>.</summary>
         public NavigationBackend BackendForce;
+        /// <summary>⭐ CE-3128 — how much this actor wants the road network (resolved by <c>PathRequests</c>; <see cref="RoadUse.Unspecified"/> ⇒ neutral). In the former padding byte.</summary>
+        public RoadUse RoadUse;
         /// <summary>Padding to maintain natural alignment.</summary>
-        public byte _pad1;
         public byte _pad2;
         /// <summary>Originating Brain node ID for routing responses back.</summary>
-        public int SourceNodeId;
+        public NodeId SourceNodeId;
         /// <summary>Brain-allocated route handle (0 = anonymous; solver allocates its own handle).</summary>
         public int RouteHandle;
         /// <summary>Navmesh layer filter bitmask (0 = default layer).</summary>
@@ -37,6 +38,10 @@ namespace Fdp.Toolkit.Navigation
         public float MaxCost;
         /// <summary>Navmesh version at time of request, used for staleness detection.</summary>
         public int NavmeshVersionAtRequest;
+        /// <summary>⭐ CE-3029 / R-3006 (Navigation v2 §5.2b C2) — the vehicle's turn radius, WheelBase / tan(MaxSteerAngle): the solver
+        /// rounds each corner of the path for it (<see cref="CornerRounding"/>). 0 = do not round (a pedestrian, no <c>VehicleParams</c>).
+        /// ⭐ CE-3200 — the scale-out <c>DdsPathRequest</c> carries it too (was §5.2b's dashed edge).</summary>
+        public float TurnRadius;
     }
 
     /// <summary>
@@ -62,7 +67,7 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>Handle into the shared route/waypoint store; echoed from the request. -1 if unreachable.</summary>
         public int RouteHandle;
         /// <summary>Originating Brain node ID, propagated from the request.</summary>
-        public int SourceNodeId;
+        public NodeId SourceNodeId;
         /// <summary>Navmesh version when the path was planned, for staleness detection.</summary>
         public int NavmeshVersionAtPlan;
         /// <summary>Reason the request failed; <see cref="NavigationFailureReason.NoFailure"/> on success.</summary>
@@ -72,6 +77,9 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>Padding to maintain natural alignment.</summary>
         public byte _pad3;
         public byte _pad4;
+        /// <summary>⭐ <c>CE-4391</c> S-3 (P3-a/b; APPENDED, never on the wire) — the navmesh's tile <see cref="INavmeshTileVersions.ChangeSequence"/> read BEFORE the path was planned;
+        /// 0 = unknown (a road-graph path, a mesh with no tile versions, a result from a remote solver): such a path is never judged stale by tile.</summary>
+        public uint TileSequenceAtPlan;
     }
 
     /// <summary>
@@ -88,7 +96,7 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>Handle of the corridor being followed.</summary>
         public int RouteHandle;
         /// <summary>Originating Brain node ID, propagated from the request.</summary>
-        public int SourceNodeId;
+        public NodeId SourceNodeId;
     }
 
     /// <summary>

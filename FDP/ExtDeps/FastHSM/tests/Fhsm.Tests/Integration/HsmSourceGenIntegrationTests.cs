@@ -17,7 +17,7 @@ namespace Fhsm.Tests.Integration
         // Guard that returns true only when eventId == 42.
         // The source generator picks this up and emits it into RegisterAll().
         [HsmGuard(Name = "IntegrationTestGuard")]
-        internal static bool IntegrationTestGuard(void* instance, void* context, ushort eventId)
+        internal static bool IntegrationTestGuard(void* instance, void* context, ushort eventId, HsmCommandWriter* writer)
         {
             return eventId == 42;
         }
@@ -46,11 +46,11 @@ namespace Fhsm.Tests.Integration
                 ushort id = ComputeHash("IntegrationTestGuard");
 
                 // Matching eventId: guard returns true.
-                Assert.True(HsmActionDispatcher.EvaluateGuard(id, null, null, 42));
+                Assert.True(HsmActionDispatcher.EvaluateGuard(id, null, null, 42, null));
 
                 // Non-matching eventId: guard returns false (proves actual dispatch,
                 // not the default true that is returned for unregistered keys).
-                Assert.False(HsmActionDispatcher.EvaluateGuard(id, null, null, 99));
+                Assert.False(HsmActionDispatcher.EvaluateGuard(id, null, null, 99, null));
             }
             finally
             {
@@ -71,8 +71,8 @@ namespace Fhsm.Tests.Integration
                 ushort id = ComputeHash("IntegrationTestGuard");
 
                 // After reload, the guard must dispatch correctly.
-                Assert.True(HsmActionDispatcher.EvaluateGuard(id, null, null, 42));
-                Assert.False(HsmActionDispatcher.EvaluateGuard(id, null, null, 99));
+                Assert.True(HsmActionDispatcher.EvaluateGuard(id, null, null, 42, null));
+                Assert.False(HsmActionDispatcher.EvaluateGuard(id, null, null, 99, null));
             }
             finally
             {
@@ -103,8 +103,8 @@ namespace Fhsm.Tests.Integration
             {
                 Fhsm.Tests.Generated.HsmActionRegistrar.RegisterAll();
 
-                Assert.True(HsmActionDispatcher.EvaluateGuard(hash1, null, null, 42));
-                Assert.False(HsmActionDispatcher.EvaluateGuard(hash1, null, null, 99));
+                Assert.True(HsmActionDispatcher.EvaluateGuard(hash1, null, null, 42, null));
+                Assert.False(HsmActionDispatcher.EvaluateGuard(hash1, null, null, 99, null));
             }
             finally
             {

@@ -6,26 +6,26 @@
 
 ## Phase 1: DataPolicy Cleanup and Execution-State Exclusion
 
-### TASK-S101: Fix DataPolicy.NoSave XML Comment
+### TASK-S101: Fix DataPolicy.NoScenario XML Comment
 
 **Design Reference:** DESIGN.md § Phase 1 — Background
 
 **Scope:**
-Update the XML `<summary>` on `DataPolicy.NoSave` and (for symmetry) `DataPolicy.NoRecord`
+Update the XML `<summary>` on `DataPolicy.NoScenario` and (for symmetry) `DataPolicy.NoReplay`
 in `FDP/Engine/Fdp.Core/DataPolicyAttribute.cs`.
 
 Not in scope: changing any enum values, flag bits, or behavior.
 
 **Constraints:**
 - Do not change the enum values or bit assignments.
-- Do not alter `DataPolicy.Transient`, `NoSnapshot`, or `SnapshotViaClone`.
+- Do not alter `DataPolicy.Transient`, `NoPreview`, or `SnapshotViaClone`.
 
 **Success Conditions:**
 
-1. `DataPolicy.NoSave` XML comment reads: "Exclude from Scenario JSON serialization. Use for
+1. `DataPolicy.NoScenario` XML comment reads: "Exclude from Scenario JSON serialization. Use for
    runtime execution state (e.g., BTree pointers, active weapon channels) that should be
    preserved in binary checkpoints but omitted from declarative authoring templates."
-2. `DataPolicy.NoRecord` XML comment reads: "Exclude from Flight Recorder and Binary
+2. `DataPolicy.NoReplay` XML comment reads: "Exclude from Flight Recorder and Binary
    Checkpoints. Use for debug-only data or metrics that should not pollute binary state
    snapshots."
 3. No other lines in the file are changed.
@@ -33,12 +33,12 @@ Not in scope: changing any enum values, flag bits, or behavior.
 
 ---
 
-### TASK-S102: Add DataPolicy.NoSave to Execution Channel Components
+### TASK-S102: Add DataPolicy.NoScenario to Execution Channel Components
 
 **Design Reference:** DESIGN.md § Phase 1 — Components to Mark
 
 **Scope:**
-Add `[DataPolicy(DataPolicy.NoSave)]` to `LocomotionChannel`, `WeaponChannel`, and
+Add `[DataPolicy(DataPolicy.NoScenario)]` to `LocomotionChannel`, `WeaponChannel`, and
 `InteractionChannel` in `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/ChannelComponents.cs`.
 
 Not in scope: changing field definitions, sizes, or any other attribute.
@@ -50,7 +50,7 @@ Not in scope: changing field definitions, sizes, or any other attribute.
 
 **Success Conditions:**
 
-1. Each of the three structs carries `[DataPolicy(DataPolicy.NoSave)]`.
+1. Each of the three structs carries `[DataPolicy(DataPolicy.NoScenario)]`.
 2. A unit test creates a fresh `ScenarioSerializerBuilder`, registers component types,
    calls `Build()`, and asserts that `autoSerializer.GetComponentName(typeIdOf(WeaponChannel))`
    returns `null` (i.e., WeaponChannel is absent from the saveable set).
@@ -59,48 +59,48 @@ Not in scope: changing field definitions, sizes, or any other attribute.
 
 ---
 
-### TASK-S103: Add DataPolicy.NoSave to Brain Execution Components
+### TASK-S103: Add DataPolicy.NoScenario to Brain Execution Components
 
 **Design Reference:** DESIGN.md § Phase 1 — Components to Mark
 
 **Scope:**
-Add `[DataPolicy(DataPolicy.NoSave)]` to `BrainBTreeState`, `BrainHsm64`, and `BrainHsm128`
+Add `[DataPolicy(DataPolicy.NoScenario)]` to `BrainBTreeState`, `BrainHsm64`, and `BrainHsm128`
 in `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BrainComponents.cs`.
 
 Not in scope: changing struct field definitions.
 
 **Constraints:**
 - Preserve `[StructLayout(LayoutKind.Sequential)]` and `[ComponentId(...)]`.
-- Do NOT add `NoRecord` — brain execution state must still appear in binary checkpoints.
+- Do NOT add `NoReplay` — brain execution state must still appear in binary checkpoints.
 
 **Success Conditions:**
 
-1. Each of the three structs carries `[DataPolicy(DataPolicy.NoSave)]`.
+1. Each of the three structs carries `[DataPolicy(DataPolicy.NoScenario)]`.
 2. A unit test asserts `FdpAutoSerializer` (after `Build()`) has no entry for
    `BrainBTreeState`, `BrainHsm64`, or `BrainHsm128` (i.e., `GetComponentName(typeId)` == null).
-3. The types are still present in `ComponentTypeRegistry.GetRecordableTypeIds()` (not NoRecord).
+3. The types are still present in `ComponentTypeRegistry.GetRecordableTypeIds()` (not NoReplay).
 4. Existing tests pass.
 
 ---
 
-### TASK-S104: Add DataPolicy.NoSave to Transient Perception Components
+### TASK-S104: Add DataPolicy.NoScenario to Transient Perception Components
 
 **Design Reference:** DESIGN.md § Phase 1 — Components to Mark
 
 **Scope:**
-Add `[DataPolicy(DataPolicy.NoSave)]` to `SensorContactList` and `ActiveSensorTracks`
+Add `[DataPolicy(DataPolicy.NoScenario)]` to `SensorContactList` and `ActiveSensorTracks`
 in `FDP/Toolkits/Fdp.Toolkits/Perception/Components/PerceptionComponents.cs`.
 
 Not in scope: changing field definitions.
 
 **Constraints:**
-- Same rules as TASK-S103: preserve existing attributes, do not add `NoRecord`.
+- Same rules as TASK-S103: preserve existing attributes, do not add `NoReplay`.
 - `SensorContactList` and `ActiveSensorTracks` are re-acquired organically from DDS
   SensorTrackState updates on scenario start; they must not be seeded from stale JSON.
 
 **Success Conditions:**
 
-1. Both structs carry `[DataPolicy(DataPolicy.NoSave)]`.
+1. Both structs carry `[DataPolicy(DataPolicy.NoScenario)]`.
 2. A unit test asserts they do not appear in `ComponentTypeRegistry.GetSaveableTypeIds()`.
 3. They still appear in `GetRecordableTypeIds()`.
 4. Existing perception tests pass (they do not rely on scenario serialization of these types).
@@ -119,7 +119,7 @@ call from `Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs`.
 Not in scope: changing any other translator registration, any other files.
 
 **Constraints:**
-- TASK-S102 must be completed first (WeaponChannel must have `[DataPolicy(DataPolicy.NoSave)]`
+- TASK-S102 must be completed first (WeaponChannel must have `[DataPolicy(DataPolicy.NoScenario)]`
   before this translator is deleted).
 - Do not remove `TargetMemoryTranslator` or `PassengerBufferTranslator` registrations.
 
@@ -130,7 +130,7 @@ Not in scope: changing any other translator registration, any other files.
 3. Solution builds without errors (no dangling `using` or `new WeaponChannelTranslator()`).
 4. Integration test: save a scenario containing an entity with a `WeaponChannel` component;
    reload it; assert the entity exists and does NOT have a `WeaponChannel` component
-   (it was stripped by `DataPolicy.NoSave`).
+   (it was stripped by `DataPolicy.NoScenario`).
 
 ---
 
@@ -275,7 +275,7 @@ must be serialized as a `JsonArray` of length `InlineArrayAttribute.Length`, usi
 1. Unit test: define a struct with a `[InlineArray(3)]` of `float`; serialize; assert JSON
    array length is 3 with correct values.
 2. Unit test: inject from JSON array; assert all three values are restored.
-3. `MissionPlanQueue` auto-serialization round-trip (if `DataPolicy.NoSave` is NOT applied):
+3. `MissionPlanQueue` auto-serialization round-trip (if `DataPolicy.NoScenario` is NOT applied):
    a queue with 2 phases survives a JSON round-trip with all `BehaviorId` and `Trigger`
    values intact. (Note: in production, `MissionPlanTranslator` handles `MissionPlanQueue`
    and consumes it from the auto-serializer mask; this test verifies the underlying

@@ -9,6 +9,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- ⭐ CE-4524 — the agent guide's prose (moved from tools/ai-debug-mcp/skill-parts), rendered by GET /help and the help-api flag -->
+    <EmbeddedResource Include="DebugApi\Guide\*.md" LogicalName="Hrot.Editor.Guide.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Hrot.Editor.Tests" />
     <InternalsVisibleTo Include="Hrot.ClusterRunner.Integration.Tests" />
     <!-- Expose coordinator internals to the Blueprint test harness -->
@@ -16,17 +21,22 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Engine\Hrot.Terrain.Random\Hrot.Terrain.Random.csproj" />   <!-- ⭐ T-3 part 2 (CE-4430) — SynthUniqueBuildings: unique houses for a block's grid -->
     <ProjectReference Include="..\..\Diagnostics\Hrot.Diagnostics.Breakpoints\Hrot.Diagnostics.Breakpoints.csproj" />
     <ProjectReference Include="..\Blueprints\Hrot.Blueprints.Editor\Hrot.Blueprints.Editor.csproj" />
     <ProjectReference Include="..\..\Editor\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
+    <ProjectReference Include="..\..\Editor\Hrot.Editor.AiComposition\Hrot.Editor.AiComposition.csproj" />
     <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
+    <ProjectReference Include="..\..\Engine\Hrot.Terrain.Import\Hrot.Terrain.Import.csproj" />
+    <ProjectReference Include="..\..\Engine\Hrot.Terrain.Random\Hrot.Terrain.Random.csproj" />   <!-- ⭐ Terrain authoring U-8 — the random-terrain wizard's engine (backend T-1) -->   <!-- ⭐ CE-4378 — the OSM wizard's last stage: the terrain importer -->
+    <ProjectReference Include="..\..\Engine\Hrot.Traffic\Hrot.Traffic.csproj" />
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
     <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />
     <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
 
-    <!-- EditorSubsystem uses MapLayerAssignmentSystem from Hrot.IG.Systems -->
-    <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
+    <!-- EditorSubsystem uses MapLayerAssignmentSystem from Hrot.Player.Systems -->
+    <ProjectReference Include="..\Hrot.Player\Hrot.Player.csproj" />
     <!-- AttributeCompilerFactory is used by EditorSubsystem to build the JSON→ECS attribute compiler -->
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
     <!-- UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates / RegisterUrbanCombatBehaviors -->

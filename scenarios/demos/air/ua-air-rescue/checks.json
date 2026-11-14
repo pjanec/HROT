@@ -1,0 +1,128 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-2223 air rescue round trip. Header Judge (1)-(5): lands at the LZ, squad dismounts, a man picks up the pilot, the pilot is seated aboard, all five men are back aboard, it lifts off with all aboard, pilot alive. TRIAGE (CE-4042): IsEmbarkedTag.Mode is NOT in the entity dump (the scenario translator writes only Vehicle + Seat), so 'carried' vs 'seated' cannot be read by Mode; the pilot being picked up = IsEmbarkedTag.Seat >= 0 (the tag exists), seated aboard = the UH-60's PassengerBuffer.Count == 10 (it carries 4 crew of its own: 9 at the start, 4 with the squad out). 'Lifts off' = the UH-60 leaves for its route's last waypoint (20, 390): x < 150 after the pilot is seated (NavigationStatus.Phase TakingOff already shows at 24 s, a hop to the Pickup waypoint, so it cannot mark the lift-off). Measured: picked up 31.75 s, 10 aboard 44.25 s, x < 120 at 68.25 s. Not expressible: who carries him (the Vehicle ref is an entity handle, not a name).",
+  "runFor": 100,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the UH-60 sets down within 12 m of the LZ",
+      "on": "near",
+      "who": "UH-60 (doors off)",
+      "point": [
+        190,
+        340
+      ],
+      "within": 12
+    },
+    {
+      "name": "the UH-60 holds on the ground at the LZ (Unloading, Landed or Loading)",
+      "on": "field",
+      "who": "UH-60 (doors off)",
+      "path": "NavigationStatus.Phase",
+      "op": "in",
+      "value": [
+        "Unloading",
+        "Landed",
+        "Loading"
+      ],
+      "after": "the UH-60 sets down within 12 m of the LZ"
+    },
+    {
+      "name": "the squad dismounts (the Medic is out)",
+      "on": "embark",
+      "who": "Medic",
+      "is": false,
+      "after": "the UH-60 sets down within 12 m of the LZ"
+    },
+    {
+      "name": "a squad man picks up the downed pilot (he is aboard a carrier)",
+      "on": "field",
+      "who": "Downed pilot",
+      "path": "IsEmbarkedTag.Seat",
+      "op": ">=",
+      "value": 0,
+      "after": "the squad dismounts (the Medic is out)"
+    },
+    {
+      "name": "the pilot is seated in the helicopter (4 crew + 5 men + pilot = 10 aboard)",
+      "on": "field",
+      "who": "UH-60 (doors off)",
+      "path": "PassengerBuffer.Count",
+      "op": "==",
+      "value": 10,
+      "after": "a squad man picks up the downed pilot (he is aboard a carrier)"
+    },
+    {
+      "name": "Leader is back aboard",
+      "on": "embark",
+      "who": "Leader",
+      "is": true,
+      "after": "the squad dismounts (the Medic is out)"
+    },
+    {
+      "name": "Medic is back aboard",
+      "on": "embark",
+      "who": "Medic",
+      "is": true,
+      "after": "the squad dismounts (the Medic is out)"
+    },
+    {
+      "name": "Rifleman 1 is back aboard",
+      "on": "embark",
+      "who": "Rifleman 1",
+      "is": true,
+      "after": "the squad dismounts (the Medic is out)"
+    },
+    {
+      "name": "Rifleman 2 is back aboard",
+      "on": "embark",
+      "who": "Rifleman 2",
+      "is": true,
+      "after": "the squad dismounts (the Medic is out)"
+    },
+    {
+      "name": "Rifleman 3 is back aboard",
+      "on": "embark",
+      "who": "Rifleman 3",
+      "is": true,
+      "after": "the squad dismounts (the Medic is out)"
+    },
+    {
+      "name": "the UH-60 lifts off and leaves the LZ after the pilot is seated (x < 150, flying to x 20)",
+      "on": "field",
+      "who": "UH-60 (doors off)",
+      "path": "SimTransform.Position.0",
+      "op": "<",
+      "value": 150,
+      "after": "the pilot is seated in the helicopter (4 crew + 5 men + pilot = 10 aboard)"
+    },
+    {
+      "name": "it flies away with all six passengers aboard (10 in the cabin)",
+      "on": "field",
+      "who": "UH-60 (doors off)",
+      "path": "PassengerBuffer.Count",
+      "op": "==",
+      "value": 10,
+      "atEnd": true
+    },
+    {
+      "name": "it has left the LZ at the end (x < 120)",
+      "on": "field",
+      "who": "UH-60 (doors off)",
+      "path": "SimTransform.Position.0",
+      "op": "<",
+      "value": 120,
+      "atEnd": true
+    },
+    {
+      "name": "the pilot is still alive",
+      "on": "field",
+      "who": "Downed pilot",
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "atEnd": true
+    }
+  ]
+}

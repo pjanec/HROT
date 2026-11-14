@@ -2,7 +2,7 @@ using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
 using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Core;
@@ -55,7 +55,7 @@ public class SpawnMovingVehicleIntegrationTests
     /// moves, NOT held back by the 600-tick rolling-window heartbeat.
     /// </summary>
     [Fact]
-    public void SpawnMovingVehicle_IgReceivesPositionChangesWithinFewFrames()
+    public void SpawnMovingVehicle_PlayerReceivesPositionChangesWithinFewFrames()
     {
         using var harness = new HrotRunnerHarness();
 
@@ -63,16 +63,16 @@ public class SpawnMovingVehicleIntegrationTests
         var  spawnGeo = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
 
         // ── 1. Spawn entity on SimHost directly (no DDS round-trip) ──────────
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
         _out.WriteLine($"[M1] SimHost spawned entity networkId={networkId}");
 
         // ── 2. Wait for the entity to appear on IG with a SimTransform ────────
         bool entityAppeared = harness.PumpUntil(
-            () => IgHasNetworkEntity(harness, networkId),
+            () => PlayerHasNetworkEntity(harness, networkId),
             SpawnTimeoutFrames);
         Assert.True(entityAppeared,
-            $"No entity with SimTransform appeared on IG within {SpawnTimeoutFrames} frames.");
-        _out.WriteLine($"[M2] IG entity appeared: networkId={networkId}");
+            $"No entity with SimTransform appeared on Player within {SpawnTimeoutFrames} frames.");
+        _out.WriteLine($"[M2] Player entity appeared: networkId={networkId}");
 
         // ── 3. Set movement intent directly (no DDS round-trip) ──────────────
         harness.SimHost.TestHook_SetMovementIntent(networkId, new Vector2(500f, 500f));
@@ -90,16 +90,16 @@ public class SpawnMovingVehicleIntegrationTests
                        $"SimHost moved={shMoved:F4} m");
 
         // ── 4. Wait for the entity to be promoted to Active lifecycle ─────────
-        bool igActive = harness.PumpUntil(
-            () => IgEntityIsActive(harness, networkId),
+        bool playerActive = harness.PumpUntil(
+            () => PlayerEntityIsActive(harness, networkId),
             SpawnTimeoutFrames);
-        Assert.True(igActive,
-            $"IG entity (networkId={networkId}) did not reach Active lifecycle within {SpawnTimeoutFrames} frames.");
-        _out.WriteLine("[M4] IG entity is Active");
+        Assert.True(playerActive,
+            $"Player entity (networkId={networkId}) did not reach Active lifecycle within {SpawnTimeoutFrames} frames.");
+        _out.WriteLine("[M4] Player entity is Active");
 
         // ── 5. Record the current IG position as baseline ─────────────────────
-        var posA = GetIgSimTransform(harness, networkId).Position;
-        _out.WriteLine($"[M5] Baseline IG position: ({posA.X:F3}, {posA.Y:F3}, {posA.Z:F3})");
+        var posA = GetPlayerSimTransform(harness, networkId).Position;
+        _out.WriteLine($"[M5] Baseline Player position: ({posA.X:F3}, {posA.Y:F3}, {posA.Z:F3})");
 
         // ── 6. Wait for position to change ────────────────────────────────────
         // The GeoSpatialEgressTranslator shadow comparison detects each kinematic
@@ -108,19 +108,19 @@ public class SpawnMovingVehicleIntegrationTests
         // rolling-window heartbeat.
         bool moved = harness.PumpUntil(() =>
         {
-            var posNow = GetIgSimTransform(harness, networkId).Position;
+            var posNow = GetPlayerSimTransform(harness, networkId).Position;
             return Vector3.Distance(posNow, posA) >= MovementThresholdMetres;
         }, MovementTimeoutFrames);
 
-        var posB = GetIgSimTransform(harness, networkId).Position;
+        var posB = GetPlayerSimTransform(harness, networkId).Position;
         var shTfFinal = harness.SimHost.TestHook_GetSimTransform(networkId);
         float travelledMetres = Vector3.Distance(posA, posB);
         float shTravelledMetres = Vector3.Distance(shTf1.Position, shTfFinal.Position);
-        _out.WriteLine($"[M6] Final IG position: ({posB.X:F3}, {posB.Y:F3}), IG travelled={travelledMetres:F4} m, IG moved={moved}");
+        _out.WriteLine($"[M6] Final Player position: ({posB.X:F3}, {posB.Y:F3}), Player travelled={travelledMetres:F4} m, Player moved={moved}");
         _out.WriteLine($"[M6b] Final SimHost position: ({shTfFinal.Position.X:F3}, {shTfFinal.Position.Y:F3}), SimHost additionalTravel={shTravelledMetres:F4} m");
 
         Assert.True(moved,
-            $"IG entity (networkId={networkId}) did not move within {MovementTimeoutFrames} frames. " +
+            $"Player entity (networkId={networkId}) did not move within {MovementTimeoutFrames} frames. " +
             $"SimHost moved={shMoved:F4}m during warmup, SimHost final={shTravelledMetres:F4}m additional. " +
             $"Baseline=({posA.X:F3}, {posA.Y:F3}), final=({posB.X:F3}, {posB.Y:F3}).");
     }
@@ -134,7 +134,7 @@ public class SpawnMovingVehicleIntegrationTests
     /// entity has non-zero velocity.
     /// </summary>
     [Fact]
-    public void SpawnMovingVehicle_IgPositionContinuesToUpdate()
+    public void SpawnMovingVehicle_PlayerPositionContinuesToUpdate()
     {
         using var harness = new HrotRunnerHarness();
 
@@ -142,49 +142,49 @@ public class SpawnMovingVehicleIntegrationTests
         var  spawnGeo = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.407, Altitude = 0 };
 
         // ── 1. Spawn entity on SimHost directly (no DDS round-trip) ──────────
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
 
         // ── 2. Wait for entity + Active lifecycle ─────────────────────────────
         bool entityAppeared = harness.PumpUntil(
-            () => IgHasNetworkEntity(harness, networkId),
+            () => PlayerHasNetworkEntity(harness, networkId),
             SpawnTimeoutFrames);
         Assert.True(entityAppeared,
-            $"Entity networkId={networkId} did not appear on IG within {SpawnTimeoutFrames} frames.");
+            $"Entity networkId={networkId} did not appear on Player within {SpawnTimeoutFrames} frames.");
 
         // ── 3. Set movement intent directly (no DDS round-trip) ──────────────
         harness.SimHost.TestHook_SetMovementIntent(networkId, new Vector2(500f, 500f));
 
-        bool igActive = harness.PumpUntil(
-            () => IgEntityIsActive(harness, networkId),
+        bool playerActive = harness.PumpUntil(
+            () => PlayerEntityIsActive(harness, networkId),
             SpawnTimeoutFrames);
-        Assert.True(igActive, $"IG entity did not reach Active lifecycle.");
+        Assert.True(playerActive, $"Player entity did not reach Active lifecycle.");
 
         // ── 4. First movement: record posA then wait for first change ─────────
-        var posA = GetIgSimTransform(harness, networkId).Position;
+        var posA = GetPlayerSimTransform(harness, networkId).Position;
         _out.WriteLine($"[C3] posA=({posA.X:F3}, {posA.Y:F3})");
 
         bool firstMove = harness.PumpUntil(() =>
         {
-            var p = GetIgSimTransform(harness, networkId).Position;
+            var p = GetPlayerSimTransform(harness, networkId).Position;
             return Vector3.Distance(p, posA) >= MovementThresholdMetres;
         }, MovementTimeoutFrames);
         Assert.True(firstMove,
             $"First position change was not observed within {MovementTimeoutFrames} frames.");
 
         // ── 5. Second movement: record posB then wait for another change ──────
-        var posB = GetIgSimTransform(harness, networkId).Position;
+        var posB = GetPlayerSimTransform(harness, networkId).Position;
         _out.WriteLine($"[C4] posB=({posB.X:F3}, {posB.Y:F3})");
 
         bool secondMove = harness.PumpUntil(() =>
         {
-            var p = GetIgSimTransform(harness, networkId).Position;
+            var p = GetPlayerSimTransform(harness, networkId).Position;
             return Vector3.Distance(p, posB) >= MovementThresholdMetres;
         }, MovementTimeoutFrames);
         Assert.True(secondMove,
             $"Second position change was not observed within {MovementTimeoutFrames} frames. " +
             $"Shadow-state comparison must detect changes continuously, not just once.");
 
-        var posC = GetIgSimTransform(harness, networkId).Position;
+        var posC = GetPlayerSimTransform(harness, networkId).Position;
         _out.WriteLine($"[C5] posC=({posC.X:F3}, {posC.Y:F3})");
     }
 
@@ -198,25 +198,25 @@ public class SpawnMovingVehicleIntegrationTests
     /// and the IG is NOT waiting for the 600-tick rolling-window heartbeat.
     /// </summary>
     [Fact]
-    public void SimHostDrag_IgReceivesPositionUpdateWithinFewFrames()
+    public void SimHostDrag_PlayerReceivesPositionUpdateWithinFewFrames()
     {
         using var harness = new HrotRunnerHarness();
 
         // ── 1. Spawn a stationary entity on SimHost ────────────────────────────
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnGeo = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
         _out.WriteLine($"[S1] SimHost spawned entity networkId={networkId}");
 
         // ── 2. Wait for entity to appear on IG ────────────────────────────────
-        bool igHasEntity = harness.PumpUntil(
-            () => IgHasNetworkEntity(harness, networkId),
+        bool playerHasEntity = harness.PumpUntil(
+            () => PlayerHasNetworkEntity(harness, networkId),
             SpawnTimeoutFrames);
-        Assert.True(igHasEntity,
-            $"IG did not receive entity (networkId={networkId}) within {SpawnTimeoutFrames} frames.");
+        Assert.True(playerHasEntity,
+            $"Player did not receive entity (networkId={networkId}) within {SpawnTimeoutFrames} frames.");
 
-        var posA = GetIgSimTransform(harness, networkId).Position;
-        _out.WriteLine($"[S2] IG initial position: ({posA.X:F3}, {posA.Y:F3})");
+        var posA = GetPlayerSimTransform(harness, networkId).Position;
+        _out.WriteLine($"[S2] Player initial position: ({posA.X:F3}, {posA.Y:F3})");
 
         // ── 3. Simulate a drag on SimHost to a new position ────────────────────
         // OnEntityMoved applies the new position AND (after the fix) calls MarkDirty.
@@ -228,15 +228,15 @@ public class SpawnMovingVehicleIntegrationTests
         var expectedPos = new Vector3(newWorldPos.X, newWorldPos.Y, 0f);
         bool updated = harness.PumpUntil(() =>
         {
-            var pos = GetIgSimTransform(harness, networkId).Position;
+            var pos = GetPlayerSimTransform(harness, networkId).Position;
             return Vector3.Distance(pos, posA) >= MovementThresholdMetres;
         }, MovementTimeoutFrames);
 
-        var posB = GetIgSimTransform(harness, networkId).Position;
-        _out.WriteLine($"[S4] IG position after drag: ({posB.X:F3}, {posB.Y:F3}), updated={updated}");
+        var posB = GetPlayerSimTransform(harness, networkId).Position;
+        _out.WriteLine($"[S4] Player position after drag: ({posB.X:F3}, {posB.Y:F3}), updated={updated}");
 
         Assert.True(updated,
-            $"IG entity (networkId={networkId}) did not receive SimHost drag update within " +
+            $"Player entity (networkId={networkId}) did not receive SimHost drag update within " +
             $"{MovementTimeoutFrames} frames. Expected position near ({expectedPos.X:F1}, {expectedPos.Y:F1}), " +
             $"still at ({posB.X:F1}, {posB.Y:F1}). " +
             $"The SmartEgressUtil.MarkDirty call in SimHostVisualization.OnEntityMoved may be missing.");
@@ -248,51 +248,51 @@ public class SpawnMovingVehicleIntegrationTests
     /// Scans the IG entity map for the first entity that has a live <see cref="SimTransform"/>.
     /// Returns 0 if none found yet.
     /// </summary>
-    private static long FindFirstMovingCandidateNetworkId(HrotRunnerHarness harness)
+    private static int FindFirstMovingCandidateNetworkId(HrotRunnerHarness harness)
     {
-        var igWorld   = harness.Ig.App.World;
-        var igMap     = harness.Ig.App.TestHook_EntityMap;
-        var query     = igWorld.Query().With<NetworkIdentity>().WithLifecycle(EntityLifecycle.All).Build();
+        var playerWorld   = harness.Player.App.World;
+        var playerMap     = harness.Player.App.TestHook_EntityMap;
+        var query     = playerWorld.Query().With<NetworkIdentity>().WithLifecycle(EntityLifecycle.All).Build();
 
         foreach (var entity in query)
         {
-            if (!igWorld.IsAlive(entity)) continue;
-            if (!igWorld.HasComponent<SimTransform>(entity)) continue;
+            if (!playerWorld.IsAlive(entity)) continue;
+            if (!playerWorld.HasComponent<SimTransform>(entity)) continue;
 
-            var netId = igWorld.GetComponent<NetworkIdentity>(entity);
+            var netId = playerWorld.GetComponent<NetworkIdentity>(entity);
             if (netId.Value <= 0) continue;
 
             // Confirm the entity map also knows about it.
-            if (igMap.TryGetEntity(netId.Value, out _))
+            if (playerMap.TryGetEntity(netId.Value, out _))
                 return netId.Value;
         }
 
         return 0;
     }
 
-    private static bool IgHasNetworkEntity(HrotRunnerHarness harness, long networkId)
+    private static bool PlayerHasNetworkEntity(HrotRunnerHarness harness, int networkId)
     {
-        var entityMap = harness.Ig.App.TestHook_EntityMap;
+        var entityMap = harness.Player.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity)) return false;
-        var world = harness.Ig.App.World;
+        var world = harness.Player.App.World;
         return world.IsAlive(entity) && world.HasComponent<SimTransform>(entity);
     }
 
-    private static bool IgEntityIsActive(HrotRunnerHarness harness, long networkId)
+    private static bool PlayerEntityIsActive(HrotRunnerHarness harness, int networkId)
     {
-        var entityMap = harness.Ig.App.TestHook_EntityMap;
+        var entityMap = harness.Player.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity)) return false;
-        var world = harness.Ig.App.World;
+        var world = harness.Player.App.World;
         if (!world.IsAlive(entity)) return false;
         return world.GetLifecycleState(entity) == EntityLifecycle.Active;
     }
 
-    private static SimTransform GetIgSimTransform(HrotRunnerHarness harness, long networkId)
+    private static SimTransform GetPlayerSimTransform(HrotRunnerHarness harness, int networkId)
     {
-        var entityMap = harness.Ig.App.TestHook_EntityMap;
+        var entityMap = harness.Player.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity))
             return default;
-        var world = harness.Ig.App.World;
+        var world = harness.Player.App.World;
         if (!world.IsAlive(entity) || !world.HasComponent<SimTransform>(entity))
             return default;
         return world.GetComponent<SimTransform>(entity);

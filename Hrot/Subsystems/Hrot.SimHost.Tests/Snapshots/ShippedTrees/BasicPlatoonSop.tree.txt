@@ -1,0 +1,36 @@
+asset a2294000-0000-0000-0000-000000000001
+group Library/Sop
+sop-orders yes
+writes-channels []
+json-params Hrot.Map.Definitions.Behavior.NoParams
+variable ReportReceived Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"ReportReceived","Seconds":3}
+variable EnemyNear Fdp.Toolkit.Squad.Command.ElementReportedParams = {"MinSize":"Team","WithinMetres":400,"FreshSeconds":30}
+parse (empty) -> ok
+  c2284000-0000-0000-0000-000000000024 {"Kind":"ReportReceived","Seconds":3}
+  c2294000-0000-0000-0000-000000000011 {"Kind":"ReportReceived","Seconds":3}
+  c2294000-0000-0000-0000-000000000012 {"MinSize":"Team","WithinMetres":400,"FreshSeconds":30}
+parse {} -> ok
+parse {"bogus":1} -> refused InvalidOperationException
+Selector c2294000-0000-0000-0000-000000000002 "Rows — first true wins"
+  # The platoon commander's standing orders (CE-2294 CC-D, Command Chain §6): each row reads the platoon's PICTURE — what its squads reported — never their state. The reaction pauses the platoon's task; when it ends, the task resumes in its state.
+  Sequence c2284000-0000-0000-0000-000000000020 "Fired on from a building on the move → clear it"
+    # CE-2284 U-2 (UM-10, UM-11; DA-18): moving through town, a squad was fired on from a building (CE-2283 FiredOnFromStructure, its CONTACT in the picture) and DA-18 says clear — Untrained / Militia, or the building within 50 m of the route. Bypass = no row: the movement carries on.
+    Condition c2284000-0000-0000-0000-000000000021 call Hrot.AI.Behaviors.Brains.PlatoonDefendBehavior.NotDefending "Not defending a position"
+    Condition c2284000-0000-0000-0000-000000000022 call Hrot.AI.Behaviors.Brains.PlatoonAttackBehavior.NotAttacking "Not attacking"
+    Condition c2284000-0000-0000-0000-000000000023 call Hrot.AI.Behaviors.Brains.SupportCommandBehavior.NotCommandingSupport "Not commanding support"
+    Condition c2284000-0000-0000-0000-000000000024 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"ReportReceived","Seconds":3} "A report arrived (fresh, 3 s)"
+    Condition c2284000-0000-0000-0000-000000000025 call Hrot.AI.Behaviors.Brains.UrbanMovementBehavior.FireFromBuildingToClear "Fired on from a building, to clear"
+    Action c2284000-0000-0000-0000-000000000026 sop React:ReactToFireFromBuilding:Contact "React: ReactToFireFromBuilding"
+      # The squad fired on supports from where it stands; the next squad clears the building; the movement resumes after.
+  Sequence c2294000-0000-0000-0000-000000000010 "Enemy element reported → hold"
+    # A squad reported an enemy element (team-size or larger, within 400 m, seen within 30 s): every squad holds until it is gone.
+    Condition c2294000-0000-0000-0000-000000000014 call Hrot.AI.Behaviors.Brains.PlatoonDefendBehavior.NotDefending "Not defending a position"
+      # CE-2276 DA-55: a defending platoon's squads already hold their posts — holding them again would pull them off the posts and stop the defence's trigger.
+    Condition c2294000-0000-0000-0000-000000000015 call Hrot.AI.Behaviors.Brains.PlatoonAttackBehavior.NotAttacking "Not attacking"
+      # CE-2277 AT-13: an attacking platoon expects contact — its base of fire and its control region answer it; holding every squad would stop the attack at its first SPOT.
+    Condition c2294000-0000-0000-0000-000000000016 call Hrot.AI.Behaviors.Brains.SupportCommandBehavior.NotCommandingSupport "Not commanding support"
+      # CE-2314: a headquarters answers reports — holding it on a SPOT would order its aircraft and its reserve to hold.
+    Condition c2294000-0000-0000-0000-000000000011 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"ReportReceived","Seconds":3} "A report arrived (fresh, 3 s)"
+    Condition c2294000-0000-0000-0000-000000000012 call Fdp.Toolkit.Squad.Command.PictureConditions.ElementReported p:ElementReportedParams={"MinSize":"Team","WithinMetres":400,"FreshSeconds":30} "An enemy element in the picture"
+    Action c2294000-0000-0000-0000-000000000013 sop React:PlatoonHold:Contact "React: PlatoonHold"
+      # Both squads hold; the platoon's task waits in its state.

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ⭐ DESIGN_Player_Join.md §9 (S1) — the gameplay packs and their wire. Composed only where gameplay is wanted (R-4102): the military-sim core never references it. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
+    <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="CycloneDDS.NET" Version="$(CycloneDdsNetVersion)" />
+  </ItemGroup>
+</Project>

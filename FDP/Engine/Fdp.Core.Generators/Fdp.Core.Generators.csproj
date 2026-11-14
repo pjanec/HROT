@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    CE-467: engine-level Roslyn generators — the ones that serve attributes declared in Fdp.Core.
+    Split out of Fdp.Toolkits.Analyzers because Fdp.Core itself must run CollectionOpsGenerator (UnitRoster's
+    [BlueprintCollectionField] buffers), and that package cannot be attached to Fdp.Core: its HsmActionGenerator
+    emits a registrar unconditionally, which needs Fhsm (measured: CS0246 on Fdp.Core).
+  -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>12.0</LangVersion>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <NoWarn>CS8632;RS2008</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

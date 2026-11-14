@@ -1,0 +1,1358 @@
+<!--STATUS
+state: LIVE
+updated: 2026-11-13 (§9.10 O-7: a heavy vehicle's wreck blocks the street — CE-6005 · §9.9 O-6: an obstacle can be destroyed — CE-6003, showcase-world) · 2026-10-25 (§12.6 R-2078: a hot spot still peeked, no drop indoors, the duel's tasks) · 2026-10-25 (§12 the posted man's one cycle; a look is not a burst — R-2077, CE-2366) · 2026-10-20 (§11 look then shoot, aim at the chest — R-2064, CE-2325…CE-2329) · 2026-10-16 (§10.10 the muzzle line — CE-2218)
+build-state: P-1–P-7 and P-7a (O1–O5) BUILT 2026-10-09 (§7, §9.7); P-8 (the duel scenario) next; READY-TO-BUILD for the rest of D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 APPROVED 2026-10-09 (R-238); B1's storage rides on Q87 (unit memory, A–G APPROVED 2026-10-09, R-237)
+current-answer: ⭐ §12 THE POSTED MAN'S ONE CYCLE + A LOOK IS NOT A BURST (R-2077) · ⭐ §11 LOOK THEN SHOOT + THE CHEST (R-2064 — supersedes D1's "middle" for a person) · §10 GENERALISATION (R-256 L2: the library's fight-from-cover node, squad-aware) — G1–G8 APPROVED (R-257), READY-TO-BUILD (CE-3158) · §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles (§9.9 O-6: destroyed by a blast or a push, removed by its Health owner — CE-6003 · §9.10 O-7: a heavy vehicle's wreck — CE-6005)
+stale-below: nothing
+known-rot: §8 B4 "a burned one with nowhere to go waits to cool" — he now peeks from it at a third of the rhythm (§12.6, R-2078) · §4.2 and D13 (§6) — a blind burst now answers only FRESH evidence (≤ 5 s), else the exposure is a look (§12.4 B, R-2077) · D1 (§6) and §10.10's "the middle" for a PERSON — now the CHEST (§11.5 ②③, R-2064); §10.10's "before release" order — the muscle now aims first, then judges the masked line (§11.5 ④)
+known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT for a partly hidden target (§6 D1, revised R-239)
+related-designs:
+  - designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — OWNS the city battle whose breach drill (§5, §11 O-1) needs an obstacle removed; §9.9 here is how (CE-6003)
+  - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) A, B, D: the posted window man fights through PeekAndFire; under fire ducks whatever his health; the next spot a seeded pick
+  - docs/blueprints/Architect_Question_96_Movement_Under_Fire.md — ASKED 2026-10-20: D — the move to a hide is crouched at the rush speed
+  - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — §6b: the next hide point must lie inside the man's sector and post set (PC-14); who switches windows by proficiency (PC-15); the watcher's counter-play (PC-16)
+  - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
+  - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — BUILD design of the vehicle sibling (VehicleFightFromCover): reuses FiringPositionMemory, PositionHeat, PostureNodes.Keep / Fire, TopAim
+  - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — the VEHICLE sibling of this node (hide behind a building, expose, reverse back) — it reuses FiringPositionMemory and the fire step; G8 keeps vehicles out of here
+  - DESIGN_World_Query_Seam.md — OWNS IWorldQuery (R-250/R-252/R-253); §10.8 here records which G-slices touch it (none move onto it; G3's friendly test joins it with WQ-F)
+  - REVIEW_Behaviour_Library_Genericity.md — OWNS the genericity verdict; its §3 audit is what §10 answers (R-256 L2, R-258)
+  - designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — OWNS the squad (roster, roles, PhaseSequencer, fire allocation); §10 READS its assignment and leaves turn-taking to it (G6)
+  - DESIGN_Weapon_Layers.md — keeps D3 (aim time) for the simplest weapon profile and D4 (seen-now) on the Brain (W-7).
+  - REVIEW_Behaviour_Library_Genericity.md — §3 audits PeekAndFire's genericity (duel-tuned core; five changes before it joins the library).
+  - DESIGN_Eqs_Consuming_Behaviours.md — OWNS the tactics nodes (TakeCover, FiringPosition, Flank — EqsTacticsNodes.Run) PeekAndFire sits beside; its §9 F1/G3 "move, then fire / cover stops firing" is what this adds to
+  - DESIGN_Building_Interiors.md — OWNS the window firing positions (§3l, CE-3134), the shot line (§3d P2) and the body profiles (§3f) D1/D2 change
+  - designs/eqs-2/EQS_Design_v1.3_final.md — OWNS EqsResult and the starter templates; D5 widens the result, D6 revives ThreatExposureTest (§19.5)
+  - blueprints/Architect_Question_85_Hit_Chance.md — OWNS the hit chance (spread, stance, under fire) the aim time sits in front of
+  - DESIGN_Decision_Layer.md — OWNS the posture tree (Suppress = Engage, §3.3) and the stance request (§3.3g) PeekAndFire uses
+  - designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — OWNS SlotRotation (used/burned exposure slots, §3); D8 mirrors it per unit
+  - blueprints/Architect_Question_87_Unit_Memory.md — OWNS unit memory (unit-scoped shared blackboard structs): declaration, storage, creation on first touch, access; B1's FiringPositionMemory is its first instance
+  - DESIGN_Terrain_Combat_Tuning.md — OWNS the defaults (EngineFallbacks, ParameterResolver) D3/D4 add to, and the demo/premise rules the duel follows (§3)
+  - blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md — OWNS T6 (static obstacles: a TkbType, baked; moving ones never in the navmesh) — §9 builds it
+  - DESIGN_Entity_Control.md — OWNS the operator's attack order (C-5, CE-3170): its DesignatedTarget answers FIRST in SquadAssignment.TargetOf (G4's one reader), ahead of the squad's assignment
+  - DESIGN_Ai_Action_Status_Gizmo.md — OWNS making the executors' holds (not seen, aiming x/y s, reloading) and PeekAndFire's phases visible on the map (proposed)
+  - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — sets the expose / relocate timings by proficiency (DA-2, DA-6) and adds set-back window posts for regulars
+-->
+
+# Peek and fire — the window duel *(backend, `2026-10-09`, `CE-3136`; resolves `CE-3135`)*
+
+> 🔒 **User, `2026-10-09`:** *"show some simple combat when a soldier is indoors hiding next to a window, enemy outside on
+> the other side of the street and can hide behind the corner which is out of the opponent sight when under fire (the cover
+> sensor should be able to find such a cover point, when cooperating with threat sensor results) each one just shortly exposes
+> and fires to the other one's direction (because they remember seeing each other …), the one in the building changing firing
+> positions so he does not fire from same point more than few times."* · *"As 3135 extending wire is no issue."* ·
+> *"You can use csharp btrees if easier for you. The shot after exposing needs some small aiming time simulation unless the
+> shot is just a blind suppressing fire."*
+
+## 1. INVENTORY — what the duel needs, measured `2026-10-09` (four read-only sweeps + reads, graph + grep)
+
+| # | what exists | gap | where |
+|---|---|---|---|
+| G1 | entity fire aims at **half the target's height** | a crouched man behind a 0.9 m sill is aimed at 0.55 m ⇒ every round hits brick: **A cannot be hit** | `FireProcessingSystem.cs:113`, `LosStrategies.cs:172` |
+| G2 | entity hit test is a **2-D circle** | a round through the window "hits" a man lying prone below it | `FireProcessingSystem.cs:111` comment; `RaycastSolverSystem.cs:119-154` |
+| G3 | `AimAndFireExecutor` checks ammo, cooldown, friendly-in-line, ROE — **not sight**, and the round flies at the target's TRUE position | a unit "shoots" at a hidden enemy; no aim time exists anywhere | `AimAndFireExecutor.cs:63-126`; searched `AimTime`/`AcquisitionTime`: none |
+| G4 | rifleman 30 rounds, **no reload** | a duel runs dry in a minute | `UrbanCombatTkbCatalog.cs:75`, `WeaponState` (`CombatComponents.cs:13`) |
+| G5 | `CoverPoint.StanceHeight` exists; `EqsResult` has **4 padding bytes** (28 → 32) | the generator drops the stance (`CoverPointsGenerator.cs:94`) — `CE-3135` | `EqsComponents.cs:17-37`, wire `EqsDdsTopics.cs:89-110` |
+| G6 | `ThreatExposureTest` scores a point against ALL known threats | reads `SensorContactList` on the SELF — moved to the perception children by `CE-3038` ⇒ **does nothing in production** | `ThreatExposureTest.cs:44` |
+| G7 | memory keeps each contact's **last-known position** (~45–65 s), and `FireAtPoint` fires N rounds at a point | nothing fires at a remembered spot; `FireAtPoint` aims at the point's Z (the feet) | `ThreatEvaluationSystem.cs:110-170`, `FireAtPointExecutor.cs:13-24` |
+| G8 | stance by `StanceRequest.Set` (logical, same tick) | no tactic sets a stance on arrival; no peek, no expose-then-hide, no position memory anywhere | `StanceRequest.cs:17`; graph `.*(Peek\|PopUp\|Expose\|Suppress\|ShootAndScoot).*`: none |
+| G9 | "seen NOW by sight" on the brain = `ActiveSensorTracks` with the Visual modality | — (the aim gate reads it, as `ThreatInSight` does) | `StandardInputs.cs:238` |
+
+## 2. The duel *(what a viewer sees)*
+
+A (inside House A, at a window) and B (outside, behind House B's corner) saw each other at the start, so each remembers
+the other. Each cycles: **hidden → expose → aim (only if it sees the other) → fire a few rounds → hide → wait**. A hides by
+lying prone under the sill and exposes by kneeling at it (a stance change, no step); B hides behind the corner and exposes
+by stepping to a point beside it that sees A. A moves to another window after a few exposures. Not seen when exposed ⇒ a
+short **blind burst** at the remembered spot (no aim time).
+
+## 3. Classes
+
+```mermaid
+classDiagram
+  class PeekAndFireNodes { <<new, C# BTree actions>> PeekAndFire(params, state) }
+  class PeekAndFireParams { <<new>> Template; Rounds; ExposeSeconds; GraceSeconds; HideSecondsMin/Max; MaxUsesPerPosition; BlindRounds }
+  class PeekAndFireState { <<new>> Phase; HidePoint; PeekPoint; HideStance; PeekStance; Timer }
+  class FiringPositionMemory { <<new unit memory, B1>> 8 slots with heat }
+  class EqsTacticsNodes { <<existing>> TopThreat; Point; EnsureSensor pattern }
+  class PostureNodes { <<existing>> Fire (aimed, ONE fire step); StopFiring }
+  class StanceRequest { <<existing>> Set(world, self, stance, blend) }
+  class AimAndFireExecutor { <<existing, grows>> sight gate + aim timer in channel.State }
+  class FireAtPointExecutor { <<existing>> blind fire at the point it is given }
+  class FireProcessingSystem { <<existing, grows>> aims at the highest SEEN body point }
+  class RaycastSolverSystem { <<existing, grows>> Z band of the target's body }
+  class WeaponState { <<existing, grows D9>> Ammo (total); MagazineRounds; MagazineSize; ReloadSecondsRemaining }
+  class EqsResult { <<existing, grows>> +Stance (padding byte, stance+1, 0 = none) }
+  class CoverPointsGenerator { <<existing, grows>> writes Stance }
+  class CheapLineOfSightTest { <<existing, grows>> candidate eye = the result's stance; aims = target body points, any clear (D15) }
+  class ThreatExposureTest { <<existing, fixed>> threats from the unit's perception sensors }
+  class ParameterResolver { <<existing, grows>> AimSeconds, Reload }
+  PeekAndFireNodes --> PeekAndFireParams
+  PeekAndFireNodes --> PeekAndFireState
+  PeekAndFireNodes ..> FiringPositionMemory : UnitMemory.Ref
+  PeekAndFireNodes ..> EqsTacticsNodes : threat + sensor steps
+  PeekAndFireNodes ..> PostureNodes : aimed fire
+  PeekAndFireNodes ..> FireAtPointExecutor : blind burst
+  PeekAndFireNodes ..> StanceRequest
+  PostureNodes ..> AimAndFireExecutor
+  AimAndFireExecutor ..> ParameterResolver : AimSeconds
+  CoverPointsGenerator ..> EqsResult
+  CheapLineOfSightTest ..> EqsResult
+```
+
+*What the picture shows that the prose hid: one new class (the node) and its unit memory — every other box exists; the engine
+fixes are four existing systems growing, and the aim time lives in the ONE executor every aimed shot already passes. As built
+(P-6) the blind burst's aim height is added by the node, so `FireAtPointExecutor` did not grow.*
+
+## 4. Sequences
+
+### 4.1 One exchange — A peeks at a window, B is visible
+
+```mermaid
+sequenceDiagram
+  participant N as PeekAndFire (A, CGF)
+  participant S as StanceRequest
+  participant P as perception (SimHost, 10 Hz)
+  participant X as AimAndFireExecutor (CGF)
+  participant F as FireProcessing + Raycast (SimHost)
+  N->>S: Prone at the window point (hidden under the sill)
+  N-->>N: wait HideSeconds (random in range)
+  N->>S: Crouched (the window point's stance)
+  P-->>X: B seen by sight (ActiveSensorTracks)
+  N->>X: aimed fire at B (the posture fire step)
+  X-->>X: aim timer runs while B stays seen
+  X->>F: WeaponFireIntent after AimSeconds
+  F-->>F: aim at B's highest seen body point, hit only inside B's body band
+  N-->>N: after Rounds or ExposeSeconds
+  N->>S: Prone again, count one use of this window
+```
+
+### 4.2 Not seen when exposed — the blind burst
+
+```mermaid
+sequenceDiagram
+  participant N as PeekAndFire (B, CGF)
+  participant M as TargetMemory
+  participant X as FireAtPointExecutor
+  N-->>N: step to the peek point
+  N->>M: A not seen for GraceSeconds - read A's last-known position
+  N->>X: BlindRounds at that point + aim height, no aim time
+  N-->>N: step back to the hide point
+```
+
+### 4.3 Suppress and bound — B changes cover *(D11–D13)*
+
+```mermaid
+sequenceDiagram
+  participant B as PeekAndFire (B, CGF)
+  participant X as FireAtPointExecutor
+  participant A as PeekAndFire (A, CGF)
+  participant H as A's TargetMemory
+  B->>X: suppressive burst at A's freshest known spot, no aim time
+  X-->>A: near misses at the window (RecentSenses NearMiss)
+  A-->>A: under fire - stays hidden, does not expose
+  B-->>B: run to the next cover (cover answer, burned spots skipped)
+  B->>X: fires from the new cover later
+  X-->>H: A hears the shots - a heard contact at the new spot
+  A-->>A: next blind burst at the FRESHEST evidence (the heard spot), not the old sighting
+```
+
+## 5. Modules — who runs what, and where it is seen
+
+```mermaid
+graph TD
+  subgraph CGF[CGF brain node]
+    BT[C# BTree: WindowDuel] --> PF[PeekAndFire node]
+    PF --> WC[WeaponChannel]
+    WC --> AF[AimAndFireExecutor: sight gate + aim timer]
+    WC --> FP[FireAtPointExecutor: blind]
+    TE[ThreatEvaluationSystem] --> TM[TargetMemory + ActiveSensorTracks]
+    TM --> AF
+    TM --> PF
+  end
+  subgraph SH[SimHost nodes]
+    EQ[EqsModule 10 Hz: CoverPoints + LOS + ThreatExposure] --> RES[EqsResult with Stance]
+    PER[perception sight] --> TRK[SensorTrackStateEvent]
+    FIRE[FireProcessingSystem: seen-point aim] --> RAY[RaycastSolver: Z band] --> HIT[HitResolution]
+  end
+  AF -- WeaponFireIntent DDS --> FIRE
+  FP -- WeaponFireIntent DDS --> FIRE
+  RES -- EqsResult DDS --> PF
+  TRK -- DDS --> TE
+```
+
+*Caption: the aim gate is on the BRAIN and reads what perception reported (sight is decided on SimHost); the aim POINT is
+chosen on SimHost from geometry. The ~100–300 ms report latency is part of the aim time a viewer sees.*
+
+## 6. Decisions — ✅ APPROVED `2026-10-09` (R-234)
+
+> 🔒 **User, `2026-10-09`:** *"Approved. Pls leta think how behaviors store the memory of the used cover points and how that memory
+> fades out so covers can be reused after some time. And what other behabior status variables would be needed, what parameters the
+> behaviors would need. The behavior design in a bit more details."* → §8.
+
+| # | lean | why |
+|---|---|---|
+| D1 | ⛔ SUPERSEDED `2026-10-09` (was: *"aims at the highest body point the shooter's eye SEES"*). ✅ **REVISED by the user (R-239):** an aimed round aims at the **middle** when the eye sees it, or when what hides it is **weak** (a round of the fired mount's penetration carried there through the terrain arrives with ≥ 50 % of its damage); else at the **middle of the SEEN part** of the body — halfway between the lowest and highest visible heights; nothing seen ⇒ the middle | 🔒 User: *"aiming at highest point meant we wont hit, we need to aim in between the lowest seen body part and highest one"* · *"if the body is hidden behind a weak penetrable obstacle, we could aim to body center if we know where the target is"*. One rule for seeing and shooting (§3f) and one penetration rule (§3d P2). ⚠ Refines §3d P2 / R-217's "middle of the silhouette" |
+| D2 | a round hits a person only if its height at the target lies inside the body band of the target's **logical stance** (feet … top body point); vehicles keep the circle | G2; prone under a sill is then safe from a round through the window |
+| D3 | **aim time**: an aimed shot leaves only after the shooter has seen the target **continuously for `AimSeconds`** (fallback **0.8 s**, per weapon through `ParameterResolver`); the timer restarts when sight is lost, the target changes or the shooter's stance changes; later rounds at a target still seen need only the cooldown. **Blind fire (`FireAtPoint`) has no aim time** | 🔒 user; in the ONE executor every aimed shot passes, so every behaviour gets it (Engage, Flank, tanks) |
+| D4 | an aimed shot needs the target **seen now** (`ActiveSensorTracks`, Visual) — the gate D3 needs anyway; a hidden target is not shot at by `AimAndFire` (the action stays Running, no round spent, like the ROE hold) | G3; no shooting at the true position of an enemy nobody sees. ⚠ Posture/flank demos that today fire at hidden enemies stop doing so ⇒ the T3 baselines (`PlatoonBaselineRails`, `DeterminismRails`) may move — re-pinned once, deliberately. 📐 **Observed `2026-10-12` (`CE-2126`):** the `UrbanCombatNew` demo's cluster run (`UrbanCombatFileLifecycleTests`) is such a demo — its hand-written Ambush tree configures no sensor, so on the CGF the insurgent has a sight model (`ActiveSensorTracks` registered) and sees nothing ⇒ holds fire for ever. The FDP fixture registers no `ActiveSensorTracks` ⇒ counts as seeing ⇒ green there |
+| D5 | **`CE-3135`**: `EqsResult.Stance` in the padding byte (size stays 32), stored **stance + 1** (0 = none, so old recordings and other generators read "none"); on the wire entry, filled by `CoverPointsGenerator`; the window LOS test uses that stance's eye | 🔒 *"extending wire is no issue"*; one byte, no layout change |
+| D6 | `ThreatExposureTest` reads the threats from the unit's **perception sensor children** (where `CE-3038` moved the lists) | G6 — "cover cooperating with threat-sensor results" is exactly this test; today it is silently inert |
+| D7 | **`PeekAndFire`** — one C# action, two shapes: **stance peek** (A: same spot, hide prone / expose at the point's stance) and **step peek** (B: hide point from `FindCoverFromTarget`, peek point from `FindOpenFiringPosition` with a ~3 m radius around the hide point). Expose → aimed fire (`PostureNodes.Fire`) for up to `ExposeSeconds`; not seen within `GraceSeconds` ⇒ `BlindRounds` at the last-known position + aim height (`FireAtPoint`); hide; wait a random `HideSeconds` (`SimRng`, deterministic) | G7/G8; reuses the threat ranking, the sensor steps and the ONE fire step of `EqsTacticsNodes`/`PostureNodes` (R-174); C# BTree per the user |
+| D8 | **position rotation**: a position used too often is burned and the node takes the next best from the sensor's answer span — ⛔ SUPERSEDED in its storage (*"in the node's state: up to 4 positions"*) by §8 **B1** (a unit component, 8 slots, cooling heat): node state is reset on every exit | the squad's `SlotRotation` used/burned idea per unit (Squad §3); no EQS change, the ranking stays deterministic |
+| D9 | **reload**: an executor finding the magazine empty reloads instead of failing. ✅ **Refined by the user (R-239):** `WeaponState.Ammo` **stays the total rounds carried** (every reader — ammo ratio, has-ammo, rounds left, squad ammo, shot-fired detection — unchanged); `WeaponState` gains **rounds in the magazine, magazine size, reload time remaining**; magazines are declared per mount in the TKB (`MagazineSize`, `ReloadSeconds`), the rifleman template becomes 30 × 5 = 150 rounds with a 3 s reload; a mount declaring no magazine fires from its whole load, as today. ⛔ SUPERSEDED wording: *"WeaponState gains spare magazines"* | G4; both executors, all weapons. 🔒 User: *"keep Ammo as total carried and add rounds-in-magazine, magazine size and reload time remaining." — "YES"* |
+| D10 | the demo: **`bt-window-duel`** on `bt-range` — A in House A, B at House B's corner; C# BTree `WindowDuel` (both units, shape by parameter); an in-process rail (both expose, both fire, A uses ≥ 2 windows, nobody shoots while unseen except blind bursts) + an HTTP check | R-223; the window count that sees B is measured in slice 1 — a window may be added to the template |
+| D11 | **street cover = STATIC OBSTACLE ENTITIES** (a parked car, a sandbag barrier, a crate) of an **obstacle TKB type** carrying a `PhysicsCollider` (radius, height), a `StaticObstacle` marker and a **MATERIAL from the wall library** (`TerrainMaterial`: sight transmittance, resistance mm RHA per metre, sound dB, blocks movement — §3c), placed by the scenario like any entity; the Editor's existing zone obstacle (`EditorZoneAuthoringSystem`, a bare circle collider) becomes one of these types, so it carries a material too. ① **bullets**: the round crosses the obstacle like a wall panel — resistance × the CHORD it travels through the collider (within its height) → `ArmorModel.PenetrationChance`, chances multiply with every other crossing, penetration reduced by what was crossed (§3d P2, one rule); ② **sight**: the obstacle's material transmittance, as a panel's (today a collider is opaque within its height); ③ **cover**: the cover database = terrain + obstacles — points around each static obstacle (stance by its height), rebuilt when one appears or goes, ONE `ICoverProvider` (R-132); ④ **the cover query's sight**: `EqsTerrainSight` sees STATIC obstacles too (moving vehicles stay "not cover", EQS §19.5); ⑤ **paths**: obstacles cut into the navmesh by the existing touched-tile rebuild (Nav v2 §14 P2) | 🔒 user: *"The covers on the street could be obstacle entities, simulating a static cars or something."* · *"the zone obstacles need to carry the material similar to walls (obstacle entity tkbtype derived) and the bullet penetration should count with it."* ⛔ SUPERSEDED: obstacles as terrain prisms in `bt-range`'s world file |
+| D12 | **suppress and bound** (B's shape, a `PeekAndFire` parameter): a suppressive burst at A's freshest known spot (`FireAtPoint`, no aim time), then a run to the next cover — `FindCoverFromTarget`'s answer, D8's burned positions skipped, never the current one; **under fire = stay down**: a unit near-missed or hit within `SuppressedSeconds` (default 3 s, `RecentSenses`) does not expose | 🔒 *"after using suppressive fire first"*; suppression must DO something or bounding is theatre — the near-miss sense already exists (`R-206`) |
+| D13 | **the freshest evidence wins** for a blind burst: the newest of the identified enemy's last sighting and any HEARD contact (`CE-3063` anonymous slots); an aimed shot still needs sight | measured: a heard shot >≈6 m from the remembered spot makes a NEW anonymous slot (`TargetMemory.HearContact`, radius 40 m × 0.15) and `TopAim` prefers the identified one ⇒ without D13 A shoots at where B WAS. ⭐ Hearing already works without walls (`AcousticPerception`) — 7b's wall attenuation is not needed for this |
+| D14 ✅ **BUILT `2026-10-09` (`CE-3144`, P-8)** | **the node's two sensors look from and for where the enemy is REMEMBERED** — the freshest evidence (D13) as a context POINT (`EqsContext.AnchorPosition` → `ContextPoint1`, the `CE-3063` heard-contact path), keyed by its memory slot; re-pointed when that spot moves ≥ `RepointMetres` (2 m) or another slot becomes freshest (`PeekAndFireNodes.SensorAim`, state `SensorId`/`SensorAt`). ⭐ **`CE-2351` (`2026-10-22`): a heard slot is the threat's evidence only within `HeardMatchRadius` (15 m) of where he is remembered — G4's burst rule, now for the sensors too** (📐 live `ua-javelin-lock`: another fight's launch and impact 160 m off pulled a tank's queries away from its named target; [Exposure Cycle §4a](designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md); rail `VehicleFightFromCoverNodesTests.CE2351_*`). ⛔ SUPERSEDED: *any* newer heard slot. The fire decision is unchanged: an aimed shot still needs the enemy SEEN (D4) | 📐 **measured live, P-8's first run:** both sensors were pointed at the ENTITY, so the LOS filters tested its TRUE position — B behind van 1 is seen from no window and A inside the room from no street point ⇒ A's window sensor and B's peek sensor answered **0**, nobody exposed, nobody fired in 600 s. A soldier looks for where he last saw (or heard) the enemy — the user's *"because they remember seeing each other"*. ⛔ Rejected: the true position (omniscient, and deadlocks the moment both hide) · falling back to the point only when the sensor answers nothing (two behaviours, and still omniscient while one is visible) |
+| D15 ✅ **BUILT `2026-10-09` (`CE-3144`, P-8)** | **"can I shoot him from there" (`CheapLineOfSightTest`, `Viewer = Candidate`) looks at the target's BODY POINTS** for its logical stance (`BodyProfile.Fractions`, a vehicle by its hull) and is clear when ANY is — the rule perception already uses (`TerrainWorldLosStrategy.IsVisible`, Buildings §3f/§3i); a POINT target (D14) is a standing man's points. Moves the three `Visible` templates: `FindOpenFiringPosition`, `FindWindowFiringPosition`, `FindFlankingPosition` | 📐 **measured** (`bt-range`, street eye 1.7 m → each House A window point): the old single aim at half the standing eye = **0.85 m is below the 0.9 m sill — blocked at all five windows**, from every street point probed, while 1.1 m is clear at both upstairs south windows. So no peek point could ever see A at a window. ⚠ One line becomes up to three per candidate (early-out on the first clear) |
+| D16 ✅ **APPROVED + BUILT `2026-10-09` (R-246, `CE-3144`)** | **the eye is the top body point** — "if your eye sees out, your head shows": person fractions standing 0.12 / 0.53 / **1.0**, crouched 0.18 / 0.55 / **1.0**, prone 0.43 / **1.0** of the stance's eye height, in the ONE profile (`BodyProfile`, `LosStrategies.cs`) — so sight, the D2 bullet body band (`PersonTop`) and fragments all grow by the head. ⛔ SUPERSEDED (Buildings §3i): tops at 0.94 / 0.91 / 0.86 of the eye — below it | 📐 measured (`bt-range` probe, street eye 1.7 m → upstairs window point): 1.00 m blocked, 1.10 m clear — a man crouched there (eye 1.1) saw the street and none of his points (top 1.0) was seen from it. 🔒 User: *"yes sure like that, wasn't the body profile's top point (1.0 m) clearly wrong?"* — yes: a head reaches above the eyes. Rejected: window points nearer the wall (cm margins) · eye-to-eye sight only (seen but the hit band misses the head) |
+| D17 ✅ **BUILT `2026-10-09` (R-247, `CE-3145`)** | **a soldier turns on the spot, then walks** — pedestrians move by `HumanGait` (the mover's own design: [`FDP.Toolkit.CarKinem.md`](../FDP/Docs/projects/toolkits/FDP.Toolkit.CarKinem.md) "Human gait"), not the bicycle model | 📐 in-process `bt-window-duel` (frame 8508): A, at the upstairs window (107.1, 100.9) facing east, had to go west to the next window; the car model walked him 0.5 m forward while turning — into House A's open stairwell (x 107.5–108.5, y 101–106, 0.4 m away) — and he fell to the ground floor, so every later "window" exposure was downstairs. Navmesh path and `SurfaceZ` both stayed at z = 3 (probed): the fall was the mover's. Rejected: clamp each step to the navmesh (still swings in a circle) · face A west in the scenario (hides it) |
+
+| rejected | the one fact that killed it |
+|---|---|
+| aim time as a BTree `Wait` before firing | every other aimed shot (Engage, Flank, tanks) would stay instant; the executor is the one place all pass |
+| a stance lookup from the cover provider by position (`CE-3135` option 2) | the user cleared the wire; a lookup by float position is fragile and per-host |
+| a recently-used EQS test (tabu as a test) | the past positions are the UNIT's, not the sensor's; the brain already holds the answer span |
+| a corner point type in the cover database | the step peek finds the exposure point with an existing template; corners would be a second producer (R-132) |
+
+## 7. Slices *(rails first, red-proved; each green before the next)*
+
+| slice | content | rail |
+|---|---|---|
+| P-1 ✅ **BUILT `2026-10-09`** | D5 stance on the result + wire; LOS uses it. **As-built:** `EqsResult.Stance` = `(byte)StanceId + 1` in the padding byte (32 B kept — `EqsComponentLayoutTests`); `EqsResultEntry.Stance` on the wire (copied by `EqsResultEventEgressTranslator`, kept by `MapToLocal`, written by `EqsResultUpdateSystem`); `CoverPointsGenerator` converts `CoverPoint.StanceHeight` (0 prone · 1 crouch · 2 stand) → `StanceId`; `CheapLineOfSightTest` with `Viewer=Candidate` looks from `SensorMount.For(stance)` when the result has one (⇒ `FindWindowFiringPosition` sees from the window's crouched eye, was standing). ⚠ The `Viewer=Slot` (cover) arm is unchanged — still the self's crouched eye | the window point's answer carries crouch; recorded old result reads "none" — rails `TerrainEqsTests.CE3134_FindWindowFiringPosition…` (extended), `P1_ACandidateWithAStance_…`, `CE3134_CoverPointsGenerator_…` (extended), integration `EqsResultUpdateSystem_MatchingEpoch_PopulatesBuffer` (extended) |
+| P-2 ✅ **BUILT `2026-10-09`, D1 revised the same day** | D1 + D2. **As-built:** D1 = `Fdp.Toolkit.Combat.AimPoint.For` (`Combat/AimPoint.cs`), called by `FireProcessingSystem` for an entity target when a `TerrainWorld` exists, with the fired mount's penetration: ① middle seen ⇒ middle; ② else `TerrainPenetration.Carry` eye → middle and ≥ `ShootThroughMinFraction` (0.5) of the damage arrives ⇒ middle (shot through a weak cover); ③ else the midpoint of the SEEN band — the lowest and highest seen body samples (`BodyProfile.Points`), each edge bisected 5 steps toward its hidden neighbour (≈ 1 cm); ④ nothing seen ⇒ middle. ⛔ SUPERSEDED same day: the first build aimed at the highest seen point (`BodyProfile.AimPoint`, deleted). D2 = `RaycastSolverSystem` narrow phase: a **bullet ray** (`PhysicsConstants.IsBulletRay`) against a **person** (`PhysicsColliderReaders.IsPerson`) hits only when its height at the circle crossing lies in `[feet, feet + BodyProfile.PersonTop(stance)]`, stance = `LogicalStance.Of` (Standing when the world has no stance runtime); vehicles keep the circle, sight/query rays unchanged | rails `RaycastSolverSystemTests.P2_ARoundHitsAPersonOnlyInsideTheBodyBandOfItsStance` (standing hit at 0.9 m, missed at 2.5 m while a sight ray still hits · prone missed at 0.9 m, hit at 0.2 m), `P2_AVehicleKeepsTheCircle`; `FireProcessingSystemTests.P2_ACrouchedManBehindAConcreteSill_IsAimedAtTheMiddleOfWhatTheShooterSees` (≈ 0.89 m: band 0.79 – 1.0 m over a 0.5 m concrete sill), `P2_BehindAWeakFence_TheRoundAimsAtTheMiddle_Through_It` (5 cm fence-wood), `P2_ATargetInTheOpen_KeepsTheMiddleAim` |
+| P-3 ✅ **BUILT `2026-10-09`** | D3 + D4 aim gate and timer. **As-built:** in `AimAndFireExecutor.Execute` (the one executor every aimed shot passes), after the ammo check: D4 = `Fdp.Toolkit.Perception.SightNow.Sees` (new, beside `ThreatFreshness` in `ThreatDanger.cs` — the target in `ActiveSensorTracks` with the Visual modality; P-6's grace check reuses it); D3 = `AimState { Target, Elapsed, Stance, Ready }` in `WeaponChannel.State` after the target (bytes 8–23). The aim clock runs **beside** the cooldown, not after it; it restarts on lost sight, a new target, a stance change (`LogicalStance.Of`), and `OnEnter` clears it (a new action aims afresh — issuers re-issue only on a change, measured `PostureNodes.Fire`, `CgfNodes`, `HillAttackTankNodes`). Unseen ⇒ Running, no round (the ROE hold's shape). Aim time = `WeaponMountDto.AimSeconds` (new, `[EditUnit("s")]`) → `EngineFallbacks.AimSeconds` 0.8 s, exposed as `Weapon[i].AimSeconds` by `ParameterResolver` (`/tkb/resolve`). ⚠ **Edge decided as built:** a unit with **no sight model** (the world never registered `ActiveSensorTracks`, or the unit's TKB neither sees nor hears so it carries none) counts as seeing — nothing can say it is hidden; the aim time still applies. `FireAtPointExecutor` untouched (blind fire: neither gate). ⛔ SUPERSEDED the same day: *"`CgfNodes`' `RoundsFired` counter predicts a round from the cooldown alone … left as is"* — it counted every tick of the aim time and ended `FireAtTarget` before a round left (measured: `HeardShotScenarioTests`, shooter ammo untouched). ✅ Fixed (backend, cross-lane): the node passes `MaxRounds` as `AimAndFireParams.Rounds` (B7), the executor ends the action, `RoundsFired` reads the executor's real count (`AimAndFireExecutor.RoundsFiredOf`) | rails `AimAndFireExecutorTests.P3_NoRoundBeforeTheAimTime_ThenOnlyTheCooldown`, `P3_LostSightHoldsFire_AndRestartsTheAim`, `P3_AHeardTargetIsNotSeen`, `P3_ANewActionAimsAfresh`; the suite's older tests enter pre-aimed (`EnterAimed`) — they test cooldown/ammo/ROE/friendly line, not the aim |
+| P-4 ✅ **BUILT `2026-10-09`** | D6 threat exposure revived. **As-built:** ⚠ the premise failed first — a sensor child's `SensorContactList` lives only on the node that SOLVES that sensor (written by `SensorMemoryStage`, replicated by no descriptor), and `SolverNodeId` was picked per sensor (least loaded). ✅ **R-239 (user: "yes"):** a NEW solver pick prefers the node already solving a SIBLING sensor of the same unit when it carries the sensor's role (`EqsSensorConfigEgressTranslator.SiblingSolver`, lowest part wins; `IClusterStateCache.HasRole` new), else the least loaded; existing picks are untouched (sticky, R-179). `ThreatExposureTest` reads the acquired contacts of the unit's **sensor children** (plus a legacy unit-level list), one threat counted once | rails `TerrainEqsTests.P4_ThreatExposure_ReadsTheUnitsSensorChildren`; `EqsSensorSolverPickTests` (sibling beats least-loaded · no sibling / sibling node lacking the role / gone ⇒ fallback · lowest part wins) |
+| P-5 ✅ **BUILT `2026-10-09`** | D9 reload (R-239). **As-built:** `Fdp.Toolkit.Combat.Magazine` is the one rule (`Load` · `Ready` · `Spend` · `StartIfEmpty` · `Tick`); `WeaponState` gains `MagazineRounds`, `MagazineSize` (0 = no magazine — the whole load, as before), `ReloadSeconds` (cached at spawn, like `MaxAmmo`), `ReloadSecondsRemaining`; `Ammo` stays the total. TKB: `WeaponMountDto.MagazineSize` / `ReloadSeconds` (fallback `EngineFallbacks.ReloadSeconds` 3 s), resolved as `Weapon[i].MagazineSize` / `ReloadSeconds` (`/tkb/resolve`). `CombatTkbTranslator` loads the first magazine at spawn. Both executors: an empty magazine **holds** (Running, no round) and starts the reload; out of ammunition altogether is still Failure / Success-after-a-burst. ⭐ The **dispatcher** runs every reload each frame (owner and mount children, beside the cooldown drain) — so a unit that hides to reload (B8) comes out loaded. Catalog: `InfantrySoldier` and `Grenadier` rifles = 5 × 30 rounds, 3 s reload (were 30 rounds, no reload). Two integration tests that compared against a literal 30 now compare against the spawned load | rails `AimAndFireExecutorTests.P5_TheThirtyFirstRound_WaitsForTheReload` (30 go, held 3 s ± one step, the 31st), `P5_NoMagazine_FiresTheWholeLoad`; `WeaponInteractionDispatcherTests.P5_WeaponDispatcher_RunsAReload_OnAMountChild_WhileNotFiring` |
+| P-6 ✅ **BUILT `2026-10-09`** | D7 + D8 `PeekAndFire` (+ T4 gizmo). **As-built:** `Hrot.AI.Behaviors/Brains/PeekAndFireNodes.cs` — `[SharedAiAction] PeekAndFire(ref PeekAndFireParams, ref PeekAndFireState, self, world)` + its `[BTreeDeactivator]`, the §8.2 machine (Choose → MoveToHide → Hidden → Expose → Aimed / Blind → Recover; *Relocate* is not a state of its own: Hidden re-runs Choose with `relocating`, and goes to MoveToHide when a cooler spot ≥ `MinRelocateMetres` away exists — a burned spot with nowhere to go waits to cool, a merely used-up one keeps fighting). `FiringPositionMemory` (`[UnitMemory]`, 8 slots: X/Y/Z, Heat, HeatAt, Burned, Uses) and `PositionHeat` (B2–B5: `HeatNow`, `Find`, `Add`, `IsBurned`, `Penalty`, over `HeatRules` = the node's five heat parameters, `PeekAndFireNodes.Rules`). Reuses, never copies (R-174): `EqsTacticsNodes.TopAim` / `ThreatPosition`, `PostureNodes.Keep` / `Drop` (the two sensors, sites `0x31360001/2`) and `PostureNodes.Fire` — which gained B7's `rounds` — plus `FireAtPointNodes.FireAtPoint`, `StanceRequest`, `LocomotionMoveTo`, `SightNow.Sees`, `RecentSensesOf`, `Magazine`. ⚠ **Deviations, argued:** ① the **node** lives in **`Hrot.AI.Behaviors`** (every shared step it calls lives there); its **data stays in `Fdp.Toolkits`** as B1 said — `FiringPositionMemory`, `PeekPhase`, `HeatRules` + `PositionHeat` (`Fdp.Toolkits/Combat/FiringPositionMemory.cs`) — so the gizmo can sit in `Hrot.Presentation`, which every map host loads (R-228; the hot-reload `Hrot.AI.Behaviors` is skipped by the deployment pre-load and would pin a projector, ST-035); ② the blind burst's **aim height is the node's** (`BlindAimHeight`, 1 m) added to the remembered spot, ⛔ not `FireAtPointExecutor`'s — a grenade or a mortar aims at the ground point it is given (§3's "AimHeight added to the point" SUPERSEDED); ③ the **heat is the HIDE point's** (the position), a step peek's step-out point is not remembered separately; ④ the memory also **mirrors the phase, its timer and the two points** (`Phase`, `PhaseAt`, `PhaseUntil`, `HidePoint`, `PeekPoint`) for `PeekAndFireGizmo` — the node's own state sits in a tree's blackboard at an offset no gizmo can know; ⑤ a **zero parameter means its default** (`PeekAndFireNodes.Effective`, the §8.4 default column); ⑥ the step peek's sensor is `FindOpenFiringPosition` with `PeekSearchRadius`, centred on the unit — which stands at the hide point when it asks. `SuppressBeforeRelocate` (D12) and the freshest evidence (D13) are P-7: the parameter exists and is inert; the blind burst aims at `ThreatPosition` (the ranking's top). No curated tree yet — P-8's `WindowDuel` is the first. **T4:** `Hrot.Presentation/ScenarioEditor/Gizmos/PeekAndFireGizmo.cs` (family `Channels` = "Actions", selected or pinned by default): a ring per remembered position, yellow → red with heat, red when burned, `h1.7 x3` = heat and uses; while the node ran within 1 s, `PF hidden 2.1s` above the unit and the hide (green) and peek (blue) points. Read through `UnitMemory.GetInView` (new: the view form of `Get`) — recorded, so a replay draws it | rails `PeekAndFireNodesTests` (SimHost.Tests): `P6_R1` stance peek (prone ↔ crouched, 3 aimed, one use, heat 1.0) · `P6_R2` step peek (moves cover → peek → cover, standing out, the cover point heats) · ⭐ `P6_R3` **the design rail**: three quick exposures burn the window by HEAT (the counter set to 10) and the unit moves to the next; after an exit and a fresh state the new run still skips it (B1) · `P6_R4` the exposure counter relocates past a too-close window · `P6_R5` not seen ⇒ after the grace a 3-round blind burst at the remembered spot + 1 m, no aimed round · `P6_R6` reloading / a near miss keeps it down, up again 3 s later · `P6_R7` near-missed while aimed ⇒ down at once, heat 1 + 1.5 · `P6_R8` nothing remembered ⇒ Success · `P6_R9` heat rules (half-life, hysteresis, match radius, coolest replaced) · `P6_R10` the gizmo's phase/slot text |
+| P-7a ✅ **BUILT `2026-10-09`** (O1–O4; O5 = `CE-3142`, §9.7) | D11 obstacle entity: TKB type, spawn, bullet stop, cover points, EQS sight, navmesh cut. **As-built** (§9.3–§9.5 are the as-built diagrams): `StaticObstacle` (345, the material) + `[PerInstanceValue] ObstacleShape` (346) from `StaticObstacleDto` by `ObstacleTkbTranslator` (every node's `TkbTranslatorSet.Base`; collider radius = half the diagonal, entity layer); `ObstacleShape` is replicated (`EntityObstacleShape`, TransientLocal, `dtObstacleShape` 123) so a per-instance size reaches every node; four types `Car` 8806 · `Sandbag wall` 8807 · `Concrete block` 8808 · `Crate` 8809 (`NedTkbCatalog.RegisterObstacle`), new material `car-body`. `TerrainObstacles` (Fdp.Toolkits) = `PrismOf` / `With` / `MaterialOf` / `Yaw` / `IsObstacle`. `StaticObstacleBakeSystem` (Hrot.Core, BeforeSync) = the terrain lifecycle participant, built by `EntityCreationPack` and scheduled by the five ECS hosts (IG, Stride NodeComposition, CGF, SimHost, Editor — `Unserviceable` names it when missing). ⚠ **Deviations, argued:** ① the lifecycle participant is not on each blueprint — `EntityLifecycleModule.RegisterTemplateRequirement(rule, module)` (new) makes every template carrying `StaticObstacleDto` wait for module `0x7E41` (`TerrainObstacles.LifecycleModuleId`), one rule instead of four catalog edits that a fifth type would forget; ② the bake reaches the node's `TerrainResidency` through a `StaticObstacleBakery` singleton (347) the residency publishes on every commit/unload — its ABSENCE (a node with no terrain) acks at once; ③ the scenario's ONE bake comes from the wall-clock debounce (each arrival restarts the quiet period), not from waiting on the load step's condition ① — a load that arrives slower than 0.5 s per batch may bake twice, which cannot leak into the result: every obstacle waits `Constructing` until a bake containing it commits and the load waits for nothing `Constructing`; ④ the navmesh is a full `Build` through the per-tile cache, not `Rebake` — the same touched-tile effect, measured; ⑤ the box top is a walkable roof (like a building's) unconnected to the ground, so `IsWalkable` there finds the roof. 📐 **Measured** (`P7a_R9`, real `test-town`, 576 tiles): base bake 1 793 ms; +3 obstacles = **238 ms** (2 tiles baked, 574 from the cache; world 0 ms, cover 2 ms) ⇒ with the 0.5 s quiet period ≈ 45 frames at 60 Hz — the lifecycle's 300-frame timeout is not near. ⚠ **Known gaps:** the Replay Browser runs no bake, so a recorded obstacle is not in its mirrored terrain; a world with no walkable ground gets no navmesh; the Editor's zone obstacle is now a `Concrete block` 2r × 2r × 1 m (`CE-3141` fixed) | rails `StaticObstacleTests` (Toolkits) R1 prism along the heading · R2 concrete stops a round, a crate lets it through with 40 mm left, over the top crosses nothing · R3 the car hides at 1.0 m, not at 1.7 m · R4 cover points round it (stand) · R5 the path goes round a 12 m wall · R6 translator, an instance size wins · R7 the sight occluder skips it · R8 the lifecycle holds an obstacle type until `0x7E41` acks · R9 the test-town measurement; `StaticObstacleBakeTests` (SimHost) ⭐ B1 acked only after the bake committed, after the quiet period · B2 three arrivals, one bake · B3 no terrain ⇒ at once · B4 removal re-bakes; Editor `SpawnObstacle_PublishCommand_RequestsATypedConcreteBlock_SizedByTheRadius`, `SpawnObstacle_WithNoCreationPack_CreatesNothing` |
+| P-7 ✅ **BUILT `2026-10-09`** | D12 bound + D13 freshest evidence. **As-built** (`PeekAndFireNodes.cs`, no new phase): **D13** = `FreshestEvidence` — a burst (blind or suppressive) aims at the newest by `TargetMemory.LastSeenTick` of the threat's own slot and every HEARD (anonymous) slot; ties keep the threat's slot; an aimed shot still needs sight (D4). **D12** = with `SuppressBeforeRelocate`, a used-up position (burned or `ExposuresPerPosition` reached) does not walk off at once: `Hidden` picks the next cover (`NextHide`, `Bounding = 1`), the unit comes up the normal way (stance or step) WITHOUT the hide wait, `Expose` fires the burst at once (no aim time, no grace, seen or not — `StartBurst`), and `Recover` sends it to `NextHide` (`GoToHide`), never back to the used point. Under fire it stays down: `Hidden`'s near-miss/hit check (`SuppressedSeconds`) holds the bound — the next cover is already picked. ⚠ Deviations: ① no `Relocate` phase (§8.2's state) — `Bounding` rides the existing Expose/Blind/Recover phases; ② `Choose` split into `PickHide` + `GoToHide` so the bound reuses the hide assignment. ⚠ Not yet seen end to end: the suppressive burst's near misses keeping A down live (P-8's rail) | rails `PeekAndFireNodesTests.P7_R1_ABlindBurst_GoesToTheFreshestEvidence` (heard after seen ⇒ the sound; seen after heard ⇒ the enemy), ⭐ `P7_R2_SuppressAndBound_BurstsThenRunsToTheNextCover_StayingDownUnderFire` (near-missed: stays down 2.5 s with the bound picked; then out to the peek point, one `FireAtPoint`, run to the next cover — moves (10,10)→(10,12)→(10,10)→(10,12)→(20,10)) |
+| P-8 ✅ **BUILT `2026-10-09`** | D10 scenario + rail + HTTP check. **As-built:** `scenarios/demos/buildings-and-doors/bt-window-duel/scenario.json` (`bt-range`): A "Window Rifleman" at House A's upstairs window (107.1, 100.9, 3), B "Street Rifleman" in the open at (108.5, 80), each remembering the other where seen (§2), Van 1 (104, 82) and Van 2 (113, 76) = TKB 8806 static obstacles (P-7a). The curated C# tree `WindowDuel` (`Hrot.AI.Behaviors/Brains/WindowDuelBehavior.cs`, `BehaviorNames.WindowDuel`, params DTO `WindowDuelParamsJsonDto`: `shape` 0 window / 1 street + overrides) binds ONE `PeekAndFire` per unit with §8.4's columns. ⚠ **Deviations, argued:** B's `SearchRadius` **15 m** and `MinRelocateMetres` **8 m** (§8.4 said 25 · 6 — 25 reached House A's own wall and B ran into the dead ground under the windows; at 6 B shuffled along Van 1); the checks count A's windows on **either storey** (D10's words). 📐 **Five defects the duel found, all fixed:** the sensors looked for the TRUE position (D14), the "can I shoot from there" sight aimed below every sill (D15), an upstairs firer could never be seen (D16, R-246), the answer span was read past `Count` (A walked to the map origin), and the car motion model walked A into the stairwell (D17, R-247, `CE-3145`). Rails: in-process `PostureScenarioTests.CE3136_P8_WindowDuel_BothFire_ARotatesWindows_BBoundsToTheSecondVan` ✅ (A fires from both upstairs windows, B bounds to Van 2, both fire) · unit `PeekAndFireNodesTests.P8_R1/R2` · premises `bt-range/premises.json` "bt-window-duel" (5 rows) · HTTP `scripts/utility-demo-check.py bt-window-duel` ✅ **PASS live `2026-10-09`** (`--launch`; the earlier "duel stops at ≈ 60 s" was the readout — `PeekAndFireState.LastSeenAt` held `-Infinity`, every `/entities` read 500'd; `CE-3144` ⑥, the state now stores 0 and the diagnostic mapper writes non-finite floats as sentinel strings) | the duel rail |
+
+## 8. The behaviour in detail *(APPROVED `2026-10-09` — B1–B8, R-238; 🔒 user: "approved")*
+
+### 8.1 What lives where
+
+```mermaid
+classDiagram
+  class FiringPositionMemory { <<new unit memory struct, Q87 · BUILT P-6>> Slots[8]; Phase; PhaseAt; PhaseUntil; HidePoint; PeekPoint }
+  class PositionSlot { X; Y; Z; Heat; HeatAt (sim s); Burned; Uses }
+  class PeekAndFireParams { <<node params, designer-edited>> see 8.4 }
+  class PeekAndFireState { <<node working state, reset on exit>> see 8.3 }
+  class TargetMemory { <<existing unit component>> last-known positions, freshness }
+  class RecentSenses { <<existing unit component>> Hit, NearMiss times }
+  class WeaponState { <<existing, grows D9>> Ammo (total); MagazineRounds; MagazineSize; ReloadSecondsRemaining }
+  class StanceIntent { <<existing>> logical stance }
+  class PositionHeat { <<new static · BUILT P-6, Fdp.Toolkits>> HeatNow; Find; Add(pos, heat, now); IsBurned; Penalty }
+  class PeekAndFireGizmo { <<new, T4 · BUILT P-6, Hrot.Presentation>> family Channels }
+  PeekAndFireGizmo ..> FiringPositionMemory : UnitMemory.GetInView
+  FiringPositionMemory "1" *-- "8" PositionSlot
+  PeekAndFireState ..> FiringPositionMemory : reads and heats
+  PeekAndFireState ..> TargetMemory : threat + freshest evidence
+  PeekAndFireState ..> RecentSenses : suppressed?
+  PeekAndFireState ..> WeaponState : reloading?
+  PeekAndFireState ..> StanceIntent : hide / peek stance
+  PositionHeat ..> FiringPositionMemory
+```
+
+*What the picture shows: ONE new unit memory (the position memory — a type-keyed blackboard-store slot created on first touch, Q87) and one helper; the node's own state is scratch
+that may be lost on every exit, so nothing that must OUTLIVE an exit lives there.*
+
+| B# | lean | why |
+|---|---|---|
+| B1 | the used positions live in `FiringPositionMemory` (8 slots), ⭐ **the first UNIT MEMORY**: a unit-scoped shared blackboard struct ([Architect Question 87](blueprints/Architect_Question_87_Unit_Memory.md), proposed `2026-10-09`; 🔒 user: *"it is required to re-implement the unit-scoped shared blackboard structs"*). One slot of kind `UnitMemory` in the unit's blackboard store, **keyed by the struct type**, **created on the first touch** with `new FiringPositionMemory()` (declared defaults; C# 12 needs the declared `public FiringPositionMemory() {}`, and only a constructor call applies them — measured, Q87 §1), and **never swept by a behaviour switch** (both sweeps skip the kind — Q87 §1). Declared `[UnitMemory]` **beside its reader** `PeekAndFire` in `Fdp.Toolkits` (✅ as built: the struct is in `Fdp.Toolkits`; its reader, the node, in `Hrot.AI.Behaviors` with its shared steps — §7 P-6); the node reaches it with `UnitMemory.Ref<FiringPositionMemory>`: attached in place, in a block with room or an appended one (Q87 §3 C, D″ — built as U-0; the old one-frame hold and promotion are retired). Nothing is declared ahead. A blueprint behaviour reads the same memory with `GetShared` (Q87 U-3). Recorded for replay, never saved in a scenario, never on the wire; lost on a Brain failover, harmless for a memory that fades anyway. ⇒ **P-6 needs Q87 U-1 + U-2** | node state is reset on exit (`EqsTacticsNodes.Release`: `ws = default`) — a posture switch, a reload hold or a re-plan would forget every burned window. ⛔ Rejected: an ECS component per memory type — 🔒 user: *"no automatic component allocations. Component id range is very limited. We can have hundresds of behaviors."* ⛔ Rejected: the old name-keyed Entity scope (Q76 decision A, CE-441) — collisions and the switch sweep; unit memory is type-keyed and a separate slot kind |
+| B2 | **heat, not a counter**: an exposure adds `HeatPerExposure` (1.0); being near-missed or hit while exposed there adds `HeatWhenFiredUpon` (1.5); heat **cools exponentially** with `CoolHalfLifeSeconds` (45 s) | a counter needs a reset rule; heat fades by itself, so a window used long ago is usable again without any bookkeeping. Being shot at there is the strongest reason to leave, so it heats more |
+| B3 | heat is **evaluated lazily** — stored with its sim time, `heat(now) = heat · 2^-(now − at)/halfLife` — no per-tick system | deterministic, replay-exact (sim time, R-143), zero cost while nobody looks |
+| B4 | **burned with hysteresis**: a slot is burned at `BurnHeat` (2.5) and usable again only below `ReuseHeat` (1.0); between them a candidate keeps a soft penalty `heat × HeatPenalty` on its EQS score | without hysteresis a window flips usable/burned at one threshold and the unit dithers. Worked example: 3 exposures within 20 s ⇒ ≈ 2.7 → burned; it cools below 1.0 after ≈ 65 s |
+| B5 | a candidate **is** a slot when within `MatchRadius` (1.0 m); a full memory replaces its coolest slot | EQS points are database points (windows, cover points) — they repeat exactly; 1 m absorbs a peek point's small drift |
+| B6 | the node picks from the cover sensor's **answer span** (16 results): the best by `score − heat penalty` among non-burned, ≥ `MinRelocateMetres` from the current position when relocating | no EQS change (D8); the sensor stays deterministic and shareable |
+| B7 ✅ **BUILT `2026-10-09`** | **one round count** on aimed fire: `AimAndFireParams.Rounds` (0 = until stopped) as `FireAtPointParams` already has, so "fire 3 aimed rounds" is the executor's job. **As-built:** `int Rounds` after `Mount` (params 20 of 32 B); the count lives in `WeaponChannel.State` bytes 24–27 after the aim timer, cleared by `OnEnter`; Success when reached (rail `AimAndFireExecutorTests.B7_RoundsEndsTheActionAfterThatMany`) | the node should not count intents; both fire actions then end the same way |
+| B8 | **reloading = stay hidden**: while `ReloadSecondsRemaining > 0` the node does not expose | exposing with an empty rifle is the one thing a soldier would never do |
+
+### 8.2 The node's phases
+
+```mermaid
+stateDiagram-v2
+  [*] --> Choose
+  Choose --> MoveToHide : hide point picked
+  Choose --> [*] : nothing remembered - Success
+  MoveToHide --> Hidden : arrived, hide stance
+  Hidden --> Hidden : suppressed or reloading
+  Hidden --> Expose : wait over
+  Hidden --> Relocate : position burned or ExposuresHere at limit
+  Expose --> Aimed : enemy seen within GraceSeconds
+  Expose --> Blind : not seen within GraceSeconds
+  Aimed --> Recover : Rounds fired, ExposeSeconds over or sight lost
+  Blind --> Recover : BlindRounds fired
+  Aimed --> Recover : near-missed or hit - extra heat
+  Recover --> Hidden : back to hide point and stance, heat added
+  Relocate --> MoveToHide : suppressive burst first if SuppressBeforeRelocate
+```
+
+*What the picture shows that prose hid: the same machine flies BOTH soldiers — A's Expose is a stance change on the spot and
+his Relocate is "another window"; B's Expose is a step and his Relocate is "run to the next obstacle". Only the parameters differ.*
+
+### 8.3 Working state *(scratch — lost on exit by design)*
+
+| field | what |
+|---|---|
+| `Phase`, `PhaseUntil` | the phase above and when its timer ends (sim s) |
+| `HidePoint`, `HideStance`, `PeekPoint`, `PeekStance`, `PeekIsStep` | the current pair (stance peek: PeekPoint = HidePoint) |
+| `CoverSensor`, `PeekSensor` | the two child sensors (as `PostureNodes.KeepPair`) |
+| `Threat`, `HeardId`, `AimPoint` | who, and the freshest evidence of where (D13) |
+| `ExposuresHere`, `Fire` | exposures from this hide point; the aimed-fire action state (`EngageState`) |
+| `LastCoverTick`, `LastPeekTick` | one look per answer (as `TryNewAnswer`) |
+
+### 8.4 Parameters *(designer-edited; defaults are the duel's)*
+
+| group | parameter | default | A (window) | B (street) |
+|---|---|---|---|---|
+| where | `HideTemplate` | — | `FindWindowFiringPosition` | `FindCoverFromTarget` |
+| | `SearchRadius` · `PeekSearchRadius` (m) | 15 · 3 | 12 · — | **15** · 3 (✅ as built, P-8: 25 reached House A's own wall — B ran 20 m forward into the dead ground under the windows; 12 left Van 2 out of reach from Van 1's west end, so B bounded only after ≈ 150 s) |
+| | `PeekMode` | Auto (window point ⇒ Stance, else Step) | Stance | Step |
+| | `HideStanceOverride` | from the point | Prone | from the point |
+| timing | `HideSecondsMin` / `Max` | 2 / 5 | 2 / 5 | 2 / 4 |
+| | `ExposeSeconds` · `GraceSeconds` | 3 · 0.6 | 3 · 0.6 | 2.5 · 0.6 |
+| | `SuppressedSeconds` | 3 | 3 | 3 |
+| fire | `RoundsPerExposure` · `BlindRounds` · `FireCooldownSeconds` | 3 · 3 · 0.3 | 3 · 2 · 0.3 | 3 · 4 · 0.25 |
+| rotation | `ExposuresPerPosition` | 3 | 3 | 2 |
+| | `HeatPerExposure` · `HeatWhenFiredUpon` | 1.0 · 1.5 | | |
+| | `BurnHeat` · `ReuseHeat` · `HeatPenalty` | 2.5 · 1.0 · 0.3 | | |
+| | `CoolHalfLifeSeconds` · `MatchRadius` (m) | 45 · 1.0 | | |
+| move | `RelocateSpeed` (m/s) · `MinRelocateMetres` | 4.5 · 4 | 2.0 · 2 | 5.0 · **8** (✅ as built, P-8: at 6 B shuffled along Van 1, whose own points lie up to ≈ 6 m apart, and never bounded) |
+| | `SuppressBeforeRelocate` | 0 | 0 | 1 |
+| | `FactionFilter` | 0 (every acquired contact) | | |
+| as built | `BlindAimHeight` (m) · `ScoreDeltaThreshold` | 1.0 · 0.05 | | |
+
+*⭐ `CE-2275` D-2a (PC-14, 2026-10-19): `Anchor` · `AnchorRadius` · `AnchorAlternate` · `AnchorHasAlternate` — a posted man's hide point lies within `AnchorRadius` of his post or on his alternate (`MatchRadius`), checked in `PickHide` (`OnPost`) so the first pick, the rotation and the bound all obey it; none ⇒ G2's fight-from-where-he-stands. 0 = no post. Set by `CombatPosture`'s `post` (📄 [Defend & Attack §8c D-2a](designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md)).*
+
+*As built (P-6): the struct is `PeekAndFireParams`; a zero field means the default column (`PeekAndFireNodes.Effective`); `Mode` is `PeekMode` (Auto / Stance / Step); `HideStanceOverride` is `StanceId + 1` (0 = from the point); `RelocateSpeed` is also the step-out speed.*
+
+⚠ The aim time is NOT here: it is the weapon's (D3, `ParameterResolver`), so every behaviour aims alike.
+
+## 9. P-7a — static obstacles in detail *(backend, `2026-10-09`; ✅ O1–O5 APPROVED (R-242, R-243, R-244))*
+
+> D11 (approved) says WHAT: an obstacle TKB type with a collider, a `StaticObstacle` marker and a wall-library material; bullets,
+> sight, cover, the EQS sight and the navmesh all respect it. This section says HOW, after three read-only sweeps.
+
+### 9.1 INVENTORY — measured `2026-10-09` (graph `search_graph .*(StaticObstacle|Obstacle|CoverProvider|EqsTerrainSight|Occluder|PhysicsCollider).*` → 136 nodes, no `StaticObstacle` type; three read-only sweeps + grep)
+
+| # | what exists | how it treats an obstacle collider today | where |
+|---|---|---|---|
+| I1 | bullets cross TERRAIN by the one P2 rule: `TerrainPenetration.Carry` over `TerrainWorld.QueryFire` (chord × resistance per piece, sorted by T) | — terrain only | `TerrainPenetration.cs:39,65`, `TerrainWorld.cs:471-537`; callers `BallisticsSystem.cs:158`, `HitResolutionSystem.cs:120`, `AimPoint.cs:40`, `ShotLog.cs:124`, `AreaEffect.cs:78` |
+| I2 | entity colliders in the bullet narrow phase: a 2-D circle, the person body band (P-2) | 🔴 **any non-person collider STOPS the round** — no height, no material: a bullet-proof circle | `RaycastSolverSystem.cs:137-176` |
+| I3 | sight: terrain by material transmittance; colliders by `ColliderOcclusion` | 🔴 **an opaque cylinder** (no material); `Height = 0` blocks at every height | `TerrainWorld.cs:314-360`, `LosStrategies.cs:258-313` |
+| I4 | the AI's sight (`EqsTerrainSight`), `AimPoint` | ⛔ **does not see colliders at all** — *"Terrain only: vehicles and units are not cover (they move)"* (EQS §19.5) | `EqsTerrainSight.cs:14`, EQS design `:1271` |
+| I5 | cover: ONE `TerrainCoverProvider`, built from prisms + panel faces in `TerrainResidency.Prepare`, swapped in `Commit` | ⛔ nothing around entities; **no rebuild except a terrain (re)load** | `TerrainCoverProvider.cs:47-195`, `TerrainResidency.cs:201,280` |
+| I6 | navmesh: baked from `TerrainWorld` prisms; tiled, per-tile cache keyed on the tile's inputs; `Rebake` swaps one snapshot (R-218) — no production caller yet | ⛔ reads no entity | `RecastNavmeshFactory.cs:86-126`, `DotRecastNavmeshProvider.cs:287-302`, Nav v2 §14 `:1497,1531` |
+| I7 | movement around colliders: RVO ignores the neighbour's radius (`avoidanceRadius*2`) | a man walks into a 5 m obstacle | `RVOAvoidance.cs:42-44` |
+| I8 | the Editor's zone obstacle: `SimTransform` + `PhysicsCollider{Radius, layer 1}` — no TKB type, no height, editor-local | 🔴 **does not survive a reload** (inferred: the load path rejects `TkbType = 0`, `CreateEntityRequestSystem.cs:189-194`; no test covers it) → `CE-3141` | `EditorZoneAuthoringSystem.cs:45-56`, `StagingEntityExtractor.cs:315` |
+| I9 | materials by NAME (`TerrainMaterialLibrary.Get/TryGet`); `sandbags`, `concrete`, `steel-plate` … ship; no car body | — | `TerrainMaterials.cs:14-55`, `Terrain/Data/materials.json` |
+| I10 | `TerrainPrism` = footprint polygon × `BaseZ..TopZ` × `Material` — the shape every query above already walks | — | `TerrainWorld.cs:23-43` |
+
+**Design records checked:** [AQ81](blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md) **T6** (✅ approved) — *"placed buildings: entities with a new
+static-obstacle `TkbType` + footprint + height, baked through the existing `PrepareTerrainAsset`/`CommitTerrainAsset` op pair (affected navmesh
+tiles rebuilt)"*; *moving* ones never in the navmesh — **applies: it is this.** [R-218](blueprints/RULINGS.md) — GEOMETRY that changes at runtime
+is copy-on-write, one immutable snapshot swapped — **applies.** R-219 — runtime STATE on fixed geometry is read from the reader's view (doors) —
+**does not apply**: an obstacle is geometry, not state. [DESIGN_Terrain_Zones_And_Assets](DESIGN_Terrain_Zones_And_Assets.md) §2.1c/§5.2 —
+static obstacles split from movable ones by `TkbType`, "earn a build and a marker" — **applies, agrees.** AQ71 Q71-D — obstacles are ordinary
+entities — **agrees.**
+
+### 9.2 Decisions
+
+> 🔒 **User, `2026-10-09`:** *"does you suggestion mean the obstacles can be moved at runtime, and the data that changes by that are rebuilt? in sync, blocking the simulation? or on background? terrain rebuild happens for all scenario-provided obstacles at once i hope. If obstacles created/moved at runtime, there needs to be a debounce period (multiple can be added in close succession). O3, O4 accepted; O5 - a car that is standing (but can move) is still a great source of cover, can we use it as such?"*
+
+> 🔒 **User, `2026-10-09` (2nd round):** *"on O1 ok, but: we need deterministic scenario if the obstacles never change (stay same from scenario and never added dynamically) - terrain recompiling time would make scenario non deterministic as computer speed affect the swap time. scenario load should make sure the obstacles are baked (if they need baking) before scenario load is acknowledged finished. Entity lifecycle managemnt protocol is here exactly from this reason. debounce is always a wall clock time, not a simulation time i guess? O5 - OK"*
+
+> 🔒 **User, `2026-10-09` (3rd round), on the wall-clock debounce:** *"approved"*
+
+| # | lean | why |
+|---|---|---|
+| **O1** ✅ APPROVED (R-243) | ⭐ **a static obstacle is GEOMETRY: each node's `TerrainResidency` derives its immutable `TerrainWorld` = the terrain + one `TerrainPrism` per static obstacle (footprint × height × material), and rebuilds cover and re-bakes the touched navmesh tiles off-thread, then swaps (R-218).** The obstacle ENTITY's own collider is then skipped by the bullet narrow phase and the sight occluder (it is in the terrain now — never counted twice) | ⭐ bullets (I1), sight (I3), the AI's sight (I4), cover points (I5) and paths (I6) all already read prisms ⇒ **one entry point, zero per-system obstacle code** — and it is exactly AQ81 T6 + R-218. A sandbag wall then stops what sandbags stop, a car hides what a car hides |
+| **O2** ✅ APPROVED (R-243, R-244) | ⭐⭐ **an obstacle is NOT IN THE SIMULATION until it is baked — the ENTITY LIFECYCLE gates it, so the bake time never shows in the result.** Each static obstacle type's blueprint names one more construction participant, the terrain module (`ModuleId.Terrain`); its entity stays `Constructing` — absent from every query, not yet in the terrain — until the node's rebuild that contains it has COMMITTED, and only then does the module send its `ConstructionAck`. ① **Scenario load:** `ScenarioLoadStep.IsResolved` already refuses to finish while any entity is `Constructing` (`ScenarioLoadStep.cs:198-200`) ⇒ **the load is not acknowledged until every scenario obstacle is baked**, and the sim starts on the baked world — deterministic whatever the machine's speed. ⚠ **Not true as built until `CE-3304` (`2026-10-22`):** readiness ① resolved two ticks after the publish, before the entities existed, so ② saw no `Constructing` obstacle and the obstacles joined on a wall-clock step (measured on `bt-window-duel`: step 3 loaded / 9 idle / 20 in a batch). ① now waits until the requested entities exist ([Entity Creation §3.4d](DESIGN_Entity_Creation_Unification.md)). The module bakes ONCE for the whole scenario: it waits until the load step's condition ① holds (every extracted request consumed, `:192`), then builds all of them in one rebuild. ② **Runtime add / move / remove:** the same gate — a new obstacle joins the simulation the frame its bake commits (debounced, coalesced: at most one rebuild running, one pending). ⚠ That frame depends on the machine, so a RUNTIME change is not frame-reproducible between two live runs — it is in the recording, so a replay is exact. Moving a static obstacle = its old prism stays until the new bake commits. **The debounce is WALL-CLOCK** (default 0.5 s) — it schedules a background job, it decides nothing the simulation computes (the lifecycle gate does), and it must also fire while the cluster is paused or loading, when sim time stands still. ⚠ That is an exemption R-143 did not list (it names log throttles, input, the recording) — ✅ **added by the user, R-244**. ⚠ Risk, measured in step 1: the lifecycle's construction timeout counts FRAMES (300, `EntityLifecycleModule.cs:80,377`) — a bake longer than that would abort the obstacle; if measured close, the terrain participant gets its own longer timeout. 📐 **MEASURED `2026-10-22` (`CE-3304`): it was not close, it was crossed** — once readiness ① held the load until the obstacles existed, a headless editor load (frames unthrottled) reached 300 frames before the 0.5 s quiet period + bake, and the ELM DESTROYED both vans of `bt-window-duel` (`[ELM] Construction timeout … Missing ACKs from modules: 32321`). ⭐ Built: `EntityLifecycleModule.SetModuleTimeout(moduleId, frames)`; `EntityCreationPack` gives the terrain module `ObstacleConstructionTimeoutFrames` = 18 000 (the bake always acks, even on failure) — ⛔ SUPERSEDED `2026-11-11` (CE-4419): a FRAME budget is outlived by a slow bake (an overlay's houses, frames unthrottled) ⇒ the terrain module now waits WITHOUT a timeout (`EntityLifecycleModule.WaitWithoutTimeout`); the bake always acks | 🔒 user (2nd round, above): determinism and "*Entity lifecycle management protocol is here exactly from this reason*". Each node rebuilds from its own replicated entities (no cluster round — it would race replication) |
+| **O3** ✅ APPROVED (R-242) | **the footprint is a BOX** (length × width, the entity's yaw) **× height**, from the TKB type, overridable per instance by an `ObstacleShape` component (so a sandbag wall can be any length); the movement collider radius = half the diagonal | a car and a sandbag wall are boxes; a circle would let rounds through the corners and hide a man behind air |
+| **O4** ✅ APPROVED (R-242) | **four starter types** (TKB ids in the `88xx` terrain-object block beside `Door`): `Car` (new material `car-body`: sight 0, 120 mm/m — a starter value to tune, §3c), `Sandbag wall` (`sandbags`), `Concrete block` (`concrete`), `Crate` (`fence-wood`). **The Editor's zone obstacle becomes `Concrete block`** with the slider radius as its `ObstacleShape` — which also fixes `CE-3141` (it reloads: it has a type) | D11; T6 *"a new static-obstacle TkbType"*; §2.1c *"different TkbType preferably"* |
+| **O5** ✅ APPROVED (R-243) | **a STANDING vehicle IS cover — as a live entity, NOT baked into the terrain:** ① the AI's sight (`EqsTerrainSight`) also sees vehicle colliders, read from the query's own view (R-219), as perception's `ColliderOcclusion` already does — so a parked car hides a man for the cover and firing-position queries; ② the cover generator adds points behind every vehicle that has not moved for `ParkedSeconds` (2 s), on the side away from the threat, stance by the vehicle's height — computed per query from the view, no rebuild; ③ bullets keep hitting the vehicle as a vehicle (its own armour, the existing narrow phase I2) — the round stops in the car, which is what armour does; ④ the navmesh ignores vehicles (a unit may plan a path through a parked car — RVO steers round it, I7 — accepted for now). Only `StaticObstacle` types enter the terrain (O1) | 🔒 user: *"a car that is standing (but can move) is still a great source of cover"*. A vehicle that starts and stops would rebuild the terrain on every stop; reading it live costs nothing extra and follows it the moment it drives away. ⚠ A second source of cover points beside `TerrainCoverProvider` — argued not to be R-132's two producers for ONE slot: the provider owns the FIXED points, the generator adds TRANSIENT ones from live entities, as it already adds windows' firing points by kind |
+
+| rejected | the one fact that killed it |
+|---|---|
+| an obstacle list passed beside the terrain to each query (`Carry`, `EqsTerrainSight`, cover, navmesh) | five integrations of one fact — R-132's two producers per slot, ×5 |
+| DotRecast TileCache obstacles | AQ81 T6: boxes/cylinders only and a second mechanism beside the ruled build; the package is not even referenced |
+| keeping the entity collider live as well | every round and every line of sight would cross the obstacle twice |
+| the cluster `PrepareTerrainAsset` round per placement | O2 |
+| baking a parked vehicle into the terrain while it stands | a convoy that stops and starts rebuilds the world on every stop; O5 reads it live instead |
+| a rebuild per obstacle at scenario load | the user: *"for all scenario-provided obstacles at once"* |
+| letting the swap happen whenever the bake ends, the obstacle already live | the bake time would leak into the result — the user's determinism point |
+| a sim-time debounce | sim time stands still while paused or loading — the job would never start |
+
+### 9.3 Classes *(as built `2026-10-09`)*
+
+```mermaid
+classDiagram
+  class StaticObstacleDto { <<NEW TKB descriptor>> Length; Width; Height; Material }
+  class StaticObstacle { <<NEW component 345>> Material }
+  class ObstacleShape { <<NEW component 346, PerInstanceValue, replicated>> Length; Width; Height }
+  class ObstacleTkbTranslator { <<NEW, TkbTranslatorSet.Base>> marker + shape + collider }
+  class TerrainObstacles { <<NEW static, Fdp.Toolkits>> PrismOf ; With ; MaterialOf ; Yaw ; IsObstacle ; LifecycleModuleId 0x7E41 }
+  class StaticObstacleBakeSystem { <<NEW, Hrot.Core, BeforeSync>> collect ; debounce wall clock ; bake ; commit ; ack }
+  class StaticObstacleBakery { <<NEW singleton 347>> the node's residency handle }
+  class EntityCreationPack { <<existing, grows>> registers the ELM rule, builds the bake system }
+  class EntityLifecycleModule { <<existing, grows>> RegisterTemplateRequirement(rule, module) }
+  class TerrainResidency { <<existing, grows>> BakeObstacles off-thread ; CommitObstacles ; publishes the bakery }
+  class TerrainWorld { <<existing>> Prisms += obstacle prisms }
+  class TerrainCoverProvider { <<existing>> Build(world) }
+  class RecastNavmeshFactory { <<existing>> Build through the per-tile cache }
+  class RaycastSolverSystem { <<existing, grows>> bullet rays skip StaticObstacle }
+  class ColliderOcclusion { <<existing, grows>> skips StaticObstacle }
+  class EditorZoneAuthoringSystem { <<existing, grows>> requests a Concrete block }
+  StaticObstacleDto <.. ObstacleTkbTranslator
+  ObstacleTkbTranslator ..> StaticObstacle
+  ObstacleTkbTranslator ..> ObstacleShape
+  EntityCreationPack ..> EntityLifecycleModule : rule StaticObstacleDto needs 0x7E41
+  EntityCreationPack ..> StaticObstacleBakeSystem : builds
+  StaticObstacleBakeSystem ..> TerrainObstacles
+  StaticObstacleBakeSystem ..> StaticObstacleBakery : reads
+  StaticObstacleBakery --> TerrainResidency
+  StaticObstacleBakeSystem ..> EntityLifecycleModule : ConstructionAck after commit
+  TerrainResidency ..> TerrainWorld
+  TerrainResidency ..> TerrainCoverProvider
+  TerrainResidency ..> RecastNavmeshFactory
+  RaycastSolverSystem ..> TerrainObstacles
+  ColliderOcclusion ..> TerrainObstacles
+  EditorZoneAuthoringSystem ..> EntityCreationPack : RequestEntityCreation
+```
+
+*What the picture shows that prose hid: every consumer of obstacles is an EXISTING terrain reader — the new code is only the path INTO the
+terrain (translator, bake system, prism builder) and the two places that must STOP seeing the entity's collider. The lifecycle learns of the
+terrain participant from ONE rule in the creation pack, not from each obstacle blueprint.*
+
+### 9.4 Sequence — a scenario with obstacles loads *(the lifecycle gate, O2 — as built)*
+
+```mermaid
+sequenceDiagram
+  participant L as ScenarioLoadStep
+  participant N as any ECS node
+  participant ELM as EntityLifecycleModule
+  participant T as StaticObstacleBakeSystem
+  participant R as TerrainResidency (off-thread)
+  L->>N: create every scenario entity
+  N->>ELM: obstacle Car - Constructing, rule says wait for 0x7E41
+  loop each frame
+    T->>T: collect obstacles, hash the set
+  end
+  T->>T: set quiet for 0.5 s wall clock
+  T->>R: ONE BakeObstacles - terrain + all obstacle prisms
+  R-->>R: world, navmesh via tile cache, cover
+  T->>R: CommitObstacles - world, navmesh, cover
+  T->>ELM: ConstructionAck for every obstacle in the batch
+  ELM->>N: obstacles Active
+  L->>L: IsResolved - nothing Constructing - load finished
+```
+
+*What the picture shows that prose hid: the simulation cannot see an obstacle before the world it belongs to exists — the ack follows the
+commit, and the load waits on the ack. The batching is the quiet period, so a slower load may bake twice; the gate still holds every obstacle
+until a bake containing it commits.*
+
+### 9.5 Modules — who registers, who runs it each frame *(as built)*
+
+```mermaid
+graph TD
+  TKB[TKB catalog: Car, Sandbag wall, Concrete block, Crate] --> TR[ObstacleTkbTranslator - TkbTranslatorSet.Base, every node]
+  TR --> ENT[StaticObstacle + ObstacleShape + PhysicsCollider]
+  PACK[EntityCreationPack] --> BS[StaticObstacleBakeSystem]
+  PACK --> RULE[ELM template rule: wait for 0x7E41]
+  BS --> H1[scheduled by IG, Stride NodeComposition, CGF, SimHost, Editor]
+  RES[TerrainResidency.Commit or Unload] --> BK[StaticObstacleBakery singleton]
+  BK --> BS
+  BS --> RES2[TerrainResidency.BakeObstacles and CommitObstacles]
+  RES2 --> TW[TerrainWorld singleton]
+  RES2 --> CP[ICoverProvider singleton]
+  RES2 --> NM[navmesh - nav nodes only]
+  TW --> SH[Ballistics, HitResolution, perception LOS, EQS]
+  RB[Replay Browser: MirrorTerrain] -.->|runs no bake: recorded obstacles are not in its terrain| TW
+  style RB stroke-dasharray: 5 5
+```
+
+*Caption: the bake system is built by the creation pack, so every host that creates entities has it, and `Unserviceable` names it when a
+host forgets to schedule it. A node with no `TerrainResidency` publishes no bakery and acks at once. The dashed edge is the one host that
+never bakes: the Replay Browser mirrors a live node's terrain, and the recording holds no baked world — a known gap.*
+
+⛔ **SUPERSEDED `2026-10-09` by the build** (the proposal above was drawn before it): a `StaticObstacleWatchSystem` registered beside each
+`TerrainResidency`, a `ModuleId.Terrain` named on each obstacle blueprint, waiting on the load step's condition ① before one bake, `Rebake` of
+touched tiles, and `ObstacleShape` carrying the material. What replaced each: §7 P-7a row, deviations ①–⑤.
+
+### 9.6 Claim table behind O1/O2
+
+| the lean rests on | code — how it is | design — how it was meant |
+|---|---|---|
+| every terrain reader walks `Prisms` with their material | ✅ I1, I3, I4, I5, I6 | ✅ Building Interiors §3c/§3d P2 (one rule) |
+| a runtime geometry change is a snapshot swap | ✅ `DotRecastNavmeshProvider.Rebake` `:287`, `TerrainResidency.Commit` `:232` | ✅ R-218 |
+| static obstacles are typed entities that get baked | ✅ none built (I8) | ✅ AQ81 T6, Zones §2.1c/§5.2 |
+| no node reads another node's terrain | ✅ callers I1–I6 all query their own singleton | ⛔ searched `docs/`, no record either way |
+| a rebuild is cheap enough per placement | ✅ measured `P7a_R9`: +3 obstacles on test-town = 238 ms, 2 of 576 tiles | ✅ R-218 (touched tiles) |
+
+### 9.7 O5 — a vehicle is cover, read live *(`CE-3142`, built `2026-10-09`)*
+
+```mermaid
+classDiagram
+  class VehicleCover { <<NEW static, Fdp.Toolkits>> IsVehicle ; IsStanding ; Collect(view, standingOnly) ; Blocks ; Inside }
+  class EqsTerrainSight { <<existing, grows>> Sight = terrain + the view's vehicle boxes }
+  class TerrainLosService { <<existing, grows>> vehicles : box list or null }
+  class CoverPointsGenerator { <<existing, grows>> + points round STANDING vehicles }
+  class TerrainCoverProvider { <<existing>> PointsAround(world, prism) — extracted, one rule }
+  class TerrainObstacles { <<existing>> PrismOf ; IsObstacle }
+  EqsTerrainSight ..> VehicleCover : Collect all
+  EqsTerrainSight ..> TerrainLosService
+  TerrainLosService ..> VehicleCover : Blocks
+  CoverPointsGenerator ..> VehicleCover : Collect standing
+  CoverPointsGenerator ..> TerrainCoverProvider : PointsAround
+  VehicleCover ..> TerrainObstacles : the box, never a static obstacle
+```
+
+*What the picture shows that prose hid: no new state and no rebuild — both readers ask the query's own view each time, through the same
+box and the same cover-point rule terrain uses.*
+
+| as built | why |
+|---|---|
+| a vehicle = `VehicleParams` not `Pedestrian`, else a bare `VehicleState` (the `PathRequests.IsVehicle` rule); a collider of known height; never a `StaticObstacle` (terrain already) | one predicate; a person is not cover (EQS §19.5 unchanged for units) |
+| its BOX: `VehicleParams` length × width (else the square inside its collider circle) × collider height, along its heading, of `car-body` (sight 0) | ⚠ the collider CYLINDER (radius = half the diagonal, 2.4 m for a car) would swallow a cover point 0.75 m off its side (1.65 m from the middle) — measured in `P7a_R10` |
+| sight (①): every vehicle, moving or not, is opaque within its box; a box containing the eye or the aim (in plan) is the viewer's or target's own and is skipped | a passing truck hides what is behind it at that instant |
+| cover points (②): `TerrainCoverProvider.PointsAround` (extracted from `Build`, unchanged rule) round every STANDING vehicle within the sensor's radius; never inside another vehicle | the tests after the generator see the vehicle as opaque, so the side away from the threat survives — as with terrain cover |
+| ✅ **"standing" = moving slower than 0.3 m/s NOW, not "still for 2 s"** — 🔒 user, `2026-10-09`: *"moving slower than 0.3 m/s is probably a better consition"* (R-245) | 📐 nothing records how long an entity has stood (graph + grep: no stillness state anywhere); a per-frame tracker needs a component id (scarce) or shared state across the solver thread. A car stopping for a moment counts for that moment; the query re-runs and drops it when it drives off |
+| bullets (③) and the navmesh (④) unchanged | O5 ③ ④ |
+
+Rails: `StaticObstacleTests.P7a_R10` (a car's box hides at 1.0 m, not at 1.7 m; its own vehicle never hides a viewer inside it; a man
+beside it — inside its collider circle — is hidden; a person is not cover), `P7a_R11` (points round a standing car, all standing stance;
+none when it drives; none for a window generator; none once it is a static obstacle).
+
+
+
+⭐ **`CE-2313` (behaviors, 2026-10-20, cross-lane fold) — `IsStanding` on a node that does not own the vehicle's motion reads the REPLICATED velocity first.** 📐 Measured live (`uc-convoy-hit-ifv`, demo-city): on CGF a driving Bradley's `VehicleState.Speed` stayed 0 (the copy it was created with) while its `NetworkVelocity` said 8 m/s — so the brain node read every moving vehicle as standing (cover points round a moving car there; CE-2307's push-through never; a squad dismounting at speed). The owner still reads `VehicleState.Speed`. Rail `BasicVehicleSopTests.CE2313_*`.
+
+### 9.8 Seeing cover and the AI's verdict on the map *(`CE-3143`, built `2026-10-09`)*
+
+> 🔒 **User, `2026-10-09`:** *"is there an indication what cover points are seen as safe?"* → the lean (fix the EQS gizmo for child
+> sensors; colour points safe/exposed with the solver's own test; the parked-vehicle dots; round the per-side count up) → *"yes build it"*.
+
+```mermaid
+classDiagram
+  class TerrainCoverProvider { <<existing>> PointsAround — n = ceil(side / 2.5 m) }
+  class VehicleCover { <<existing, grows>> StandingPoints(view, world, into) }
+  class CoverPointsGenerator { <<existing>> provider points + StandingPoints }
+  class CoverPointsGizmo { <<existing, grows>> provider points + StandingPoints, lighter green }
+  class EqsFilters { <<NEW static>> Run(template, entity, sensor, view, candidates) }
+  class EqsSolverSystem { <<existing>> filters through EqsFilters.Run }
+  class EqsSensorGizmo { <<existing, grows>> keyed on EqsSensor; draws from the self; verdict dots }
+  class GizmoFamilyVisibilityPolicy { <<existing, grows>> UnitOf(part) — a part follows its unit }
+  CoverPointsGenerator ..> VehicleCover
+  CoverPointsGizmo ..> VehicleCover
+  VehicleCover ..> TerrainCoverProvider
+  EqsSolverSystem ..> EqsFilters
+  EqsSensorGizmo ..> EqsFilters : the same filters
+  GizmoFamilyVisibilityPolicy ..> EqsSensorGizmo : scope
+```
+
+*What the picture shows that prose hid: each picture on the map has ONE producer shared with what the AI runs — the vehicle points
+(`StandingPoints`) and the verdict (`EqsFilters.Run`) — so the map cannot show a different answer from the one the AI acts on.*
+
+| as built | why |
+|---|---|
+| **per-side count rounded UP**: a car's 4.5 m side gets 2 points (was 1 in the middle), a 12 m wall 5 per long side | two men can hide behind one car side, and a unit can pick the end nearer its target |
+| **Cover layer** draws the points beside every standing vehicle, lighter green (`CoverPointsGizmo.VehicleColor`) | they are in no database (read live, R-243/R-245) — the map showed less cover than the AI saw |
+| **`EqsSensorGizmo` keyed on `EqsSensor` alone**, drawn from the sensor's self (`EqsContext.SelfPosition` — the parent unit) | 📐 a unit's sensors are children with no `SimTransform` (`EqsChildSensor.cs:81-85`); the old `(SimTransform, EqsSensor)` key matched none — the gizmo drew nothing for every current tactic |
+| **the verdict**: every candidate the sensor's template generates, green when its FILTERS keep it, red when they reject it (`EQS.ShowVerdict`, on) — the template's own filters through `EqsFilters.Run`, now also the solver's | the same tests, never a copy. ⚠ The SCORE phases are not run (`AccurateLineOfSightTest` submits raycasts). A sensor whose threat gate is closed (no fresh threat) keeps everything ⇒ all green. A host with no template registry discovers one once (`EqsTemplateRegistry.Discover`) |
+| ⚠ **the verdict runs on the DRAW thread** — `CE-1055` (`2026-10-12`): the shared generator's broadphase index was rebuilt under the solver ⇒ `Module Eqs failed`; now one index per calling thread (`BroadphaseCache`, `DESIGN_Sensors_And_Doctrine.md` §5.5) | the same producer stays the point; only its scratch index is per thread |
+| **EQS family = selected or pinned by default; a part follows its unit** (`GizmoFamilyVisibilityPolicy.UnitOf`) | the verdict is busy per unit; the user selects the unit, never its sensor child |
+
+Rails: `EqsVisualizersTests` (IG) — `EqsSensorGizmo_DrawsTheFiltersVerdict_ForAChildCoverSensor_GreenBehindTheCar` (a car between a unit
+and its threat: 2 green behind it, 4 red), T-VIS1 re-pinned (keyed on the sensor alone); `CoverPointsGizmoTests.CE3143_TheCoverLayer_ShowsTheLivePointsBesideAStandingVehicle`
+(6 dots for a car, none when it drives); `DebugTraceGizmoTests.CE3143_APartFollowsItsUnit_UnderSelectedOrPinned_AndEqsDefaultsToIt`;
+`StaticObstacleTests.P7a_R11` (6 points round a car).
+
+### 9.9 O-6 — an obstacle can be destroyed, and its removal opens the street *(`CE-6003`, showcase-world, built `2026-11-13`)*
+
+> 🔒 User, `2026-11-13` (city battle D-6): *"removal manadatory (even as disappearing)"*. The breach drill of
+> [`DESIGN_City_Battle_Showcase.md`](designs/group-maneuvers/DESIGN_City_Battle_Showcase.md) §5 / §11 O-1 stands on it, and the bulldozer's
+> `ClearObstacle` (brains lane, `CE-7012`) calls the seam below.
+
+```mermaid
+classDiagram
+  class StaticObstacleDto { <<existing TKB descriptor, grows>> + MaxHealth (0 = indestructible) }
+  class ObstacleTkbTranslator { <<existing, grows>> + the ordinary Health when MaxHealth > 0 }
+  class Health { <<existing component>> Current ; Max }
+  class AreaEffectSystem { <<existing, grows>> Assess: an obstacle → AssessObstacle }
+  class ObstacleDamage { <<NEW static, Fdp.Toolkits>> BlastDamage(kg, d) ; NearestPoint ; IsDestructible ; Damage(obstacle, hp, by) }
+  class DamageAssessedEvent { <<existing — the ONE damage path>> }
+  class HealthApplicationSystem { <<existing>> applies on the Health owner }
+  class ObstacleRemovalSystem { <<NEW, Fdp.Toolkits>> Health ≤ 0 and owned → DestroyEntityCommand + TearDown }
+  class NetworkSpawningSystem { <<existing>> the one teardown → ELM }
+  class StaticObstacleBakeSystem { <<existing, unchanged>> the set changed → rebake }
+  class BreachRule { <<existing>> Z = d / ∛kg — the scaled distance the law shares }
+  StaticObstacleDto <.. ObstacleTkbTranslator
+  ObstacleTkbTranslator ..> Health
+  AreaEffectSystem ..> ObstacleDamage : BlastDamage, NearestPoint
+  ObstacleDamage ..> BreachRule : same scaled distance
+  AreaEffectSystem ..> DamageAssessedEvent
+  ObstacleDamage ..> DamageAssessedEvent : Damage (the blade, CE-7012)
+  DamageAssessedEvent ..> HealthApplicationSystem
+  HealthApplicationSystem ..> Health
+  ObstacleRemovalSystem ..> Health : reads
+  ObstacleRemovalSystem ..> NetworkSpawningSystem : DestroyEntityCommand
+  NetworkSpawningSystem ..> StaticObstacleBakeSystem : the entity leaves the set
+```
+*What the picture shows that prose hid: two NEW boxes only — a pure law and a tiny owner system; damage, its owner, the teardown and the
+rebake are all the existing ones. The law sits beside `BreachRule`, not in the person / hull law.*
+
+```mermaid
+sequenceDiagram
+  participant B as a burst (any node owning it) or the blade
+  participant A as AreaEffectSystem / ObstacleDamage.Damage
+  participant H as Health owner: HealthApplicationSystem
+  participant R as Health owner: ObstacleRemovalSystem
+  participant N as NetworkSpawningSystem + ELM (master owner)
+  participant K as StaticObstacleBakeSystem (every node)
+  B->>A: DetonationNotification (kg, burst point)
+  A->>H: DamageAssessedEvent: BlastDamage(kg, distance to the nearest face) × closed barriers
+  H->>H: Health.Current -= damage (next frame, head of Simulation)
+  H->>R: same frame, right after
+  R->>N: Current ≤ 0 → DestroyEntityCommand (a non-owner of the master forwards a DeleteEntityRequest) + TearDown at once
+  N->>N: teardown over frames, the dispose removes every replica
+  K->>K: the obstacle left the Active set → signature changed → 0.5 s wall-clock quiet (R-244) → rebake world, cover, touched navmesh tiles → commit
+```
+*What the picture shows that prose hid: no node bakes because of the damage — every node rebakes because the ENTITY left its world, the same
+trigger as an obstacle placed or moved (§9.2 O2). The removal joins the simulation on the bake's commit, so its tick is wall-clock dependent
+— `CE-6004` measures it under the deterministic run.*
+
+```mermaid
+graph TD
+  PLAN["CoreInfrastructureCapabilities.LiveSimulationPlan (every live-simulation node)"] --> HA["HealthApplication capability: HealthApplicationSystem → BleedOutSystem → ObstacleRemovalSystem (NEW)"]
+  SH["SimHostCoreLogicPack: DamageAssessmentModule"] --> AE["AreaEffectSystem (grows: AssessObstacle)"]
+  PACK["EntityCreationPack (every node)"] --> BAKE["StaticObstacleBakeSystem (unchanged)"]
+  TKB["NedTkbCatalog.RegisterObstacles: MaxHealth car 150 · sandbags 300 · concrete 600 · crate 60"] --> TR["ObstacleTkbTranslator (every node): Health"]
+  AE -->|"DamageAssessedEvent (egress to the owner)"| HA
+  HA -->|"DestroyEntityCommand"| NS["NetworkSpawningSystem → ELM teardown"]
+  NS -->|"entity gone"| BAKE
+  RB["Replay Browser: BakeRecordedObstacles per seek"] -.->|"the recording holds the removal: a seek past it bakes without the prism"| BAKE
+```
+*What the picture shows that prose hid: the remover runs where Health is applied (any node may own an obstacle's Health), never in a role
+pack; the replay needs nothing new — it already rebakes the recorded obstacle set per seek (O-8, `CE-4420`).*
+
+| decision (as built) | why — measured |
+|---|---|
+| **an obstacle type carries the ORDINARY `Health`** (`StaticObstacleDto.MaxHealth`, the translator adds it) — no new damage component | the design's lean (§11 O-1); every damage writer already speaks `Health` |
+| ⭐ **a blast drains it by `ObstacleDamage.BlastDamage` = 100 hp/kg × kg × f(Z)**, Z = d / ∛kg to the obstacle's NEAREST FACE (f = 1 to Z 0.5, 0 at Z 1.5); fragments and bullets do nothing | 📐 **the person / hull law could not be reused — measured (red-proof M1, the obstacle branch off): it gives a concrete block 80 hp for EVERY warhead at its face — the 8 kg charge, an 81 mm, a 120 mm and an M67 alike; its fragments never arrive (the body points lie inside the block's own prism) and only the blast lands.** And its blast (`BlastLethalDamage`) is the same coefficient for every warhead inside its lethal radius (`ReferenceLibrary.Warhead`), and `ArmorModel.BlastSusceptibility(null, …)` is 1 for a platform-less obstacle ⇒ a grenade at contact = an 8 kg charge. Scaled distance is the breach law's (`BreachRule`, CE-4391) |
+| **closed barriers count, the obstacle's own prism never does**: the trace runs to a point 2 cm OUTSIDE the nearest face (as `LineClearToFace` for a wall) | the own-prism problem (handoff risk 1) is avoided by construction. 📐 Measured (M7: trace INTO the block): an obstacle prism is not a closed barrier, so today the offset changes nothing — kept so an obstacle material that is ever a closed barrier stays right |
+| **MaxHealth per type in the TKB** (`NedTkbCatalog`): concrete block 600 (a 6 kg contact charge; the 8 kg demolition charge removes it from 1.4 m; a 120 mm round = 300, 81 mm = 95, M67 = 24) · sandbag wall 300 · car 150 (one 125 mm HE at contact = 340) · crate 60 | 🔒 handoff: *"a demolition charge must remove a concrete block; small mortar fragments should not trivially erase it"*. ⚠ Starter values to tune, like the sizes |
+| **the Health OWNER removes it** (`HealthOwnership.AppliesHere`) through the one teardown (`DestroyEntityCommand`, Entity Creation §3.4c), marked `TearDown` at once (asked ONCE; it leaves the bake's Active set the next frame); offline: the command buffer | an obstacle may be owned anywhere; ⛔ never a direct delete mid-iteration. ⛔ Obstacles only — a dead body / vehicle stays (CE-267 revert, user `2026-09-13`) |
+| **the blade's seam (`CE-7012`): `ObstacleDamage.Damage(repo, obstacle, rate × dt, dozer)` once per tick of contact** | 🔒 *"a push is damage per second while in contact"* — the same `DamageAssessedEvent`, so the owner, the removal and the rebake are shared by construction. The rate is the dozer's (its TKB / behaviour), not the obstacle's |
+| **a `Constructing` obstacle cannot be removed** (the query is Active-only) | R-243: it is not in the simulation before its bake commits |
+| **replay**: nothing new | the removal is in the recording; `BakeRecordedObstacles` rebakes per seek (O-8). Rail below |
+
+| rejected | the one fact that killed it |
+|---|---|
+| the person / hull law with the own prism (`obstacle:<index>`) excluded from the trace | its blast is warhead-independent at contact (one `BlastLethalDamage`), so a grenade erases concrete as a charge does |
+| blast pressure only (`BlastLethalDamage × BlastFalloff`) | same fact: the radius scales with kg, the damage at contact does not |
+| `BreachRule` rows (yes/no by kg and Z) | a yes/no cannot accumulate — two 120 mm rounds and the blade's push both need a pool |
+| a `CombatPlatformDefDto` on the obstacle types (Health + armour through `CombatTkbTranslator`) | it makes an obstacle a combat platform (targeting, armour faces, collider layer) — and the generic law would still run |
+| destroy at 0 inside `HealthApplicationSystem` | that system's rule is *"never destroyed at 0"* (CE-267 revert); a second, obstacle-only system keeps the two rules apart |
+
+⚠ **Known side effect, filed `CE-6013`:** an obstacle now carries `Health`, so a burst that hurts it publishes a `DamageAssessedEvent` with a
+Neutral victim and `ManDowned.PublishIfDowned` fires when it empties — the objective measures (`MeasuresEvidence`, `ObjectiveCensus.IsMan`) read
+those as a Neutral PERSON (civilian harm). Not reachable before this item (no obstacle had Health).
+
+Rails *(the parallel-check set CE-6012 reruns unchanged)*: `Fdp.Toolkits.Tests` — `ObstacleDamageTests` (`CE6003_L1` the law, `A1` the
+charge empties a block its own prism does not shield, `A2` small rounds do not, `R1` the owner removes once / nobody else / never a body, `S1`
+the blade's seam, `H1` 0 B steady); `StaticObstacleTests.CE6003_T1` (a roadblocked gate opens when the obstacle is gone), `CE6003_T2` (the
+translator's Health) · `Hrot.ReplayBrowser.Tests` — `ObstacleRemovalReplayTests.CE6003_ARemovedObstacle_IsGoneAfterASeekPastItsRemoval_AndBackBeforeIt` (its own file: `ReplayBrowserSubsystemTests.cs` is on the parallel programme's list) ·
+`Hrot.ClusterRunner.Integration.Tests` — `RoadblockBlastScenarioTests` on the feature scenario
+`scenarios/showcases/city-battle/features/roadblock-blast` (four hosts, 75 s: no ground or vehicle path through the gate before; one 8 kg charge 0.6 m off a 6 × 1 × 1 m
+concrete barrier removes it on every node by sim 12.4 s; both paths open by 12.9 s; the IFV ordered at 40 s reaches the far side), on the NEW feature terrain `assets/terrain/roadblock-street` (a 3 m wall past both edges with one 6 m gate). 📐 Why a new terrain:
+on `cqb-village` the compound's 4 m gate opened for infantry but never for a vehicle — the vehicle navmesh layer's agent radius is 1.8 m
+(`RecastNavmeshBaker.cs:81`), so a gate under ~4 m is shut to vehicles with or without a roadblock (measured in the twin: the IFV's route stayed `None`). ⚠ And measured there: the IFV swerves round the charge man's body and crosses the wall line
+~7 m off the gate, THROUGH the concrete — vehicle avoidance leaves the navmesh (`CE-6014`, `CarKinematicsSystem`, on the parallel programme's list).
+The twin therefore asserts the ROUTE (closed before, open after, reached) and logs the crossing. ⚠ An obstacle is ONE thing: a long barrier goes
+whole when any face is within reach (the law reads the nearest face) — author a long roadblock as several blocks when a charge should open only part.
+
+
+### 9.10 O-7 — a heavy vehicle's wreck blocks the street *(`CE-6005`, showcase-world, built `2026-11-13`)*
+
+> 🔒 User, `2026-11-13` (city battle D-6): *"obstacles + wrecks get removal"* — and `2026-09-13` (the CE-267 revert): *"dead entity should not vanish"*.
+> [`DESIGN_City_Battle_Showcase.md`](designs/group-maneuvers/DESIGN_City_Battle_Showcase.md) §11 O-2.
+
+```mermaid
+classDiagram
+  class WreckObstacleDto { <<NEW TKB descriptor>> ObstacleType }
+  class StaticObstacleDto { <<existing>> Wreck 8819: car-body, 600 hp }
+  class WreckObstacleSystem { <<NEW, Fdp.Toolkits>> alive→dead crossing, Health owner → ONE creation request }
+  class EntityCreationRequest { <<existing — the one creation path>> }
+  class EntityLifecycleModule { <<existing>> Constructing until the bake acks (R-243) }
+  class StaticObstacleBakeSystem { <<existing, unchanged>> }
+  class ObstacleRemovalSystem { <<CE-6003>> removes it at 0 }
+  class Hulk { <<existing vehicle entity>> Health 0, stays }
+  WreckObstacleSystem ..> Hulk : reads death, footprint, heading
+  WreckObstacleSystem ..> WreckObstacleDto : the hulk's type
+  WreckObstacleSystem ..> EntityCreationRequest : TkbType 8819 + SimTransform + ObstacleShape
+  EntityCreationRequest ..> EntityLifecycleModule
+  EntityLifecycleModule ..> StaticObstacleBakeSystem : wait for 0x7E41
+  StaticObstacleDto <.. EntityCreationRequest
+  ObstacleRemovalSystem ..> StaticObstacleBakeSystem : the wreck leaves the set
+```
+*What the picture shows that prose hid: ONE new system, and it only ASKS — the wreck is born through the same creation request, lifecycle gate and
+bake as a scenario's obstacle, and cleared by CE-6003's removal. The hulk is never touched.*
+
+```mermaid
+sequenceDiagram
+  participant H as Health owner (HealthApplication capability)
+  participant W as WreckObstacleSystem (same node)
+  participant C as CreateEntityRequestSystem + ELM
+  participant K as StaticObstacleBakeSystem (every node)
+  H->>H: a hit takes the tank to Health 0 (the hulk stays)
+  W->>W: same frame: saw it alive, now dead → a CROSSING (once)
+  W->>C: EntityCreationRequest(8819, the hulk's position + yaw, ObstacleShape = VehicleParams L × W × hull height)
+  C->>K: the wreck exists Constructing on every node (held for the terrain participant)
+  K->>K: quiet 0.5 s wall clock → rebake → commit → ack → Active: the street is closed to vehicles
+  Note over H,K: later: a charge / the blade drains the wreck's 600 hp → ObstacleRemovalSystem → teardown → rebake → open (CE-6003)
+```
+*What the picture shows that prose hid: the wreck joins the simulation exactly as any obstacle (no second path), so a scenario LOADED with it and a
+runtime one are the same thing; and "once" is the crossing, not a flag.*
+
+```mermaid
+graph TD
+  PLAN["LiveSimulationPlan (every live node)"] --> HA["HealthApplication: HealthApplicationSystem → BleedOut → ObstacleRemoval → WreckObstacleSystem (NEW)"]
+  TKB["NedTkbCatalog.RegisterObstacles: Wreck 8819 + WreckObstacleDto on M1, T-72, Bradley"] --> W["WreckObstacleSystem reads the type"]
+  HA -->|"EntityCreationRequest"| PACK["EntityCreationPack: CreateEntityRequestSystem → ELM"]
+  PACK --> BAKE["StaticObstacleBakeSystem (every node)"]
+  RB["Replay"] -.->|"the system is OFF: the recording holds the wreck entity"| HA
+```
+*What the picture shows that prose hid: the wreck rule rides the owner side of damage (where the death is applied), never a role pack — and a replay
+needs nothing (the wreck is an ordinary recorded entity).*
+
+| decision (as built) | why — measured |
+|---|---|
+| ⭐ **the wreck is a SEPARATE obstacle entity sitting on the hulk; the hulk stays** | 🔒 dead bodies never vanish. ⛔ "the vehicle becomes the obstacle" was rejected: `StaticObstacle` is TKB-derived on every node, never on the wire (`StaticObstacles.cs:13-17`), so adding it at runtime reaches no other node; the hulk's own Health is 0, so CE-6003's removal would delete the hulk at once; and the wreck needs its OWN pool to be cleared |
+| **counting the hull twice is harmless where it happens** | the hulk keeps its collider: bullets stop at the first solid (the collider, I2) — never two hits; sight is opaque by both (I3, car-body sight 0); fragments product of two ~0 transmissions; the AI's sight sees the vehicle box and the prism (both opaque, O5 ①); ⚠ cover gets points round both (VehicleCover's "standing vehicle" ring + the prism's) — extra candidates at the same place, accepted. ⭐ The NAVMESH sees only the prism (O5 ④ ignores vehicles) — the one consumer that needed it |
+| **a new type `Obstacle_Wreck` = 8819** (car-body, 600 hp, default box 6.5 × 3.4 × 2.4) sized per instance from the hulk (`VehicleParams` length × width, hull height) | 8819 measured free on every origin branch (`git grep`); car-body is the parked car's material (sight 0, 120 mm/m — a tank-length box stops every round); 600 hp = the concrete block's: the 8 kg charge (≥ 600 within 1.4 m of the face) or a blade clears it |
+| **opt-in per TYPE: `WreckObstacleDto` on the M1, the T-72, the Bradley** | 🔒 tanks / IFVs only; a light car stays as it is. Data, not a class check — a new heavy type opts in by adding the descriptor |
+| ⭐ **ONCE = an alive→dead CROSSING seen by this system on the Health owner** (the `WreckSpawnSystem` rule, VE-P); a hulk first seen dead makes none | ⭐ no flag on the hulk (a new component id would touch `GlobalComponentIds.cs`, on the parallel programme's list); and the crossing is the right meaning: a saved scenario with a wreck saved its obstacle (or its clearing), a late joiner or a moved Health claim saw no crossing, a cleared wreck is never rebuilt. ⚠ Edge: a Health claim that moves to another node DURING the frame of death — not handled (no such move measured) |
+| **through `EntityCreationRequest`** (owner picks 0) | the one creation path (Entity Creation §3.4d); the obstacle type's ELM rule holds it `Constructing` until the bake commits (R-243) |
+| **replay: off** | the recording holds the wreck entity like any other; the Replay Browser bakes recorded obstacles per seek (O-8) |
+
+| rejected | the one fact that killed it |
+|---|---|
+| the vehicle entity becomes the obstacle | `StaticObstacle` never reaches the wire; the hulk's Health 0 would make CE-6003 delete it |
+| a "wreck made" flag component on the hulk | a new component id in `GlobalComponentIds.cs` (parallel programme's file); and a flag survives a clearing only if it is saved and replicated |
+| a spatial check ("is there a wreck here already?") | it rebuilds a wreck the engineers cleared |
+| `WreckSpawnSystem` (Presentation) makes it | it is display-only, on every node; a world rule belongs to the Health owner |
+
+Rails *(the parallel-check set CE-6012 reruns unchanged)*: `Fdp.Toolkits.Tests.WreckObstacleTests` (`CE6005_W1` one request on the hulk, its box
+and heading; `W2` none for a saved hulk, a light car, a non-owner; `W3` none in a replay; `H1` 0 B steady) · `Hrot.Core.Tests.NedTkbBuilderCombatTests.CE6005_…`
+(the type and the heavy list) · `Hrot.ClusterRunner.Integration.Tests.WreckBlocksStreetScenarioTests` on `scenarios/showcases/city-battle/features/wreck-blocks-street`
+(roadblock-street: an idle T-72 in the gate, a real kill by an M1, ONE wreck on every node on the hulk, the gate closed to vehicles, the 8 kg charge
+clears it, the gate reopens, the hulk stays).
+
+
+## 10. Generalisation — the library's "fight from cover" node *(R-256 L2 · ✅ G1–G8 APPROVED `2026-10-10`, R-257 · READY-TO-BUILD, `CE-3158`)*
+
+> 🔒 **User, `2026-10-10`:** *"the peek-and-fire was written as part of the duel scenario … might not be generic enough"* ·
+> *"we aim to having behaviors that are largely generic, usable in any military combat scenario"* · *"that squad-aware
+> perspective is extremely important because we will need to model the squad and its behavior soon (single soldier is not
+> realistic). For sure write the design please."*
+
+⭐ **What this section does:** keeps the §8 machine (hide → expose → fire → recover, heat, stay down under fire) and fixes
+the five places it is the duel's, so it can become CombatPosture's TakeCover child (`CE-3157`) and the per-member action of a
+squad. ⛔ **No new node** — R-256: one implementation per concept. Audit: [`REVIEW_Behaviour_Library_Genericity.md`](REVIEW_Behaviour_Library_Genericity.md) §3.
+
+### 10.1 INVENTORY *(`2026-10-10`, graph re-indexed after the merge + three read-only sweeps)*
+
+| query | total | what it settles |
+|---|---|---|
+| `search_graph label=Class file_pattern=*Hrot.AI.Behaviors/Brains/*` | 88 | PeekAndFire is one of four cover paths; bound only by `WindowDuelBehavior.cs:59` (JSON bindings are invisible to the graph — confirmed by grep) |
+| `search_graph name_pattern=.*(Squad\|SlotRotation\|FiringPositionMemory\|LineOfFire\|Reserv\|Claim\|ThreatMatrix\|LeaderAssign).* label=Class` | 49 | the squad layer EXISTS: `SquadCognitiveState` (commander, 1024 B: roles, slots, `Assignment[16]`, contacts), `SquadCoordinationSystem` → `ThreatMatrixAssignmentSystem` (built, U6 ×3), `SlotRotation` (index masks), `UnitRoster`/`UnitSubordinate` membership. ⛔ **no claim/reservation of world points among units** |
+
+| fact the design rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the peek mode keys on the template id | ✅ `PeekAndFireNodes.cs:245-246` | §6 D7 "a window point ⇒ stance, any other ⇒ step" — the intent was the POINT, the code keyed the query |
+| cover points already know what they are | ✅ `CoverPoint.Kind` (`CoverKind.Cover` / `WindowFiring`), `StanceHeight` = the stance it hides | `DESIGN_Building_Interiors.md` §3l C4 |
+| the result has room to carry the kind | ✅ `EqsResult` = 29 B used of 32 (`EqsComponents.cs:18`) | §6 D5 precedent: stance in a padding byte, *"extending wire is no issue"* |
+| no cover ⇒ silent forever | ✅ `:237` Running, no fire, no Failure | ⛔ searched, no design says what should happen |
+| bursts obey ROE, not the friendly line | ✅ `FireAtPointExecutor.cs:61` ROE; no friendly check | `BS-1-DESIGN.md` §5.1a: the friendly guard was written for aimed fire only |
+| the friendly check is entity-to-entity, 2-D, whole force | ✅ `LineOfFire.cs:18-44` | `CE-321` — ⭐ `CE-2338` (`2026-10-21`): a friendly PERSON out of the fight (lying down) no longer holds it — the round flies over him (CE-2318); a hull, alive or wrecked, still does |
+| indirect fire is known per warhead | ✅ `WarheadDto.Indirect` (`Tkb/Domain/WarheadDto.cs:77`) | R-217 |
+| the fire step re-ranks its own target | ✅ `PostureNodes.cs:301` `TopThreat(.., ws.Threat ..)` with `ws.Fire = default` (`PeekAndFireNodes.cs:350`) | R-174: ONE aimed step |
+| target distribution exists, reaches the node as a bias only | ✅ `ThreatRankingDecision` considers `IsAssignedTarget` (0.9, threshold); `StandardInputs.cs:317` | Utility demo §11 (U6), Squad design §1 "fire allocation — Done" |
+| a unit memory cannot be read by a squad-mate | ✅ `FiringPositionMemory` mirror `HidePoint` is per unit | 🔒 AQ87 G (R-237): *"Self only"*; §4 routes data other readers need to an **ECS component** |
+| the seed is symmetric | ✅ `SimRng.cs:57` `entityIndex ^ salt ^ (int)simTime` | AQ8 Q-C / AQ78 C3: one sim-derived generator |
+| the squad's turn-taking is built, not driven | ✅ `PhaseSequencer`, `RoleSlotAssignmentPrimitive` exist; no member-tier caller | `DESIGN_Squad_Wiring.md` §5 D2/D3, `CE-507` |
+
+### 10.2 Classes
+
+```mermaid
+classDiagram
+  class PeekAndFireNodes {
+    <<existing, grows>>
+    PeekAndFire(params, state)
+    +Failure when no cover / no exposure
+  }
+  class PeekAndFireParams {
+    <<existing, grows>>
+    +PeekStanceOverride
+    +NoCoverSeconds
+    +Disable flags
+  }
+  class CoverClaim {
+    <<NEW ECS component, per unit>>
+    Vector3 Point
+    double Until
+  }
+  class EqsResult {
+    <<existing, grows>>
+    +Kind (padding byte, kind+1)
+  }
+  class CoverPointsGenerator { <<existing, grows>> writes Kind }
+  class PostureNodes {
+    <<existing, grows>>
+    Fire(world, self, ws, cooldown, rounds)
+    +Fire(..., Entity target)
+  }
+  class LineOfFire {
+    <<existing, grows>>
+    BlockedByFriendly(shooter, Entity)
+    +BlockedByFriendly(shooter, Vector3 point)
+  }
+  class FireAtPointExecutor { <<existing, grows>> friendly line unless Indirect }
+  class SquadCognitiveState { <<existing>> Assignment[16] target per member }
+  class UnitSubordinate { <<existing>> Commander }
+  class FiringPositionMemory { <<existing, unit memory>> heat · HidePoint mirror }
+  class SimRng { <<existing, fixed>> FromSim mixes, not XOR }
+  class CgfNodes { <<existing>> FireAtTarget routed onto Fire(target) - L5 }
+  PeekAndFireNodes ..> CoverClaim : writes own · reads others
+  PeekAndFireNodes ..> EqsResult : Kind + Stance pick the peek
+  PeekAndFireNodes ..> PostureNodes : Fire(target)
+  PeekAndFireNodes ..> SquadCognitiveState : assigned target via UnitSubordinate
+  PeekAndFireNodes ..> FiringPositionMemory
+  PeekAndFireNodes ..> SimRng
+  FireAtPointExecutor ..> LineOfFire
+  CgfNodes ..> PostureNodes
+  CoverPointsGenerator ..> EqsResult
+```
+
+*What the picture shows that prose hid: ONE new type (`CoverClaim`, an ECS component, because AQ87 forbids reading a
+squad-mate's unit memory); everything else is an existing box growing a member. The squad layer is READ (assignment), never
+written — the node works for a lone soldier and for a squad member alike.*
+
+### 10.3 Sequences
+
+**(a) Two squad-mates under fire pick cover — no double-booking, one target each**
+
+```mermaid
+sequenceDiagram
+  participant A as Rifleman A — PeekAndFire
+  participant B as Rifleman B — PeekAndFire
+  participant C as CoverClaim (ECS)
+  participant S as SquadCognitiveState.Assignment
+  participant Q as cover sensor (EQS answer span)
+  A->>Q: best points (score - heat)
+  A->>C: candidates within ClaimRadius of another unit's claim are skipped
+  A->>C: write own claim (Point P1, Until)
+  B->>Q: same answer span (same query, same threat)
+  B->>C: P1 claimed by A - skipped
+  B->>C: write own claim (P2)
+  A->>S: my assigned target? (T1)
+  B->>S: my assigned target? (T2)
+  Note over A,B: each locks ITS target for the exposure, a lone soldier (no commander) uses TopThreat
+  A->>A: expose at the point's stance+1, Fire(T1)
+  B->>B: expose a moment later (seed no longer symmetric)
+```
+
+**(b) Nothing works — the node says so, the posture decides**
+
+```mermaid
+sequenceDiagram
+  participant P as CombatPosture (option TakeCover)
+  participant N as PeekAndFire
+  participant M as FiringPositionMemory
+  N->>N: no answer for NoCoverSeconds
+  N-->>P: Failure (no cover)
+  P->>P: re-score - e.g. HoldProne (fires) or FallBack
+  N->>M: a point the move could not reach is BURNED (never re-picked)
+  N->>N: every point burned - fire from where it stands (aimed), never silent
+```
+
+*What the pictures show that prose hid: the de-confliction is a READ of other units' claims at pick time — no lock, no
+negotiation, no commander needed — and the node's only new outcome towards its caller is an honest `Failure`.*
+
+### 10.4 Modules — who runs what each frame
+
+```mermaid
+graph TD
+  subgraph CGF[CGF brain node]
+    BT["BrainTick: CombatPosture BTree (C#, R-258)"] --> PF[PeekAndFire node]
+    PF -->|write own / read all| CC[CoverClaim components]
+    SCS[SquadCoordinationSystem ~10 Hz] --> TMA[ThreatMatrixAssignmentSystem] --> AS[SquadCognitiveState.Assignment]
+    AS -->|read: my target| PF
+    PF --> WC[WeaponChannel]
+    WC --> AF[AimAndFireExecutor: sight · aim · friendly line]
+    WC --> FAP[FireAtPointExecutor: ROE · friendly line unless Indirect]
+    SEQ[PhaseSequencer / RoleSlotAssignment]:::dead -.->|not driven: CE-507| PF
+  end
+  subgraph SH[SimHost]
+    EQ[EqsModule: CoverPoints + LOS + ThreatExposure] --> RES["EqsResult (Stance, Kind)"]
+  end
+  RES -- DDS --> PF
+  classDef dead stroke:#c00,stroke-dasharray: 5 5,color:#c00
+```
+
+*Caption: the claims are BRAIN-local (all members of one squad are on the same CGF node, as the squad state already assumes —
+Squad design §2 "All Brain-resident"); the red dashed edge is the squad's turn-taking, built but driven by nothing until
+`CE-507` — §10.5 G6 defines the seam it will use, nothing here depends on it.*
+
+### 10.5 Decisions — G1–G8, each with a recommended answer
+
+| # | decision | ⭐ recommended | rejected (one line each) |
+|---|---|---|---|
+| **G1** | how the unit exposes | ⭐ from the POINT: `EqsResult.Kind` (new padding byte) — `WindowFiring` ⇒ stance peek at the point's stance; `Cover` ⇒ hide at its `StanceHeight`, peek **one stance taller**; already standing, or no stance system (`StanceRequest.Set` false) ⇒ **step peek**; no peek point ⇒ the next hide point. `PeekStanceOverride` for "crouch behind a low wall, stand to fire" | keying on the template id (today) — a window found by another query peeks wrong · a lookup of the cover point by position — a second source of truth for what the result already carries |
+| **G2** | when it cannot work | ⭐ **`Failure` after `NoCoverSeconds` (default 3 s) with no usable point**, so the posture re-scores; an unreachable point is **burned** in `FiringPositionMemory`; all points burned ⇒ **aimed fire from where it stands**, never silent | Running forever (today) — the posture cannot pick anything else · blind fire when stuck — fire without sight from a known-bad spot |
+| **G3** | fire safety of bursts | ⭐ `FireAtPointExecutor` checks the friendly line for **direct** fire (new `LineOfFire.BlockedByFriendly(shooter, Vector3 point)`, the SAME helper); **indirect warheads exempt** (`WarheadDto.Indirect`); bursts use `MountAuto` like aimed fire. ROE in the node: **HoldFire ⇒ never expose** (hide-only, = today's TakeCover); **ReturnFire ⇒ expose only inside the return-fire window**, skipping the random hide wait after being fired upon | a check in the node only — every other `FireAtPoint` caller stays unsafe · a 3-D line test — the aimed check is 2-D; one shape for both (a 3-D test is a later, shared change) |
+| **G4** | several enemies | ⭐ **one target LOCKED per exposure**: the squad's assigned target (`UnitSubordinate.Commander` → `SquadCognitiveState.Assignment`) when the unit has one, else `TopThreat`; passed to the new **`PostureNodes.Fire(..., target)`** (the same overload L5 needs); a heard shot re-aims only if within `HeardMatchRadius` of that target; cover still scored against ALL threats (`ThreatExposureTest`) and a shot from a new bearing heats the spot (B2) ⇒ relocation | re-ranking inside the fire step (today) — sight checked on one enemy, shot fired at another · heat per bearing — grows a recorded struct for what B2 already achieves |
+| **G5** | squad-mates on one point | ⭐ **`CoverClaim` — a per-unit ECS component** `{ Hide, Peek, Until }` (shape and tie rule: §10.7) written by the node when it commits to a hide or peek point; the pick skips candidates within `ClaimRadius` (1.5 m, 3-D — §10.8) of **another unit's live claim of the same force**; first claim wins in tick order. Works with or without a squad | penalise a friend's `HidePoint` in its unit memory — 🔒 AQ87 G forbids reading another unit's memory · a claim table in `SquadCognitiveState` — only squads would be safe, and members would write the commander's state · an EQS test — claims live on the brain, the query on SimHost |
+| **G6** | squad turn-taking (who exposes when) | ⭐ **a seam, not built now**: an optional `MayExpose` gate the node reads (default open); the squad's `PhaseSequencer` / role (BaseOfFire exposes, Assault moves) closes it when `CE-507` drives the squad. Until then **de-sync only** (G7's seed) | building turn-taking in the node — duplicates primitive 4 (Squad design §2) · waiting for CE-507 before anything — the single-unit fixes do not need it |
+| **G7** | randomness | ⭐ fix **`SimRng.FromSim`** itself: mix (splitmix) instead of XOR, so (unit 5, t 6) and (unit 6, t 5) differ and whole seconds stop repeating; ⚠ re-pins `PlatoonBaselineRails` / `DeterminismRails` | a private seed in the node — a second generator (AQ78 C3: one) |
+| **G8** | scope, defaults, "off" | ⭐ scope **infantry** (needs `StanceIntent`, else step-only; a unit with neither stance nor a step point ⇒ `Failure`); the §8.4 numbers become the **generic rifleman** defaults (search 15 m stays, town-scale; `ExposeSeconds` ≥ 2 × the weapon's aim time); a **`Disable` flags byte** (no blind fire, no heat penalty, no suppress-and-bound) so "off" is expressible — numbers keep `0 = default` | vehicles in this node — hull-down is its own manoeuvre (`HillCrestHullDownManeuver`) · `NaN` as "unset" — unreadable in the editor |
+
+### 10.6 Slices *(each red-proved, each green before the next)*
+
+| slice | builds | rails (in `PeekAndFireNodesTests` — the feature's suite, T-1) |
+|---|---|---|
+| G-1 | G1 + G8 scope: `EqsResult.Kind` + generator; mode from the point; peek one stance taller; step fallback | cover point ⇒ crouch-hide / stand-peek · window ⇒ unchanged duel (R1) · no stance ⇒ step peek |
+| G-2 | G2 failure contract + unreachable burn + fire-from-here | no cover ⇒ `Failure` within 3 s · unreachable twice ⇒ never re-picked · all burned ⇒ aimed fire, not silent |
+| G-3 | G3: `LineOfFire` point overload; `FireAtPointExecutor` direct-fire check, indirect exempt; `MountAuto`; ROE in the node | a friend on the burst line ⇒ no round · mortar over a friend ⇒ fires · HoldFire ⇒ never exposes · ReturnFire ⇒ exposes inside the window |
+| G-4 | G4 + L5: `PostureNodes.Fire(..., target)`; target lock; heard-match radius; `FireAtTarget` routed | two enemies ⇒ sight check and shot on the same one · assigned target honoured |
+| G-5 | G5 `CoverClaim` + G7 seed | two riflemen, one good point ⇒ two different points · claims expire · `SimRng` asymmetric (+ baselines re-pinned, diff-shape reported) |
+| G-6 | bind to CombatPosture's TakeCover (`CE-3157`) in the C# library tree (R-258) | `ua-universal-soldier`: fires again from cover; dies later or wins — measured, then asserted |
+
+⚠ **Blast radius:** `EqsResult` + its wire entry (one byte, D5 precedent) · `FireAtPointExecutor` (also `bt-grenade-posture`,
+`bt-mortar-roof` — indirect, exempt by G3) · `PostureNodes.Fire` callers (`Engage`, `FireOnTheMove`) · `SimRng` users (wander,
+slot picks — baselines re-pinned) · the duel scenario keeps its behaviour through its parameters (rail P8 stays the regression).
+
+> 🔒 **User, `2026-10-10`:** *"approved. pls explain the component for cover point negotiation and how it is used"*
+
+### 10.7 `CoverClaim` — how squad-mates keep off each other's cover *(G5, as approved)*
+
+⭐ **It is not a negotiation — it is "first claim wins".** No messages, no locks, no commander: every unit that fights from
+cover publishes where it is going, and every unit picking a point skips the points friends have published.
+
+| | |
+|---|---|
+| **what** | an ECS component on the unit: `CoverClaim { Vector3 Hide; Vector3 Peek; double Until }` (32 B), `[DataPolicy(NoScenario)]`; force from the unit's own `EntityInfo.ForceId` |
+| **why an ECS component** | other units must READ it — 🔒 AQ87 G keeps unit memory *"Self only"*, and AQ87 §4 sends data other readers need to a component |
+| **written** | by the PeekAndFire node the moment it COMMITS to a point — when it issues the move, not on arrival, so nobody races it there; `Peek` when it picks a step-peek point; `Until = now + ClaimTtl` (2 s) refreshed every tick it runs |
+| **released** | relocation overwrites it (the old point is free at once); the node's deactivator clears it; ⭐ a brain that dies or aborts without cleanup simply stops refreshing and the claim **expires by `Until`** — no cleanup system |
+| **read** | at pick time (B6 — the answer span, score − heat): candidates within `ClaimRadius` (1.5 m) of another live claim (`Hide` or `Peek`) of a unit of the **same force** are skipped |
+| **who wins a tie** | ⭐ **as built `2026-11-13` (F-9, CE-4474 — SUPERSEDES the serial-order rule below):** a claim carries `Since` (when the unit first claimed THIS hide point). With the brains a per-entity parallel phase (R-4212 ①: a brain sees other units a tick late) two squad-mates CAN commit to one point in the same tick; the next tick the **older claim keeps it, equal age ⇒ the lower entity index** — the loser gives it up and re-picks (`LostTie`), and the winner's picks ignore the loser's claim (`ClaimedByAFriend`), so exactly one leaves, deterministically at any thread count. No preemption otherwise: a later, "better" unit never steals a claimed point. ⛔ *Was (serial walk only): "the unit ticked first writes its claim before the next one reads — entity order."* — still what happens with the brains serial, where a tie never forms |
+| **nothing left** | every good point claimed or burned ⇒ G2: `Failure` after `NoCoverSeconds`, or aimed fire from where it stands |
+| **cost** | a query over claim holders only (units running the node) × at most 16 candidates |
+| **seen** | the existing `PeekAndFireGizmo` draws each unit's hide point; claims add an owner line (who holds which point) |
+| **limits** | ⚠ brain-local — claims are not replicated, so units of one force whose brains run on DIFFERENT CGF nodes do not see each other's claims (a squad's members share one node — Squad design §2 *"All Brain-resident"*) · a friend that only walks past a point does not claim it |
+| **the squad later** | the same component is the seam for the squad layer: the `RoleSlotAssignmentPrimitive` can pre-place members by writing their claims, and the `PhaseSequencer` can read who holds which point — without the node changing (G6) |
+
+```mermaid
+sequenceDiagram
+  participant BT as BrainTick (one pass, one CGF node)
+  participant A as Rifleman A - PeekAndFire
+  participant C as CoverClaim components
+  participant B as Rifleman B - PeekAndFire
+  BT->>A: tick
+  A->>C: read live claims of my force
+  A->>A: best of the answer span not near a claim - P1
+  A->>C: write A.Hide = P1, Until = now + 2 s
+  BT->>B: tick (same pass)
+  B->>C: read live claims - P1 is A's
+  B->>B: best point not near P1 - P2
+  B->>C: write B.Hide = P2
+  Note over A,C: A relocates later - its claim moves, P1 is free at once
+  Note over B,C: B's brain stops - its claim expires at Until, nothing to clean
+```
+
+*What the picture shows that prose hid: the ordering of ONE brain pass is the whole conflict rule — the second reader always
+sees the first writer's claim, so no lock or negotiation is needed on one node.*
+
+### 10.8 Checked against the world-query seam *(ui `CE-1035` / `CE-1034`, merged `2026-10-10` at `3ac4baefc`)*
+
+⭐ **No slice changes shape.** ui moved combat and EQS terrain questions onto `IWorldQuery` (`WorldQuery.Of(view)`); none of
+the files §10.6 edits were touched (`LineOfFire`, `FireAtPointExecutor`, `CoverPointsGenerator`, `FindCoverFromTarget`,
+`ThreatExposureTest`, `PeekAndFireNodes`, `PostureNodes`, `EqsTacticsNodes`). Three rules now bind the build:
+
+| G | binding rule | what the slice does |
+|---|---|---|
+| G1, G2 | `R-252` / WQ-H — EQS points already carry a real Z; a 2-D destination is flagged | hide and peek points come from EQS answers ⇒ real Z, no flag; "one stance taller" is a stance change at the same point — no terrain question |
+| G3 | WQ-F — entity shapes join the seam later (Q5); `PhysicsCollider` readers move then | the point overload **shares** `BlockedByFriendly`'s existing entity sweep (one source with the bullet's broadphase). ⚠ It is XY-only: a friend below a shot on a slope counts as blocking — conservative (holds fire, never fires through). It moves behind `Trace(Fire)` with WQ-F, not in this slice |
+| G5 | `R-252` — surfaces stack (floors, roofs) | `ClaimRadius` is a **3-D** distance: a point on a floor above a claimed ground point is a different cover |
+| G5 | `R-254` — shared from day zero | `CoverClaim` is registered once in `HrotSharedComponentRegistry`, never per host |
+| G4 | `R-255` — the brain names the target, the weapon side aims | `PostureNodes.Fire(..., target)` only names the target; aiming stays in the executors |
+
+
+### 10.9 As built *(`CE-3158`, `2026-10-10`)* — what matches §10.5 and where it deviates
+
+| G | built | matches / ⚠ deviates |
+|---|---|---|
+| G1 | `EqsResult.Kind` (former padding byte, `CoverKind + 1`) end to end — `CoverPointsGenerator` → egress → `EqsResultEntry` → ingress → `EqsResultUpdateSystem`; `PeekAndFireNodes.ChoosePeek` reads it in `Auto`; `PeekStanceOverride`; `StanceRequest.CanCarry` | ✅ as designed. ⚠ A point with NO kind (another generator) is a **step** peek — the template rule is gone, not kept as a fallback |
+| G2 | `ChooseOrWait`: no cover answer for `NoCoverSeconds` ⇒ `Failure`; answered but all burned/claimed ⇒ aimed fire from where it stands (`Waiting = 2`); a failed move adds `UnreachableHeat` (0.6) × `BurnHeat`; a step peek with no step-out point for `NoCoverSeconds` burns that cover and moves on | ⚠ "unreachable ⇒ burned" is **two** failures, not one — one failure may be a path not ready yet; the first already makes the next point score higher (rail `G2_R2`) |
+| G3 | `LineOfFire.BlockedByFriendly(shooter, Vector3)` (one private sweep for both forms); `FireAtPointExecutor` holds a direct burst on a friend; `CombatTkb.WarheadOf` is the one warhead lookup (`FireProcessingSystem` reads it too); ROE gate in `Hidden` | ⚠ **bursts keep mount 0** — `WeaponChoice` ranks mounts against a target ENTITY and a burst has a point; G8's infantry scope has one weapon. Revisit with a point-aware weapon choice |
+| G4 | `SquadAssignment.TargetOf` (the one reader; `IsAssignedTarget` uses it); `PostureNodes.Fire(..., target)`; `LockTarget` (assigned if alive and seen, else the top threat); `HeardMatchRadius` (15 m) filters the burst's heard evidence; L5: `CgfNodes.Action_FireAtTarget` routed through the named-target fire | ⚠ L5 **routes** the node, it does not delete it — `FireAtTarget` is a bound tree name (`CgfNodes.cs:628`); removing the name is the L4 registry item |
+| G5 | `CoverClaim {Hide, Peek, Until}` (component id 350 — was 348, moved at the ui merge `2026-10-11` because ui took 348/349; `NoScenario`, registered in `HrotSharedComponentRegistry`); written in `Claim()` every tick the node holds a point (TTL 2 s), cleared by `Release()`; `ClaimedByAFriend()` skips hide AND peek candidates within 1.5 m (3-D) of a live same-force claim | ✅ as §10.7. ⚠ the read is a query over every claim holder each pick — fine at squad scale (§10.7 "cost"); a spatial index is the change if a battalion runs it |
+| G7 | `SimRng.FromSim` mixes the three inputs through splitmix's finaliser | ✅. ⚠ the platoon/determinism SYSTEM rails (T3) are tolerance-based and were not re-run in the slice |
+| G8 | `PeekDisable` flags byte (`BlindFire`, `HeatPenalty`, `SuppressAndBound`) — a zero param means "the default", so "off" has its own bit; an AIMED exposure lasts `max(ExposeSeconds, 2 × the weapon's aim time)` (`ExposeFor`) | ✅ as §10.5 G8. ⚠ the search radius stays 15 m (G8) — the old TakeCover asked 60 m; a soldier with no cover within 15 m now Fails after 3 s (G2) and the posture re-scores |
+| G5 seen | `PeekAndFireGizmo` draws an owner line from the unit to its live claim's hide point | ✅ as §10.7 "seen" |
+| G6 | `CombatPosture.btree.json`: the `Take cover` action is `PeekAndFireNodes.PeekAndFire` over a `peek` variable (zero = the G8 defaults) — a JSON tree edit, the tree stays a BTree (R-258) | ⚠ **not converted to a C#-built tree** — the design said "the C# library tree"; the binding needed only the node swap, and converting the whole posture tree is the separate R-258 library item |
+
+### 10.10 The muzzle line — `CE-2218` *(backend, `2026-10-16`)*
+
+📐 **Live `ua-rpg-window`:** an RPG man at House A's upper window aimed steeply down at an IFV 10 m off. The eye → target line passed the
+window; the LAUNCHER's line (muzzle 0.97 m from his eye) ran into the wall — the rocket stopped 5 cm out, burst, and killed him.
+
+| | |
+|---|---|
+| ⭐ the hold | `LineOfFire.MuzzleMasked` — beside `BlockedByFriendly`, the same "hold, Running, nothing spent" shape: before release the round is carried along its OWN line (`ShotOrigin`: the barrel when the type places one, else the eye — the one origin rule `FireProcessingSystem` now reads too) by the one penetration rule (`TerrainPenetration.Carry`); stopped within its danger distance ⇒ `ActionReason.Masked` (IF-1's reason — the weapon stays Ready, so a behaviour may move) |
+| danger distance | `MuzzleClearanceM` 2 m (the frame he leans out of), or a warhead's `BlastInjuryRadiusM` (it would burst on him) — never the whole line: a wall far off is the aim point's business (`AimPoint.For`) |
+| where | `AimAndFireExecutor`'s aimed release and its blind release; ⛔ not an arc (`ThrowArc` already lobs), not a bomb, not with no terrain |
+| rails | `AimAndFireExecutorTests.CE2218_TheRpgIntoHisOwnWindowFrame_IsMasked_AnOpenShotIsNot` (bt-range, the live points) · `CE2218_TheExecutorHoldsTheMaskedShot_Masked_NothingSpent` — both red-proved |
+| ⭐ the node's answer | `PeekAndFire` (§10, this node): an exposure whose weapon holds `Masked` ends at once and its spot is BURNED (`PositionHeat` at `BurnHeat`), so the next choice moves on — read from the stamped `ActionStatus` weapon row, so an earlier exposure's `Masked` does not count. Rail `PeekAndFireNodesTests.CE2218_AMaskedShot_BurnsTheWindow_AndMovesToTheNext`. ⭐ `VehicleFightFromCover` (behaviors, `CE-2221`, `2026-10-16`): the same answer through the same reader (`PeekAndFireNodes.MaskedSince`) — an `Engaging` exposure whose gun holds `Masked` burns its FIRING point and withdraws (rail `VehicleFightFromCoverNodesTests.CE2218_AMaskedGun_BurnsTheFiringPoint_AndGoesBackIn`, red-proved). ⏭ the posture behaviours that fire (CombatPosture's Suppress / AdvanceAndAttack) still wait on a `Masked` hold — behaviors' |
+
+## 11. Look, then shoot — and aim at the chest *(behaviors, `2026-10-20` · ✅ R-2064 · `CE-2325`…`CE-2329`)*
+
+🔒 **User, `2026-10-20`:** *"if attacking is desired, then the spot must let him shoot. But i guess the soldier looks out first, before
+trying to shoot, so for peeking the place does nto neet to allow shooting as that woul expose solder too much"* · *"firing a shot to
+the center results in hitting the bottom part of the window not the figure in the window — soldiers should aim to the chest (where it
+really is — honoring body posture)"* · *"head visibility where the head really is, honoring the body stance"*.
+
+### 11.1 What was measured *(`bt-window-duel`, in-process, 120 s, HEAD `35d463ad1` + a throwaway probe)*
+
+| | |
+|---|---|
+| ⛔ **no aimed round in 120 s** — both fought by blind bursts only | A 9 rounds, B 6 |
+| ⛔ **B's bursts refused `Masked` by his OWN van** | his step-out spot (x 105.9) is still behind Van 1 (x 101.75–106.25): the round clipped its top edge ≈ 0.7 m from his eye. The step-out search had passed the spot on SIGHT alone |
+| ⛔ **A fired ONE round per exposure** | the burst's time ran from when he came up — the grace and the turn had spent it; he dropped prone and the rest was refused against his own sill |
+| ⛔ **the aim was the hips** | "the middle" = half the eye height: 0.85 m standing (the crotch — the torso box is 0.90–1.46 m), 0.55 m crouched; a burst = the remembered spot + 1 m (a window's sill top) |
+
+### 11.2 Classes
+
+```mermaid
+classDiagram
+  class AimPoint {
+    <<EXISTING, changed>>
+    +Middle(repo, target) Vector3  : a person's CHEST, a vehicle's hull middle
+    +Chest(PersonPose) Vector3  : NEW
+    +For(view, world, eye, middle, ...) Vector3  : chest, or the seen band when the chest sits on a stopping cover
+  }
+  class PersonBody {
+    <<EXISTING>>
+    +Boxes(PersonPose) : torso, head, ... (the drawn figure)
+    +PoseOf(world, e) PersonPose
+  }
+  class LineOfFire {
+    <<EXISTING, grows>>
+    +MuzzleMasked(world, shooter, w, ammo, aim) bool
+    +MaskedFrom(world, terrain, shooter, w, origin, aim) bool  : NEW, the same rule from a spot
+  }
+  class CheapLineOfSightTest {
+    <<EXISTING, grows>>
+    +MarkFireClear bool  : NEW
+    +FireClearBit = 1<<7  : NEW result flag
+  }
+  class FindOpenFiringPosition {
+    <<EXISTING template>>
+    MarkFireClear = true
+  }
+  class PeekAndFireNodes {
+    <<EXISTING, grows>>
+    PickPeek() : the look spot, its mark kept
+    PickShoot() : NEW nearest marked spot
+    StepToShoot() : NEW before aimed fire or a burst
+    ShootHigher() : NEW on Masked: one stance taller / a marked spot
+    Blind() : runs from BlindAt
+  }
+  class PeekAndFireState {
+    +PeekFire byte  : NEW 0 unmarked / 1 clear / 2 look-only
+    +BlindAt double : NEW
+    +ShootTaller byte : NEW stance peek shoots taller here
+  }
+  class EqsTacticsNodes {
+    <<EXISTING, changed>>
+    TryNewAnswer() : skips look-only answers
+  }
+  class FireProcessingSystem {
+    <<EXISTING muscle>>
+    aims (Middle -> For), THEN judges MuzzleMasked on that line
+  }
+  AimPoint --> PersonBody : torso + head of the pose
+  FireProcessingSystem --> AimPoint
+  FireProcessingSystem --> LineOfFire
+  CheapLineOfSightTest --> LineOfFire : MaskedFrom
+  FindOpenFiringPosition *-- CheapLineOfSightTest
+  PeekAndFireNodes --> FindOpenFiringPosition : step-peek sensor
+  PeekAndFireNodes *-- PeekAndFireState
+  EqsTacticsNodes --> FindOpenFiringPosition : FiringPosition move
+```
+*What the picture shows that prose hid:* there is ONE masked rule (`LineOfFire`) read in two places — the muscle at fire time and the
+search marking spots — and ONE aim rule (`AimPoint`) whose chest comes from the same boxes the round hits. Nothing new decides geometry
+on the brain: the node only reads the mark.
+
+### 11.3 Sequence — a step peek
+
+```mermaid
+sequenceDiagram
+  participant N as PeekAndFire (brain)
+  participant E as EQS FindOpenFiringPosition (muscle)
+  participant F as FireProcessingSystem (muscle)
+  E-->>N: answers, each marked FireClear or look-only
+  N->>N: PickPeek = the best answer (look spot), PeekFire = its mark
+  N->>N: step out to the look spot, look
+  alt seen, or not seen within the grace (a burst)
+    alt the look spot is look-only (PeekFire = 2)
+      N->>N: PickShoot = nearest marked spot
+      alt a marked spot exists
+        N->>N: step on to it, then fire
+      else none
+        N->>N: back down (he has looked)
+      end
+    end
+    N->>F: fire request (aimed / burst)
+    F->>F: AimPoint.Middle = the chest of his pose
+    F->>F: AimPoint.For: chest, or the seen band if the chest sits on a stopping cover
+    F->>F: MuzzleMasked on THAT line
+    alt masked
+      F-->>N: refused Masked (safety net) => the spot burns, next choice
+    else clear
+      F-->>N: fired
+    end
+  end
+```
+
+### 11.4 Modules — who runs what each frame
+
+```mermaid
+graph TD
+  CGF["CGF node — Brain"] --> PF["PeekAndFire (BTree action, WindowDuel / library trees)"]
+  PF -->|sensor config| EQS["EqsSystem — solved on the named Perception node (R-179, R-185)"]
+  EQS -->|ranked answers + flags| PF
+  PF -->|WeaponFireIntent| FPS["FireProcessingSystem — the combat muscle (one node, R-3018)"]
+  FPS --> AP["AimPoint + LineOfFire (Fdp.Toolkits)"]
+  EQS --> LOF["LineOfFire.MaskedFrom"]
+```
+*Caption:* the mark is computed where the world is (the EQS solver) and only READ on the brain — R-2037 (the brain never reads world
+geometry) holds. A host without terrain marks nothing (`FlagsMeaningful` stays clear) ⇒ `PeekFire = 0` ⇒ he fires from the look spot
+as before.
+
+### 11.5 Decisions *(✅ R-2064, the user's words above)*
+
+| # | rule | rejected |
+|---|---|---|
+| ① | ⭐ **LOOK from a spot that only sees; SHOOT only from a spot a round clears from** — the search MARKS, never rejects; the node steps on to the nearest marked spot before aimed fire or a burst, or goes back down having looked | *reject sight-only spots* — he would expose himself fully just to look (the user) · *a second query for shooting spots* — two producers for one answer (R-132) |
+| ② | ⭐ **a person is aimed at his CHEST** — his pose's torso, 35 % of the way to its head (`AimPoint.Chest`; ≈ 1.23 m standing aimed, 0.89 m crouched, the lying torso prone) | *half the eye height* — the crotch/hips (§11.1) · *the head* — the smallest box, the most misses |
+| ③ | ⭐ **the chest seen just over a cover that STOPS a round ⇒ the middle of what shows**, never lower — a weak cover below it ⇒ still the chest (through it) | *the chest regardless* — half the rounds into the sill (the user) |
+| ④ | the muscle judges the masked muzzle on the line the round FLIES (after the aim is chosen) | *on the hidden middle first* — refused shots his real aim cleared |
+| ⑤ | a blind burst runs its count, for `ExposeSeconds` from when IT began | *from when he came up* — one round per exposure |
+| ⑥ | ⭐⭐ **the same split at a STANCE peek** (a low wall, a window sill — what the platoon's defend posts and TakeCover fight from): he LOOKS at the lowest stance that sees; the muscle refusing his round as masked ⇒ he comes up ONE stance and keeps the exposure, and REMEMBERS it for that hide point (`ShootTaller`), so every later exposure there looks low and shoots one stance taller. Refused standing too ⇒ the spot burns (CE-2218). A step peek refused ⇒ the nearest marked spot; a frame post ⇒ its other point (D-2l, unchanged) — `CE-2330` | *mark the window and cover searches too* — their answers are HIDE points; the stance a round clears from is only known on the muscle, and its refusal costs no round (R-3018) · *always peek standing* — exposes him most just to look (the user) |
+| ⑦ | ⭐ **the attack's move to a firing position never goes to a look-only spot** (`EqsTacticsNodes` — FiringPosition, and every tactics move whose search marks) | *the top answer regardless* — he walks to a spot he cannot shoot from |
+
+### 11.6 `CE-2326` — a blind burst is aimed as at the body last seen there *(✅ R-3030 · backend builds the half below the node · ⏭ behaviors switches the node)*
+
+⛔ **Not built — it needs a nod, and the window shows why.** A remembered spot is judged and burst at as a standing man (the EQS test's
+own rule; the burst at the spot + 1 m). ⭐ **Lean:** the burst at a remembered spot is aimed by the MUSCLE as at a body there — the last-seen
+pose's chest, or the band that showed (③) — which needs (a) `TargetMemory` to keep the seen pose (a byte per slot: backend's component,
+on the scenario save) and (b) the fire request to carry it (a field on `WeaponFireIntent`). ⚠ "the chest of the last-seen pose" alone is
+NOT enough: a crouched man's chest at a window is AT the sill (0.89 m vs 0.9 m) — only ③'s seen-band rule clears it, and that rule needs
+the geometry, i.e. the muscle.
+
+⭐ **✅ APPROVED `2026-10-21` (R-3030; 🔒 user: *"Those 3 approved"*; `CE-2326`)** — the blind burst at a remembered spot is aimed as at
+the body last seen there (its chest, or the band that showed — R-2064 ③); backend's half: `TargetMemory` keeps the seen pose.
+
+#### 11.6a Design *(backend, `2026-10-21`)*
+
+```mermaid
+classDiagram
+  class TargetMemory {
+    <<EXISTS, grows>>
+    +SeenStance byte[16] NEW
+    +AddOrUpdateTarget(…, seenStance) grows
+    +StanceSeen(mem, slot) StanceId? NEW
+  }
+  class ThreatEvaluationSystem { <<EXISTS — Brain>> }
+  class TargetMemoryTranslator { <<EXISTS — save>> }
+  class FireAtPointParams { <<EXISTS, grows — 32 B kept>> +BodyStance byte NEW }
+  class FireAtPointExecutor { <<EXISTS — Brain>> }
+  class WeaponFireIntent { <<EXISTS, grows>> +BodyStance byte NEW }
+  class WeaponFireRequest { <<EXISTS wire, appended>> +BodyStance byte NEW }
+  class FireProcessingSystem { <<EXISTS — Muscle>> }
+  class AimPoint {
+    <<EXISTS>>
+    +For(view, world, eye, middle, target, …) unchanged
+    +ForBodyAt(world, eye, feet, stance, pen, scratch) NEW
+    -Resolve(world, eye, middle, pen, points) NEW, one band rule
+  }
+  ThreatEvaluationSystem --> TargetMemory : stamps the live replica's stance
+  TargetMemoryTranslator --> TargetMemory : saves and loads it
+  FireAtPointExecutor --> WeaponFireIntent : copies BodyStance
+  WeaponFireIntent ..> WeaponFireRequest : brain to muscle wire
+  FireProcessingSystem --> AimPoint : ForBodyAt when BodyStance
+```
+
+*Caption:* one new entry, `ForBodyAt`, shares `Resolve` with `For` — ③'s band rule stays ONE implementation; the remembered body is built
+from the stance (the pose's chest; `BodyProfile.Fractions` × the stance's default eye height) because the man is no longer there.
+
+```mermaid
+sequenceDiagram
+  participant T as ThreatEvaluationSystem (Brain)
+  participant M as TargetMemory
+  participant N as PeekAndFire blind burst (behaviors)
+  participant X as FireAtPointExecutor (Brain)
+  participant F as FireProcessingSystem (Muscle)
+  participant A as AimPoint
+  T->>M: sighting of a live replica: position + its LogicalStance
+  N->>M: the freshest slot: its spot + StanceSeen
+  N->>X: FireAtPoint(feet = the spot, BodyStance = seen stance + 1)
+  X->>F: WeaponFireIntent → WeaponFireRequest (BodyStance appended)
+  F->>A: ForBodyAt(eye, feet, stance, penetration)
+  A-->>F: the chest, or the middle of the band that shows over a cover that stops a round (③)
+  F->>F: muzzle mask judged on that line (④), then the round flies
+```
+
+*Caption:* the brain names WHO stood there and how; the muscle, which holds the geometry, decides where the round goes — the same split as
+an aimed shot at a live man (R-2037, R-3018).
+
+```mermaid
+graph TD
+  CGF["CGF (Brain)"] -->|every frame| TES["ThreatEvaluationSystem — stamps SeenStance"]
+  CGF -->|BTree tick| PAF["PeekAndFire blind burst (behaviors) — sets BodyStance"]
+  PAF --> FAPX["FireAtPointExecutor"]
+  FAPX -->|"WeaponFireIntent (IsRemote false)"| EG["WeaponFireIntentEgressTranslator"]
+  EG -->|"WeaponFireRequest + BodyStance"| IN["WeaponFireRequestIngressTranslator (SimHost)"]
+  IN --> FPS["FireProcessingSystem (Muscle) — AimPoint.ForBodyAt"]
+  SAVE["Scenario save / load"] --> TMT["TargetMemoryTranslator — key Stance"]
+```
+
+*Caption:* every edge is an existing path; the only new data on the wire is one appended byte.
+
+| ⭐ decision | rejected (one line) |
+|---|---|
+| `BodyStance` = `StanceId + 1`, 0 = a plain point (every existing caller unchanged) | a separate "body" fire action — a second producer of point fire (R-132) |
+| the stance is the LOGICAL stance at the last sighting (`HitModel.LogicalStance` on the replica) | the drawn pose — the fire chain and perception share the logical one (§3f) |
+| a turret's point task (`WeaponTask`) is unchanged | infantry only (G8): a blind burst is a person's |
+| only a SEEN PERSON is stamped (a Visual track — or an untyped one — of a body with no hull) | stamp every track — a heard man's pose is unknown, and a vehicle (`LogicalStance` reads Standing for it) has none |
+
+#### 11.6b As built *(backend, `2026-10-21`)* — matches §11.6a
+
+| | |
+|---|---|
+| memory | `PerceptionComponents.cs` — `TargetMemory.SeenStance` (a byte per slot), `StanceSeen(mem, slot)`; `AddOrUpdateTarget(…, seenStance)` (0 keeps the last one seen; a new or evicted slot takes the newcomer's), carried by `Sort` and `Forget` |
+| the stamp | `ThreatEvaluationSystem` — a live replica's `LogicalStance.Of` + 1, for a Visual/untyped track whose `PhysicsColliderReaders.HullHeight` is 0 |
+| the save | `TargetMemoryTranslator` key `Stance` → `TargetEntry.SeenStance` → `GenesisMaterializationSystem` |
+| the request | `FireAtPointParams.BodyStance` (the struct's padding, still 32 B) → `ShootAtPoint(…, bodyStance)` → `WeaponFireIntent.BodyStance` → `WeaponFireRequest.BodyStance` (appended, R-169) → ingress |
+| the aim | `FireProcessingSystem` — `AimPoint.ForBodyAt` before the muzzle mask; `AimPoint.For` and `ForBodyAt` share `Resolve` (③) |
+| ⭐ also: backend's own blind round | `AimAndFireExecutor.FireBlind` (AQ89 A — Suppress at a hidden target): `HiddenTargetThrow.LastKnown(…, out seenStance)`; a known stance ⇒ the feet + `BodyStance`, else the spot + `BlindAimHeightMetres` as before (its own checks still judge the line to the raised spot). ⚠ Beyond §11.6a's diagram, same rule: R-3030 names *a blind burst at a remembered spot*, and this is one |
+| rails | `TargetMemoryModalityTests.CE2326_TheSeenStance_FollowsItsContact` · `ThreatEvaluationSystemTests.CE2326_ASeenMansStance_IsRemembered_AHeardOneAndAVehiclesAreNot` · `FireProcessingSystemTests.CE2326_ABlindBurstAtARememberedMan_IsAimedAsAtTheBodyLastSeenThere` · `AimAndFireExecutorTests.CE2326_ABurstAtARememberedBody_CarriesItsStance_ToTheMuscle`, `CE2326_ABlindRoundAtAManSeenCrouched_NamesHisBody` · `WeaponFireIntentEgressTranslatorTests.M8_TheLoadedRound_RoundTripsTheWire` (+ `BodyStance`) · `TargetMemoryTranslatorTests` (save → load + inject); ⭐ 6/6 mutants caught (Sort carry · stamp · `Resolve` in `ForBodyAt` · the executor's copy · the blind round's copy · the egress mapping). Gates: Toolkits 3989/0, SimHost 1785/0, NED 149/0 — the one red met, `WeaponFireIntent`'s size pin, moved 70 → 71 (the appended byte) |
+| ✅ behaviors *(`2026-10-21`)* | `PeekAndFireNodes.StartBurst`: the freshest evidence's slot (`FreshestEvidence(…, out slotId)`) → `SeenStanceOf` (`StanceSeen` + 1) → `FireAtPointNodeParams.BodyStance` (new, the padding after `Mount`: layout unchanged) → `FireAtPointNodes.FireAtPoint` forwards it; a known stance fires at the FEET, unknown keeps the spot + `BlindAimHeight`. Rail `PeekAndFireNodesTests.CE2326_ABlindBurstAtABodySeenCrouched_*` |
+
+### 11.7 As built *(`2026-10-20`)* — matches §11.2–§11.5
+
+| | |
+|---|---|
+| `CE-2325` chest | `Fdp.Toolkits/Combat/AimPoint.cs` — `Middle` (person ⇒ `Chest(PersonBody.PoseOf)` × `ScaleOf(collider)`, turned with him, + the lean's offset at the chest's height), `Chest`, `For` (③), `ShootsThrough` |
+| `CE-2327` look / shoot | `CheapLineOfSightTest.MarkFireClear` / `FireClearBit` (on `FindOpenFiringPosition` only); `LineOfFire.MaskedFrom` (the masked rule extracted into `Stops`, `MuzzleMasked` unchanged in behaviour); `PeekAndFireNodes.FireMark` / `PickShoot` / `StepToShoot`, `PeekAndFireState.PeekFire` |
+| `CE-2328` burst | `PeekAndFireState.BlindAt`, set by `StartBurst`; `Blind()` times from it |
+| `CE-2329` masked line | `FireProcessingSystem` — `AimPoint.For` before `MuzzleMasked` |
+| `CE-2330` stance peek / generic | `PeekAndFireNodes.ShootHigher` (Aimed and Blind, on the muscle's `Masked`), `PeekAndFireState.ShootTaller` (reset with the hide point), `StepToShoot`'s stance branch; `CheapLineOfSightTest.FireMarkOf` — the one reader; `EqsTacticsNodes.TryNewAnswer` skips look-only answers |
+| ⏭ not yet | the posture's Engage / Suppress (`PostureNodes.Fire` from where he stands) still holds on `Masked` (§10.10's ⏭) — measured next in `pc-defend-house` / `uc-urban-battle` before a rule is chosen |
+
+## 12. The posted man's ONE cycle, and a look is not a burst *(behaviors, `2026-10-25` · ✅ R-2077 · `CE-2366`)*
+
+🔒 **User, `2026-10-25`:** *"I would expect the guy behind the window to quickly lean out of the window and check if there is an enemy.
+And if not, then he should wait a while in his cover on the side of the window. Then he peeks again … he can use the place just for a
+few times before changing to the other cover … And when there is some enemy seen, then he should fire at him … peek, fire, back to
+cover. If the cover is too warm, then switch to the other one"* — then on the fixes: *"approved, go ahead with A, B and C"*.
+
+### 12.1 What was measured *(`bt-window-duel` on the standard behaviours, live over the debug HTTP API, 180 s)*
+
+| | |
+|---|---|
+| ✅ 1.4–9 s | the one cycle as designed: to the frame, ~3.8 s behind the wall, leans out, does not see him in the grace ⇒ a blind round, back behind the wall |
+| ⛔ 10–45 s | the posture decision switched ~10 times between TakeCover / Suppress / Advance / HoldProne; each switch ran PeekAndFire's deactivator ⇒ `ws = default` (§8.3: the state is scratch) — he started for a window, was reset, started for another |
+| ⛔ 41.7–180 s | the decision settled on **Advance**: for a posted man that is "walk to the post point and stand" — no peek, no round for 140 s |
+| | 2 rounds in 180 s. The squad's two re-sends were the designed hunt (AQ102 H, `CE-2359`) and displacement (D-2c) — each a real change of post, not an unchanged order (R-2066 D holds) |
+
+### 12.2 Where the posted branch sits in `CombatPosture` *(as built)*
+
+```mermaid
+graph TD
+  W[work: ObserverSelector] --> FB[FallBack - the retreat]
+  W --> OC[occupy - OffPost: walk to the post]
+  W --> PB["posted - PostedWithThreat: PeekAndFire (PeekState)"]
+  W --> AD[Advance - flank / firing position / throw / advance]
+  W --> TC[TakeCover - PeekAndFire]
+  W --> SU[Suppress - close to throw / suppress]
+  W --> HP[HoldProne]
+  W --> HW[Hold - HoldWatch: lean out at the frame]
+  style PB fill:#d9f2d9,stroke:#2e7d32
+```
+*What the picture shows that prose hid: the posted branch is ABOVE every option but the retreat and the walk to the post, and its guard
+reads no option — so a switch among the options below it cannot reach it. With nothing to fight its guard fails and Hold's frame watch runs.*
+
+### 12.3 The cycle a posted man runs *(the node unchanged but for B)*
+
+```mermaid
+stateDiagram-v2
+  [*] --> Hidden: at the frame / window point
+  Hidden --> Expose: the wait (2-5 s) is over, not suppressed
+  Expose --> Aimed: he SEES him - fire
+  Expose --> Blind: not seen, evidence fresh (seen or heard within 5 s)
+  Expose --> Hidden: not seen, evidence older - a LOOK only
+  Aimed --> Hidden: rounds done / fired on / lost sight
+  Blind --> Hidden: burst done / fired on
+  Hidden --> MoveToHide: 3 exposures here, or the spot is hot
+  MoveToHide --> Hidden: the other frame side / window
+```
+*Every exposure — a look too — counts toward the three and heats the spot, so "peek, nothing, wait, peek, nothing, change side" falls out.*
+
+### 12.4 Decisions *(✅ R-2077)*
+
+| | as built | rejected |
+|---|---|---|
+| **A** | `PostureNodes.PostedWithThreat` (= `AtOpeningPost` ∧ `EqsTacticsNodes.TopAim`) guards a posted branch after `occupy`; the Suppress branch's own window sub-branch (AQ102 B, `CE-2356`) is gone — SUPERSEDED | keep the state across a deactivation — the state is scratch by design (§8.3) |
+| **B** | `PeekAndFireNodes.FreshEvidence`: the blind burst only while the freshest evidence (D13) is at most `BlindFreshSeconds` = 5 s old (`PerceptionClock` ticks × the run's seconds per frame) | no blind fire at all — a man who just heard the shot should answer it |
+| **C** | no change: the re-sends were designed changes (hunt, displacement) | the hunter keeps his frame — his frame point always wins, so he would never look from another opening (the hunt's point); no hunt inside a post's arc — "under the wall" is inside the arc and unseen, the hunt's own case (`CE2359_…` rail) |
+| — | `PostureNodes.OffPost` reads the effective match radius (1 m) for the alternate — it read the raw 0, so a man on his alternate counted as off his post | — |
+
+⚠ **known-rot it creates:** §4.2 (every unseen exposure fires blind) and D13 (§6) now apply only to FRESH evidence; AQ102 B's "from the
+Suppress branch" is superseded by §12.2.
+
+### 12.5 Live after A + B *(`bt-window-duel`, 135 s, debug HTTP API)* — what works, what is left
+
+| | measured |
+|---|---|
+| ✅ the cycle | at the window: hidden prone → up crouched → nothing ⇒ down (a look) every ~3 s; seen ⇒ 2 aimed rounds; unseen right after his shots were heard ⇒ a blind round. 6 rounds (was 2) |
+| ✅ A | the posture switched 3 times at 48–50 s with the cycle running — no reset |
+| ⛔ cooling | after 3 uses the window is hot, and his post (radius 4) holds no other usable spot (the frame point of that window failed as a move ⇒ the sill, DA-84; the other window is 4.2 m off) ⇒ he waits behind the sill **64 s without a peek** until it cools (B4: "a burned one with nowhere to go waits to cool") |
+| ⛔ the displacement walk | moved to his alternate while prone (under fire), crawling the long way round the stairwell: ~15 s for ~4 m of straight line |
+| ⚠ the hunt | H re-sent his order twice (start, end), each restarting the cycle (§12.4 C) |
+| ⚠ the street man | 3 rounds, then nothing: his reflex ends after 8 s of quiet and he has no task (`CE-2366` D) — after ~70 s the window man forgets him and stands at his frame watching |
+
+### 12.6 The three after the live run *(✅ R-2078, `2026-10-25`)*
+
+🔒 **User, `2026-10-25`:** *"the 3 approved. the street man's goal is to attack the house, i.e. to win over the window man, so his task/behavior
+should say so"* · *"and the task of the window man is to defend the house"*.
+
+| | as built | why |
+|---|---|---|
+| **hot spot, nowhere else** | `Hidden` / `FrameHidden` no longer return on a burned spot with nowhere to go; `EnterHidden` multiplies the hide wait by `HotWaitFactor` = 3 while the spot is burned | he keeps watching, slower — ⛔ SUPERSEDED B4's "a burned one with nowhere to go waits to cool" (§8) |
+| **no drop indoors** | `UnderFire.Step`'s drop (AQ96 C) also needs `!GrenadeRules.Indoors(at)` — inside a building the move stays the tactical one: crouched, at the rush pace | R-2061 says *"a near miss **in the open** drops him"*; the code dropped him anywhere |
+| **the tasks** | street man: `CombatPosture {"target": Window Rifleman, "assault": true}` — the Attack order (Entity Control C-5), **no squad needed**; window man: the one man of a `SquadDefend` squad | ⚠ a LONE soldier's DefendArea is `CombatPosture` at the area's centre (`DefendAreaMapper`) — **no window posts**: posting a house lives only in `SquadDefend`, so the window man needs his one-man squad |
+
+### 12.7 Live after R-2078 *(`bt-window-duel`, 200 s)* — the attacker gets in, and both stand one floor apart
+
+| | measured |
+|---|---|
+| ✅ no drop indoors | displaced to his alternate under fire: crouched, at the rush, no prone crawl (11–13 s) |
+| ✅ the Attack order | the street man fired 4 rounds, then flanked round the house (the approach decision) and came in by the back (13–42 s) |
+| ⛔ one floor apart | from 42 s the attacker stands on the GROUND floor at the window man's last-seen x/y (106, 101) — the attack's advance walks to the remembered spot's map position — and the defender, upstairs, has no window that sees an enemy INSIDE the house: his cycle finds no cover answer, fails after `NoCoverSeconds`, a decision branch steps him back to his post, and it starts again every ~3 s. Neither fires for 160 s |
+| ⏳ hot spot | not reached this run (§12.6's rail covers it) |

@@ -32,16 +32,15 @@ namespace Hrot.Network.Translators
     ///
     /// <para>This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.</para>
     /// </summary>
-    public sealed class DeferredTakeOwnershipIngressTranslator : IDescriptorTranslator
+    public sealed class DeferredTakeOwnershipIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "DeferredTakeOwnership";
 
         private readonly DdsReader<DeferredTakeOwnership>? _reader;
         private readonly NetworkEntityMap                  _entityMap;
         private readonly GhostCreationSystem               _ghostCreationSystem;
-        private readonly int                               _localNodeId;
+        private readonly NodeId                               _localNodeId;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DeferredTakeOwnership>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtDeferredTakeOwnership;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -54,12 +53,15 @@ namespace Hrot.Network.Translators
             int                  localNodeId)
         {
             _reader              = participant != null
-                ? new DdsReader<DeferredTakeOwnership>(participant, DdsTopicName)
+                ? new DdsReader<DeferredTakeOwnership>(participant)
                 : null;
             _entityMap           = entityMap           ?? throw new ArgumentNullException(nameof(entityMap));
             _ghostCreationSystem = ghostCreationSystem  ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
-            _localNodeId         = localNodeId;
+            _localNodeId         = (Fdp.Core.NodeId)(localNodeId);
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
@@ -78,7 +80,7 @@ namespace Hrot.Network.Translators
 
         public void ApplyToEntity(Entity entity, object data, Fdp.Core.EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         // ── Private helpers ──────────────────────────────────────────────────────
 
@@ -89,7 +91,7 @@ namespace Hrot.Network.Translators
         {
             if (sample.Grants == null || sample.Grants.Count == 0) return;
 
-            long netId = sample.EntityId;
+            int netId = sample.EntityId;
             var  repo  = view as Fdp.Core.EntityRepository;
 
             // Filter: does any grant in this message target us?
@@ -133,7 +135,7 @@ namespace Hrot.Network.Translators
             foreach (var grant in sample.Grants)
             {
                 if (grant.NodeId != _localNodeId) continue;
-                pending.Merge(grant.DescriptorTypeId, grant.NodeId);
+                pending = pending.WithGrant(grant.DescriptorTypeId, grant.NodeId);   // CE-4046: immutable record, Set/Add below
             }
 
             if (alreadyHas)

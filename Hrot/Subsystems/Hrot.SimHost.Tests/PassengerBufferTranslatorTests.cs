@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
@@ -54,17 +55,17 @@ namespace Hrot.SimHost.Tests
         public void Inject_WritesInitialPassengersIntent_WithCorrectNetworkIds()
         {
             var passenger = _repo.CreateEntity();
-            _repo.SetComponent(passenger, new NetworkIdentity { Value = 42L });
+            _repo.SetComponent(passenger, new NetworkIdentity { Value = 42 });
 
             var resolver = new StubResolver();
-            resolver.Register(passenger, "guid-passenger");
+            resolver.Register(passenger, "1c9229ae-cdcd-5eb5-9bc0-77969ab97539");
 
             var dom = new Dictionary<string, object>
             {
                 ["PassengerBuffer"] = new JsonObject
                 {
                     ["Count"]      = 1,
-                    ["Passengers"] = new JsonArray { "guid-passenger" },
+                    ["Passengers"] = new JsonArray { "1c9229ae-cdcd-5eb5-9bc0-77969ab97539" },
                 }
             };
 
@@ -74,24 +75,24 @@ namespace Hrot.SimHost.Tests
             Assert.True(_repo.HasManagedComponent<InitialPassengersIntent>(entity));
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialPassengersIntent>(entity);
             Assert.Equal(1, intent!.PassengerNetworkIds.Count);
-            Assert.Equal(42L, intent.PassengerNetworkIds[0]);
+            Assert.Equal(Fdp.Core.RefSpec.ByExact(System.Guid.Parse("1c9229ae-cdcd-5eb5-9bc0-77969ab97539")), intent.PassengerNetworkIds[0].Spec);
         }
 
         [Fact]
         public void Inject_DoesNotWritePassengerBuffer()
         {
             var passenger = _repo.CreateEntity();
-            _repo.SetComponent(passenger, new NetworkIdentity { Value = 42L });
+            _repo.SetComponent(passenger, new NetworkIdentity { Value = 42 });
 
             var resolver = new StubResolver();
-            resolver.Register(passenger, "guid-passenger");
+            resolver.Register(passenger, "1c9229ae-cdcd-5eb5-9bc0-77969ab97539");
 
             var dom = new Dictionary<string, object>
             {
                 ["PassengerBuffer"] = new JsonObject
                 {
                     ["Count"]      = 1,
-                    ["Passengers"] = new JsonArray { "guid-passenger" },
+                    ["Passengers"] = new JsonArray { "1c9229ae-cdcd-5eb5-9bc0-77969ab97539" },
                 }
             };
 
@@ -113,7 +114,7 @@ namespace Hrot.SimHost.Tests
             _repo.SetComponent(vehicle, buffer);
 
             var resolver = new StubResolver();
-            resolver.Register(passenger, "guid-p");
+            resolver.Register(passenger, "74210a8c-691d-5428-b54a-d9f587de9f88");
 
             var dom = new PassengerBufferTranslator().Extract(_repo, vehicle, resolver);
 
@@ -121,7 +122,78 @@ namespace Hrot.SimHost.Tests
             var obj = (JsonObject)dom["PassengerBuffer"];
             var arr = (JsonArray)obj["Passengers"]!;
             Assert.Equal(1, arr.Count);
-            Assert.Equal("guid-p", arr[0]?.GetValue<string>());
+            Assert.Equal("74210a8c-691d-5428-b54a-d9f587de9f88", arr[0]?.GetValue<string>());
+        }
+
+        /// <summary>
+        /// ⭐⭐ Weapon systems WS-4 (W-I) — a save keeps each passenger's SEAT: a technical's gunner (seat 1) and its M2 (seat 2, the
+        /// station) come back into those seats, not into the first free one of a role (a pickup has no passenger seat at all, so the old
+        /// load refused both). A save written before seats were saved still loads, with the seats left to the boarding rules.
+        /// ✅ Red-proof: Extract without "Seats" ⇒ the intent carries no seats ⇒ red.
+        /// </summary>
+        [Fact]
+        public void WS4_TheSeats_SurviveASaveAndLoad()
+        {
+            var gunner = _repo.CreateEntity();
+            _repo.SetComponent(gunner, new NetworkIdentity { Value = 41 });
+            var m2 = _repo.CreateEntity();
+            _repo.SetComponent(m2, new NetworkIdentity { Value = 42 });
+            var pickup = _repo.CreateEntity();
+            var buffer = new PassengerBuffer();
+            buffer.Passengers[1] = gunner;
+            buffer.Passengers[2] = m2;
+            buffer.Count = 2;
+            _repo.SetComponent(pickup, buffer);
+            var resolver = new StubResolver();
+            resolver.Register(gunner, "a1f1260e-379b-5ad2-b3ea-2ee258695232");
+            resolver.Register(m2, "cbfa0d1f-2250-5f93-b4e0-ee1ee846183f");
+
+            var dom = new PassengerBufferTranslator().Extract(_repo, pickup, resolver);
+            var loaded = _repo.CreateEntity();
+            new PassengerBufferTranslator().Inject(_repo, loaded, dom, resolver);
+
+            var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialPassengersIntent>(loaded)!;
+            Assert.Equal(2, intent.PassengerNetworkIds.Count);   // S8: links, resolved by the extractor
+            Assert.Equal(new[] { 1, 2 }, intent.Seats);
+
+            var older = new Dictionary<string, object> { ["PassengerBuffer"] = new JsonObject
+                { ["Count"] = 1, ["Passengers"] = new JsonArray { "a1f1260e-379b-5ad2-b3ea-2ee258695232" } } };
+            var old = _repo.CreateEntity();
+            new PassengerBufferTranslator().Inject(_repo, old, older, resolver);
+            Assert.Empty(((ISimulationView)_repo).GetManagedComponentRO<InitialPassengersIntent>(old)!.Seats);
+            Assert.Empty(((ISimulationView)_repo).GetManagedComponentRO<InitialPassengersIntent>(old)!.Modes);
+        }
+
+        /// <summary>
+        /// ⭐ Initial state S1 (docs/UX/DESIGN_Initial_State.md §2.2, R-4137) — a casualty on a STRETCHER survives a save and load with its carry
+        /// mode and its second man: the save writes each seat's mode and the assistant (a link), the load's intent carries them. A seated
+        /// passenger keeps Seated. ✅ Red-proof: Extract without "Modes" ⇒ the intent carries no modes ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S1_AStretcherCasualty_AndItsSecondMan_SurviveASaveAndLoad()
+        {
+            var casualty = _repo.CreateEntity();
+            var rear = _repo.CreateEntity();
+            var carrier = _repo.CreateEntity();
+            var buffer = new PassengerBuffer();
+            buffer.Passengers[0] = casualty;
+            buffer.SetMode(0, CarryMode.Stretcher);
+            buffer.Count = 1;
+            buffer.Assistant = rear;
+            _repo.SetComponent(carrier, buffer);
+            var resolver = new StubResolver();
+            resolver.Register(casualty, "0a1f1260-379b-5ad2-b3ea-2ee258695232");
+            resolver.Register(rear, "1cbfa0d1-2250-5f93-b4e0-ee1ee846183f");
+
+            var dom = new PassengerBufferTranslator().Extract(_repo, carrier, resolver);
+            var loaded = _repo.CreateEntity();
+            new PassengerBufferTranslator().Inject(_repo, loaded, dom, resolver);
+
+            var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialPassengersIntent>(loaded)!;
+            Assert.Equal(new[] { 0 }, intent.Seats);
+            Assert.Equal(new[] { (byte)CarryMode.Stretcher }, intent.Modes);
+            Assert.False(intent.Assistant.IsNone);
+            Assert.Equal(FileLinks.FromGuidText("1cbfa0d1-2250-5f93-b4e0-ee1ee846183f"), intent.Assistant);
         }
     }
 }

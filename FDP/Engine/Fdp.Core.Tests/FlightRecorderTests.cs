@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.IO;
 using Xunit;
 using Fdp.Core;
@@ -188,6 +189,184 @@ namespace Fdp.Tests
             Assert.Empty(repo.GetDestructionLog());
         }
         
+        // ⭐ CE-3335 — ONE destruction log, a mark per reader, trimmed by Tick() (docs/DESIGN_Replay_Time_Axis_And_Review.md §12o)
+
+        [Fact]
+        public void CE3335_TwoReaders_EachSeeEveryDeath_AndNeitherEmptiesTheLog()
+        {
+            using var repo = new EntityRepository();
+            var e1 = repo.CreateEntity();
+            long a = repo.DestructionMark, b = repo.DestructionMark;
+
+            repo.DestroyEntity(e1);
+
+            Assert.Equal(new[] { e1 }, repo.ReadDestructions(ref a).ToArray());
+            Assert.Equal(new[] { e1 }, repo.ReadDestructions(ref b).ToArray());   // A's read did not take it from B
+            Assert.Equal(0, repo.ReadDestructions(ref a).Length);                  // and A sees each death once
+        }
+
+        [Fact]
+        public void CE3335_ADeathAfterAReaderInItsFrame_ReachesItTheNextFrame()
+        {
+            using var repo = new EntityRepository();
+            var e1 = repo.CreateEntity();
+            long mark = repo.DestructionMark;
+
+            repo.Tick();
+            Assert.Equal(0, repo.ReadDestructions(ref mark).Length);   // the reader ran (mid-frame) …
+            repo.DestroyEntity(e1);                                     // … and the death comes after it
+            repo.Tick();                                                // the next frame starts
+
+            Assert.Equal(new[] { e1 }, repo.ReadDestructions(ref mark).ToArray());
+        }
+
+        [Fact]
+        public void CE3335_TheLogStaysBounded_WhenNothingRecords()
+        {
+            using var repo = new EntityRepository();
+            for (int frame = 0; frame < 1000; frame++)
+            {
+                repo.Tick();
+                repo.DestroyEntity(repo.CreateEntity());
+            }
+            Assert.True(repo.GetDestructionLog().Count <= 2, $"the log held {repo.GetDestructionLog().Count} deaths after 1000 frames");
+        }
+
+        [Fact]
+        public void CE3335_TheRecorderWritesEachDeathOnce_AndLeavesItForTheOtherReaders()
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<Position>();
+            var e1 = repo.CreateEntity();
+            var e2 = repo.CreateEntity();
+            var recorder = new RecorderSystem();
+            long breakpoints = repo.DestructionMark;
+
+            repo.Tick();
+            repo.DestroyEntity(e1);
+            Assert.Equal(1, DestroyedCount(recorder, repo));
+            Assert.Equal(new[] { e1 }, repo.ReadDestructions(ref breakpoints).ToArray());   // a reader AFTER the recorder still sees it
+            repo.DestroyEntity(e2);                                                         // a death after the recorder, same frame
+
+            repo.Tick();
+            Assert.Equal(1, DestroyedCount(recorder, repo));   // e2 in the next frame; e1 is not written twice
+        }
+
+        /// <summary>⭐ CE-3332 — the frame index's Changed flag means "a recorded byte moved": a system that WRITES a component with the
+        /// value it already had (measured on a paused editor frame: SimTransform and four presentation tables) does not mark the frame.</summary>
+        [Fact]
+        public void CE3332_A_write_of_the_same_value_does_not_mark_the_frame_changed()
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<Position>();
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new Position { X = 1, Y = 2, Z = 3 });
+            var recorder = new RecorderSystem();
+            using (var w = new BinaryWriter(new MemoryStream())) recorder.RecordKeyframe(repo, w, 0L);
+
+            Delta(() => repo.SetComponent(e, new Position { X = 1, Y = 2, Z = 3 }));
+            Assert.True(recorder.LastFrameChanged);    // the first delta after a keyframe has nothing to compare with
+
+            Delta(() => repo.SetComponent(e, new Position { X = 1, Y = 2, Z = 3 }));
+            Assert.False(recorder.LastFrameChanged);   // written again, the same bytes: a quiet frame
+
+            Delta(() => repo.SetComponent(e, new Position { X = 9, Y = 2, Z = 3 }));
+            Assert.True(recorder.LastFrameChanged);    // a real change
+
+            void Delta(Action write)
+            {
+                uint before = repo.GlobalVersion;
+                repo.Tick();
+                write();
+                using var w = new BinaryWriter(new MemoryStream());
+                recorder.RecordDeltaFrame(repo, before, w, 0);
+            }
+        }
+
+        /// <summary>⭐ CE-4050 — the recording names the assembly each recorded type lives in, and a replaying process loads the named ones it
+        /// has not loaded yet (assemblies load lazily); a name this install does not carry is reported, not thrown.</summary>
+        [Fact]
+        public void CE4050_The_manifest_names_each_types_assembly_and_a_replay_loads_them()
+        {
+            using (var repo = new EntityRepository())
+            {
+                repo.RegisterComponent<Position>();
+                using var recorder = new AsyncRecorder(_testFilePath);
+                recorder.CaptureKeyframe(repo, 1_000_000L, blocking: true);
+            }
+            var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(_testFilePath + ".meta.json"));
+            var position = meta.SchemaManifest!.Values.Single(i => i.Name == typeof(Position).FullName);
+            Assert.Equal(typeof(Position).Assembly.GetName().Name, position.Assembly);
+
+            Assert.Empty(RecordedAssemblies.EnsureLoaded(meta));   // everything named is loadable here
+            meta.SchemaManifest[987_654] = new ComponentSchemaInfo { Name = "Gone.Type", Assembly = "Not.An.Assembly.CE4050" };
+            Assert.Equal(new[] { "Not.An.Assembly.CE4050" }, RecordedAssemblies.EnsureLoaded(meta));   // said, not thrown
+        }
+
+        /// <summary>⭐ CE-4050 — a recorded type no loaded assembly declares no longer STOPS playback: its data is skipped and named.</summary>
+        [Fact]
+        public void CE4050_A_type_nobody_declares_is_skipped_not_thrown()
+        {
+            using var repo = new EntityRepository();
+            var playback = new PlaybackSystem();
+            var apply = typeof(PlaybackSystem).GetMethod("ApplyChunkData", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            apply.Invoke(playback, new object[] { repo, 987_655, 0, new ArraySegment<byte>(new byte[16]) });   // ⭐ CE-4432 — the chunk is a view now
+            Assert.Contains(987_655, playback.UnresolvedTypes);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4058 ⑤ (DAR §12s) — a chunk written with the bytes it last went to the recording with is not written again, so a paused
+        /// frame shrinks to its header — and the replay still stands at the recorded values on every frame, sought or stepped.
+        /// </summary>
+        [Fact]
+        public void CE4058_A_quiet_frame_writes_no_chunk_and_the_replay_stays_exact()
+        {
+            using (var repo = new EntityRepository())
+            {
+                repo.RegisterComponent<Position>();
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new Position { X = 1, Y = 2, Z = 3 });
+                using var recorder = new AsyncRecorder(_testFilePath);
+                recorder.CaptureKeyframe(repo, 1_000_000L, blocking: true);
+                uint prev = repo.GlobalVersion;
+                for (int f = 0; f < 4; f++)
+                {
+                    repo.Tick();
+                    // frames 0 and 1: a rewrite of the same value (a paused frame) · frame 2: a real change · frame 3: its rewrite
+                    repo.SetComponent(e, f < 2 ? new Position { X = 1, Y = 2, Z = 3 } : new Position { X = 9, Y = 2, Z = 3 });
+                    recorder.CaptureFrame(repo, prev, 2_000_000L + f, blocking: true);
+                    prev = repo.GlobalVersion;
+                }
+            }
+            using var world = new EntityRepository();
+            world.RegisterComponent<Position>();
+            using var playback = new PlaybackController(_testFilePath);
+            Assert.Equal(5, playback.TotalFrames);
+            // frame 0 the keyframe · 1 the first delta after it (the comparison starts there: written) · 2 a quiet rewrite · 3 a real
+            //   change · 4 its quiet rewrite
+            int Bytes(int frame) => playback.GetFrameMetadata(frame).UncompressedSize;
+            Assert.True(Bytes(2) < Bytes(1), $"a quiet rewrite ({Bytes(2)} B) must not carry the chunk the first delta ({Bytes(1)} B) does");
+            Assert.True(Bytes(3) > Bytes(2), $"a real change ({Bytes(3)} B) carries the chunk");
+            Assert.Equal(Bytes(2), Bytes(4));   // quiet again after the change
+
+            var expect = new[] { 1f, 1f, 1f, 9f, 9f };
+            for (int frame = 0; frame < 5; frame++)
+            {
+                playback.SeekToFrame(world, frame);
+                var e = world.GetEntityByIndex(0);
+                Assert.Equal(expect[frame], world.GetComponentRO<Position>(e).X);
+            }
+        }
+
+        private static int DestroyedCount(RecorderSystem recorder, EntityRepository repo)
+        {
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream);
+            recorder.RecordDeltaFrame(repo, repo.GlobalVersion - 1, writer, 0);
+            writer.Flush();
+            return BitConverter.ToInt32(stream.ToArray(), sizeof(ulong) + sizeof(byte) + sizeof(long));   // tick · type · wall · destroyed count
+        }
+
         [Fact]
         public void RecordAndReplay_EntityDestruction_RemovesEntity()
         {

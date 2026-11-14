@@ -4,7 +4,7 @@ namespace GizmoMap.Network
 {
     // Publishes all debug primitives for the current frame so remote subscribers
     // can render gizmos without running the simulation locally.
-    [DdsTopic("DebugPrimitivesBatch")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile,
             HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct DebugPrimitivesBatch

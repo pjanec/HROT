@@ -57,7 +57,7 @@ A new class library `Hrot.Editor.AiShared` that will be the shared foundation fo
 | Blueprints Editor (reference) | `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/` |
 | Blueprints Editor csproj (reference) | `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/Hrot.Blueprints.Editor.csproj` |
 | FDP Core Entity | `FDP/Engine/Fdp.Core/Entity.cs` |
-| Main solution | `IOS-IG-SimHost.sln` |
+| Main solution | `HROT.sln` |
 | Hrot.Common (contains CommandLane enum) | `Hrot/Engine/Hrot.Common/` |
 
 ### Build Commands
@@ -70,7 +70,7 @@ dotnet build Hrot/Editor/Hrot.Editor.AiShared/Hrot.Editor.AiShared.csproj
 dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj
 
 # Build main solution (run at end to verify no regressions)
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 ### Report Submission
@@ -157,7 +157,7 @@ Hrot/Editor/
 
 ### Step 3: Add projects to solution
 
-Add both new projects to `IOS-IG-SimHost.sln` — follow the same sln format as existing entries.
+Add both new projects to `HROT.sln` — follow the same sln format as existing entries.
 
 ---
 
@@ -586,7 +586,7 @@ This batch is DONE when:
 
 - [ ] New project `Hrot.Editor.AiShared` created and builds clean
 - [ ] New test project `Hrot.Editor.AiShared.Tests` created and builds clean
-- [ ] Both projects added to `IOS-IG-SimHost.sln`
+- [ ] Both projects added to `HROT.sln`
 - [ ] TASK-S1-01: `IEditableAsset` + `AssetKind` implemented
 - [ ] TASK-S1-02: `AssetIdHash.Fnv1a32` with 5 tests
 - [ ] TASK-S1-03: `EditorSelectionStore` with 16+ tests (per-asset isolation, event dedup)
@@ -595,7 +595,7 @@ This batch is DONE when:
 - [ ] TASK-S1-06: `FluentCSharpEmitter` framework with 12+ tests
 - [ ] TASK-S1-07: `LayoutDiscovery` + builders with 10+ tests
 - [ ] `dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj` — ALL PASS
-- [ ] `dotnet build IOS-IG-SimHost.sln` — builds clean (no regressions)
+- [ ] `dotnet build HROT.sln` — builds clean (no regressions)
 - [ ] Report submitted at `.dev/blueprints-2/reports/BATCH-02-REPORT.md`
 
 ---

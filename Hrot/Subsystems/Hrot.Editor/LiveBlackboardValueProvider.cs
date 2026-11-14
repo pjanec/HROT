@@ -6,6 +6,7 @@ using Fdp.Core;
 using Fdp.Presentation.Abstractions;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Hrot.Presentation.Renderers;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Selection;
@@ -14,10 +15,11 @@ namespace Hrot.Editor;
 
 /// <summary>
 /// Production implementation of <see cref="ILiveBlackboardValueProvider"/>.
-/// Reads live <see cref="BrainBlackboard"/> values for the selected entity,
+/// Reads live behaviour-parameter values for the selected entity from its root params
+/// occurrence slot (<c>P4</c>-③),
 /// gated on the name-match between the asset and the entity's active behavior.
 /// </summary>
-public sealed class LiveBlackboardValueProvider : ILiveBlackboardValueProvider
+public sealed class LiveBlackboardValueProvider : ILiveBlackboardValueProvider, ILiveVariableProjection
 {
     private static readonly IReadOnlyDictionary<string, string> Empty =
         new Dictionary<string, string>();
@@ -39,36 +41,66 @@ public sealed class LiveBlackboardValueProvider : ILiveBlackboardValueProvider
         _store = store ?? throw new ArgumentNullException(nameof(store));
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 90 (<c>90c</c>) — the RESOLVE step, split out from the two projections.</b>
+    ///
+    /// <para>📐 Steps 1–5 below were the first two thirds of <c>GetLiveVariableValues</c>, and they
+    /// are the half that decides <b>whether this asset is live on this entity at all</b>. ⭐ Splitting
+    /// them means the byte arm and the string arm cannot disagree about that question — ⛔ two copies
+    /// of a five-step gate is exactly how the same rule drifts.</para>
+    ///
+    /// <para>⚠ <b>Behaviour-neutral for the string arm</b>: the steps, their order and their early
+    /// returns are unchanged; only their home moved.</para>
+    /// </summary>
+    /// <para>🔴 <b><c>P4</c>-③ (<c>CE-312</c>): step 5 now reads the ROOT PARAMS OCCURRENCE SLOT.</b>
+    /// It used to fetch the <c>BrainBlackboard</c> component — which <c>P3</c> stopped filling while
+    /// leaving it attached, so every value this provider showed had been <b>zero since then</b>.
+    /// ⚠ The gate steps 1–4 are unchanged; only the source of the bytes moved.</para>
+    private bool TryResolve(IEditableAsset asset, out byte[] rootParams, out IReadOnlyList<ManagedBlackboardVariable> vars)
+    {
+        rootParams = Array.Empty<byte>();
+        vars = Array.Empty<ManagedBlackboardVariable>();
+
+        // Step 1: must have a selected entity.
+        var entity = _store.SelectedEntity;
+        if (entity == null) return false;
+
+        // Step 2: must have a live session with this entity alive.
+        var session = _sessionFactory();
+        if (session == null || !session.IsAlive(entity.Value)) return false;
+
+        // Step 3: entity must carry BehaviorState.
+        if (!session.HasComponent(entity.Value, typeof(BehaviorState))) return false;
+        var bsObj = session.GetComponent(entity.Value, typeof(BehaviorState));
+        if (bsObj is not BehaviorState bs) return false;
+
+        // Step 4: name-match gate.
+        var registry = _registryFactory();
+        if (registry == null) return false;
+        if (!registry.TryGetId(asset.Name, out int id)) return false;
+        if (id != bs.ActiveBehaviorHash) return false;
+
+        // Step 5: load definition and the entity's ROOT PARAMS region.
+        if (!registry.TryGetDefinition(id, out var def)) return false;
+        if (def.ManagedBlackboardVariables is not { Count: > 0 } declared) return false;
+
+        // ⭐ ONE walk, shared with the inspector's params section — see RootParamsProjection.
+        //   ⛔ Not a second spelling of "find the root slot": that is the duplication RootParamsAccess
+        //   exists to prevent, and it is how this provider drifted from the storage in the first place.
+        if (!RootParamsProjection.TryCopyRootParams(session, entity.Value, registry, out var region, out _))
+            return false;
+
+        rootParams = region;
+        vars       = declared;
+        return true;
+    }
+
     /// <inheritdoc/>
     public IReadOnlyDictionary<string, string> GetLiveVariableValues(IEditableAsset asset)
     {
         try
         {
-            // Step 1: must have a selected entity.
-            var entity = _store.SelectedEntity;
-            if (entity == null) return Empty;
-
-            // Step 2: must have a live session with this entity alive.
-            var session = _sessionFactory();
-            if (session == null || !session.IsAlive(entity.Value)) return Empty;
-
-            // Step 3: entity must carry BehaviorState.
-            if (!session.HasComponent(entity.Value, typeof(BehaviorState))) return Empty;
-            var bsObj = session.GetComponent(entity.Value, typeof(BehaviorState));
-            if (bsObj is not BehaviorState bs) return Empty;
-
-            // Step 4: name-match gate.
-            var registry = _registryFactory();
-            if (registry == null) return Empty;
-            if (!registry.TryGetId(asset.Name, out int id)) return Empty;
-            if (id != bs.ActiveBehaviorHash) return Empty;
-
-            // Step 5: load definition and BrainBlackboard.
-            if (!registry.TryGetDefinition(id, out var def)) return Empty;
-            if (def.ManagedBlackboardVariables is not { Count: > 0 } vars) return Empty;
-
-            var bbObj = session.GetComponent(entity.Value, typeof(BrainBlackboard));
-            if (bbObj is not BrainBlackboard bb) return Empty;
+            if (!TryResolve(asset, out var bb, out var vars)) return Empty;
 
             // Step 6: project each variable.
             var result = new Dictionary<string, string>(vars.Count);
@@ -91,16 +123,87 @@ public sealed class LiveBlackboardValueProvider : ILiveBlackboardValueProvider
         }
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐⭐ <b>Batch 90 (<c>90c</c>) — the BYTE arm, and this host needs NO new arm on the row.</b>
+    ///
+    /// <para>📐 This provider already walks <c>(root params region, Type, ByteOffset)</c> and only formats
+    /// at the very end ⇒ ⭐ <b>it HAS the bytes</b>, and the row source's <c>readRaw</c> seam has been
+    /// <c>null</c> since it was built. ⇒ ⛔ <b>BTree/HSM must NOT go through the object arm</b>: bytes
+    /// keep §4a's change highlight LIVE, and objects would make it inert for no gain.</para>
+    ///
+    /// <para>⚠ <b>Why the string arm is not <c>format(project(...))</c>, asked and answered.</b>
+    /// 📐 <c>ProjectAndFormat</c> is <c>FormatValue(Marshal.PtrToStructure(ptr, type))</c> — it decodes
+    /// via the MARSHALLER. Formatting the raw bytes instead would need a byte decoder, which is a
+    /// DIFFERENT mechanism *(<c>MarshalFromBytes</c>, and it lives above this assembly)*. ⇒ ⭐ the two
+    /// arms share the RESOLVE step and diverge at projection, which is as far as the split honestly
+    /// goes. ⛔ Forcing it further would invent a second decode path — the handoff said not to force
+    /// it, and it was right.</para>
+    ///
+    /// <para>⛔ <b>No padding.</b> A variable whose projection throws is OMITTED, so its cell reads
+    /// <c>(pending)</c> — 📌 guide row <c>C9</c>. ⭐ Absence is the signal, and it is free.</para>
+    /// </remarks>
+    public IReadOnlyDictionary<string, byte[]>? GetLiveBytes(IEditableAsset asset)
+    {
+        try
+        {
+            if (asset is null) return null;
+            if (!TryResolve(asset, out var bb, out var vars)) return null;
+
+            var result = new Dictionary<string, byte[]>(vars.Count);
+            foreach (var v in vars)
+            {
+                try
+                {
+                    var bytes = ProjectBytes(bb, v.Type, v.ByteOffset);
+                    if (bytes.Length > 0) result[v.Name] = bytes;
+                }
+                catch
+                {
+                    // Skip this variable on any projection failure — never throw into the UI.
+                }
+            }
+            return result;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     /// <summary>
-    /// Projects a typed struct from <paramref name="bb"/>.<c>BehaviorParameters + byteOffset</c>
+    /// ⭐⭐ Copies a variable's RAW bytes out of the root params region at <c>byteOffset</c>.
+    /// ⛔ Deliberately no decode: the ONE decoder is the formatter's injected
+    /// <c>DecodeRawValue</c>, and a second one here would be the duplication <c>S3</c> collapsed.
+    /// </summary>
+    internal static byte[] ProjectBytes(byte[] rootParams, Type type, int byteOffset)
+    {
+        // ⭐ CE-2041 — the MANAGED size: the root params region holds managed bytes (Marshal.SizeOf counted a bool as 4)
+        if (!Fdp.Core.TypeLayout.TrySizeOf(type, out int size)) return Array.Empty<byte>();
+        if (size <= 0) return Array.Empty<byte>();
+        if (byteOffset < 0 || byteOffset + size > rootParams.Length) return Array.Empty<byte>();
+
+        var bytes = new byte[size];
+        Array.Copy(rootParams, byteOffset, bytes, 0, size);
+        return bytes;
+    }
+
+    /// <summary>
+    /// Projects a typed struct from <paramref name="rootParams"/> at <c>byteOffset</c>
     /// and formats it as a compact one-line string.
     /// For multi-field structs: <c>"Field1=val1, Field2=val2"</c>.
     /// For primitives: <c>value.ToString()</c>.
     /// </summary>
-    internal static unsafe string ProjectAndFormat(BrainBlackboard bb, Type type, int byteOffset)
+    internal static string ProjectAndFormat(byte[] rootParams, Type type, int byteOffset)
     {
-        object boxed = Marshal.PtrToStructure((IntPtr)(bb.BehaviorParameters + byteOffset), type)!;
-        return FormatValue(boxed, type);
+        // ⭐ CE-2041 — read the MANAGED layout the bytes are in (was Marshal.PtrToStructure: the interop layout, which
+        //   mis-reads any struct whose bools or chars marshal to a different width — every blueprint Vars with a bool).
+        int size = Fdp.Core.TypeLayout.SizeOf(type);
+        if (byteOffset < 0 || size <= 0 || byteOffset + size > rootParams.Length)
+            throw new ArgumentOutOfRangeException(nameof(byteOffset),
+                "the declared variable does not fit inside this behaviour's root params region");
+
+        return FormatValue(Fdp.Core.TypeLayout.Read(rootParams, byteOffset, type), type);
     }
 
     /// <summary>

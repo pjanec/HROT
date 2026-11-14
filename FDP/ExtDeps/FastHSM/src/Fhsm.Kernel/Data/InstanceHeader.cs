@@ -10,7 +10,7 @@ namespace Fhsm.Kernel.Data
     public struct InstanceHeader
     {
         // === Identity (8 bytes) ===
-        [FieldOffset(0)] public uint MachineId;         // DefinitionBlob structure hash
+        [FieldOffset(0)] public uint MachineId;         // HsmDefinitionBlob.MachineId (identity + shape, CE-2001)
         [FieldOffset(4)] public uint RngState;          // Deterministic RNG state (Initialized with Seed)
 
         // === State (4 bytes) ===

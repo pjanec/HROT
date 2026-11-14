@@ -1,0 +1,202 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: the ground fires back at aircraft (CE-2191), on basic-desert. An 'Apache' attacks 'Apache Target' right beside a 'Stinger Gunner' at (560, 120); a doors-off 'Door Gunship UH-60' circles 'Orbit Target' next to a 'ZU-23 Technical'. Both defenders are on their default SOPs. Judge: (1) the Stinger gunner fires at least one missile at an aircraft (2) the Apache gets an infra-red MissileWarning, stops firing and breaks away to a low altitude (measured 60 m to 25 m above ground within 6 s) (3) the ZU-23 fires at least 10 rounds at the UH-60 (about 50 measured). Fail: no missile or no ZU-23 fire, or the Apache is never warned. Note: flares are not shown. Check: python3 scripts/utility-demo-check.py --launch ua-air-defence"
+  },
+  "entities": {
+    "a2191d00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          2600,
+          520,
+          60
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 406
+      },
+      "EntityInfo": {
+        "Name": "Apache",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {"Target":"a2191d00-0000-4000-8000-000000000003"},
+        "Origin": "Superior"
+      },
+      "Health": {
+        "Current": 800,
+        "Max": 800
+      }
+    },
+    "a2191d00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          300,
+          2600,
+          100
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 404
+      },
+      "EntityInfo": {
+        "Name": "Door Gunship UH-60",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {"Target":"a2191d00-0000-4000-8000-000000000004"},
+        "Origin": "Superior"
+      },
+      "Health": {
+        "Current": 800,
+        "Max": 800
+      }
+    },
+    "a2191d00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          480,
+          520,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 106
+      },
+      "EntityInfo": {
+        "Name": "Apache Target",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a2191d00-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          300,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 106
+      },
+      "EntityInfo": {
+        "Name": "Orbit Target",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a2191d00-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          560,
+          120,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 202
+      },
+      "EntityInfo": {
+        "Name": "Stinger Gunner",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicInfantrySop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a2191d00-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          300,
+          420,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 110
+      },
+      "EntityInfo": {
+        "Name": "ZU-23 Technical",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 500,
+        "Max": 500
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

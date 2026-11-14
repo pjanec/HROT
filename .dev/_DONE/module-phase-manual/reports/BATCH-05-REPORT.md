@@ -6,10 +6,10 @@
 - [x] MPM-P5-T03: Create BehaviorSchemaDiscovery
 
 ## Build Status
-`dotnet build IOS-IG-SimHost.sln` - 0 errors, 0 warnings introduced by this batch.
+`dotnet build HROT.sln` - 0 errors, 0 warnings introduced by this batch.
 
 ## Test Status
-`dotnet test IOS-IG-SimHost.sln --no-build`
+`dotnet test HROT.sln --no-build`
 
 - Fdp.Core.Tests: Passed 718, Skipped 2, Failed 0
 - Hrot.ClusterRunner.Integration.Tests: Passed 130, Skipped 4, Failed 10

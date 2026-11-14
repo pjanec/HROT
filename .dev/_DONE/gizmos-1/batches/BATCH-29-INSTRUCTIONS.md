@@ -55,7 +55,7 @@ This batch has two parts:
 
 ```powershell
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln -c Debug --nologo -v q
+dotnet build HROT.sln -c Debug --nologo -v q
 dotnet test Hrot/Engine/Hrot.Presentation.Tests/ --no-build -v q
 dotnet test FDP/Diagnostics/Fdp.Diagnostics.Contracts.Tests/ --no-build -v q
 dotnet test Hrot/Network/Hrot.Network.NED.Tests/ --no-build -v q

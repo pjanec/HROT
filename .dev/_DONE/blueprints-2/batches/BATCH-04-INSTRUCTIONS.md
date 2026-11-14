@@ -53,7 +53,7 @@ FDP/Engine/Fdp.Presentation/ImGui/IWindowRegistrar.cs
 
 ```powershell
 dotnet test "Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj"
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 ### Report Submission
@@ -569,7 +569,7 @@ This batch is DONE when:
 - [ ] TASK-S1-10: `InspectorWindow` created
 - [ ] TASK-S1-14: `SharedAiWindowRegistrar`, `SharedAiEditorServiceCollectionExtensions` created
 - [ ] `dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj` — ALL PASS (110 old + 29+ new)
-- [ ] `dotnet build IOS-IG-SimHost.sln` — clean build
+- [ ] `dotnet build HROT.sln` — clean build
 - [ ] Report at `.dev/blueprints-2/reports/BATCH-04-REPORT.md`
 
 ---

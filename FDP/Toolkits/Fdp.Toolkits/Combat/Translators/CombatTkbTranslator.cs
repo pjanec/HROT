@@ -21,14 +21,27 @@ namespace Fdp.Toolkit.Combat.Translators
     /// </summary>
     public sealed class CombatTkbTranslator : ITkbEntityTranslator
     {
-        private const float DefaultColliderRadius  = 2.5f;
-        private const float DefaultMuzzleVelocity  = 800f;
-        private const byte  CombatCollisionLayer   = 2;
+        // ⭐ Stage 0 — the defaults live in EngineFallbacks; ParameterResolver reports the same rules (no number moved).
+        private const byte  CombatCollisionLayer   = CombatConstants.CombatCollisionLayer;   // ⭐ CE-2182 — no longer the round's bit
 
         public IEnumerable<Type> GetConsumedDescriptors()
         {
             yield return typeof(CombatPlatformDefDto);
             yield return typeof(WeaponSuiteDto);
+        }
+
+        /// <summary>⚠ Includes the components this translator stamps on CHILD entities
+        /// (<see cref="WeaponMountInfo"/>, <see cref="PartMetadata"/>, and <see cref="WeaponState"/> on a
+        /// mount) — they are produced by this translator's run even though the write lands on a different
+        /// entity, and a consumer that filters them out would be reasoning about the parent alone.</summary>
+        public IEnumerable<Type> GetProducedComponents()
+        {
+            yield return typeof(Health);
+            yield return typeof(MobilityKill);   // CE-3092 — only on types that opt in
+            yield return typeof(PhysicsCollider);
+            yield return typeof(WeaponState);
+            yield return typeof(WeaponMountInfo);
+            yield return typeof(PartMetadata);
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
@@ -44,6 +57,11 @@ namespace Fdp.Toolkit.Combat.Translators
                         Max     = platformDef.MaxHealth
                     });
 
+                // ⭐ CE-3092 — a type that a non-lethal hit immobilises says so; absent = only death stops it.
+                if (platformDef.MobilityKillBelowFraction > 0f && repo.IsComponentTypeRegistered<MobilityKill>()
+                    && !repo.HasComponent<MobilityKill>(entity))
+                    repo.AddComponent(entity, new MobilityKill { BelowFraction = MathF.Min(1f, platformDef.MobilityKillBelowFraction) });
+
                 // Additive collider: OR combat layer onto vehicle collider if present,
                 // or stamp a fresh collider if the kinematics translator did not run.
                 if (repo.IsComponentTypeRegistered<PhysicsCollider>())
@@ -57,8 +75,9 @@ namespace Fdp.Toolkit.Combat.Translators
                     {
                         repo.AddComponent(entity, new PhysicsCollider
                         {
-                            Radius         = DefaultColliderRadius,
-                            CollisionLayer = CombatCollisionLayer
+                            Radius         = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.ColliderRadius,
+                            CollisionLayer = CombatCollisionLayer,
+                            Height         = template.GetDescriptor<StrideRenderModelDefDto>()?.ShapeHeight ?? 0f,
                         });
                     }
                 }
@@ -71,29 +90,29 @@ namespace Fdp.Toolkit.Combat.Translators
                 var primary = suite.Mounts[0];
                 // Primary mount: WeaponState stays on the owner entity (back-compat with actuators).
                 if (repo.IsComponentTypeRegistered<WeaponState>() && !repo.HasComponent<WeaponState>(entity))
-                    repo.AddComponent(entity, new WeaponState
-                    {
-                        Ammo           = primary.InitialAmmunition,
-                        MaxAmmo        = primary.InitialAmmunition,
-                        MuzzleVelocity = primary.MuzzleVelocity > 0f
-                            ? primary.MuzzleVelocity
-                            : DefaultMuzzleVelocity
-                    });
+                {
+                    repo.AddComponent(entity, Loaded(primary));
+                    AddLoadout(repo, entity, primary);
+                }
 
                 // Additional mounts (index 1+): each gets a child entity.
                 if (repo.IsComponentTypeRegistered<WeaponMountInfo>() && repo.IsComponentTypeRegistered<PartMetadata>())
                 {
                     var caps = template.GetDescriptor<WeaponCapabilitiesDto>(); // may be null
+                    // ⭐ CE-3089 (G7) — idempotent like the owner's WeaponState above: a second Inject (re-materialisation) must not
+                    //   make a second child per mount — measured live: three WeaponSelection candidates for a two-mount Bradley.
+                    System.Span<Entity> existing = stackalloc Entity[16];
+                    int existingCount = WeaponMountQuery.EnumerateMounts(repo, entity, existing);
                     for (int i = 1; i < suite.Mounts.Count; i++)
                     {
+                        bool have = false;
+                        for (int k = 0; k < existingCount && !have; k++)
+                            have = repo.HasComponent<WeaponMountInfo>(existing[k]) && repo.GetComponentRO<WeaponMountInfo>(existing[k]).MountIndex == i;
+                        if (have) continue;
                         var mount = suite.Mounts[i];
                         var child = repo.CreateEntity();
-                        repo.AddComponent(child, new WeaponState
-                        {
-                            Ammo           = mount.InitialAmmunition,
-                            MaxAmmo        = mount.InitialAmmunition,
-                            MuzzleVelocity = mount.MuzzleVelocity > 0f ? mount.MuzzleVelocity : DefaultMuzzleVelocity
-                        });
+                        repo.AddComponent(child, Loaded(mount));
+                        AddLoadout(repo, child, mount);
                         repo.AddComponent(child, new WeaponMountInfo
                         {
                             MountIndex     = i,
@@ -104,11 +123,38 @@ namespace Fdp.Toolkit.Combat.Translators
                         {
                             ParentEntity      = entity,
                             InstanceId        = i,
-                            DescriptorOrdinal = 0,
                         });
+                        // ⭐ CE-3045 — a mount child is rebuilt from the TKB on load; saving it too duplicated it.
+                        Fdp.Toolkit.Scenario.DerivedParts.MarkNotSaved(repo, child);
                     }
                 }
             }
         }
-    }
+    
+        /// <summary>⭐ M8 (D-I) — the mount's <see cref="AmmoLoadout"/> when its TKB mount declares one (the first round loaded).</summary>
+        private static void AddLoadout(EntityRepository repo, Entity mountEntity, WeaponMountDto mount)
+        {
+            if (!repo.IsComponentTypeRegistered<AmmoLoadout>() || repo.HasComponent<AmmoLoadout>(mountEntity)) return;
+            // ⭐ CE-3230 (H-2) — the HANDS start with an EMPTY loadout that PersonHands.Give fills with what he picks up
+            if (mount.Hands) { repo.AddComponent(mountEntity, new AmmoLoadout()); return; }
+            if (mount.Loadout is not { Count: > 0 }) return;
+            repo.AddComponent(mountEntity, AmmoLoadout.From(mount.Loadout));
+        }
+
+        /// <summary>A mount's <see cref="WeaponState"/> at spawn: the total load, and — ⭐ <c>CE-3136</c> P-5 — its first magazine full.</summary>
+        private static WeaponState Loaded(WeaponMountDto mount)
+        {
+            // ⭐ M8 — a mount with a loadout carries the sum of its rounds (the loadout says how many of each)
+            int total = mount.Loadout is { Count: > 0 } ? AmmoLoadout.From(mount.Loadout).Total : mount.InitialAmmunition;
+            var w = new WeaponState
+            {
+                Ammo           = total,
+                MaxAmmo        = total,
+                MuzzleVelocity = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocityOrFallback(mount.MuzzleVelocity)
+            };
+            Magazine.Load(ref w, mount.MagazineSize, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.ReloadSecondsOrFallback(mount.ReloadSeconds));
+            BarrelHeat.Load(ref w, mount);   // ⭐ CE-1358 (§5k) — a cold barrel with the mount's heat rule
+            return w;
+        }
+}
 }

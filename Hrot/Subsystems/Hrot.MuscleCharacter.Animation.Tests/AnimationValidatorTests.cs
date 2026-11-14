@@ -1,7 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Xunit;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Nodes;
 using Hrot.MuscleCharacter.Animation.Validation;
 
@@ -143,7 +143,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             {
                 Slots = new List<SlotDefDto>(),
                 Montages = new List<MontageDefDto>(),
-                SupportedStances = Array.Empty<Components.StanceId>(),
+                SupportedStances = Array.Empty<StanceId>(),
                 StanceTransitions = new List<StanceTransitionDto>(),
                 AimConfig = null,
                 NotifyMarkers = new List<NotifyMarkerDefDto>(),
@@ -183,7 +183,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             {
                 Slots = new List<SlotDefDto>(),
                 Montages = new List<MontageDefDto>(),
-                SupportedStances = Array.Empty<Components.StanceId>(),
+                SupportedStances = Array.Empty<StanceId>(),
                 StanceTransitions = new List<StanceTransitionDto>(),
                 AimConfig = null,
                 NotifyMarkers = new List<NotifyMarkerDefDto>(),

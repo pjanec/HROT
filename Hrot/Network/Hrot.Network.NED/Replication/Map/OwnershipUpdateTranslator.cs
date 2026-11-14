@@ -36,15 +36,14 @@ namespace Hrot.Map.Common.Replication
     /// per-role wiring in <c>NedReplicationModule</c>.
     /// </para>
     /// </summary>
-    public sealed class OwnershipUpdateTranslator : IDescriptorTranslator
+    public sealed class OwnershipUpdateTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "SST_OwnershipUpdate";
 
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
         private readonly DdsReader<OwnershipUpdateWire>? _reader;
         private readonly DdsWriter<OwnershipUpdateWire>? _writer;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<OwnershipUpdateWire>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtOwnershipUpdate;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -55,11 +54,11 @@ namespace Hrot.Map.Common.Replication
 
         public OwnershipUpdateTranslator(DdsParticipant? participant, int localNodeId)
         {
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             if (participant != null)
             {
-                _reader = new DdsReader<OwnershipUpdateWire>(participant, DdsTopicName);
-                _writer = new DdsWriter<OwnershipUpdateWire>(participant, DdsTopicName);
+                _reader = new DdsReader<OwnershipUpdateWire>(participant);
+                _writer = new DdsWriter<OwnershipUpdateWire>(participant);
             }
         }
 
@@ -96,6 +95,9 @@ namespace Hrot.Map.Common.Replication
             }
         }
 
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
+
         /// <summary>
         /// Brain ingress: read DDS samples and re-publish onto the local bus
         /// for <c>OwnershipIngressSystem</c> to consume.
@@ -123,8 +125,8 @@ namespace Hrot.Map.Common.Replication
                 {
                     NetworkId      = new NetworkIdentity { Value = msg.EntityId },
                     PackedKey      = packedKey,
-                    NewOwnerNodeId = msg.NewOwner,
-                    OriginNodeId   = msg.OriginNodeId,
+                    NewOwnerNodeId = (Fdp.Core.NodeId)(msg.NewOwner),
+                    OriginNodeId   = (Fdp.Core.NodeId)(msg.OriginNodeId),
                 });
 
                 FdpLog<OwnershipUpdateTranslator>.Debug(
@@ -135,6 +137,6 @@ namespace Hrot.Map.Common.Replication
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

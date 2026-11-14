@@ -20,6 +20,9 @@ public static class PreviewSynthesizer
             WhenMode.EventFired    => SynthesizeEventFired(node.EventFired),
             WhenMode.ConditionMet  => SynthesizeConditionMet(node.ConditionMet),
             WhenMode.EqsResult     => SynthesizeEqsResult(node.EqsResult),
+            WhenMode.SensorResult  => node.SensorResult is { Decl: { } d } sr   // ⭐ CE-3078 N4
+                ? $"{d.KindName} {sr.Trigger}" + (sr.Trigger.EndsWith("Crossed") ? "≥" + sr.Threshold.ToString("0.##", global::System.Globalization.CultureInfo.InvariantCulture) : "")
+                : "Sensor Result",
             _                      => "(unknown mode)"
         };
 
@@ -67,6 +70,7 @@ public static class PreviewSynthesizer
             EqsTrigger.BecomesStale  => "Stale",
             _                        => "EQS"
         };
-        return string.IsNullOrEmpty(p.SensorVariableName) ? trigger : $"{p.SensorVariableName} {trigger}";
+        var sensor = Hrot.Blueprints.Editor.NodeDrawers.EqsSensorSourcePicker.Describe(p.SensorVariableName, p.UnitSensorKind);   // CE-3054 D
+        return string.IsNullOrEmpty(sensor) ? trigger : $"{sensor} {trigger}";
     }
 }

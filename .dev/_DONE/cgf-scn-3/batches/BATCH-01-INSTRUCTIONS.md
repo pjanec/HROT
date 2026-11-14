@@ -135,14 +135,14 @@ Add a test that:
 
 ---
 
-### Task 3 — TASK-S303: Add DataPolicy.NoSave to BrainBlackboard
+### Task 3 — TASK-S303: Add DataPolicy.NoScenario to BrainBlackboard
 
 **File:** `FDP\Toolkits\Fdp.Toolkits\Behavior\Components\BehaviorComponents.cs`
 **Task Definition:** See [TASK-DETAIL.md — TASK-S303](../TASK-DETAIL.md#task-s303--add-datapolicynosave-to-brainblackboard)
 
 **What to fix:**
 
-Add `[DataPolicy(DataPolicy.NoSave)]` at line 53, between the existing `[ComponentId(...)]` and
+Add `[DataPolicy(DataPolicy.NoScenario)]` at line 53, between the existing `[ComponentId(...)]` and
 the struct declaration.  Use the same pattern as `LocomotionChannel` in
 `FDP\Toolkits\Fdp.Toolkits\Behavior\Components\ChannelComponents.cs`.
 
@@ -155,7 +155,7 @@ public unsafe struct BrainBlackboard
 // AFTER:
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(GlobalComponentIds.BrainBlackboard)]
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 public unsafe struct BrainBlackboard
 ```
 
@@ -166,7 +166,7 @@ public unsafe struct BrainBlackboard
 
 Look for existing `FdpAutoSerializer` tests in
 `FDP\Toolkits\Fdp.Toolkits.Tests\` to understand the test pattern before writing new ones.
-If a suitable existing test already covers this (e.g. verifies NoSave exclusion for ChannelComponents),
+If a suitable existing test already covers this (e.g. verifies NoScenario exclusion for ChannelComponents),
 adapt it for BrainBlackboard.
 
 ---
@@ -205,7 +205,7 @@ After all four tasks are done:
 
 ```
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
 dotnet test Hrot\Subsystems\Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj --no-build
 dotnet test FDP\Toolkits\Fdp.Toolkits.Tests\Fdp.Toolkits.Tests.csproj --no-build
 ```
@@ -229,9 +229,9 @@ zero test failures are the acceptance bar.
 
 - [ ] TASK-S301: `SetManagedComponent` / `RemoveManagedComponent` used; tests verify managed component presence
 - [ ] TASK-S302: `Span<MissionPhase> phases = queue.Phases` extraction present; 3-phase test passes
-- [ ] TASK-S303: `[DataPolicy(DataPolicy.NoSave)]` on `BrainBlackboard`; JSON exclusion test passes
+- [ ] TASK-S303: `[DataPolicy(DataPolicy.NoScenario)]` on `BrainBlackboard`; JSON exclusion test passes
 - [ ] TASK-S304: `GetMode()` returns `TimeMode.Deterministic`; unit test passes
-- [ ] `dotnet build IOS-IG-SimHost.sln --no-restore` succeeds (zero errors)
+- [ ] `dotnet build HROT.sln --no-restore` succeeds (zero errors)
 - [ ] All touched test projects pass
 
 ---

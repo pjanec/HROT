@@ -1,3 +1,4 @@
+using Fdp.Core;
 ﻿namespace Fdp.Toolkit.Runner
 {
     /// <summary>
@@ -8,6 +9,16 @@
     /// </summary>
     public class RunnerOptions
     {
+        /// <summary>
+        /// ⭐ <c>CE-3340</c> ③ — <c>true</c> (the default): <see cref="SubsystemOrchestrator.Initialize"/> first seeds the NAS from the repository
+        /// (<see cref="Orchestration.ContentSeed.SeedIntoNas"/>) — the ONE place the seed runs. <c>false</c> only for a host that must not touch the NAS
+        /// (a unit test built on fake subsystems).
+        /// </summary>
+        public bool SeedContent { get; set; } = true;
+
+        /// <summary>The NAS root the content seed fills; <c>null</c> (the default) = <see cref="Orchestration.ContentLayout.NasRoot"/>. A test passes a temp tree.</summary>
+        public string? NasRoot { get; set; }
+
         /// <summary>When <c>true</c>, the orchestrator skips all Raylib and ImGui calls.</summary>
         public bool Headless { get; set; }
 
@@ -23,8 +34,28 @@
         /// <summary>Target frame rate cap; ignored in headless mode.</summary>
         public int TargetFps { get; set; } = 60;
 
+        /// <summary>
+        /// ⭐⭐⭐ Batch 103 (103a) — <b>restore the shipped default layout on every run.</b>
+        ///
+        /// <para>🔒 <b>The user's ruling, 2026-08-10:</b> <i>"during the development stage — practically
+        /// always now — auto-revert the user setting to the repo committed default on each new run."</i>
+        /// ⇒ ⭐ <b>the default is ON</b>, deliberately, while the layout is still evolving.</para>
+        ///
+        /// <para>⚠⚠ <b>It is DESTRUCTIVE by design</b> — the user's own arrangement is overwritten at
+        /// startup. ⛔ Which is exactly why the runner LOGS it every run and <c>File ▸ Layout</c> shows
+        /// the current mode: 📌 the design's own risk row — <i>"must be discoverable, so a user who
+        /// loses their layout every run can find out why."</i></para>
+        ///
+        /// <para>⭐ <c>--reset-layout=false</c> on the command line keeps your own arrangement — ⛔ and
+        /// that is the ONLY spelling. 📐 Measured <c>2026-08-21</c>: <c>CommandLineParser</c> has no
+        /// <c>--no-</c>-prefixed negation form and answers <c>UnknownOptionError</c>, which stops the
+        /// runner starting. ⚠ The design document names a negated spelling too; it never existed.
+        /// 📌 Railed by <c>TheLayoutResetCanActuallyBeTurnedOffTests</c>.</para>
+        /// </summary>
+        public bool ResetLayoutOnRun { get; set; } = true;
+
         /// <summary>Base node ID forwarded to the orchestrator for per-subsystem offset resolution (0 = use legacy constants).</summary>
-        public int NodeId { get; set; }
+        public NodeId NodeId { get; set; }
 
         /// <summary>When <c>true</c>, the orchestrator passes <see cref="FixedDeltaSeconds"/> to
         /// <c>Update()</c> instead of <c>Raylib.GetFrameTime()</c>. Use for CI / deterministic tests.</summary>
@@ -44,5 +75,9 @@
         /// </para>
         /// </summary>
         public Func<string, int, int>? NodeIdResolver { get; set; }
+
+        /// <summary>⭐ <c>CE-3354</c> ② — resolves a subsystem's node NAME from its subsystem name (null result / null delegate ⇒ the default
+        /// <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>). The beside-twin of <see cref="NodeIdResolver"/>.</summary>
+        public Func<string, string?>? NodeNameResolver { get; set; }
     }
 }

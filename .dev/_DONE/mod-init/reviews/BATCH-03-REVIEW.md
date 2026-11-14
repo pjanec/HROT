@@ -11,7 +11,7 @@
 ## Verification Summary
 
 ### Build
-`dotnet build IOS-IG-SimHost.sln` → **0 errors**. All pre-existing warnings unchanged.
+`dotnet build HROT.sln` → **0 errors**. All pre-existing warnings unchanged.
 
 ### File Audit
 | Check | Result |

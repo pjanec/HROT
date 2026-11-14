@@ -60,6 +60,8 @@ internal sealed class BTreeEditorHostServices : IEditorHostServices
     public ITypeSystem TypeSystem => _typeSystem;
     public ILinkValidator LinkValidator => _linkValidator;
     public IGraphCommandSink CommandSink => _commandSink;
+    /// <summary>⭐ CE-1276 — the one read-only gate (CE-1252): the canvas hides the authoring affordances on a code-built tree.</summary>
+    public bool IsReadOnly => _commandSink.IsReadOnly;
     public IPickerRegistry Pickers => _pickers;
     public IClipboard Clipboard => _clipboard;
     public IIconProvider Icons => _icons;
@@ -119,6 +121,7 @@ internal sealed class BTreeEditorHostServices : IEditorHostServices
         Action<IEditableAsset>? openAsset = null)
     {
         _nodeContextMenuProvider = new BTreeNodeContextMenuProvider(sink, model, asset, assetCatalog, openAsset);
+        if (_bpContextMenuProvider != null) _bpContextMenuProvider.Asset = asset;   // ⭐ CE-1324 — the gutter dot's menu finds the real node
     }
 
     /// <summary>
@@ -134,6 +137,23 @@ internal sealed class BTreeEditorHostServices : IEditorHostServices
     }
 
     INodeContextMenuProvider? IEditorHostServices.NodeContextMenu => _nodeContextMenuProvider;
+
+    // ---- Canvas context menu (⭐ CE-1368 "Reset layout") ───────────────────
+
+    private BTreeCanvasContextMenuProvider? _canvasContextMenuProvider;
+
+    /// <summary>Wires the empty-canvas menu ("Reset layout"). <paramref name="measure"/> is the canvas font's text width.</summary>
+    public void SetCanvasContextMenuProvider(IGraphCommandSink sink, BehaviorTreeAsset asset, Func<string, float> measure, Func<float> headerHeight)
+        => _canvasContextMenuProvider = new BTreeCanvasContextMenuProvider(asset, sink, measure, headerHeight);
+
+    /// <summary>Routes "Reset layout" through the view's undo stack; call after the <see cref="GraphView"/> exists.</summary>
+    public void SetCanvasContextMenuRecorder(GraphView view)
+    {
+        if (_canvasContextMenuProvider != null)
+            _canvasContextMenuProvider.Recorder = (fwd, inv, label) => view.Execute(fwd, inv, label);
+    }
+
+    ICanvasContextMenuProvider? IEditorHostServices.CanvasContextMenu => _canvasContextMenuProvider;
 
     // ---- Breakpoint toggle (AIE-033) ─────────────────────────────────────────
 

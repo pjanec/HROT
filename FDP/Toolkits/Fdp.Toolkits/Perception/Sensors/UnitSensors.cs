@@ -1,0 +1,198 @@
+using System;
+using Fdp.Core;
+using Fdp.Interfaces;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Spatial.Eqs;
+using Fdp.Toolkit.Tkb.Domain;
+
+namespace Fdp.Toolkit.Perception.Sensors
+{
+    /// <summary>
+    /// ⭐⭐ <b>How game AI finds and drives a unit's sensors</b> (R-185 L, R-187 N′; docs/DESIGN_Sensors_And_Doctrine.md §4).
+    /// ⛔ AI never enumerates children or knows part ids — it asks by KIND.
+    /// </summary>
+    public static class UnitSensors
+    {
+        /// <summary>The unit's sensor of <paramref name="kind"/> (the lowest part id when it has several), or <see cref="Entity.Null"/>.</summary>
+        public static Entity Of(ISimulationView view, Entity unit, SensorModality kind)
+        {
+            // ⭐ CE-2412 — the unit's parts, lowest part id first, from the shared parts index (it scanned every sensor of the world per
+            //   call: 📐 11.5 % of the CGF node's thread on the CE-2408 stress world, the SOPs' danger-area check). The first match wins.
+            if (view is EntityRepository r && !r.IsComponentTypeRegistered<SensorTag>()) return Entity.Null;
+            Span<Entity> parts = stackalloc Entity[64];
+            int n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(view, unit, parts);
+            if (n > parts.Length) { parts = new Entity[n]; n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(view, unit, parts); }
+            for (int k = 0; k < n; k++)
+                if (view.HasComponent<SensorTag>(parts[k]) && view.GetComponentRO<SensorTag>(parts[k]).Kind == kind) return parts[k];
+            return Entity.Null;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2071</c> (built by backend) — the unit's sensor running the query template <paramref name="blueprintId"/>,
+        /// whoever created it: the TKB, the unit's current behaviour run, or another run (a doctrine, a parent behaviour).
+        /// <see cref="Entity.Null"/> when none. 📄 docs/DESIGN_Decision_Layer.md §3.3.
+        /// <para>⭐ For READING a sensor someone else already runs — instead of spawning a second sensor with the same query.
+        /// Preference when several match, deterministic: the unit's CURRENT run's own sensor, then a TKB sensor (stable for
+        /// the unit's life), then any other, lowest part id within each.</para>
+        /// <para>⚠ A borrowed sensor is not yours: ① never cache the handle — a behaviour-owned sensor is destroyed the moment
+        /// its run ends (<c>BehaviorOwnedParts.Release</c>), so look it up each time and treat Null as normal; ② read only —
+        /// never <c>Configure</c> / refresh / destroy another run's sensor (a new epoch drops the owner's results).</para>
+        /// </summary>
+        public static Entity OfTemplate(ISimulationView view, Entity unit, uint blueprintId)
+
+        {
+
+            // ⭐ CE-4395 B-1 — timed (QueryTimings "sensors.UnitSensors.OfTemplate"; measurement only, the behaviour is the Core's)
+
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+
+            try { return OfTemplateCore(view, unit, blueprintId); }
+
+            finally { Fdp.Toolkit.Diagnostics.QueryTimings.End(S_OfTemplate, t0); }
+
+        }
+
+
+        private static readonly int S_OfTemplate = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("sensors.UnitSensors.OfTemplate");
+
+
+        private static Entity OfTemplateCore(ISimulationView view, Entity unit, uint blueprintId)
+        {
+            bool ownership = view is not EntityRepository repo
+                || (repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>()
+                    && repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorState>());
+            uint currentRun = ownership ? Fdp.Toolkit.Behavior.Components.BehaviorOwnedParts.OwnerOf(view, unit) : 0u;
+            bool tags = view is not EntityRepository r2 || r2.IsComponentTypeRegistered<SensorTag>();
+
+            Entity best = Entity.Null;
+            int bestRank = int.MaxValue, bestPart = int.MaxValue;
+            // ⭐ CE-2412 — the unit's parts from the shared parts index (lowest part id first), not a scan of every sensor of the world.
+            if (view is EntityRepository r3 && !r3.IsComponentTypeRegistered<EqsSensor>()) return Entity.Null;
+            Span<Entity> parts = stackalloc Entity[64];
+            int n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(view, unit, parts);
+            if (n > parts.Length) { parts = new Entity[n]; n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(view, unit, parts); }
+            for (int k = 0; k < n; k++)
+            {
+                var e = parts[k];
+                if (!view.HasComponent<EqsSensor>(e)) continue;
+                ref readonly var meta = ref view.GetComponentRO<PartMetadata>(e);
+                if (view.GetComponentRO<EqsSensor>(e).BlueprintId != blueprintId) continue;
+                int rank =
+                    currentRun != 0 && ownership && view.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(e)
+                        && view.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(e).OwnerInstanceId == currentRun ? 0
+                    : tags && IsTkb(view, e) ? 1
+                    : 2;
+                if (rank < bestRank || (rank == bestRank && meta.InstanceId < bestPart))
+                {
+                    best = e; bestRank = rank; bestPart = meta.InstanceId;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>The ranked results of the unit's <paramref name="kind"/> sensor (the EQS reader API: <c>IsReady</c>, <c>GetTop</c>, …).
+        /// ⚠ False both for "no sensor" and for "a sensor of another result family" — a reader that must tell them apart
+        /// (and fail loudly on the second) calls <see cref="ReadRanked"/>.</summary>
+        public static bool TryGetResults(ISimulationView view, Entity unit, SensorModality kind, out EqsCognitiveBuffer results)
+            => TryGetResults<EqsCognitiveBuffer>(view, unit, kind, out results);
+
+        /// <summary>
+        /// ⭐ <c>CE-3072</c> B0 (R-213) — the answer of the unit's <paramref name="kind"/> sensor in ITS OWN result type
+        /// <typeparamref name="T"/> (the kind's <see cref="SensorKindInfo.ResultComponent"/> — <c>DangerAreaCognitiveBuffer</c>
+        /// for <see cref="SensorModality.DangerArea"/>). False when the unit has no such sensor, or the sensor does not carry
+        /// <typeparamref name="T"/> — ⛔ never a cast from another family's result.
+        /// </summary>
+        public static bool TryGetResults<T>(ISimulationView view, Entity unit, SensorModality kind, out T results) where T : unmanaged
+        {
+            var sensor = Of(view, unit, kind);
+            if (sensor.IsNull || !view.HasComponent<T>(sensor)) { results = default; return false; }
+            results = view.GetComponentRO<T>(sensor);
+            return true;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3072</c> B0 — the RANKED reader's read, with the reason when there is no answer: <see cref="SensorReadStatus.NoSensor"/>,
+        /// <see cref="SensorReadStatus.NoAnswerYet"/>, or ⛔ <see cref="SensorReadStatus.WrongFamily"/> — the kind's sensor
+        /// answers in another family (<see cref="SensorKindRegistry.FamilyOf"/>), so a ranked node pointed at it must FAIL with
+        /// an error, not wait for ever (R-133; docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.4 guard row).
+        /// </summary>
+        public static SensorReadStatus ReadRanked(ISimulationView view, Entity unit, SensorModality kind, out EqsCognitiveBuffer results)
+        {
+            results = default;
+            if (SensorKindRegistry.FamilyOf(kind) != SensorResultFamily.Ranked) return SensorReadStatus.WrongFamily;
+            var sensor = Of(view, unit, kind);
+            if (sensor.IsNull) return SensorReadStatus.NoSensor;
+            if (!view.HasComponent<EqsCognitiveBuffer>(sensor)) return SensorReadStatus.WrongFamily;
+            results = view.GetComponentRO<EqsCognitiveBuffer>(sensor);
+            return results.IsReady ? SensorReadStatus.Ok : SensorReadStatus.NoAnswerYet;
+        }
+
+        /// <summary>
+        /// ⭐ R-187 N′ — switch a sensor ON or OFF (an off sensor costs nothing on the Muscle). On a TKB sensor this is an
+        /// OVERRIDE (it goes on the wire); <see cref="ClearOverride"/> returns it to its TKB default.
+        /// </summary>
+        public static void SetEnabled(EntityRepository repo, Entity sensor, bool enabled)
+        {
+            ref var s = ref repo.GetComponentRW<EqsSensor>(sensor);
+            if (s.Suspended == !enabled) return;   // already so — no override, no wire sample
+            s.Suspended = !enabled;
+            s.Epoch = EqsChildSensor.NextEpoch(s.Epoch);
+            if (IsTkb(repo, sensor) && !IsOverridden(repo, sensor)) SetPayload(repo, sensor, string.Empty);
+        }
+
+        /// <summary>
+        /// ⭐ R-186 M′ — give a sensor a new per-kind config (the TKB's own record). On a TKB sensor this is an override.
+        /// The template, radius and on/off follow <paramref name="config"/>; the epoch moves so older answers are dropped.
+        /// </summary>
+        public static void Configure(EntityRepository repo, Entity sensor, SensorEntryDto config)
+        {
+            ref var s = ref repo.GetComponentRW<EqsSensor>(sensor);
+            var next = SensorChildFactory.SensorFor(config);
+            s.BlueprintId  = next.BlueprintId;
+            s.SearchRadius = next.SearchRadius;
+            s.Suspended    = next.Suspended;
+            s.Epoch        = EqsChildSensor.NextEpoch(s.Epoch);
+            SetPayload(repo, sensor, SensorConfigCodec.Encode(config));
+            if (!repo.HasComponent<SensorTag>(sensor) && repo.IsComponentTypeRegistered<SensorTag>())
+                repo.AddComponent(sensor, new SensorTag { Kind = config.Kind });   // a behaviour-made sensor: UnitSensors.Of finds it by kind
+            var defaultEntry = repo.HasManagedComponent<SensorCapability>(sensor)
+                ? repo.GetManagedComponentRO<SensorCapability>(sensor).Default : config;
+            SensorChildFactory.SetCapability(repo, sensor, defaultEntry, config);
+        }
+
+        /// <summary>⭐ R-187 N′ — a TKB sensor back to its TKB default (the override ends; one "default" sample goes on the wire).</summary>
+        public static void ClearOverride(EntityRepository repo, Entity sensor)
+        {
+            if (!IsOverridden(repo, sensor)) return;
+            repo.RemoveComponent<SensorConfigPayload>(sensor);
+            if (!repo.HasManagedComponent<SensorCapability>(sensor)) return;
+            var def = repo.GetManagedComponentRO<SensorCapability>(sensor).Default;
+            ref var s = ref repo.GetComponentRW<EqsSensor>(sensor);
+            var restored = SensorChildFactory.SensorFor(def);
+            restored.Epoch        = EqsChildSensor.NextEpoch(s.Epoch);
+            restored.ContextSlot0 = s.ContextSlot0;
+            restored.ContextSlot1 = s.ContextSlot1;
+            restored.ContextSlot2 = s.ContextSlot2;
+            restored.ContextPoint1    = s.ContextPoint1;      // ⭐ CE-3063
+            restored.ContextPointMask = s.ContextPointMask;
+            s = restored;
+            SensorChildFactory.SetCapability(repo, sensor, def, def);
+        }
+
+        /// <summary>True when the sensor was built from the unit's TKB (part id ≥ <see cref="SensorChildFactory.FirstTkbPartId"/>).</summary>
+        public static bool IsTkb(ISimulationView view, Entity sensor)
+            => view.HasComponent<SensorTag>(sensor) && view.GetComponentRO<SensorTag>(sensor).FromTkb == 1;
+
+        /// <summary>True when a TKB sensor carries an override (its wire sample is live).</summary>
+        public static bool IsOverridden(ISimulationView view, Entity sensor)
+            => view.HasManagedComponent<SensorConfigPayload>(sensor);
+
+        private static void SetPayload(EntityRepository repo, Entity sensor, string json)
+        {
+            repo.RegisterManagedComponent<SensorConfigPayload>();   // idempotent
+            repo.SetManagedComponent(sensor, new SensorConfigPayload { Kind = SensorConfigCodec.KindSensorEntry, Json = json });
+        }
+    }
+}

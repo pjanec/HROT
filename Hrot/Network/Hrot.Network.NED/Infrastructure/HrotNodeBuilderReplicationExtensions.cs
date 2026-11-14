@@ -8,6 +8,7 @@ using Fdp.Interfaces;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Lifecycle;
 using System.Collections.Generic;
+using Fdp.Core;
 
 namespace Hrot.Network.Infrastructure;
 
@@ -66,19 +67,21 @@ public sealed class HrotNodeBuilderWithReplication
     /// <summary>
     /// Builds the node context AND constructs <see cref="NedReplicationModule"/>, returning an
     /// <see cref="HrotNodeContext"/> where <see cref="HrotNodeContext.NedReplication"/> is non-null.
-    /// When the role is <see cref="NodeRole.None"/>, no <see cref="NedReplicationModule"/> is
-    /// constructed and the returned context has <c>NedReplication = null</c>.
+    /// ⭐ R-4057: the module is built for EVERY role on a networked node. Only a <see cref="NodeRole.None"/> node with no
+    /// participant (headless/test) skips it, and then the returned context has <c>NedReplication = null</c> unless the
+    /// factory supplies an offline module.
     /// </summary>
     public HrotNodeContext Build()
     {
         // Calls the native HrotNodeBuilder.Build() instance method.
         var context = _builder.Build();
 
-        // NodeRole.None = headless/test node with no replication role — skip NedReplicationModule
-        // construction (which throws ArgumentException for None). However, if the factory provides
-        // a mock/offline IReplicationModule via CreateReplicationModule(), wire that up so that
-        // tests using MockNedFactory still get a non-null context.NedReplication.
-        if (_skipForNone)
+        // ⭐⭐ R-4057 (CE-4013 D14) — a NETWORKED node replicates whatever its role, NodeRole.None included (R-4005: None
+        //   means "plays no role", not "is not networked"). ⛔ Was: None always skipped (test-health D-7), because the ctor threw
+        //   for it. Only a None node with NO participant — a headless/test node — still skips; if its factory provides a
+        //   mock/offline IReplicationModule via CreateReplicationModule(), that is wired up so tests using MockNedFactory still
+        //   get a non-null context.NedReplication.
+        if (_skipForNone && context.Participant == null)
         {
             var factoryModule = _builder.NetworkFactory?.CreateReplicationModule()
                                     as INedReplicationModule;
@@ -104,7 +107,6 @@ public sealed class HrotNodeBuilderWithReplication
             participant:          context.Participant,
             role:                 _role,
             entityMap:            context.EntityMap,
-            geoTransform:         HrotEnvironment.CreateGeoTransform(),
             // Use world.Bus so that events published by EntityMasterIngressTranslator.ProcessDispose()
             // during the Input kernel phase are made visible to GhostDestructionSystem (PostSimulation)
             // via view.ReadManagedEvents<T>() after the kernel's internal Bus.SwapBuffers().
@@ -114,7 +116,13 @@ public sealed class HrotNodeBuilderWithReplication
             behaviorRegistry:     _behaviorRegistry,
             tkbDb:                HrotEnvironment.CreateTkb(),
             lifecycleModule:      elm,
-            tkbEntityTranslators: _translators);
+            tkbEntityTranslators: _translators,
+            // ⭐⭐⭐ CE-291 (piece C) — hand the module a cluster-state cache so it hosts the shared
+            //    cluster-membership ingest + the reliable-init wait-set provider on THIS builder path too
+            //    (SimHost / Stride use .WithReplication, not the factory's CreateReplicationModule). Without
+            //    it, a SimHost/Stride creator had ExpectedPeers=null and never engaged the barrier. 🔒 User
+            //    ruling 2026-09-16: no node-centric gating. 📄 DESIGN_Cross_Node_Construction_Barrier.md §3a.4.
+            clusterCache:         new Hrot.Network.Routing.SimpleClusterStateCache());
 
         return context with
         {
@@ -131,13 +139,31 @@ public sealed class HrotNodeBuilderWithReplication
 public static class HrotNodeBuilderReplicationExtensions
 {
     /// <summary>
+    /// ⭐ CE-4013 D17 — THE replicated ECS node's context, one place: the role, the network factory, NED replication for the role and the
+    /// behaviour registry. 📐 It was written identically in four <c>BuildContext</c> overrides (SimHost, IG, Stride, Traffic); the
+    /// shared bootstrapper base cannot hold it because <c>Hrot.Common</c> cannot see NED, so the one copy lives here, beside
+    /// <see cref="WithReplication"/>. 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1ae.
+    /// </summary>
+    /// <remarks>⭐ CE-1446 B0 — <paramref name="timeRole"/> (default <see cref="TimeRole.Slave"/>, what every host got) is the ONE way a host that owns its clock (the editor: Standalone) says so;
+    /// a subclass passes its <c>SharedApplicationBootstrapper.TimeRole</c>, which the base then verifies against <c>HrotNodeContext.TimeRole</c>.</remarks>
+    public static HrotNodeContext BuildReplicatedNode(HrotNodeConfig config, NodeRole role, Hrot.Core.Network.INetworkFactory? networkFactory,
+                                                      BehaviorRegistry? behaviorRegistry,
+                                                      Fdp.Toolkit.Time.Controllers.TimeRole timeRole = Fdp.Toolkit.Time.Controllers.TimeRole.Slave)
+        => new HrotNodeBuilder(config)
+            .WithRole(config.SubsystemName, role)
+            .WithTimeRole(timeRole)
+            .WithNetworkFactory(networkFactory)
+            .WithReplication(role)
+            .WithBehaviorRegistry(behaviorRegistry)
+            .Build();
+
+    /// <summary>
     /// Configures NED replication for the given node role.
     /// Returns a <see cref="HrotNodeBuilderWithReplication"/> whose <see cref="HrotNodeBuilderWithReplication.Build"/>
     /// constructs both the base context and the <see cref="NedReplicationModule"/>.
     /// <para>
-    /// When <paramref name="role"/> is <see cref="NodeRole.None"/>, returns a no-op builder that
-    /// calls <see cref="HrotNodeBuilder.Build"/> without constructing a <see cref="NedReplicationModule"/>.
-    /// This is the correct behaviour for headless/test nodes that have no replication role.
+    /// ⭐ R-4057: every role replicates on a networked node. A <see cref="NodeRole.None"/> node with NO participant
+    /// (headless/test) builds without a <see cref="NedReplicationModule"/>.
     /// </para>
     /// </summary>
     public static HrotNodeBuilderWithReplication WithReplication(
@@ -170,7 +196,6 @@ public static class HrotNodeBuilderReplicationExtensions
             participant:      participant,
             role:             role,
             entityMap:        context.EntityMap,
-            geoTransform:     HrotEnvironment.CreateGeoTransform(),
             eventBus:         context.World.Bus,
             localNodeId:      context.NodeId,
             domainId:         0,

@@ -1,0 +1,10 @@
+{
+ "title": "Director check — three scenarios, live or to film",
+ "transition": "card",
+ "note": "CE-4038 — the film director's integration reel (scripts/director-check.py): three takes from three scenarios with fixed times only, each trimmed short",
+ "items": [
+  {"scenario": "bt-doors", "take": "main", "title": "Doors", "to": 24},
+  {"scenario": "ua-civ-gathering", "take": "main", "title": "Onlookers", "to": 17},
+  {"scenario": "ua-fast-rope-roof", "take": "main", "title": "Down the rope", "to": 23}
+ ]
+}

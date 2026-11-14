@@ -500,7 +500,7 @@ Add these to `FDP.Toolkit.Orchestration/Events/ClusterCqrsEvents.cs`:
 
 ```
 [EventId(9016)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct SystemStateUpdateEvent
 {
     public ClusterState CurrentState;
@@ -510,7 +510,7 @@ public struct SystemStateUpdateEvent
 }
 
 [EventId(9017)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct AssetInventoryUpdateEvent
 {
     public string[] LocalScenarios;

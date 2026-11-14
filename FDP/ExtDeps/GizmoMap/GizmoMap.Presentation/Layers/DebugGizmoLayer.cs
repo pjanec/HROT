@@ -29,8 +29,22 @@ namespace GizmoMap.Presentation
 
         // Context menu presenter (ImGui popup).
         private readonly ContextMenuAdapter _contextMenuAdapter = new();
+
+        /// <summary>
+        /// ⭐ CE-2387 (T6; docs/DESIGN_Evaluation_Cost_And_Cadence.md §5 C3, R-2083) — the ENTITY menu, built when the user right-clicks: the host turns
+        /// the picked network id into the menu JSON (null = no menu). 🔒 User, <c>2026-08-10</c>: <i>"Serialise on right-click, not per <c>Draw</c>"</i>
+        /// (docs/UX/UX_Feature_Cross_Surface_Actions.md:158). A <c>ContextMenuBinding</c> primitive for the id still wins (a route / vertex gizmo's own menu).
+        /// </summary>
+        public Func<long, string?>? MenuResolver { get; set; }
         private Vector2 _rightPressScreenPos;
         private bool _rightWasDragged;
+
+        // ⭐⭐⭐ CE-259n — a raw RELEASE is only delivered when its own PRESS was (see RawButtonGate).
+        //   ⛔ Per button, and held across frames: "is a press of THIS button outstanding" is not a
+        //   per-frame fact. Without these, a right-click on an ImGui PANEL ended a map gizmo, because the
+        //   press was correctly withheld and the release was sent anyway.
+        private RawButtonGate _leftRaw;
+        private RawButtonGate _rightRaw;
         private const float RightDragThresholdSq = 25f;
 
         // Main menu aggregator: collects MainMenuBinding primitives each frame.
@@ -95,25 +109,58 @@ namespace GizmoMap.Presentation
         /// <param name="camera">Current camera used to convert screen pixels to world space.</param>
         /// <param name="onInteraction">
         /// Optional callback invoked with the pick token, event kind, world position, actionId,
-        /// and stateFlags. For non-RawInput events actionId=0 and stateFlags=0.
+        /// and stateFlags.
         /// For RawInput: actionId=(int)MapMouseButton or (int)MapKeyboardKey;
         /// stateFlags bit7=1 mouse/0 keyboard, bit0=1 pressed/0 released.
+        /// For Started: actionId=(int)MapMouseButton — WHICH BUTTON began the interaction. Left is 0,
+        /// so a producer that does not set it reads as Left, which is what every left-press path is.
+        /// A consumer needs this because right-click and left-click have DIFFERENT selection rules
+        /// (see UX_Feature_Selection.md §2.3); without it the two gestures are indistinguishable here.
+        /// For DragUpdate/Commit/Cancel actionId=0 and stateFlags=0.
         /// </param>
+        /// <summary>⭐ CE-1033 S2 — the height of the drag point this frame, handed to the active proxy tool.</summary>
+        private float _dragZ;
+
         public void HandleInput(
             ReadOnlySpan<DebugPrimitive> primitives,
             StringInternMap internMap,
             Camera2D camera,
-            Action<GizmoPickToken, GizmoInteractionEventKind, Vector3, int, byte>? onInteraction = null)
+            Action<GizmoPickToken, GizmoInteractionEventKind, Vector3, int, byte>? onInteraction = null,
+            Func<Vector2, bool, Vector3>? screenToWorld = null,
+            Func<Vector3, float>? zoomAt = null,
+            Func<int>? nextTypedKey = null,
+            bool? keyboardCaptured = null,
+            Func<long, bool>? rayOnlyAnchor = null)
         {
             var screenPos = Raylib.GetMousePosition();
-            var worldPos  = Raylib.GetScreenToWorld2D(screenPos, camera);
-            var worldPos3 = new Vector3(worldPos.X, worldPos.Y, 0f);
+            // ⭐ CE-1033 S2 (M19) — a host camera that knows height (the 3-D map) answers screen → world itself: the PICK point for
+            //   presses and hovers, the TERRAIN point for drags (P2). Without one, the 2-D math at Z = 0 — byte-identical to before.
+            var worldPos3 = screenToWorld?.Invoke(screenPos, false)
+                            ?? new Vector3(Raylib.GetScreenToWorld2D(screenPos, camera), 0f);
+            var worldPos  = new Vector2(worldPos3.X, worldPos3.Y);
+            var dragPos3  = screenToWorld?.Invoke(screenPos, true) ?? worldPos3;
+            var dragPos   = new Vector2(dragPos3.X, dragPos3.Y);
+            _dragZ = dragPos3.Z;
+            float pickZoom = zoomAt?.Invoke(worldPos3) ?? camera.Zoom;
             var delta = Raylib.GetMouseDelta();
             
             // FIX: Respect ImGui hardware capture state
             bool isMouseCaptured = ImGuiNET.ImGui.GetIO().WantCaptureMouse;
-            bool isKeyboardCaptured = ImGuiNET.ImGui.GetIO().WantCaptureKeyboard;
+            // ⭐ B-10 K1 (HROT docs/UX/DESIGN_Input_And_Commands.md §5a) — a host that knows who has the keyboard (the map, or a focused
+            //   panel) says so; standalone, ImGui's own capture.
+            bool isKeyboardCaptured = keyboardCaptured ?? ImGuiNET.ImGui.GetIO().WantCaptureKeyboard;
 
+            // ⭐⭐⭐ S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — THE CAPTURE BINDING IS KEYED BY ONE ID.
+            //   ⛔ HISTORY, and it is why the generation is no longer read here. S0 first patched the
+            //     filter to compare (value, generation) because the comparison used only the VALUE, so a
+            //     click leaked past an exclusive tool to whichever entity's ECS index equalled the active
+            //     tool's id -- GlobalGizmoManager keyed its binding by a TOOL id from NewId() (1, 2, 3...)
+            //     while an entity pick box routed its ECS AnchorIndex, the same small-integer range.
+            //   ⭐ S5 removed the CAUSE instead: identity is now the network id on both sides
+            //     (DebugPrimitive.BoxAnchorId / InputCaptureBinding.StructNetworkId), and tool ids are
+            //     allocated from a DISJOINT high range (GlobalGizmoManager.ToolAnchorIdBase, §6.1).
+            //   ⇒ one id space, one comparison. Re-adding a generation term would reintroduce the
+            //     two-domain thinking this step deleted.
             long? exclusiveAnchorId = null;
             bool routeRawInput = false;
             var captureToken = default(GizmoPickToken);
@@ -122,13 +169,13 @@ namespace GizmoMap.Presentation
             {
                 ref readonly var prim = ref primitives[i];
                 if (prim.Shape != DebugPrimitiveShape.InputCaptureBinding) continue;
-                if ((prim.ConditionMask & 1u) != 0) exclusiveAnchorId = prim.StructNetworkId;
+                if ((prim.ConditionMask & 1u) != 0)
+                    exclusiveAnchorId = prim.StructNetworkId;
                 if ((prim.ConditionMask & 2u) != 0) routeRawInput = true;
                 captureToken = new GizmoPickToken
                 {
-                    AnchorId = prim.StructNetworkId,
+                    AnchorId     = prim.StructNetworkId,   // ⭐ S5 — IDENTITY: network id (or a tool id)
                     SubElementId = prim.SubElementId,
-                    StreamId = prim.AnchorGeneration,
                 };
                 break;
             }
@@ -158,27 +205,15 @@ namespace GizmoMap.Presentation
             // Gate activation: ignore if ImGui is capturing the mouse
             if (_activeTool == null && !isMouseCaptured && Raylib.IsMouseButtonPressed(MouseButton.Left))
             {
-                var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom, exclusiveAnchorId);
+                var best = FindTopmostInteractivePrimitive(primitives, worldPos, pickZoom, exclusiveAnchorId, rayOnlyAnchor);
                 if (best.HasValue)
                 {
                     var hit = best.Value;
                     
-                    // We multiplex two distinct addressing domains inside the fixed 64-byte payload.
-                    // If AnchorGeneration != 0, the primitive is bound to a live local ECS entity. We route the
-                    // local AnchorIndex so the engine can reconstruct the exact ECS memory handle.
-                    // If AnchorGeneration == 0, the primitive is a stateless tool handle or remote network object.
-                    // We fall back to the 64-bit BoxAnchorId to route the global network ID or tool ID.
-                    long anchorId = hit.AnchorGeneration != 0 ? hit.AnchorIndex : hit.BoxAnchorId;
-                    
-                    var token = new GizmoPickToken
-                    {
-                        AnchorId = anchorId,
-                        SubElementId = hit.SubElementId,
-                        StreamId = hit.AnchorGeneration,
-                        GizmoTypeId = hit.GizmoTypeId,
-                    };
+                    var token = MakePickToken(in hit);
                     _activeTool = new GizmoInteractionProxyTool(
-                        token, worldPos, onInteraction, onExit: () => _activeTool = null, hit.Space);
+                        token, worldPos, onInteraction, onExit: () => _activeTool = null, hit.Space,
+                        initialZ: worldPos3.Z, height: () => _dragZ);
                     _activeTool.HandlePress(worldPos, MouseButton.Left);
                 }
                 else if (!exclusiveAnchorId.HasValue)
@@ -186,7 +221,8 @@ namespace GizmoMap.Presentation
                     // Canvas fallback to allow selection-rect interactions.
                     _activeTool = new GizmoInteractionProxyTool(
                         default, worldPos,
-                        onInteraction, onExit: () => _activeTool = null);
+                        onInteraction, onExit: () => _activeTool = null,
+                        initialZ: worldPos3.Z, height: () => _dragZ);
                     _activeTool.HandlePress(worldPos, MouseButton.Left);
                 }
             }
@@ -203,26 +239,38 @@ namespace GizmoMap.Presentation
                 {
                     long hitNetworkId = -1L; // canvas anchor fallback
 
-                    var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom, exclusiveAnchorId);
+                    var best = FindTopmostInteractivePrimitive(primitives, worldPos, pickZoom, exclusiveAnchorId, rayOnlyAnchor);
                     if (best.HasValue)
                     {
                         var hit = best.Value;
                         hitNetworkId = hit.BoxAnchorId != 0 ? hit.BoxAnchorId : -1L;
-                        
-                        long anchorId = hit.AnchorGeneration != 0 ? hit.AnchorIndex : hit.BoxAnchorId;
-                        
-                        var token = new GizmoPickToken
-                        {
-                            AnchorId = anchorId,
-                            SubElementId = hit.SubElementId,
-                            StreamId = hit.AnchorGeneration,
-                            GizmoTypeId = hit.GizmoTypeId,
-                        };
-                        onInteraction?.Invoke(token, GizmoInteractionEventKind.Started, worldPos3, 0, 0);
+
+                        var token = MakePickToken(in hit);
+                        // Tag the button. Previously this passed 0 -- i.e. Left -- so a consumer could not
+                        // tell a right-click from a left one and had to treat both the same. That made
+                        // right-clicking a member of a multi-selection collapse the selection, which
+                        // UX_Feature_Selection.md §2.3 forbids. No new field: actionId already exists on
+                        // this callback and already carries a MapMouseButton for RawInput below.
+                        onInteraction?.Invoke(token, GizmoInteractionEventKind.Started, worldPos3,
+                            (int)MapMouseButton.Right, 0);
+                    }
+                    else if (!exclusiveAnchorId.HasValue)
+                    {
+                        // Empty-space right-click. This emitted NOTHING before, so a consumer had no way
+                        // to learn the operator had clicked the canvas and §2.3's "right-click empty space
+                        // clears the selection" row could not be implemented at all. The token is default
+                        // (an invalid pick) -- the same signal the left-press canvas fallback uses -- and
+                        // the button distinguishes it from that one, which means "begin a rubber band".
+                        //
+                        // The exclusive guard mirrors the one below: while a tool holds exclusive capture,
+                        // a click away from its anchor is suppressed (hitNetworkId is forced to 0 so no
+                        // menu opens). Emitting a canvas clear here would bypass that and deselect the
+                        // entity being edited -- UX_Feature_Selection.md §2.6 rules the opposite.
+                        onInteraction?.Invoke(default, GizmoInteractionEventKind.Started, worldPos3,
+                            (int)MapMouseButton.Right, 0);
                     }
 
-                    if (exclusiveAnchorId.HasValue && hitNetworkId != exclusiveAnchorId.Value)
-                        hitNetworkId = 0;
+                    hitNetworkId = ResolveMenuAnchor(exclusiveAnchorId, hitNetworkId, menuBindings.ContainsKey);
 
                     if (hitNetworkId != 0 && hitNetworkId != -1L && menuBindings.TryGetValue(hitNetworkId, out uint menuHash))
                     {
@@ -232,6 +280,11 @@ namespace GizmoMap.Presentation
                             _contextMenuAdapter.Schedule(hitNetworkId, json);
                             contextMenuOpened = true;
                         }
+                    }
+                    else if (hitNetworkId != 0 && hitNetworkId != -1L && MenuResolver?.Invoke(hitNetworkId) is { } built)   // ⭐ CE-2387 — built now, for the one entity clicked
+                    {
+                        _contextMenuAdapter.Schedule(hitNetworkId, built);
+                        contextMenuOpened = true;
                     }
                     else if (hitNetworkId == -1L && menuBindings.TryGetValue(-1L, out uint canvasHash))
                     {
@@ -253,14 +306,14 @@ namespace GizmoMap.Presentation
                 if (Raylib.IsMouseButtonDown(MouseButton.Left))
                 {
                     if (delta.X != 0f || delta.Y != 0f)
-                        _activeTool.HandleDrag(worldPos, delta);
+                        _activeTool.HandleDrag(dragPos, delta);
                 }
 
                 if (Raylib.IsMouseButtonReleased(MouseButton.Left))
-                    _activeTool.HandleClick(worldPos, MouseButton.Left);
+                    _activeTool.HandleClick(dragPos, MouseButton.Left);
 
                 if (Raylib.IsMouseButtonReleased(MouseButton.Right))
-                    _activeTool.HandleClick(worldPos, MouseButton.Right);
+                    _activeTool.HandleClick(dragPos, MouseButton.Right);
 
                 if (!isKeyboardCaptured && Raylib.IsKeyPressed(KeyboardKey.Escape))
                     _activeTool.HandleKeyPressed(KeyboardKey.Escape);
@@ -268,7 +321,7 @@ namespace GizmoMap.Presentation
 
             if ((exclusiveAnchorId.HasValue || routeRawInput) && (delta.X != 0f || delta.Y != 0f))
             {
-                onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.DragUpdate, worldPos3, 0, 0);
+                onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.DragUpdate, dragPos3, 0, 0);
             }
 
             if (routeRawInput)
@@ -286,33 +339,46 @@ namespace GizmoMap.Presentation
                     modifiers |= (int)MapKeyboardKey.AltMask;
 
                 // Only send raw PRESSED events if ImGui doesn't want the mouse...
-                if (!isMouseCaptured && Raylib.IsMouseButtonPressed(MouseButton.Left))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapMouseButton.Left | modifiers, 0x81);
-                // ...but ALWAYS send released events to prevent stuck backend input queues.
+                if (Raylib.IsMouseButtonPressed(MouseButton.Left))
+                {
+                    if (_leftRaw.OnPress(isMouseCaptured))
+                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                            worldPos3, (int)MapMouseButton.Left | modifiers, 0x81);
+                }
+                // ...and send the release whenever ITS OWN PRESS was delivered — wherever the pointer has
+                // since travelled. ⭐ That still prevents the stuck backend input queue the original
+                // comment guarded (press on map, release over a panel ⇒ delivered), ⛔ while no longer
+                // handing a gizmo a release it never earned (press swallowed by a panel ⇒ suppressed).
+                //   🔴 CE-259n: VertexEditGizmo treats a right-RELEASE as "commit and exit", so an
+                //   unpaired one destroyed the edit on any panel right-click.
                 else if (Raylib.IsMouseButtonReleased(MouseButton.Left))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapMouseButton.Left | modifiers, 0x80);
+                {
+                    if (_leftRaw.OnRelease())
+                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                            worldPos3, (int)MapMouseButton.Left | modifiers, 0x80);
+                }
 
-                if (!isMouseCaptured && Raylib.IsMouseButtonPressed(MouseButton.Right))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapMouseButton.Right | modifiers, 0x81);
-                else if (!contextMenuOpened && Raylib.IsMouseButtonReleased(MouseButton.Right))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapMouseButton.Right | modifiers, 0x80);
+                if (Raylib.IsMouseButtonPressed(MouseButton.Right))
+                {
+                    if (_rightRaw.OnPress(isMouseCaptured))
+                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                            worldPos3, (int)MapMouseButton.Right | modifiers, 0x81);
+                }
+                else if (Raylib.IsMouseButtonReleased(MouseButton.Right))
+                {
+                    // ⚠ !contextMenuOpened is PRESERVED: the map's own canvas menu consumes the release.
+                    if (_rightRaw.OnRelease() && !contextMenuOpened)
+                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                            worldPos3, (int)MapMouseButton.Right | modifiers, 0x80);
+                }
 
                 // ---- Generic Input Queue ----
-                // Raylib's GetKeyPressed() only queues *printable character presses*.
-                // We stream these blindly over the boundary.
-                int key;
-                while ((key = Raylib.GetKeyPressed()) != 0)
-                {
-                    if (!isKeyboardCaptured)
-                    {
-                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                            worldPos3, key | modifiers, 0x01);
-                    }
-                }
+                // Every key PRESS this frame (Raylib queues all of them, Escape included) is streamed over the boundary.
+                // ⭐ CE-3175 — the queue has ONE reader per frame. A host whose MapCanvas already drained it (to route keys to
+                //   its layers) hands the keys on through nextTypedKey; without that, this read found an empty queue and every
+                //   key press — Escape on a backend tool among them — was lost. Standalone (no canvas): Raylib's own queue.
+                StreamTypedKeys(nextTypedKey ?? Raylib.GetKeyPressed, isKeyboardCaptured, modifiers,
+                    key => onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput, worldPos3, key, 0x01));
 
                 // =====================================================================
                 // HARDWARE ABSTRACTION WORKAROUND: STRUCTURAL KEY POLLING
@@ -368,6 +434,35 @@ namespace GizmoMap.Presentation
         /// <c>rlImGui.Begin()</c>/<c>rlImGui.End()</c> block to merge gizmo-provided menus
         /// with the host application menu bar.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-3175</c> — drains <paramref name="nextKey"/> (always — a key read is a key consumed) and, unless the keyboard is
+        /// captured by a text field, emits each press with this frame's modifier bits. Apart from Raylib so a headless rail can drive it.
+        /// </summary>
+        public static int StreamTypedKeys(Func<int> nextKey, bool isKeyboardCaptured, int modifiers, Action<int> emit)
+        {
+            int key, sent = 0;
+            while ((key = nextKey()) != 0)
+            {
+                if (isKeyboardCaptured) continue;
+                emit(key | modifiers);
+                sent++;
+            }
+            return sent;
+        }
+
+        /// <summary>
+        /// ⭐ B-17 P2 (📄 docs/UX/DESIGN_Map_Interaction.md §2.5, D11) — whose menu a right-click opens. Without an exclusive tool: the hit anchor (or the
+        /// canvas, -1). While a tool holds exclusive capture, a click on something else is suppressed (0) — as before — EXCEPT a click on open map: that opens
+        /// the capturing tool's OWN menu when it bound one (the drawing menu: Finish · Remove last point · Cancel). ⛔ Right-click no longer finishes or cancels
+        /// a drawing; this is where it opens its menu instead. Pure, so a rail drives it without Raylib.
+        /// </summary>
+        public static long ResolveMenuAnchor(long? exclusiveAnchorId, long hitNetworkId, Func<long, bool> hasMenuBinding)
+        {
+            if (!exclusiveAnchorId.HasValue) return hitNetworkId;
+            if (hitNetworkId == -1L && hasMenuBinding(exclusiveAnchorId.Value)) return exclusiveAnchorId.Value;
+            return hitNetworkId != exclusiveAnchorId.Value ? 0 : hitNetworkId;
+        }
+
         public IReadOnlyList<ContextMenuItemDto> ConsumeMainMenu() => _mainMenuAdapter.ConsumeItems();
 
         /// <summary>
@@ -398,18 +493,122 @@ namespace GizmoMap.Presentation
                 onMenuAction?.Invoke(new GizmoPickToken { AnchorId = anchorId }, actionId));
         }
 
-        public void DrawStructInspector(Action<long, uint, string>? onStructUpdate = null)
+        public void DrawStructInspector(Action<long, uint, string>? onStructUpdate = null, Action<long, uint>? onClosed = null)
         {
-            _renderer.DrawStructInspector(onStructUpdate);
+            _renderer.DrawStructInspector(onStructUpdate, onClosed);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The UNFILTERED spatial hit-test — <c>CE-259p</c>.</b>
+        /// 📄 <c>docs/UX/UX_Feature_Tool_Model.md</c> §4.7g.
+        ///
+        /// <para>🔴 <b>Why this is public:</b> <c>IMapLayer.PickEntity</c> is implemented as <c>=> null</c>
+        /// by <b>every</b> production layer in the repo, so <c>MapCanvas.PickTopmostEntity</c> always
+        /// yielded <c>null</c> and <c>EntityPickerGizmo</c> — whose whole pick arm is gated on that
+        /// hit-test — could never pick anything. Meanwhile the terminal has had a real, working hit-test
+        /// all along: <c>FindTopmostInteractivePrimitive</c>, the one that makes ordinary SELECTION work.
+        /// ⇒ ⭐ this exposes the LIVE mechanism instead of adding a second one (seam law).</para>
+        ///
+        /// <para>⭐⭐ <b>Deliberately UNFILTERED by the capture binding.</b> A picker holds exclusive focus,
+        /// and <see cref="HandleInput"/> uses <c>exclusiveAnchorId</c> so that nothing ELSE starts an
+        /// interaction underneath it. ⛔ But the picker itself must be able to see what it is pointing at —
+        /// that is its entire job. ⇒ *"only the capture holder receives interactions"* and *"the capture
+        /// holder may hit-test"* are compatible, and conflating them is what made the picker blind.</para>
+        ///
+        /// <para>⭐⭐⭐ <b>§6.7, 2026-09-11 — RETURNS THE NETWORK ID.</b> ⛔ It used to return
+        /// <c>(int Index, ushort Generation)</c> — the hit primitive's ECS handle, which the caller turned
+        /// straight back into an <c>Entity</c>. ⇒ a process-local handle crossing an assembly boundary
+        /// that exists to be ECS-free. Now it answers with the anchor's IDENTITY and the caller resolves
+        /// it in its own world (📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7).</para>
+        ///
+        /// <para>⚠ Yields a result only for a primitive carrying a real anchor id
+        /// (<c>BoxAnchorId != 0</c>). ⛔ A sub-element-only handle yields <see langword="null"/> rather
+        /// than a fabricated identity. ⚠ A TOOL id (≥ <c>1&lt;&lt;40</c>, the disjoint range of §6.1) is
+        /// returned as-is and simply resolves to no entity — which is the correct answer for it.</para>
+        ///
+        /// <para>⛔ <b>Returns an id, not an <c>Entity</c>, on purpose:</b> this project is deliberately
+        /// decoupled from <c>Fdp.Core</c> (see the type header).</para>
+        /// </summary>
+        public static long? PickTopmostAnchorId(
+            ReadOnlySpan<DebugPrimitive> primitives, Vector2 worldPos, float zoom)
+        {
+            var best = FindTopmostInteractivePrimitive(primitives, worldPos, zoom, exclusiveAnchorId: null);
+            if (!best.HasValue) return null;
+
+            long id = best.Value.BoxAnchorId;
+            return id != 0 ? id : (long?)null;
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — ONE ID, AND IT IS THE NETWORK ID.</b>
+        /// The single place a hit primitive becomes a <see cref="GizmoPickToken"/>.
+        ///
+        /// <para>⛔ Both call sites in <see cref="HandleInput"/> used to build the token inline as
+        /// <c>anchorId = AnchorGeneration != 0 ? AnchorIndex : BoxAnchorId</c> — a PROCESS-LOCAL ECS index
+        /// in a field <c>GizmoPickToken.cs:8</c> documents as a *"NetworkId / semantic object id"*. That is
+        /// defect <c>D2</c> of the design, and having it written twice is how the left-press arm kept the
+        /// old behaviour after the right-click arm was fixed.</para>
+        ///
+        /// <para>⭐⭐ <b>§6.7, 2026-09-11 — THE ECS PAYLOAD IS GONE.</b> This used to also copy
+        /// <c>hit.AnchorIndex</c> and <c>hit.AnchorGeneration</c> into the token so a consumer could
+        /// rebuild an <c>Entity</c> with no lookup. ⛔ The token now carries <b>only</b> the network id;
+        /// each consumer resolves it in its own world. See <c>GizmoPickToken.cs</c> for why the payload's
+        /// justification did not survive measurement.</para>
+        ///
+        /// <para>⭐ Public so a rail can assert it without a live window — <see cref="HandleInput"/> needs
+        /// Raylib. ⛔ A test that RE-IMPLEMENTS this is blind to exactly the bug above.</para>
+        /// </summary>
+        public static GizmoPickToken MakePickToken(in DebugPrimitive hit) => new GizmoPickToken
+        {
+            AnchorId     = hit.BoxAnchorId,        // ⭐ IDENTITY: the network id (or a disjoint tool id)
+            SubElementId = hit.SubElementId,
+            GizmoTypeId  = hit.GizmoTypeId,
+        };
+
+        /// <summary>⭐ Test seam: the disjoint tool-anchor-id range (§6.1), without a Fdp.Toolkits reference.</summary>
+        public static long ToolCaptureIdForTests(int n) => (1L << 40) + n;
+
+        /// <summary>
+        /// ⭐⭐ <b>Test seam for the exclusive-capture filter (S0/S5).</b> Mirrors
+        /// <see cref="PickTopmostAnchorId"/> -- which exists for the same reason -- but lets a rail
+        /// supply the capture binding that <see cref="HandleInput"/> would have scanned out of the frame.
+        ///
+        /// <para>⛔ Without this the filter is unreachable from a test: the public entry point hard-codes
+        /// <c>exclusiveAnchorId: null</c> and <see cref="HandleInput"/> needs a live window.</para>
+        /// </summary>
+        public static long? PickTopmostAnchorIdUnderCapture(
+            ReadOnlySpan<DebugPrimitive> primitives, Vector2 worldPos, float zoom,
+            long? exclusiveAnchorId)
+        {
+            var best = FindTopmostInteractivePrimitive(primitives, worldPos, zoom, exclusiveAnchorId);
+            if (!best.HasValue) return null;
+
+            long id = best.Value.BoxAnchorId;
+            return id != 0 ? id : (long?)null;
+        }
+
+        /// <summary>
+        /// ⭐ CE-1466 — test seam for the 3-D press: <see cref="PickTopmostAnchorId"/> with the camera's <paramref name="rayOnlyAnchor"/> rule (an anchor
+        /// whose body the 3-D view DRAWS is hit only when the camera's ray hit that body). ⛔ <see cref="HandleInput"/> needs a live window.
+        /// </summary>
+        public static long? PickTopmostAnchorIdIn3D(
+            ReadOnlySpan<DebugPrimitive> primitives, Vector2 worldPos, float zoom, Func<long, bool> rayOnlyAnchor)
+        {
+            var best = FindTopmostInteractivePrimitive(primitives, worldPos, zoom, exclusiveAnchorId: null, rayOnlyAnchor);
+            if (!best.HasValue) return null;
+            long id = best.Value.BoxAnchorId;
+            return id != 0 ? id : (long?)null;
         }
 
         private static DebugPrimitive? FindTopmostInteractivePrimitive(
             ReadOnlySpan<DebugPrimitive> primitives,
             Vector2 testPos,
             float zoom,
-            long? exclusiveAnchorId = null)
+            long? exclusiveAnchorId = null,
+            Func<long, bool>? rayOnlyAnchor = null)
         {
             DebugPrimitive? best = null;
+            float bestDistSq = float.MaxValue;   // ⭐ CE-3147 — the nearest-wins tie-break among equal layers
             float effZoom = zoom > 0f ? zoom : 1f;
 
             for (int i = primitives.Length - 1; i >= 0; i--)
@@ -418,34 +617,97 @@ namespace GizmoMap.Presentation
                 if (prim.Shape == DebugPrimitiveShape.InputCaptureBinding || prim.Shape == DebugPrimitiveShape.ContextMenuBinding) continue;
 
                 if (prim.AnchorIndex == 0 && prim.SubElementId == 0 && prim.BoxAnchorId == 0) continue;
+                // ⭐⭐ CE-1466 — in 3-D an entity the view DRAWS as a body is hit by the camera's RAY (its drawn box + a few pixels), never by its 2-D
+                //   footprint at the ray's ground point: a press 3 m beside a 0.5 m man selected him (the 5 m symbol's 3 m half + 5 px). The host says
+                //   which anchors those are (null in 2-D ⇒ unchanged); a handle / area / route / tool anchor has no body and keeps this test.
+                if (rayOnlyAnchor != null && prim.BoxAnchorId != 0 && rayOnlyAnchor(prim.BoxAnchorId)) continue;
 
-                // We multiplex two distinct addressing domains inside the fixed 64-byte payload.
-                // If AnchorGeneration != 0, the primitive is bound to a live local ECS entity. We route the
-                // local AnchorIndex so the engine can reconstruct the exact ECS memory handle.
-                // If AnchorGeneration == 0, the primitive is a stateless tool handle or remote network object.
-                // We fall back to the 64-bit BoxAnchorId to route the global network ID or tool ID.
-                long anchorId = prim.AnchorGeneration != 0 ? prim.AnchorIndex : prim.BoxAnchorId;
+                // ⭐⭐⭐ S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — ONE ID, AND IT IS THE NETWORK ID.
+                //   ⛔ This used to multiplex two addressing domains:
+                //        anchorId = AnchorGeneration != 0 ? AnchorIndex : BoxAnchorId
+                //     ...and then compare only the VALUE, so a TOOL id matched an entity whose ECS index
+                //     happened to equal it (S0 patched that by also comparing the generation).
+                //   ⭐ Identity is now BoxAnchorId on BOTH sides: every entity primitive stamps its network
+                //     id there (EntityPresentationGizmoShared.EmitPickBox, and the tool handles likewise),
+                //     and a binding carries the same id in StructNetworkId. Tool ids come from a DISJOINT
+                //     range so the single space stays unambiguous (GlobalGizmoManager.ToolAnchorIdBase).
+                //   ⇒ S0's generation term is GONE: with one id space it adds nothing and reintroduces the
+                //     two-domain thinking this step removes.
+                long anchorId = prim.BoxAnchorId;
                 if (exclusiveAnchorId.HasValue && anchorId != exclusiveAnchorId.Value) continue;
 
-                float hitRadius = prim.SizeMode == SizeMode.ScreenPixels ? 5f / effZoom : 5f;
+                // ⭐⭐⭐ CE-3147 — THE PICK AREA NOW USES THE SAME SCALE THE RENDERER DRAWS WITH.
+                //   🔒 User, `2026-10-09`: "select sensitive area still big, diameter shouldn't be much bigger than
+                //   entity symbol." 🔴 The bug was a UNIT MISMATCH, not a bad constant: the entity's pick box is
+                //   emitted as 8×8 with SizeMode defaulting to ScreenPixels (EntityPresentationGizmoShared.cs:38-45,
+                //   DebugPrimitive.cs:331), the renderer scales it by 1/zoom (DebugPrimitiveRenderer2D.cs:211, applied
+                //   :308-311) — and this test compared the RAW extent, scaling only the 5 px slack. ⇒ drawn half-extent
+                //   8/zoom m vs pick half-extent 8 + 5/zoom m: equal only at zoom 1, and at zoom 50 the sensitive area
+                //   was ~400 screen px against 8 px drawn.
+                //   ⭐ `geomScale` is deliberately the SAME expression as the renderer's, so draw and pick cannot
+                //   drift apart again; the slack reduces to the old `5f / effZoom` / `5f`, i.e. unchanged.
+                float geomScale = prim.SizeMode == SizeMode.ScreenPixels ? 1f / effZoom : 1f;
+                // ⭐⭐⭐ CE-3147 — THE SLACK IS ALWAYS 5 SCREEN PIXELS, whatever the primitive's SizeMode.
+                //   📐 The comparison below happens in WORLD units (an extent is multiplied by geomScale to get
+                //   there), so a slack of `5f * geomScale` meant 5 METRES for a WorldMeters primitive — which would
+                //   swamp an entity pick box that is now ~3 m. ⭐ Slack is a human-precision allowance: it belongs
+                //   in screen space, where "within 5 px of the shape" means the same thing at every zoom.
+                float hitRadius = effZoom > 0f ? 5f / effZoom : 5f;
                 bool hit = false;
 
                 if (prim.Shape == DebugPrimitiveShape.Box2D)
                 {
-                    float dx = Math.Abs(testPos.X - prim.BoxCenterX);
-                    float dy = Math.Abs(testPos.Y - prim.BoxCenterY);
-                    hit = dx <= (prim.BoxExtentX + hitRadius) && dy <= (prim.BoxExtentY + hitRadius);
+                    // ⭐⭐⭐ CE-259ac — AN ORIENTED-BOX TEST. The renderer has ALWAYS drawn Box2D rotated
+                    //   (DebugPrimitiveRenderer2D.cs:296 Raylib.DrawRectanglePro(..., prim.BoxAngleDeg, ...),
+                    //   and :139 even composes the anchor's yaw for EntityLocal) while this test compared
+                    //   axis-aligned extents. ⇒ 🔴 A ROTATED BOX DREW ROTATED AND PICKED AXIS-ALIGNED:
+                    //   draw and pick disagreed, which is a defect in its own right. Latent only because
+                    //   no production gizmo had set a non-zero angle yet — and the moment one does, a
+                    //   diagonal box's pick area is its bounding square.
+                    //   ⭐ It is also what makes A LINE CLICKABLE: a clickable segment IS a thin oriented
+                    //     box, so with this the terminal needs no new shape and DebugPrimitive needs no
+                    //     new field. See DebugPrimitive.MakePickSegment.
+                    //   ⭐ Reduces EXACTLY to the old comparison when BoxAngleDeg == 0.
+                    float lx = testPos.X - prim.BoxCenterX;
+                    float ly = testPos.Y - prim.BoxCenterY;
+                    if (prim.BoxAngleDeg != 0f)
+                    {
+                        // Rotate the probe INTO box space (i.e. by -angle).
+                        float rad = -prim.BoxAngleDeg * (MathF.PI / 180f);
+                        float c = MathF.Cos(rad), sn = MathF.Sin(rad);
+                        (lx, ly) = (lx * c - ly * sn, lx * sn + ly * c);
+                    }
+                    hit = Math.Abs(lx) <= (prim.BoxExtentX * geomScale + hitRadius)
+                       && Math.Abs(ly) <= (prim.BoxExtentY * geomScale + hitRadius);
                 }
                 else if (prim.Shape == DebugPrimitiveShape.Sphere)
                 {
                     float dx = testPos.X - prim.BoxCenterX;
                     float dy = testPos.Y - prim.BoxCenterY;
-                    float r = prim.SphereRadius + hitRadius;
+                    float r = prim.SphereRadius * geomScale + hitRadius;
                     hit = (dx * dx + dy * dy) <= (r * r);
                 }
 
-                if (hit && (best == null || prim.DebugLayer > best.Value.DebugLayer))
-                    best = prim;
+                // ⭐⭐ CE-3147 — NEAREST WINS AMONG EQUAL LAYERS. 🔒 User: "clicking on entity in vicinity of another
+                //   is ignored as the click falls into the sensitive area of the first one." 🔴 This test had NO
+                //   distance term at all: among primitives on the same DebugLayer the FIRST hit in the buffer walk
+                //   won, i.e. by EMISSION ORDER. ⇒ two adjacent entities always resolved to the same one, whichever
+                //   was emitted first, however much closer the cursor was to the other. ⚠ The layer term still
+                //   dominates — a tool handle on a higher layer must keep beating an entity underneath it.
+                if (hit)
+                {
+                    float cdx = testPos.X - prim.BoxCenterX;
+                    float cdy = testPos.Y - prim.BoxCenterY;
+                    float distSq = cdx * cdx + cdy * cdy;
+
+                    if (best == null
+                        || prim.DebugLayer > best.Value.DebugLayer
+                        || (prim.DebugLayer == best.Value.DebugLayer && distSq < bestDistSq))
+                    {
+                        best = prim;
+                        bestDistSq = distSq;
+                    }
+                }
             }
 
             return best;

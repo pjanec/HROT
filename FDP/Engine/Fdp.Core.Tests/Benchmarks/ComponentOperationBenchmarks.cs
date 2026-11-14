@@ -7,7 +7,7 @@ namespace Fdp.Tests.Benchmarks
 {
     public class ComponentOperationBenchmarks
     {
-        [ComponentId(240)]
+        [ComponentId(256)]   // CE-2045: was 240, shared with TestComponents.NoRecordTestComponent
         private struct TestComponent
         {
             public int Value;

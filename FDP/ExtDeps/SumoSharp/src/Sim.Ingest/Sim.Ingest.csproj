@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    No ProjectReference to Sim.Core: Sim.Ingest's parsers/models are self-contained (they do
+    not use TrajectoryPoint/TrajectorySet/IEngine). Sim.Core's Engine depends on Sim.Ingest
+    (network/demand/config parsing), so the reference points that way only; a reverse
+    reference here would create a build cycle.
+  -->
+
+  <PropertyGroup>
+    <!-- net8.0 primary; netstandard2.1 for Unity/Godot reach (SUMOSHARP-API.md §3). Parsers are
+         self-contained and span-clean; compiler-support types are polyfilled for ns2.1. -->
+    <TargetFrameworks>net8.0;netstandard2.1</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>12</LangVersion>
+
+    <!-- NuGet: the SUMO net/rou/sumocfg parsers + network model. A dependency of SumoSharp.Core. -->
+    <Description>SumoSharp — parsers and data model for Eclipse SUMO network (.net.xml), demand (.rou.xml), and config (.sumocfg) files. The ingestion layer of the SumoSharp microsimulation engine. Unofficial, independent reimplementation; not affiliated with the Eclipse SUMO project.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <Compile Include="..\Shared\NetstandardPolyfills.cs" Link="NetstandardPolyfills.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+    <PackageReference Include="System.Memory" Version="4.5.5" />
+  </ItemGroup>
+
+</Project>

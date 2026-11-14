@@ -1,0 +1,148 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using Fdp.Core;
+using Fdp.Toolkit.Scenario;
+using Hrot.UI.Common.Map3D.Director;
+
+namespace Hrot.ReplayBrowser;
+
+/// <summary>
+/// ⭐ <c>CE-1303</c> P2a (docs/DESIGN_Director_Timeline_Editor.md §11m) — the ONE film director in the Replay Browser: the same
+/// <see cref="DirectorPack"/> the editor attaches (CR-2, R-4068), over <see cref="ReplayDirectorHost"/> (CR-3). ⛔ This host builds no runner,
+/// session or window of its own — it hands the pack its host, its Event Timeline, its window manager and layers, and ticks it.
+/// </summary>
+public sealed partial class ReplayBrowserSubsystem : IProvidesDirector
+{
+    private DirectorPack? _directorPack;
+
+    /// <summary>The director — ⭐ CE-1303 P3: the process's debug HTTP host attaches it (<c>/director/*</c>, <c>/map/layers</c>).</summary>
+    public DirectorPack? Director => _directorPack;
+
+    /// <summary>This host's Event Timeline panel, which the pack gives the open take's tracks (test seam).</summary>
+    internal Fdp.Presentation.Panels.Timeline.TimelinePanel EventTimeline => _eventTimeline;
+
+    /// <summary>Attached once, at <see cref="Initialize"/>, on a windowed and a headless host alike.</summary>
+    private void AttachDirector()
+    {
+        // ⭐ D8 (TE-1) — the takes of a recording live BESIDE it, keyed by the scenario it names; the bake's scenario hash is the recording's
+        // ⭐ CE-1304 P4 (§11s D7) — the scenario's OWN takes (the shared scenarios root): promote copies there, and the store beside the recording reads
+        //   them through (TE-1's reverse: a promoted take plays on every later recording of its scenario)
+        var scenarioTakes = new TakeStore(() => DirectorScenariosRoot, TakeStore.FindFilmsDirectory);
+        var takes = new TakeStore(() => DirectorTakesRoot, TakeStore.FindFilmsDirectory,
+                                  scenario => PrimaryMetadata is { } m && m.ScenarioName == scenario ? RecordedScenarioStamp.VersionOf(RecordingsRoot, m) : null,   // ⭐ CE-3340 ② — the go-live stamp, the one reader
+                                  new ScenarioTakesSource(() => PrimaryMetadata?.ScenarioName, () => scenarioTakes));
+        var host = new ReplayDirectorHost(
+            world:         () => _activeRepo,
+            open:          () => ReplayState == Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay,
+            playing:       () => IsPlaying,
+            pause:         () => IsPlaying = false,
+            simSeconds:    () => DirectorSimSeconds,
+            moveTo:        MoveDirectorPlayhead,
+            behaviourName: hash => _behaviorRegistry.TryGetName(hash, out var n) ? n : null,
+            takes:         takes);
+        _directorPack = DirectorPack.Attach(new DirectorPackHost(
+            Host:          host,
+            Wm:            () => _windowManager,
+            Layers:        () => _gizmoBuffer is { } b ? Hrot.ScenarioEditor.Map.MapInteractionPack.LayerControlFor(b) : null,
+            Headless:      _headless,
+            Pilot:         () => PilotCamera.FromMap(_canvas?.Camera, _activeRepo, _inspectorState?.SelectedEntity),
+            Timeline:      _eventTimeline,
+            EventAt:       DirectorEventAt,     // ⭐ D10 — CR-6 over the shown recording's index
+            TitleBarColor: TitleBarColor,
+            Perspective:   "ReplayBrowser",     // ⭐ D11
+            // ⭐ CE-4059 (§11q D1) — the drafter over the recording's index, a take of the scenario the recording names (beside it, TE-1)
+            // ⭐ CE-4059 §11r — synced first: a recording= open in the same request reads ITS index (empty while scanned), never the last one's
+            Index:         () => { SyncTimelineSource(); return _timelineSource?.Index; },
+            Scenario:      () => PrimaryMetadata?.ScenarioName,
+            // ⭐ CE-4121 — "complete" is the SOURCE's (the one GET /timeline/lanes reports), not the index's own 0 >= 0 before a frame is read
+            IndexComplete: () => { SyncTimelineSource(); return _timelineSource?.IsComplete ?? false; },
+            // ⭐ CE-1304 P4 (§11s) — promote copies a take from beside the recording into the SHARED scenarios root (the one every host lists)
+            ScenarioTakes: () => scenarioTakes,
+            // ⭐⭐ CE-1391 (§11u "as built: CE-1391") — THE opener (the one POST /replay ends in): render jobs and reel items open their recordings through
+            //   it, with or without the debug HTTP host (HROT_DEBUG_API_PORT)
+            Recordings:    BrowserControl));
+    }
+
+    /// <summary>⭐ CE-1304 P4 — the scenarios root a promoted take goes to: the shared one (<c>{shared}/scenarios</c>, the editor's working root too).</summary>
+    internal string DirectorScenariosRoot
+        => _directorScenariosRoot ?? Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedScenariosRoot(RecordingsRoot);
+
+    /// <summary>Test seam: another scenarios root (a rail's temp folder).</summary>
+    internal string? _directorScenariosRoot;
+
+    /// <summary>The primary node's recording meta (its scenario's name and hash), or null.</summary>
+    private Fdp.Core.FlightRecorder.Metadata.RecordingMetadata? PrimaryMetadata
+        => _manager != null && _manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var ctx) ? ctx.Playback?.Metadata : null;
+
+    /// <summary>
+    /// ⭐ D8 — the open recording's folder (its takes: <c>&lt;folder&gt;/&lt;scenario&gt;/takes/</c>); none open: an empty store. ⭐ <c>CE-1303</c> P2b (§11o S13,
+    /// TE-1) — a KEPT exercise's folder first: <c>{shared}/exercises/&lt;id&gt;/</c> when it exists. ⚠ Measured: while a node still has its own (temp) copy
+    /// of the recording, that copy is what opens (<c>RecordingGroupInventory</c>: "the local copy wins"), so "beside the recording" alone would put the
+    /// takes in the temp folder that the kept exercise outlives.
+    /// </summary>
+    internal string DirectorTakesRoot
+        => KeptExerciseFolder
+           ?? (PrimaryRecordingPath is { } path && Path.GetDirectoryName(Path.GetFullPath(path)) is { } dir
+               ? dir : Path.Combine(Path.GetTempPath(), "hrot-replay-no-recording"));
+
+    // ── ⭐ CE-1467 (a) (Bookmarks §2) — the recording's notes, READ-ONLY beside its files: the browser has no master (the ONE writer) ──
+
+    private readonly Hrot.UI.Common.Marks.RecordingNotesFile _notesFile = new();
+    private readonly Hrot.UI.Common.Marks.TimelineNotesCache _rulerNotes = new();
+
+    /// <summary>Why the browser's notes cannot be changed — the Marks list and the popup say it.</summary>
+    internal const string NotesReadOnlyReason = "the Replay Browser shows a recording's notes read-only — they are changed in a DAR or an AAR on the cluster";
+
+    /// <summary>The folder whose <c>notes.json</c> belongs to the open recording: its kept exercise folder, else the folder the recording opened from (the master writes the notes there); null = none open.</summary>
+    internal string? NotesFolder
+        => KeptExerciseFolder ?? (PrimaryRecordingPath is { } path ? Path.GetDirectoryName(Path.GetFullPath(path)) : null);
+
+    /// <summary>The open recording's notes (re-read when the file changes; empty without one).</summary>
+    internal Fdp.Toolkit.Orchestration.ExerciseNote[] RecordingNotes => _notesFile.Of(NotesFolder, Environment.TickCount64 / 1000.0);
+
+    /// <summary>The open recording's ⚑ marks (its checkpoints).</summary>
+    internal IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark> RecordingCheckpoints
+        => PrimaryMetadata?.Checkpoints ?? (IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>)Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
+
+    /// <summary>The notes as the Event Timeline's ruler draws them (the ONE mapping, cached).</summary>
+    internal IReadOnlyList<Fdp.Presentation.Panels.Timeline.TimelineNote> RulerNotes => _rulerNotes.Of(RecordingNotes, RecordingCheckpoints, CachedTimeMap);
+
+    /// <summary>The kept (archived) folder of the open recording's exercise, when there is one (<see cref="RecordingsRoot"/>'s shared root).</summary>
+    private string? KeptExerciseFolder
+        => PrimaryMetadata is { } meta && meta.ExerciseId != Guid.Empty
+           && Path.Combine(Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedRoot(RecordingsRoot),
+                           Fdp.Toolkit.Orchestration.OrchestrationConstants.ExercisesDirectoryName, meta.ExerciseId.ToString()) is var kept
+           && Directory.Exists(kept) ? kept : null;
+
+    /// <summary>⭐ D1 — the recording's SIM second at the playhead (a v6 recording, which has no sim axis: wall seconds after the replay's zero).</summary>
+    internal double DirectorSimSeconds
+    {
+        get
+        {
+            if (_manager == null) return 0d;
+            var map = CachedTimeMap;
+            return map.HasSimTime ? map.SimAt(_manager.BaseWallTicks) : ReplaySeconds ?? 0d;
+        }
+    }
+
+    /// <summary>
+    /// ⭐ D1 — the director's step and seek: the playhead to <paramref name="sim"/> (clamped to the recording), through the call every playhead
+    /// move of this host ends in (<c>SetBaseWallTicks</c> — the Event Timeline's cursor, the viewer's loop wrap). ⛔ No history: the director is
+    /// playing, not navigating (the same reason <see cref="TickLocalLoop"/> keeps none).
+    /// </summary>
+    internal void MoveDirectorPlayhead(double sim)
+    {
+        if (_manager == null || ReplayZeroTicks is not { } zero || ReplayEndTicks is not { } end) return;
+        var map = CachedTimeMap;
+        long target = map.HasSimTime ? map.WallAt(sim) : zero + (long)Math.Round(sim * TimeSpan.TicksPerSecond);
+        _manager.SetBaseWallTicks(Math.Clamp(target, zero, end));
+    }
+
+    /// <summary>⭐ D10 (CR-6) — K's anchor: the nearest combat event at or before <paramref name="sim"/> in the index this host's Event Timeline shows.</summary>
+    private EventAnchor? DirectorEventAt(double sim)
+        => _timelineSource?.Index is { } index ? EventAnchors.NearestBefore(index, sim, DirectorUnitName) : null;
+
+    // ⭐ CE-4059 (§11q D3) — the ONE network-id → name reading, shared with the editor
+    private string? DirectorUnitName(int networkId) => DirectorUnits.NameOf(_activeRepo, networkId);
+}

@@ -48,7 +48,7 @@ The project uses a standard .NET 8 solution:
 
 ```powershell
 # From the repo root (d:\Work\IOS-IG-SimHost-FDP-2)
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 To run a specific test project:

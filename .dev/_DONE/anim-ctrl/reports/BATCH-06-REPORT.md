@@ -82,7 +82,7 @@ The gap in the numbering (8204 → 8210) is intentional — IDs 8205–8209 are 
 - [x] `dotnet test Hrot.MuscleCharacter.Animation.Tests --filter Phase4` — Passed: 19/19.
 - [x] `dotnet test Hrot.Blueprints.Tests --filter "CatalogTests|WhenNodeValidator"` — Passed: 44/44 (7 new catalog + 8 new validator + 29 pre-existing).
 - [x] `dotnet test Hrot.MuscleCharacter.Animation.Tests` (full suite) — Passed: 130/130.
-- [x] Full solution `IOS-IG-SimHost.sln` builds clean (no CS errors).
+- [x] Full solution `HROT.sln` builds clean (no CS errors).
 - [x] Pre-existing `AllDiagnosticCodes_HaveAtLeastOneTestCovering` test now passes (fixed BP2032 coverage gap from WHEN-BATCH-16).
 
 ## Debt / Known Issues

@@ -18,7 +18,7 @@ Motivation: `Fdp.Toolkits` cannot reference `Hrot.Core` (circular dependency). M
 - `TacticalDesignation.cs` — `public enum TacticalDesignation : ushort { Undefined=0, Commander=1, SquadLeader=2, Wingman=3, Support=4 }`
 - `CommandHierarchyEvents.cs` — events `[EventId(2200)] CmdAssignSubordinate`, `[EventId(2201)] CmdRemoveSubordinate`, `[EventId(2202)] CmdAssignSubordinateRejected`
 - `UnitSubordinate.cs` — `[ComponentId(183)] struct UnitSubordinate { Entity Commander; TacticalDesignation Designation; }`
-- `UnitRoster.cs` — `[ComponentId(182)] [DataPolicy(DataPolicy.NoSave)] unsafe struct UnitRoster { const int Capacity=16; int Count; fixed long SubordinateEntities[16]; fixed ushort TacticalDesignations[16]; }`
+- `UnitRoster.cs` — `[ComponentId(182)] [DataPolicy(DataPolicy.NoScenario)] unsafe struct UnitRoster { const int Capacity=16; int Count; fixed long SubordinateEntities[16]; fixed ushort TacticalDesignations[16]; }`
 
 **`FDP/Engine/Fdp.Core/GlobalComponentIds.cs`:** Added `UnitRoster=182`, `UnitSubordinate=183`, `InitialUnitSubordinateIntent=184`
 

@@ -15,7 +15,7 @@ internal static class WideLayout
     /// <summary>Render the wide layout with category sidebar and item list.</summary>
     public static void Draw(PickerState state, IPickerRenderContext ctx)
     {
-        float height = ImGui.GetContentRegionAvail().Y - ImGui.GetFrameHeightWithSpacing();
+        float height = ImGui.GetContentRegionAvail().Y - PickerLayoutMetrics.FooterReserve(state);
 
         // Category sidebar.
         if (ImGui.BeginChild("##picker_cats", new Vector2(SidebarWidth, height),
@@ -58,34 +58,7 @@ internal static class WideLayout
     // ── sidebar ───────────────────────────────────────────────────────────────
 
     private static void DrawCategorySidebar(PickerState state, IPickerRenderContext ctx)
-    {
-        // Collect unique top-level categories from filtered entries.
-        var roots = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var re in state.Filtered)
-        {
-            if (re.Entry.Category is { Length: > 0 } cat)
-            {
-                int slash = cat.IndexOf('/');
-                roots.Add(slash < 0 ? cat : cat[..slash]);
-            }
-        }
-
-        // "All" option.
-        bool allSel = string.IsNullOrEmpty(state.SelectedCategory);
-        if (allSel) ImGui.PushStyleColor(ImGuiCol.Text, ctx.Theme.SelectionAccent);
-        if (ImGui.Selectable("All", allSel))
-            state.SelectedCategory = "";
-        if (allSel) ImGui.PopStyleColor();
-
-        foreach (var root in roots.OrderBy(r => r, StringComparer.OrdinalIgnoreCase))
-        {
-            bool sel = state.SelectedCategory == root;
-            if (sel) ImGui.PushStyleColor(ImGuiCol.Text, ctx.Theme.SelectionAccent);
-            if (ImGui.Selectable(root, sel))
-                state.SelectedCategory = root;
-            if (sel) ImGui.PopStyleColor();
-        }
-    }
+        => CategorySidebar.Draw(state, ctx, groups: null);   // ⭐ CE-4142 — the sidebar lives in CategorySidebar, shared with the Grid
 
     // ── item list ─────────────────────────────────────────────────────────────
 
@@ -99,13 +72,7 @@ internal static class WideLayout
             var re = state.Filtered[i];
 
             // Filter by selected category (top-level segment).
-            if (!string.IsNullOrEmpty(catFilter))
-            {
-                string? cat = re.Entry.Category;
-                if (cat is null) continue;
-                string topLevel = cat.Contains('/') ? cat[..cat.IndexOf('/')] : cat;
-                if (!topLevel.Equals(catFilter, StringComparison.Ordinal)) continue;
-            }
+            if (!CategorySidebar.Matches(re, catFilter, groups: null, searching: false)) continue;
 
             bool selected = state.SelectedFilteredIndices.Contains(i);
             bool focused  = state.KeyboardFocusIndex == i;

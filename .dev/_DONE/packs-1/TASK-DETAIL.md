@@ -636,7 +636,7 @@ commands should remain in the codebase).
 - Migrate full ACK logic (Live-from-Replay + Episode 2PC) into the bus-based
   `ConsumeNodeOpStatuses()` loop, removing the DDS reader block entirely.
 - Define `AssetInventoryUpdateEvent` in `ClusterCqrsEvents.cs`
-  (with `[EventId(9017)]` and `[DataPolicy(DataPolicy.NoRecord)]`).
+  (with `[EventId(9017)]` and `[DataPolicy(DataPolicy.NoReplay)]`).
 - `ClusterMaster.PublishAssetInventory()` publishes `AssetInventoryUpdateEvent` to bus.
 - Update `ClusterOpMasterTranslator` to consume `AssetInventoryUpdateEvent` and call
   `_inventoryWriter.Write(...)`.
@@ -693,7 +693,7 @@ commands should remain in the codebase).
 - Replace `JsonDocument.Parse` usage in `Process2PcNetworkTraffic` with typed `DomainPayload`
   inspection.
 - Define `SystemStateUpdateEvent` in `ClusterCqrsEvents.cs` (with `[EventId(9016)]` and
-  `[DataPolicy(DataPolicy.NoRecord)]`).
+  `[DataPolicy(DataPolicy.NoReplay)]`).
 - Create `OrchestrationObserverTranslator` in `Hrot.Common/Orchestration/` with all seven
   `DdsReader<T>` fields; its `Tick()` polls DDS and publishes events to the provided
   `FdpEventBus`.

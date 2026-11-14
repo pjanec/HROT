@@ -153,7 +153,7 @@ This batch:
 - Recommended run:
   - `dotnet test FDP/Toolkits/FDP.Toolkit.Combat.Tests/FDP.Toolkit.Combat.Tests.csproj`
   - `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj`
-  - `dotnet test IOS-IG-SimHost.sln`
+  - `dotnet test HROT.sln`
 
 ---
 
@@ -175,7 +175,7 @@ This batch is DONE when:
 - [ ] BS1-T008 complete (translator + tests)
 - [ ] BS1-T009 complete (translator + IG event + tests)
 - [ ] BS1-T010 complete (system + tests)
-- [ ] `dotnet test IOS-IG-SimHost.sln` passes
+- [ ] `dotnet test HROT.sln` passes
 - [ ] Report submitted to `.dev-workstream/reports/BS-1-BATCH-03-REPORT.md`
 
 ---

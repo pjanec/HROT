@@ -9,6 +9,7 @@ namespace Fdp.Core
     /// Each bit represents a 64-byte part of the component.
     /// </summary>
     [ComponentId(GlobalComponentIds.PartDescriptor)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct PartDescriptor : IEquatable<PartDescriptor>
     {
         // Uses the existing BitMask256 for part tracking

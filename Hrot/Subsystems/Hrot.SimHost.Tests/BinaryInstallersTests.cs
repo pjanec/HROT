@@ -4,7 +4,7 @@ using System.Linq;
 using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
-using Hrot.SimHost.Installers;
+using Fdp.Toolkit.Replication.Attributes;
 using Fdp.Toolkit.Replication.Patching;
 using Hrot.Map.Common.Replication;
 using Fdp.Core;
@@ -24,45 +24,24 @@ namespace Hrot.SimHost.Tests
     {
         // ── Helpers ───────────────────────────────────────────────────────────
 
-        private static AttributeRecord StringRecord(ushort id, string value) =>
-            new AttributeRecord
-            {
-                AttributeId = id,
-                Value       = new AttributeValueUnion
-                {
-                    ValueType   = AttributeValueType.KindString,
-                    StringValue = value
-                }
-            };
+        // ⭐⭐ AX-005a — these build the FDP-INTERNAL record, not the DDS `AttributeRecord`. 📌 R-134: the
+        //    installers no longer speak a network type, so neither do their rails. The DDS shape is
+        //    exercised where it belongs — at the boundary, in AttributeRecordConversionTests.
+        private static EntityAttributeChange StringRecord(ushort id, string value) =>
+            new EntityAttributeChange { AttributeId = id, Value = AttributeValue.FromString(value) };
 
-        private static AttributeRecord Int32Record(ushort id, int value) =>
-            new AttributeRecord
-            {
-                AttributeId = id,
-                Value       = new AttributeValueUnion
-                {
-                    ValueType = AttributeValueType.KindInt32,
-                    IntValue  = value
-                }
-            };
+        private static EntityAttributeChange Int32Record(ushort id, int value) =>
+            new EntityAttributeChange { AttributeId = id, Value = AttributeValue.FromInt(value) };
 
-        private static AttributeRecord Float64Record(ushort id, double value) =>
-            new AttributeRecord
-            {
-                AttributeId = id,
-                Value       = new AttributeValueUnion
-                {
-                    ValueType   = AttributeValueType.KindFloat64,
-                    DoubleValue = value
-                }
-            };
+        private static EntityAttributeChange Float64Record(ushort id, double value) =>
+            new EntityAttributeChange { AttributeId = id, Value = AttributeValue.FromDouble(value) };
 
         // ── EntityDataAttributeInstaller — P4T1 ───────────────────────────────
 
         [Fact]
         public void EntityData_Name_WrittenToComponent()
         {
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+            var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
                 .AddInstaller(new EntityDataAttributeInstaller())
                 .Build();
 
@@ -77,7 +56,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void EntityData_Affiliation_StringVariant_WrittenToComponent()
         {
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+            var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
                 .AddInstaller(new EntityDataAttributeInstaller())
                 .Build();
 
@@ -94,7 +73,7 @@ namespace Hrot.SimHost.Tests
         {
             // Use the FORCE_FRIENDLY enum int value to avoid calling the internal factory method.
             int friendlyInt = (int)eForceIdentifier.FORCE_FRIENDLY;
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+            var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
                 .AddInstaller(new EntityDataAttributeInstaller())
                 .Build();
 
@@ -109,7 +88,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void EntityData_AuthorityGuard_NoWriteWhenDenied()
         {
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+            var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
                 .AddInstaller(new EntityDataAttributeInstaller())
                 .Build();
 
@@ -121,157 +100,128 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, denyCtx.GetManagedComponentCallCount);
         }
 
-        [Fact]
-        public void EntityData_DescriptorDirtyBit_SetAfterNameWrite()
-        {
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
-                .AddInstaller(new EntityDataAttributeInstaller())
-                .Build();
-
-            var listCtx = new ListPatchContext(null);
-            var ctx     = interpreter.CreateContext(listCtx);
-            interpreter.Apply(ctx, new[] { StringRecord(AttributeIds.Name, "Alpha") });
-
-            // dtEntityInfo ordinal must be set in DirtyDescriptorMask.
-            long entityInfoOrdinal = (long)EDescriptorType.dtEntityInfo;
-            Assert.NotEqual(0UL, ctx.DirtyDescriptorMask & (1UL << (int)entityInfoOrdinal));
-        }
+        // ⛔⛔ REMOVED by Q59-E: EntityData_DescriptorDirtyBit_SetAfterNameWrite.
+        //
+        // It asserted that EntityDataAttributeInstaller sets the dtEntityInfo bit in
+        // BinaryPatchContext.DirtyDescriptorMask — i.e. that an INSTALLER names a DESCRIPTOR.
+        // 🔒 The user's ruling is that it must not: "attributes are entity-related, network agnostic. In
+        // contrary, descriptors are Ned network concept." ⇒ the installer now records only the COMPONENT it
+        // wrote, and the world's DescriptorOwnershipMap — fed by the network layer's translators — supplies
+        // the descriptors. So the behaviour this asserted is DELIBERATELY GONE.
+        //
+        // ⭐ The CLAIM it protected is not lost, it moved and got stronger:
+        //   TheBinaryApplyTellsSmartEgressTests asserts the dtEntityInfo descriptor really does end up dirty
+        //   after a binary Name apply — through SmartEgress, which is what actually drives republication,
+        //   rather than through a local mask that AX-015 measured as read by nothing in production.
+        // ⚠ Not a "rush removal": the mechanism was measured, the replacement rail is named, and
+        //   BinaryPatchContext.MarkDescriptorDirty itself is retained and still exercised by
+        //   BinaryInterpreterTests.
 
         // ── SimTransformAttributeInstaller — P4T2 ────────────────────────────
 
         [Fact]
-        public void SimTransform_FullUpdate_CartesianPositionWritten()
+        public void SimTransform_FullUpdate_LocalPositionWrittenAsCopy()
         {
-            var geo         = new FactoryTestGeoTransform(); // lat→Y, lon→X, alt→Z
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
-                .AddInstaller(new SimTransformAttributeInstaller(geo))
+            // ⭐ CE-4073 — Position.X/Y/Z are LOCAL ENU metres: a plain copy per axis, no geographic transform in sight.
+            var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
+                .AddInstaller(new SimTransformAttributeInstaller())
                 .Build();
 
             var listCtx = new ListPatchContext(null);
             var ctx     = interpreter.CreateContext(listCtx);
             interpreter.Apply(ctx, new[]
             {
-                Float64Record(AttributeIds.GeoLat, 32.0),
-                Float64Record(AttributeIds.GeoLon, 34.0),
-                Float64Record(AttributeIds.GeoAlt, 100.0),
+                Float64Record(AttributeIds.PositionX, 34.0),
+                Float64Record(AttributeIds.PositionY, 32.0),
+                Float64Record(AttributeIds.PositionZ, 100.0),
             });
 
-            // FactoryTestGeoTransform.ToCartesian → new Vector3((float)lon, (float)lat, (float)alt)
             ref SimTransform st = ref listCtx.GetUnmanagedComponent<SimTransform>();
-            Assert.Equal(new Vector3(34f, 32f, 100f), st.Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(34f, 32f, 100f), st.Position);
         }
 
         [Fact]
-        public void SimTransform_PartialUpdate_PreFillsMissingCoords()
+        public void SimTransform_PartialUpdate_KeepsTheOtherAxes()
         {
-            // Seed with a known existing position: lat=50, lon=30, alt=0
-            // via the trivial transform: position = (lon, lat, alt) = (30, 50, 0)
-            var seedTransform = new SimTransform { Position = new Vector3(30f, 50f, 0f) };
+            // ⭐ CE-4073 — the three axes are independent copies, so a patch of ONE keeps the other two BY CONSTRUCTION
+            //   (the geodetic installer needed a ToGeodetic pre-fill for this).
+            var seedTransform = new SimTransform { Position = new Vector3(30f, 50f, 7f) };
             var listCtx = new ListPatchContext(new List<object> { seedTransform });
 
-            var geo         = new FactoryTestGeoTransform(); // lat→Y, lon→X, alt→Z
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
-                .AddInstaller(new SimTransformAttributeInstaller(geo))
+            var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
+                .AddInstaller(new SimTransformAttributeInstaller())
                 .Build();
 
             var ctx = interpreter.CreateContext(listCtx);
-            // Only update latitude to 32; longitude and altitude should be preserved.
-            interpreter.Apply(ctx, new[] { Float64Record(AttributeIds.GeoLat, 32.0) });
+            interpreter.Apply(ctx, new[] { Float64Record(AttributeIds.PositionY, 32.0) });
 
-            // Expected: ToCartesian(32, 30, 0) = Vector3(30, 32, 0)
             ref SimTransform st = ref listCtx.GetUnmanagedComponent<SimTransform>();
-            Assert.Equal(new Vector3(30f, 32f, 0f), st.Position);
-        }
-
-        [Fact]
-        public void SimTransform_MultipleRecordsSameApply_ToCartesianCalledOnce()
-        {
-            var geo         = new CountingGeoTransform();
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
-                .AddInstaller(new SimTransformAttributeInstaller(geo))
-                .Build();
-
-            var listCtx = new ListPatchContext(null);
-            var ctx     = interpreter.CreateContext(listCtx);
-            interpreter.Apply(ctx, new[]
-            {
-                Float64Record(AttributeIds.GeoLat, 10.0),
-                Float64Record(AttributeIds.GeoLon, 20.0),
-                Float64Record(AttributeIds.GeoAlt, 30.0),
-            });
-
-            Assert.Equal(1, geo.ToCartesianCallCount);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(30f, 32f, 7f), st.Position);
         }
 
         [Fact]
         public void SimTransform_AuthorityGuard_NoWriteWhenDenied()
         {
-            var geo          = new CountingGeoTransform();
-            var interpreter  = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
-                .AddInstaller(new SimTransformAttributeInstaller(geo))
+            var interpreter  = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
+                .AddInstaller(new SimTransformAttributeInstaller())
                 .Build();
 
             var denyCtx   = new DenyAuthPatchContext();
             var binaryCtx = interpreter.CreateContext(denyCtx);
-            interpreter.Apply(binaryCtx, new[] { Float64Record(AttributeIds.GeoLat, 10.0) });
+            interpreter.Apply(binaryCtx, new[] { Float64Record(AttributeIds.PositionX, 10.0) });
 
-            Assert.Equal(0, geo.ToCartesianCallCount);
+            // The typed registration's authority gate: a node that does not own SimTransform never even fetches it.
+            Assert.Equal(0, denyCtx.GetManagedComponentCallCount);
+            Assert.False(denyCtx.UnmanagedFetched);
         }
 
-        [Fact]
-        public void SimTransform_DescriptorDirtyBit_SetAfterPositionFlush()
-        {
-            var geo         = new FactoryTestGeoTransform();
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
-                .AddInstaller(new SimTransformAttributeInstaller(geo))
-                .Build();
-
-            var listCtx = new ListPatchContext(null);
-            var ctx     = interpreter.CreateContext(listCtx);
-            interpreter.Apply(ctx, new[] { Float64Record(AttributeIds.GeoLat, 32.0) });
-
-            long geoOrdinal = (long)EDescriptorType.dtWorldPos;
-            Assert.NotEqual(0UL, ctx.DirtyDescriptorMask & (1UL << (int)geoOrdinal));
-        }
+        // ⛔⛔ REMOVED by Q59-E, for the same reason as the EntityData one above — see that comment.
+        //    The SimTransform/dtWorldPos pairing is now asserted by TheJsonAndBinaryPathsAgreeTests and
+        //    TheDescriptorMapIsWiredTests, through the map rather than a local mask.
 
         // ── BuildBinaryInterpreter — P4T3 ─────────────────────────────────────
 
         [Fact]
-        public void BuildBinaryInterpreter_WithGeoTransform_AppliesNameAndPosition()
+        public void BuildBinaryInterpreter_AppliesNameAndLocalPosition()
         {
-            var geo         = new FactoryTestGeoTransform();
-            var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter(geo);
+            var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter();
 
             var listCtx = new ListPatchContext(null);
             var ctx     = interpreter.CreateContext(listCtx);
             interpreter.Apply(ctx, new[]
             {
                 StringRecord(AttributeIds.Name,    "Delta"),
-                Float64Record(AttributeIds.GeoLat, 32.0),
-                Float64Record(AttributeIds.GeoLon, 34.0),
-                Float64Record(AttributeIds.GeoAlt, 100.0),
+                Float64Record(AttributeIds.PositionX, 34.0),
+                Float64Record(AttributeIds.PositionY, 32.0),
+                Float64Record(AttributeIds.PositionZ, 100.0),
             });
 
             var data2 = listCtx.GetUnmanagedComponent<Fdp.Core.EntityInfo>();
             Assert.Equal("Delta", data2.Name.ToString());
 
             ref SimTransform st = ref listCtx.GetUnmanagedComponent<SimTransform>();
-            Assert.Equal(new Vector3(34f, 32f, 100f), st.Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(34f, 32f, 100f), st.Position);
         }
 
         [Fact]
-        public void BuildBinaryInterpreter_NoGeoTransform_PositionHandlerAbsent()
+        public void BuildBinaryInterpreter_RetiredGeodeticIds_AreNotHandled()
         {
-            // When geoTransform is null, no SimTransformAttributeInstaller is added.
-            // Sending GeoLat records should be silently ignored (no exception).
-            var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter(null);
+            // ⭐ CE-4073 — ids 10–12 (the retired geodetic latitude / longitude / altitude) have no handler any more: a stale sender is
+            //   ignored, never read as a metre.
+            var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter();
 
-            var listCtx = new ListPatchContext(null);
+            var listCtx = new ListPatchContext(new List<object> { new SimTransform { Position = new Vector3(1f, 2f, 3f) } });
             var ctx     = interpreter.CreateContext(listCtx);
-            var ex = Record.Exception(() =>
-                interpreter.Apply(ctx, new[] { Float64Record(AttributeIds.GeoLat, 32.0) }));
+            var ex = Record.Exception(() => interpreter.Apply(ctx, new[]
+            {
+                Float64Record(AttributeIds.RetiredGeoLat, 32.0),
+                Float64Record(AttributeIds.RetiredGeoLon, 34.0),
+                Float64Record(AttributeIds.RetiredGeoAlt, 100.0),
+            }));
 
             Assert.Null(ex);
+            ref SimTransform st = ref listCtx.GetUnmanagedComponent<SimTransform>();
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(1f, 2f, 3f), st.Position);
         }
 
         // ── BuildEdgeCompiler — P2T2 ──────────────────────────────────────────
@@ -293,7 +243,7 @@ namespace Hrot.SimHost.Tests
         }
 
         [Fact]
-        public void BuildEdgeCompiler_GeoPosition_EmitsThreeRecords()
+        public void BuildEdgeCompiler_LocalPosition_EmitsThreeRecords()
         {
             var compiler = AttributeCompilerFactory.BuildEdgeCompiler();
             var buffer   = new AttributeRecord[8];
@@ -301,13 +251,13 @@ namespace Hrot.SimHost.Tests
 
             compiler.Compile(
                 System.Text.Encoding.UTF8.GetBytes(
-                    "{\"GeoPosition\":{\"Latitude\":32.0,\"Longitude\":34.0,\"Altitude\":100.0}}"),
+                    "{\"Position\":{\"X\":34.0,\"Y\":32.0,\"Z\":100.0}}"),
                 emitter);
 
             Assert.Equal(3, emitter.Count);
-            Assert.Contains(emitter.Written.ToArray(), r => r.AttributeId == AttributeIds.GeoLat);
-            Assert.Contains(emitter.Written.ToArray(), r => r.AttributeId == AttributeIds.GeoLon);
-            Assert.Contains(emitter.Written.ToArray(), r => r.AttributeId == AttributeIds.GeoAlt);
+            Assert.Contains(emitter.Written.ToArray(), r => r.AttributeId == AttributeIds.PositionX);
+            Assert.Contains(emitter.Written.ToArray(), r => r.AttributeId == AttributeIds.PositionY);
+            Assert.Contains(emitter.Written.ToArray(), r => r.AttributeId == AttributeIds.PositionZ);
         }
 
         // ── Private stubs ─────────────────────────────────────────────────────
@@ -321,9 +271,11 @@ namespace Hrot.SimHost.Tests
         {
             private readonly Dictionary<Type, object> _managed = new();
             public int GetManagedComponentCallCount { get; private set; }
+            public bool UnmanagedFetched { get; private set; }
 
             public ref T GetUnmanagedComponent<T>() where T : struct
             {
+                UnmanagedFetched = true;
                 // Return a default in a static field — good enough for the deny tests.
                 return ref _UnmanagedHolder<T>.Value;
             }
@@ -339,6 +291,7 @@ namespace Hrot.SimHost.Tests
                 return (T)raw;
             }
 
+            public void SetManagedComponent<T>(T value) where T : class => _managed[typeof(T)] = value;
             public void FlushDirtyMarks() { }
             public bool CanWrite<T>()       where T : struct => false;
             public bool CanWriteManaged<T>() where T : class  => false;
@@ -348,26 +301,6 @@ namespace Hrot.SimHost.Tests
             {
                 public static T Value;
             }
-        }
-
-        /// <summary>
-        /// Geographic transform stub whose conversion semantics match
-        /// <see cref="FactoryTestGeoTransform"/> but also counts <c>ToCartesian</c> calls.
-        /// </summary>
-        private sealed class CountingGeoTransform : IGeographicTransform
-        {
-            public int ToCartesianCallCount { get; private set; }
-
-            public void SetOrigin(double lat, double lon, double alt) { }
-
-            public Vector3 ToCartesian(double lat, double lon, double alt)
-            {
-                ToCartesianCallCount++;
-                return new Vector3((float)lon, (float)lat, (float)alt);
-            }
-
-            public (double lat, double lon, double alt) ToGeodetic(Vector3 p)
-                => (p.Y, p.X, p.Z);
         }
     }
 }

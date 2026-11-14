@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Hrot.Player</RootNamespace>
+    <AssemblyName>Hrot.Player</AssemblyName>
+  </PropertyGroup>
+
+  <!-- Expose internals to the test project so ProcessSample can be exercised directly -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hrot.Player.Tests" />
+    <InternalsVisibleTo Include="Hrot.ClusterRunner.Integration.Tests" />
+    <InternalsVisibleTo Include="Hrot.ClusterRunner.Tests" />  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Hrot-specific project references -->
+    <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
+    <ProjectReference Include="..\..\Engine\Hrot.EcsNode\Hrot.EcsNode.csproj" />    <!-- CE-4015: the code every ECS host composes (no host-to-host reference) -->
+    <ProjectReference Include="..\..\Engine\Hrot.Gameplay\Hrot.Gameplay.csproj" />    <!-- Player Join §9: GameplayClientPack -->
+    <ProjectReference Include="..\..\Engine\Hrot.Traffic\Hrot.Traffic.csproj" />    <!-- AQ93 N6: TrafficPack.Mirroring() -->
+    <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
+    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
+    <!-- ⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — the shared Details panel every ECS host builds -->
+    <ProjectReference Include="..\..\Editor\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
+    <!-- CE-1017: the Add Entity picker (PickerRegistry). -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />
+    <ProjectReference Include="..\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
+    <!-- CE-1139: the stance topics in (AnimationReplicationModule.RegisterStanceViewerOn). -->
+    <ProjectReference Include="..\Hrot.Animation.Replication\Hrot.Animation.Replication.csproj" />
+    <!-- NED protocol references required for DebugPrimitivesIngressTranslator and related types. -->
+    <!-- NOTE: GZ045 gizmo interaction translators are now routed through INetworkFactory. -->
+    <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
+
+    <!-- FDP Kernel and Toolkits -->
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- GZ058: source generator for [GizmoProjector] attribute on EffectPresentationGizmo. -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />  </ItemGroup>
+
+  <ItemGroup>
+    <!-- NuGet packages -->
+    <PackageReference Include="Raylib-cs" Version="7.0.2" />
+    <PackageReference Include="rlImgui-cs" Version="3.2.0" />
+    <PackageReference Include="NLog" Version="5.2.8" />  </ItemGroup>
+
+</Project>

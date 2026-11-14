@@ -6,7 +6,7 @@ using Fdp.Toolkit.Navigation;
 
 namespace Hrot.Common.Diagnostics.Gizmos
 {
-    [GizmoProjector(typeof(NavigationIntent), typeof(SimTransform))]
+    [GizmoProjector(typeof(NavigationIntent), typeof(SimTransform), DrawsOffScreen = true)]
     public sealed class NavigationTargetGizmo : IStatelessGizmo
     {
         private static readonly Rgba32 TargetColor = new Rgba32(0, 121, 241, 255);
@@ -14,7 +14,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
             ref readonly var intent = ref view.GetComponentRO<NavigationIntent>(entity);
-            if (intent.Mode != NavigationMode.DirectPoint)
+            if (intent.Mode != NavigationMode.DirectPoint && intent.Mode != NavigationMode.PathToPoint)
                 return;
 
             if (view.HasComponent<NavigationStatus>(entity))

@@ -578,7 +578,7 @@ Application:
 
 ```csharp
 [EventId(8002)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public readonly struct MontageEndedEvent
 {
     public readonly Entity Target;

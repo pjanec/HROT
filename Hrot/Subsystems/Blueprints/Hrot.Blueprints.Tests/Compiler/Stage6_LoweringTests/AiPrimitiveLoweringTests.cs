@@ -45,7 +45,10 @@ public sealed class AiPrimitiveLoweringTests
 
         Assert.False(sink.HasErrors,
             $"Unexpected errors: {string.Join(", ", sink.All.Select(d => d.Code))}");
-        Assert.Contains(lowered.WorkingState, f => f.Name == "__phase");
+        // ⭐ Batch 86 — RESTATED. IrAsset.WorkingState is retired and always empty (R-01); the
+        //   synthesized __phase now lands in the ONE state tier. ⛔ Left as-is this would have gone
+        //   GREEN-on-empty in reverse — Assert.Contains over [] is a loud red, which is why it caught it.
+        Assert.Contains(lowered.StateDeclarations, f => f.Name == "__phase");
     }
 
     [Fact]
@@ -83,6 +86,54 @@ public sealed class AiPrimitiveLoweringTests
         // Entry block must be the dispatch block.
         var entryBlock = graph.Blocks.First(b => b.Id == graph.Entry);
         Assert.Equal("dispatch", entryBlock.Label);
+    }
+
+    /// <summary>
+    /// ⭐ S1 / I12 (<c>DESIGN_Unified_Behaviour_Run</c> §2) — when a wait SUCCEEDS, the resume path clears <c>__phase</c>
+    /// before it continues, exactly as the Failure path does. 🔴 It used to go straight to the continuation with
+    /// <c>__phase</c> still set, so the next entry to this node skipped everything before the wait.
+    /// ✅ Red-proof: route the not-running branch back to the continuation directly ⇒ no block writes phase 0 on success.
+    /// </summary>
+    [Fact]
+    public void AiPrimitive_ASuccessfulWait_ClearsThePhase_BeforeItContinues()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("Action")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().WaitForChannel("Chan").Return())
+            .Build();
+
+        var sink  = new DiagnosticSink();
+        var graph = Assert.Single(RunLower(asset, sink).Graphs);
+        Assert.False(sink.HasErrors);
+
+        var success = Assert.Single(graph.Blocks, b => b.Label == "phase1_success");
+        Assert.Contains(success.Statements, st => st.Operation is IrOp_WriteWorkingStatePhase { PhaseValue: 0 });
+        var notRunning = Assert.Single(graph.Blocks, b => b.Label == "phase1_not_running");
+        Assert.Equal(success.Id, Assert.IsType<IrTerm_Branch>(notRunning.Terminator).IfFalse);
+    }
+
+    /// <summary>
+    /// ⭐ CE-2018 — with THREE waits the phase dispatch is a real chain: phase ≠ 1 goes to the NEXT link (phase == 2?), not
+    /// straight to the second wait's check. 🔴 Every link's else went to <c>check[k+1]</c>, so phase 3 resumed wait 2.
+    /// ✅ Red-proof: the old else target ⇒ <c>dispatch_chain_2</c> is dead and filtered out.
+    /// </summary>
+    [Fact]
+    public void AiPrimitive_ThreeWaits_TheDispatchIsAChain()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("Action")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().Delay(1f).Delay(1f).Delay(1f).Return())
+            .Build();
+
+        var sink  = new DiagnosticSink();
+        var graph = Assert.Single(RunLower(asset, sink).Graphs);
+        Assert.False(sink.HasErrors);
+
+        var chain1 = Assert.Single(graph.Blocks, b => b.Label == "dispatch_chain_1");
+        var chain2 = Assert.Single(graph.Blocks, b => b.Label == "dispatch_chain_2");
+        Assert.Equal(chain2.Id, Assert.IsType<IrTerm_Branch>(chain1.Terminator).IfFalse);
     }
 
     [Fact]

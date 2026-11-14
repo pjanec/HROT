@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using FluentAssertions;
 using Fhsm.Compiler;
@@ -40,7 +41,7 @@ public sealed class HsmTransitionAutoVarDeleteTests
             VisualId              = transVisualId,
             Source                = source,
             Target                = target,
-            ExpressionTargetField = expressionTargetField,
+            Action = new BehaviorActionBinding { ExpressionTargetField = expressionTargetField },   // CE-417: the action's field is the output
         };
         source.OutgoingTransitions.Add(transition);
 

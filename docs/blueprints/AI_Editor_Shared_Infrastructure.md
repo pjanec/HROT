@@ -1,3 +1,69 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-20 (STATUS block added; selection content re-measured with the graph)
+current-answer: the body below.
+related-designs:
+  - docs/DESIGN_Director_Timeline_Editor.md — TE-21 (APPROVED, R-4075): §15's Trace Timeline and the exercise timeline become ONE shared panel; ITraceLaneProvider is its row seam, generalised
+  - HSM_Editor_NodeEditor_Host_Design.md — §11.1a owns the HSM state's hosted-subtree field, its
+    walker and its validator rule; this doc owns the picker and the heal RULE they share.
+  - BTree_Editor_NodeEditor_Host_Design.md — §S1 owns BTree's subtree node, including the resolver
+    defect that erased the persisted Guid.
+  - DESIGN_Occurrence_Scoped_Storage.md — §32 owns the RUNTIME that consumes an authored subtree
+    reference; it does not own any authoring surface.
+known-rot: ⚠ this document predates UXI-11 (selection unification, ☑ 2026-09-20) and is NOT reconciled
+  with it. Two measured facts, 2026-09-20:
+  ⭐⭐ ①+② ARE RESOLVED IN CODE 2026-09-21 by CE-300/CE-301 — CallbackSelectionBridge and
+     IGSelectionBridge are DELETED; SharedEntitySelection is now written ONLY by
+     SelectionNotificationSystem, from SelectionChangedNotification, so every cause moves it and
+     CGF's cell has a production writer for the first time. It is a PROJECTION, railed as one.
+     📄 DESIGN_Editor_Entity_Selection_Source.md §9. ⚠ The two entries below are kept as the
+     RECORD OF WHAT WAS WRONG — including a retraction worth not re-deriving.
+  ① 🔴 SharedEntitySelection (wrapped per-editor by EditorSelectionStore) is a SECOND entity-selection
+     store, held in production by BOTH authoring hosts — EditorSubsystem.cs:360 and CgfSubsystem.cs:199 —
+     alongside the ECS SelectionState component UXI-11 made the one truth everywhere else. ⛔ No UXI-11
+     slice addressed it; it is NOT a view. Whether it should become one is UNRULED (CE-301).
+     ⭐⭐ SPLIT THE STORE BEFORE JUDGING IT, 2026-09-21 — EditorSelectionStore holds TWO unrelated things
+     and only ONE is an entity selection:
+       · ActiveAsset + per-asset sub-selection (BTree/HSM/Blueprint NODES) — ⛔ NOT an entity store,
+         entirely outside UXI-11's scope, and §5.1.1's per-asset argument is about THIS half only.
+       · SelectedEntity, delegated to SharedEntitySelection — ⭐ THIS is the second store, and it is one
+         cell, not a set: "ONE FACT ABOUT THE WORLD" in its own header.
+     ⇒ the open question is about ONE Entity? cell, not about the asset bus. §5.1 already asks for the
+     engine sync ("the single source of selection truth for all three editors plus the engine's
+     selection-sync (map, outliner, game viewport)") and §5.1.1 says SelectedEntity "stays global".
+  ② ⛔⛔ CORRECTED 2026-09-21 — the 2026-09-20 entry below was WRONG and is kept so nobody re-derives
+     it. It read: "IGSelectionBridge has exactly ONE implementation, CallbackSelectionBridge, and ZERO
+     production construction sites — the only `new CallbackSelectionBridge` is in its own test."
+     📐 MEASURED: EditorSubsystem.cs:2092 constructs it and :2105 calls Connect(_aiEditorSelectionStore),
+     inside Initialize(), unconditionally, no #if. The ONE implementation is right; "zero production
+     sites" is not. ⚠ A graph query that misses a construction site looks identical to a real absence —
+     corroborate with grep before any zero (CLAUDE.md ③).
+     ⭐ WHAT IS ACTUALLY TRUE, and it is worse than the retracted claim (CE-300):
+       · the bridge does NOT consume the DDS SelectionChangedEvent this file's §5.3 describes. It
+         subscribes to SelectionInteractionSystem.OnSelectionChanged — the LOCAL MAP-GESTURE callback.
+       · ⇒ the AI editors' SelectedEntity moves on a MAP CLICK AND NOTHING ELSE. An entity-inspector
+         click, an orbat select, a context-menu Select, a remote CMD_SET_SELECTION: none of them move it,
+         so every live-value/Watch/Details row keeps projecting the PREVIOUS entity.
+       · 🔴 This is the THIRD instance of one defect shape — UXI-11 S-3 fixed it inbound, S-6 outbound,
+         and this one sits TWO LINES BELOW the comment at EditorSubsystem.cs:2085-2090 that explains why
+         the neighbouring hand-sync was retired for being gesture-driven.
+       · on CGF the cell is INERT, not wrong: CgfSubsystem.cs:2033-2035 build three stores over one
+         SharedEntitySelection, and measured — no production writer AND no reader (CGF passes no
+         liveValueProvider to CreateRegistrar). Every reader of the cell lives in Hrot.Editor.
+  ③ ⚠ §5.4's per-window ChainToMap toggle is ROTTED by UXI-11 ruling ① ("inspector selection changes
+     global entity selection state … every host"): EntityInspectorPanel.ChainToMap was RETIRED at S-3,
+     with its operator toggle. Do not implement §5.4 as written.
+related-designs:
+  - docs/blueprints/DESIGN_Hsm_Blueprint_Behaviour_Authoring.md — CONSUMES this file's
+    `ActionSchemaExporter` / behavior-action catalog to fill the HSM action and guard pickers,
+    filtered by the `hsmAction` / `hsmGuard` flags. It owns the HSM side only; the catalog stays here.
+  - docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md — owns WHERE an AI-editor view gets its
+    entity (unified selection when docked, frozen snapshot when pinned). SUPERSEDES this file's
+    §5.3 (the DDS bridge as ingress) and §5.4 (the per-window ChainToMap toggle).
+  - docs/UX/UX_Feature_Selection.md — owns UXI-11: the ECS SelectionState component, the one store, the
+    request/notification protocol and the egress. It does NOT own this file's SharedEntitySelection.
+  - docs/DESIGN_Entity_Brain_View.md — §10 BV-30 draws the Trace Timeline's first lane (Brain, from the journal) in the window §15 owns
+-->
 # AI Editor — Shared Infrastructure Detailed Design
 
 > **Status:** Detailed design, derived from `Blueprint_Subsystem_Editor_Detailed_Design.md` + Inline Patches + `Blueprint_Subsystem_Debug_Protocol_Detailed_Design.md` (+ Inline Patches) + `Blueprint_Subsystem_Architecture_v1_2.md` + FDP-ECS-AI-API research report + NodeEdit-docs + FastBTree + FastHSM source.
@@ -801,6 +867,355 @@ Each subsystem editor provides its own concrete `IEditorHostServices` instance. 
 | `IInputSource` | Shared default (the engine's ImGui input adapter) |
 | `IEditorTheme` | Shared default (one theme, all three editors look like one product) |
 
+### 7.1a ⭐⭐⭐ THE ASSET PICKER — **one field drawer that offers ASSETS, not symbols** *(`2026-09-26`)*
+
+> 🔒 **User:** *"the tree asset must be pickable."*
+
+📐 **INVENTORY, `2026-09-26`** *(`search_graph` + grep — the complete set of picker attributes)*:
+**eleven** exist — `BehaviorHashPicker` · `BlackboardFieldPicker` · `HsmActionPicker` ·
+`HsmBlackboardFieldPicker` · `HsmEventPicker` · `HsmGuardPicker` · `HsmStateSelector` ·
+`HsmSyncGroupPicker` · `AnimMarkerPicker` · `MontagePicker` · `PropertyPathPicker`/`WorkingSlotPicker`
+*(ReplayBrowser)*. ⛔⛔ **Every one picks a SYMBOL — a method, event, guard, state, field or marker.
+NOT ONE picks an ASSET.**
+
+⇒ 🔴 that is why `BTreeSubtreeFacet.SubtreeName` — labelled *"Referenced asset"* — is **plain free
+text** today, and why the HSM state facet has no subtree field at all. ⭐ **The capability is genuinely
+absent, so this is a BUILD, not an adoption** *(the seam law's rarer case — stated because this
+programme's default answer has been "it already exists")*.
+
+#### The shape
+
+```mermaid
+classDiagram
+    class IPickerListSource {
+        <<interface>>
+        EXISTS
+        +GetItems() IReadOnlyList~string~
+    }
+    class IAssetCatalog {
+        <<interface>>
+        EXISTS
+        +All IReadOnlyList~IEditableAsset~
+        +FindByName(string) IEditableAsset
+        +FindByAssetId(Guid) IEditableAsset
+        +Changed event
+    }
+    class AiAssetPickerAttribute {
+        NEW
+        +AssetKind Kind
+    }
+    class AiAssetPickerDrawer {
+        NEW
+        -IAssetCatalog catalog
+        -AssetKind kind
+        +GetItems() IReadOnlyList~string~
+    }
+    class SubtreeReferenceResolver {
+        NEW - shared
+        +Resolve(catalog, name, guid) SubtreeReference
+    }
+    class SubtreeReference {
+        NEW - result
+        +string Name
+        +Guid AssetId
+        +bool IsResolved
+        +bool Healed
+    }
+
+    IPickerListSource <|.. AiAssetPickerDrawer
+    AiAssetPickerDrawer --> IAssetCatalog : All, filtered by Kind
+    AiAssetPickerDrawer ..> AiAssetPickerAttribute : registered for
+    SubtreeReferenceResolver --> IAssetCatalog
+    SubtreeReferenceResolver ..> SubtreeReference : returns
+```
+
+⭐ **Caption — what the picture shows that prose hid:** the drawer needs **nothing new** from the
+catalog. `IAssetCatalog.All` + `Changed` already exist, so the picker is a filter over a live list;
+⛔ no new catalog member, and no per-subsystem picker.
+
+#### ⭐⭐⭐ The heal rule — **why a name AND a Guid, and which one wins**
+
+```mermaid
+sequenceDiagram
+    participant L as asset load / hot reload
+    participant R as SubtreeReferenceResolver
+    participant C as IAssetCatalog
+    participant M as editor model
+
+    L->>R: Resolve(catalog, name, assetId)
+    R->>C: FindByName(name)
+    alt name resolves and Kind matches
+        C-->>R: asset
+        R-->>M: Name kept, AssetId refreshed, IsResolved = true
+    else name fails, Guid resolves
+        R->>C: FindByAssetId(assetId)
+        C-->>R: asset (it was RENAMED)
+        R-->>M: Name HEALED from the asset, IsResolved = true, Healed = true
+        Note over M: caller marks the document dirty -<br/>the heal is a real edit and must be saved
+    else neither resolves
+        R-->>M: Name kept, AssetId kept, IsResolved = false
+        Note over M: DANGLING - validator reports it.<br/>NOTHING is erased: the next load may find it
+    end
+```
+
+⭐⭐ **Caption:** the third branch is the one that was wrong in shipped code. `BTreeSubtreeResolver`
+**sets `SubtreeAssetId = Guid.Empty`** when the name misses — ⛔ **it destroys the persisted Guid at
+exactly the moment the Guid is the only thing that could identify the asset.** The rule here is
+**never erase**; a reference that cannot resolve today is still a reference.
+
+| ⭐ the rule, stated once | |
+|---|---|
+| ⭐⭐⭐ **the NAME is authored; the Guid is a persisted FALLBACK IDENTITY** | ⛔ not a cache — it is written by the picker and survives independently |
+| ⭐⭐ **name wins when both resolve** | ⚠ a name that resolves is what the designer last chose and what the runtime looks up |
+| ⭐⭐ **Guid heals the name when the name misses** | ⇒ **a rename is self-repairing**, which is the whole reason both are stored |
+| ⛔⛔ **neither branch ever CLEARS the other field** | 📌 the shipped BTree defect; a dangling reference keeps everything it has |
+
+⚠ **Who calls it:** each subsystem walks its own model *(different shapes — BTree nodes, HSM states)*
+and calls this resolver per reference. ⛔ The WALK is subsystem-specific and stays there; only the
+DECISION is shared. 📄 `BTree_Editor_NodeEditor_Host_Design.md` and
+`HSM_Editor_NodeEditor_Host_Design.md` own their walkers.
+
+### 7.1b ⭐⭐ THE SEARCHABLE CHOICE FIELD — **every inspector choice opens the ONE picker** *(`CE-1008`, `2026-10-16`, ui)*
+
+> 🔒 **User (`2026-10-06`, CE-1008):** *"want the general picker window used for opening assets, with incremental search; the C# method
+> picker ideally as an FQN-segment tree."* · `docs/blueprints/NodeEdit/C-picker.md`: *"The picker is one widget … implemented once and
+> parameterized; do not write separate popups per use case."*
+
+📐 **INVENTORY, `2026-10-16`** *(codebase-memory CLI `search_graph` `.*Picker.*` Class — **114** symbols, paginated; grep on every combo;
+corpus sweep of `docs/` + `.dev/`; `check_index_coverage` NOT run — CLI only)*:
+
+| surface | today | where |
+|---|---|---|
+| the binding drawer (BTree + HSM): method · blueprint · variable · working state | ⛔ plain combos, no search | `ActionBindingDrawer.cs:159` (`Combo`, called :71/:81/:112/:124) |
+| HSM state · event · sync group | ⛔ plain combos | `HsmPickerDrawers.cs:70` (`HsmPickerHelper.RenderCombo`), `:161`, `:214` |
+| asset picker · SOP behaviour picker | ⛔ plain combos | `AiAssetPickerDrawer.cs:70`, `AiBehaviorPickerDrawer.cs:37` |
+| ⭐ the ONE searchable picker | `PickerWindow` — a floating window, search focused on open, fuzzy over `Category/Name` + keywords, Tree layout from `Category` split on `/`, favourites, recents; the pick comes back by CALLBACK, later | `NodeEditor.UI/Picker/PickerWindow.cs`, `PickerRegistry.OpenPicker` (`PickerRegistry.cs:85`) |
+| ⭐ a shell registry drawn every frame, on both authoring hosts | `_shellPickers` | `EditorSubsystem.cs:558`, `CgfSubsystem.cs:136` |
+| ⭐ precedent: a field that opens the picker and takes the pick on a later frame | the entity field's `List…` (`MapPickBroker`, keyed by JSON path) | `ComponentEditDrawer.cs:341-353`, `MapPickBroker.cs:56,95` |
+| the drawers' wiring | rebuilt per active document; the services record carries **no picker** | `AiFacetPickerBinder.cs:72`, `AiFacetPickerServices` |
+
+#### Classes
+
+```mermaid
+classDiagram
+    direction LR
+    class PickerRegistry { <<EXISTS NodeEditor.UI>> +OpenPicker(PickerRequest, Action~PickerResult~) }
+    class PickerWindow { <<EXISTS>> floating, incremental fuzzy search, Tree layout }
+    class PickerField { <<NEW AiShared/Inspector>> -opener -pending by EditNode + field id
+        +Draw(id, node, current, choices, out picked) bool }
+    class PickerChoice { <<NEW record>> Value, Label, Category, Keywords }
+    class PickerChoices { <<NEW static>> +Methods(fqns, label) · +Flat(values, label) }
+    class AiFacetPickerServices { <<EXISTS, grows>> +OpenPicker }
+    class AiFacetPickerBinder { <<EXISTS>> Rebuild(active, services) }
+    class BTreePickerDrawerFactory { <<EXISTS, grows>> BuildDrawers(..., openPicker) }
+    class HsmPickerDrawerFactory { <<EXISTS, grows>> BuildDrawers(..., openPicker) }
+    class ActionBindingDrawer { <<EXISTS>> method, blueprint, variable, working state }
+    class HsmPickerHelper { <<EXISTS>> state, event }
+    class AiAssetPickerDrawer { <<EXISTS>> }
+    class AiBehaviorPickerDrawer { <<EXISTS>> }
+    AiFacetPickerBinder --> BTreePickerDrawerFactory : services.OpenPicker
+    AiFacetPickerBinder --> HsmPickerDrawerFactory : services.OpenPicker
+    BTreePickerDrawerFactory ..> PickerField : one per document
+    HsmPickerDrawerFactory ..> PickerField : one per document
+    ActionBindingDrawer --> PickerField
+    HsmPickerHelper --> PickerField
+    AiAssetPickerDrawer --> PickerField
+    AiBehaviorPickerDrawer --> PickerField
+    PickerField ..> PickerChoices
+    PickerChoices ..> PickerChoice
+    PickerField --> PickerRegistry : opener
+    PickerRegistry --> PickerWindow
+```
+
+*What the picture shows that prose hid:* the only new type with behaviour is `PickerField`, and it hangs off what exists on both ends — the
+shell registry every host already draws, and the six drawers that already hold the lists. ⛔ No new window, no second search.
+
+#### Sequence — a pick lands on a LATER frame, on the node it was made for
+
+```mermaid
+sequenceDiagram
+    participant I as Inspector (DrawInput, every frame)
+    participant F as PickerField
+    participant R as PickerRegistry / PickerWindow
+    I->>F: Draw(field, node, current, choices)
+    F-->>I: a button showing the current label
+    Note over I,F: the user clicks it
+    F->>R: OpenPicker(request: entries + (none), initial = current, Tree when any has a category)
+    Note over R: the user types, the list narrows, the user picks
+    R-->>F: callback: pending[node, field] = value
+    I->>F: Draw(...) on the next frame
+    F-->>I: picked = value, changed (the drawer writes it as before)
+```
+
+*What the picture shows that prose hid:* the pick is CONSUMED by the drawer on its next frame, so every drawer's existing write path
+(`PickMethod`, `value = name`) is unchanged — and a pick is keyed by the `EditNode` object, which the `EditSession` keeps for one selection
+and replaces on the next, so a pick finished after the operator selected another node is dropped, never written to the wrong one.
+
+#### Modules — who calls it each frame
+
+```mermaid
+graph TD
+    EH[EditorSubsystem] -->|owns, DrawFrame each frame| SP[_shellPickers PickerRegistry]
+    CH[CgfSubsystem] -->|owns, DrawFrame each frame| SP2[_shellPickers PickerRegistry]
+    EH -->|on document activation| B[AiFacetPickerBinder.Rebuild]
+    CH -->|AfterRetarget| B
+    B -->|services.OpenPicker| BF[BTree / HSM drawer factories]
+    BF --> PF[PickerField, one per document]
+    INS[NodeProperties inspector, each frame] --> DR[the six drawers] --> PF
+    PF -->|OpenPicker| SP
+    classDef dead fill:#fdd,stroke:#c00
+    GAP[services carry no picker today: every field is a combo]:::dead
+    GAP -.-> B
+```
+
+*Caption:* both hosts already draw a shell picker registry every frame; the red box is the one missing edge.
+
+#### Decisions — leans
+
+| # | ⭐ lean | rejected — one line each |
+|---|---|---|
+| **P-1** | ONE helper, `PickerField`, reusing `PickerWindow` through the host's shell `PickerRegistry` | an ImGui filter box inside the combo: a second picker widget (C-picker, ruling 9) · `AssetPickerModal`: a modal over the whole browser, assets only |
+| **P-2** | the pick is held by `(EditNode, field id)` and consumed on the drawer's next frame | key by JSON path (`MapPickBroker`): a pick finished after selecting another node lands on that node's same field |
+| **P-3** | no opener ⇒ today's combo (tests, lightweight hosts); both production hosts PASS it, checked by a forwarding rail on the constructed drawers (the silent-default rule) | make the opener required: every rail and test host would need a fake registry |
+| **P-4** | a C# method's entry: `Category` = its namespace and type joined with `/`, `Name` = the method, `Keywords` = the full FQN, `Description` = the C#/Blueprint label; Tree layout with single-child folders folded; `(none)` is the first entry | flat FQN list: the FQN tree is what the user asked for · per-segment tab completion: a NodeEdit addition, the user said "maybe" — not v1 |
+| **P-5** | v1 covers the binding drawer (4 fields), HSM state and event, the asset and the SOP-behaviour pickers; the sync-group combo (a handful of numbers) and the ~25 Blueprint node-drawer combos stay, recorded | convert every combo in the editor at once: the Blueprint node drawers are a different surface (graph nodes), a separate item |
+
+| the design rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| `PickerWindow` works off the canvas | ✅ `SpawnerPanel.cs:107`, `AssetPickerLauncher.cs:71-96`, `EntityListSource.Opener` use it from panels | ✅ C-picker.md: one widget for every pick |
+| both hosts draw a shell registry every frame | ✅ `EditorSubsystem.cs:3021`, `CgfSubsystem.cs:1858` | ✅ `ASSET-PICKER-UX-DESIGN.md`: adopt NodeEdit's picker |
+| an `EditNode` lives for one selection | ✅ `EditSession` keeps its document until a structural change (`EditSession.cs:16,53-57`) | ⛔ searched, no design states it — measured only |
+| the BTree method LIST is the right list | ⛔ **not measured** — it is the behaviour registry's names (`BTreePickerDrawers.cs:42`), not the `[BTreeAction]` exporter's | ⛔ not this item's question (it is search, not list contents) — recorded as an open measurement for the behaviors lane |
+
+#### AS-BUILT (`CE-1008`, `2026-10-16`, ui) — as designed
+
+`PickerField` + `PickerChoice` + `PickerChoices` in `Hrot.Editor.AiShared/Inspector/PickerField.cs`; `AiFacetPickerServices.OpenPicker`
+→ both drawer factories (`openPicker`, one `PickerField` per document) → `ActionBindingDrawer` (method as an FQN tree, blueprint, variable,
+working state), `HsmStateSelectorDrawer`, `HsmEventPickerDrawer` (the pick maps back to the event id), `AiAssetPickerDrawer`,
+`AiBehaviorPickerDrawer`. Both hosts pass `_shellPickers.OpenPicker` (`EditorSubsystem`, `CgfSubsystem`). The private combo helpers became
+`PickerField.Combo` (the no-picker fallback), so two duplicate combo bodies are gone. The button keeps the old combos' visible labels
+("method", "blueprint" …). ⚠ No frame screenshot yet (the picker opens over the editor; rails cover the request and the landing).
+Rails: `PickerFieldTests` ×3 (none + every choice, landing on its node only, once; none clears, cancel does nothing; the FQN tree),
+`BTreePickerDrawerTests.CE1008_…`, `HsmPickerDrawerTests.CE1008_…` (the forwarding: one shared field). Each red-proved.
+
+### 7.1c ⭐ GO TO DEFINITION FOR A C# METHOD — **one opener, three surfaces** *(`CE-1009`, `CE-1011`, `CE-1167`, `2026-10-17`, ui)*
+
+> 🔒 **User (`2026-10-06`, Windows check):** CE-1009 — *the Blueprint function node's "Go to Definition" should open the C# source in
+> Visual Studio*; CE-1011 — *the method picker has no "Go to Definition" for the selected C# method (context menu suggested)*.
+
+📐 **INVENTORY, `2026-10-17`** *(codebase-memory CLI `search_graph` `.*(ResolveMethod|MethodOf|FindMethod|ResolveClrMethod|TryGetMethod).*`
+Method — 8; grep for every reference of the three opener types — 5 files; the BTree/HSM method lists read at their call sites; stored
+`MethodFqn` values counted across every `*.json`; `check_index_coverage` NOT run — CLI only)*:
+
+| surface | today | where |
+|---|---|---|
+| ⭐ open a file at a line in a running VS (DTE), else `devenv /edit`, else VS Code, else the shell | `SourceFileOpener.Open` → `VisualStudioDteOpener.TryOpenAtLine` — ⚠ **`internal` to `Hrot.Blueprints.Editor`** | `SourceFileOpener.cs:24`, `VisualStudioDteOpener.cs:33` |
+| ⭐ a method's file + line from its portable PDB | `ClrSourceLocator.Resolve(MethodInfo)` — ⚠ same assembly, `internal` | `ClrSourceLocator.cs:27` |
+| who calls them | ONE caller: the function node's "⋯" button | `FunctionCallNodeDrawer.cs:252` |
+| the Blueprint "Go to Definition" command | follows a graph target only, else "No definition to go to" | `BlueprintDocumentFactory.cs:1288-1310` |
+| a third consumer already designed | params DTOs: *"the editor reuses `SourceFileOpener` (file + line)"* | `DESIGN_Orders_Params_Entity_Classes.md` §13.1 F3 |
+| the exporter holds every action/condition's `MethodInfo` while scanning, and drops it | `ProcessMethod(MethodInfo …)` builds `ActionSchemaEntry` without it | `ActionSchemaExporter.cs:93-200` |
+| 🔴 **the BTree method field lists BEHAVIOUR names** (`AdvanceTo`, `Attack` …) | `registry.GetRegisteredNames()` — while every stored BTree binding holds a C# method FQN (`Fdp.Toolkit.Behavior.SopConditions.SensedFresh` ×172 …) and the BTree palette and the HSM list both read the exporter | `BTreePickerDrawers.cs:46`; `BTreeNodeCatalog.cs:91`; `HsmBindingMethods.cs:30` |
+
+#### Classes
+
+```mermaid
+classDiagram
+    direction LR
+    class SourceFileOpener { <<MOVED to AiShared, public>> +Open(file, line) bool }
+    class VisualStudioDteOpener { <<MOVED, public>> +TryOpenAtLine(file, line) bool }
+    class ClrSourceLocator { <<MOVED, public>> +Resolve(MethodInfo) SourceLocation? }
+    class ActionSchemaEntry { <<EXISTS, grows>> +MethodInfo? Method }
+    class ActionBindingMethods { <<NEW, AiShared>> +For(exporter, kind, hosting, own) }
+    class HsmBindingMethods { <<EXISTS>> For = ActionBindingMethods.For(..., Hsm*) }
+    class ActionBindingSources { <<EXISTS, grows>> +SourceOf(fqn) +GoToDefinition(fqn) }
+    class ActionBindingDrawer { <<EXISTS, grows>> right-click the method: Go to Definition }
+    class BlueprintDocumentFactory { <<EXISTS, grows>> Go to Definition: graph target, else the C# source }
+    class FunctionCallNodeDrawer { <<EXISTS>> the button, now through the moved opener }
+    SourceFileOpener --> VisualStudioDteOpener
+    ActionBindingSources --> ActionSchemaEntry : Lookup(fqn).Method
+    ActionBindingSources --> ClrSourceLocator
+    ActionBindingSources --> SourceFileOpener
+    ActionBindingDrawer --> ActionBindingSources
+    BlueprintDocumentFactory --> ClrSourceLocator
+    BlueprintDocumentFactory --> SourceFileOpener
+    FunctionCallNodeDrawer --> SourceFileOpener
+    HsmBindingMethods --> ActionBindingMethods
+```
+*Caption:* what the picture shows that prose hid — the opener already exists and is reachable from ONE assembly only; moving it down one
+assembly serves all three callers, and the exporter (already scanning every method) supplies the `MethodInfo` so no second FQN resolver is
+written.
+
+#### Sequence — right-click a bound method, Go to Definition
+
+```mermaid
+sequenceDiagram
+    participant U as author
+    participant D as ActionBindingDrawer
+    participant S as ActionBindingSources
+    participant X as IActionSchemaExporter
+    participant L as ClrSourceLocator
+    participant O as SourceFileOpener
+    U->>D: right-click the method field
+    D->>S: SourceOf(binding.MethodFqn)
+    S->>X: Lookup(fqn)
+    X-->>S: entry with Method
+    S->>L: Resolve(Method)
+    L-->>S: file and line, or none
+    D-->>U: menu: Go to Definition (greyed with no source), the file and line shown
+    U->>D: click
+    D->>S: GoToDefinition(fqn)
+    S->>O: Open(file, line)
+```
+
+#### Modules
+
+```mermaid
+graph TD
+    BPE[Hrot.Blueprints.Editor] -->|references| AIS[Hrot.Editor.AiShared]
+    AIS --> SRC[Source: SourceFileOpener, VisualStudioDteOpener, ClrSourceLocator]
+    INS[NodeProperties inspector, each frame, BTree + HSM] --> ABD[ActionBindingDrawer] --> SRC
+    CMD[Blueprint command Go to Definition, on F12 or the menu] --> SRC
+    FCN[FunctionCallNodeDrawer button] --> SRC
+    classDef dead fill:#fdd,stroke:#c00
+    OLD[today the three types are internal to Hrot.Blueprints.Editor: AiShared cannot reach them]:::dead
+    OLD -.-> SRC
+```
+*Caption:* the red box is the whole of CE-1011's blocker; the arrow direction (Blueprints.Editor → AiShared) is why the types move DOWN.
+
+#### Decisions — leans
+
+| # | ⭐ lean | rejected — one line each |
+|---|---|---|
+| **G-1** | MOVE the three types to `Hrot.Editor.AiShared` (namespace `Hrot.Editor.AiShared.Source`), public | an interface in AiShared implemented in Blueprints.Editor: a seam with one implementation and a wiring step per host · copy them: two openers |
+| **G-2** | the exporter keeps the `MethodInfo` it already scans (`ActionSchemaEntry.Method`, optional, last) | a reflection FQN resolver over loaded assemblies: a second resolver next to four that exist (`NodePinSchema.ResolveMethod`, `Stage0_Rehydrate.ResolveMethod`, the Roslyn one, `BTreeBlueprintBindings`) |
+| **G-3** | the method field's RIGHT-CLICK menu: *Go to Definition* (greyed, with the reason, when there is no source) and the `file:line` as its tooltip — the frame's "context menu" | a second button beside the field: width the field does not have |
+| **G-4** | Blueprint "Go to Definition": the graph target as today; else a function node whose CLR method has a source ⇒ open it; else today's notification, its text naming the missing PDB | a separate "Go to Source" command: two names for one gesture |
+| **G-5** *(CE-1167)* | the BTree method list = the exporter's BTree-hosted entries of the slot's kind (`IsCondition` for a condition) ∪ the asset's own names — the HSM list's rule, ONE function `ActionBindingMethods.For` for both | keep the behaviour names: they are not methods, and a pick writes a value the build cannot resolve |
+
+| the design rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a stored BTree binding is a C# method FQN | ✅ 172+ `MethodFqn` values are `Ns.Type.Method`; `BTreeMethodCompatibilityValidator.ResolveMethod` resolves exactly that (`:405`) | ✅ `DESIGN_Behavior_Action_Binding.md` §4b: `ActionBindingSources` lists the binding's METHODS |
+| the exporter sees the `MethodInfo` | ✅ `ActionSchemaExporter.cs:93` | ⛔ searched, none found — measured only |
+| the move breaks nobody outside Blueprints.Editor | ✅ 5 files reference the three types, all in Blueprints.Editor and its tests | — |
+| Windows-only opener is harmless on Linux | ✅ every step returns false on failure (`VisualStudioDteOpener.cs:35`, `SourceFileOpener.cs:42-60`) | — |
+
+#### AS-BUILT (`CE-1009`, `CE-1011`, `CE-1167`, `2026-10-17`, ui) — as designed
+
+| decision | as built |
+|---|---|
+| G-1 | `SourceFileOpener`, `VisualStudioDteOpener`, `ClrSourceLocator` moved (git mv) to `Hrot.Editor.AiShared/Source/`, namespace `Hrot.Editor.AiShared.Source`, public; the function node's "⋯" button and `ClrSourceLocatorTests` take the new namespace (the only two users) |
+| G-2 | `ActionSchemaEntry.Method` (optional, last); `ActionSchemaExporter.ProcessMethod` passes the method it scanned |
+| G-3 | `ActionBindingSources.SourceOf(fqn)` / `GoToDefinition(fqn)` / `OpenSource` (the opener, swappable by a rail); `PickerField.Draw(…, context)` draws an optional right-click menu on the field (button or combo); `ActionBindingDrawer` gives the method field *Go to Definition* + the `file:line`, greyed with the reason when there is no source |
+| G-4 | `BlueprintDocumentFactory.RegisterExpandCommands(…, openSource)`: no graph target and a library call with a source ⇒ open it (`SourceOfClrCall`); the refusal's text for a library call now says the C# source cannot be found |
+| G-5 | `ActionBindingMethods.For(exporter, hosting, condition, own)` (AiShared) — `HsmBindingMethods.For` calls it; the BTree factory calls it with `ActionHosting.BTree` and the slot's kind (`BTreePickerDrawerFactory.BindingsOf`) |
+
+⚠ Four old rails pinned the defect (`FieldPicker_BehaviorHash_*` ×3 and `SE2_PickerDrawerRebuildTests.BTreeFactory_BindingDrawer_ListsTheRegistrysMethods`
+asserted the BTree list IS the registry's names) — re-homed onto the exporter rule (`CE1167_…` ×2, `FieldPicker_MethodList_NoExporter_ReturnsEmpty`,
+`…_ItemsSorted`, `BTreeFactory_BindingDrawer_ListsTheExportersMethods_NotBehaviourNames`). Rails `CE1011_…` ×2
+(`BTreePickerDrawerTests`), `CE1009_…` ×2 (`ExpandNodeTests`); five red-proof switches, each reddening only its own rail.
+⚠ Not verified on Windows: the actual Visual Studio jump is the moved, unchanged opener; the rails stop at the opener call.
+
 ### 7.2 Per-subsystem graph model
 
 Each subsystem implements `IGraphModel` over its in-memory editor model. The implementation is a thin projection:
@@ -1493,6 +1908,12 @@ Registered as `ai_trace_timeline`. Docked at the bottom by default. Visualizes t
 ```
 
 ### 15.2 Swim-lane category registration
+
+> ⛔ **SUPERSEDED `2026-10-26` — `R-4078` (one lane seam, no adapter).** The seam moved to the shared toolkit and was generalised:
+> `Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineLaneProvider` (`Lanes`, `Applies(TimelineLaneContext)`, optional `Indexed`/`Marks`)
+> with `TimelineLaneDescriptor(Id, DisplayName, SupportedLevels, Group, Priority, Color, Glyph)`; `TraceLevel` moved with it.
+> The editor providers answer `Applies(ctx) => ctx.AssetKind == nameof(AssetKind.X)`. ⭐ Current answer:
+> [`DESIGN_Director_Timeline_Editor.md`](../DESIGN_Director_Timeline_Editor.md) §9d. The block below is the original shape.
 
 The window does not know what swim lanes mean per subsystem. Subsystems register their categories:
 

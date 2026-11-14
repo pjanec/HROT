@@ -1,0 +1,115 @@
+{
+  "title": "Into the weather",
+  "caption": "Weather regions blend into each other: clear sky, a fog bank, then overcast",
+  "clip": "F-01",
+  "chapter": 2,
+  "state": "ready",
+  "endAt": "m+4",
+  "anchors": {
+    "m": {
+      "on": "near",
+      "who": "IFV (drive east)",
+      "point": [
+        140,
+        300
+      ],
+      "within": 6
+    },
+    "cloud": {
+      "on": "near",
+      "who": "IFV (drive east)",
+      "point": [
+        292,
+        300
+      ],
+      "within": 6
+    }
+  },
+  "keys": [
+    {
+      "at": "m-6",
+      "follow": "IFV (drive east)",
+      "distance": 120,
+      "yaw": 20,
+      "pitch": -25,
+      "lift": 2,
+      "fov": 45,
+      "segment": "clear"
+    },
+    {
+      "at": "m-2.5",
+      "follow": "IFV (drive east)",
+      "distance": 18,
+      "yaw": 0,
+      "pitch": -6,
+      "lift": 2,
+      "fov": 55,
+      "segment": "fog"
+    },
+    {
+      "at": "m+3",
+      "follow": "IFV (drive east)",
+      "distance": 40,
+      "yaw": 90,
+      "pitch": -4,
+      "lift": 3,
+      "fov": 55,
+      "segment": "fog"
+    },
+    {
+      "at": "cloud-3",
+      "follow": "IFV (drive east)",
+      "distance": 22,
+      "yaw": 30,
+      "pitch": -8,
+      "lift": 2,
+      "fov": 55,
+      "segment": "cloud"
+    },
+    {
+      "at": "cloud+2",
+      "follow": "IFV (drive east)",
+      "distance": 160,
+      "yaw": 30,
+      "pitch": -20,
+      "lift": 2,
+      "fov": 40,
+      "segment": "cloud"
+    }
+  ],
+  "segments": [
+    {
+      "id": "clear",
+      "from": "m-6",
+      "to": "m-2.5"
+    },
+    {
+      "id": "fog",
+      "from": "m-2.5",
+      "to": "m+5"
+    },
+    {
+      "id": "run",
+      "from": "m+5",
+      "to": "cloud-4",
+      "speed": 4
+    },
+    {
+      "id": "cloud",
+      "from": "cloud-4",
+      "to": "cloud+4"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-6",
+      "until": "cloud-4",
+      "text": "Clear sky, then a fog bank"
+    },
+    {
+      "at": "cloud-4",
+      "until": "cloud+4",
+      "text": "Then overcast"
+    }
+  ]
+}

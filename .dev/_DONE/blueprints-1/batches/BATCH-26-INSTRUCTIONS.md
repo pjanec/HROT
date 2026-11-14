@@ -985,7 +985,7 @@ public sealed class EditorWindowTests
 After all changes, build must pass with 0 errors:
 
 ```
-dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln
+dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln
 ```
 
 Then run the full test suite:

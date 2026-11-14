@@ -1,0 +1,407 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: weather regions you can drive through (CE-1159), on basic-desert at dusk (19:05 UTC). Global weather is clear (25 km visibility, light cloud). A 'Fog bank' (x 140-360, visibility 300 m, fog up to 40 m) and an 'Overcast' region (x 290-510, 8/8 cloud, 6 km visibility) overlap in the middle. An 'IFV (drive east)' at (60, 300) drives east through both by itself (MoveToLocation to (580, 300), 6 m/s — CE-4035 F-01, so a film sees the regions pass); a 'Rifleman (walk east)' at (60, 280) waits for the user to possess and move. Judge: (1) west of x 140 the sky is clear dusk and distant things are visible (2) entering the fog bank, visibility closes in towards 300 m (3) in the overlap (x 290-360) fog and overcast blend, and east of it the sky is overcast. Fail: the sky or fog does not change at the region edges. Check: none (no live check)",
+    "world": {
+      "ScenarioClock": {
+        "Start": "2025-06-21T21:05:00+02:00"
+      },
+      "WeatherConditions": {
+        "GroundTemperatureC": 15,
+        "LapseRateKPerKm": 6.5,
+        "SeaLevelPressureHpa": 1013.25,
+        "RelativeHumidity": 0.6,
+        "WindCount": 0,
+        "CloudCount": 1,
+        "VisibilityM": 25000,
+        "FogTopM": 0,
+        "FogVisibilityM": 200,
+        "Precipitation": 0,
+        "PrecipitationMmPerHour": 0,
+        "FeatherM": 0,
+        "WindAltitudeM": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindFromDeg": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindSpeedMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindGustMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "CloudBaseM": [
+          1500,
+          0,
+          0,
+          0
+        ],
+        "CloudThicknessM": [
+          600,
+          0,
+          0,
+          0
+        ],
+        "CloudOctas": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "CloudKind": [
+          1,
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  },
+  "entities": {
+    "a1159000-0000-4000-8000-000000000002": {
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": -110,
+            "Y": -110
+          },
+          {
+            "X": -110,
+            "Y": 110
+          },
+          {
+            "X": 110,
+            "Y": 110
+          },
+          {
+            "X": 110,
+            "Y": -110
+          }
+        ],
+        "Version": 0
+      },
+      "SimTransform": {
+        "Position": [
+          250,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8811
+      },
+      "EntityInfo": {
+        "Name": "Fog bank",
+        "ForceId": "Neutral"
+      },
+      "WeatherConditions": {
+        "GroundTemperatureC": 15,
+        "LapseRateKPerKm": 6.5,
+        "SeaLevelPressureHpa": 1013.25,
+        "RelativeHumidity": 0.97,
+        "WindCount": 0,
+        "CloudCount": 1,
+        "VisibilityM": 300,
+        "FogTopM": 40,
+        "FogVisibilityM": 300,
+        "Precipitation": 0,
+        "PrecipitationMmPerHour": 0,
+        "FeatherM": 60,
+        "WindAltitudeM": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindFromDeg": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindSpeedMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindGustMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "CloudBaseM": [
+          120,
+          0,
+          0,
+          0
+        ],
+        "CloudThicknessM": [
+          300,
+          0,
+          0,
+          0
+        ],
+        "CloudOctas": [
+          8,
+          0,
+          0,
+          0
+        ],
+        "CloudKind": [
+          1,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    "a1159000-0000-4000-8000-000000000003": {
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": -110,
+            "Y": -110
+          },
+          {
+            "X": -110,
+            "Y": 110
+          },
+          {
+            "X": 110,
+            "Y": 110
+          },
+          {
+            "X": 110,
+            "Y": -110
+          }
+        ],
+        "Version": 0
+      },
+      "SimTransform": {
+        "Position": [
+          400,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8811
+      },
+      "EntityInfo": {
+        "Name": "Overcast",
+        "ForceId": "Neutral"
+      },
+      "WeatherConditions": {
+        "GroundTemperatureC": 15,
+        "LapseRateKPerKm": 6.5,
+        "SeaLevelPressureHpa": 1013.25,
+        "RelativeHumidity": 0.6,
+        "WindCount": 0,
+        "CloudCount": 2,
+        "VisibilityM": 6000,
+        "FogTopM": 0,
+        "FogVisibilityM": 200,
+        "Precipitation": 0,
+        "PrecipitationMmPerHour": 0,
+        "FeatherM": 60,
+        "WindAltitudeM": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindFromDeg": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindSpeedMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindGustMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "CloudBaseM": [
+          600,
+          1800,
+          0,
+          0
+        ],
+        "CloudThicknessM": [
+          900,
+          1200,
+          0,
+          0
+        ],
+        "CloudOctas": [
+          8,
+          8,
+          0,
+          0
+        ],
+        "CloudKind": [
+          0,
+          2,
+          0,
+          0
+        ]
+      }
+    },
+    "a1159000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          60,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "EntityInfo": {
+        "Name": "IFV (drive east)",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 500,
+        "Max": 500
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {"speed":6,"arrivalRadius":5,"target":[580,300,0]},
+        "Origin": "Superior"
+      }
+    },
+    "a1159000-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          60,
+          280,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman (walk east)",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

@@ -104,6 +104,41 @@ namespace Fdp.Tests
             Assert.Equal(0, count);
         }
         
+        /// <summary>
+        /// ⭐ <c>CE-3243</c> — a VALUE write is not a structural change, through every write path (SetComponent, the command
+        /// buffer, a managed set): the entity shows up for a query on the written component (chunk version), and NOT for a query
+        /// on another of its components. Adding a component still is structural (<see cref="StructureChange_MarksChanged"/>).
+        /// 📐 Stamping on every value write made the flight recorder rewrite every table's chunk holding the entity, every frame.
+        /// </summary>
+        [Fact]
+        public void CE3243_ValueWrites_AreNotStructural_OnAnyPath()
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<Position>();
+            repo.RegisterComponent<Velocity>();
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new Position { X = 1 });
+            repo.AddComponent(e, new Velocity { X = 1 });
+            repo.Tick(); uint since = repo.GlobalVersion;
+
+            int Count<T>() where T : unmanaged { int n = 0; repo.QueryDelta(repo.Query().With<T>().Build(), since, _ => n++); return n; }
+
+            repo.Tick();
+            repo.SetComponent(e, new Position { X = 2 });                       // direct value write
+            Assert.Equal(1, Count<Position>());
+            Assert.Equal(0, Count<Velocity>());
+
+            repo.Tick(); since = repo.GlobalVersion; repo.Tick();
+            using (var cmd = new EntityCommandBuffer())                          // command-buffer value write
+            {
+                cmd.SetComponent(e, new Position { X = 3 });
+                cmd.Playback(repo);
+            }
+            Assert.Equal(3f, repo.GetComponentRO<Position>(e).X);
+            Assert.Equal(1, Count<Position>());
+            Assert.Equal(0, Count<Velocity>());
+        }
+
         [Fact]
         public void StructureChange_MarksChanged()
         {

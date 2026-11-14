@@ -18,13 +18,13 @@ namespace Hrot.Animation.Replication.Translators.SideBuffers;
 /// </summary>
 internal sealed class AnimationMontageQueueStateEgressTranslator : INetworkTranslator
 {
-    private const string TopicNameConst = "hrot/anim/MontageQueueState";
 
     private readonly IAnimDdsWriter<DdsMontageQueueState> _writer;
     private readonly NetworkEntityMap _entityMap;
     private readonly Dictionary<Entity, (byte, bool)> _lastPublished = new();
+    private int _worldEpoch;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of(typeof(DdsMontageQueueState).Namespace, new[] { nameof(DdsMontageQueueState) });
     public TranslatorDirection Direction => TranslatorDirection.Egress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -32,7 +32,7 @@ internal sealed class AnimationMontageQueueStateEgressTranslator : INetworkTrans
 
     internal AnimationMontageQueueStateEgressTranslator(
         DdsParticipant participant, NetworkEntityMap entityMap)
-        : this(new DdsLiveWriter<DdsMontageQueueState>(participant, TopicNameConst), entityMap)
+        : this(new DdsLiveWriter<DdsMontageQueueState>(participant), entityMap)
     {
     }
 
@@ -47,6 +47,8 @@ internal sealed class AnimationMontageQueueStateEgressTranslator : INetworkTrans
 
     public void ScanAndPublish(ISimulationView view)
     {
+        // ⭐ R-3039 S3 — a world replacement (a load, a restore): forget what was published, so every owner republishes (R-3041).
+        if (WorldEpoch.Moved(view, ref _worldEpoch)) { _lastPublished.Clear(); }
         var query = view.Query()
             .With<AnimationMontageQueueState>()
             .With<NetworkIdentity>()

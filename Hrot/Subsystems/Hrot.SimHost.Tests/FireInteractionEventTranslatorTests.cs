@@ -18,7 +18,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domainId = 151u;
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<DdsFireInteractionEvent>(participant, "FireInteractionEvent");
+            using var reader = new DdsReader<DdsFireInteractionEvent>(participant);
             var entityMap = new NetworkEntityMap();
             var translator = new FireInteractionEventTranslator(participant, entityMap);
 

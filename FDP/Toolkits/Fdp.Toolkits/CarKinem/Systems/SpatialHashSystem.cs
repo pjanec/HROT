@@ -6,6 +6,7 @@ using CarKinem.Spatial;
 using Fdp.Core;
 using Fdp.Core.Collections;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Terrain;
 
 namespace CarKinem.Systems
 {
@@ -18,9 +19,26 @@ namespace CarKinem.Systems
     /// Publishes grid as singleton component.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class SpatialHashSystem : IEcsModuleSystem
     {
+        /// <summary>The grid's current placement — a rail reads it; consumers read <c>SpatialGridData</c>.</summary>
+        public GridGeometry Geometry => new(_grid.OriginX, _grid.OriginY, _grid.CellSize);
+
         private SpatialHashGrid _grid;
+
+        // ⭐ CE-3018 — the terrain this grid was last fitted to (reference compare: a commit swaps the singleton object).
+        private TerrainWorld? _fittedTo;
+
+        // ⭐ CE-2193 — the colliders already warned about since the last fit: one warning per entity per terrain fit, never per frame.
+        private readonly System.Collections.Generic.HashSet<Entity> _warned = new();
+
+        /// <summary>⭐ <c>CE-2193</c> — colliders the grid could NOT place this frame (outside it, or over its capacity): no round, near
+        /// miss, avoidance or radius search can meet them. 0 when every collider is in.</summary>
+        public int Dropped { get; private set; }
+
+        /// <summary>⭐ <c>CE-2193</c> — warnings logged so far (one per dropped entity per terrain fit).</summary>
+        public int Warnings { get; private set; }
 
         public SpatialHashSystem()
         {
@@ -44,6 +62,20 @@ namespace CarKinem.Systems
                     $"{nameof(SpatialHashSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
+            // ⭐ CE-3018 (W9) — follow the resident terrain: on a new world, REBASE (same memory, new origin/cell) so an
+            //    entity outside today's [-750,750)² is no longer silently missing from avoidance. Main thread, the grid's
+            //    only writer — the same thread that already clears it every frame (docs/DESIGN_Terrain_World.md §4.4).
+            var world = repo.HasSingletonManaged<TerrainWorld>() ? repo.GetSingletonManaged<TerrainWorld>() : null;
+            if (!ReferenceEquals(world, _fittedTo))
+            {
+                _fittedTo = world;
+                var g = SpatialGridFit.For(
+                    new Vector2(SpatialHashConstants.OriginX, SpatialHashConstants.OriginY),
+                    SpatialHashConstants.GridWidth, SpatialHashConstants.GridHeight, SpatialHashConstants.CellSizeMeters, world);
+                _grid.Rebase(g.OriginX, g.OriginY, g.CellSize);
+                _warned.Clear();   // ⭐ CE-2193 — a new fit: warn afresh about whoever is still outside it
+            }
+
             _grid.Clear();
 
             // Query only physics-collidable entities (SimTransform + PhysicsCollider).
@@ -55,14 +87,37 @@ namespace CarKinem.Systems
                 .WithComponentId(GlobalComponentIds.PhysicsCollider)
                 .Build();
 
+            Dropped = 0;
+            float maxRadius = 0f;   // ⭐ CE-3209 (HL-2) — the cell walk's pad
             foreach (var entity in query)
             {
+                // ⭐ CE-3110 I-2c (R-271) — the collider hash is the door for bullets (RaycastSolverSystem), near misses, the radius search,
+                //   network raycasts and avoidance: an enclosed passenger is not in it, so none of them can find, hit or avoid it.
+                if (Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(repo, entity)) continue;
                 var tf = repo.GetComponent<SimTransform>(entity);
-                _grid.Add(entity, new Vector2(tf.Position.X, tf.Position.Y));
+                if (_grid.Add(entity, new Vector2(tf.Position.X, tf.Position.Y)))
+                {
+                    if (repo.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(entity))
+                        maxRadius = MathF.Max(maxRadius, repo.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(entity).Radius);
+                    continue;
+                }
+                // ⭐⭐ CE-2193 (DESIGN_Terrain_World §4.4) — a collider the grid cannot place is invisible to every round: SAY SO, once.
+                //   ⛔ The grid is NOT widened to it: it follows the terrain by design (W9) — a unit off its terrain is an authoring
+                //   error to surface, not to absorb. 📐 Measured live (ua-air-attack): a truck at (0, 6 000) took 0 of 1 358 rounds.
+                Dropped++;
+                if (_warned.Add(entity))
+                {
+                    Warnings++;
+                    Fdp.Core.Logging.FdpLog<SpatialHashSystem>.Warn(
+                        $"[SpatialHash] Entity #{entity.Index} at ({tf.Position.X:F0}, {tf.Position.Y:F0}) is outside the collider grid " +
+                        $"[{_grid.OriginX:F0}..{_grid.OriginX + _grid.Width * _grid.CellSize:F0}] × " +
+                        $"[{_grid.OriginY:F0}..{_grid.OriginY + _grid.Height * _grid.CellSize:F0}] (or over its capacity): " +
+                        "no round, avoidance or radius search can meet it.");
+                }
             }
 
             // Publish as singleton (Data-Oriented pattern)
-            repo.SetSingleton(new SpatialGridData { Grid = _grid });
+            repo.SetSingleton(new SpatialGridData { Grid = _grid, MaxRadius = maxRadius });
         }
     }
 }

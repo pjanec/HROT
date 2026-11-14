@@ -1,0 +1,433 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: a fast-rope insertion on test-town. A doors-off UH-60 carries an 'SF squad' of eight operators (SF operator 1-8) and hovers 12 m above a flat roof (x 40-90, y 230-280); SquadFastRope sends them down the two ropes one man per rope at a time, then they take a ring of spots on the roof. Judge: (1) all eight go down the ropes within 15 s (7.6 s measured) (2) all eight stand ON the roof (above 10 m), none on the ground, and no two within 1 m (3) the helicopter leaves only after the last man has landed. Fail: a man ends on the ground, or the helicopter departs with a man still on a rope. Check: python3 scripts/utility-demo-check.py --launch ua-fast-rope-roof"
+  },
+  "entities": {
+    "a1118100-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 404
+      },
+      "EntityInfo": {
+        "Name": "UH-60 (doors off)",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "FollowRoute",
+        "Params": {"routeEntityId":"a1118100-0000-4000-8000-000000000002","Speed":15},
+        "Origin": "Superior"
+      },
+      "Health": {
+        "Current": 800,
+        "Max": 800
+      },
+      "PassengerBuffer": {
+        "Count": 8,
+        "Passengers": [
+          "a1118100-0000-4000-8000-000000000010",
+          "a1118100-0000-4000-8000-000000000011",
+          "a1118100-0000-4000-8000-000000000012",
+          "a1118100-0000-4000-8000-000000000013",
+          "a1118100-0000-4000-8000-000000000014",
+          "a1118100-0000-4000-8000-000000000015",
+          "a1118100-0000-4000-8000-000000000016",
+          "a1118100-0000-4000-8000-000000000017"
+        ],
+        "Seats": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      }
+    },
+    "a1118100-0000-4000-8000-0000000000c0": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "SF squad",
+        "ForceId": "Friend"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a1118100-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 205
+      },
+      "EntityInfo": {
+        "Name": "SF operator 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1118100-0000-4000-8000-0000000000c0",
+        "Designation": "SquadLeader"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a1118100-0000-4000-8000-000000000001",
+        "Seat": 0
+      }
+    },
+    "a1118100-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 205
+      },
+      "EntityInfo": {
+        "Name": "SF operator 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1118100-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a1118100-0000-4000-8000-000000000001",
+        "Seat": 1
+      }
+    },
+    "a1118100-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 205
+      },
+      "EntityInfo": {
+        "Name": "SF operator 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1118100-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a1118100-0000-4000-8000-000000000001",
+        "Seat": 2
+      }
+    },
+    "a1118100-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 205
+      },
+      "EntityInfo": {
+        "Name": "SF operator 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1118100-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a1118100-0000-4000-8000-000000000001",
+        "Seat": 3
+      }
+    },
+    "a1118100-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 205
+      },
+      "EntityInfo": {
+        "Name": "SF operator 5",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1118100-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a1118100-0000-4000-8000-000000000001",
+        "Seat": 4
+      }
+    },
+    "a1118100-0000-4000-8000-000000000015": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 205
+      },
+      "EntityInfo": {
+        "Name": "SF operator 6",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1118100-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a1118100-0000-4000-8000-000000000001",
+        "Seat": 5
+      }
+    },
+    "a1118100-0000-4000-8000-000000000016": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 205
+      },
+      "EntityInfo": {
+        "Name": "SF operator 7",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1118100-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a1118100-0000-4000-8000-000000000001",
+        "Seat": 6
+      }
+    },
+    "a1118100-0000-4000-8000-000000000017": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 205
+      },
+      "EntityInfo": {
+        "Name": "SF operator 8",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1118100-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a1118100-0000-4000-8000-000000000001",
+        "Seat": 7
+      }
+    },
+    "a1118100-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          65,
+          255,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "Rope route",
+        "ForceId": "Friend"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": 65,
+            "Y": 255,
+            "Z": 0,
+            "TargetSpeed": 10,
+            "HeightAgl": 12,
+            "Hold": "Rope"
+          },
+          {
+            "X": 330,
+            "Y": 380,
+            "Z": 0,
+            "TargetSpeed": 30,
+            "HeightAgl": 40
+          }
+        ],
+        "IsLoop": false
+      }
+    }
+  }
+}

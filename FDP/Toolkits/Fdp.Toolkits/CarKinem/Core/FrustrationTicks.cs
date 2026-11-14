@@ -22,7 +22,7 @@ namespace CarKinem.Core
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.FrustrationTicks)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct FrustrationTicks
     {
         /// <summary>
@@ -57,5 +57,43 @@ namespace CarKinem.Core
         /// Reset to 0 when a new intent begins.
         /// </summary>
         public float ElapsedSinceFirstReplan;
+
+        /// <summary>
+        /// ⭐ <c>CE-2304</c> — the furthest path progress (<c>NavState.ProgressS</c>, metres) this move has reached in the current
+        /// no-progress window. Appended.
+        /// </summary>
+        public float BestProgressS;
+
+        /// <summary>
+        /// ⭐ <c>CE-2304</c> — seconds the move has gone without gaining <c>NavigationExecutionSystem.NoProgressMinGainM</c> on
+        /// <see cref="BestProgressS"/> while it should be walking. Appended.
+        /// </summary>
+        public SimDuration NoProgressSeconds;
+
+        // ⭐ CE-3286 (R-3025; docs/designs/motion-models/DESIGN_Motion_Domains.md §5f) — the held hull's recovery (HullRecovery), APPENDED.
+        //   The watchdog's remedy, so it lives in the watchdog's never-sent state; a new move (a new IntentId) clears it with the rest.
+
+        /// <summary>How long the wall guard has held this hull (s).</summary>
+        public SimDuration WallHeldSeconds;
+
+        /// <summary>How far the current recovery try has driven (m).</summary>
+        public float RecoverMetres;
+
+        /// <summary>Where the try last ran its exit test (m, of <see cref="RecoverMetres"/>).</summary>
+        public float RecoverCheckedMetres;
+
+        /// <summary>The move whose standing start was checked (<c>HullRecovery.MoveKey</c>); 0 = none yet.</summary>
+        public int CheckedMoveKey;
+
+        /// <summary>0 = not recovering · −1 backing · +1 driving forward (out of a wall it backed into).</summary>
+        public sbyte RecoverDir;
+
+        /// <summary>The try's full lock: +1 left, −1 right.</summary>
+        public sbyte RecoverSteer;
+
+        /// <summary>Tries this move (≤ <c>HullRecovery.MaxRecoveries</c>).</summary>
+        public byte Recoveries;
+
+        private byte _pad2;
     }
 }

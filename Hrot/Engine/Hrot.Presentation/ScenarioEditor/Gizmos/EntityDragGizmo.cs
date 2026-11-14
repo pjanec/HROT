@@ -6,6 +6,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Patching;
 
 namespace Hrot.ScenarioEditor.Gizmos;
 
@@ -28,9 +29,14 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// </summary>
 public sealed class EntityDragGizmo : IEntityStatefulGizmo
 {
-    // Sphere pick radius in world metres. Must be large enough to be
-    // easily clickable but not so large it overlaps adjacent entities.
-    private const float PickRadius = 8f;
+    // ⭐⭐⭐ CE-3147 — THE DRAG AREA IS THE SELECT AREA, and both are sized from the ENTITY'S OWN FOOTPRINT.
+    //   🔒 User, 2026-10-09: "click-to-drag sensitive area is enormous now (no change) - should be identical to
+    //   click-to-select area" · then: "the sensitive interaction area around the entity must scale as well."
+    //   🔴 It used to be its own `PickRadius = 8f` — the right UNIT (world metres) but a size unrelated to the
+    //   symbol, and written onto a default(DebugPrimitive) so nothing else could correct it.
+    //   ⭐ There is no constant here any more ON PURPOSE: the size is a QUERY on the entity
+    //   (EntityFootprint.InteractionRadiusMetres), which is the only way select and drag stay identical for
+    //   entities of DIFFERENT sizes — a shared constant would have made a truck and a man equally clickable.
 
     private static readonly Rgba32 PickSphereColor  = new Rgba32(0, 0, 0, 0);   // transparent
     private static readonly Rgba32 DragLineColor    = new Rgba32(255, 255, 0, 200);
@@ -38,6 +44,15 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
 
     private readonly ISimulationView _view;
     private readonly Entity          _entity;
+
+    // ⭐⭐⭐ AX-007 — the COMMIT goes through the same router the rotate gizmo uses, so a move made on a
+    //    node that does not own the entity reaches the node that does. 📄 DESIGN_Cgf_AxisB_Rotation_Slice.md §11.
+    //    ⚠ OPTIONAL: without it the gizmo keeps the direct ECS write it always had, which is correct on a
+    //      one-node editor. 📌 A production caller that HAS a writer must pass it — the definition does.
+    private readonly IEntityComponentWriter? _writer;
+
+    // ⭐ B-17 P5 — a drag on a unit of a MULTI-selection moves them ALL: the group is taken at the press, the gesture is ONE undo step.
+    private GroupTransform? _group;
 
     private bool    _isDragging;
     private Vector3 _originalPos;
@@ -54,10 +69,11 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
     public bool RequiresExclusiveFocus => false;
     public bool IsFocused { get; private set; }
 
-    public EntityDragGizmo(ISimulationView view, Entity entity)
+    public EntityDragGizmo(ISimulationView view, Entity entity, IEntityComponentWriter? writer = null)
     {
         _view   = view;
         _entity = entity;
+        _writer = writer;
     }
 
     public void Dispose() { }
@@ -74,10 +90,18 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
         ref readonly var tf = ref view.GetComponentRO<SimTransform>(_entity);
         var worldPos = new Vector3(tf.Position.X, tf.Position.Y, 0f);
 
-        long networkId = 0;
-        if (view.HasComponent<NetworkIdentity>(_entity))
-            networkId = view.GetComponentRO<NetworkIdentity>(_entity).Value;
+        // ⭐ §6.8 / R-77 — through the ONE resolver, which also covers liveness and presence. ⛔ This was
+        //   an inline `HasComponent` + `GetComponentRO(...).Value` pair: a fifth copy of the lookup
+        //   BP-508 consolidated.
+        int networkId = Fdp.Toolkit.Replication.Services.NetworkIdResolver
+            .RuntimeNetworkIdOf(view as EntityRepository, _entity);
 
+        // ⭐⭐⭐ §6.8 — NO ID, NO PICK BOX. `networkId` defaults to 0 above when the entity carries no
+        //   NetworkIdentity, and this emitted the box anyway ⇒ a pick target that wins the hit-test and
+        //   resolves to nothing. ⚠ Only the PICK BOX is skipped — the drag preview below still draws, so
+        //   an in-progress drag stays visible.
+        if (networkId != 0)
+        {
         // Emit transparent Box2D so DebugGizmoLayer can hit-test this entity.
         var pickBox = default(DebugPrimitive);
         pickBox.Shape            = DebugPrimitiveShape.Box2D;
@@ -85,19 +109,38 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
         pickBox.TargetView       = PipelineTarget.Map2D;
         pickBox.BoxCenterX       = tf.Position.X;
         pickBox.BoxCenterY       = tf.Position.Y;
-        pickBox.BoxExtentX       = PickRadius;
-        pickBox.BoxExtentY       = PickRadius;
+        // ⭐⭐⭐ CE-3147 — the SAME query the select box uses, so the two areas are identical per entity and both
+        //   scale with zoom exactly as the drawn symbol does.
+        float pickExtentMetres   = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.InteractionRadiusMetres(view, _entity);
+        pickBox.BoxExtentX       = pickExtentMetres;
+        pickBox.BoxExtentY       = pickExtentMetres;
+        // ⭐ WorldMeters is default(DebugPrimitive)'s value (0) and is what we want here — stated, not relied on.
+        pickBox.SizeMode         = SizeMode.WorldMeters;
         pickBox.Color            = PickSphereColor;
-        pickBox.AnchorIndex      = _entity.Index;
-        pickBox.AnchorGeneration = (ushort)_entity.Generation;
+        // 🔴 §6.7 — `pickBox.AnchorIndex = _entity.Index; pickBox.AnchorGeneration = ...` DELETED.
+        //   The handle was a pick payload nothing reads; identity is BoxAnchorId (set above).
         pickBox.BoxAnchorId      = networkId;
         draw.EmitRaw(in pickBox);
+        }
 
         // While dragging: show a yellow preview line from original to current position.
         if (_isDragging)
         {
             draw.DrawLine(_originalPos, _currentDragPos, DragLineColor, thickness: 2f);
-            draw.DrawSphere(_currentDragPos, 5f, DragSphereColor);
+
+            // ⭐⭐ CE-3154 — a 1 px OUTLINE at the entity's own footprint, at every zoom.
+            //   🔒 User, 2026-10-10: "The drag and drop yellow marker circle is thick - should be 1 pixel
+            //   regardless of zoom."
+            //   🔴 It was `DrawSphere(pos, 5f, color)` with NO thickness, which this pipeline reads as TWO things:
+            //   a FILLED disc (the "legacy fill" of a thickness-0 sphere) plus a default 1-unit rim — and with
+            //   DrawSphere's WorldMeters default that rim was 1 METRE wide, drawn in the same translucent colour
+            //   over the fill. ⇒ a 5 m disc with a dark 1 m band: the "thick circle".
+            //   ⭐ An explicit thickness makes it an outline only (no legacy fill), and the renderer now strokes
+            //   every closed outline in screen pixels (DebugPrimitiveRenderer2D.OutlineStroke).
+            //   ⭐ Radius = the same EntityFootprint query the select/drag areas and the selection ring use, so the
+            //   marker shows where the entity will sit at its real size instead of an arbitrary 5 m.
+            float markerRadius = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.InteractionRadiusMetres(view, _entity);
+            draw.DrawSphere(_currentDragPos, markerRadius, DragSphereColor, thickness: 1f);
         }
     }
 
@@ -111,24 +154,51 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
         _dragOffset     = _originalPos - worldPos;
         _currentDragPos = _originalPos;
         _isDragging     = false;   // drag starts only when OnDragUpdate fires
+        _group = _view is EntityRepository repo && Hrot.ScenarioEditor.Map.MapUiStates.SelectionOf(repo) is { } selection
+            ? GroupTransform.ForGrab(repo, selection, _writer, _entity)
+            : null;
     }
 
     public void OnDragUpdate(Vector3 worldPos)
     {
         if (!_view.IsAlive(_entity)) return;
+        // ⭐ B-14 / undo U2 — the preview writes the world directly, so the step's "before" is taken HERE, before the first preview write
+        if (!_isDragging)
+        {
+            if (_group == null || !_group.Begin("Move")) { _group = null; Fdp.Toolkit.Replication.Edits.EditSteps.Begin(_view as EntityRepository, "Move"); }
+        }
         _isDragging     = true;
         _currentDragPos = worldPos + _dragOffset;
-        ApplyPosition(_currentDragPos);
+        if (_group != null) _group.PreviewMove(new Vector2(_currentDragPos.X - _originalPos.X, _currentDragPos.Y - _originalPos.Y));
+        else ApplyPosition(_currentDragPos);
     }
 
     public void OnCommit(Vector3 worldPos)
     {
-        if (!_view.IsAlive(_entity)) return;
+        if (!_view.IsAlive(_entity)) { CloseAbandoned(); return; }
 
         if (_isDragging)
         {
-            ApplyPosition(_currentDragPos);
-            OnDragCommitted?.Invoke(_entity, new Vector2(_currentDragPos.X, _currentDragPos.Y));
+            if (_group != null)
+            {
+                // ⭐ B-17 P5 — the whole selection commits as ONE gesture (one step, one write per unit)
+                var members = _group.Members;
+                _group.Commit();
+                foreach (var m in members)
+                    if (_view.IsAlive(m) && _view.HasComponent<SimTransform>(m))
+                    {
+                        var p = _group.PositionOf(m);
+                        OnDragCommitted?.Invoke(m, new Vector2(p.X, p.Y));
+                    }
+                _group = null;
+            }
+            else
+            try
+            {
+                CommitPosition(_currentDragPos);
+                OnDragCommitted?.Invoke(_entity, new Vector2(_currentDragPos.X, _currentDragPos.Y));
+            }
+            finally { Fdp.Toolkit.Replication.Edits.EditSteps.End(_view as EntityRepository); }   // one step: the drag and its commit
         }
 
         _isDragging = false;
@@ -136,9 +206,19 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
 
     public void OnCancel()
     {
-        if (!_view.IsAlive(_entity)) return;
+        if (!_view.IsAlive(_entity)) { CloseAbandoned(); return; }
+        if (_group != null) { _group.Cancel(); _group = null; _isDragging = false; return; }
+        if (_isDragging) Fdp.Toolkit.Replication.Edits.EditSteps.Cancel(_view as EntityRepository);
         _isDragging = false;
         ApplyPosition(_originalPos);
+    }
+
+    /// <summary>The entity died mid-drag: the open step is abandoned (never left open — it would swallow every later step).</summary>
+    private void CloseAbandoned()
+    {
+        if (_group != null) { _group.Cancel(); _group = null; _isDragging = false; return; }
+        if (_isDragging) Fdp.Toolkit.Replication.Edits.EditSteps.Cancel(_view as EntityRepository);
+        _isDragging = false;
     }
 
     public void OnMenuAction(int actionId) { }
@@ -146,6 +226,49 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
     public void OnKeyEvent(MapKeyboardKey key, bool isPressed) { }
 
     // -- Helpers ---------------------------------------------------------------
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>AX-007</c> — the COMMIT, routed through <see cref="IEntityComponentWriter"/>.</b>
+    ///
+    /// <para>⭐⭐ <b>Why only the commit, and not <see cref="OnDragUpdate"/>.</b> The live drag write is a
+    /// LOCAL PREVIEW — it runs on every mouse-move so the entity follows the cursor. ⛔ Routing it would
+    /// put one change-request per mouse-move on the wire, and on an unowned entity the owner would fight
+    /// the preview back every replication tick. ⭐ The preview stays a direct ECS poke; the RELEASE is what
+    /// asks the owner. ⚠ On an unowned entity that means the preview is visibly reverted by replication
+    /// until the request lands — which is the honest picture of a distributed edit, not a defect.</para>
+    ///
+    /// <para>⭐⭐ <b>Both coordinates in ONE write</b> *(see the interface's remarks)*: <c>Position.X</c> and <c>Position.Y</c> are one
+    /// gesture, so they reach the owner as one request and one apply.</para>
+    ///
+    /// <para>⭐⭐⭐ <b><c>CE-4073</c> — the drag writes LOCAL ENU METRES, once.</b> 🔴 It used to convert TWICE: the dragged local position
+    /// went through <c>ToGeodetic</c> into the geodetic latitude/longitude attributes, and the owner converted it back with <c>ToCartesian</c> — and with
+    /// no <c>IGeographicTransform</c> singleton it fell back to a direct write that never reached the owner. ⭐ Now the position the
+    /// operator dragged to IS the attribute value, a plain copy at the owner, so there is no geodetic-frame fallback: the only fallback
+    /// left is "no writer", where the direct write is exactly right on a one-node editor.</para>
+    ///
+    /// <para>⚠ <b>Z is not sent.</b> A 2D map drag moves the entity in the horizontal plane and must not flatten its altitude; the three
+    /// <c>Position.*</c> axes are independent copies at the owner, so omitting <c>Position.Z</c> keeps the entity's current height there
+    /// <b>by construction</b> (no pre-fill needed). ⭐ The local preview already keeps it too (<see cref="ApplyPosition"/>).</para>
+    /// </summary>
+    private void CommitPosition(Vector3 worldPos)
+    {
+        if (_writer == null || _view is not EntityRepository)
+        {
+            ApplyPosition(worldPos);
+            return;
+        }
+
+        var route = _writer.Write(_entity, new[]
+        {
+            EntityAttributeChange.Double(AttributeIds.PositionX, worldPos.X),
+            EntityAttributeChange.Double(AttributeIds.PositionY, worldPos.Y),
+        });
+
+        // ⭐ Refused means nothing was written and nobody was asked (no request sink, or a dead entity).
+        //   ⛔ Leaving the preview standing would show a move that never happened ⇒ put it back.
+        if (route == EntityWriteRoute.Refused)
+            ApplyPosition(_originalPos);
+    }
 
     private void ApplyPosition(Vector3 worldPos)
     {
@@ -169,6 +292,16 @@ public sealed class EntityDragGizmoDefinition : IGizmoDefinition
 {
     private readonly Action<Entity, Vector2>? _onDragCommitted;
 
+    /// <summary>
+    /// ⭐⭐ <c>AX-007</c> — builds the write router for the world the gizmo is created against.
+    ///
+    /// <para>⭐ A FACTORY rather than a writer instance because <see cref="CreateInstance"/> is handed the
+    /// view, and one definition serves every entity on that host. ⛔ A host on the presentation side cannot
+    /// name <c>EntityWriteRouter</c> *(it lives in the network assembly)*, so it passes the method group:
+    /// <c>new EntityDragGizmoDefinition(writerFactory: EntityWriteRouter.For)</c>.</para>
+    /// </summary>
+    private readonly Func<EntityRepository, IEntityComponentWriter>? _writerFactory;
+
     public Type[] RequiredComponents { get; } =
     {
         typeof(NetworkIdentity),
@@ -180,14 +313,21 @@ public sealed class EntityDragGizmoDefinition : IGizmoDefinition
     // FNV-1a hash of the fully-qualified type name — used as composite routing key.
     public uint GizmoTypeId { get; } = Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry.ComputeHash(typeof(EntityDragGizmoDefinition).FullName!);
 
-    public EntityDragGizmoDefinition(Action<Entity, Vector2>? onDragCommitted = null)
+    public EntityDragGizmoDefinition(
+        Action<Entity, Vector2>? onDragCommitted = null,
+        Func<EntityRepository, IEntityComponentWriter>? writerFactory = null)
     {
         _onDragCommitted = onDragCommitted;
+        _writerFactory   = writerFactory;
     }
 
     public IEntityStatefulGizmo CreateInstance(ISimulationView view, Entity entity)
     {
-        var gizmo = new EntityDragGizmo(view, entity);
+        var writer = _writerFactory != null && view is EntityRepository repo
+            ? _writerFactory(repo)
+            : null;
+
+        var gizmo = new EntityDragGizmo(view, entity, writer);
         if (_onDragCommitted != null)
             gizmo.OnDragCommitted += _onDragCommitted;
         return gizmo;

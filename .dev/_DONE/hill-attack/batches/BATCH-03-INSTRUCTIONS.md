@@ -13,7 +13,7 @@ This batch completes the hill-attack feature with two final tasks:
 
 ## Pre-conditions
 
-- `dotnet build IOS-IG-SimHost.sln` must succeed (currently 0 errors).
+- `dotnet build HROT.sln` must succeed (currently 0 errors).
 - Current test baseline: 558 passing, 6 pre-existing failures (do NOT touch those 6).
 - Pre-existing failures (never fix, never count as regressions):
   - 3 in `UnitSubordinateTranslatorTests`
@@ -761,7 +761,7 @@ For any test that uses `AreaQueryBatchData` and `EqsTargetPool`, call
 After implementation:
 
 ```bash
-dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln
+dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln
 ```
 
 Must succeed with 0 errors.

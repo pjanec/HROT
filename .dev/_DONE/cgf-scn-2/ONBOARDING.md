@@ -37,9 +37,9 @@ correctly and requires no changes.
 | `FDP/Engine/Fdp.Core/FdpEventBus.cs` | Add `PopulateCurrentStreams` methods |
 | `FDP/Engine/Fdp.Core/FlightRecorder/RecorderSystem.cs` | Add `serializeReadBuffer` parameter to `WriteEvents` |
 | `FDP/Engine/Fdp.Core/Orchestration/CheckpointIOWorker.cs` | Pass event bus to `RecordKeyframe` |
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/ChannelComponents.cs` | Add `[DataPolicy(DataPolicy.NoSave)]` to channels |
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BrainComponents.cs` | Add `[DataPolicy(DataPolicy.NoSave)]` to brain execution |
-| `FDP/Toolkits/Fdp.Toolkits/Perception/Components/PerceptionComponents.cs` | Add `[DataPolicy(DataPolicy.NoSave)]` to perception runtime |
+| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/ChannelComponents.cs` | Add `[DataPolicy(DataPolicy.NoScenario)]` to channels |
+| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BrainComponents.cs` | Add `[DataPolicy(DataPolicy.NoScenario)]` to brain execution |
+| `FDP/Toolkits/Fdp.Toolkits/Perception/Components/PerceptionComponents.cs` | Add `[DataPolicy(DataPolicy.NoScenario)]` to perception runtime |
 | `FDP/Toolkits/Fdp.Toolkits/Scenario/FdpAutoSerializer.cs` | Fixed buffer + InlineArray expression tree support |
 | `FDP/Toolkits/Fdp.Toolkits/Orchestration/Handlers/ReferenceCheckpointHandler.cs` | Wire `EventAccumulator` |
 
@@ -58,7 +58,7 @@ correctly and requires no changes.
 
 | Path | What |
 |---|---|
-| `Hrot/Subsystems/Hrot.SimHost/Serializers/WeaponChannelTranslator.cs` | Superseded by `DataPolicy.NoSave` on `WeaponChannel` |
+| `Hrot/Subsystems/Hrot.SimHost/Serializers/WeaponChannelTranslator.cs` | Superseded by `DataPolicy.NoScenario` on `WeaponChannel` |
 
 ### Key registration sites
 
@@ -75,7 +75,7 @@ correctly and requires no changes.
 ```powershell
 # Build entire solution
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
 
 # Run relevant test projects
 dotnet test FDP/Engine/Fdp.Core.Tests/Fdp.Core.Tests.csproj --no-build
@@ -93,8 +93,8 @@ INSTRUCTIONS file and a REPORT file under `.dev/cgf-scn-2/batches/` once created
 ## Key Concepts for New Developers
 
 **Two persistence paths, two guards:**
-- `DataPolicy.NoSave` excludes a component from **scenario JSON** (processed by `ScenarioSerializer` / `FdpAutoSerializer`).
-- `DataPolicy.NoRecord` excludes a component from **binary checkpoints** (processed by `RecorderSystem.RecordKeyframe`).
+- `DataPolicy.NoScenario` excludes a component from **scenario JSON** (processed by `ScenarioSerializer` / `FdpAutoSerializer`).
+- `DataPolicy.NoReplay` excludes a component from **binary checkpoints** (processed by `RecorderSystem.RecordKeyframe`).
 - A component can carry both flags (`DataPolicy.Transient` = all three exclusions).
 
 **Scenario vs. Checkpoint:**

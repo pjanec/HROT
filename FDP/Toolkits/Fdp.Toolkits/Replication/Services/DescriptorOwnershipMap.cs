@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Fdp.Core;
+using Fdp.Toolkit.Replication.Abstractions;
 
 namespace Fdp.Toolkit.Replication.Services
 {
@@ -25,6 +27,56 @@ namespace Fdp.Toolkit.Replication.Services
         private readonly Dictionary<long, Type[]> _descriptorToComponentTypes = new();
         private readonly Dictionary<long, int[]>  _descriptorToComponentIds   = new();
         private readonly Dictionary<Type, long>   _componentTypeToDescriptor  = new();
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>Q59-E</c> — the REVERSE index, component id → every descriptor that covers it.</b>
+        ///
+        /// <para>📄 <c>docs/blueprints/Architect_Question_59_…md</c> §7.3. 🔒 User ruling <c>2026-08-26</c>:
+        /// *"attributes are entity-related, network agnostic. In contrary, descriptors are Ned network
+        /// concept."</para>
+        ///
+        /// <para>⭐⭐ <b>Why it was added HERE rather than as a new type.</b> This class is already, in its own
+        /// words, *"the Single Source of Truth for the descriptor → component mapping"*, and
+        /// <see cref="RegisterFromTranslator"/> is already the entry point. ⛔ A rival
+        /// <c>ComponentDescriptorMap</c> was written first and DELETED before shipping — 📌 the seam law: the
+        /// seam existed and was under-adopted, not missing.</para>
+        ///
+        /// <para>⚠⚠ <b>Two gaps this fills, both measured <c>2026-08-26</c>:</b>
+        /// ① <see cref="RegisterFromTranslator"/> filled ONLY the forward direction, so
+        /// <see cref="GetDescriptorForComponent"/> saw nothing from translators at all — only from the manual
+        /// <c>Type[]</c> overload. ② <c>_componentTypeToDescriptor</c> is <b>single-valued</b>, and a component
+        /// genuinely has SEVERAL covering descriptors: <c>SimTransform</c> was declared by both
+        /// the BDC stack's world-position translator (removed since, R-4095) and <c>GeoSpatialEgressTranslator</c>. ⇒ last-writer-wins would mark
+        /// the wrong descriptor.</para>
+        ///
+        /// <para>⭐ Keyed by component <b>id</b>, not <see cref="Type"/> — that is what translators declare, and
+        /// it avoids the *"legacy ordinal-to-component-ID mismatch"* this class's own docs warn about.</para>
+        /// </summary>
+        /// <remarks>
+        /// ⚠⚠ <b>Stored as <c>long[]</c>, NOT a <c>SortedSet</c> — and that is a HOT-PATH requirement, not a
+        /// style choice.</b> 🔴 The first cut held a <c>SortedSet&lt;long&gt;</c> and had
+        /// <see cref="GetDescriptorsForComponentId"/> return <c>set.ToArray()</c>. 📐 Measured
+        /// <c>2026-08-26</c>: that allocated on <b>every component access</b> during an attribute apply —
+        /// **416 bytes** for a single numeric patch — breaking the zero-allocation mandate.
+        /// ⭐ Registration happens a handful of times at startup, so the merge cost belongs THERE.
+        /// </remarks>
+        private readonly Dictionary<int, long[]> _componentIdToDescriptors = new();
+
+        /// <summary>
+        /// ⭐⭐⭐ The descriptor ordinal whose ownership DEFINES entity / primary (save) ownership —
+        /// the NED <c>EntityMaster</c> descriptor, recorded here as a plain ordinal so the
+        /// transport-agnostic <c>OwnershipIngressSystem</c> can mirror an incoming ownership transfer
+        /// into the network-agnostic <see cref="Components.NetworkAuthority.PrimaryOwnerId"/> WITHOUT this toolkit
+        /// ever naming "EntityMaster" (that word lives only in <c>Hrot.Network.NED</c>).
+        ///
+        /// <para><c>null</c> when no such descriptor is configured — editor / AllInOne / pure-toolkit
+        /// hosts that carry no NED transport. In that case no primary-owner mirroring occurs, which is
+        /// correct: those hosts see no external <c>OwnershipUpdate</c> and own everything by construction.</para>
+        ///
+        /// <para>📄 <c>docs/DESIGN_Distributed_Scenario_Persistence.md</c> §6c — the BDC
+        /// <c>OwnershipUpdate</c> → <c>PrimaryOwnerId</c> compliance sync (OQ12 / <c>CE-275</c> ④).</para>
+        /// </summary>
+        public long? PrimaryOwnerDescriptorOrdinal { get; set; }
 
         // -- Registration ---------------------------------------------------------
 
@@ -59,6 +111,27 @@ namespace Fdp.Toolkit.Replication.Services
             var ids = new int[targetComponentIds.Count];
             for (int i = 0; i < ids.Length; i++) ids[i] = targetComponentIds[i];
             _descriptorToComponentIds[descriptorOrdinal] = ids;
+
+            // ⭐⭐⭐ Q59-E — and the REVERSE, which this method never used to record. Additive and
+            //    multi-valued: several translators legitimately cover one component.
+            foreach (int id in ids)
+            {
+                // ⭐ Merge at REGISTRATION (rare) so the lookup can hand back a stored array (hot).
+                if (_componentIdToDescriptors.TryGetValue(id, out var existing))
+                {
+                    if (Array.IndexOf(existing, descriptorOrdinal) >= 0) continue;   // idempotent
+
+                    var merged = new long[existing.Length + 1];
+                    Array.Copy(existing, merged, existing.Length);
+                    merged[^1] = descriptorOrdinal;
+                    Array.Sort(merged);
+                    _componentIdToDescriptors[id] = merged;
+                }
+                else
+                {
+                    _componentIdToDescriptors[id] = new[] { descriptorOrdinal };
+                }
+            }
         }
 
         // -- Lookup ---------------------------------------------------------------
@@ -87,10 +160,147 @@ namespace Fdp.Toolkit.Replication.Services
 
         /// <summary>
         /// Returns the descriptor type ID for a component type, or 0 if not registered.
+        /// ⚠ <b>Single-valued and fed only by the <see cref="Type"/> overload</b> — for the translator-fed,
+        /// multi-valued answer use <see cref="GetDescriptorsForComponentId"/>.
         /// </summary>
         public long GetDescriptorForComponent(Type componentType)
         {
             return _componentTypeToDescriptor.TryGetValue(componentType, out var id) ? id : 0;
         }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>Q59-E</c> — every descriptor covering <paramref name="componentId"/>.</b>
+        ///
+        /// <para>⭐⭐ This is what lets an attribute applier stay network-agnostic: it records the COMPONENT it
+        /// wrote, and this answers which descriptors must be republished. ⇒ no FDP type needs a descriptor
+        /// vocabulary, which is why <c>Fdp.Toolkit.Replication.DescriptorOrdinal</c> and its conversion could
+        /// be deleted outright.</para>
+        ///
+        /// <para>⚠ <b>EMPTY is a legitimate answer, not a failure.</b> A networkless host registers no
+        /// translators, so nothing is republishable and marking nothing is correct. ⛔ Do not add a
+        /// non-empty guard — the editor's all-in-one in-process mode is a supported configuration.</para>
+        /// </summary>
+        /// <remarks>⭐ Returns a span over the STORED array — ⛔ never a copy. See the field's remarks.</remarks>
+        public ReadOnlySpan<long> GetDescriptorsForComponentId(int componentId)
+            => _componentIdToDescriptors.TryGetValue(componentId, out var ordinals)
+                ? ordinals
+                : ReadOnlySpan<long>.Empty;
+
+        /// <summary>
+        /// ⭐⭐ <b><c>CE-3003</c> — the OWNERSHIP question: does any registered descriptor bind
+        /// <paramref name="componentId"/>, so that whoever owns that descriptor owns the component?</b>
+        ///
+        /// <para>⚠⚠ <b>Not the same question as <see cref="GetDescriptorsForComponentId"/></b>, and the difference is
+        /// measured, not stylistic. That reverse index is the REPUBLISH index: it is fed by
+        /// <see cref="RegisterFromTranslator"/> only, and <see cref="BindGroups"/> deliberately keeps a group's
+        /// linked, never-sent members out of it (writing one must not republish the anchor). 📐 On a NED node the
+        /// map is filled through <see cref="RegisterMapping(long, int[])"/>, which writes the FORWARD table only — so
+        /// <c>dtWorldPos</c> listed <c>SimTransform</c> while <c>GetDescriptorsForComponentId(SimTransform)</c> was
+        /// EMPTY on every node, owner included.</para>
+        ///
+        /// <para>⭐ This reads the forward table, which also holds the linked members <see cref="BindGroups"/>
+        /// appended to an anchor — correctly, since a grant of the anchor moves them (D-4, R-165). ⚠ A linear scan
+        /// over the descriptors: fine for a debug or tooling decision, ⛔ not for a per-component hot path.</para>
+        /// </summary>
+        public bool IsBoundToAnyDescriptor(int componentId)
+        {
+            foreach (var ids in _descriptorToComponentIds.Values)
+                if (Array.IndexOf(ids, componentId) >= 0) return true;
+            return false;
+        }
+
+        /// <summary>⭐ The component ids any translator declared — for coverage rails and diagnostics.</summary>
+        public IEnumerable<int> CoveredComponentIds => _componentIdToDescriptors.Keys;
+
+        /// <summary>⭐ CE-276 — every registered descriptor ordinal (the full set an entity could carry). Used
+        /// by <c>OwnershipTransferInitiationSystem</c> to resolve <c>AllOwnedByThisNode</c> and by the ai-debug
+        /// <c>GET /entities/{id}/ownership</c> endpoint to name an entity's descriptors.</summary>
+        public IEnumerable<long> RegisteredDescriptors => _descriptorToComponentIds.Keys;
+
+        // -- Ownership groups (DESIGN_Ownership_Groups_And_Grants.md §2, §5.5 D-4) ---------------
+
+        private readonly Dictionary<NodeRole, long[]> _groupDescriptors = new();
+        private readonly List<string> _groupBindingViolations = new();
+
+        /// <summary>
+        /// ⭐⭐ <b>Binds the network-agnostic ownership groups to this network's descriptors.</b> Call once, after every
+        /// descriptor is registered.
+        /// <list type="bullet">
+        ///   <item>A descriptor belongs to a group when all its non-LOCAL components are members of that group; to the
+        ///     creator's remainder when none are; any other mix is a <see cref="GroupBindingViolations"/> entry.</item>
+        ///   <item>⭐ <b>D-4:</b> the members of a group that no descriptor carries (never on the wire, R-165) are appended
+        ///     to the group's ANCHOR descriptor, so granting or transferring the anchor moves them; a single other
+        ///     descriptor moves only its own components.</item>
+        /// </list>
+        /// ⚠ Linked members are NOT added to the reverse index (<see cref="GetDescriptorsForComponentId"/>): they are never
+        /// sent, so writing one must not republish the anchor.
+        /// </summary>
+        /// <param name="table">The groups.</param>
+        /// <param name="anchors">Per role, the descriptor that carries the group's never-sent members.</param>
+        public void BindGroups(OwnershipGroupTable table, IReadOnlyDictionary<NodeRole, long> anchors)
+        {
+            if (table == null) throw new ArgumentNullException(nameof(table));
+            if (anchors == null) throw new ArgumentNullException(nameof(anchors));
+            _groupDescriptors.Clear();
+            _groupBindingViolations.Clear();
+
+            var byRole = new Dictionary<NodeRole, List<long>>();
+            foreach (var kv in _descriptorToComponentIds.OrderBy(k => k.Key))
+            {
+                NodeRole owner = NodeRole.None;
+                bool creatorPart = false, mixed = false;
+                foreach (int id in kv.Value)
+                {
+                    if (table.IsLocal(id)) continue;
+                    var role = table.GroupOf(id);
+                    if (role == NodeRole.None) { creatorPart = true; continue; }
+                    if (owner == NodeRole.None) owner = role;
+                    else if (owner != role) mixed = true;
+                }
+                if (mixed || (owner != NodeRole.None && creatorPart))
+                {
+                    _groupBindingViolations.Add(
+                        $"descriptor {kv.Key} spans several ownership groups or a group and the creator's remainder");
+                    continue;
+                }
+                if (owner == NodeRole.None) continue;
+                if (!byRole.TryGetValue(owner, out var list)) byRole[owner] = list = new List<long>();
+                list.Add(kv.Key);
+            }
+
+            foreach (var group in table.Groups.Values)
+            {
+                byRole.TryGetValue(group.Role, out var descriptors);
+                _groupDescriptors[group.Role] = descriptors?.ToArray() ?? Array.Empty<long>();
+
+                var linked = group.Members;
+                if (descriptors != null)
+                    foreach (long d in descriptors)
+                        foreach (int id in _descriptorToComponentIds[d])
+                            linked.ClearBit(id);
+                if (linked.IsEmpty()) continue;
+
+                if (!anchors.TryGetValue(group.Role, out long anchor) || descriptors == null || !descriptors.Contains(anchor))
+                {
+                    _groupBindingViolations.Add(
+                        $"ownership group {group.Role} has members on no descriptor but no anchor descriptor of its own");
+                    continue;
+                }
+
+                var ids = new List<int>(_descriptorToComponentIds[anchor]);
+                for (int id = 0; id < 512; id++)
+                    if (linked.IsSet(id)) ids.Add(id);
+                _descriptorToComponentIds[anchor] = ids.ToArray();
+            }
+        }
+
+        /// <summary>The descriptors bound to <paramref name="role"/>'s group by <see cref="BindGroups"/>; empty before
+        /// binding or for an empty group.</summary>
+        public IReadOnlyList<long> DescriptorsOf(NodeRole role)
+            => _groupDescriptors.TryGetValue(role, out var d) ? d : Array.Empty<long>();
+
+        /// <summary>What <see cref="BindGroups"/> could not place — must be empty for a correct network binding (the
+        /// contract every network implementation honours, R-165).</summary>
+        public IReadOnlyList<string> GroupBindingViolations => _groupBindingViolations;
     }
 }

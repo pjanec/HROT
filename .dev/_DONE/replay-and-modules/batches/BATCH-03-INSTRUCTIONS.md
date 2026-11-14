@@ -683,7 +683,7 @@ After all changes, run the following in order:
 
 ```
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln --no-restore -v quiet 2>&1 | grep -E "error CS|Build succeeded|FAILED"
+dotnet build HROT.sln --no-restore -v quiet 2>&1 | grep -E "error CS|Build succeeded|FAILED"
 dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj --no-build
 dotnet test Hrot/Runner/Hrot.ClusterRunner.Tests/Hrot.ClusterRunner.Tests.csproj --no-build
 dotnet test Hrot/Subsystems/Hrot.SimHost.Integration.Tests/Hrot.SimHost.Integration.Tests.csproj --no-build
@@ -691,7 +691,7 @@ dotnet test Hrot/Subsystems/Hrot.SimHost.Integration.Tests/Hrot.SimHost.Integrat
 
 On Windows PowerShell, replace `grep` with `Select-String`:
 ```powershell
-dotnet build IOS-IG-SimHost.sln --no-restore -v quiet 2>&1 | Select-String "error CS|Build succeeded|FAILED"
+dotnet build HROT.sln --no-restore -v quiet 2>&1 | Select-String "error CS|Build succeeded|FAILED"
 dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/... --no-build
 dotnet test Hrot/Runner/Hrot.ClusterRunner.Tests/... --no-build
 dotnet test Hrot/Subsystems/Hrot.SimHost.Integration.Tests/... --no-build

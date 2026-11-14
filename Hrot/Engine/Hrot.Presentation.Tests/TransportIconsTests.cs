@@ -6,6 +6,7 @@ namespace Hrot.Presentation.Tests;
 /// <summary>
 /// Tests for the <see cref="TransportIcons"/> shared helper — drawing and formatting.
 /// </summary>
+[Xunit.Collection(Hrot.Presentation.Tests.ImGuiTestCollection.Name)]   // ⭐ one global ImGui context
 public class TransportIconsTests
 {
     [Fact]

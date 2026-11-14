@@ -51,6 +51,19 @@ namespace Fdp.Toolkit.Tkb
                     thunk(template, partId, prop.Value);
             }
 
+            // ⭐ CE-1017 S0 — the master's DIS type reaches the template (what stamps the entity header and drives the map
+            //   layers and the Add Entity picker's grouping). ⛔ Before, a TKB file's "DisType" was parsed into the DTO and
+            //   never copied, so every file-loaded type was DIS 0. A malformed string fails fast, like a missing $guid.
+            var master = template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.TkbMasterDto>();
+            if (master != null && !string.IsNullOrWhiteSpace(master.DisType))
+            {
+                if (!Fdp.Core.DISEntityType.TryParse(master.DisType, out var dis))
+                    throw new TkbFormatException(
+                        $"Entity '{file.FileName}' in '{file.CategoryPath}': TkbMaster.DisType '{master.DisType}' is not a " +
+                        "DIS entity type (Kind.Domain.Country.Category.Subcategory.Specific.Extra).");
+                template.DisType = dis;
+            }
+
             db.Register(template);
         }
     }

@@ -1,0 +1,197 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Fdp.Core;
+using Fdp.Presentation.Forms;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Replication.Edits;
+using Fdp.Toolkit.Replication.Patching;
+using Xunit;
+
+namespace Fdp.Presentation.Tests.ImGui.Forms;
+
+/// <summary>
+/// ⭐ U-12 / D1 (docs/UX/DESIGN_Details_Forms.md §2, §4 D1) — a DECLARED form draws for a selection and commits through <see cref="Edits.Submit"/>: the rows common
+/// to the selection, a differing value <i>mixed</i>, one Submit per entity with the attribute the field names, a value out of range refused with the reason,
+/// and ⭐ 0 B per steady frame with the form open and no row in edit (CE-4285). 🔴 Red-proof (compiles): <c>Refresh</c> re-formatting every frame (dropping
+/// the <c>Known</c> check) ⇒ the allocation rail fails.
+/// </summary>
+public sealed class FormViewTests : IDisposable
+{
+    private readonly EntityRepository _world;
+
+    public FormViewTests()
+    {
+        ComponentTypeRegistry.Clear();
+        _world = new EntityRepository();
+        _world.RegisterComponent<EntityInfo>();
+        _world.RegisterComponent<Health>();
+    }
+
+    public void Dispose() => _world.Dispose();
+
+    private Entity Unit(string name, float hp)
+    {
+        var e = _world.CreateEntity();
+        _world.AddComponent(e, new EntityInfo { Name = new FixedString64(name) });
+        _world.AddComponent(e, new Health { Current = hp, Max = 100 });
+        return e;
+    }
+
+    private static readonly FormDecl Form = new()
+    {
+        Id = "rail-unit", Title = "Unit", Requires = new[] { typeof(EntityInfo) },
+        Fields = new[]
+        {
+            new FormField { Label = "Name", Kind = FieldKind.Text, Attribute = "Name" },   // ⭐ R-2: attribute only — read through the vocabulary's reader
+            new FormField { Label = "Strength", Attribute = "Health.Current", Min = 0, Max = 100 },
+            new FormField { Label = "Entity id", Expert = true, ReadNumber = (w, e) => e.Index },
+        },
+    };
+
+    private void Frames(FormView view, IReadOnlyList<Entity> sel, int n, bool editable = true)
+    {
+        using var imgui = new ImGuiTestFixture();
+        for (int f = 0; f < n; f++)
+        {
+            imgui.NewFrame();
+            ImGuiNET.ImGui.Begin("D1");
+            view.Draw(Form, _world, sel, editable);
+            ImGuiNET.ImGui.End();
+            imgui.Render();
+        }
+    }
+
+    [Fact]
+    public void D1_ASelection_ShowsTheCommonRows_ADifferingValueIsMixed()
+    {
+        var a = Unit("Alpha 1-1", 50); var b = Unit("Bravo 2", 50);
+        var view = new FormView();
+        Frames(view, new[] { a }, 2);
+        Assert.Equal(new[] { "Name = Alpha 1-1", "Strength = 50", $"Entity id = {a.Index}" }, view.Rows);
+        Frames(view, new[] { a, b }, 2);
+        Assert.Equal("Name = mixed", view.Rows[0]);
+        Assert.Equal("Strength = 50", view.Rows[1]);
+        Assert.True(Form.OffersFor(_world, a));
+    }
+
+    [Fact]
+    public void D1_ACommit_IsOneSubmitPerEntity_WithTheFieldsAttribute()
+    {
+        var a = Unit("Alpha 1-1", 50); var b = Unit("Bravo 2", 70);
+        var sent = new List<EditOp>();
+        var view = new FormView { Submit = (w, op) => { sent.Add(op); return new EditTicket(Guid.NewGuid(), EntityWriteRoute.Direct); } };
+        var sel = new[] { a, b };
+        Frames(view, sel, 1);
+        view.CommitForTest(1, _world, sel, 40);
+        Assert.Equal(2, sent.Count);
+        Assert.Equal(new[] { a, b }, sent.Select(o => o.Target));
+        Assert.All(sent, o =>
+        {
+            Assert.Equal(EditKind.Write, o.Kind);
+            var c = Assert.Single(o.Changes!);
+            Assert.Equal(AttributeIds.HealthCurrent, c.AttributeId);
+            Assert.Equal(40.0, c.Value.DoubleValue);
+            Assert.Equal("Set strength", o.Label);
+        });
+        Assert.NotNull(Form.Fields[1].RangeProblem(150));   // out of range: refused with the reason, never clamped (§2.3)
+        Assert.Null(Form.Fields[1].RangeProblem(40));
+        Assert.True(Form.Fields[2].ReadOnly);              // no attribute ⇒ read-only, never written
+        view.CommitForTest(2, _world, sel, 7);
+        Assert.Equal(2, sent.Count);
+    }
+
+    [Fact]
+    public void R2_AFieldDeclaredWithOnlyAnAttribute_ShowsTheReadersValue_AndTheVocabulariesUnit()
+    {
+        var a = Unit("Alpha 1-1", 42);
+        Assert.True(Form.Fields[1].TryReadNumber(_world, a, out var hp));
+        Assert.Equal(42.0, hp);                                                        // Health.Current, through AttributeReaders — the field declares no delegate
+        Assert.True(Form.Fields[0].TryReadText(_world, a, out var name));
+        Assert.Equal("Alpha 1-1", name.ToString());
+        var bare = _world.CreateEntity();
+        Assert.False(Form.Fields[1].TryReadNumber(_world, bare, out _));               // no Health ⇒ the reader has no value ⇒ the row is not drawn
+        Assert.Equal("m", new FormField { Label = "Vis", Attribute = "Weather.VisibilityM" }.Unit);   // the vocabulary's unit
+        Assert.Equal("km", new FormField { Label = "Vis", Attribute = "Weather.VisibilityM", Unit = "km" }.Unit);   // an explicit unit wins
+        Assert.Null(new FormField { Label = "Skill", Attribute = "Proficiency", Slider = true }.Unit);   // a slider shows none
+
+        var view = new FormView();
+        Frames(view, new[] { a }, 4);
+        Assert.Contains("Strength = 42", view.Rows);
+    }
+
+    [Fact]
+    public void D1_ASteadyFrame_WithTheFormOpen_AllocatesNothing()
+    {
+        var a = Unit("Alpha 1-1", 50); var b = Unit("Bravo 2", 50);
+        var view = new FormView { ExpertOpen = true };
+        var sel = new[] { a, b };
+        using var imgui = new ImGuiTestFixture();
+        long drawn = 0;
+        for (int f = 0; f < 12; f++)
+        {
+            imgui.NewFrame();
+            ImGuiNET.ImGui.Begin("D1");
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            view.Draw(Form, _world, sel, editable: true);
+            if (f >= 4) drawn += GC.GetAllocatedBytesForCurrentThread() - before;   // after the first frames (the cache, the tables)
+            ImGuiNET.ImGui.End();
+            imgui.Render();
+        }
+        Assert.Equal(0, drawn);
+    }
+
+    /// <summary>A stand-in host trailer: every attribute row is offered, a click toggles it.</summary>
+    private sealed class Eyes : IFormRowTrailer
+    {
+        public readonly HashSet<string> On = new();
+        public bool Offered = true;
+        public string Glyph => "E";
+        public bool Available(IReadOnlyList<Entity> selection) => Offered && selection.Count == 1;
+        public int StateOf(FormField field, IReadOnlyList<Entity> selection) => field.Attribute == null ? 0 : On.Contains(field.Attribute) ? 2 : 1;
+        public string TipOf(int state) => state == 2 ? "on" : "off";
+        public void Click(FormField field, IReadOnlyList<Entity> selection) { if (!On.Remove(field.Attribute!)) On.Add(field.Attribute!); }
+        public int Footers;
+        public void Footer(FormDecl decl, IReadOnlyList<Entity> selection) => Footers++;
+    }
+
+    /// <summary>⭐ §6.13 (RW-1, mockup ①) — the host's row trailer (the watch eye): one at the end of every ATTRIBUTE row, none on a derived row, all at ONE x, a click toggles it, nothing is added when the host offers none,
+    /// ⭐ and a steady frame with it allocates 0 B. 🔴 Red-proof: draw the trailer for a field with no attribute ⇒ the count is 3 (the expert row).</summary>
+    [Fact]
+    public void RW1_TheRowTrailer_IsOneEyePerAttributeRow_AtOneX_ClickToggles_AndCostsNothing()
+    {
+        var a = Unit("Alpha 1-1", 50);
+        var sel = new[] { a };
+        var eyes = new Eyes();
+        var view = new FormView { ExpertOpen = true, CaptureLayout = true, Trailer = eyes };
+        long drawn = 0;
+        using (var imgui = new ImGuiTestFixture())
+        for (int f = 0; f < 14; f++)
+        {
+            imgui.NewFrame();
+            ImGuiNET.ImGui.Begin("D1");
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            view.Draw(Form, _world, sel, editable: true);
+            if (f is 6 or 7 or 12 or 13) drawn += GC.GetAllocatedBytesForCurrentThread() - before;
+            ImGuiNET.ImGui.End();
+            imgui.Render();
+            if (f == 8)   // click the Strength row's eye (the second attribute row)
+            {
+                var r = view.TrailerRects.Single(t => t.Field == 1);
+                var io = ImGuiNET.ImGui.GetIO();
+                io.AddMousePosEvent((r.Min.X + r.Max.X) / 2, (r.Min.Y + r.Max.Y) / 2);
+            }
+            if (f == 9) ImGuiNET.ImGui.GetIO().AddMouseButtonEvent(0, true);
+            if (f == 10) ImGuiNET.ImGui.GetIO().AddMouseButtonEvent(0, false);
+        }
+        Assert.Equal(new[] { 0, 1 }, view.TrailerRects.Select(t => t.Field).ToArray());   // Name + Strength: one eye per ATTRIBUTE row; the expert "Entity id" has no attribute
+        Assert.Equal(1, view.TrailerRects.Select(t => (int)t.Min.X).Distinct().Count());   // all at ONE x
+        Assert.Contains("Health.Current", eyes.On);                                          // the click toggled Strength
+        Assert.Equal(0, drawn);
+        Assert.True(eyes.Footers >= 12);                                                     // the host's footer is drawn under the rows every frame it is offered
+
+        var plain = new FormView { CaptureLayout = true };                                   // no host trailer ⇒ no column, no rects
+        using (var i2 = new ImGuiTestFixture()) { i2.NewFrame(); ImGuiNET.ImGui.Begin("D2"); plain.Draw(Form, _world, sel, true); ImGuiNET.ImGui.End(); i2.Render(); }
+        Assert.Empty(plain.TrailerRects);
+    }
+}

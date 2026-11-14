@@ -6,6 +6,7 @@ using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Tests.Builders;
 using Hrot.Blueprints.Tests.Mocks;
 using FdpBlueprintDispatchKind = Fdp.Toolkit.Blueprints.BlueprintDispatchKind;
+using Fdp.Toolkit.Blueprints.Partitioning;
 
 namespace Hrot.Blueprints.Tests;
 
@@ -22,7 +23,6 @@ public sealed class BlueprintTestFixtureTests
         Assert.NotNull(fixture.Ecb);
         Assert.NotNull(fixture.Registry);
         Assert.NotNull(fixture.TickSystem);
-        Assert.NotNull(fixture.MaintenanceSystem);
         Assert.NotNull(fixture.Compiler);
         Assert.NotNull(fixture.DebugSession);
         // DebugProbe.Sink wired to DebugSession
@@ -92,10 +92,23 @@ public sealed class BlueprintTestFixtureTests
     [Fact]
     public void ChooseTier_CorrectBoundaries()
     {
-        Assert.Equal(BlackboardTier.B1024,  BlueprintTestFixture.ChooseTier(928));
-        Assert.Equal(BlackboardTier.B4096,  BlueprintTestFixture.ChooseTier(929));
-        Assert.Equal(BlackboardTier.B4096,  BlueprintTestFixture.ChooseTier(3936));
-        Assert.Equal(BlackboardTier.B16384, BlueprintTestFixture.ChooseTier(3937));
+        // ⭐ B4 — design §17.7. This used to spell 928 / 3936, the PRE-B3② payload literals, and
+        //   named 1024 as the floor. Both moved. ⛔ The property it owns is not any particular
+        //   number: it is that ChooseTier returns the SMALLEST tier whose payload holds the state,
+        //   and that one byte more moves it up. ⇒ derived from the ladder, so it cannot rot again.
+        var ladder = BlueprintTierTable.Ascending;
+        for (int i = 0; i < ladder.Count; i++)
+        {
+            var spec = ladder[i];
+            Assert.Equal(spec.Tier, BlueprintTestFixture.ChooseTier(spec.PayloadSize));
+
+            if (i + 1 < ladder.Count)
+                Assert.Equal(ladder[i + 1].Tier,
+                             BlueprintTestFixture.ChooseTier(spec.PayloadSize + 1));
+        }
+
+        // ⚠ And the smallest tier really is reachable — an anti-vacuity check, B4_R1's shape.
+        Assert.Equal(ladder[0].Tier, BlueprintTestFixture.ChooseTier(1));
     }
 
     // SC6: AttachBlueprint with hand-crafted fake definition (no compiler needed)
@@ -160,6 +173,7 @@ public sealed class BlueprintTestFixtureTests
 }
 
 /// <summary>Helper: ECS system that counts Execute invocations.</summary>
+[TickMode(TickPolicy.EveryFrame)]
 internal sealed class CountingSystem : IEcsModuleSystem
 {
     public int ExecuteCount { get; private set; }

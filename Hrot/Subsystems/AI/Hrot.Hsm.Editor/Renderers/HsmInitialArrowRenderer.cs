@@ -130,6 +130,12 @@ public sealed class HsmInitialArrowRenderer : ICustomCanvasRenderer
     internal static IReadOnlyList<InitialMarker> CollectInitialMarkers(HsmAsset asset)
     {
         var result = new List<InitialMarker>();
+        // ⭐ CE-1003 — the TOP-LEVEL start state gets its circle + arrow too (UnityHFSM's red dot). The synthetic
+        //    root was skipped because it has no body, but the marker is drawn against the CHILD's rect, so the
+        //    root needs none.
+        if (FindInitialChild(asset.RootState) is { } topStart)
+            result.Add(new InitialMarker(asset.RootState, topStart, -1));
+
         foreach (var s in asset.AllStates)
         {
             if (s == asset.RootState) continue;

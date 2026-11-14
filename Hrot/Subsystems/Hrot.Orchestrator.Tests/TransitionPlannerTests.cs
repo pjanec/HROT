@@ -168,6 +168,25 @@ public sealed class TransitionPlannerTests
     }
 
     /// <summary>
+    /// CE-1025 (R-1031, load design §9.1): a load from a CLUSTER dry run asks for Idle first, and the way there is the dry run's own
+    /// rewind (UnloadingPreview) back to Edit, then the Edit unload. The user, 2026-10-23: going "via rewind to pre-preview state into
+    /// the standby cluster state before loading" is fine.
+    /// </summary>
+    [Fact]
+    public void CE1025_ClusterDryRunToIdle_GoesThroughTheRewind()
+    {
+        var path = _planner.CalculateShortestPath(ClusterState.OperatingPreview, ClusterState.Idle);
+
+        Assert.Equal(new[]
+        {
+            ClusterState.UnloadingPreview,
+            ClusterState.OperatingEdit,
+            ClusterState.UnloadingEdit,
+            ClusterState.Idle,
+        }, path);
+    }
+
+    /// <summary>
     /// G0403 success condition 2: BFS path preserved via toolkit TransitionPlanner
     /// with integer state IDs (HrotStateGraph).
     /// </summary>
@@ -299,7 +318,7 @@ public sealed class TransitionPlannerTests
     {
         var targets = _planner.GetReachableTargets(ClusterState.OperatingLive);
 
-        Assert.Single(targets);
-        Assert.Equal(ClusterState.UnloadingLive, targets[0]);
+        // ⭐ CE-3329 P3 (§3a) — a live run's one step leads to unloading it, or (since During Action Review) into a review of it. No other.
+        Assert.Equal(new[] { ClusterState.UnloadingLive, ClusterState.LoadingReview }.OrderBy(x => x), targets.OrderBy(x => x));
     }
 }

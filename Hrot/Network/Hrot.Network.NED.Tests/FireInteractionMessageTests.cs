@@ -15,7 +15,7 @@ namespace Hrot.DDS.DataModel.Tests
 
         /// <summary>
         /// BS1-T001 SC-4: WeaponFireRequest must carry exactly one DdsTopicAttribute
-        /// with TopicName == "WeaponFireRequest".
+        /// with no explicit TopicName (derived: Hrot_NED_Messages_WeaponFireRequest).
         /// </summary>
         [Fact]
         public void WeaponFireRequest_HasDdsTopicAttribute_WithCorrectName()
@@ -23,12 +23,13 @@ namespace Hrot.DDS.DataModel.Tests
             var attrs = typeof(WeaponFireRequest).GetCustomAttributes<DdsTopicAttribute>(inherit: false);
             var list = new System.Collections.Generic.List<DdsTopicAttribute>(attrs);
             Assert.Single(list);
-            Assert.Equal("WeaponFireRequest", list[0].TopicName);
+            Assert.Null(list[0].TopicName);   // AQ107 A — never written: derived from the type
+            Assert.Equal("Hrot_NED_Messages_WeaponFireRequest", DdsTopicName.Of<WeaponFireRequest>());
         }
 
         /// <summary>
         /// BS1-T001: WeaponFire must carry exactly one DdsTopicAttribute
-        /// with TopicName == "WeaponFire".
+        /// with no explicit TopicName (derived: Hrot_NED_Messages_WeaponFire).
         /// </summary>
         [Fact]
         public void WeaponFire_HasDdsTopicAttribute_WithCorrectName()
@@ -36,7 +37,8 @@ namespace Hrot.DDS.DataModel.Tests
             var attrs = typeof(WeaponFire).GetCustomAttributes<DdsTopicAttribute>(inherit: false);
             var list = new System.Collections.Generic.List<DdsTopicAttribute>(attrs);
             Assert.Single(list);
-            Assert.Equal("WeaponFire", list[0].TopicName);
+            Assert.Null(list[0].TopicName);   // AQ107 A — never written: derived from the type
+            Assert.Equal("Hrot_NED_Messages_WeaponFire", DdsTopicName.Of<WeaponFire>());
         }
 
         /// <summary>
@@ -52,7 +54,7 @@ namespace Hrot.DDS.DataModel.Tests
 
         /// <summary>
         /// BS1-T002 SC-3: MunitionDetonation must carry exactly one DdsTopicAttribute
-        /// with TopicName == "MunitionDetonation".
+        /// with no explicit TopicName (derived: Hrot_NED_Messages_MunitionDetonation).
         /// </summary>
         [Fact]
         public void MunitionDetonation_HasDdsTopicAttribute_WithCorrectName()
@@ -60,12 +62,13 @@ namespace Hrot.DDS.DataModel.Tests
             var attrs = typeof(MunitionDetonation).GetCustomAttributes<DdsTopicAttribute>(inherit: false);
             var list = new System.Collections.Generic.List<DdsTopicAttribute>(attrs);
             Assert.Single(list);
-            Assert.Equal("MunitionDetonation", list[0].TopicName);
+            Assert.Null(list[0].TopicName);   // AQ107 A — never written: derived from the type
+            Assert.Equal("Hrot_NED_Messages_MunitionDetonation", DdsTopicName.Of<MunitionDetonation>());
         }
 
         /// <summary>
         /// BS1-T002: EntityHitDamage must carry exactly one DdsTopicAttribute
-        /// with TopicName == "EntityHitDamage".
+        /// with no explicit TopicName (derived: Hrot_NED_Messages_EntityHitDamage).
         /// </summary>
         [Fact]
         public void EntityHitDamage_HasDdsTopicAttribute_WithCorrectName()
@@ -73,7 +76,8 @@ namespace Hrot.DDS.DataModel.Tests
             var attrs = typeof(EntityHitDamage).GetCustomAttributes<DdsTopicAttribute>(inherit: false);
             var list = new System.Collections.Generic.List<DdsTopicAttribute>(attrs);
             Assert.Single(list);
-            Assert.Equal("EntityHitDamage", list[0].TopicName);
+            Assert.Null(list[0].TopicName);   // AQ107 A — never written: derived from the type
+            Assert.Equal("Hrot_NED_Messages_EntityHitDamage", DdsTopicName.Of<EntityHitDamage>());
         }
 
         /// <summary>

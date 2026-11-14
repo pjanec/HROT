@@ -25,14 +25,14 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// Unknown entity IDs (not yet registered in the <see cref="NetworkEntityMap"/>)
     /// are silently skipped.
     /// </summary>
-    public class EntityMissionIngressTranslator : IDescriptorTranslator
+    public class EntityMissionIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<EntityMission> _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly BehaviorRegistry _behaviorRegistry;
         private readonly GhostCreationSystem _ghostCreationSystem;
 
-        public string TopicName => "EntityMission";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityMission>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEntityMission;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -44,11 +44,14 @@ namespace Hrot.Map.Common.Replication.Ingress
             BehaviorRegistry behaviorRegistry,
             GhostCreationSystem ghostCreationSystem)
         {
-            _reader = new DdsReader<EntityMission>(participant, "EntityMission");
+            _reader = new DdsReader<EntityMission>(participant);
             _entityMap = entityMap;
             _behaviorRegistry = behaviorRegistry ?? throw new ArgumentNullException(nameof(behaviorRegistry));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <summary>
         /// Polls the DDS reader and queues component set/remove commands.
@@ -60,7 +63,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             foreach (var sample in loan)
             {
                 // Resolve entity ID from either valid data or the key-only native frame.
-                long entityId;
+                int entityId;
                 if (sample.IsValid)
                 {
                     entityId = sample.Data.EntityId;
@@ -91,13 +94,26 @@ namespace Hrot.Map.Common.Replication.Ingress
 
                 if (sample.IsValid)
                 {
-                    // Skip ingress for entities the local node has authority over.
+                    // Skip ingress when this node OWNS the mission descriptor.
                     // Without this check the local egress translator's own published
                     // EntityMission sample loops back through DDS and overwrites the
                     // ECS component set by MissionControlExecutionSystem in the same frame.
-                    if (view.HasAuthority(entity)) continue;
+                    // ⭐⭐ S3 / F-5 — the DESCRIPTOR's recorded owner, not the entity's primary owner. With push-only
+                    //   grants the Brain owns dtEntityMission on an entity another node created; the old entity-level
+                    //   test was false there, so CGF overwrote its fresh mission queue with an incoming sample (0/0
+                    //   phases) and the tank never moved (CE-500). 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §3 F-5.
+                    if (Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(
+                            view, entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0)))
+                        continue;
 
-                    var queue = BuildQueue(sample.Data);
+                    // ⭐ CE-4157 — a plan that cannot be run as authored is NOT applied (no fallback queue): the replica keeps what it had
+                    MissionPlanQueue queue;
+                    try { queue = BuildQueue(sample.Data); }
+                    catch (Hrot.Core.Mission.MissionPlanException ex)
+                    {
+                        FdpLog<EntityMissionIngressTranslator>.Error("[MissionTranslator] Mission of entity {0} not applied: {1}", sample.Data.EntityId, ex.Message);
+                        continue;
+                    }
                     cmd.SetComponent(entity, queue);
                 }
                 else if (sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed)
@@ -128,33 +144,33 @@ namespace Hrot.Map.Common.Replication.Ingress
         /// <summary>
         /// This translator is ingress-only; no DDS instance to dispose.
         /// </summary>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         private MissionPlanQueue BuildQueue(in EntityMission mission)
         {
             var queue = new MissionPlanQueue
             {
-                CurrentPhase = 0,
-                PhaseElapsedSeconds = 0f
+                CurrentTask = 0,
+                TaskElapsedSeconds = 0f
             };
 
             var tasks = mission.Plan.Tasks ?? new List<MissionTask>();
-            int count = Math.Min(tasks.Count, MissionPlanQueue.MaxPhases);
+            int count = Math.Min(tasks.Count, MissionPlanQueue.MaxTasks);
 
-            if (tasks.Count > MissionPlanQueue.MaxPhases)
+            if (tasks.Count > MissionPlanQueue.MaxTasks)
             {
                 FdpLog<EntityMissionIngressTranslator>.Warn(
                     "[MissionTranslator] Mission has {0} tasks; truncating to {1}.",
-                    tasks.Count, MissionPlanQueue.MaxPhases);
+                    tasks.Count, MissionPlanQueue.MaxTasks);
             }
 
             for (int i = 0; i < count; i++)
             {
                 var task = tasks[i];
                 int behaviorId = ResolveBehaviorId(task.BehaviorId);
-                var (trigger, param) = ResolveTrigger(task.Triggers);
+                var (trigger, param) = ResolveTrigger(task.Triggers, task.TaskId.ToString());
 
-                queue.Phases[i] = new MissionPhase
+                queue.Tasks[i] = new MissionTaskSlot
                 {
                     BehaviorId = behaviorId,
                     Trigger = trigger,
@@ -162,7 +178,14 @@ namespace Hrot.Map.Common.Replication.Ingress
                 };
             }
 
-            queue.PhaseCount = (byte)count;
+            queue.TaskCount = (byte)count;
+
+            // ⭐ CE-483 (egress half, W3): restore the progress the owner sent — the outcomes, the current phase and the
+            //   halt. ⛔ Was `CurrentPhase = 0` with every task state dropped: a replica showed phase 0, and a node that later
+            //   took authority over the entity restarted the plan from the beginning.
+            var states = new eTaskState[count];
+            for (int i = 0; i < count; i++) states[i] = tasks[i].State;
+            Hrot.Map.Common.Replication.MissionProgressWire.Decode(states, ref queue);
             return queue;
         }
 
@@ -189,7 +212,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         /// <summary>
         /// Delegates to <see cref="Hrot.Map.Common.Helpers.MissionTriggerHelper.ResolveTrigger"/> (BUG2-DEBT-01).
         /// </summary>
-        internal static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<DdsMissionTrigger>? triggers)
-            => Helpers.MissionTriggerHelper.ResolveTrigger(triggers);
+        internal static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<DdsMissionTrigger>? triggers, string? task)
+            => Helpers.MissionTriggerHelper.ResolveTrigger(triggers, task);
     }
 }

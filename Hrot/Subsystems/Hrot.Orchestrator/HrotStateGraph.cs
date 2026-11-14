@@ -49,6 +49,13 @@ public static class HrotStateGraph
             .AddTransition((int)ClusterState.OperatingReplay,   (int)ClusterState.UnloadingReplay)
             .AddTransition((int)ClusterState.OperatingReplay,   (int)ClusterState.LoadingLive)
             .AddTransition((int)ClusterState.UnloadingReplay, (int)ClusterState.Idle)
+            // ⭐ CE-3329 P3 (R5, §3a) — During Action Review: in place, from a live run, and its ONLY exit is back to live (a review
+            //   that wants a replay or a stop goes through OperatingLive — the planner's BFS gives that path). ⛔ No edge to Idle: a
+            //   review never empties the world.
+            .AddTransition((int)ClusterState.OperatingLive,   (int)ClusterState.LoadingReview)
+            .AddTransition((int)ClusterState.LoadingReview,   (int)ClusterState.OperatingReview)
+            .AddTransition((int)ClusterState.OperatingReview, (int)ClusterState.UnloadingReview)
+            .AddTransition((int)ClusterState.UnloadingReview, (int)ClusterState.OperatingLive)
             .Build();
     }
 }

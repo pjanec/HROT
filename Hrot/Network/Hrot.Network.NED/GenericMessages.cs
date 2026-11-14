@@ -27,35 +27,6 @@ namespace Hrot.NED.Messages
     // NedStatusCode has been moved to Hrot.Network.Orchestration/Orchestration/OrchestrationMessages.cs
     // (namespace Hrot.NED.Messages). All existing usages remain valid without change.
 
-    // Message to change the ownership of a descriptor.
-    // Used when a node wants to gracefully hand over control of a specific component
-    // (e.g., simulation physics) to another node without deleting/recreating data.
-    [DdsTopic("OwnershipUpdate")]
-    [DdsIdlFile("hrot-generic-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
-    public partial struct OwnershipUpdate
-    {
-        // The unique ID of the entity instance affected.
-        [DdsKey]
-        public int EntityId;
-
-        // Unique ID of the descriptor type (e.g., 0=Master, 10=GeoSpatial).
-        [DdsKey]
-        public int DescrTypeId;
-
-        // ID of the descriptor instance.
-        // Non-zero if there are multiple descriptors of the same type per entity instance
-        // (e.g., multiple radios, multiple engines).
-        // Zero if there is just one descriptor of that type per entity instance.
-        [DdsKey]
-        public int DescrInstanceId;
-
-        // The NodeId of the participant taking over ownership.
-        // The current owner monitors this; if it matches 'NewOwner', it stops publishing.
-        // The new owner monitors this; if it matches 'NewOwner', it starts publishing.
-        public NodeId NewOwner;
-    }
-
     // ===================================================================================
     // ATTR2 BINARY CONTRACT: ATTRIBUTE WIRE TYPES
     // ===================================================================================
@@ -184,7 +155,7 @@ namespace Hrot.NED.Messages
 
     // CreateEntityRequest is for asking SOMEONE ELSE to create the entity, to simplify the sender
     // if the sender is NOT the intended owner of the new entity.
-    [DdsTopic("CreateEntityRequest")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct CreateEntityRequest
@@ -219,10 +190,21 @@ namespace Hrot.NED.Messages
         /// </summary>
         [DdsManaged]
         public List<AttributeRecord>? InitialAttributeRecords;
+
+        /// <summary>
+        /// ⭐ <c>CE-1017</c> S2 — the birth-height mode (<c>Fdp.Toolkit.NetworkSpawning.SpawnHeightMode</c>):
+        /// 0 = Absolute (the <c>dtWorldPos</c> altitude stands — every sender before this field), 1 = OnLevel
+        /// (altitude ignored), 2 = AboveLevel (altitude is the height above the level).
+        /// 📄 docs/DESIGN_Add_Entity_Picker.md §2e — explicit fields rather than bits in <see cref="Flags"/> (user).
+        /// </summary>
+        public byte SpawnHeightMode;
+
+        /// <summary>⭐ <c>CE-1017</c> S2 — the terrain level when <see cref="SpawnHeightMode"/> ≠ 0: 0 = ground, +n above, −n below.</summary>
+        public short SpawnLevel;
     }
 
     // Request to delete an entity; issued by non-owning nodes.
-    [DdsTopic("DeleteEntityRequest")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct DeleteEntityRequest
@@ -233,7 +215,7 @@ namespace Hrot.NED.Messages
 
     // Request to update a descriptor owned by another node.
     // SST Standard: "If you don't own it, request it."
-    [DdsTopic("UpdateEntityDescriptorRequest")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct UpdateEntityDescriptorRequest
@@ -258,7 +240,7 @@ namespace Hrot.NED.Messages
     }
 
     // Acknowledgment for update requests.
-    [DdsTopic("UpdateEntityDescriptorAck")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct UpdateEntityDescriptorAck
@@ -275,8 +257,8 @@ namespace Hrot.NED.Messages
     // GENERIC - reusable across any SST application (map, radio, weather, etc.)
     // Used ONLY for updating attributes indescriptors owned by other participants
     // For own descriptors: write directly to DDS topics
-    // Acknowledged by CreateUpdateDeleteEntityAck 
-    [DdsTopic("UpdateEntityAttributeRequest")]
+    // Answered by EntityEditOutcome when WantOutcome is set (edit framework F2).
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct UpdateEntityAttributeRequest
@@ -291,10 +273,6 @@ namespace Hrot.NED.Messages
         [DdsManaged]
         public string AttributePatchJson;
 
-        // When true, the processing node must send a CreateUpdateDeleteEntityAck after applying
-        // the patch.  When false (default), the message is fire-and-forget.
-        public bool RequireAck;
-
         /// <summary>
         /// Optional binary attribute patch applied alongside <see cref="AttributePatchJson"/>.
         /// Each <see cref="AttributeRecord"/> carries a strongly-typed value keyed by a 16-bit
@@ -303,34 +281,36 @@ namespace Hrot.NED.Messages
         /// </summary>
         [DdsManaged]
         public List<AttributeRecord>? AttributeRecords;
+
+        /// <summary>
+        /// ⭐ CE-2380 part 1 (R-2082) — the requester wants an <see cref="EntityEditOutcome"/> from the owner. false (default) = no outcome is sent.
+        /// ⭐ Edit framework F2 (R-4126): the old <c>RequireAck</c> and its <c>CreateUpdateDeleteEntityAck</c> are retired. Appended LAST so the field order of the older members is untouched.
+        /// </summary>
+        public bool WantOutcome;
     }
 
-    // Unified acknowledgment for entity creation, descriptor update, and deletion.
-    [DdsTopic("CreateUpdateDeleteEntityAck")]
+    // ⭐ CE-2380 part 1 (R-2082, 📄 docs/DESIGN_Remote_Edit_Outcome.md §2) — the outcome of a remote edit, owner → every node: applied / pending / refused, with the reason.
+    // Answers an UpdateEntityAttributeRequest that had WantOutcome set (or, later, a judge's final verdict under the same RequestId). ⭐ Edit framework F2 (R-4126): it is ALSO the answer to a create and a delete — the old CreateUpdateDeleteEntityAck is retired.
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
-    public partial struct CreateUpdateDeleteEntityAck
+    public partial struct EntityEditOutcome
     {
         public Guid RequestId;
 
-        /// <summary>The affected entity. For creation requests this holds the newly allocated ID.</summary>
         public int EntityId;
 
-        /// <summary>Maps to NedStatusCode: 0=Success, 1=InProgress, >=2=Error.</summary>
-        public int StatusCode;
+        /// <summary>Fdp.Toolkit.Replication.Edits.EditStatus: 1=Applied, 2=Pending, 3=Refused.</summary>
+        public int Status;
 
-        /// <summary>Identifies which node is sending this acknowledgment.</summary>
-        public NodeId RespondingNode;
+        /// <summary>The node that answered (a plain node id, as on every other wire message).</summary>
+        public int RespondingNode;
 
-        /// <summary>
-        /// Optional 32-byte engine-specific execution receipt (256 bits).
-        /// FDP nodes pack a component-mutation bitmask here: bit N is set when ECS component
-        /// type ID N was authorised and written during this request.
-        /// Non-FDP nodes may use this field for custom flags or leave it null/zeroed.
-        /// Serialized as an unbounded DDS octet sequence.
-        /// </summary>
-        public byte[] OpaqueData;
+        /// <summary>Why — for a refusal, what was not applied (capped at 1000 characters by the sender).</summary>
+        [DdsManaged]
+        public string Reason;
     }
+
 
     // ===================================================================================
     // ENTITY ATTRIBUTE SCHEMA (GZ052)
@@ -339,9 +319,9 @@ namespace Hrot.NED.Messages
     // One record per SimHost instance. Keyed by NodeId.
     // Carries the full JSON schema of entity attributes supported by this node's JsonAttributeCompiler.
     // TransientLocal: late-joining ExCon subscribers immediately receive the latest published schema.
-    [DdsTopic("EntityAttributeSchema")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal,
-            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     [DdsManaged]
     public partial struct EntityAttributeSchema
     {

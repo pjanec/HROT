@@ -4,7 +4,7 @@ using Xunit;
 using Fdp.Core;
 using Hrot.MuscleCharacter.Animation.Baking;
 using Hrot.MuscleCharacter.Animation.Contracts;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Fake;
 using Hrot.MuscleCharacter.Animation.Fake.Components;
 using Hrot.MuscleCharacter.Animation.Hashing;
@@ -72,7 +72,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                         IsStanceTransition = false,
                     },
                 },
-                SupportedStances = new[] { Components.StanceId.Standing, Components.StanceId.Crouched },
+                SupportedStances = new[] { StanceId.Standing, StanceId.Crouched },
                 StanceTransitions = new List<StanceTransitionDto>(),
                 AimConfig = null,
                 NotifyMarkers = new List<NotifyMarkerDefDto>
@@ -572,18 +572,18 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             var (backend, handle) = CreateBackendWithEntity();
 
             // Trigger a stance transition: Standing (0) -> Crouched (1), duration 0.3f
-            backend.RequestStanceChange(handle, (byte)Components.StanceId.Crouched, 0.3f);
+            backend.RequestStanceChange(handle, (byte)StanceId.Crouched, 0.3f);
 
             var stanceBefore = backend.QueryStanceState(handle);
             Assert.Equal(1, stanceBefore.IsTransitioning);
-            Assert.Equal((byte)Components.StanceId.Crouched, stanceBefore.TargetStance);
+            Assert.Equal((byte)StanceId.Crouched, stanceBefore.TargetStance);
 
             // Tick past the transition duration
             backend.Tick(0.4f);
 
             var stanceAfter = backend.QueryStanceState(handle);
             Assert.Equal(0, stanceAfter.IsTransitioning);
-            Assert.Equal((byte)Components.StanceId.Crouched, stanceAfter.CurrentStance);
+            Assert.Equal((byte)StanceId.Crouched, stanceAfter.CurrentStance);
             Assert.InRange(stanceAfter.TransitionProgress, 0f, 0.01f);
         }
     }

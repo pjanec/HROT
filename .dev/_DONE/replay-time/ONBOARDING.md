@@ -180,7 +180,7 @@ ClusterMaster.ConsumeNodeOpStatuses (BranchTransitionTask)
 
 Build the full solution:
 ```
-dotnet build IOS-IG-SimHost.sln --no-restore -v quiet
+dotnet build HROT.sln --no-restore -v quiet
 ```
 
 Run FDP engine tests only (fast, no Hrot dependencies):

@@ -11,7 +11,7 @@
       <_Parameter1>Hrot.Network.NED.Tests</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-      <_Parameter1>Hrot.IG.Tests</_Parameter1>
+      <_Parameter1>Hrot.Player.Tests</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Hrot.SimHost.Tests</_Parameter1>
@@ -39,6 +39,6 @@
     <ProjectReference Include="..\..\..\FDP\Network\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
+    <PackageReference Include="CycloneDDS.NET" Version="$(CycloneDdsNetVersion)" />
   </ItemGroup>
 </Project>

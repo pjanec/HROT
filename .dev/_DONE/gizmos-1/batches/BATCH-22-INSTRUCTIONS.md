@@ -555,7 +555,7 @@ the test still compiles and passes — the mock layer logic is unaffected.
 After all changes, build and verify:
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental
+dotnet build HROT.sln --no-incremental
 ```
 
 Expected: 0 errors, 0 warnings related to deleted types.

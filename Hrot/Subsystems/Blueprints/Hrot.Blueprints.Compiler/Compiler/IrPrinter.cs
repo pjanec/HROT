@@ -38,8 +38,8 @@ internal static class IrPrinter
     private static string PrintOperation(IrOperation op) => op switch
     {
         IrOp_Const c          => $"const {c.Type.FullName} {c.CSharpLiteral}",
-        IrOp_ReadVariable r   => $"read_var[{r.VariableIndex}]",
-        IrOp_WriteVariable w  => $"write_var[{w.VariableIndex}] <- t{w.Value.Index}",
+        IrOp_ReadVariable r   => $"read_var[{r.Target}]",
+        IrOp_WriteVariable w  => $"write_var[{w.Target}] <- t{w.Value.Index}",
         IrOp_ReadParam r      => $"read_param[{r.ParamIndex}]",
         IrOp_PureCall p       => $"pure_call {p.MethodFqn}({FormatArgs(p.Args)})",
         IrOp_LibraryCall l    => $"lib_call {l.MethodName}({FormatArgs(l.Args)})",
@@ -50,17 +50,24 @@ internal static class IrPrinter
         IrOp_WaitForEvent w   => $"wait_for_event {w.EventTypeFqn}",
         IrOp_ChannelCommand c    => $"channel_cmd {c.ChannelComponentTypeFqn}.{c.ActionIdConstantName}",
         IrOp_InlineActionCall a  => $"inline_action_call {a.ActionFqn}",
-        IrOp_ReadShared r        => r.TargetEntity is { } tgt
-            ? $"read_shared[{r.VariableId}:{r.SharedTypeFqn}] @t{tgt.Index} (found=t{r.FoundValue.Index})"
-            : $"read_shared[{r.VariableId}:{r.SharedTypeFqn}] (found=t{r.FoundValue.Index})",
-        IrOp_WriteShared w       => $"write_shared[{w.VariableId}:{w.SharedTypeFqn}] <- t{w.Value.Index}",
+        IrOp_RunBehavior rb      => rb.ParamsVariable is null ? $"run_behavior {rb.BehaviorName}" : $"run_behavior {rb.BehaviorName} params={rb.ParamsVariable}",
+        IrOp_AbortTask at        => $"abort_task {at.TaskNodeId:N}",
+        IrOp_ResetHostedSite rs  => $"reset_hosted_site {rs.SiteId:N}",
+        IrOp_StartTask st        => $"start_task {st.FiberGraph}",
+        IrOp_AbortStartedTask ab => $"abort_started_task {ab.FiberGraph} {ab.SiteId:N}",
         _                        => op.GetType().Name,
     };
 
     private static string PrintTerminator(IrTerminator term) => term switch
     {
-        IrTerm_Return r      => r.Value.HasValue ? $"return t{r.Value.Value.Index}" : "return",
-        IrTerm_ReturnStatus s => $"return_status {s.Status}",
+        IrTerm_Return r      => r.Value.HasValue ? $"return t{r.Value.Value.Index}"
+                                : r.ReturnsDefault ? "return default"   // BP-117
+                                : "return",
+        // BP-131: a wired Success pin makes the status a runtime value; print the driving value
+        // rather than the (now-unused) constant, so an IR dump distinguishes the two forms.
+        IrTerm_ReturnStatus s => s.Condition.HasValue
+                                ? $"return_status t{s.Condition.Value.Index} ? Success : Failure"
+                                : $"return_status {s.Status}",
         IrTerm_Goto g        => $"goto block_{g.Target.Value}",
         IrTerm_Branch b      => $"branch t{b.Condition.Index} ? block_{b.IfTrue.Value} : block_{b.IfFalse.Value}",
         IrTerm_Suspend s     => $"suspend resume_pt=t{s.ResumePoint.Index} resume=block_{s.ResumeBlock.Value}",

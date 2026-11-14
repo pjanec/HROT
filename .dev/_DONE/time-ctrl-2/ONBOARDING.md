@@ -44,7 +44,7 @@ d:\Work\IOS-IG-SimHost-FDP\
 ├── Hrot.ClusterRunner.Integration.Tests/
 │   └── TimeControlIntegrationTests.cs    ← integration regression suite
 │
-└── IOS-IG-SimHost.sln                    ← main solution
+└── HROT.sln                    ← main solution
 ```
 
 ---
@@ -64,7 +64,7 @@ d:\Work\IOS-IG-SimHost-FDP\
 Open a terminal at `d:\Work\IOS-IG-SimHost-FDP\` and build the whole solution:
 
 ```powershell
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 Or build just the time toolkit and runner:

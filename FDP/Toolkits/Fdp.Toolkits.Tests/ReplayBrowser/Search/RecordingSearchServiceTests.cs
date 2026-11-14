@@ -87,6 +87,33 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             finally { TryDelete(fdpPath); }
         }
 
+        // ── CE-1266: Changed over a recording = differs from the frame before ──
+
+        /// <summary>⭐ <c>CE-1266</c> — over a recording, <see cref="SearchOperator.Changed"/> compares each frame with the one before (a second
+        /// playback one frame behind), so it finds the frames where the value moved — not every frame it was written (measured live: 8581
+        /// hits for nine changes). 🔴 Red-proof: pass <c>null</c> instead of the lagging repository to <c>PredicateChangeBaseline.Use</c> ⇒
+        /// red (every frame matches).</summary>
+        [Fact]
+        public void CE1266_Changed_FindsTheFramesWhereTheValueMoved()
+        {
+            float[] values = { 5f, 5f, 7f, 7f, 7f, 9f, 9f };
+            string fdpPath = BuildSingleEntityRecording(values);
+            try
+            {
+                var predicate = new PropertyMatchDto
+                {
+                    ComponentType = typeof(HarnessPosition),
+                    PropertyPath  = "X",
+                    Operator      = SearchOperator.Changed,
+                    Predicate     = new NumericPredicateDto(),
+                };
+                var results = _service.ExecuteSearch(fdpPath, predicate);
+                // the first frame (the value appears) and the two moves 5→7, 7→9
+                Assert.Equal(3, results.Count);
+            }
+            finally { TryDelete(fdpPath); }
+        }
+
         // ── SR-T10: Spatial Entry -- entity enters zone ───────────────────────
 
         [Fact]
@@ -109,7 +136,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
                 var predicate = new SpatialBoundingPredicateDto
                 {
-                    Bounds = new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) },
+                    Bounds = AreaBoxes.FromBox(new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) }),
                     TriggerEvent          = BoundaryEvent.Entry,
                     PositionComponentType = typeof(HarnessTransform),
                     PositionXPath         = "Position.X",
@@ -144,7 +171,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
                 var predicate = new SpatialBoundingPredicateDto
                 {
-                    Bounds = new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) },
+                    Bounds = AreaBoxes.FromBox(new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) }),
                     TriggerEvent          = BoundaryEvent.Exit,
                     PositionComponentType = typeof(HarnessTransform),
                     PositionXPath         = "Position.X",
@@ -183,7 +210,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
                 var predicate = new SpatialBoundingPredicateDto
                 {
-                    Bounds = new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) },
+                    Bounds = AreaBoxes.FromBox(new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) }),
                     TriggerEvent          = BoundaryEvent.EntryOrExit,
                     PositionComponentType = typeof(HarnessTransform),
                     PositionXPath         = "Position.X",
@@ -218,7 +245,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
                 var predicate = new SpatialBoundingPredicateDto
                 {
-                    Bounds = new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) },
+                    Bounds = AreaBoxes.FromBox(new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) }),
                     TriggerEvent          = BoundaryEvent.Entry, // only entry
                     PositionComponentType = typeof(HarnessTransform),
                     PositionXPath         = "Position.X",
@@ -747,6 +774,144 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────
+
+        // ── CE-1302 / R-4077 extension (DESIGN_Director_Timeline_Editor.md §9c ③): rings and the shared structural scan ─────────────
+
+        /// <summary>A recorded order history: one result per NEW entry — two orders in one frame are two, a repeat is one more, the
+        /// entries already there on the first frame are the baseline (none).</summary>
+        [Fact]
+        public void CE1302_RingEntry_OneResultPerNewEntry_TheFirstFrameIsTheBaseline()
+        {
+            using var h = new FdpRecordingHarness();
+            var repo = h.Repository;
+            repo.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandOrderHistory>();
+            var commander = repo.CreateEntity();
+            var member = repo.CreateEntity();
+            repo.AddComponent(commander, default(Fdp.Toolkit.Squad.Command.CommandOrderHistory));
+            Fdp.Toolkit.Squad.Command.CommandHistoryOf.Order(repo, commander, member, 0x1111, (Fdp.Core.SimInstant)0d);   // before the recording
+            h.Tick(); h.RecordKeyframe();                                                            // frame 0
+            Fdp.Toolkit.Squad.Command.CommandHistoryOf.Order(repo, commander, member, 0x5A11, (Fdp.Core.SimInstant)1d);
+            Fdp.Toolkit.Squad.Command.CommandHistoryOf.Order(repo, commander, member, 0x7777, (Fdp.Core.SimInstant)1d);
+            h.Tick(); h.RecordDelta();                                                               // frame 1: two
+            Fdp.Toolkit.Squad.Command.CommandHistoryOf.Order(repo, commander, member, 0x7777, (Fdp.Core.SimInstant)2d);   // repeated
+            h.Tick(); h.RecordDelta();                                                               // frame 2: one
+            string path = h.BuildToTempFile();
+
+            var results = _service.ExecuteSearch(path, new RingEntryPredicateDto
+            {
+                ComponentType = typeof(Fdp.Toolkit.Squad.Command.CommandOrderHistory),
+                ItemsPath = "Items", CountPath = "Count",
+                KeyPaths = { "At", "Traffic", "CounterpartNetId", "Behaviour", "Repeats" },
+            });
+
+            Assert.Equal(new[] { 1, 1, 2 }, results.Select(r => r.FrameIndex));
+            Assert.All(results, r => Assert.Equal(commander.Index, r.Entity.Index));
+        }
+
+        [System.Runtime.CompilerServices.InlineArray(4)] private struct ScanRing { public ScanEntry _e; }
+        private struct ScanEntry { public long Id; }
+        [Fdp.Core.ComponentId(508)] private struct ScanRingHolder { public ScanRing Items; public int Count; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3330</c> — the ring scanner reports nothing for a ring byte-identical to last frame's (it skips the hashing), yet still sees
+        /// every change: (a) an untouched ring adds no events over many frames; (b) a FULL ring whose oldest slot is overwritten by a new entry
+        /// (count unchanged) yields exactly that one entry; (c) an existing entry rewritten in place with a new key yields it; a new entity's
+        /// first frame is its baseline. 🔴 Red-proofs: equal count treated as unchanged ⇒ (b) and (c) yield nothing; always-skip ⇒ the same.
+        /// </summary>
+        [Fact]
+        public void CE3330_Node_RingScanner_SkipsAnUnchangedRing_ButSeesAWrapAndAnInPlaceRewrite()
+        {
+            using var repo = new Fdp.Core.EntityRepository();
+            repo.RegisterComponent<ScanRingHolder>();
+            var unit = repo.CreateEntity();
+            var holder = new ScanRingHolder { Count = 4 };
+            for (int i = 0; i < 4; i++) holder.Items[i].Id = 10 + i;
+            repo.AddComponent(unit, holder);
+            var scanner = RingEntryScanner.Compile(new RingEntryPredicateDto
+            {
+                ComponentType = typeof(ScanRingHolder), ItemsPath = "Items", CountPath = "Count", KeyPaths = { "Id" },
+            });
+            int frame = 0;
+            int Scan() { var r = new System.Collections.Generic.List<SearchResultDto>(); scanner.Scan(repo, frame++, 0, r); return r.Count; }
+
+            Assert.Equal(0, Scan());                                    // baseline
+            for (int i = 0; i < 50; i++) Assert.Equal(0, Scan());       // (a) untouched: nothing, however long
+
+            repo.GetComponentRW<ScanRingHolder>(unit).Items[0].Id = 14;    // (b) wrap: the oldest slot takes a new entry, the count stays 4
+            Assert.Equal(1, Scan());
+            Assert.Equal(0, Scan());                                    // and it is not reported again
+
+            repo.GetComponentRW<ScanRingHolder>(unit).Items[2].Id = 99;    // (c) an existing slot rewritten in place with a new key
+            Assert.Equal(1, Scan());
+            Assert.Equal(0, Scan());
+
+            repo.GetComponentRW<ScanRingHolder>(unit).Items[2].Id = 12;    // back to a key that left the ring: new again
+            Assert.Equal(1, Scan());
+
+            var late = repo.CreateEntity();
+            repo.AddComponent(late, holder);
+            Assert.Equal(0, Scan());                                    // a new entity's first sight is its baseline
+            Assert.Equal(0, Scan());
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3330</c> — the structural scan tracks entities by raw index and generation: an index REUSED by another entity (a new
+        /// generation) is a departure plus an arrival in the same frame — never silence — even when the destruction log was cleared (a live
+        /// world's recorder clears it before the timeline looks), and an entity destroyed without a log entry still departs once.
+        /// 🔴 Red-proof: a generation mismatch treated as the same entity ⇒ the reused index reports nothing.
+        /// </summary>
+        [Fact]
+        public void CE3330_Node_StructuralScan_AReusedIndexIsALeftAndASpawn_NotSilence()
+        {
+            using var repo = new Fdp.Core.EntityRepository();
+            repo.RegisterComponent<HarnessVelocity>();
+            var a = repo.CreateEntity();
+            repo.AddComponent(a, new HarnessVelocity { Vx = 1f });
+            var scanner = new StructuralScanner(new StructuralPredicateDto { ComponentType = typeof(HarnessVelocity), ModificationType = StructuralModification.AnyChange });
+            int frame = 0;
+            System.Collections.Generic.List<SearchResultDto> Scan() { var r = new System.Collections.Generic.List<SearchResultDto>(); scanner.Scan(repo, frame++, 0, r); return r; }
+
+            Assert.Single(Scan());                                     // a gained
+            Assert.Empty(Scan());                                      // untouched: nothing
+
+            repo.DestroyEntity(a);
+            repo.ClearDestructionLog();                                // the log never shows it
+            var b = repo.CreateEntity();                               // the free list is LIFO: it takes a's slot
+            Assert.Equal(a.Index, b.Index);                            // the precondition: the slot was reused...
+            Assert.NotEqual(a.Generation, b.Generation);               // ...by another generation
+            repo.AddComponent(b, new HarnessVelocity { Vx = 2f });
+
+            var reused = Scan();
+            Assert.Contains(reused, r => r.Entity == a && r.ContextMessage.StartsWith("Lost"));
+            Assert.Contains(reused, r => r.Entity == b && r.ContextMessage.StartsWith("Gained"));
+            Assert.Empty(Scan());
+
+            repo.DestroyEntity(b);
+            repo.ClearDestructionLog();
+            var gone = Scan();                                         // destroyed with no log entry: still one departure
+            Assert.Single(gone, r => r.Entity == b);
+            Assert.DoesNotContain(Scan(), r => r.Entity == b);         // and only once
+        }
+
+        /// <summary>⚠ CE-1302 as-built (StructuralScanner): an ADDED-only search no longer reports a destroyed entity as "Lost".</summary>
+        [Fact]
+        public void CE1302_StructuralAdded_DoesNotReportADestroyedEntity_RemovedDoes()
+        {
+            using var h = new FdpRecordingHarness();
+            h.SpawnEntity().WithComponent(new HarnessVelocity { Vx = 1f });
+            var e = h.LastSpawned;
+            h.Tick(); h.RecordKeyframe();
+            h.DestroyEntity(e);
+            h.Tick(); h.RecordDelta();
+            string path = h.BuildToTempFile();
+
+            var added = _service.ExecuteSearch(path, new StructuralPredicateDto { ComponentType = typeof(HarnessVelocity), ModificationType = StructuralModification.Added });
+            var removed = _service.ExecuteSearch(path, new StructuralPredicateDto { ComponentType = typeof(HarnessVelocity), ModificationType = StructuralModification.Removed });
+
+            Assert.Equal(new[] { 0 }, added.Select(r => r.FrameIndex));
+            Assert.Equal(new[] { 1 }, removed.Select(r => r.FrameIndex));
+            Assert.Contains("Destroyed", removed[0].ContextMessage);
+        }
 
         private static string BuildSingleEntityRecording(float[] xValues)
         {

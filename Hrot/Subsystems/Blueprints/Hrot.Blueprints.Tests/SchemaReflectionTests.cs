@@ -118,7 +118,7 @@ public sealed class SchemaReflectionTests
         // Uses the REAL blueprint serializer options (BlueprintJsonServices), the same ones
         // production .bp.json load/save goes through -- not a fresh JsonSerializerOptions.
         var json = BlueprintJsonServices.Serialize(asset);
-        Assert.Contains($"\"kind\":\"{expectedDiscriminator}\"", json);
+        Assert.Contains(expectedDiscriminator, TestData.NodeDiscriminatorsIn(json));
 
         var deserialized = BlueprintJsonServices.Deserialize(json);
         Assert.NotNull(deserialized);

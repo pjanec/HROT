@@ -244,7 +244,7 @@ Drained into the ECB at the N+1 tick boundary (Step or Continue).
 | `LifecyclePredicateDto` | `Lifecycle` | Entity birth / death. |
 | `SpatialBoundingPredicateDto` | `SpatialBounding` | 2D bounding-box entry/exit. |
 | `StructuralPredicateDto` | `Structural` | Archetype mutation + authority filter. |
-| `BehaviorParamPredicateDto` | `BehaviorParam` | Typed projection over `BrainBlackboard`. |
+| `BehaviorParamPredicateDto` | `BehaviorParam` | Typed projection over the root-params occurrence slot. |
 | `TraceBufferScanPredicateDto` | `TraceBufferScan` | Ring-buffer scan over BTree/HSM trace components. |
 | `BlueprintVariablePredicateDto` | `BlueprintVariable` | Dynamic-partition Blueprint variable. |
 | `ExternalHitTagPredicateDto` | `ExternalHitTag` | Blueprint probe external-hit routing. |

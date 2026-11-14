@@ -124,7 +124,7 @@ No. `Hrot.Blueprints.Core.csproj` contains no `Microsoft.CodeAnalysis.CSharp` or
 
 ### Build
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 Build succeeded.
 ```
 0 errors, 0 warnings.
@@ -141,7 +141,7 @@ Passed! - Failed: 0, Passed: 160, Skipped: 3, Total: 163
 
 | # | Criterion | Status |
 |---|-----------|--------|
-| 1 | `dotnet build IOS-IG-SimHost.sln` -- 0 errors | PASS |
+| 1 | `dotnet build HROT.sln` -- 0 errors | PASS |
 | 2 | Tests: 160 pass, 3 skip, 0 fail | PASS |
 | 3 | `BlueprintIdHash.Compute` exists and compiles | PASS (pre-existing) |
 | 4 | `FnvHasher.Hash32` is deterministic | PASS (pure function, no random seed) |

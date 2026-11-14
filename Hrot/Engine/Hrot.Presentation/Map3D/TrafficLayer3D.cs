@@ -1,0 +1,231 @@
+using System;
+using System.Numerics;
+using Fdp.Core;
+using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis3D;
+using Hrot.Traffic;
+using Raylib_cs;
+using Sim.Scene;
+
+namespace Hrot.UI.Common.Map3D;
+
+/// <summary>
+/// ⭐ AQ93 R-4024 / V7 / V8 — the SUMO net in the map's 3-D mode, <see cref="TerrainLayer3D"/>'s sibling: the road scene
+/// (<see cref="TrafficNetCache.Roads"/> — asphalt, junction fills, lane markings, crosswalks, the ambient ground beyond our terrain),
+/// one colour per kind, built once per net; then each frame the traffic lights in their live state, from <see cref="TrafficFrame"/>.
+/// ⭐ CE-4031 (AQ93 §15.8) — SUMO's cars and pedestrians are drawn by <see cref="EntityBodyLayer3D"/>, entity or not (the far ones through
+/// <see cref="TrafficAmbientBodies"/>): our figures and car kits, never boxes. Nothing in 2-D (the 2-D map draws <c>TrafficRoadGizmo</c>).
+/// </summary>
+/// <remarks>
+/// ⭐ The roads lie ON our ground (a flat net is laid on <c>GroundHeightAt</c> when the scene is built — R-4030 / E2b, <see cref="TrafficDrape"/>; a net with z
+/// keeps its own heights, R-4025), so each kind is LIFTED a few centimetres (paint over asphalt over junction over our
+/// ground; the ambient ground just under it) — a render offset, never a height the simulation reads.
+/// ⭐ <c>CE-1196</c> (docs/DESIGN_Map_3D_Mode.md §6z CA-4) — and the ROADS are drawn <see cref="MapCamera3D.GroundBiasSteps"/> depth steps
+/// toward the eye (<see cref="LitShader.SetDepthBias"/>): from afar a few centimetres are less than one depth step, so they fought our
+/// ground. The ambient ground is its own mesh, unbiased — it lies UNDER everything.
+/// </remarks>
+public sealed class TrafficLayer3D : ISceneLayer, IMeshLayer3D, IDisposable   // ⭐ CE-3289 — the world: filmed
+{
+    public static readonly Color AsphaltColor   = new(64, 66, 70, 255);
+    public static readonly Color JunctionColor  = new(74, 76, 80, 255);
+    /// <summary>⭐ <c>CE-1197</c> — a sidewalk's concrete: light grey, so the pedestrians are seen on it and not in the car lanes.</summary>
+    public static readonly Color SidewalkColor  = new(150, 150, 144, 255);
+    public static readonly Color MarkingColor   = new(235, 235, 225, 255);
+    public static readonly Color CrosswalkColor = new(240, 240, 240, 255);
+    public static readonly Color GroundColor    = new(150, 160, 128, 255);
+    public static readonly Color PoleColor      = new(60, 60, 60, 255);
+
+    private readonly Func<EntityRepository?> _world;
+    private Mesh _mesh, _ground, _cube;
+    private bool _hasMesh, _hasGround, _hasCube;
+    /// <summary>⭐ R-1046 — the road streams are built on a worker, keyed by (the net, the ambient-ground switch); the frame thread uploads them.</summary>
+    private readonly BackgroundMeshBuild<Streams> _build = new();
+
+    /// <summary>One mesh's un-indexed vertex streams.</summary>
+    private sealed record MeshStreams(Vector3[] Positions, Vector3[] Normals, Color[] Colors);
+
+    /// <summary>The roads, and (when shown) the ambient ground — each its own mesh (the roads are depth-biased, the ground is not).</summary>
+    private sealed record Streams(MeshStreams Roads, MeshStreams? Ground);
+
+    public TrafficLayer3D(Func<EntityRepository?> world) => _world = world ?? throw new ArgumentNullException(nameof(world));
+
+    public string Name => "SUMO traffic (3-D)";
+    public int LayerBitIndex => -1;
+    public bool Has3D => true;
+
+    /// <summary>Draw the ambient ground (the background floor beyond our terrain, V8). On by default.</summary>
+    public bool ShowAmbientGround { get; set; } = true;
+
+    /// <summary>Triangles in the uploaded road mesh (0 before the first 3-D frame with a net).</summary>
+    public int TriangleCount { get; private set; }
+
+    // ⭐ R-1046 — the upload is pumped by the map's Map3DBuild (every frame, 2-D too), not here
+    public void Update(float dt) { }
+    public void Draw(RenderContext ctx) { }
+
+    private TrafficNetCache? Net => _world() is { } world ? TrafficNetCache.Of(world) : null;
+    /// <summary>The identity a build is keyed by: the net, and whether the ambient ground is in it.</summary>
+    private (TrafficNetCache Net, bool Ambient) Identity(TrafficNetCache net) => (net, ShowAmbientGround);
+
+    string IMeshLayer3D.BuildName => "roads";
+    bool IMeshLayer3D.HasSource => Net != null;
+    bool IMeshLayer3D.IsBuilt => Net is { } net && _build.IsBuiltFor(Identity(net));
+    string? IMeshLayer3D.BuildFailure => _build.Failure;
+
+    void IMeshLayer3D.RequestBuild()
+    {
+        if (Net is not { } net)
+        {
+            if (_hasMesh || _hasGround || _build.State != MeshBuildState.Idle) { ReleaseMesh(); _build.Reset(); }
+            return;
+        }
+        RequestBuild(net);
+    }
+
+    void IMeshLayer3D.PumpBuild() => _build.Pump(Upload);
+    public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;
+    public Entity? PickEntity(Vector2 worldPos) => null;
+
+    public void Draw3D(RenderContext ctx)
+    {
+        if (_world() is not { } world || TrafficNetCache.Of(world) is not { } net) { Release(); _build.Reset(); return; }
+        // a frame drawn in 3-D wants its mesh: ask (a no-op when asked), and upload what a worker has finished — the build never runs here
+        RequestBuild(net);
+        _build.Pump(Upload);
+        if (_hasMesh || _hasGround)
+        {
+            var lit = LitShader.Shared;
+            Rlgl.DisableBackfaceCulling();
+            if (_hasGround) Raylib.DrawMesh(_ground, lit.Tinted(Color.White), Matrix4x4.Identity);
+            if (_hasMesh)
+            {
+                lit.SetDepthBias(MapCamera3D.GroundBiasNdc);   // ⭐ CE-1196 — the roads over the ground they lie on, at every distance
+                Raylib.DrawMesh(_mesh, lit.Tinted(Color.White), Matrix4x4.Identity);
+                lit.SetDepthBias(0f);
+            }
+            Rlgl.EnableBackfaceCulling();
+        }
+
+        if (TrafficFrame.Of(world) is not { } frame) return;
+        if (!_hasCube) { _cube = Raylib.GenMeshCube(1f, 1f, 1f); _hasCube = true; }
+        var shader = LitShader.Shared;
+        foreach (var s in net.Roads.Signals)
+        {
+            if (!frame.Lights.TryGetValue(s.LaneHandle, out var signal)) continue;
+            var lamp = TrafficFrame.LampOf(signal) switch
+            {
+                2 => new Color(40, 210, 70, 255), 1 => new Color(245, 205, 40, 255), 0 => new Color(225, 40, 40, 255), _ => PoleColor,
+            };
+            Raylib.DrawMesh(_cube, shader.Tinted(lamp), HrotToRaylib.Model(s.Head, Quaternion.Identity, new Vector3(0.35f, 0.35f, 0.9f)));
+        }
+    }
+
+    /// <summary>⭐ R-1046 — starts the CPU build for <paramref name="net"/> on a worker (<see cref="TrafficNetCache"/> is immutable; its <c>Roads</c> were built off the main thread already).</summary>
+    private void RequestBuild(TrafficNetCache net)
+    {
+        bool ambient = ShowAmbientGround;
+        _build.Request(Identity(net), () =>
+        {
+            BuildVertexData(net.Roads, k => k != SceneKind.AmbientGround, out var positions, out var normals, out var colors);
+            var roads = new MeshStreams(positions, normals, colors);
+            MeshStreams? ground = null;
+            if (ambient)
+            {
+                BuildVertexData(net.Roads, k => k == SceneKind.AmbientGround, out positions, out normals, out colors);
+                ground = new MeshStreams(positions, normals, colors);
+            }
+            return new Streams(roads, ground);
+        });
+    }
+
+    /// <summary>FRAME THREAD: the finished streams onto the GPU, replacing the previous meshes.</summary>
+    private void Upload(Streams streams)
+    {
+        ReleaseMesh();
+        _hasMesh = Upload(streams.Roads.Positions, streams.Roads.Normals, streams.Roads.Colors, out _mesh);
+        TriangleCount = streams.Roads.Positions.Length / 3;
+        if (streams.Ground is not { } g) return;
+        _hasGround = Upload(g.Positions, g.Normals, g.Colors, out _ground);
+        TriangleCount += g.Positions.Length / 3;
+    }
+
+    private static bool Upload(Vector3[] positions, Vector3[] normals, Color[] colors, out Mesh uploaded)
+    {
+        uploaded = default;
+        int tris = positions.Length / 3;
+        if (tris == 0) return false;
+        var mesh = new Mesh(positions.Length, tris);
+        mesh.AllocVertices();
+        mesh.AllocNormals();
+        mesh.AllocColors();
+        positions.AsSpan().CopyTo(mesh.VerticesAs<Vector3>());
+        normals.AsSpan().CopyTo(mesh.NormalsAs<Vector3>());
+        colors.AsSpan().CopyTo(mesh.ColorsAs<Color>());
+        Raylib.UploadMesh(ref mesh, false);
+        uploaded = mesh;
+        return true;
+    }
+
+    /// <summary>The un-indexed vertex streams in Raylib coordinates, each kind lifted and coloured. Pure — a rail tests it.</summary>
+    public static void BuildVertexData(TrafficRoadScene roads, bool ambientGround,
+        out Vector3[] positions, out Vector3[] normals, out Color[] colors)
+        => BuildVertexData(roads, k => ambientGround || k != SceneKind.AmbientGround, out positions, out normals, out colors);
+
+    /// <summary>⭐ <c>CE-1196</c> — the streams of the kinds <paramref name="include"/> keeps (the roads, biased; the ambient ground, not).</summary>
+    public static void BuildVertexData(TrafficRoadScene roads, Func<SceneKind, bool> include,
+        out Vector3[] positions, out Vector3[] normals, out Color[] colors)
+    {
+        int tris = 0;
+        foreach (var m in roads.Meshes)
+            if (include(m.Kind)) tris += m.TriangleCount;
+        positions = new Vector3[tris * 3];
+        normals = new Vector3[tris * 3];
+        colors = new Color[tris * 3];
+        int o = 0;
+        var up = HrotToRaylib.Position(Vector3.UnitZ);
+        foreach (var m in roads.Meshes)
+        {
+            if (!include(m.Kind)) continue;
+            var (colour, lift) = Style(m);
+            var lifted = new Vector3(0f, 0f, lift);
+            for (int i = 0; i < m.Indices.Length; i++, o++)
+            {
+                positions[o] = HrotToRaylib.Position(m.Vertices[m.Indices[i]] + lifted);
+                normals[o] = up;
+                colors[o] = colour;
+            }
+        }
+    }
+
+    /// <summary>A mesh's colour and its render lift (metres): its kind's, a sidewalk's own (⭐ <c>CE-1197</c> — a centimetre above the
+    /// carriageway, so where the two meet the kerb line is the sidewalk's).</summary>
+    public static (Color Colour, float Lift) Style(TrafficRoadMesh mesh) => mesh.Sidewalk ? (SidewalkColor, 0.05f) : Style(mesh.Kind);
+
+    /// <summary>A kind's colour and its render lift (metres).</summary>
+    public static (Color Colour, float Lift) Style(SceneKind kind) => kind switch
+    {
+        SceneKind.AmbientGround => (GroundColor, -0.03f),
+        SceneKind.Junction      => (JunctionColor, 0.03f),
+        SceneKind.Asphalt       => (AsphaltColor, 0.04f),
+        SceneKind.LaneMarking   => (MarkingColor, 0.06f),
+        SceneKind.Crosswalk     => (CrosswalkColor, 0.06f),
+        _                       => (AsphaltColor, 0.04f),
+    };
+
+    private void ReleaseMesh()
+    {
+        if (_hasMesh) Raylib.UnloadMesh(_mesh);
+        if (_hasGround) Raylib.UnloadMesh(_ground);
+        _hasMesh = _hasGround = false;
+        TriangleCount = 0;
+    }
+
+    private void Release()
+    {
+        ReleaseMesh();
+        if (_hasCube) Raylib.UnloadMesh(_cube);
+        _hasCube = false;
+    }
+
+    public void Dispose() => Release();
+}

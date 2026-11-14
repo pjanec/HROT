@@ -25,6 +25,48 @@ namespace Fdp.Tests
             }
         }
         
+        /// <summary>
+        /// ⭐ CE-2409 (DESIGN_Paused_And_Stepped_Execution F9) — a frame BIGGER than the recorder's buffer is recorded and plays back: the
+        /// buffers grow. 📐 It was a fixed 32 MB array; the CE-2408 stress world (~1100 soldiers) wrote a bigger keyframe and the CGF node died
+        /// ("Memory stream is not expandable"). Here the starting size is 4 KB and the keyframe ~60 KB, then deltas that change every entity.
+        /// 🔴 Red-proof: the streams back to fixed arrays (<c>new MemoryStream(new byte[initial])</c>) ⇒ the first keyframe throws.
+        /// </summary>
+        [Fact]
+        public void AFrameBiggerThanTheBuffer_IsRecordedAndPlaysBack()
+        {
+            int saved = AsyncRecorder.InitialBufferSize;
+            AsyncRecorder.InitialBufferSize = 4 * 1024;
+            try
+            {
+                using var repo = new EntityRepository();
+                repo.RegisterComponent<Position>();
+                var units = new Entity[5000];
+                for (int i = 0; i < units.Length; i++) { units[i] = repo.CreateEntity(); repo.AddComponent(units[i], new Position { X = i }); }
+                using (var recorder = new AsyncRecorder(_testFilePath))
+                {
+                    repo.Tick();
+                    recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
+                    for (int f = 1; f <= 3; f++)
+                    {
+                        uint prev = repo.GlobalVersion;
+                        repo.Tick();
+                        for (int i = 0; i < units.Length; i++) repo.GetComponentRW<Position>(units[i]).Y = f;
+                        recorder.CaptureFrame(repo, prev, DateTime.UtcNow.Ticks, blocking: true);
+                    }
+                    Assert.Null(recorder.LastError);
+                }
+                using var target = new EntityRepository();
+                target.RegisterComponent<Position>();
+                using var reader = new RecordingReader(_testFilePath);
+                int frames = 0;
+                while (reader.ReadNextFrame(target)) frames++;
+                Assert.Equal(4, frames);
+                Assert.Equal(4999f, target.GetComponentRO<Position>(units[4999]).X);
+                Assert.Equal(3f, target.GetComponentRO<Position>(units[4999]).Y);
+            }
+            finally { AsyncRecorder.InitialBufferSize = saved; }
+        }
+
         [Fact]
         public void Constructor_WritesGlobalHeader()
         {
@@ -386,7 +428,10 @@ namespace Fdp.Tests
             repo.RegisterComponent<IntComponent>();
             var e = repo.CreateEntity();
             
-            string invalidPath = "Z:\\NonExistent\\Path\\file.fdp"; // Invalid path to force I/O error
+            // CE-2047 — a file under a directory that does not exist, on every host. ⛔ "Z:\\NonExistent\\Path\\file.fdp" is
+            //   only invalid on Windows: on Linux it is a legal FILE NAME, so the recorder created it in the working
+            //   directory and no I/O error ever occurred.
+            string invalidPath = Path.Combine(Path.GetTempPath(), "fdp-missing-" + Guid.NewGuid().ToString("N"), "Path", "file.fdp");
             
             try
             {
@@ -473,12 +518,21 @@ namespace Fdp.Tests
                 repo.Tick();
                 recorder.CaptureFrame(repo, 0, DateTime.UtcNow.Ticks, blocking: true);
                 
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-                GC.Collect();
-                
-                long memBefore = GC.GetTotalMemory(false);
-                
+                // ⭐ CE-2045 — the HOT PATH is the main thread (Fdp.Core.md: "no heap allocation on the hot path (simulation
+                //   loop)"); the LZ4 compression + file write run on the background worker BY DESIGN. GC.GetTotalMemory counted
+                //   every thread (measured 4960 B/frame in all, 4.6 KB of it the worker) and sampled noisily — so this test
+                //   could not pass at all (2467 B/frame against < 2048, at base and head alike).
+                // 📐 Main thread measured 376 B/frame before CE-2045: a MemoryStream + BinaryWriter per frame (104), two
+                //   enumerators boxed through IReadOnlyList / IReadOnlyDictionary (104), the worker-dispatch lambda (closure +
+                //   delegate + Task). Left: the dispatch Task itself — a persistent worker thread would remove it.
+                for (int w = 0; w < 3; w++)
+                {
+                    repo.Tick();
+                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
+                }
+
+                long before = GC.GetAllocatedBytesForCurrentThread();
+
                 // Execute hot path multiple times
                 for (int i = 0; i < 10; i++)
                 {
@@ -486,15 +540,12 @@ namespace Fdp.Tests
                     repo.SetUnmanagedComponent(e, new IntComponent { Value = i });
                     recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 }
-                
-                long memAfter = GC.GetTotalMemory(false);
-                
-                // Should have very low allocation increase (under 1KB per frame)
-                long allocatedPerFrame = (memAfter - memBefore) / 10;
-                
-                // This is generous - ideally should be near zero
-                Assert.True(allocatedPerFrame < 2048, 
-                    $"Hot path allocated {allocatedPerFrame} bytes per frame, expected < 2KB");
+
+                long allocatedPerFrame = (GC.GetAllocatedBytesForCurrentThread() - before) / 10;
+
+                // Only the worker dispatch's Task object may remain (~100 B on x64).
+                Assert.True(allocatedPerFrame <= 128,
+                    $"Hot path allocated {allocatedPerFrame} bytes per frame on the main thread, expected <= 128 (the dispatch Task)");
             }
         }
     }

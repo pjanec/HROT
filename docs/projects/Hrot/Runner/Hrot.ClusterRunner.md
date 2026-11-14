@@ -36,7 +36,6 @@ launched on a dedicated machine or isolated by a shell script.
 | `excon` / `ios`  | `ExConSubsystem`                 | Exercise controller (legacy alias: ios)    |
 | `cgf`            | `CgfSubsystem`                   | Computer-generated forces / AI             |
 | `editor`         | `EditorSubsystem`                | Scenario / behaviour tree editor           |
-| `stridemock`     | `StrideMockSubsystem`            | Fake Stride renderer for integration tests |
 | `replaybrowser`  | `ReplayBrowserSubsystem`         | Standalone replay review tool              |
 | `ci`             | `CiSubsystem`                    | Headless deterministic CI harness          |
 | `migrate`        | `MigrateMode` (not a subsystem)  | Batch JSON schema migration of a file tree |
@@ -78,7 +77,7 @@ Scan AppDomain for ISubsystem implementations
 For each type:
   - create isolated NetworkEntityMap, GeoTransform, FdpEventBus
   - create DDS participant with per-node SenderIdentityConfig
-  - create INetworkFactory (NED or BDC)
+  - create INetworkFactory (NedNetworkFactory)
   - TryCreateSubsystem(type, networkFactory)
   |
   v
@@ -106,7 +105,6 @@ Offsets:
   Orchestrator +300
   CGF          +400
   CI           +500
-  StrideMock   +700
   (other)      +600
 ```
 
@@ -115,10 +113,8 @@ compatibility with single-node dev setups.
 
 ### Network Factory Selection
 
-Two network protocols are supported, selected via `--network`:
-
-- **ned** (default) -- `NedNetworkFactory` backed by CycloneDDS via `Hrot.Network.NED`
-- **bdc** -- `BdcNetworkFactory` backed by a custom binary transport via `Hrot.Network.BDC`
+Every node gets a `NedNetworkFactory` (CycloneDDS, `Hrot.Network.NED`) -- the one network stack.
+*(The `--network` option and the BDC stack were removed 2026-10-28, R-4095.)*
 
 ### Perspective System
 
@@ -278,7 +274,6 @@ Hrot.ClusterRunner.Configuration
     class HrotRunnerConfiguration : RunnerConfiguration
       - ModeString : string        [CLI: -m/--mode]
       - ScenarioName : string      [CLI: -s/--scenario]
-      - NetworkProtocol : string   [CLI: --network]
       - LogDirectory : string      [CLI: --log-dir]
       - ConfigFile : string        [CLI: -c/--config]
       - AiBehaviorsProjectPath : string[]
@@ -296,12 +291,9 @@ Hrot.ClusterRunner.Services
       - Update(float) : void
       - DrawWorld() / DrawUI() / Shutdown() : void
 
-  EyesAndMuscleSubsystem.cs
-    class EyesAndMuscleSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar (public, sealed)
       - Name : string
       - TitleBarColor : Vector4
       - World : EntityRepository?
-      - Module : EyesAndMuscleModule?
       - Initialize(SubsystemConfig) : void
       - Update(float) / DrawWorld() / DrawUI() / Shutdown() : void
 
@@ -401,7 +393,6 @@ Extends `Fdp.Toolkit.Runner.RunnerConfiguration`.
 |--------|------|-------------|
 | `ModeString` | `string` prop | Raw CLI mode string (required). |
 | `ScenarioName` | `string` prop | CI scenario name (`--scenario`). |
-| `NetworkProtocol` | `string` prop | `ned` or `bdc` (`--network`). Default: `ned`. |
 | `LogDirectory` | `string` prop | NLog file output directory (`--log-dir`). |
 | `ConfigFile` | `string` prop | JSON override file (`-c/--config`). |
 | `AiBehaviorsProjectPath` | `string[]` prop | Relative path to AI behaviors .csproj for hot-reload. |
@@ -454,22 +445,6 @@ Built-in commands registered in constructor:
 
 ---
 
-### `EyesAndMuscleSubsystem` (public class)
-
-Implements `ISubsystem`, `IMapCameraProvider`, `IWindowRegistrar`.
-
-| Member | Description |
-|--------|-------------|
-| `Name` | `"EyesAndMuscle"` |
-| `TitleBarColor` | Teal-green `(0.15, 0.40, 0.25, 1)`. |
-| `World` | `EntityRepository?` after `Initialize`; null before. |
-| `Module` | `EyesAndMuscleModule?` after `Initialize`; null before. |
-| `Initialize(SubsystemConfig)` | Builds `HrotNodeContext` via `HrotNodeBuilder`, registers modules, initializes kernel. |
-| `Update(float)` | Ticks the kernel. |
-| `DrawWorld() / DrawUI()` | Delegates to kernel. |
-| `Shutdown()` | Shuts down kernel. |
-
----
 
 ### Testing Action Handlers
 
@@ -533,7 +508,6 @@ Exit codes: `0` = both entities alive after 600 ticks; `1` = entity died early.
 | `Fdp.Toolkits` | `ISubsystem`, `SubsystemOrchestrator`, `RunnerConfiguration`, `SubsystemConfig`, `INetworkFactory`, `ITestActionHandler`, `ScenarioSubsystem` |
 | `Fdp.Presentation` | `IWindowRegistrar`, `WindowManager`, `MessageLogWindow`, `IconAtlas` |
 | `Hrot.Network.NED` | `NedNetworkFactory`, NED/DDS topology descriptors |
-| `Hrot.Network.BDC` | `BdcNetworkFactory`, binary transport |
 | `Hrot.Common` | `HrotNodeBuilder`, `HrotNodeContext`, `HrotEnvironment`, `NodeRole`, `IGizmoControllable` |
 | `Hrot.Orchestrator` | `OrchestratorSubsystem`, `ClusterMaster` |
 | `Hrot.SimHost` | `SimHostSubsystem`, `SimHostComponentRegistry` |
@@ -541,7 +515,6 @@ Exit codes: `0` = both entities alive after 600 ticks; `1` = entity died early.
 | `Hrot.ExCon` | `ExConSubsystem` |
 | `Hrot.CGF` | `CgfSubsystem` |
 | `Hrot.Editor` | `EditorSubsystem` |
-| `Hrot.StrideMock` | `StrideMockSubsystem` |
 | `Hrot.Presentation` | HROT-specific window registrations |
 | `Hrot.ReplayBrowser` | `ReplayBrowserSubsystem` |
 | `Hrot.AI.Behaviors` | Copy-local only -- loaded into collectible ALC for hot-reload; no static type use |
@@ -653,9 +626,9 @@ Hrot.ClusterRunner.exe --mode excon        --node-id 1000 --wait-for orchestrato
 Hrot.ClusterRunner.exe --mode cgf          --node-id 1000 --wait-for orchestrator
 ```
 
-Run on an alternative DDS domain with BDC transport:
+Run on an alternative DDS domain:
 ```
-Hrot.ClusterRunner.exe --mode all --domain 5 --network bdc
+Hrot.ClusterRunner.exe --mode all --domain 5
 ```
 
 Run headless (no window):
@@ -678,11 +651,6 @@ Open the replay browser:
 Hrot.ClusterRunner.exe --mode replaybrowser --no-wait
 ```
 
-Run SimHost + IG with the Stride mock renderer:
-```
-Hrot.ClusterRunner.exe --mode orchestrator,excon,cgf,stridemock --no-wait
-```
-
 Batch-migrate all scenarios in a directory tree to the current schema version:
 ```
 Hrot.ClusterRunner.exe --mode migrate --input-dir \\nas\scenarios
@@ -702,7 +670,6 @@ A JSON config file merges over CLI defaults. Only non-default values need to be 
   "ModeString": "orchestrator,simhost,ig,excon,cgf",
   "DomainId": 3,
   "Headless": false,
-  "NetworkProtocol": "ned",
   "LogDirectory": "C:\\Logs\\HROT",
   "AiBehaviorsProjectPath": [
     "Subsystems",
@@ -724,7 +691,6 @@ The following profiles are defined for debugging in Visual Studio / Rider:
 | Profile | Args |
 |---------|------|
 | `All (ExCon+IG+SIM+CGF)` | `-m all` |
-| `All w/Stride (ExCon+CGF+StrideMock)` | `-m orchestrator,excon,cgf,stridemock --no-wait` |
 | `IG` | `-m ig --no-wait` |
 | `SimHost` | `-m simhost --no-wait` |
 | `ExCon` | `-m excon --no-wait` |
@@ -853,7 +819,6 @@ wired into any production boot path. They are constructed and registered only by
 
 | Project | Relationship |
 |---------|-------------|
-| `Hrot.FakeStrideApp` | Sibling runner in `Hrot/Runner/`. Standalone fake Stride rendering app, used for integration testing the Stride presentation path without a real Stride engine. |
 | `Fdp.Toolkits` | Provides the orchestration spine: `ISubsystem`, `SubsystemOrchestrator`, `SubsystemConfig`, `RunnerConfiguration`, `RunnerOptions`, `ITestActionHandler`, `ScenarioSubsystem`, `HeadlessTestExecutor`. |
 | `Fdp.Presentation` | Window manager, perspective switching UI, message log, status bar, icon atlas. |
 | `Hrot.Common` | `HrotNodeBuilder` (node construction), `HrotEnvironment` (DDS participant factory, geo-transform), `NodeRole` flags, `IGizmoControllable`. |
@@ -863,10 +828,8 @@ wired into any production boot path. They are constructed and registered only by
 | `Hrot.ExCon` | Exercise controller subsystem. |
 | `Hrot.CGF` | Computer-Generated Forces / AI subsystem. |
 | `Hrot.Editor` | Scenario and behaviour tree editor subsystem. |
-| `Hrot.StrideMock` | Fake Stride renderer subsystem for CI/integration tests. |
 | `Hrot.ReplayBrowser` | Standalone replay review subsystem. |
 | `Hrot.AI.Behaviors` | Hot-reloadable AI behaviour tree assembly. Delivered as copy-local only; loaded by `EditorSubsystem` in a collectible ALC. |
 | `Hrot.Network.NED` | NED/DDS network factory and topology descriptors. |
-| `Hrot.Network.BDC` | BDC binary-transport network factory. |
 | `Hrot.ClusterRunner.Tests` | Unit tests for runner internals (`InternalsVisibleTo`). |
 | `Hrot.ClusterRunner.Integration.Tests` | Integration / E2E tests using `HeadlessTestExecutor` and the action handlers in `Hrot.ClusterRunner.Testing`. |

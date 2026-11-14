@@ -33,7 +33,7 @@ We are refactoring the cluster state management architecture to achieve the same
 The workspace root is `d:\Work\IOS-IG-SimHost-FDP-2`.
 
 ```
-IOS-IG-SimHost.sln              ← main solution
+HROT.sln              ← main solution
 FDP/FDP.sln                     ← FDP engine sub-solution
 FDP/Toolkits/FDP.Toolkit.Orchestration/   ← ClusterSlave, IClusterStateHandler, enums (your main FDP target)
 Hrot.Orchestrator/              ← ClusterMaster, Translators (your main Hrot target)
@@ -63,7 +63,7 @@ Hrot.Orchestrator.Integration.Tests/      ← Orchestrator-specific integration 
 ```powershell
 # Build everything
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Build just the FDP engine (faster for Phase 1-3 work)
 dotnet build FDP/FDP.sln
@@ -103,7 +103,7 @@ In **AllInOne mode** (no network): translators are simply not registered. Master
 
 1. **No Hrot.NED references inside FDP.Toolkit.Orchestration.** The FDP domain defines its own duplicate enums (Dual-Enum Pattern). Integer values must match.
 2. **No JSON parsing inside ClusterMaster or ClusterSlave.** All deserialization happens in translators.
-3. **Control-plane events are `[DataPolicy(DataPolicy.NoRecord)]`.** They must never appear in `.fdprec` exercise recordings.
+3. **Control-plane events are `[DataPolicy(DataPolicy.NoReplay)]`.** They must never appear in `.fdprec` exercise recordings.
 4. **1 ECS World = 1 FdpEventBus = 1 ClusterSlave.** In AllInOne, register all handlers into a single slave instance.
 5. **Translators are stateless.** They must not hold transaction state or track in-flight requests.
 

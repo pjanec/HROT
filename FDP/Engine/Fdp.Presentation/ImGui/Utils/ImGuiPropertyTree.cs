@@ -1,4 +1,5 @@
 using System.Collections;
+using NodeEditor.Core.Widgets;
 using System.Numerics;
 using System.Reflection;
 using Fdp.Presentation.Renderers;
@@ -32,10 +33,34 @@ namespace Fdp.Presentation.Utils;
 public static class ImGuiPropertyTree
 {
     private const int   MaxDepth     = 8;
-    public const float NameColWidth = 180f;
+    /// <summary>The FormGrid id every property tree shares (so every component's tree lines up on ONE name column).</summary>
+    public const string TableFormId = "##ptree";
+
+    /// <summary>The name column of the property tree drawn this frame (a nested table in a value cell mirrors it); 180 before any tree has been drawn.</summary>
+    public static float NameColWidth { get { float w = FormGrid.ColumnWidthOf(TableFormId); return w > 0f ? w : 180f; } }
 
     // Process-wide member cache keyed by Type.
     private static readonly Dictionary<Type, MemberInfo[]> _memberCache = new();
+
+    /// <summary>⭐ CE-4310 (D6) — a RAIL's eye on what the tree draws: called once per drawn row with its path, HOW it was drawn (<c>leaf</c> text · <c>renderer</c> · <c>summary</c> ·
+    /// <c>fold</c> = an expandable node with nothing in the value cell) and its text. <c>null</c> in production (one reference test per row, nothing allocated).</summary>
+    internal static Action<string, string, string>? RowObserver;
+
+    /// <summary>⭐ CE-4310 (D6) — a bulk request for the nested nodes: <c>true</c> = open every foldable node (the reflector's Expand All), <c>false</c> = close them, <c>null</c> = leave them as they are.
+    /// Set by <c>ComponentReflector.DrawComponents</c> around its loop (UI thread only).</summary>
+    public static bool? ForceOpen;
+
+    /// <summary>A collection of at most this many elements is open by default (a longer one is one click away — the tree stays readable).</summary>
+    private const int OpenByDefaultUpTo = 16;
+
+    /// <summary>⭐ CE-4310 — the flags of a foldable node: a nested struct is open by default (the raw tab is a debugging tool: the person asked for the fields); a collection when it is short.</summary>
+    private static ImGuiTreeNodeFlags FoldFlags(object? value, int shortLimit = OpenByDefaultUpTo)
+    {
+        var flags = ImGuiTreeNodeFlags.SpanAvailWidth;
+        if (ForceOpen is bool force) ImGuiApi.SetNextItemOpen(force, ImGuiCond.Always);
+        else if (value != null && (!IsCollectionType(value.GetType()) || GetCount(value) <= shortLimit)) flags |= ImGuiTreeNodeFlags.DefaultOpen;
+        return flags;
+    }
 
     // ── Public entry point ────────────────────────────────────────────────────
 
@@ -65,6 +90,14 @@ public static class ImGuiPropertyTree
     /// <c>null</c> when no row was double-clicked during this render.
     /// </param>
     public static void Render(object? obj, Type? contextType, out string? doubleClickedPath)
+        => Render(obj, contextType, include: null, out doubleClickedPath);
+
+    /// <summary>
+    /// ⭐ <c>CE-1315</c> (Brain View §12b) — as above, drawing only the ROOT members <paramref name="include"/> accepts (e.g. a blueprint
+    /// instance's <c>State</c> without its <c>Cursor</c> and <c>Params</c>, which the Brain tab shows elsewhere). Nested members are
+    /// all drawn.
+    /// </summary>
+    public static void Render(object? obj, Type? contextType, Func<MemberInfo, bool>? include, out string? doubleClickedPath)
     {
         doubleClickedPath = null;
         if (obj == null)
@@ -77,21 +110,16 @@ public static class ImGuiPropertyTree
         // when multiple Render() calls appear inside the same window (e.g. several component
         // headers each calling Render for their data).  The caller is responsible for
         // establishing a unique ImGui ID scope (via PushID/PopID) before calling Render().
-        string tableId = "##ptree";
 
-        if (!ImGuiApi.BeginTable(tableId, 2,
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable |
-            ImGuiTableFlags.SizingFixedFit))
+        // ⭐ U-13 (C4): the label column is FormGrid's ONE rule (§3.3: ≤ 25 % of the width, learned from the rows via Note) — no private fixed 180 px
+        if (!FormGrid.BeginTree(TableFormId))
             return;
-
-        ImGuiApi.TableSetupColumn( "Property", ImGuiTableColumnFlags.WidthFixed, NameColWidth );
-        ImGuiApi.TableSetupColumn( "Value", ImGuiTableColumnFlags.WidthStretch );
         //ImGuiApi.TableHeadersRow();
 
         string? dcPath = null;
-        RenderRows(obj, obj.GetType(), contextType, 0, "$", ref dcPath);
+        RenderRows(obj, obj.GetType(), contextType, 0, "$", ref dcPath, include);
 
-        ImGuiApi.EndTable();
+        FormGrid.End();
 
         doubleClickedPath = dcPath;
     }
@@ -99,7 +127,7 @@ public static class ImGuiPropertyTree
     // ── Row rendering ─────────────────────────────────────────────────────────
 
     private static void RenderRows(object obj, Type type, Type? contextType, int depth,
-        string jsonPath, ref string? doubleClickedPath)
+        string jsonPath, ref string? doubleClickedPath, Func<MemberInfo, bool>? include = null)
     {
         if (depth >= MaxDepth) return;
 
@@ -108,6 +136,7 @@ public static class ImGuiPropertyTree
         for (int i = 0; i < members.Length; i++)
         {
             var member    = members[i];
+            if (include != null && !include(member)) continue;
             string name   = member.Name;
             Type   mType  = GetMemberType(member);
             string memberPath = jsonPath + "." + name;
@@ -115,6 +144,10 @@ public static class ImGuiPropertyTree
 
             try   { value = GetValue(member, obj); }
             catch { value = null; }
+
+            // ⭐ CE-1315 (Brain View §12b BV-45) — a fixed list (int Count + one [InlineArray(N)] buffer, Fdp.Core.FixedListShape) shows
+            //   its Count items, clamped (F2: min(max(Count,0),N)), not its whole buffer.
+            if (value != null && FixedListItems.TryFrom(value, out var fixedList)) value = fixedList;
 
             Type effectiveType = value?.GetType() ?? mType;
             bool isFoldable = IsFoldable(effectiveType, value);
@@ -128,7 +161,8 @@ public static class ImGuiPropertyTree
             {
                 opened = ImGuiApi.TreeNodeEx(
                     $"{name}##{depth}_{i}",
-                    ImGuiTreeNodeFlags.SpanAvailWidth);
+                    FoldFlags(value));
+                FormGrid.Note(ImGuiApi.CalcTextSize(name).X + (depth + 1) * ImGuiApi.GetStyle().IndentSpacing + ImGuiApi.GetTreeNodeToLabelSpacing());
             }
             else
             {
@@ -140,6 +174,7 @@ public static class ImGuiPropertyTree
                     ImGuiTreeNodeFlags.Leaf |
                     ImGuiTreeNodeFlags.NoTreePushOnOpen |
                     ImGuiTreeNodeFlags.SpanAvailWidth);
+                FormGrid.Note(ImGuiApi.CalcTextSize(name).X + (depth + 1) * ImGuiApi.GetStyle().IndentSpacing + ImGuiApi.GetTreeNodeToLabelSpacing());
                 opened = false;
             }
 
@@ -151,7 +186,7 @@ public static class ImGuiPropertyTree
 
             // ── Value column ───────────────────────────────────────────
             ImGuiApi.TableSetColumnIndex(1);
-            RenderValueCell(value, effectiveType, contextType, isFoldable);
+            RenderValueCell(value, effectiveType, contextType, isFoldable, memberPath);
 
             // ── Recurse into children ──
             if (opened && value != null)
@@ -194,25 +229,35 @@ public static class ImGuiPropertyTree
         }
     }
 
-    private static void RenderValueCell(object? value, Type mType, Type? contextType, bool isFoldable)
+    private static void RenderValueCell(object? value, Type mType, Type? contextType, bool isFoldable, string path)
     {
         if (value == null)
         {
             ImGuiApi.TextDisabled("null");
+            RowObserver?.Invoke(path, "null", "null");
             return;
         }
 
         // Try a registered custom renderer first.
         var renderer = ImGuiRendererRegistry.GetRenderer(mType, contextType);
         if (renderer != null && renderer.RenderValue(value))
+        {
+            RowObserver?.Invoke(path, "renderer", renderer.GetSummary(value) ?? string.Empty);
             return;
+        }
 
         // Default rendering
         if (isFoldable)
         {
-            if (IsCollectionType(mType))
+            if (value is FixedListItems fl)
+            {
+                ImGuiApi.TextDisabled($"[{fl.Count} of {fl.Capacity}]");
+                RowObserver?.Invoke(path, "fold", $"[{fl.Count} of {fl.Capacity}]");
+            }
+            else if (IsCollectionType(mType) || IsCollectionType(value.GetType()))
             {
                 ImGuiApi.TextDisabled($"[{GetCount(value)}]");
+                RowObserver?.Invoke(path, "fold", $"[{GetCount(value)}]");
             }
             else if (renderer != null)
             {
@@ -220,13 +265,15 @@ public static class ImGuiPropertyTree
                 string? summary = renderer.GetSummary(value);
                 if (!string.IsNullOrEmpty(summary))
                     ImGuiApi.TextDisabled(summary);
+                RowObserver?.Invoke(path, "summary", summary ?? string.Empty);
                 // else: leave blank (default behaviour)
             }
-            // else: complex struct/class — value cell is intentionally blank
+            else RowObserver?.Invoke(path, "fold", string.Empty);   // complex struct/class — value cell is intentionally blank
         }
         else
         {
             ImGuiApi.Text(FormatLeaf(value));
+            RowObserver?.Invoke(path, "leaf", FormatLeaf(value));
         }
     }
 
@@ -236,6 +283,7 @@ public static class ImGuiPropertyTree
         if (depth >= MaxDepth) return;
 
         int idx = 0;
+        int count = GetCount(collection);
         foreach (var item in (IEnumerable)collection)
         {
             string elementPath = jsonPath + "[" + idx + "]";
@@ -249,7 +297,8 @@ public static class ImGuiPropertyTree
             {
                 opened = ImGuiApi.TreeNodeEx(
                     $"[{idx}]##{depth}_{idx}",
-                    ImGuiTreeNodeFlags.SpanAvailWidth);
+                    FoldFlags(item, shortLimit: 0) | (count <= 4 ? ImGuiTreeNodeFlags.DefaultOpen : 0));
+                FormGrid.Note(ImGuiApi.CalcTextSize("[000]").X + (depth + 1) * ImGuiApi.GetStyle().IndentSpacing + ImGuiApi.GetTreeNodeToLabelSpacing());
             }
             else
             {
@@ -258,6 +307,7 @@ public static class ImGuiPropertyTree
                     ImGuiTreeNodeFlags.Leaf |
                     ImGuiTreeNodeFlags.NoTreePushOnOpen |
                     ImGuiTreeNodeFlags.SpanAvailWidth);
+                FormGrid.Note(ImGuiApi.CalcTextSize("[000]").X + (depth + 1) * ImGuiApi.GetStyle().IndentSpacing + ImGuiApi.GetTreeNodeToLabelSpacing());
                 opened = false;
             }
 
@@ -271,7 +321,10 @@ public static class ImGuiPropertyTree
             if (item == null)
                 ImGuiApi.TextDisabled("null");
             else if (!foldable)
+            {
                 ImGuiApi.Text(FormatLeaf(item));
+                RowObserver?.Invoke(elementPath, "leaf", FormatLeaf(item));
+            }
 
             if (opened && item != null)
             {
@@ -294,44 +347,52 @@ public static class ImGuiPropertyTree
     /// <summary>True for types rendered inline (primitives, string, enum, compact value types).</summary>
     public static bool IsLeafType(Type t)
     {
+        t = Fdp.Core.SemanticValueTypes.StorageTypeOf(t);   // ⭐ S0 item 6 — a WorldPoint is a leaf as the Vector3 was
         if (t.IsPrimitive || t == typeof(string) || t.IsEnum) return true;
         if (t == typeof(decimal) || t == typeof(Guid)) return true;
         // Compact well-known structs rendered inline by built-in renderers
         if (t == typeof(Vector2) || t == typeof(Vector3) || t == typeof(Vector4)) return true;
         if (t == typeof(Quaternion)) return true;
+        // ⭐ CE-4310 (D6) — the SAME types the edit forms draw as ONE leaf (the reference / picked types: EntityRef, EntityLink, PointLink, AreaLink, WorldPoint, Bearing, RefKey) and the
+        //   sim time types read as their text, not as an expandable struct of raw members
+        if (Fdp.Presentation.Editing.ReferenceLeafDrawers.Handles(t) || t == typeof(Fdp.Core.SimInstant) || t == typeof(Fdp.Core.SimDuration)) return true;
         // Nullable<T> wrapping a leaf
         var u = Nullable.GetUnderlyingType(t);
         if (u != null && IsLeafType(u)) return true;
         return false;
     }
 
+    /// <summary>⭐ <c>CE-1315</c> — a fixed list's live items (its Count, clamped to its capacity), as a collection the tree folds.</summary>
+    public sealed class FixedListItems : IEnumerable
+    {
+        private readonly IList _items;
+        public int Count => _items.Count;
+        public int Capacity { get; }
+        private FixedListItems(IList items, int capacity) { _items = items; Capacity = capacity; }
+        public IEnumerator GetEnumerator() => _items.GetEnumerator();
+
+        public static bool TryFrom(object value, out FixedListItems list)
+        {
+            list = null!;
+            var t = value.GetType();
+            if (!Fdp.Core.FixedListShape.TryGet(t, out var element, out _, out int capacity, out var countField, out var bufferField))
+                return false;
+            int count = Math.Min(Math.Max((int)countField.GetValue(value)!, 0), capacity);
+            var items = Fdp.Toolkit.Diagnostics.DtoDiagnosticMapper.ReadBufferElements(bufferField.GetValue(value)!, element, count);
+            list = new FixedListItems((IList)items, capacity);
+            return true;
+        }
+    }
+
     private static object ExtractBuffer(object bufferStruct, Type elementType, int length, string fieldName)
     {
-        var list = new List<object?>();
-        int structSize = System.Runtime.InteropServices.Marshal.SizeOf(bufferStruct.GetType());
-        IntPtr ptr = System.Runtime.InteropServices.Marshal.AllocHGlobal(structSize);
-
-        try
-        {
-            System.Runtime.InteropServices.Marshal.StructureToPtr(bufferStruct, ptr, false);
-            int elementSize = EntityJsonDumper.GetSizeOf(elementType);
-            for (int i = 0; i < length; i++)
-            {
-                IntPtr elementPtr = IntPtr.Add(ptr, i * elementSize);
-                object? elementValue = EntityJsonDumper.ReadPointer(elementPtr, elementType);
-                if (fieldName == "EntityIds" && TryGetPackedEntityValue(elementValue, out ulong packedEntityValue))
-                {
-                    elementValue = new Fdp.Core.Entity(packedEntityValue);
-                }
-                list.Add(elementValue);
-            }
-        }
-        finally
-        {
-            System.Runtime.InteropServices.Marshal.DestroyStructure(ptr, bufferStruct.GetType());
-            System.Runtime.InteropServices.Marshal.FreeHGlobal(ptr);
-        }
-
+        // ⭐ CE-2030 — the ONE exact buffer reader (DtoDiagnosticMapper.ReadBufferElements). ⛔ This marshalled its own copy:
+        //   an enum element threw (CE-476's crash, fixed in the mapper and not here) and a bool element was read 4 wide.
+        var list = Fdp.Toolkit.Diagnostics.DtoDiagnosticMapper.ReadBufferElements(bufferStruct, elementType, length);
+        if (fieldName == "EntityIds")
+            for (int i = 0; i < list.Count; i++)
+                if (TryGetPackedEntityValue(list[i], out ulong packedEntityValue))
+                    list[i] = new Fdp.Core.Entity(packedEntityValue);
         return list;
     }
 
@@ -375,6 +436,9 @@ public static class ImGuiPropertyTree
         // no longer block foldability for all renderer-equipped types here.  Leaf-like
         // compact types (Vector2/3/4, Quaternion) are already handled above by IsLeafType.
         if (IsCollectionType(t))      return true;
+        // ⭐ CE-4351 — an [InlineArray] buffer's only field is private, so it has no members to show — it folds, and the recursion lists its elements
+        //   (⛔ it drew as its type name: BrainJournal.Entries read "Fdp.Toolkit.Behavior.Diagnostics.BrainJournalEntries")
+        if (t.IsDefined(typeof(System.Runtime.CompilerServices.InlineArrayAttribute), false)) return true;
         return GetMembers(t).Length > 0;
     }
 
@@ -395,6 +459,7 @@ public static class ImGuiPropertyTree
     public static string FormatLeaf(object? value)
     {
         if (value == null) return "null";
+        value = Fdp.Core.SemanticValueTypes.ToStorage(value);   // ⭐ S0 item 6 — a WorldPoint / WorldRotation / Bearing formats as its storage value did
         if (value is float  f) return f.ToString("G6");
         if (value is double d) return d.ToString("G6");
         if (value is Vector2 v2) return $"[{v2.X:G4}, {v2.Y:G4}]";
@@ -404,9 +469,9 @@ public static class ImGuiPropertyTree
         {
             // Delegate to quaternion renderer if available
             var r = ImGuiRendererRegistry.GetRenderer(typeof(Quaternion));
-            if (r != null) return r.GetSummary(value) ?? value.ToString() ?? "null";
+            if (r != null) return r.GetSummary(value) ?? value!.ToString() ?? "null";
         }
-        return value.ToString() ?? "null";
+        return value!.ToString() ?? "null";
     }
 
     // ── Reflection helpers (cached) ───────────────────────────────────────────

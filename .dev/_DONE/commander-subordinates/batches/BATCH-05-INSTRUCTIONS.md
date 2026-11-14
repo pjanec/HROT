@@ -660,7 +660,7 @@ After implementing all changes, run:
 
 ```powershell
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln --no-restore -v quiet
+dotnet build HROT.sln --no-restore -v quiet
 ```
 
 Verify: `Build succeeded. 0 Error(s)`

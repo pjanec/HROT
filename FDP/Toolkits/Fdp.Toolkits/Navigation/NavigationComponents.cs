@@ -33,6 +33,21 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>Navigate to a target road-graph node using the road network.</summary>
         RoadGraph = 4,
+        /// <summary>
+        /// ⭐ CE-3026 — FIND A PATH to <see cref="NavigationIntent.FinalDestination"/> (the vehicle side's solver), then
+        /// follow it. ⛔ No straight-line fallback: no path ⇒ <c>NavigationStatus.Result = FailedUnreachable</c>.
+        /// Written by <c>MoveToExecutor</c>; <see cref="DirectPoint"/> keeps meaning "drive straight".
+        /// </summary>
+        PathToPoint = 5,
+
+        /// <summary>⭐ CE-3173 (M-1, docs/DESIGN_Entity_Control.md §8b) — the operator drives the body through <c>ManualDrive</c>;
+        /// entered ONCE (the bridge applies an intent only on an IntentId change), the axes then flow every frame.</summary>
+        Manual = 6,
+
+        /// <summary>⭐ AQ93 R-4023 (§14 G1) — hand the body to SUMO: a shadow car <c>hrot:&lt;networkId&gt;</c> drives it to
+        /// <see cref="NavigationIntent.FinalDestination"/> on SUMO's roads and the body FOLLOWS it; ownership never moves. Ends
+        /// <c>Arrived</c> when the shadow arrives near the destination.</summary>
+        Traffic = 7,
     }
 
     /// <summary>
@@ -90,6 +105,24 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>Destination reached; command finalised.</summary>
         Completed = 4,
+
+        // ⭐ Air Ops slice 2 (docs/designs/air-attack/DESIGN_Air_Operations.md §5) — an aircraft on a route; appended (the wire carries a byte).
+        /// <summary>Climbing off the ground to the route.</summary>
+        TakingOff = 5,
+        /// <summary>Descending onto a Ground waypoint.</summary>
+        Landing = 6,
+        /// <summary>On its gear at a Ground waypoint (a timed hold, or the end of the route).</summary>
+        Landed = 7,
+        /// <summary>Holding at an <c>Unload</c> waypoint until its Brain releases it (<c>NavigationIntent.ReleaseHold</c>).</summary>
+        Unloading = 8,
+        /// <summary>Holding at a <c>Pickup</c> waypoint until its Brain releases it.</summary>
+        Loading = 9,
+
+        // ⭐ Airborne insertion B-3 (docs/designs/airborne/DESIGN_Airborne_Insertion.md D-7) — appended.
+        /// <summary>Hovering at a <c>Rope</c> waypoint, ropes down, until its Brain releases it (nobody aboard, nobody on the ropes).</summary>
+        Roping = 10,
+        /// <summary>Flying the DZ leg from a <c>Drop</c> waypoint until its Brain releases it (nobody aboard).</summary>
+        Dropping = 11,
     }
 
     /// <summary>
@@ -132,6 +165,30 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>Indoor flooring.</summary>
         Indoor = 4,
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3128</c> (R-230) — how much an actor WANTS the road network for one order. The navmesh covers the roads too, so
+    /// this is a choice, not a capability: a sneaking unit never uses the roads, a convoy over distance strongly prefers them.
+    /// The planner compares walking direct with navmesh → road → navmesh, the road metres weighted by the factor below, and
+    /// takes the cheaper. 📄 docs/designs/navig-2/Navigation_Design_v2_0.md §5.2a D1/D3.
+    /// </summary>
+    public enum RoadUse : byte
+    {
+        /// <summary>Not set by the order: a vehicle ⇒ <see cref="Prefer"/>, anything else ⇒ <see cref="Neutral"/> (<c>PathRequests.ResolveRoadUse</c>). ⚠ Not "Default" (an IDL keyword) nor "Auto" (IDL enum members share one scope with NavigationBackend.Auto) — this enum is generated into IDL.</summary>
+        Unspecified = 0,
+        /// <summary>Never use the road network (sneaking, staying off the obvious lines).</summary>
+        Never = 1,
+        /// <summary>Road metres cost the same as any other: the road wins only when it is genuinely shorter.</summary>
+        Neutral = 2,
+        /// <summary>Road metres count half.</summary>
+        Prefer = 3,
+        /// <summary>Road metres count a quarter (a convoy over distance).</summary>
+        StronglyPrefer = 4,
+        /// <summary>⭐ AQ93 R-4023 — drive IN THE CIVILIAN TRAFFIC: the vehicle is handed to SUMO (a shadow car on SUMO's roads, its
+        /// lights and queues) and follows it to the destination; ownership never moves. <c>MoveToExecutor</c> asks
+        /// <see cref="NavigationMode.Traffic"/> instead of planning a path.</summary>
+        InTraffic = 5,
     }
 
     /// <summary>
@@ -197,6 +254,7 @@ namespace Fdp.Toolkit.Navigation
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(NavigationContractsComponentIds.NavigationIntent)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct NavigationIntent
     {
         /// <summary>Active navigation mode; <see cref="NavigationMode.None"/> = inactive.</summary>
@@ -224,7 +282,7 @@ namespace Fdp.Toolkit.Navigation
         public byte ReverseAllowed;
 
         /// <summary>Target position in FDP Cartesian metres (Sim Z-up; Z carried, steering 2D-projected).</summary>
-        public Vector3 FinalDestination;
+        public WorldPoint FinalDestination;
 
         /// <summary>Desired travel speed (m/s).</summary>
         public float TargetSpeed;
@@ -280,6 +338,42 @@ namespace Fdp.Toolkit.Navigation
         /// Set by <c>MoveToExecutor.OnEnter</c>; defaults to 0 (unlimited).
         /// </summary>
         public float ReplanTimeBudget;
+
+        /// <summary>
+        /// ⭐ CE-3026 — the navmesh layer to plan on (copied from <c>MoveToParams.LayerMask</c>); 0 ⇒ the entity's own
+        /// layer (<c>NavLayerSelection</c>). Carried so a MoveTo on the vehicle side keeps what the Brain asked for.
+        /// </summary>
+        public uint LayerMask;
+
+        /// <summary>⭐ CE-3026 — force a backend (0 Auto, 1 NavMesh, 2 RoadGraph, 3 Volumetric), from <c>MoveToParams.BackendForce</c>.</summary>
+        public byte BackendForce;
+
+        /// <summary>⭐ Air Ops slice 2 — the Brain releases the aircraft's current Unload / Pickup hold (<see cref="NavigationConstants.FlagBitReleaseHold"/>).</summary>
+        public bool ReleaseHold
+        {
+            readonly get => (Flags & (1 << NavigationConstants.FlagBitReleaseHold)) != 0;
+            set => Flags = value ? (byte)(Flags | (1 << NavigationConstants.FlagBitReleaseHold))
+                                 : (byte)(Flags & ~(1 << NavigationConstants.FlagBitReleaseHold));
+        }
+
+        /// <summary>⭐ CE-3128 — the order's road use, packed in <see cref="Flags"/> bits 5–7 (<see cref="NavigationConstants.FlagShiftRoadUse"/>).</summary>
+        public RoadUse RoadUse
+        {
+            readonly get => NavigationConstants.RoadUseOf(Flags);
+            set => Flags = NavigationConstants.WithRoadUse(Flags, value);
+        }
+
+        /// <summary>⭐ CE-1035 Q0b — true when <see cref="FinalDestination"/>'s Z is NOT given; read it through
+        /// <see cref="NavigationDestination.Of"/>, never directly.</summary>
+        public readonly bool OnSurface => (Flags & (1 << NavigationConstants.FlagBitDestinationOnSurface)) != 0;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2171</c> / Air Ops B1 (DESIGN_Air_Operations §5) — the ROUTE ENTITY a <see cref="NavigationMode.FollowRoute"/> follows,
+        /// by its network id (appended; on the wire). The motion side resolves its OWN compiled path from it (<see cref="IRouteSource"/>):
+        /// <see cref="TrajectoryId"/> is a LOCAL pool index that never crosses the wire, so on a split cluster it is 0 and the route was
+        /// never driven. 0 = none (the local <see cref="TrajectoryId"/> alone, as before).
+        /// </summary>
+        public int RouteEntityId;
     }
 
     /// <summary>
@@ -288,7 +382,7 @@ namespace Fdp.Toolkit.Navigation
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(NavigationContractsComponentIds.NavigationStatus)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct NavigationStatus
     {
         /// <summary>
@@ -346,6 +440,7 @@ namespace Fdp.Toolkit.Navigation
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(NavigationContractsComponentIds.NavAgentProfile)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct NavAgentProfile
     {
         /// <summary>Bitfield of navmesh layers this agent can traverse. 0xFFFFFFFF = all layers.</summary>
@@ -372,7 +467,7 @@ namespace Fdp.Toolkit.Navigation
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(NavigationContractsComponentIds.NavigationCorridorMuscle)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct NavigationCorridorMuscle
     {
         /// <summary>Handle to the active route in the path registry. 0 = no active route.</summary>
@@ -380,6 +475,12 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>Navmesh version when the current path was planned.</summary>
         public uint NavmeshVersion;
+
+        /// <summary>⭐ <c>CE-4391</c> S-3 (P3-a/b) — the navmesh's tile change sequence this path was planned at (and last checked against); 0 = never judged by tile.
+        /// <c>NavigationExecutionSystem</c> compares it to the live sequence each frame — one integer compare — and walks the path's remaining tiles only when it moved.</summary>
+        public uint TileSequence { readonly get => _tileSequence; set => _tileSequence = value; }
+        // ⚠ private on purpose: the entity dump (and so every scenario golden) lists PUBLIC FIELDS, and a new public field moved 68 goldens (measured, S-5); the bytes are the same either way
+        private uint _tileSequence;
 
         /// <summary>Index of the segment the agent is currently traversing.</summary>
         public int CurrentSegmentIndex;
@@ -409,7 +510,7 @@ namespace Fdp.Toolkit.Navigation
     public struct PreviewWaypoint
     {
         /// <summary>World-space position of the waypoint.</summary>
-        public System.Numerics.Vector3 Position;
+        public Fdp.Core.WorldPoint Position;   // ⭐ S0 item 8 — a world place (the nested scan found it)
 
         /// <summary>How the agent traverses the edge leading to this waypoint.</summary>
         public TraversalKind Traversal;
@@ -432,6 +533,7 @@ namespace Fdp.Toolkit.Navigation
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(NavigationContractsComponentIds.NavigationCorridorPreview)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct NavigationCorridorPreview
     {
         /// <summary>Incremented each time this buffer is refreshed; allows Brain to detect staleness.</summary>
@@ -471,6 +573,7 @@ namespace Fdp.Toolkit.Navigation
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(NavigationContractsComponentIds.NavigationPathDetailsBuffer)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct NavigationPathDetailsBuffer
     {
         /// <summary>Route handle this buffer corresponds to.</summary>
@@ -492,6 +595,7 @@ namespace Fdp.Toolkit.Navigation
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(NavigationContractsComponentIds.CrowdAgent)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct CrowdAgent
     {
     }

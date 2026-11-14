@@ -78,8 +78,8 @@ internal sealed class BlueprintPinModel : IPinModel
     {
         Id          = new PinId(pin.Id);
         OwnerNodeId = ownerNodeId;
-        // Display label may differ from the pin's identity Name (e.g. GetParameter's "Value" out-pin
-        // shows the parameter's NAME). The identity Name is untouched, so pin GUIDs / link
+        // Display label may differ from the pin's identity Name (BlueprintGraphModel.ResolvePinDisplayLabel;
+        // its first client, Get Parameter's "Value" pin, retired with CE-2135 P4). The identity Name is untouched, so pin GUIDs / link
         // rehydration are unaffected — this is render-only.
         // glyphless (Literal's inline-editor input pin): no pin glyph, no label — only the value box.
         Label       = glyphless ? "" : (string.IsNullOrEmpty(displayLabel) ? pin.Name : displayLabel);
@@ -228,9 +228,17 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
                 "System.Double"  => (object)0.0,
                 "System.Byte"    => (object)(byte)0,
                 "System.UInt32"  => (object)0u,
+                // CE-1006 — the other widths WidenedPinEditor draws.
+                "System.Int64"   => (object)0L,
+                "System.Int16"   => (object)(short)0,
+                "System.SByte"   => (object)(sbyte)0,
+                "System.UInt16"  => (object)(ushort)0,
+                "System.UInt64"  => (object)0ul,
                 "System.String"           => (object)"",
                 "Fdp.Core.FixedString32"  => (object)"",
                 "Fdp.Core.FixedString64"  => (object)"",
+                "Fdp.Core.FixedString128" => (object)"",
+                "Fdp.Toolkit.Replication.EntityRef" => (object)"",   // the network id as text (StringPinEditor)
                 // FIX-B: vector zero-values for freshly-placed unset pins.
                 "System.Numerics.Vector2"    => (object)System.Numerics.Vector2.Zero,
                 "System.Numerics.Vector3"    => (object)System.Numerics.Vector3.Zero,
@@ -253,6 +261,11 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
                                     out var d) ? d : 0.0,
             "System.Byte"    => byte.TryParse(rawValue,   out var by) ? by  : (byte)0,
             "System.UInt32"  => uint.TryParse(rawValue,   out var u)  ? u   : 0u,
+            "System.Int64"   => long.TryParse(rawValue,   out var l)  ? l   : 0L,
+            "System.Int16"   => short.TryParse(rawValue,  out var sh) ? sh  : (short)0,
+            "System.SByte"   => sbyte.TryParse(rawValue,  out var sb) ? sb  : (sbyte)0,
+            "System.UInt16"  => ushort.TryParse(rawValue, out var us) ? us  : (ushort)0,
+            "System.UInt64"  => ulong.TryParse(rawValue,  out var ul) ? ul  : 0ul,
             // FIX-B: Vector types — parse the InvariantCulture bracket format [x, y, z, …].
             // The old culture-dependent <x  y  z> form from value.ToString() is also tolerated
             // via the same float-parse path (whitespace is consumed by TryParse).
@@ -322,23 +335,16 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
     // AND the old locale-dependent "<x  y  z>" form from value.ToString() for migration.
     // Parsing strips any leading/trailing bracket characters and splits on commas / whitespace.
 
-    private static float[] SplitFloats(string raw)
-    {
-        // Strip bracket/angle-bracket delimiters: "[", "]", "<", ">" then split.
-        var stripped = raw.Trim().TrimStart('[', '<').TrimEnd(']', '>');
-        var parts    = stripped.Split(new[] { ',', ' ', '\t' },
-                           System.StringSplitOptions.RemoveEmptyEntries);
-        var inv      = System.Globalization.CultureInfo.InvariantCulture;
-        var result   = new float[parts.Length];
-        for (int i = 0; i < parts.Length; i++)
-            float.TryParse(parts[i],
-                System.Globalization.NumberStyles.Float, inv, out result[i]);
-        return result;
-    }
+    // ⭐ CE-415 — ONE reader, the compiler's (VectorLiteral). 🔴 This used to split on ',' AND ' ', so the legacy
+    //   cs-CZ form "<-0,5\u00A0 0\u00A0 0>" read as FOUR numbers (-0, 5, 0, 0) and the drawer showed the wrong vector.
+    //   A value that does not parse yields an empty array ⇒ the callers' identity/zero fallback, as before.
+    private static float[] SplitFloats(string raw, int arity)
+        => Hrot.Blueprints.Core.Compiler.Lowering.VectorLiteral.TryParse(raw, arity, out var c, out _)
+            ? c : System.Array.Empty<float>();
 
     private static object ParseVector2(string raw)
     {
-        var c = SplitFloats(raw);
+        var c = SplitFloats(raw, 2);
         return c.Length >= 2
             ? new System.Numerics.Vector2(c[0], c[1])
             : System.Numerics.Vector2.Zero;
@@ -346,7 +352,7 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
 
     private static object ParseVector3(string raw)
     {
-        var c = SplitFloats(raw);
+        var c = SplitFloats(raw, 3);
         return c.Length >= 3
             ? new System.Numerics.Vector3(c[0], c[1], c[2])
             : System.Numerics.Vector3.Zero;
@@ -354,7 +360,7 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
 
     private static object ParseVector4(string raw)
     {
-        var c = SplitFloats(raw);
+        var c = SplitFloats(raw, 4);
         return c.Length >= 4
             ? new System.Numerics.Vector4(c[0], c[1], c[2], c[3])
             : System.Numerics.Vector4.Zero;
@@ -362,7 +368,7 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
 
     private static object ParseQuaternion(string raw)
     {
-        var c = SplitFloats(raw);
+        var c = SplitFloats(raw, 4);
         return c.Length >= 4
             ? new System.Numerics.Quaternion(c[0], c[1], c[2], c[3])
             : System.Numerics.Quaternion.Identity;

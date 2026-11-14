@@ -43,7 +43,7 @@
 ### Build and Test Commands
 
 ```bat
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test FDP\Toolkits\Fdp.Toolkits.Tests\Fdp.Toolkits.Tests.csproj --no-build
 ```
 
@@ -275,7 +275,7 @@ Note: `repo.Query<WeaponMountInfo>()` — use whatever query API `EntityReposito
 - Mutating one mount's `Ammo` doesn't affect others
 - `WeaponMountInfo.EffectiveRange` matches `WeaponCapabilitiesDto.EffectiveRange` when present; 0 when absent
 
-**Important:** `WeaponMountInfo` has `[DataPolicy(DataPolicy.NoSave)]` is NOT applied — mount configuration should persist with scenarios. Check how similar components are declared and follow the same pattern.
+**Important:** `WeaponMountInfo` has `[DataPolicy(DataPolicy.NoScenario)]` is NOT applied — mount configuration should persist with scenarios. Check how similar components are declared and follow the same pattern.
 
 ---
 
@@ -599,7 +599,7 @@ This batch is DONE when:
 - [ ] **P0.05** `Blackboard1024.Project<T>` method added; 3+ tests green
 - [ ] **P0.06** `UtilityTestWorld` helper complete with all listed methods; 6+ tests green
 - [ ] **P0.07** Gate integration test passes
-- [ ] `dotnet build IOS-IG-SimHost.sln` — zero errors, zero new warnings
+- [ ] `dotnet build HROT.sln` — zero errors, zero new warnings
 - [ ] `dotnet test FDP\Toolkits\Fdp.Toolkits.Tests\Fdp.Toolkits.Tests.csproj` — all tests pass
 
 ---

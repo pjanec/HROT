@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -8,6 +9,8 @@ using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Utilities;
 using Fdp.Toolkit.Spatial.Eqs;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Sensors;
 using Fdp.Toolkit.Spatial.Eqs.Topics;
 using Hrot.NED.Descriptors;
 
@@ -20,22 +23,70 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class EqsSensorConfigEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EqsSensorConfig";
         private readonly DdsWriter<EqsSensorConfigTopic>? _writer;
+        // ⭐ CE-490 — the brain READS its own topic too: TransientLocal hands a node every live instance, including the
+        //   ones a previous owner wrote. Only keys and last configs are kept — ⛔ no carrier is ever built on a brain.
+        private readonly DdsReader<EqsSensorConfigTopic>? _reader;
+        private readonly Dictionary<(int ParentNetworkId, int LocalChildIndex), EqsSensorConfigTopic> _onWire = new();
+        // Keys this node has already suspended and not seen re-activated since — one write per orphan, not one per scan.
+        private readonly HashSet<(int ParentNetworkId, int LocalChildIndex)> _suspendedByUs = new();
+        private readonly List<(int ParentNetworkId, int LocalChildIndex)> _orphans = new();
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        // ⭐ CE-3002 / R-179 — the brain names each child sensor's solver. 📄 DESIGN_Ownership_Groups_And_Grants.md §5.8.
+        private readonly Hrot.Network.Routing.IClusterStateCache? _clusterCache;
+        private readonly NodeId _localNodeId;
+        private readonly Dictionary<(int ParentNetworkId, int LocalChildIndex), int> _solverOf = new();
+        private readonly Dictionary<(int ParentNetworkId, int LocalChildIndex), int> _recordedSolver = new();
+        private OwnershipApplier? _applier;
+        private int _worldEpoch;   // ⭐ CE-3076 — per-key bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
+
+        // What was last written per sensor entity. ⭐ A reliable topic that publishes ONCE never
+        // carries a later parameter change (epoch bump, new area) to the Muscle — the old
+        // SmartEgressUtil gate did exactly that, and the distributed rails worked around it by
+        // removing and re-adding the sensor. Publishing on any change is what keeps the split right.
+        private readonly Dictionary<Entity, EqsSensorConfigTopic> _published = new();
+        // The parent each child sensor was published under — an ended sensor is SUSPENDED while that parent lives and
+        // disposed only once it is gone (CE-486).
+        private readonly Dictionary<Entity, Entity> _parentOf = new();
+        private readonly HashSet<Entity> _seen = new();
+
+        // ⭐ POC 3 T-2 (the parallel-simulation experiment; POC 2 D-4: this translator was 17 of the CGF's ~39 ms of egress — it built every
+        //   sensor's topic every frame, then compared). Opt-in HROT_EQS_CONFIG_GATE=1: the shared egress visit gate (CE-2407, Egress §5) skips a
+        //   sensor nothing touched — its own inputs declared; authority / ownership / parts writes, seek / restore / wipe (H3) and a structural
+        //   change force a visit; the sweep visits every sensor at least once per SweepPeriod frames (the bound for the inputs no signal names:
+        //   a solver re-pick from the cluster cache). A sensor HELD for a context slot's network id is visited every frame until it publishes.
+        internal static bool GateOn { get; set; } = EnvVars.Read(EnvVars.HrotEqsConfigGate) == "1";
+        private readonly EgressVisitGate _gate = new(typeof(EqsSensor), typeof(SensorConfigPayload), typeof(EqsContextPoints), typeof(PartMetadata));
+        private readonly HashSet<Entity> _held = new();
+        private IReadOnlyList<int>? _knownThisScan;
+        /// <summary>The sensors the gate skipped since creation (a rail reads it).</summary>
+        internal long GateSkipped { get; private set; }
+        // The wire keys a LIVE local sensor holds this scan — every local sensor, with authority or not. CE-486: an ended
+        // sensor whose key a live one now holds writes nothing (the same-scan write-then-end race, design §2 ①, cannot
+        // happen). CE-490: an instance a local sensor holds is never an orphan.
+        private readonly HashSet<(int ParentNetworkId, int LocalChildIndex)> _liveKeys = new();
+        private readonly List<Entity> _gone = new();
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EqsSensorConfigTopic>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsSensorConfig;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
-        public EqsSensorConfigEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
+        /// <param name="clusterCache">⭐ R-179: where the solver of each child sensor is picked (least-loaded Perception
+        /// node). <see langword="null"/> names no solver — every Perception node solves and the record gates the publish.</param>
+        /// <param name="localNodeId">This node, for the ownership record the pick writes.</param>
+        public EqsSensorConfigEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap,
+                                               Hrot.Network.Routing.IClusterStateCache? clusterCache = null, int localNodeId = 0)
         {
             if (participant == null) throw new ArgumentNullException(nameof(participant));
             if (entityMap   == null) throw new ArgumentNullException(nameof(entityMap));
-            _entityMap = entityMap;
-            _writer = new DdsWriter<EqsSensorConfigTopic>(participant, DdsTopicName);
+            _entityMap    = entityMap;
+            _clusterCache = clusterCache;
+            _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
+            _writer = new DdsWriter<EqsSensorConfigTopic>(participant);
+            _reader = new DdsReader<EqsSensorConfigTopic>(participant);
         }
 
         /// <inheritdoc/>
@@ -43,45 +94,77 @@ namespace Hrot.Network.NED.SimHost
         {
             if (_writer is null) return;
 
+            // ⭐ CE-3076 (CE-2101's rule, DESIGN_Cluster_Load_Phase §8) — the per-world bookkeeping goes at the world boundary:
+            //   ids restart at 1000, so the next world's (parent, part) keys are the last world's. 🔴 Measured: a stale
+            //   _recordedSolver skipped RecordSolver for the new commander ⇒ its area query was never answered. ⭐ Kept: _onWire
+            //   (what DDS still holds IS the wire, across worlds — the orphan sweep ends the last world's instances) and the
+            //   entity-keyed _published/_parentOf (the gone pass below ends them).
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
+            {
+                _recordedSolver.Clear();
+                _solverOf.Clear();
+                _suspendedByUs.Clear();
+                _held.Clear();   // ⭐ T-2 — per world, like the rest
+            }
+
             // Query all entities with EqsSensor regardless of NetworkIdentity:
             // child-entity sensors identify themselves via PartMetadata.
             var query = view.Query()
                 .With<EqsSensor>()
                 .Build();
 
+            ReadWire();
+
+            _seen.Clear();
+            _liveKeys.Clear();
+            _knownThisScan = null;   // ⭐ POC 3 — re-read once, lazily, this scan
+            bool gated = GateOn;
+            if (gated) _gate.Begin(view);
             foreach (var entity in query)
             {
-                if (!view.HasAuthority(entity, DescriptorOrdinal)) continue;
-
-                if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))
+                // The wire key — the ONE rule (EqsSensorKey). A child whose parent is gone or local-only, and a
+                // local-only sensor, publish nothing.
+                var kind = EqsSensorKey.Resolve(view, entity, out int parentNetworkId, out int localChildIndex, out var parent);
+                if (kind is EqsSensorKeyKind.None or EqsSensorKeyKind.LocalOnly) continue;
+                _liveKeys.Add((parentNetworkId, localChildIndex));
+                if (gated && !_gate.Visit(entity) && !_held.Contains(entity))
+                {
+                    if (_published.ContainsKey(entity)) _seen.Add(entity);   // still live: not an ended sensor for the gone pass below
+                    GateSkipped++;
                     continue;
+                }
+
+                // ⭐⭐ CE-3036 / R-185 K — a TKB sensor is built from the unit's TKB on EVERY node: its default never goes on
+                //    the wire. Only an OVERRIDE does (R-187 N′ — a SensorConfigPayload on it); when the override ends, ONE
+                //    "back to default" sample (Override = false) is written, then the sensor is silent again.
+                //    ⭐ CE-3245 — decided FIRST, before the record lookup and the context-slot reads: it is the common case (every
+                //    TKB sensor of every unit, every frame) and needs none of them. 📐 300 civilians: 600 such sensors, 1.8 ms/frame.
+                var payload  = view.HasManagedComponent<SensorConfigPayload>(entity) ? view.GetManagedComponentRO<SensorConfigPayload>(entity) : null;
+                bool tkb     = localChildIndex >= SensorChildFactory.FirstTkbPartId;
+                if (tkb && payload == null && !(_published.TryGetValue(entity, out var prevTkb) && prevTkb.Override))
+                    continue;
+
+                // ⭐ CE-507 (S6): the key is (descriptor, part instance) — the raw ordinal matched no record entry, so the
+                //   gate always fell to the parent's PRIMARY owner, whatever the brain group's grant said.
+                if (!view.HasAuthority(entity, OwnershipExtensions.PackKey(DescriptorOrdinal, localChildIndex))) continue;
 
                 ref readonly var sensor = ref view.GetComponentRO<EqsSensor>(entity);
+                if (kind == EqsSensorKeyKind.Child) _parentOf[entity] = parent;
 
-                // 3-branch compound identity resolution.
-                long parentNetworkId;
-                int  localChildIndex;
-                if (view.HasComponent<PartMetadata>(entity))
+                _seen.Add(entity);
+
+                // Hold while a context slot names an entity that has no network id yet: sending 0
+                // would tell the Muscle "no entity", and nothing would re-send once the id existed.
+                if (!TrySlotNetId(sensor.ContextSlot0, out int slot0)
+                    || !TrySlotNetId(sensor.ContextSlot1, out int slot1)
+                    || !TrySlotNetId(sensor.ContextSlot2, out int slot2))
                 {
-                    var meta   = view.GetComponentRO<PartMetadata>(entity);
-                    var parent = meta.ParentEntity;
-                    if (!view.IsAlive(parent) || !view.HasComponent<NetworkIdentity>(parent))
-                        continue; // parent gone or local-only
-                    parentNetworkId = view.GetComponentRO<NetworkIdentity>(parent).Value;
-                    localChildIndex = meta.InstanceId;
-                }
-                else if (view.HasComponent<NetworkIdentity>(entity))
-                {
-                    parentNetworkId = view.GetComponentRO<NetworkIdentity>(entity).Value;
-                    localChildIndex = 0;
-                }
-                else
-                {
-                    // Local-only sensor: skip DDS publish.
+                    _held.Add(entity);   // ⭐ T-2 — visited every frame until the slot's id exists (no input of its own changes then)
                     continue;
                 }
+                _held.Remove(entity);
 
-                _writer.Write(new EqsSensorConfigTopic
+                var topic = new EqsSensorConfigTopic
                 {
                     ParentNetworkId       = parentNetworkId,
                     LocalChildIndex       = localChildIndex,
@@ -93,25 +176,86 @@ namespace Hrot.Network.NED.SimHost
                     PublishPolicy         = sensor.PublishPolicy,
                     Priority              = sensor.Priority,
                     ScoreDeltaThreshold   = sensor.ScoreDeltaThreshold,
-                    ContextSlot0NetworkId = SlotNetId(sensor.ContextSlot0),
-                    ContextSlot1NetworkId = SlotNetId(sensor.ContextSlot1),
-                    ContextSlot2NetworkId = SlotNetId(sensor.ContextSlot2),
-                });
+                    ContextSlot0NetworkId = slot0,
+                    ContextSlot1NetworkId = slot1,
+                    ContextSlot2NetworkId = slot2,
+                    Suspended             = sensor.Suspended,
+                    // ⭐ R-179: a child sensor names its solver; a legacy instance-0 sensor keeps its Perception group.
+                    SolverNodeId          = localChildIndex == 0 ? 0 : SolverFor((parentNetworkId, localChildIndex), sensor.BlueprintId),
+                    ConfigKind            = payload?.Kind ?? string.Empty,
+                    ConfigJson            = payload?.Json ?? string.Empty,
+                    Override              = tkb && payload != null,
+                    ContextPoint1X        = sensor.ContextPoint1.X,   // ⭐ CE-3063 ③
+                    ContextPoint1Y        = sensor.ContextPoint1.Y,
+                    ContextPoint1Z        = sensor.ContextPoint1.Z,
+                    ContextPointMask      = sensor.ContextPointMask,
+                    ContextPoints         = PointsOf(view, entity),   // ⭐ CE-3272 (Q94 B)
+                };
+                if (topic.SolverNodeId != 0 && !parent.IsNull && view is EntityRepository repo)
+                    RecordSolver(repo, parent, (parentNetworkId, localChildIndex), topic.SolverNodeId);
 
+                if (_published.TryGetValue(entity, out var last) && SameConfig(in last, in topic))
+                    continue;
+
+                _writer.Write(topic);
+                _published[entity] = topic;
+                // What this node put on the wire is part of the wire's state — the sweep below ends it when no local
+                // sensor holds the key any more, without waiting for our own sample to echo back through the reader.
+                _onWire[(parentNetworkId, localChildIndex)] = topic;
+                if (!topic.Suspended) _suspendedByUs.Remove((parentNetworkId, localChildIndex));
                 SentSampleCount++;
                 SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
             }
 
+            // ⭐⭐ CE-486 — a child sensor (LocalChildIndex != 0) that is destroyed or loses its EqsSensor has ENDED.
+            //    📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D5 ③. Its descriptor instance is NEVER disposed while the
+            //    parent lives (BDC/NED descriptor rules — a dispose means entity deletion or ownership return): the end is
+            //    a Suspended write, so the Muscle's carrier stops solving and the part id can be reused by the next
+            //    lifetime (D5 ①). ⭐ That write is NOT made here: an ended sensor is just "an instance no local sensor
+            //    holds, under an entity this node owns" — exactly what SweepOrphans ends (CE-490). ONE rule, one path
+            //    (measured: a separate end-write here was fully shadowed by the sweep). It also covers the §2 ① race —
+            //    a live sensor holding the same key this scan keeps it out of the sweep. Only when the PARENT is gone is
+            //    the instance disposed. Legacy single sensors are disposed by the removal pass below and by Dispose().
+            _gone.Clear();
+            foreach (var kv in _published)
+            {
+                if (_seen.Contains(kv.Key)) continue;
+                if (view.IsAlive(kv.Key) && view.HasComponent<EqsSensor>(kv.Key)) continue; // e.g. authority moved
+                _gone.Add(kv.Key);
+            }
+            foreach (var entity in _gone)
+            {
+                var last = _published[entity];
+                _published.Remove(entity);
+                _points.Remove(entity);   // CE-3272
+                _parentOf.Remove(entity, out var parent);
+                if (last.LocalChildIndex == 0) continue;
+
+                var key = (last.ParentNetworkId, last.LocalChildIndex);
+                if (_liveKeys.Contains(key)) continue;                         // a live sensor holds this part id now
+                if (!parent.IsNull && view.IsAlive(parent)) continue;          // ended, not deleted: the sweep suspends it
+
+                _writer.DisposeInstance(new EqsSensorConfigTopic               // the parent is gone: entity deletion
+                {
+                    ParentNetworkId = last.ParentNetworkId,
+                    LocalChildIndex = last.LocalChildIndex,
+                });
+                _onWire.Remove(key);
+                _suspendedByUs.Remove(key);
+            }
+
+            SweepOrphans(view);
+
             // Removal detection: find entities with NetworkIdentity that no longer carry
             // EqsSensor. These are legacy single-sensor entities (LocalChildIndex == 0).
             var removalQuery = view.Query()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .Without<EqsSensor>()
                 .Build();
 
             foreach (var entity in removalQuery)
             {
-                if (!view.HasAuthority(entity, DescriptorOrdinal)) continue;
+                if (!view.HasAuthority(entity, OwnershipExtensions.PackKey(DescriptorOrdinal, 0))) continue;
                 if (!view.HasManagedComponent<EgressPublicationState>(entity)) continue;
 
                 var state = view.GetManagedComponentRO<EgressPublicationState>(entity);
@@ -124,6 +268,130 @@ namespace Hrot.Network.NED.SimHost
             }
         }
 
+        // CE-490: the latest sample of every instance on the wire. A dispose (the parent's death) forgets the key.
+        private void ReadWire()
+        {
+            if (_reader is null) return;
+            using var loan = _reader.Take();
+            foreach (var sample in loan)
+            {
+                if (sample.IsValid)
+                {
+                    var data = sample.Data;
+                    var key  = (data.ParentNetworkId, data.LocalChildIndex);
+                    _onWire[key] = data;
+                    if (!data.Suspended) _suspendedByUs.Remove(key);   // re-activated by someone: a new orphan later is new
+                    ReceivedSampleCount++;
+                }
+                else
+                {
+                    var keyData = DdsTypeSupport.FromNative<EqsSensorConfigTopic>(sample.NativePtr);
+                    var key     = (keyData.ParentNetworkId, keyData.LocalChildIndex);
+                    _onWire.Remove(key);
+                    _suspendedByUs.Remove(key);
+                }
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-486</c> + <c>CE-490</c> — <b>the ONE place a child sensor is ended on the wire:</b> every instance under
+        /// an entity this node holds authority over that no local sensor holds is written back <c>Suspended</c> — this
+        /// node's own ended sensors and the ones it inherited alike. ⭐ <b>A new authority ends the sensors it inherited.</b> 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c>
+        /// §1 D5 ④. After an authority move the old owner stops ticking the entity but never ends its behaviour
+        /// (<c>BrainTickSystem</c> ticks owned entities only), so the sensors it created are never ended either — without
+        /// this the Muscle would solve them forever. ⇒ every child-sensor instance on the wire whose parent THIS node holds
+        /// authority over, and that no local sensor holds, gets its last config written back <c>Suspended</c>. Once per
+        /// orphan; a later active write by anyone re-arms it.
+        /// </summary>
+        private void SweepOrphans(ISimulationView view)
+        {
+            _orphans.Clear();
+            foreach (var (key, last) in _onWire)
+            {
+                if (key.LocalChildIndex == 0 || last.Suspended) continue;     // legacy, or already ended
+                if (_liveKeys.Contains(key) || _suspendedByUs.Contains(key)) continue;
+                if (!_entityMap.TryGetEntity(key.ParentNetworkId, out var parent) || !view.IsAlive(parent)) continue;
+                if (!view.HasAuthority(parent, OwnershipExtensions.PackKey(DescriptorOrdinal, key.LocalChildIndex))) continue;    // another node's sensor
+                _orphans.Add(key);
+            }
+
+            foreach (var key in _orphans)
+            {
+                var suspended = _onWire[key];
+                suspended.Suspended = true;
+                _writer!.Write(suspended);
+                _suspendedByUs.Add(key);
+                SentSampleCount++;
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>R-179</c> — the solver of one child sensor: picked ONCE and kept; a sensor this node inherited keeps the solver
+        /// already on the wire; re-picked only when that node has left the cluster cache (a departure removes it, S7). <c>0</c>
+        /// while no Perception node is known — the next scan retries.
+        /// ⭐⭐ <c>CE-3136</c> P-4 (R-239) — a NEW pick prefers the node already solving a SIBLING sensor of the same unit when it
+        /// carries this sensor's role, else the least-loaded node: a unit's sensors share one solver, so a query that reads
+        /// what the unit's other sensors hold (<c>ThreatExposureTest</c> reads the perception sensors' contact lists, which
+        /// live only where those sensors are solved) finds them there. 🔒 User: <i>"when the brain picks a node for a sensor,
+        /// prefer the node already solving another sensor of the same unit" — "yes"</i>.
+        /// </summary>
+        private int SolverFor((int ParentNetworkId, int LocalChildIndex) key, uint blueprintId)
+        {
+            if (_clusterCache == null) return 0;
+            // ⭐ POC 3 (traces of the CGF): the cluster's node ids are taken ONCE per scan (_knownThisScan), not under the cache's lock for
+            //   every sensor — that lock was ~40 % of this translator at 1 000 men.
+            var known = _knownThisScan ??= _clusterCache.AllNodeIds();
+            if (_solverOf.TryGetValue(key, out int solver) && Contains(known, solver)) return solver;
+            var role = RoleFor(blueprintId);
+            solver = _onWire.TryGetValue(key, out var wire) && wire.SolverNodeId != 0 && Contains(known, wire.SolverNodeId)
+                ? wire.SolverNodeId
+                : SiblingSolver(_solverOf, key, role, known, _clusterCache) ?? _clusterCache.PickNodeForRole(role) ?? 0;
+            if (solver != 0) _solverOf[key] = solver;
+            return solver;
+        }
+
+        /// <summary>The solver of the unit's lowest-numbered OTHER sensor that is still known and carries <paramref name="role"/>.</summary>
+        internal static int? SiblingSolver(IReadOnlyDictionary<(int ParentNetworkId, int LocalChildIndex), int> solverOf,
+            (int ParentNetworkId, int LocalChildIndex) key, NodeRole role, IReadOnlyList<int> known,
+            Hrot.Network.Routing.IClusterStateCache cache)
+        {
+            int? best = null; int bestIndex = int.MaxValue;
+            foreach (var (other, node) in solverOf)
+            {
+                if (other.ParentNetworkId != key.ParentNetworkId || other.LocalChildIndex == key.LocalChildIndex) continue;
+                if (other.LocalChildIndex >= bestIndex || !Contains(known, node) || !cache.HasRole(node, role)) continue;
+                best = node; bestIndex = other.LocalChildIndex;
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3072</c> B3 — the role a sensor's solver must carry: a danger-area sensor plans its route there, so it needs
+        /// the navmesh too (<c>Perception | NavigationSolver</c> — every SimHost; ⛔ not a Stride node, which is
+        /// <c>MuscleGround | Perception</c>). Every other sensor: <c>Perception</c>. 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.7.
+        /// </summary>
+        internal static NodeRole RoleFor(uint blueprintId)
+            => blueprintId == Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.TemplateId
+                ? NodeRole.Perception | NodeRole.NavigationSolver
+                : NodeRole.Perception;
+
+        private static bool Contains(IReadOnlyList<int> nodes, int node)
+        {
+            for (int i = 0; i < nodes.Count; i++) if (nodes[i] == node) return true;
+            return false;
+        }
+
+        /// <summary>⭐ R-179: the config is the per-sensor grant — this node records the solver as the owner of result
+        /// part <c>n</c>, as every Perception node does on reading the config.</summary>
+        private void RecordSolver(EntityRepository repo, Entity parent, (int ParentNetworkId, int LocalChildIndex) key, int solver)
+        {
+            if (_recordedSolver.TryGetValue(key, out int recorded) && recorded == solver) return;
+            _applier ??= new OwnershipApplier(_localNodeId,
+                Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider.GetDescriptorMap(repo));
+            _applier.Apply(repo, parent, OwnershipExtensions.PackKey((long)EDescriptorType.dtEqsResult, key.LocalChildIndex), solver);
+            _recordedSolver[key] = solver;
+        }
+
         /// <inheritdoc/>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -131,16 +399,63 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
             _writer?.DisposeInstance(new EqsSensorConfigTopic { ParentNetworkId = networkEntityId, LocalChildIndex = 0 });
         }
 
-        // Returns the network ID of a context-slot entity, or 0 if the entity is null/unregistered.
-        private long SlotNetId(Entity slotEntity)
+        // A null slot is 0 on the wire. A non-null slot must have a network id; false = not yet.
+        private bool TrySlotNetId(Entity slotEntity, out int netId)
         {
-            if (slotEntity.IsNull) return 0L;
-            return _entityMap.TryGetNetworkId(slotEntity, out long netId) ? netId : 0L;
+            netId = 0;
+            if (slotEntity.IsNull) return true;
+            return _entityMap.TryGetNetworkId(slotEntity, out netId);
+        }
+
+        private static bool SameConfig(in EqsSensorConfigTopic a, in EqsSensorConfigTopic b)
+            => a.ParentNetworkId       == b.ParentNetworkId
+            && a.LocalChildIndex       == b.LocalChildIndex
+            && a.BlueprintId           == b.BlueprintId
+            && a.Epoch                 == b.Epoch
+            && a.SearchRadius.Equals(b.SearchRadius)
+            && a.FactionFilter         == b.FactionFilter
+            && a.ThreatThreshold.Equals(b.ThreatThreshold)
+            && a.PublishPolicy         == b.PublishPolicy
+            && a.Priority              == b.Priority
+            && a.ScoreDeltaThreshold.Equals(b.ScoreDeltaThreshold)
+            && a.ContextSlot0NetworkId == b.ContextSlot0NetworkId
+            && a.ContextSlot1NetworkId == b.ContextSlot1NetworkId
+            && a.ContextSlot2NetworkId == b.ContextSlot2NetworkId
+            && a.Suspended             == b.Suspended
+            && a.SolverNodeId          == b.SolverNodeId    // R-179: a re-pick is a change the solvers must hear
+            && a.Override              == b.Override        // CE-3036: an override starting or ending is a change
+            && a.ContextPointMask      == b.ContextPointMask   // CE-3063: a heard contact's point
+            && a.ContextPoint1X.Equals(b.ContextPoint1X) && a.ContextPoint1Y.Equals(b.ContextPoint1Y) && a.ContextPoint1Z.Equals(b.ContextPoint1Z)
+            && string.Equals(a.ConfigKind, b.ConfigKind, StringComparison.Ordinal)
+            && string.Equals(a.ConfigJson, b.ConfigJson, StringComparison.Ordinal)
+            && ReferenceEquals(a.ContextPoints, b.ContextPoints);   // CE-3272: PointsOf hands back the SAME list until the points change
+
+        // ⭐ CE-3272 (Q94 B) — the sensor's EqsContextPoints as the wire list, rebuilt only when the component changed (this egress runs
+        //   for every sensor every frame — CE-3243's lesson): an unchanged component returns the list already published.
+        private readonly Dictionary<Entity, (Fdp.Toolkit.Spatial.Eqs.EqsContextPoints Points, List<EqsContextPointWire> Wire)> _points = new();
+        private static readonly List<EqsContextPointWire> s_noPoints = new();
+
+        private List<EqsContextPointWire> PointsOf(ISimulationView view, Entity entity)
+        {
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Spatial.Eqs.EqsContextPoints>()
+                || !repo.HasComponent<Fdp.Toolkit.Spatial.Eqs.EqsContextPoints>(entity))
+                return s_noPoints;
+            ref readonly var now = ref repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsContextPoints>(entity);
+            if (now.Count <= 0) return s_noPoints;
+            if (_points.TryGetValue(entity, out var cached) && !cached.Points.DiffersFrom(in now, 0f)) return cached.Wire;
+            var wire = new List<EqsContextPointWire>(now.Count);
+            for (int i = 0; i < now.Count && i < Fdp.Toolkit.Spatial.Eqs.EqsContextPoints.Capacity; i++)
+            {
+                var p = now[i];
+                wire.Add(new EqsContextPointWire { X = p.X, Y = p.Y, Z = p.Z });
+            }
+            _points[entity] = (now, wire);
+            return wire;
         }
     }
 }

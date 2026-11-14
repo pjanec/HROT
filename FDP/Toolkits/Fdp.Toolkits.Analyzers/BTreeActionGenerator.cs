@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using Fdp.Toolkit.Behavior.Shared;
 
 namespace Fdp.Toolkit.Behavior.Analyzers
 {
@@ -17,11 +18,9 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         private static readonly DiagnosticDescriptor BHU003_UnknownField  = SharedBhuDiagnostics.BHU003_UnknownField;
         private static readonly DiagnosticDescriptor BHU016_DeactivatorMissingTarget = SharedBhuDiagnostics.BHU016_DeactivatorMissingTarget;
         private static readonly DiagnosticDescriptor BHU017_DeactivatorUnknownTarget = SharedBhuDiagnostics.BHU017_DeactivatorUnknownTarget;
+        private static readonly DiagnosticDescriptor BHU022_RetiredReusableForm = SharedBhuDiagnostics.BHU022_RetiredReusableForm;
 
         // ---- Channel kind -> component type (BHU-014) --------------------------
-        private const string LocomotionChannelType  = "global::Fdp.Toolkit.Behavior.Components.LocomotionChannel";
-        private const string WeaponChannelType      = "global::Fdp.Toolkit.Behavior.Components.WeaponChannel";
-        private const string InteractionChannelType = "global::Fdp.Toolkit.Behavior.Components.InteractionChannel";
 
         // ---- Initialize --------------------------------------------------------
 
@@ -75,10 +74,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             bool hasConditionAttr = symbol.GetAttributes().Any(a => a.AttributeClass?.Name == "BTreeConditionAttribute");
             bool hasSharedCond         = symbol.GetAttributes().Any(a => IsSharedAiConditionAttr(a));
             bool hasSharedAction        = symbol.GetAttributes().Any(a => IsSharedAiActionAttr(a));
-            bool hasSharedHeavy         = symbol.GetAttributes().Any(a => IsSharedAiHeavyActionAttr(a));
-            bool hasSharedHeavyCondition = symbol.GetAttributes().Any(a => IsSharedAiHeavyConditionAttr(a));
 
-            if (!hasActionAttr && !hasConditionAttr && !hasSharedCond && !hasSharedAction && !hasSharedHeavy && !hasSharedHeavyCondition) return null;
+            if (!hasActionAttr && !hasConditionAttr && !hasSharedCond && !hasSharedAction) return null;
 
             // Only generate adapters for publicly accessible methods; private/protected
             // methods (e.g., schema-scanner test fixtures) must not appear in generated code.
@@ -91,18 +88,15 @@ namespace Fdp.Toolkit.Behavior.Analyzers
 
             if (hasActionAttr || hasConditionAttr)
             {
+                // ⛔ CE-504 slice 4 — the 3-param (ref P, ref BehaviorTreeState, ref TCtx) form is retired; it is reported
+                //   (BHU_022) instead of being adapted. Its "@0" bridge adapter is gone with it.
                 if (paramCount == 3)
                 {
-                    string tvType    = symbol.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    string stateType = symbol.Parameters[1].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    string tcType    = symbol.Parameters[2].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
                     return new BTreeMethodInfo
                     {
                         MethodName = symbol.Name,
                         FullQualifiedMethodName = symbol.ContainingType.ToDisplayString() + "." + symbol.Name,
-                        TContextType = tcType, TValueType = tvType, StateType = stateType,
-                        IsReusable = true, IsActionKind = hasActionAttr,
-                        WritesChannels = CollectWritesChannels(symbol),
+                        IsReusable = true, Symbol = symbol,
                     };
                 }
                 if (paramCount != 4) return null;
@@ -118,7 +112,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 };
             }
 
-            if (hasSharedCond || hasSharedAction || hasSharedHeavy || hasSharedHeavyCondition)
+            if (hasSharedCond || hasSharedAction)
             {
                 return new BTreeMethodInfo
                 {
@@ -126,9 +120,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     FullQualifiedMethodName = symbol.ContainingType.ToDisplayString() + "." + symbol.Name,
                     IsSharedAi = true,
                     IsSharedCondition = hasSharedCond,
-                    IsActionKind = hasSharedAction || hasSharedHeavy,
-                    IsSharedHeavy = hasSharedHeavy,
-                    IsSharedHeavyCondition = hasSharedHeavyCondition,
+                    IsActionKind = hasSharedAction,
                     Symbol = symbol, WritesChannels = CollectWritesChannels(symbol),
                 };
             }
@@ -139,10 +131,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             => a.AttributeClass?.ToDisplayString() == "Fbt.Kernel.SharedAiConditionAttribute";
         private static bool IsSharedAiActionAttr(AttributeData a)
             => a.AttributeClass?.ToDisplayString() == "Fbt.Kernel.SharedAiActionAttribute";
-        private static bool IsSharedAiHeavyActionAttr(AttributeData a)
-            => a.AttributeClass?.ToDisplayString() == "Fbt.Kernel.SharedAiHeavyActionAttribute";
-        private static bool IsSharedAiHeavyConditionAttr(AttributeData a)
-            => a.AttributeClass?.ToDisplayString() == "Fbt.Kernel.SharedAiHeavyConditionAttribute";
         private static bool IsWritesChannelAttr(AttributeData a)
             => a.AttributeClass?.ToDisplayString() == "Fbt.Kernel.WritesChannelAttribute";
 
@@ -165,7 +153,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             ImmutableArray<BTreeMethodInfo> methods)
         {
             var registrable    = new List<BTreeMethodInfo>();
-            var reusable       = new List<BTreeMethodInfo>();
             var sharedAiMethods = new List<BTreeMethodInfo>();
             var deactivators   = new List<BTreeMethodInfo>();
 
@@ -174,11 +161,13 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 if (m == null) continue;
                 if (m.IsDeactivator) { deactivators.Add(m); continue; }
                 if (m.IsSharedAi) sharedAiMethods.Add(m);
-                else if (m.IsReusable) reusable.Add(m);
+                else if (m.IsReusable)
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        BHU022_RetiredReusableForm, m.Symbol?.Locations.FirstOrDefault(), m.FullQualifiedMethodName));
                 else registrable.Add(m);
             }
 
-            if (registrable.Count == 0 && reusable.Count == 0 && sharedAiMethods.Count == 0) return;
+            if (registrable.Count == 0 && sharedAiMethods.Count == 0) return;
 
             string namespaceName = (compilation.AssemblyName ?? "Generated") + ".Generated";
 
@@ -186,25 +175,19 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 .GroupBy(m => m.TBlackboardType + "|" + m.TContextType)
                 .ToDictionary(g => g.Key);
 
-            var reusableByCtx = reusable
-                .GroupBy(m => m.TContextType)
-                .ToDictionary(g => g.Key, g => g.ToList());
-
             var mergedGroups = new List<GroupEntry>();
             foreach (var kvp in groups4)
             {
                 var first = kvp.Value.First();
                 string tb = first.TBlackboardType!;
                 string tc = first.TContextType!;
-                reusableByCtx.TryGetValue(tc, out var bridgeList);
-                mergedGroups.Add(new GroupEntry(tb, tc, kvp.Value.ToList(), bridgeList ?? new List<BTreeMethodInfo>()));
+                mergedGroups.Add(new GroupEntry(tb, tc, kvp.Value.ToList()));
             }
 
-            if (sharedAiMethods.Count > 0 && mergedGroups.Count > 0)
-            {
-                var expanded = ExpandSharedAiEntries(context, compilation, sharedAiMethods);
-                AssignSharedAiToGroups(compilation, expanded, mergedGroups);
-            }
+            // ⭐ CE-417: the [SharedAi*] methods are still VALIDATED here (BHU001/002/003) — the asset bridge relies on the
+            //   attribute being well-formed — but no longer emitted (see GenerateRegistrar).
+            if (sharedAiMethods.Count > 0)
+                ExpandSharedAiEntries(context, compilation, sharedAiMethods);
 
             if (mergedGroups.Count == 0) return;
 
@@ -222,8 +205,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     g => g.TBlackboardType == d.TBlackboardType && g.TContextType == d.TContextType);
                 if (group == null) continue;
 
-                bool knownAction = group.Direct.Any(a => a.FullQualifiedMethodName == d.TargetAction)
-                    || group.Bridges.Any(b => b.FullQualifiedMethodName + "@0" == d.TargetAction);
+                bool knownAction = group.Direct.Any(a => a.FullQualifiedMethodName == d.TargetAction);
                 if (!knownAction)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
@@ -262,27 +244,11 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                         if (e != null) result.Add(e);
                     }
                 }
-                if (info.IsActionKind && !info.IsSharedHeavy)
+                if (info.IsActionKind)
                 {
                     foreach (var attr in sym.GetAttributes().Where(IsSharedAiActionAttr))
                     {
                         var e = BuildEntry(context, compilation, sym, attr, isCondition: false, info.WritesChannels);
-                        if (e != null) result.Add(e);
-                    }
-                }
-                if (info.IsSharedHeavy)
-                {
-                    foreach (var attr in sym.GetAttributes().Where(IsSharedAiHeavyActionAttr))
-                    {
-                        var e = BuildHeavyEntry(context, compilation, sym, attr, info.WritesChannels);
-                        if (e != null) result.Add(e);
-                    }
-                }
-                if (info.IsSharedHeavyCondition)
-                {
-                    foreach (var attr in sym.GetAttributes().Where(IsSharedAiHeavyConditionAttr))
-                    {
-                        var e = BuildHeavyConditionEntry(context, compilation, sym, attr);
                         if (e != null) result.Add(e);
                     }
                 }
@@ -303,7 +269,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             string? fieldName = attr.ConstructorArguments[1].Value as string;
             if (dtoTypeSymbol == null || string.IsNullOrEmpty(fieldName)) return null;
 
-            int? offset = TryComputeFieldOffset(dtoTypeSymbol, fieldName!, out var fieldTypeSymbol);
+            int? offset = RoslynStructLayout.FieldOffset(dtoTypeSymbol, fieldName!, out var fieldTypeSymbol);
             if (offset == null || fieldTypeSymbol == null)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
@@ -331,275 +297,13 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 FullQualifiedMethodName = sym.ContainingType.ToDisplayString() + "." + sym.Name,
                 FieldTypeFqn = fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                 Offset       = offset.Value,
-                CompoundKey  = sym.ContainingType.ToDisplayString() + "." + sym.Name + "@" + offset.Value,
+                CompoundKey  = HsmActionKey.CompoundKeyName(sym.ContainingType.ToDisplayString() + "." + sym.Name, offset.Value),
                 IsCondition  = isCondition,
                 WritesChannels = writes,
             };
         }
 
-        private static SharedAiEntry? BuildHeavyEntry(
-            SourceProductionContext context,
-            Compilation compilation,
-            IMethodSymbol sym,
-            AttributeData attr,
-            List<int> writes)
-        {
-            // Action attribute arg order: arg0=dtoType, arg1=fieldName, arg2=heavyCompType,
-            //   3-arg: managed;  5-arg: unmanaged (arg3=heavyFieldName, arg4=heavyDtoType)
-            if (attr.ConstructorArguments.Length < 3) return null;
-            var dtoTypeSymbol = attr.ConstructorArguments[0].Value as INamedTypeSymbol;
-            string? fieldName = attr.ConstructorArguments[1].Value as string;
-            var heavyCompSymbol = attr.ConstructorArguments[2].Value as INamedTypeSymbol;
-            if (dtoTypeSymbol == null || string.IsNullOrEmpty(fieldName) || heavyCompSymbol == null) return null;
-
-            int? offset = TryComputeFieldOffset(dtoTypeSymbol, fieldName!, out var fieldTypeSymbol);
-            if (offset == null || fieldTypeSymbol == null)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    BHU003_UnknownField, sym.Locations.FirstOrDefault(),
-                    sym.Name, fieldName, dtoTypeSymbol.ToDisplayString()));
-                return null;
-            }
-
-            bool isHeavyManaged = heavyCompSymbol.IsReferenceType;
-            string heavyCompFqn = heavyCompSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            string? heavyFieldName = null;
-            string? heavyDtoFqn = null;
-
-            if (!isHeavyManaged)
-            {
-                // unmanaged: arg3 = heavyFieldName, arg4 = heavyDtoType
-                if (attr.ConstructorArguments.Length < 5) return null;
-                heavyFieldName = attr.ConstructorArguments[3].Value as string;
-                var heavyDtoSymbol = attr.ConstructorArguments[4].Value as INamedTypeSymbol;
-                if (string.IsNullOrEmpty(heavyFieldName) || heavyDtoSymbol == null) return null;
-                heavyDtoFqn = heavyDtoSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            }
-
-            return new SharedAiEntry
-            {
-                MethodName = sym.Name,
-                FullQualifiedMethodName = sym.ContainingType.ToDisplayString() + "." + sym.Name,
-                FieldTypeFqn = fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                Offset       = offset.Value,
-                CompoundKey  = sym.ContainingType.ToDisplayString() + "." + sym.Name + "@" + offset.Value,
-                IsCondition  = false,
-                IsHeavy      = true,
-                IsHeavyManaged      = isHeavyManaged,
-                HeavyComponentFqn   = heavyCompFqn,
-                HeavyFieldName      = heavyFieldName,
-                HeavyDtoFqn         = heavyDtoFqn,
-                WritesChannels = writes,
-            };
-        }
-
-        private static SharedAiEntry? BuildHeavyConditionEntry(
-            SourceProductionContext context,
-            Compilation compilation,
-            IMethodSymbol sym,
-            AttributeData attr)
-        {
-            // Condition attribute arg order: arg0=dtoType, arg1=fieldName, arg2=heavyCompType,
-            //   arg3=heavyDtoType, arg4=heavyFieldName (optional; present => unmanaged)
-            if (attr.ConstructorArguments.Length < 4) return null;
-            var dtoTypeSymbol   = attr.ConstructorArguments[0].Value as INamedTypeSymbol;
-            string? fieldName   = attr.ConstructorArguments[1].Value as string;
-            var heavyCompSymbol = attr.ConstructorArguments[2].Value as INamedTypeSymbol;
-            var heavyDtoSymbol  = attr.ConstructorArguments[3].Value as INamedTypeSymbol;
-            if (dtoTypeSymbol == null || string.IsNullOrEmpty(fieldName) || heavyCompSymbol == null) return null;
-
-            int? offset = TryComputeFieldOffset(dtoTypeSymbol, fieldName!, out var fieldTypeSymbol);
-            if (offset == null || fieldTypeSymbol == null)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    BHU003_UnknownField, sym.Locations.FirstOrDefault(),
-                    sym.Name, fieldName, dtoTypeSymbol.ToDisplayString()));
-                return null;
-            }
-
-            // heavyFieldName present (arg4) means unmanaged; absence means managed.
-            string? heavyFieldName = null;
-            string? heavyDtoFqn    = null;
-            bool isHeavyManaged    = true;
-            string heavyCompFqn    = heavyCompSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-
-            if (attr.ConstructorArguments.Length >= 5)
-            {
-                heavyFieldName = attr.ConstructorArguments[4].Value as string;
-                if (!string.IsNullOrEmpty(heavyFieldName))
-                {
-                    // Unmanaged: use the supplied heavyDtoType for the Unsafe.As cast.
-                    isHeavyManaged = false;
-                    if (heavyDtoSymbol == null) return null;
-                    heavyDtoFqn = heavyDtoSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                }
-            }
-
-            return new SharedAiEntry
-            {
-                MethodName = sym.Name,
-                FullQualifiedMethodName = sym.ContainingType.ToDisplayString() + "." + sym.Name,
-                FieldTypeFqn = fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                Offset       = offset.Value,
-                CompoundKey  = sym.ContainingType.ToDisplayString() + "." + sym.Name + "@" + offset.Value,
-                IsCondition  = true,
-                IsHeavy      = true,
-                IsHeavyManaged    = isHeavyManaged,
-                HeavyComponentFqn = heavyCompFqn,
-                HeavyFieldName    = heavyFieldName,
-                HeavyDtoFqn       = heavyDtoFqn,
-                WritesChannels    = new List<int>(),
-            };
-        }
-
-        // ---- Struct field-offset computation -----------------------------------
-
-        private static int? TryComputeFieldOffset(
-            INamedTypeSymbol parentType,
-            string fieldName,
-            out ITypeSymbol? fieldTypeSymbol)
-        {
-            fieldTypeSymbol = null;
-            var fields = parentType.GetMembers()
-                .OfType<IFieldSymbol>()
-                .Where(f => !f.IsStatic && !f.IsConst)
-                .ToList();
-
-            bool isExplicit = parentType.GetAttributes()
-                .Any(a => a.AttributeClass?.Name == "StructLayoutAttribute"
-                       && a.ConstructorArguments.Length > 0
-                       && (int?)a.ConstructorArguments[0].Value == 2); // LayoutKind.Explicit = 2
-
-            if (isExplicit)
-            {
-                var target = fields.FirstOrDefault(f => f.Name == fieldName);
-                if (target == null) return null;
-                var fa = target.GetAttributes()
-                    .FirstOrDefault(a => a.AttributeClass?.Name == "FieldOffsetAttribute");
-                if (fa == null || fa.ConstructorArguments.Length == 0) return null;
-                fieldTypeSymbol = target.Type;
-                return (int)fa.ConstructorArguments[0].Value!;
-            }
-
-            int offset = 0;
-            foreach (var field in fields)
-            {
-                int size = GetTypeSize(field.Type);
-                if (size < 0) return null;
-                if (size > 0) offset = AlignUp(offset, GetTypeAlign(field.Type));
-                if (field.Name == fieldName) { fieldTypeSymbol = field.Type; return offset; }
-                offset += size;
-            }
-            return null;
-        }
-
-        private static int GetTypeSize(ITypeSymbol type)
-        {
-            switch (type.SpecialType)
-            {
-                case SpecialType.System_Boolean:
-                case SpecialType.System_Byte:
-                case SpecialType.System_SByte:   return 1;
-                case SpecialType.System_Char:
-                case SpecialType.System_Int16:
-                case SpecialType.System_UInt16:  return 2;
-                case SpecialType.System_Int32:
-                case SpecialType.System_UInt32:
-                case SpecialType.System_Single:  return 4;
-                case SpecialType.System_Int64:
-                case SpecialType.System_UInt64:
-                case SpecialType.System_Double:
-                case SpecialType.System_IntPtr:
-                case SpecialType.System_UIntPtr: return 8;
-                default:
-                    if (type.TypeKind == TypeKind.Enum && type is INamedTypeSymbol en)
-                        return en.EnumUnderlyingType != null ? GetTypeSize(en.EnumUnderlyingType) : 4;
-                    if (type.TypeKind == TypeKind.Struct && type is INamedTypeSymbol named)
-                        return ComputeStructSize(named);
-                    return -1;
-            }
-        }
-
-        private static int GetTypeAlign(ITypeSymbol type)
-        {
-            int size = GetTypeSize(type);
-            return size <= 0 ? 1 : (size <= 8 ? size : 8);
-        }
-
-        private static int ComputeStructSize(INamedTypeSymbol type)
-        {
-            bool isExplicit = type.GetAttributes()
-                .Any(a => a.AttributeClass?.Name == "StructLayoutAttribute"
-                       && a.ConstructorArguments.Length > 0
-                       && (int?)a.ConstructorArguments[0].Value == 2); // LayoutKind.Explicit = 2
-
-            var fields = type.GetMembers()
-                .OfType<IFieldSymbol>()
-                .Where(f => !f.IsStatic && !f.IsConst)
-                .ToList();
-
-            if (isExplicit)
-            {
-                int max = 0;
-                foreach (var field in fields)
-                {
-                    var fa = field.GetAttributes()
-                        .FirstOrDefault(a => a.AttributeClass?.Name == "FieldOffsetAttribute");
-                    if (fa == null || fa.ConstructorArguments.Length == 0) return -1;
-                    int fo = (int)fa.ConstructorArguments[0].Value!;
-                    int fs = GetTypeSize(field.Type);
-                    if (fs < 0) return -1;
-                    max = System.Math.Max(max, fo + fs);
-                }
-                return max;
-            }
-            else
-            {
-                int offset = 0, maxAlign = 1;
-                foreach (var field in fields)
-                {
-                    int size = GetTypeSize(field.Type), align = GetTypeAlign(field.Type);
-                    if (size < 0) return -1;
-                    if (align > maxAlign) maxAlign = align;
-                    if (size > 0) offset = AlignUp(offset, align);
-                    offset += size;
-                }
-                return AlignUp(offset, maxAlign);
-            }
-        }
-
-        private static int AlignUp(int v, int a) => a <= 1 ? v : (v + a - 1) & ~(a - 1);
-
-        // ---- Assign SharedAi entries to groups ---------------------------------
-
-        private static void AssignSharedAiToGroups(
-            Compilation compilation,
-            List<SharedAiEntry> entries,
-            List<GroupEntry> groups)
-        {
-            foreach (var entry in entries)
-            {
-                bool assigned = false;
-                foreach (var group in groups)
-                {
-                    // Use the context type symbol to check for a 'Self' member.
-                    string tcName = group.TContextType.Replace("global::", "");
-                    var tcSymbol  = compilation.GetTypeByMetadataName(tcName);
-                    bool hasSelf  = tcSymbol?.GetMembers("Self").Any() == true;
-                    if (hasSelf)
-                    {
-                        group.SharedAiEntries.Add(entry);
-                        assigned = true;
-                    }
-                }
-                if (!assigned)
-                {
-                    // No suitable group found (none has Self context member).
-                    // SharedAi entries require a context with a Self member; the HSM generator
-                    // handles these entries on the HSM side when no BTree context claims them.
-                }
-            }
-        }
+        // ---- Struct field-offset computation: the ONE algorithm, Shared/RoslynStructLayout.cs (CE-2027) ----
 
         // ---- Code generation ---------------------------------------------------
 
@@ -618,8 +322,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("    public static class FbtActionRegistrar");
             sb.AppendLine("    {");
             sb.AppendLine("        // 4-param NodeLogicDelegate methods are registered directly.");
-            sb.AppendLine("        // 3-param ReusableDelegate methods are registered as bridge closures");
-            sb.AppendLine("        // using Unsafe.As to project the runtime blackboard to TValue.");
 
             foreach (var group in groups)
             {
@@ -637,21 +339,13 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                         EmitWrapped4Param(sb, m, tb, tc);
                 }
 
-                foreach (var m in group.Bridges)
-                {
-                    string stateType = m.StateType ?? "global::Fbt.BehaviorTreeState";
-                    string valueType = m.TValueType!;
-                    string key       = m.FullQualifiedMethodName + "@0";
-                    sb.AppendLine("            registry.Register(\"" + key + "\",");
-                    sb.AppendLine("                (ref " + tb + " bb, ref " + stateType + " st, ref " + tc + " ctx, int _) =>");
-                    sb.AppendLine("                {");
-                    sb.AppendLine("                    ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<" + tb + ", " + valueType + ">(ref bb);");
-                    sb.AppendLine("                    return global::" + m.FullQualifiedMethodName + "(ref p, ref st, ref ctx);");
-                    sb.AppendLine("                });");
-                }
+                // ⛔ CE-504 slice 4 — the 3-param [BTreeAction]/[BTreeCondition] "@0" bridge adapters are retired (BHU_022):
+                //   a binding calls the shared C# form, emitted per binding by the asset bridge or curried by SharedNodeBinder.
 
-                foreach (var entry in group.SharedAiEntries)
-                    EmitSharedAiAdapter(sb, entry, tb, tc);
+                // ⛔⛔ CE-417 B-2 (a′) — no per-METHOD [SharedAi*] adapters any more: they were keyed by the attribute DTO's
+                //   field offset, so an asset's binding (Fqn@hostOffset) reached one only when the offsets agreed (F7/F8),
+                //   and the asset's own call registered the same key with the wrong signature. ⭐ The BTree ASSET's bridge now
+                //   emits the [SharedAi*] call per binding (BTreeBridgeEmitCore), with the channel release (ChannelClearEmit).
 
                 foreach (var m in group.Deactivators)
                     sb.AppendLine("            registry.RegisterDeactivator(\"" + m.TargetAction + "\", global::" + m.FullQualifiedMethodName + ");");
@@ -670,116 +364,11 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("                static (ref " + tb + " bb, ref global::Fbt.BehaviorTreeState st, ref " + tc + " ctx, int pi) =>");
             sb.AppendLine("                {");
             sb.AppendLine("                    var status = global::" + m.FullQualifiedMethodName + "(ref bb, ref st, ref ctx, pi);");
-            EmitChannelClear(sb, m.WritesChannels, "                    ");
+            Fdp.Toolkit.Behavior.Shared.ChannelClearEmit.Emit(sb, m.WritesChannels, "                    ");
             sb.AppendLine("                    return status;");
             sb.AppendLine("                });");
         }
 
-        private static void EmitSharedAiAdapter(StringBuilder sb, SharedAiEntry entry, string tb, string tc)
-        {
-            if (entry.IsHeavy)
-            {
-                EmitHeavySharedAiAdapter(sb, entry, tb, tc);
-                return;
-            }
-
-            if (entry.WritesChannels.Count == 0)
-            {
-                string regMethod = entry.IsCondition ? "RegisterCondition" : "Register";
-                sb.AppendLine("            registry." + regMethod + "(\"" + entry.CompoundKey + "\",");
-                sb.AppendLine("                static (ref " + tb + " bb, ref global::Fbt.BehaviorTreeState _, ref " + tc + " ctx, int _) =>");
-                sb.AppendLine("                {");
-                sb.AppendLine("                    ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-                sb.AppendLine("                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters, (nint)" + entry.Offset + "));");
-                if (entry.IsCondition)
-                    sb.AppendLine("                    return global::" + entry.FullQualifiedMethodName + "(ref field, ctx.Self, ctx.World) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure;");
-                else
-                    sb.AppendLine("                    return global::" + entry.FullQualifiedMethodName + "(ref field, ctx.Self, ctx.World);");
-                sb.AppendLine("                });");
-            }
-            else
-            {
-                sb.AppendLine("            registry.Register(\"" + entry.CompoundKey + "\",");
-                sb.AppendLine("                static (ref " + tb + " bb, ref global::Fbt.BehaviorTreeState st, ref " + tc + " ctx, int pi) =>");
-                sb.AppendLine("                {");
-                sb.AppendLine("                    ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-                sb.AppendLine("                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters, (nint)" + entry.Offset + "));");
-                sb.AppendLine("                    var status = global::" + entry.FullQualifiedMethodName + "(ref field, ctx.Self, ctx.World);");
-                EmitChannelClear(sb, entry.WritesChannels, "                    ");
-                sb.AppendLine("                    return status;");
-                sb.AppendLine("                });");
-            }
-        }
-
-        private static void EmitHeavySharedAiAdapter(StringBuilder sb, SharedAiEntry entry, string tb, string tc)
-        {
-            bool isCondition = entry.IsCondition;
-            bool hasChannels = entry.WritesChannels.Count > 0;
-            string regMethod = isCondition ? "RegisterCondition" : "Register";
-            sb.AppendLine("            registry." + regMethod + "(\"" + entry.CompoundKey + "\",");
-            sb.AppendLine("                static (ref " + tb + " bb, ref global::Fbt.BehaviorTreeState st, ref " + tc + " ctx, int pi) =>");
-            sb.AppendLine("                {");
-            sb.AppendLine("                    ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-            sb.AppendLine("                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters, (nint)" + entry.Offset + "));");
-            if (entry.IsHeavyManaged)
-            {
-                // Managed component: fetch via GetComponent<T> (returns the class instance)
-                sb.AppendLine("                    var heavy = ctx.World.GetComponent<" + entry.HeavyComponentFqn + ">(ctx.Self);");
-                if (isCondition)
-                    sb.AppendLine("                    return global::" + entry.FullQualifiedMethodName + "(ref field, heavy, ctx.Self, ctx.World) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure;");
-                else
-                    sb.AppendLine("                    var status = global::" + entry.FullQualifiedMethodName + "(ref field, heavy, ctx.Self, ctx.World);");
-            }
-            else
-            {
-                // Unmanaged component: fetch via GetComponentRW<T>, then project bytes via Unsafe.As.
-                // Assumption: the heavy DTO starts at offset 0 of the component (true for Blackboard1024.Memory).
-                sb.AppendLine("                    ref var heavyComp = ref ctx.World.GetComponentRW<" + entry.HeavyComponentFqn + ">(ctx.Self);");
-                sb.AppendLine("                    ref var heavy = ref Unsafe.As<byte, " + entry.HeavyDtoFqn + ">(");
-                sb.AppendLine("                        ref Unsafe.AddByteOffset(ref Unsafe.As<" + entry.HeavyComponentFqn + ", byte>(ref heavyComp), (nint)0));");
-                if (isCondition)
-                    sb.AppendLine("                    return global::" + entry.FullQualifiedMethodName + "(ref field, ref heavy, ctx.Self, ctx.World) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure;");
-                else
-                    sb.AppendLine("                    var status = global::" + entry.FullQualifiedMethodName + "(ref field, ref heavy, ctx.Self, ctx.World);");
-            }
-            if (!isCondition)
-            {
-                if (hasChannels) EmitChannelClear(sb, entry.WritesChannels, "                    ");
-                sb.AppendLine("                    return status;");
-            }
-            sb.AppendLine("                });");
-        }
-
-        private static void EmitChannelClear(StringBuilder sb, List<int> channels, string indent)
-        {
-            sb.AppendLine(indent + "if (status == global::Fbt.NodeStatus.Failure)");
-            sb.AppendLine(indent + "{");
-            foreach (int kind in channels)
-            {
-                string? ct = ChannelKindToType(kind);
-                if (ct == null) continue;
-                sb.AppendLine(indent + "    ref var ch" + kind + " = ref ctx.World.GetComponentRW<" + ct + ">(ctx.Self);");
-                sb.AppendLine(indent + "    ch" + kind + ".ActiveAction     = 0;");
-                sb.AppendLine(indent + "    ch" + kind + ".ActionInstanceId = unchecked(ch" + kind + ".ActionInstanceId + 1u);");
-            }
-            sb.AppendLine(indent + "}");
-        }
-
-        private static string? ChannelKindToType(int kind) => kind switch
-        {
-            0 => LocomotionChannelType,
-            1 => WeaponChannelType,
-            2 => InteractionChannelType,
-            _ => null,
-        };
-
-        // ---- FNV-1a hash (identical to HsmActionGenerator) ---------------------
-        private static ushort ComputeHash(string name)
-        {
-            uint hash = 2166136261;
-            foreach (char c in name) { hash ^= c; hash *= 16777619; }
-            return (ushort)(hash & 0xFFFF);
-        }
     }
 
     // ---- Data types ------------------------------------------------------------
@@ -790,13 +379,11 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         public string FullQualifiedMethodName { get; set; } = "";
         public string? TBlackboardType { get; set; }
         public string? TContextType { get; set; }
-        public string? TValueType { get; set; }
-        public string? StateType { get; set; }
         public bool IsReusable { get; set; }
         public bool IsActionKind { get; set; }
         public bool IsSharedAi { get; set; }
         public bool IsSharedCondition { get; set; }
-        public bool IsSharedHeavy { get; set; }        public bool IsSharedHeavyCondition { get; set; }        public bool IsDeactivator { get; set; }
+        public bool IsDeactivator { get; set; }
         public string TargetAction { get; set; } = string.Empty;
         public IMethodSymbol? Symbol { get; set; }
         public List<int> WritesChannels { get; set; } = new List<int>();
@@ -810,12 +397,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         public int Offset { get; set; }
         public string CompoundKey { get; set; } = "";
         public bool IsCondition { get; set; }
-        // Heavy-action fields (populated only when IsHeavy == true)
-        public bool IsHeavy { get; set; }
-        public bool IsHeavyManaged { get; set; }
-        public string? HeavyComponentFqn { get; set; }
-        public string? HeavyFieldName { get; set; }
-        public string? HeavyDtoFqn { get; set; }
         public List<int> WritesChannels { get; set; } = new List<int>();
     }
 
@@ -824,14 +405,12 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         public string TBlackboardType { get; }
         public string TContextType { get; }
         public List<BTreeMethodInfo> Direct { get; }
-        public List<BTreeMethodInfo> Bridges { get; }
-        public List<SharedAiEntry> SharedAiEntries { get; } = new List<SharedAiEntry>();
         public List<BTreeMethodInfo> Deactivators { get; } = new List<BTreeMethodInfo>();
 
-        public GroupEntry(string tb, string tc, List<BTreeMethodInfo> direct, List<BTreeMethodInfo> bridges)
+        public GroupEntry(string tb, string tc, List<BTreeMethodInfo> direct)
         {
             TBlackboardType = tb; TContextType = tc;
-            Direct = direct; Bridges = bridges;
+            Direct = direct;
         }
     }
 }

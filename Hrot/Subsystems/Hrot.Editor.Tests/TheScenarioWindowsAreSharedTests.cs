@@ -1,0 +1,318 @@
+using Fdp.Core;
+using Hrot.Common;
+using Hrot.Common.Events;
+using Hrot.Presentation.Windows;
+using Hrot.UI.Common.Adapters;
+using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.Panels;
+using Moq;
+using Xunit;
+
+namespace Hrot.Editor.Tests;
+
+/// <summary>
+/// ⭐⭐⭐ <b><c>CE-060</c>/<c>CE-061</c> — Axis-C <b>E5</b>: the Scenario-perspective windows are ONE
+/// implementation, and CGF composes them.</b> 📄 <c>docs/DESIGN_Cgf_Scenario_Windows_Slice.md</c> §7 ⑤.
+///
+/// <para>⚠⚠ <b>What these rails can and cannot reach — stated up front, because the gap this slice closed
+/// hid behind exactly this.</b> CGF builds its panels and adapters inside <c>Initialize</c>'s
+/// <c>if (!_headless)</c> block, from <c>_context</c> (world, bus, TKB db, geo transform). ⇒ ⛔ a
+/// bare-ctor <c>RegisterWindows</c> rail — the kind every window unit test uses — reaches <c>null</c>
+/// panels and registers nothing, so it <b>cannot</b> assert that CGF shows these windows.</para>
+///
+/// <para>⭐⭐ So the coverage is split honestly: <b>source-scan composition guards</b> for *"the host wires
+/// it"*, <b>behavioural rails</b> for the parts that are pure logic, and the <b>T3 conformance rails</b>
+/// (which read <c>PanelSnapshot</c> from a real cluster) for *"the window actually appears"*. ⛔ Claiming
+/// a unit rail proves the last one is the mistake that kept <c>CE-049</c> and <c>CE-053</c> green.</para>
+/// </summary>
+public sealed class TheScenarioWindowsAreSharedTests
+{
+    // ══ ① ONE IMPLEMENTATION — the wrappers are gone from the hosts ══════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Neither host declares its own wrapper for a shared panel any more.</b> 📐 Before E5,
+    /// <c>EditorWindows.cs</c> and <c>ExConWindows.cs</c> each declared four, with the same bodies —
+    /// which is why CGF could not have them: <c>Hrot.Editor → Hrot.CGF</c> makes that file unreachable.
+    /// ⚠ Scoped to the EDITOR's file: <c>Hrot.ExCon</c> is the backend lane's and adopting the shared set
+    /// there is a separate item (design §4).
+    /// </summary>
+    [Theory]
+    [InlineData("EditorSpawnerWindow")]
+    [InlineData("EditorMissionWindow")]
+    [InlineData("EditorConfigWindow")]
+    [InlineData("EditorSharedOrbatWindow")]
+    public void TheEditorDeclaresNoPrivateWrapperForASharedPanel(string typeName)
+    {
+        var text = HostSource.ReadRelative("Hrot", "Subsystems", "Hrot.Editor", "Windows", "EditorWindows.cs");
+        Assert.DoesNotContain($"class {typeName} ", text);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Both hosts register through the shared types.</b> ⚠ A source scan is necessary — window
+    /// registration is composition — and it is the substitute for the bare-ctor rail this file's remarks
+    /// explain cannot reach CGF's panels.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.CGF",    "CgfSubsystem.cs")]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs")]
+    public void AHostRegistersTheSharedScenarioWindows(string project, string file)
+    {
+        var text = HostSource.Read(project, file);
+
+        Assert.Contains("SpawnerPanelWindow(",     text);
+        Assert.DoesNotContain("MissionPanelWindow",  text);   // ⭐ P-7 7d — retired: the Orders tab is the plan editor
+        Assert.Contains("ConfigPanelWindow(",      text);
+        Assert.Contains("SharedOrbatPanelWindow(", text);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>A host that registers a window also CONSTRUCTS its adapter.</b> 📌 This is the silent-default
+    /// guard in rail form: registering the window with a null adapter would give a window that cannot be
+    /// serviced, and the shared wrappers take the adapter by value so it cannot be skipped.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.CGF",    "CgfSubsystem.cs")]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs")]
+    public void AHostThatRegistersTheWindowsConstructsTheAdapters(string project, string file)
+    {
+        var text = HostSource.Read(project, file);
+        if (!text.Contains("SpawnerPanelWindow(", StringComparison.Ordinal)) return;
+
+        // ⭐ CE-1017 — the spawn adapter comes from the map pack's EntityAuthoring (one construction site).
+        Assert.Contains("EntityAuthoring?.Spawn",    text);
+        Assert.Contains("ScenarioMissionService(",   text);
+        Assert.Contains("ScenarioMapConfigAdapter(", text);
+        Assert.Contains("ScenarioOrbatAdapter(",     text);
+    }
+
+    // ══ ② THE IDS — the byte-identical gate, and no cross-host collision ═════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>P-7 7d (CE-4303) — THE WINDOW-SET ACCEPTANCE RAIL: the Mission window is gone on every host and the Orders tab is offered.</b>
+    /// 📄 <c>docs/UX/DESIGN_Mission_Plan_Editor.md</c> §5.11 row 7d. ⚠ A source scan for the window half (the bare-ctor limitation above: the panels are built in
+    /// <c>Initialize</c>); the host's <c>Missions:</c> hand-over to the shared Details bundle is what puts the tab on it. The wire-level half is the
+    /// <c>ui-baseline-*</c> goldens (<c>registered-windows.json</c> no longer lists <c>editor_mission</c> / <c>cgf_mission</c>).
+    /// 🔴 Red-proof: registering any <c>MissionPanelWindow</c> in either host ⇒ red.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.CGF",    "CgfSubsystem.cs")]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs")]
+    public void NoHostRegistersAMissionWindow_AndEveryHostHandsTheOrdersTabItsMissionFacade(string project, string file)
+    {
+        var text = HostSource.Read(project, file);
+
+        Assert.DoesNotContain("MissionPanelWindow", text);
+        Assert.DoesNotContain("new MissionPanel(",  text);
+        Assert.DoesNotContain("ScenarioMissionView", text);
+        Assert.Matches(@"Missions:\s+\(\) => _missionService", text);   // the bundle's Orders tab over the one mission facade
+    }
+
+    /// <summary>⭐ P-7 7d — the production editor's Details catalogue offers the Orders tab and no Mission tab (a behavioural half for the Editor).</summary>
+    [Fact]
+    public void TheEditorsDetailsCatalogue_HasTheOrdersTab_AndNoMissionTab()
+    {
+        var editor = new Hrot.Editor.EditorSubsystem();
+        var wm = new Fdp.Presentation.WindowManager.WindowManager(new Fdp.Presentation.Icons.IconAtlas(IntPtr.Zero, 16f, 16f));
+        editor.RegisterWindows(wm);
+
+        var ids = editor.ScenarioWorkspace!.DetailsViews.All.Select(d => d.Id).ToArray();
+        Assert.Contains("details.orders", ids);
+        Assert.DoesNotContain("details.mission", ids);
+        Assert.DoesNotContain("editor_mission", wm.RegisteredWindowIds);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The editor's three window ids are UNCHANGED.</b> ⚠ This is the gate that makes E5 safe: the
+    /// ids key layout files, <c>PanelSnapshot</c> instrumentation and every id-keyed rail, so a "tidier"
+    /// rename would silently reset users' window layouts.
+    /// </summary>
+    [Fact]
+    public void TheEditorIdsAreTheHistoricalOnes()
+    {
+        Assert.Equal("editor_spawner",      ScenarioPanelWindowIds.EditorSpawner);
+        Assert.Equal("editor_config",       ScenarioPanelWindowIds.EditorConfig);
+        Assert.Equal("editor_shared_orbat", ScenarioPanelWindowIds.EditorOrbat);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>CGF's ids are DISTINCT from the editor's.</b> ⚠ The two hosts can never run in one process
+    /// (<c>HrotRunnerConfiguration.Validate</c> rejects <c>editor</c> with <c>cgf</c>), so a collision
+    /// would not crash — ⛔ it would make a layout file written by one host reposition the other's
+    /// windows, which is worse because it is silent.
+    /// </summary>
+    [Fact]
+    public void TheCgfIdsDoNotCollideWithTheEditorIds()
+    {
+        var editor = new[] { ScenarioPanelWindowIds.EditorSpawner, ScenarioPanelWindowIds.EditorConfig, ScenarioPanelWindowIds.EditorOrbat };
+        var cgf    = new[] { ScenarioPanelWindowIds.CgfSpawner,    ScenarioPanelWindowIds.CgfConfig,    ScenarioPanelWindowIds.CgfOrbat };
+
+        Assert.Empty(editor.Intersect(cgf));
+        Assert.Equal(3, editor.Distinct().Count());
+        Assert.Equal(3, cgf.Distinct().Count());
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The window is genuinely parameterised</b> — the same type yields a different id/perspective
+    /// per host. ⛔ Without this, "one implementation" could still be one implementation with a hard-coded
+    /// id, which is what the two duplicated wrappers were.
+    /// </summary>
+    [Fact]
+    public void OneWindowTypeServesBothHostsIdentities()
+    {
+        var editorWin = new SpawnerPanelWindow(
+            new SpawnerPanel(), Mock.Of<ISpawnController>(),
+            ScenarioPanelWindowIds.EditorSpawner, "Scenario", default);
+        var cgfWin = new SpawnerPanelWindow(
+            new SpawnerPanel(), Mock.Of<ISpawnController>(),
+            ScenarioPanelWindowIds.CgfSpawner, "Scenario", default);
+
+        Assert.Equal("editor_spawner", editorWin.Id);
+        Assert.Equal("cgf_spawner",    cgfWin.Id);
+        Assert.Equal(editorWin.SimulateDrawClientArea().PanelKind,
+                     cgfWin.SimulateDrawClientArea().PanelKind);   // ⭐ one KIND, two instances
+    }
+
+    // ══ ③ CE-060 — SelectEntity finally selects the entity ═══════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-060</c>: <c>ScenarioOrbatAdapter.SelectEntity</c> publishes BOTH shared events.</b>
+    /// 📐 Measured before the fix: the body was <c>_logic.ActivateTool(EditorTool.Select)</c> — it
+    /// activated the tool and ⛔ <b>dropped the <c>entityId</c> on the floor</b>, so clicking an ORBAT row
+    /// selected nothing on either host. ⚠ That editor-facade call was also the LAST thing keeping this
+    /// adapter inside <c>Hrot.Editor</c>.
+    /// </summary>
+    [Fact]
+    public void SelectingAnOrbatRowActivatesTheToolAndSelectsTheEntity()
+    {
+        // ⭐⭐ CE-1020 — through a REAL row: the provider's node id is the entity INDEX, the command carries the NETWORK id.
+        //   ⛔ The earlier form passed 4242 straight in and asserted NetworkId 4242 — it pinned the defect (a click selected
+        //   nothing, or the entity whose network id equalled the row's index).
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        for (int i = 0; i < 3; i++) world.CreateEntity();   // push the tank's index away from 0
+        var tank = world.CreateEntity();
+        world.AddComponent(tank, new EntityInfo { Name = new FixedString64("Tank") });
+        world.AddComponent(tank, new Fdp.Toolkit.Replication.Components.NetworkIdentity(5100));
+        var bus = world.Bus;
+        var adapter = new ScenarioOrbatAdapter(world, bus, Mock.Of<ISpawnController>());
+        var row = Assert.Single(adapter.GetVisibleNodes("", new System.Collections.Generic.HashSet<int>()));
+
+        adapter.SelectEntity(row.EntityId);
+        // ⭐ The bus is double-buffered — a publish is visible to Read<> only after the swap, the same
+        //   way AdapterTests' embark/disembark rails read it.
+        bus.SwapBuffers();
+
+        var tools = bus.Read<ActivateEditorToolEvent>().ToArray();
+        var picks = bus.Read<SelectEntityCommand>().ToArray();
+
+        Assert.Single(tools);
+        Assert.Equal(EditorTool.Select, tools[0].Tool);
+        Assert.Equal(tank.Index, row.EntityId);              // the row is index-addressed (every other controller method relies on it)
+        Assert.Equal(5100L, Assert.Single(picks).NetworkId);  // ⭐ …and the selection is network-addressed
+    }
+
+    // ══ ④ ONE SPAWNER CATALOG ════════════════════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐ <b>The spawner catalog is built from the TKB, not a literal.</b> 📐 It was declared twice — 15 entries in
+    /// <c>EditorSubsystem</c>, a near-duplicate 9 in <c>ExConSubsystem</c> — and CE-061 made it one shared list.
+    /// ⭐ <c>CE-1017</c> S4 retires that list too: both hosts take <c>EntityTypeCatalog.SpawnerEntries(tkb)</c> and open
+    /// the grouped picker (docs/DESIGN_Add_Entity_Picker.md D7, S4).
+    /// </summary>
+    [Fact]
+    public void TheEditorAndCgfTakeTheirSpawnerCatalogFromTheTkb()
+    {
+        foreach (var (project, file) in new[] { ("Hrot.Editor", "EditorSubsystem.cs"), ("Hrot.CGF", "CgfSubsystem.cs") })
+        {
+            var text = HostSource.Read(project, file);
+            Assert.Contains("EntityTypeCatalog.SpawnerEntries(", text);
+            Assert.Contains("OpenPicker = () => _shellPickers", text);
+            Assert.DoesNotContain("new TkbCatalogEntry[]", text);
+            Assert.DoesNotContain("ScenarioSpawnerCatalog.Default", text);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1017</c> — ONE entity-authoring wiring on every windowed map host (🔒 user: "Do we share unified code
+    /// across simhost and cgf and ig and editor? We should."): each passes <c>MapInteractionContext.EntityAuthoring</c>,
+    /// schedules the PACK's canvas menu and draws the map's operator UI (picker + ⭐ CE-1059 order form) — and none hand-builds a spawn adapter, a canvas menu system
+    /// or an entity-icon picker of its own. ⛔ A host that forgets a half gets no submenu and no error — this rail is
+    /// the error.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.Editor",  "EditorSubsystem.cs")]
+    [InlineData("Hrot.CGF",     "CgfSubsystem.cs")]
+    [InlineData("Hrot.SimHost", "SimHostApp.cs")]
+    [InlineData("Hrot.Player",      "PlayerApplication.cs")]
+    public void EveryWindowedMapHostUsesTheOneEntityAuthoringWiring(string project, string file)
+    {
+        var text = HostSource.Read(project, file);
+
+        Assert.Contains("EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(", text);
+        Assert.Matches(@"RegisterGlobalSystem\(\w+\.CanvasMenu\)", text);
+        // ⭐ CE-1059 — the map's operator UI (the pack's pickers + the order form) is drawn each frame: OpenPicker only queues, and
+        //   the order form is offered only where it is drawn (DESIGN_Orders_Params_Entity_Classes §13.12 O2).
+        Assert.Contains(".DrawOperatorUi()", text);
+        Assert.DoesNotContain("new Hrot.Presentation.Systems.CanvasMenuUpdateSystem(", text);
+        Assert.DoesNotContain("ScenarioSpawnAdapter(", text);
+        Assert.DoesNotContain("new Hrot.UI.Common.AddEntity.EntityIconLibrary(", text);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1059</c> — the silent-default rule for the entity LIST: a host that holds a world and a picker registry passes the
+    /// list to every params form it builds (the Editor: the AI view's and the Details forms' brokers; CGF: the Details forms' broker — P-7 7d moved the retired mission panels' list there). ⛔ Forgetting one leaves that form map-only with no error — this rail is the error.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs", 2)]   // ⭐ P-7 7d — the AI view's broker + the Details forms' broker (the Orders tab's task forms)
+    [InlineData("Hrot.CGF",    "CgfSubsystem.cs",    1)]   // ⭐ P-7 7d — the Details forms' broker
+    public void EveryParamsFormHostPassesTheEntityList(string project, string file, int forms)
+    {
+        var text = HostSource.Read(project, file);
+        int passed = System.Text.RegularExpressions.Regex.Matches(text,
+            @"EntityList = Hrot\.Presentation\.Orders\.EntityListSource\.Opener\(").Count;
+        Assert.Equal(forms, passed);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1230</c> (docs/designs/gizmos-1/canvas-context-menu-design.md §11 OM-1, R-1019) — the silent-default rule for the ORBAT row's
+    /// menu: a host with a map gives its ORBAT panel the map's entity menu (<c>RowMenu</c>), found through the same inspector state the
+    /// inspector's menu uses. ⛔ Forgetting it leaves the tree with no menu at all — this rail is the error.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs")]
+    [InlineData("Hrot.CGF",    "CgfSubsystem.cs")]
+    public void EveryMapHostGivesTheOrbatRowTheMapsMenu(string project, string file)
+    {
+        var text = HostSource.Read(project, file);
+        Assert.Contains("RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => HostActions,", text);   // ⭐ CE-1150 — the host's actions
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1150</c> (docs/designs/gizmos-1/canvas-context-menu-design.md §12 HA-1 / HA-4; 🔒 user, 2026-10-22: <i>"the details
+    /// panel is not something just the editor has, it is shared and unified across hosts and the "properties..." click should show it on
+    /// every ECS host"</i>) — EVERY ECS host composes the shared Details panel, and every host with a map hands it ITS actions.
+    /// 📐 Before: the Details panel with the Components view on the Editor only. ⛔ Forgetting either half on a host leaves Properties… dead
+    /// there or the panel missing — this rail is the error. ✅ Red-proof: removing the bundle from any one host reddens its row.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",               true)]
+    [InlineData("Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",                     true)]
+    [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs",             false)]
+    [InlineData("Hrot/Subsystems/Hrot.Player/PlayerSubsystem.cs",                       false)]
+    [InlineData("Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs", true)]
+    [InlineData("Stride/HrotStrideApp.Game/StrideNodeShell.cs",                 false)]
+    public void EveryEcsHostComposesTheSharedDetailsPanel(string file, bool buildsItsMapHere)
+    {
+        var text = HostSource.ReadRelative(file.Split('/'));
+        Assert.Contains("new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(", text);
+        if (buildsItsMapHere) Assert.Contains("Host  = HostActions,", text);
+    }
+
+    /// <summary>⭐ CE-1150 (HA-1) — the two hosts that build their map in their application class hand it the host's actions there.</summary>
+    [Theory]
+    [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs")]
+    [InlineData("Hrot/Subsystems/Hrot.Player/PlayerApplication.cs")]
+    public void TheMapIsHandedTheHostsActions(string file)
+        => Assert.Contains("Host  = HostActions,", HostSource.ReadRelative(file.Split('/')));
+}

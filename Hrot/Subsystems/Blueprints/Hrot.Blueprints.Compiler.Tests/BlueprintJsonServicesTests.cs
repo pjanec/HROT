@@ -35,7 +35,7 @@ public class BlueprintJsonServicesTests
 
         var meta = JsonEnvelope.Read(dom);
         Assert.Equal(HrotDocumentTypes.Blueprint, meta.DocType);
-        Assert.Equal(1, meta.SchemaVersion);
+        Assert.Equal(BlueprintSchemaV2.V2, meta.SchemaVersion);   // ⭐ CE-2063 ② — the writer stamps v2 (CurrentVersion = 2); 1 was stale
     }
 
     /// <summary>

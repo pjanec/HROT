@@ -1,0 +1,122 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "bt-range",
+  "description": "What: macros S3b B3 - the counter-attack director macro (macros/control/counter-attack) with delay 9 s, a Hostile man whose skill is Regular and a Friend man. Judge: at ~9 s a hostile fire team appears at @CounterAttackFrom (120,100), the World Environment's SkillAmplifier reads Hostile +1, the Hostile men's CombatProficiency.SideTiers = 1 (the Friend man 0), and the message is sent. The sibling scenario test-director-early uses the same macro with another delay."
+ },
+ "entities": {
+  "dd000000-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     120.0,
+     100.0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Counter-attack start",
+    "ForceId": "Neutral"
+   },
+   "RefKey": {
+    "Value": "CounterAttackFrom"
+   }
+  },
+  "dd000000-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     60.0,
+     60.0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Defender",
+    "ForceId": "Friend"
+   }
+  },
+  "dd000000-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     70.0,
+     140.0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Sentry",
+    "ForceId": "Hostile"
+   }
+  },
+  "dd000000-0000-4000-8000-000000000004": {
+   "SimTransform": {
+    "Position": [
+     0.0,
+     0.0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 8813
+   },
+   "EntityInfo": {
+    "Name": "Director"
+   },
+   "MacroInstance": {
+    "Macro": "control/counter-attack",
+    "Args": {
+     "delay": 9
+    }
+   }
+  }
+ }
+}

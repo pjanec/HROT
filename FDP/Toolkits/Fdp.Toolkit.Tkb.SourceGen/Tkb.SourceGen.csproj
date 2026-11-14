@@ -11,4 +11,8 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- CE-2039: the ONE identifier sanitizer, linked (a generator cannot take a project reference). -->
+    <Compile Include="..\Fdp.Toolkits.Analyzers\Shared\IdentifierSanitizer.cs" Link="Shared\IdentifierSanitizer.cs" />
+  </ItemGroup>
 </Project>

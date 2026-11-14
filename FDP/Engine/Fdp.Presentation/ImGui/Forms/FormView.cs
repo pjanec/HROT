@@ -1,0 +1,556 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using Fdp.Core;
+using Fdp.Presentation.Editing;
+using Fdp.Toolkit.Replication.Edits;
+using Fdp.Toolkit.Replication.Patching;
+using ImGuiNET;
+using NodeEditor.Core.Widgets;
+
+namespace Fdp.Presentation.Forms;
+
+/// <summary>
+/// ⭐ U-12 / D1 (docs/UX/DESIGN_Details_Forms.md §2.1–§2.4, §6) — THE shared form view: draws a <see cref="FormDecl"/> for a selection on <see cref="FormGrid"/>
+/// through D0's <see cref="FormRow"/> (label · control · status slot). ⭐ A value at rest is a CACHED string, rebuilt only when the world's value changes
+/// (0 B per steady frame — CE-4285); numbers edit in place with the cached format, so no StructEdit session is opened for a scalar.
+/// ⭐ Multi-select: the rows common to the selection, a differing value shows <i>mixed</i>, setting it writes every entity (one <c>Submit</c> each).
+/// ⭐ Every write is <see cref="Edits.Submit"/> (<see cref="EditOp.Write(Entity, EntityAttributeChange, string)"/>): the form never decides local or remote; the outcome
+/// marks the row (⏳ pending, ✗ refused with the reason). Read-only (a recording, a seat without the right) = the whole form disabled, nothing written.
+/// One instance per host panel (it keeps the panel's cache and the row being edited).
+/// </summary>
+/// <summary>
+/// ⭐ Review §6.13 (RW-1) — an optional row TRAILER a host installs on a <see cref="FormView"/>: one small toggle glyph at the end of every row whose field it <see cref="Wants"/> (the replica watch's eye).
+/// Generic — the view knows nothing of what it toggles. Called per row per frame: implementations allocate nothing.
+/// </summary>
+public interface IFormRowTrailer
+{
+    /// <summary>Is the trailer offered for this selection at all (a column is added to the grids only then)?</summary>
+    bool Available(IReadOnlyList<Entity> selection);
+    /// <summary>The state of <paramref name="field"/>'s trailer: 0 none (not drawn) · 1 off · 2 on.</summary>
+    int StateOf(FormField field, IReadOnlyList<Entity> selection);
+    /// <summary>The glyph drawn (a font glyph).</summary>
+    string Glyph { get; }
+    /// <summary>Hover text of a trailer in the given state (cached strings).</summary>
+    string TipOf(int state);
+    /// <summary>The trailer was clicked.</summary>
+    void Click(FormField field, IReadOnlyList<Entity> selection);
+    /// <summary>⭐ RW-6 — drawn once under the form's rows (inside its window), only while <see cref="Available"/>: the host's own block for what the trailer toggled (the watched attributes' per-node values).</summary>
+    void Footer(FormDecl decl, IReadOnlyList<Entity> selection);
+}
+
+public sealed class FormView
+{
+    /// <summary>The ONE write seam (default <see cref="Edits.Submit"/>); a rail captures the ops here.</summary>
+    public Func<EntityRepository, EditOp, EditTicket> Submit { get; set; } = Edits.Submit;
+
+    /// <summary>The panel's Expert switch (§2.3, D7): the expert rows open by default. Saved per panel by the host.</summary>
+    public bool ExpertOpen { get; set; }
+
+    /// <summary>⭐ U-23 / D4 — THE pick context a list's add action picks through (map pick, and a list where the context offers one); null = no add.</summary>
+    public IMapPickContext? Pick { get; set; }
+    /// <summary>⭐ §6.13 — the host's row trailer (the watch eye), or null: no trailer column, the layout is untouched.</summary>
+    public IFormRowTrailer? Trailer { get; set; }
+    private bool _trailerOn;
+
+    private sealed class FieldState
+    {
+        public bool Has, Mixed, Known;
+        public double Number;
+        public FixedString64 Text;
+        public string Shown = "";
+        public string Id = "";
+        public string? Problem;
+        public readonly List<Guid> Tickets = new();
+        public string? Refusal;
+        public bool Differs;              // ⭐ U-24 / S6 — authored over the type, and different from it
+        public double TypeNumber;
+        public double Max = double.NaN;       // ⭐ U-23 part 5 — the "/ max" shown after the value (NaN: none)
+        public string? NumberFormat;          // the input's ImGui format with " / max" — rebuilt when the max moves
+        public string SliderFormat = "%.2f";   // "0.80  (type 0.50)" while it differs — cached with the tip
+        public string? TypeTip;           // "type 0.5 — reset", rebuilt only when the type's value changes (0 B steady)
+    }
+
+    private FormDecl? _decl;
+    private FieldState[] _state = Array.Empty<FieldState>();
+    private int _editing = -1;
+    private double _editNumber;
+    private string _editText = "";
+    private int _selectionStamp;
+    private string _expertId = "", _expertGridId = "";
+    private string[] _gridIds = Array.Empty<string>(), _pickIds = Array.Empty<string>();
+    private string[] _listIds = Array.Empty<string>(), _listGridIds = Array.Empty<string>();
+    private string?[] _listProblem = Array.Empty<string?>();
+    private List<string>[] _listSums = Array.Empty<List<string>>();
+    private List<string>[] _listKeys = Array.Empty<List<string>>();
+    private ListOptions[] _listOpts = Array.Empty<ListOptions>();
+    private int[] _listVersion = Array.Empty<int>();
+    private readonly List<FormListItem> _items = new();
+    private readonly Dictionary<long, (FixedString64 Who, string Shown)> _who = new();   // a row's name, built once per change (0 B steady)
+    private readonly List<string> _listRows = new();
+    private readonly List<(int Field, System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> _itemRects = new();
+
+    /// <summary>⭐ U-24 / S5 — a rail switch: record each drawn field control's screen rectangle in <see cref="ItemRects"/> (the fidelity rail MEASURES the mockup's alignment; off in the app — nothing is recorded).</summary>
+    public bool CaptureLayout { get; set; }
+    /// <summary>The last frame's field controls, in draw order: the field index and the control's screen rectangle (only while <see cref="CaptureLayout"/>).</summary>
+    public IReadOnlyList<(int Field, System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> ItemRects => _itemRects;
+
+    /// <summary>Draws <paramref name="decl"/> for <paramref name="selection"/>; <paramref name="editable"/> false ⇒ read-only (the run state / the seat decides — ONE function, §2.4).</summary>
+    public void Draw(FormDecl decl, EntityRepository world, IReadOnlyList<Entity> selection, bool editable)
+    {
+        if (!ReferenceEquals(decl, _decl)) Bind(decl);
+        _itemRects.Clear(); _trailerRects.Clear();
+        _trailerOn = Trailer != null && Trailer.Available(selection);
+        int stamp = Stamp(selection);
+        if (stamp != _selectionStamp) { _selectionStamp = stamp; _editing = -1; foreach (var s in _state) { s.Known = false; s.Tickets.Clear(); s.Refusal = null; s.Problem = null; } }
+        Refresh(world, selection);
+
+        if (!editable) ImGui.BeginDisabled();
+        // ⭐ U-23 fidelity — the common rows in captioned sections (Identity · State · …): a field with a Section closes the grid, draws the caption and opens the
+        //   next grid on the SAME labels, so the label column never moves
+        bool open = false;
+        string? pending = null;   // a skipped field's section passes to the next drawn one
+        for (int i = 0; i < decl.Fields.Count; i++)
+        {
+            var f = decl.Fields[i];
+            if (f.Expert) continue;
+            if (!_state[i].Has) { pending = f.Section ?? pending; continue; }
+            if (IsInlineChild(i)) continue;   // drawn on the previous field's row
+            string? section = f.Section ?? pending;
+            pending = null;
+            if (section != null || !open)
+            {
+                if (open) { FormGrid.End(); open = false; }
+                if (section != null) Caption(section);
+                open = FormGrid.Begin(_gridIds[i], decl.Labels, statusSlot: true, trailerSlot: _trailerOn);
+            }
+            if (open) DrawField(i, world, selection, editable);
+        }
+        if (open) FormGrid.End();
+        bool anyExpert = false;
+        for (int i = 0; i < decl.Fields.Count; i++) anyExpert |= decl.Fields[i].Expert && _state[i].Has;
+        if (anyExpert && SectionHeader.Draw(_expertId, "Details for experts", "form/info", ExpertOpen ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None))
+        {
+            if (FormGrid.Begin(_expertGridId, decl.Labels, statusSlot: true, trailerSlot: _trailerOn))
+            {
+                for (int i = 0; i < decl.Fields.Count; i++)
+                    if (decl.Fields[i].Expert && _state[i].Has && !IsInlineChild(i)) DrawField(i, world, selection, editable);
+                FormGrid.End();
+            }
+        }
+        _listRows.Clear();
+        if (selection.Count == 1)
+            for (int li = 0; li < decl.Lists.Count; li++) DrawList(li, decl.Lists[li], world, selection[0], editable);
+        if (selection.Count == 1) decl.After?.Invoke(world, selection[0], editable);   // ⭐ CE-4346 — the form's own block (the weather layers)
+        if (_trailerOn) Trailer!.Footer(decl, selection);
+        if (!editable) ImGui.EndDisabled();
+    }
+
+    // ── ⭐ U-23 / D4 — a list with actions (the seats): rows, a per-row action, an add through the one pick context ───────────────────────────
+
+    private void DrawList(int li, FormList list, EntityRepository world, Entity e, bool editable)
+    {
+        string id = _listIds[li];
+        if (editable && Pick != null && list.Add != null && Pick.TryConsumeEntityPick(id, out var picked) && picked.TryResolve(world, out var pickedEntity))
+            _listProblem[li] = list.Add(world, e, pickedEntity);
+        _items.Clear();
+        list.Fill(world, e, _items);
+        ImGui.PushID(id);
+        Caption(list.Label);
+        // ⭐ CE-3385 — the seats are the kit's LIST block (⋮ menu: Delete = the list's own Remove action; Add = a pick through the one context); the declared rows and their order stay the form's
+        var sums = _listSums[li]; var keys = _listKeys[li];
+        bool same = keys.Count == _items.Count * 2;
+        for (int j = 0; j < _items.Count; j++)
+        {
+            string who = WhoOf(_items[j]);
+            _listRows.Add(_items[j].Role); _listRows.Add(who);
+            if (same && (!ReferenceEquals(keys[j * 2], _items[j].Role) || !ReferenceEquals(keys[j * 2 + 1], who))) same = false;
+        }
+        if (!same)
+        {
+            keys.Clear(); sums.Clear();
+            for (int j = 0; j < _items.Count; j++) { keys.Add(_items[j].Role); string w = WhoOf(_items[j]); keys.Add(w); sums.Add(_items[j].Role.Length == 0 ? w : _items[j].Role + "  " + w); }
+            _listVersion[li]++;
+        }
+        ListBlock.Begin(_listGridIds[li], sums, _listOpts[li], _listVersion[li]);
+        for (int v = 0; v < ListBlock.VisibleCount; v++) { ListBlock.ItemBegin(ListBlock.VisibleIndex(v)); ListBlock.ItemEnd(); }
+        var op = ListBlock.End();
+        if (editable)
+        {
+            if (op.Kind == ListOpKind.Delete && list.Remove != null && op.Index >= 0 && op.Index < _items.Count && !_items[op.Index].Passive) { list.Remove(world, _items[op.Index]); _listProblem[li] = null; }
+            else if (op.Kind == ListOpKind.Add && list.Add != null && Pick != null) { Pick.RequestEntityPick(id, null); _listProblem[li] = null; }
+        }
+        if (list.Footer?.Invoke(world, e) is { } footer) ImGui.TextDisabled(footer);
+        if (Pick != null && list.Add != null)
+        {
+            if (Pick.IsPickPendingFor(id)) ImGui.TextDisabled("pick on the map...");
+            else if (Pick.CanListEntities && ImGui.SmallButton("List...")) { Pick.RequestEntityListPick(id, null); _listProblem[li] = null; }
+        }
+        if (_listProblem[li] is { } problem) RowMarks.ErrorLine(problem);
+        ImGui.PopID();
+    }
+
+    /// <summary>A section caption as the forms' mockup draws it: the words in the accent blue, then a rule line (ImGui's SeparatorText).</summary>
+    public static void Caption(string text)
+    {
+        ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(0.55f, 0.72f, 0.95f, 1f));
+        ImGui.PushStyleVar(ImGuiStyleVar.SeparatorTextPadding, new System.Numerics.Vector2(0f, 3f));   // the caption starts flush left, the rule follows (the mockup)
+        ImGui.SeparatorText(text);
+        ImGui.PopStyleVar();
+        ImGui.PopStyleColor();
+    }
+
+    private string WhoOf(in FormListItem it)
+    {
+        long key = ((long)it.Item.Index << 32) | (uint)it.Item.Generation;
+        if (_who.TryGetValue(key, out var c) && c.Who.Equals(it.Who)) return c.Shown;
+        string shown = it.Who.ToString();
+        _who[key] = (it.Who, shown);
+        return shown;
+    }
+
+    private void Bind(FormDecl decl)
+    {
+        _decl = decl;
+        _expertId = decl.Id + "-expert"; _expertGridId = decl.Id + "-x";   // built once per form, never per frame
+        _state = new FieldState[decl.Fields.Count];
+        for (int i = 0; i < _state.Length; i++) _state[i] = new FieldState { Id = decl.Id + "." + i };
+        _gridIds = new string[decl.Fields.Count]; _pickIds = new string[decl.Fields.Count];
+        for (int i = 0; i < _pickIds.Length; i++) _pickIds[i] = decl.Id + ".pick" + i;
+        for (int i = 0, sec = 0; i < _gridIds.Length; i++) { if (decl.Fields[i].Section != null) sec++; _gridIds[i] = decl.Id + "/s" + sec; }
+        _listIds = new string[decl.Lists.Count]; _listProblem = new string?[decl.Lists.Count];
+        _listGridIds = new string[decl.Lists.Count];
+        _listSums = new List<string>[decl.Lists.Count]; _listKeys = new List<string>[decl.Lists.Count]; _listOpts = new ListOptions[decl.Lists.Count]; _listVersion = new int[decl.Lists.Count];
+        for (int i = 0; i < decl.Lists.Count; i++)
+        {
+            var l = decl.Lists[i];
+            _listSums[i] = new List<string>(); _listKeys[i] = new List<string>();
+            _listOpts[i] = new ListOptions   // the seats' own edits only: add (a pick) and remove (the list's action); no reorder / insert / copy — the rows are the world's
+            {
+                AddLabel = l.AddLabel ?? "Add",
+                Disabled = ListCmd.InsertAbove | ListCmd.InsertBelow | ListCmd.Duplicate | ListCmd.MoveUp | ListCmd.MoveDown | ListCmd.Copy | ListCmd.Paste | ListCmd.Reset | (l.Remove == null ? ListCmd.Delete : ListCmd.None),
+            };
+        }
+        for (int i = 0; i < _listIds.Length; i++) { _listIds[i] = decl.Id + ".list" + i; _listGridIds[i] = _listIds[i] + "/g"; }
+        _editing = -1;
+    }
+
+    private static int Stamp(IReadOnlyList<Entity> sel)
+    {
+        unchecked
+        {
+            int h = sel.Count;
+            for (int i = 0; i < sel.Count; i++) h = (h * 31 + sel[i].Index) * 31 + sel[i].Generation;   // the fields — ValueType.GetHashCode would box
+            return h;
+        }
+    }
+
+    // ── read the world: 0 B, the shown text rebuilt only on a change ─────────────────────────────────────────────────────────
+
+    private void Refresh(EntityRepository world, IReadOnlyList<Entity> sel)
+    {
+        var fields = _decl!.Fields;
+        for (int f = 0; f < fields.Count; f++)
+        {
+            var field = fields[f]; var s = _state[f];
+            bool has = false, mixed = false; double num = 0; FixedString64 text = default;
+            for (int i = 0; i < sel.Count; i++)
+            {
+                var e = sel[i];
+                if (!world.IsAlive(e) || (field.Has != null && !field.Has(world, e))) { has = false; break; }   // a row common to ALL the selection only
+                if (field.Kind is FieldKind.Text or FieldKind.Pick)
+                {
+                    if (!field.TryReadText(world, e, out var t)) { has = false; break; }   // ⭐ R-2: the explicit delegate, else the vocabulary's reader (false = the entity has no such value)
+                    if (!has) text = t; else if (!t.Equals(text)) mixed = true;
+                }
+                else
+                {
+                    if (!field.TryReadNumber(world, e, out double v)) { has = false; break; }
+                    if (!has) num = v; else if (v != num) mixed = true;
+                }
+                has = true;
+            }
+            s.Has = has && sel.Count > 0;
+            if (!s.Has) continue;
+            if (field.TypeValue != null) RefreshType(field, s, world, sel);
+            double max = field.MaxOf != null && sel.Count == 1 && !mixed ? field.MaxOf(world, sel[0]) : double.NaN;
+            if (s.Known && s.Mixed == mixed && (field.Kind is FieldKind.Text or FieldKind.Pick ? s.Text.Equals(text) : s.Number == num) && (s.Max == max || (double.IsNaN(s.Max) && double.IsNaN(max)))) continue;
+            s.Known = true; s.Mixed = mixed; s.Number = num; s.Text = text; s.Max = max;
+            s.NumberFormat = double.IsNaN(max) ? null : NumberInput.FormatFor(field.Unit) + " / " + max.ToString("0.##", CultureInfo.InvariantCulture).Replace("%", "%%");
+            s.Shown = mixed ? "mixed" : Format(field, num, text) + (double.IsNaN(max) ? "" : " / " + max.ToString("0.##", CultureInfo.InvariantCulture));
+        }
+    }
+
+    /// <summary>⭐ U-24 / S6 — does any selected entity carry an authored value that differs from its type's? Numbers only per frame; the tooltip string is rebuilt when the type's value moves.</summary>
+    private static void RefreshType(FormField field, FieldState s, EntityRepository world, IReadOnlyList<Entity> sel)
+    {
+        bool differs = false; double typeNum = 0;
+        for (int i = 0; i < sel.Count && !differs; i++)
+            if (field.TypeValue!(world, sel[i]) is { } t && field.TryReadNumber(world, sel[i], out double shown) && Math.Abs(t - shown) > 1e-4) { differs = true; typeNum = t; }
+        if (differs == s.Differs && (!differs || typeNum == s.TypeNumber)) return;
+        s.Differs = differs; s.TypeNumber = typeNum;
+        s.SliderFormat = differs ? "%.2f  (type " + typeNum.ToString("0.00", CultureInfo.InvariantCulture) + ")" : "%.2f";
+        s.TypeTip = !differs ? null : sel.Count == 1 ? "type " + typeNum.ToString("0.##", CultureInfo.InvariantCulture) + " — reset" : "type differs — reset";
+    }
+
+    /// <summary>The value as people read it: <c>60 s</c> · <c>62 %</c> · the choice's word · <c>yes / no</c> · the text.</summary>
+    public static string Format(FormField field, double number, in FixedString64 text) => field.Kind switch
+    {
+        FieldKind.Text or FieldKind.Pick => text.ToString(),
+        FieldKind.Choice => field.Choices != null && (int)number >= 0 && (int)number < field.Choices.Count ? field.Choices[(int)number] : number.ToString(CultureInfo.InvariantCulture),
+        FieldKind.Toggle => number != 0 ? "yes" : "no",
+        _ => number.ToString("0.##", CultureInfo.InvariantCulture) + (field.Unit == null ? "" : " " + field.Unit),
+    };
+
+    // ── one row ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>⭐ U-24 / S5 — is field <paramref name="i"/> drawn on the row of the one before it (<see cref="FormField.Inline"/>, and that one is drawn in the same grid)?</summary>
+    private bool IsInlineChild(int i)
+        => i > 0 && _decl!.Fields[i].Inline && _state[i - 1].Has && _decl.Fields[i - 1].Expert == _decl.Fields[i].Expert;
+
+    private void DrawField(int i, EntityRepository world, IReadOnlyList<Entity> sel, bool editable)
+    {
+        var field = _decl!.Fields[i]; var s = _state[i];
+        var rowState = StateOf(s, world, field, editable);
+        int last = i;
+        while (last + 1 < _state.Length && _state[last + 1].Has && IsInlineChild(last + 1)) last++;
+        if (last > i && Strongest(in rowState) == FormMark.None)   // the row's one mark slot: the first field's, else an inline field's
+            for (int k = i + 1; k <= last; k++) { var r = StateOf(_state[k], world, _decl.Fields[k], editable); if (Strongest(in r) != FormMark.None) { rowState = r; break; } }
+        string label = field.LabelFor != null && sel.Count > 0 ? field.LabelFor(world, sel[0]) : field.Label;
+        FormRow.Begin(s.Id, label, in rowState);
+        if (last > i) ImGui.SetNextItemWidth(Math.Max(60f, ImGui.GetContentRegionAvail().X * InlineShare));
+        else ImGui.SetNextItemWidth(-1f);
+        DrawControl(i, world, sel, editable);
+        for (int k = i + 1; k <= last; k++)
+        {
+            var child = _decl.Fields[k];
+            ImGui.SameLine();
+            ImGui.AlignTextToFramePadding();
+            ImGui.TextDisabled(child.InlineCaption ?? child.Label);
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(-1f);
+            DrawControl(k, world, sel, editable);
+        }
+        var clicked = FormRow.End(in rowState);
+        if (_trailerOn) DrawTrailer(i, field, sel);
+        if (clicked == FormMark.Refused) for (int k = i; k <= last; k++) { _state[k].Refusal = null; _state[k].Tickets.Clear(); }
+        else if (clicked == FormMark.DiffersFromType && editable) Commit(i, world, sel, field.ResetValue, null);   // ⭐ U-24 / S6 — back to the type: the attribute's reset value, never range-checked
+    }
+
+    private void DrawTrailer(int i, FormField field, IReadOnlyList<Entity> sel)
+    {
+        FormGrid.Trailer();
+        int st = Trailer!.StateOf(field, sel);
+        if (st == 0) return;
+        ImGui.PushID(i);   // the row's own id scope — FormRow.End has already popped it
+        var glyph = Trailer.Glyph;
+        var pos = ImGui.GetCursorScreenPos();
+        float w = ImGui.GetContentRegionAvail().X;
+        var size = new System.Numerics.Vector2(w, ImGui.GetFrameHeight());
+        bool pressed = ImGui.InvisibleButton("##t", size);
+        float gw = ImGui.CalcTextSize(glyph).X;
+        var colour = st == 2 ? NodeEditor.Core.Widgets.IconPalette.Teal : NodeEditor.Core.Widgets.IconPalette.Muted;
+        ImGui.GetWindowDrawList().AddText(new System.Numerics.Vector2(pos.X + (w - gw) * 0.5f, pos.Y + (size.Y - ImGui.GetTextLineHeight()) * 0.5f), ImGui.GetColorU32(colour), glyph);
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip(Trailer.TipOf(st));
+        if (_captureTrailer) _trailerRects.Add((i, pos, pos + size));
+        if (pressed) Trailer.Click(field, sel);
+        ImGui.PopID();
+    }
+
+    private bool _captureTrailer => CaptureLayout;
+    private readonly List<(int Field, System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> _trailerRects = new();
+    /// <summary>The last frame's trailer glyph rectangles (only while <see cref="CaptureLayout"/>) — the fidelity rail measures them.</summary>
+    public IReadOnlyList<(int Field, System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> TrailerRects => _trailerRects;
+
+    /// <summary>The share of the control column the first control of an inline row takes (<i>Weapon</i> [Aimed ▾] <i>at</i> [pick]).</summary>
+    private const float InlineShare = 0.42f;
+
+    private static FormMark Strongest(in FormRowState s) => FormRow.Strongest(in s);
+
+    private void DrawControl(int i, EntityRepository world, IReadOnlyList<Entity> sel, bool editable)
+    {
+        var field = _decl!.Fields[i]; var s = _state[i];
+        bool ro = field.ReadOnly || !editable;
+        if (ro) ImGui.BeginDisabled();
+        ImGui.PushID(i);
+        switch (field.Kind)
+        {
+            case FieldKind.Number: DrawNumber(i, field, s, world, sel); break;
+            case FieldKind.Text: DrawText(i, field, s, world, sel); break;
+            case FieldKind.Choice:
+                if (ImGui.BeginCombo("##c", s.Shown))
+                {
+                    var choices = field.Choices ?? Array.Empty<string>();
+                    for (int c = 0; c < choices.Count; c++)
+                        if (ImGui.Selectable(choices[c], !s.Mixed && (int)s.Number == c)) Commit(i, world, sel, c, null);
+                    ImGui.EndCombo();
+                }
+                break;
+            case FieldKind.Toggle:
+                bool b = s.Number != 0;
+                if (ImGui.Checkbox("##b", ref b)) Commit(i, world, sel, b ? 1 : 0, null);
+                break;
+            case FieldKind.Pick: DrawPick(i, field, s, world, sel, editable); break;
+        }
+        if (CaptureLayout) _itemRects.Add((i, ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
+        ImGui.PopID();
+        if (ro) ImGui.EndDisabled();
+    }
+
+    /// <summary>⭐ U-24 / S5 — a picked entity as ONE button: its name (or <i>Pick on map…</i>), a pick through the form's one context, <i>List…</i> where the context offers a list, <i>Clear</i> while one is set.</summary>
+    private void DrawPick(int i, FormField field, FieldState s, EntityRepository world, IReadOnlyList<Entity> sel, bool editable)
+    {
+        string id = _pickIds[i];
+        if (sel.Count != 1 || Pick == null) { ImGui.TextDisabled(s.Mixed ? "mixed" : s.Shown.Length > 0 ? s.Shown : "-"); return; }
+        if (editable && field.PickApply != null && Pick.TryConsumeEntityPick(id, out var picked) && picked.TryResolve(world, out var pickedEntity))
+        {
+            s.Refusal = field.PickApply(world, sel[0], pickedEntity);
+            s.Known = false;
+        }
+        bool set = s.Shown.Length > 0;
+        if (Pick.IsPickPendingFor(id)) { ImGui.AlignTextToFramePadding(); ImGui.TextDisabled("pick on the map..."); return; }
+        // ⭐ CE-3385 — the ONE entity field (chip + type-ahead + pick on the map + clear), as every entity leaf draws it
+        var op = ReferenceLeafDrawers.DrawEntityChip(id + "/f", set ? s.Shown : PickWords, null, ImGui.GetContentRegionAvail().X, Pick, null, offerKey: false);
+        switch (op.Kind)
+        {
+            case EntityFieldOpKind.Pick when field.PickApply != null && new Fdp.Toolkit.Replication.EntityRef((int)op.Id).TryResolve(world, out var chosen):
+                s.Refusal = field.PickApply!(world, sel[0], chosen); s.Known = false; break;
+            case EntityFieldOpKind.PickOnMap: Pick.RequestEntityPick(id, null); s.Refusal = null; break;
+            case EntityFieldOpKind.Clear when set && field.Apply != null: Commit(i, world, sel, 0, null); break;
+        }
+    }
+
+    private const string PickWords = "Pick on map...";
+    private const float ClearWidth = 52f, ListWidth = 56f;
+
+    private void DrawNumber(int i, FormField field, FieldState s, EntityRepository world, IReadOnlyList<Entity> sel)
+    {
+        if (s.Mixed && _editing != i)
+        {
+            if (ImGui.Button("mixed##m", new System.Numerics.Vector2(-1f, 0f))) { _editing = i; _editNumber = s.Number; }
+            return;
+        }
+        double v = _editing == i ? _editNumber : s.Number;
+        if (field.Slider)
+        {
+            float f = (float)v;
+            ImGui.SliderFloat("##n", ref f, (float)field.Min, (float)field.Max, s.SliderFormat);
+            v = f;
+        }
+        else ImGui.InputDouble("##n", ref v, 0, 0, s.NumberFormat ?? NumberInput.FormatFor(field.Unit));
+        if (ImGui.IsItemActivated()) { _editing = i; _editNumber = s.Number; }
+        if (_editing == i)
+        {
+            _editNumber = v;
+            s.Problem = field.RangeProblem(v);
+            if (ImGui.IsItemDeactivatedAfterEdit() && s.Problem == null) Commit(i, world, sel, v, null);   // on Enter / leaving the field (§2.3) — ⛔ never per keystroke
+            if (ImGui.IsItemDeactivated()) _editing = -1;
+        }
+    }
+
+    private void DrawText(int i, FormField field, FieldState s, EntityRepository world, IReadOnlyList<Entity> sel)
+    {
+        string t = _editing == i ? _editText : s.Shown;
+        ImGui.InputText("##t", ref t, 64);
+        if (ImGui.IsItemActivated()) { _editing = i; _editText = s.Mixed ? "" : s.Shown; }
+        if (_editing == i)
+        {
+            _editText = t;
+            if (ImGui.IsItemDeactivatedAfterEdit()) Commit(i, world, sel, 0, t);
+            if (ImGui.IsItemDeactivated()) _editing = -1;
+        }
+    }
+
+    private static FormRowState StateOf(FieldState s, EntityRepository world, FormField field, bool editable)
+    {
+        if (!editable) return default;   // a recording / a seat: grey only — no marks, no tooltips (§2.4, R-4150)
+        if (s.Problem != null) return new FormRowState(Invalid: true, InvalidReason: s.Problem);
+        if (s.Refusal != null) return new FormRowState(Refused: true, RefusedReason: s.Refusal);
+        if (s.Tickets.Count > 0)
+        {
+            var log = EditOutcomeLog.Of(world);
+            bool pending = false;
+            for (int k = s.Tickets.Count - 1; k >= 0; k--)
+            {
+                if (!log.TryGet(s.Tickets[k], out var o) || o.Status is EditStatus.None or EditStatus.Pending) { pending = true; continue; }
+                if (o.Status is EditStatus.Refused or EditStatus.Conflict or EditStatus.Lost) s.Refusal = o.Reason.Length > 0 ? o.Reason : o.Status.ToString();
+                s.Tickets.RemoveAt(k);
+            }
+            if (s.Refusal != null) return new FormRowState(Refused: true, RefusedReason: s.Refusal);
+            if (pending) return new FormRowState(Pending: true, PendingTip: "sent to the owner — waiting for its answer");
+        }
+        if (s.Differs) return new FormRowState(DiffersFromType: true, TypeTip: s.TypeTip);   // ⭐ U-24 / S6 — the blue reset arrow
+        return default;
+    }
+
+    /// <summary>Writes one value to every selected entity (one <c>Submit</c> each); the tickets mark the row until the owners answer.</summary>
+    private void Commit(int i, EntityRepository world, IReadOnlyList<Entity> sel, double number, string? text)
+    {
+        var field = _decl!.Fields[i]; var s = _state[i];
+        if (field.Apply != null)
+        {
+            // ⭐ U-23 part 5 — a field that writes through a DOMAIN op (the Playable toggle: an owner-side add / remove), never an attribute
+            s.Refusal = null;
+            for (int k = 0; k < sel.Count; k++) if (world.IsAlive(sel[k]) && field.Apply(world, sel[k], number, text) is { } why) s.Refusal = why;
+            s.Known = false;
+            return;
+        }
+        if (field.ChangeFor(number, text) is not { } change) return;
+        s.Refusal = null;
+        string label = "Set " + field.Label.ToLowerInvariant();
+        for (int k = 0; k < sel.Count; k++)
+        {
+            if (!world.IsAlive(sel[k])) continue;
+            var ticket = Submit(world, EditOp.Write(sel[k], change, label));
+            if (ticket.Route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused)
+            {
+                s.Refusal = EditOutcomeLog.Of(world).TryGet(ticket.RequestId, out var o) && o.Reason.Length > 0 ? o.Reason : "refused";
+                continue;
+            }
+            if (ticket.Route != Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct) s.Tickets.Add(ticket.RequestId);
+        }
+        s.Known = false;   // re-read and re-format next frame
+    }
+
+    // ── rails ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>What each drawn row shows, as text (rails, the panel probe): <c>label = value</c>.</summary>
+    public IReadOnlyList<string> Rows
+    {
+        get
+        {
+            var l = new List<string>();
+            if (_decl == null) return l;
+            for (int i = 0; i < _state.Length; i++) if (_state[i].Has) l.Add($"{_decl.Fields[i].Label} = {_state[i].Shown}");
+            return l;
+        }
+    }
+
+    /// <summary>⭐ U-24 / S6 — the mark the last drawn row of field <paramref name="field"/> carries (rails): refused · pending · the reset arrow · none.</summary>
+    public FormMark MarkOf(int field)
+    {
+        if (field < 0 || field >= _state.Length) return FormMark.None;
+        var s = _state[field];
+        return s.Refusal != null ? FormMark.Refused : s.Tickets.Count > 0 ? FormMark.Pending : s.Differs ? FormMark.DiffersFromType : FormMark.None;
+    }
+
+    /// <summary>The reset arrow's tooltip of field <paramref name="field"/> (rails), or null.</summary>
+    public string? TypeTipOf(int field) => field >= 0 && field < _state.Length ? _state[field].TypeTip : null;
+
+    /// <summary>⭐ U-23 / D4 — the last drawn lists' rows, role then who (rails).</summary>
+    public IReadOnlyList<string> ListRows => _listRows.ToArray();
+
+    /// <summary>⭐ U-23 / D4 — the reason the last add was refused, per list (rails).</summary>
+    public string? ListProblem(int list) => list < _listProblem.Length ? _listProblem[list] : null;
+
+    /// <summary>Commits <paramref name="number"/> / <paramref name="text"/> to field <paramref name="field"/> of the last drawn selection, as a click would (rails).</summary>
+    public void CommitForTest(int field, EntityRepository world, IReadOnlyList<Entity> selection, double number, string? text = null)
+        => Commit(field, world, selection, number, text);
+
+    /// <summary>The same, binding <paramref name="decl"/> first (a rail with no frame drawn).</summary>
+    public void CommitForTest(FormDecl decl, int field, EntityRepository world, IReadOnlyList<Entity> selection, double number, string? text = null)
+    {
+        if (!ReferenceEquals(decl, _decl)) Bind(decl);
+        Commit(field, world, selection, number, text);
+    }
+}

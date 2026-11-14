@@ -1,0 +1,12 @@
+StructureHash: 0xFB84E0F234C948DE
+Parameters:
+  BaselineX : System.Single @0 size=4
+  BaselineY : System.Single @4 size=4
+WorkingState:
+  (empty)
+Variables:
+  __phase : System.Byte @8 size=1
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

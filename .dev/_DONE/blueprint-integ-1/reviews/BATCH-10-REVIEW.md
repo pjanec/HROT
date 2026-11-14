@@ -5,7 +5,7 @@
 Game-side layout-contracts assembly extracted + sample BTree/HSM assets added. **Full solution builds (0 errors)** — the user's core requirement. Editor suites green; samples discovered. The earlier build-blocking layering bug (emitter emits `[BTreeLayout]`/`BTreeEditorLayout` into the runtime project, but those types lived only in the heavy editor assembly) is resolved.
 
 ## Verification performed (ran myself)
-- **`dotnet build IOS-IG-SimHost.sln` → Build succeeded, 0 errors.** (Authoritative; not a filtered run.)
+- **`dotnet build HROT.sln` → Build succeeded, 0 errors.** (Authoritative; not a filtered run.)
 - `Hrot.BTree.Editor.Tests` **377/377**, `Hrot.Hsm.Editor.Tests` **330/330**, `Hrot.Editor.AiShared.Tests` 702 (per report), `EditorSubsystemBoot` 10/10. Blueprints 10 pre-existing (DEBT-006), no new.
 - **Fhsm.Tests: 2 failed** (`OrthogonalRegionTests.OutputLane_Conflict_Detected`, `FailSafeTests.InfiniteLoop_Detected_And_Stops`) — **verified pre-existing**: stash-tested at baseline 8e197569 (Batch-10 stashed), they fail identically. Kernel runtime tests, unrelated to the layout/attribute change → **DEBT-009**.
 - **Deleting `Fhsm.Kernel.HsmLayoutAttribute` was safe**: nothing in FastHSM referenced it (the full build compiles `Fhsm.Tests`; the 2 failures are runtime region/loop, not attribute).

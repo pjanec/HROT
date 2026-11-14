@@ -4,7 +4,7 @@ namespace GizmoMap.Network
 {
     // Publishes the current UI state of all gizmo settings as a JSON document,
     // enabling remote editors to display and modify gizmo configuration.
-    [DdsTopic("GizmoUiState")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal,
             HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct GizmoUiState

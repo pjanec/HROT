@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Time.Domain;
 
@@ -17,20 +18,22 @@ namespace Hrot.Orchestrator;
 /// On <see cref="SeekReplayIntent"/>: publishes <see cref="SlaveNodeSetUpdatedEvent"/>
 /// and <see cref="PauseTimeIntent"/> before <see cref="ClusterMaster"/> fans out the seek.
 /// On <see cref="ClusterOpCompletedEvent"/> with <see cref="ReplaySeekResult"/> payload:
-/// calls <see cref="MasterSyncController.SnapAndPause"/>.
+/// asks for the jump through <see cref="ITimeCommands.SnapTo"/>.
 /// </summary>
 public sealed class ReplaySeekProcessManager
 {
     private readonly FdpEventBus          _bus;
-    private readonly MasterSyncController _masterSync;
+    private readonly ITimeCommands        _time;   // Q86 §4-C: commands, never the clock itself
 
-    // NodeId -> SubsystemName, maintained from NodeHeartbeatEvent.
-    private readonly Dictionary<int, string> _nodeSubsystems = new();
+    // ⭐ P3 — the master's step roster (by ROLE). ⛔ Was a private replica of heartbeat subsystem NAMES matched against
+    //   "SimHost" or "IG" or "CGF" — a second copy of the rule, which let a Player gate every seek.
+    private readonly Func<IReadOnlySet<int>> _stepRoster;
 
-    public ReplaySeekProcessManager(FdpEventBus bus, MasterSyncController masterSync)
+    public ReplaySeekProcessManager(FdpEventBus bus, ITimeCommands time, Func<IReadOnlySet<int>> stepRoster)
     {
         _bus        = bus        ?? throw new ArgumentNullException(nameof(bus));
-        _masterSync = masterSync ?? throw new ArgumentNullException(nameof(masterSync));
+        _time       = time       ?? throw new ArgumentNullException(nameof(time));
+        _stepRoster = stepRoster ?? throw new ArgumentNullException(nameof(stepRoster));
     }
 
     /// <summary>
@@ -39,23 +42,10 @@ public sealed class ReplaySeekProcessManager
     /// </summary>
     public void Tick()
     {
-        // Maintain local replica of node subsystem names from heartbeats.
-        foreach (var hb in _bus.ReadManaged<NodeHeartbeatEvent>())
-        {
-            if (hb.SubsystemName != null)
-                _nodeSubsystems[hb.NodeId] = hb.SubsystemName;
-        }
-
         // On SeekReplayIntent: publish precondition events (TASK-T002).
         foreach (var intent in _bus.ReadManaged<SeekReplayIntent>())
         {
-            var slaveIds = new System.Collections.Generic.HashSet<int>();
-            foreach (var kv in _nodeSubsystems)
-            {
-                if (kv.Value is "SimHost" or "IG" or "CGF")
-                    slaveIds.Add(kv.Key);
-            }
-            _bus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = slaveIds });
+            _bus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = _stepRoster() });
             _bus.PublishManaged(new PauseTimeIntent());
         }
 
@@ -64,11 +54,9 @@ public sealed class ReplaySeekProcessManager
         {
             if (ev.ResultPayload is ReplaySeekResult sr && sr.RestoredTime.TotalWallTicks != 0)
             {
-                var activeNodeIds = new HashSet<int>(_nodeSubsystems.Keys);
-                _masterSync.SnapAndPause(
-                    sr.RestoredTime.TotalWallTicks,
-                    sr.RestoredTime.TotalTime,
-                    activeNodeIds);
+                // The slave roster was set by this manager's own seek precondition (SlaveNodeSetUpdatedEvent +
+                // PauseTimeIntent, above); the snap keeps it.
+                _time.SnapTo(sr.RestoredTime);
             }
         }
     }

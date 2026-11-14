@@ -1,3 +1,16 @@
+<!--STATUS
+state: SUPERSEDED (in part) 2026-10-20
+updated: 2026-10-20
+current-answer: the banner below. The installer part (scripts/cloud-bootstrap.sh, the Setup script) still holds; everything about the MCP SERVER (.mcp.json entry, enabledMcpjsonServers, connect timing) is history.
+stale-below: every MCP-server statement (TL;DR rows "MCP declaration" and "Auto-approve", the session-start timing).
+-->
+
+> ⛔ **`2026-10-20` — the codebase-memory MCP SERVER IS DISABLED; use the CLI only.** 🔒 User: *"pls disable codebase memory MCP server as
+> its use keep asking for permission blocking your autonomous operations; and update claude.md to always use CLI version only."*
+> ⇒ removed from `.mcp.json`, listed in `.claude/settings.json` `disabledMcpjsonServers`; every query goes through
+> **`scripts/cbm.sh <tool> '<json args>'`** (finds the binary, indexes the repo if needed, adds the project, passes args on stdin).
+> The installer below is still how the binary gets onto a cloud VM; the "connects on the next session" timing no longer applies.
+
 # codebase-memory-mcp in Anthropic-cloud (Claude Code on the web) sessions
 
 Goal: give cloud sessions the same `codebase-memory-mcp` graph tools you use in
@@ -103,6 +116,20 @@ dotnet --version                 # 8.x
 ```
 In Claude Code, `/mcp` (or the tools list) should show `codebase-memory-mcp` as
 connected. Then follow the graph-first workflow in `.claude/CLAUDE.md`.
+
+### ⚠ `dotnet: command not found` right after a successful install
+
+Claude's Bash tool spawns **plain non-interactive** shells. Those source **neither**
+`~/.bashrc` (it opens with `[ -z "$PS1" ] && return`) **nor** `~/.profile`, and
+`CLAUDE_ENV_FILE` is not always set — so a good SDK install could still leave every
+tool call reporting `dotnet: command not found`, which reads as a failed install when
+it is only an unreachable PATH.
+
+The bootstrap script therefore installs a small **wrapper at `/usr/local/bin/dotnet`**
+(that directory *is* on the default PATH). It must be a wrapper, not a symlink: the
+dotnet muxer infers its root from `argv[0]`'s directory. If you ever see the error
+again, check `command -v dotnet` — it should print `/usr/local/bin/dotnet` — and
+re-run the bootstrap, which recreates the wrapper idempotently.
 
 ## Updating the MCP binary
 

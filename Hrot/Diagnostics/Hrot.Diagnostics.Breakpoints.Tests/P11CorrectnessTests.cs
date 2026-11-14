@@ -89,7 +89,7 @@ public sealed class SpatialPositionAccessorTests
         var preTick  = new EntityRepository();
         var tc       = new MockDebugTimeController();
         var provider = new DebugSnapshotProvider(preTick);
-        return new DataBreakpointManager(liveRepo, preTick, provider, tc);
+        return new DataBreakpointManager(liveRepo, preTick, provider, tc, new PredicateCompiler(new ComponentEditServiceBuilder().Build()));
     }
 
     /// <summary>
@@ -114,11 +114,11 @@ public sealed class SpatialPositionAccessorTests
             PositionXPath         = "X",
             PositionYPath         = "Y",
             TriggerEvent          = BoundaryEvent.EntryOrExit,
-            Bounds                = new BoundingBox2D
+            Bounds                = AreaBoxes.FromBox(new BoundingBox2D
             {
                 Min = new Vector2(0f, 0f),
                 Max = new Vector2(10f, 10f)
-            }
+            })
         });
 
         // Entity at (3, 7.5) is inside [0-10, 0-10] bounds -- should fire on first evaluation.
@@ -148,16 +148,50 @@ public sealed class SpatialPositionAccessorTests
             PositionXPath         = "X",
             PositionYPath         = "Y",
             TriggerEvent          = BoundaryEvent.EntryOrExit,
-            Bounds                = new BoundingBox2D
+            Bounds                = AreaBoxes.FromBox(new BoundingBox2D
             {
                 Min = new Vector2(0f, 0f),
                 Max = new Vector2(10f, 10f)
-            }
+            })
         });
 
         manager.EvaluateStatefulBreakpoints(liveRepo);
 
         Assert.False(manager.IsPaused, "Entity at (50, 50) should be outside [0-10, 0-10] bounds");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4205</c> — the ROUTE: the breakpoint's "is inside" IS the compiler's level arm. A spatial breakpoint (entry) fires
+    /// exactly when <c>CompileLevelPredicate</c> on the same dto says inside, for an inside, an outside and a boundary-straddling position.
+    /// </summary>
+    [Theory]
+    [InlineData(3.0f, 7.5f)]
+    [InlineData(50.0f, 50.0f)]
+    [InlineData(-2.0f, 4.0f)]
+    public void SpatialTracker_AgreesWithTheCompilersLevelArm(float x, float y)
+    {
+        ComponentTypeRegistry.Clear();
+        var liveRepo = new EntityRepository();
+        var compiler = new PredicateCompiler(new ComponentEditServiceBuilder().Build());
+        var preTick  = new EntityRepository();
+        var manager  = new DataBreakpointManager(liveRepo, preTick, new DebugSnapshotProvider(preTick), new MockDebugTimeController(), compiler);
+        liveRepo.RegisterComponent<TestPosition2D>();
+        var entity = liveRepo.CreateEntity();
+        liveRepo.AddComponent(entity, new TestPosition2D { X = x, Y = y });
+
+        var dto = new SpatialBoundingPredicateDto
+        {
+            PositionComponentType = typeof(TestPosition2D), PositionXPath = "X", PositionYPath = "Y",
+            TriggerEvent = BoundaryEvent.Entry,
+            Bounds = AreaBoxes.FromBox(new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) }),
+        };
+        bool level = compiler.CompileLevelPredicate(dto)(liveRepo, entity);
+        manager.AddBreakpoint(dto);
+        manager.EvaluateStatefulBreakpoints(liveRepo);
+
+        bool expected = x >= 0f && x <= 10f && y >= 0f && y <= 10f;   // the box, stated independently of any arm
+        Assert.Equal(expected, level);
+        Assert.Equal(level, manager.IsPaused);
     }
 }
 
@@ -166,8 +200,23 @@ public sealed class SpatialPositionAccessorTests
 // =============================================================================
 
 /// <summary>
-/// Tests that MatchesLifecycleCriteria throws NotSupportedException for NetworkId
-/// rather than silently returning false.
+/// ⭐⭐⭐ <b><c>BP-512</c> — <c>MatchesLifecycleCriteria</c>'s <c>NetworkId</c> arm ANSWERS.</b>
+///
+/// <para>⚠⚠ <b>INVERTED, not deleted.</b> This class asserted that the arm <b>threw
+/// <c>NotSupportedException</c></b> *(P11, "rather than silently returning false")*. ⭐ That was the right
+/// call while there was no way to resolve the id — a silent <c>false</c> would have made an unsupported
+/// breakpoint look like a working one that never fires. ⛔ <b>But it threw from inside
+/// <c>EvaluateLifecycleTrackers</c>, i.e. inside the TICK LOOP</b>, so authoring one did not merely fail
+/// to work — it took the frame down *(cf. <c>FINDINGS_Empty_Breakpoint_Bricks_The_Editor.md</c>)</b>.</para>
+///
+/// <para>⭐⭐ <b><c>94g</c> made it resolvable, so the claim MOVES rather than disappearing:</b> the same
+/// DTO now MATCHES the entity carrying that id, and an unmatchable target answers <c>false</c> — which is
+/// no longer "silent", because the supported case works. 📌 The programme's rule: <i>a test asserting the
+/// old behaviour is CORRECTED to the measured set, not deleted</i>.</para>
+///
+/// <para>📄 The full behaviour — decoys, malformed targets, entities without the component — is
+/// <c>TheNetworkIdPredicateAnswersTests</c>. ⭐ This class keeps the ORIGINAL P11 setup so the inversion
+/// is visible in one diff.</para>
 /// </summary>
 [Collection("ComponentRegistry")]
 public sealed class LifecycleNetworkIdTests
@@ -177,24 +226,29 @@ public sealed class LifecycleNetworkIdTests
         var preTick  = new EntityRepository();
         var tc       = new MockDebugTimeController();
         var provider = new DebugSnapshotProvider(preTick);
-        return new DataBreakpointManager(liveRepo, preTick, provider, tc);
+        return new DataBreakpointManager(liveRepo, preTick, provider, tc, new PredicateCompiler(new ComponentEditServiceBuilder().Build()));
     }
 
     /// <summary>
-    /// Verifies that evaluating a lifecycle breakpoint with NetworkId identifier throws
-    /// NotSupportedException instead of silently skipping the entity.
+    /// ⭐⭐⭐ <b>The inverted claim:</b> evaluating a lifecycle breakpoint with a <c>NetworkId</c>
+    /// identifier no longer throws, and it FIRES for the entity carrying that id.
     /// </summary>
     [Fact]
-    public void Lifecycle_NetworkId_NoMapWired_ThrowsNotSupportedException()
+    public void Lifecycle_NetworkId_ResolvesTheEntity_InsteadOfThrowing()
     {
         ComponentTypeRegistry.Clear();
         var liveRepo = new EntityRepository();
         var manager  = CreateManager(liveRepo);
 
         liveRepo.RegisterComponent<TestHealth>();
+        liveRepo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
 
         var entity = liveRepo.CreateEntity();
         liveRepo.AddComponent(entity, new TestHealth { Current = 10 });
+        liveRepo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity(42));
+
+        int hits = 0;
+        manager.OnBreakpointHit += (_, _) => hits++;
 
         manager.AddBreakpoint(new LifecyclePredicateDto
         {
@@ -202,7 +256,41 @@ public sealed class LifecycleNetworkIdTests
             TargetValue    = "42",
         });
 
-        Assert.Throws<NotSupportedException>(() =>
-            manager.EvaluateStatefulBreakpoints(liveRepo));
+        manager.EvaluateStatefulBreakpoints(liveRepo);   // ⛔ used to throw from inside the tick loop
+
+        Assert.Equal(1, hits);
+    }
+
+    /// <summary>
+    /// ⚠ <b>The other half of the original claim, kept:</b> an entity that does NOT carry the id is not a
+    /// match. ⭐ "Answers false" is only acceptable BECAUSE the supported case above works — ⛔ a
+    /// blanket <c>false</c> was what P11 rightly refused.
+    /// </summary>
+    [Fact]
+    public void Lifecycle_NetworkId_DoesNotFireForAnEntityWithoutThatId()
+    {
+        ComponentTypeRegistry.Clear();
+        var liveRepo = new EntityRepository();
+        var manager  = CreateManager(liveRepo);
+
+        liveRepo.RegisterComponent<TestHealth>();
+        liveRepo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+
+        var entity = liveRepo.CreateEntity();
+        liveRepo.AddComponent(entity, new TestHealth { Current = 10 });
+        liveRepo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity(7));
+
+        int hits = 0;
+        manager.OnBreakpointHit += (_, _) => hits++;
+
+        manager.AddBreakpoint(new LifecyclePredicateDto
+        {
+            IdentifierType = EntityIdentifierType.NetworkId,
+            TargetValue    = "42",
+        });
+
+        manager.EvaluateStatefulBreakpoints(liveRepo);
+
+        Assert.Equal(0, hits);
     }
 }

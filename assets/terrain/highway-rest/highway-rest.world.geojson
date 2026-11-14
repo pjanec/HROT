@@ -1,0 +1,321 @@
+{
+ "type": "FeatureCollection",
+ "hrot": {
+  "schemaVersion": 1,
+  "bounds": [
+   0,
+   0,
+   400,
+   300
+  ],
+  "groundZ": 0,
+  "heightGrid": "highway-rest.height.asc",
+  "description": "CE-1034 H5d test terrain on a height grid: an east-west highway at grade, an overpass (a deck 6 m up on two buried-foot ramps) carrying a local road from the near side (south) to a drivers' rest area (north), with the navmesh over the deck and under it. Local metres, X east, Y north, Z up."
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "slab",
+    "aboveGround": 6,
+    "label": "Overpass deck"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       194,
+       135
+      ],
+      [
+       206,
+       135
+      ],
+      [
+       206,
+       165
+      ],
+      [
+       194,
+       165
+      ],
+      [
+       194,
+       135
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "ramp",
+    "zRef": "ground",
+    "label": "Overpass south ramp"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       194,
+       95,
+       0
+      ],
+      [
+       206,
+       95,
+       0
+      ],
+      [
+       206,
+       135,
+       6
+      ],
+      [
+       194,
+       135,
+       6
+      ],
+      [
+       194,
+       95,
+       0
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "ramp",
+    "zRef": "ground",
+    "label": "Overpass north ramp"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       194,
+       165,
+       6
+      ],
+      [
+       206,
+       165,
+       6
+      ],
+      [
+       206,
+       205,
+       0
+      ],
+      [
+       194,
+       205,
+       0
+      ],
+      [
+       194,
+       165,
+       6
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "height": 5.5,
+    "thickness": 1.0,
+    "material": "concrete",
+    "label": "Pier south"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      195,
+      138
+     ],
+     [
+      205,
+      138
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "height": 5.5,
+    "thickness": 1.0,
+    "material": "concrete",
+    "label": "Pier north"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      195,
+      162
+     ],
+     [
+      205,
+      162
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "height": 5,
+    "floors": 1,
+    "label": "Rest stop"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       230,
+       245
+      ],
+      [
+       262,
+       245
+      ],
+      [
+       262,
+       268
+      ],
+      [
+       230,
+       268
+      ],
+      [
+       230,
+       245
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "surface",
+    "surface": "forest",
+    "label": "Picnic wood"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       280,
+       230
+      ],
+      [
+       340,
+       230
+      ],
+      [
+       340,
+       280
+      ],
+      [
+       280,
+       280
+      ],
+      [
+       280,
+       230
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "height": 8,
+    "floors": 2,
+    "label": "House 1"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       150,
+       40
+      ],
+      [
+       175,
+       40
+      ],
+      [
+       175,
+       62
+      ],
+      [
+       150,
+       62
+      ],
+      [
+       150,
+       40
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "height": 6,
+    "floors": 2,
+    "label": "House 2"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       225,
+       35
+      ],
+      [
+       248,
+       35
+      ],
+      [
+       248,
+       58
+      ],
+      [
+       225,
+       58
+      ],
+      [
+       225,
+       35
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

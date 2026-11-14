@@ -24,7 +24,7 @@ public sealed class AttributeCompilerBuilder
     /// </summary>
     /// <typeparam name="T">Unmanaged struct component type.</typeparam>
     /// <param name="jsonPath">
-    /// Dot-separated JSON path, e.g. <c>"GeoPosition"</c> or <c>"Weapons.*.Ammo.Count"</c>.
+    /// Dot-separated JSON path, e.g. <c>"Position"</c> or <c>"Weapons.*.Ammo.Count"</c>.
     /// Use <c>*</c> as a wildcard for numeric array indices.
     /// </param>
     /// <param name="setter">Delegate that mutates the component in-place.</param>
@@ -39,7 +39,8 @@ public sealed class AttributeCompilerBuilder
     public AttributeCompilerBuilder RegisterValuePath<T>(
         string jsonPath,
         ValueAttributeSetter<T> setter,
-        long descriptorOrdinal = 0) where T : struct
+        long descriptorOrdinal = 0,
+        AttributeValueKind kind = AttributeValueKind.CsString) where T : struct
     {
         if (string.IsNullOrEmpty(jsonPath))
             throw new ArgumentNullException(nameof(jsonPath), "JSON path must not be null or empty.");
@@ -49,7 +50,7 @@ public sealed class AttributeCompilerBuilder
             throw new InvalidOperationException(
                 $"A route for path '{jsonPath}' (hash {hash}) is already registered. Duplicate paths are not allowed.");
 
-        _routes[hash] = new RoutingEntry(new ValueInvoker<T>(setter), descriptorOrdinal);
+        _routes[hash] = new RoutingEntry(new ValueInvoker<T>(setter), descriptorOrdinal, kind);
         _paths.Add(jsonPath);
         return this;
     }
@@ -68,7 +69,8 @@ public sealed class AttributeCompilerBuilder
     public AttributeCompilerBuilder RegisterReferencePath<T>(
         string jsonPath,
         ReferenceAttributeSetter<T> setter,
-        long descriptorOrdinal = 0) where T : class
+        long descriptorOrdinal = 0,
+        AttributeValueKind kind = AttributeValueKind.CsString) where T : class
     {
         if (string.IsNullOrEmpty(jsonPath))
             throw new ArgumentNullException(nameof(jsonPath), "JSON path must not be null or empty.");
@@ -78,7 +80,28 @@ public sealed class AttributeCompilerBuilder
             throw new InvalidOperationException(
                 $"A route for path '{jsonPath}' (hash {hash}) is already registered. Duplicate paths are not allowed.");
 
-        _routes[hash] = new RoutingEntry(new ReferenceInvoker<T>(setter), descriptorOrdinal);
+        _routes[hash] = new RoutingEntry(new ReferenceInvoker<T>(setter), descriptorOrdinal, kind);
+        _paths.Add(jsonPath);
+        return this;
+    }
+
+    /// <summary>
+    /// ⭐ rules ② (R1) — a JSON path for an IMMUTABLE managed component: the setter returns the NEW instance (<c>old with { … }</c>), which the
+    /// invoker sets whole through <see cref="IEntityPatchContext.SetManagedComponent{T}"/>.
+    /// </summary>
+    public AttributeCompilerBuilder RegisterReplacePath<T>(
+        string jsonPath,
+        ReplaceAttributeSetter<T> setter,
+        long descriptorOrdinal = 0,
+        AttributeValueKind kind = AttributeValueKind.CsString) where T : class
+    {
+        if (string.IsNullOrEmpty(jsonPath))
+            throw new ArgumentNullException(nameof(jsonPath), "JSON path must not be null or empty.");
+        ulong hash = JsonAttributeCompiler.HashPath(jsonPath);
+        if (_routes.ContainsKey(hash))
+            throw new InvalidOperationException(
+                $"A route for path '{jsonPath}' (hash {hash}) is already registered. Duplicate paths are not allowed.");
+        _routes[hash] = new RoutingEntry(new ReplaceInvoker<T>(setter), descriptorOrdinal, kind);
         _paths.Add(jsonPath);
         return this;
     }

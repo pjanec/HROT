@@ -52,6 +52,12 @@ public enum HsmDiagnosticCode
     // OutputLaneMask was updated automatically.
     ActionSignatureMismatch,
 
+    // (HSM-012) A state carries a Timer action binding, but the kernel never arms a timer:
+    // HsmKernelCore does not read StateDef.TimerActionId and every production write of
+    // TimerDeadlines[] is zero. The binding is emitted and will never fire. The editor no
+    // longer offers the field; this reports the ones already in a hand-authored asset.
+    TimerActionNotImplemented,
+
     // After a hot reload, a reference in the asset points to a symbol
     // that no longer exists in the new assembly.
     DanglingReferenceAfterReload,
@@ -69,4 +75,47 @@ public enum HsmDiagnosticCode
     // is shared per entity, so concurrent writes from two regions race and corrupt the slot.
     // The shared-slot analogue of ConcurrentStatefulSubtree. Hard-error.
     ConcurrentSharedScopeKey,
+
+    // (E5 item 7) This asset hosts a sub-tree that — directly or through a chain of further
+    // hosts — hosts this asset again: A hosts B hosts A. Hosting is expanded INLINE by
+    // HsmRunner.TickHostedChildren, so a ring has no base case and recurses until the
+    // stack dies. Detected over the ASSET graph at validation time, never at runtime.
+    // DESIGN_Occurrence_Scoped_Storage.md §32.16. Hard-error.
+    SubtreeAssetCycle,
+
+    // (§11.1a) A state names a hosted subtree that resolves to no BTree asset in the catalogue —
+    // neither by name nor by its stored Guid. The BTree twin is Rule 6 (Subtree with
+    // IsResolved == false); this is the HSM side of the same claim.
+    // ⚠ Reported rather than auto-cleared: the asset may simply be absent from THIS session's
+    // catalogue (an unloaded project, a partial checkout), and erasing the reference would turn a
+    // recoverable situation into data loss. HSM_Editor_NodeEditor_Host_Design.md §11.1a.
+    SubtreeReferenceDangling,
+
+    // ⭐⭐⭐ (design §9 ③) A state names BOTH an activity ACTION and an activity BLUEPRINT, or a
+    // transition names BOTH a guard FUNCTION and a guard BLUEPRINT.
+    //
+    // 🔴 WHY THIS IS AN ERROR AND NOT A WARNING. The two resolve through DIFFERENT id spaces — a
+    // name through FNV1a16(FQN), a blueprint through (ushort)BlueprintId = FNV-1a32 of the asset
+    // Guid — and the flattener's explicit-id override (CE-383) makes the BLUEPRINT win silently.
+    // ⇒ the asset compiles, one binding is discarded with no message, and the designer watches the
+    // wrong behaviour run. ⛔ Exactly the silent TryGetValue miss E6 spent a batch on.
+    // 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2, §9 ③. Hard-error.
+    MethodAndBlueprintBothBound,
+
+    // ⭐ CE-503 (CE-434's BTree rule, shared) — a bound resolver asset whose recorded block-shape hash no longer matches
+    // the behaviour's block. ⚠ A WARNING on purpose: the C# compile of the resolver against the generated block is the
+    // backstop (BP1677), this is the ergonomic early notice. 📄 Q76 §12.21.
+    ResolverOutOfDate,
+
+    // ⭐ CE-2083 — a state's SOP order RUNS AS its activity (DESIGN_Decision_Layer §4.10 D3): an order AND an Activity binding
+    // is one slot with two owners (the generator refuses it, HSM0001); and an order must name a behaviour. Hard-error.
+    SopOrderInvalid,
+
+    // ⭐ CE-1001 / HSM-006 — two states share a name. Emit binds a transition to its target BY NAME, so this is a
+    // silently wrong machine (the builder binds whichever it resolves first). Hard-error.
+    DuplicateStateName,
+
+    // ⭐ CE-1003 (Q84 B) / HSM-002 — a declared region of a parallel state, holding states, names no initial state
+    // (RegionNode.InitialChild is unset or not one of its members). Hard-error.
+    RegionWithoutInitialState,
 }

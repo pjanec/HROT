@@ -6,12 +6,12 @@ namespace Fdp.Examples.DDS
     /// Replicates <c>LocomotionChannel</c> to the physics (muscle) node.
     /// Used by the DistributedTank and UrbanCombat (new) scenarios.
     /// </summary>
-    [DdsTopic("FDP.Demo_Locomotion")]
+    [DdsTopic]
     public partial struct DemoLocomotionMsg
     {
         /// <summary>Unique long-lived network identifier for the entity.</summary>
         [DdsKey]
-        public long NetworkId;
+        public int NetworkId;
 
         /// <summary>Currently active locomotion action identifier.</summary>
         public ushort ActiveAction;

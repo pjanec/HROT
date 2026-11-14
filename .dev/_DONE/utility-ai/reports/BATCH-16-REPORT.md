@@ -68,7 +68,7 @@ suite passes with 123 tests (baseline 100 + 23 new).
 ## Build & Test Results
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
 Build succeeded. 0 Error(s)
 
 dotnet test Hrot\Editor\Hrot.Utility.Editor.Tests\Hrot.Utility.Editor.Tests.csproj -c Debug

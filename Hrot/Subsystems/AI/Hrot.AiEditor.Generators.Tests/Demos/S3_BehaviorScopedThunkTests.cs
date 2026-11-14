@@ -60,11 +60,11 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
     {
         var world = new EntityRepository();
         world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<BrainBlackboard>();
-        world.RegisterComponent<BrainBTreeState>();
-        world.RegisterComponent<BlueprintBlackboard1024>();
-        world.RegisterComponent<BlueprintBlackboard4096>();
-        world.RegisterComponent<BlueprintBlackboard16384>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+        //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+        //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+        //   O3b added one. Production never had the bug: it registers from the table.
+        BlueprintTierTable.RegisterAll(world);
         return world;
     }
 
@@ -76,7 +76,6 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
         Name = name,
         Type = new BlackboardTypeRefDto { TypeId = ParamsTypeId },
         DefaultValueJson = $"{{\"Limit\":{limit}}}",
-        Role = BlackboardVariableRole.Input,
     };
 
     // Working-state variable (DemoCursorState) — State role + scope; NOT packed. Drives slot key.
@@ -84,22 +83,20 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
     {
         Name = name,
         Type = new BlackboardTypeRefDto { TypeId = WorkingStateTypeId },
-        Role = BlackboardVariableRole.State,
-        Scope = scope,
     };
 
     private static BTreeActionNodeDto ActionNode(Guid visualId, string label, string paramField, string stateField) => new()
     {
         VisualId = visualId,
         DisplayLabel = label,
-        Action = new BTreeActionPayloadDto
+        Action = new BehaviorActionBindingDto
         {
             MethodFqn = MethodFqn,
             ExpressionTargetField = paramField,
             WorkingStateTargetField = stateField,
-            DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful,
             WorkingStateTypeId = WorkingStateTypeId,
         },
+        DelegateShape = BTreeDelegateShapeDto.Stateful,
     };
 
     private static BehaviorTreeAssetDto BuildAsset(
@@ -214,10 +211,10 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
         bridge.Should().NotBeNull($"ScanForRegistrars must discover '{registrarName}'");
 
         var bpStaging = _blueprintRegistry.BeginStaging();
-        var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var actionReg = new ActionRegistry<byte, BTreeContext>();
         var args = bridge!.Parameters.OrderBy(p => p.OrdinalIndex)
             .Select(p => p.ParameterType == typeof(BehaviorRegistry) ? (object)_liveRegistry
-                       : p.ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>) ? (object)actionReg
+                       : p.ParameterType == typeof(ActionRegistry<byte, BTreeContext>) ? (object)actionReg
                        : (object)bpStaging)
             .ToArray();
         bridge.RegisterMethod.Invoke(null, args);
@@ -240,14 +237,9 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
         ingress.Execute(world, 0.016f);
     }
 
-    private static unsafe int SlotCount(EntityRepository world, Fdp.Core.Entity entity)
-    {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(m); }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(m); }
-        ref var t1 = ref world.GetComponentRW<BlueprintBlackboard1024>(entity); fixed (byte* m = t1.Memory) return BlueprintBlackboardPartitions.GetSlotCount(m);
-    }
+    // ⛔ CE-376: the slot-COUNT helper is deleted. It counted every occurrence slot including the
+    //   two ROOT ones, so "expected 1, found 3" read as a product defect for two slices.
+    //   RootParamsTestHarness.AssertAuthoredSlotsAre asserts WHICH keys are attached instead.
 
     private static unsafe int ReadCursor(EntityRepository world, Fdp.Core.Entity entity, int slotKey)
     {
@@ -257,11 +249,12 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
                 .Should().BeTrue("shared slot must exist when reading cursor");
             return Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + off).Cursor;
         }
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity); fixed (byte* m = t.Memory) return Read(m); }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity); fixed (byte* m = t.Memory) return Read(m); }
-        ref var t1 = ref world.GetComponentRW<BlueprintBlackboard1024>(entity); fixed (byte* m = t1.Memory) return Read(m);
+        // ⭐ B4: hard-coded the 1024 tier. With a 256 tier the ingress seats these entities
+        //   there, and GetComponentRW<...1024> throws. OccurrenceStoreAccess is the seam
+        //   production uses — it resolves whichever tier was actually chosen.
+        byte* m = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        (m != null).Should().BeTrue("entity must carry a blueprint blackboard tier");
+        return Read(m);
     }
 
     // ── TEST 1: BehaviorScoped_TwoNodes_ShareOneSlot ──────────────────────────────
@@ -300,30 +293,36 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
         int behaviorKey = BTreeBridgeEmitCore.ComputeStatefulSlotKey(
             assetId, WorkingStateScope.Behavior, Guid.Empty, shared);
 
-        def.StatefulWorkingSlots.Should().NotBeNull();
-        def.StatefulWorkingSlots!.Count.Should().Be(1, "two co-bound Behavior nodes share one slot");
-        def.StatefulWorkingSlots[0].SlotKey.Should().Be(behaviorKey);
+        // ⭐⭐ CE-437: the shared Behavior-scoped variable lives in the behaviour's BLOCK (St.shared),
+        //   so the manifest declares NO side slot for it — one home, not two.
+        (def.StatefulWorkingSlots ?? System.Array.Empty<StatefulSlotInfo>())
+            .Should().NotContain(s => s.SlotKey == behaviorKey,
+                "CE-437: a Behavior-scoped State variable is block-resident, not a side slot");
 
         var world = CreateWorld();
         Fdp.Core.Entity entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         AssignBehavior(world, entity, assetName);
-        SlotCount(world, entity).Should().Be(1, "exactly one shared partition slot must be provisioned");
+        // ⭐ CE-376: assert WHICH slots are attached, not HOW MANY. A bare count also counts the two
+        //   ROOT slots (root params, root cursor), which is why this read "1" and found 3.
+        RootParamsTestHarness.AssertAuthoredSlotsAre(
+            world, entity, (def.StatefulWorkingSlots ?? System.Array.Empty<StatefulSlotInfo>()).Select(s => s.SlotKey),
+            "CE-437: two co-bound Behavior nodes provision NO side slot — their state is in the block");
 
         // One tick: A then B advance the SAME cursor (0→1→2).
         var ctx = new BTreeContext { Self = entity, World = world };
         {
-            ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
+            ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity);   // P4-②: the ROOT PARAMS SLOT base, exactly as BTreeTickSystem hands it to the interpreter
             var state = new BehaviorTreeState();
             def.BTreeInterpreter!.Tick(ref bb, ref state, ref ctx);
         }
 
-        ReadCursor(world, entity, behaviorKey).Should().Be(2,
-            "node A (0→1) then node B (1→2) mutate the SAME shared slot in one tick; " +
-            "independent per-node slots would give Cursor=1 each");
+        RootParamsTestHarness.ReadBlockState<DemoCounterNodes.DemoCursorState>(world, entity, def, shared).Cursor
+            .Should().Be(2,
+            "node A (0→1) then node B (1→2) mutate the SAME shared variable in one tick; " +
+            "independent per-node locations would give Cursor=1 each (CE-437: it is St.shared in the block)");
 
         world.Dispose();
         alc.Unload();
@@ -348,13 +347,10 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
 
         var dto = BuildAsset(
             assetId, "S3NodeScoped",
-            new[]
-            {
-                ParamVar(ParamVarName, limit: 3),
-                StateVar("localA", WorkingStateScope.Node),
-                StateVar("localB", WorkingStateScope.Node),
-            },
-            new[] { (n1, "A", "localA"), (n2, "B", "localB") });
+            new[] { ParamVar(ParamVarName, limit: 3) },
+            // ⭐ CE-3193 — the per-node key is what a stateful node gets when it names NO working-state variable; one that
+            //   names a variable keys by that name (it is working state, in the block's St).
+            new[] { (n1, "A", (string)null!), (n2, "B", (string)null!) });
 
         Func<string, int?> sizeResolver = t => t == ParamsTypeId ? 4 : (int?)null;
         string bridgeSrc = BTreeBridgeEmitCore.EmitBridge(dto, sizeResolver);

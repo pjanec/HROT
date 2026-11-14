@@ -1,4 +1,6 @@
 using System;
+using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Perception.Components;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Components;
@@ -29,16 +31,31 @@ namespace Hrot.SimHost.Systems
     ///     bypass the C# 12 [InlineArray] ldobj defensive-copy trap (Design §8.1).</item>
     /// </list></para>
     /// </summary>
+    // ⭐⭐ CE-165 — the second system carried by BOTH CgfLogicPack (Brain) and SimHostCoreLogicPack
+    // (MuscleGround), so a node in both roles registers it twice unless the composition root deduplicates.
+    // ⚠ Stated honestly: unlike UnitHierarchySystem, a second tick here has NOT been measured to corrupt —
+    // it loops over buffers and writes results rather than accumulating. It is marked anyway because it is
+    // a singleton BY DESIGN (one EQS result pump per node) and a duplicate registration is a composition
+    // defect whatever the second tick happens to cost. If a legitimate need for two instances ever appears,
+    // remove the attribute and say why — do not weaken the guard.
+    [SingleInstance]
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class EqsResultUpdateSystem : IEcsModuleSystem
     {
+        // ⭐ CE-3241 (found by the CE-3222 perf gate) — the sensors by wire key, built ONCE per frame that has results. Was a scan
+        //   of every EqsSensor (resolving its key) per result event: O(events × sensors), both growing with the crowd —
+        //   📐 5.6 ms/frame at 100 civilians, 39.2 at 300 (SimHost, --mode all). First match wins, as the old scan's break did.
+        private readonly System.Collections.Generic.Dictionary<int, Entity> _byIndex = new();
+        private readonly System.Collections.Generic.Dictionary<(long Net, int Index), Entity> _byKey = new();
+
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo) return;
 
             // ── Path A: Online managed events from DDS ingress translator ─────────
-            foreach (var evt in repo.Bus.ReadManaged<EqsResultUpdateEvent>())
+            foreach (var evt in repo.ReadManagedEvents<EqsResultUpdateEvent>())
             {
                 if (!repo.IsAlive(evt.Observer)) continue;
                 if (!repo.HasComponent<EqsSensor>(evt.Observer)) continue;
@@ -51,6 +68,7 @@ namespace Hrot.SimHost.Systems
                     repo.AddComponent(evt.Observer, new EqsCognitiveBuffer());
 
                 ref var buffer = ref repo.GetComponentRW<EqsCognitiveBuffer>(evt.Observer);
+                var topBefore = TopOf(in buffer);
                 buffer.Count         = Math.Min(evt.Results.Count, EqsResultPool.MaxTopK);
                 // Ensure LastUpdateTick > 0 so IsReady returns true.
                 buffer.LastUpdateTick          = evt.RefreshTick != 0 ? evt.RefreshTick : 1u;
@@ -60,17 +78,9 @@ namespace Hrot.SimHost.Systems
                 var span = buffer.GetSpanRW();
                 for (int i = 0; i < buffer.Count; i++)
                 {
-                    span[i] = new EqsResult
-                    {
-                        EntityId        = evt.Results[i].EntityId,
-                        PositionX       = evt.Results[i].PositionX,
-                        PositionY       = evt.Results[i].PositionY,
-                        PositionZ       = evt.Results[i].PositionZ,
-                        Score           = evt.Results[i].Score,
-                        Flags           = (short)evt.Results[i].Flags,
-                        FlagsMeaningful = (short)evt.Results[i].FlagsMeaningful,
-                    };
+                    span[i] = evt.Results[i];   // ⭐ CE-4207: the event carries engine records (the ingress translator converted the wire)
                 }
+                NotifyTopChanged(repo, evt.Observer, topBefore, in buffer);
             }
 
             // ── Path B: Offline unmanaged events from local solver ────────────────
@@ -85,6 +95,16 @@ namespace Hrot.SimHost.Systems
                 .With<EqsSensor>()
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
+            _byIndex.Clear();
+            _byKey.Clear();
+            foreach (var candidate in sensorQuery)
+            {
+                _byIndex.TryAdd(candidate.Index, candidate);   // a local-only sensor: matched by entity Index
+                // ⭐ The ONE wire-key rule (EqsSensorKey): a child sensor by (parent's network id, part id) — InstanceId 0 is a valid
+                //   first child index — or a legacy sensor on the networked entity itself.
+                if (EqsSensorKey.Resolve(view, candidate, out int net, out int index, out _) is EqsSensorKeyKind.Child or EqsSensorKeyKind.Legacy)
+                    _byKey.TryAdd((net, index), candidate);
+            }
 
             for (int i = 0; i < unmanagedEvents.Length; i++)
             {
@@ -92,46 +112,8 @@ namespace Hrot.SimHost.Systems
 
                 // Find the entity whose compound key matches (ParentNetworkId, LocalChildIndex).
                 Entity observer = default;
-                foreach (var candidate in sensorQuery)
-                {
-                    if (evt.ParentNetworkId == 0)
-                    {
-                        // Local-only sensor: matched by entity Index.
-                        if (candidate.Index == evt.LocalChildIndex)
-                        {
-                            observer = candidate;
-                            break;
-                        }
-                    }
-                    else if (view.HasComponent<PartMetadata>(candidate))
-                    {
-                        // Child-entity sensor: try PartMetadata path first, even when LocalChildIndex==0
-                        // (InstanceId=0 is a valid first child index).
-                        var meta = view.GetComponentRO<PartMetadata>(candidate);
-                        if (meta.InstanceId == evt.LocalChildIndex &&
-                            view.HasComponent<NetworkIdentity>(meta.ParentEntity) &&
-                            view.GetComponentRO<NetworkIdentity>(meta.ParentEntity).Value == evt.ParentNetworkId)
-                        {
-                            observer = candidate;
-                            break;
-                        }
-                    }
-                    else if (evt.LocalChildIndex == 0)
-                    {
-                        // Legacy single-sensor: matched by NetworkIdentity on the entity itself
-                        // (only when candidate has no PartMetadata).
-                        if (view.HasComponent<NetworkIdentity>(candidate))
-                        {
-                            ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(candidate);
-                            if (netId.Value == evt.ParentNetworkId)
-                            {
-                                observer = candidate;
-                                break;
-                            }
-                        }
-                    }
-                    // No else: if LocalChildIndex != 0 and candidate has no PartMetadata, skip.
-                }
+                if (evt.ParentNetworkId == 0) _byIndex.TryGetValue(evt.LocalChildIndex, out observer);
+                else _byKey.TryGetValue((evt.ParentNetworkId, evt.LocalChildIndex), out observer);
                 if (observer.IsNull || !repo.IsAlive(observer)) continue;
                 if (!repo.HasComponent<EqsSensor>(observer)) continue;
                 ref readonly var sensor2 = ref repo.GetComponentRO<EqsSensor>(observer);
@@ -142,6 +124,7 @@ namespace Hrot.SimHost.Systems
                     repo.AddComponent(observer, new EqsCognitiveBuffer());
 
                 ref var buffer2 = ref repo.GetComponentRW<EqsCognitiveBuffer>(observer);
+                var topBefore2 = TopOf(in buffer2);
                 buffer2.Count                = Math.Min(evt.EntryCount, EqsResultPool.MaxTopK);
                 // Ensure LastUpdateTick > 0 so IsReady returns true even at tick 0.
                 buffer2.LastUpdateTick          = evt.RefreshTick != 0 ? evt.RefreshTick : 1u;
@@ -151,7 +134,38 @@ namespace Hrot.SimHost.Systems
                 var span2 = buffer2.GetSpanRW();
                 for (int j = 0; j < buffer2.Count; j++)
                     span2[j] = pool.Results[evt.ResultHandle + j];
+                NotifyTopChanged(repo, observer, topBefore2, in buffer2);
             }
+        }
+
+        // The best result as an identity: (entity, position) — a positional result moves, an entity result changes entity.
+        private static (long Id, float X, float Y, bool Any) TopOf(in EqsCognitiveBuffer buffer)
+        {
+            if (buffer.Count == 0) return (0, 0f, 0f, false);
+            var top = buffer.GetSpanRO()[0];
+            return (top.EntityId, top.PositionX, top.PositionY, true);
+        }
+
+        /// <summary>
+        /// ⭐ CE-3039 — a PERCEPTION sensor's best result changed ⇒ <see cref="SensorChangedEvent"/> TopChanged for its unit
+        /// (design §7.3: the producer is the system that writes the buffer). A query sensor (cover, flank …) has no
+        /// <see cref="SensorTag"/> and its blueprint reads it with <c>When EqsResult(TopChanged)</c> instead.
+        /// </summary>
+        private static void NotifyTopChanged(EntityRepository repo, Entity sensor, (long Id, float X, float Y, bool Any) before,
+                                             in EqsCognitiveBuffer after)
+        {
+            if (!repo.IsComponentTypeRegistered<SensorTag>() || !repo.HasComponent<SensorTag>(sensor)) return;
+            if (!repo.HasComponent<PartMetadata>(sensor)) return;
+            var now = TopOf(in after);
+            if (now == before) return;
+            ((ISimulationView)repo).GetCommandBuffer().PublishEvent(new SensorChangedEvent
+            {
+                Unit   = repo.GetComponentRO<PartMetadata>(sensor).ParentEntity,
+                Sensor = sensor,
+                Target = now.Any && now.Id > 0 ? new Entity((ulong)now.Id) : Entity.Null,
+                Kind   = repo.GetComponentRO<SensorTag>(sensor).Kind,
+                What   = SensorChange.TopChanged,
+            });
         }
     }
 }

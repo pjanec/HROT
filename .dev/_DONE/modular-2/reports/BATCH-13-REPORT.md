@@ -82,7 +82,7 @@ Output confirms: no `Hrot.Network.NED` or `Hrot.Network.BDC` direct references.
 ## Build Result
 
 ```
-dotnet build IOS-IG-SimHost.sln -v quiet
+dotnet build HROT.sln -v quiet
 0 Error(s)
 2 Warning(s)  (pre-existing duplicate using in EditorSubsystemBootTests.cs)
 ```

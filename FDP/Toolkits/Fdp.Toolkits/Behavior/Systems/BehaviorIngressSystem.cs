@@ -9,6 +9,9 @@ using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
 
+using Fdp.Toolkit.Behavior.Diagnostics;
+using Fdp.Toolkit.Replication.Edits;
+
 namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
@@ -34,14 +37,63 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class BehaviorIngressSystem : IEcsModuleSystem
     {
         private readonly BehaviorRegistry _registry;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-307</c> — the transactional-parse shadow. A GROWABLE scratch buffer, and
+        /// deliberately <b>not</b> a bound.</b>
+        ///
+        /// <para>🔴 <b>What it replaced, and why the replacement is the load-bearing half of
+        /// <c>P4</c>-④.</b> This was <c>stackalloc byte[BehaviorConstants.BrainBlackboardByteSize]</c>
+        /// — 100 bytes, the width of the component being retired. ⛔ A behaviour whose packed variable
+        /// table exceeded 100 bytes would have had <see cref="BehaviorDefinition.ParseParams"/> write
+        /// <b>past the end of a stack buffer</b>, and the carry-over seed silently truncate. ⚠ Neither
+        /// was reachable — <b>only because <c>BehaviorParameterSizeAnalyzer</c> capped params at
+        /// 100</b>. ⇒ 🔒 removing that cap before this was sized per-behaviour would have converted an
+        /// impossible fault into a live one, which is why this change lands FIRST.</para>
+        ///
+        /// <para>⭐ <b>An instance field, not a <c>stackalloc</c>.</b> The width is a RUNTIME value now
+        /// (<see cref="RootParamsAccess.RootParamsBytes"/> — 52 for <c>PlatoonHillAttack</c>, 16 for
+        /// <c>MoveToLocation</c>), so a compile-time stack allocation cannot express it, and a
+        /// <c>stackalloc</c> inside the event loop is the <c>CA2014</c> stack-overflow the original
+        /// comment was avoiding. ⚠ Reused across events and frames — hence the unconditional
+        /// <c>Clear()</c> at the seed — and it only ever grows, so the steady state allocates nothing.
+        /// ⛔ <c>Execute</c> is not re-entrant (Input phase, one thread), which is what makes per-system
+        /// scratch state safe here.</para>
+        /// </summary>
+        private byte[] _shadow = Array.Empty<byte>();
+
+        /// <summary>
+        /// The smallest shadow this will hand out. ⛔ <b>Not a cap and not a budget</b> — a floor, so
+        /// that pinning the buffer can never yield a <c>null</c> <c>dst</c> for a
+        /// <see cref="BehaviorDefinition.ParseParams"/> delegate. ⚠ Reachable only for a behaviour that
+        /// declares a parser and a manifest whose extent computes to zero; every shipped behaviour
+        /// declares either a manifest with real variables or a <c>BlackboardLayoutType</c>.
+        /// </summary>
+        private const int MinShadowBytes = 16;
 
         public BehaviorIngressSystem(BehaviorRegistry registry)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         }
+
+        /// <summary>
+        /// ⭐ Widens <see cref="_shadow"/> to hold <paramref name="bytes"/> and returns exactly that
+        /// window. ⚠ The returned span's <c>Length</c> is the authority for the seed clamp — ⛔ never
+        /// <c>_shadow.Length</c>, which may be wider from a previous, larger behaviour.
+        /// </summary>
+        private Span<byte> EnsureShadow(int bytes)
+        {
+            int need = Math.Max(bytes, MinShadowBytes);
+            if (_shadow.Length < need) _shadow = new byte[need];
+            return _shadow.AsSpan(0, need);
+        }
+
+        private readonly Fdp.Toolkit.Replay.ResumableCounter<RunTokenMark> _runTokens = new(
+            () => RunTokens.Last, RunTokens.ResumeAt, m => (m.Last, m.At), (last, at) => new RunTokenMark { Last = last, At = (SimInstant)at });
 
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
@@ -50,11 +102,11 @@ namespace Fdp.Toolkit.Behavior.Systems
                     $"{nameof(BehaviorIngressSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            var events = repo.Bus.ReadManaged<AssignBehaviorEvent>();
+            // ⭐ CE-3337 — the run-token counter follows the world across a restore (the ONE shared protocol), before this frame mints any
+            _runTokens.Step(repo, deltaTime);
 
-            // Shadow buffer allocated once per OnUpdate call (outside the loop) to avoid
-            // CA2014 stack-overflow risk. BrainBlackboardByteSize is a compile-time constant.
-            Span<byte> shadow = stackalloc byte[BehaviorConstants.BrainBlackboardByteSize];
+            _startedByNameThisFrame.Clear();
+            var events = repo.ReadManagedEvents<AssignBehaviorEvent>();
 
             foreach (var evt in events)
             {
@@ -62,179 +114,1303 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
 
                 // DEBT-006: use stable int ID from registry — no GetHashCode().
-                if (!_registry.TryGetId(evt.BehaviorName, out int behaviorId)) continue;
-                if (!_registry.TryGetDefinition(behaviorId, out var def)) continue;
-
-                // DEBT-035 fix: attempt ParseParams BEFORE writing BehaviorState/BrainBTreeState.
-                // Strategy: shadow-copy the live blackboard into stack memory, attempt parse on the
-                // shadow, and only on success write the shadow back + commit the behavior transition.
-                // This ensures a ParseParams failure leaves the entity 100% on the old behavior.
-                if (def.ParseParams != null)
+                if (!_registry.TryGetId(evt.BehaviorName, out int behaviorId) || !_registry.TryGetDefinition(behaviorId, out var def))
                 {
-                    if (!repo.HasComponent<BrainBlackboard>(evt.Entity))
-                    {
-                        // Behavior requires params but entity has no blackboard — skip.
-                        continue;
-                    }
-
-                    // Reuse the pre-allocated shadow buffer (cleared per iteration below).
-
-                    ref readonly var bbRO = ref repo.GetComponentRO<BrainBlackboard>(evt.Entity);
-                    fixed (BrainBlackboard* src = &bbRO)
-                    fixed (byte* dst = shadow)
-                    {
-                        Buffer.MemoryCopy(src, dst, BehaviorConstants.BrainBlackboardByteSize,
-                            BehaviorConstants.BrainBlackboardByteSize);
-                    }
-
-                    // Attempt parse on the shadow.
-                    bool parseOk;
-                    fixed (byte* dst = shadow)
-                    {
-                        try
-                        {
-                            def.ParseParams(evt.JsonParams, dst, repo, evt.Entity);
-                            parseOk = true;
-                        }
-                        catch (Exception ex)
-                        {
-                            // Suppress — do NOT rethrow; a parse failure must not crash the loop.
-                            _ = ex;
-                            parseOk = false;
-                        }
-                    }
-
-                    if (!parseOk) continue; // ParseParams failed — entity stays on old behavior entirely.
-
-                    // Parse succeeded: commit shadow back to the live blackboard.
-                    ref var bbW = ref repo.GetComponentRW<BrainBlackboard>(evt.Entity);
-                    fixed (byte* src = shadow)
-                    fixed (BrainBlackboard* dst = &bbW)
-                    {
-                        Buffer.MemoryCopy(src, dst, BehaviorConstants.BrainBlackboardByteSize,
-                            BehaviorConstants.BrainBlackboardByteSize);
-                    }
+                    InteractionOutcomes.Refused(repo, evt.RequestId, evt.Entity, $"no behaviour named {evt.BehaviorName} on this node");   // ⭐ CE-4306 (F5)
+                    continue;
                 }
+                _lastRefusal = BrainRefusal.Unspecified;
 
-                // ParseParams succeeded (or was not required). Commit behavior transition.
-
-                // 1. Update BehaviorState.
-                // Read previous behavior hash before overwriting (needed for S2-2 detach).
-                int previousBehaviorId = repo.GetComponentRW<BehaviorState>(evt.Entity).ActiveBehaviorHash;
-                ref var behavior = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
-                behavior.ActiveBehaviorHash = behaviorId;
-                // Intentional unsigned wrap — InstanceId is a monotonic preemption token.
-                unchecked { behavior.InstanceId++; }
-                behavior.BrainTier = def.BrainTier;
-                if (def.HeavyDtoType != null &&
-                    repo.IsComponentTypeRegistered<Blackboard1024>() &&
-                    !repo.HasComponent<Blackboard1024>(evt.Entity))
-                {
-                    repo.AddComponent(evt.Entity, new Blackboard1024());
-                }
-
-                // S2-2: Synchronously provision stateful working-state partition slots.
-                // Must happen BEFORE the same frame's Simulation tick (§10 Flaw 1 fix).
-                if (def.StatefulWorkingSlots != null && def.StatefulWorkingSlots.Count > 0)
-                {
-                    // Detach previous behavior's slots to avoid leaking them.
-                    if (previousBehaviorId != BehaviorIds.None &&
-                        previousBehaviorId != behaviorId &&
-                        _registry.TryGetDefinition(previousBehaviorId, out var prevDef) &&
-                        prevDef.StatefulWorkingSlots != null && prevDef.StatefulWorkingSlots.Count > 0)
-                    {
-                        DetachStatefulSlots(repo, evt.Entity, prevDef.StatefulWorkingSlots);
-                    }
-
-                    ProvisionStatefulSlots(repo, evt.Entity, def.StatefulWorkingSlots);
-                }
-
-                // 2. Reset BTree execution pointer so the new behavior starts from the root.
-                if (repo.HasComponent<BrainBTreeState>(evt.Entity))
-                {
-                    ref var btState = ref repo.GetComponentRW<BrainBTreeState>(evt.Entity);
-                    btState.State = default;
-                }
-
-                // 3. BHU-016 / CRITICAL FIX: Reset HSM instance bound to the new behavior's topology.
-                // Supplying the StructureHash keeps InstanceHeader.MachineId in sync with the new
-                // HsmDefinitionBlob so HsmKernelCore.ValidateInstance passes on the very next tick.
-                if (def.BrainTier == BehaviorConstants.BrainTierHsm && def.HsmDefinition != null)
-                {
-                    ResetHsmComponents(repo, evt.Entity, def.HsmDefinition.Header.StructureHash);
-                }
+                // ⭐ CE-3034 — THE ONE GATE (R-188): a lower origin cannot replace a higher one.
+                // ⭐ CE-2078 — and a reaction (R-199) pauses the task it replaces.
+                int replaced = repo.GetComponentRO<BehaviorState>(evt.Entity).ActiveBehaviorHash;   // ⭐ CE-1249 — for the journal
+                if (!Admit(repo, evt.Entity, evt.Origin, evt.Urgency, out bool pause, behaviorId)) { InteractionOutcomes.Refused(repo, evt.RequestId, evt.Entity, BrainRefusalText.Of(_lastRefusal)); continue; }
+                var paused = pause ? PauseRecord(repo, evt.Entity, behaviorId, def) : null;
+                if (!Start(repo, evt.Entity, evt.BehaviorName, behaviorId, def, evt.JsonParams, evt.Origin, evt.Urgency, paused)) { InteractionOutcomes.Refused(repo, evt.RequestId, evt.Entity, BrainRefusalText.Of(_lastRefusal)); continue; }
+                JournalStarted(repo, evt.Entity, behaviorId, replaced, evt.Origin, evt.Urgency, pause, (byte)evt.Cause);
+                AfterAdmitted(repo, evt.Entity, evt.Origin, paused);
+                _startedByNameThisFrame[evt.Entity.Index] = behaviorId;
+                InteractionOutcomes.Applied(repo, evt.RequestId, evt.Entity);   // ⭐ CE-4306 (F5): the order was accepted
             }
 
             // ── ClearBehaviorEvent handler ────────────────────────────────────────────────
             // Forcibly resets the active behavior to BehaviorIds.None (brain-death).
             // Published top-down by MissionDirectorSystem (plan exhausted) and
             // MissionControlRequestSystem (CMD_ABORT_ALL).
-            var clearEvents = repo.Bus.Read<ClearBehaviorEvent>();
+            var clearEvents = repo.ReadEvents<ClearBehaviorEvent>();
             foreach (var evt in clearEvents)
             {
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
-
-                // S3-5: detach the outgoing behavior's stateful slots BEFORE clearing.
-                // The switch path (AssignBehaviorEvent) already detaches on switch, but a clear-
-                // without-successor previously only nulled ActiveBehaviorHash, leaking the slots
-                // until the next assign. Capture the previous behavior id and reclaim its slots.
-                // DetachStatefulSlots frees by the manifest's SlotKey, which is scope-aware (S3-4),
-                // so this reclaims Node- and Behavior-scoped slots alike.
-                int previousBehaviorId = repo.GetComponentRW<BehaviorState>(evt.Entity).ActiveBehaviorHash;
-                if (previousBehaviorId != BehaviorIds.None &&
-                    _registry.TryGetDefinition(previousBehaviorId, out var prevDef) &&
-                    prevDef.StatefulWorkingSlots != null && prevDef.StatefulWorkingSlots.Count > 0)
-                {
-                    DetachStatefulSlots(repo, evt.Entity, prevDef.StatefulWorkingSlots);
-                }
-
-                ref var behavior = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
-                behavior.ActiveBehaviorHash = BehaviorIds.None;
-                unchecked { behavior.InstanceId++; }
-                behavior.BrainTier = 0;
-
-                if (repo.HasComponent<BrainBTreeState>(evt.Entity))
-                    repo.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
+                if (evt.OnlyBehaviorHash != 0 && !NamedClearEndsTheRun(repo, evt)) continue;              // ⭐ CE-2141 — a clear that names a behaviour
+                if (!Admit(repo, evt.Entity, evt.Origin, ReactionUrgency.NotAReaction, out _)) continue;   // ⭐ CE-3034 — a clear is gated like an assign
+                var endingOrigin = repo.GetComponentRO<BehaviorState>(evt.Entity).Origin;
+                bool endsAReaction = endingOrigin == BehaviorOrigin.Reaction;
+                int cleared = repo.GetComponentRO<BehaviorState>(evt.Entity).ActiveBehaviorHash;
+                Clear(repo, evt.Entity, _registry);
+                if (cleared != BehaviorIds.None)   // ⭐ CE-1249 — an order (or the reaction itself) ended the task
+                    BrainJournalOf.Write(repo, evt.Entity, BrainJournalKind.TaskCleared, a: cleared, origin: (byte)evt.Origin);
+                // ⭐ CE-2078 — a reaction ending ITSELF resumes the task it paused; an order's clear drops it.
+                // ⭐ CE-3172 (C-4) — so does a RELEASED possession (its station's clear, at origin Possession).
+                if ((evt.Origin == BehaviorOrigin.Self && endsAReaction)
+                    || (evt.Origin == BehaviorOrigin.Possession && endingOrigin == BehaviorOrigin.Possession))
+                    ResumePausedTask(repo, evt.Entity);
+                else AfterAdmitted(repo, evt.Entity, evt.Origin, null);
             }
 
             // ── AssignBehaviorHashEvent handler ──────────────────────────────────────────
-            // Activates a behavior by integer hash — published by MissionDirectorSystem
-            // during phase transitions where only the hash (not the name) is known.
-            // Increments InstanceId so ChannelArbitrationSystem preempts stale channels.
-            var hashEvents = repo.Bus.Read<AssignBehaviorHashEvent>();
+            // Activates a behavior by integer hash — published by MissionDirectorSystem on a phase advance.
+            //
+            // ⭐⭐ CE-451 (2026-09-30): THE SAME START PIPELINE as an assign by name. 🔴 This handler used to hand-write a
+            //   partial copy — detach, bump, attach the tree state / HSM instance — that never provisioned the store nor
+            //   attached the root PARAMS block and never parsed, so a behaviour WITH parameters assigned this way threw in
+            //   RootParamsAccess.RootRef on every BTree / blueprint tick. ⇒ now one path: Start(), with no JSON ("{}" —
+            //   authored defaults; the event carries none).
+            // ⚠ On CGF a phase advance ALSO produces an assign BY NAME carrying the task's parameters
+            //   (MissionAdapterSystem → tactical intent → TacticalIntentResolutionSystem). ⇒ when that one already started
+            //   THIS behaviour on this entity in this Execute, the hash event is a duplicate and is dropped — the named one
+            //   carries the parameters.
+            var hashEvents = repo.ReadEvents<AssignBehaviorHashEvent>();
             foreach (var evt in hashEvents)
             {
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
-
-                ref var behavior = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
-                behavior.ActiveBehaviorHash = evt.BehaviorHash;
-                unchecked { behavior.InstanceId++; }
-
-                // Resolve the definition from the registry and restore the BrainTier.
-                // Without this, entities remain brain-dead (BrainTier = 0) after a ClearBehaviorEvent.
-                if (_registry.TryGetDefinition(evt.BehaviorHash, out var def))
+                if (_startedByNameThisFrame.TryGetValue(evt.Entity.Index, out int byName) && byName == evt.BehaviorHash)
+                    continue;
+                int replacedByHash = repo.GetComponentRO<BehaviorState>(evt.Entity).ActiveBehaviorHash;   // ⭐ CE-1249
+                if (!Admit(repo, evt.Entity, evt.Origin, ReactionUrgency.NotAReaction, out bool pauseByHash, evt.BehaviorHash)) continue;   // ⭐ CE-3034
+                if (_registry.TryGetDefinition(evt.BehaviorHash, out var def)
+                    && _registry.TryGetName(evt.BehaviorHash, out var name))
                 {
-                    behavior.BrainTier = def.BrainTier;
-                    if (def.HeavyDtoType != null &&
-                        repo.IsComponentTypeRegistered<Blackboard1024>() &&
-                        !repo.HasComponent<Blackboard1024>(evt.Entity))
+                    var pausedByHash = pauseByHash ? PauseRecord(repo, evt.Entity, evt.BehaviorHash, def) : null;
+                    // ⭐ CE-456: the phase's own parameters, not "{}" — the hash event has no JSON, but the plan it came from does.
+                    if (Start(repo, evt.Entity, name, evt.BehaviorHash, def, MissionPhaseParams(repo, evt.Entity, evt.BehaviorHash), evt.Origin,
+                              ReactionUrgency.NotAReaction, pausedByHash))
                     {
-                        repo.AddComponent(evt.Entity, new Blackboard1024());
+                        JournalStarted(repo, evt.Entity, evt.BehaviorHash, replacedByHash, evt.Origin, ReactionUrgency.NotAReaction, pauseByHash);
+                        AfterAdmitted(repo, evt.Entity, evt.Origin, pausedByHash);
+                    }
+                    continue;
+                }
+
+                // ⚠ NO DEFINITION ON THIS NODE ⇒ nothing to start. The pre-CE-451 bookkeeping is kept byte for byte —
+                //   release the outgoing root slots, record the hash, bump the instance — because a node that does not
+                //   host the behaviour still tracks WHICH one is active (rails MissionDirectorSystemTests.*). ⭐ Nothing
+                //   ticks it: BrainTickSystem skips a hash with no definition.
+                int previousBehaviorId = repo.GetComponentRO<BehaviorState>(evt.Entity).ActiveBehaviorHash;
+                if (previousBehaviorId != BehaviorIds.None && previousBehaviorId != evt.BehaviorHash)
+                {
+                    RootHsmAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
+                    RootStateAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
+                    RootParamsAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
+                }
+                // ⭐ CE-485: the run ends here (InstanceId is bumped below) ⇒ its owned parts (EQS sensors) end with it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D4.
+                BehaviorOwnedParts.Release(repo, evt.Entity, repo.GetComponentRO<BehaviorState>(evt.Entity).InstanceId);
+                ref var unhosted = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
+                unhosted.Origin = BehaviorOriginRank.AfterAssign(evt.Origin, unhosted);   // ⭐ CE-3034 — before the hash moves
+                unhosted.Urgency = UrgencyAfterAssign(evt.Origin, ReactionUrgency.NotAReaction, unhosted.Urgency);
+                unhosted.ActiveBehaviorHash = evt.BehaviorHash;
+                unhosted.RunSince = (SimInstant)(Now(repo));   // ⭐ CE-2080
+                unhosted.InstanceId = NextRunToken(repo, evt.Entity, unhosted.InstanceId, pausing: false);   // ⭐ CE-2081
+                JournalStarted(repo, evt.Entity, evt.BehaviorHash, previousBehaviorId, evt.Origin, ReactionUrgency.NotAReaction, false);
+                AfterAdmitted(repo, evt.Entity, evt.Origin, null);
+            }
+
+            // ── ⭐ CE-3035 — the SOP slot's assign / clear ─────────────────────────────────────────────────────────────────
+            ApplySopEvents(repo);
+        }
+
+        /// <summary>⭐ <c>CE-3034</c> — refusals by the gate since this system was built (a test / diagnostics probe).</summary>
+        public int RefusedCount { get; private set; }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3034</c> — THE ONE GATE (R-188, <c>DESIGN_Sensors_And_Doctrine.md</c> §6): may an assign / clear of
+        /// <paramref name="origin"/> replace what <paramref name="entity"/> runs? Rule in <see cref="BehaviorOriginRank.Admits"/>.
+        /// ⚠ The INTERNAL finish (<c>BrainTickSystem</c> → <see cref="Clear"/>) is not gated — a behaviour ending never needs
+        /// permission. A refusal is counted and logged; it never throws.
+        /// </summary>
+        private bool Admit(EntityRepository repo, Entity entity, BehaviorOrigin origin, ReactionUrgency urgency, out bool pause,
+                           int behaviorId = 0)
+        {
+            ref readonly var running = ref repo.GetComponentRO<BehaviorState>(entity);
+            if (AdmitsWithReactions(repo, entity, origin, urgency, running, out pause))
+            {
+                // ⭐ CE-2081 lean B — a reaction that IS the task it would pause (or the task already paused) is refused: the two
+                //   runs would share one set of storage keys (they are keyed by behaviour), so the task could not be kept.
+                if (origin != BehaviorOrigin.Reaction || behaviorId == 0) return true;
+                bool isTheTask = (pause && behaviorId == running.ActiveBehaviorHash)
+                              || PausedTaskOf(repo, entity) is { Restart: false } held && held.Hash == behaviorId;
+                if (!isTheTask) return true;
+                pause = false;
+                RefusedCount++;
+                _lastRefusal = BrainRefusal.SameAsTask;
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
+                    urgency: (byte)urgency, cause: (byte)BrainRefusal.SameAsTask);   // ⭐ CE-1249 (BV-13)
+                Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
+                    "[BehaviorIngress] refused reaction {0} for entity #{1}: it is the task it would pause.", behaviorId, entity.Index);
+                return false;
+            }
+            RefusedCount++;
+            _lastRefusal = RefusalOf(repo, entity, origin, urgency, running);
+            BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
+                urgency: (byte)urgency, cause: (byte)_lastRefusal);   // ⭐ CE-1249 (BV-13)
+            if (origin == BehaviorOrigin.Sop) WakeSop(repo, entity);   // ⭐ CE-3035 / R-195 — a refused SOP assignment wakes it
+            Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
+                "[BehaviorIngress] refused {0} assignment for entity #{1}: it runs behaviour {2} at {3}.",
+                origin, entity.Index, running.ActiveBehaviorHash, running.Origin);
+            return false;
+        }
+
+        /// <summary>⭐ <c>CE-1249</c> (BV-13) — why <see cref="AdmitsWithReactions"/> said no, for the journal (the same tests, in order).</summary>
+        private static BrainRefusal RefusalOf(EntityRepository repo, Entity entity, BehaviorOrigin origin, ReactionUrgency urgency,
+            in BehaviorState running)
+        {
+            bool slotEmpty = running.ActiveBehaviorHash == BehaviorIds.None;
+            if (origin == BehaviorOrigin.Reaction)
+            {
+                if (!slotEmpty && running.Origin == BehaviorOrigin.Possession) return BrainRefusal.Possessed;
+                if (running.Origin == BehaviorOrigin.Reaction) return BrainRefusal.LowerUrgency;
+                return BrainRefusal.StayOnTask;
+            }
+            if (!slotEmpty && running.Origin == BehaviorOrigin.Reaction && origin == BehaviorOrigin.Sop) return BrainRefusal.ReactionRunning;
+            return BrainRefusal.LowerRank;
+        }
+
+        /// <summary>⭐ <c>CE-1249</c> (BV-10) — an admitted start, in the journal: the task it paused (a reaction), then the start
+        /// with what it replaced (0 when it paused it or the slot was empty).</summary>
+        private static void JournalStarted(EntityRepository repo, Entity entity, int started, int before, BehaviorOrigin origin,
+            ReactionUrgency urgency, bool paused, byte cause = 0)
+        {
+            if (paused && before != BehaviorIds.None)
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskPaused, a: before, b: started);
+            int replaced = paused || before == started ? 0 : before;
+            BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskStarted, a: started, b: replaced, origin: (byte)origin,
+                urgency: (byte)urgency, cause: cause);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2078</c> — the gate with the four SOP rules (R-199, <c>docs/DESIGN_Decision_Layer.md</c> §4.1):
+        /// <list type="number">
+        /// <item>a task beats the SOP's idle choice — the rank rule (<see cref="BehaviorOriginRank.Admits(BehaviorOrigin, in BehaviorState)"/>);</item>
+        /// <item>a reaction PAUSES the task (<paramref name="pause"/>) unless the ROE says <see cref="RoeReactions.StayOnTask"/>;
+        ///   over an empty slot or the SOP's idle choice it simply starts;</item>
+        /// <item>a running reaction yields only to a MORE urgent reaction, or to an order that may replace the task it paused;
+        ///   the SOP's own idle choice never replaces it;</item>
+        /// <item>at most one thing is paused — a reaction replacing a reaction leaves the paused task as it was.</item>
+        /// </list>
+        /// <see cref="BehaviorOrigin.Self"/> is always admitted (a reaction restarting itself stays a reaction).
+        /// </summary>
+        internal static bool AdmitsWithReactions(EntityRepository repo, Entity entity, BehaviorOrigin origin,
+            ReactionUrgency urgency, in BehaviorState running, out bool pause)
+        {
+            pause = false;
+            bool slotEmpty = running.ActiveBehaviorHash == BehaviorIds.None;
+            // ⭐ CE-3172 (M-7) — a possessed unit is the operator's: no reaction interrupts it.
+            if (origin == BehaviorOrigin.Reaction && !slotEmpty && running.Origin == BehaviorOrigin.Possession) return false;
+            if (origin == BehaviorOrigin.Possession)
+            {
+                // It outranks everything; it keeps the task: pauses a running order, keeps what a running reaction paused, and a
+                // re-possession (another station) pauses nothing new. The SOP's idle choice simply re-picks after the release.
+                pause = !slotEmpty && running.Origin != BehaviorOrigin.Sop && !BehaviorOriginRank.Pauses(running.Origin)
+                        && running.Origin != BehaviorOrigin.Unmarked;
+                return true;
+            }
+            if (origin == BehaviorOrigin.Reaction)
+            {
+                if (slotEmpty || running.Origin == BehaviorOrigin.Sop) return true;              // ② nothing to pause
+                if (running.Origin == BehaviorOrigin.Reaction)                                   // ③ only a MORE urgent one
+                    return EffectiveUrgency(urgency) > running.Urgency;
+                if (RoeOf.Reactions(repo, entity) == RoeReactions.StayOnTask
+                    && urgency != ReactionUrgency.Break) return false;                           // ② the order forbids it — ⭐ CE-2272: never a break (TS-6)
+                pause = true;                                                                    // ② the task waits
+                return true;
+            }
+            if (!slotEmpty && running.Origin == BehaviorOrigin.Reaction && origin != BehaviorOrigin.Self)
+            {
+                if (origin == BehaviorOrigin.Sop) return false;                                  // ③ the idle choice waits
+                var paused = PausedTaskOf(repo, entity);
+                return paused == null                                                            // ③ an order: weighed against
+                    || BehaviorOriginRank.Of(origin) >= BehaviorOriginRank.Of(paused.Origin);    //   the task it would end
+            }
+            return BehaviorOriginRank.Admits(origin, running);                                   // ① the rank rule
+        }
+
+        /// <summary>⭐ <c>CE-2080</c> — sim time now (<see cref="GlobalTime.TotalTime"/>; 0 on a world without the clock).</summary>
+        private static double Now(EntityRepository repo)
+            => repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
+
+        /// <summary>⭐ <c>CE-2078</c> — a reaction published with no urgency counts as <see cref="ReactionUrgency.Alert"/>.</summary>
+        private static ReactionUrgency EffectiveUrgency(ReactionUrgency urgency)
+            => urgency == ReactionUrgency.NotAReaction ? ReactionUrgency.Alert : urgency;
+
+        /// <summary>⭐ <c>CE-2078</c> — the urgency the slot carries after an admitted assignment: a reaction's own;
+        /// <see cref="BehaviorOrigin.Self"/> keeps the running one; anything else is not a reaction.</summary>
+        private static ReactionUrgency UrgencyAfterAssign(BehaviorOrigin origin, ReactionUrgency urgency, ReactionUrgency running)
+            => origin switch
+            {
+                BehaviorOrigin.Reaction => EffectiveUrgency(urgency),
+                BehaviorOrigin.Self     => running,
+                _                       => ReactionUrgency.NotAReaction,
+            };
+
+        /// <summary>⭐ <c>CE-2078</c> — what a reaction is about to pause: the running task's start record and origin, read
+        /// BEFORE the start replaces them. <c>null</c> when the task was stamped directly (no start record) — it cannot be
+        /// restarted, so it is simply replaced.</summary>
+        private PausedTask? PauseRecord(EntityRepository repo, Entity entity, int incomingId, BehaviorDefinition incoming)
+        {
+            ref readonly var running = ref repo.GetComponentRO<BehaviorState>(entity);
+            if (!repo.HasManagedComponent<BehaviorStartRecord>(entity)) return null;
+            var record = ((ISimulationView)repo).GetManagedComponentRO<BehaviorStartRecord>(entity);
+            if (record == null || record.InstanceId != running.InstanceId) return null;
+            // ⭐⭐ CE-2081 — RESUME: the run as it is (hash, token, tier) and every storage key it holds now. 📄 §4.9a.
+            var paused = new PausedTask
+            {
+                BehaviorName = record.BehaviorName, JsonParams = record.JsonParams, Origin = running.Origin,
+                Hash = running.ActiveBehaviorHash, InstanceId = running.InstanceId, BrainTier = running.BrainTier,
+                HeldKeys = HeldKeysNow(repo, entity, _registry),
+            };
+            // ⚠ Every stateful slot key folds its owning asset or host (generated: the asset id; curated: AssetIdFromName of the
+            //   host; blueprints: the asset id — CE-2129, measured; the unsalted P2 curated key went with S8). ⇒ the reaction
+            //   names one of the task's keys only when it runs the same behaviour. Then the task cannot be kept beside it:
+            //   this pause is a RESTART.
+            if (Overlaps(KeysOf(incomingId, incoming), paused.HeldKeys))
+            {
+                paused = paused with { HeldKeys = Array.Empty<int>(), Restart = true };   // ⭐ CE-4046 — a record: a new value
+            }
+            return paused;
+        }
+
+        /// <summary>⭐ <c>CE-2081</c> — every slot key in <paramref name="entity"/>'s store, except the SOP slot's.</summary>
+        private static unsafe int[] HeldKeysNow(EntityRepository repo, Entity entity, BehaviorRegistry registry)
+        {
+            // ⭐ CE-3137 U-0: every block.
+            if (OccurrenceStoreAccess.GetBlocksReadOnly(repo, entity, out var blocks) == 0) return Array.Empty<int>();
+            var keys = new List<int>();
+            for (int b = 0; b < blocks.Count; b++)
+            {
+                byte* store = blocks.Memory(b);
+                for (int i = 0; i < BlueprintBlackboardPartitions.GetSlotCount(store); i++)
+                {
+                    int key = BlueprintBlackboardPartitions.GetSlot(store, i).BlueprintId;
+                    if (!IsHeldBySop(repo, entity, registry, key)) keys.Add(key);
+                }
+            }
+            return keys.ToArray();
+        }
+
+        /// <summary>⭐ <c>CE-2081</c> — the storage keys a run of <paramref name="def"/> attaches up front: its three roots and its
+        /// manifest (nested slots included). ⚠ Lazily attached hosted occurrences are not known before it runs.</summary>
+        private static List<int> KeysOf(int behaviorId, BehaviorDefinition def)
+        {
+            var keys = new List<int>
+            {
+                RootParamsAccess.KeyForBehaviour(behaviorId), RootStateAccess.KeyForBehaviour(behaviorId),
+                RootHsmAccess.KeyForBehaviour(behaviorId),
+            };
+            if (def.StatefulWorkingSlots is { Count: > 0 })
+                foreach (var slot in HostedSubtree.EffectiveSlots(def.StatefulWorkingSlots)) keys.Add(slot.SlotKey);
+            return keys;
+        }
+
+        private static bool Overlaps(List<int> keys, IReadOnlyList<int> held)
+        {
+            foreach (int k in keys)
+                if (held.Contains(k)) return true;
+            return false;
+        }
+
+        /// <summary>⭐ <c>CE-2081</c> — is <paramref name="key"/> held by the task a reaction paused (in the entity's record, or in
+        /// <paramref name="pausing"/> — the record a start is about to write)? No sweep detaches it.</summary>
+        private static bool IsHeldByPausedTask(EntityRepository repo, Entity entity, int key, PausedTask? pausing = null)
+        {
+            if (pausing is { Restart: false } p && p.HeldKeys.Contains(key)) return true;
+            return repo.TryGetTable(typeof(PausedTask), out _) && PausedTaskOf(repo, entity) is { Restart: false } held
+                   && held.HeldKeys.Contains(key);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2081</c> — the token of the next task-slot run. While a task is paused (or once the slot is in the side
+        /// space) it comes from <see cref="RunTokens"/>: the paused task's own token is then never handed to another run, so
+        /// restoring it on resume is safe. Otherwise the plain monotonic bump.
+        /// </summary>
+        private static uint NextRunToken(EntityRepository repo, Entity entity, uint current, bool pausing)
+        {
+            bool held = pausing || (repo.TryGetTable(typeof(PausedTask), out _) && PausedTaskOf(repo, entity) is { Restart: false });
+            if (held || RunTokens.IsSide(current)) return RunTokens.Next();
+            unchecked { return current + 1; }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2081</c> — a start while a task is ALREADY paused (a more urgent reaction replacing a reaction): if the new
+        /// run would attach onto one of the paused task's keys, the task can no longer be kept beside it ⇒ it is released
+        /// now and will RESTART when the reaction ends (<see cref="PausedTask.Restart"/>).
+        /// </summary>
+        private static void ReconcileHeldTask(EntityRepository repo, Entity entity, int behaviorId, BehaviorDefinition def)
+        {
+            if (!repo.TryGetTable(typeof(PausedTask), out _) || PausedTaskOf(repo, entity) is not { Restart: false } held) return;
+            if (!Overlaps(KeysOf(behaviorId, def), held.HeldKeys)) return;
+            DropPausedTask(repo, entity);   // detaches the held keys, releases the parts
+            var restart = held with { HeldKeys = Array.Empty<int>(), Restart = true };   // ⭐ CE-4046 — a new value, not an in-place edit
+            repo.SetManagedComponent(entity, restart);
+        }
+
+        /// <summary>⭐ <c>CE-2078</c> — after an admitted start / clear: a reaction that paused a task records it; an ORDER
+        /// (not <see cref="BehaviorOrigin.Self"/>, not a reaction) ends whatever was paused — it replaced the task.</summary>
+        private void AfterAdmitted(EntityRepository repo, Entity entity, BehaviorOrigin origin, PausedTask? paused)
+        {
+            if (paused != null)
+            {
+                if (!ReferenceEquals(_pausedRegisteredOn, repo))
+                {
+                    repo.RegisterManagedComponent<PausedTask>();
+                    _pausedRegisteredOn = repo;
+                }
+                repo.SetManagedComponent(entity, paused);
+                return;
+            }
+            if (origin != BehaviorOrigin.Self && !BehaviorOriginRank.Pauses(origin)) DropPausedTask(repo, entity, _registry);   // ⭐ CE-3172
+        }
+
+        private EntityRepository? _pausedRegisteredOn;
+
+        /// <summary>⭐ <c>CE-2078</c> — the task a reaction paused on <paramref name="entity"/>, or <c>null</c>.</summary>
+        public static PausedTask? PausedTaskOf(EntityRepository repo, Entity entity)
+            => repo.HasManagedComponent<PausedTask>(entity) ? ((ISimulationView)repo).GetManagedComponentRO<PausedTask>(entity) : null;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2081</c> (lean D) — the paused task ENDS without resuming (an order replaced it, a hand-over): its held storage
+        /// is detached and its owned parts released, so nothing leaks. ⚠ A key the RUNNING behaviour now uses (an order that
+        /// re-assigned the same asset attached onto it) is left alone — <paramref name="registry"/> names those.
+        /// </summary>
+        internal static unsafe void DropPausedTask(EntityRepository repo, Entity entity, BehaviorRegistry? registry = null)
+        {
+            if (!repo.HasManagedComponent<PausedTask>(entity)) return;
+            var paused = ((ISimulationView)repo).GetManagedComponentRO<PausedTask>(entity);
+            repo.SetManagedComponent<PausedTask>(entity, null!);
+            if (paused == null || paused.Restart) return;
+
+            List<int>? inUse = null;
+            if (registry != null && repo.HasComponent<BehaviorState>(entity))
+            {
+                int running = repo.GetComponentRO<BehaviorState>(entity).ActiveBehaviorHash;
+                if (running != BehaviorIds.None && registry.TryGetDefinition(running, out var def)) inUse = KeysOf(running, def);
+            }
+            foreach (int key in paused.HeldKeys)   // ⭐ CE-3137 U-0: whichever block holds it
+                if (inUse == null || !inUse.Contains(key)) OccurrenceStoreAccess.TryDetachSlot(repo, entity, key);
+            uint runningToken = repo.HasComponent<BehaviorState>(entity) ? repo.GetComponentRO<BehaviorState>(entity).InstanceId : 0;
+            if (paused.InstanceId != runningToken) BehaviorOwnedParts.Release(repo, entity, paused.InstanceId);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2081</c> (R-199 ②, R-203) — a reaction ENDED (finished, or cleared itself; <see cref="Clear"/> has just run):
+        /// the task it paused RESUMES where it was. Its storage and owned parts were kept, so restoring its run — hash, token,
+        /// tier, origin — is all it takes: the channels it commanded were reset by the reaction's token and re-issue (BTree /
+        /// HSM leaf re-activation; a blueprint channel wait sees the cancelled command). ⭐ <c>RunSince</c> is NOW, not the
+        /// task's old start: "fresh" senses (<c>SopConditions.SensedFresh</c>) would otherwise re-fire the reaction forever.
+        /// <para>A pause that could not keep the task (<see cref="PausedTask.Restart"/>, or a record without a hash) RESTARTS
+        /// it through the gate as before (<c>CE-2078</c>). A no-op when nothing was paused. 📄 §4.9a.</para>
+        /// </summary>
+        internal static void ResumePausedTask(EntityRepository repo, Entity entity)
+        {
+            var paused = PausedTaskOf(repo, entity);
+            if (paused == null) return;
+            repo.SetManagedComponent<PausedTask>(entity, null!);   // taken, not dropped: the held storage is the task's again
+            if (!paused.Restart && paused.Hash != BehaviorIds.None && repo.HasComponent<BehaviorState>(entity))
+            {
+                ref var state = ref repo.GetComponentRW<BehaviorState>(entity);
+                state.ActiveBehaviorHash = paused.Hash;
+                state.InstanceId = paused.InstanceId;
+                state.BrainTier = paused.BrainTier;
+                state.Origin = paused.Origin;
+                state.Urgency = ReactionUrgency.NotAReaction;
+                state.RunSince = (SimInstant)(Now(repo));
+                if (repo.TryGetTable(typeof(BehaviorStartRecord), out _))
+                    repo.SetManagedComponent(entity, new BehaviorStartRecord
+                    {
+                        BehaviorName = paused.BehaviorName, JsonParams = paused.JsonParams, InstanceId = paused.InstanceId,
+                    });
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskResumed, a: paused.Hash, origin: (byte)paused.Origin);   // ⭐ CE-1249
+                return;
+            }
+            if (!repo.Bus.IsRegisteredManaged<AssignBehaviorEvent>()) return;
+            repo.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity = entity, BehaviorName = paused.BehaviorName, JsonParams = paused.JsonParams, Origin = paused.Origin,
+            });
+        }
+
+        /// <summary>
+        /// ⭐ <b><c>CE-456</c> — the parameters of the mission phase an <see cref="AssignBehaviorHashEvent"/> starts.</b>
+        /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.16.7.
+        /// <para>The hash event's ONE producer is <c>MissionDirectorSystem</c> advancing a <see cref="MissionPlanQueue"/>, and
+        /// the event carries no JSON (it is unmanaged). The plan it advanced still holds the text: the entity's
+        /// <see cref="ActiveMissionPlan"/> task at the queue's current phase. ⭐ This is what makes a phase behaviour run on its
+        /// task's parameters on EVERY host — ⛔ before, only CGF did, through <c>MissionAdapterSystem</c>'s named assign
+        /// (which the hash assign then yields to); everywhere else the phase ran on its authored defaults.</para>
+        /// <para>Returns <c>"{}"</c> when there is no plan, the phase is out of range, or the task names a DIFFERENT behaviour
+        /// (a plan edited under the queue) — never another behaviour's parameters.</para>
+        /// </summary>
+        internal string MissionPhaseParams(EntityRepository repo, Entity entity, int behaviorHash)
+        {
+            if (!repo.IsComponentTypeRegistered<MissionPlanQueue>() || !repo.HasComponent<MissionPlanQueue>(entity)
+                || !repo.HasManagedComponent<ActiveMissionPlan>(entity))
+                return "{}";
+            int phase = repo.GetComponentRO<MissionPlanQueue>(entity).CurrentTask;
+            var tasks = ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(entity)?.Plan?.Tasks;
+            if (tasks == null || phase >= tasks.Count) return "{}";
+            var task = tasks[phase];
+            if (string.IsNullOrWhiteSpace(task.BehaviorName)
+                || !_registry.TryGetId(task.BehaviorName, out int taskHash) || taskHash != behaviorHash)
+                return "{}";
+            return string.IsNullOrWhiteSpace(task.BehaviorParams) ? "{}" : task.BehaviorParams;
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-452</c> / <c>CE-451</c> — THE ONE START PIPELINE.</b> Every way a root behaviour starts runs this:
+        /// an assign by name, an assign by hash (<c>CE-451</c> — it used to hand-write a partial copy that provisioned no
+        /// params block), and a hot-reload restart (<c>CE-452</c> — which re-publishes an assign by name, so it lands here).
+        /// 🔒 User, <c>2026-09-30</c>: <i>"i hope you are reusing whatever init/setup code there is"</i>.
+        /// <para>Parse into the shadow → commit <c>BehaviorState</c> → provision → detach the previous behaviour's slots →
+        /// attach the root params / tree state / HSM instance → record what it was started with.</para>
+        /// </summary>
+        /// <returns><c>false</c> when the parse failed — the entity stays on its previous behaviour entirely.</returns>
+        private unsafe bool Start(
+            EntityRepository repo, Entity entity, string behaviorName, int behaviorId, BehaviorDefinition def, string json,
+            BehaviorOrigin origin, ReactionUrgency urgency = ReactionUrgency.NotAReaction, PausedTask? pausing = null)
+        {
+            // DEBT-035 fix: attempt ParseParams BEFORE writing BehaviorState/BrainBTreeState.
+            // Strategy: parse into stack memory and commit only on success, so a ParseParams
+            // failure leaves the entity 100% on the old behavior.
+            //
+            // ⭐⭐⭐ P3-C — THE CLEAN CUT (2026-09-21). 🔴 The shadow used to be copied FROM and
+            //   committed back TO a per-entity BrainBlackboard component. Both halves are gone:
+            //   the parsed bytes now land in the entity's ROOT PARAMS OCCURRENCE SLOT, which is
+            //   attached further down once the store is provisioned (§29.6 / §29.7 P3-C).
+            //
+            // ⛔ NOT a dual write. R-132's second producer, and in this codebase a temporary one
+            //   becomes permanent — the user ruled CLEAN CUT for exactly that reason.
+            // ⭐⭐⭐ CE-307 — THE SHADOW IS SIZED BY THE BEHAVIOUR, NOT BY A CONSTANT.
+            //   Hoisted here because the shadow's width IS this number: the region the parser may
+            //   write is the packed variable table's extent, and that is what lands in the slot
+            //   below. ⛔ It used to be BrainBlackboardByteSize (100) — the OLD component's width —
+            //   which made a >100-byte behaviour a STACK SMASH in ParseParams and a silent
+            //   truncation in the carry-over. Impossible only because the analyzer capped at 100.
+            // ⭐⭐⭐ CE-416 ② (2026-10-02) — ONE predicate for "this behaviour has a root block": its WIDTH.
+            //   🔴 This used to be gated on `ParseParams != null` while BrainTickSystem (and RootParamsAccess)
+            //   gate on RootParamsBytes(def) > 0 — so a behaviour with a layout and no parser (the curated
+            //   `JoinFormation`) got NO block here and the very next tick THREW "no ROOT PARAMS slot". Measured
+            //   through the real curated registrar, ingress and tick. ⇒ the block exists iff it has a width;
+            //   the PARSE is the optional part (baked defaults, or zeros, when there is no parser).
+            // ⭐ CE-3035: storage is keyed by behaviour, so the task and the SOP must be different behaviours.
+            if (IsTheSop(repo, entity, behaviorId))
+            {
+                RefusedCount++;
+                _lastRefusal = BrainRefusal.IsTheSop;
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
+                    cause: (byte)BrainRefusal.IsTheSop);   // ⭐ CE-1249
+                Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
+                    "[BehaviorIngress] refused task {0} for entity #{1}: it is the unit's SOP.", behaviorName, entity.Index);
+                return false;
+            }
+            if (!ParseIntoShadow(repo, entity, def, json, out int rootBytes, out Span<byte> shadow))
+            {
+                _lastRefusal = BrainRefusal.ParseFailed;
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
+                    cause: (byte)BrainRefusal.ParseFailed);   // ⭐ CE-1249
+                return false;
+            }
+
+            // ParseParams succeeded (or was not required). Commit behavior transition.
+
+            // 1. Update BehaviorState.
+            // Read previous behavior hash before overwriting (needed for S2-2 detach).
+            int previousBehaviorId = repo.GetComponentRW<BehaviorState>(entity).ActiveBehaviorHash;
+            // ⭐⭐ CE-2081 — a start that PAUSES the running task keeps that task's storage and parts (resume, §4.9a);
+            //   ⭐ a start while a task is already paused (a reaction replacing a reaction) must not sweep it either.
+            bool keepsTask = pausing is { Restart: false };
+            ReconcileHeldTask(repo, entity, behaviorId, def);
+            bool holdsTask = keepsTask || (repo.TryGetTable(typeof(PausedTask), out _) && PausedTaskOf(repo, entity) is { Restart: false });
+
+            // ⭐ CE-485: the run ends here (InstanceId is bumped below) ⇒ its owned parts (EQS sensors) end with it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D4.
+            //   ⚠ Also on a re-assign of the SAME behaviour: a new run asks its own questions.
+            if (!keepsTask) BehaviorOwnedParts.Release(repo, entity, repo.GetComponentRO<BehaviorState>(entity).InstanceId);
+            ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
+            // ⭐ CE-3034: record WHO started it (Self keeps the running origin) — read while the old run is still current.
+            behavior.Urgency = UrgencyAfterAssign(origin, urgency, behavior.Urgency);   // ⭐ CE-2078 — before Origin moves
+            behavior.RunSince = (SimInstant)(Now(repo));                                               // ⭐ CE-2080
+            behavior.Origin = BehaviorOriginRank.AfterAssign(origin, behavior);
+            behavior.ActiveBehaviorHash = behaviorId;
+            // Intentional unsigned wrap — InstanceId is a monotonic preemption token.
+            // ⭐ CE-2081 — while a task is paused, a side-space token (the paused one is never reused).
+            behavior.InstanceId = NextRunToken(repo, entity, behavior.InstanceId, keepsTask);
+            behavior.BrainTier = def.BrainTier;
+            // ⛔ P4-① (2026-09-22): the Blackboard1024 add is GONE with the component. It was
+            //    gated on `def.HeavyDtoType != null`, which is null at every production site and
+            //    in all 30 shipped assets ⇒ this branch never ran. 📄 §30.13.
+
+            // S2-2: Synchronously provision stateful working-state partition slots.
+            // Must happen BEFORE the same frame's Simulation tick (§10 Flaw 1 fix).
+            // ⭐ CE-431 + S5b — the manifest as provisioned: hosted slots sized from their child, and every nested
+            //   descendant under its own key. The sweep below must see the SAME list, or it detaches the nested slots.
+            var effectiveSlots = def.StatefulWorkingSlots is { Count: > 0 } ? HostedSubtree.EffectiveSlots(def.StatefulWorkingSlots) : null;
+
+            // Detach the previous behaviour's slots on EVERY change, so nothing carries over (R-277 (behaviors)).
+            //   ⭐ CE-2081: not when this start pauses that behaviour, and never a key a paused task holds.
+            //   ⛔ CE-2129: this ran only when the NEW behaviour declared slots of its own ⇒ A(slots) → B(none) left A's
+            //   slots attached, and a later start of A kept their contents (AttachManifestSlots keeps a matching slot).
+            if (!keepsTask &&
+                previousBehaviorId != BehaviorIds.None &&
+                previousBehaviorId != behaviorId &&
+                _registry.TryGetDefinition(previousBehaviorId, out var prevDef) &&
+                prevDef.StatefulWorkingSlots != null && prevDef.StatefulWorkingSlots.Count > 0)
+            {
+                DetachStatefulSlots(repo, entity, HostedSubtree.EffectiveSlots(prevDef.StatefulWorkingSlots), pausing);   // ⭐ S5b — nested slots too
+            }
+
+            if (def.StatefulWorkingSlots != null && def.StatefulWorkingSlots.Count > 0)
+            {
+
+                // A3/D1': declare WHAT these occurrences are, so O0's walker can filter on a
+                // declared Kind instead of on a BlueprintRegistry miss (F7 -- an accident, not
+                // a filter). The behaviour's tier IS the kind for its stateful working slots.
+                // O7b-3: the behaviour's HOSTED occurrences need room in the same tier.
+                // CE-302: and so does the ROOT PARAMS slot attached a few lines below.
+                _registry.TryGetHostedOccurrenceDemand(behaviorName, out var hosted);
+                hosted = WithDescendantDemand(hosted, def);   // ⭐ S5b — hosted children's lazy occurrences need room too
+                // ⭐ CE-431: hosted child slots sized from the CHILD's definition — known only now.
+                ProvisionStatefulSlots(repo, entity, effectiveSlots!, KindOf(def),
+                                       hosted, RootParamsCost(def), RootBrainStateCost(def));
+            }
+            else if (HasSop(repo, entity) || holdsTask)
+            {
+                // ⭐ CE-3035: the SOP's slots share the store ⇒ size by FREE space, which counts them (capacity does not).
+                //   ⭐ CE-2081: and so do a paused task's.
+                _registry.TryGetHostedOccurrenceDemand(behaviorName, out var hosted);
+                ProvisionStatefulSlots(repo, entity, Array.Empty<StatefulSlotInfo>(), KindOf(def),
+                                       hosted, RootParamsCost(def), RootBrainStateCost(def));
+            }
+            else
+            {
+                _registry.TryGetHostedOccurrenceDemand(behaviorName, out var hosted);
+                EnsureOccurrenceStore(repo, entity, def, hosted, RootParamsCost(def), RootBrainStateCost(def));
+            }
+
+            // E3a: drop the PREVIOUS assign's lazily-attached hosted occurrences, so their params
+            // re-seed from the JSON just parsed. ⛔ Omitting this makes new JSON a no-op (§28.4).
+            DetachHostedOccurrenceSlots(repo, entity, effectiveSlots, _registry, pausing);
+
+            // ⭐ CE-302: and the PREVIOUS behaviour's ROOT PARAMS slot, which the sweep above
+            //   cannot reach on a BTree brain — its kind is BTree, not Hsm/Blueprint. ⛔ Without
+            //   this, every behaviour change leaks one slot, and an entity reassigned a few times
+            //   exhausts MaxSlots (3 on the 256 tier) and then silently loses its params.
+            if (!keepsTask && previousBehaviorId != BehaviorIds.None && previousBehaviorId != behaviorId)   // ⭐ CE-2081
+            {
+                RootParamsAccess.DetachRoot(repo, entity, previousBehaviorId);
+                // ⭐⭐ O7c-② / CE-319: the root TREE STATE slot leaks the same way and for the same
+                //   reason — its kind is BTree, so DetachHostedOccurrenceSlots cannot see it either.
+                RootStateAccess.DetachRoot(repo, entity, previousBehaviorId);
+            }
+
+            // ⭐⭐⭐ P3 — THE ROOT BEHAVIOUR'S PARAMS GET THEIR OWN SLOT.
+            //   §29.6: ONE slot holds the WHOLE packed table, exactly as BehaviorParameters does,
+            //   so every per-state seed offset (E3b-0) keeps meaning what it means. ⛔ It is NOT a
+            //   scatter — scattering would destroy that indexing.
+            //
+            // ⚠ It must run AFTER provisioning: the occurrence store is what we attach into, and
+            //   ProvisionStatefulSlots/EnsureOccurrenceStore above is what guarantees one exists.
+            //
+            // 🔴🔴 AND AFTER DetachHostedOccurrenceSlots — measured 2026-09-21, this ordering is
+            //   LOAD-BEARING and the first version had it wrong. An HSM behaviour's root slot is
+            //   attached with OccurrenceKind.Hsm (KindOf follows the brain tier, A3/D1′), and the
+            //   sweep detaches exactly "kind Hsm|Blueprint and not named by the manifest" ⇒ it
+            //   swept the root slot away on the very same assign that created it. ⛔ Harmless only
+            //   while the blackboard commit still ran; after P3-C it is total params loss on every
+            //   HSM brain. ⚠ Do NOT move this block back above the sweep.
+            if (rootBytes > 0)   // ⭐ CE-416 ②: the block's existence, not the parser's (see the shadow above)
+            {
+                // ⚠ CE-307: `rootBytes` is the SAME value the shadow was sized from, hoisted to
+                //   the top of this iteration. ⛔ Recomputing it here would let the two drift.
+                if (rootBytes > 0)
+                {
+                    byte* rootParams = RootParamsAccess.ResolveOrAttachRoot(
+                        repo, entity, behaviorId, rootBytes, KindOf(def), out _);
+
+                    // ⛔⛔ A null here USED TO BE TOLERABLE — the blackboard still carried the
+                    //   params, so the entity ran correctly and the miss was invisible. 🔴 After
+                    //   P3-C the slot is the ONLY home, so tolerating it means the behaviour runs
+                    //   on an all-zero params region: it does not crash, it just quietly does the
+                    //   wrong thing. ⇒ THROW, and name the two causes.
+                    // ⚠ This is the one place the toolkit's narrow contract (E-cap §27.2 — skip
+                    //   when the tier components are not registered) becomes visible to a host. It
+                    //   is deliberate: skipping is fine for a behaviour that merely MIGHT host an
+                    //   occurrence, and is not fine for one that HAS parameters.
+                    if (rootParams == null)
+                        throw new InvalidOperationException(
+                            $"Behaviour '{behaviorName}' parses {rootBytes} bytes of parameters, " +
+                            $"but entity {entity.Index} has nowhere to put them. Either the " +
+                            "BlueprintBlackboard* tier components are not registered on this world " +
+                            "(Hrot registers them in HrotSharedComponentRegistry; a bare test world " +
+                            "needs BlueprintTierTable.RegisterAll), or the entity's store had no " +
+                            "room, which means the tier demand under-counted (CE-302).");
+
+                    fixed (byte* src = shadow)
+                        Buffer.MemoryCopy(src, rootParams, rootBytes, rootBytes);
+                }
+            }
+
+            // 2. ⭐⭐⭐ O7c-② / CE-319 — ATTACH the root tree state, then reset the cursor so the new
+            //    behaviour starts from the root. 📄 §31.
+            //
+            //    ⚠ ORDERING, and it is the same rule CE-302 paid for on the params path: this runs
+            //      AFTER provisioning (the store must exist to attach into) and AFTER
+            //      DetachHostedOccurrenceSlots (which sweeps kind Hsm|Blueprint — a BTree root slot
+            //      is invisible to it, but the ordering is kept uniform so the two root slots cannot
+            //      drift apart).
+            //
+            //    ⭐ TryAttach ZEROES a fresh payload, so the reset is redundant on first attach — but
+            //      NOT on the idempotent path, where re-assigning the SAME behaviour finds its slot
+            //      already there. ⛔ The component version reset unconditionally; so does this.
+            if (RootStateAccess.RootStateBytes(def) > 0)
+            {
+                RootStateAccess.ResolveOrAttachRoot(repo, entity, behaviorId, KindOf(def), out _,
+                    RootStateAccess.RootStateBytes(def));   // ⭐ S2 — a blueprint's Exec is not a 64-byte tree cursor
+                RootStateAccess.ResetState(repo, entity);
+            }
+            ResetHostedTreeStates(repo, entity, def);
+
+            // 3. ⭐⭐⭐ O7c-④ — ATTACH the root HSM instance, then BIND it to the new behaviour's
+            //    topology. 📄 §31.14.
+            //
+            //    BHU-016 / CRITICAL FIX, unchanged in substance: InstanceHeader.MachineId must
+            //    equal the new blob's MachineId (CE-2001) or HsmKernelCore.ValidateInstance rejects the
+            //    instance on every subsequent tick — silently, by `continue`.
+            //
+            //    🔴🔴 ORDERING IS LOAD-BEARING, AND IN THE OPPOSITE DIRECTION FROM THE BTREE ROOT.
+            //      This slot declares OccurrenceKind.Hsm, so DetachHostedOccurrenceSlots — which
+            //      sweeps exactly "kind Hsm|Blueprint and not named by the manifest" — CAN see it,
+            //      and a root key is never in a manifest. ⇒ attaching before that sweep would
+            //      remove the slot on the very assign that created it, which is the defect the
+            //      root PARAMS path already paid for once on HSM brains. ⛔ Do NOT move this block
+            //      above DetachHostedOccurrenceSlots.
+            if (def.BrainTier == BehaviorConstants.BrainTierHsm && def.HsmDefinition != null)
+            {
+                RootHsmAccess.ResolveOrAttachRoot(
+                    repo, entity, behaviorId,
+                    RootHsmAccess.InstanceBytes(def.HsmDefinition), KindOf(def), out _);
+                RootHsmAccess.ResetInstance(repo, entity, def.HsmDefinition);
+            }
+
+            // ⭐ CE-452: what it was started with, for a hot-reload restart. ⭐ Registered on first use (idempotent), as
+            //   SetSingletonManaged does — a behaviour host must not have to know this component exists.
+            if (!ReferenceEquals(_startRecordRegisteredOn, repo))
+            {
+                repo.RegisterManagedComponent<BehaviorStartRecord>();
+                _startRecordRegisteredOn = repo;
+            }
+            repo.SetManagedComponent(entity, new BehaviorStartRecord
+            {
+                BehaviorName = behaviorName,
+                JsonParams   = json,
+                InstanceId   = repo.GetComponentRO<BehaviorState>(entity).InstanceId,
+            });
+            return true;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3035</c> — STAGE 0–2 of every start (extracted, not copied, so the task slot and the SOP slot parse the
+        /// same way): clear → bake defaults → parse / resolve the JSON into the reused shadow. <c>false</c> = the parse
+        /// failed and nothing may be committed. 📄 <c>DESIGN_Parameter_Model.md</c> §P.
+        /// </summary>
+        private unsafe bool ParseIntoShadow(EntityRepository repo, Entity entity, BehaviorDefinition def, string json,
+                                            out int rootBytes, out Span<byte> shadow)
+        {
+            rootBytes = RootParamsAccess.RootParamsBytes(def);
+            shadow = rootBytes > 0 ? EnsureShadow(rootBytes) : default;
+
+            if (rootBytes > 0 && def.ParseParams == null)
+            {
+                shadow.Clear();
+                if (def.BakeDefaults != null)
+                    fixed (byte* dst = shadow) def.BakeDefaults(dst, shadow.Length);
+            }
+            else if (def.ParseParams != null)
+            {
+                // ⭐⭐⭐ CE-421 + CE-426 (2026-09-29) — STAGE 0: THE SHADOW STARTS EMPTY, ALWAYS.
+                //   🔒 User, 2026-09-28: "why would re-assigning the same behaviour deserve special
+                //   handling, this happens rarely (certainly not every tick or two)" ⇒ always
+                //   Clear() → BAKE the whole block's defaults → OVERLAY the JSON → RESOLVE. An
+                //   unmentioned variable lands on its AUTHORED DEFAULT — predictable, inspectable in
+                //   the editor, and identical on a first assign and on a re-assign (Q76 §12.3).
+                // ⛔⛔ HISTORY — this used to SEED the shadow from the previous root slot, so a variable
+                //   with no default that the JSON did not mention kept the PREVIOUS behaviour's bytes,
+                //   reinterpreted as its own type (CE-421). CE-437 then kept the whole block on a
+                //   same-behaviour re-assign — exactly the gate CE-421's ruling had rejected, built
+                //   without reading that row. Both are gone.
+                // 📐 Measured before deleting: every production publisher of AssignBehaviorEvent sends
+                //   a COMPLETE parameter set (MissionAdapter via TacticalIntentResolution, the three
+                //   maneuver mappers) — none relies on a partial re-assign keeping untouched values.
+                // ⚠ Clear() is still load-bearing on its own: the buffer is REUSED across events and
+                //   frames, so a stale event's bytes would otherwise leak into this one.
+                shadow.Clear();
+
+                // Attempt parse on the shadow.
+                bool parseOk;
+                fixed (byte* dst = shadow)
+                {
+                    try
+                    {
+                        // ⭐ G1/E7 — `host` is null: this is a ROOT behaviour, which is its
+                        //   defined value (DESIGN_Parameter_Model.md §3.4). A HOSTED occurrence
+                        //   will pass its host's variable access here, at E7a, without another
+                        //   signature change.
+                        // ⭐⭐ CE-331 (2026-09-23): the parser is TOLD how much room it has.
+                        //   ⚠ `shadow.Length`, not `rootBytes` — the shadow IS the writable
+                        //   region, and handing anything wider would license the overrun this
+                        //   parameter exists to stop.
+                        def.ParseParams(json, dst, shadow.Length, repo, entity);
+                        parseOk = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Suppress — do NOT rethrow; a parse failure must not crash the loop.
+                        // ⭐ CE-2176 — but SAY it: 📐 measured live, an order whose resolver threw (a local [y, x] read as latitude -195°,
+                        //   the geo transform's ToCartesian) vanished here without a word — accepted by the sender, no behaviour, no log line.
+                        // ⭐ CE-2377 — an ERROR, not a warning (the entity runs NOTHING), naming what the side-effect-free validation finds wrong when it explains it.
+                        string why = "";
+                        try
+                        {
+                            var problems = BehaviorParamsValidation.Validate(_registry, def.Name, json);
+                            if (problems.Count > 0) why = " | validation: " + string.Join("; ", problems);
+                        }
+                        catch (Exception) { /* the log line must never throw */ }
+                        Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Error(
+                            "[BehaviorIngress] dropped '{0}' for entity #{1}: its params did not parse — {2}: {3}",
+                            def.Name, entity.Index, ex.GetType().Name, ex.Message + why);
+                        parseOk = false;
                     }
                 }
 
-                // Reset BTree execution pointer so the new phase starts from the root.
-                if (repo.HasComponent<BrainBTreeState>(evt.Entity))
-                    repo.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
+                if (!parseOk) return false; // ParseParams failed — the caller keeps the previous behaviour entirely.
+            }
+            return true;
+        }
 
-                // BHU-016 / CRITICAL FIX: Reset HSM instance bound to the new behavior's topology.
-                // Supplying the StructureHash keeps InstanceHeader.MachineId in sync with the new
-                // HsmDefinitionBlob so HsmKernelCore.ValidateInstance passes on the very next tick.
-                if (def != null && def.BrainTier == BehaviorConstants.BrainTierHsm && def.HsmDefinition != null)
+        // ════ ⭐⭐ CE-3035 — THE SOP SLOT (R-189, R-198) ═══════════════════════════════════════════════════════════════════
+        //   📄 docs/DESIGN_Sensors_And_Doctrine.md §6–§7 · docs/DESIGN_Decision_Layer.md §4. The SOP is a SECOND behaviour on the
+        //   unit: its own SopState, its own storage (keyed by its own behaviour — the task and the SOP must differ), its own
+        //   run tokens (high bit), started through THIS pipeline's parse and the same root attach, and run by the same runners
+        //   inside a BrainSlotScope. It acts only by ASSIGNING behaviours (Do when idle / React, CE-2079).
+
+        /// <summary>⭐ <c>CE-3035</c> — refused SOP assignments / clears since this system was built (a test / diagnostics probe).</summary>
+        public int SopRefusedCount { get; private set; }
+
+        private EntityRepository? _sopRecordRegisteredOn;
+
+        private void ApplySopEvents(EntityRepository repo)
+        {
+            if (!repo.IsComponentTypeRegistered<SopState>()) return;
+
+            foreach (var evt in repo.ReadManagedEvents<AssignSopEvent>())
+            {
+                if (evt == null || !repo.IsAlive(evt.Entity)) continue;
+                if (!_registry.TryGetId(evt.BehaviorName, out int id) || !_registry.TryGetDefinition(id, out var def))
                 {
-                    ResetHsmComponents(repo, evt.Entity, def.HsmDefinition.Header.StructureHash);
+                    SopRefusedCount++;
+                    Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
+                        "[BehaviorIngress] refused SOP '{0}' for entity #{1}: no such behaviour on this node.", evt.BehaviorName, evt.Entity.Index);
+                    continue;
+                }
+                StartSop(repo, evt.Entity, evt.BehaviorName, id, def, evt.JsonParams ?? "{}", evt.Origin);
+            }
+
+            foreach (var evt in repo.ReadEvents<ClearSopEvent>())
+            {
+                if (!repo.HasComponent<SopState>(evt.Entity)) continue;
+                var sop = repo.GetComponentRO<SopState>(evt.Entity);
+                if (!BehaviorOriginRank.Admits(evt.Origin, sop.SopHash, sop.SopOrigin)) { SopRefusedCount++; continue; }
+                EndSop(repo, evt.Entity, _registry);
+            }
+        }
+
+        /// <summary>
+        /// ⭐ rules ② (R2, 📄 docs/DESIGN_Scenario_Rules.md §00.11a) — a LIVE EDIT of the running behaviour's params that KEEPS its state: the SAME parse as an assign
+        /// (<see cref="ParseIntoShadow"/>), then the behaviour's <see cref="StateKeeper"/> copies the runtime fields from the live params block into the shadow, then the
+        /// shadow is committed over the live block — WITHOUT a restart. Returns <c>null</c> when applied, else the reason it was refused (the live block is untouched).
+        /// <para>⭐ What it SKIPS of <see cref="Start"/>'s commit — exactly the restart: <c>BehaviorState</c> (<c>InstanceId</c> stays, so the run's token and the finish de-dup stay;
+        /// <c>RunSince</c>, <c>Origin</c>, <c>Urgency</c> stay) · the owned-parts release (<c>BehaviorOwnedParts.Release</c>) · the previous-behaviour slot detach and the stateful-slot
+        /// provisioning · <c>DetachHostedOccurrenceSlots</c> (hosted params stay) · the root TREE STATE reset (<c>RootStateAccess.ResetState</c>) and the hosted tree states · the HSM instance reset ·
+        /// the paused-task / admission gate (<c>Admit</c>: an edit is not an order). It does update the <see cref="BehaviorStartRecord"/>'s JSON (same <c>InstanceId</c>), so a hot-reload
+        /// restart re-assigns the EDITED params. It writes ONE journal entry (<see cref="BrainJournalKind.Reparameterised"/>), refused or not.</para>
+        /// </summary>
+        public unsafe string? Reparameterise(EntityRepository repo, Entity entity, string json, BehaviorOrigin origin)
+        {
+            string? why = ReparameteriseCore(repo, entity, json, out int behaviorId);
+            if (repo.IsAlive(entity) && repo.HasComponent<BehaviorState>(entity))
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.Reparameterised, a: behaviorId, origin: (byte)origin, cause: (byte)(why != null ? 1 : 0));
+            return why;
+        }
+
+        private unsafe string? ReparameteriseCore(EntityRepository repo, Entity entity, string json, out int behaviorId)
+        {
+            behaviorId = BehaviorIds.None;
+            if (!repo.IsAlive(entity) || !repo.HasComponent<BehaviorState>(entity)) return "the entity runs no behaviour";
+            behaviorId = repo.GetComponentRO<BehaviorState>(entity).ActiveBehaviorHash;
+            if (behaviorId == BehaviorIds.None || !_registry.TryGetDefinition(behaviorId, out var def)) return "the entity runs no behaviour";
+            string name = def.Name;
+            if (!_registry.TryGetKeeper(name, out var keeper)) return "not editable live, restart the rule";
+            if (string.IsNullOrWhiteSpace(json)) json = "{}";
+            // ⭐ the same load-time check (CE-2377); a KIND change is impossible by construction — the edit carries no name, the live behaviour's own name is used.
+            var problems = BehaviorParamsValidation.Validate(_registry, name, json);
+            if (problems.Count > 0) return string.Join("; ", problems);
+            int rootBytes = RootParamsAccess.RootParamsBytes(def);
+            if (rootBytes <= 0 || def.ParseParams == null) return "this kind has no params to edit";
+            if (!RootParamsAccess.TryGetRootBytes(repo, entity, out byte* live, out int liveLen) || liveLen != rootBytes)
+                return "the running params block is not the kind's";
+            if (!ParseIntoShadow(repo, entity, def, json, out _, out Span<byte> shadow)) return "the params did not parse";
+            try { keeper(shadow.Slice(0, rootBytes), new ReadOnlySpan<byte>(live, rootBytes)); }
+            catch (Exception ex) { return "the state could not be kept: " + ex.Message; }
+            fixed (byte* src = shadow) Buffer.MemoryCopy(src, live, rootBytes, rootBytes);
+            if (repo.TryGetTable(typeof(BehaviorStartRecord), out _) && repo.HasManagedComponent<BehaviorStartRecord>(entity))
+            {
+                var rec = ((ISimulationView)repo).GetManagedComponentRO<BehaviorStartRecord>(entity);
+                repo.SetManagedComponent(entity, rec with { JsonParams = json });
+            }
+            return null;
+        }
+
+        /// <summary>⭐ <c>CE-2084</c> (§4.5 ①) — an SOP must not drive a channel: a behaviour KNOWN to command one is refused
+        /// at assign time (unknown is allowed; the runtime <c>ChannelGuard</c> is the backstop).</summary>
+        public static bool DrivesAChannel(BehaviorDefinition def) => def.WritesChannels is { Count: > 0 };
+
+        // ── ⭐ CE-3043 — the editor's PAUSED edits: the SAME gate and start pipeline, applied at once ────────────────────
+        //   📄 docs/DESIGN_Sensors_And_Doctrine.md §7.6. Nothing ticks while the editor is paused, so an author's change
+        //   must not wait for a frame; ⛔ these are NOT a second start path — each is exactly what the matching event does.
+
+        /// <summary>What an <see cref="AssignBehaviorEvent"/> does, now. <c>false</c> = refused (gate, unknown name, parse).</summary>
+        public bool AssignNow(EntityRepository repo, Entity entity, string behaviorName, string json, BehaviorOrigin origin)
+        {
+            if (!repo.IsAlive(entity) || !repo.HasComponent<BehaviorState>(entity)) return false;
+            if (!_registry.TryGetId(behaviorName, out int id) || !_registry.TryGetDefinition(id, out var def)) return false;
+            if (!Admit(repo, entity, origin, ReactionUrgency.NotAReaction, out bool pause, id)) return false;
+            var paused = pause ? PauseRecord(repo, entity, id, def) : null;
+            if (!Start(repo, entity, behaviorName, id, def, string.IsNullOrWhiteSpace(json) ? "{}" : json, origin,
+                       ReactionUrgency.NotAReaction, paused)) return false;
+            AfterAdmitted(repo, entity, origin, paused);
+            return true;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2141</c> (D2-C) — a clear that NAMES a behaviour (a commander releasing the order its ended drill gave): true when
+        /// that behaviour RUNS (then the clear goes on as any other). When the unit's own REACTION runs over it (paused), only the
+        /// paused task is dropped — weighed against its origin, as an order is (R-199 ③) — and the reaction runs on; when it ends,
+        /// nothing resumes and the SOP picks. Anything else: a newer order replaced it, so nothing happens.
+        /// 📄 docs/DESIGN_Orders_Params_Entity_Classes.md §7.
+        /// </summary>
+        private bool NamedClearEndsTheRun(EntityRepository repo, in ClearBehaviorEvent evt)
+        {
+            ref readonly var running = ref repo.GetComponentRO<BehaviorState>(evt.Entity);
+            if (running.ActiveBehaviorHash == evt.OnlyBehaviorHash) return true;
+            if (running.Origin == BehaviorOrigin.Reaction && repo.TryGetTable(typeof(PausedTask), out _)
+                && PausedTaskOf(repo, evt.Entity) is { } paused && paused.Hash == evt.OnlyBehaviorHash
+                && BehaviorOriginRank.Of(evt.Origin) >= BehaviorOriginRank.Of(paused.Origin))
+                DropPausedTask(repo, evt.Entity, _registry);
+            return false;
+        }
+
+        /// <summary>What a <see cref="ClearBehaviorEvent"/> does, now.</summary>
+        public bool ClearNow(EntityRepository repo, Entity entity, BehaviorOrigin origin)
+        {
+            if (!repo.IsAlive(entity) || !repo.HasComponent<BehaviorState>(entity)) return false;
+            if (!Admit(repo, entity, origin, ReactionUrgency.NotAReaction, out _)) return false;
+            Clear(repo, entity, _registry);
+            AfterAdmitted(repo, entity, origin, null);
+            return true;
+        }
+
+        /// <summary>What an <see cref="AssignSopEvent"/> does, now.</summary>
+        public bool AssignSopNow(EntityRepository repo, Entity entity, string behaviorName, string json, BehaviorOrigin origin)
+        {
+            if (!repo.IsAlive(entity) || !repo.IsComponentTypeRegistered<SopState>()) return false;
+            if (!_registry.TryGetId(behaviorName, out int id) || !_registry.TryGetDefinition(id, out var def)) return false;
+            return StartSop(repo, entity, behaviorName, id, def, string.IsNullOrWhiteSpace(json) ? "{}" : json, origin);
+        }
+
+        /// <summary>What a <see cref="ClearSopEvent"/> does, now.</summary>
+        public bool ClearSopNow(EntityRepository repo, Entity entity, BehaviorOrigin origin)
+        {
+            if (!repo.IsAlive(entity) || !repo.IsComponentTypeRegistered<SopState>() || !repo.HasComponent<SopState>(entity)) return false;
+            var sop = repo.GetComponentRO<SopState>(entity);
+            if (!BehaviorOriginRank.Admits(origin, sop.SopHash, sop.SopOrigin)) { SopRefusedCount++; return false; }
+            EndSop(repo, entity, _registry);
+            return true;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3035</c> — start <paramref name="def"/> in the unit's SOP slot: gate (against the SOP's own origin), refuse
+        /// the unit's current task, parse (the same <see cref="ParseIntoShadow"/>), end the previous SOP run, make room beside
+        /// the task (by FREE space), attach the SOP's roots, reset them inside its <see cref="BrainSlotScope"/>, record the start.
+        /// </summary>
+        internal unsafe bool StartSop(EntityRepository repo, Entity entity, string behaviorName, int behaviorId,
+                                       BehaviorDefinition def, string json, BehaviorOrigin origin)
+        {
+            // ⭐ CE-2083 — a REACTION is a task-slot concept (it pauses the task, R-199); the SOP slot is an order. Ranked as
+            //   an order, Reaction would sit at an arbitrary rank there. Refused, like any other malformed assignment.
+            if (origin == BehaviorOrigin.Reaction)
+            {
+                SopRefusedCount++;
+                Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Warn(
+                    "[BehaviorIngress] refused SOP '{0}' for entity #{1}: a reaction never sets the SOP slot.", behaviorName, entity.Index);
+                return false;
+            }
+            if (!repo.HasComponent<SopState>(entity)) repo.AddComponent(entity, new SopState());
+            var before = repo.GetComponentRO<SopState>(entity);
+
+            if (!BehaviorOriginRank.Admits(origin, before.SopHash, before.SopOrigin))
+            {
+                SopRefusedCount++;
+                Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
+                    "[BehaviorIngress] refused {0} SOP '{1}' for entity #{2}: its SOP was set at {3}.", origin, behaviorName, entity.Index, before.SopOrigin);
+                return false;
+            }
+            if (repo.HasComponent<BehaviorState>(entity) && repo.GetComponentRO<BehaviorState>(entity).ActiveBehaviorHash == behaviorId)
+            {
+                SopRefusedCount++;
+                Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
+                    "[BehaviorIngress] refused SOP '{0}' for entity #{1}: it is the unit's current task.", behaviorName, entity.Index);
+                return false;
+            }
+            if (DrivesAChannel(def))   // ⭐ CE-2084
+            {
+                SopRefusedCount++;
+                Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Warn(
+                    "[BehaviorIngress] refused SOP '{0}' for entity #{1}: it commands a channel ({2}) — an SOP must not move or fire the unit; use React to start a behaviour that does.",
+                    behaviorName, entity.Index, string.Join(", ", def.WritesChannels!));
+                return false;
+            }
+            if (!ParseIntoShadow(repo, entity, def, json, out int rootBytes, out Span<byte> shadow))
+            {
+                SopRefusedCount++;
+                // ⭐ CE-2377 step 2 — the refusal is in the unit's journal (the AAR / Brain tab), as the task path's already is
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
+                    cause: (byte)BrainRefusal.ParseFailed);
+                return false;
+            }
+
+            EndSop(repo, entity, _registry);   // the previous SOP run ends here (its parts and slots go with it)
+            uint run = SopTokens.Next();
+
+            _registry.TryGetHostedOccurrenceDemand(behaviorName, out var hosted);
+            hosted = WithDescendantDemand(hosted, def);
+            var effectiveSlots = def.StatefulWorkingSlots is { Count: > 0 } ? HostedSubtree.EffectiveSlots(def.StatefulWorkingSlots) : null;
+            ProvisionStatefulSlots(repo, entity, effectiveSlots ?? (IReadOnlyList<StatefulSlotInfo>)Array.Empty<StatefulSlotInfo>(),
+                                   KindOf(def), hosted, RootParamsCost(def), RootBrainStateCost(def));
+
+            if (rootBytes > 0)
+            {
+                byte* rootParams = RootParamsAccess.ResolveOrAttachRoot(repo, entity, behaviorId, rootBytes, KindOf(def), out _);
+                if (rootParams == null)
+                {
+                    SopRefusedCount++;
+                    Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Warn(
+                        "[BehaviorIngress] SOP '{0}' for entity #{1}: no room for its parameters beside the task.", behaviorName, entity.Index);
+                    return false;
+                }
+                fixed (byte* src = shadow)
+                    Buffer.MemoryCopy(src, rootParams, rootBytes, rootBytes);
+            }
+
+            ref var sop = ref repo.GetComponentRW<SopState>(entity);
+            sop.SopHash       = behaviorId;
+            sop.SopInstanceId = run;
+            sop.SopBrainTier  = def.BrainTier;
+            sop.SopOrigin     = BehaviorOriginRank.AfterAssign(origin, before.SopOrigin);
+            sop.SopFaulted    = 0;
+            sop.SopWake       = 1;   // decide at once
+            sop.SopNextTick   = 0;
+
+            using (BrainSlotScope.Enter(entity, behaviorId, run))
+            {
+                if (RootStateAccess.RootStateBytes(def) > 0)
+                {
+                    RootStateAccess.ResolveOrAttachRoot(repo, entity, behaviorId, KindOf(def), out _, RootStateAccess.RootStateBytes(def));
+                    RootStateAccess.ResetState(repo, entity);
+                }
+                ResetHostedTreeStates(repo, entity, def);
+                if (def.BrainTier == BehaviorConstants.BrainTierHsm && def.HsmDefinition != null)
+                {
+                    RootHsmAccess.ResolveOrAttachRoot(repo, entity, behaviorId,
+                        RootHsmAccess.InstanceBytes(def.HsmDefinition), KindOf(def), out _);
+                    RootHsmAccess.ResetInstance(repo, entity, def.HsmDefinition);
                 }
             }
+
+            if (!ReferenceEquals(_sopRecordRegisteredOn, repo))
+            {
+                if (!repo.TryGetTable(typeof(SopStartRecord), out _)) repo.RegisterManagedComponent<SopStartRecord>();
+                _sopRecordRegisteredOn = repo;
+            }
+            repo.SetManagedComponent(entity, new SopStartRecord { BehaviorName = behaviorName, JsonParams = json, InstanceId = run });
+            BrainJournalOf.Write(repo, entity, BrainJournalKind.SopStarted, a: behaviorId, origin: (byte)origin);   // ⭐ CE-1249
+            return true;
+        }
+
+        /// <summary>⭐ <c>CE-3035</c> — end the unit's SOP run (the unit keeps <see cref="SopState"/>, empty): its owned parts
+        /// and its slots go. Not gated — the gate is the caller's.</summary>
+        internal static unsafe void EndSop(EntityRepository repo, Entity entity, BehaviorRegistry registry)
+        {
+            if (!repo.HasComponent<SopState>(entity)) return;
+            var sop = repo.GetComponentRO<SopState>(entity);
+            if (sop.SopHash == BehaviorIds.None) return;
+
+            BehaviorOwnedParts.Release(repo, entity, sop.SopInstanceId);
+            if (registry.TryGetDefinition(sop.SopHash, out var def) && def.StatefulWorkingSlots is { Count: > 0 })
+                DetachStatefulSlots(repo, entity, HostedSubtree.EffectiveSlots(def.StatefulWorkingSlots));
+            RootHsmAccess.DetachRoot(repo, entity, sop.SopHash);
+            RootStateAccess.DetachRoot(repo, entity, sop.SopHash);
+            RootParamsAccess.DetachRoot(repo, entity, sop.SopHash);
+
+            // ⭐ CE-2085 — the occurrences the SOP attached lazily go with its run.
+            if (repo.HasManagedComponent<SopStartRecord>(entity)
+                && ((ISimulationView)repo).GetManagedComponentRO<SopStartRecord>(entity) is { HostedKeys.Count: > 0 } held)
+            {
+                foreach (int key in held.HostedKeys) OccurrenceStoreAccess.TryDetachSlot(repo, entity, key);   // ⭐ CE-3137 U-0
+            }
+
+            repo.GetComponentRW<SopState>(entity) = default;
+            BrainJournalOf.Write(repo, entity, BrainJournalKind.SopEnded, a: sop.SopHash);   // ⭐ CE-1249
+            if (repo.HasManagedComponent<SopStartRecord>(entity))
+                repo.SetManagedComponent<SopStartRecord>(entity, null!);
+        }
+
+        private static bool HasSop(EntityRepository repo, Entity entity)
+            => repo.IsComponentTypeRegistered<SopState>() && repo.HasComponent<SopState>(entity)
+               && repo.GetComponentRO<SopState>(entity).SopHash != BehaviorIds.None;
+
+        private static bool IsTheSop(EntityRepository repo, Entity entity, int behaviorId)
+            => HasSop(repo, entity) && repo.GetComponentRO<SopState>(entity).SopHash == behaviorId;
+
+        private static void WakeSop(EntityRepository repo, Entity entity)
+        {
+            if (HasSop(repo, entity)) repo.GetComponentRW<SopState>(entity).SopWake = 1;
+        }
+
+        /// <summary>⭐ <c>CE-3035</c> — is <paramref name="key"/> one of the SOP slot's own storage slots (its roots, its manifest)?
+        /// The task's sweeps leave those alone. ⚠ The SOP's LAZILY attached hosted occurrences are not named anywhere, so a
+        /// task start still resets them — an SOP tree re-reads from its root each wake, so this costs at most a hosted
+        /// child's progress.</summary>
+        private static bool IsHeldBySop(EntityRepository repo, Entity entity, BehaviorRegistry? registry, int key)
+        {
+            if (!HasSop(repo, entity)) return false;
+            int h = repo.GetComponentRO<SopState>(entity).SopHash;
+            if (key == RootParamsAccess.KeyForBehaviour(h) || key == RootStateAccess.KeyForBehaviour(h)
+                || key == RootHsmAccess.KeyForBehaviour(h))
+                return true;
+            if (registry != null && registry.TryGetDefinition(h, out var d) && d.StatefulWorkingSlots is { Count: > 0 }
+                && IsNamedByManifest(HostedSubtree.EffectiveSlots(d.StatefulWorkingSlots), key))
+                return true;
+            // ⭐ CE-2085 — and what the SOP attached LAZILY (a subtree its tree started), which no manifest names.
+            return repo.TryGetTable(typeof(SopStartRecord), out _) && repo.HasManagedComponent<SopStartRecord>(entity)
+                   && ((ISimulationView)repo).GetManagedComponentRO<SopStartRecord>(entity) is { } rec
+                   && rec.HostedKeys.Contains(key);
+        }
+
+        private EntityRepository? _startRecordRegisteredOn;
+
+        /// <summary>
+        /// ⭐ S5b — the root's own lazy-occurrence demand PLUS every hosted descendant's (one per occurrence). ⛔ Nothing can
+        /// grow the store mid-tick, so a hosted HSM child whose states attach occurrences lazily must be counted HERE.
+        /// Returns the input unchanged when nothing is hosted.
+        /// </summary>
+        private HostedOccurrenceDemand? WithDescendantDemand(HostedOccurrenceDemand? own, BehaviorDefinition def)
+        {
+            var children = HostedSubtree.HostedDescendants(def.StatefulWorkingSlots);
+            if (children.Count == 0) return own;
+            int bytes = own?.PayloadBytes ?? 0, count = own?.SlotCount ?? 0;
+            bool any = own is not null;
+            foreach (var child in children)
+            {
+                if (!_registry.TryGetHostedOccurrenceDemand(child.Name, out var d) || d is null) continue;
+                bytes += d.PayloadBytes; count += d.SlotCount; any = true;
+            }
+            return any ? new HostedOccurrenceDemand(bytes, count) : null;
+        }
+
+        /// <summary>Entities started BY NAME in the current <c>Execute</c> → the behaviour started (<c>CE-451</c>).</summary>
+        private readonly Dictionary<int, int> _startedByNameThisFrame = new();
+
+        /// <summary>⭐ CE-4306 (F5) — why the last <see cref="Admit"/> / <see cref="Start"/> said no, for the order's refusal text (<see cref="BrainRefusalText"/>). Set where they return false; reset per assignment.</summary>
+        private BrainRefusal _lastRefusal;
+
+        /// <summary>
+        /// 🔴🔴🔴 <b><c>E-cap</c> — A BEHAVIOUR WITH NO MANIFEST STILL NEEDS A STORE.</b>
+        /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §27.
+        ///
+        /// <para>⛔⛔ <b>Why this is not speculative housekeeping.</b> A hosted occurrence attaches its
+        /// working state <b>lazily</b>, on first dispatch (§24.8) — and it <b>cannot add a tier
+        /// component to do so</b>, because that is a STRUCTURAL change and must never happen inside a
+        /// tick. ⇒ without a store already present, the very first dispatch of an HSM- or BTree-hosted
+        /// blueprint <b>throws</b>.</para>
+        ///
+        /// <para>🔴 <b>Measured: that gap was real and shipped.</b> <c>ProvisionStatefulSlots</c> ran
+        /// only when <c>def.StatefulWorkingSlots</c> was non-empty, so a behaviour that hosts a
+        /// blueprint but declares no stateful slots of its own got no store at all. <c>O7b</c>'s HSM
+        /// path passed its tests only because the fixture adds one by hand — ⚠ <b>the production path
+        /// would have thrown</b>, which is exactly the shape §26.1's rule exists to catch.</para>
+        ///
+        /// <para>⭐ <b>The cost is the smallest tier</b> — <c>SelectTierForPayload(0, 0)</c> — which is
+        /// why <c>O3b</c> added the 256 tier: §5a measured it as <b>load-bearing, not an
+        /// optimisation</b>. ⚠ Entities whose behaviour never hosts anything do carry it; that is
+        /// accepted, and it is reversible once a manifest can say who actually hosts (<c>O7b-3</c>).</para>
+        ///
+        /// <para>⚠ <b>Brain tiers only.</b> A behaviour on no brain tier cannot host an occurrence, so it gets
+        /// nothing — ⛔ this is not "a store for every entity". ⭐ <c>CE-446</c>: a blueprint behaviour hosts
+        /// nothing but still needs the store for its root block.</para>
+        /// </summary>
+        private static unsafe void EnsureOccurrenceStore(
+            EntityRepository repo, Entity entity, BehaviorDefinition def,
+            HostedOccurrenceDemand? hosted = null, int rootParamsCost = 0, int rootStateCost = 0)
+        {
+            // ⭐ CE-446: a blueprint behaviour hosts nothing, but its ROOT BLOCK is attached into this store.
+            if (def.BrainTier != BehaviorConstants.BrainTierBTree &&
+                def.BrainTier != BehaviorConstants.BrainTierHsm &&
+                def.BrainTier != BehaviorConstants.BrainTierBlueprint)
+                return;
+
+            // ⭐⭐ O7b-3: size it for what this behaviour will actually host. ⚠ A null demand means
+            //   "nobody computed one" (§27.7), and the smallest tier is the same answer E-cap gave —
+            //   so this is additive, never a regression.
+            // ⭐ CE-302: the root params slot is attached after this returns, so its cost is added here
+            //   or it is never counted at all.
+            // ⭐ O7c-②: the ROOT TREE STATE slot is additive here on exactly the same footing as the
+            //   root params slot — both attach after this returns, so both are counted before it.
+            int demandPayload = HostedPayloadCost(hosted) + rootParamsCost + rootStateCost;
+            int demandSlots   = (hosted?.SlotCount ?? 0)
+                              + (rootParamsCost > 0 ? 1 : 0)
+                              + (rootStateCost  > 0 ? 1 : 0);
+
+            int currentTier = GetCurrentTierSize(repo, entity);
+            if (currentTier != 0)
+            {
+                // 🔴🔴 O7c-④a — "already has one" IS NO LONGER ENOUGH, and the reason is new with
+                //   this slice. Until now every cost this branch could be asked for was a CONSTANT:
+                //   the root tree state is always 64, the root params always MaxBehaviorParamByteSize.
+                //   ⇒ a store that fitted the first assign fitted every later one, and returning early
+                //   was correct by arithmetic rather than by luck.
+                //
+                //   ⭐ The root HSM instance breaks that: its width is SelectTier(blob) — 64, 128 or
+                //   256 — so reassigning an entity from a one-region machine to a three-region one
+                //   RAISES the demand. 📐 Measured: 256 bytes aligned plus a 16-byte slot entry is
+                //   272, and the smallest tier's payload is 176. ⇒ the attach a few lines later would
+                //   simply return null and the machine would never run — no throw, no log.
+                //
+                //   ⚠ THE GUARD IS DELIBERATELY "DOES IT FIT THE TIER AT ALL", NOT "IS THERE ROOM
+                //   RIGHT NOW". Free space understates: the PREVIOUS behaviour's slots are reclaimed
+                //   by DetachHostedOccurrenceSlots AFTER this returns. ⇒ comparing against capacity
+                //   promotes only an entity whose tier could never hold the demand, and leaves every
+                //   entity that fits exactly where it is. 📌 That is what keeps this off CE-318's
+                //   ground: no BTree entity's tier moves, so the golden cannot shift under it.
+                // ⭐⭐ CE-3137 U-0: capacity is the SUM over the unit's blocks, and the answer to "does not fit"
+                //   is to APPEND a block for the shortfall — never to copy into a bigger tier (R-236).
+                var capacity = OccurrenceStoreAccess.Measure(repo, entity);
+                if (demandPayload <= capacity.PayloadSize && demandSlots <= capacity.MaxSlots) return;
+
+                OccurrenceStoreAccess.AppendBlockFor(
+                    repo, entity, demandPayload - capacity.PayloadSize, demandSlots - capacity.MaxSlots);
+                return;
+            }
+
+            int targetTier = SelectTierForPayload(demandPayload, demandSlots);
+
+            // ⛔⛔ DO NOT WIDEN THE TOOLKIT'S CONTRACT. Registering the tier components is Hrot-wide
+            //   (HrotSharedComponentRegistry, CE-161) but this system lives in Fdp.Toolkits, which
+            //   hosts may use WITHOUT them. ⇒ a host that never hosts an occurrence must not start
+            //   failing at assign just because this provisioning was added.
+            // ⭐ The skip is SAFE because it is not silent where it matters: a host that skips here
+            //   and then DOES host an occurrence gets OccurrenceWorkingState's loud "carries no
+            //   occurrence store", whose message names tier registration as a cause.
+            if (!BlueprintTierTable.ByTotalSize(targetTier).IsRegistered(repo)) return;
+
+            AddAndInitializeTier(repo, entity, targetTier);
+        }
+
+        /// <summary>
+        /// 🔴🔴 <b><c>F14b</c> — the EXTERNAL reset path: a hosted occurrence's cursor must follow
+        /// the host's.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §21.2.
+        ///
+        /// <para>⛔⛔ <b>Why the two <c>D4</c> halves do not cover this.</b>
+        /// <c>HostedSubtree.Tick</c> resets a child that COMPLETED, and the deactivator resets a child
+        /// the host ABANDONED mid-tick — both reached through <c>Interpreter.SweepExitedNodes</c>.
+        /// ⚠ This system zeroes <c>BrainBTreeState.State</c> <b>without a tick</b>, so neither fires:
+        /// the host restarts at the root while a hosted child resumes mid-tree. ⭐ Before <c>O4</c> the
+        /// child shared the host's 64-byte state, so zeroing the host cleared it by ACCIDENT — own
+        /// state removes that, and this is the bill (the same bill <c>F14</c> paid for the sweep).</para>
+        ///
+        /// <para>⭐ <b>Only the hosted tree-state slots</b> (<c>HostedSubtree.IsTreeStateSlot</c>).
+        /// ⛔ Author working state is deliberately NOT cleared: <c>AttachSlotsToMemory</c>'s idempotent
+        /// arm preserves it across a no-op re-assign on purpose, and a cursor is not working state.</para>
+        ///
+        /// <para>⚠ <b><c>ClearBehaviorEvent</c> (<c>:204</c>) needs no call</b> — measured: it
+        /// <c>DetachStatefulSlots</c> first, and <c>TryAttach</c> ZEROES the payload it hands out
+        /// (<c>SlotAttachZeroingTests</c>), so the next assign gets a clean cursor either way.</para>
+        /// </summary>
+        /// <summary>
+        /// 🔴🔴🔴 <b><c>E3a</c> — drop the LAZILY-ATTACHED hosted occurrences on a behaviour assign, so
+        /// their params are re-seeded from the JSON this assign just parsed.</b> 📄 §28.4.
+        ///
+        /// <para>⛔⛔ <b>This is NOT housekeeping — omitting it is a REGRESSION.</b> Before <c>E3a</c> an
+        /// HSM thunk read its params from <c>BrainBlackboard</c> <b>live</b>, so a re-assign with new
+        /// JSON took effect on the very next dispatch. ⭐ After <c>E3a</c> the slot holds a <b>copy</b>
+        /// ⇒ without this, <b>new JSON would silently stop taking effect</b> and the occurrence would
+        /// run forever on the first assign's values.</para>
+        ///
+        /// <para>⭐⭐ <b><c>A3</c>/<c>D1′</c>'s <c>Kind</c> nibble is what makes this PRECISE.</b> A
+        /// lazily-attached hosted occurrence declares <see cref="OccurrenceKind.Hsm"/> or
+        /// <see cref="OccurrenceKind.Blueprint"/>; a manifest slot is provisioned with the behaviour's
+        /// own kind. ⛔ Detaching by kind ALONE would also take manifest slots — hence <i>kind AND not
+        /// named by the manifest</i>. ⚠ Without the nibble this sweep could not be written at all,
+        /// which is what <c>F7</c> predicted.</para>
+        ///
+        /// <para>⚠ <b>Walks DOWNWARD.</b> <c>TryDetach</c> dense-compacts the slot table
+        /// (<c>:188-199</c>), so an ascending walk would skip the entry that slid into the hole.</para>
+        /// </summary>
+        private static unsafe void DetachHostedOccurrenceSlots(
+            EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo>? manifest, BehaviorRegistry? registry,
+            PausedTask? pausing = null)
+        {
+            // ⭐ CE-3137 U-0: every block — a lazily attached occurrence may sit in an appended one.
+            OccurrenceStoreAccess.GetBlocks(repo, entity, out var blocks);
+            for (int b = 0; b < blocks.Count; b++)
+            {
+                byte* store = blocks.Memory(b);
+                for (int i = BlueprintBlackboardPartitions.GetSlotCount(store) - 1; i >= 0; i--)
+                {
+                    var kind = BlueprintBlackboardPartitions.GetSlotKind(store, i);
+                    if (kind != OccurrenceKind.Hsm && kind != OccurrenceKind.Blueprint) continue;
+
+                    int key = BlueprintBlackboardPartitions.GetSlot(store, i).BlueprintId;
+                    if (IsNamedByManifest(manifest, key)) continue;   // provisioned, not lazily attached
+                    if (IsHeldBySop(repo, entity, registry, key)) continue;   // ⭐ CE-3035 — the SOP slot's storage is not the task's to sweep
+                    if (IsHeldByPausedTask(repo, entity, key, pausing)) continue;   // ⭐ CE-2081 — nor the paused task's
+
+                    BlueprintBlackboardPartitions.TryDetach(store, key);
+                }
+            }
+        }
+
+        private static bool IsNamedByManifest(IReadOnlyList<StatefulSlotInfo>? manifest, int slotKey)
+        {
+            if (manifest == null) return false;
+            for (int i = 0; i < manifest.Count; i++)
+                if (manifest[i].SlotKey == slotKey) return true;
+            return false;
+        }
+
+        private static void ResetHostedTreeStates(EntityRepository repo, Entity entity, BehaviorDefinition? def)
+        {
+            var slots = def?.StatefulWorkingSlots;
+            if (slots == null) return;
+
+            for (int i = 0; i < slots.Count; i++)
+                if (HostedSubtree.IsTreeStateSlot(slots[i]))
+                    HostedSubtree.Reset(repo, entity, slots[i].SlotKey);
         }
 
         // ── S2-2: stateful slot provisioning helpers ─────────────────────────────
@@ -251,17 +1427,166 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// "to-be-freed" when computing available space, so tier selection is correct even when
         /// a WorkingState grows on a hard reload.
         /// </summary>
+        /// <summary>
+        /// A3/<c>D1′</c> — the <see cref="OccurrenceKind"/> a behaviour's stateful working slots get.
+        /// ⚠ <see cref="OccurrenceKind.Invalid"/> for an unknown tier is deliberate: an undeclared
+        /// occurrence must read <i>"nobody declared one"</i>, never a guess.
+        /// </summary>
+        /// <summary>
+        /// <c>O7b-3</c> — the store bytes a behaviour's HOSTED occurrences will cost, in the SAME
+        /// arithmetic <see cref="ProvisionStatefulSlots"/> uses for a manifest slot: aligned payload
+        /// plus one <c>BlueprintSlotEntry</c> each.
+        ///
+        /// <para>⭐ The demand already carries its payload ALIGNED (<c>HostedOccurrenceDemand.Of</c>),
+        /// so only the slot-entry overhead is added here. ⛔ Two places computing this would be two
+        /// places to get it wrong — that is why the split is stated on the record and not invented at
+        /// each call site.</para>
+        ///
+        /// <para>⚠ A <c>null</c> demand costs ZERO, which reproduces <c>E-cap</c>'s smallest tier
+        /// exactly. ⛔ Not an error: <i>"nobody computed one"</i> is a real state (§27.7).</para>
+        /// </summary>
+        // ⭐⭐ CE-318 (2026-09-23): the slot entries are NOT added here any more — the slot table is
+        //   carved out of the store once, up front, so PayloadSize has already had them removed.
+        //   The slot AXIS is still counted, by `requiredSlots += hosted.SlotCount` at the call site.
+        //   📄 BlueprintBlackboardPartitions.PayloadCost.
+        private static int HostedPayloadCost(HostedOccurrenceDemand? hosted)
+            => hosted is null ? 0 : hosted.PayloadBytes;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-302</c> — the store bytes the ROOT PARAMS slot costs</b>, in the same
+        /// arithmetic <see cref="HostedPayloadCost"/> uses: aligned payload plus one
+        /// <c>BlueprintSlotEntry</c>. <b>Zero means "this behaviour has no root params".</b>
+        ///
+        /// <para>⛔⛔ <b>Why this had to exist before <c>P3-C</c>'s clean cut.</b> The root params slot
+        /// is attached AFTER provisioning, so nothing that sizes the tier ever saw it. ⭐ While the
+        /// blackboard commit still ran that was harmless — a full store simply returned <c>null</c>
+        /// and the entity kept using <c>BrainBlackboard</c>. ⇒ once the blackboard is gone, the same
+        /// <c>null</c> is <b>lost params</b>, so the room has to be reserved up front.</para>
+        ///
+        /// <para>⚠ <b>The slot count is implicitly ONE.</b> §29.6: the root params region is ONE slot
+        /// holding the WHOLE packed table — scattering it per state would destroy <c>E3b-0</c>'s seed
+        /// offsets, which index INTO that table. ⇒ callers add <c>cost &gt; 0 ? 1 : 0</c> slots, and
+        /// there is no shape in which this returns a cost for more than one.</para>
+        ///
+        /// <para>⚠ <b>Gated on <c>ParseParams</c>, exactly as the attach is.</b> A behaviour with a
+        /// manifest but no parser never attaches a root slot, so reserving for it would push entities
+        /// up a tier for nothing.</para>
+        /// </summary>
+        /// <summary>
+        /// ⭐⭐ <b><c>O7c</c>-② / <c>CE-319</c> — what the ROOT TREE STATE slot costs the tier demand.</b>
+        /// 📄 §31.
+        ///
+        /// <para>⛔⛔ <b>The exact shape of <see cref="RootParamsCost"/>, and for the same reason:</b>
+        /// the slot attaches AFTER provisioning returns, and nothing later can grow the tier — that is a
+        /// structural change inside a tick. ⇒ its cost is counted HERE or it is never counted at all,
+        /// which is precisely the defect <c>CE-302</c> was.</para>
+        ///
+        /// <para>⚠ <b>Asks the DEFINITION, never a probe.</b> A behaviour is BTree-tier or it is not;
+        /// "the lookup failed" cannot tell "this behaviour has no tree" from "the slot should exist and
+        /// does not" — <c>CE-307</c>'s lesson on the params path.</para>
+        /// </summary>
+        private static int RootStateCost(BehaviorDefinition? def)
+        {
+            int bytes = RootStateAccess.RootStateBytes(def);
+            if (bytes <= 0) return 0;
+
+            // ⭐⭐ CE-318: PAYLOAD only — the caller adds the slot on its own axis.
+            return BlueprintBlackboardPartitions.PayloadCost(bytes);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>O7c</c>-④ — what the ROOT BRAIN'S EXECUTION STATE costs the tier demand,
+        /// whichever paradigm the brain is.</b> 📄 §31.14.
+        ///
+        /// <para>⭐⭐ <b>ONE cost, because it is ONE slot.</b> <see cref="RootStateCost"/> is non-zero
+        /// only for a BTree-tier behaviour and <see cref="RootHsmCost"/> only for an HSM-tier one —
+        /// <c>BehaviorState.BrainTier</c> is a single discriminator, so exactly one of the two can pay.
+        /// ⛔ Summing them is therefore not "reserve for both"; it is the one-line spelling of
+        /// <i>"reserve for whichever brain this is"</i>, and it is why the provisioners take a single
+        /// parameter rather than growing a second.</para>
+        /// </summary>
+        private static int RootBrainStateCost(BehaviorDefinition? def)
+            => RootStateCost(def) + RootHsmCost(def);
+
+        /// <summary>
+        /// ⭐⭐ <b>What the ROOT HSM INSTANCE slot costs the tier demand.</b>
+        ///
+        /// <para>🔴 <b>The one place this differs from every other cost in this file: the width is a
+        /// RUNTIME value</b> — <c>HsmInstanceManager.SelectTier(blob)</c> returns 64, 128 or 256 from
+        /// the machine's own shape. ⛔ Not a <c>sizeof</c>, and not 128 just because the retired
+        /// <c>BrainHsm128</c> component happened to be that wide. ⚠ A 64-byte machine now reserves 64,
+        /// which is the first time the kernel's smallest tier has been reachable at all.</para>
+        ///
+        /// <para>⛔⛔ <b>Counted HERE or never</b> — the slot attaches AFTER provisioning returns and
+        /// nothing later can grow the tier, which is a structural change inside a tick. That is
+        /// precisely the defect <c>CE-302</c> was on the params path.</para>
+        /// </summary>
+        private static int RootHsmCost(BehaviorDefinition? def)
+        {
+            int bytes = RootHsmAccess.RootHsmBytes(def);
+            if (bytes <= 0) return 0;
+
+            // ⭐⭐ CE-318: PAYLOAD only — the caller adds the slot on its own axis.
+            return BlueprintBlackboardPartitions.PayloadCost(bytes);
+        }
+
+        private static int RootParamsCost(BehaviorDefinition def)
+        {
+            // ⭐ CE-416 ②: costed whenever the block EXISTS (the attach's predicate), parser or not.
+            if (def == null) return 0;
+
+            int bytes = RootParamsAccess.RootParamsBytes(def);
+            if (bytes <= 0) return 0;
+
+            // ⭐⭐ CE-318: PAYLOAD only — the caller adds the slot on its own axis.
+            return BlueprintBlackboardPartitions.PayloadCost(bytes);
+        }
+
+        private static OccurrenceKind KindOf(BehaviorDefinition def) => def.BrainTier switch
+        {
+            BehaviorConstants.BrainTierBTree => OccurrenceKind.BTree,
+            BehaviorConstants.BrainTierHsm   => OccurrenceKind.Hsm,
+            // ⭐ CE-446: the root block of a blueprint behaviour — a kind nothing walks or sweeps.
+            BehaviorConstants.BrainTierBlueprint => OccurrenceKind.BlueprintBehavior,
+            _                                => OccurrenceKind.Invalid,
+        };
+
         private static unsafe void ProvisionStatefulSlots(
             EntityRepository repo, Entity entity,
-            IReadOnlyList<StatefulSlotInfo> slots)
+            IReadOnlyList<StatefulSlotInfo> slots,
+            OccurrenceKind kind,
+            HostedOccurrenceDemand? hosted = null,
+            int rootParamsCost = 0,
+            int rootStateCost = 0)
         {
             // Compute aggregate required payload for the new manifest:
             // each slot at alignment-padded size + one BlueprintSlotEntry header per slot.
             int requiredPayload = 0;
+            // ⭐⭐ CE-318: PAYLOAD only; `requiredSlots` below carries the slot axis.
             foreach (var s in slots)
-                requiredPayload += AlignUp(s.PayloadSize, BlueprintBlackboardPartitions.Alignment)
-                                 + BlueprintBlackboardPartitions.SlotEntrySize;
+                requiredPayload += BlueprintBlackboardPartitions.PayloadCost(s.PayloadSize);
             int requiredSlots = slots.Count;
+
+            // ⭐⭐⭐ O7b-3: the behaviour's HOSTED occurrences need room too, and they attach LAZILY —
+            //   so nothing here will ever see them, and nothing later can grow the tier (a structural
+            //   change inside a tick). ⇒ their demand is ADDITIVE to the manifest's, in BOTH branches
+            //   below. ⛔ Sizing only the `EnsureOccurrenceStore` branch is the cheap wrong fix: it
+            //   never runs for a behaviour that declares stateful slots of its own (rail O7_R18).
+            requiredPayload += HostedPayloadCost(hosted);
+            requiredSlots   += hosted?.SlotCount ?? 0;
+
+            // ⭐⭐ CE-302: and the ROOT PARAMS slot, attached after this returns (§29.6 — ONE slot for
+            //   the whole packed table). ⛔ Same reason as the hosted demand above: nothing later can
+            //   grow the tier, because that is a structural change inside a tick.
+            requiredPayload += rootParamsCost;
+            requiredSlots   += rootParamsCost > 0 ? 1 : 0;
+
+            // ⭐⭐ O7c-② / CE-319: and the ROOT TREE STATE slot. ⛔ Counted in THIS branch as well as in
+            //   EnsureOccurrenceStore's — sizing only one of them is the cheap wrong fix that rail
+            //   O7_R18 exists to catch: this branch is the one that runs for a behaviour which declares
+            //   stateful slots of its own, and EnsureOccurrenceStore never runs for it at all.
+            requiredPayload += rootStateCost;
+            requiredSlots   += rootStateCost > 0 ? 1 : 0;
 
             // Determine the entity's current tier (0 = none, else TotalSize).
             int currentTier = GetCurrentTierSize(repo, entity);
@@ -277,98 +1602,56 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // S2-3: compute how much space will be *freed* by detaching existing manifest slots
                 // that are already attached (they will be detach+reattach'd if size/hash differs,
                 // or are idempotently kept if identical). Only detach candidates contribute freed space.
-                int toBeFreedPayload = GetManifestSlotsToBeFreedPayload(repo, entity, currentTier, slots);
-                int toBeReusedSlots  = GetManifestSlotsAlreadyAttachedCount(repo, entity, currentTier, slots);
+                int toBeFreedPayload = GetManifestSlotsToBeFreedPayload(repo, entity, slots);
+                int toBeReusedSlots  = GetManifestSlotsAlreadyAttachedCount(repo, entity, slots);
 
                 // Effective free space: current free + what will be freed by detach.
                 // Effective required slots: requiredSlots - already-attached (those reuse their slot entries).
-                int freePayload       = GetTierFreePayload(repo, entity, currentTier) + toBeFreedPayload;
-                int freeSlots         = GetTierFreeSlotCount(repo, entity, currentTier) + toBeReusedSlots;
+                int freePayload       = GetTierFreePayload(repo, entity) + toBeFreedPayload;
+                int freeSlots         = GetTierFreeSlotCount(repo, entity) + toBeReusedSlots;
                 bool tierFits         = freePayload >= requiredPayload && freeSlots >= requiredSlots;
 
                 if (!tierFits)
                 {
-                    // Current tier cannot accommodate manifest: compute total needed
-                    // (existing used - freed-by-detach + new manifest) and select the smallest tier.
-                    int usedPayload  = GetTierUsedPayload(repo, entity, currentTier) - toBeFreedPayload;
-                    int usedSlots    = GetTierUsedSlotCount(repo, entity, currentTier) - toBeReusedSlots;
-                    int totalPayload = usedPayload + requiredPayload;
-                    int totalSlots   = usedSlots   + requiredSlots;
-                    int targetTier   = SelectTierForPayload(totalPayload, totalSlots);
-
-                    if (targetTier > currentTier)
-                        UpgradeTier(repo, entity, currentTier, targetTier);
-                    // If targetTier == currentTier (shouldn't happen since tierFits was false),
-                    // we proceed; TryAttach will fail silently (not enough space).
+                    // ⭐⭐ CE-3137 U-0 (R-236): the store cannot take the manifest ⇒ APPEND a block for the
+                    //   shortfall. ⛔ No copy into a bigger tier: every slot already allocated stays where it is.
+                    //   ⚠ An estimate (a slot cannot span blocks) — the attach below appends again on a miss.
+                    OccurrenceStoreAccess.AppendBlockFor(
+                        repo, entity, requiredPayload - freePayload, requiredSlots - freeSlots);
                 }
-                // If tierFits: leave existing tier in place.
+                // If tierFits: leave the store as it is.
             }
 
             // Eager-allocate every manifest slot (idempotent for same-size+hash; detach+reattach for mismatch).
-            AttachManifestSlots(repo, entity, slots);
+            AttachManifestSlots(repo, entity, slots, kind);
         }
 
-        /// <summary>Returns the current free payload bytes in the entity's tier.</summary>
-        private static unsafe int GetTierFreePayload(EntityRepository repo, Entity entity, int tierSize)
-        {
-            if (tierSize == BlueprintBlackboard16384.TotalSize)
-            {
-                ref var t = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* mem = t.Memory)
-                    return Unsafe.AsRef<BlueprintBlackboardHeader>(mem).PayloadFree;
-            }
-            if (tierSize == BlueprintBlackboard4096.TotalSize)
-            {
-                ref var t = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-                fixed (byte* mem = t.Memory)
-                    return Unsafe.AsRef<BlueprintBlackboardHeader>(mem).PayloadFree;
-            }
-            {
-                ref var t = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                fixed (byte* mem = t.Memory)
-                    return Unsafe.AsRef<BlueprintBlackboardHeader>(mem).PayloadFree;
-            }
-        }
+        // ═══ O3a / B3 — THE SIX LADDERS THAT WERE NEVER TIER BRANCHING ═════════════════════════
+        //  📄 DESIGN_Occurrence_Scoped_Storage.md §17.1 N3.
+        //  ⛔⛔ Each of these took (repo, entity, tierSize) and re-spelled the three-way probe to
+        //     reach ONE entity's store — while `tierSize` was GetCurrentTierSize(repo, entity), i.e.
+        //     OccurrenceStoreAccess.GetStoreSize, computed on that same entity one line earlier at
+        //     the single call site (:287). ⇒ they asked a question the seam already answers.
+        //  ⭐⭐ And BlueprintBlackboardHeader is SELF-DESCRIBING — MaxSlots, SlotCount, PayloadSize
+        //     and PayloadFree all live in the 32-byte header — so even the per-tier PayloadSize
+        //     constant GetTierUsedPayload used was redundant: the store states its own capacity.
+        //  ✅ Provably equivalent: every one of these is called only inside the `currentTier != 0`
+        //     branch (:289), so TryGetStore can never return null here. The tierSize parameter is
+        //     kept ONLY where it still documents the caller's intent — see StoreOf.
 
-        /// <summary>Returns the number of free slot entries (MaxSlots - SlotCount) in the entity's tier.</summary>
-        private static unsafe int GetTierFreeSlotCount(EntityRepository repo, Entity entity, int tierSize)
-        {
-            if (tierSize == BlueprintBlackboard16384.TotalSize)
-            {
-                ref var t = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* mem = t.Memory)
-                {
-                    ref var h = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
-                    return h.MaxSlots - h.SlotCount;
-                }
-            }
-            if (tierSize == BlueprintBlackboard4096.TotalSize)
-            {
-                ref var t = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-                fixed (byte* mem = t.Memory)
-                {
-                    ref var h = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
-                    return h.MaxSlots - h.SlotCount;
-                }
-            }
-            {
-                ref var t = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                fixed (byte* mem = t.Memory)
-                {
-                    ref var h = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
-                    return h.MaxSlots - h.SlotCount;
-                }
-            }
-        }
+        /// <summary>
+        /// The entity's store pointer. ⛔ Valid for the CALLING expression only — see the
+        /// <c>OccurrenceStoreAccess</c> LIFETIME RULE.
+        /// </summary>
+        // ⭐ CE-3137 U-0: the store is every block the unit carries — these sum over them (§34).
 
-        /// <summary>Returns the used payload bytes = (PayloadSize - PayloadFree) in the entity's tier.</summary>
-        private static unsafe int GetTierUsedPayload(EntityRepository repo, Entity entity, int tierSize)
-        {
-            int payloadSize = tierSize == BlueprintBlackboard16384.TotalSize ? BlueprintBlackboard16384.PayloadSize
-                            : tierSize == BlueprintBlackboard4096.TotalSize  ? BlueprintBlackboard4096.PayloadSize
-                            : BlueprintBlackboard1024.PayloadSize;
-            return payloadSize - GetTierFreePayload(repo, entity, tierSize);
-        }
+        /// <summary>Returns the current free payload bytes across the entity's blocks.</summary>
+        private static int GetTierFreePayload(EntityRepository repo, Entity entity)
+            => OccurrenceStoreAccess.Measure(repo, entity).PayloadFree;
+
+        /// <summary>Returns the number of free slot entries across the entity's blocks.</summary>
+        private static int GetTierFreeSlotCount(EntityRepository repo, Entity entity)
+            => OccurrenceStoreAccess.Measure(repo, entity).FreeSlots;
 
         /// <summary>
         /// S2-3: Sums the aligned PayloadSize of manifest slots that are already attached
@@ -377,26 +1660,12 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// tier-fit calculation in ProvisionStatefulSlots can use it as "available extra space".
         /// </summary>
         private static unsafe int GetManifestSlotsToBeFreedPayload(
-            EntityRepository repo, Entity entity, int tierSize,
-            IReadOnlyList<StatefulSlotInfo> slots)
+            EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo> slots)
         {
-            if (tierSize == BlueprintBlackboard16384.TotalSize)
-            {
-                ref var t = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* mem = t.Memory)
-                    return ComputeToBeFreedPayload(mem, slots);
-            }
-            if (tierSize == BlueprintBlackboard4096.TotalSize)
-            {
-                ref var t = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-                fixed (byte* mem = t.Memory)
-                    return ComputeToBeFreedPayload(mem, slots);
-            }
-            {
-                ref var t = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                fixed (byte* mem = t.Memory)
-                    return ComputeToBeFreedPayload(mem, slots);
-            }
+            OccurrenceStoreAccess.GetBlocksReadOnly(repo, entity, out var blocks);
+            int freed = 0;
+            for (int b = 0; b < blocks.Count; b++) freed += ComputeToBeFreedPayload(blocks.Memory(b), slots);
+            return freed;
         }
 
         private static unsafe int ComputeToBeFreedPayload(byte* mem, IReadOnlyList<StatefulSlotInfo> slots)
@@ -433,26 +1702,12 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// This count is used to adjust the free-slot-entry count when computing tier fit.
         /// </summary>
         private static unsafe int GetManifestSlotsAlreadyAttachedCount(
-            EntityRepository repo, Entity entity, int tierSize,
-            IReadOnlyList<StatefulSlotInfo> slots)
+            EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo> slots)
         {
-            if (tierSize == BlueprintBlackboard16384.TotalSize)
-            {
-                ref var t = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* mem = t.Memory)
-                    return ComputeAlreadyAttachedCount(mem, slots);
-            }
-            if (tierSize == BlueprintBlackboard4096.TotalSize)
-            {
-                ref var t = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-                fixed (byte* mem = t.Memory)
-                    return ComputeAlreadyAttachedCount(mem, slots);
-            }
-            {
-                ref var t = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                fixed (byte* mem = t.Memory)
-                    return ComputeAlreadyAttachedCount(mem, slots);
-            }
+            OccurrenceStoreAccess.GetBlocksReadOnly(repo, entity, out var blocks);
+            int count = 0;
+            for (int b = 0; b < blocks.Count; b++) count += ComputeAlreadyAttachedCount(blocks.Memory(b), slots);
+            return count;
         }
 
         private static unsafe int ComputeAlreadyAttachedCount(byte* mem, IReadOnlyList<StatefulSlotInfo> slots)
@@ -476,27 +1731,82 @@ namespace Fdp.Toolkit.Behavior.Systems
             return count;
         }
 
-        /// <summary>Returns the used slot count (SlotCount) in the entity's tier.</summary>
-        private static unsafe int GetTierUsedSlotCount(EntityRepository repo, Entity entity, int tierSize)
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE one clear</b> — brain-death for one entity: detach the outgoing behaviour's stateful, hosted and root
+        /// slots, then set <c>ActiveBehaviorHash = None</c>, bump <c>InstanceId</c> (⇒ <c>ChannelArbitrationSystem</c> resets
+        /// every channel to its default, <c>ActiveAction = 0</c>) and <c>BrainTier = 0</c>.
+        /// <para>
+        /// ⭐ <c>CE-449</c>: called by the <see cref="ClearBehaviorEvent"/> handler AND by <c>BrainTickSystem</c> the moment a
+        /// behaviour of any tier finishes (user, <c>2026-09-30</c>: <i>"finishing a behavior should cancel the commands
+        /// exactly same as Clear Behavior does"</i>). ⛔ Inline, not a published event: ingress runs assign-by-name BEFORE
+        /// clear, so a published clear would wipe a behaviour assigned in the same frame. ⚠ Non-structural (every detach is a
+        /// slot-table edit), so it is safe inside the tick's walk.
+        /// </para>
+        /// </summary>
+        internal static void Clear(EntityRepository repo, Entity entity, BehaviorRegistry registry)
         {
-            if (tierSize == BlueprintBlackboard16384.TotalSize)
+
+            // S3-5: detach the outgoing behavior's stateful slots BEFORE clearing.
+            // The switch path (AssignBehaviorEvent) already detaches on switch, but a clear-
+            // without-successor previously only nulled ActiveBehaviorHash, leaking the slots
+            // until the next assign. Capture the previous behavior id and reclaim its slots.
+            // DetachStatefulSlots frees by the manifest's SlotKey, which is scope-aware (S3-4),
+            // so this reclaims Node- and Behavior-scoped slots alike.
+            int previousBehaviorId = repo.GetComponentRW<BehaviorState>(entity).ActiveBehaviorHash;
+            if (previousBehaviorId != BehaviorIds.None &&
+                registry.TryGetDefinition(previousBehaviorId, out var prevDef) &&
+                prevDef.StatefulWorkingSlots != null && prevDef.StatefulWorkingSlots.Count > 0)
             {
-                ref var t = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* mem = t.Memory)
-                    return Unsafe.AsRef<BlueprintBlackboardHeader>(mem).SlotCount;
+                DetachStatefulSlots(repo, entity, HostedSubtree.EffectiveSlots(prevDef.StatefulWorkingSlots));   // ⭐ S5b — nested slots too
             }
-            if (tierSize == BlueprintBlackboard4096.TotalSize)
+
+            // E3a: a clear-without-successor must reclaim the lazily-attached hosted occurrences
+            // too — the same leak S3-5 fixed for manifest slots.
+            DetachHostedOccurrenceSlots(repo, entity, manifest: null, registry);
+
+            // 🔴🔴 O7c-② — THE ROOT SLOTS MUST BE DETACHED **BEFORE** THE HASH IS CLEARED, AND BOTH
+            //    OF THEM. 📄 §31.
+            //
+            //    ⛔⛔ Every root-slot key is COMPUTED from ActiveBehaviorHash, so once the line below
+            //      sets it to None the key is 0 and BOTH DetachRoot and ResetState become silent
+            //      no-ops. ⚠ The first draft of this change put the reset after the clear and it
+            //      would have leaked the slot on every brain-death — caught by reading the handler,
+            //      not by a test, because a leaked slot has no visible effect until MaxSlots (3 on
+            //      the 256 tier) runs out and params silently stop attaching.
+            //
+            //    🔴 AND THE PARAMS LINE IS A PRE-EXISTING LEAK THIS CHANGE FIXES, not one it caused:
+            //      CE-302 added DetachRoot to the ASSIGN path only, so a clear-without-successor has
+            //      been leaking the root params slot ever since. ⚠ Fixed here rather than filed,
+            //      because adding its exact twin while leaving it in place would be worse than
+            //      either doing both or neither.
+            //    ⭐ O7c-④: THE ROOT HSM SLOT NEEDS NO LINE HERE, AND THAT IS MEASURED, NOT FORGOTTEN.
+            //      It declares OccurrenceKind.Hsm, so DetachHostedOccurrenceSlots(manifest: null) a
+            //      few lines above already reclaimed it — the same sweep that cannot see the two
+            //      BTree-kind slots below. ⚠ If that sweep's kind filter ever narrows, this is the
+            //      block that has to grow a RootHsmAccess.DetachRoot call.
+            if (previousBehaviorId != BehaviorIds.None)
             {
-                ref var t = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-                fixed (byte* mem = t.Memory)
-                    return Unsafe.AsRef<BlueprintBlackboardHeader>(mem).SlotCount;
+                RootStateAccess.ResetState(repo, entity);   // zero while the key still resolves
+                RootStateAccess.DetachRoot(repo, entity, previousBehaviorId);
+                RootParamsAccess.DetachRoot(repo, entity, previousBehaviorId);
             }
-            {
-                ref var t = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                fixed (byte* mem = t.Memory)
-                    return Unsafe.AsRef<BlueprintBlackboardHeader>(mem).SlotCount;
-            }
+
+            // ⭐ CE-485: the run ends here (InstanceId is bumped below) ⇒ its owned parts (EQS sensors) end with it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D4.
+            BehaviorOwnedParts.Release(repo, entity, repo.GetComponentRO<BehaviorState>(entity).InstanceId);
+            ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
+            behavior.ActiveBehaviorHash = BehaviorIds.None;
+            behavior.InstanceId = NextRunToken(repo, entity, behavior.InstanceId, pausing: false);   // ⭐ CE-2081
+            behavior.BrainTier = 0;
+            behavior.Origin = BehaviorOrigin.Unmarked;   // ⭐ CE-3034 — an empty slot admits anything
+            behavior.Urgency = ReactionUrgency.NotAReaction;   // ⭐ CE-2078
+            behavior.RunSince = (SimInstant)(Now(repo));                       // ⭐ CE-2080 — emptiness is a "run" too
+
+            // ⭐ CE-452: no behaviour ⇒ nothing to restart.
+            if (repo.HasManagedComponent<BehaviorStartRecord>(entity))
+                repo.SetManagedComponent<BehaviorStartRecord>(entity, null!);
         }
+
 
         /// <summary>
         /// S2-2: Detaches the previous behavior's stateful slots from the entity's tier.
@@ -504,164 +1814,58 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </summary>
         private static unsafe void DetachStatefulSlots(
             EntityRepository repo, Entity entity,
-            IReadOnlyList<StatefulSlotInfo> slots)
+            IReadOnlyList<StatefulSlotInfo> slots, PausedTask? pausing = null)
         {
-            // Try each tier in order (check which one the entity has).
-            if (repo.HasComponent<BlueprintBlackboard16384>(entity))
+            // A2: the three-tier ladder, once, in OccurrenceStoreAccess.
+            // ⛔ The pointer is valid for THIS CALL only — see the seam's LIFETIME RULE.
+            // ⭐ CE-3137 U-0: whichever block holds each.
+            foreach (var s in slots)
             {
-                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* mem = tier.Memory)
-                {
-                    foreach (var s in slots)
-                        BlueprintBlackboardPartitions.TryDetach(mem, s.SlotKey);
-                }
-                return;
-            }
-            if (repo.HasComponent<BlueprintBlackboard4096>(entity))
-            {
-                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-                fixed (byte* mem = tier.Memory)
-                {
-                    foreach (var s in slots)
-                        BlueprintBlackboardPartitions.TryDetach(mem, s.SlotKey);
-                }
-                return;
-            }
-            if (repo.HasComponent<BlueprintBlackboard1024>(entity))
-            {
-                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                fixed (byte* mem = tier.Memory)
-                {
-                    foreach (var s in slots)
-                        BlueprintBlackboardPartitions.TryDetach(mem, s.SlotKey);
-                }
+                if (IsHeldByPausedTask(repo, entity, s.SlotKey, pausing)) continue;   // ⭐ CE-2129 / CE-2081
+                OccurrenceStoreAccess.TryDetachSlot(repo, entity, s.SlotKey);
             }
         }
 
         /// <summary>Returns the TotalSize constant of the entity's active tier, or 0 if none.</summary>
         private static int GetCurrentTierSize(EntityRepository repo, Entity entity)
         {
-            if (repo.HasComponent<BlueprintBlackboard16384>(entity)) return BlueprintBlackboard16384.TotalSize;
-            if (repo.HasComponent<BlueprintBlackboard4096>(entity))  return BlueprintBlackboard4096.TotalSize;
-            if (repo.HasComponent<BlueprintBlackboard1024>(entity))  return BlueprintBlackboard1024.TotalSize;
-            return 0;
+            // A2: identical to OccurrenceStoreAccess.GetStoreSize — delegated, not re-spelled.
+            return Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.GetStoreSize(repo, entity);
         }
+
+        // ═══ O3a / B3 — THE THREE THAT GENUINELY NEED A TIER TYPE ══════════════════════════════
+        //  📄 DESIGN_Occurrence_Scoped_Storage.md §17.2. Select / Add / Upgrade are the sites where
+        //  a COMPONENT TYPE must be named, so these go to BlueprintTierTable rather than the seam.
+        //  ⛔⛔ UpgradeTier was the QUADRATIC one: 3 tiers ⇒ 3 arms, 4 tiers ⇒ 6. It is now one body.
 
         /// <summary>
         /// Selects the TotalSize of the smallest tier whose abstract capacity fits the given
-        /// payload and slot count. Falls through to 16384 if nothing smaller fits.
+        /// payload and slot count. Falls through to the largest tier if nothing smaller fits.
         /// </summary>
         private static int SelectTierForPayload(int requiredPayload, int requiredSlots)
-        {
-            if (requiredPayload <= BlueprintBlackboard1024.PayloadSize &&
-                requiredSlots   <= BlueprintBlackboard1024.MaxSlots)
-                return BlueprintBlackboard1024.TotalSize;
-            if (requiredPayload <= BlueprintBlackboard4096.PayloadSize &&
-                requiredSlots   <= BlueprintBlackboard4096.MaxSlots)
-                return BlueprintBlackboard4096.TotalSize;
-            return BlueprintBlackboard16384.TotalSize;
-        }
+            => BlueprintTierTable.Select(requiredPayload, requiredSlots).TotalSize;
 
         /// <summary>Adds a fresh tier component of the given size and initializes its allocator.</summary>
         private static unsafe void AddAndInitializeTier(EntityRepository repo, Entity entity, int tierSize)
         {
-            if (tierSize == BlueprintBlackboard1024.TotalSize)
-            {
-                repo.AddComponent(entity, new BlueprintBlackboard1024());
-                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                fixed (byte* mem = tier.Memory)
-                    BlueprintBlackboardPartitions.Initialize(mem, BlueprintBlackboard1024.TotalSize, BlueprintBlackboard1024.MaxSlots);
-            }
-            else if (tierSize == BlueprintBlackboard4096.TotalSize)
-            {
-                repo.AddComponent(entity, new BlueprintBlackboard4096());
-                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-                fixed (byte* mem = tier.Memory)
-                    BlueprintBlackboardPartitions.Initialize(mem, BlueprintBlackboard4096.TotalSize, BlueprintBlackboard4096.MaxSlots);
-            }
-            else
-            {
-                repo.AddComponent(entity, new BlueprintBlackboard16384());
-                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* mem = tier.Memory)
-                    BlueprintBlackboardPartitions.Initialize(mem, BlueprintBlackboard16384.TotalSize, BlueprintBlackboard16384.MaxSlots);
-            }
+            OccurrenceStoreAccess.AddBlock(repo, entity, BlueprintTierTable.ByTotalSize(tierSize));
         }
 
-        /// <summary>
-        /// Upgrades from a smaller tier to a larger one synchronously:
-        /// AddComponent(larger), CopyToLargerTier, RemoveComponent(smaller).
-        /// Preserves existing slots and their payloads.
-        /// </summary>
-        private static unsafe void UpgradeTier(EntityRepository repo, Entity entity, int srcTierSize, int dstTierSize)
-        {
-            if (srcTierSize == BlueprintBlackboard1024.TotalSize &&
-                dstTierSize == BlueprintBlackboard4096.TotalSize)
-            {
-                repo.AddComponent(entity, new BlueprintBlackboard4096());
-                ref var src = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                ref var dst = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-                fixed (byte* srcMem = src.Memory)
-                fixed (byte* dstMem = dst.Memory)
-                    BlueprintBlackboardPartitions.CopyToLargerTier(srcMem, BlueprintBlackboard1024.TotalSize,
-                        dstMem, BlueprintBlackboard4096.TotalSize, BlueprintBlackboard4096.MaxSlots);
-                repo.RemoveComponent<BlueprintBlackboard1024>(entity);
-            }
-            else if (srcTierSize == BlueprintBlackboard1024.TotalSize &&
-                     dstTierSize == BlueprintBlackboard16384.TotalSize)
-            {
-                repo.AddComponent(entity, new BlueprintBlackboard16384());
-                ref var src = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                ref var dst = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* srcMem = src.Memory)
-                fixed (byte* dstMem = dst.Memory)
-                    BlueprintBlackboardPartitions.CopyToLargerTier(srcMem, BlueprintBlackboard1024.TotalSize,
-                        dstMem, BlueprintBlackboard16384.TotalSize, BlueprintBlackboard16384.MaxSlots);
-                repo.RemoveComponent<BlueprintBlackboard1024>(entity);
-            }
-            else if (srcTierSize == BlueprintBlackboard4096.TotalSize &&
-                     dstTierSize == BlueprintBlackboard16384.TotalSize)
-            {
-                repo.AddComponent(entity, new BlueprintBlackboard16384());
-                ref var src = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-                ref var dst = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* srcMem = src.Memory)
-                fixed (byte* dstMem = dst.Memory)
-                    BlueprintBlackboardPartitions.CopyToLargerTier(srcMem, BlueprintBlackboard4096.TotalSize,
-                        dstMem, BlueprintBlackboard16384.TotalSize, BlueprintBlackboard16384.MaxSlots);
-                repo.RemoveComponent<BlueprintBlackboard4096>(entity);
-            }
-            // No downgrade path (current >= target means no-op, handled by caller).
-        }
+        // ⛔ CE-3137 U-0 (R-236): UpgradeTier (add the larger tier, CopyToLargerTier, remove the smaller) is RETIRED —
+        //   the store never moves a slot; growth appends a block (OccurrenceStoreAccess.AppendBlockFor).
 
         /// <summary>
         /// Attaches each manifest slot to the entity's active tier.
         /// Skips slots already attached (TryAttach is not idempotent; guard via TryGetSlotOffset).
         /// </summary>
         private static unsafe void AttachManifestSlots(
-            EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo> slots)
+            EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo> slots,
+            OccurrenceKind kind)
         {
-            // Dispatch to whichever tier component the entity has.
-            if (repo.HasComponent<BlueprintBlackboard16384>(entity))
-            {
-                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* mem = tier.Memory)
-                    AttachSlotsToMemory(mem, slots);
-                return;
-            }
-            if (repo.HasComponent<BlueprintBlackboard4096>(entity))
-            {
-                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-                fixed (byte* mem = tier.Memory)
-                    AttachSlotsToMemory(mem, slots);
-                return;
-            }
-            if (repo.HasComponent<BlueprintBlackboard1024>(entity))
-            {
-                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                fixed (byte* mem = tier.Memory)
-                    AttachSlotsToMemory(mem, slots);
-            }
+            // A2: the three-tier ladder, once, in OccurrenceStoreAccess.
+            // ⛔ The pointer is valid for THIS CALL only — see the seam's LIFETIME RULE.
+            if (OccurrenceStoreAccess.HasStore(repo, entity))
+                AttachSlotsToStore(repo, entity, slots, kind);
         }
 
         /// <summary>
@@ -680,54 +1884,33 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// Caller (ProvisionStatefulSlots) must have already ensured the tier has enough total
         /// space to satisfy the manifest (accounting for slots that will be freed before reattach).
         /// </summary>
-        private static unsafe void AttachSlotsToMemory(byte* mem, IReadOnlyList<StatefulSlotInfo> slots)
+        private static unsafe void AttachSlotsToStore(
+            EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo> slots, OccurrenceKind kind)
         {
             foreach (var s in slots)
             {
-                if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, s.SlotKey, out int existingOffset))
+                // ⭐ CE-3137 U-0: whichever block holds it; a fresh or resized slot goes to any block with room,
+                //   else an appended one — no slot already allocated moves.
+                if (!OccurrenceStoreAccess.TryFindSlotIndex(repo, entity, s.SlotKey, out byte* mem, out int index))
                 {
                     // Not attached — attach fresh.
-                    BlueprintBlackboardPartitions.TryAttach(mem, s.SlotKey, s.PayloadSize, s.StructureHash, out _);
+                    OccurrenceStoreAccess.TryAttachSlot(repo, entity, s.SlotKey, s.PayloadSize, s.StructureHash, kind, out _, out _);
                     continue;
                 }
 
-                // Already attached — locate the slot entry to compare size and hash.
-                ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
-                int slotCount = header.SlotCount;
-                byte* slotTable = mem + Unsafe.SizeOf<BlueprintBlackboardHeader>();
-
-                bool mismatch = false;
-                for (int i = 0; i < slotCount; i++)
-                {
-                    ref var entry = ref Unsafe.AsRef<BlueprintSlotEntry>(
-                        slotTable + i * BlueprintBlackboardPartitions.SlotEntrySize);
-                    if (entry.BlueprintId == s.SlotKey)
-                    {
-                        // Compare manifest PayloadSize (may be unaligned) against the aligned
-                        // allocated size stored in the entry, and the hash.
-                        int alignedManifestSize = AlignUp(s.PayloadSize, BlueprintBlackboardPartitions.Alignment);
-                        if (entry.PayloadSize == alignedManifestSize &&
-                            entry.StructureHash == (uint)s.StructureHash)
-                        {
-                            // Same size AND same hash → idempotent; preserve working state.
-                            mismatch = false;
-                        }
-                        else
-                        {
-                            mismatch = true;
-                        }
-                        break;
-                    }
-                }
+                // Already attached — compare manifest PayloadSize (may be unaligned) against the aligned
+                // allocated size stored in the entry, and the hash.
+                ref var entry = ref BlueprintBlackboardPartitions.GetSlot(mem, index);
+                int alignedManifestSize = AlignUp(s.PayloadSize, BlueprintBlackboardPartitions.Alignment);
+                bool mismatch = entry.PayloadSize != alignedManifestSize || entry.StructureHash != (uint)s.StructureHash;
 
                 if (mismatch)
                 {
-                    // S2-3 ghost-slot fix: detach the old (possibly wrong-sized) slot and
-                    // re-attach at the manifest-specified size. This correctly re-provisions
-                    // a slot that grew (or otherwise changed layout) on a hard reload.
-                    // TryDetach dense-compacts the slot table — adjacent slots remain intact.
+                    // S2-3 ghost-slot fix: detach the old (possibly wrong-sized) slot and re-attach at the
+                    // manifest-specified size. TryDetach dense-compacts its block's slot table — adjacent slots
+                    // stay intact, and no other block is touched.
                     BlueprintBlackboardPartitions.TryDetach(mem, s.SlotKey);
-                    BlueprintBlackboardPartitions.TryAttach(mem, s.SlotKey, s.PayloadSize, s.StructureHash, out _);
+                    OccurrenceStoreAccess.TryAttachSlot(repo, entity, s.SlotKey, s.PayloadSize, s.StructureHash, kind, out _, out _);
                 }
                 // else: same size + hash → idempotent leave-it path (no churn, working state preserved).
             }
@@ -737,45 +1920,14 @@ namespace Fdp.Toolkit.Behavior.Systems
         private static int AlignUp(int size, int alignment)
             => (size + alignment - 1) & ~(alignment - 1);
 
-        // ── HSM reset helper ─────────────────────────────────────────────────────
-
-        private static unsafe void ResetHsmComponents(EntityRepository repo, Entity entity, uint newMachineId)
-        {
-            if (repo.HasComponent<BrainHsm64>(entity))
-            {
-                ref var hsm64 = ref repo.GetComponentRW<BrainHsm64>(entity);
-                InstanceHeader* hdr = (InstanceHeader*)Unsafe.AsPointer(ref hsm64);
-                // CRITICAL FIX: Bind the execution state to the new definition's topology.
-                hdr->MachineId = newMachineId;
-                hdr->Flags &= unchecked((InstanceFlags)(byte)~(byte)InstanceFlags.Terminated);
-                hdr->Phase  = InstancePhase.Idle;
-                hdr->QueueHead   = 0;
-                hdr->ActiveTail  = 0;
-                hdr->DeferredTail = 0;
-                hdr->MicroStep   = 0;
-                HsmInstance64* inst = (HsmInstance64*)hdr;
-                inst->ActiveLeafIds[0] = 0xFFFF;
-                inst->ActiveLeafIds[1] = 0xFFFF;
-                inst->EventCount = 0;
-            }
-
-            if (repo.HasComponent<BrainHsm128>(entity))
-            {
-                ref var hsm128 = ref repo.GetComponentRW<BrainHsm128>(entity);
-                InstanceHeader* hdr = (InstanceHeader*)Unsafe.AsPointer(ref hsm128);
-                // CRITICAL FIX: Bind the execution state to the new definition's topology.
-                hdr->MachineId = newMachineId;
-                hdr->Flags &= unchecked((InstanceFlags)(byte)~(byte)InstanceFlags.Terminated);
-                hdr->Phase  = InstancePhase.Idle;
-                hdr->QueueHead   = 0;
-                hdr->ActiveTail  = 0;
-                hdr->DeferredTail = 0;
-                hdr->MicroStep   = 0;
-                HsmInstance128* inst = (HsmInstance128*)hdr;
-                for (int i = 0; i < 4; i++) inst->ActiveLeafIds[i] = 0xFFFF;
-                inst->EventCount      = 0;
-                inst->InterruptSlotUsed = 0;
-            }
-        }
+        // ⛔⛔⛔ O7c-④b (2026-09-23): ResetHsmComponents IS DELETED, with the system that needed it.
+        //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.16.
+        //
+        //   📐 It hand-rolled the kernel's own reset against a TYPE — `(HsmInstance128*)hdr`, four
+        //     ActiveLeafIds, EventCount, InterruptSlotUsed — a third producer of a fact the kernel
+        //     already owns, and correct only for a 128-byte machine.
+        //   ⭐ RootHsmAccess.ResetInstance replaces it and routes to the size-driven
+        //     HsmInstanceManager.Initialize added by O7c-③: the width comes from the SLOT, so a 64-
+        //     or 256-byte machine is bound correctly for the first time.
     }
 }

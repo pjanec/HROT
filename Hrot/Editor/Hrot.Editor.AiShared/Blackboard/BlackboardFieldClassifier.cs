@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Reflection;
 using Fbt.Kernel;
+using Fdp.Core;
 
 namespace Hrot.Editor.AiShared.Blackboard;
 
@@ -44,7 +45,7 @@ public record FieldClassificationResult(
 /// All six conditions must hold for a field to be <see cref="FieldClassification.EditorManaged"/>:
 /// <list type="number">
 ///   <item>Declaration is single-line (<see cref="FieldParseResult.IsSingleLineDeclaration"/>).</item>
-///   <item>Type is in the known-type set (primitives, vectors, enums, [BlackboardDtoStruct], schema DTO types).</item>
+///   <item>Type is in the known-type set (primitives, vectors, enums, [Dto], schema DTO types).</item>
 ///   <item>Leading <c>///</c> comment is allowed and does NOT force ReadOnly.</item>
 ///   <item>No attributes in the span (<see cref="FieldParseResult.HasAttribute"/>).</item>
 ///   <item>No initializer (<see cref="FieldParseResult.HasInitializer"/>).</item>
@@ -121,10 +122,26 @@ public static class BlackboardFieldClassifier
 
     private static bool IsKnownType(Type t, IReadOnlySet<Type> knownTypes)
     {
-        if (BuiltInKnownTypes.Contains(t)) return true;
+        if (BuiltInKnownTypes.Contains(SemanticValueTypes.StorageTypeOf(t))) return true;   // ⭐ S0 item 6 — a WorldPoint / WorldRotation / Bearing is known as its storage type is
         if (t.IsEnum) return true;
-        if (t.IsDefined(typeof(BlackboardDtoStructAttribute), inherit: false)) return true;
+        // ⭐ CE-3185 — [Dto] and every marker derived from it ([ParamsDto], [Order], [UnitMemory]); a registered STRUCT is a variable type.
+        if (t.IsValueType && t.IsDefined(typeof(DtoAttribute), inherit: false)) return true;
         if (knownTypes.Contains(t)) return true;
+        // FC-3a (Q#21-A1): the fixed-list WRAPPER pattern is a first-class known shape, provided
+        // its element type is itself known by this same rule (recursion terminates: an element
+        // cannot be another wrapper -- TryGetFixedListShape rejects nesting).
+        if (TryGetFixedListShape(t, out var elem, out _) && IsKnownType(elem, knownTypes)) return true;
         return false;
     }
+
+    /// <summary>
+    /// FC-3a (Q#21-A1) -- structural recognition of the canonical fixed-list WRAPPER pattern.
+    /// Thin delegate to <see cref="Fdp.Core.FixedListShape"/>, THE single definition of the
+    /// shape (also used by the FC-3b JSON converter and the FC-3c inspector view provider),
+    /// kept on the classifier for editor-side discoverability. Loose twin-field DTOs
+    /// (<c>Items</c> + <c>Count</c> declared side-by-side on the DTO) are deliberately NOT
+    /// recognized -- they remain read-only passthrough (Q#21-A1).
+    /// </summary>
+    public static bool TryGetFixedListShape(Type t, out Type elementType, out int capacity)
+        => Fdp.Core.FixedListShape.TryGet(t, out elementType, out capacity);
 }

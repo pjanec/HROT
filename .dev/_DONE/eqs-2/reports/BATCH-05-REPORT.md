@@ -183,7 +183,7 @@ other EQS integration test. This was corrected to `timeoutMs: 5000` for consiste
 
 ### Full Solution Build
 
-`dotnet build IOS-IG-SimHost.sln --no-restore -v quiet` -- **Build succeeded. 0 errors.**
+`dotnet build HROT.sln --no-restore -v quiet` -- **Build succeeded. 0 errors.**
 
 ---
 

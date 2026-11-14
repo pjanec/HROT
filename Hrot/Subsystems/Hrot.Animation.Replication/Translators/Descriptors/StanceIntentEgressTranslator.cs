@@ -7,6 +7,7 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.MuscleCharacter.Animation.Components;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Animation.Replication.Translators.Descriptors;
 
@@ -16,13 +17,20 @@ namespace Hrot.Animation.Replication.Translators.Descriptors;
 /// </summary>
 internal sealed class StanceIntentEgressTranslator : INetworkTranslator
 {
-    private const string TopicNameConst = "hrot/anim/StanceIntent";
+        // ⭐ CE-2407 (DESIGN_Egress_Change_Detection §5, E1) — skips the entities none of these inputs changed for; NetworkIdentity is implied
+        private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(StanceIntent));
+
+
+    /// <summary>⭐ <c>CE-2121</c> — NED's <c>dtStanceIntent</c> (104): the Brain group's descriptor for <see cref="StanceIntent"/>
+    /// (<c>NedOwnershipGroupBinding</c>); a rail pins the two equal.</summary>
+    public const long DescriptorOrdinal = 104;
 
     private readonly IAnimDdsWriter<DdsStanceIntent> _writer;
     private readonly NetworkEntityMap _entityMap;
     private readonly Dictionary<Entity, (StanceId, float, uint)> _lastPublished = new();
+    private int _worldEpoch;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DdsStanceIntent>();
     public TranslatorDirection Direction => TranslatorDirection.Egress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -30,7 +38,7 @@ internal sealed class StanceIntentEgressTranslator : INetworkTranslator
 
     internal StanceIntentEgressTranslator(
         DdsParticipant participant, NetworkEntityMap entityMap)
-        : this(new DdsLiveWriter<DdsStanceIntent>(participant, TopicNameConst), entityMap)
+        : this(new DdsLiveWriter<DdsStanceIntent>(participant), entityMap)
     {
     }
 
@@ -45,14 +53,20 @@ internal sealed class StanceIntentEgressTranslator : INetworkTranslator
 
     public void ScanAndPublish(ISimulationView view)
     {
+        // ⭐ R-3039 S3 — a world replacement (a load, a restore): forget what was published, so every owner republishes (R-3041).
+        if (WorldEpoch.Moved(view, ref _worldEpoch)) { _lastPublished.Clear(); }
         var query = view.Query()
             .With<StanceIntent>()
             .With<NetworkIdentity>()
             .Build();
 
+        long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+        _gate.Begin(view);
         foreach (var entity in query)
         {
-            if (!view.HasAuthority(entity)) continue;
+            if (!_gate.Visit(entity)) continue;   // ⭐ CE-2407 E1 — nothing this translator reads has changed since its last scan
+            // ⭐ CE-2121 — the GROUP that owns the request (Brain), not the entity's primary owner. ⛔ SUPERSEDED: HasAuthority(entity).
+            if (!view.HasAuthority(entity, packedKey)) continue;
 
             ref readonly var intent = ref view.GetComponentRO<StanceIntent>(entity);
 

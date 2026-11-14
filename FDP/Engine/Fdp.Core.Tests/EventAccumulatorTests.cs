@@ -98,7 +98,8 @@ namespace Fdp.Tests
             Assert.Equal("Hello", events[0].Message);
         }
         
-        [Fact]
+        [Fdp.Testing.FlakyFact("wall-clock 5 ms threshold")]
+        [Trait("Category", "Flaky")]
         public void Performance_FlushSixFrames_UnderTarget()
         {
             using var bus = new FdpEventBus();

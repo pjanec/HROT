@@ -10,10 +10,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Engine\Hrot.Terrain.Random\Hrot.Terrain.Random.csproj" />   <!-- ⭐ T-3 part 2 (CE-4430) — SynthUniqueBuildings: unique houses for a block's grid -->
     <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
+    <!-- CE-4002: the orchestrator offers a debug surface (the master's roster, cancel) like every other subsystem. -->
+    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
     <ProjectReference Include="..\..\Network\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- ⭐ O-4 (CE-4415): the overlay compile bakes the merged world's navtiles -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Navigation.Recast\Fdp.Toolkits.Navigation.Recast.csproj" />
+    <!-- ⭐ CE-1439 (AQ108 §2.12): the Orchestrator composes the SAME scenario session, menu registrar and pickers the editor and CGF do (EditorScenarioSession,
+         ScenarioMenuCommands, RecordingPickerLauncher …). Measured acyclic: Hrot.Editor.AiShared references neither this project nor anything that does. -->
+    <ProjectReference Include="..\..\Editor\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
     <!-- OrchestratorSubsystem, ClusterScenarioPanel, ClusterUiCache moved here -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
   </ItemGroup>

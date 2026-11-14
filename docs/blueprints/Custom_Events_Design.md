@@ -1,4 +1,31 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-02
+current-answer: §4.1-§4.4 and §4.6-§7 (discovery, publish, dispatch). The SUBSCRIBE side (§4.5) is owned by
+  DESIGN_Typed_Event_Nodes.md, whose §6 is the as-built.
+stale-below: §4.5's "one-out-per-Graph.Inputs" projection and its "TargetFilter" JSON (superseded, see the §4.5 banner).
+known-rot: §4.1 "migrate system events" — built as CE-2016 in the form the layering allows (the catalog keeps identity,
+  fields are reflected), not as [BlueprintEvent] on the system structs.
+known-conflict: none.
+-->
+
 # Blueprint Custom Events + Pub/Sub — Implementation Design
+
+> ⭐ **Related design (2026-10-02):** [`DESIGN_Typed_Event_Nodes.md`](DESIGN_Typed_Event_Nodes.md) reshapes the
+> SUBSCRIBE side (§4.5, build items 4a/4b): any number of typed event nodes in one Event graph, each compiled to its
+> own handler. It owns that shape; this document still owns discovery, publish and dispatch.
+
+> ⚠ **Naming trap — two different things are called "custom event".**
+> This document is about **bus events**: `[BlueprintEvent]` C# structs plus editor-authored event
+> definitions, published with `PublishEvent` and subscribed via an `EventEntry` graph. They are
+> *engine-scoped* and cross blueprint boundaries.
+> A **`CustomEventDecl`** is something else entirely: a *blueprint-local* declaration on
+> `BlueprintAsset.CustomEvents`, called with `CallCustomEvent`, lowered to a direct
+> `Event_{Name}(...)` call inside the same generated class. It never touches the bus.
+> Confusing the two is a real, recorded mistake — the gap audit told the `CallCustomEvent` picker to
+> source from `UnifiedEventDiscovery` (this document's vocabulary), which would have produced a
+> picker whose every choice failed to resolve. See **BP-07 / BP-12c** in
+> [Blueprint_Issues_Detail.md](Blueprint_Issues_Detail.md).
 
 **Status: ✅ APPROVED (architect + user) — cleared to build.** §7 open details finalized by the architect (below).
 Decisions: **Q#14 APPROVED** (Option 2b + infrastructure); dispatch trace committed. This doc is the *how*.
@@ -77,6 +104,15 @@ flowchart LR
   initializer (pure construction, evaluated once). Make it **editor-addable** (palette entry per event).
 
 ### 4.5 Subscribe — named-event `EventEntryNode` + `Self`/`Any` filter
+
+> ⚠ **Generalised by [`DESIGN_Typed_Event_Nodes.md`](DESIGN_Typed_Event_Nodes.md) (2026-10-02):** the entry node stays
+> the subscription primitive, but a graph may hold any number of them, and the payload moves onto the node.
+>
+> ✅ **AS BUILT `2026-10-02` (CE-2012…CE-2017)** — ⛔ the bullets below that say *"one-out-per-`Graph.Inputs`"* and the
+> `"TargetFilter"` JSON are SUPERSEDED: the payload is `EventEntryNode.Fields` (baked by the "On: {Event}" palette entry,
+> the mirror of "Publish:"), the pins are those Fields + a whole-event `Event` pin, and the filter is the existing
+> `TargetFilterSelf` bool (edited in the node's Details drawer with its Policy/Capacity). System events come from the
+> same discovery (§4.1, A2 — in the form the layering allows). 📄 [`DESIGN_Typed_Event_Nodes.md`](DESIGN_Typed_Event_Nodes.md) §6.
 ```
 ┌─ ◈ On TargetSpotted ───────────┐
 │  Deliver to:  ◉ Self   ○ Any    │   ← shown only if event has a target field
@@ -99,7 +135,7 @@ The compiler **already emits** `Event_{Name}` + `Event_{Name}_Thunk` and fills `
    `[BlueprintRegistrar]` scan (extend the existing scan; identity registry stays).
 2. **Dispatch pump** — a per-tick system: for each event on the bus this frame, resolve subscribers and invoke
    their thunk. Home: a new Input-phase system after `Bus.SwapBuffers()` / before `BlueprintTickSystem`, or
-   folded into `BlueprintTickSystem`'s per-slot loop (it already holds `view/ecb/entity/def`). `BTreeTickSystem`
+   folded into `BlueprintTickSystem`'s per-slot loop (it already holds `view/ecb/entity/def`). `BrainTickSystem`
    already drains the bus — precedent.
 3. **Recipient filter** — the pump delivers iff `TargetFilter == None` OR `event.<Target> == entity`.
 4. **Payload marshalling** — `EmitEventThunk` currently stubs `default(T)`; fill from carrier bytes via the

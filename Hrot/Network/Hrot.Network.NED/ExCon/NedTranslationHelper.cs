@@ -24,21 +24,17 @@ internal static class NedTranslationHelper
                 _d           = EDescriptorType.dtEntityMaster,
                 EntityMaster = new EntityMaster
                 {
-                    EntityId = -1,
+                    EntityId = 0,   // ⭐ CE-3356: 0 = "no id given — allocate here" (the CGF adapter reads a nonzero id as one the author fixed, CE-4024)
                     TkbType  = cmd.TkbType,
                 }
             },
             new EntityDescriptorUnion
             {
                 _d       = EDescriptorType.dtWorldPos,
+                // ⭐ CE-4073 — the neutral command is local ENU metres, the wire's frame: a copy, no conversion.
                 WorldPos = new WorldPos
                 {
-                    Pos = new GeoPoint
-                    {
-                        Latitude  = cmd.Latitude,
-                        Longitude = cmd.Longitude,
-                        Altitude  = cmd.Altitude,
-                    }
+                    Position = new Vec3d { X = cmd.X, Y = cmd.Y, Z = cmd.Z },
                 }
             },
         };
@@ -145,9 +141,10 @@ internal static class NedTranslationHelper
                 if (root.TryGetProperty("type", out var typeProp) &&
                     typeProp.GetString() == "WorldPos")
                 {
-                    double lat = root.TryGetProperty("lat", out var lp) ? lp.GetDouble() : 0;
-                    double lon = root.TryGetProperty("lon", out var lo) ? lo.GetDouble() : 0;
-                    double alt = root.TryGetProperty("alt", out var ap) ? ap.GetDouble() : 0;
+                    // ⭐ CE-4073 — local ENU metres, keys x / y / z (they were lat / lon / alt).
+                    double x = root.TryGetProperty("x", out var xp) ? xp.GetDouble() : 0;
+                    double y = root.TryGetProperty("y", out var yp) ? yp.GetDouble() : 0;
+                    double z = root.TryGetProperty("z", out var zp) ? zp.GetDouble() : 0;
 
                     payload = new EntityDescriptorUnion
                     {
@@ -155,14 +152,9 @@ internal static class NedTranslationHelper
                         WorldPos = new WorldPos
                         {
                             EntityId = cmd.EntityId,
-                            Time     = DateTime.UtcNow,
-                            Pos      = new GeoPoint
-                            {
-                                Latitude  = lat,
-                                Longitude = lon,
-                                Altitude  = alt,
-                            },
-                            Ori = new EulerOri(),
+                            // AQ107 B / D — a MOVE request: the position (local ENU metres, copied); every other field zero
+                            // (the receiver, UpdateEntityDescriptorRequestSystem, keeps the entity's own rotation and ignores the rest).
+                            Position = new Vec3d { X = x, Y = y, Z = z },
                         },
                     };
                 }

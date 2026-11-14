@@ -16,6 +16,7 @@ namespace Hrot.AI.Behaviors
     /// </summary>
     [ComponentId(189)] // Hrot application-level block (160-199, HrotComponentIds); next free after 188 (BpComponentDemo).
     [StructLayout(LayoutKind.Sequential)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public unsafe struct BpCollectionDemo
     {
         /// <summary>Maximum number of elements <see cref="Values"/> can hold.</summary>

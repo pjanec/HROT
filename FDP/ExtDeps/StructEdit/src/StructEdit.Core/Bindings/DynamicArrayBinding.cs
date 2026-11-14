@@ -6,7 +6,7 @@ namespace StructEdit.Core.Bindings;
 /// Binding for a <c>List&lt;T&gt;</c> or <c>T[]</c> field/property on a managed object.
 /// Supports <see cref="Resize"/> with atomic parent writeback.
 /// </summary>
-internal sealed class DynamicArrayBinding : IContainerBinding
+internal sealed class DynamicArrayBinding : IContainerOps
 {
     private object _container;
     private readonly IValueBinding _parentBinding;
@@ -67,6 +67,56 @@ internal sealed class DynamicArrayBinding : IContainerBinding
         // Write back to parent BEFORE updating internal state (per binding contract)
         _parentBinding.SetBoxed(newContainer);
         _container = newContainer;
+        Count = newCount;
+    }
+
+    // ── S4 list operations (IContainerOps) — each count change builds a NEW container and writes it back, like Resize ──
+
+    public bool CanInsertRemove => true;
+
+    public object? NewElement() => ContainerOps.DefaultOf(ElementType);
+
+    public void Insert(int index, object? value)
+    {
+        if ((uint)index > (uint)Count) throw new ArgumentOutOfRangeException(nameof(index));
+        Rebuild(Count + 1, (old, add) => { for (int i = 0; i < index; i++) add(old[i]); add(value); for (int i = index; i < old.Count; i++) add(old[i]); });
+    }
+
+    public void RemoveAt(int index)
+    {
+        if ((uint)index >= (uint)Count) throw new ArgumentOutOfRangeException(nameof(index));
+        Rebuild(Count - 1, (old, add) => { for (int i = 0; i < old.Count; i++) if (i != index) add(old[i]); });
+    }
+
+    public void Move(int from, int to) => ContainerOps.Move(this, from, to);
+
+    public void Duplicate(int index)
+    {
+        if ((uint)index >= (uint)Count) throw new ArgumentOutOfRangeException(nameof(index));
+        Insert(index + 1, ContainerOps.Clone(((IList)_container)[index], ElementType));
+    }
+
+    public void Clear() => Rebuild(0, (_, _) => { });
+
+    private void Rebuild(int newCount, Action<IList, Action<object?>> fill)
+    {
+        var old = (IList)_container;
+        object next;
+        if (!_isList)
+        {
+            var arr = Array.CreateInstance(ElementType, newCount);
+            int k = 0;
+            fill(old, v => arr.SetValue(v, k++));
+            next = arr;
+        }
+        else
+        {
+            var list = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(ElementType))!;
+            fill(old, v => list.Add(v));
+            next = list;
+        }
+        _parentBinding.SetBoxed(next);   // write back BEFORE updating internal state (the binding contract, as Resize)
+        _container = next;
         Count = newCount;
     }
 

@@ -1,0 +1,98 @@
+{
+  "title": "Contact while crossing",
+  "caption": "Half the squad is across the road when fire comes: both halves fight where they stand",
+  "clip": "F-27",
+  "chapter": 6,
+  "state": "ready",
+  "endAt": "m+8",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Rifleman 6",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-12",
+      "follow": "Leader",
+      "distance": 60,
+      "yaw": 20,
+      "pitch": -45,
+      "lift": 2,
+      "fov": 45,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Rifleman 6",
+      "toward": "Hostile",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Rifleman 6",
+      "toward": "Hostile",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Hostile",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m-0.6",
+      "follow": "Hostile",
+      "distance": 12,
+      "yaw": 200,
+      "pitch": -10,
+      "lift": 1.4,
+      "fov": 35,
+      "segment": "replay"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-12",
+      "to": "m-4",
+      "speed": 1.5
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+8"
+    },
+    {
+      "id": "replay",
+      "from": "m-0.6",
+      "to": "m+1.2",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-12",
+      "until": "m+8",
+      "text": "Half the squad is across the road when fire comes: both halves fight where they stand"
+    }
+  ]
+}

@@ -14,7 +14,7 @@
 | PACK-D001 implementation | ✅ Pass | `NetworkEntityMap` zero in `DamageCalculationSystem` and `HealthApplicationSystem` |
 | PACK-A001 implementation | ✅ Pass | `TargetMemory` zero (non-comment) in `AudioPerceptionSystem` |
 | PACK-M003 implementation | ✅ Pass | `EntityMissionHolder.cs` and `IgMissionHolder.cs` deleted |
-| Build: `IOS-IG-SimHost.sln` | ✅ Pass | 0 errors; pre-existing warnings only |
+| Build: `HROT.sln` | ✅ Pass | 0 errors; pre-existing warnings only |
 | Tests: Combat | ✅ Pass | 52/52 |
 | Tests: Perception | ✅ Pass | 35/35 (includes 4 new PACK-A001 tests) |
 | Tests: SimHost.Tests | ✅ Pass | 425/426 — 1 pre-existing `GeoSpatialEgressTranslatorTests.Dispose_AlsoCallsBaseDispose` |

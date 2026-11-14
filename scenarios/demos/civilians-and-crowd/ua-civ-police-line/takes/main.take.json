@@ -1,0 +1,111 @@
+{
+  "title": "Stones and a police line",
+  "caption": "Rioters with stones meet a police line that uses only non-lethal force: stun grenades, baton rounds",
+  "clip": "F-11",
+  "chapter": 4,
+  "state": "ready",
+  "endAt": "m+3.5",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Police launcher",
+      "n": 1
+    },
+    "m2": {
+      "on": "hit",
+      "target": "Protester 2"
+    }
+  },
+  "keys": [
+    {
+      "at": 0.2,
+      "follow": "Instigator",
+      "distance": 70,
+      "yaw": 30,
+      "pitch": -35,
+      "lift": 2,
+      "fov": 50,
+      "segment": "a"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Police launcher",
+      "toward": "Instigator",
+      "back": 5,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 35,
+      "segment": "a"
+    },
+    {
+      "at": "m+3",
+      "follow": "Instigator",
+      "distance": 40,
+      "yaw": 60,
+      "pitch": -45,
+      "lift": 1,
+      "fov": 45,
+      "segment": "a"
+    },
+    {
+      "at": "m2-9",
+      "follow": "Protester 2",
+      "distance": 22,
+      "yaw": 150,
+      "pitch": -15,
+      "lift": 1.6,
+      "fov": 45,
+      "segment": "c"
+    },
+    {
+      "at": "m2-0.7",
+      "over": "Police baton",
+      "toward": "Protester 2",
+      "back": 5,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 30,
+      "segment": "c"
+    },
+    {
+      "at": "m2+2",
+      "follow": "Protester 2",
+      "distance": 35,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "c"
+    }
+  ],
+  "segments": [
+    {
+      "id": "a",
+      "from": 0.2,
+      "to": "m+5"
+    },
+    {
+      "id": "b",
+      "from": "m+5",
+      "to": "m2-10",
+      "speed": 4
+    },
+    {
+      "id": "c",
+      "from": "m2-10",
+      "to": "m2+3.5"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": 0.2,
+      "until": "m+5",
+      "text": "Stones thrown: the police answer with stun grenades"
+    },
+    {
+      "at": "m2-10",
+      "until": "m2+3.5",
+      "text": "Again: a baton round — never a lethal one"
+    }
+  ]
+}

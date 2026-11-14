@@ -1,0 +1,78 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1240' height='560' viewBox='0 0 1240 560'>
+<rect x='0' y='0' width='1240' height='560' fill='#1B1B1F' rx='0' opacity='1'/>
+<text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Edit outcomes — a sticky notification per refused / lost / conflicting edit, the field marks (house style; Edit framework §2.5, F7)</text>
+<text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Annotations in grey are not drawn by the app.</text>
+<rect x='20' y='60' width='860' height='470' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='60' width='860' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='74' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>HROT Editor — showcase-crossfire</text>
+<rect x='831.6615384615385' y='62' width='40.33846153846154' height='16' fill='#163A24' rx='8' opacity='1'/>
+<text x='851.8307692307692' y='74' fill='#7FD69A' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Live</text>
+<rect x='26' y='86' width='520' height='438' fill='#14202C' rx='0' opacity='1'/>
+<text x='286' y='310' fill='#8A8A96' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>map (context — unchanged)</text>
+<rect x='554' y='86' width='320' height='438' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='564' y='372' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Details — Alpha 1-1 (context)</text>
+<line x1='753.6' y1='368' x2='864' y2='368' stroke='#4A4A55' stroke-width='1'/>
+<text x='566' y='398' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Name</text>
+<rect x='664' y='384' width='170' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='669' y='398' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Alpha 1-1</text>
+<text x='566' y='424' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Side</text>
+<rect x='664' y='410' width='170' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<rect x='815' y='410' width='19' height='19' fill='#23415F' rx='0' opacity='1'/>
+<path d='M820 417 l4.5 5 l4.5 -5 z' fill='#FFFFFF'/>
+<text x='669' y='424' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Friend</text>
+<path d='M32 448Q18 448 9 439Q0 430 0 416Q0 402 9 393Q18 384 32 384V373Q33 307 79 260L147 192L79 124Q33 77 32 11V0Q18 0 9 -9Q0 -18 0 -32Q0 -46 9 -55Q18 -64 32 -64H64H352Q366 -64 375 -55Q384 -46 384 -32Q384 -18 375 -9Q366 0 352 0V11Q351 77 305 124L237 192L305 260Q351 307 352 373V384Q366 384 375 393Q384 402 384 416Q384 430 375 439Q366 448 352 448H320ZM96 373V384V373V384H288V373Q288 344 272 320H112Q96 344 96 373ZM112 64Q117 72 124 79L192 147L260 79Q267 72 272 64H112Z' fill='#F2C033' fill-opacity='1' transform='translate(842,424.654296875) scale(0.025390625,-0.025390625)'/>
+<rect x='558' y='434' width='312' height='24' fill='#3A1A1A' rx='0' opacity='1'/>
+<text x='566' y='450' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Stance</text>
+<rect x='664' y='436' width='170' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<rect x='815' y='436' width='19' height='19' fill='#23415F' rx='0' opacity='1'/>
+<path d='M820 443 l4.5 5 l4.5 -5 z' fill='#FFFFFF'/>
+<text x='669' y='450' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Prone</text>
+<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM175 273Q192 287 209 273L256 226L303 273Q320 287 337 273Q351 256 337 239L290 192L337 145Q351 128 337 111Q320 97 303 111L256 158L209 111Q192 97 175 111Q161 128 175 145L222 192L175 239Q161 256 175 273Z' fill='#E65555' fill-opacity='1' transform='translate(842,450.654296875) scale(0.025390625,-0.025390625)'/>
+<rect x='644' y='466' width='190' height='42' fill='#141418' rx='3' stroke='#E65555' stroke-width='1' opacity='1'/>
+<text x='652' y='482' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Stance refused — this unit's</text>
+<text x='652' y='498' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>type cannot go prone</text>
+<rect x='508' y='94' width='360' height='62' fill='#18181C' rx='3' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='508' y='94' width='4' height='62' fill='#E65555' rx='0' opacity='1'/>
+<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM175 273Q192 287 209 273L256 226L303 273Q320 287 337 273Q351 256 337 239L290 192L337 145Q351 128 337 111Q320 97 303 111L256 158L209 111Q192 97 175 111Q161 128 175 145L222 192L175 239Q161 256 175 273Z' fill='#E65555' fill-opacity='1' transform='translate(522,114.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='542' y='114' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Delete refused</text>
+<text x='542' y='131' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Alpha 1-1 is a player's unit</text>
+<rect x='542' y='135' width='43.53846153846154' height='20' fill='#23415F' rx='3' opacity='1'/>
+<text x='563.7692307692307' y='149.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Show</text>
+<text x='854' y='112' fill='#808080' font-size='16' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>×</text>
+<rect x='508' y='164' width='360' height='62' fill='#18181C' rx='3' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='508' y='164' width='4' height='62' fill='#F2C033' rx='0' opacity='1'/>
+<path d='M256 416Q279 415 291 396L507 28Q517 8 507 -12Q495 -31 472 -32H40Q17 -31 5 -12Q-5 8 5 28L222 396Q234 415 256 416ZM256 288Q234 286 232 264V152Q234 130 256 128Q278 130 280 152V264Q278 286 256 288ZM288 64Q288 78 279 87Q270 96 256 96Q242 96 233 87Q224 78 224 64Q224 50 233 41Q242 32 256 32Q270 32 279 41Q288 50 288 64Z' fill='#F2C033' fill-opacity='1' transform='translate(522,184.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='542' y='184' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Commit mission plan conflicts</text>
+<text x='542' y='201' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the plan changed (version 4, yours 3)</text>
+<rect x='542' y='205' width='51.10769230769231' height='20' fill='#23415F' rx='3' opacity='1'/>
+<text x='567.5538461538462' y='219.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Reload</text>
+<rect x='599.1076923076923' y='205' width='72.70769230769231' height='20' fill='#23415F' rx='3' opacity='1'/>
+<text x='635.4615384615385' y='219.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Overwrite</text>
+<text x='854' y='182' fill='#808080' font-size='16' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>×</text>
+<rect x='508' y='234' width='360' height='62' fill='#18181C' rx='3' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='508' y='234' width='4' height='62' fill='#E65555' rx='0' opacity='1'/>
+<path d='M256 448Q326 447 384 414Q442 380 478 320Q512 259 512 192Q512 125 478 64Q442 4 384 -30Q326 -63 256 -64Q186 -63 128 -30Q70 4 34 64Q0 125 0 192Q0 259 34 320Q70 380 128 414Q186 447 256 448ZM232 328V192V328V192Q232 179 243 172L339 108Q358 97 372 115Q383 134 365 148L280 205V328Q278 350 256 352Q234 350 232 328Z' fill='#E65555' fill-opacity='1' transform='translate(522,254.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='542' y='254' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Embark got no answer</text>
+<text x='542' y='271' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the owner did not answer in 5 s</text>
+<rect x='542' y='275' width='43.53846153846154' height='20' fill='#23415F' rx='3' opacity='1'/>
+<text x='563.7692307692307' y='289.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Show</text>
+<text x='854' y='252' fill='#808080' font-size='16' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>×</text>
+<text x='858' y='308' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>+ 2 more  ·  Dismiss all</text>
+<path d='M868 120 L898 120' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='904' y='124' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>STICKY, NON-MODAL — a refused, lost or conflicting edit</text>
+<text x='904' y='138' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>stays until its × (newest on top); work goes on under it.</text>
+<text x='904' y='152' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Show selects the unit / opens the field (Lost and Refused);</text>
+<text x='904' y='166' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Reload / Overwrite on a Conflict (the mission plan).</text>
+<path d='M868 298 L898 210' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='904' y='214' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>at most 3 drawn; '+ N more' and Dismiss all below.</text>
+<text x='904' y='228' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Applied edits are SILENT (the value is simply there).</text>
+<path d='M856 436 L898 300' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='904' y='304' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>BUSY ⏳ beside the field after 1 s of Pending;</text>
+<text x='904' y='318' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>it clears when the owner answers.</text>
+<path d='M856 462 L898 356' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='904' y='360' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>REFUSED ✗ on the field, the row tinted; the reason</text>
+<text x='904' y='374' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>is its tooltip; a click on the mark clears it (FormRow, U-11).</text>
+<text x='904' y='430' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>One rule of what shows: EditNotifications (Fdp.Toolkits),</text>
+<text x='904' y='444' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>read from the ONE EditJournal — the overlay and the</text>
+<text x='904' y='458' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Messages history read the same entries.</text>
+</svg>

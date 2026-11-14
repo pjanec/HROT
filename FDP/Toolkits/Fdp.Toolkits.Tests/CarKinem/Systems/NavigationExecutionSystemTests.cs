@@ -395,5 +395,51 @@ namespace CarKinem.Tests.Systems
             // The time-budget guard prevented any actual replan from occurring.
             Assert.Equal(0, finalStatus.ReplanCount);
         }
+
+        /// <summary>
+        /// ⭐ Buildings 5d-3 — a DELIBERATE hold (<see cref="NavState.IsBlocked"/>, the agent waiting at a door it is opening) is not being
+        /// stuck: however long it lasts it neither fails the move nor counts toward a replan; the count starts from zero when it ends.
+        /// </summary>
+        [Fact]
+        public void Stage5d_AHoldAtADoor_IsNotFrustration()
+        {
+            using var repo = CreateWorldWithNavState();
+            repo.RegisterEvent<MoveStartedEvent>();
+            repo.RegisterEvent<MoveCompletedEvent>();
+            var system = new NavigationExecutionSystem();
+            var entity = AddNavigatingEntityWithNavState(repo, navStateProgressS: 10f);
+            repo.SetComponent(entity, new SimVelocity { Linear = Vector3.Zero });            // standing still…
+            var nav = repo.GetComponent<NavState>(entity); nav.IsBlocked = 1; repo.SetComponent(entity, nav);   // …on purpose
+
+            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit * 3; i++) system.Execute(repo, 0.016f);
+
+            Assert.Equal(NavResult.InProgress, repo.GetComponent<NavigationStatus>(entity).Result);
+            Assert.Equal(0, repo.GetComponent<FrustrationTicks>(entity).Ticks);
+
+            nav.IsBlocked = 0; repo.SetComponent(entity, nav);                               // released, still standing: counts again
+            system.Execute(repo, 0.016f);
+            Assert.Equal(1, repo.GetComponent<FrustrationTicks>(entity).Ticks);
+        }
+        /// <summary>
+        /// ⭐ <c>CE-3286</c> (R-3025; Motion Domains §5f) — a hull BACKING OUT of a wall (<see cref="FrustrationTicks.RecoverDir"/> ≠ 0) is not stuck:
+        /// standing still well past <see cref="NavigationExecutionSystem.FrustrationTickLimit"/>, it stays <c>InProgress</c> — no replan, no
+        /// <c>FailedBlocked</c> — and its counts stay clear. 🔴 Red-proof: drop the <c>RecoverDir</c> skip ⇒ <c>FailedBlocked</c>.
+        /// </summary>
+        [Fact]
+        public void CE3286_AHullBackingOutOfAWall_IsNotStuck()
+        {
+            using var repo = CreateWorld();
+            var system = new NavigationExecutionSystem();
+            var entity = AddNavigatingEntity(repo, position: Vector2.Zero, destination: new Vector2(1000f, 0f), arrivalRadius: 5f, velocityX: 0f);
+            repo.SetComponent(entity, new FrustrationTicks { RecoverDir = -1, RecoverSteer = 1 });
+
+            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit * 2; i++)
+                system.Execute(repo, 0.016f);
+
+            Assert.Equal(NavResult.InProgress, repo.GetComponent<NavigationStatus>(entity).Result);
+            var ft = repo.GetComponent<FrustrationTicks>(entity);
+            Assert.Equal(0, ft.Ticks);
+            Assert.Equal(-1, ft.RecoverDir);   // the watchdog leaves the recovery alone
+        }
     }
 }

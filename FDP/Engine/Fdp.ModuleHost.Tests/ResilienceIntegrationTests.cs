@@ -13,8 +13,26 @@ using System.Diagnostics;
 
 namespace Fdp.ModuleHost.Tests
 {
-    public class ResilienceIntegrationTests
+    /// <summary>
+    /// ⚠ <b>This suite opts OUT of fail-fast, and that is the point of it.</b>
+    ///
+    /// <para><c>FdpConfig.FailFastOnModuleException</c> ships <b>ON</b> (user ruling, <c>2026-09-04</c>:
+    /// <i>"we are still in a wild development phase, not even close to production"</i>) — a module fault
+    /// kills the node so the bug gets fixed rather than survived. These tests exist to verify the
+    /// <b>catch path</b> that the switch suspends: crashing modules isolated, circuits tripping and
+    /// recovering, the system degrading rather than dying. They deliberately throw from a module, so
+    /// with the shipped default they would simply rethrow into the test.</para>
+    ///
+    /// <para>⛔ Do not "fix" a red here by weakening the default. The opt-out belongs to the four tests
+    /// whose subject IS the resilience machinery, not to the machinery itself (<c>CE-189</c>).</para>
+    /// </summary>
+    public class ResilienceIntegrationTests : IDisposable
     {
+        private readonly bool _originalFailFast = FdpConfig.FailFastOnModuleException;
+
+        public void Dispose() => FdpConfig.FailFastOnModuleException = _originalFailFast;
+
+        [TickMode(TickPolicy.WhenTimeAdvances)]
         private class TestModule : IEcsModule
         {
             public string Name { get; set; } = "TestModule";
@@ -62,6 +80,10 @@ namespace Fdp.ModuleHost.Tests
 
         public ResilienceIntegrationTests()
         {
+            // See the type-level remarks: this suite's SUBJECT is the catch path, so it must run with
+            // fail-fast suspended. Restored in Dispose so it cannot leak into another suite.
+            FdpConfig.FailFastOnModuleException = false;
+
             _liveWorld = new EntityRepository();
             _eventAccum = new EventAccumulator();
         }
@@ -281,6 +303,89 @@ namespace Fdp.ModuleHost.Tests
             
             Assert.True(zombieThreads <= 10, 
                 $"Expected <=10 zombie threads, found {zombieThreads}");
+        }
+
+        /// <summary>
+        /// ⭐ CE-3066 — a run that TIMES OUT but keeps executing must never have a second run of the same module beside it
+        /// (they share the module's state — measured: NullReferenceException in ColliderIndex.Build every frame), and its
+        /// view must not go back to the pool under it (measured: AccessViolation in EntityIndex.IsAlive). Once it really
+        /// ends, the module runs again.
+        /// </summary>
+        [Fact(Timeout = 15000)]
+        public async Task Resilience_ASlowRunThatTimedOut_IsNeverOverlapped_AndTheModuleRunsAgainAfterIt_CE3066()
+        {
+            int running = 0, maxRunning = 0, finished = 0;
+            var slow = new TestModule
+            {
+                Name = "SlowModule",
+                TickAction = (view, dt) =>
+                {
+                    int now = Interlocked.Increment(ref running);
+                    int seen;
+                    while (now > (seen = Volatile.Read(ref maxRunning)) && Interlocked.CompareExchange(ref maxRunning, now, seen) != seen) { }
+                    Thread.Sleep(300);
+                    Interlocked.Decrement(ref running);
+                    Interlocked.Increment(ref finished);
+                },
+                MaxExpectedRuntimeMs = 50,
+                FailureThreshold = 1000,          // keep the circuit closed: this rail is about overlap, not the breaker
+            };
+
+            using var kernel = new ModuleHostKernel(_liveWorld, _eventAccum);
+            kernel.RegisterModule(slow);
+            kernel.InitializeForTest();
+
+            var sw = Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < 2000)
+            {
+                kernel.Update(0.016f);
+                await Task.Delay(10);
+            }
+
+            Assert.Equal(1, Volatile.Read(ref maxRunning));
+            Assert.True(Volatile.Read(ref finished) >= 3, $"the module must run again after each abandoned run ends (finished {finished})");
+        }
+
+        /// <summary>
+        /// ⭐ CE-3077 — the kernel's TEARDOWN must not free the snapshot a still-running zombie reads. 🔴 Before: the park
+        /// (CE-3066) nulls <c>CurrentTask</c>, so <c>Dispose</c> waited on nothing and disposed every provider — and an
+        /// <c>OnDemandProvider</c> disposes its LEASED snapshots too (measured: the editor died with AccessViolation in
+        /// <c>EntityIndex.IsAlive</c> from <c>VisionBroadphase.Rebuild</c> at teardown).
+        /// </summary>
+        [Fact(Timeout = 15000)]
+        public async Task Resilience_TeardownUnderARunningZombie_DoesNotFreeItsSnapshot_CE3077()
+        {
+            using var gate = new ManualResetEventSlim(false);
+            Fdp.Core.EntityRepository? seen = null;
+            var slow = new TestModule
+            {
+                Name = "ZombieAtTeardown",
+                TickAction = (view, dt) =>
+                {
+                    seen = view as Fdp.Core.EntityRepository;
+                    gate.Wait(10_000);
+                },
+                MaxExpectedRuntimeMs = 50,
+                FailureThreshold = 1000,
+            };
+
+            var kernel = new ModuleHostKernel(_liveWorld, _eventAccum);
+            kernel.RegisterModule(slow);
+            kernel.InitializeForTest();
+
+            var sw = Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < 500)          // dispatch, then time out ⇒ the run becomes a zombie
+            {
+                kernel.Update(0.016f);
+                await Task.Delay(10);
+            }
+            Assert.NotNull(seen);
+
+            kernel.Dispose();                              // the zombie is still blocked on the gate
+
+            bool freedUnderIt = seen!.IsDisposed;
+            gate.Set();                                    // let it end
+            Assert.False(freedUnderIt, "the kernel's Dispose freed the snapshot a still-running zombie was reading");
         }
 
         [Fact(Timeout = 5000)]

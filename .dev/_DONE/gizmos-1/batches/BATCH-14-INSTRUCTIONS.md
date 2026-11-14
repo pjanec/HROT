@@ -673,7 +673,7 @@ public void SC_GZ038_1_PollAndApply_UsesLatestBatch()
 ```
 
 **SC-GZ038-2**: This is a build test — verified during compilation.  
-Verify by building: `dotnet build IOS-IG-SimHost.sln --no-incremental -clp:ErrorsOnly`.
+Verify by building: `dotnet build HROT.sln --no-incremental -clp:ErrorsOnly`.
 
 **SC-GZ038-3**: Null reader → no-op:
 ```csharp
@@ -751,7 +751,7 @@ use the test infrastructure from `Fdp.Toolkits.Tests` instead (add it there).
 ## Build & Test Validation
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental -clp:ErrorsOnly
+dotnet build HROT.sln --no-incremental -clp:ErrorsOnly
 ```
 → **Must show 0 errors.**
 

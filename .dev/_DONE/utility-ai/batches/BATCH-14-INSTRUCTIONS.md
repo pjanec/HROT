@@ -492,7 +492,7 @@ For `UtilityDecisionWindow` tests, construct it with a `new EditorSelectionStore
 
 ## Build & Test Requirements
 
-1. Run `dotnet build IOS-IG-SimHost.sln -c Debug` — must produce **0 errors**.
+1. Run `dotnet build HROT.sln -c Debug` — must produce **0 errors**.
 2. Run `dotnet test Hrot\Editor\Hrot.Utility.Editor.Tests\Hrot.Utility.Editor.Tests.csproj` —
    all tests (old + new) must pass.
 3. Run `dotnet test Hrot\Editor\Hrot.Editor.AiShared.Tests\Hrot.Editor.AiShared.Tests.csproj` —

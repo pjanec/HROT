@@ -1,0 +1,1010 @@
+using System;
+using System.Collections.Generic;
+using Fbt;
+using Fbt.Compiler;
+using Fbt.Runtime;
+using Fdp.Core;
+using Fhsm.Kernel.Data;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Blueprints.Components;
+using Fdp.Toolkit.Blueprints.Partitioning;
+using Xunit;
+
+namespace Fdp.Toolkit.Behavior.Tests
+{
+    /// <summary>
+    /// ⭐⭐ <c>CE-3035</c> — the SOP SLOT (R-189, R-198): a second behaviour beside the task, any tier, run by the real
+    /// <see cref="BehaviorIngressSystem"/> and <see cref="BrainTickSystem"/>. 📄 <c>docs/DESIGN_Sensors_And_Doctrine.md</c> §6.
+    /// </summary>
+    public sealed unsafe class SopSlotTests
+    {
+        private const int TaskId = 0x5301, SopId = 0x5302, SopChannelId = 0x5303, SopFaultId = 0x5304, OtherSopId = 0x5305, HsmSopId = 0x5306,
+                          QuickReactionId = 0x5307, LongReactionId = 0x5308, OtherTaskId = 0x5309,
+                          IdleSopId = 0x530A, ReactingSopId = 0x530B,
+                          TwoStepId = 0x530C, SlotTaskId = 0x530D, SlotReactionId = 0x530E;
+        private const int SharedSlotKey = 0x7A11;   // a curated stateful node's key is not salted by behaviour (P2)
+
+        [ThreadStatic] private static int _taskTicks, _sopTicks, _channelTicks;
+        [ThreadStatic] private static bool _wasHit;
+        [ThreadStatic] private static int _step1, _step2;
+
+        private static NodeStatus Step1(ref byte bb, ref BehaviorTreeState s, ref BTreeContext ctx, int p) { _step1++; return NodeStatus.Success; }
+        private static NodeStatus Step2(ref byte bb, ref BehaviorTreeState s, ref BTreeContext ctx, int p) { _step2++; return NodeStatus.Running; }
+
+        private static BehaviorDefinition TwoSteps(string name)
+        {
+            var b = new BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Action(Step1).Action(Step2));
+            return new BehaviorDefinition
+            {
+                Name = name, BrainTier = BehaviorConstants.BrainTierBTree,
+                BTreeInterpreter = new Interpreter<byte, BTreeContext>(b.Compile(name), b.GetRegistry()),
+            };
+        }
+
+        private static BehaviorDefinition WithSharedSlot(string name, NodeLogicDelegate<byte, BTreeContext> leaf)
+        {
+            var b = new BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Action(leaf));
+            return new BehaviorDefinition
+            {
+                Name = name, BrainTier = BehaviorConstants.BrainTierBTree,
+                BTreeInterpreter = new Interpreter<byte, BTreeContext>(b.Compile(name), b.GetRegistry()),
+                StatefulWorkingSlots = new[] { new StatefulSlotInfo(SharedSlotKey, 16, 0x51u) },
+            };
+        }
+
+        private static NodeStatus TaskRuns(ref byte bb, ref BehaviorTreeState s, ref BTreeContext ctx, int p) { _taskTicks++; return NodeStatus.Running; }
+        private static NodeStatus SopDecides(ref byte bb, ref BehaviorTreeState s, ref BTreeContext ctx, int p) { _sopTicks++; return NodeStatus.Success; }
+        private static NodeStatus SopMoves(ref byte bb, ref BehaviorTreeState s, ref BTreeContext ctx, int p)
+        {
+            _channelTicks++;
+            ref var loco = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
+            loco.ActiveAction = 99;
+            loco.BehaviorInstanceId = ctx.World.GetComponentRO<BehaviorState>(ctx.Self).InstanceId;   // as real actions do
+            return NodeStatus.Running;
+        }
+        private static NodeStatus SopFaults(ref byte bb, ref BehaviorTreeState s, ref BTreeContext ctx, int p)
+        {
+            BehaviorFault.Raise(ctx.World, ctx.Self, BehaviorFaultCode.Custom, "test fault");
+            return NodeStatus.Running;
+        }
+
+        // ⭐ CE-2079 — SOP trees built on the two actions, as a recipe would be: one row each.
+        private static NodeStatus IdleRow(ref byte bb, ref BehaviorTreeState s, ref BTreeContext ctx, int p)
+        { _sopTicks++; return SopActions.DoWhenIdle(ctx.World, ctx.Self, "SopT_Task2", "{}"); }
+        private static NodeStatus ReactRow(ref byte bb, ref BehaviorTreeState s, ref BTreeContext ctx, int p)
+        {
+            _sopTicks++;
+            return _wasHit ? SopActions.React(ctx.World, ctx.Self, "SopT_Cover", ReactionUrgency.Hit, "{}") : NodeStatus.Failure;
+        }
+
+        private static BehaviorDefinition Tree(string name, NodeLogicDelegate<byte, BTreeContext> leaf)
+        {
+            var b = new BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Action(leaf));
+            return new BehaviorDefinition
+            {
+                Name = name, BrainTier = BehaviorConstants.BrainTierBTree,
+                BTreeInterpreter = new Interpreter<byte, BTreeContext>(b.Compile(name), b.GetRegistry()),
+            };
+        }
+
+        private static HsmDefinitionBlob OneStateHsm()
+        {
+            var states = new StateDef[1];
+            states[0] = new StateDef { ParentIndex = 0xFFFF, FirstTransitionIndex = 0xFFFF, TransitionCount = 0 };
+            var header = new HsmDefinitionHeader { StructureHash = 0x5306, StateCount = 1, TransitionCount = 0 };
+            return new HsmDefinitionBlob(header, states, Array.Empty<TransitionDef>(), Array.Empty<RegionDef>(),
+                Array.Empty<GlobalTransitionDef>(), Array.Empty<ushort>(), Array.Empty<ushort>());
+        }
+
+        private sealed class Fixture : IDisposable
+        {
+            public readonly EntityRepository World = TestWorldFactory.Create();
+            public readonly BehaviorRegistry Registry = new();
+            public readonly BehaviorIngressSystem Ingress;
+            public readonly BrainTickSystem Brain;
+            public readonly Entity Unit;
+
+            public Fixture()
+            {
+                BlueprintTierTable.RegisterAll(World);
+                if (!World.IsComponentTypeRegistered<SopState>()) World.RegisterComponent<SopState>();
+                World.Bus.Register<ClearSopEvent>();
+                World.Bus.RegisterManaged<AssignSopEvent>();
+                // ⭐ as production hosts do — SopActions / the resume publish only onto a REGISTERED event
+                if (!World.Bus.IsRegisteredManaged<AssignBehaviorEvent>()) World.Bus.RegisterManaged<AssignBehaviorEvent>();
+                if (!World.IsComponentTypeRegistered<Roe>()) World.RegisterComponent<Roe>();
+                Registry.Register(TaskId,       "SopT_Task",    Tree("SopT_Task", TaskRuns));
+                Registry.Register(SopId,        "SopT_Sop",     Tree("SopT_Sop", SopDecides));
+                Registry.Register(SopChannelId, "SopT_Mover",   Tree("SopT_Mover", SopMoves));
+                Registry.Register(SopFaultId,   "SopT_Faulty",  Tree("SopT_Faulty", SopFaults));
+                Registry.Register(OtherSopId,   "SopT_Other",   Tree("SopT_Other", SopDecides));
+                Registry.Register(QuickReactionId, "SopT_Duck",   Tree("SopT_Duck", SopDecides));   // ends on its first tick
+                Registry.Register(LongReactionId,  "SopT_Cover",  Tree("SopT_Cover", TaskRuns));    // runs until replaced
+                Registry.Register(OtherTaskId,     "SopT_Task2",  Tree("SopT_Task2", TaskRuns));
+                Registry.Register(TwoStepId,       "SopT_TwoStep", TwoSteps("SopT_TwoStep"));
+                Registry.Register(SlotTaskId,      "SopT_SlotTask", WithSharedSlot("SopT_SlotTask", TaskRuns));
+                Registry.Register(SlotReactionId,  "SopT_SlotDuck", WithSharedSlot("SopT_SlotDuck", SopDecides));
+                Registry.Register(IdleSopId,       "SopT_IdleSop",  Tree("SopT_IdleSop", IdleRow));
+                Registry.Register(ReactingSopId,   "SopT_ReactSop", Tree("SopT_ReactSop", ReactRow));
+                Registry.Register(HsmSopId,     "SopT_HsmSop",  new BehaviorDefinition
+                {
+                    Name = "SopT_HsmSop", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = OneStateHsm(),
+                });
+                Ingress = new BehaviorIngressSystem(Registry);
+                Brain   = new BrainTickSystem(Registry);
+                Unit    = World.CreateEntity();
+                World.AddComponent(Unit, new BehaviorState());
+                _taskTicks = _sopTicks = _channelTicks = _step1 = _step2 = 0;
+                _wasHit = false;
+            }
+
+            public void Task(string name, BehaviorOrigin origin)
+            {
+                World.Bus.PublishManaged(new AssignBehaviorEvent { Entity = Unit, BehaviorName = name, JsonParams = "", Origin = origin });
+                World.Bus.SwapBuffers();
+                Ingress.Execute(World, 0.016f);
+            }
+
+            public void Sop(string name, BehaviorOrigin origin)
+            {
+                World.Bus.PublishManaged(new AssignSopEvent { Entity = Unit, BehaviorName = name, JsonParams = "{}", Origin = origin });
+                World.Bus.SwapBuffers();
+                Ingress.Execute(World, 0.016f);
+            }
+
+            public void React(string name, ReactionUrgency urgency, Fdp.Toolkit.Perception.Events.SensorChange cause = 0)
+            {
+                World.Bus.PublishManaged(new AssignBehaviorEvent { Entity = Unit, BehaviorName = name, JsonParams = "", Origin = BehaviorOrigin.Reaction, Urgency = urgency, Cause = cause });
+                World.Bus.SwapBuffers();
+                Ingress.Execute(World, 0.016f);
+            }
+
+            /// <summary>One frame in order: brain tick, then next frame's ingress sees what it published.</summary>
+            public void FrameThenIngress()
+            {
+                Brain.Execute(World, 0.016f);
+                World.Bus.SwapBuffers();
+                Ingress.Execute(World, 0.016f);
+            }
+
+            public BehaviorState Task_ => World.GetComponent<BehaviorState>(Unit);
+            public PausedTask? Paused => BehaviorIngressSystem.PausedTaskOf(World, Unit);
+
+            public void Frames(int n) { for (int i = 0; i < n; i++) Brain.Execute(World, 0.016f); }
+
+            /// <summary>⭐ CE-2081 — is <paramref name="key"/> attached in the unit's store?</summary>
+            public unsafe bool Holds(int key)
+            {
+                byte* store = OccurrenceStoreAccess.TryGetStore(World, Unit, out _);
+                if (store == null) return false;
+                for (int i = 0; i < BlueprintBlackboardPartitions.GetSlotCount(store); i++)
+                    if (BlueprintBlackboardPartitions.GetSlot(store, i).BlueprintId == key) return true;
+                return false;
+            }
+
+            /// <summary>⭐ CE-2081 — an owned part (an EQS sensor stand-in) of the run <paramref name="run"/>.</summary>
+            public Entity OwnedPart(uint run)
+            {
+                if (!World.IsComponentTypeRegistered<BehaviorOwnedPart>()) World.RegisterComponent<BehaviorOwnedPart>();
+                if (!World.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>())
+                    World.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+                var part = World.CreateEntity();
+                World.AddComponent(part, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = Unit, InstanceId = 1000 });
+                World.AddComponent(part, new BehaviorOwnedPart { OwnerInstanceId = run, SiteId = 1 });
+                return part;
+            }
+
+            public SopState SopState => World.GetComponent<SopState>(Unit);
+
+            public void Dispose() => World.Dispose();
+        }
+
+        [Fact]
+        public void CE2083_AReactionOriginNeverSetsTheSopSlot()
+        {
+            var f = new Fixture();
+            f.Sop("SopT_Sop", BehaviorOrigin.Reaction);
+            Assert.Equal(0, f.World.HasComponent<SopState>(f.Unit) ? f.World.GetComponentRO<SopState>(f.Unit).SopHash : 0);
+            Assert.True(f.Ingress.SopRefusedCount > 0);
+            f.Sop("SopT_Sop", BehaviorOrigin.Sop);                                    // the same SOP as an order runs
+            Assert.NotEqual(0, f.World.GetComponentRO<SopState>(f.Unit).SopHash);
+        }
+
+        // ── ⭐ CE-2085 — a hosted occurrence the SOP attaches LAZILY is the SOP's, not the task's to sweep ──────────────
+
+        private static unsafe bool Attached(EntityRepository world, Entity unit, int key)
+        {
+            byte* store = OccurrenceStoreAccess.TryGetStore(world, unit, out _);
+            return store != null && BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out _, out _);
+        }
+
+        [Fact]
+        public void CE2085_AnOccurrenceTheSopAttachesLazily_SurvivesATaskChange_AndGoesWithTheSop()
+        {
+            var f = new Fixture();
+            f.World.AddComponent(f.Unit, new BlueprintBlackboard1024());   // room for two lazy occurrences beside the roots
+            unsafe
+            {
+                ref var tier = ref f.World.GetComponentRW<BlueprintBlackboard1024>(f.Unit);
+                fixed (byte* mem = tier.Memory)
+                    BlueprintBlackboardPartitions.Initialize(mem, BlueprintBlackboard1024.TotalSize, (byte)BlueprintBlackboard1024.MaxSlots);
+            }
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.Sop("SopT_Sop", BehaviorOrigin.Superior);
+            var sop = f.World.GetComponentRO<SopState>(f.Unit);
+            const int sopKey = 0x20850001, taskKey = 0x20850002;
+            using (BrainSlotScope.Enter(f.Unit, sop.SopHash, sop.SopInstanceId))
+                OccurrenceWorkingState.ResolveOrAttach<long>(f.World, f.Unit, sopKey, 0x2085, OccurrenceKind.Hsm, out _);
+            OccurrenceWorkingState.ResolveOrAttach<long>(f.World, f.Unit, taskKey, 0x2086, OccurrenceKind.Hsm, out _);   // the task's
+
+            f.Task("SopT_Task2", BehaviorOrigin.Superior);          // a task change sweeps the task's lazy occurrences
+            Assert.False(Attached(f.World, f.Unit, taskKey), "the sweep ran: the task's own lazy occurrence went");
+            Assert.True(Attached(f.World, f.Unit, sopKey), "the SOP's lazy occurrence is not the task's to sweep");
+
+            Assert.True(f.Ingress.ClearSopNow(f.World, f.Unit, BehaviorOrigin.Superior));
+            Assert.False(Attached(f.World, f.Unit, sopKey), "ending the SOP releases what it attached");
+        }
+
+        [Fact]
+        public void CE3035_TheSop_TicksBesideTheTask_SlowerAndWithoutEverFinishing()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.Sop("SopT_Sop", BehaviorOrigin.Superior);
+            Assert.Equal(SopId, f.SopState.SopHash);
+            Assert.True(SopTokens.IsSop(f.SopState.SopInstanceId));                    // a token no task can carry
+
+            f.Frames(31);   // ~0.5 s at 16 ms
+
+            Assert.Equal(31, _taskTicks);                                              // the task ran every frame, undisturbed
+            Assert.InRange(_sopTicks, 2, 4);                                           // first frame (woken) + every 0.2 s
+            Assert.Equal(TaskId, f.World.GetComponent<BehaviorState>(f.Unit).ActiveBehaviorHash);
+            Assert.Equal(SopId, f.SopState.SopHash);                                   // Success restarted it — never finished
+        }
+
+        [Fact]
+        public void CE3035_TheSop_IsGatedByWhoSetIt()
+        {
+            using var f = new Fixture();
+            f.Sop("SopT_Sop", BehaviorOrigin.Superior);
+            f.Sop("SopT_Other", BehaviorOrigin.Sop);
+            Assert.Equal(SopId, f.SopState.SopHash);
+            Assert.Equal(1, f.Ingress.SopRefusedCount);
+
+            f.Sop("SopT_Other", BehaviorOrigin.Operator);
+            Assert.Equal(OtherSopId, f.SopState.SopHash);
+
+            f.World.Bus.Publish(new ClearSopEvent { Entity = f.Unit, Origin = BehaviorOrigin.Superior });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);
+            Assert.Equal(OtherSopId, f.SopState.SopHash);                              // a Superior cannot clear an Operator's SOP
+        }
+
+        [Fact]
+        public void CE3035_TheSopAndTheTask_AreNeverTheSameBehaviour()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.Sop("SopT_Task", BehaviorOrigin.Operator);                               // the task as SOP: refused
+            Assert.Equal(0, f.SopState.SopHash);
+
+            f.Sop("SopT_Sop", BehaviorOrigin.Operator);
+            f.Task("SopT_Sop", BehaviorOrigin.Operator);                               // the SOP as task: refused
+            Assert.Equal(TaskId, f.World.GetComponent<BehaviorState>(f.Unit).ActiveBehaviorHash);
+        }
+
+        [Fact]
+        public void CE3035_AnSopChannelWrite_IsReverted_AndStopsTheSop()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            uint task = f.World.GetComponent<BehaviorState>(f.Unit).InstanceId;
+            f.World.AddComponent(f.Unit, new LocomotionChannel { ActiveAction = 5, BehaviorInstanceId = task });
+            f.Sop("SopT_Mover", BehaviorOrigin.Superior);
+
+            f.Frames(31);
+
+            var loco = f.World.GetComponent<LocomotionChannel>(f.Unit);
+            Assert.Equal(5, loco.ActiveAction);                                        // the task keeps its command
+            Assert.Equal(task, loco.BehaviorInstanceId);
+            Assert.Equal(1, _channelTicks);                                            // stopped after the first write
+            Assert.Equal(1, f.SopState.SopFaulted);
+            Assert.Equal(SopChannelId, f.SopState.SopHash);                            // stays assigned and visible (R-193)
+        }
+
+        [Fact]
+        public void CE3035_AnSopFault_StopsTheSop_AndNotTheTask()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.Sop("SopT_Faulty", BehaviorOrigin.Superior);
+            f.Frames(31);
+
+            Assert.Equal(1, f.SopState.SopFaulted);
+            Assert.Equal(31, _taskTicks);
+            Assert.Equal(TaskId, f.World.GetComponent<BehaviorState>(f.Unit).ActiveBehaviorHash);
+        }
+
+        [Fact]
+        public void CE3035_ATaskChange_DoesNotSweepTheSopsStorage()
+        {
+            using var f = new Fixture();
+            f.Sop("SopT_HsmSop", BehaviorOrigin.Superior);                             // its instance is an Hsm-kind slot
+            using (BrainSlotScope.Enter(f.Unit, HsmSopId, f.SopState.SopInstanceId))
+                Assert.True(RootHsmAccess.TryGetInstance(f.World, f.Unit, out _, out _));
+
+            f.Task("SopT_Task", BehaviorOrigin.Superior);                              // the task start sweeps Hsm-kind slots…
+            f.World.Bus.Publish(new ClearBehaviorEvent { Entity = f.Unit, Origin = BehaviorOrigin.Superior });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);                                        // …and so does a clear
+
+            using (BrainSlotScope.Enter(f.Unit, HsmSopId, f.SopState.SopInstanceId))
+                Assert.True(RootHsmAccess.TryGetInstance(f.World, f.Unit, out _, out _), "the task's sweep took the SOP's HSM instance");
+        }
+        // ── ⭐ CE-1249 — the gate writes the brain journal (docs/DESIGN_Entity_Brain_View.md §6 BV-10, BV-13) ─────────────
+
+        private static Fdp.Toolkit.Behavior.Diagnostics.BrainJournal WithJournal(Fixture f)
+        {
+            if (!f.World.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>())
+                f.World.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>();
+            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Attach(f.World, f.Unit);
+            return f.World.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>(f.Unit);
+        }
+
+        private static Fdp.Toolkit.Behavior.Diagnostics.BrainJournal Journal(Fixture f)
+            => f.World.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>(f.Unit);
+
+        /// <summary>⭐ <c>CE-2377</c> step 2 — an assignment whose params do not parse is refused AND journaled with its reason, on both paths:
+        /// a task, and an SOP (which journaled nothing before). 🔴 Red-proof: drop the journal write after <c>ParseIntoShadow</c> in <c>StartSop</c> ⇒ the SOP half is red.</summary>
+        [Fact]
+        public void CE2377_AnAssignmentWhoseParamsDoNotParse_IsJournaled_AsRefused_OnTheTaskAndTheSopPath()
+        {
+            using var f = new Fixture();
+            WithJournal(f);
+            foreach (var (name, id) in new[] { ("SopT_BadTask", 0x53F1), ("SopT_BadSop", 0x53F2) })
+            {
+                var d = Tree(name, SopDecides);
+                d.BlackboardLayoutType = typeof(int);
+                d.ParseParams = static (string _, byte* _, int _, EntityRepository _, Entity _) => throw new InvalidOperationException("bad params");
+                f.Registry.Register(id, name, d);
+            }
+
+            f.World.Bus.PublishManaged(new AssignBehaviorEvent { Entity = f.Unit, BehaviorName = "SopT_BadTask", JsonParams = "{\"x\":1}", Origin = BehaviorOrigin.Operator });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);
+            var j = Journal(f);
+            var last = j.At(j.Count - 1);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskRefused, last.Kind);
+            Assert.Equal(0x53F1, last.A);
+            Assert.Equal((byte)Fdp.Toolkit.Behavior.Diagnostics.BrainRefusal.ParseFailed, last.Cause);
+
+            f.World.Bus.PublishManaged(new AssignSopEvent { Entity = f.Unit, BehaviorName = "SopT_BadSop", JsonParams = "{\"x\":1}", Origin = BehaviorOrigin.Operator });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);
+            j = Journal(f);
+            last = j.At(j.Count - 1);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskRefused, last.Kind);
+            Assert.Equal(0x53F2, last.A);
+            Assert.Equal((byte)Fdp.Toolkit.Behavior.Diagnostics.BrainRefusal.ParseFailed, last.Cause);
+            Assert.Equal((byte)BehaviorOrigin.Operator, last.Origin);
+        }
+
+        /// <summary>⭐ A reaction pausing the task writes Paused (the task) then Started (the reaction, its origin and urgency).
+        /// 🔴 Red-proof: drop the TaskPaused write in <c>JournalStarted</c> ⇒ red.</summary>
+        [Fact]
+        public void CE1249_AReactionPausingTheTask_IsJournaled_PausedThenStarted()
+        {
+            using var f = new Fixture();
+            WithJournal(f);
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.React("SopT_Cover", ReactionUrgency.Hit, Fdp.Toolkit.Perception.Events.SensorChange.NearMiss);
+
+            var j = Journal(f);
+            Assert.Equal(3, j.Count);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskStarted, j.At(0).Kind);
+            Assert.Equal(TaskId, j.At(0).A);
+            Assert.Equal((byte)BehaviorOrigin.Superior, j.At(0).Origin);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskPaused, j.At(1).Kind);
+            Assert.Equal(TaskId, j.At(1).A);
+            Assert.Equal(LongReactionId, j.At(1).B);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskStarted, j.At(2).Kind);
+            Assert.Equal(LongReactionId, j.At(2).A);
+            Assert.Equal(0, j.At(2).B);                                         // it paused the task, not replaced it
+            Assert.Equal((byte)BehaviorOrigin.Reaction, j.At(2).Origin);
+            Assert.Equal((byte)ReactionUrgency.Hit, j.At(2).Urgency);
+            Assert.Equal((byte)Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, j.At(2).Cause);   // ⭐ CE-1250 — the sense it answers
+            Assert.Equal(0, j.At(0).Cause);                                      // an order has none
+        }
+
+        /// <summary>⭐ <c>CE-1250</c> (BV-12; ui's handoff ①) — the PRODUCER half: an SOP row's sense condition notes what it matched, and the
+        /// reaction that row publishes carries it as its cause — <i>"started SopT_Cover (Reaction, Hit) after NearMiss"</i>. A reaction no sense
+        /// matched this frame (a stale note, a row without one) carries none.
+        /// 🔴 Red-proof: drop the <c>Noted</c> call in <c>SopConditions.SensedFresh</c> ⇒ red; drop the frame check in
+        /// <c>TakeReactionCause</c> ⇒ the stale half red.</summary>
+        [Fact]
+        public void CE1250_AnSopRowsMatchedSense_IsTheCauseOfTheReactionItPublishes()
+        {
+            using var f = new Fixture();
+            WithJournal(f);
+            if (!f.World.IsComponentTypeRegistered<RecentSenses>()) f.World.RegisterComponent<RecentSenses>();
+            f.World.SetSingleton(new GlobalTime { TotalTime = 10.0, FrameNumber = 7 });
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            var senses = new RecentSenses();
+            senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, 10.0);
+            f.World.AddComponent(f.Unit, senses);
+
+            var row = new SopSenseParams { Kind = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, Seconds = 5f };
+            Assert.True(SopConditions.SensedFresh(ref row, f.Unit, f.World));
+            Assert.Equal(NodeStatus.Success, SopActions.React(f.World, f.Unit, "SopT_Cover", ReactionUrgency.Hit, "{}"));
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);
+            var j = Journal(f);
+            var started = j.At(j.Count - 1);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskStarted, started.Kind);
+            Assert.Equal(LongReactionId, started.A);
+            Assert.Equal((byte)Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, started.Cause);
+
+            // a note from an EARLIER frame is stale: the next reaction says nothing rather than the wrong thing
+            using var g = new Fixture();
+            WithJournal(g);
+            if (!g.World.IsComponentTypeRegistered<RecentSenses>()) g.World.RegisterComponent<RecentSenses>();
+            g.World.SetSingleton(new GlobalTime { TotalTime = 10.0, FrameNumber = 7 });
+            g.Task("SopT_Task", BehaviorOrigin.Superior);
+            g.World.AddComponent(g.Unit, senses);
+            Assert.True(SopConditions.SensedFresh(ref row, g.Unit, g.World));
+            g.World.SetSingleton(new GlobalTime { TotalTime = 10.016, FrameNumber = 8 });
+            Assert.Equal(NodeStatus.Success, SopActions.React(g.World, g.Unit, "SopT_Cover", ReactionUrgency.Hit, "{}"));
+            g.World.Bus.SwapBuffers();
+            g.Ingress.Execute(g.World, 0.016f);
+            var k = Journal(g);
+            Assert.Equal(LongReactionId, k.At(k.Count - 1).A);
+            Assert.Equal(0, k.At(k.Count - 1).Cause);
+        }
+
+        /// <summary>⭐ BV-13 — a refusal says why: a reaction under a more urgent one, and one the ROE keeps out.
+        /// 🔴 Red-proof: return LowerRank from <c>RefusalOf</c> for every case ⇒ red.</summary>
+        [Fact]
+        public void CE1249_ARefusedAssignment_IsJournaled_WithItsReason()
+        {
+            using var f = new Fixture();
+            WithJournal(f);
+            f.Task("SopT_Task", BehaviorOrigin.Operator);
+            f.React("SopT_Cover", ReactionUrgency.Contact);
+            f.React("SopT_Duck", ReactionUrgency.Alert);                        // lower: refused
+            var j = Journal(f);
+            var last = j.At(j.Count - 1);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskRefused, last.Kind);
+            Assert.Equal(QuickReactionId, last.A);
+            Assert.Equal((byte)Fdp.Toolkit.Behavior.Diagnostics.BrainRefusal.LowerUrgency, last.Cause);
+
+            using var g = new Fixture();
+            WithJournal(g);
+            g.World.AddComponent(g.Unit, new Roe { Reactions = RoeReactions.StayOnTask, SetBy = BehaviorOrigin.Superior });
+            g.Task("SopT_Task", BehaviorOrigin.Superior);
+            g.React("SopT_Duck", ReactionUrgency.Hit);
+            var k = Journal(g);
+            Assert.Equal((byte)Fdp.Toolkit.Behavior.Diagnostics.BrainRefusal.StayOnTask, k.At(k.Count - 1).Cause);
+        }
+
+        /// <summary>⭐ The reaction ending by itself writes Ended (with its result), and the task coming back writes Resumed or a fresh
+        /// Started; an order's clear writes Cleared with who cleared it. 🔴 Red-proof: drop the TaskEnded write in
+        /// <c>BrainTickSystem.Finish</c> ⇒ red.</summary>
+        [Fact]
+        public void CE1249_AnEndingAndAClear_AreJournaled()
+        {
+            using var f = new Fixture();
+            WithJournal(f);
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.React("SopT_Duck", ReactionUrgency.Hit);
+            f.FrameThenIngress();                                               // the reaction ends on its first tick, the task is back
+
+            var j = Journal(f);
+            int ended = -1;
+            for (int i = 0; i < j.Count; i++)
+                if (j.At(i).Kind == Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskEnded) ended = i;
+            Assert.True(ended >= 0, "no TaskEnded entry");
+            Assert.Equal(QuickReactionId, j.At(ended).A);
+            Assert.True(ended < j.Count - 1, "nothing after the end");
+            var back = j.At(j.Count - 1);
+            Assert.Equal(TaskId, back.A);
+            Assert.Contains(back.Kind, new[] { Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskResumed,
+                                               Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskStarted });
+
+            f.World.Bus.Publish(new ClearBehaviorEvent { Entity = f.Unit, Origin = BehaviorOrigin.Superior });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);
+            var c = Journal(f).At(Journal(f).Count - 1);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskCleared, c.Kind);
+            Assert.Equal(TaskId, c.A);
+            Assert.Equal((byte)BehaviorOrigin.Superior, c.Origin);
+        }
+
+        // ── ⭐ CE-2078 — reactions in the gate (R-199, docs/DESIGN_Decision_Layer.md §4.1) ─────────────────────────────
+
+        [Fact]
+        public void CE2078_AReaction_PausesTheTask_AndTheTaskRestartsWhenItEnds()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.React("SopT_Duck", ReactionUrgency.Hit);
+
+            Assert.Equal(QuickReactionId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Reaction, f.Task_.Origin);
+            Assert.Equal(ReactionUrgency.Hit, f.Task_.Urgency);
+            Assert.Equal("SopT_Task", f.Paused!.BehaviorName);
+            Assert.Equal(BehaviorOrigin.Superior, f.Paused.Origin);
+
+            f.FrameThenIngress();   // the reaction ends on its first tick ⇒ next frame the task restarts
+
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Superior, f.Task_.Origin);               // it keeps its rank
+            Assert.Equal(ReactionUrgency.NotAReaction, f.Task_.Urgency);
+            Assert.Null(f.Paused);
+        }
+
+        [Fact]
+        public void CE2078_StayOnTask_RefusesEveryReaction()
+        {
+            using var f = new Fixture();
+            f.World.AddComponent(f.Unit, new Roe { Reactions = RoeReactions.StayOnTask, SetBy = BehaviorOrigin.Superior });
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.React("SopT_Duck", ReactionUrgency.Hit);
+
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);
+            Assert.Null(f.Paused);
+            Assert.Equal(1, f.Ingress.RefusedCount);
+        }
+
+        [Fact]
+        public void CE2078_ARunningReaction_YieldsOnlyToAMoreUrgentOne_AndTheFirstPauseStays()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Operator);
+            f.React("SopT_Cover", ReactionUrgency.Contact);
+            f.React("SopT_Duck", ReactionUrgency.Contact);                    // same: refused
+            f.React("SopT_Duck", ReactionUrgency.Alert);                      // lower: refused
+            Assert.Equal(LongReactionId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(2, f.Ingress.RefusedCount);
+
+            f.React("SopT_Duck", ReactionUrgency.UnderFire);                  // more urgent: replaces it
+            Assert.Equal(QuickReactionId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal("SopT_Task", f.Paused!.BehaviorName);                // ④ never stacked: still the TASK
+            Assert.Equal(BehaviorOrigin.Operator, f.Paused.Origin);
+        }
+
+        [Fact]
+        public void CE2078_DuringAReaction_AnOrderIsWeighedAgainstThePausedTask_AndTheIdleChoiceWaits()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Operator);
+            f.React("SopT_Cover", ReactionUrgency.Hit);
+
+            f.Task("SopT_Task2", BehaviorOrigin.Sop);                         // the SOP's idle choice: refused
+            f.Task("SopT_Task2", BehaviorOrigin.Superior);                    // cannot end an Operator's task: refused
+            Assert.Equal(LongReactionId, f.Task_.ActiveBehaviorHash);
+            Assert.NotNull(f.Paused);
+
+            f.Task("SopT_Task2", BehaviorOrigin.Operator);                    // may: replaces the reaction AND the task
+            Assert.Equal(OtherTaskId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Operator, f.Task_.Origin);
+            Assert.Null(f.Paused);
+
+            f.FrameThenIngress();                                             // nothing comes back
+            Assert.Equal(OtherTaskId, f.Task_.ActiveBehaviorHash);
+        }
+
+        [Fact]
+        public void CE2078_AReactionOverTheIdleChoice_PausesNothing_AndAReactionThatClearsItself_RestartsTheTask()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task2", BehaviorOrigin.Sop);                         // the SOP's idle choice
+            f.React("SopT_Cover", ReactionUrgency.Alert);
+            Assert.Equal(LongReactionId, f.Task_.ActiveBehaviorHash);
+            Assert.Null(f.Paused);                                            // the SOP chooses again when it wakes
+
+            f.Task("SopT_Task", BehaviorOrigin.Superior);                     // an order ends the reaction
+            f.React("SopT_Cover", ReactionUrgency.Alert);                     // a new one pauses THAT task
+            f.World.Bus.Publish(new ClearBehaviorEvent { Entity = f.Unit, Origin = BehaviorOrigin.Self });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);                               // the reaction ends itself…
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);                               // …and the task is back
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Superior, f.Task_.Origin);
+        }
+
+        // ── ⭐ CE-2141 (D2, docs/DESIGN_Orders_Params_Entity_Classes.md §7) — a clear that NAMES a behaviour; a run's orders end with it ──
+
+        private static void NamedClear(Fixture f, int hash, BehaviorOrigin origin)
+        {
+            f.World.Bus.Publish(new ClearBehaviorEvent { Entity = f.Unit, Origin = origin, OnlyBehaviorHash = hash });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);
+        }
+
+        /// <summary>⭐ D2-C — a named clear ends the behaviour it names when that one runs; any other (a newer order) is left alone.
+        /// An unnamed clear is unchanged.</summary>
+        [Fact]
+        public void CE2141_ANamedClear_EndsThatBehaviourWhenItRuns_AndLeavesAnyOtherAlone()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            NamedClear(f, OtherTaskId, BehaviorOrigin.Superior);                 // a newer order replaced the one it names
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);
+
+            NamedClear(f, TaskId, BehaviorOrigin.Superior);
+            Assert.Equal(0, f.Task_.ActiveBehaviorHash);
+
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            NamedClear(f, 0, BehaviorOrigin.Superior);                          // unnamed: whatever runs, as before
+            Assert.Equal(0, f.Task_.ActiveBehaviorHash);
+        }
+
+        /// <summary>⭐ D2-C — the member is REACTING (its own SOP) over the order a drill gave it: the drill's release drops only the
+        /// paused order; the reaction runs on, and when it ends nothing comes back. A release ranked below the paused order cannot.</summary>
+        [Fact]
+        public void CE2141_ANamedClear_OverAReaction_DropsOnlyThePausedTask_AndTheReactionRunsOn()
+        {
+            var f = new Fixture();
+            using var first = f;
+            f.Task("SopT_Task", BehaviorOrigin.Operator);
+            f.React("SopT_Cover", ReactionUrgency.Hit);
+            NamedClear(f, TaskId, BehaviorOrigin.Superior);                     // ranked below the Operator's paused task: refused
+            Assert.NotNull(f.Paused);
+
+            using var g = new Fixture();                                        // a Superior order this time (a drill's)
+            f = g;
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.React("SopT_Cover", ReactionUrgency.Hit);
+            Assert.Equal(LongReactionId, f.Task_.ActiveBehaviorHash);
+            NamedClear(f, TaskId, BehaviorOrigin.Superior);
+            Assert.Equal(LongReactionId, f.Task_.ActiveBehaviorHash);           // the reaction runs on
+            Assert.Null(f.Paused);                                              // the order is gone
+
+            f.World.Bus.Publish(new ClearBehaviorEvent { Entity = f.Unit, Origin = BehaviorOrigin.Self });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);                                 // the reaction ends itself…
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);
+            Assert.Equal(0, f.Task_.ActiveBehaviorHash);                        // …and nothing resumes
+        }
+
+        private static List<AssignTacticalIntentEvent> Released(Fixture f)
+        {
+            f.World.Bus.SwapBuffers();
+            var r = new List<AssignTacticalIntentEvent>();
+            foreach (var e in f.World.Bus.ReadManaged<AssignTacticalIntentEvent>()) if (e.Kind == TacticalIntentKind.Clear) r.Add(e);
+            return r;
+        }
+
+        /// <summary>⭐⭐ D2-B (AQ90 A5) — the orders a commander's RUN gave its members end with the run, like its sensors: replaced
+        /// from outside ⇒ each member gets a Clear naming what it was told, at the order's origin. A PAUSE releases nothing; the
+        /// pausing reaction's own orders are released when IT ends.</summary>
+        [Fact]
+        public void CE2141_ARunsOrdersToItsMembers_EndWithTheRun_NotWithAPause()
+        {
+            using var f = new Fixture();
+            var a = f.World.CreateEntity();
+            var b = f.World.CreateEntity();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            SubordinateOrders.Record(f.World, f.Unit, a, "AdvanceTo", BehaviorOrigin.Superior);
+            SubordinateOrders.Record(f.World, f.Unit, b, "AdvanceTo", BehaviorOrigin.Superior);
+            SubordinateOrders.Record(f.World, f.Unit, b, "CombatPosture", BehaviorOrigin.Superior);   // b's newer order replaces its record
+
+            f.React("SopT_Cover", ReactionUrgency.Hit);                         // a pause: the task's orders stay
+            Assert.Empty(Released(f));
+            SubordinateOrders.Record(f.World, f.Unit, a, "CombatPosture", BehaviorOrigin.Superior);   // the reaction orders a
+
+            f.World.Bus.Publish(new ClearBehaviorEvent { Entity = f.Unit, Origin = BehaviorOrigin.Self });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);                                 // the reaction ends: ITS order goes
+            var first = Released(f);
+            Assert.Single(first);
+            Assert.Equal(a, first[0].Entity);
+            Assert.Equal("CombatPosture", first[0].IntentId);
+            Assert.Equal(BehaviorOrigin.Superior, first[0].Origin);
+
+            f.Ingress.Execute(f.World, 0.016f);                                 // the task is back (resumed, same run)…
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);
+            f.Task("SopT_Task2", BehaviorOrigin.Superior);                      // …and replaced from outside
+            var second = Released(f);
+            Assert.Single(second);                                              // a's record now belongs to the ended reaction
+            Assert.Equal(b, second[0].Entity);
+            Assert.Equal("CombatPosture", second[0].IntentId);
+            Assert.Null(SubordinateOrders.Of(f.World, f.Unit));
+        }
+
+        // ── ⭐ CE-3172 (M-7, docs/DESIGN_Entity_Control.md §8b) — possession: above every order, pauses, resumes on release ──
+
+        private static void Release(Fixture f)
+        {
+            f.World.Bus.Publish(new ClearBehaviorEvent { Entity = f.Unit, Origin = BehaviorOrigin.Possession });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);   // the possession ends…
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);   // …and the paused task is back
+        }
+
+        [Fact]
+        public void CE3172_APossession_PausesTheOrder_NothingInterruptsIt_AndTheReleaseResumesTheOrder()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Operator);
+            f.Task("SopT_Cover", BehaviorOrigin.Possession);                  // a station takes the unit
+            Assert.Equal(LongReactionId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Possession, f.Task_.Origin);
+            Assert.Equal("SopT_Task", f.Paused!.BehaviorName);
+            Assert.Equal(BehaviorOrigin.Operator, f.Paused.Origin);
+
+            f.Task("SopT_Task2", BehaviorOrigin.Operator);                    // an operator's order cannot take it over
+            f.React("SopT_Duck", ReactionUrgency.Hit);                        // nor can the most urgent reaction
+            Assert.Equal(LongReactionId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(2, f.Ingress.RefusedCount);
+            Assert.NotNull(f.Paused);                                         // and the paused order is still kept
+
+            Release(f);
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);                 // C-4: the earlier task runs again
+            Assert.Equal(BehaviorOrigin.Operator, f.Task_.Origin);
+            Assert.Null(f.Paused);
+        }
+
+        [Fact]
+        public void CE3172_APossession_OverAReaction_KeepsWhatTheReactionPaused()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.React("SopT_Cover", ReactionUrgency.Contact);                   // the task is paused by the reaction
+            f.Task("SopT_Task2", BehaviorOrigin.Possession);                  // possessed during the reaction
+            Assert.Equal(OtherTaskId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal("SopT_Task", f.Paused!.BehaviorName);                // still the TASK, never the reaction
+
+            Release(f);
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Superior, f.Task_.Origin);
+        }
+
+        [Fact]
+        public void CE3172_APossession_OverTheIdleChoice_PausesNothing_AndAnOrdersClearCannotReleaseIt()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task2", BehaviorOrigin.Sop);                         // the SOP's idle choice
+            f.Task("SopT_Cover", BehaviorOrigin.Possession);
+            Assert.Null(f.Paused);                                            // the SOP chooses again after the release
+
+            f.World.Bus.Publish(new ClearBehaviorEvent { Entity = f.Unit, Origin = BehaviorOrigin.Operator });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);
+            Assert.Equal(LongReactionId, f.Task_.ActiveBehaviorHash);         // only the station releases its own hold
+            Assert.Equal(1, f.Ingress.RefusedCount);
+
+            Release(f);
+            Assert.Equal(BehaviorIds.None, f.Task_.ActiveBehaviorHash);
+        }
+
+        [Fact]
+        public void CE2078_AReactionsFinish_SaysItWasAReaction()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.React("SopT_Duck", ReactionUrgency.Hit);
+            f.Brain.Execute(f.World, 0.016f);
+            f.World.Bus.SwapBuffers();
+
+            var origins = new System.Collections.Generic.List<BehaviorOrigin>();
+            foreach (var evt in f.World.Bus.Read<BehaviorFinishedEvent>()) origins.Add(evt.Origin);
+            Assert.Equal(new[] { BehaviorOrigin.Reaction }, origins);         // the mission skips it (MissionDirectorSystemTests)
+        }
+        // ── ⭐ CE-2081 — RESUME instead of restart (docs/DESIGN_Decision_Layer.md §4.9a) ─────────────────────────────────
+
+        [Fact]
+        public void CE2081_AReaction_PausesTheTask_AndItResumesWhereItWas_OnItsOwnToken()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_TwoStep", BehaviorOrigin.Superior);
+            f.Frames(1);                                                       // step 1 done, step 2 running
+            Assert.Equal((1, 1), (_step1, _step2));
+            uint token = f.Task_.InstanceId;
+            var part = f.OwnedPart(token);
+
+            f.React("SopT_Duck", ReactionUrgency.Hit);
+            Assert.True(Fdp.Toolkit.Behavior.Components.RunTokens.IsSide(f.Task_.InstanceId));   // never the task's sequence
+            Assert.True(f.Holds(RootStateAccess.KeyForBehaviour(TwoStepId)));  // its cursor is kept…
+            Assert.True(f.World.IsAlive(part));                                // …and its parts
+
+            f.FrameThenIngress();                                              // the reaction ends ⇒ the task resumes at once
+            Assert.Equal(TwoStepId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(token, f.Task_.InstanceId);
+            Assert.Equal(BehaviorOrigin.Superior, f.Task_.Origin);
+            Assert.Equal(ReactionUrgency.NotAReaction, f.Task_.Urgency);
+            Assert.Null(f.Paused);
+            Assert.True(f.World.IsAlive(part));
+
+            f.Frames(1);
+            Assert.Equal((1, 2), (_step1, _step2));                            // ⭐ step 2 again — NOT a restart from step 1
+        }
+
+        [Fact]
+        public void CE2081_TheResumedToken_IsNeverReused_SoTheNextRunStillFinishes()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.React("SopT_Duck", ReactionUrgency.Hit);
+            f.FrameThenIngress();                                              // reaction finishes (its end is recorded) → resume
+            f.World.Bus.SwapBuffers();
+            f.Task("SopT_Duck", BehaviorOrigin.Superior);                      // an ORDER that finishes on its first tick
+            f.Brain.Execute(f.World, 0.016f);
+            f.World.Bus.SwapBuffers();
+            int ends = 0;
+            foreach (var evt in f.World.Bus.Read<BehaviorFinishedEvent>()) if (evt.Entity.Index == f.Unit.Index) ends++;
+            Assert.Equal(1, ends);                                             // 🔴 a reused token is swallowed by the finish de-dup
+        }
+
+        [Fact]
+        public void CE2081_AReactionThatIsTheTask_IsRefused()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Cover", BehaviorOrigin.Superior);
+            f.React("SopT_Cover", ReactionUrgency.Hit);
+            Assert.Equal(BehaviorOrigin.Superior, f.Task_.Origin);
+            Assert.Null(f.Paused);
+            Assert.Equal(1, f.Ingress.RefusedCount);
+        }
+
+        [Fact]
+        public void CE2081_AnOrderReplacingTheReaction_ReleasesThePausedTasksStorageAndParts()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_TwoStep", BehaviorOrigin.Operator);
+            var part = f.OwnedPart(f.Task_.InstanceId);
+            f.React("SopT_Cover", ReactionUrgency.Hit);
+            Assert.True(f.Holds(RootStateAccess.KeyForBehaviour(TwoStepId)));
+
+            f.Task("SopT_Task2", BehaviorOrigin.Operator);                     // replaces the reaction AND the task
+            Assert.Null(f.Paused);
+            Assert.False(f.Holds(RootStateAccess.KeyForBehaviour(TwoStepId)));
+            Assert.False(f.World.IsAlive(part));
+        }
+
+        [Fact]
+        public void CE2081_AReactionSharingAStorageKeyWithTheTask_FallsBackToRestart()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_SlotTask", BehaviorOrigin.Superior);
+            Assert.True(f.Holds(SharedSlotKey));
+            f.React("SopT_SlotDuck", ReactionUrgency.Hit);
+            Assert.True(f.Paused!.Restart);                                    // it cannot be kept beside the reaction
+            Assert.Empty(f.Paused.HeldKeys);
+
+            f.FrameThenIngress();                                              // the reaction ends ⇒ RESTART through the gate
+            Assert.Equal(SlotTaskId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Superior, f.Task_.Origin);
+            Assert.Null(f.Paused);
+        }
+
+        // ── ⭐ CE-2079 — the two SOP actions (docs/DESIGN_Decision_Layer.md §4.6) ──────────────────────────────────────
+
+        [Fact]
+        public void CE2079_DoWhenIdle_StartsTheIdleChoiceOnce_AndDoesNotRestartItEveryWake()
+        {
+            using var f = new Fixture();
+            f.Sop("SopT_IdleSop", BehaviorOrigin.Superior);
+            f.FrameThenIngress();
+
+            Assert.Equal(OtherTaskId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Sop, f.Task_.Origin);
+            uint run = f.Task_.InstanceId;
+
+            for (int i = 0; i < 31; i++) f.FrameThenIngress();                  // ~0.5 s: the SOP re-reads its tree twice
+            Assert.True(_sopTicks >= 3);
+            Assert.Equal(run, f.Task_.InstanceId);                             // same run — never re-published
+        }
+
+        [Fact]
+        public void CE2079_DoWhenIdle_UnderAnOrder_PublishesNothing_SoTheSopDoesNotWakeItself()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.Sop("SopT_IdleSop", BehaviorOrigin.Superior);
+            for (int i = 0; i < 31; i++) f.FrameThenIngress();
+
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(0, f.Ingress.RefusedCount);                           // nothing reached the gate to be refused
+            Assert.InRange(_sopTicks, 2, 4);                                   // every 0.2 s, not every frame (R-195 wake loop)
+        }
+
+        [Fact]
+        public void CE2079_React_PausesTheTask_AndIsNotRepeatedWhileTheReactionRuns()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.Sop("SopT_ReactSop", BehaviorOrigin.Superior);
+            f.FrameThenIngress();
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);                  // not hit: the row fails, nothing happens
+
+            _wasHit = true;
+            f.World.GetComponentRW<SopState>(f.Unit).SopWake = 1;              // a sensing change wakes it (R-195)
+            f.FrameThenIngress();
+            Assert.Equal(LongReactionId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Reaction, f.Task_.Origin);
+            Assert.Equal("SopT_Task", f.Paused!.BehaviorName);
+            uint run = f.Task_.InstanceId;
+
+            for (int i = 0; i < 31; i++) f.FrameThenIngress();                 // still "hit" on every wake
+            Assert.Equal(run, f.Task_.InstanceId);                             // the reaction was not restarted
+            Assert.Equal(0, f.Ingress.RefusedCount);
+            // ⭐ and the row SUCCEEDS while its reaction runs — a Selector stops there instead of falling to lower rows
+            using (BrainSlotScope.Enter(f.Unit, ReactingSopId, f.SopState.SopInstanceId))
+                Assert.Equal(NodeStatus.Success, SopActions.React(f.World, f.Unit, "SopT_Cover", ReactionUrgency.Hit, "{}"));
+        }
+
+        [Fact]
+        public void CE2079_React_UnderStayOnTask_IsAFailure_AndPublishesNothing()
+        {
+            using var f = new Fixture();
+            f.World.AddComponent(f.Unit, new Roe { Reactions = RoeReactions.StayOnTask, SetBy = BehaviorOrigin.Superior });
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.Sop("SopT_ReactSop", BehaviorOrigin.Superior);
+            _wasHit = true;
+            using (BrainSlotScope.Enter(f.Unit, ReactingSopId, f.SopState.SopInstanceId))
+                Assert.Equal(NodeStatus.Failure,
+                    SopActions.React(f.World, f.Unit, "SopT_Cover", ReactionUrgency.Hit, "{}"));   // a Selector tries its next row
+            for (int i = 0; i < 31; i++) f.FrameThenIngress();
+
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(0, f.Ingress.RefusedCount);
+        }
+
+        private struct CoverParams
+        {
+            public float Radius;
+            public int Rounds;
+            public Fdp.Toolkit.Replication.EntityRef Threat;
+            public FixedString32 Posture;
+            public ReactionUrgency Level;
+        }
+
+        [Fact]
+        public void CE2079_Params_RoundTrip_ThroughTheCuratedParsePath()
+        {
+            var sent = new CoverParams { Radius = 12.5f, Rounds = 3, Threat = new Fdp.Toolkit.Replication.EntityRef(77), Posture = "prone", Level = ReactionUrgency.UnderFire };
+            string json = SopActions.ToJson(sent);
+
+            // ⭐ the curated parse: FromBlockResolver deserialises with BehaviorParams.JsonOptions (identity resolve)
+            var parse = BehaviorParams.FromBlockResolver<CoverParams, CoverParams>((in CoverParams a, ref CoverParams b, EntityRepository w, Entity e) => b = a);
+            CoverParams got = default;
+            using var world = TestWorldFactory.Create();
+            parse(json, (byte*)&got, sizeof(CoverParams), world, default);
+
+            Assert.Equal(sent.Radius, got.Radius);
+            Assert.Equal(sent.Rounds, got.Rounds);
+            Assert.Equal(sent.Threat, got.Threat);
+            Assert.Equal(sent.Posture, got.Posture);
+            Assert.Equal(sent.Level, got.Level);
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3337 — the run-token counter follows the world across a restore (a branch from a replay included): after the restore's
+        /// first step the next token is the one after the world's recorded count, not the one after this PROCESS's — the ONE shared protocol
+        /// (<c>ResumableCounter</c>) the navigation handles use. 🔴 Before: a branch numbered its next run from the original live run's count
+        /// (the coordinator's H3: a behaviour <c>InstanceId</c> 2147483652 where the straight run had 2147483651).
+        /// </summary>
+        [Fact]
+        public void CE3337_After_a_restore_the_next_run_token_follows_the_worlds_recorded_count()
+        {
+            using var world = TestWorldFactory.Create();
+            var ingress = new BehaviorIngressSystem(new BehaviorRegistry());
+            int recorded = RunTokens.Last + 7;
+            for (int i = 0; i < 40; i++) RunTokens.Next();   // this process ran on past the recorded frame
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 5.0 });
+            world.SetSingletonUnmanaged(new RunTokenMark { Last = recorded, At = (SimInstant)5.0 });
+            Fdp.Toolkit.Replication.Services.WorldEpoch.Restored(world);
+
+            ingress.Execute(world, 0f);                                     // a paused frame: undecided, the copy kept
+            Assert.Equal(recorded, world.GetSingletonUnmanaged<RunTokenMark>().Last);
+            ingress.Execute(world, 1f / 60f);                               // the first step
+            Assert.Equal(0x8000_0000u | (uint)(recorded + 1), RunTokens.Next());   // ⭐ numbered on from the world's count
+        }
+    }
+}

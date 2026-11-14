@@ -1,0 +1,156 @@
+using System.Linq;
+using Fdp.Core;
+using Fdp.Interfaces;
+using Fdp.Toolkit.Replication.Abstractions;
+using Fdp.Toolkit.Tkb.Domain;
+using Hrot.Map.Common;
+using Hrot.Network.Replication;
+using Hrot.Network.Routing;
+using Xunit;
+using EDescriptorType = Hrot.NED.Descriptors.EDescriptorType;
+
+namespace Hrot.Network.NED.Tests;
+
+/// <summary>
+/// ⭐⭐⭐ <b>S3 — the creator grants each applicable ROLE GROUP to a node of that role</b> (push-only, R-164).
+/// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §2 G-1/G-4/G-5/G-6, §5.2. The production table and the NED
+/// descriptor binding are used as-is, so a change to either that alters who gets what reddens a row here.
+/// </summary>
+public sealed class RoleGroupOwnershipStrategyTests
+{
+    private const int SimHost = 1, Cgf = 400, Player = 300;
+
+    private static long D(EDescriptorType d) => (long)d;
+    private static readonly long[] Brain = { D(EDescriptorType.dtEntityDamage), D(EDescriptorType.dtEntityMission),
+        D(EDescriptorType.dtNavigationIntent), D(EDescriptorType.dtSensorConfig), D(EDescriptorType.dtEqsSensorConfig),
+        D(EDescriptorType.dtBrainIntent),     // ⭐ CE-3048 — the AI intent is granted with the Brain
+        D(EDescriptorType.dtStanceIntent),    // ⭐ CE-2121 — the body-stance request
+        D(EDescriptorType.dtWeaponTask),      // ⭐ CE-1049 WL-2 (R-261) — the weapon brain's standing order to a turret
+        D(EDescriptorType.dtWeaponPosture),   // ⭐ WL-6 (W-13, R-272) — the weapon brain's posture (ui lane; pinned here at the backend merge)
+        D(EDescriptorType.dtManualDrive),     // ⭐ CE-3173 S4e — an operator's motion axes
+        D(EDescriptorType.dtPossessedBy),     // ⭐ CE-3172 S4e — who holds the unit
+        D(EDescriptorType.dtWeaponAmmo),     // ⭐ CE-3174 — the ammunition per mount
+        D(EDescriptorType.dtPassengerBuffer),   // ⭐ CE-3110 I-2b — a vehicle's passenger list (the brain arbitrates boarding, R-224)
+        D(EDescriptorType.dtWeaponSystemState),   // ⭐ WS-1 (R-136) — a weapon system's deploy state (pinned at IF-1: WS-1 missed this rail)
+        D(EDescriptorType.dtPartDamage),   // ⭐ CE-3210 (HL-6) — the damage per body part, beside Health
+        D(EDescriptorType.dtScenarioClock),   // ⭐ CE-3216 S1-0 — the World Environment's clock (its creating Brain)
+        D(EDescriptorType.dtWeather),         // ⭐ CE-3216 S1 — authored weather (global and regional)
+        D(EDescriptorType.dtOperatorUseStatus),     // ⭐ CE-1153 — the brain's verdict on a use press
+        D(EDescriptorType.dtEffectState),           // ⭐ CE-3219 — a person's non-lethal effects
+        D(EDescriptorType.dtGesture),               // ⭐ CE-3224 — a person's gesture
+        D(EDescriptorType.dtHostileAct),            // ⭐ CE-3238 — a man's hostile act
+        D(EDescriptorType.dtCustody),               // ⭐ CE-3256 — a man in custody
+        D(EDescriptorType.dtLean),                  // ⭐ CE-3257 — a man leaning
+        D(EDescriptorType.dtCombatProficiency),     // ⭐ CE-3259 — what a soldier CAN do
+        D(EDescriptorType.dtEngagementArea),        // ⭐ CE-3261 — a sector
+        D(EDescriptorType.dtUtterance),             // ⭐ CE-3264 — speech
+        D(EDescriptorType.dtDemeanour),             // ⭐ CE-3265 — mood
+        D(EDescriptorType.dtObjectiveStatus),     // ⭐ rules S1-a — an objective's status (its own Brain)
+        D(EDescriptorType.dtExerciseResult),      // ⭐ rules S2-e — the exercise's phase and outcome (the World Environment's Brain)
+        D(EDescriptorType.dtRuleLeaves) };      // ⭐ rules V-3 — a trigger's when-leaves with their live values (its owning Brain)
+    private static readonly long[] Muscle     = { D(EDescriptorType.dtWorldPos), D(EDescriptorType.dtNavigationStatus),
+        D(EDescriptorType.dtStanceStatus),    // ⭐ CE-2121 — the body's stance report
+        D(EDescriptorType.dtTurretPose),      // ⭐ CE-1049 WL-1b — the turret pose, Muscle-owned
+        D(EDescriptorType.dtWeaponTaskStatus),   // ⭐ CE-1049 WL-2 — the weapon muscle's report
+        D(EDescriptorType.dtHitMarks),   // ⭐ CE-3210 (HL-8) — where the rounds struck, written by the muscle
+        D(EDescriptorType.dtDescent),   // ⭐ airborne insertion B-1 (D-1) — a body coming down, moved with its position
+        D(EDescriptorType.dtLookState),
+        D(EDescriptorType.dtSpawnLevel),   // ⭐ CE-3271 (Q94 D) — the birth level travels with the position
+        D(EDescriptorType.dtUnderFire) };  // ⭐ CE-1223 — when a man was last under fire, stamped on the Muscle
+    private static readonly long[] Perception = { D(EDescriptorType.dtEqsResult) };
+
+    private static RoleGroupOwnershipStrategy Strategy(bool withBrain = true, bool withMuscle = true)
+    {
+        var cache = new SimpleClusterStateCache();
+        if (withMuscle)
+            cache.UpdateNode(new NodeCapability { NodeId = (Fdp.Core.NodeId)(SimHost), Role = NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver });
+        if (withBrain)
+            cache.UpdateNode(new NodeCapability { NodeId = (Fdp.Core.NodeId)(Cgf), Role = NodeRole.Brain });
+        cache.UpdateNode(new NodeCapability { NodeId = (Fdp.Core.NodeId)(Player), Role = NodeRole.Map2D });
+        return new RoleGroupOwnershipStrategy(cache, HrotOwnershipGroups.Table, NedOwnershipGroupBinding.GroupDescriptors);
+    }
+
+    private static TkbTemplate Tank()
+    {
+        var t = new TkbTemplate("tank", 3);
+        t.AddDescriptor(new BehaviorProfileDto { BrainTier = 1 });
+        t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 1000f });
+        t.AddDescriptor(new VehicleParametersDto());
+        return t;
+    }
+
+    private static long[] To(System.Collections.Generic.IReadOnlyList<Fdp.Toolkit.NetworkSpawning.Events.DescriptorGrant> g, int node)
+        => g.Where(x => x.NodeId == node).Select(x => x.DescriptorTypeId).OrderBy(x => x).ToArray();
+
+    /// <summary>⭐ CE-500: SimHost creates a tank ⇒ the brain group goes to CGF; SimHost keeps what it serves.</summary>
+    [Fact]
+    public void SimHostCreatesATank_TheBrainGroupGoesToTheBrainNode()
+    {
+        var grants = Strategy().GetInitialGrants(new GrantRequest(default, Tank(), SimHost));
+
+        Assert.Equal(Brain.OrderBy(x => x), To(grants, Cgf));
+        Assert.Empty(To(grants, SimHost));   // G-5: Muscle and Perception are served by the creator itself
+        Assert.Equal(Brain.Length, grants.Count);
+    }
+
+    [Fact]
+    public void PlayerCreatesATank_EachGroupGoesToItsRole()
+    {
+        var grants = Strategy().GetInitialGrants(new GrantRequest(default, Tank(), Player));
+
+        Assert.Equal(Brain.OrderBy(x => x), To(grants, Cgf));
+        Assert.Equal(Muscle.Concat(Perception).OrderBy(x => x), To(grants, SimHost));
+    }
+
+    [Fact]
+    public void CgfCreatesATank_KeepsTheBrain_GrantsKinematicsAndPerception()
+    {
+        var grants = Strategy().GetInitialGrants(new GrantRequest(default, Tank(), Cgf));
+
+        Assert.Empty(To(grants, Cgf));
+        Assert.Equal(Muscle.Concat(Perception).OrderBy(x => x), To(grants, SimHost));
+    }
+
+    /// <summary>⭐ R-175: no kinematics, no brain ⇒ no group applies; the creator owns it, position included.</summary>
+    [Fact]
+    public void ATacticalSymbol_GrantsNothing()
+        => Assert.Empty(Strategy().GetInitialGrants(new GrantRequest(default, new TkbTemplate("area", 9), Cgf)));
+
+    /// <summary>⭐ R-175: a composite unit has a brain but no kinematics ⇒ only the brain moves; the position stays.</summary>
+    [Fact]
+    public void ACompositeUnit_GrantsTheBrainOnly()
+    {
+        var platoon = new TkbTemplate("platoon", 10);
+        platoon.AddDescriptor(new BehaviorProfileDto { BrainTier = 1 });
+
+        var grants = Strategy().GetInitialGrants(new GrantRequest(default, platoon, Player));
+
+        Assert.Equal(Brain.OrderBy(x => x), To(grants, Cgf));
+        Assert.DoesNotContain(grants, g => g.DescriptorTypeId == D(EDescriptorType.dtWorldPos));
+    }
+
+    [Fact]
+    public void ABrainlessVehicle_GrantsNoBrainGroup()
+    {
+        var truck = new TkbTemplate("truck", 11);
+        truck.AddDescriptor(new BehaviorProfileDto { BrainTier = 0 });
+        truck.AddDescriptor(new VehicleParametersDto());
+
+        var grants = Strategy().GetInitialGrants(new GrantRequest(default, truck, Player));
+
+        Assert.Empty(To(grants, Cgf));
+        Assert.Equal(Muscle.OrderBy(x => x), To(grants, SimHost));
+    }
+
+    /// <summary>G-5: with no node serving a role, the creator keeps that group.</summary>
+    [Fact]
+    public void NoNodeServesTheRole_TheCreatorKeepsTheGroup()
+    {
+        var grants = Strategy(withBrain: false).GetInitialGrants(new GrantRequest(default, Tank(), SimHost));
+        Assert.Empty(grants);
+    }
+
+    [Fact]
+    public void NoTemplate_GrantsNothing()
+        => Assert.Empty(Strategy().GetInitialGrants(new GrantRequest(default, null, Player)));
+}

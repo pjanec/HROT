@@ -388,7 +388,7 @@ Runs 14 `IValidator` implementations in sequence:
 | `V_DispatchKindCompatibility`| Library/AiPrimitive/Instance field/event constraints            |
 | `V_NodeStructure`            | Each node has required pins; no duplicate pin IDs               |
 | `V_LinkStructure`            | Links reference existing nodes/pins; no self-loops              |
-| `V_GraphStructure`           | Each graph has exactly one entry node; no unreachable islands   |
+| `V_GraphStructure`           | Each graph has exactly one entry node; no unreachable islands. ⚠ SUPERSEDED for Event graphs by [`DESIGN_Typed_Event_Nodes.md`](../../blueprints/DESIGN_Typed_Event_Nodes.md) (any number of typed event nodes); the code never enforced "exactly one" (it takes the first) |
 | `V_VariablesAndState`        | Unique IDs; non-empty names                                     |
 | `V_AiPrimitiveIntent`        | Action hostings compatible with intent                          |
 | `V_LatentRules`              | Latent nodes not used in pure (non-latent) graphs               |
@@ -542,7 +542,7 @@ public static class ApproachTarget_12345678_Bp
         Entity self, EntityRepository world, float time) { ... }
 
     public static unsafe Fbt.NodeStatus BTreeTick(
-        ref BrainBlackboard bb, ref BTreeState state,
+        ref byte bb, ref BTreeState state,
         ref BTreeContext ctx, int paramIndex) { ... }
     // ...
 }
@@ -957,15 +957,19 @@ public static class ApproachTarget_3F250400_Bp
     }
 
     public static unsafe global::Fbt.NodeStatus BTreeTick(
-        ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb,
+        ref byte bb,
         ref global::Fbt.BehaviorTreeState state,
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
         int paramIndex)
     {
+        // bb: ref byte into the root params occurrence slot (RootParamsAccess.RootRef).
         ref var p  = ref global::System.Runtime.CompilerServices.Unsafe
-            .As<byte, Params>(ref bb.ParamsBuffer[paramIndex]);
+            .As<byte, Params>(ref bb);
+        // WorkingState (when this AiPrimitive is stateful) is a SEPARATE occurrence slot in
+        // the tier ladder, resolved by walking BlueprintTierTable.Ascending -- not the same
+        // base as bb.
         ref var ws = ref global::System.Runtime.CompilerServices.Unsafe
-            .As<byte, WorkingState>(ref bb.WorkingStateBuffer[paramIndex]);
+            .As<byte, WorkingState>(ref workingStateSlotBase);
         var result = TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.Time);
         return result == global::Hrot.Blueprints.Core.Assets.NodeStatus.Success
             ? global::Fbt.NodeStatus.Success

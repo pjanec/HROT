@@ -286,7 +286,7 @@ Added to `FDP/Toolkits/Fdp.Toolkits/Orchestration/Events/ClusterOpIntents.cs`:
 
 ```
 [EventId(9058)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct ExecuteDiagnosticDumpIntent
 {
     public Guid RequestId;

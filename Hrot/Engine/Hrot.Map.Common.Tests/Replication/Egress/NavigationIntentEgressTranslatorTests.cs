@@ -26,6 +26,7 @@ namespace Hrot.Map.Common.Tests.Replication.Egress;
 ///   4. QueryDelta provides the coarse filter: a totally-unchanged entity is never
 ///      yielded, so zero dictionary lookups occur for it.
 /// </summary>
+[Collection("SerialTests")]   // ⭐ it clears the process-wide ComponentTypeRegistry
 public sealed class NavigationIntentEgressTranslatorTests
 {
     // ── Test infrastructure ────────────────────────────────────────────────────
@@ -59,14 +60,14 @@ public sealed class NavigationIntentEgressTranslatorTests
         var writer     = new CapturingWriter();
         var entityMap  = new NetworkEntityMap();
         var geoXform   = new IdentityGeoTransform();
-        var translator = new NavigationIntentEgressTranslator(writer, entityMap, geoXform, localNodeId: 1);
+        var translator = new NavigationIntentEgressTranslator(writer, entityMap, localNodeId: 1);
         return (translator, writer);
     }
 
     private static Entity SpawnAuthoritativeEntity(EntityRepository world, uint netId)
     {
         var e = world.CreateEntity();
-        world.AddComponent(e, new NetworkIdentity(netId));
+        world.AddComponent(e, new NetworkIdentity((int)netId));
         world.AddComponent(e, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
         world.AddComponent(e, new EcsNavigationIntent());
         return e;
@@ -106,6 +107,117 @@ public sealed class NavigationIntentEgressTranslatorTests
         Assert.Single(writer.Publishes);
         Assert.Equal(1u, writer.Publishes[0].IntentId);
         Assert.Equal(ENavigationMode.NAV_DIRECT_POINT, writer.Publishes[0].Mode);
+    }
+
+    /// <summary>
+    /// ⭐ CE-3026 — every navigation mode survives the wire (egress map → ingress map). Before CE-3026 the ingress mapped
+    /// neither RoadGraph (arrived as None ⇒ the vehicle stopped) nor PathToPoint (did not exist ⇒ a cluster drove straight).
+    /// </summary>
+    [Fact]
+    public void EveryMode_RoundTripsTheWire()
+    {
+        foreach (EcsNavMode mode in System.Enum.GetValues(typeof(EcsNavMode)))
+        {
+            var wire = NavigationIntentEgressTranslator.MapMode(mode);
+            Assert.Equal(mode, Hrot.Map.Common.Replication.Ingress.NavigationIntentIngressTranslator.MapMode(wire));
+        }
+    }
+
+    /// <summary>⭐ CE-3026 — a MoveTo (PathToPoint) publishes everything the vehicle side plans with: the layer and backend
+    /// (new on the wire) and the flags / replans / reverse / route handle the wire used to drop.</summary>
+    [Fact]
+    public void PathToPoint_PublishesThePlanningFields()
+    {
+        using var world = CreateWorld();
+        var (translator, writer) = CreateTranslator();
+        var entity = SpawnAuthoritativeEntity(world, netId: 43);
+
+        world.Tick();
+        world.SetComponent(entity, new EcsNavigationIntent
+        {
+            IntentId = 1, Mode = EcsNavMode.PathToPoint, FinalDestination = new Vector3(1f, 2f, 0f),
+            LayerMask = 2, BackendForce = 3, Flags = 4, MaxReplans = 5, ReverseAllowed = 1, RouteHandle = 6,
+        });
+        translator.ScanAndPublish(world);
+
+        var w = Assert.Single(writer.Publishes);
+        Assert.Equal(ENavigationMode.NAV_PATH_TO_POINT, w.Mode);
+        Assert.Equal(2u, w.LayerMask);
+        Assert.Equal((byte)3, w.BackendForce);
+        Assert.Equal((byte)4, w.Flags);
+        Assert.Equal((byte)5, w.MaxReplans);
+        Assert.Equal((byte)1, w.ReverseAllowed);
+        Assert.Equal(6, w.RouteHandle);
+    }
+
+    /// <summary>⭐⭐ CE-2171 (handoff E2; R-169 — <c>RouteEntityId</c> APPENDED to the wire intent) — a FollowRoute publishes the route
+    /// ENTITY, which the motion side resolves to its own compiled path (the local pool id never crosses).</summary>
+    [Fact]
+    public void CE2171_AFollowRoute_PublishesTheRouteEntity()
+    {
+        using var world = CreateWorld();
+        var (translator, writer) = CreateTranslator();
+        var entity = SpawnAuthoritativeEntity(world, netId: 45);
+        world.Tick();
+        world.SetComponent(entity, new EcsNavigationIntent { IntentId = 1, Mode = EcsNavMode.FollowRoute, TrajectoryId = 9, RouteEntityId = 7800 });
+        translator.ScanAndPublish(world);
+        var w = Assert.Single(writer.Publishes);
+        Assert.Equal(7800L, w.RouteEntityId);
+    }
+
+    /// <summary>⭐⭐ CE-2208 — the Brain's hold release is a FLAG on the same command (FollowRouteExecutor writes it without a new
+    /// IntentId): it must cross the wire, and dropping it must cross too. 🔴 Before, the egress keyed on IntentId alone, so a helicopter
+    /// held its Rope stop for ever on a split cluster (live ua-fast-rope-roof). An unchanged intent still publishes nothing.</summary>
+    [Fact]
+    public void CE2208_AFlagOnlyChange_TheHoldRelease_IsPublished()
+    {
+        using var world = CreateWorld();
+        var (translator, writer) = CreateTranslator();
+        var entity = SpawnAuthoritativeEntity(world, netId: 46);
+        world.Tick();
+        var intent = new EcsNavigationIntent { IntentId = 1, Mode = EcsNavMode.FollowRoute, RouteEntityId = 7800 };
+        world.SetComponent(entity, intent);
+        translator.ScanAndPublish(world);
+
+        world.Tick();
+        intent.ReleaseHold = true;
+        world.SetComponent(entity, intent);
+        translator.ScanAndPublish(world);
+        Assert.Equal(2, writer.Publishes.Count);
+        Assert.Equal(1u, writer.Publishes[1].IntentId);
+        Assert.Equal(intent.Flags, writer.Publishes[1].Flags);
+
+        world.Tick();
+        translator.ScanAndPublish(world);
+        Assert.Equal(2, writer.Publishes.Count);   // no change, no sample
+
+        world.Tick();
+        intent.ReleaseHold = false;
+        world.SetComponent(entity, intent);
+        translator.ScanAndPublish(world);
+        Assert.Equal(3, writer.Publishes.Count);   // the level drops — and that crosses too
+        Assert.Equal((byte)0, writer.Publishes[2].Flags);
+    }
+
+    /// <summary>⭐ CE-3026 — a STOP (Mode None with a new IntentId, as MoveToExecutor.OnExit writes) crosses the wire;
+    /// only the never-commanded default (IntentId 0) stays silent.</summary>
+    [Fact]
+    public void Stop_IsPublished_AfterACommand()
+    {
+        using var world = CreateWorld();
+        var (translator, writer) = CreateTranslator();
+        var entity = SpawnAuthoritativeEntity(world, netId: 44);
+
+        world.Tick();
+        world.SetComponent(entity, new EcsNavigationIntent { IntentId = 1, Mode = EcsNavMode.PathToPoint });
+        translator.ScanAndPublish(world);
+        world.Tick();
+        world.SetComponent(entity, new EcsNavigationIntent { IntentId = 2, Mode = EcsNavMode.None });
+        translator.ScanAndPublish(world);
+
+        Assert.Equal(2, writer.Publishes.Count);
+        Assert.Equal(ENavigationMode.NAV_NONE, writer.Publishes[1].Mode);
+        Assert.Equal(2u, writer.Publishes[1].IntentId);
     }
 
     /// <summary>
@@ -213,20 +325,21 @@ public sealed class NavigationIntentEgressTranslatorTests
     }
 
     /// <summary>
-    /// An entity with Mode = None must never be published, even if its chunk was
-    /// dirtied and its IntentId has not been recorded.
+    /// A NEVER-COMMANDED entity (default intent: Mode None, IntentId 0) is never published, even if its chunk was dirtied
+    /// (the case <c>.dev/_DONE/navig-2/reports/BATCH-02-REPORT.md</c>:49 added the guard for). ⭐ CE-3026 narrowed the guard:
+    /// a Mode None WITH an IntentId is a STOP and IS published (<see cref="Stop_IsPublished_AfterACommand"/>) — BD1-DESIGN
+    /// §1.1: the Brain's OnExit stop must reach the Muscle or "the muscle keeps driving forever".
     /// </summary>
     [Fact]
-    public void ModeNone_NeverPublished()
+    public void NeverCommanded_NotPublished()
     {
         using var world = CreateWorld();
         var (translator, writer) = CreateTranslator();
 
         var entity = SpawnAuthoritativeEntity(world, netId: 5);
 
-        // Write a Mode=None intent (e.g., MoveToExecutor.OnExit).
         world.Tick();
-        world.SetComponent(entity, new EcsNavigationIntent { IntentId = 3, Mode = EcsNavMode.None });
+        world.SetComponent(entity, new EcsNavigationIntent { IntentId = 0, Mode = EcsNavMode.None, TargetSpeed = 3f });
         translator.ScanAndPublish(world);
 
         Assert.Empty(writer.Publishes);

@@ -14,6 +14,7 @@ using Fdp.ModuleHost.Abstractions;
 
 using EcsNavigationIntent = Fdp.Toolkit.Navigation.NavigationIntent;
 using EcsNavMode          = Fdp.Toolkit.Navigation.NavigationMode;
+using NodeId = Fdp.Core.NodeId;
 
 namespace Hrot.Map.Common.Replication.Egress
 {
@@ -24,10 +25,11 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class NavigationIntentEgressTranslator : IDescriptorTranslator
     {
-        private readonly IDdsWriter<Hrot.NED.Descriptors.NavigationIntent> _writer;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the instances it deletes on a destruction, a wipe or (as an
+        //   unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<Hrot.NED.Descriptors.NavigationIntent> _instances;
         private readonly NetworkEntityMap _entityMap;
-        private readonly IGeographicTransform _geoTransform;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
         // Tracks the tick of the last scan so QueryDelta can skip unchanged chunks.
         private uint _lastScanTick;
         // Fine-grained per-entity change filter: stores the last-published IntentId so that
@@ -35,10 +37,13 @@ namespace Hrot.Map.Common.Replication.Egress
         // without any executor coupling or shadow ECS component.
         // Key = full Entity handle (Index + Generation), Value = last IntentId that was
         // published to DDS for that exact entity instance.
-        private readonly System.Collections.Generic.Dictionary<Entity, uint> _lastPublishedIntentId
-            = new System.Collections.Generic.Dictionary<Entity, uint>();
+        // ⭐ CE-2208 — the fingerprint is (IntentId, Flags): a FLAG change on the same command must cross too. The Brain's hold release
+        //   (FlagBitReleaseHold, FollowRouteExecutor — a level, written without a new IntentId) never left the Brain node before, so on a
+        //   split cluster a helicopter held its Rope / Unload / Drop stop for ever (live ua-fast-rope-roof, 2026-10-16).
+        private readonly System.Collections.Generic.Dictionary<Entity, (uint IntentId, byte Flags)> _lastPublishedIntentId
+            = new System.Collections.Generic.Dictionary<Entity, (uint IntentId, byte Flags)>();
 
-        public string TopicName      => "NavigationIntent";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<Hrot.NED.Descriptors.NavigationIntent>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationIntent;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -51,10 +56,9 @@ namespace Hrot.Map.Common.Replication.Egress
         public NavigationIntentEgressTranslator(
             DdsParticipant      dds,
             NetworkEntityMap    entityMap,
-            IGeographicTransform geoTransform,
-            long localNodeId)
-            : this(new DdsWriterAdapter<Hrot.NED.Descriptors.NavigationIntent>(dds, "NavigationIntent"),
-                   entityMap, geoTransform, localNodeId)
+            int localNodeId)
+            : this(new DdsWriterAdapter<Hrot.NED.Descriptors.NavigationIntent>(dds),
+                   entityMap, localNodeId)
         {
         }
 
@@ -65,13 +69,13 @@ namespace Hrot.Map.Common.Replication.Egress
         internal NavigationIntentEgressTranslator(
             IDdsWriter<Hrot.NED.Descriptors.NavigationIntent> writer,
             NetworkEntityMap    entityMap,
-            IGeographicTransform geoTransform,
-            long localNodeId)
+            int localNodeId)
         {
-            _writer       = writer       ?? throw new System.ArgumentNullException(nameof(writer));
+            if (writer is null) throw new System.ArgumentNullException(nameof(writer));
+            _instances = new(s => writer.Write(s), s => writer.DisposeInstance(s), s => writer.UnregisterInstance(s),
+                static key => new Hrot.NED.Descriptors.NavigationIntent { EntityId = (int)key });
             _entityMap    = entityMap    ?? throw new System.ArgumentNullException(nameof(entityMap));
-            _geoTransform = geoTransform ?? throw new System.ArgumentNullException(nameof(geoTransform));
-            _localNodeId  = localNodeId;
+            _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <summary>No ingress for this translator.</summary>
@@ -94,6 +98,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
+            if (_instances.OnFrame(view)) _lastPublishedIntentId.Clear();   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             // QueryDelta is a concrete-repository API; bail out gracefully when view
             // is a snapshot or test double that does not implement it.
             var repo = view as EntityRepository;
@@ -109,8 +114,8 @@ namespace Hrot.Map.Common.Replication.Egress
 
             var query = view.Query()
                 .With<EcsNavigationIntent>()
-                .With<NetworkIdentity>()
-                .WithLifecycle(EntityLifecycle.All)
+                .DefaultRoutePublishable()
+                .WithLifecycle(EntityLifecycle.AllButTearDown)
                 .Build();
 
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
@@ -124,38 +129,44 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 ref readonly var intent = ref view.GetComponentRO<EcsNavigationIntent>(entity);
 
-                // Skip entities with no active navigation command (Mode=None means idle).
-                if (intent.Mode == EcsNavMode.None)
+                // Skip an entity that was never commanded (the default intent). ⭐ CE-3026 — a Mode=None WITH an IntentId is a
+                //   STOP (MoveToExecutor.OnExit, a cancelled behavior) and must cross the wire: it used to be skipped too, so on a
+                //   cluster the vehicle kept driving after the Brain finished or aborted the move (live run 2026-10-03: ~10 m
+                //   past the destination), while in the editor the same stop was applied — two behaviours for one command.
+                if (intent.Mode == EcsNavMode.None && intent.IntentId == 0)
                     continue;
 
-                // 2. Fine-grained per-entity filter: only publish when IntentId changed.
+                // 2. Fine-grained per-entity filter: only publish when IntentId (or, CE-2208, Flags) changed.
                 //    IntentId is incremented by every executor (MoveToExecutor, FollowRouteExecutor,
                 //    etc.) on each new navigation command, making it a zero-coupling change
                 //    fingerprint that needs no MarkDirty calls anywhere in the AI layer.
-                if (_lastPublishedIntentId.TryGetValue(entity, out uint lastId)
-                    && lastId == intent.IntentId)
+                if (_lastPublishedIntentId.TryGetValue(entity, out var last)
+                    && last.IntentId == intent.IntentId && last.Flags == intent.Flags)
                     continue;
 
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 
-                // Convert the 3D Cartesian destination (Sim Z-up) to geodetic (WGS-84) for the
-                // wire format; GeoPoint.Altitude now carries the real destination altitude (P3D-304).
-                var (lat, lon, alt) = _geoTransform.ToGeodetic(intent.FinalDestination);
-
-                _writer.Write(new Hrot.NED.Descriptors.NavigationIntent
+                // ⭐ AQ107 B — the 3D destination (local ENU, Z up — P3D-304) goes onto the wire as it is: a copy.
+                _instances.Write(netId.Value, new Hrot.NED.Descriptors.NavigationIntent
                 {
-                    EntityId         = (int)netId.Value,
+                    EntityId         = netId.Value,
                     IntentId         = intent.IntentId,
                     Mode             = MapMode(intent.Mode),
-                    FinalDestination = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt },
+                    FinalDestination = Hrot.Map.Common.Replication.Utils.EnuWire.ToWire(intent.FinalDestination),
                     TargetSpeed      = intent.TargetSpeed,
                     ArrivalRadius    = intent.ArrivalRadius,
-                    RouteHandle      = intent.RouteHandle
+                    RouteHandle      = intent.RouteHandle,
+                    LayerMask        = intent.LayerMask,
+                    BackendForce     = intent.BackendForce,
+                    Flags            = intent.Flags,
+                    MaxReplans       = intent.MaxReplans,
+                    ReverseAllowed   = intent.ReverseAllowed,
+                    RouteEntityId    = intent.RouteEntityId,   // ⭐ CE-2171
                 });
 
                 SentSampleCount++;
                 // Record the published IntentId so the same command is not resent next frame.
-                _lastPublishedIntentId[entity] = intent.IntentId;
+                _lastPublishedIntentId[entity] = (intent.IntentId, intent.Flags);
 
                 FdpLog<NavigationIntentEgressTranslator>.Trace(
                     "[Node-{0}] NavigationIntent egress: EntityId={1} IntentId={2} Mode={3}",
@@ -171,16 +182,31 @@ namespace Hrot.Map.Common.Replication.Egress
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <summary>No DDS dispose needed for navigation intent.</summary>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId)
+        {
+            if (_entityMap.TryGetEntity(networkEntityId, out var entity)) _lastPublishedIntentId.Remove(entity);
+            _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — a destroyed entity's intent is deleted on the wire
+        }
+
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
+        public void ReleaseInstance(int networkEntityId, long instanceId)
+        {
+            if (_entityMap.TryGetEntity(networkEntityId, out var entity)) _lastPublishedIntentId.Remove(entity);
+            _lastScanTick = 0;   // the next scan looks at every chunk again, so a reclaimed intent is republished
+            _instances.Release(networkEntityId);
+        }
 
         // â”€â”€ Enum mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-        private static ENavigationMode MapMode(EcsNavMode mode) => mode switch
+        internal static ENavigationMode MapMode(EcsNavMode mode) => mode switch
         {
             EcsNavMode.DirectPoint   => ENavigationMode.NAV_DIRECT_POINT,
             EcsNavMode.FollowRoute   => ENavigationMode.NAV_FOLLOW_ROUTE,
             EcsNavMode.JoinFormation => ENavigationMode.NAV_JOIN_FORMATION,
             EcsNavMode.RoadGraph     => ENavigationMode.NAV_ROAD_GRAPH,
+            EcsNavMode.PathToPoint   => ENavigationMode.NAV_PATH_TO_POINT,
+            EcsNavMode.Manual        => ENavigationMode.NAV_MANUAL,   // ⭐ CE-3173
+            EcsNavMode.Traffic       => ENavigationMode.NAV_TRAFFIC,  // ⭐ AQ93 R-4023
             _                        => ENavigationMode.NAV_NONE,
         };
     }

@@ -1,0 +1,260 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "roadblock-street",
+    "description": "What: CE-6003 (city battle O-1, docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md §5, docs/DESIGN_Peek_And_Fire.md §9.9) - on the roadblock-street feature terrain a 3 m wall at x = 100 has one 6 m gate (y 47..53), closed by a roadblock: a concrete barrier (type 8808, 600 hp) sized 6 x 1 x 1 m (a per-instance ObstacleShape) across the gate. 'Charge Man' walks to (98.9, 47.3), 0.6 m off its west face at the gate's south end, and sets off his 8 kg demolition charge: the barrier loses its Health in the one burst (800), its Health owner removes it (the ELM teardown), and every node's obstacle bake rebakes the world, cover and navmesh without it. 'IFV' holds at (60, 51.5) for 40 s (a MoveToLocation onto its own spot, ended by a 40 s timer) and is then ordered to (150, 51.5) on the far side, which it reaches. Before the burst no ground path joins the two halves. ⚠ Measured: on the way the IFV swerves round the charge man's body (4 m off its line) and crosses the wall line ~7 m north of the gate, THROUGH the concrete — vehicle avoidance leaves the navmesh (CE-6014, not this feature). Its route is still the proof that the gate opened: before the removal no vehicle path exists, and an unplannable route never starts. Judge: see checks.json. Rails: Hrot.ClusterRunner.Integration.Tests RoadblockBlastScenarioTests; the replay seek: Hrot.ReplayBrowser.Tests ObstacleRemovalReplayTests."
+  },
+  "entities": {
+    "c6003000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          100,
+          50,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8808
+      },
+      "EntityInfo": {
+        "Name": "Roadblock"
+      },
+      "ObstacleShape": {
+        "Length": 6,
+        "Width": 1,
+        "Height": 1
+      }
+    },
+    "c6003000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          86,
+          44,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Charge Man",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "c6003000-0000-4000-8000-000000000100",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {
+                "speed": 1.5,
+                "arrivalRadius": 0.3,
+                "target": [
+                  98.9,
+                  47.3,
+                  0
+                ]
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "c6003000-0000-4000-8000-000000000101",
+              "executingEngine": "",
+              "behaviorName": "DetonateCharge",
+              "behaviorParams": {
+                "Seconds": 1
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "c6003000-0000-4000-8000-000000000102",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "c6003000-0000-4000-8000-000000000005"
+        ],
+        "Seats": [
+          3
+        ]
+      }
+    },
+    "c6003000-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          86,
+          44,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 618
+      },
+      "EntityInfo": {
+        "Name": "Demolition Charge",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "c6003000-0000-4000-8000-000000000004",
+        "Seat": 3
+      }
+    },
+    "c6003000-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          60,
+          51.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "EntityInfo": {
+        "Name": "IFV",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 500,
+        "Max": 500
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "c6003000-0000-4000-8000-000000000110",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {
+                "speed": 2,
+                "arrivalRadius": 3,
+                "target": [
+                  60,
+                  51.5,
+                  0
+                ]
+              },
+              "triggers": [
+                {
+                  "type": "TimerElapsed",
+                  "params": "40"
+                }
+              ]
+            },
+            {
+              "taskId": "c6003000-0000-4000-8000-000000000111",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {
+                "speed": 4,
+                "arrivalRadius": 3,
+                "target": [
+                  150,
+                  51.5,
+                  0
+                ]
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "c6003000-0000-4000-8000-000000000112",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {
+                "speed": 2,
+                "arrivalRadius": 3,
+                "target": [
+                  150,
+                  51.5,
+                  0
+                ]
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -17,6 +17,13 @@ namespace Fdp.Examples.Scenarios.Tests
         /// <param name="maxTicks">Tick budget — returns 2 if this is exceeded.</param>
         /// <param name="dt">Fixed simulation delta in seconds (default 1/60 s).</param>
         /// <returns>0 on success, 1 on assertion failure, 2 on timeout.</returns>
+        /// <summary>
+        /// ⭐ The diagnostic of the most recent failing <see cref="Run"/>, or null.
+        /// ⚠ Static, so it is only meaningful immediately after the call that set it — enough for an
+        /// assertion message, which is all it is for.
+        /// </summary>
+        public static string? LastFailure { get; private set; }
+
         public static int Run(IScenario scenario, int maxTicks = 500, float dt = 1.0f / 60.0f)
         {
             int capturedCode = -1;
@@ -41,6 +48,7 @@ namespace Fdp.Examples.Scenarios.Tests
             orch.Run();      // Blocks until sub calls orch.Stop() via exit callback.
             orch.Shutdown();
 
+            LastFailure = sub.LastFailure;
             return capturedCode;
         }
     }

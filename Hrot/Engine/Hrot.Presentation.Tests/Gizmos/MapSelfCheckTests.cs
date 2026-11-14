@@ -1,0 +1,349 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
+using Fdp.Core;
+using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
+using Fdp.Toolkit.Replication.Components;
+using Hrot.ScenarioEditor.Map;
+using Xunit;
+
+namespace Hrot.Presentation.Tests.Gizmos
+{
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-23</c> <c>S3</c> — the rails for declare-and-report.</b>
+    /// 📄 Design: <c>docs/UX/UX_Feature_Map_Parity.md</c> ⭐ **§3.2e**.
+    ///
+    /// <para>🔴 <b>The headline rail is <see cref="TheSelfCheck_ReportsTheExactCE123Shape"/>.</b> It builds
+    /// the map exactly as SimHost had it — every system present, scheduled and enabled, with a selection
+    /// predicate reaching the stateless system — and asserts the map now SAYS SO. That configuration went
+    /// unreported for weeks.</para>
+    /// </summary>
+    public sealed class MapSelfCheckTests : IDisposable
+    {
+        private readonly EntityRepository _world;
+
+        public MapSelfCheckTests()
+        {
+            _world = new EntityRepository();
+            _world.RegisterComponent<SimTransform>();
+            _world.RegisterComponent<NetworkIdentity>();
+        }
+
+        public void Dispose() => _world.Dispose();
+
+        private Entity Spawn(int id)
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Position = new Vector3(10f, 20f, 0f) });
+            _world.AddComponent(e, new NetworkIdentity(id));
+            return e;
+        }
+
+        private static void RunFrames(MapInteraction mi, EntityRepository world, int frames)
+        {
+            for (int i = 0; i < frames; i++)
+            {
+                mi.Buffer.Clear();
+                mi.StatelessSystem.Execute(world, 0.016f);
+                mi.SelfCheck.Execute(world, 0.016f);
+            }
+        }
+
+        // ── ① the half that matters: running and silent ────────────────────────────────────────
+
+        /// <summary>
+        /// 🔴🔴🔴 <b>The <c>CE-123</c> configuration, reproduced — and now it reports.</b>
+        ///
+        /// <para>Everything present, scheduled and enabled; one selection predicate reaching
+        /// <c>StatelessGizmoSystem</c>, where it gates every projector at once. That is precisely what
+        /// SimHost looked like: 8 entities, zero entity shapes, and nothing said.</para>
+        /// </summary>
+        [Fact]
+        public void TheSelfCheck_ReportsTheExactCE123Shape()
+        {
+            for (int i = 0; i < 8; i++) Spawn(100 + i);
+
+            var reports = new List<string>();
+
+            // ⚠ Built by hand rather than through the pack ON PURPOSE: the pack no longer ALLOWS this
+            // configuration (MapInteractionContext has no stateless predicate). This rail reconstructs the
+            // defect the pack now prevents, so the diagnostic is proven against the real shape.
+            var buffer   = new DebugPrimitiveBuffer();
+            var registry = new StatelessGizmoRegistry();
+            var settings = new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry();
+            GizmoReflectionRegistrar.RegisterAll(new GizmoRegistry(), registry, settings);
+
+            var gated = new StatelessGizmoSystem(registry, buffer, isSelectedPredicate: (_, _) => false);
+            var selfCheck = new MapSelfCheckSystem(buffer, () => true, reports.Add);
+
+            for (int i = 0; i < MapSelfCheckSystem.GraceFrames + 2; i++)
+            {
+                buffer.Clear();
+                gated.Execute(_world, 0.016f);
+                selfCheck.Execute(_world, 0.016f);
+            }
+
+            Assert.NotEmpty(reports);
+            string message = reports[0];
+            Assert.Contains("RUNNING AND DRAWING NOTHING", message, StringComparison.Ordinal);
+            Assert.Contains("8 entities", message, StringComparison.Ordinal);
+            Assert.Contains("CE-123", message, StringComparison.Ordinal);
+        }
+
+        /// <summary>⭐ A healthy map says nothing at all — the diagnostic must not cry wolf.</summary>
+        [Fact]
+        public void TheSelfCheck_IsSilentWhenTheMapIsDrawing()
+        {
+            for (int i = 0; i < 4; i++) Spawn(200 + i);
+
+            var reports = new List<string>();
+            var mi = MapInteractionPack.Build(new MapInteractionContext
+            {
+                World = _world,
+                StartEnabled = true,
+                ReportMapDiagnostic = reports.Add,
+            });
+
+            RunFrames(mi, _world, MapSelfCheckSystem.GraceFrames + 5);
+
+            Assert.Empty(reports);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>A DISABLED group is legitimately silent</b> — <c>GZH-003</c> headless-first. A headless
+        /// node with no viewer must not be reported as broken, or the diagnostic is noise on every cluster.
+        /// </summary>
+        [Fact]
+        public void TheSelfCheck_SaysNothingWhileTheGateIsShut()
+        {
+            for (int i = 0; i < 8; i++) Spawn(300 + i);
+
+            var reports = new List<string>();
+            var mi = MapInteractionPack.Build(new MapInteractionContext
+            {
+                World = _world,
+                StartEnabled = false,          // headless: nothing attached
+                ReportMapDiagnostic = reports.Add,
+            });
+
+            // The group is off, so in production the systems would not run at all. Drive the self-check
+            // directly to prove it stays quiet even when it IS ticked.
+            for (int i = 0; i < MapSelfCheckSystem.GraceFrames + 5; i++)
+                mi.SelfCheck.Execute(_world, 0.016f);
+
+            Assert.Empty(reports);
+        }
+
+        /// <summary>⭐ An empty world is not a broken map.</summary>
+        [Fact]
+        public void TheSelfCheck_SaysNothingWhenThereAreNoEntities()
+        {
+            var reports = new List<string>();
+            var mi = MapInteractionPack.Build(new MapInteractionContext
+            {
+                World = _world,
+                StartEnabled = true,
+                ReportMapDiagnostic = reports.Add,
+            });
+
+            RunFrames(mi, _world, MapSelfCheckSystem.GraceFrames + 5);
+
+            Assert.Empty(reports);
+        }
+
+        /// <summary>⭐ CE-4388 — a world of DOORS only (a blank imported terrain) is not a broken map: a terrain object has no symbol by design
+        /// (DESIGN_Building_Interiors §3j 5b). 📐 Measured on Windows: a blank scenario on real-1 (3 853 doors, no unit) reported "drawing nothing".
+        /// 🔴 Red-proof (compiles): drop the terrain-object skip in <c>CountEligibleEntities</c> ⇒ the report comes.</summary>
+        [Fact]
+        public void TheSelfCheck_SaysNothingForAWorldOfDoorsOnly()
+        {
+            _world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+            for (int i = 0; i < 3; i++) _world.AddComponent(Spawn(500 + i), new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = $"t/b/d{i}" });
+            var reports = new List<string>();
+            var mi = MapInteractionPack.Build(new MapInteractionContext
+            {
+                World = _world,
+                StartEnabled = true,
+                ReportMapDiagnostic = reports.Add,
+            });
+
+            RunFrames(mi, _world, MapSelfCheckSystem.GraceFrames + 5);
+
+            Assert.Empty(reports);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>It latches, and it reports RECOVERY.</b> A message every frame is a message nobody reads;
+        /// a message that never clears leaves the operator unsure whether the fix worked.
+        /// </summary>
+        [Fact]
+        public void TheSelfCheck_ReportsOnceAndThenReportsRecovery()
+        {
+            var entity = Spawn(400);
+
+            var reports = new List<string>();
+            var buffer = new DebugPrimitiveBuffer();
+            var selfCheck = new MapSelfCheckSystem(buffer, () => true, reports.Add);
+
+            // Broken: eligible entity, no shapes. Runs well past the grace window.
+            for (int i = 0; i < MapSelfCheckSystem.GraceFrames * 3; i++)
+            {
+                buffer.Clear();
+                selfCheck.Execute(_world, 0.016f);
+            }
+            Assert.Single(reports);
+            Assert.Contains("RUNNING AND DRAWING NOTHING", reports[0], StringComparison.Ordinal);
+
+            // Recovered: something draws an entity shape again.
+            for (int i = 0; i < 3; i++)
+            {
+                buffer.Clear();
+                Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmoShared.DrawSemanticShape(
+                    buffer, 400, 0UL, 5f, 2f, conditionMask: 0u);
+                selfCheck.Execute(_world, 0.016f);
+            }
+
+            Assert.Equal(2, reports.Count);
+            Assert.Contains("drawing entity shapes again", reports[1], StringComparison.Ordinal);
+        }
+
+        // ── ② the declare half — narrower, and honestly scoped ─────────────────────────────────
+
+        /// <summary>⭐ A host that scheduled the group services everything the map declares.</summary>
+        [Fact]
+        public void TheDeclareHalf_ReportsNothingWhenTheHostSchedulesTheGroup()
+        {
+            var mi = MapInteractionPack.Build(new MapInteractionContext { World = _world });
+
+            var missing = mi.Unserviceable(mi.InteractionSystems);
+
+            Assert.Empty(missing);
+        }
+
+        /// <summary>
+        /// ⭐⭐ A host that schedules NOTHING gets one named message per required system, each with a
+        /// reason — never a silent no-op.
+        /// </summary>
+        [Fact]
+        public void TheDeclareHalf_NamesEverySystemTheHostDidNotSchedule()
+        {
+            var mi = MapInteractionPack.Build(new MapInteractionContext { World = _world });
+
+            var missing = mi.Unserviceable(Array.Empty<object>());
+
+            Assert.Equal(mi.RequiredSystems.Count, missing.Count);
+            Assert.Contains(missing, m => m.Contains("StatelessGizmoSystem", StringComparison.Ordinal)
+                                       && m.Contains("no entity shapes", StringComparison.Ordinal));
+            Assert.Contains(missing, m => m.Contains("DataDrivenGizmoSystem", StringComparison.Ordinal));
+            Assert.Contains(missing, m => m.Contains("GlobalGizmoManager", StringComparison.Ordinal));
+            Assert.Contains(missing, m => m.Contains("GlobalActionDispatchSystem", StringComparison.Ordinal)
+                                       && m.Contains("map menu actions", StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// 🔴🔴 <b>The honesty rail (§3.2e).</b> The declare half reports NOTHING on the <c>CE-123</c>
+        /// configuration — every system present and scheduled, map blank.
+        ///
+        /// <para>⚠ This rail asserts a LIMITATION on purpose. §3.2a claimed declare-and-report <i>"would
+        /// have caught"</i> that bug; it would not, and a future reader must not rebuild their confidence
+        /// on that sentence. What catches it is <see cref="TheSelfCheck_ReportsTheExactCE123Shape"/>.</para>
+        /// </summary>
+        [Fact]
+        public void TheDeclareHalf_CannotSeeCE123_WhichIsWhyTheSelfCheckExists()
+        {
+            for (int i = 0; i < 8; i++) Spawn(500 + i);
+
+            var mi = MapInteractionPack.Build(new MapInteractionContext
+            {
+                World = _world,
+                StartEnabled = true,
+            });
+
+            // Exactly SimHost's situation: everything it schedules, all systems present.
+            var missing = mi.Unserviceable(mi.InteractionSystems);
+
+            Assert.Empty(missing);
+        }
+
+        /// <summary>⭐ The declared set is the set the pack actually puts in the group.</summary>
+        [Fact]
+        public void TheDeclaredSet_MatchesWhatThePackBuilds()
+        {
+            var mi = MapInteractionPack.Build(new MapInteractionContext { World = _world });
+
+            var scheduled = mi.GizmoGroup.GetSystems().Select(s => s.GetType()).ToHashSet();
+            scheduled.Add(mi.ActionDispatch.GetType());
+            scheduled.Add(mi.DebugStatePatch.GetType());   // ⭐ CE-3123 — the third member of InteractionSystems
+            scheduled.Add(mi.EffectSpawn.GetType());       // ⭐ CE-1042 E2 — the effect systems, members four and five
+            scheduled.Add(mi.WreckSpawn.GetType());        // ⭐ W3 — flames and smoke on a fresh wreck
+            scheduled.Add(mi.Lifespan.GetType());          // ⭐ W1 — the generic lifespan collector
+            scheduled.Add(mi.MenuOrders.GetType());        // ⭐ CE-3169 — the menu orders' follow-up picks
+            scheduled.Add(mi.MenuShortcuts.GetType());     // ⭐ CE-1076 — the keys the unit menu shows
+
+            foreach (Type required in mi.RequiredSystems)
+                Assert.Contains(required, scheduled);
+        }
+
+        // ── the map's actions and layer control — built by the pack for EVERY host ───────────────
+
+        /// <summary>
+        /// ⭐ A host that schedules the gizmo group but forgets the action dispatcher is TOLD — before this,
+        /// CGF and IG had no dispatcher and a map-menu action did nothing, silently.
+        /// </summary>
+        [Fact]
+        public void ForgettingTheActionDispatcher_IsReported()
+        {
+            var mi = MapInteractionPack.Build(new MapInteractionContext { World = _world });
+
+            var missing = mi.Unserviceable(mi.GizmoGroup.GetSystems());
+
+            // ⭐ CE-3123 — the debug-state patch is the other non-group member of InteractionSystems, so it is named too;
+            //   ⭐ CE-1042 E2 — and the effect systems (W1: the lifespan collector; W3: the wreck spawner).
+            //   ⭐ CE-3169 — and the menu orders, whose follow-up pick would never become an order.
+            Assert.Equal(7, missing.Count);
+            Assert.Contains(missing, m => m.Contains("MenuOrders", StringComparison.Ordinal));
+            Assert.Contains(missing, m => m.Contains("MenuShortcuts", StringComparison.Ordinal));   // ⭐ CE-1076
+            Assert.Contains(missing, m => m.Contains("WreckSpawnSystem", StringComparison.Ordinal));
+            Assert.Contains(missing, m => m.Contains("EffectSpawnSystem", StringComparison.Ordinal));
+            Assert.Contains(missing, m => m.Contains("GlobalActionDispatchSystem", StringComparison.Ordinal));
+            Assert.Contains(missing, m => m.Contains("DebugStatePatchSystem", StringComparison.Ordinal));
+        }
+
+        /// <summary>⭐ The pack builds the layer control and wires its menu action, so every host has it.</summary>
+        [Fact]
+        public void ThePack_BuildsTheLayerControl_AndRegistersItsMenuAction()
+        {
+            var mi = MapInteractionPack.Build(new MapInteractionContext { World = _world });
+
+            Assert.NotNull(mi.LayerControl);
+            Assert.True(mi.Actions.TryGetHandler(Hrot.Common.Constants.GlobalActionIds.OpenLayerControl, out _));
+            Assert.Same(mi.ActionDispatch, mi.InteractionSystems[0]);
+            Assert.Same(mi.DebugStatePatch, mi.InteractionSystems[1]);   // ⭐ CE-3123
+            Assert.Same(mi.GizmoGroup, mi.InteractionSystems[2]);
+        }
+
+        /// <summary>⭐ The shared renderer factory registers the layer-control panel schema on every host.</summary>
+        [Fact]
+        public void RegisterGizmoSchemas_RegistersTheLayerControlSchema()
+        {
+            var registry = new GizmoMap.Presentation.GizmoSchemaRegistry();
+
+            MapInteractionPack.RegisterGizmoSchemas(registry);
+
+            Assert.True(registry.TryGet(Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash, out _));
+        }
+
+        /// <summary>⭐ And the self-check ships inside the group, so a host cannot forget to wire it.</summary>
+        [Fact]
+        public void TheSelfCheck_IsTheLastMemberOfTheGroup()
+        {
+            var mi = MapInteractionPack.Build(new MapInteractionContext { World = _world });
+
+            var systems = mi.GizmoGroup.GetSystems();
+
+            Assert.Same(mi.SelfCheck, systems[^1]);
+        }
+    }
+}

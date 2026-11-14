@@ -358,7 +358,7 @@ Hrot.Blueprints.Editor/
 |   |-- BlueprintSelectionBridgeHelper.cs   -- bridges AiShared selection <-> BlueprintNodeSelection
 |   |-- LiteralValueJson.cs                 -- LiteralNode.ValueJson <-> canvas inline-editor value conversions
 |   |-- FunctionCallTooltip.cs              -- resolved CLR signature + XML-doc summary for FunctionCallNode hover
-|   |-- ClrSourceLocator.cs / ClrXmlDocSource.cs / SourceFileOpener.cs / VisualStudioDteOpener.cs
+|   |-- ClrXmlDocSource.cs   (CE-1011: ClrSourceLocator / SourceFileOpener / VisualStudioDteOpener moved to Hrot.Editor.AiShared/Source/)
 |   |                                       -- "open in IDE" support for FunctionCallNode's resolved CLR source
 |
 |-- Inspector/
@@ -377,14 +377,14 @@ Hrot.Blueprints.Editor/
 |   |-- IEditService.cs / EditService.cs    -- editor mutation + undo/redo service (RecordPropertyEdit)
 |   |-- BlueprintNodeDrawerRegistry.cs      -- registry mapping Node CLR type -> drawer
 |   |-- NodeKindDescriptor.cs / NodeKindRegistry.cs -- palette entry metadata + registry
-|   |-- ISharedStructTypeProvider.cs / (Reflection impl) -- discovers [BlackboardDtoStruct] types for Get/SetShared + Make/Break/SetMembers
+|   |-- ISharedStructTypeProvider.cs / (Reflection impl) -- discovers [Dto] types for Get/SetShared + Make/Break/SetMembers
 |   |-- WhenNodeDrawer.cs                   -- drawer for WhenNode (4-mode inspector UI)
 |   |-- ReadEqsResultNodeDrawer.cs          -- drawer for ReadEqsResultNode
 |   |-- SpawnEqsSensorNodeDrawer.cs         -- drawer for SpawnEqsSensorNode
 |   |-- FunctionCallNodeDrawer.cs           -- drawer for FunctionCallNode (CLR method picker)
 |   |-- LiteralNodeDrawer.cs                -- drawer for LiteralNode's inline value editor
 |   |-- ChannelCommandNodeDrawer.cs         -- drawer for ChannelCommandNode (read-only channel/action labels)
-|   |-- SharedNodeDrawers.cs                -- GetSharedNodeDrawer / SetSharedNodeDrawer (VariableId + SharedTypeId picker)
+|   |-- SharedNodeDrawers.cs                -- GetSharedNodeDrawer / SetSharedNodeDrawer (VariableId + SharedTypeId picker)  ⛔ *(removed by `CE-440`)*
 |   |-- PlayMontageChainNodeDrawer.cs       -- drawer for BranchNode used as a montage-chain UI (requires animation queries)
 |   |-- WhenNodePaletteEntries.cs           -- palette entries: WhenNode, ReadEqsResult, SpawnEqsSensor
 |   |-- BlueprintNodePaletteEntries.cs      -- full built-in node-kind vocabulary + ChannelCommandEntries + NonChannelActionEntries
@@ -392,7 +392,7 @@ Hrot.Blueprints.Editor/
 |   |-- BlueprintCallablePaletteEntries.cs  -- reflection-discovered [BlueprintCallable] CLR helper entries
 |   |-- BlueprintEventCatalog.cs / BlueprintEventDiscovery.cs / BlueprintEventPaletteEntries.cs
 |   |                                       -- discovers [BlueprintEvent]/[EventTarget] custom events; "Publish: {Event}" + EventEntry palette entries
-|   |-- MakeBreakStructPaletteEntries.cs    -- Make/Break/SetMembers palette triple per [BlackboardDtoStruct]
+|   |-- MakeBreakStructPaletteEntries.cs    -- Make/Break/SetMembers palette triple per [Dto]
 |   |-- EqsTemplateEntry.cs / EqsTemplateRegistry.cs -- editor-side catalog of EQS template assets
 |   |-- NodeKindDescriptor.cs / EditorColors.cs
 |
@@ -527,8 +527,8 @@ public static class BlueprintEditorBootstrap
 - `CreateNodeDrawerRegistry` registers **8 drawers**: `WhenNode` → `WhenNodeDrawer`,
   `ReadEqsResultNode` → `ReadEqsResultNodeDrawer`, `SpawnEqsSensorNode` →
   `SpawnEqsSensorNodeDrawer`, `FunctionCallNode` → `FunctionCallNodeDrawer`, `LiteralNode` →
-  `LiteralNodeDrawer`, `ChannelCommandNode` → `ChannelCommandNodeDrawer`, `GetSharedNode`/
-  `SetSharedNode` → `GetSharedNodeDrawer`/`SetSharedNodeDrawer`, and — only when
+  `LiteralNodeDrawer`, `ChannelCommandNode` → `ChannelCommandNodeDrawer`, `GetSharedNode`/  ⛔ *(removed by `CE-440`)*
+  `SetSharedNode` → `GetSharedNodeDrawer`/`SetSharedNodeDrawer`, and — only when  ⛔ *(removed by `CE-440`)*
   `animationQueries` and `currentClassProvider` are both supplied — `BranchNode` →
   `PlayMontageChainNodeDrawer` (a montage-chain UI layered onto a plain Branch node).
 - `CreatePaletteRegistry` registers the 3 When-vocabulary entries, the full built-in vocabulary
@@ -536,7 +536,7 @@ public static class BlueprintEditorBootstrap
   `channelCatalog` is supplied), one entry per non-channel behavior action (when
   `behaviorActionCatalog` is supplied), `BlueprintMathPaletteEntries.All()`, reflection-discovered
   `[BlueprintCallable]` entries, one "Publish: {Event}" entry per discovered custom event, and one
-  Make/Break struct pair per `[BlackboardDtoStruct]`.
+  Make/Break struct pair per `[Dto]`.
 - `CreateAttachmentProviders` returns `WhenNodeAttachmentProvider`,
   `ReadEqsResultAttachmentProvider`, `EqsTemplateAttachmentProvider`,
   `CrossAssetDependencyAttachmentProvider`.
@@ -719,7 +719,7 @@ The single source of truth for "what pins does this node kind have, right now, g
 asset/graph/catalog context." Resolution order: asset-authored pins (test builders) → literal
 inline-editor special case → `NodeKindRegistry` descriptor → dynamic per-kind computation
 (`EventEntryNode`, `ReturnNode`, `FunctionCallNode` CLR-vs-graph-call dispatch, `GetVariableNode`/
-`SetVariableNode`, `GetParameterNode`, `GetAllParametersNode`, `GetSharedNode`/`SetSharedNode`,
+`SetVariableNode`, ~~`GetParameterNode`~~ *(removed by `CE-2135` P4)*, `GetAllParametersNode`, `GetAllVariablesNode`/`SetVariablesNode`, `GetSharedNode`/`SetSharedNode`,  ⛔ *(removed by `CE-440`)*
 `MakeStructNode`/`BreakStructNode`/`SetMembersNode`, `ChannelCommandNode` channel-vs-non-channel
 dispatch, `PublishEventNode`, `CallCustomEventNode`, `CallPeerBlueprintNode`) → static
 `BuiltInNodeRegistry` fallback. Every branch's doc comment cites the exact compiler stage
@@ -896,7 +896,7 @@ while paused.
 | `FunctionCallNodeDrawer` | `FunctionCallNode` | CLR method picker; reads/writes `TargetTypeId`/`MethodName` via `IEditService`. |
 | `LiteralNodeDrawer` | `LiteralNode` | Typed inline value editor (delegates formatting to `LiteralValueJson`). |
 | `ChannelCommandNodeDrawer` | `ChannelCommandNode` | Read-only `ChannelType`/`ActionId` labels — action is baked at palette-creation time, no in-place mutation path. |
-| `GetSharedNodeDrawer` / `SetSharedNodeDrawer` | `GetSharedNode` / `SetSharedNode` | `VariableId` (free text) + `SharedTypeId` (filtered picker over `ISharedStructTypeProvider`), editable post-placement. |
+| `GetSharedNodeDrawer` / `SetSharedNodeDrawer` | ⛔ **REMOVED by `CE-440`** — `GetSharedNode` / `SetSharedNode` | `VariableId` (free text) + `SharedTypeId` (filtered picker over `ISharedStructTypeProvider`), editable post-placement. |
 | `PlayMontageChainNodeDrawer` | `BranchNode` | Montage-chain UI over a plain Branch node; only registered when animation queries are supplied. |
 
 Palette-entry factories (`NodeKindDescriptor` producers registered into `NodeKindRegistry`):
@@ -906,7 +906,7 @@ Palette-entry factories (`NodeKindDescriptor` producers registered into `NodeKin
 over `[BlueprintCallable]`), `BlueprintEventDiscovery`/`BlueprintEventPaletteEntries`
 (reflection over `[BlueprintEvent]`/`[EventTarget]` → "Publish: {Event}" + `EventEntry`
 Self/Any-filter entries), `MakeBreakStructPaletteEntries` (Make/Break/SetMembers triple per
-`[BlackboardDtoStruct]`, via `ISharedStructTypeProvider`).
+`[Dto]`, via `ISharedStructTypeProvider`).
 
 `EqsTemplateRegistry`/`EqsTemplateEntry` — editor-side catalog of EQS template assets
 (`Register`/`EnumerateAll`/`TryGet(Guid)`); distinct from the compiler-facing
@@ -918,7 +918,7 @@ Self/Any-filter entries), `MakeBreakStructPaletteEntries` (Make/Break/SetMembers
 
 `EntityBlueprintsEditModel` is the headless view-model behind the "Entity Blueprints" runtime
 authoring panel: `RefreshReality()` scans all three blackboard-tier components
-(`BlueprintBlackboard1024`/`4096`/`16384`) on a live entity via `EntityRepository`;
+(`BlueprintBlackboard256`/`1024`/`4096`/`16384`) on a live entity via `EntityRepository`;
 `StageAdd`/`StageRemove`/`RevertAll` manage a pending edit set; `ComputeProjection()` returns a
 `Projection(Slots, Bytes, Tier, Status)` predicting the post-commit blackboard tier and whether
 it needs an upgrade or exceeds the ceiling; `BuildCommitPlan(CommitTiming)` emits either a

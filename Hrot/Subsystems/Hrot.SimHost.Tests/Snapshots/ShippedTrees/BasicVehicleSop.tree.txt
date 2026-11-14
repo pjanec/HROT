@@ -1,0 +1,41 @@
+asset a2165000-0000-0000-0000-000000000001
+group Library/Sop
+sop-orders yes
+writes-channels []
+json-params Hrot.Map.Definitions.Behavior.NoParams
+variable AirSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"AirThreat","Seconds":3}
+variable HitSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"Hit","Seconds":3}
+variable ThreatSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"FirstThreat","Seconds":3}
+variable AirDefence Hrot.AI.Behaviors.Brains.EngageAircraftParams = {"ClearSeconds":10,"MinElevationDeg":80}
+parse (empty) -> ok
+  c2165000-0000-0000-0000-0000000000a2 {"Kind":"AirThreat","Seconds":3}
+  c2165000-0000-0000-0000-0000000000a3 {"ClearSeconds":10,"MinElevationDeg":80}
+  c2165000-0000-0000-0000-000000000011 {"Kind":"AirThreat","Seconds":3}
+  c2165000-0000-0000-0000-000000000051 {"Kind":"Hit","Seconds":3}
+  c2165000-0000-0000-0000-000000000021 {"Kind":"Hit","Seconds":3}
+  c2165000-0000-0000-0000-000000000031 {"Kind":"FirstThreat","Seconds":3}
+parse {} -> ok
+parse {"bogus":1} -> refused InvalidOperationException
+Selector c2165000-0000-0000-0000-000000000002 "Rows — first true wins"
+  # A vehicle's reaction table (DESIGN_Vehicle_Exposure_Cycle §8): a drone first, then being hit, then contact; the idle row is last. Row order picks WHICH reaction; urgency decides whether it may interrupt what already runs (R-199).
+  Sequence c2165000-0000-0000-0000-0000000000a1 "Aircraft + an air-defence weapon → engage"
+    # CE-2191 (Air Ops §7f): a unit that carries or controls an air-defence weapon (a SAM launcher, a gun elevating ≥ 80°) stands and fires at the aircraft; every other unit falls through to its old rows.
+    Condition c2165000-0000-0000-0000-0000000000a2 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"AirThreat","Seconds":3} "Air threat (fresh, 3 s)"
+    Condition c2165000-0000-0000-0000-0000000000a3 call Hrot.AI.Behaviors.Brains.AirDefenceNodes.CanEngageAir p:EngageAircraftParams={"ClearSeconds":10,"MinElevationDeg":80} "Can engage aircraft"
+    Action c2165000-0000-0000-0000-0000000000a4 sop React:EngageAircraft:UnderFire "React: EngageAircraft"
+  Sequence c2165000-0000-0000-0000-000000000010 "Drone → shelter"
+    Condition c2165000-0000-0000-0000-000000000011 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"AirThreat","Seconds":3} "Air threat (fresh, 3 s)"
+    Action c2165000-0000-0000-0000-000000000012 sop React:ShelterFromAir:UnderFire "React: ShelterFromAir"
+  Sequence c2165000-0000-0000-0000-000000000050 "Hit while driving with troops → push through"
+    # CE-2307 (Squad Tactics §5b CH-1): a carrier never stops in the kill zone with its squad aboard; a standing, empty or immobile one fights from cover below.
+    Condition c2165000-0000-0000-0000-000000000051 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"Hit","Seconds":3} "Hit (fresh, 3 s)"
+    Condition c2165000-0000-0000-0000-000000000052 call Hrot.AI.Behaviors.Brains.ConvoyConditions.CanPushThrough "Driving, mobile, troops aboard"
+    Action c2165000-0000-0000-0000-000000000053 sop React:PushThrough:Hit "React: PushThrough"
+  Sequence c2165000-0000-0000-0000-000000000020 "Hit → fight from cover"
+    Condition c2165000-0000-0000-0000-000000000021 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"Hit","Seconds":3} "Hit (fresh, 3 s)"
+    Action c2165000-0000-0000-0000-000000000022 sop React:VehicleFightFromCover:Hit "React: VehicleFightFromCover"
+  Sequence c2165000-0000-0000-0000-000000000030 "Contact → fight from cover"
+    Condition c2165000-0000-0000-0000-000000000031 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"FirstThreat","Seconds":3} "First threat (fresh, 3 s)"
+    Action c2165000-0000-0000-0000-000000000032 sop React:VehicleFightFromCover:Contact "React: VehicleFightFromCover"
+  Action c2165000-0000-0000-0000-000000000040 sop DoWhenIdle:Idle:- "Idle: Idle"
+    # What the vehicle does with no order.

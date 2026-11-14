@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text.Json.Serialization;
 using Hrot.NED.Descriptors.Orchestration;
 
@@ -48,8 +49,112 @@ public record TransitionPayloadDto(
     Guid          ExerciseId,
 
     [property: JsonPropertyName("TimeMode")]
-    string?        TimeMode
-);
+    string?        TimeMode,
+
+    // ⭐ CE-3299 D17 (R-3045) — the recording mode of the live session this request starts: 0 / omitted = FULL (every frame), N > 0 =
+    //   CHECKPOINTING (a keyframe every N s of sim time, nothing else). Additive on the wire.
+    [property: JsonPropertyName("CheckpointingSeconds")]
+    double         CheckpointingSeconds = 0,
+
+    // ⭐ R-3055 — where a replay enters, in ticks after the replay's zero (C9). Additive on the wire. 📌 Measured on the five-process
+    //   cluster: a POST /replay {atSeconds:30} sent from CGF entered at 0 — this field did not exist, and the master side wrote 0.
+    [property: JsonPropertyName("TargetWallTicks")]
+    long           TargetWallTicks = 0,
+
+    // ⭐ CE-3329 P1 (R11) — a replay's entry point in RECORDED sim time; the master resolves it. Additive on the wire.
+    [property: JsonPropertyName("TargetSimSeconds")]
+    double?        TargetSimSeconds = null,
+
+    // ⭐ CE-4090 (AQ108 D14) — a live load that records whatever the cluster's "Record live runs" setting says (the scenario verifier).
+    //   Additive on the wire; omitted ⇒ false ⇒ follow the setting.
+    [property: JsonPropertyName("ForceRecording")]
+    bool           ForceRecording = false,
+
+    // ⭐ Macros S3a ⑦ (SR-41) — a load's scenario args (a JSON object text). Additive on the wire; omitted ⇒ null ⇒ the header's defaults.
+    [property: JsonPropertyName("ScenarioArgs")]
+    string?        ScenarioArgs = null,
+
+    // ⭐ CE-4099 (AQ108 §4c A7) — recover the scenario's autosave into this load. Additive; written only when true, omitted ⇒ false.
+    [property: JsonPropertyName("RecoverAutosave")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    bool           RecoverAutosave = false
+)
+{
+    /// <summary>⭐ R-3055 — the ONE encoding of a transition on the wire (every node's egress).</summary>
+    public static TransitionPayloadDto From(Fdp.Toolkit.Orchestration.TransitionStateIntent intent) => new(
+        TargetState: (ClusterState)(int)intent.TargetState, ScenarioId: intent.ScenarioId, ExerciseId: intent.ExerciseId,
+        TimeMode: intent.TimeMode, CheckpointingSeconds: intent.CheckpointingSeconds, TargetWallTicks: intent.TargetWallTicks,
+        TargetSimSeconds: intent.TargetSimSeconds, ForceRecording: intent.ForceRecording, ScenarioArgs: intent.ScenarioArgsJson,
+        RecoverAutosave: intent.RecoverAutosave);
+
+    /// <summary>⭐ R-3055 — the ONE decoding (the master's translator and its request adapter): nothing on the wire is dropped.</summary>
+    public Fdp.Toolkit.Orchestration.TransitionStateIntent ToIntent(Guid requestId) => new()
+    {
+        TransactionId        = requestId,
+        TargetState          = (Fdp.Toolkit.Orchestration.ClusterState)(int)TargetState!.Value,
+        ScenarioId           = ScenarioId,
+        ExerciseId           = (Fdp.Core.ExerciseId)ExerciseId,
+        TimeMode             = TimeMode,
+        CheckpointingSeconds = CheckpointingSeconds,   // D17
+        TargetWallTicks      = TargetWallTicks,
+        TargetSimSeconds     = TargetSimSeconds,   // CE-3329 R11
+        ForceRecording       = ForceRecording,     // CE-4090 D14
+        ScenarioArgsJson     = ScenarioArgs,       // macros S3a ⑦
+        RecoverAutosave      = RecoverAutosave,    // CE-4099 A7
+    };
+}
+
+/// <summary>
+/// ⭐ CE-4090 (AQ108 D14) + ⭐ CE-3341 (D12a) — payload of <c>ClusterOpType.SetRunSettings</c>: the cluster-wide run settings. ⭐ EVERY field is optional:
+/// absent ⇒ "no change", so one op sets either (an older sender that only knows <c>RecordLiveRuns</c>, or one that only sends <c>Armed</c>, both work).
+/// </summary>
+public record SetRunSettingsPayloadDto(
+    [property: JsonPropertyName("RecordLiveRuns")]
+    bool? RecordLiveRuns = null,
+    [property: JsonPropertyName("Armed")]
+    Fdp.Toolkit.Orchestration.ClusterArmedMode? Armed = null,
+    [property: JsonPropertyName("AskToKeepRecordings")]
+    bool? AskToKeepRecordings = null,   // ⭐ AQ108 D15 (CE-4100 ①) — appended; absent = no change
+    [property: JsonPropertyName("FeatureOverrides")]
+    FeatureOverrideDto[]? FeatureOverrides = null,   // ⭐ Node Features F-16 — appended; absent = no change, empty = none
+    [property: JsonPropertyName("StartLiveImmediately")]
+    bool? StartLiveImmediately = null,   // ⭐ CE-3415 (AQ108 §0 D31) — appended; absent = no change
+    [property: JsonPropertyName("AutosaveMinutes")]
+    int? AutosaveMinutes = null)   // ⭐ CE-4099 phase 2 — appended; absent = no change, 0 = off
+{
+    public static SetRunSettingsPayloadDto From(Fdp.Toolkit.Orchestration.SetRunSettingsIntent intent) => new(intent.RecordLiveRuns, intent.Armed, intent.AskToKeepRecordings,
+        intent.FeatureOverrides?.Select(o => new FeatureOverrideDto(o.Feature, o.Nodes.ToArray(), o.Json)).ToArray(), intent.StartLiveImmediately, intent.AutosaveMinutes);
+
+    /// <summary>⭐ The ONE decoding (the master's translator): an unreadable payload changes nothing (both fields null).
+    /// ⚠ CE-3341 changed this: before it, an unreadable payload meant "recording ON"; a no-op is the safer answer now that the op also carries the armed mode.</summary>
+    public static Fdp.Toolkit.Orchestration.SetRunSettingsIntent Decode(Guid requestId, string? json)
+    {
+        var intent = new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = requestId };
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            try
+            {
+                if (System.Text.Json.JsonSerializer.Deserialize<SetRunSettingsPayloadDto>(json, OrchestrationJsonOptions.Default) is { } dto)
+                {
+                    intent.RecordLiveRuns = dto.RecordLiveRuns;
+                    intent.Armed = dto.Armed;
+                    intent.AskToKeepRecordings = dto.AskToKeepRecordings;
+                    intent.StartLiveImmediately = dto.StartLiveImmediately;
+                    intent.AutosaveMinutes = dto.AutosaveMinutes;
+                    intent.FeatureOverrides = dto.FeatureOverrides?.Select(o => new Fdp.Toolkit.Orchestration.FeatureOverrideSpec(o.Feature ?? "", o.Nodes ?? System.Array.Empty<string>(), o.Json ?? "")).ToArray();
+                }
+            }
+            catch (System.Text.Json.JsonException) { }
+        }
+        return intent;
+    }
+}
+
+/// <summary>⭐ Node Features F-16 — one feature override in the JSON cluster-op channel: <c>Json</c> is a partial object (a string, as in the wire twin).</summary>
+public record FeatureOverrideDto(
+    [property: JsonPropertyName("Feature")] string Feature = "",
+    [property: JsonPropertyName("Nodes")] string[]? Nodes = null,
+    [property: JsonPropertyName("Json")] string Json = "{}");
 
 /// <summary>Payload DTO for <c>ClusterOpType.ManageEpisode</c> DDS requests.</summary>
 public record ManageEpisodePayloadDto(
@@ -66,14 +171,221 @@ public record ManageEpisodePayloadDto(
 /// <summary>Payload DTO for <c>ClusterOpType.ExportArchive</c> / <c>ImportArchive</c> DDS requests.</summary>
 public record ArchivePayloadDto(
     [property: JsonPropertyName("ExerciseId")]
-    Guid          ExerciseId
+    Guid          ExerciseId,
+    // ⭐ CE-4330 ② — who asked (a station name), shown on the storage job; absent from an older sender ⇒ null
+    [property: JsonPropertyName("AskedBy")]
+    string?       AskedBy = null,
+    // ⭐ CE-4330 ⑦ (R-4174) — on DeleteExercise: the ARCHIVED exercise (its NAS folder), not the unarchived recording on the nodes
+    [property: JsonPropertyName("FromArchive")]
+    bool          FromArchive = false
+);
+
+/// <summary>
+/// ⭐ CE-4330 ② — the ONE encoding of an archive / import / delete request's payload (<see cref="ArchivePayloadDto"/>): the station's egress encodes, the
+/// master's DDS translator and its in-process adapter decode through here — 🔴 measured: the two decoders read only the id, so a delete-from-archive
+/// asked on another station arrived as a plain discard.
+/// </summary>
+public static class ArchivePayloadJson
+{
+    public static string Encode(Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent intent)
+        => System.Text.Json.JsonSerializer.Serialize(new ArchivePayloadDto(intent.ExerciseId, intent.AskedBy, intent.FromArchive), OrchestrationJsonOptions.Default);
+
+    /// <summary>The request's intent: <paramref name="operation"/> on the payload's exercise, with who asked and (a delete) whether it is the archive's copy.</summary>
+    public static Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent Decode(System.Guid requestId, Fdp.Toolkit.Orchestration.StorageOpType operation, string? json)
+    {
+        ArchivePayloadDto? dto = null;
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            try { dto = System.Text.Json.JsonSerializer.Deserialize<ArchivePayloadDto>(json, OrchestrationJsonOptions.Default); }
+            catch (System.Text.Json.JsonException) { }
+        }
+        return new Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent
+        {
+            RequestId   = requestId,
+            Operation   = operation,
+            ExerciseId  = (Fdp.Core.ExerciseId)(dto?.ExerciseId ?? System.Guid.Empty),
+            AskedBy     = dto?.AskedBy,
+            FromArchive = dto?.FromArchive ?? false,
+        };
+    }
+}
+
+/// <summary>
+/// Payload DTO for <c>ClusterOpType.LoadZone</c> DDS requests — ONE zone per request
+/// (📄 docs/DESIGN_Terrain_Zones_And_Assets.md §9.3).
+///
+/// <para>⛔ Replaces the previous abuse of <see cref="ArchivePayloadDto"/>, whose
+/// <c>ExerciseId</c> (a <see cref="Guid"/>) was being stringified into the zone id. That silently
+/// restricted zone ids to GUID shape and named the field after a different domain entirely.</para>
+/// </summary>
+public record ZonePayloadDto(
+    [property: JsonPropertyName("ZoneId")]
+    string?       ZoneId
+);
+
+/// <summary>
+/// Payload DTO for <c>ClusterOpType.BuildTerrainAsset</c> DDS requests.
+/// <para><c>Kinds</c> names the asset kinds to rebuild; null or empty means "all".
+/// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §3.1.</para>
+/// </summary>
+public record TerrainAssetBuildPayloadDto(
+    [property: JsonPropertyName("Kinds")]
+    string[]?     Kinds
+);
+
+/// <summary>
+/// ⭐ CE-3021 — payload for <c>ClusterOpType.PublishAssets</c> / <c>RefreshAssets</c>: which behaviour-asset
+/// <c>Kind</c> (<c>blueprint</c>, <c>btree</c>, <c>hsm</c>) and which authoring <c>NodeId</c>.
+/// 📄 docs/DESIGN_Asset_Management.md §5, §7.3c.
+/// </summary>
+public record AssetOpPayloadDto(
+    [property: JsonPropertyName("Kind")]   string Kind,
+    [property: JsonPropertyName("NodeId")] int    NodeId
 );
 
 /// <summary>Payload DTO for <c>ClusterOpType.ReplaySeek</c> DDS requests.</summary>
 public record SeekReplayPayloadDto(
     [property: JsonPropertyName("TargetWallTicks")]
-    long           TargetWallTicks
-);
+    long           TargetWallTicks,
+
+    // ⭐ CE-3329 P1 (R11) — the target in RECORDED sim time; the master resolves it. Additive on the wire.
+    [property: JsonPropertyName("TargetSimSeconds")]
+    double?        TargetSimSeconds = null
+)
+{
+    /// <summary>⭐ CE-3329 P1 — the ONE encoding of a seek on the wire (the R-3055 shape of <see cref="TransitionPayloadDto"/>).</summary>
+    public static SeekReplayPayloadDto From(Fdp.Toolkit.Orchestration.SeekReplayIntent intent)
+        => new(intent.TargetWallTicks, intent.TargetSimSeconds);
+
+    /// <summary>⭐ CE-3329 P1 — the ONE decoding (the master's translator, its request adapter, the cluster panel): a bare tick count
+    /// (older senders) or this DTO; nothing on the wire is dropped.</summary>
+    public static Fdp.Toolkit.Orchestration.SeekReplayIntent Decode(Guid requestId, string? json)
+    {
+        var intent = new Fdp.Toolkit.Orchestration.SeekReplayIntent { RequestId = requestId };
+        if (string.IsNullOrWhiteSpace(json)) return intent;
+        if (long.TryParse(json, out var bare)) { intent.TargetWallTicks = bare; return intent; }
+        try
+        {
+            if (System.Text.Json.JsonSerializer.Deserialize<SeekReplayPayloadDto>(json, OrchestrationJsonOptions.Default) is { } dto)
+            {
+                intent.TargetWallTicks  = dto.TargetWallTicks;
+                intent.TargetSimSeconds = dto.TargetSimSeconds;
+            }
+        }
+        catch (System.Text.Json.JsonException) { }
+        return intent;
+    }
+}
+
+/// <summary>⭐ CE-3329 R-3058 — payload of <c>ClusterOpType.SetReplayAxis</c>: "Sim" or "Wall".</summary>
+public record SetReplayAxisPayloadDto(
+    [property: JsonPropertyName("Axis")]
+    string Axis)
+{
+    /// <summary>The ONE encoding of an axis switch on the wire.</summary>
+    public static SetReplayAxisPayloadDto From(Fdp.Toolkit.Orchestration.SetReplayAxisIntent intent) => new(intent.Axis.ToString());
+
+    /// <summary>The ONE decoding (the master's translator and its request adapter). An unreadable axis is Sim — the default (R2).</summary>
+    public static Fdp.Toolkit.Orchestration.SetReplayAxisIntent Decode(Guid requestId, string? json)
+    {
+        var axis = Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(json)
+                && System.Text.Json.JsonSerializer.Deserialize<SetReplayAxisPayloadDto>(json, OrchestrationJsonOptions.Default) is { } dto
+                && Enum.TryParse<Fdp.Toolkit.Orchestration.ReplayAxis>(dto.Axis, ignoreCase: true, out var parsed))
+                axis = parsed;
+        }
+        catch (System.Text.Json.JsonException) { }
+        return new Fdp.Toolkit.Orchestration.SetReplayAxisIntent { RequestId = requestId, Axis = axis };
+    }
+}
+
+/// <summary>⭐ CE-3329 §12n — payload of <c>ClusterOpType.SetReplayLoop</c>: wall bounds, sim bounds, or none (= clear).</summary>
+public record SetReplayLoopPayloadDto(
+    [property: JsonPropertyName("FromSeconds")]
+    double? FromSeconds,
+    [property: JsonPropertyName("ToSeconds")]
+    double? ToSeconds,
+    [property: JsonPropertyName("FromSimSeconds")]
+    double? FromSimSeconds,
+    [property: JsonPropertyName("ToSimSeconds")]
+    double? ToSimSeconds)
+{
+    /// <summary>The ONE encoding of a loop request on the wire.</summary>
+    public static SetReplayLoopPayloadDto From(Fdp.Toolkit.Orchestration.SetReplayLoopIntent intent)
+        => new(intent.FromSeconds, intent.ToSeconds, intent.FromSimSeconds, intent.ToSimSeconds);
+
+    /// <summary>The ONE decoding (the master's translator and its request adapter). Unreadable ⇒ all-null, i.e. a CLEAR.</summary>
+    public static Fdp.Toolkit.Orchestration.SetReplayLoopIntent Decode(Guid requestId, string? json)
+    {
+        var intent = new Fdp.Toolkit.Orchestration.SetReplayLoopIntent { RequestId = requestId };
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(json)
+                && System.Text.Json.JsonSerializer.Deserialize<SetReplayLoopPayloadDto>(json, OrchestrationJsonOptions.Default) is { } dto)
+            {
+                intent.FromSeconds = dto.FromSeconds;
+                intent.ToSeconds = dto.ToSeconds;
+                intent.FromSimSeconds = dto.FromSimSeconds;
+                intent.ToSimSeconds = dto.ToSimSeconds;
+            }
+        }
+        catch (System.Text.Json.JsonException) { }
+        return intent;
+    }
+}
+
+/// <summary>
+/// ⭐ CE-1467 (e) — payload of <c>ClusterOpType.TakeCheckpoint</c> when it is a MARK: the label asked for and the mark's note (Bookmarks §2, <i>TakeCheckpoint + the note</i>).
+/// ⭐ <c>label</c> stays the key a plain checkpoint already sends (<c>{"label":…}</c>), so the old decoders read it unchanged.
+/// </summary>
+public record TakeCheckpointPayloadDto(
+    [property: JsonPropertyName("label")]
+    string? Label,
+    [property: JsonPropertyName("note")]
+    Fdp.Toolkit.Orchestration.ExerciseNote? Note)
+{
+    /// <summary>The ONE encoding of a mark on the wire.</summary>
+    public static string Encode(string? label, Fdp.Toolkit.Orchestration.ExerciseNote note)
+        => System.Text.Json.JsonSerializer.Serialize(new TakeCheckpointPayloadDto(label, note), OrchestrationJsonOptions.Default);
+
+    /// <summary>The mark's note, or null (a plain checkpoint, an old sender, or an unreadable payload).</summary>
+    public static Fdp.Toolkit.Orchestration.ExerciseNote? NoteOf(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{")) return null;
+        try { return System.Text.Json.JsonSerializer.Deserialize<TakeCheckpointPayloadDto>(json, OrchestrationJsonOptions.Default)?.Note; }
+        catch (System.Text.Json.JsonException) { return null; }
+    }
+}
+
+/// <summary>⭐ CE-4325 (E7, R-4177) — payload of <c>ClusterOpType.EditExerciseNote</c>: the verb and the note. The ONE encoding of the note CRUD message.</summary>
+public record NoteEditPayloadDto(
+    [property: JsonPropertyName("Kind")]
+    string Kind,
+    [property: JsonPropertyName("Note")]
+    Fdp.Toolkit.Orchestration.ExerciseNote? Note)
+{
+    /// <summary>The ONE encoding of a note edit on the wire.</summary>
+    public static NoteEditPayloadDto From(Fdp.Toolkit.Orchestration.NoteEditIntent intent) => new(intent.Kind.ToString(), intent.Note);
+
+    /// <summary>The ONE decoding (the master's translator). Unreadable ⇒ an intent with no note, which the master refuses.</summary>
+    public static Fdp.Toolkit.Orchestration.NoteEditIntent Decode(Guid requestId, string? json)
+    {
+        var intent = new Fdp.Toolkit.Orchestration.NoteEditIntent { RequestId = requestId };
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(json)
+                && System.Text.Json.JsonSerializer.Deserialize<NoteEditPayloadDto>(json, OrchestrationJsonOptions.Default) is { } dto)
+            {
+                if (Enum.TryParse<Fdp.Toolkit.Orchestration.NoteEditKind>(dto.Kind, ignoreCase: true, out var kind)) intent.Kind = kind;
+                intent.Note = dto.Note!;
+            }
+        }
+        catch (System.Text.Json.JsonException) { }
+        return intent;
+    }
+}
 
 /// <summary>Payload DTO for <c>ClusterOpType.StepTime</c> DDS requests.</summary>
 public record StepTimePayloadDto(
@@ -101,7 +413,54 @@ public record NodeTransitionPayloadDto(
     string?        ScenarioId,
 
     [property: JsonPropertyName("ExerciseId")]
-    Guid          ExerciseId
+    Guid          ExerciseId,
+
+    // ⭐⭐⭐ L1 — the SHARED CONTENT NAME. See EditLoadHandlerPayload's remarks for why it rides the
+    //    message: four of the five roles never open the scenario file, so they cannot read it out of it.
+    // ⭐ Optional with a null default; an older peer that omits it decodes to null.
+    // ⛔ R-4018 — no TkbName: the TKB's name travels with its file sync. An older peer's TkbName is ignored on read.
+    [property: JsonPropertyName("TerrainName")]
+    string?        TerrainName = null,
+
+    // ⭐ CE-4210 MA-9 — Save selection as macro: the scenario save's optional filter and header. Additive; WRITTEN ONLY WHEN SET (a plain save's payload is byte-for-byte what it was), omitted ⇒ null.
+    [property: JsonPropertyName("OnlyGuids")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    System.Collections.Generic.List<Guid>? OnlyGuids = null,
+
+    [property: JsonPropertyName("MacroHeaderJson")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string?        MacroHeaderJson = null,
+
+    // ⭐ CE-2101 — the load step entered from Idle (the world boundary): every node clears its world first.
+    //   Additive on the wire; an older peer omits it and decodes to false.
+    [property: JsonPropertyName("IsWorldBoundary")]
+    bool           IsWorldBoundary = false,
+
+    // ⭐⭐ C7 (Q91 §4-M) — a late joiner's catch-up load: universal parts only, no scenario. Additive; omitted ⇒ false.
+    [property: JsonPropertyName("IsCatchUp")]
+    bool           IsCatchUp = false,
+
+    // ⭐ CE-3299 D17 (R-3045) — the session's recording mode (see TransitionPayloadDto). Additive; omitted ⇒ 0 ⇒ FULL.
+    [property: JsonPropertyName("CheckpointingSeconds")]
+    double         CheckpointingSeconds = 0,
+
+    // ⭐ CE-4090 (AQ108 D14) — this live session must NOT be recorded ("Record live runs" was off when the master minted it). Additive;
+    //   omitted ⇒ false ⇒ record, exactly as before.
+    [property: JsonPropertyName("RecordingOff")]
+    bool           RecordingOff = false,
+
+    // ⭐ Node Features F-14 — per node: the cluster layer for this node's features (id → partial JSON object text). Additive; omitted ⇒ null.
+    [property: JsonPropertyName("FeatureConfigsAtLoad")]
+    System.Collections.Generic.Dictionary<string, string>? FeatureConfigsAtLoad = null,
+
+    // ⭐ Macros S3a ⑦ (SR-41) — the load's scenario args, the same on every node. Additive; omitted ⇒ null.
+    [property: JsonPropertyName("ScenarioArgs")]
+    string? ScenarioArgs = null,
+
+    // ⭐ CE-4099 (AQ108 §4c A2) — the scenario save round is an AUTOSAVE: written into the scenario's .autosave/, no re-baseline. Additive; omitted ⇒ false.
+    [property: JsonPropertyName("Autosave")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    bool Autosave = false
 );
 
 /// <summary>Node-level episode payload DTO for <c>StartEpisode</c> / <c>StopEpisode</c>.</summary>
@@ -140,6 +499,21 @@ public sealed record FileManifestEntry
     /// should be written (e.g. <c>exercises\2026-03-29\checkpoint_a.fdp</c>).
     /// </summary>
     public string RelativeDest { get; init; } = string.Empty;
+
+    /// <summary>
+    /// CE-277(c1): the slice's <c>$meta.docType</c>, carried from the node's
+    /// <c>FileManifestResult</c> through the JSON round-trip so the orchestrator can classify a pulled
+    /// scenario slice (merge our format, route a foreign one verbatim). <c>null</c> for non-scenario paths
+    /// (e.g. the <c>.fdp</c> archive), which are not merged.
+    /// </summary>
+    public string? DocType { get; init; }
+
+    /// <summary>⭐ C1 (docs/DESIGN_Asset_Management.md §1 ②, §8) — the source file's length, so the receiver can tell an
+    /// already-current copy without opening it. 0 with a null <see cref="LastWriteUtc"/> = not carried (older senders).</summary>
+    public long Length { get; init; }
+
+    /// <summary>⭐ C1 — the source file's last-write time (UTC). Null = not carried; the receiver then always copies.</summary>
+    public DateTime? LastWriteUtc { get; init; }
 }
 
 /// <summary>

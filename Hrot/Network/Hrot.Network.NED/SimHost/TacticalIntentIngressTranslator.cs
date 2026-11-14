@@ -22,18 +22,20 @@ namespace Hrot.Network.NED.SimHost
     /// <para>No authority check: authority verification is handled downstream by
     /// <c>TacticalIntentResolutionSystem</c>.</para>
     /// </summary>
-    public sealed class TacticalIntentIngressTranslator : IDescriptorTranslator
+    public sealed class TacticalIntentIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "TacticalIntentRequest";
 
         private readonly DdsReader<TacticalIntentRequest>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<TacticalIntentRequest>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtTacticalIntentRequest;
         public long   ReceivedSampleCount { get; private set; }
         public long   SentSampleCount     { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
+
+        /// <summary>⭐ <c>CE-3251</c> — directives this node could not raise (an unknown kind, bad JSON, or no ROE / reporting event here).</summary>
+        public long UnhandledDirectiveCount { get; private set; }
 
         /// <summary>
         /// Production constructor. Pass <c>null</c> for <paramref name="participant"/>
@@ -45,9 +47,12 @@ namespace Hrot.Network.NED.SimHost
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _reader    = participant is not null
-                ? new DdsReader<TacticalIntentRequest>(participant, DdsTopicName)
+                ? new DdsReader<TacticalIntentRequest>(participant)
                 : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <inheritdoc/>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
@@ -75,11 +80,44 @@ namespace Hrot.Network.NED.SimHost
         {
             if (!_entityMap.TryGetEntity(request.TargetEntityId, out var entity)) return;
 
+            // ⭐ CE-3251 (BR-13) — a directive, not an order: raise the local event again for the owner's gate to apply.
+            if (request.Kind >= TacticalIntentWireKind.SetRoe)
+            {
+                var origin = (Fdp.Toolkit.Behavior.Components.BehaviorOrigin)request.Origin;
+                if (request.Kind == TacticalIntentWireKind.SetRoe
+                    && repo.Bus.IsRegistered<SetRoeEvent>()
+                    && RoeDirectiveJson.TryDecode(request.JsonParams, entity, origin, out var roe))
+                {
+                    repo.Bus.Publish(roe);
+                    return;
+                }
+                if (request.Kind == TacticalIntentWireKind.SetReporting
+                    && repo.Bus.IsRegistered<Fdp.Toolkit.Squad.Command.SetReportingEvent>()
+                    && ReportingDirectiveJson.TryDecode(request.JsonParams, entity, origin, out var reporting))
+                {
+                    repo.Bus.Publish(reporting);
+                    return;
+                }
+                if (request.Kind == TacticalIntentWireKind.SetEngagementArea   // ⭐ CE-3261
+                    && repo.Bus.IsRegistered<Fdp.Toolkit.Behavior.Components.SetEngagementAreaEvent>()
+                    && EngagementAreaDirectiveJson.TryDecode(request.JsonParams, entity, origin, out var sector))
+                {
+                    repo.Bus.Publish(sector);
+                    return;
+                }
+                UnhandledDirectiveCount++;   // an unknown kind (a newer sender), bad JSON or no ROE here — never read as an order
+                return;
+            }
+
             repo.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
                 Entity     = entity,
                 IntentId   = request.IntentId   ?? string.Empty,
                 JsonParams = request.JsonParams  ?? string.Empty,
+                Origin     = (Fdp.Toolkit.Behavior.Components.BehaviorOrigin)request.Origin,   // ⭐ CE-3034
+                Kind       = (TacticalIntentKind)request.Kind,                                    // ⭐ CE-3167
+                ClearsPriorIntent = (request.Flags & TacticalIntentFlags.ClearsPriorIntent) != 0,
+                RequestId  = request.RequestId,   // ⭐ CE-4306 (F5)
             });
         }
 
@@ -90,6 +128,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

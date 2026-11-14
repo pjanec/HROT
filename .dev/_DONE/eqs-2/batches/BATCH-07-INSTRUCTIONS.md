@@ -511,7 +511,7 @@ After each test:
 ```bash
 # Build
 cd d:\WORK\IOS-IG-SimHost-FDP
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Unit tests
 dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/ --filter "FullyQualifiedName~Eqs" --verbosity normal

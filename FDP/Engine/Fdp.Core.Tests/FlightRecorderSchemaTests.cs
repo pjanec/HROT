@@ -192,34 +192,46 @@ namespace Fdp.Tests
         }
 
         /// <summary>
-        /// Validator must throw when a component ID in the manifest is not registered
-        /// in the current binary.
-        /// SC: Validator throws when component not found in registry.
+        /// ⭐ CE-1372 — a component id that NO loaded assembly declares does not refuse the recording: the playback skips it (CE-4050), so
+        /// the validator does too. ⛔ SUPERSEDED: <c>SchemaValidator_ThrowsOnUnregisteredComponentId</c> — it threw, and a process that had
+        /// merely not REGISTERED a recorded type yet opened an empty world.
         /// </summary>
         [Fact]
-        public void SchemaValidator_ThrowsOnUnregisteredComponentId()
+        public void CE1372_AComponentIdNoAssemblyDeclares_IsSkipped_NotARefusal()
         {
-            ComponentTypeRegistry.Clear(); // Ensure ID 244 is NOT registered.
-
+            ComponentTypeRegistry.Clear();
             var metadata = new RecordingMetadata
             {
                 SchemaManifest = new Dictionary<int, ComponentSchemaInfo>
                 {
-                    [244] = new ComponentSchemaInfo
-                    {
-                        Name       = "SomeOldComponent",
-                        Size       = 4,
-                        LayoutHash = 0x1234567890ABCDEFUL,
-                        IsManaged  = false
-                    }
-                }
+                    [8765] = new ComponentSchemaInfo { Name = "SomeOldComponent", Size = 4, LayoutHash = 0x1234567890ABCDEFUL, IsManaged = false },
+                },
             };
+            SchemaValidator.Validate(metadata);   // no throw
+        }
 
-            var ex = Assert.Throws<InvalidOperationException>(
-                () => SchemaValidator.Validate(metadata));
+        [ComponentId(401)]
+        public struct Ce1372DeclaredNotRegistered { public int A; public float B; }
 
-            Assert.Contains("244", ex.Message);
-            Assert.Contains("not registered", ex.Message, StringComparison.OrdinalIgnoreCase);
+        /// <summary>
+        /// ⭐ CE-1372 — a type declared by a loaded assembly but not REGISTERED in this process is FOUND by its <c>[ComponentId]</c> and still
+        /// validated: the right layout passes, a drifted one is still refused (the check the refusal was for is kept).
+        /// </summary>
+        [Fact]
+        public void CE1372_ADeclaredButUnregisteredComponent_IsFound_AndItsLayoutStillChecked()
+        {
+            ComponentTypeRegistry.Clear();
+            var type = typeof(Ce1372DeclaredNotRegistered);
+            RecordingMetadata Meta(int size, ulong hash) => new()
+            {
+                SchemaManifest = new Dictionary<int, ComponentSchemaInfo>
+                {
+                    [401] = new ComponentSchemaInfo { Name = type.FullName!, Size = size, LayoutHash = hash, IsManaged = false },
+                },
+            };
+            SchemaValidator.Validate(Meta(TypeLayout.SizeOf(type), ComponentLayoutHasher.ComputeHash(type)));   // found, matches
+            var ex = Assert.Throws<InvalidOperationException>(() => SchemaValidator.Validate(Meta(TypeLayout.SizeOf(type) + 4, 0)));
+            Assert.Contains("layout has changed", ex.Message);
         }
 
         /// <summary>

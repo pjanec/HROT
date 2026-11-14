@@ -26,6 +26,27 @@ namespace Fdp.Toolkit.Utility.Integration
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2070</c> — THE call a blueprint <c>ScoreDecision</c> node makes (docs/DESIGN_Decision_Layer.md §3.3): an
+        /// option decision → <see cref="UtilityScorer.ChooseOption"/> with the node's own <paramref name="lastWinner"/> (its
+        /// hidden working field, so two decisions on one unit cannot collide and no unit buffer is needed); a ranking
+        /// decision → <see cref="UtilityScorer.RankCandidates"/>. Outputs are zero / none when nothing was decided.
+        /// </summary>
+        public static void Decide(ISimulationView view, Entity self, int decisionId, byte lastWinner, uint tick,
+                                  out byte winner, out global::Fdp.Toolkit.Replication.EntityRef topCandidate, out float topScore)
+        {
+            winner = 0;
+            topCandidate = global::Fdp.Toolkit.Replication.EntityRef.None;
+            topScore = 0f;
+            if (view is not EntityRepository repo) return;
+            if (!UtilityDecisionCatalog.Shared.TryGet(decisionId, out var def, out _) || def == null) return;
+            var scorer = new UtilityScorer(UtilityDecisionCatalog.Shared);
+            if (def.Kind == DecisionKind.PostureSelect)
+                winner = scorer.ChooseOption(repo, self, decisionId, lastWinner, (ushort)tick);
+            else
+                scorer.RankCandidates(repo, self, decisionId, (ushort)tick, out topCandidate, out topScore);
+        }
+
+        /// <summary>
         /// Reads rank-<paramref name="rank"/> entry from the entity's
         /// <see cref="UtilityResultBuffer"/>.
         /// Returns (0, 0f, false) if the buffer is absent or rank is out of range.

@@ -3,6 +3,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Squad;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Squad.DangerArea;
 using Fdp.Toolkit.Squad.DangerArea.Fake;
@@ -22,8 +23,8 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
         public DangerAreaRefreshSystemTests()
         {
             _repo = new EntityRepository();
-            _repo.RegisterComponent<Blackboard1024>();
-            _repo.RegisterComponent<SquadStateMarker>();
+            _repo.RegisterComponent<SquadCognitiveState>();
+            _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<DangerAreaSensor>();
             _repo.RegisterComponent<DangerAreaCognitiveBuffer>();
             _repo.RegisterComponent<PartMetadata>();
@@ -40,8 +41,8 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             CreateSensorChild(EntityRepository repo, float refreshInterval = 0f)
         {
             var commander = repo.CreateEntity();
-            repo.AddComponent(commander, new Blackboard1024());
-            repo.AddComponent(commander, new SquadStateMarker());
+            repo.AddComponent(commander, default(SquadCognitiveState));
+            repo.AddComponent(commander, default(SquadCognitiveState));
 
             var child = repo.CreateEntity();
             repo.AddComponent(child, new DangerAreaSensor());
@@ -105,8 +106,8 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
         {
             // Commander with two sensor children.
             var commander = _repo.CreateEntity();
-            _repo.AddComponent(commander, new Blackboard1024());
-            _repo.AddComponent(commander, new SquadStateMarker());
+            _repo.AddComponent(commander, default(SquadCognitiveState));
+            _repo.AddComponent(commander, default(SquadCognitiveState));
 
             var child1 = _repo.CreateEntity();
             _repo.AddComponent(child1, new DangerAreaSensor());

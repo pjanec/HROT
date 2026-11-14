@@ -10,6 +10,7 @@ namespace Hrot.Blueprints.Tests.MockSystems;
 /// Processes entities with InteractionChannel.ActiveAction != 0 and
 /// writes Status back from the configurable NextStatus lambda.
 /// </summary>
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class MockInteractionDispatcher : MockDispatcherSystem<InteractionChannel>
 {
     public Func<InteractionChannel, NodeStatus> NextStatus { get; set; } = _ => NodeStatus.Success;

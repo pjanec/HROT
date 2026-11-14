@@ -11,8 +11,17 @@ namespace Fdp.Toolkit.Vis2D.Defaults
         public Vector2 MouseDelta => Raylib.GetMouseDelta();
         public float MouseWheelMove => Raylib.GetMouseWheelMove();
 
-        public bool IsMouseCaptured => ImGuiNET.ImGui.GetIO().WantCaptureMouse;
-        public bool IsKeyboardCaptured => ImGuiNET.ImGui.GetIO().WantCaptureKeyboard;
+        /// <remarks>⭐ CE-1072 — never while the cursor is LOCKED: the hidden cursor's position still wanders, and over a docked panel
+        /// ImGui would claim the mouse and the first-person view would stop receiving its input until it wandered back.</remarks>
+        public bool IsMouseCaptured => !CursorLocked && ImGuiNET.ImGui.GetIO().WantCaptureMouse;
+
+        /// <summary>⭐ CE-1072 — true while <see cref="SetCursorLocked"/> holds the cursor (the map owns the mouse).</summary>
+        public bool CursorLocked { get; private set; }
+        /// <remarks>⭐ B-10 K1 (docs/UX/DESIGN_Input_And_Commands.md §5 ⑥, CE-4282) — the map reads keys only while it HAS THE KEYBOARD
+        /// (<see cref="Fdp.Presentation.Input.KeyboardFocus.MapHasKeyboard"/>: a click on the map takes it, a click on a panel gives it back) — ⛔ no
+        /// longer whenever the mouse happens to be over it. A locked cursor (first person) is the map's, keyboard included.</remarks>
+        public bool IsKeyboardCaptured => ImGuiNET.ImGui.GetIO().WantCaptureKeyboard
+                                          || (!CursorLocked && !Fdp.Presentation.Input.KeyboardFocus.MapHasKeyboard);
 
         public bool IsMouseButtonPressed(MapMouseButton button) =>
             Raylib.IsMouseButtonPressed((Raylib_cs.MouseButton)(int)button);
@@ -28,5 +37,19 @@ namespace Fdp.Toolkit.Vis2D.Defaults
         public bool IsKeyReleased(MapKeyboardKey key) =>
             Raylib.IsKeyReleased((Raylib_cs.KeyboardKey)(int)key);
         public int GetKeyPressed() => Raylib.GetKeyPressed();
+
+        /// <summary>⭐ CE-3174 — the first-person view's cursor lock (Raylib keeps reporting <see cref="MouseDelta"/>).</summary>
+        public void SetCursorLocked(bool locked)
+        {
+            if (locked == CursorLocked) return;
+            CursorLocked = locked;
+            if (locked) Fdp.Presentation.Input.KeyboardFocus.MapHasKeyboard = true;   // ⭐ B-10 K1 — first person: the map has the keyboard
+            if (locked) Raylib.DisableCursor();
+            else Raylib.EnableCursor();
+            // ⭐ CE-1072 — and ImGui ignores the mouse meanwhile, so no panel hovers, clicks or captures under the hidden cursor
+            var io = ImGuiNET.ImGui.GetIO();
+            if (locked) io.ConfigFlags |= ImGuiConfigFlags.NoMouse;
+            else io.ConfigFlags &= ~ImGuiConfigFlags.NoMouse;
+        }
     }
 }

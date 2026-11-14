@@ -1,6 +1,7 @@
 using System.Numerics;
 using Fdp.Presentation.Icons;
 using Hrot.Editor.AiShared.Adapters;
+using Fdp.Presentation.Input;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Picker;
 using Xunit;

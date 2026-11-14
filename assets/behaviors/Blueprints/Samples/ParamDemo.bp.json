@@ -1,0 +1,99 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000000-aaaa-0002-0000-0000000000d0",
+  "Name": "ParamDemo",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
+  "ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.ParamDemoParams",
+  "Declarations": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "e500d001-0001-0001-0001-000000000001",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "f500d001-0001-0001-0001-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 220,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "DemoEnumAction",
+          "Id": "f500d001-0002-0002-0002-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 420,
+            "Y": 220,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "f500d001-0003-0003-0003-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 760,
+            "Y": 220,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "f500d001-0001-0001-0001-000000000001",
+          "FromPinId": "e5dddd01-0001-a001-0001-000000000001",
+          "ToNodeId": "f500d001-0002-0002-0002-000000000001",
+          "ToPinId": "e5dddd01-0002-b001-0001-000000000001"
+        },
+        {
+          "FromNodeId": "f500d001-0002-0002-0002-000000000001",
+          "FromPinId": "e5dddd01-0002-a001-0001-000000000001",
+          "ToNodeId": "f500d001-0003-0003-0003-000000000001",
+          "ToPinId": "e5dddd01-0003-b001-0001-000000000001"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "Params-carrying AiPrimitive (int \u002B 2 bool) used to gate composed-blueprint Params sizing \u002B bool [MarshalAs(I1)] layout end-to-end. EventEntry -\u003E DemoEnumAction (no-op) -\u003E Return.",
+    "Category": null,
+    "Recipe": null
+  }
+}

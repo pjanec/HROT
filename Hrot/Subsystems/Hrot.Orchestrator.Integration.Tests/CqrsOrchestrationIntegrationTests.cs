@@ -59,6 +59,7 @@ public sealed class CqrsOrchestrationIntegrationTests
 
     private static ClusterConfiguration NoMandatoryConfig() => new ClusterConfiguration
     {
+        MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
         Mandatory                  = Array.Empty<string>(),
         HeartbeatTimeoutSeconds    = 60f,
         TransactionHistoryCapacity = 10,
@@ -109,7 +110,7 @@ public sealed class CqrsOrchestrationIntegrationTests
     {
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = nodeId,
+            NodeId        = (Fdp.Core.NodeId)(nodeId),
             LocalStateId  = (int)state,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
             SubsystemName = subsystem,
@@ -159,6 +160,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         var bus    = new FdpEventBus();
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory                  = new[] { "SimHost" },  // mandatory → latch not cleared immediately
             HeartbeatTimeoutSeconds    = 60f,
             TransactionHistoryCapacity = 10,
@@ -216,7 +218,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         // Update heartbeat for new state.
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.LoadingLive,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
             SubsystemName = "SimHost",
@@ -236,7 +238,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         // Update heartbeat to OperatingLive so master roster stays fresh.
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.OperatingLive,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
             SubsystemName = "SimHost",
@@ -248,7 +250,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         {
             TransactionId = Guid.NewGuid(),
             IsStart       = true,
-            EpisodeId     = episodeId,
+            EpisodeId     = (Fdp.Core.EpisodeId)(episodeId),
             ScenarioId    = "test_episode_scenario",  // required when IsStart = true
         });
 

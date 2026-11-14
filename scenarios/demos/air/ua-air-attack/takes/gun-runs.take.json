@@ -1,0 +1,96 @@
+{
+  "title": "Gun and rocket runs",
+  "caption": "The Apache's rockets and gun, the A-10's gun run on the column",
+  "clip": "F-51",
+  "chapter": 10,
+  "state": "ready",
+  "endAt": "a10+6",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Apache",
+      "n": 1
+    },
+    "a10": {
+      "on": "shot",
+      "by": "Gunship A-10",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-6",
+      "follow": "Apache",
+      "distance": 120,
+      "yaw": 60,
+      "pitch": 5,
+      "lift": 2,
+      "fov": 50,
+      "segment": "a"
+    },
+    {
+      "at": "m-0.7",
+      "follow": "Apache",
+      "distance": 50,
+      "yaw": 30,
+      "pitch": 0,
+      "lift": 2,
+      "fov": 45,
+      "segment": "a"
+    },
+    {
+      "at": "m+2",
+      "follow": "Position Truck",
+      "distance": 60,
+      "yaw": 120,
+      "pitch": -30,
+      "lift": 1,
+      "fov": 50,
+      "segment": "a"
+    },
+    {
+      "at": "a10-0.7",
+      "follow": "Gunship A-10",
+      "distance": 100,
+      "yaw": 90,
+      "pitch": 5,
+      "lift": 2,
+      "fov": 45,
+      "segment": "b"
+    },
+    {
+      "at": "a10+2",
+      "follow": "Column Lead",
+      "distance": 70,
+      "yaw": 60,
+      "pitch": -30,
+      "lift": 1,
+      "fov": 50,
+      "segment": "b"
+    }
+  ],
+  "segments": [
+    {
+      "id": "a",
+      "from": "m-6",
+      "to": "m+5"
+    },
+    {
+      "id": "b",
+      "from": "a10-1.5",
+      "to": "a10+6"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-6",
+      "until": "m+5",
+      "text": "The Apache's gun and rockets"
+    },
+    {
+      "at": "a10-1.5",
+      "until": "a10+6",
+      "text": "The A-10's gun run on the column"
+    }
+  ]
+}

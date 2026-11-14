@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Presentation.Icons;
 using ImGuiNET;
@@ -41,6 +42,22 @@ public abstract class ManagedWindow
 
     /// <summary>Controls whether the window is perspective-filtered or always visible.</summary>
     public WindowScope Scope { get; }
+
+    private HashSet<string>? _alsoShownIn;
+
+    /// <summary>
+    /// ⭐ R-4 / V4 (docs/UX/DESIGN_Review_Perspective.md §3 D1 / D10) — the OTHER perspectives this window is shown in, besides <see cref="OwningPerspective"/>
+    /// (a layout that SHARES a panel — the Review layout shows the Scenario layout's Details and Event Timeline — instead of a second copy of the window).
+    /// Empty for nearly every window. ⛔ The Windows menu still groups a window under its owner only.
+    /// </summary>
+    public IReadOnlyCollection<string> AlsoShownIn => (IReadOnlyCollection<string>?)_alsoShownIn ?? System.Array.Empty<string>();
+
+    /// <summary>Adds <paramref name="perspective"/> to <see cref="AlsoShownIn"/> (idempotent).</summary>
+    public void AlsoShowIn(string perspective) => (_alsoShownIn ??= new HashSet<string>()).Add(perspective);
+
+    /// <summary>⭐ The ONE test "this window belongs to <paramref name="perspective"/>": its owner, or one it is also shown in.</summary>
+    public bool BelongsTo(string perspective)
+        => OwningPerspective == perspective || (_alsoShownIn != null && _alsoShownIn.Contains(perspective));
 
     /// <summary>
     /// Whether the window is open. Setting to <c>false</c> hides the window immediately.
@@ -100,6 +117,10 @@ public abstract class ManagedWindow
     /// </summary>
     public bool ShowInMenu { get; protected set; } = true;
 
+    /// <summary>⭐ CE-4289 ④ — a submenu of the window's perspective group in <i>View ▸ Windows</i> the window is listed under (e.g. <c>"Debug"</c>); null = directly in the group.
+    /// Set by the HOST that composes the window (<see cref="WindowManager.SetMenuGroup"/>), so a shared window class stays neutral.</summary>
+    public string? MenuGroup { get; internal set; }
+
     // ── Internal test-support properties ──────────────────────────────────────
 
     /// <summary>
@@ -122,6 +143,17 @@ public abstract class ManagedWindow
     /// <c>BeginMenuBar</c>/<c>EndMenuBar</c> block. Default is <c>false</c>.
     /// </summary>
     protected virtual bool HasMenuBar => false;
+
+    /// <summary>⭐ <c>CE-4096</c> — extra <c>Gui.Begin</c> flags (the start surface is a bare full-screen page: no title bar, no move, no dock).
+    /// Default none, so every existing window is unchanged.</summary>
+    protected virtual ImGuiWindowFlags ExtraFlags => ImGuiWindowFlags.None;
+
+    /// <summary>⭐ <c>CE-4096</c> — a hook run just before <c>Gui.Begin</c> (the place for <c>SetNextWindowPos/Size</c>). Default: nothing.</summary>
+    protected virtual void BeforeBegin() { }
+
+    /// <summary>⭐ AQ109 X5 — a hook run each frame the window is CLOSED (no ImGui calls may be made). The place for an opt-in window to release what it only
+    /// holds while open (the wire inspector's DDS readers). Default: nothing.</summary>
+    protected virtual void OnRenderWhileClosed() { }
 
     // ── Construction ───────────────────────────────────────────────────────────
 
@@ -153,19 +185,21 @@ public abstract class ManagedWindow
     /// <param name="atlas">Icon atlas (reserved for subclass use; not consumed by base rendering).</param>
     public void Render(string currentPerspective, IconAtlas atlas)
     {
+        HasKeyFocus = false;   // ⭐ B-10 K1 — only a window drawn THIS frame can hold the keys
+
         // Step 1 — open gate.
-        if (!_isOpen) return;
+        if (!_isOpen) { OnRenderWhileClosed(); return; }
 
         // Step 2 — visibility gate.
         var isVisible = Scope == WindowScope.Global
             || _isPinned
-            || OwningPerspective == currentPerspective;
+            || BelongsTo(currentPerspective);
 
         // Step 3 — exit if not visible.
         if (!isVisible) return;
 
         var windowInternalName = WindowInternalName;
-        var perspectiveActive = OwningPerspective == currentPerspective;
+        var perspectiveActive = BelongsTo(currentPerspective);
 
         // Step 4 — consume pending focus request before Begin so ImGui can find the window.
         if (_focusRequested)
@@ -198,8 +232,12 @@ public abstract class ManagedWindow
 
         // Step 6 — begin the window. Pass ref _isOpen so ImGui's built-in close button
         //          writes back directly to the backing field.
-        var flags = HasMenuBar ? ImGuiWindowFlags.MenuBar : ImGuiWindowFlags.None;
+        var flags = (HasMenuBar ? ImGuiWindowFlags.MenuBar : ImGuiWindowFlags.None) | ExtraFlags;
+        BeforeBegin();
         Gui.Begin(windowInternalName, ref _isOpen, flags);
+        // ⭐ B-10 K1 (docs/UX/DESIGN_Input_And_Commands.md §5 ⑤) — focus is ImGui's: read it ONCE here, for the WindowManager's KeyRouter.
+        //   RootAndChildWindows — a canvas draws into child windows; ⚠ a docked window's root stops at its dock node, so only ONE docked window is focused.
+        HasKeyFocus = Gui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows);
 
         // Pop title-bar colours immediately after Begin (title bar is already rendered).
         if (colorsPushed > 0)
@@ -207,8 +245,15 @@ public abstract class ManagedWindow
 
         // Step 7 — pin button in the actual title bar (PerspectiveBound windows only).
         //          Drawn using absolute screen coordinates so it occupies no client-area height.
-        if (Scope == WindowScope.PerspectiveBound)
+        if (Scope == WindowScope.PerspectiveBound && !flags.HasFlag(ImGuiWindowFlags.NoTitleBar))
             DrawTitleBarPinButton(perspectiveActive);
+
+        // Step 7b — ⭐ CE-4325 (E7): a window's own icons in the title bar, to the LEFT of the pin (the Event Timeline's ⚑ and S / W). Nothing by default.
+        if (!flags.HasFlag(ImGuiWindowFlags.NoTitleBar))
+        {
+            float fhc = Gui.GetFrameHeight();
+            DrawTitleBarCorner(Gui.GetWindowPos().X + Gui.GetWindowWidth() - 2f * fhc, Gui.GetWindowPos().Y, fhc);
+        }
 
         // Step 8 — optional local menu bar.
         if (HasMenuBar && Gui.BeginMenuBar())
@@ -224,6 +269,13 @@ public abstract class ManagedWindow
         Gui.End();
     }
 
+    /// <summary>
+    /// ⭐ B-10 K1 — whether this window held ImGui's keyboard focus in the frame it last drew (false when it did not draw). The
+    /// <see cref="WindowManager"/>'s <see cref="Fdp.Presentation.Input.KeyRouter"/> runs the focused window's keys; a window reading raw keys
+    /// itself gates them on this.
+    /// </summary>
+    public bool HasKeyFocus { get; private set; }
+
     // ── Internal focus API ─────────────────────────────────────────────────────
 
     /// <summary>
@@ -231,6 +283,40 @@ public abstract class ManagedWindow
     /// call. Called internally by <c>WindowManager.FocusWindow()</c>.
     /// </summary>
     internal void RequestFocus() => _focusRequested = true;
+
+    // ── Title-bar corner (⭐ CE-4325) ───────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ CE-4325 (E7) — a window draws its own small icons in the title bar, RIGHT-aligned to <paramref name="rightEdgeX"/> (the pin's left edge) and going left, each <paramref name="size"/> square. Called every
+    /// frame after <c>Begin</c>; the base draws none. Use <see cref="TitleBarIcon"/> for each.
+    /// </summary>
+    protected virtual void DrawTitleBarCorner(float rightEdgeX, float titleBarY, float size) { }
+
+    /// <summary>
+    /// ⭐ CE-4325 — one title-bar icon button: a text face (a glyph or a letter) in a <paramref name="size"/> square whose right edge is <paramref name="rightX"/>, which then moves left by one square. Same
+    /// clip trick as the pin (the title bar is outside the content clip rect). Returns true when pressed (and enabled). The tooltip shows on hover, also while disabled (the reason).
+    /// </summary>
+    protected static bool TitleBarIcon(string id, string face, ref float rightX, float titleBarY, float size, bool enabled, bool filled, uint colour, string tooltip)
+    {
+        float x = rightX - size;
+        rightX = x;
+        var saved = Gui.GetCursorScreenPos();
+        var wp = Gui.GetWindowPos();
+        Gui.PushClipRect(new Vector2(wp.X, titleBarY), new Vector2(wp.X + Gui.GetWindowWidth(), titleBarY + size), false);
+        Gui.SetCursorScreenPos(new Vector2(x, titleBarY));
+        bool clicked = Gui.InvisibleButton(id, new Vector2(size, size));
+        bool hovered = Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled);
+        var dl = Gui.GetWindowDrawList();
+        if (filled || hovered)
+            dl.AddRectFilled(new Vector2(x + 1, titleBarY + 1), new Vector2(x + size - 1, titleBarY + size - 1), filled ? 0x80A06030u : 0x40FFFFFFu, 3f);
+        var ts = Gui.CalcTextSize(face);
+        uint c = enabled ? colour : (colour & 0x00FFFFFFu) | 0x70000000u;
+        dl.AddText(new Vector2(x + (size - ts.X) * 0.5f, titleBarY + (size - ts.Y) * 0.5f), c, face);
+        if (hovered && tooltip.Length > 0) Gui.SetTooltip(tooltip);
+        Gui.PopClipRect();
+        Gui.SetCursorScreenPos(saved);
+        return clicked && enabled;
+    }
 
     // ── Private title-bar helpers ──────────────────────────────────────────────
 
@@ -351,6 +437,21 @@ public abstract class ManagedWindow
     /// succeeds. Default implementation does nothing.
     /// </summary>
     protected virtual void DrawLocalMenuBar() { }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>VC-1</c> — called by <see cref="WindowManager.RegisterWindow"/> the moment this
+    /// window joins a manager.</b> Default implementation does nothing.
+    ///
+    /// <para>⭐ For a window that needs the MANAGER itself — to open a second window, or to contribute
+    /// a global menu entry — this is where it self-wires. ⛔ The alternative is an explicit
+    /// <c>Attach…</c> call at every composition root, and 📐 measured <c>2026-08-22</c>: exactly that
+    /// shape left the Scenario Details host without a manager, because one of the two roots that build
+    /// a <c>DetailsWindow</c> made the call and the other did not.</para>
+    ///
+    /// <para>⚠ Called on EVERY registration, including a re-register that overwrites the same id — so an
+    /// override must be idempotent. ⛔ Do not draw here: registration happens outside a frame.</para>
+    /// </summary>
+    public virtual void OnRegistered(WindowManager manager) { }
 
     /// <summary>Render all content inside the window's client area.</summary>
     protected abstract void DrawClientArea();

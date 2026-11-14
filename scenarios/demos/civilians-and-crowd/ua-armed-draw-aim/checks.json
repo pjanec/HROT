@@ -1,0 +1,64 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — AW-16 drawing is not the act, aiming is. From the header's Judge (1)-(3): the pistol (IsEmbarkedTag.Seat 3 hidden, 1 drawn - the live check's readings) starts hidden; he stays Neutral and the rifleman silent until he aims; he turns Hostile only >= 8 s after the draw; then the rifleman engages. 'On CGF, SimHost and IG alike' collapses to one world here and is not expressed.",
+  "runFor": 40,
+  "golden": {
+    "every": 5
+  },
+  "expect": [
+    {
+      "name": "the pistol starts hidden",
+      "on": "field",
+      "who": "Pistol",
+      "path": "IsEmbarkedTag.Seat",
+      "op": "==",
+      "value": 3
+    },
+    {
+      "name": "he draws the pistol",
+      "on": "field",
+      "who": "Pistol",
+      "path": "IsEmbarkedTag.Seat",
+      "op": "==",
+      "value": 1
+    },
+    {
+      "name": "drawn, he is still Neutral",
+      "on": "side",
+      "who": "Covert insurgent",
+      "is": "Neutral",
+      "after": "he draws the pistol"
+    },
+    {
+      "name": "he turns Hostile when he aims",
+      "on": "side",
+      "who": "Covert insurgent",
+      "is": "Hostile",
+      "after": "he draws the pistol"
+    },
+    {
+      "name": "he is never Hostile within 8 s of the draw",
+      "never": {
+        "on": "side",
+        "who": "Covert insurgent",
+        "is": "Hostile"
+      },
+      "after": "he draws the pistol",
+      "before": "he draws the pistol+8"
+    },
+    {
+      "name": "the rifleman spends no round before he aims",
+      "never": {
+        "on": "shot",
+        "by": "Rifleman"
+      },
+      "before": "he turns Hostile when he aims"
+    },
+    {
+      "name": "the rifleman engages him",
+      "on": "shot",
+      "by": "Rifleman",
+      "at": "Covert insurgent",
+      "after": "he turns Hostile when he aims"
+    }
+  ]
+}

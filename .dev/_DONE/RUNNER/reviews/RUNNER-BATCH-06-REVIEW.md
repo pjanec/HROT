@@ -25,7 +25,7 @@ The developer successfully completed the final tasks for the Runner Application 
 > **Note:** During this review, I corrected a failing test `IsValid_StructWithIntEntityId_ReturnsFalse` in `FDP.Toolkit.Replication.Tests`. This test was failing because Batch 04 explicitly changed `UnsafeLayout` to *allow* 32-bit `int` Entity IDs. I modified the test to `ReturnsTrue` and updated the assertion. All Replication Toolkit tests now pass.
 
 ## 🧪 Global Test Status
-**Overall:** Pass. `dotnet test IOS-IG-SimHost.sln` completes successfully across the entire ecosystem.
+**Overall:** Pass. `dotnet test HROT.sln` completes successfully across the entire ecosystem.
 
 ## 🎓 Conclusion
 This officially completes the `Hrot.ClusterRunner` development track. The application scales dynamically from single-role components (e.g. `SimHost.exe`) to a completely managed local-process orchestrator (`Runner.exe --mode all`), resolving the `GlobalComponentIds` limitations across the board.

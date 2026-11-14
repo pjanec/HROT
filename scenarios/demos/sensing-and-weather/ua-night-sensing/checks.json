@@ -1,0 +1,67 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4035 G-10: night shortens sight (150 x 0.25 = ~38 m). From the header's Judge: each observer's memory is empty while his target is beyond 75 m, and holds him later. TRIAGE (CE-4042): the draft read TargetMemory.Count, which the entity dump does not carry (the TargetMemory translator writes {Entries:[{Entity,PosX,PosY,Score,Tick,Modality,Stance}]}), so the observers never 'saw' anything \u2014 class A; the memory is read as TargetMemory.Entries.0.Score > 0 (any modality; the old check filtered Visual). Measured: both observers first remember their target at 130.5 s, the target ~37 m away (within 40 m at 129.75 s, within 35 m at 133.25 s) = 150 x 0.25.",
+  "runFor": 140,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "Target Clear within 75 m": {
+      "on": "near",
+      "who": "Target Clear",
+      "point": [
+        0,
+        0
+      ],
+      "within": 75
+    },
+    "Target Second within 75 m": {
+      "on": "near",
+      "who": "Target Second",
+      "point": [
+        0,
+        300
+      ],
+      "within": 75
+    }
+  },
+  "expect": [
+    {
+      "name": "Observer Clear sees nothing beyond 75 m",
+      "never": {
+        "on": "field",
+        "who": "Observer Clear",
+        "path": "TargetMemory.Entries.0.Score",
+        "op": ">",
+        "value": 0
+      },
+      "before": "Target Clear within 75 m"
+    },
+    {
+      "name": "Observer Second sees nothing beyond 75 m",
+      "never": {
+        "on": "field",
+        "who": "Observer Second",
+        "path": "TargetMemory.Entries.0.Score",
+        "op": ">",
+        "value": 0
+      },
+      "before": "Target Second within 75 m"
+    },
+    {
+      "name": "Observer Clear sees his target",
+      "on": "field",
+      "who": "Observer Clear",
+      "path": "TargetMemory.Entries.0.Score",
+      "op": ">",
+      "value": 0
+    },
+    {
+      "name": "Observer Second sees his target",
+      "on": "field",
+      "who": "Observer Second",
+      "path": "TargetMemory.Entries.0.Score",
+      "op": ">",
+      "value": 0
+    }
+  ]
+}

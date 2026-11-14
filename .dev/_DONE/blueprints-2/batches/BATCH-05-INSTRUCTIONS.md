@@ -20,7 +20,7 @@ Read these files in full BEFORE writing any code:
 - Demo: `FDP/ExtDeps/NodeEdit/src/NodeEditor.Demo/`
 - Core Tests: `FDP/ExtDeps/NodeEdit/tests/NodeEditor.Core.Tests/`
 - Solution: `FDP/ExtDeps/NodeEdit/NodeEditor.sln`
-- Full solution (verify at end): `d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln`
+- Full solution (verify at end): `d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln`
 
 ---
 
@@ -333,7 +333,7 @@ dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.Core.Tests/NodeEditor.Core.Tes
 Then run the full solution build:
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 All must produce 0 errors.

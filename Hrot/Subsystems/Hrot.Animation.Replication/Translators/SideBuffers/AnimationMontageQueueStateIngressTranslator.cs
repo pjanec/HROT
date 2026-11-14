@@ -12,14 +12,13 @@ namespace Hrot.Animation.Replication.Translators.SideBuffers;
 /// and updates the Brain ghost's <see cref="AnimationMontageQueueState"/> component.
 /// Does NOT replicate ObservedQueueVersion (Muscle executor internal).
 /// </summary>
-internal sealed class AnimationMontageQueueStateIngressTranslator : INetworkTranslator
+internal sealed class AnimationMontageQueueStateIngressTranslator : INetworkTranslator, IDiscardableIngress
 {
-    private const string TopicNameConst = "hrot/anim/MontageQueueState";
 
     private readonly DdsReader<DdsMontageQueueState>? _reader;
     private readonly NetworkEntityMap _entityMap;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of(typeof(DdsMontageQueueState).Namespace, new[] { nameof(DdsMontageQueueState) });
     public TranslatorDirection Direction => TranslatorDirection.Ingress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -28,10 +27,13 @@ internal sealed class AnimationMontageQueueStateIngressTranslator : INetworkTran
         DdsParticipant participant, NetworkEntityMap entityMap)
     {
         _reader = participant is not null
-            ? new DdsReader<DdsMontageQueueState>(participant, TopicNameConst)
+            ? new DdsReader<DdsMontageQueueState>(participant)
             : null;
         _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
     }
+
+    /// <inheritdoc />
+    public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
     {

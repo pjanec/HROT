@@ -1,5 +1,9 @@
 # Fdp.Presentation
 
+> ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](../../../blueprints/DESIGN_Map_Picking_Unification.md):** `[MapPickableWorldLocation]` and the `ImGui/Editing/PickerAttributes.cs` copy of `[MapPickableEntity]` are deleted — a field is pickable by its TYPE (`EntityRef`, `PickableGeoPoint`), drawn as one leaf by `PickableLeafFieldEditor`; `[MapPickableEntity]` (Fdp.Toolkits) only narrows an entity pick. `IMapPickContext` is THE pick context (location result `PickableGeoPoint`).
+
+> ⭐ **`2026-11-12` (CE-1495):** the ImGui render step is `Fdp.Presentation.Raylib.ImGuiRenderer` (VtxOffset-aware, replaces `rlImGui.End`) — see [DESIGN_ImGui_Draw_Data_Renderer](../../../DESIGN_ImGui_Draw_Data_Renderer.md).
+
 **Project path:** `FDP/Engine/Fdp.Presentation/Fdp.Presentation.csproj`
 **Date:** 2026-05-23
 
@@ -434,7 +438,7 @@ The project root contains 96 C# source files organized into two major subsystems
 | File | Type | Responsibility |
 |------|------|----------------|
 | `ImGui/Windows/MessageLogWindow.cs` | `sealed class MessageLogWindow : ManagedWindow` | Global-scope window hosting `MessageLogPanel`. Exposes `HasUnobservedAttention` and `FocusFirstAttentionTab` for status bar integration. |
-| `ImGui/Windows/ReplayBrowser/ReplayTimelineWindow.cs` | `sealed class ReplayTimelineWindow : ManagedWindow` | Perspective-bound window hosting `ReplayTimelinePanel`. |
+| `ImGui/Windows/ReplayBrowser/RecordingInfoWindow.cs` | `sealed class RecordingInfoWindow : ManagedWindow` | **File ▸ Recording info** (`rb_recording_info`, closed by default): the files per node, the length, the exercise id, and the `replay-timeline` panel snapshot. ⛔ `ReplayTimelineWindow` (`rb_timeline`) is RETIRED (B-7 part 3, R-4155): `ReplayTimelinePanel` stays as the transport's and the export window's one drawer. |
 | `ImGui/Windows/ReplayBrowser/ReplaySearchWindow.cs` | `sealed class ReplaySearchWindow : ManagedWindow` | Perspective-bound window hosting `ReplaySearchPanel`. |
 | `ImGui/Windows/ReplayBrowser/FdpEventBrowserWindow.cs` | `sealed class FdpEventBrowserWindow : ManagedWindow` | Perspective-bound window hosting `EventBrowserPanel` in replay context. |
 | `ImGui/Windows/ReplayBrowser/FdpEntityInspectorWindow.cs` | `sealed class FdpEntityInspectorWindow : ManagedWindow` | Perspective-bound window hosting `EntityInspectorPanel`. Factory delegates supply session and state on each frame. |
@@ -881,8 +885,8 @@ public sealed class HealthPointsRenderer : IImGuiRenderer
 _wm.RegisterWindow(new EntityInspectorWindow("entity_inspector",
     "Entity Inspector", "Live", inspectorPanel));
 
-_wm.RegisterWindow(new ReplayTimelineWindow("rb_timeline",
-    "Timeline", "Replay", timelinePanel,
+// ⛔ the "rb_timeline" Replay Timeline window is retired (B-7 part 3); File ▸ Recording info is the closed RecordingInfoWindow:
+_wm.RegisterWindow(new RecordingInfoWindow("Replay", timelinePanel,
     new System.Numerics.Vector4(0.2f, 0.1f, 0.3f, 1f)));
 
 // Switch between perspectives

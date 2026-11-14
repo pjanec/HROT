@@ -53,7 +53,7 @@
 ```powershell
 # From repo root d:\Work\IOS-IG-SimHost-FDP-2\
 # Full solution build to check all signature changes compile
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
 
 # Run breakpoints tests
 dotnet test Hrot/Diagnostics/Hrot.Diagnostics.Breakpoints.Tests/Hrot.Diagnostics.Breakpoints.Tests.csproj
@@ -381,7 +381,7 @@ kvp.Value.UpdateAndDraw(activeView, deltaTime, _drawBuilder);
 
 After all signature changes, run:
 ```powershell
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
 dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj
 dotnet test Hrot/Runner/Hrot.ClusterRunner.Tests/Hrot.ClusterRunner.Tests.csproj
 dotnet test Hrot/Diagnostics/Hrot.Diagnostics.Breakpoints.Tests/Hrot.Diagnostics.Breakpoints.Tests.csproj

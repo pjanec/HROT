@@ -143,5 +143,33 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
             var intent = world.GetComponent<NavigationIntent>(entity);
             Assert.Equal(NavigationMode.None, intent.Mode);
         }
+
+        /// <summary>
+        /// ⭐ CE-2173 slice 3 (docs/designs/air-attack/DESIGN_Air_Operations.md §9b) — the Brain's hold release (the params' <c>ReleaseHold</c>)
+        /// is mirrored onto <see cref="NavigationIntent.ReleaseHold"/> every tick as a LEVEL: on when the params say so, off again when they
+        /// stop — the motion side consumes one rising edge per hold. ✅ Red-proof: mirroring only in <c>OnEnter</c> ⇒ the bit never comes on.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2173_TheBrainsHoldRelease_ReachesTheIntent_AsALevel()
+        {
+            var (world, entity, channel) = BuildWorld(trajectoryId: 5, isLooped: 0);
+            var executor = new FollowRouteExecutor();
+            executor.OnEnter(entity, ref channel, world);
+            executor.Execute(entity, ref channel, world, 0.016f);
+            Assert.False(world.GetComponent<NavigationIntent>(entity).ReleaseHold);
+
+            var p = Unsafe.Read<FollowRouteParams>(Unsafe.AsPointer(ref channel.Params[0]));
+            p.ReleaseHold = 1;
+            Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
+            uint id = world.GetComponent<NavigationIntent>(entity).IntentId;
+            executor.Execute(entity, ref channel, world, 0.016f);
+            Assert.True(world.GetComponent<NavigationIntent>(entity).ReleaseHold);
+            Assert.Equal(id, world.GetComponent<NavigationIntent>(entity).IntentId);   // the same order — no restart
+
+            p.ReleaseHold = 0;
+            Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
+            executor.Execute(entity, ref channel, world, 0.016f);
+            Assert.False(world.GetComponent<NavigationIntent>(entity).ReleaseHold);
+        }
     }
 }

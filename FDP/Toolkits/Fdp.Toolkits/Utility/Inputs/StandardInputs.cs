@@ -4,7 +4,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
-using Fdp.Modules.Geographic.Components;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Perception;
@@ -35,6 +34,10 @@ namespace Fdp.Toolkit.Utility
         public const ushort HasLineOfSight           = 0xF98D;
         public const ushort HaveLiveTarget           = 0xC20C;
         public const ushort EnemyStrengthRatio       = 0x5635;
+        /// <summary>⭐ CE-3054 — how dangerous the context contact is (<see cref="Fdp.Toolkit.Perception.ThreatDanger"/>).</summary>
+        public const ushort ContactDanger            = 0xF4D0;
+        /// <summary>⭐ CE-3054 — how fresh the context contact is in the unit's memory.</summary>
+        public const ushort ContactFreshness         = 0x73FA;
 
         // Group C: EQS
         public const ushort EqsTopScore              = 0x2227;
@@ -46,11 +49,28 @@ namespace Fdp.Toolkit.Utility
         public const ushort Constant                 = 0xAB45;
         public const ushort WeaponRangeBandFit       = 0x2C0C;
         public const ushort WeaponEffectivenessVsTarget = 0xEE5F;
+        /// <summary>⭐ CE-3071 — how many rounds the mount has left, on a log scale (<see cref="StandardInputs.RoundsLeft"/>).</summary>
+        public const ushort RoundsLeft               = 0xCAE9;
+        /// <summary>⭐ CE-3084 — an identified remembered contact is held by a sensor NOW, by sight (<see cref="StandardInputs.ThreatInSight"/>).</summary>
+        public const ushort ThreatInSight            = 0x2D27;
+        /// <summary>⭐ WL-4 W-12f — the unit carries a hand-thrown indirect round it can still throw (<see cref="StandardInputs.CarriesThrowable"/>).</summary>
+        public const ushort CarriesThrowable         = 0x4054;
+        /// <summary>⭐ AQ102 A (CE-2356) — the unit was hit or near-missed lately: 1 within <see cref="StandardInputs.UnderFireFullSeconds"/>,
+        /// falling to 0 at <see cref="StandardInputs.UnderFireSeconds"/> (<see cref="StandardInputs.UnderFire"/>).</summary>
+        public const ushort UnderFire                = 0x2C71;
+        /// <summary>⭐ AQ102 A (CE-2356, as reworked) — max(1 − health, <see cref="UnderFire"/>) (<see cref="StandardInputs.HurtOrUnderFire"/>).</summary>
+        public const ushort HurtOrUnderFire          = 0x5EF1;
+        /// <summary>⭐ <c>CE-2271</c> (TS-5, R-2075) — a cautious man's damping of an advance (<see cref="StandardInputs.CautionDamp"/>).</summary>
+        public const ushort CautionDamp              = 0xE658;
+        /// <summary>⭐ <c>CE-2271</c> (TS-5) — a bold man's damping of taking cover, lying down and fleeing (<see cref="StandardInputs.AggressionDamp"/>).</summary>
+        public const ushort AggressionDamp           = 0x9CDB;
+        /// <summary>⭐ <c>CE-2271</c> (TS-5) — a stressed man's damping of advancing and suppressing (<see cref="StandardInputs.StressDamp"/>).</summary>
+        public const ushort StressDamp               = 0x2023;
     }
 
     /// <summary>
     /// Phase 1 catalog of standard Utility AI input readers.
-    /// Call <see cref="RegisterAll"/> once at startup to register all 17 readers.
+    /// Call <see cref="RegisterAll"/> once at startup to register all the standard readers.
     /// </summary>
     public static unsafe class StandardInputs
     {
@@ -63,8 +83,9 @@ namespace Fdp.Toolkit.Utility
         [UtilityInput("AmmoFraction")]
         public static float AmmoFraction(in UtilityInputCtx ctx)
         {
-            if (!ctx.Repo.HasComponent<WeaponState>(ctx.Self)) return 0f;
-            ref readonly var ws = ref ctx.Repo.GetComponentRO<WeaponState>(ctx.Self);
+            var weapon = WeaponOf(in ctx);   // ⭐ WS-4 — a bare host reads its station weapon
+            if (weapon.IsNull) return 0f;
+            ref readonly var ws = ref ctx.Repo.GetComponentRO<WeaponState>(weapon);
             float result = ws.MaxAmmo == 0 ? 0f : Math.Clamp((float)ws.Ammo / ws.MaxAmmo, 0f, 1f);
             Debug.Assert(result >= 0f && result <= 1f);
             return result;
@@ -77,8 +98,9 @@ namespace Fdp.Toolkit.Utility
         [UtilityInput("WeaponHasAmmo")]
         public static float WeaponHasAmmo(in UtilityInputCtx ctx)
         {
-            if (!ctx.Repo.HasComponent<WeaponState>(ctx.Self)) return 0f;
-            ref readonly var ws = ref ctx.Repo.GetComponentRO<WeaponState>(ctx.Self);
+            var weapon = WeaponOf(in ctx);   // ⭐ WS-4 — a bare host reads its station weapon
+            if (weapon.IsNull) return 0f;
+            ref readonly var ws = ref ctx.Repo.GetComponentRO<WeaponState>(weapon);
             float result = ws.Ammo > 0 ? 1f : 0f;
             Debug.Assert(result >= 0f && result <= 1f);
             return result;
@@ -86,14 +108,16 @@ namespace Fdp.Toolkit.Utility
 
         /// <summary>
         /// Returns 1 if CooldownSecondsRemaining &lt;= 0 on ctx.Self's WeaponState, else 0.
-        /// Returns 0 if WeaponState is absent.
+        /// Returns 0 if WeaponState is absent. ⭐ <c>CE-3136</c> P-5 — and 0 while the magazine is reloading or empty
+        /// (<see cref="Fdp.Toolkit.Combat.Magazine.Ready"/>): a weapon mid-reload is not ready.
         /// </summary>
         [UtilityInput("WeaponReadiness")]
         public static float WeaponReadiness(in UtilityInputCtx ctx)
         {
-            if (!ctx.Repo.HasComponent<WeaponState>(ctx.Self)) return 0f;
-            ref readonly var ws = ref ctx.Repo.GetComponentRO<WeaponState>(ctx.Self);
-            float result = ws.CooldownSecondsRemaining <= 0f ? 1f : 0f;
+            var weapon = WeaponOf(in ctx);   // ⭐ WS-4 — a bare host reads its station weapon
+            if (weapon.IsNull) return 0f;
+            ref readonly var ws = ref ctx.Repo.GetComponentRO<WeaponState>(weapon);
+            float result = ws.CooldownSecondsRemaining <= 0f && Fdp.Toolkit.Combat.Magazine.Ready(ws) ? 1f : 0f;
             Debug.Assert(result >= 0f && result <= 1f);
             return result;
         }
@@ -129,42 +153,55 @@ namespace Fdp.Toolkit.Utility
         /// <summary>
         /// Returns 1 - clamp(distance/MaxRange, 0, 1) where distance is between ctx.Self and ctx.Context.
         /// MaxRange defaults to 1000 m when Params.MaxRange &lt;= 0.
-        /// Returns 0 if either entity lacks a Position component.
+        /// Returns 0 if either entity has no world position (<see cref="TryGetWorldPosition"/>).
         /// </summary>
         [UtilityInput("DistanceToContext")]
         public static float DistanceToContext(in UtilityInputCtx ctx)
         {
-            if (!ctx.Repo.HasComponent<Position>(ctx.Self) || !ctx.Repo.HasComponent<Position>(ctx.Context)) return 0f;
-            ref readonly var selfPos = ref ctx.Repo.GetComponentRO<Position>(ctx.Self);
-            ref readonly var ctxPos  = ref ctx.Repo.GetComponentRO<Position>(ctx.Context);
+            if (!TryGetWorldPosition(ctx.Repo, ctx.Self, out var selfPos) ||
+                !TryGetWorldPosition(ctx.Repo, ctx.Context, out var ctxPos)) return 0f;
             float maxRange = ctx.Params.MaxRange > 0f ? ctx.Params.MaxRange : 1000f;
-            float distance = Vector3.Distance(selfPos.Value, ctxPos.Value);
+            float distance = Vector3.Distance(selfPos, ctxPos);
             float result   = Math.Clamp(1f - distance / maxRange, 0f, 1f);
-            Debug.Assert(result >= 0f && result <= 1f);
+            Debug.Assert(result >= 0f && result <= 1f,
+                $"DistanceToContext: not in [0,1] ({result}) — self {ctx.Self.Index} at {selfPos}, context {ctx.Context.Index} at {ctxPos}, maxRange {maxRange}");
             return result;
         }
 
         // ── Group B: perception ──────────────────────────────────────────────────
 
         /// <summary>
-        /// Returns the ThreatScore for ctx.Context from ctx.Self's TargetMemory, clamped to [0,1].
-        /// Returns 0 if ctx.Context is not found in TargetMemory or TargetMemory is absent.
+        /// ⭐ CE-3054 C — the context contact's THREAT: its danger (judged now, <see cref="ThreatDanger"/>) × its freshness in
+        /// ctx.Self's memory (<see cref="ThreatFreshness"/>). 0 when the contact is not remembered.
+        /// ⛔ SUPERSEDED: the raw memory score clamped to [0,1] — the score saturates at 500, so every contact read 1 for ~44 s.
         /// </summary>
         [UtilityInput("ContactThreatLevel")]
         public static float ContactThreatLevel(in UtilityInputCtx ctx)
+        {
+            float freshness = ContactFreshness(ctx);
+            if (freshness <= 0f) return 0f;
+            float result = ThreatDanger.Of(ctx.Repo, ctx.Self, ctx.Context) * freshness;
+            Debug.Assert(result >= 0f && result <= 1f);
+            return result;
+        }
+
+        /// <summary>⭐ CE-3054 B — how dangerous the context contact is, in [0,1] (<see cref="ThreatDanger.Of"/>).</summary>
+        [UtilityInput("ContactDanger")]
+        public static float ContactDanger(in UtilityInputCtx ctx)
+            => ThreatDanger.Of(ctx.Repo, ctx.Self, ctx.Context);
+
+        /// <summary>
+        /// ⭐ CE-3054 C — how fresh the context contact is in ctx.Self's memory, in [0,1] (1 = tracked long enough to
+        /// saturate). 0 when it is not remembered.
+        /// </summary>
+        [UtilityInput("ContactFreshness")]
+        public static float ContactFreshness(in UtilityInputCtx ctx)
         {
             if (!ctx.Repo.HasComponent<TargetMemory>(ctx.Self)) return 0f;
             ref readonly var mem = ref ctx.Repo.GetComponentRO<TargetMemory>(ctx.Self);
             long targetId = (long)ctx.Context.PackedValue;
             for (int i = 0; i < mem.Count; i++)
-            {
-                if (mem.EntityIds[i] == targetId)
-                {
-                    float result = Math.Clamp(mem.ThreatScores[i], 0f, 1f);
-                    Debug.Assert(result >= 0f && result <= 1f);
-                    return result;
-                }
-            }
+                if (mem.EntityIds[i] == targetId) return ThreatFreshness.Of(mem.Freshness[i]);
             return 0f;
         }
 
@@ -191,22 +228,63 @@ namespace Fdp.Toolkit.Utility
         }
 
         /// <summary>
-        /// Returns 1 if ctx.Self's TargetMemory has Count &gt; 0, else 0.
-        /// Returns 0 if TargetMemory is absent.
+        /// ⭐ CE-3054 C — 1 when ctx.Self remembers a LIVE contact (tracked now, or fresh enough —
+        /// <see cref="ThreatFreshness.IsLive"/>), else 0.
+        /// ⛔ SUPERSEDED: <c>Count &gt; 0</c> — a contact seen once long ago kept an attack posture alive.
         /// </summary>
         [UtilityInput("HaveLiveTarget")]
         public static float HaveLiveTarget(in UtilityInputCtx ctx)
         {
             if (!ctx.Repo.HasComponent<TargetMemory>(ctx.Self)) return 0f;
             ref readonly var mem = ref ctx.Repo.GetComponentRO<TargetMemory>(ctx.Self);
-            float result = mem.Count > 0 ? 1f : 0f;
-            Debug.Assert(result >= 0f && result <= 1f);
-            return result;
+            for (int i = 0; i < mem.Count; i++)
+                // ⭐ CE-3063 ② — identified contacts only: this gates the FIRING postures, and a heard point cannot be shot.
+                // ⭐ CE-2120 (R-214) — a KILLED contact is not a target: the corpse stays remembered and tracked, and made the
+                //   approach flank it.
+                // ⭐ CE-2233 (CIV-0) — nor is a NEUTRAL: a soldier who sees only a civilian takes no firing posture.
+                if (!TargetMemory.IsAnonymous(in mem, i) && ThreatFreshness.IsLive(ctx.Repo, ctx.Self, in mem, i)
+                    && !ThreatDanger.IsOutOfTheFight(ctx.Repo, new Entity((ulong)mem.EntityIds[i]))
+                    && !ThreatDanger.IsNeutral(ctx.Repo, new Entity((ulong)mem.EntityIds[i]))) return 1f;
+            return 0f;
         }
 
         /// <summary>
-        /// Returns the ratio of total enemy threat score to (selfHealthFraction * MaxTrackedTargets),
-        /// clamped to [0,1]. Returns 0 if TargetMemory is absent, Count is 0, or denominator is 0.
+        /// ⭐ <c>CE-3084</c> (<c>docs/DESIGN_Decision_Layer.md</c> §3.3e F1) — 1 when a sensor holds, RIGHT NOW and by SIGHT, a contact
+        /// ctx.Self remembers as identified (<see cref="ActiveSensorTracks"/> with the Visual modality, CE-3060), else 0. A self
+        /// input: it needs no context entity. ⛔ Not <see cref="HasLineOfSight"/> (needs a context; and the memory's modality is
+        /// OR-accumulated — ever seen, not seen now) and not <c>FindThreatsInView</c> (its faction filter is absolute — 0 keeps nothing).
+        /// </summary>
+        /// <summary>
+        /// ⭐ <c>WL-4</c> W-12f (📄 docs/DESIGN_Weapon_Layers.md §5f L-6) — 1 when ctx.Self has a mount that THROWS an indirect warhead
+        /// (a grenade: indirect, hand speed) with rounds left, else 0. A self input. It is what lets the approach decision offer
+        /// <c>CloseToThrow</c> to a grenadier only — a rifleman scores 0 and flanks.
+        /// </summary>
+        [UtilityInput("CarriesThrowable")]
+        public static float CarriesThrowable(in UtilityInputCtx ctx)
+            => Fdp.Toolkit.Combat.HiddenTargetThrow.ThrowableMount(ctx.Repo, ctx.Self, out _, out _, out _, out _) ? 1f : 0f;
+
+        [UtilityInput("ThreatInSight")]
+        public static float ThreatInSight(in UtilityInputCtx ctx)
+        {
+            if (!ctx.Repo.HasComponent<ActiveSensorTracks>(ctx.Self) || !ctx.Repo.HasComponent<TargetMemory>(ctx.Self)) return 0f;
+            ref readonly var tracks = ref ctx.Repo.GetComponentRO<ActiveSensorTracks>(ctx.Self);
+            ref readonly var mem = ref ctx.Repo.GetComponentRO<TargetMemory>(ctx.Self);
+            for (int t = 0; t < tracks.Count; t++)
+            {
+                if ((tracks.Modalities[t] & (byte)SensorModality.Visual) == 0) continue;
+                for (int i = 0; i < mem.Count; i++)
+                    if (mem.EntityIds[i] == tracks.EntityIds[t] && !TargetMemory.IsAnonymous(in mem, i)
+                        && !ThreatDanger.IsOutOfTheFight(ctx.Repo, new Entity((ulong)mem.EntityIds[i]))   // ⭐ CE-2120 — a corpse is no threat
+                        && !ThreatDanger.IsNeutral(ctx.Repo, new Entity((ulong)mem.EntityIds[i]))) return 1f;   // ⭐ CE-2233 — nor a neutral
+            }
+            return 0f;
+        }
+
+        /// <summary>
+        /// ⭐ CE-3054 C — the enemy's share of the strength in play: Σ danger of every REMEMBERED contact ÷ (that sum + the
+        /// unit's own strength, <see cref="ThreatDanger.OwnStrength"/>). Freshness is NOT applied — hidden does not mean
+        /// harmless (R-194, Decision Layer G1). One armed enemy vs a healthy armed unit = 0.5. 0 with nothing remembered.
+        /// ⛔ SUPERSEDED: Σ raw scores ÷ (health × 16) — the scores DECAYED, so a hidden enemy made the unit braver.
         /// </summary>
         [UtilityInput("EnemyStrengthRatio")]
         public static float EnemyStrengthRatio(in UtilityInputCtx ctx)
@@ -215,22 +293,12 @@ namespace Fdp.Toolkit.Utility
             ref readonly var mem = ref ctx.Repo.GetComponentRO<TargetMemory>(ctx.Self);
             if (mem.Count == 0) return 0f;
 
-            float threatSum = 0f;
+            float enemy = 0f;
             for (int i = 0; i < mem.Count; i++)
-                threatSum += mem.ThreatScores[i];
+                enemy += ThreatDanger.OfSlot(ctx.Repo, ctx.Self, in mem, i);   // ⭐ CE-3063 ② — a heard tank counts (K3)
 
-            float selfHealthFraction = 0f;
-            if (ctx.Repo.HasComponent<Health>(ctx.Self))
-            {
-                ref readonly var h = ref ctx.Repo.GetComponentRO<Health>(ctx.Self);
-                if (h.Max > 0f)
-                    selfHealthFraction = Math.Clamp(h.Current / h.Max, 0f, 1f);
-            }
-
-            float denominator = selfHealthFraction * PerceptionConstants.MaxTrackedTargets;
-            if (denominator <= 0f) return 0f;
-
-            float result = Math.Clamp(threatSum / denominator, 0f, 1f);
+            float total = enemy + ThreatDanger.OwnStrength(ctx.Repo, ctx.Self);
+            float result = total <= 0f ? 0f : Math.Clamp(enemy / total, 0f, 1f);
             Debug.Assert(result >= 0f && result <= 1f);
             return result;
         }
@@ -278,18 +346,8 @@ namespace Fdp.Toolkit.Utility
         [UtilityInput("IsAssignedTarget")]
         public static float IsAssignedTarget(in UtilityInputCtx ctx)
         {
-            var repo = ctx.Repo;
-            if (!repo.HasComponent<UnitSubordinate>(ctx.Self)) return 1f;
-            ref readonly var sub = ref repo.GetComponentRO<UnitSubordinate>(ctx.Self);
-            var commander = sub.Commander;
-            if (!repo.HasComponent<Blackboard1024>(commander) || !repo.HasComponent<UnitRoster>(commander)) return 1f;
-            ref var roster = ref repo.GetComponentRW<UnitRoster>(commander);
-            int idx = UnitRoster.IndexOf(ref roster, (long)ctx.Self.PackedValue);
-            if (idx < 0) return 1f;
-            ref var bb = ref repo.GetComponentRW<Blackboard1024>(commander);
-            ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
-            long assignedHandle = state.GetAssignedTarget(idx);
-            if (assignedHandle == 0L) return 1f;
+            // ⭐ CE-3158 G4 — the ONE reader of the squad's assignment (the fire-from-cover node locks onto the same answer)
+            if (!SquadAssignment.TargetOf(ctx.Repo, ctx.Self, out long assignedHandle)) return 1f;
             float result = assignedHandle == (long)ctx.Context.PackedValue ? 1f : 0f;
             Debug.Assert(result >= 0f && result <= 1f);
             return result;
@@ -322,41 +380,172 @@ namespace Fdp.Toolkit.Utility
         /// Returns a score based on how well the target (ctx.Context) falls within the weapon's effective range.
         /// Finds the child entity whose WeaponMountInfo.MountIndex matches ctx.Params.MountIndex and
         /// whose PartMetadata.ParentEntity is ctx.Self (or ctx.Self itself when it carries WeaponMountInfo).
-        /// Returns distance / effectiveRange (unclamped; a Bell curve on the caller side handles both sides).
-        /// Returns 0 if no matching mount is found or positions are absent.
+        /// Returns distance / effectiveRange (unclamped; the decision's curve reads it — WeaponSelection: ≈ 1 inside the range).
+        /// ⭐ <c>CE-3089</c> (G7, W6): an UNKNOWN range or position returns <see cref="RangeUnknown"/> (far out of range), not 0 —
+        /// under the "in range" curve 0 means point blank, the best score, so an unknown mount would win.
         /// </summary>
+        /// <summary>⭐ <c>CE-3089</c> — what <see cref="WeaponRangeBandFit"/> returns when it cannot tell: ten times the range.</summary>
+        public const float RangeUnknown = 10f;
+
         [UtilityInput("WeaponRangeBandFit")]
         public static float WeaponRangeBandFit(in UtilityInputCtx ctx)
         {
-            if (!ctx.Repo.HasComponent<Position>(ctx.Self) || !ctx.Repo.HasComponent<Position>(ctx.Context)) return 0f;
+            if (!TryGetWorldPosition(ctx.Repo, Fdp.Toolkit.Combat.CombatTkb.OwnerOf(ctx.Repo, ctx.Self), out var selfPos) ||
+                !TryGetWorldPosition(ctx.Repo, ctx.Context, out var ctxPos)) return RangeUnknown;
 
-            if (!TryFindMountChild(ctx.Repo, ctx.Self, ctx.Params.MountIndex, out var mountChild)) return 0f;
+            // ⭐ CE-3089 — a mount CHILD stands where its owner stands: it carries no SimTransform in production (CombatTkbTranslator
+            //   makes WeaponState + WeaponMountInfo + PartMetadata only), so the shooter's position is the owner's. Measured live: every
+            //   TOW child scored 0 here (RangeUnknown) — the test helper's children carried a SimTransform and hid it.
+            float effectiveRange = MountRange(ctx.Repo, ctx.Self, ctx.Params.MountIndex);
+            if (effectiveRange <= 0f) return RangeUnknown;
 
-            ref readonly var mi      = ref ctx.Repo.GetComponentRO<WeaponMountInfo>(mountChild);
-            ref readonly var selfPos = ref ctx.Repo.GetComponentRO<Position>(ctx.Self);
-            ref readonly var ctxPos  = ref ctx.Repo.GetComponentRO<Position>(ctx.Context);
-            float effectiveRange     = mi.EffectiveRange;
-            if (effectiveRange <= 0f) return 0f;
-
-            float distance = Vector3.Distance(selfPos.Value, ctxPos.Value);
+            float distance = Vector3.Distance(selfPos, ctxPos);
             float result   = distance / effectiveRange;
             return result;
         }
 
         /// <summary>
-        /// Phase 1: delegates to <see cref="WeaponRangeBandFit"/>.
-        /// Phase 2+ will incorporate armor class and target type modifiers.
+        /// ⭐⭐ <c>CE-3071</c> (R-212, A1) — the share of a kill one hit of this mount does to the context target, through the
+        /// SAME <see cref="Fdp.Toolkit.Combat.ArmorModel"/> the simulation applies: <c>min(1, damage / target Health.Max)</c> at
+        /// the face the target currently shows this unit. The mount's numbers and the target's armour come from the TKB by type
+        /// (<see cref="Fdp.Toolkit.Combat.CombatTkb"/>); the target's maximum is its OWN <c>Health.Max</c> (scenarios override it),
+        /// else its TKB <c>MaxHealth</c>. An unknown munition scores as the flat default damage. 0 with no target.
+        /// <para>⛔ Was a copy of <see cref="WeaponRangeBandFit"/> ("Phase 2+ will incorporate armor"), so the AI judged a 25 mm
+        /// against a tank by range alone.</para>
         /// </summary>
         [UtilityInput("WeaponEffectivenessVsTarget")]
         public static float WeaponEffectivenessVsTarget(in UtilityInputCtx ctx)
-            => WeaponRangeBandFit(ctx);
+        {
+            var repo = ctx.Repo;
+            if (ctx.Context.IsNull || !repo.IsAlive(ctx.Context)) return 0f;
+
+            var mount = MountNumbers(repo, ctx.Self, ctx.Params.MountIndex);
+            var shooter = Fdp.Toolkit.Combat.CombatTkb.OwnerOf(ctx.Repo, ctx.Self);
+            // ⭐⭐ M8 (D-I; DESIGN_Missiles_And_Ammo §2) — the expected damage of ONE round, through the SAME rule the weapon brain picks
+            //   its round with (AmmoChoice.ExpectedDamage — R-212 A1, one formula): the face the shot would meet in 3-D (M1, eye → the
+            //   target's middle), the column its penetrator reads (M2), the RESOLVED penetration (R-217 — ⛔ it read the mount's own
+            //   number), and an HE warhead's area at distance 0. A mount with a loadout is scored with its BEST round for this target.
+            long ammo = mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.AmmoLoadout>()
+                && repo.HasComponent<Fdp.Toolkit.Combat.Components.AmmoLoadout>(ctx.Self))
+            {
+                var load = repo.GetComponentRO<Fdp.Toolkit.Combat.Components.AmmoLoadout>(ctx.Self);
+                int best = Fdp.Toolkit.Combat.AmmoChoice.Best(repo, load, mount, shooter, ctx.Context);
+                if (best >= 0) ammo = load.AmmoAt(best);
+            }
+            float damage = mount != null
+                ? Fdp.Toolkit.Combat.AmmoChoice.ExpectedDamage(repo, shooter, ctx.Context, mount, ammo)
+                : Fdp.Toolkit.Combat.ArmorModel.HitDamage(0f, 0f, 0f);
+
+            float maxHealth = repo.HasComponent<Health>(ctx.Context) ? repo.GetComponentRO<Health>(ctx.Context).Max : 0f;
+            if (maxHealth <= 0f) maxHealth = Fdp.Toolkit.Combat.CombatTkb.PlatformOf(repo, ctx.Context)?.MaxHealth ?? 0f;
+
+            // ⭐⭐ AQ85 F (R-216) — × the chance the round HITS, from the SAME HitModel the shot uses (σ of this unit firing this
+            //   mount; the target's collider circle; the range). σ = 0 (no DispersionMils) ⇒ 1, so every type that has not opted in
+            //   scores exactly as before. ⭐ CE-1223 — UnderFire is replicated (dtUnderFire, Muscle → every node), so the Brain's
+            //   copy of the shooter carries the Muscle's stamp and the estimate includes suppression, one wire hop late.
+            var owner = Fdp.Toolkit.Combat.CombatTkb.OwnerOf(repo, ctx.Self);
+            float sigma = Fdp.Toolkit.Combat.HitModel.Sigma(repo, owner, mount, Fdp.Toolkit.Combat.HitModel.Now(repo));
+            if (sigma > 0f && TryGetWorldPosition(repo, owner, out var from) && TryGetWorldPosition(repo, ctx.Context, out var to))
+            {
+                float radius = repo.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(ctx.Context)
+                    ? repo.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(ctx.Context).Radius
+                    : Fdp.Toolkit.Combat.HitModel.DefaultTargetRadius;
+                damage *= Fdp.Toolkit.Combat.HitModel.HitChance(sigma, Vector3.Distance(from, to), radius);
+            }
+
+            float result = maxHealth > 0f ? Math.Clamp(damage / maxHealth, 0f, 1f) : (damage > 0f ? 1f : 0f);
+            Debug.Assert(result >= 0f && result <= 1f);
+            return result;
+        }
+
+        /// <summary>The ammunition count at which <see cref="RoundsLeft"/> reaches 1.</summary>
+        public const float RoundsLeftFullScale = 300f;
+
+        /// <summary>
+        /// ⭐ <c>CE-3071</c> (design §9) — how many rounds this mount has left, on a log scale:
+        /// <c>ln(1 + ammo) / ln(1 + 300)</c>, clamped to [0,1]. With 7 TOW rounds (0.36) and 300 of 25 mm (1) the scarce round
+        /// is saved for the target only it can hurt. 0 with no <see cref="WeaponState"/>.
+        /// </summary>
+        [UtilityInput("RoundsLeft")]
+        public static float RoundsLeft(in UtilityInputCtx ctx)
+        {
+            var weapon = WeaponOf(in ctx);   // ⭐ WS-4
+            if (weapon.IsNull) return 0f;
+            int ammo = ctx.Repo.GetComponentRO<WeaponState>(weapon).Ammo;
+            float result = ammo <= 0 ? 0f : Math.Clamp(MathF.Log(1f + ammo) / MathF.Log(1f + RoundsLeftFullScale), 0f, 1f);
+            Debug.Assert(result >= 0f && result <= 1f);
+            return result;
+        }
+
+        /// <summary>⭐ WS-4 — the WeaponState these inputs read for <c>ctx.Self</c>: its own, else (a bare host) its station weapon's
+        /// (<see cref="Fdp.Toolkit.Combat.WeaponSystems.WeaponOf"/>). A mount (weapon selection's Self) carries its own, as before.</summary>
+        private static Entity WeaponOf(in UtilityInputCtx ctx) => Fdp.Toolkit.Combat.WeaponSystems.WeaponOf(ctx.Repo, ctx.Self);
 
         // ── RegisterAll ──────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Registers all 17 Phase 1 standard input readers into <see cref="UtilityInputRegistrar"/>.
+        /// Registers every standard input reader into <see cref="UtilityInputRegistrar"/>.
         /// Call once at application startup before any scoring pass.
         /// </summary>
+        /// <summary>⭐ AQ102 A — how long a hit or a near miss keeps the unit fully "under fire" (s), and when it has worn off (s).</summary>
+        public const double UnderFireFullSeconds = 1.5, UnderFireSeconds = 4.0;
+
+        /// <summary>
+        /// ⭐ <c>CE-2356</c> (AQ102 A, R-2072) — 1 when ctx.Self was hit or near-missed within <see cref="UnderFireFullSeconds"/>, falling
+        /// linearly to 0 at <see cref="UnderFireSeconds"/> (the newer of the two, <see cref="RecentSensesOf"/>). A self input: what makes an
+        /// UNHURT man duck — 📐 before it, TakeCover carried only health (0 at full health) and could never win for him.
+        /// </summary>
+        [UtilityInput("UnderFire")]
+        public static float UnderFire(in UtilityInputCtx ctx)
+        {
+            if (!ctx.Repo.HasComponent<Fdp.Toolkit.Behavior.Components.RecentSenses>(ctx.Self)) return 0f;
+            ref readonly var rs = ref ctx.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.RecentSenses>(ctx.Self);
+            double last = double.NegativeInfinity;
+            if (rs.TryGetLast(Fdp.Toolkit.Perception.Events.SensorChange.Hit, out double hit)) last = hit;
+            if (rs.TryGetLast(Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, out double miss) && miss > last) last = miss;
+            if (double.IsNegativeInfinity(last)) return 0f;
+            double now = ctx.Repo.HasSingleton<GlobalTime>() ? ctx.Repo.GetSingleton<GlobalTime>().TotalTime : 0d;
+            double age = now - last;
+            if (age <= UnderFireFullSeconds) return 1f;
+            if (age >= UnderFireSeconds) return 0f;
+            return (float)(1.0 - (age - UnderFireFullSeconds) / (UnderFireSeconds - UnderFireFullSeconds));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2356</c> (AQ102 A, reworked) — what makes a man want to get down: how hurt he is (1 − health) or how freshly he is shot
+        /// at (<see cref="UnderFire"/>), whichever is more. 📐 A product of a health floor and an under-fire boost (the first build) made
+        /// an UNHURT man with nobody shooting score HoldProne over Hold and AdvanceAndAttack (StarterPackIntegrationTests SC-SP-03 / -04):
+        /// out of fire this is exactly the old 1 − health (CE-3090: a wounded man holds prone), under fire it is 1 for anyone.
+        /// </summary>
+        [UtilityInput("HurtOrUnderFire")]
+        public static float HurtOrUnderFire(in UtilityInputCtx ctx) => Math.Max(1f - HealthFraction(in ctx), UnderFire(in ctx));
+
+        // ── ⭐ CE-2271 (TS-5, R-2075) — temperament and stress, as MODIFIERS: each only ever DAMPS an option and reads EXACTLY 1.0 for a man
+        //    with no temperament and no stress, so every existing score is bit-identical (a Modify, never a Consider — §7.3). ──
+
+        /// <summary>His bravery as a signed lean: <c>a = 2 × effective RiskAcceptance − 1</c> (−1 … +1, 0 for the ordinary man).</summary>
+        private static float Lean(in UtilityInputCtx ctx)
+            => 2f * Fdp.Toolkit.Behavior.Components.TemperamentOf.Effective(ctx.Repo, ctx.Self,
+                   Fdp.Toolkit.Behavior.Components.TemperamentTrait.RiskAcceptance) - 1f;
+
+        /// <summary>⭐ TS-5 — a CAUTIOUS man advances less: <c>1 − 0.5 × max(0, −a)</c>. 1.0 for the ordinary and the bold.</summary>
+        [UtilityInput("CautionDamp")]
+        public static float CautionDamp(in UtilityInputCtx ctx) => 1f - 0.5f * Math.Max(0f, -Lean(in ctx));
+
+        /// <summary>⭐ TS-5 — a BOLD man takes cover, lies down and flees less: <c>1 − 0.5 × max(0, a)</c>. 1.0 for the ordinary and the cautious.</summary>
+        [UtilityInput("AggressionDamp")]
+        public static float AggressionDamp(in UtilityInputCtx ctx) => 1f - 0.5f * Math.Max(0f, Lean(in ctx));
+
+        /// <summary>⭐ TS-5 — a STRESSED man advances and suppresses less: <c>1 − Stress</c>. 1.0 with no stress.</summary>
+        [UtilityInput("StressDamp")]
+        public static float StressDamp(in UtilityInputCtx ctx)
+        {
+            if (!ctx.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.Stress>()
+                || !ctx.Repo.HasComponent<Fdp.Toolkit.Behavior.Components.Stress>(ctx.Self)) return 1f;
+            return 1f - Math.Clamp(ctx.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.Stress>(ctx.Self).Level, 0f, 1f);
+        }
+
         public static void RegisterAll()
         {
             UtilityInputReaderStore.Register(StandardInputIds.AmmoFraction,             &AmmoFraction);
@@ -369,6 +558,8 @@ namespace Fdp.Toolkit.Utility
             UtilityInputReaderStore.Register(StandardInputIds.HasLineOfSight,           &HasLineOfSight);
             UtilityInputReaderStore.Register(StandardInputIds.HaveLiveTarget,           &HaveLiveTarget);
             UtilityInputReaderStore.Register(StandardInputIds.EnemyStrengthRatio,       &EnemyStrengthRatio);
+            UtilityInputReaderStore.Register(StandardInputIds.ContactDanger,            &ContactDanger);
+            UtilityInputReaderStore.Register(StandardInputIds.ContactFreshness,         &ContactFreshness);
             UtilityInputReaderStore.Register(StandardInputIds.EqsTopScore,              &EqsTopScore);
             UtilityInputReaderStore.Register(StandardInputIds.EqsResultCount,           &EqsResultCount);
             UtilityInputReaderStore.Register(StandardInputIds.IsAssignedTarget,         &IsAssignedTarget);
@@ -376,6 +567,14 @@ namespace Fdp.Toolkit.Utility
             UtilityInputReaderStore.Register(StandardInputIds.Constant,                 &Constant);
             UtilityInputReaderStore.Register(StandardInputIds.WeaponRangeBandFit,       &WeaponRangeBandFit);
             UtilityInputReaderStore.Register(StandardInputIds.WeaponEffectivenessVsTarget, &WeaponEffectivenessVsTarget);
+            UtilityInputReaderStore.Register(StandardInputIds.RoundsLeft,               &RoundsLeft);
+            UtilityInputReaderStore.Register(StandardInputIds.ThreatInSight,            &ThreatInSight);
+            UtilityInputReaderStore.Register(StandardInputIds.CarriesThrowable,         &CarriesThrowable);
+            UtilityInputReaderStore.Register(StandardInputIds.UnderFire,                &UnderFire);
+            UtilityInputReaderStore.Register(StandardInputIds.HurtOrUnderFire,          &HurtOrUnderFire);   // ⭐ CE-2356
+            UtilityInputReaderStore.Register(StandardInputIds.CautionDamp,              &CautionDamp);       // ⭐ CE-2271
+            UtilityInputReaderStore.Register(StandardInputIds.AggressionDamp,           &AggressionDamp);
+            UtilityInputReaderStore.Register(StandardInputIds.StressDamp,               &StressDamp);
         }
 
         // ── Private helpers ──────────────────────────────────────────────────────
@@ -384,20 +583,42 @@ namespace Fdp.Toolkit.Utility
         /// Finds the first child entity of <paramref name="owner"/> whose EqsSensor.BlueprintId
         /// matches <paramref name="blueprintId"/>.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-2071</c> — the unit's sensor running <paramref name="blueprintId"/>, through the ONE lookup
+        /// (<see cref="Fdp.Toolkit.Perception.Sensors.UnitSensors.OfTemplate"/>: the current run's own sensor, then the TKB's,
+        /// then any other, lowest part id). 🔴 Was a private scan that took the FIRST matching child in query order, so with
+        /// two sensors on one template it could read another run's stale results. Read only; never cached.
+        /// </summary>
         private static bool TryFindEqsChild(EntityRepository repo, Entity owner, uint blueprintId, out Entity child)
         {
-            var query = repo.Query().With<EqsSensor>().With<PartMetadata>().Build();
-            foreach (var e in query)
-            {
-                ref readonly var pm = ref repo.GetComponentRO<PartMetadata>(e);
-                if (!pm.ParentEntity.Equals(owner)) continue;
-                ref readonly var sensor = ref repo.GetComponentRO<EqsSensor>(e);
-                if (sensor.BlueprintId != blueprintId) continue;
-                child = e;
-                return true;
-            }
-            child = default;
-            return false;
+            child = Fdp.Toolkit.Perception.Sensors.UnitSensors.OfTemplate(repo, owner, blueprintId);
+            return !child.IsNull && repo.HasComponent<EqsCognitiveBuffer>(child);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3071</c> (A3 revised, A4) — the TKB numbers of the mount <paramref name="self"/> stands for: a mount child
+        /// (its <see cref="WeaponMountInfo.MountIndex"/>, its parent's type), or the unit itself (<paramref name="mountIndex"/>,
+        /// its own type — mount 0 lives on the unit). Null when the world or the type carries none.
+        /// </summary>
+        private static Fdp.Toolkit.Tkb.Domain.WeaponMountDto? MountNumbers(EntityRepository repo, Entity self, int mountIndex)
+        {
+            if (repo.HasComponent<WeaponMountInfo>(self))
+                mountIndex = repo.GetComponentRO<WeaponMountInfo>(self).MountIndex;
+            return Fdp.Toolkit.Combat.CombatTkb.MountOf(repo, Fdp.Toolkit.Combat.CombatTkb.OwnerOf(repo, self), mountIndex);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3071</c> (A4) — the effective range of the mount <paramref name="self"/> stands for: the mount's OWN TKB
+        /// range (the TOW is not the 25 mm), else the legacy <see cref="WeaponMountInfo.EffectiveRange"/> stamped on a mount child
+        /// (the platform's primary range). 0 when neither is known.
+        /// </summary>
+        private static float MountRange(EntityRepository repo, Entity self, int mountIndex)
+        {
+            var dto = MountNumbers(repo, self, mountIndex);
+            if (dto != null && dto.Range > 0f) return dto.Range;
+            return TryFindMountChild(repo, self, mountIndex, out var child)
+                ? repo.GetComponentRO<WeaponMountInfo>(child).EffectiveRange
+                : 0f;
         }
 
         /// <summary>
@@ -405,6 +626,28 @@ namespace Fdp.Toolkit.Utility
         /// matches <paramref name="mountIndex"/>. If <paramref name="owner"/> itself carries
         /// <see cref="WeaponMountInfo"/>, it is returned directly (self-mount case).
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-3070</c> — an entity's world position: its <see cref="SimTransform"/>, or, for a part without one
+        /// (a weapon mount), its parent's. ⛔ NOT the geographic <c>Position</c>: no Hrot node registers it, so both
+        /// distance readers returned 0 live and ThreatRanking (a weighted product) zeroed every contact.
+        /// EQS reads the same component (<c>EqsContext</c>).
+        /// </summary>
+        private static bool TryGetWorldPosition(EntityRepository repo, Entity e, out Vector3 position)
+        {
+            position = default;
+            if (e.IsNull || !repo.IsAlive(e)) return false;
+            if (repo.HasComponent<SimTransform>(e))
+            {
+                position = repo.GetComponentRO<SimTransform>(e).Position;
+                return true;
+            }
+            if (!repo.HasComponent<PartMetadata>(e)) return false;
+            var parent = repo.GetComponentRO<PartMetadata>(e).ParentEntity;
+            if (parent.IsNull || !repo.IsAlive(parent) || !repo.HasComponent<SimTransform>(parent)) return false;
+            position = repo.GetComponentRO<SimTransform>(parent).Position;
+            return true;
+        }
+
         private static bool TryFindMountChild(EntityRepository repo, Entity owner, int mountIndex, out Entity child)
         {
             // Self-mount: the owner entity itself is the weapon mount.
@@ -414,11 +657,14 @@ namespace Fdp.Toolkit.Utility
                 return true;
             }
             // Otherwise search child entities.
-            var query = repo.Query().With<WeaponMountInfo>().With<PartMetadata>().Build();
-            foreach (var e in query)
+            // ⭐ CE-2412 — the owner's parts from the shared parts index, not a scan of every mount of the world.
+            Span<Entity> parts = stackalloc Entity[64];
+            int n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(repo, owner, parts);
+            if (n > parts.Length) { parts = new Entity[n]; n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(repo, owner, parts); }
+            for (int k = 0; k < n; k++)
             {
-                ref readonly var pm = ref repo.GetComponentRO<PartMetadata>(e);
-                if (!pm.ParentEntity.Equals(owner)) continue;
+                var e = parts[k];
+                if (!repo.HasComponent<WeaponMountInfo>(e)) continue;
                 ref readonly var mi = ref repo.GetComponentRO<WeaponMountInfo>(e);
                 if (mi.MountIndex != mountIndex) continue;
                 child = e;

@@ -1,3 +1,5 @@
+using Fdp.Presentation.Forms;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 
@@ -61,15 +63,16 @@ internal sealed class SpawnEqsSensorNodeSession : INodeEditSession
         ImGui.TextDisabled("  • ThreatThreshold  (float)");
         ImGui.TextDisabled("  • PublishPolicy    (byte)");
         ImGui.TextDisabled("  • Priority         (byte)");
+        ImGui.TextDisabled("  • ContextSlot0..2  (Entity) — e.g. the area for EntitiesOfForceInArea (slot 1)");
         ImGui.TextDisabled("Output: Handle (EqsSensorHandle)");
     }
 
     private void DrawDispatchGuard()
     {
-        if (_parent.Dispatch != BlueprintDispatchKind.Instance)
+        // CE-496: mirrors BP2030 (Stage2_Validate) — Instance and Behavior (a behaviour IS an Instance body).
+        if (_parent.Dispatch is not (BlueprintDispatchKind.Instance or BlueprintDispatchKind.Behavior))
         {
-            ImGui.TextColored(EditorColors.Error,
-                "⚠ SpawnEqsSensorNode is only allowed in Instance Blueprints.");
+            NodeEditor.Core.Widgets.RowMarks.ErrorLine("SpawnEqsSensorNode is only allowed in Instance and Behaviour Blueprints.");
             ImGui.Separator();
         }
     }
@@ -85,7 +88,7 @@ internal sealed class SpawnEqsSensorNodeSession : INodeEditSession
             if (templates[i].AssetId == _node.TemplateAssetId) { currentIdx = i; break; }
         }
 
-        if (ImGui.Combo("Template", ref currentIdx, displayNames, displayNames.Length))
+        FormGrid.BeginField("bp.node", "Template"); if (ImGui.Combo("##Template", ref currentIdx, displayNames, displayNames.Length))
         {
             if (currentIdx >= 0)
             {
@@ -96,10 +99,10 @@ internal sealed class SpawnEqsSensorNodeSession : INodeEditSession
                     IsDirty = true;
                 }
             }
-        }
+        } FormGrid.EndField();
 
         if (_node.TemplateAssetId == Guid.Empty)
-            ImGui.TextColored(EditorColors.Warning, "(no template selected)");
+            NodeEditor.Core.Widgets.RowMarks.WarningLine("(no template selected)");
     }
 
     public void ResetDirty() => IsDirty = false;

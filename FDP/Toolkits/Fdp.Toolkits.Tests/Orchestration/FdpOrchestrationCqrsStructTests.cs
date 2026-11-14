@@ -13,14 +13,14 @@ namespace Fdp.Toolkit.Orchestration.Tests;
 /// </summary>
 public sealed class FdpOrchestrationCqrsStructTests
 {
-    // ── CMC-S002: DataPolicy.NoRecord on core event structs ────────────────
+    // ── CMC-S002: DataPolicy.NoReplay on core event structs ────────────────
 
     [Fact]
     public void ClusterOpCompletedEvent_HasDataPolicyNoRecord()
     {
         var attr = typeof(ClusterOpCompletedEvent).GetCustomAttribute<DataPolicyAttribute>();
         Assert.NotNull(attr);
-        Assert.Equal(DataPolicy.NoRecord, attr.Policy);
+        Assert.Equal(DataPolicy.NoReplay, attr.Policy);
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public sealed class FdpOrchestrationCqrsStructTests
     {
         var attr = typeof(ExecuteNodeOpIntent).GetCustomAttribute<DataPolicyAttribute>();
         Assert.NotNull(attr);
-        Assert.Equal(DataPolicy.NoRecord, attr.Policy);
+        Assert.Equal(DataPolicy.NoReplay, attr.Policy);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class FdpOrchestrationCqrsStructTests
     {
         var attr = typeof(NodeOpCompletedEvent).GetCustomAttribute<DataPolicyAttribute>();
         Assert.NotNull(attr);
-        Assert.Equal(DataPolicy.NoRecord, attr.Policy);
+        Assert.Equal(DataPolicy.NoReplay, attr.Policy);
     }
 
     // ── CMC-S002: Unique EventId attributes on core event structs ──────────
@@ -118,7 +118,7 @@ public sealed class FdpOrchestrationCqrsStructTests
         var intent = new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId = 1,
+            TargetNodeId = (Fdp.Core.NodeId)(1),
             Operation = NodeOpType.PrepareLive,
             DomainPayload = null,
         };
@@ -135,7 +135,7 @@ public sealed class FdpOrchestrationCqrsStructTests
         Assert.Equal(intent.TransactionId, consumed[0].TransactionId);
     }
 
-    // ── CMC-S003: DataPolicy.NoRecord on all intent structs ───────────────
+    // ── CMC-S003: DataPolicy.NoReplay on all intent structs ───────────────
 
     [Fact]
     public void AllIntentAndEventStructs_HaveDataPolicyNoRecord()
@@ -159,7 +159,7 @@ public sealed class FdpOrchestrationCqrsStructTests
         {
             var attr = t.GetCustomAttribute<DataPolicyAttribute>();
             Assert.True(attr != null, $"{t.Name} is missing [DataPolicy] attribute");
-            Assert.Equal(DataPolicy.NoRecord, attr!.Policy);
+            Assert.Equal(DataPolicy.NoReplay, attr!.Policy);
         }
     }
 
@@ -189,23 +189,27 @@ public sealed class FdpOrchestrationCqrsStructTests
         Assert.Equal(typeof(bool), isStartType);
 
         Assert.True(fields.TryGetValue("EpisodeId", out var episodeIdType));
-        Assert.Equal(typeof(Guid), episodeIdType);
+        Assert.Equal(typeof(EpisodeId), episodeIdType);
 
         Assert.True(fields.TryGetValue("ScenarioId", out var scenarioIdType));
         Assert.Equal(typeof(string), scenarioIdType);
     }
 
-    // ── CMC-S003: TakeCheckpointIntent has ONLY RequestId ─────────────────
+    // ── CMC-S003 → ⭐ CE-3299 B3: TakeCheckpointIntent is RequestId + the checkpoint's Label ─────────────────
+    //   (CMC-S003 said "no parameters"; R-3044 makes a checkpoint a NAMED keyframe, so the request carries the name.)
 
     [Fact]
-    public void TakeCheckpointIntent_HasOnlyRequestIdField()
+    public void TakeCheckpointIntent_HasRequestIdAndLabel()
     {
         var fields = typeof(TakeCheckpointIntent)
-            .GetFields(BindingFlags.Public | BindingFlags.Instance);
+            .GetFields(BindingFlags.Public | BindingFlags.Instance)
+            .ToDictionary(f => f.Name, f => f.FieldType);
 
-        Assert.Single(fields);
-        Assert.Equal("RequestId", fields[0].Name);
-        Assert.Equal(typeof(Guid), fields[0].FieldType);
+        // ⭐ CE-1467 added the bookmark's note (the master mints the mark label); this rail was not updated with it
+        Assert.Equal(3, fields.Count);
+        Assert.Equal(typeof(Guid), fields["RequestId"]);
+        Assert.Equal(typeof(string), fields["Label"]);
+        Assert.Equal(typeof(ExerciseNote), fields["Note"]);
     }
 
     // ── CMC-S003: LoadZoneIntent field types ──────────────────────────────

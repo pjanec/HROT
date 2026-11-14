@@ -30,6 +30,7 @@ namespace Fdp.Interfaces
     /// Registry mapping descriptor ordinals to serialization providers.
     /// </summary>
     [ComponentId(GlobalComponentIds.ISerializationRegistry)]
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]   // ⭐ CE-3299 D7 — declared: a service / session object, not world state (D7)
     public interface ISerializationRegistry
     {
         void Register(long descriptorOrdinal, ISerializationProvider provider);

@@ -1,3 +1,10 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-06 (STATUS block added; body unchanged)
+current-answer: the body
+related-designs:
+  - DESIGN_Hsm_Canvas_Authoring.md — adds ONE accessor to this seam — `ICanvasRenderContext.TryGetLinkScreenPath` — so renderers read the same link path the canvas draws and hit-tests
+-->
 # NodeEditor — Custom Canvas Renderer extension
 
 > **Status:** Specification for a NodeEditor extension. Authored by the AI Editor team for the NodeEditor team.

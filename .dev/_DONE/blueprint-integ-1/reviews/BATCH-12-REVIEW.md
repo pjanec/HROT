@@ -5,7 +5,7 @@
 Blueprint editing host complete: real `IEditService` (AIE-049), `BlueprintCommandSink` (AIE-044), `BlueprintEditorHostServices` (AIE-045), `BlueprintDocumentFactory` + canvas binding (AIE-046). Blueprint graphs now open + structurally edit on the shared canvas.
 
 ## Verification performed (ran myself)
-- **`dotnet build IOS-IG-SimHost.sln` → Build succeeded, 0 errors** (GizmoMap.Contracts on 0.2.2 per decision).
+- **`dotnet build HROT.sln` → Build succeeded, 0 errors** (GizmoMap.Contracts on 0.2.2 per decision).
 - `Hrot.Blueprints.Tests` **1008 pass / 10 fail / 8 skip** — the 10 are the pre-existing DEBT-006 golden failures (no new). `EditorSubsystemBoot` **10/10**. `Hrot.Editor.AiShared.Tests` 702 (per coder).
 - Test quality (spot-checked): `EditService_Undo_RevertsPropertyEdit` records edit (value=42) → `history.Undo()` → asserts value==0 (+ redo test); `CommandSink_AddLink_ConnectsPins_OnGraphLinks` asserts `graph.Links` single entry with correct `FromPinId`/`ToPinId`. Real model-state assertions. 38 new tests.
 - Reuse confirmed: structural ops route through existing `AddNodeCommand`/`DeleteNodeCommand`/`CommandHistory`; property edits via the real `IEditService` (`PropertyEditCommand` on `CommandHistory`); `WhenFiringPulseRenderer` exposed via `CustomCanvasRenderers`; mirrors `BTree/HsmEditorHostServices` + `BTreeDocumentFactory` patterns.

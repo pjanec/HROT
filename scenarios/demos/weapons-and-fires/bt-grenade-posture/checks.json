@@ -1,0 +1,14 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — B4: fragments per body point of the stance. From the header's Judge (1)-(3).",
+  "runFor": 12,
+  "golden": {"every": 2},
+  "anchors": {
+    "burst": {"on": "blast", "by": "Thrower"}
+  },
+  "expect": [
+    {"name": "the M67 bursts after the throw and the fuze (4-9 s)", "on": "blast", "by": "Thrower", "where": {"warheadSource": ["contains", "M67"]}, "after": 4, "before": 9},
+    {"name": "it bursts on the ground", "on": "blast", "by": "Thrower", "where": {"burst.2": ["<", 0.5]}},
+    {"name": "the standing man, exposed over the wall, is hurt", "on": "field", "who": "Standing", "path": "Health.Current", "op": "<", "value": 99, "after": "burst"},
+    {"name": "the prone man is never hurt", "never": {"on": "field", "who": "Prone", "path": "Health.Current", "op": "<", "value": 99}}
+  ]
+}

@@ -1,0 +1,49 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "Kind": "macro",
+  "description": "What: macros S3b B3 (SR-99) - the counter-attack DIRECTOR as a macro: one trigger (no director entity) that waits 'delay' scenario seconds, then inserts a hostile fire team at the entity keyed @CounterAttackFrom, raises the Hostile skill amplifier one tier (SR-100) and tells everyone. Judge: used by two scenarios with different 'delay'; each fires at its own time.",
+  "Anchor": {
+   "Position": [
+    0,
+    0,
+    0
+   ],
+   "Heading": 0
+  },
+  "Params": [
+   {
+    "Name": "delay",
+    "TypeId": "float",
+    "Default": 60,
+    "Comment": "scenario seconds before the counter-attack"
+   }
+  ]
+ },
+ "entities": {
+  "dc000000-0000-4000-8000-000000000001": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Counter-attack",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Counter-attack\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 60}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"test/fire-team\", \"at\": \"@CounterAttackFrom\", \"heading\": 270, \"params\": {\"side\": \"Hostile\"}}}, {\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Hostile\", \"tiers\": 1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Enemy counter-attack\", \"seconds\": 6}}]}",
+    "Origin": "Superior"
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "Behavior.Params.when.fromSeconds": "delay"
+    }
+   }
+  }
+ }
+}

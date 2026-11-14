@@ -1,3 +1,4 @@
+using Fdp.Presentation.Editing.Types;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,6 +12,7 @@ using Hrot.BTree.Editor.Inspector;
 using Hrot.BTree.Editor.Model;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Inspector;
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using Hrot.Hsm.Editor.Inspector;
 using Hrot.Hsm.Editor.Model;
 using StructEdit.Core;
@@ -22,6 +24,8 @@ namespace Hrot.Editor.AiShared.Tests.Inspector;
 /// <see cref="HsmPickerDrawerFactory"/> produce per-asset custom-drawer maps that:
 /// <list type="bullet">
 ///   <item>Contain a <c>typeof(string)</c> entry that dispatches attribute-specific sub-drawers.</item>
+///   <item>⭐ <c>CE-417</c> slice 4b — contain ONE <see cref="ActionBindingDrawer"/> keyed by <see cref="BehaviorActionBindingFacet"/>,
+///         whose method and variable lists come from the asset it was built for.</item>
 ///   <item>Contain a <c>typeof(ushort)</c> entry for HSM sync-group fields.</item>
 ///   <item>Reflect the new asset after an asset-switch (sources are fresh per call).</item>
 /// </list>
@@ -84,65 +88,71 @@ public sealed class SE2_PickerDrawerRebuildTests
             clrType:  typeof(string),
             metadata: new EditNodeMetadata { CustomAttributes = attrs });
 
+    /// <summary>⭐ CE-3398 — the HSM event fields are <c>ushort EventId</c>.</summary>
+    private static EditNode UshortWithAttr(params Attribute[] attrs) =>
+        new EditNode(
+            id:       new EditNodeId(0),
+            name:     "Field",
+            jsonPath: "$.Field",
+            kind:     EditNodeKind.Scalar,
+            clrType:  typeof(ushort),
+            metadata: new EditNodeMetadata { CustomAttributes = attrs });
+
     // ═════════════════════════════════════════════════════════════════════════
     // BTree factory tests
     // ═════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public void BTreeFactory_BuildDrawers_ContainsStringDrawer()
+    public void BTreeFactory_BuildCatalogue_HasTheStringFieldRules()
     {
         var asset    = MakeBTreeAsset();
         var registry = new BehaviorRegistry();
 
-        var drawers = BTreePickerDrawerFactory.BuildDrawers(asset, registry);
+        var types = BTreePickerDrawerFactory.BuildCatalogue(asset, registry);
 
-        drawers.Should().ContainKey(typeof(string),
-            "BTree custom-drawers map must contain a string drawer keyed by typeof(string)");
+        types.DrawerFor(NodeWithAttr(new Hrot.Editor.AiShared.Inspector.AiBehaviorPickerAttribute())).Should().NotBeNull(
+            "the BTree catalogue carries a field rule for the behaviour picker on a string");
     }
 
+    /// <summary>⭐ CE-1167 (AI_Editor_Shared_Infrastructure §7.1c G-5) — the BTree binding lists the EXPORTER's BTree methods, not the
+    /// behaviour registry's names (a binding stores a C# method FQN; a behaviour name is not one). Was
+    /// <c>BTreeFactory_BindingDrawer_ListsTheRegistrysMethods</c>, which pinned the old list.</summary>
     [Fact]
-    public void BTreeFactory_StringDrawer_DispatchesBehaviorHashPicker()
+    public void BTreeFactory_BindingDrawer_ListsTheExportersMethods_NotBehaviourNames()
     {
         var registry = new BehaviorRegistry();
         RegisterBehavior(registry, "Ns.Patrol", 1);
-        var asset  = MakeBTreeAsset();
-        var drawers = BTreePickerDrawerFactory.BuildDrawers(asset, registry);
+        var exporter = new SingleEntryExporter(
+            new ActionSchemaEntry("Ns.Nodes.Patrol", typeof(int), ActionHosting.BTree, BlackboardAccess.ReadWrite));
+        var types = BTreePickerDrawerFactory.BuildCatalogue(MakeBTreeAsset(), registry, exporter);
 
-        var composite = drawers[typeof(string)] as CompositeStringDrawer;
-        composite.Should().NotBeNull("the string drawer must be a CompositeStringDrawer");
+        types.DrawerOf(typeof(BehaviorActionBindingFacet))!.Should().BeOfType<ActionBindingDrawer>(
+            "the binding facet must be drawn by the ONE binding drawer");
+        ((types).DrawerOf(typeof(BehaviorActionBindingFacet))! as ActionBindingDrawer)!.Sources.GetMethods(BindingSlotKind.Action)
+            .Should().Equal("Ns.Nodes.Patrol");
+    }
 
-        var node     = NodeWithAttr(new BehaviorHashPickerAttribute());
-        var resolved = composite!.Resolve(node);
-
-        resolved.Should().NotBeNull(
-            "CompositeStringDrawer must resolve a sub-drawer for [BehaviorHashPicker]");
-        resolved.Should().BeOfType<BehaviorHashPickerDrawer>(
-            "the resolved drawer must be a BehaviorHashPickerDrawer");
-
-        // And it must enumerate the registered behavior.
-        ((BehaviorHashPickerDrawer)resolved!).GetItems().Should().Contain("Ns.Patrol");
+    private sealed class SingleEntryExporter : IActionSchemaExporter
+    {
+        private readonly Dictionary<string, ActionSchemaEntry> _map;
+        public SingleEntryExporter(ActionSchemaEntry entry) => _map = new() { [entry.Fqn] = entry };
+        public IReadOnlyDictionary<string, ActionSchemaEntry> All => _map;
+        public ActionSchemaEntry? Lookup(string fqn) => _map.GetValueOrDefault(fqn);
+        public void Rebuild() { }
+        public event Action? Changed { add { } remove { } }
     }
 
     [Fact]
-    public void BTreeFactory_StringDrawer_DispatchesBlackboardFieldPicker()
+    public void BTreeFactory_BindingDrawer_ListsTheAssetsVariables()
     {
-        var registry = new BehaviorRegistry();
-        var asset    = MakeBTreeAsset();
+        var asset = MakeBTreeAsset();
         asset.SetBlackboardVariables(new[]
         {
             new BlackboardVariableEntry("Speed", typeof(float), null),
         });
-        var drawers = BTreePickerDrawerFactory.BuildDrawers(asset, registry);
+        var types = BTreePickerDrawerFactory.BuildCatalogue(asset, new BehaviorRegistry());
 
-        var composite = drawers[typeof(string)] as CompositeStringDrawer;
-        composite.Should().NotBeNull();
-
-        var node     = NodeWithAttr(new BlackboardFieldPickerAttribute());
-        var resolved = composite!.Resolve(node);
-
-        resolved.Should().BeOfType<BlackboardFieldPickerDrawer>(
-            "the resolved drawer must be a BlackboardFieldPickerDrawer");
-        ((BlackboardFieldPickerDrawer)resolved!).GetItems().Should().Contain("Speed");
+        ((types).DrawerOf(typeof(BehaviorActionBindingFacet))! as ActionBindingDrawer)!.Sources.GetVariables(default).Should().Contain("Speed");
     }
 
     [Fact]
@@ -156,7 +166,7 @@ public sealed class SE2_PickerDrawerRebuildTests
         {
             new BlackboardVariableEntry("Health", typeof(float), null),
         });
-        var drawers1 = BTreePickerDrawerFactory.BuildDrawers(asset1, registry);
+        var types1 = BTreePickerDrawerFactory.BuildCatalogue(asset1, registry);
 
         // Second asset: has blackboard field "Stamina".
         var asset2 = MakeBTreeAsset("Asset2");
@@ -164,27 +174,19 @@ public sealed class SE2_PickerDrawerRebuildTests
         {
             new BlackboardVariableEntry("Stamina", typeof(float), null),
         });
-        var drawers2 = BTreePickerDrawerFactory.BuildDrawers(asset2, registry);
+        var types2 = BTreePickerDrawerFactory.BuildCatalogue(asset2, registry);
 
-        // drawers1 must reflect asset1.
-        var bbNode = NodeWithAttr(new BlackboardFieldPickerAttribute());
-        var resolved1 = ((CompositeStringDrawer)drawers1[typeof(string)]).Resolve(bbNode)
-            as BlackboardFieldPickerDrawer;
-        resolved1!.GetItems().Should().Contain("Health").And.NotContain("Stamina",
-            "drawers1 was built from asset1 which has only 'Health'");
-
-        // drawers2 must reflect asset2 (independent from drawers1).
-        var resolved2 = ((CompositeStringDrawer)drawers2[typeof(string)]).Resolve(bbNode)
-            as BlackboardFieldPickerDrawer;
-        resolved2!.GetItems().Should().Contain("Stamina").And.NotContain("Health",
-            "drawers2 was built from asset2 which has only 'Stamina'");
+        ((types1).DrawerOf(typeof(BehaviorActionBindingFacet))! as ActionBindingDrawer)!.Sources.GetVariables(default).Should().Contain("Health").And.NotContain("Stamina",
+            "types1 was built from asset1 which has only 'Health'");
+        ((types2).DrawerOf(typeof(BehaviorActionBindingFacet))! as ActionBindingDrawer)!.Sources.GetVariables(default).Should().Contain("Stamina").And.NotContain("Health",
+            "types2 was built from asset2 which has only 'Stamina'");
     }
 
     [Fact]
     public void BTreeFactory_NullAsset_Throws()
     {
         var registry = new BehaviorRegistry();
-        var act = () => BTreePickerDrawerFactory.BuildDrawers(null!, registry);
+        var act = () => BTreePickerDrawerFactory.BuildCatalogue(null!, registry);
         act.Should().Throw<ArgumentNullException>()
             .WithParameterName("asset");
     }
@@ -193,7 +195,7 @@ public sealed class SE2_PickerDrawerRebuildTests
     public void BTreeFactory_NullRegistry_Throws()
     {
         var asset = MakeBTreeAsset();
-        var act = () => BTreePickerDrawerFactory.BuildDrawers(asset, null!);
+        var act = () => BTreePickerDrawerFactory.BuildCatalogue(asset, null!);
         act.Should().Throw<ArgumentNullException>()
             .WithParameterName("registry");
     }
@@ -203,69 +205,53 @@ public sealed class SE2_PickerDrawerRebuildTests
     // ═════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public void HsmFactory_BuildDrawers_ContainsStringDrawer()
+    public void HsmFactory_BuildCatalogue_HasTheStringFieldRules()
     {
         var asset   = MakeHsmAsset();
-        var drawers = HsmPickerDrawerFactory.BuildDrawers(asset);
+        var types = HsmPickerDrawerFactory.BuildCatalogue(asset);
 
-        drawers.Should().ContainKey(typeof(string),
-            "HSM custom-drawers map must contain a string drawer keyed by typeof(string)");
+        types.DrawerFor(NodeWithAttr(new HsmStateSelectorAttribute())).Should().NotBeNull(
+            "the HSM catalogue carries field rules for the state / event pickers on a string");
     }
 
     [Fact]
-    public void HsmFactory_BuildDrawers_ContainsUshortDrawer()
+    public void HsmFactory_BuildCatalogue_HasTheUshortSyncGroupDrawer()
     {
         var asset   = MakeHsmAsset();
-        var drawers = HsmPickerDrawerFactory.BuildDrawers(asset);
+        var types = HsmPickerDrawerFactory.BuildCatalogue(asset);
 
-        drawers.Should().ContainKey(typeof(ushort),
-            "HSM custom-drawers map must contain a ushort drawer for sync-group fields");
-        drawers[typeof(ushort)].Should().BeOfType<HsmSyncGroupPickerDrawer>();
+        types.DrawerOf(typeof(ushort))!.Should().BeOfType<HsmSyncGroupPickerDrawer>();
     }
 
     [Fact]
-    public void HsmFactory_StringDrawer_DispatchesActionPicker()
+    public void HsmFactory_BindingDrawer_ListsTheAssetsActions()
     {
-        var asset   = MakeHsmAsset();
-        var drawers = HsmPickerDrawerFactory.BuildDrawers(asset);
+        var types = HsmPickerDrawerFactory.BuildCatalogue(MakeHsmAsset());
 
-        var composite = drawers[typeof(string)] as HsmCompositeStringDrawer;
-        composite.Should().NotBeNull("the HSM string drawer must be an HsmCompositeStringDrawer");
-
-        var node     = NodeWithAttr(new HsmActionPickerAttribute());
-        var resolved = composite!.Resolve(node);
-
-        resolved.Should().NotBeNull(
-            "HsmCompositeStringDrawer must resolve a sub-drawer for [HsmActionPicker]");
-        resolved.Should().BeOfType<HsmActionPickerDrawer>();
+        types.DrawerOf(typeof(BehaviorActionBindingFacet))!.Should().BeOfType<ActionBindingDrawer>(
+            "the binding facet must be drawn by the ONE binding drawer");
         // OnEntry/OnExit actions from the "Idle" state must appear.
-        ((HsmActionPickerDrawer)resolved!).GetItems()
+        ((types).DrawerOf(typeof(BehaviorActionBindingFacet))! as ActionBindingDrawer)!.Sources.GetMethods(BindingSlotKind.Action)
             .Should().Contain("Ns.OnEntry").And.Contain("Ns.OnExit");
     }
 
     [Fact]
-    public void HsmFactory_StringDrawer_DispatchesGuardPicker()
+    public void HsmFactory_BindingDrawer_ListsNoGuards_WhenTheAssetBindsNone()
     {
-        var asset   = MakeHsmAsset();
-        var drawers = HsmPickerDrawerFactory.BuildDrawers(asset);
+        var types = HsmPickerDrawerFactory.BuildCatalogue(MakeHsmAsset());
 
-        var composite = drawers[typeof(string)] as HsmCompositeStringDrawer;
-        var node      = NodeWithAttr(new HsmGuardPickerAttribute());
-        var resolved  = composite!.Resolve(node);
-
-        resolved.Should().NotBeNull("must resolve [HsmGuardPicker]");
-        resolved.Should().BeOfType<HsmGuardPickerDrawer>();
+        ((types).DrawerOf(typeof(BehaviorActionBindingFacet))! as ActionBindingDrawer)!.Sources.GetMethods(BindingSlotKind.Guard)
+            .Should().NotContain("Ns.OnEntry", "an action is not a guard");
     }
 
     [Fact]
     public void HsmFactory_StringDrawer_DispatchesStateSelector()
     {
         var asset   = MakeHsmAsset();
-        var drawers = HsmPickerDrawerFactory.BuildDrawers(asset);
+        var types = HsmPickerDrawerFactory.BuildCatalogue(asset);
 
-        var composite = drawers[typeof(string)] as HsmCompositeStringDrawer;
         var node      = NodeWithAttr(new HsmStateSelectorAttribute());
-        var resolved  = composite!.Resolve(node);
+        var resolved  = types.DrawerFor(node);
 
         resolved.Should().NotBeNull("must resolve [HsmStateSelector]");
         resolved.Should().BeOfType<HsmStateSelectorDrawer>();
@@ -277,11 +263,10 @@ public sealed class SE2_PickerDrawerRebuildTests
     public void HsmFactory_StringDrawer_DispatchesEventPicker()
     {
         var asset   = MakeHsmAsset();
-        var drawers = HsmPickerDrawerFactory.BuildDrawers(asset);
+        var types = HsmPickerDrawerFactory.BuildCatalogue(asset);
 
-        var composite = drawers[typeof(string)] as HsmCompositeStringDrawer;
-        var node      = NodeWithAttr(new HsmEventPickerAttribute());
-        var resolved  = composite!.Resolve(node);
+        var node      = UshortWithAttr(new HsmEventPickerAttribute());
+        var resolved  = types.DrawerFor(node);
 
         resolved.Should().NotBeNull("must resolve [HsmEventPicker]");
         resolved.Should().BeOfType<HsmEventPickerDrawer>();
@@ -293,7 +278,7 @@ public sealed class SE2_PickerDrawerRebuildTests
     {
         // First asset: has "Fire" event + Ns.OnEntry action.
         var asset1   = MakeHsmAsset("Machine1");
-        var drawers1 = HsmPickerDrawerFactory.BuildDrawers(asset1);
+        var types1 = HsmPickerDrawerFactory.BuildCatalogue(asset1);
 
         // Second asset: different states and events.
         var b2 = new HsmBuilder("Machine2");
@@ -305,28 +290,40 @@ public sealed class SE2_PickerDrawerRebuildTests
         var blob2 = HsmEmitter.Emit(flat2);
         var meta2 = HsmEmitter.BuildMachineMetadata(graph2);
         var asset2 = HsmAssetProjector.Project(blob2, meta2, null, Guid.NewGuid(), "Machine2", "", false, "");
-        var drawers2 = HsmPickerDrawerFactory.BuildDrawers(asset2);
+        var types2 = HsmPickerDrawerFactory.BuildCatalogue(asset2);
 
-        var evNode = NodeWithAttr(new HsmEventPickerAttribute());
+        var evNode = UshortWithAttr(new HsmEventPickerAttribute());
 
-        // drawers1: event picker returns "Fire".
-        var evPickerD1 = ((HsmCompositeStringDrawer)drawers1[typeof(string)]).Resolve(evNode)
+        // types1: event picker returns "Fire".
+        var evPickerD1 = types1.DrawerFor(evNode)
             as HsmEventPickerDrawer;
         evPickerD1!.GetItems().Should().Contain("Fire").And.NotContain("Shot",
-            "drawers1 was built from asset1 which has only 'Fire'");
+            "types1 was built from asset1 which has only 'Fire'");
 
-        // drawers2: event picker returns "Shot".
-        var evPickerD2 = ((HsmCompositeStringDrawer)drawers2[typeof(string)]).Resolve(evNode)
+        // types2: event picker returns "Shot".
+        var evPickerD2 = types2.DrawerFor(evNode)
             as HsmEventPickerDrawer;
         evPickerD2!.GetItems().Should().Contain("Shot").And.NotContain("Fire",
-            "drawers2 was built from asset2 which has only 'Shot'");
+            "types2 was built from asset2 which has only 'Shot'");
     }
 
     [Fact]
     public void HsmFactory_NullAsset_Throws()
     {
-        var act = () => HsmPickerDrawerFactory.BuildDrawers(null!);
+        var act = () => HsmPickerDrawerFactory.BuildCatalogue(null!);
         act.Should().Throw<ArgumentNullException>()
             .WithParameterName("asset");
+    }
+
+    /// <summary>⭐ CE-3378 (N-1) — the all-hosts rail for the inspector: the catalogue overlay each document host forwards (what <c>NodePropertiesSource</c> hands the drawer it constructs) draws Quaternion, Guid and Type, whatever the document kind.</summary>
+    [Fact]
+    public void CE3378_EveryDocumentHostsCatalogue_DrawsQuaternionGuidAndType()
+    {
+        var source = new Hrot.Editor.AiShared.Shell.NodePropertiesSource();
+        source.SetFacetEditService(null, HsmPickerDrawerFactory.BuildCatalogue(MakeHsmAsset()));
+        Fdp.Presentation.Editing.Types.TypeCatalogueExtensions.MissingStandardLeaf(source.Catalogue!).Should().BeNull("the HSM overlay sits on Standard");
+        source.SetFacetEditService(null, BTreePickerDrawerFactory.BuildCatalogue(MakeBTreeAsset(), new BehaviorRegistry()));
+        Fdp.Presentation.Editing.Types.TypeCatalogueExtensions.MissingStandardLeaf(source.Catalogue!).Should().BeNull("the BTree overlay sits on Standard");
+        Fdp.Presentation.Editing.Types.TypeCatalogueExtensions.MissingStandardLeaf(Fdp.Presentation.Editing.Types.TypeCatalogue.Standard).Should().BeNull();
     }
 }

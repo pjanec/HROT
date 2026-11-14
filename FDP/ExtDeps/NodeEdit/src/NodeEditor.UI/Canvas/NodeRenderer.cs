@@ -180,7 +180,7 @@ internal sealed class NodeRenderer
         // must remain highlighted throughout the entire node area).
         bool hovered = view.Interaction.Hover.Kind switch
         {
-            HoverKind.Node => view.Interaction.Hover.Node == node.Id,
+            HoverKind.Node or HoverKind.NodeEdge => view.Interaction.Hover.Node == node.Id,
             HoverKind.Pin  => view.Model.FindPin(view.Interaction.Hover.Pin)?.OwnerNodeId == node.Id,
             _              => false,
         };

@@ -22,8 +22,15 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
     /// <summary>Diagnostic code for BTree JSON parse/deserialize errors.</summary>
     public const string DiagnosticId = "BTREE0001";
 
+    // ⛔ HISTORY — BTREE0003 was CE-423's "State variable has no storage"; retired by CE-3193 (working state is derived from
+    //   the bindings, so it is always bound). Do not reuse the code.
+
     /// <summary>Diagnostic code for BTree codegen validation failures (skipped asset, non-build-breaking).</summary>
     public const string CodegenWarningId = "BTREE0002";
+    /// <summary>⭐ <c>CE-2079</c> (§4.5 ③) — an SOP tree (one carrying "Do when idle" / "React" orders) binds a method that
+    /// writes a channel: the SOP must not move or fire the unit (one owner per channel); the runtime reverts it and stops the
+    /// SOP (<c>SopCommandedChannel</c>). A WARNING — the asset still builds.</summary>
+    public const string SopChannelWarningId = "BTREE0004";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -38,27 +45,24 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
                     return (at.Path, text);
                 });
 
-        // Provider: raw file text from *.bp.json AdditionalTexts (Blueprint assets).
+        // Provider: every sibling asset, as ONE catalogue (CE-2026, S8c — DESIGN_Unified_Behaviour_Run "S8c design").
         //
         // Option A (I2/I3 gap fix): the Blueprint source generator and this generator are sibling
         // IIncrementalGenerators that cannot see each other's generated output within one generation
         // pass — a blueprint's generated `{Name}_{Id:X8}_Bp` class (Params/WorkingState/TickCore) is
-        // never resolvable via Compilation.GetTypeByMetadataName from here. Collecting the SAME
-        // *.bp.json AdditionalTexts the Blueprint generator itself parses lets this generator derive
-        // just enough of that generated shape (class identity + Params field schema) from the JSON
-        // source of truth instead — see GeneratedBlueprintSchemaCatalog.
-        IncrementalValuesProvider<(string Path, string Text)> bpJsonFiles =
-            context.AdditionalTextsProvider
-                .Where(static at => at.Path.EndsWith(".bp.json",
-                    System.StringComparison.OrdinalIgnoreCase))
-                .Select(static (at, ct) =>
-                {
-                    string text = at.GetText(ct)?.ToString() ?? string.Empty;
-                    return (at.Path, text);
-                });
+        // never resolvable via Compilation.GetTypeByMetadataName from here, and neither is a sibling
+        // behaviour's Inputs struct. GeneratedTypeCatalog derives just enough of those generated shapes
+        // from the JSON sources of truth (*.bp.json, *.btree.json, *.hsm.json) — the one wiring all three
+        // generators share.
+        IncrementalValueProvider<GeneratedTypeCatalog> siblings = GeneratedTypeCatalog.Provider(context);
 
-        IncrementalValueProvider<ImmutableArray<(string Path, string Text)>> bpJsonCollected =
-            bpJsonFiles.Collect();
+        // ⛔ CE-337 (2026-09-26) — the SIBLING-TREE collection is GONE, with GeneratedBTreeSchemaCatalog.
+        //    It existed for Q49 option D: a generator cannot load assets, so a master tree could not ask
+        //    "what blackboard type does the subtree I call declare?" the way the editor does. 📐 P4-②
+        //    made every interpreter Interpreter<byte, BTreeContext> ⇒ that question CEASED TO EXIST, and
+        //    its only asker (the Approach-B orchestrator) is retired. ⭐ Re-adding it is ONE line —
+        //    `rawFiles.Collect()` — which is why keeping it "because the plumbing is awkward" did not
+        //    survive contact with the code. 📄 DESIGN_Occurrence_Scoped_Storage.md §32.12c.
 
         // Combine with the full compilation so the method-compatibility validator can
         // resolve type/method symbols, plus the collected *.bp.json schemas (Option A fallback).
@@ -67,27 +71,26 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         // GenerateOneAsset re-runs on ANY compilation change (not only asset changes).
         // This is acceptable for the small *.btree.json asset set.  A fancier
         // incremental symbol extraction is deferred (VE-DEBT-003).
-        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation, ImmutableArray<(string Path, string Text)> BpJsonFiles)> combined =
+
+        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation, GeneratedTypeCatalog Siblings)> combined =
             rawFiles.Combine(context.CompilationProvider)
-                    .Combine(bpJsonCollected)
+                    .Combine(siblings)
                     .Select(static (pair, _) =>
                         (pair.Left.Left.Path, pair.Left.Left.Text, pair.Left.Right, pair.Right));
 
         // Per-asset: deserialize → validate bound methods → emit topology core → register source output
         context.RegisterSourceOutput(combined, static (spc, item) =>
         {
-            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation, item.BpJsonFiles);
+            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation, item.Siblings);
         });
     }
 
     private static void GenerateOneAsset(SourceProductionContext spc, string path, string text,
-        Compilation compilation, ImmutableArray<(string Path, string Text)> bpJsonFiles)
+        Compilation compilation, GeneratedTypeCatalog siblings)
     {
-        // Option A: parse the blueprint schemas once, up front — used both by the method-compatibility
-        // validator (AiPrimitiveTickCore method-resolution fallback) and the struct-size resolver
-        // (AiPrimitiveTickCore Params-size fallback) below.
-        System.Collections.Generic.IReadOnlyList<GeneratedBlueprintSchema> blueprintSchemas =
-            GeneratedBlueprintSchemaCatalog.Parse(bpJsonFiles);
+        // Option A: the blueprint schemas — used both by the method-compatibility validator
+        // (AiPrimitiveTickCore method-resolution fallback) and, through the catalogue, the struct-size resolver below.
+        System.Collections.Generic.IReadOnlyList<GeneratedBlueprintSchema> blueprintSchemas = siblings.Blueprints;
         // Deserialize — failure becomes a diagnostic, never throws, never fails siblings.
         BehaviorTreeAssetDto? dto;
         try
@@ -107,6 +110,60 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
                 "Deserialization returned null (empty or invalid JSON)."));
             return;
         }
+
+        // ⭐ CE-2135 (B3a) — an asset that names its params DTO gets the reserved Params variable before anything reads it.
+        dto.WithParamsVariable();
+
+        // ⭐ CE-3164 (R-268) — the picker group is the asset's FOLDER (never persisted in the file).
+        dto.Group = Hrot.AiEditor.Persistence.BehaviorGroups.FromAssetPath(path);
+
+        // ⭐⭐⭐ CE-417 B-1 (slice 4c) — a blueprint binding names its blueprint by ASSET ID; derive the generated
+        //   TickCore it calls, here, once, before anything reads the DTO. ⇒ validator and emitters are unchanged and so
+        //   is the emitted source. The class comes from the .bp.json catalog BY ID (rename-proof).
+        Hrot.AiEditor.Persistence.Emit.BTreeBlueprintBindings.ResolveMethods(
+            dto, id => GeneratedBlueprintSchemaCatalog.FindByAssetId(blueprintSchemas, id)?.GeneratedClassName);
+
+        // ⭐⭐⭐ CE-504 C-1 — the call shape is DERIVED from the bound method's signature (or the blueprint id), never read
+        //   from the file. Every reader below — validator, emitters, deactivator scan — sees the derived value.
+        Hrot.AiEditor.Persistence.Emit.BTreeCallShapes.Apply(dto, RoslynCallSignatures.Make(compilation));
+
+        // ⛔ HISTORY — CE-423's "State variable has no storage" error stood here; CE-3193 derives working state from the
+        //   bindings (WorkingStateVariables), so a working-state variable is always bound and the case cannot arise.
+
+        // ⛔⛔⛔ CE-337 (2026-09-23) — THE SLICE DECLARATION IS GONE, AND WHAT REPLACES IT IS A WARNING.
+        //
+        // 🔴 What stood here: SubtreeSyncProjection.Project declared one blackboard variable per
+        //    bound sub-tree ("Auto-allocated sub-tree parameter slice (Approach B)"), so the
+        //    Approach-B orchestrator could write `ref master.{slice}`. ⭐ The ORDER was load-bearing
+        //    and the comment said so — it ran before the blackboard was sized, packed or emitted.
+        //
+        // ⛔ THAT ORCHESTRATOR NO LONGER EXISTS. CE-337 retired both arms
+        //    (BTreeOrchestratorEmitCore.Emit → null): the emission never compiled, and its
+        //    `ref master` projection needs a blackboard STRUCT that P4 deleted. ⇒ declaring the
+        //    field now would add a variable that NOTHING READS AND NOTHING WRITES — it would grow
+        //    the packed blackboard of every asset that carries a binding, silently.
+        //
+        // ⭐⭐ SO THE NO-OP IS MADE LOUD INSTEAD. 📐 Measured 2026-09-23: 0 of 26 shipped
+        //    *.btree.json carries a non-empty SubtreeSyncBindings, and 0 carries an alias ⇒ no
+        //    warning fires today and no golden moves. ⚠ But an author CAN still create either in the
+        //    editor, and before this they would have got silence. 🔒 The rule this serves is the
+        //    silent-default one: a capability that looks built and does nothing is the failure this
+        //    programme keeps paying for.
+        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.12 / §32.13.
+        if ((dto.SubtreeSyncBindings is { Count: > 0 }) || (dto.Aliases is { Count: > 0 }))
+        {
+            spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path,
+                "This asset declares sub-tree hosting data (aliases and/or SubtreeSyncBindings) that " +
+                "NOTHING CONSUMES: CE-337 retired both BTree orchestrator arms, so no orchestrator is " +
+                "emitted and no parameter slice is declared. The data round-trips and is not lost. " +
+                "Sub-tree hosting is per-SITE now (DESIGN_Occurrence_Scoped_Storage.md §32) and the " +
+                "BTree-hosts-BTree case is not built yet."));
+        }
+
+        // ⭐ Approach-B groups are still computed as EMPTY and passed on: Emit's signature keeps the
+        //   parameter (two production callers supply it) and its null-argument contract is the one
+        //   thing about that method that never became untrue.
+        var approachBGroups = System.Array.Empty<OrchestratorSyncGroup>();
 
         // Validate bound method signatures before emitting.
         // An asset with any incompatible/unresolved bound leaf is skipped + BTREE0002 Warning.
@@ -130,22 +187,38 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
             return;
         }
 
+        // HAJSON-B / ⭐ CE-504 slice 4: the paired [BTreeDeactivator]s, scanned BEFORE anything is emitted — a retired
+        //   deactivator form, or one a binding cannot feed, skips the whole asset (never a deactivator that silently stops
+        //   firing, never a partial emit).
+        System.Collections.Generic.List<BTreeBridgeEmitCore.DeactivatorEntry> deactivators;
+        try
+        {
+            deactivators = BTreeDeactivatorScanner.Scan(compilation, dto, out string? deactivatorError);
+            if (deactivatorError != null)
+            {
+                spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path, deactivatorError));
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path,
+                "Exception during deactivator scanning: " + ex.Message));
+            return;
+        }
+
         // S1-2b: Build a Roslyn-backed struct-size resolver for this compilation.
         // The resolver handles struct-DTO types not in BTreeBlackboardPackHelper.KnownSizes.
         // Guarded by Managed flag — non-managed assets get a null resolver (no change).
         System.Func<string, int?>? structSizeResolver = null;
+        Hrot.AiEditor.Persistence.Emit.FieldLayoutResolver? fieldResolver = null;   // ⭐ CE-3182 — Variable.Field binding paths
         if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
         {
-            System.Func<string, int?> roslynResolver = StructSizeResolver.MakeDelegate(compilation);
-
-            // Option A: when the Roslyn resolver can't see a type (e.g. a blueprint's generated
-            // `{Name}_{Id:X8}_Bp+Params` — never visible to this sibling generator, see
-            // GeneratedBlueprintSchemaCatalog), fall back to computing its size from the matching
-            // .bp.json's parameter schema using the SAME Sequential-alignment math
-            // (StructSizeResolver.ComputeSequentialSize) the Roslyn path itself uses.
-            structSizeResolver = typeId =>
-                roslynResolver(typeId)
-                ?? GeneratedBlueprintSchemaCatalog.TryResolveParamsSize(typeId, blueprintSchemas, compilation);
+            // Option A, CE-439, CE-2026: Roslyn first; a type it cannot see because a SIBLING generator emits it in this
+            // run (a blueprint's `{Name}_{Id:X8}_Bp+Params`, a BTree's or an HSM's Inputs struct) is sized from that
+            // sibling's JSON with the same math its own generator uses — the ONE resolver every generator injects.
+            structSizeResolver = siblings.SizeResolver(compilation);
+            fieldResolver = siblings.FieldResolver(compilation);
 
             // Check for any unresolvable managed variable BEFORE emitting anything.
             // An unresolvable type means we cannot guarantee the struct layout, so skip
@@ -157,7 +230,7 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
             // compile-time StructSizeResolver cannot size (e.g. HillAttackMutableState) still generate.
             foreach (var v in dto.Blackboard.Variables)
             {
-                if (v.Role == Hrot.AiEditor.Persistence.BlackboardVariableRole.State) continue;
+                if (v.IsWorkingState) continue;
 
                 string typeId = v.Type?.TypeId ?? string.Empty;
                 if (!BTreeBlackboardPackHelper.TryGetSize(typeId, out _))
@@ -209,7 +282,7 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         string source;
         try
         {
-            source = BTreeEmitCore.EmitTopologyCore(dto, structSizeResolver);
+            source = BTreeEmitCore.EmitTopologyCore(dto, structSizeResolver, fieldResolver);
         }
         catch (Exception ex)
         {
@@ -245,28 +318,14 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         }
 
         // Bridge: {Name}.Registrar.g.cs  (additive, separate hint name — PU-203, §14 item 3)
-        // HAJSON-B: scan for [BTreeDeactivator] hooks and pass them to the bridge emitter.
+        // HAJSON-B: the deactivators scanned above go to the bridge emitter (one registration per binding).
+        var sharedAiInfo = SharedAiMethodResolver.Make(compilation);
+        ReportSopChannelWrites(spc, path, dto, sharedAiInfo);   // ⭐ CE-2079
         string bridge;
         try
         {
-            // Build the set of action keys that will be registered by this bridge so the
-            // scanner can match against them without needing to re-derive offsets.
-            System.Func<string, int?>? resolverForDeactivator = structSizeResolver;
-            System.Collections.Generic.IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packed = null;
-            if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0 && resolverForDeactivator != null)
-            {
-                try { packed = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, resolverForDeactivator, out _); }
-                catch { packed = null; }
-            }
-            else if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
-            {
-                try { packed = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, null, out _); }
-                catch { packed = null; }
-            }
-
-            var registeredKeys = BTreeBridgeEmitCore.CollectRegisteredActionKeys(dto, packed);
-            var deactivators   = BTreeDeactivatorScanner.Scan(compilation, registeredKeys);
-            bridge = BTreeBridgeEmitCore.EmitBridge(dto, structSizeResolver, deactivators);
+            // ⭐ CE-417 B-2 (a′), F8 — a bound [SharedAi*] method is called per binding with its own signature.
+            bridge = BTreeBridgeEmitCore.EmitBridge(dto, structSizeResolver, deactivators, sharedAiInfo, fieldResolver);
         }
         catch (Exception ex)
         {
@@ -276,6 +335,63 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         }
 
         spc.AddSource(baseName + ".Registrar.g.cs", bridge);
+
+        // ⭐⭐⭐ Batch 92 (92b): orchestrators — {Name}.Orchestrators.g.cs
+        //
+        // ⛔ OMITTED ENTIRELY when the core returns null, which is every asset in today's corpus
+        // (none carries an alias or a sync binding) ⇒ the generated output stays byte-identical.
+        //
+        // ⭐⭐⭐ Q49 D + Q50 A (2026-08-22): THE GROUPS ARE REAL NOW.
+        // ⛔ (was: "a generator provably has no groups to pass" — true then, for two reasons that are
+        //    both now closed. ① the identity needed BehaviorTreeAsset._syncNodeMeta, a UI-draw-only
+        //    field: option D reads the sibling *.btree.json instead, so no editor state is involved.
+        //    ② the field the body writes into was declared by nothing: option A declares it above,
+        //    BEFORE the blackboard is packed.)
+        // ⚠ Still omitted entirely when the core returns null — no alias and no sync binding — which is
+        //    every asset in today's corpus, so the generated output stays byte-identical.
+        string? orchestrators;
+        try
+        {
+            orchestrators = BTreeOrchestratorEmitCore.Emit(dto, approachBGroups);
+        }
+        catch (Exception ex)
+        {
+            spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path,
+                "Exception during orchestrator code generation: " + ex.Message));
+            return;
+        }
+
+        if (orchestrators != null)
+            spc.AddSource(baseName + ".Orchestrators.g.cs", orchestrators);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2079</c> (<c>DESIGN_Decision_Layer.md</c> §4.5 ③) — a tree that carries SOP orders IS an SOP; warn once per
+    /// bound method that declares <c>[WritesChannel]</c>. ⚠ No new "is an SOP" flag: carrying the orders is the mark.
+    /// </summary>
+    internal static void ReportSopChannelWrites(SourceProductionContext spc, string path,
+        Hrot.AiEditor.Persistence.BTree.BehaviorTreeAssetDto dto, Func<string, Hrot.AiEditor.Persistence.Emit.SharedAiMethodInfo?> sharedAi)
+    {
+        if (!dto.Nodes.Any(n => n is Hrot.AiEditor.Persistence.BTree.BTreeActionNodeDto { SopOrder: not null })) return;
+        var seen = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+        foreach (var node in dto.Nodes)
+        {
+            var fqn = node switch
+            {
+                Hrot.AiEditor.Persistence.BTree.BTreeActionNodeDto a    => a.Action?.MethodFqn,
+                Hrot.AiEditor.Persistence.BTree.BTreeConditionNodeDto c => c.Condition?.MethodFqn,
+                _ => null,
+            };
+            if (string.IsNullOrEmpty(fqn) || !seen.Add(fqn!)) continue;
+            if (sharedAi(fqn!) is { WritesChannels.Count: > 0 })
+                spc.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor(
+                    id:                 SopChannelWarningId,
+                    title:              "An SOP tree drives a channel",
+                    messageFormat:      "'{0}' carries SOP orders and binds '{1}', which writes a channel — an SOP must not move or fire the unit (use React to start a behaviour that does); at runtime the write is reverted and the SOP stops",
+                    category:           "BTreeJsonGenerator",
+                    defaultSeverity:    DiagnosticSeverity.Warning,
+                    isEnabledByDefault: true), Location.None, path, fqn));
+        }
     }
 
     /// <summary>Creates a Roslyn diagnostic for a BTree JSON parse/deserialize error.</summary>
@@ -305,4 +421,5 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
             isEnabledByDefault: true);
         return Diagnostic.Create(descriptor, Location.None, path, detail);
     }
+
 }

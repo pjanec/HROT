@@ -35,8 +35,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var repo = GizmoTestRepo.Create();
             repo.RegisterEvent<GizmoDragUpdateEvent>();
 
-            var entity = repo.CreateEntity();
-            var token = new PickToken { Target = entity, SubElementId = 7u };
+            // ⭐ §6.7 — the token carries the anchor's network id, not an ECS handle.
+            var token = new PickToken { AnchorId = 7041L, SubElementId = 7u };
             var worldPos = new Vector3(1.5f, 2.5f, 3.5f);
 
             repo.Bus.Publish(new GizmoDragUpdateEvent { Token = token, WorldPos = worldPos });
@@ -44,7 +44,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             var events = repo.Bus.Read<GizmoDragUpdateEvent>();
             Assert.Equal(1, events.Length);
-            Assert.Equal(entity, events[0].Token.Target);
+            Assert.Equal(7041L, events[0].Token.AnchorId);
             Assert.Equal(7u, events[0].Token.SubElementId);
             Assert.Equal(worldPos, events[0].WorldPos);
         }

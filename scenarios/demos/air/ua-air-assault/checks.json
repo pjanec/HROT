@@ -1,0 +1,106 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 Air Ops 3c: a doors-off UH-60 inserts a squad. Judge (1) lands within 10 m of the LZ and nobody leaves it in the air, (2) all six dismount, (4) the squad ends near its objective (Leader within 15 m of (200,195), a stand-in for the squad's centre). Left out: (3) 'lifts off 30 m+ only after the last man is out' (a distance from a point that is not a field; the heli's direction of departure is not in the file). runFor 150: the Leader first reaches within 15 m of the objective at 123.75 s and the squad's march ends at 134.75 s (probed); 120 was too short.",
+  "runFor": 150,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "land": {
+      "on": "near",
+      "who": "UH-60 (doors off)",
+      "point": [
+        190,
+        340
+      ],
+      "within": 5
+    },
+    "out": {
+      "on": "embark",
+      "who": "Rifleman 5",
+      "is": false
+    }
+  },
+  "expect": [
+    {
+      "name": "the helicopter lands within 10 m of the LZ (190,340)",
+      "on": "near",
+      "who": "UH-60 (doors off)",
+      "point": [
+        190,
+        340
+      ],
+      "within": 10
+    },
+    {
+      "name": "nobody leaves a rifleman's seat in the air",
+      "never": {
+        "on": "embark",
+        "who": "*Rifleman",
+        "is": false
+      },
+      "before": "land"
+    },
+    {
+      "name": "the Leader does not leave in the air",
+      "never": {
+        "on": "embark",
+        "who": "Leader",
+        "is": false
+      },
+      "before": "land"
+    },
+    {
+      "name": "the Leader dismounts",
+      "on": "embark",
+      "who": "Leader",
+      "is": false,
+      "atEnd": true
+    },
+    {
+      "name": "Rifleman 1 dismounts",
+      "on": "embark",
+      "who": "Rifleman 1",
+      "is": false,
+      "atEnd": true
+    },
+    {
+      "name": "Rifleman 2 dismounts",
+      "on": "embark",
+      "who": "Rifleman 2",
+      "is": false,
+      "atEnd": true
+    },
+    {
+      "name": "Rifleman 3 dismounts",
+      "on": "embark",
+      "who": "Rifleman 3",
+      "is": false,
+      "atEnd": true
+    },
+    {
+      "name": "Rifleman 4 dismounts",
+      "on": "embark",
+      "who": "Rifleman 4",
+      "is": false,
+      "atEnd": true
+    },
+    {
+      "name": "Rifleman 5 dismounts",
+      "on": "embark",
+      "who": "Rifleman 5",
+      "is": false,
+      "atEnd": true
+    },
+    {
+      "name": "the squad marches on to its objective (200,195)",
+      "on": "near",
+      "who": "Leader",
+      "point": [
+        200,
+        195
+      ],
+      "within": 15,
+      "atEnd": true
+    }
+  ]
+}

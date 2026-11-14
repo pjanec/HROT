@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Blueprints.Editor;
 
@@ -12,11 +13,9 @@ public sealed class BlueprintEditorPreferences
 
     public static BlueprintEditorPreferences Defaults => new();
 
-    private static readonly JsonSerializerOptions s_jsonOpts = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
+    // CE-3187 (R-2005): the shared options. Keys are written PascalCase now; an older camelCase file still reads
+    // (case-insensitive).
+    private static readonly JsonSerializerOptions s_jsonOpts = FdpJsonOptionsRegistry.Indented;
 
     /// <summary>Saves preferences to <paramref name="path"/>.</summary>
     public void Save(string path)

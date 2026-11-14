@@ -4,7 +4,7 @@ using System.Linq;
 using System.Numerics;
 using Hrot.Map.Common.Dds;
 using Hrot.Map.Common.Replication.Egress;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Services;
@@ -40,10 +40,10 @@ public class SpawnEntityCommandEgressTranslatorTests
     {
         var bus        = new FdpEventBus();
         var writer     = new CapturingWriter<CreateEntityRequest>();
-        var translator = new SpawnEntityCommandEgressTranslator(writer, bus, geoTransform: null);
+        var translator = new SpawnEntityCommandEgressTranslator(writer, bus);
 
         var requestId = Guid.NewGuid();
-        bus.PublishManaged(new SpawnEntityCommand { TkbType = 1L, RequestId = requestId });
+        bus.PublishManaged(new SpawnEntityCommand { TkbType = (Fdp.Core.TkbTypeId)(1L), RequestId = requestId });
         bus.SwapBuffers();
 
         translator.PollIngress(null!, null!);
@@ -64,11 +64,11 @@ public class SpawnEntityCommandEgressTranslatorTests
         var writer = new CapturingWriter<CreateEntityRequest>();
 
         // No delegate — translator must produce the descriptor from InitialComponents only.
-        var translator = new SpawnEntityCommandEgressTranslator(writer, bus, geoTransform: null);
+        var translator = new SpawnEntityCommandEgressTranslator(writer, bus);
 
         bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType           = 1001L,
+            TkbType           = (Fdp.Core.TkbTypeId)(1001L),
             RequestId         = Guid.NewGuid(),
             InitialComponents = new List<object>
             {
@@ -93,5 +93,29 @@ public class SpawnEntityCommandEgressTranslatorTests
         // The overlay must carry exactly one GeoPoint (matching the EditablePolyline).
         Assert.NotNull(overlayDesc.MapVisualOverlay.Points);
         Assert.Equal(1, overlayDesc.MapVisualOverlay.Points!.Count);
+    }
+
+    /// <summary>⭐ <c>CE-1017</c> S2 — a forwarded order carries its birth-height request onto the wire.</summary>
+    [Fact]
+    public void CE1017_SpawnEntityCommand_CarriesItsSpawnHeight_OntoTheWire()
+    {
+        var bus        = new FdpEventBus();
+        var writer     = new CapturingWriter<CreateEntityRequest>();
+        var translator = new SpawnEntityCommandEgressTranslator(writer, bus);
+
+        bus.PublishManaged(new SpawnEntityCommand
+        {
+            TkbType = (Fdp.Core.TkbTypeId)(1L), RequestId = Guid.NewGuid(),
+            SpawnHeight = new Fdp.Toolkit.NetworkSpawning.SpawnHeight(Fdp.Toolkit.NetworkSpawning.SpawnHeightMode.OnLevel, 3),
+        });
+        bus.PublishManaged(new SpawnEntityCommand { TkbType = (Fdp.Core.TkbTypeId)(1L), RequestId = Guid.NewGuid() });
+        bus.SwapBuffers();
+
+        translator.PollIngress(null!, null!);
+
+        Assert.Equal(2, writer.Publishes.Count);
+        Assert.Equal((byte)1, writer.Publishes[0].SpawnHeightMode);
+        Assert.Equal((short)3, writer.Publishes[0].SpawnLevel);
+        Assert.Equal((byte)0, writer.Publishes[1].SpawnHeightMode);   // absent ⇒ Absolute, as before
     }
 }

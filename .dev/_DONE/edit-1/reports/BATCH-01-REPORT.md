@@ -10,7 +10,7 @@
 
 | Task ID     | Status | Notes |
 |-------------|--------|-------|
-| EDIT1-L001  | ✅ Done | `Hrot.UI.Common` project created with all 9 interfaces and 3 DTOs; added to `IOS-IG-SimHost.sln` |
+| EDIT1-L001  | ✅ Done | `Hrot.UI.Common` project created with all 9 interfaces and 3 DTOs; added to `HROT.sln` |
 | EDIT1-L002  | ✅ Done | `BehaviorCatalog` created; 5 new `TkbEntityTypes` constants added (501–505); 6 unit tests written |
 | EDIT1-L003  | ✅ Done | `BehaviorRegistry.GetRegisteredNames()` added; `System.Linq` using added; 2 unit tests written |
 

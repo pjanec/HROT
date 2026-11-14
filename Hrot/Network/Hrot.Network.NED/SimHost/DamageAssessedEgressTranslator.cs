@@ -17,34 +17,36 @@ namespace Hrot.Network.NED.SimHost
     /// message for each one.
     ///
     /// <para>
-    /// Registered on the authority node (Brain or collocated Muscle).  The authoritative node
-    /// receives the <see cref="EntityHitDamage"/> message back via
-    /// <c>EntityHitDamageIngressTranslator</c>, which republishes it as a local
-    /// <see cref="DamageAssessedEvent"/> for <c>HealthApplicationSystem</c> to consume.
+    /// ⭐⭐ <c>CE-3246</c> (docs/designs/brain-split/BS-1-DESIGN.md §6.4a, R-3015) — on EVERY node (<c>SharedTranslatorPack</c>): it sends
+    /// exactly the local hits this node does NOT apply (<see cref="Fdp.Toolkit.Combat.HealthOwnership.AppliesHere"/>, the rule
+    /// <c>HealthApplicationSystem</c> reads), stamped with this node's id. The owner receives it through
+    /// <c>EntityHitDamageIngressTranslator</c> and applies it once. ⛔ Before: Muscle / Traffic only, every hit — so a blow or a gas cloud
+    /// raised on a CGF brain never left it, and the editor (Brain + Muscle) applied its own hits twice off the wire.
     /// </para>
     /// </summary>
     public sealed class DamageAssessedEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityHitDamage";
 
         private readonly IDdsWriter<EntityHitDamage> _writer;
         private readonly NetworkEntityMap _entityMap;
+        private readonly NodeId _localNodeId;
 
-        public string TopicName       => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityHitDamage>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtEntityHitDamage;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         /// <summary>Production constructor â€” creates a live DDS writer.</summary>
-        public DamageAssessedEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
-            : this(new DdsWriterAdapter<EntityHitDamage>(participant, DdsTopicName), entityMap)
+        public DamageAssessedEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, int localNodeId)
+            : this(new DdsWriterAdapter<EntityHitDamage>(participant), entityMap, localNodeId)
         {
         }
 
         /// <summary>Testable constructor â€” accepts an injected writer stub.</summary>
-        internal DamageAssessedEgressTranslator(IDdsWriter<EntityHitDamage> writer, NetworkEntityMap entityMap)
+        internal DamageAssessedEgressTranslator(IDdsWriter<EntityHitDamage> writer, NetworkEntityMap entityMap, int localNodeId)
         {
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _writer    = writer    ?? throw new ArgumentNullException(nameof(writer));
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
@@ -58,17 +60,28 @@ namespace Hrot.Network.NED.SimHost
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
+            if (view is not EntityRepository repo) return;
             var events = view.ReadEvents<DamageAssessedEvent>();
 
             foreach (ref readonly var evt in events)
             {
                 if (evt.IsRemote) continue;
+                // ⭐ CE-3246 — the owner applies its own hit here (HealthApplicationSystem); only a hit this node cannot apply leaves it
+                if (Fdp.Toolkit.Combat.HealthOwnership.AppliesHere(repo, evt.HitEntity)) continue;
 
-                if (!_entityMap.TryGetNetworkId(evt.HitEntity, out long netId)) continue;
+                if (!_entityMap.TryGetNetworkId(evt.HitEntity, out int netId)) continue;
+                // ⭐ CE-3237 (B-15, DS-2) — who caused it, by network id; an unmapped or unknown source reads 0 on the wire
+                int sourceId = !evt.Source.IsNull && _entityMap.TryGetNetworkId(evt.Source, out int s) ? s : 0;
                 _writer.Write(new EntityHitDamage
                 {
                     HitEntityId = netId,
                     TotalDamage = evt.TotalDamage,
+                    BodyPart    = evt.HasBodyPart != 0 ? (byte)(evt.BodyPart + 1) : (byte)0,   // ⭐ CE-3210 — id + 1, 0 = none
+                    EffectKind    = (byte)evt.Effect,   // ⭐ CE-3219 — the non-lethal effect rides the same hit
+                    EffectSeconds = evt.EffectSeconds,
+                    SourceEntityId = sourceId,
+                    SourceNodeId   = _localNodeId,   // ⭐ CE-3246 — so this node drops its own sample
+                    OriginalSourceEntityId = !evt.OriginalSource.IsNull && _entityMap.TryGetNetworkId(evt.OriginalSource, out int os) ? os : 0,   // ⭐ CE-4155 (SR-82)
                 });
                 SentSampleCount++;
             }
@@ -78,6 +91,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

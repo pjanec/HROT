@@ -60,8 +60,46 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         IReadOnlyDictionary<Type, ICustomFieldEditor> fieldEditors,
         EditContext? context,
         IValueBinding? explicitBinding = null,
-        IValueBinding? parentBinding = null)
+        IValueBinding? parentBinding = null,
+        IReadOnlyList<Attribute>? inheritedAttributes = null)
     {
+        var node = BuildNodeCore(buffer, jsonPath, name, nodeType, nativeOffset, fi, pi, idAlloc, visited, providers, fieldEditors, context, explicitBinding, parentBinding, inheritedAttributes);
+        // ⭐ S8 (docs/DESIGN_Struct_Editor.md §6) — [EditReadOnly] is APPLIED: the member's node and its whole subtree are read-only (the table greys them, ⌖ still works)
+        bool readOnly = (fi?.IsDefined(typeof(EditReadOnlyAttribute), true) ?? false) || (pi?.IsDefined(typeof(EditReadOnlyAttribute), true) ?? false);
+        return readOnly ? AsReadOnly(node) : node;
+    }
+
+    /// <summary>The node and every descendant marked read-only (the tree is immutable: a copy).</summary>
+    internal static EditNode AsReadOnly(EditNode node)
+    {
+        if (node.IsReadOnly && node.Children.Count == 0) return node;
+        var kids = new List<EditNode>(node.Children.Count);
+        foreach (var c in node.Children) kids.Add(AsReadOnly(c));
+        return new EditNode(node.Id, node.Name, node.JsonPath, node.Kind, node.ClrType, node.Binding, kids, node.Metadata, isReadOnly: true);
+    }
+
+    private static EditNode BuildNodeCore(
+        IEditBuffer buffer,
+        string jsonPath,
+        string name,
+        Type nodeType,
+        int nativeOffset,
+        FieldInfo? fi,
+        PropertyInfo? pi,
+        IdAllocator idAlloc,
+        HashSet<object> visited,
+        IReadOnlyList<IBufferViewProvider> providers,
+        IReadOnlyDictionary<Type, ICustomFieldEditor> fieldEditors,
+        EditContext? context,
+        IValueBinding? explicitBinding,
+        IValueBinding? parentBinding,
+        IReadOnlyList<Attribute>? inheritedAttributes = null)
+    {
+        // ⭐ CE-3400 — an ELEMENT of a list / array carries its container member's custom attributes (the picker attributes: <c>[HsmEventPicker]</c> on a <c>List&lt;ushort&gt;</c> names what each element IS), so the
+        //   catalogue's field rules match the element nodes too. Only the CUSTOM attributes: a display name / range / read-only of the list is the list's own.
+        var metadata = fi == null && pi == null && inheritedAttributes is { Count: > 0 }
+            ? new EditNodeMetadata { CustomAttributes = inheritedAttributes }
+            : ReadMetadata(fi, pi);
         bool isFixedBuffer = fi?.GetCustomAttribute<FixedBufferAttribute>() != null;
         var kind = isFixedBuffer ? EditNodeKind.FixedBuffer : DetermineKind(nodeType);
 
@@ -121,9 +159,33 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                 {
                     var cb = new InlineArrayBinding((NativeStructEditBuffer)buffer, nativeOffset, elemType, elemSize, attr.Length);
                     binding = cb;
+
+                    // Provider check: parity with the FixedBuffer path below — an
+                    // IBufferViewProvider may claim an [InlineArray] buffer and present a
+                    // custom view (e.g. a count-bounded list window) instead of the raw
+                    // fixed-count element expansion.
+                    if (providers.Count > 0)
+                    {
+                        var request = new BufferViewRequest
+                        {
+                            ComponentType = buffer.ComponentType,
+                            BufferPath = EditPath.Parse(jsonPath),
+                            BufferBinding = cb,
+                            ExternalContext = context,
+                            Buffer = buffer,
+                            NativeOffset = nativeOffset,
+                            IdAlloc = idAlloc,
+                        };
+                        foreach (var provider in providers)
+                        {
+                            if (provider.CanCreateView(request))
+                                return provider.CreateView(request).Node;
+                        }
+                    }
+
                     children = BuildArrayElements(buffer, jsonPath, cb, elemType, idAlloc,
                         visited, providers, fieldEditors, context,
-                        containerNativeOffset: nativeOffset, elementSize: elemSize);
+                        containerNativeOffset: nativeOffset, elementSize: elemSize, elementAttributes: metadata.CustomAttributes);
                 }
                 break;
             }
@@ -159,7 +221,7 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
 
                     children = BuildArrayElements(buffer, jsonPath, fixedBinding, fixedBinding.ElementType, idAlloc,
                         visited, providers, fieldEditors, context,
-                        containerNativeOffset: nativeOffset, elementSize: elemSize);
+                        containerNativeOffset: nativeOffset, elementSize: elemSize, elementAttributes: metadata.CustomAttributes);
                 }
                 break;
             }
@@ -177,7 +239,7 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                         binding = cb;
                         children = BuildArrayElements(buffer, jsonPath, cb, elemType, idAlloc,
                             visited, providers, fieldEditors, context,
-                            containerNativeOffset: -1, elementSize: 0);
+                            containerNativeOffset: -1, elementSize: 0, elementAttributes: metadata.CustomAttributes);
                     }
                 }
                 break;
@@ -192,7 +254,6 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         if (binding == null && explicitBinding != null)
             binding = explicitBinding;
 
-        var metadata = ReadMetadata(fi, pi);
         return new EditNode(new EditNodeId(idAlloc.Next()), name, jsonPath, kind, nodeType, binding, children, metadata);
     }
 
@@ -219,11 +280,37 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
 
             int childOffset = parentNativeOffset;
             if (buffer.IsNative && parentType.IsValueType)
-                childOffset += (int)(nint)Marshal.OffsetOf(parentType, fi.Name);
+                childOffset += global::Fdp.Core.Layout.ManagedLayout.OffsetOf(parentType, fi.Name);   // ⭐ CE-2044 — the managed offset (sizes were already managed)
 
             result.Add(BuildNode(buffer, $"{parentPath}.{fi.Name}", fi.Name, fi.FieldType,
                 childOffset, fi, null, idAlloc, visited, providers, fieldEditors, context,
                 parentBinding: parentBinding));
+        }
+
+        // ⭐ CE-1023 — a NATIVE buffer edits an AUTO-property through its compiler-generated backing field (the offset and the
+        //   binding), keeping the property's name, path and attributes. ⛔ It skipped properties outright, so a blittable struct
+        //   of auto-properties (every behaviour params DTO: FireAtTarget, MoveToLocation, …) opened as an EMPTY document.
+        if (buffer.IsNative && parentType.IsValueType)
+        {
+            foreach (var pi in parentType.GetProperties(flags))
+            {
+                if (pi.GetIndexParameters().Length > 0 || pi.GetSetMethod(nonPublic: false) == null) continue;
+                var backing = parentType.GetField($"<{pi.Name}>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (backing == null)
+                {
+                    // A COMPUTED property (no storage of its own — e.g. a PickableGeoPoint facade over two doubles) on the ROOT
+                    // struct: read-modify-write the whole struct through the root binding. ⛔ Deeper ones stay unsupported.
+                    if (parentType == buffer.ComponentType && pi.GetMethod != null)
+                        result.Add(BuildNode(buffer, $"{parentPath}.{pi.Name}", pi.Name, pi.PropertyType,
+                            0, null, pi, idAlloc, visited, providers, fieldEditors, context));   // bound by CreateLeafBinding
+                    continue;
+                }
+                int childOffset = parentNativeOffset
+                    + global::Fdp.Core.Layout.ManagedLayout.OffsetOf(parentType, backing.Name);
+                result.Add(BuildNode(buffer, $"{parentPath}.{pi.Name}", pi.Name, pi.PropertyType,
+                    childOffset, backing, pi, idAlloc, visited, providers, fieldEditors, context,
+                    parentBinding: parentBinding));
+            }
         }
 
         // public instance properties with getter — skip indexers and compiler-generated
@@ -241,9 +328,59 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                     0, null, pi, idAlloc, visited, providers, fieldEditors, context,
                     parentBinding: parentBinding));
             }
+
+            // ⭐ CE-4352 — a GET-ONLY map (a managed component's Dictionary, e.g. EgressPublicationState.LastPublishedTickMap): its entries, READ-ONLY —
+            //   each "[i]" with its Key and Value — so a double-clicked entry opens its own fields, never an empty form. (A map is not editable here: the
+            //   struct editor has no map kind; a write would have to go through the owner's own path.)
+            foreach (var pi in parentType.GetProperties(flags))
+            {
+                if (pi.GetMethod == null || pi.GetIndexParameters().Length > 0) continue;
+                if (pi.CanWrite && pi.GetSetMethod(nonPublic: false) != null) continue;   // a settable one is built above
+                if (!typeof(System.Collections.IDictionary).IsAssignableFrom(pi.PropertyType)) continue;
+                object? owner = parentBinding?.GetBoxed() ?? (parentType == buffer.ComponentType ? buffer.Box() : null);
+                if (owner == null) continue;
+                System.Collections.IDictionary? map;
+                try { map = pi.GetValue(owner) as System.Collections.IDictionary; } catch { map = null; }
+                if (map == null) continue;
+                result.Add(BuildMapNode($"{parentPath}.{pi.Name}", pi.Name, pi.PropertyType, map, idAlloc));
+            }
         }
 
         return result;
+    }
+
+    /// <summary>⭐ CE-4352 — a read-only map node: one <c>[i]</c> per entry (in the map's order), each with its <c>Key</c> and <c>Value</c> (read-only leaves).</summary>
+    private static EditNode BuildMapNode(string path, string name, Type mapType, System.Collections.IDictionary map, IdAllocator idAlloc)
+    {
+        var entries = new List<EditNode>(map.Count);
+        int i = 0;
+        foreach (System.Collections.DictionaryEntry kv in map)
+        {
+            string ep = $"{path}[{i}]";
+            var key = new EditNode(new EditNodeId(idAlloc.Next()), "Key", ep + ".Key", LeafKindOf(kv.Key?.GetType()), kv.Key?.GetType() ?? typeof(object),
+                new ReadOnlyValueBinding(kv.Key), isReadOnly: true);
+            var val = new EditNode(new EditNodeId(idAlloc.Next()), "Value", ep + ".Value", LeafKindOf(kv.Value?.GetType()), kv.Value?.GetType() ?? typeof(object),
+                new ReadOnlyValueBinding(kv.Value), isReadOnly: true);
+            entries.Add(new EditNode(new EditNodeId(idAlloc.Next()), $"[{i}]", ep, EditNodeKind.Struct, typeof(System.Collections.DictionaryEntry),
+                new ReadOnlyValueBinding(kv), children: new[] { key, val }, isReadOnly: true));
+            i++;
+        }
+        return new EditNode(new EditNodeId(idAlloc.Next()), name, path, EditNodeKind.Class, mapType, null, children: entries, isReadOnly: true);
+    }
+
+    private static EditNodeKind LeafKindOf(Type? t)
+        => t == null ? EditNodeKind.Unsupported : t == typeof(string) ? EditNodeKind.String : t == typeof(bool) ? EditNodeKind.Boolean
+         : t.IsEnum ? EditNodeKind.Enum : t.IsPrimitive || t == typeof(decimal) ? EditNodeKind.Scalar : EditNodeKind.Unsupported;
+
+    /// <summary>⭐ CE-4352 — a value shown, never written (a map entry's key or value).</summary>
+    private sealed class ReadOnlyValueBinding : IValueBinding
+    {
+        private readonly object? _value;
+        public ReadOnlyValueBinding(object? value) => _value = value;
+        public Type ValueType => _value?.GetType() ?? typeof(object);
+        public object? GetBoxed() => _value;
+        public void SetBoxed(object? value) => throw new NotSupportedException("a map entry is read-only here");
+        public bool TryGetSpan(out Span<byte> bytes) { bytes = default; return false; }
     }
 
     // ── array element node generation ─────────────────────────────────────
@@ -267,7 +404,8 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         IReadOnlyDictionary<Type, ICustomFieldEditor> fieldEditors,
         EditContext? context,
         int containerNativeOffset = -1,
-        int elementSize = 0)
+        int elementSize = 0,
+        IReadOnlyList<Attribute>? elementAttributes = null)
     {
         int count = cb.Count;
         var result = new List<EditNode>(count);
@@ -283,7 +421,8 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                 nativeOffset: elemNativeOffset, fi: null, pi: null,
                 idAlloc, visited, providers, fieldEditors, context,
                 explicitBinding: elemBinding,
-                parentBinding: null));
+                parentBinding: null,
+                inheritedAttributes: elementAttributes));
         }
         return result;
     }
@@ -344,7 +483,9 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         }
 
         MemberInfo leafMember = fi ?? (MemberInfo)pi!;
-        if (!buffer.IsNative && leafMember.DeclaringType != buffer.ComponentType && parentBinding == null)
+        // ⭐ macros S3a ① — a member INHERITED by the root type (BindableNode.Bind on every predicate node) is the root's own member: the
+        //   ManagedPropertyBinding below binds it on the boxed root. Only a member of an UNRELATED type is the hierarchy error.
+        if (!buffer.IsNative && leafMember.DeclaringType?.IsAssignableFrom(buffer.ComponentType) != true && parentBinding == null)
         {
             throw new InvalidOperationException(
                 $"STRUCTEDIT HIERARCHY ERROR: Attempting to bind nested member '{leafMember.Name}' on declaring type '{leafMember.DeclaringType?.Name}', but the root component is '{buffer.ComponentType.Name}' and no parent binding was provided. The document builder MUST flow the current node's binding down to its children during recursive traversal.");
@@ -353,6 +494,11 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         {
             return null;
         }
+
+        // ⭐ CE-1023 — a COMPUTED property on a NATIVE root struct: read-modify-write the whole struct through the root binding.
+        //   ⛔ A ManagedPropertyBinding over buffer.Box() would set the property on a throwaway copy — every write lost.
+        if (buffer.IsNative && fi == null && pi != null)
+            return new NestedMemberBinding(pi, buffer.CreateRootBinding());
 
         var owner = buffer.Box();
         if (fi != null) return new ManagedFieldBinding(fi, owner, buffer.MarkDirty);
@@ -386,7 +532,8 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
     private static EditNodeMetadata ReadMetadata(FieldInfo? fi, PropertyInfo? pi)
     {
         if (fi == null && pi == null) return EditNodeMetadata.Empty;
-        var provider = (ICustomAttributeProvider?)fi ?? pi!;
+        // ⭐ CE-1023 — an auto-property's attributes live on the PROPERTY, not its backing field (both are passed then).
+        var provider = (ICustomAttributeProvider?)pi ?? fi!;
 
         T? GetAttr<T>() where T : Attribute
             => provider.GetCustomAttributes(typeof(T), false).FirstOrDefault() as T;
@@ -470,12 +617,15 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
 
         bool isDirectMatch = paths.Any(p => p.Value == node.JsonPath);
 
+        // ⭐ CE-4351 — a child is below its parent by "." (a field) OR "[" (an array / buffer element: "$.Entries[0]"); ⛔ testing "." alone dropped every
+        //   element of a field-scoped open (the inspector's double-click on a fixed buffer opened "0 / 0 — fixed size")
         bool isDescendant = scope.IncludeChildren
-            && paths.Any(p => node.JsonPath.StartsWith(p.Value + "."));
+            && paths.Any(p => node.JsonPath.StartsWith(p.Value + ".") || node.JsonPath.StartsWith(p.Value + "["));
 
         string ancestorPrefix = node.JsonPath == "$" ? "$." : node.JsonPath + ".";
+        string ancestorIndex = node.JsonPath + "[";
         bool isAncestor = scope.IncludeParentsForContext
-            && paths.Any(p => p.Value.StartsWith(ancestorPrefix));
+            && paths.Any(p => p.Value.StartsWith(ancestorPrefix) || p.Value.StartsWith(ancestorIndex));
 
         if (!isDirectMatch && !isDescendant && !isAncestor) return null;
 

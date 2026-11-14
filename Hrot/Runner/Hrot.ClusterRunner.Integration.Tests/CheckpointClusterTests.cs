@@ -1,0 +1,479 @@
+using Fdp.Testing;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Fdp.Core.FlightRecorder;
+using Fdp.Core.FlightRecorder.Metadata;
+using Fdp.Toolkit.Orchestration;
+using Hrot.NED.Descriptors.Orchestration;
+using Xunit;
+using Xunit.Abstractions;
+using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
+using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
+
+namespace Hrot.ClusterRunner.Integration.Tests;
+
+/// <summary>
+/// ⭐⭐ <c>CE-3299</c> B3 (R-3044, D3) — a checkpoint on a LIVE cluster: the master names one wall time, EVERY recording node writes a
+/// named keyframe at it (nothing pauses), and a collect exports each as a one-frame recording the replay code reads.
+/// 📄 docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md §1g. Also prints M5 — the frame time around the checkpoint.
+/// </summary>
+[Collection("HeavyE2ETests")]
+public sealed class CheckpointClusterTests : IDisposable
+{
+    private const int DomainId = 216;   // CycloneDDS accepts 0–232; 214–219 used by no other rail (grep of fixed ids, 2026-10-22)
+
+    private readonly string _scenarioId = "tt_checkpoint_" + Guid.NewGuid().ToString("N");
+    private readonly string _label = "b3-" + Guid.NewGuid().ToString("N")[..8];
+    private readonly ITestOutputHelper _out;
+
+    public CheckpointClusterTests(ITestOutputHelper output) => _out = output;
+
+    public void Dispose()
+    {
+        NasScenarioStaging.Remove(_scenarioId);
+        foreach (var f in Exports()) { try { File.Delete(f); File.Delete(f + ".meta.json"); } catch { } }
+    }
+
+    private IEnumerable<string> Exports()
+    {
+        var root = OrchestrationConstants.ResolveStagingRoot();
+        return Directory.Exists(root)
+            ? Directory.EnumerateFiles(root, $"*.{_label}.fdp", SearchOption.AllDirectories)
+            : Enumerable.Empty<string>();
+    }
+
+    [Fact]
+    public async Task CE3299_B3_ACheckpointOnALiveCluster_IsAKeyframeOnEveryRecordingNode_AtOneWallTime_AndCollects()
+    {
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-take-cover", "scenario.json");
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", DomainId);
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var deadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            // a live run records under its exercise id (the operator panel mints one), and a checkpoint is a keyframe of that recording
+            PayloadJson = JsonSerializer.Serialize(new { TargetState = ClusterState.OperatingLive.ToString(), ScenarioId = _scenarioId, ExerciseId = Guid.NewGuid() }),
+        });
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingLive, timeoutFrames: 4000), "the cluster must go live");
+        harness.PumpFrames(120);   // the recordings run
+
+        // ── take: nothing pauses; the frames go on while the lead passes (M5: their times) ──
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TakeCheckpoint,
+            PayloadJson = JsonSerializer.Serialize(new { label = _label }),
+        });
+        var frameMs = new List<double>();
+        var clock = Stopwatch.StartNew();
+        while (clock.Elapsed < TimeSpan.FromSeconds(1.5))
+        {
+            var one = Stopwatch.StartNew();
+            harness.PumpFrames(1);
+            frameMs.Add(one.Elapsed.TotalMilliseconds);
+        }
+        Assert.Equal((int)ClusterState.OperatingLive, (int)master.CurrentClusterState);   // the save stopped nothing
+
+        // ── collect ──
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.CollectCheckpoint,
+            PayloadJson = JsonSerializer.Serialize(new { label = _label }),
+        });
+        Assert.True(harness.PumpUntil(() => Exports().Count() >= 3, timeoutFrames: 600),
+            $"simhost, player and cgf must each export '{_label}'; found: {string.Join(", ", Exports().Select(Path.GetFileName))}");
+
+        var ticks = new List<long>();
+        foreach (var export in Exports())
+        {
+            using var playback = new PlaybackController(export);
+            Assert.Equal(1, playback.TotalFrames);
+            Assert.Equal(FrameType.Keyframe, playback.GetFrameMetadata(0).FrameType);
+            var mark = Assert.Single(MetadataSerializer.Deserialize(File.ReadAllText(export + ".meta.json")).Checkpoints);
+            Assert.Equal(_label, mark.Label);
+            ticks.Add(mark.WallTicks);
+        }
+        double spreadMs = TimeSpan.FromTicks(ticks.Max() - ticks.Min()).TotalMilliseconds;
+        var sorted = frameMs.OrderBy(x => x).ToList();
+        _out.WriteLine($"[B3] {ticks.Count} nodes wrote '{_label}' within {spreadMs:F1} ms of each other; " +
+                       $"M5 frame times over {frameMs.Count} frames: median {sorted[sorted.Count / 2]:F1} ms, p95 {sorted[(int)(sorted.Count * 0.95)]:F1} ms, max {sorted[^1]:F1} ms");
+        Assert.True(spreadMs <= 250, $"the nodes' checkpoint keyframes are {spreadMs:F0} ms apart — one wall time should land within a frame or two");
+    }
+
+    /// <summary>
+    /// ⭐ CE-4325 (E7, docs/UX/DESIGN_Bookmarks_And_Notes.md §4 "Not measured") — what ONE MARK costs on the LARGEST scenario: a mark is a checkpoint, i.e. one full keyframe on EVERY recording node. Loads <c>scenarios/perf-stress</c>
+    /// (the biggest scenario by far: a 601 KB <c>scenario.json</c> — the next is 64 KB), lets the recordings run, then measures each node's recording file growth over a baseline window and over an equal window holding ONE mark
+    /// (taken the way B takes it: <c>TakeCheckpoint</c> with a <i>Mark n · m:ss</i> label). The mark's size = growth with the mark − growth without. The numbers go to the test output and to <c>$TMP/e7-mark-size.txt</c>.
+    /// ⚠ Not a gate on a number: the recorder writes in chunks and the baseline window moves, so the figure is an estimate; the assertion is only that the mark added bytes on every recording node.
+    /// </summary>
+    [Fact]
+    public async Task E7_AMark_OnTheLargestScenario_AddsOneKeyframeToEveryRecordingNode_AndItsSizeIsMeasured()
+    {
+        var source = Fdp.Toolkit.Orchestration.ContentLayout.ResolveScenarioDirectory(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, "perf-stress");
+        var markLabel = "Mark 1 · 0:30";
+        var exercise = Guid.NewGuid();
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        foreach (var f in Directory.EnumerateFiles(source)) File.Copy(f, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), Path.GetFileName(f)), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", DomainId + 5);
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var deadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = JsonSerializer.Serialize(new { TargetState = ClusterState.OperatingLive.ToString(), ScenarioId = _scenarioId, ExerciseId = exercise }),
+        });
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingLive, timeoutFrames: 8000), "the cluster must go live on the largest scenario");
+        harness.PumpFrames(120);
+
+        // a LIVE recording has no .meta.json yet (the sidecar is written at its end): find the .fdp files of this exercise's folders on every node's staging
+        Dictionary<string, long> Sizes()
+        {
+            var root = OrchestrationConstants.ResolveStagingRoot();
+            if (!Directory.Exists(root)) return new();
+            return Directory.EnumerateDirectories(root, exercise.ToString(), SearchOption.AllDirectories)
+                .Where(d => Path.GetFileName(Path.GetDirectoryName(d)) == OrchestrationConstants.ExercisesDirectoryName)
+                .SelectMany(d => Directory.EnumerateFiles(d, "*.fdp")).ToDictionary(f => f, f => new FileInfo(f).Length);
+        }
+        void Run(double seconds) { var c = Stopwatch.StartNew(); while (c.Elapsed < TimeSpan.FromSeconds(seconds)) harness.PumpFrames(1); }
+
+        Assert.True(harness.PumpUntil(() => Sizes().Count > 0, timeoutFrames: 3000), "the recordings must start");
+        Run(2);
+        var s0 = Sizes(); Run(4); var s1 = Sizes();                                     // a baseline window
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TakeCheckpoint,
+            PayloadJson = JsonSerializer.Serialize(new { label = markLabel }),
+        });
+        Run(4); var s2 = Sizes();                                                       // an equal window holding ONE mark
+        if (s0.Count == 0)
+        {
+            var root0 = OrchestrationConstants.ResolveStagingRoot();
+            _out.WriteLine($"[E7] no .fdp of exercise {exercise} under {root0}; the root holds: {string.Join(" | ", Directory.Exists(root0) ? Directory.EnumerateDirectories(root0, "*", SearchOption.AllDirectories).Where(d => d.Contains("exercises")).Take(12) : Array.Empty<string>())}");
+        }
+        Assert.NotEmpty(s0);
+
+        long total = 0; var lines = new List<string>();
+        foreach (var f in s0.Keys.OrderBy(x => x))
+        {
+            long baseline = s1[f] - s0[f], withMark = s2[f] - s1[f], mark = withMark - baseline; total += mark;
+            lines.Add($"{Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(f)))}/{Path.GetFileName(f)}: file {s2[f]:N0} B · +{baseline:N0} B per window without a mark, +{withMark:N0} B with one ⇒ the mark ≈ {mark:N0} B");
+        }
+        string report = $"[E7] ONE mark on scenarios/tests/perf-stress (scenario.json {new FileInfo(Path.Combine(source, "scenario.json")).Length:N0} B), {s0.Count} recording node(s): ≈ {total:N0} B in all ({total / 1048576.0:F2} MiB)\n  " + string.Join("\n  ", lines);
+        _out.WriteLine(report);
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "e7-mark-size.txt"), report);
+        Assert.True(s2.All(kv => kv.Value > s1[kv.Key]), "every recording node's file grew over the mark's window");
+    }
+
+    // ── ⭐⭐ CE-3299 B4 (§1h) — RESTORE: every node goes back to its keyframe and records on as a new exercise ──
+
+    private static IEnumerable<(string Path, RecordingMetadata Meta)> Recordings(Guid exercise)
+    {
+        // every node records under its OWN staging root (nodes/node-N/exercises/<id>/), so search the whole staging root
+        var root = OrchestrationConstants.ResolveStagingRoot();
+        if (!Directory.Exists(root)) yield break;
+        var metas = Directory.EnumerateDirectories(root, exercise.ToString(), SearchOption.AllDirectories)
+            .Where(d => Path.GetFileName(Path.GetDirectoryName(d)) == OrchestrationConstants.ExercisesDirectoryName)
+            .SelectMany(d => Directory.EnumerateFiles(d, "*.fdp.meta.json")).ToList();
+        foreach (var meta in metas)
+        {
+            RecordingMetadata? m = null;
+            try { m = MetadataSerializer.Deserialize(File.ReadAllText(meta)); } catch (IOException) { } catch (JsonException) { }
+            if (m != null) yield return (meta[..^".meta.json".Length], m);
+        }
+    }
+
+    private static Dictionary<int, System.Numerics.Vector3> Positions(Fdp.Core.EntityRepository world)
+    {
+        var at = new Dictionary<int, System.Numerics.Vector3>();
+        foreach (var e in world.Query().With<Fdp.Core.SimTransform>().Build()) at[e.Index] = world.GetComponentRO<Fdp.Core.SimTransform>(e).Position;
+        return at;
+    }
+
+    private static double Farthest(Dictionary<int, System.Numerics.Vector3> a, Dictionary<int, System.Numerics.Vector3> b)
+        => a.Where(kv => b.ContainsKey(kv.Key)).Select(kv => (double)System.Numerics.Vector3.Distance(kv.Value, b[kv.Key])).DefaultIfEmpty(0).Max();
+
+    [Fact]
+    public async Task CE3299_B4_ARestoreOnALiveCluster_PutsEveryNodeBackToTheCheckpoint_AndRecordsOnAsANewExercise()
+    {
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-take-cover", "scenario.json");
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", DomainId);
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var deadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+
+        var first = Guid.NewGuid();
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = JsonSerializer.Serialize(new { TargetState = ClusterState.OperatingLive.ToString(), ScenarioId = _scenarioId, ExerciseId = first }),
+        });
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingLive, timeoutFrames: 4000), "the cluster must go live");
+        harness.PumpFrames(120);
+
+        // take X, and catch the world as it was when every node's mark is on disk
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TakeCheckpoint, PayloadJson = JsonSerializer.Serialize(new { label = _label }),
+        });
+        Assert.True(harness.PumpUntil(() => Recordings(first).Count(r => r.Meta.Checkpoints.Any(c => c.Label == _label)) >= 3, timeoutFrames: 600),
+            $"simhost, player and cgf must each mark '{_label}'");
+        var world = harness.SimHost.World!;
+        var atMark = Positions(world);
+        var marks = Recordings(first).Select(r => r.Meta.Checkpoints.Single(c => c.Label == _label)).ToList();
+
+        // the world moves on
+        var clock = Stopwatch.StartNew();
+        while (clock.Elapsed < TimeSpan.FromSeconds(3)) harness.PumpFrames(1);
+        double moved = Farthest(atMark, Positions(world));
+
+        // restore X
+        var beforeRestore = world.GetSingletonUnmanaged<Fdp.Core.GlobalTime>();
+        var restore = Guid.NewGuid();
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = restore, OperationType = ClusterOpType.RestoreCheckpoint, PayloadJson = JsonSerializer.Serialize(new { label = _label }),
+        });
+        Assert.True(harness.PumpUntil(() => master.ActiveExerciseId != first && Recordings(master.ActiveExerciseId).Count() >= 3, timeoutFrames: 1200),
+            $"every recording node must record on as the new exercise (master exercise {(master.ActiveExerciseId == first ? "UNCHANGED" : master.ActiveExerciseId.ToString())}, "
+            + $"state {master.CurrentClusterState}, recordings of it: {Recordings(master.ActiveExerciseId).Count()})");
+        harness.PumpFrames(30);
+        Assert.Equal((int)ClusterState.OperatingLive, (int)master.CurrentClusterState);
+
+        // ① the world is back at X (within the nodes' PLL skew and a frame), not where it had moved to
+        double back = Farthest(atMark, Positions(world));
+        _out.WriteLine($"[B4] after the checkpoint the units moved up to {moved:F2} m; after the restore they are within {back:F2} m of the checkpoint");
+        Assert.True(back < 0.75, $"the restored world is {back:F2} m from the checkpoint");
+        Assert.True(moved > back, "the run must have moved on before the restore, or the rail proves nothing");
+
+        // ② the clock is back at X, and paused: SIM time stands still at a mark's (wall ticks flow on while paused, by design).
+        //   The snap follows the round's completion on the master, then reaches the nodes through the time sync.
+        Assert.True(harness.PumpUntil(() => world.GetSingletonUnmanaged<Fdp.Core.GlobalTime>().TotalTime < beforeRestore.TotalTime, timeoutFrames: 600),
+            $"the sim clock must go back to the checkpoint (it stays at {world.GetSingletonUnmanaged<Fdp.Core.GlobalTime>().TotalTime:F3} s)");
+        harness.PumpFrames(5);
+        var restored = world.GetSingletonUnmanaged<Fdp.Core.GlobalTime>();
+        harness.PumpFrames(30);
+        Assert.Equal(restored.TotalTime, world.GetSingletonUnmanaged<Fdp.Core.GlobalTime>().TotalTime);
+        Assert.InRange(restored.TotalTime, marks.Min(m => m.TotalTime) - 1e-6, marks.Max(m => m.TotalTime) + 1e-6);
+        Assert.True(restored.TotalTime < beforeRestore.TotalTime, "the sim clock went back to the checkpoint");
+        // ⚠ the WALL clock is not: a snap moves the master's, and each node's wall ticks keep physical time (the replay seek's
+        //   behaviour too) — so a branch's own frames resume after a wall-time GAP, never before its copied history (③ below)
+
+        // ③ D18 — each node's new exercise opens with its old recording up to X, names its parent, and the old recording keeps its frames after X
+        foreach (var (path, meta) in Recordings(master.ActiveExerciseId))
+        {
+            Assert.Equal(first, meta.ParentExerciseId);
+            var parentPath = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(path))!, first.ToString(), Path.GetFileName(path));
+            var mark = meta.Checkpoints.Single(c => c.Label == _label);
+            using var parent = new PlaybackController(parentPath);
+            using var branch = new PlaybackController(path);
+            Assert.True(parent.TotalFrames > mark.Frame + 1, "the old recording keeps the frames after the checkpoint");
+            Assert.Equal(parent.GetFrameMetadata(mark.Frame).WallClockTicks, branch.GetFrameMetadata(mark.Frame).WallClockTicks);
+            Assert.Equal(FrameType.Keyframe, branch.GetFrameMetadata(mark.Frame + 1).FrameType);
+            Assert.True(branch.GetFrameMetadata(mark.Frame + 1).WallClockTicks >= mark.WallTicks, "the branch's own frames come after its history");
+        }
+    }
+
+    // ── ⭐⭐⭐ CE-4090 (AQ108 D14, §5a) — LIVE DOES NOT IMPLY RECORDING, across a real in-process cluster (DDS between the nodes) ─────────────────
+
+    private static IEnumerable<string> StagingFilesNamed(string name)
+    {
+        var root = OrchestrationConstants.ResolveStagingRoot();
+        return Directory.Exists(root) ? Directory.EnumerateFiles(root, name, SearchOption.AllDirectories) : Enumerable.Empty<string>();
+    }
+
+    private static IEnumerable<string> StagingExerciseDirectories(Guid exercise)
+    {
+        var root = OrchestrationConstants.ResolveStagingRoot();
+        return Directory.Exists(root)
+            ? Directory.EnumerateDirectories(root, exercise.ToString(), SearchOption.AllDirectories)
+            : Enumerable.Empty<string>();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ CE-4090 — with <i>Record live runs</i> OFF a live run on a REAL cluster (orchestrator, SimHost, IG, CGF over DDS): (1) writes NO
+    /// <c>exercises/&lt;id&gt;</c> directory on any node and creates NO inventory ledger entry; (2) the "not recorded" fact reaches EVERY node on the load
+    /// (the payload) and the master's broadcast; (3) checkpoint, restore and review are refused AT THE MASTER with the reason — not one TakeSnapshot /
+    /// PrepareRestore / PrepareReview reaches any node (so no node throws), the live clock is not paused and the cluster stays live.
+    /// </summary>
+    [Fact]
+    public async Task CE4090_ALiveRunWithRecordingOff_WritesNoExercise_NoLedger_AndEveryGateRefusesAtTheMaster()
+    {
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(TestRepo.Root), "tt-take-cover", "scenario.json");
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", DomainId);
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var bus    = harness.OrchestratorSvc.TimeBusForTest!;
+        var deadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+
+        master.RecordLiveRuns = false;                                       // the setting (what POST /run-settings sets)
+        var exercise = Guid.NewGuid();
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = JsonSerializer.Serialize(new { TargetState = ClusterState.OperatingLive.ToString(), ScenarioId = _scenarioId, ExerciseId = exercise }),
+        });
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingLive, timeoutFrames: 4000), "the cluster must go live");
+        harness.PumpFrames(180);                                             // long enough for every recorder (had there been one) to write
+
+        // ① nothing is written, nowhere: no exercise directory under any staging root, no ledger entry
+        Assert.Empty(StagingExerciseDirectories(exercise));
+        Assert.Empty(StagingFilesNamed($"{exercise}.json"));                 // the master's recording_ledger entry
+        Assert.Empty(StagingFilesNamed($"*{exercise}*.fdp"));
+        Assert.True(master.RunNotRecorded);
+
+        // ② every node learned it (the broadcast): the same fact on each node's cluster read model
+        harness.PumpFrames(30);
+        foreach (var (name, provider) in new[]
+        {
+            ("simhost", harness.SimHost.CreateDebugProvider()), ("player", harness.Player.CreateDebugProvider()),
+            ("cgf", harness.Cgf!.CreateDebugProvider()),
+        })
+            Assert.True(provider?.RunNotRecorded, $"{name} must know the run is not recorded");
+
+        // ③ every gate refuses at the TOP — and no node op of the refused kinds was ever fanned out
+        var refusals = new Dictionary<Guid, ClusterOpType>();
+        var gateOps = new HashSet<Fdp.Toolkit.Orchestration.NodeOpType>
+        {
+            Fdp.Toolkit.Orchestration.NodeOpType.TakeSnapshot, Fdp.Toolkit.Orchestration.NodeOpType.PrepareRestore,
+            Fdp.Toolkit.Orchestration.NodeOpType.RestoreSnapshot, Fdp.Toolkit.Orchestration.NodeOpType.PrepareReview,
+        };
+        foreach (var (op, payload) in new (ClusterOpType, string)[]
+        {
+            (ClusterOpType.TakeCheckpoint,    JsonSerializer.Serialize(new { label = _label })),
+            (ClusterOpType.RestoreCheckpoint, JsonSerializer.Serialize(new { label = _label })),
+        })
+        {
+            var id = Guid.NewGuid();
+            refusals[id] = op;
+            await master.HandleClusterOpRequestAsync(new ClusterOpRequest { RequestId = id, OperationType = op, PayloadJson = payload });
+        }
+        var review = Guid.NewGuid();                                         // a review is a transition to OperatingReview
+        refusals[review] = ClusterOpType.TransitionState;
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = review, OperationType = ClusterOpType.TransitionState,
+            PayloadJson = JsonSerializer.Serialize(new { TargetState = ClusterState.OperatingReview.ToString(), TargetSimSeconds = 1.0 }),
+        });
+
+        var answered = new Dictionary<Guid, ClusterOpCompletedEvent>();
+        var fanned   = new List<Fdp.Toolkit.Orchestration.NodeOpType>();
+        for (int frame = 0; frame < 120 && answered.Count < refusals.Count; frame++)
+        {
+            harness.PumpFrames(1);
+            foreach (var ev in bus.ReadManaged<ClusterOpCompletedEvent>()) if (refusals.ContainsKey(ev.RequestId)) answered[ev.RequestId] = ev;
+            foreach (var i in bus.ReadManaged<ExecuteNodeOpIntent>()) if (gateOps.Contains(i.Operation)) fanned.Add(i.Operation);
+        }
+        Assert.Equal(refusals.Count, answered.Count);
+        foreach (var ev in answered.Values)
+        {
+            Assert.Equal(OrchestrationStatusCode.Rejected, ev.StatusCode);
+            Assert.Equal(RunRecordingGates.NotRecordedReason, ev.ResultPayload);
+        }
+        Assert.Empty(fanned);                                                // ⛔ nothing reached a node to throw there
+        harness.PumpFrames(60);
+        Assert.Equal((int)ClusterState.OperatingLive, (int)master.CurrentClusterState);   // not paused into a review, not restored
+        Assert.Empty(StagingExerciseDirectories(exercise));
+    }
+
+    /// <summary>
+    /// ⭐ CE-4090 §5a — the scenario verifier's live load (<c>ForceRecording</c>) records on every node even with the setting OFF: the same cluster, the
+    /// same setting, but this load's recording exists on disk for each recording node.
+    /// </summary>
+    [Fact]
+    public async Task CE4090_AVerifyRun_RecordsEvenWithTheSettingOff()
+    {
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(TestRepo.Root), "tt-take-cover", "scenario.json");
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", DomainId);
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var deadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+
+        master.RecordLiveRuns = false;
+        var exercise = Guid.NewGuid();
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = JsonSerializer.Serialize(new
+            {
+                TargetState = ClusterState.OperatingLive.ToString(), ScenarioId = _scenarioId, ExerciseId = exercise, ForceRecording = true,
+            }),
+        });
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingLive, timeoutFrames: 4000), "the cluster must go live");
+        Assert.True(harness.PumpUntil(() => Recordings(exercise).Count() >= 3, timeoutFrames: 600),
+            "simhost, player and cgf must each record the forced run");
+        Assert.False(master.RunNotRecorded);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3299 D17 (R-3045) — a live session started in CHECKPOINTING mode records, on EVERY recording node, a keyframe every N s of
+    /// sim time and nothing between: the request's one number crosses the master, the wire and the load chain to each node's recorder.
+    /// </summary>
+    [Fact]
+    public async Task CE3299_D17_ALiveSessionInCheckpointingMode_RecordsKeyframesOnly_OnEveryNode()
+    {
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-take-cover", "scenario.json");
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", DomainId);
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var deadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+
+        var exercise = Guid.NewGuid();
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = JsonSerializer.Serialize(new
+            {
+                TargetState = ClusterState.OperatingLive.ToString(), ScenarioId = _scenarioId, ExerciseId = exercise, CheckpointingSeconds = 1.0,
+            }),
+        });
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingLive, timeoutFrames: 4000), "the cluster must go live");
+        var clock = Stopwatch.StartNew();
+        while (clock.Elapsed < TimeSpan.FromSeconds(3.5)) harness.PumpFrames(1);
+        // a named checkpoint is still exact in this mode (R-3044) — every node marks it
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TakeCheckpoint, PayloadJson = JsonSerializer.Serialize(new { label = _label }),
+        });
+        Assert.True(harness.PumpUntil(() => Recordings(exercise).Count(r => r.Meta.Checkpoints.Any(c => c.Label == _label)) >= 3, timeoutFrames: 600),
+            "simhost, player and cgf must each record, and mark the checkpoint");
+        var simSeconds = harness.SimHost.World!.GetSingletonUnmanaged<Fdp.Core.GlobalTime>().TotalTime;
+        harness.Dispose();   // ends the recordings: every frame is on disk
+
+        var recordings = Recordings(exercise).ToList();
+        foreach (var (path, meta) in recordings)
+        {
+            Assert.Equal(1.0, meta.CheckpointingSeconds);
+            using var playback = new PlaybackController(path);
+            for (int f = 0; f < playback.TotalFrames; f++) Assert.Equal(FrameType.Keyframe, playback.GetFrameMetadata(f).FrameType);
+            // one keyframe per started second of sim time (+ the first), not one per frame
+            Assert.InRange(playback.TotalFrames, 2, (int)Math.Ceiling(simSeconds) + 3);   // + the checkpoint's own keyframe
+            _out.WriteLine($"[D17] {Path.GetFileName(path)}: {playback.TotalFrames} keyframes over {simSeconds:F1} s of sim time");
+        }
+    }
+}

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Rules view mockup (SR-109, docs/DESIGN_Scenario_Rules.md). Static, self-contained: open in a browser. Source of truth for the live canvas: https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k -->
+<title>Trigger details — tabs</title>
+</head>
+<body>
+<style>
+body{margin:0}
+a{color:#7fb6ff}a:hover{color:#a9ceff}
+</style>
+<div style="width: 1480px; height: 800px; box-sizing: border-box; padding: 24px; background: #17191c; color: #e4e6ea; font-family: Inter, Segoe UI, system-ui, sans-serif; font-size: 13px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px;">
+
+  <div style="display: flex; flex-direction: column; background: #202328; border: 1px solid #353941; border-radius: 10px; overflow: hidden;">
+    <div style="padding: 12px 14px; border-bottom: 1px solid #353941; display: flex; align-items: center; gap: 8px;"><span style="font-weight: 600;">When</span><span style="color: #9aa0a8; font-size: 12px;">· Ease off</span><span style="margin-left: auto; padding: 2px 8px; border-radius: 10px; background: #1f3a39; color: #6fd6d1; font-size: 11px;">live: false</span></div>
+    <div style="padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+      <span style="color: #9aa0a8; font-size: 12px;">The existing condition builder (data breakpoints, Blueprint When). Each line shows its value now.</span>
+      <div style="padding: 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;"><span style="padding: 2px 6px; border-radius: 4px; background: #34394a; font-size: 11px;">ALL OF</span><span style="margin-left: auto; width: 8px; height: 8px; border-radius: 4px; background: #e5534b;"></span></div>
+        <div style="margin-left: 14px; padding: 8px; border-radius: 6px; background: #2c3138; display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; align-items: center; gap: 6px;"><span style="color: #9aa0a8; font-size: 11px;">On entity</span><a href="#">@BlueAttack</a><span style="margin-left: auto; width: 8px; height: 8px; border-radius: 4px; background: #e5534b;"></span></div>
+          <span>ObjectiveStatus.Score &lt; <b>0.35</b></span>
+          <span style="color: #9aa0a8; font-size: 11px;">now 0.42</span>
+        </div>
+        <div style="margin-left: 14px; padding: 8px; border-radius: 6px; background: #2c3138; display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; align-items: center; gap: 6px;"><span style="color: #9aa0a8; font-size: 11px;">Scenario time</span><span style="margin-left: auto; width: 8px; height: 8px; border-radius: 4px; background: #4fbf85;"></span></div>
+          <span>elapsed &gt; <b>20 min</b></span>
+          <span style="color: #9aa0a8; font-size: 11px;">now 24:10</span>
+        </div>
+        <button style="align-self: flex-start; margin-left: 14px; background: transparent; color: #7fb6ff; border: 1px dashed #3c4a63; border-radius: 5px; padding: 5px 10px; font: inherit;">+ Condition</button>
+      </div>
+      <span style="color: #9aa0a8; font-size: 11px; letter-spacing: 0.04em;">LAST 30 MIN</span>
+      <div style="position: relative; height: 26px; border-radius: 4px; background: #262a30; overflow: hidden;">
+        <div style="position: absolute; left: 62%; top: 0; width: 9%; height: 26px; background: #2f8f5e;"></div>
+        <div style="position: absolute; left: 62%; top: 0; width: 2px; height: 26px; background: #ffffff;"></div>
+        <span style="position: absolute; left: 6px; top: 6px; color: #9aa0a8; font-size: 11px;">true 09:19–09:22 · fired at the edge + holdFor 2 min</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; background: #202328; border: 1px solid #353941; border-radius: 10px; overflow: hidden;">
+    <div style="padding: 12px 14px; border-bottom: 1px solid #353941; display: flex; align-items: center; gap: 8px;"><span style="font-weight: 600;">Do</span><span style="color: #9aa0a8; font-size: 12px;">· Counter-attack</span><span style="margin-left: auto; padding: 2px 8px; border-radius: 10px; background: #4a2c17; color: #f6b37a; font-size: 11px;">step 2/3</span></div>
+    <div style="padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+      <span style="color: #9aa0a8; font-size: 12px;">The same shared actions any behaviour uses. Each waits for the previous one. Drag to reorder.</span>
+      <div style="padding: 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #6f747c;">⋮⋮</span><span style="color: #4fbf85;">✓</span><b>InsertMacro</b><span style="margin-left: auto; color: #4fbf85; font-size: 11px;">done 09:16:40</span></div>
+        <label style="display: flex; gap: 8px; align-items: center; color: #9aa0a8; font-size: 12px;">macro <select style="flex-grow: 1; background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 3px; font: inherit;"><option>RedQRF</option></select><span style="padding: 1px 6px; border-radius: 8px; background: #2c3550; color: #a9ceff; font-size: 11px;">⛓ qrfMacro</span></label>
+        <label style="display: flex; gap: 8px; align-items: center; color: #9aa0a8; font-size: 12px;">at <input value="@VillageEdge" style="flex-grow: 1; background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 3px 6px; font: inherit;"></label>
+        <label style="display: flex; gap: 8px; align-items: center; color: #9aa0a8; font-size: 12px;">size <input value="12" style="width: 60px; background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 3px 6px; font: inherit;"><span style="padding: 1px 6px; border-radius: 8px; background: #2c3550; color: #a9ceff; font-size: 11px;">⛓ qrfSize</span></label>
+        <span style="color: #4fbf85; font-size: 11px;">12 / 12 entities constructed on every node</span>
+      </div>
+      <div style="padding: 10px; border-radius: 6px; background: #3a2a1d; border: 1px solid #6b4422; display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #6f747c;">⋮⋮</span><span style="color: #f0904a;">▶</span><b>Order</b><span style="margin-left: auto; color: #f0b27a; font-size: 11px;">running 6 s</span></div>
+        <span style="color: #c9ccd2; font-size: 12px;">@RedQRF · Attack · target @Bridge</span>
+        <span style="color: #f0b27a; font-size: 11px;">waiting for the unit to accept the intent</span>
+      </div>
+      <div style="padding: 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #6f747c;">⋮⋮</span><span>○</span><b>Message</b></div>
+        <span style="color: #c9ccd2; font-size: 12px;">to Blue · "Enemy counter-attack expected" · 8 s</span>
+      </div>
+      <button style="align-self: flex-start; background: transparent; color: #7fb6ff; border: 1px dashed #3c4a63; border-radius: 5px; padding: 5px 10px; font: inherit;">+ Action ▾</button>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; background: #202328; border: 1px solid #353941; border-radius: 10px; overflow: hidden;">
+    <div style="padding: 12px 14px; border-bottom: 1px solid #353941; display: flex; align-items: center; gap: 8px;"><span style="font-weight: 600;">Rules</span><span style="color: #9aa0a8; font-size: 12px;">· Ease off</span></div>
+    <div style="padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+      <span style="color: #9aa0a8; font-size: 12px;">How the trigger reacts to its condition (T1–T10).</span>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+        <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Hold for<input value="2 min" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px 6px; font: inherit;"></label>
+        <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Delay<input value="0 s" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px 6px; font: inherit;"></label>
+        <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Fires<select style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px; font: inherit;"><option>Repeat</option><option>Once</option></select></label>
+        <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Cooldown<input value="10 min" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px 6px; font: inherit;"></label>
+        <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Max fires<input value="2" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px 6px; font: inherit;"></label>
+        <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Active from<input value="start" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px 6px; font: inherit;"></label>
+      </div>
+      <label style="display: flex; gap: 8px; align-items: center;"><input type="checkbox">Fire if already true when armed</label>
+      <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 4px;"><span style="color: #9aa0a8; font-size: 11px;">Now</span>Cooldown · 6 min left · fired 1 of 2</div>
+      <div style="padding: 8px 10px; border-radius: 6px; border: 1px solid #5c4a1f; background: #2c2617; color: #f0d08a; font-size: 12px;">Editing a rule while live applies from the next evaluation; the running cooldown keeps its old length.</div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; background: #202328; border: 1px solid #353941; border-radius: 10px; overflow: hidden;">
+    <div style="padding: 12px 14px; border-bottom: 1px solid #353941; display: flex; align-items: center; gap: 8px;"><span style="font-weight: 600;">History</span><span style="color: #9aa0a8; font-size: 12px;">· Counter-attack</span></div>
+    <div style="padding: 14px; display: flex; flex-direction: column; gap: 2px;">
+      <span style="color: #9aa0a8; font-size: 12px; margin-bottom: 8px;">Everything that happened to it, from the journal. Click a time to jump the timeline there (in review).</span>
+      <div style="display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid #2c3036;"><a href="#" style="width: 64px;">09:00:00</a><span style="color: #3fbdb8;">armed</span></div>
+      <div style="display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid #2c3036;"><a href="#" style="width: 64px;">09:14:02</a><span>condition rose · <b>Hold the bridge</b> Active</span></div>
+      <div style="display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid #2c3036;"><a href="#" style="width: 64px;">09:15:30</a><span style="color: #a9ceff;">edited by <b>Instructor</b>: delay 120 s → 90 s</span></div>
+      <div style="display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid #2c3036;"><a href="#" style="width: 64px;">09:16:02</a><span style="color: #f0904a;">fired</span></div>
+      <div style="display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid #2c3036;"><a href="#" style="width: 64px;">09:16:40</a><span>InsertMacro RedQRF ✓ · 12 entities</span></div>
+      <div style="display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid #2c3036;"><a href="#" style="width: 64px;">09:16:40</a><span>Order @RedQRF started</span></div>
+      <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 6px;">
+        <span style="color: #9aa0a8; font-size: 11px; letter-spacing: 0.04em;">BINDINGS TAB</span>
+        <span style="color: #c9ccd2; font-size: 12px;">qrfMacro = "RedQRF" · qrfSize = 12 (scenario params) — where each value comes from, and which fields they fill.</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

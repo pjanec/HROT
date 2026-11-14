@@ -1,0 +1,96 @@
+{
+  "title": "Drone and deck",
+  "caption": "A tank hears the drone and backs under a deck; the other is hit in the open",
+  "clip": "F-48",
+  "chapter": 10,
+  "state": "ready",
+  "endAt": "m+6",
+  "anchors": {
+    "m": {
+      "on": "blast",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-10",
+      "follow": "Tank by the deck",
+      "distance": 55,
+      "yaw": 30,
+      "pitch": -25,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "follow": "Tank by the deck",
+      "distance": 14,
+      "yaw": 150,
+      "pitch": -10,
+      "lift": 1.6,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "follow": "Tank by the deck",
+      "distance": 22,
+      "yaw": 120,
+      "pitch": -10,
+      "lift": 1.8,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Tank by the deck",
+      "distance": 35,
+      "yaw": 60,
+      "pitch": -30,
+      "lift": 2,
+      "fov": 50,
+      "segment": "moment"
+    },
+    {
+      "at": "m-0.6",
+      "follow": "Tank by the deck",
+      "distance": 18,
+      "yaw": 220,
+      "pitch": -8,
+      "lift": 1.8,
+      "fov": 40,
+      "segment": "replay"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-10",
+      "to": "m-4"
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+6"
+    },
+    {
+      "id": "replay",
+      "from": "m-0.6",
+      "to": "m+1.2",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-10",
+      "until": "m+6",
+      "text": "A tank hears the drone and backs under a deck; the other is hit in the open"
+    }
+  ]
+}

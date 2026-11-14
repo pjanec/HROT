@@ -53,7 +53,7 @@ Debt row in `DEBT-TRACKER.md` closed.
 **Problem:** `FDP.Toolkit.Scenario.StoryTag` (class, `string` StoryId, ID 201) and `FDP.Toolkit.Replay.StoryTag` (struct, `Guid` StoryId, ID 84) were two distinct types for the same ECS concept.
 
 **Resolution:**
-- Created `Fdp.Kernel/StoryTag.cs` — single canonical `struct` with `[ComponentId(84)]`, `[DataPolicy(DataPolicy.NoSave)]`, `public Guid StoryId`.
+- Created `Fdp.Kernel/StoryTag.cs` — single canonical `struct` with `[ComponentId(84)]`, `[DataPolicy(DataPolicy.NoScenario)]`, `public Guid StoryId`.
 - Cleared `FDP.Toolkit.Replay/StoryTag.cs` and `FDP.Toolkit.Scenario/StoryTag.cs` (redirect comments only).
 - Removed `ScenarioComponentIds.StoryTag = 201`; ID 201 is free.
 - Changed `ScenarioSerializer.Deserialize` signature: `string? storyId` → `Guid? storyId`; `asStory=true` requires non-empty `Guid` or throws.
@@ -180,7 +180,7 @@ New project added to solution (`{41C65952-6A34-47D7-85CA-94DC3CDD1314}`).
 - `FDP/Toolkits/FDP.Toolkit.Scenario/StoryTag.cs` — cleared (redirect comment)
 - `FDP/Toolkits/FDP.Toolkit.Scenario.Tests/ScenarioSerializerTests.cs` — updated + 5 new fail-fast tests
 - `FDP/Toolkits/FDP.Toolkit.Scenario.Tests/TestComponents.cs` — `GetOutputDomKeys()` on `MissileOrdnanceTranslator`
-- `IOS-IG-SimHost.sln` — added `Hrot.Orchestrator.Integration.Tests`
+- `HROT.sln` — added `Hrot.Orchestrator.Integration.Tests`
 - `.dev/DEBT-TRACKER.md` — rows A.1–A.5, A.7 closed
 - `.dev/cgf-1/CGF-1-TASK-TRACKER.md` — S0307 marked `[x]`; Phase 3 progress updated to 3/8
 

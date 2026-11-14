@@ -3,6 +3,7 @@ using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Blueprints;
+using Hrot.Diagnostics.Breakpoints;
 using Hrot.Blueprints.Core.Debug;
 
 namespace Hrot.Blueprints.Tests.Debug;
@@ -168,7 +169,7 @@ public sealed class DebugSessionInterfaceTests
     private static void PinValueChangedWarmup(Entity entity, string pinId, int value)
         => DebugProbe.PinValueChanged(entity, pinId, value);
 
-    private static BlueprintDebugSession MakeSession(IBlueprintTimeController timeController)
+    private static BlueprintDebugSession MakeSession(IEngineDebugTimeController timeController)
         => new BlueprintDebugSession(new BlueprintRegistry(), new StubSimulationView(), timeController);
 
     // Minimal no-op ISimulationView stub. BlueprintDebugSession does not call view methods yet.

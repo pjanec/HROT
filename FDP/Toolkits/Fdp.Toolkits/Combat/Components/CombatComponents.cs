@@ -10,6 +10,7 @@ namespace Fdp.Toolkit.Combat.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.WeaponState)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct WeaponState
     {
         /// <summary>Current ammo count. Fire is refused when 0.</summary>
@@ -23,6 +24,53 @@ namespace Fdp.Toolkit.Combat.Components
 
         /// <summary>Maximum ammo capacity cached from <c>WeaponMountDto.InitialAmmunition</c> at spawn. Never mutated by firing.</summary>
         public int MaxAmmo;
+
+        // ⭐ CE-3136 P-5 (peek-and-fire D9, R-239) — the magazine, beside the TOTAL above (Ammo stays the total carried). The rule
+        //   is Combat.Magazine; a mount with MagazineSize 0 has no magazine and fires from its whole load, as before.
+
+        /// <summary>Rounds in the current magazine (0 with no magazine model).</summary>
+        public int MagazineRounds;
+
+        /// <summary>Rounds a full magazine holds; <b>0 = no magazine</b> (the whole load).</summary>
+        public int MagazineSize;
+
+        /// <summary>Seconds a reload takes (cached from the mount's TKB at spawn, like <see cref="MaxAmmo"/>).</summary>
+        public SimDuration ReloadSeconds;
+
+        /// <summary>Seconds left of the running reload; 0 = not reloading.</summary>
+        public float ReloadSecondsRemaining;
+
+        // ⭐⭐ Q94 A-3 (R-3018) — the SHOT LEDGER (Combat.ShotLedger owns the rule): the brain ASKS for a round, the muscle's answer spends it.
+        //   Pending = LastRequestId − LastAnsweredId, reserved against Ammo and the magazine (Magazine.Ready). Brain-only; never on the wire.
+
+        /// <summary>The id of the last fire request this weapon asked (<see cref="Fdp.Toolkit.Combat.Events.WeaponFireIntent.RequestId"/>).</summary>
+        public uint LastRequestId;
+
+        /// <summary>The newest request the muscle answered — fired or refused (or dropped by the timeout).</summary>
+        public uint LastAnsweredId;
+
+        /// <summary>Seconds the oldest unanswered request has waited (since the last ask or answer); the ledger drops it at its timeout.</summary>
+        public SimDuration PendingSeconds;
+
+        /// <summary>Seconds the last REFUSAL still holds this weapon (no new request); 0 = not held.</summary>
+        public SimDuration RefusalHoldSeconds;
+
+        /// <summary>The muscle's last refusal (why the round did not fly), read while <see cref="RefusalHoldSeconds"/> runs.</summary>
+        public Fdp.Toolkit.Combat.FireRefusal Refusal;
+
+        // ⭐ CE-1358 (docs/DESIGN_Weapon_Layers.md §5k) — the BARREL HEAT (Combat.BarrelHeat owns the rule). Heat 1 = too hot.
+
+        /// <summary>1 while the barrel is too hot and has not yet cooled to <c>BarrelHeat.ResumeFraction</c>: no round may be asked.</summary>
+        public byte Overheated;
+
+        /// <summary>The barrel's heat, 0 (cold) … 1 (too hot).</summary>
+        public float Heat;
+
+        /// <summary>Heat one round adds (cached from the mount's TKB at spawn); 0 = no barrel (a grenade, a dispenser, hands).</summary>
+        public float HeatPerRound;
+
+        /// <summary>Heat lost per second (1 ÷ the mount's cool time).</summary>
+        public float HeatCoolPerSecond;
     }
 
     /// <summary>
@@ -33,6 +81,7 @@ namespace Fdp.Toolkit.Combat.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.WeaponMountInfo)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct WeaponMountInfo
     {
         /// <summary>Index into WeaponSuiteDto.Mounts (0 = primary, already on owner entity).</summary>
@@ -57,6 +106,7 @@ namespace Fdp.Toolkit.Combat.Components
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.BallisticProjectile)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct BallisticProjectile
     {
         /// <summary>Entity that fired this bullet (excluded from self-hit).</summary>
@@ -66,12 +116,119 @@ namespace Fdp.Toolkit.Combat.Components
         /// Bullet's SimTransform.Position from the PREVIOUS frame.
         /// Set to origin on spawn; updated by BallisticsSystem BEFORE LinearKinematicsSystem runs.
         /// </summary>
-        public Vector3 PreviousPosition;
+        public WorldPoint PreviousPosition;
 
-        /// <summary>Damage dealt on hit.</summary>
+        /// <summary>Damage of one penetrating hit (⭐ <c>CE-3071</c>: the fired mount's <c>DamagePerHit</c>; 0 = unknown munition).</summary>
         public float Damage;
 
         /// <summary>Tick at which the bullet was spawned (for lifetime check).</summary>
         public uint SpawnTick;
+
+        /// <summary>⭐ <c>CE-3064</c> — the last unit this bullet near-missed, so one pass is reported once.</summary>
+        public Entity LastNearMiss;
+
+        /// <summary>⭐ <c>CE-3071</c> — armour penetration of the fired mount's round, mm RHA (0 = unknown munition).</summary>
+        public float Penetration;
+
+        /// <summary>
+        /// ⭐ Buildings §3d P2 (R-217) — where the round left the muzzle. <see cref="Damage"/>/<see cref="Penetration"/> stay the MUZZLE
+        /// values; whatever needs the round as it arrived somewhere carries it through the terrain from here
+        /// (<see cref="TerrainPenetration.Carry"/>) — exact however many ticks a segment's raycast takes to resolve (three: the
+        /// request is played back after the next tick's Input, solved in the one after, its result read in the third).
+        /// </summary>
+        public WorldPoint Muzzle;
+
+        /// <summary>⭐ R-217 — the round at its FLIGHT FRONT (after the terrain crossed so far): what <c>BallisticsSystem</c> decides a stop
+        /// from, segment by segment. Never read for damage — the hit re-carries from <see cref="Muzzle"/>.</summary>
+        public float FrontDamage;
+
+        /// <inheritdoc cref="FrontDamage"/>
+        public float FrontPenetration;
+
+        /// <summary>⭐ R-217 — the tick the round stopped in the terrain (0 = flying). A stopped round is frozen at the wall and kept
+        /// <see cref="CombatConstants.StoppedRoundGraceTicks"/> ticks, so the raycasts of its last segments still resolve (a unit IN
+        /// FRONT of the wall is still hit), then destroyed.</summary>
+        public uint StoppedTick;
+
+        /// <summary>⭐ R-217 — bit 0: <see cref="Muzzle"/> and the front values are set (a round built without them — older tests,
+        /// examples — starts its front at its first segment and is carried from that segment's start).</summary>
+        public byte TerrainFlags;
+
+        /// <summary>⭐ Stage 6 (<c>CE-1032</c>, W-2) — the TKB type id of the round (the fired mount's <c>AmmoGuid</c>; 0 = unknown).
+        /// The hit and the detonation carry it; the warhead numbers are looked up from it (<c>ParameterResolver.Warhead</c>), never
+        /// copied here.</summary>
+        public long Ammo;
+
+        /// <summary>⭐ Stage 6 (<c>CE-1032</c>) — <see cref="WarheadRound"/> bits, set at firing from the round's warhead
+        /// (<c>ParameterResolver.Warhead</c>), so the flight never looks the warhead up.</summary>
+        public byte Warhead;
+
+        /// <summary>⭐ <c>CE-1032</c> (W-4) — seconds left on a time fuze (counts down from firing; 0 with no time fuze).</summary>
+        public float FuzeRemaining;
+
+        /// <summary>⭐ Indirect fire IF-1 (I5) — an ARC round's lifetime in ticks, from its time of flight
+        /// (<c>FireProcessingSystem.ArcLifetimeTicks</c>); 0 = the flat <c>CombatConstants.ArcRoundLifetimeTicks</c>.</summary>
+        public uint ArcLifetimeTicks;
+        /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-2) — a <see cref="WarheadRound.Vents"/> round's burn (s): the cloud it raises lasts this long
+        /// and it vents that long where it lies. At fire: the thrown-back burn left, else its warhead's <c>CloudSeconds</c>. Owner only.</summary>
+        public SimDuration BurnSeconds;
+        /// <summary>⭐ <c>CE-4155</c> (SR-82; APPENDED) — the FIRST thrower of a round that was picked up and thrown back (<see cref="Shooter"/> is
+        /// the last); <see cref="Entity.Null"/> = never rethrown. Rides to the detonation and from there to <c>DamageAssessedEvent.OriginalSource</c>.</summary>
+        public Entity OriginalShooter;
+    }
+
+    /// <summary>⭐ Stage 6 (<c>CE-1032</c>) — the warhead bits of <see cref="BallisticProjectile.Warhead"/>.</summary>
+    public static class WarheadRound
+    {
+        /// <summary>The round has an area effect: a terrain stop DETONATES it (W-3) instead of just ending it.</summary>
+        public const byte Area = 1;
+        /// <summary>The round flies a gravity arc (W-8).</summary>
+        public const byte Arc = 2;
+        /// <summary>Time fuze: a terrain stop LANDS it, and it bursts when the fuze runs out (W-4).</summary>
+        public const byte TimeFuze = 4;
+        /// <summary>Lying where it landed, waiting for its fuze.</summary>
+        public const byte Landed = 8;
+        /// <summary>Already burst: a late raycast of an earlier segment must not detonate it a second time.</summary>
+        public const byte Spent = 16;
+        /// <summary>⭐ <c>CE-3235</c> (B-13, §7.10 PU-1) — an INERT round a hand may pick up (<see cref="Fdp.Toolkit.Tkb.Domain.HandItemDto"/>):
+        /// once it stops it lies <see cref="Landed"/> for its lying time (carried in <c>FuzeRemaining</c>), then goes without a burst.</summary>
+        public const byte Lingers = 32;
+        /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-1) — a CLOUD round (a cloud, no blast, no fragments): bursting on the GROUND it does not
+        /// go — it lies <see cref="Landed"/> + <see cref="Lingers"/> and VENTS its cloud for its burn (<c>BallisticProjectile.BurnSeconds</c>,
+        /// counted down in <c>FuzeRemaining</c>); a hand may pick it up and throw it back.</summary>
+        public const byte Vents = 64;
+
+        /// <summary>
+        /// ⭐ The ONE derivation of a fired round's bits from its warhead (<c>FireProcessingSystem</c>). ⭐⭐ <c>CE-3239</c> — a CLOUD warhead
+        /// (tear gas, smoke: no blast, no fragments) BURSTS too (<see cref="Area"/>): before, it never did on the ground — a canister was
+        /// destroyed where it stopped and a gas grenade that landed before its fuze lay 8 ticks and vanished, so neither raised its cloud.
+        /// </summary>
+        public static byte BitsOf(Fdp.Toolkit.Tkb.Domain.WarheadDto? warhead, out float fuzeSeconds)
+        {
+            fuzeSeconds = 0f;
+            if (warhead == null) return 0;
+            byte bits = 0;
+            if (warhead.HasAreaEffect || warhead.HasCloud) bits |= Area;
+            if (warhead.HasCloud && !warhead.HasAreaEffect) bits |= Vents;   // ⭐ CE-3236 (B-14, VC-1) — a canister vents where it lands
+            if (warhead.Fuze == Fdp.Toolkit.Tkb.Domain.FuzeKind.Time && warhead.FuzeDelayS > 0f) { bits |= TimeFuze; fuzeSeconds = warhead.FuzeDelayS; }
+            if (warhead.Indirect) bits |= Arc;
+            return bits;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3235</c> (B-13, §7.10 PU-1) — <see cref="BitsOf(Fdp.Toolkit.Tkb.Domain.WarheadDto?, out float)"/> plus the munition's
+        /// <see cref="Fdp.Toolkit.Tkb.Domain.HandItemDto"/>: an INERT hand item with a lying time <see cref="Lingers"/>, and its lying time
+        /// rides in <paramref name="fuzeSeconds"/> (an inert round has no fuze of its own; a round that bursts keeps its fuze).
+        /// </summary>
+        public static byte BitsOf(Fdp.Toolkit.Tkb.Domain.WarheadDto? warhead, Fdp.Toolkit.Tkb.Domain.HandItemDto? hand, out float fuzeSeconds)
+        {
+            byte bits = BitsOf(warhead, out fuzeSeconds);
+            if (hand is { LiesSeconds: > 0f } && (bits & (Area | TimeFuze)) == 0)
+            {
+                bits |= Lingers;
+                fuzeSeconds = hand.LiesSeconds;
+            }
+            return bits;
+        }
     }
 }

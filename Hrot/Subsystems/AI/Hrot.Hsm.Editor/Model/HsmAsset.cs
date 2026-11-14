@@ -14,7 +14,7 @@ namespace Hrot.Hsm.Editor.Model;
 // Editor-side model of an HSM asset.
 // Implements IEditableAsset so the shared asset catalog can hold it.
 // Mutable; tracks layout, editor-specific identity, and a reference to the kernel blob.
-public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitchableAsset
+public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, Hrot.Editor.AiShared.Blackboard.IParamsDtoAsset, IStitchableAsset, IStatefulScopeAsset, ISubtreeHostingAsset
 {
     // Identity
     public Guid AssetId { get; }
@@ -23,6 +23,8 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     public string SourceFilePath { get; }
     public bool IsDirty { get; internal set; }
     public bool IsEditorOwned { get; }
+    /// <summary>⭐ <c>CE-1252</c> — set by the catalog when it compiled this from a C# builder (read-only).</summary>
+    public bool IsCodeBuilt { get; set; }
     public string TargetNamespace { get; }
 
     /// <summary>
@@ -31,6 +33,20 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     /// Can be overridden by the editor when the user renames the asset.
     /// </summary>
     public string BlackboardTypeName { get; set; }
+
+    /// <summary>
+    /// ⭐ <c>CE-503</c> — the bound blueprint RESOLVER asset (<c>Q76</c> §12.20/§12.27g), or <c>null</c>: the record a BTree binds
+    /// too. ⚠ Must round-trip through <c>HsmAssetMapper</c>.
+    /// </summary>
+    public BehaviorResolverRef? Resolver { get; set; }
+
+    /// <summary>⭐ <c>CE-2133</c> — the behaviour's NAMED params DTO (type id), or <c>null</c> (derived). ⚠ Must round-trip through
+    /// the mapper: an editor save that dropped it would silently change the behaviour's published contract.</summary>
+    public string? ParamsDtoTypeId { get; set; }
+
+    /// <summary>⭐ <c>CE-2135</c> — the reserved Params' default as last loaded; the open document edits it on the reserved
+    /// variable entry (<c>ReservedParamsVariable</c>), and a save writes that back here.</summary>
+    public string? ParamsDefaultJson { get; set; }
 
     // Kernel-side data (mutable via UpdateBlob for PU-302 stitch; read-only otherwise)
     private HsmDefinitionBlob _blob;
@@ -87,10 +103,122 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     /// Replaces the current variable list and fires Changed.
     /// Call this when the editor commits an updated set of variables.
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E4</c> — the HSM equivalent of <c>BehaviorTreeAsset.HasAnyStatefulNode()</c>,</b>
+    /// which <c>DEBT-AIB-028</c>'s activation recipe asks for by name.
+    ///
+    /// <para>
+    /// ⚠ <b>An HSM has no per-node delegate SHAPE to inspect</b> — there is no
+    /// <c>Stateful</c> on a state. ⇒ the honest equivalent is the one Batch 67's
+    /// <c>E1</c> already established: an HSM asset maintains per-instance working state exactly when it
+    /// names a working-state variable in a binding (<c>CE-3193</c>), because that is
+    /// precisely the set <c>HsmBridgeEmitCore</c> emits <c>StatefulSlotInfo</c> entries for.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Same predicate, one definition.</b> ⛔ Inventing a different notion of "stateful" here
+    /// would let the validator and the emitter disagree about which assets own a partition slot —
+    /// which is the disagreement the whole slot-key discipline exists to prevent. ⚠ <c>Node</c> scope
+    /// is excluded for the same reason it is skipped at emission: it keys off a node id the HSM has
+    /// nothing to supply.
+    /// </para>
+    /// </summary>
+    public bool HasAnyStatefulNode() => GetSharedScopeKeys().Count > 0;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E4</c> completion (Batch 69) — the SHARED (<c>Behavior</c>/<c>Entity</c>) scope keys
+    /// this asset's stateful variables resolve to,</b> which is what rule 8b compares across parallel
+    /// regions.
+    ///
+    /// <para>
+    /// ⭐⭐ <b>ONE definition of "the shared state set", and three callers now share it:</b> this
+    /// method, <see cref="HasAnyStatefulNode"/> above (which is now literally "is that set non-empty"),
+    /// and <c>HsmBridgeEmitCore</c>'s slot emission, which filters identically. ⛔ Three copies of a
+    /// filter that decides which variables own a partition slot is exactly the drift the slot-key
+    /// discipline exists to prevent.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>The key is <c>BTreeBridgeEmitCore.ComputeStatefulSlotKey</c>, CALLED — not
+    /// reimplemented.</b> A second key algorithm would make the validator's idea of "these two regions
+    /// touch the same shared slot" disagree with the allocator's, which is the one thing rule 8b must
+    /// not get wrong.
+    /// </para>
+    /// </summary>
+    public IReadOnlyCollection<int> GetSharedScopeKeys()
+    {
+        HashSet<int>? keys = null;
+        var working = WorkingStateVariableNames();
+        foreach (var v in _blackboardVariables)
+        {
+            if (!working.Contains(v.Name)) continue;   // ⭐ CE-3193 — derived from the bindings, not an authored Role/Scope
+
+            (keys ??= new HashSet<int>()).Add(
+                Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.ComputeStatefulSlotKey(
+                    AssetId, Hrot.AiEditor.Persistence.WorkingStateScope.Behavior, System.Guid.Empty, v.Name));
+        }
+        return (IReadOnlyCollection<int>?)keys ?? System.Array.Empty<int>();
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlySet<string> WorkingStateVariableNames()
+    {
+        var names = new HashSet<string>(System.StringComparer.Ordinal);
+        void Add(params BehaviorActionBinding?[] bs)
+        {
+            foreach (var b in bs)
+                if (Hrot.AiEditor.Persistence.BindingPath.Root(b?.WorkingStateTargetField) is { Length: > 0 } root) names.Add(root);
+        }
+        foreach (var st in AllStates)              Add(st.OnEntry, st.OnExit, st.Activity, st.Timer);
+        foreach (var t in AllTransitions)          Add(t.Guard, t.Action);
+        foreach (var g in AllGlobalTransitions)    Add(g.Guard, g.Action);
+        return names;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>E5</c> item 7 — the forward asset edge: every sub-tree asset any STATE hosts.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.16.
+    ///
+    /// <para>⭐ Walks <see cref="AllStates"/>, which is the FLATTENED state list — ⛔ deliberately not
+    /// the parent/child recursion <c>HsmValidator.SubtreeHostsUnder</c> does, because that one exists
+    /// to answer a per-COMPOSITE question (which region hosts what) and this one is per-ASSET.</para>
+    ///
+    /// <para>⚠ <b>Returns the SET, so a child hosted from two states appears once</b> — that is a
+    /// legitimate diamond, and the cycle walk cares only whether the edge exists.</para>
+    /// </summary>
+    public IReadOnlyCollection<System.Guid> GetHostedSubtreeAssetIds()
+    {
+        HashSet<System.Guid>? ids = null;
+        foreach (var s in AllStates)
+        {
+            if (s.SubtreeAssetId == System.Guid.Empty) continue;
+            (ids ??= new HashSet<System.Guid>()).Add(s.SubtreeAssetId);
+        }
+        return (IReadOnlyCollection<System.Guid>?)ids ?? System.Array.Empty<System.Guid>();
+    }
+
     public void SetBlackboardVariables(IEnumerable<BlackboardVariableEntry> vars)
     {
         _blackboardVariables.Clear();
         _blackboardVariables.AddRange(vars);
+        MarkDirty();
+    }
+
+    /// <summary>⭐ <c>CE-1061</c> — the default overrides as the open document holds them: the reserved entry's, else the asset field.</summary>
+    public string? CurrentParamsDefaults
+        => Hrot.Editor.AiShared.Blackboard.ReservedParamsVariable.Find(_blackboardVariables)?.DefaultValueJson ?? ParamsDefaultJson;
+
+    /// <summary>⭐ <c>CE-1061</c> U5a/U5b (R-3001, §13.10c E3) — the params DTO and its default overrides, written together (the chooser,
+    /// a default edit, every undo); see <see cref="Hrot.Editor.AiShared.Blackboard.IParamsDtoAsset.SetParams"/>. ⚠ Both the asset field
+    /// and the reserved entry: the save falls back to the field, so clearing only the entry would resurrect the loaded value.</summary>
+    public void SetParams(string? typeId, string? defaultsJson)
+    {
+        string? t = string.IsNullOrWhiteSpace(typeId) ? null : typeId;
+        string? d = string.IsNullOrWhiteSpace(defaultsJson) ? null : defaultsJson;
+        if (string.Equals(t, ParamsDtoTypeId, StringComparison.Ordinal) && string.Equals(d, CurrentParamsDefaults, StringComparison.Ordinal)) return;
+        ParamsDtoTypeId   = t;
+        ParamsDefaultJson = d;
+        Hrot.Editor.AiShared.Blackboard.ReservedParamsVariable.Retarget(_blackboardVariables, t, d, IsBlackboardEditorManaged, Resolver != null);
         MarkDirty();
     }
 
@@ -152,23 +280,6 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
         MarkDirty();
     }
 
-    /// <summary>Sets the authoring role on an existing variable (S3-1). No-op if not found. Fires Changed.</summary>
-    public void UpdateVariableRole(string name, Hrot.AiEditor.Persistence.BlackboardVariableRole role)
-    {
-        int idx = _blackboardVariables.FindIndex(v => v.Name == name);
-        if (idx < 0) return;
-        _blackboardVariables[idx] = _blackboardVariables[idx] with { Role = role };
-        MarkDirty();
-    }
-
-    /// <summary>Sets the working-state scope on an existing variable (S3-1). No-op if not found. Fires Changed.</summary>
-    public void UpdateVariableScope(string name, Hrot.AiEditor.Persistence.WorkingStateScope scope)
-    {
-        int idx = _blackboardVariables.FindIndex(v => v.Name == name);
-        if (idx < 0) return;
-        _blackboardVariables[idx] = _blackboardVariables[idx] with { Scope = scope };
-        MarkDirty();
-    }
 
     /// <summary>Moves a variable from sourceIndex to destIndex in canonical order. Fires Changed.</summary>
     public void MoveVariable(int sourceIndex, int destIndex)
@@ -182,7 +293,32 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
         MarkDirty();
     }
 
-    /// <summary>Renames a variable. No-op if not found. Fires Changed.</summary>
+    /// <summary>
+    /// Renames a variable, <b>and every binding that targets it</b>. No-op if not found. Fires Changed.
+    ///
+    /// <para>⭐⭐⭐ <b><c>HSM-017</c> (2026-10-06) — THE <c>ExpressionTargetField</c> FIX-UP IS DONE HERE, IN THE
+    /// MODEL, AND THAT IS NOT WHERE ONE WOULD EXPECT IT.</b> The designed route is
+    /// <c>VariableRenameCommit</c> → <c>RefactorService.PreviewRename</c> → <c>ApplyRename</c>, references first and
+    /// the declaration second. 📐 Measured: that route <b>cannot move an HSM binding</b>.
+    /// <c>BTreeHsmSchemaSource.GetRefactorKey</c> returns <c>null</c>, so the commit falls back to the composite key
+    /// <c>{assetId:D}::{name}</c>; <c>PreviewRename</c> then looks for that literal string <b>in the asset's source
+    /// file</b> (<c>line.Contains(fromKey)</c>) — and a <c>.hsm.json</c> stores the bare name
+    /// (<c>"ExpressionTargetField": "EngageTarget"</c>). ⇒ zero line edits, <c>ApplyRename</c> writes nothing, the
+    /// declaration moves and every binding keeps naming the old string.</para>
+    ///
+    /// <para>⛔ <b>Why not "give the schema source a real refactor key" instead.</b> A BTree/HSM variable has no
+    /// persisted identity — the file stores the NAME — so the only key that appears in the text IS the name, and a
+    /// line-level <c>string.Replace</c> on it would also rewrite <c>speedLimit</c>, a method FQN containing the word,
+    /// and any comment. ⇒ for a name-keyed host the exact edit is a MODEL edit, which is this.</para>
+    ///
+    /// <para>⚠ <b>Still worth the contributor</b> (<c>HsmReferenceContributor</c>, same row): the catalogue is what
+    /// answers "find references" and what any future structured refactor would drive from. ⛔ But it is not what
+    /// makes this rename safe — this method is.</para>
+    ///
+    /// <para>⚠ <b>Scope (<c>R-88</c>):</b> this repairs the EDITOR's bindings. A variable name is separately
+    /// load-bearing at runtime for <c>Scope=Behavior</c>/<c>Scope=Entity</c> slot keys and scenario overrides, and
+    /// renaming still moves those slots — unchanged by this fix.</para>
+    /// </summary>
     public void RenameVariable(string oldName, string newName)
     {
         int idx = _blackboardVariables.FindIndex(v => v.Name == oldName);
@@ -193,17 +329,130 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
             _aliases.Remove(oldName);
             _aliases[newName] = list;
         }
+
+        // ⭐ HSM-017 — the same site set CountNodesReferencingVariable walks, so a binding that COUNTS as a
+        //   reference is a binding that MOVES on a rename. ⛔ Two different walks is how a count and a fix-up
+        //   come to disagree.
+        foreach (var t in AllTransitions)        RetargetBindings(oldName, newName, t.Guard, t.Action);
+        foreach (var g in AllGlobalTransitions)  RetargetBindings(oldName, newName, g.Guard, g.Action);
+        foreach (var s in AllStates)             RetargetBindings(oldName, newName, s.OnEntry, s.OnExit, s.Activity, s.Timer);
+
         MarkDirty();
     }
 
-    /// <summary>Returns 0; HSM does not use ExpressionTargetField in this phase.</summary>
-    public int CountNodesReferencingVariable(string name) => 0;
+    /// <summary>⭐ <c>HSM-017</c> — points every binding whose output targets <paramref name="oldName"/> at
+    /// <paramref name="newName"/>, using the ONE definition of "targets" (<see cref="IsExpressionTargetOf"/>).</summary>
+    private static void RetargetBindings(string oldName, string newName, params BehaviorActionBinding?[] bindings)
+    {
+        // ⭐ CE-3182 — a path keeps its field part (Params.walk → Cfg.walk), and the working-state target moves too.
+        foreach (var b in bindings)
+        {
+            if (b is null) continue;
+            b.ExpressionTargetField   = Hrot.AiEditor.Persistence.BindingPath.Retarget(b.ExpressionTargetField, oldName, newName);
+            b.WorkingStateTargetField = Hrot.AiEditor.Persistence.BindingPath.Retarget(b.WorkingStateTargetField, oldName, newName);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E7b</c> — a REAL count over <c>ExpressionTargetField</c> bindings.</b>
+    ///
+    /// <para>
+    /// 🔴 <b>It returned a hardcoded <c>0</c>, with the comment <i>"HSM does not use
+    /// ExpressionTargetField in this phase"</i> — and that was false when it was written.</b>
+    /// <c>ExpressionTargetField</c> is an <b>OUTPUT binding</b> (<i>"blackboard field that receives
+    /// the expression result of <c>ActionFunction</c>"</i>): <c>HsmAssetMapper</c> round-trips it,
+    /// <c>HsmCommandSink</c> maintains it, and <c>HsmValidator</c> already reads it as a writer style.
+    /// ⚠ <c>FIX-01-REPORT:43</c>'s <i>"no per-node"</i> meant per-<b>NODE</b>, not <i>absent</i>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b>The consequence, and it is trap #5 again:</b>
+    /// <c>BlueprintLocalVariableSchemaSource</c> computes <c>IsUnused: Count… == 0</c>, so a variable
+    /// written through <c>ExpressionTargetField</c> read as <b>UNUSED</b> — offered for deletion with
+    /// a clean conscience. A member reporting success while doing nothing.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Both transition kinds count.</b> A global transition is excluded from the validator's
+    /// cross-region conflict rule because it belongs to no region — ⛔ but it is still a <b>writer</b>,
+    /// so excluding it here would resurrect the same wrong answer for a narrower case.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Comparison is <see cref="StringComparison.OrdinalIgnoreCase"/> via
+    /// <see cref="IsExpressionTargetOf"/> — ⭐ ONE predicate, shared with <c>HsmValidator</c>, so the
+    /// count and the conflict rule cannot disagree about what "bound to this variable" means.
+    /// </para>
+    /// </summary>
+    /// <remarks>
+    /// ⭐⭐ <b><c>CE-387</c> — STATES count too, and for the same reason the rest of this method
+    /// exists.</b> A state's <c>ExpressionTargetField</c> is a <b>READ</b> (its occurrence seeds its
+    /// params from that variable) rather than a write, ⛔ but the caller's question is
+    /// <c>IsUnused</c>, and a variable that something seeds from is plainly USED. ⚠ Omitting them
+    /// would resurrect the exact defect this method was written to fix — a bound variable offered
+    /// for deletion with a clean conscience — for the state case.
+    /// </remarks>
+    public int CountNodesReferencingVariable(string name)
+    {
+        int count = 0;
+        // ⭐ CE-417: a NODE counts once if any of its bindings targets the variable.
+        foreach (var t in AllTransitions)
+            if (AnyTargets(name, t.Guard, t.Action)) count++;
+        foreach (var g in AllGlobalTransitions)
+            if (AnyTargets(name, g.Guard, g.Action)) count++;
+        foreach (var s in AllStates)
+            if (AnyTargets(name, s.OnEntry, s.OnExit, s.Activity, s.Timer)) count++;
+        return count;
+    }
+
+    /// <summary>
+    /// ⭐ <b>The ONE definition of "this <c>ExpressionTargetField</c> names that variable".</b>
+    /// <c>HsmValidator.IsLocallyBoundTo</c> delegates here rather than repeating the comparison —
+    /// two spellings of one predicate is how the count and the conflict rule drift apart.
+    /// </summary>
+    private static bool AnyTargets(string name, params BehaviorActionBinding?[] bindings)
+    {
+        foreach (var b in bindings)
+            if (b is not null && IsExpressionTargetOf(b.ExpressionTargetField, name)) return true;
+        return false;
+    }
+
+    /// <summary>⭐ <c>CE-3182</c> — true when the target is the variable or a field of it (<c>Params.walk</c> targets
+    /// <c>Params</c>): <see cref="Hrot.AiEditor.Persistence.BindingPath.Targets"/>.</summary>
+    public static bool IsExpressionTargetOf(string? expressionTargetField, string variableName)
+        => Hrot.AiEditor.Persistence.BindingPath.Targets(expressionTargetField, variableName);
 
     /// <summary>Returns all alias bindings recorded against the named variable. Empty list if none.</summary>
     public IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string variableName) =>
         _aliases.TryGetValue(variableName, out var list)
             ? list.AsReadOnly()
             : Array.Empty<BlackboardAliasBinding>();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 91 (<c>91b</c>) — the whole alias map, for the MAPPER.</b> ⛔ Deliberately shaped
+    /// like <c>GetAllSyncBindings</c> above: 📌 the persistence design lists aliases and sync bindings
+    /// in the same breath, and a different shape here would be a third mechanism for one idea.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<BlackboardAliasBinding>> GetAllAliases() =>
+        _aliases.ToDictionary(
+            kv => kv.Key,
+            kv => (IReadOnlyList<BlackboardAliasBinding>)kv.Value.AsReadOnly());
+
+    /// <summary>
+    /// ⭐⭐ <b>Rehydrates the alias map on LOAD — the call that never existed.</b>
+    /// 🔴 Measured Batch 91: the only writers to <c>_aliases</c> were rename, <c>AddAlias</c> and
+    /// prune ⇒ <b>nothing on the load path touched them</b>, so every authored alias died with the
+    /// editor session. ⚠ The DTO header even filed <c>_aliases</c> under <i>"runtime hydration"</i> —
+    /// ⭐ a hydration that was never written.
+    /// </summary>
+    public void LoadAliases(IReadOnlyDictionary<string, IReadOnlyList<BlackboardAliasBinding>>? aliases)
+    {
+        _aliases.Clear();
+        if (aliases is null) return;
+        foreach (var kv in aliases)
+            _aliases[kv.Key] = new List<BlackboardAliasBinding>(kv.Value);
+    }
+
 
     /// <summary>Binds an unbound sub-tree requirement to a defined variable. Fires Changed.</summary>
     public void AddAlias(string variableName, BlackboardAliasBinding binding)
@@ -279,6 +528,28 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
         if (wasSuppressed == suppressed) return;
         if (suppressed) _conflictSuppressions.Add((variableName, writerPairKey));
         else            _conflictSuppressions.Remove((variableName, writerPairKey));
+        MarkDirty();
+    }
+
+    // ── W7b (§9.4) — "Allow concurrent writes", PER VARIABLE ────────────────────
+    //
+    // ⛔⛔ A SEPARATE SET from _conflictSuppressions on purpose. §9.3's suppression is per
+    // (variable, writer-PAIR) so that "a new aliasing relationship on the same variable would
+    // surface a fresh diagnostic"; §9.4's allowance is per VARIABLE, so it covers pairs that do
+    // not exist yet. ⇒ merging the two would silence future writers the designer never reviewed.
+    private readonly HashSet<string> _concurrentWritesAllowed = new();
+
+    public bool IsConcurrentWritesAllowed(string variableName) =>
+        _concurrentWritesAllowed.Contains(variableName);
+
+    public IEnumerable<string> GetConcurrentWritesAllowed() => _concurrentWritesAllowed;
+
+    public void SetConcurrentWritesAllowed(string variableName, bool allowed)
+    {
+        bool was = _concurrentWritesAllowed.Contains(variableName);
+        if (was == allowed) return;
+        if (allowed) _concurrentWritesAllowed.Add(variableName);
+        else         _concurrentWritesAllowed.Remove(variableName);
         MarkDirty();
     }
 
@@ -359,6 +630,7 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
         AllGlobalTransitions = allGlobalTransitions.AsReadOnly();
         AllRegions = allRegions.AsReadOnly();
         AllEvents = allEvents.AsReadOnly();
+        _allEventsList            = allEvents;
         _allStatesList            = allStates;
         _allTransitionsList       = allTransitions;
         _allRegionsList           = allRegions;
@@ -403,8 +675,204 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     public TransitionNode? FindTransitionByFlatIndex(ushort flatIndex) =>
         _flatIndexToTransition.GetValueOrDefault(flatIndex);
 
+    private readonly List<EventDefinition> _allEventsList;
+
+    /// <summary>
+    /// ⭐ CE-2088 — the event named <paramref name="name"/> with id <paramref name="eventId"/>, declared if the asset does not
+    /// have it yet. Used when an author picks an ENGINE-RAISED event (<c>Sensor.FirstThreat</c> …) the asset never declared:
+    /// the editor had no other way to add an event at all. 📄 docs/DESIGN_Sensors_And_Doctrine.md §7.3b.
+    /// </summary>
+    public EventDefinition EnsureEvent(string name, ushort eventId)
+    {
+        var existing = FindEventById(eventId);
+        if (existing != null) return existing;
+        var created = new EventDefinition(name, eventId);
+        _allEventsList.Add(created);
+        _eventIdToEvent[eventId] = created;   // the id index FindEventById reads
+        return created;
+    }
+
     public EventDefinition? FindEventById(ushort eventId) =>
         _eventIdToEvent.GetValueOrDefault(eventId);
+
+    /// <summary>The event named <paramref name="name"/>, case-insensitively, or null.</summary>
+    public EventDefinition? FindEventByName(string? name) =>
+        string.IsNullOrWhiteSpace(name)
+            ? null
+            : _allEventsList.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    // ═══ HSM-009 — AUTHORING AN EVENT ═══════════════════════════════════════════════════════════════════
+    //
+    // ⭐⭐⭐ Until these three existed there was NO WAY TO AUTHOR AN EVENT AT ALL. 📐 Measured 2026-10-06:
+    //    EventDefinition was constructed in exactly two places, both LOADERS (HsmAssetProjector from a compiled
+    //    blob, HsmAssetMapper from JSON), plus CE-2088's EnsureEvent for an engine-raised event the author PICKS.
+    //    ⇒ a machine with no events could never acquire one, so a transition's [HsmEventPicker] had nothing to
+    //    offer and authoring a triggered transition meant hand-editing the .hsm.json — which is exactly the
+    //    Phase-1 bar ("build a working machine without touching C#") the editor is supposed to clear.
+    // 📄 HSM_Editor_NodeEditor_Host_Design.md §9.1 (the table's "+ Add Event" and its right-click menu).
+    //
+    // ⭐ WHY THESE LIVE ON THE ASSET AND NOT ON HsmCommandSink (R-47 says mutations go through the sink):
+    //    the sink's vocabulary is the GRAPH's — AddNode / AddLink / SetNodeProperty — and an event is an
+    //    ASSET-LEVEL DECLARATION, like a blackboard variable. ⭐ Variables set the precedent and it is followed
+    //    here: AddVariable / RemoveVariable / RenameVariable are public model methods that MarkDirty, called
+    //    straight from the panel. ⚠ The consequence is the same one the variables surface already has — these
+    //    are not on the undo stack. ⛔ Do not "fix" that for events alone; it is one decision for both surfaces.
+
+    /// <summary>
+    /// ⭐ Declares a new event. Returns null when the name is blank or already taken (the caller shows why).
+    ///
+    /// <para>⚠ <b>Two id rules, and both matter.</b> ① A name that matches an ENGINE-RAISED event
+    /// (<c>Sensor.FirstThreat</c> …) takes that event's RESERVED id — <c>HsmEventIds</c> is the one assignment and
+    /// would rebind it at emit anyway, so allocating a sequential id here would make the editor and the emitter
+    /// disagree about the same name. ② Otherwise the lowest free id from 1: <b>0 means "no event"</b> (every
+    /// reader tests <c>EventId != 0</c>) and the high band is reserved (<c>R-45</c>: <c>0xFFFF</c> is the kernel
+    /// sentinel, <c>0xFFFE</c> is its timer event, and built-ins sit at <c>0xFF00+</c>).</para>
+    /// </summary>
+    public EventDefinition? CreateEvent(string? name)
+    {
+        var trimmed = name?.Trim();
+        if (string.IsNullOrEmpty(trimmed)) return null;
+        if (FindEventByName(trimmed) != null) return null;
+
+        if (Hrot.AiEditor.Persistence.Emit.HsmEventIds.TryGetBuiltIn(trimmed, out ushort reserved))
+        {
+            var builtIn = EnsureEvent(trimmed, reserved);
+            MarkDirty();
+            return builtIn;
+        }
+
+        ushort id = NextFreeEventId();
+        if (id == 0) return null;   // exhausted the authorable range
+
+        var created = new EventDefinition(trimmed, id);
+        _allEventsList.Add(created);
+        _eventIdToEvent[id] = created;
+        MarkDirty();
+        return created;
+    }
+
+    /// <summary>
+    /// ⭐ Removes an event. Returns false when no event has that id.
+    ///
+    /// <para>⚠ <b>Transitions that still name it are left alone, deliberately.</b> Rewriting their
+    /// <c>EventId</c> to 0 would silently turn an event-triggered transition into a completion transition — a
+    /// different machine. ⭐ The dangling reference is REPORTED instead, by the validator rule that already
+    /// exists for exactly this (<c>HsmDiagnosticCode.EventReferenceDangling</c>), which is §9.1's
+    /// "flags warning if any transition references it".</para>
+    /// </summary>
+    public bool RemoveEvent(ushort eventId)
+    {
+        var existing = FindEventById(eventId);
+        if (existing is null) return false;
+
+        _allEventsList.Remove(existing);
+        _eventIdToEvent.Remove(eventId);
+        MarkDirty();
+        return true;
+    }
+
+    /// <summary>
+    /// ⭐ Renames an event. Returns false when the id is unknown, the name is blank, it is already taken by
+    /// another event, or it names an engine-raised event.
+    ///
+    /// <para>⭐ <b>A rename needs no refactor pass</b>, unlike a variable rename: a transition stores the
+    /// event's <c>EventId</c> (a ushort) and carries <c>EventName</c> only for display, re-symbolicated from the
+    /// machine metadata. ⇒ moving the declaration moves every reference by construction.</para>
+    ///
+    /// <para>⛔ <b>Renaming TO an engine-raised name is refused</b> rather than accepted: the id would stay
+    /// sequential in the model while <c>HsmEventIds</c> rebinds that name to the reserved id at emit, so the
+    /// built machine would answer a different event from the authored one. ⭐ Delete and re-create to adopt a
+    /// built-in — which goes through <see cref="CreateEvent"/>'s rule ① and gets the right id.</para>
+    /// </summary>
+    public bool RenameEvent(ushort eventId, string? newName)
+    {
+        var existing = FindEventById(eventId);
+        if (existing is null) return false;
+
+        var trimmed = newName?.Trim();
+        if (string.IsNullOrEmpty(trimmed)) return false;
+        if (string.Equals(trimmed, existing.Name, StringComparison.Ordinal)) return false;
+
+        var clash = FindEventByName(trimmed);
+        if (clash != null && !ReferenceEquals(clash, existing)) return false;
+        if (Hrot.AiEditor.Persistence.Emit.HsmEventIds.TryGetBuiltIn(trimmed, out _)) return false;
+
+        existing.Name = trimmed;
+        MarkDirty();
+        return true;
+    }
+
+    /// <summary>⭐ The lowest unused id in the AUTHORABLE range (1 … 0xFEFF); 0 when exhausted.</summary>
+    private ushort NextFreeEventId()
+    {
+        for (ushort candidate = 1; candidate < 0xFF00; candidate++)
+            if (!_eventIdToEvent.ContainsKey(candidate))
+                return candidate;
+        return 0;
+    }
+
+    /// <summary>
+    /// ⭐ CE-1003 (Q84 B) — the container whose start state <paramref name="child"/> can be, and, for a child of a
+    /// PARALLEL state with declared regions, the region it belongs to. The one rule every reader and writer of
+    /// "initial" goes through.
+    /// </summary>
+    internal (StateNode Container, RegionNode? Region) StartScopeOf(StateNode child)
+    {
+        var container = child.Parent ?? RootState;
+        var region = container.IsParallel
+            ? container.RegionNodes.FirstOrDefault(r => r.RegionIndex == child.RegionIndex)
+            : null;
+        return (container, region);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1003 (Q84 B) — is <paramref name="child"/> the state its container (or its region) starts in?
+    /// A parallel state's REGION owns that fact (<see cref="RegionNode.InitialChild"/>); every other container's
+    /// children carry it (<see cref="StateNode.IsInitial"/>).
+    /// </summary>
+    public bool IsStartState(StateNode child)
+    {
+        var (_, region) = StartScopeOf(child);
+        return region != null ? ReferenceEquals(region.InitialChild, child) : child.IsInitial;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1003 (Q84 B) — THE ONE WRITER of "which child is initial": makes <paramref name="child"/> the start
+    /// state of its container (or region) and clears every sibling that competed for it. 📐 Before this there
+    /// were two unsynchronised writers (the region facet's text field and the per-child flag, written only by
+    /// loaders) and NO way at all to choose a plain composite's start state in the editor.
+    /// </summary>
+    public void SetStartState(StateNode child)
+    {
+        var (container, region) = StartScopeOf(child);
+        if (region != null)
+        {
+            region.InitialChild = child;
+        }
+        else
+        {
+            foreach (var sibling in container.Children)
+                sibling.IsInitial = ReferenceEquals(sibling, child);
+        }
+        MarkDirty();
+    }
+
+    /// <summary>CE-1003: <paramref name="child"/> stops being a start state (the undo of <see cref="SetStartState"/>).</summary>
+    public void ClearStartState(StateNode child)
+    {
+        var (_, region) = StartScopeOf(child);
+        if (region != null) { if (ReferenceEquals(region.InitialChild, child)) region.InitialChild = null; }
+        else child.IsInitial = false;
+        MarkDirty();
+    }
+
+    /// <summary>CE-1003: the current start state of <paramref name="child"/>'s container (or region), if any.</summary>
+    public StateNode? CurrentStartStateFor(StateNode child)
+    {
+        var (container, region) = StartScopeOf(child);
+        if (region != null) return region.InitialChild;
+        return container.Children.FirstOrDefault(c => c.IsInitial);
+    }
 
     /// <summary>Resolve the state whose hidden OUTPUT pin matches <paramref name="pinId"/> (transition source side).</summary>
     public StateNode? FindStateByOutputPin(Guid pinId)
@@ -539,14 +1007,7 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     // Converts a name into a valid C# identifier (strips non-alphanumeric chars,
     // prepends '_' when the first char is a digit, falls back to "HsmAsset").
     private static string SanitizeIdentifier(string name)
-    {
-        var sb = new System.Text.StringBuilder();
-        foreach (char c in name)
-            if (char.IsLetterOrDigit(c) || c == '_') sb.Append(c);
-        if (sb.Length == 0) return "HsmAsset";
-        if (char.IsDigit(sb[0])) sb.Insert(0, '_');
-        return sb.ToString();
-    }
+        => global::Hrot.AiEditor.Persistence.Emit.Identifiers.StripInvalid(name, "HsmAsset");
 
     // ---- Region mutation helpers (called by HsmCommandSink) ----
 
@@ -693,11 +1154,34 @@ public sealed class StateNode : IContainerNodeModel
     // the node body background is drawn transparent.
     public bool IsPseudostate => IsHistory || IsDeepHistory || IsFinal;
 
-    // Action names (resolved from MachineMetadata; null means no action)
-    public string? OnEntryAction;
-    public string? OnExitAction;
-    public string? ActivityAction;
-    public string? TimerAction;
+    // ⭐⭐⭐ CE-417 (slice 4a) — the state's four action slots, each ONE BehaviorActionBinding (null = slot unbound).
+    // 📄 docs/blueprints/DESIGN_Behavior_Action_Binding.md §3, §5.4. Each binding carries its OWN target field (B-2).
+    public BehaviorActionBinding? OnEntry;
+    public BehaviorActionBinding? OnExit;
+
+    /// <summary>
+    /// The per-tick activity: a C# method (<see cref="BehaviorActionBinding.MethodFqn"/>) OR a blueprint
+    /// (<see cref="BehaviorActionBinding.BlueprintAssetId"/> + name).
+    /// <para>⭐⭐⭐ CE-385 — the two are MUTUALLY EXCLUSIVE: a NAMED activity resolves through FNV1a16(FQN); a
+    /// blueprint-hosted thunk registers under its BlueprintId = FNV-1a32 of the Guid — two id spaces no authorable string
+    /// bridges (CE-383/CE-384). The validator says so (design §9 ③). ⭐ The Guid is the identity and the RENAME SURVIVOR;
+    /// the name is display + re-resolution only. 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2, §7.</para>
+    /// </summary>
+    public BehaviorActionBinding? Activity;
+
+    public BehaviorActionBinding? Timer;
+
+    /// <summary>The four slots, unbound ones skipped.</summary>
+    public IEnumerable<BehaviorActionBinding> Bindings
+    {
+        get
+        {
+            if (OnEntry  is not null) yield return OnEntry;
+            if (OnExit   is not null) yield return OnExit;
+            if (Activity is not null) yield return Activity;
+            if (Timer    is not null) yield return Timer;
+        }
+    }
 
     // Inferred from action declarations; read-only in the editor
     public byte OutputLaneMask;
@@ -715,6 +1199,52 @@ public sealed class StateNode : IContainerNodeModel
     // validator (S2-4) to detect concurrent execution of the same stateful asset in orthogonal
     // parallel regions. Guid.Empty means no sub-behavior reference.
     public Guid SubtreeAssetId;
+
+    // ⭐⭐ E5 / Q36-B = A — the hosted child's REGISTRY NAME, beside the Guid.
+    //
+    // ⛔ The Guid alone cannot host anything: a host resolves its child through BehaviorRegistry,
+    //    which is keyed by NAME (TryGetId/TryGetDefinition) — there is no asset-id index, and
+    //    Q36-B ruled against adding one (one mechanism with the shipped BTree path, whose
+    //    BTreeSubtreePayload has carried the same {Guid, Name} pair since PU).
+    // ⭐ The Guid stays as the RENAME SURVIVOR: it is what the editor re-resolves the name from.
+    // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.8 item 1.
+    public string? SubtreeName;
+
+    // ⭐⭐ CE-439 — the HOST variable (Role=Input, typed as the child's Inputs struct) that seeds the hosted child on each
+    //   start; set by the subtree pick's compose step. Null = unbound. Mirrors BTreeSubtreePayload.ParamsVariable.
+    public string? SubtreeParamsVariable;
+
+    // ⭐ CE-2083 — an SOP order this state issues ("Do when idle" / "React"); it RUNS AS the state's activity, so a state carries
+    //   an order XOR an Activity binding (HsmValidator). The persisted payload itself — the editor edits it in place.
+    //   📄 DESIGN_Decision_Layer.md §4.10.
+    public Hrot.AiEditor.Persistence.BTree.SopOrderPayloadDto? SopOrder;
+
+    // ⭐⭐ DERIVED, NOT PERSISTED — recomputed by HsmSubtreeResolver against the asset catalogue on
+    //    load and after a hot reload. 📄 HSM_Editor_NodeEditor_Host_Design.md §11.1a.
+    // ⛔ Deliberately absent from StateNodeDto, mirroring BTree: a persisted `true` would outlive
+    //    the asset it describes and claim a dangling reference is fine.
+    public bool IsSubtreeResolved;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-387</c> — which blackboard variable THIS STATE's hosted occurrence seeds its params from.</b>
+    /// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.4; <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.6.
+    ///
+    /// <para>⭐ <c>CE-417</c>: DERIVED from the slots — Activity's target, else OnEntry's, OnExit's, Timer's — the SAME rule
+    /// as <c>HsmBridgeEmitCore.StateWideField</c>, so the editor and the emitter cannot disagree about the seed. ⛔ Read-only
+    /// since slice 5: each slot authors its own variable (B-2), and the v1 "one field to every slot" setter had only test
+    /// writers left after 4b — a second write path for a value the slots own. A variable typed before a method is picked
+    /// lives on an Activity binding that names nothing (CE-401).</para>
+    ///
+    /// <para>⛔⛔ <b>A state's target field is an INPUT</b> (the variable its occurrence SEEDS FROM); a transition ACTION's is
+    /// an OUTPUT (the field that RECEIVES its result), which is why only the latter is in the cross-region WRITER-conflict
+    /// rule. ⇒ a state binding must NEVER be added to that rule — concurrent readers are legal.</para>
+    /// </summary>
+    public string? StateWideTargetField
+        => Field(Activity) ?? Field(OnEntry) ?? Field(OnExit) ?? Field(Timer);
+
+    private static string? Field(BehaviorActionBinding? b)
+        => b is null || string.IsNullOrEmpty(b.ExpressionTargetField) ? null : b.ExpressionTargetField;
+
 
     // Editor-only (persisted in layout method)
     public Vector2 Position { get; set; }
@@ -831,7 +1361,7 @@ public sealed class StateNode : IContainerNodeModel
             if (!IsParallel || RegionNodes.Count == 0)
                 return Array.Empty<RegionDescriptor>();
             return RegionNodes
-                .Select(r => new RegionDescriptor(r.RegionIndex, r.Name, r.Priority, null))
+                .Select(r => new RegionDescriptor(r.RegionIndex, r.Name, r.Priority, null, r.PreferredSize))
                 .ToList();
         }
     }
@@ -864,16 +1394,37 @@ public sealed class TransitionNode
     public StateNode Target = null!;
     public ushort EventId;
     public string? EventName;    // symbolicated from MachineMetadata; for display
-    public string? GuardFunction;
-    public string? ActionFunction;
+
     /// <summary>
-    /// Blackboard field that receives the expression result of <see cref="ActionFunction"/>.
-    /// Null when no field binding is authored. Persisted.
+    /// ⭐ CE-417 — the guard: a C# method OR (CE-385) a blueprint, MUTUALLY EXCLUSIVE for the same two-id-space reason as
+    /// <see cref="StateNode.Activity"/>. Its target field is an INPUT: the variable the guard blueprint seeds from (CE-413).
     /// </summary>
-    public string? ExpressionTargetField;
+    public BehaviorActionBinding? Guard;
+
+    /// <summary>
+    /// ⭐ CE-417 — the transition action. Its target field is an OUTPUT: the blackboard field that receives the action's
+    /// result — the one binding in this node that the cross-region WRITER-conflict rule considers.
+    /// </summary>
+    public BehaviorActionBinding? Action;
+
     public byte Priority;
     public TransitionKind Kind;
     public ushort SyncGroupId;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-381</c>/<c>CE-385</c> — POLLED: this transition's guard is evaluated on every
+    /// QUIESCENT tick, with no event posted.</b>
+    ///
+    /// <para>⛔⛔ <b>Not the same as "a transition with no event".</b> An eventless transition is
+    /// selected by the RTC loop's COMPLETION pass and fires once, as a consequence of another
+    /// transition firing; a polled one fires whenever its guard passes while the machine is idle.
+    /// 🔒 The two were deliberately NOT collapsed onto one encoding — 📄 §2.3, §3.1, §10 ③.</para>
+    ///
+    /// <para>⚠ <b>Editing this on a LIVE cluster appears to do nothing</b> until the behaviour is
+    /// re-assigned: <c>IsPolled</c> moves no layout, so it does not always move
+    /// <c>StructureHash</c>. 🔒 Accepted and documented — §8b.</para>
+    /// </summary>
+    public bool IsPolled;
 
     // Editor-only (persisted in layout method)
     public List<Vector2> Waypoints { get; } = new();
@@ -891,13 +1442,13 @@ public sealed class GlobalTransitionNode
     public StateNode Target = null!;
     public ushort EventId;
     public string? EventName;
-    public string? GuardFunction;
-    public string? ActionFunction;
-    /// <summary>
-    /// Blackboard field that receives the expression result of <see cref="ActionFunction"/>.
-    /// Null when no field binding is authored. Persisted.
-    /// </summary>
-    public string? ExpressionTargetField;
+
+    /// <summary>⭐ CE-417 (B-3) — the same two bindings as a <see cref="TransitionNode"/>.</summary>
+    public BehaviorActionBinding? Guard;
+
+    /// <summary>⭐ CE-417 (B-3) — its target field is an OUTPUT, as on a <see cref="TransitionNode"/>.</summary>
+    public BehaviorActionBinding? Action;
+
     public byte Priority;
     public string? Comment;
     public bool IsBreakpoint;
@@ -914,6 +1465,8 @@ public sealed class RegionNode
     public string Name;
     public byte Priority;
     public StateNode? InitialChild;
+    // CE-1004 (R1): editor-only band size along the stack axis (graph units); null = content-sized.
+    public float? PreferredSize;
 
     // Editor-only
     public string? Comment;

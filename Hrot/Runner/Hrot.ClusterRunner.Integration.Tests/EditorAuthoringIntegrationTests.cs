@@ -11,6 +11,7 @@ using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Editor.Adapters;
+using Hrot.UI.Common.Adapters;   // ⭐ CE-061 — the host-agnostic adapters moved to Hrot.Presentation
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Events;
@@ -26,7 +27,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// <summary>
 /// EDIT1-T001/T002/T003/T004 — Headless integration tests for editor authoring systems.
 /// Uses <see cref="EditorHarness"/> (no DDS, no Raylib) to exercise
-/// <c>EditorCargoSystem</c>, <c>EditorPerceptionSetupSystem</c>, and
+/// embarkation (⭐ CE-3110 I-2a: <c>EmbarkationSystem</c> from <c>CgfLogicPack</c>, which retired <c>EditorCargoSystem</c>), <c>EditorPerceptionSetupSystem</c>, and
 /// <c>EditorZoneAuthoringSystem</c>.
 /// </summary>
 [Collection("EditorOfflineTests")]
@@ -82,8 +83,14 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         using var harness = new EditorHarness();
         var world = harness.Repo;
 
+        // ⭐ CE-2151 B-b — full = no free SEAT: fill every seat with someone (a bare Count no longer means full).
+        var occupants = new Entity[PassengerBuffer.Capacity];
+        for (int i = 0; i < occupants.Length; i++) occupants[i] = world.CreateEntity();
         var apc = world.CreateEntity();
-        world.AddComponent(apc, new PassengerBuffer { Count = PassengerBuffer.Capacity });
+        world.AddComponent(apc, new PassengerBuffer());
+        ref var full = ref world.GetComponentRW<PassengerBuffer>(apc);
+        for (int i = 0; i < occupants.Length; i++) full.Passengers[i] = occupants[i];
+        full.Count = PassengerBuffer.Capacity;
 
         var extraSoldier = world.CreateEntity();
         world.AddComponent(extraSoldier, new ActorCapabilityState());
@@ -150,7 +157,7 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         ref readonly var mem = ref world.GetComponent<TargetMemory>(insurgent);
         Assert.Equal(1, mem.Count);
         Assert.Equal((long)apc.PackedValue, mem.EntityIds[0]);
-        Assert.True(mem.ThreatScores[0] >= 100f);
+        Assert.True(mem.Freshness[0] >= 90f);   // B-5 S3: the seed (100) is applied in the Simulation phase now, so the threat system decays it one tick before the read (the retired editor system ran last, after the decay)
     }
 
     [Fact]
@@ -217,7 +224,11 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
             Position = new Vector2(50f, 25f),
             Radius   = 10f,
         });
-        harness.PumpFrames(1);
+        // ⭐ CE-1037 — since CE-3136 P-7a (R-242/R-243) the zone obstacle is a TKB Concrete block created through the
+        //   asynchronous entity-creation request (not in one frame), its footprint a BOX of side 2 × radius, and its collider
+        //   the box's circumscribed circle (ObstacleTkbTranslator: half the diagonal).
+        Assert.True(harness.PumpUntil(() => world.Query().With<PhysicsCollider>().Build().Count() > 0),
+            "The obstacle must be created through the entity-creation request.");
 
         var entities = world.Query().With<PhysicsCollider>().Build();
         Assert.Equal(1, entities.Count());
@@ -225,26 +236,35 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         Entity entity = default;
         foreach (var e in entities) { entity = e; break; }
         ref readonly var col = ref world.GetComponent<PhysicsCollider>(entity);
-        Assert.Equal(10f, col.Radius, precision: 3);
+        Assert.Equal(20f, world.GetComponent<Fdp.Toolkit.Terrain.ObstacleShape>(entity).Length, precision: 3);
+        Assert.Equal(10f * MathF.Sqrt(2f), col.Radius, precision: 3);
 
         ref readonly var xfm = ref world.GetComponent<SimTransform>(entity);
         Assert.Equal(50f, xfm.Position.X, precision: 3);
         Assert.Equal(25f, xfm.Position.Y, precision: 3);
     }
 
-    // ── T003b ── Zone Obstacle has ZoneMembership (BUG10 regression) ─────────
+    // ── T003b ── RE-HOMED (F1/F3) ────────────────────────────────────────────
 
     /// <summary>
-    /// Verifies that a zone obstacle spawned via <see cref="SpawnZoneObstacleCommand"/>
-    /// receives a <see cref="ZoneMembership"/> managed component.
+    /// ⭐ RE-HOMED from <c>ZoneAuthoring_ObstaclePlacement_ZoneObstacleHasZoneMembership</c>.
     ///
-    /// The BUG10 fix added a <c>ZoneObstacleRenderLayer</c> that queries entities with
-    /// <c>ZoneMembership + PhysicsCollider + SimTransform</c>.  This test proves that
-    /// the zone authoring system correctly stamps <c>ZoneMembership</c> so the render
-    /// layer can find the entity.
+    /// <para>The old test asserted the obstacle carried a <c>ZoneMembership</c> "so
+    /// <c>ZoneObstacleRenderLayer</c> can find it (BUG10)". ⚠ Two things had already come apart there:
+    /// <c>ZoneObstacleRenderLayer</c> does not exist in the tree any more — measured — so the test was
+    /// justifying itself by a consumer that was already gone; and <c>ZoneMembership</c> is now retired
+    /// (F1) because zones are entities with polygons, making membership geometry rather than a stored
+    /// name that can drift from the shapes.</para>
+    ///
+    /// <para>⭐ What is worth keeping is the END-TO-END claim the harness actually proves, and it is kept:
+    /// a placement command travelling the real editor pipeline produces ONE placed, collidable entity.
+    /// ⛔ That is not covered by the unit test in <c>SystemTests</c>, which drives the system directly and
+    /// never exercises the module registration or the frame pump.</para>
+    ///
+    /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1c, §5.1, §6.
     /// </summary>
     [Fact]
-    public void ZoneAuthoring_ObstaclePlacement_ZoneObstacleHasZoneMembership()
+    public void ZoneAuthoring_ObstaclePlacement_ProducesOnePlacedCollidableEntity()
     {
         using var harness = new EditorHarness();
         var world = harness.Repo;
@@ -255,113 +275,49 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
             Position = new Vector2(30f, 40f),
             Radius   = 5f,
         });
-        harness.PumpFrames(1);
+        Assert.True(harness.PumpUntil(() => world.Query().With<PhysicsCollider>().Build().Count() > 0),   // ⭐ CE-1037 — asynchronous
+            "The obstacle must be created through the entity-creation request.");
 
-        // Find the obstacle entity.
         var entities = world.Query().With<PhysicsCollider>().Build();
         Assert.Equal(1, entities.Count());
 
         Entity entity = default;
         foreach (var e in entities) { entity = e; break; }
 
-        Assert.True(world.HasManagedComponent<ZoneMembership>(entity),
-            "Zone obstacle entity must carry ZoneMembership so ZoneObstacleRenderLayer can find it (BUG10)");
+        Assert.Equal(30f, world.GetComponent<SimTransform>(entity).Position.X);
+        Assert.Equal(40f, world.GetComponent<SimTransform>(entity).Position.Y);
+        Assert.Equal(5f * MathF.Sqrt(2f), world.GetComponent<PhysicsCollider>(entity).Radius, precision: 3);   // ⭐ CE-1037 — the box's half-diagonal
     }
 
-    [Fact]
-    public void ZoneAuthoring_RoadNetworkUpdate_InjectsZoneEnvironmentDataSingleton()
-    {
-        using var harness = new EditorHarness();
-
-        // Create a minimal valid road-network JSON in a temp file.
-        string roadJson = @"{
-  ""nodes"": [
-    { ""id"": 0, ""position"": { ""x"": 0, ""y"": 0 } },
-    { ""id"": 1, ""position"": { ""x"": 100, ""y"": 0 } }
-  ],
-  ""segments"": [
-    {
-      ""id"": 0, ""startNodeId"": 0, ""endNodeId"": 1,
-      ""controlPoints"": {
-        ""p0"": { ""x"": 0, ""y"": 0 }, ""t0"": { ""x"": 1, ""y"": 0 },
-        ""p1"": { ""x"": 100, ""y"": 0 }, ""t1"": { ""x"": -1, ""y"": 0 }
-      },
-      ""speedLimit"": 25, ""laneWidth"": 3.5, ""laneCount"": 2
-    }
-  ]
-}";
-        File.WriteAllText(_tempFile, roadJson);
-
-        harness.Bus.PublishManaged(new UpdateZoneConfigCommand
-        {
-            ZoneName        = "test",
-            RoadNetworkPath = _tempFile,
-        });
-        harness.PumpFrames(1);
-
-        Assert.True(harness.Repo.HasSingleton<ZoneEnvironmentData>());
-    }
-
-    [Fact]
-    public void ZoneAuthoring_FullSave_BundlesZoneDtoInEnvelope()
-    {
-        using var harness = new EditorHarness();
-
-        // Create minimal road JSON.
-        string roadJson = @"{""nodes"":[{""id"":0,""position"":{""x"":0,""y"":0}}],""segments"":[]}";
-        File.WriteAllText(_tempFile, roadJson);
-
-        // Spawn obstacle.
-        harness.Bus.PublishManaged(new SpawnZoneObstacleCommand
-        {
-            ZoneName = "test",
-            Position = new Vector2(50f, 25f),
-            Radius   = 10f,
-        });
-
-        // Road network update.
-        harness.Bus.PublishManaged(new UpdateZoneConfigCommand
-        {
-            ZoneName        = "test",
-            RoadNetworkPath = _tempFile,
-        });
-        harness.PumpFrames(2);
-
-        // Save to a second temp file.
-        string saveFile = Path.GetTempFileName() + ".json";
-        try
-        {
-            harness.Editor.SaveScenario(saveFile);
-
-            string json     = File.ReadAllText(saveFile);
-            var    opts     = new System.Text.Json.JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-            };
-            var envelope = System.Text.Json.JsonSerializer.Deserialize<Hrot.Map.Common.Scenario.HrotScenarioEnvelopeDto>(json, opts);
-
-            Assert.NotNull(envelope?.Zones);
-            Assert.True(envelope!.Zones!.ContainsKey("test"), "Zone 'test' should be in envelope");
-
-            var zone = envelope.Zones["test"];
-            Assert.Equal(_tempFile, zone.RoadNetworkPath);
-            Assert.NotNull(zone.Obstacles);
-            Assert.Equal(1, zone.Obstacles!.Count);
-            Assert.Equal(50f, zone.Obstacles[0].X, precision: 2);
-            Assert.Equal(10f, zone.Obstacles[0].Radius, precision: 2);
-        }
-        finally
-        {
-            if (File.Exists(saveFile)) File.Delete(saveFile);
-        }
-    }
+    // ⛔ DELETED (F1/F3): `ZoneAuthoring_RoadNetworkUpdate_InjectsZoneEnvironmentDataSingleton`.
+    //
+    //   Its claim was "publishing UpdateZoneConfigCommand with a road-network path injects the
+    //   ZoneEnvironmentData singleton". That path is RETIRED and was a live hazard — it wrote the
+    //   singleton directly, bypassing RoadNetworkHolder, so a background solver could not see the new
+    //   graph and the old one was never retired (the C6 use-after-free family).
+    //   ⭐ RE-HOMED onto the terrain loader, which publishes the same singleton THROUGH the holder:
+    //   TerrainLoadClusterStateHandlerTests
+    //   (`ADefinitionListingARoadNetwork_PopulatesZoneEnvironmentData_WithNoZonesSection`).
+    //
+    // ⛔ DELETED (F1/F3): `ZoneAuthoring_FullSave_BundlesZoneDtoInEnvelope`.
+    //
+    //   Its claim was "a full editor save bundles the zone DTO — road path and obstacles — into the
+    //   envelope's `Zones` section". That section is the thing the retirement removes: it was a SECOND
+    //   place the truth lived, beside the entities the same save already wrote.
+    //   ⭐ RE-HOMED in two halves, both asserted elsewhere: that an authored zone survives a save/load
+    //   round-trip is `ZoneEntityPersistenceTests` (`Hrot.SimHost.Tests`), and that a distributed save
+    //   carries the brain's zone is `ScenarioMergeCoreTests`
+    //   (`AZoneEntityFromTheBrain_ReachesTheCanonicalFile_ThroughTheOrdinaryEntityUnion`).
+    //   ⚠ The road-network half is NOT re-homed, deliberately: a road network is no longer something a
+    //   scenario save carries at all — it is declared by the TERRAIN asset (§2.1d).
+    //   📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1d, §5.1, §6.
 
     // ── T004 ── Behavior Catalog ──────────────────────────────────────────────
 
     [Fact]
     public void BehaviorCatalog_Insurgent_ReturnsInsurgentBehaviors()
     {
-        var behaviors = BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.Insurgent);
+        var behaviors = BehaviorCatalog.GetValidBehaviors(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInsurgent);
 
         Assert.Contains("Ambush",        behaviors);
         Assert.DoesNotContain("WanderCivil", behaviors);
@@ -370,7 +326,7 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
     [Fact]
     public void BehaviorCatalog_Civilian_ReturnsCivilianBehaviors()
     {
-        var behaviors = BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.CivilianPedestrian);
+        var behaviors = BehaviorCatalog.GetValidBehaviors(Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale);
 
         Assert.Contains("WanderCivil", behaviors);
         Assert.DoesNotContain("Ambush",    behaviors);
@@ -383,16 +339,17 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         var world = harness.Repo;
 
         // Spawn an Insurgent entity with TkbIdentity and a stable NetworkIdentity.
-        const long insurgentNetId = 1001L;
+        const int insurgentNetId = 1001;
         var insurgent = world.CreateEntity();
-        world.AddComponent(insurgent, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
+        world.AddComponent(insurgent, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Insurgent) });
         world.AddComponent(insurgent, new Fdp.Toolkit.Replication.Components.NetworkIdentity(insurgentNetId));
+        world.SetDisType(insurgent, new Fdp.Core.DISEntityType { Kind = 3, Domain = 1, Category = 1 });   // ⭐ CE-4350 — the offer follows the DIS class (Infantry)
 
         // Build a BehaviorRegistry that only registers "Ambush" (not "MoveToLocation").
         var registry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
         registry.Register(1, "Ambush", new Fdp.Toolkit.Behavior.BehaviorDefinition { Name = "Ambush" });
 
-        var service = new EditorMissionService(world.Bus, world, registry);
+        var service = new ScenarioMissionService(world.Bus, world, registry);
 
         // GetAvailableBehaviors resolves entities via NetworkIdentity, not ECS index.
         var behaviors = service.GetAvailableBehaviors(insurgentNetId);

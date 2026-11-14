@@ -1,5 +1,6 @@
 using ImGuiNET;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Core.Widgets;
 using System.Numerics;
 
 namespace NodeEditor.UI.Picker.Layouts;
@@ -14,18 +15,26 @@ internal static class TreeLayout
 {
     private const float RowHeight = 22f;
     private static readonly Vector2 IconSize = new(16f, 16f);
+    private const float PreviewH = 84f;
+    private static readonly Vector2 PreviewIconSize = new(64f, 64f);
 
     /// <summary>Render the tree view.</summary>
     public static void Draw(PickerState state, IPickerRenderContext ctx,
-                            CategoryNode? explicitRoot = null)
+                            CategoryNode? explicitRoot = null,
+                            bool foldSingleChildFolders = false, bool showPreview = false)
     {
-        float height = ImGui.GetContentRegionAvail().Y - ImGui.GetFrameHeightWithSpacing();
+        float height = ImGui.GetContentRegionAvail().Y - PickerLayoutMetrics.FooterReserve(state);
+        if (showPreview)
+            height -= PreviewH + ImGui.GetStyle().ItemSpacing.Y;
         if (ImGui.BeginChild("##picker_tree", new Vector2(0f, height), ImGuiChildFlags.None))
         {
             try
             {
                 // Rebuild visual rows from scratch each frame.
                 state.VisualRows.Clear();
+
+                // ⭐ CE-4098 (AQ108 D19) — the Recent section FIRST: what was picked last, before any folder.
+                DrawRecentSection(state, ctx);
 
                 if (explicitRoot is not null)
                 {
@@ -34,8 +43,11 @@ internal static class TreeLayout
                 }
                 else
                 {
-                    DrawImplicitTree(state, ctx);
+                    DrawImplicitTree(state, ctx, foldSingleChildFolders);
                 }
+
+                // The initial-selection reveal is one-shot: this draw has opened its folders.
+                state.RevealCategory = null;
 
                 // Clamp tree focus after rebuild (row count may have changed).
                 if (state.VisualRows.Count > 0)
@@ -52,27 +64,115 @@ internal static class TreeLayout
         {
             ImGui.EndChild();
         }
+
+        if (showPreview)
+            DrawPreview(state, ctx);
+    }
+
+    // ── Recent section (CE-4098) ──────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ The rows of the Recent section — <see cref="PickerState.RecentFilteredIndices"/>, the model a rail asserts. An entry
+    /// also sits in its folder below; the section is a shortcut, so both rows are visual rows (keyboard navigation walks them).
+    /// </summary>
+    internal static IReadOnlyList<int> RecentSectionRows(PickerState state) => state.RecentFilteredIndices();
+
+    private static void DrawRecentSection(PickerState state, IPickerRenderContext ctx)
+    {
+        var rows = RecentSectionRows(state);
+        if (rows.Count == 0) return;
+
+        ImGui.TextColored(ctx.Theme.TextMuted, "↻ Recent");
+        ImGui.PushID("##recent");   // the same entry is drawn again in its folder: separate ID scope
+        foreach (int idx in rows)
+            DrawLeafItem(state, ctx, idx, state.Filtered[idx], 0);
+        ImGui.PopID();
+        ImGui.Separator();
+    }
+
+    // ── preview pane (CE-1017) ────────────────────────────────────────────────
+
+    /// <summary>The focused leaf: the focused tree row when it is a leaf, else the keyboard-focused entry.</summary>
+    internal static int FocusedLeafIndex(PickerState state)
+    {
+        int row = state.TreeFocusRow;
+        if (row >= 0 && row < state.VisualRows.Count && !state.VisualRows[row].IsFolder)
+            return state.VisualRows[row].FilteredIndex;
+        int k = state.KeyboardFocusIndex;
+        return k >= 0 && k < state.Filtered.Count ? k : -1;
+    }
+
+    private static void DrawPreview(PickerState state, IPickerRenderContext ctx)
+    {
+        int idx = FocusedLeafIndex(state);
+        PickerEntry? entry = idx >= 0 && idx < state.Filtered.Count ? state.Filtered[idx].Entry : null;
+
+        if (ImGui.BeginChild("##picker_tree_preview", new Vector2(0f, PreviewH), ImGuiChildFlags.Borders))
+        {
+            try
+            {
+                if (entry is null)
+                {
+                    ImGui.TextColored(ctx.Theme.TextMuted, "(no selection)");
+                    return;
+                }
+
+                if (entry.IconKey is { Length: > 0 } key && ctx.Icons.TryGet(key, out var icon))
+                {
+                    ImGui.Image(icon.TextureId, PreviewIconSize, icon.Uv0, icon.Uv1);
+                    ImGui.SameLine();
+                }
+
+                ImGui.BeginGroup();
+                ImGui.TextColored(ctx.Theme.TextDefault, entry.Name);
+                if (entry.Category is { Length: > 0 } cat)
+                    ImGui.TextColored(ctx.Theme.TextMuted, cat.Replace("/", PickerTreeBuilder.FoldSeparator));
+                if (entry.Description is { Length: > 0 } desc)
+                    ImGui.TextWrapped(desc);
+                ImGui.EndGroup();
+            }
+            finally
+            {
+                ImGui.EndChild();
+            }
+        }
+        else
+        {
+            ImGui.EndChild();
+        }
     }
 
     // ── implicit tree (built from Category strings) ───────────────────────────
 
-    private static void DrawImplicitTree(PickerState state, IPickerRenderContext ctx)
+    private static void DrawImplicitTree(PickerState state, IPickerRenderContext ctx, bool foldSingleChildFolders)
     {
-        // Build the pure tree model from the filtered list.
-        var items = new List<(int FilteredIndex, string? Category, string Name)>(state.Filtered.Count);
-        for (int i = 0; i < state.Filtered.Count; i++)
+        // Build the pure tree model from the filtered list — ⭐ CE-4359: once per Filtered rebuild, not every frame (0 B steady).
+        if (state.TreeCache is not PickerTreeBuilder.Node root || state.TreeCacheVersion != state.FilteredVersion)
         {
-            var re = state.Filtered[i];
-            items.Add((i, re.Entry.Category, re.Entry.Name));
+            var items = new List<(int FilteredIndex, string? Category, string Name)>(state.Filtered.Count);
+            for (int i = 0; i < state.Filtered.Count; i++)
+            {
+                var re = state.Filtered[i];
+                items.Add((i, re.Entry.Category, re.Entry.Name));
+            }
+            root = PickerTreeBuilder.Build(items, foldSingleChildFolders, state.FolderOrder);
+            state.TreeCache = root; state.TreeCacheVersion = state.FilteredVersion;
         }
-
-        var root = PickerTreeBuilder.Build(items);
 
         bool isSearching = !string.IsNullOrEmpty(state.SearchText);
 
         // REVERT BATCH-45: default-open ONLY while searching so matches are visible.
         // For non-search, ImGui remembers each folder's native open/closed state.
         var flags = isSearching ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
+
+        // ⭐ CE-4398 — a non-empty search lists every hit FLAT, each with its folder path greyed after the name: the tree's folders kept their
+        //   remembered (closed) state while typing, so a nested hit was invisible. An empty search brings the tree back.
+        if (isSearching)
+        {
+            for (int i = 0; i < state.Filtered.Count; i++)
+                DrawLeafItem(state, ctx, i, state.Filtered[i], 0, showFolder: true);
+            return;
+        }
 
         // Render folders.
         foreach (var folder in root.Folders)
@@ -87,44 +187,35 @@ internal static class TreeLayout
         PickerTreeBuilder.Node folder, string parentPath, int depth,
         ImGuiTreeNodeFlags baseFlags, bool isSearching)
     {
-        // Compute stable full-path for collapse state + IDs.
-        string fullPath = string.IsNullOrEmpty(parentPath)
-            ? folder.Name
-            : parentPath + "/" + folder.Name;
+        // Stable full-path for collapse state + IDs: the builder's category path, which a folded row
+        // ("A › B") keeps as its deepest real folder ("A/B") — so reveal and toggles still match.
+        string fullPath = folder.FullPath;
 
         int visualRowIndex = state.VisualRows.Count;
         bool isFocused = state.TreeFocusRow == visualRowIndex;
 
-        // Determine tree flags.
-        var treeFlags = baseFlags | ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanFullWidth;
-        if (isFocused)
-            treeFlags |= ImGuiTreeNodeFlags.Selected;
+        // ⭐ U-4 (DESIGN_UI_Conventions §2) — ONE row for every tree: chevron · icon · label (the shared TreeRow; the icon follows the folder's open state).
+        //   The open state is the picker's own (PickerState.FolderOpen); default open only while searching so matches are visible.
+        bool open = state.FolderOpen.TryGetValue(fullPath, out var remembered) ? remembered : isSearching;
 
-        // Draw folder icon if available. Pick closed/open glyph from the node's
-        // persisted open state (1-frame lag is acceptable); the icon must be
-        // drawn BEFORE TreeNodeEx.
-        uint nodeId = ImGui.GetID(fullPath);
-        int defaultOpenInt = (baseFlags & ImGuiTreeNodeFlags.DefaultOpen) != 0 ? 1 : 0;
-        bool wasOpen = ImGui.GetStateStorage().GetInt(nodeId, defaultOpenInt) != 0;
-
-        string folderKey = wasOpen ? "folder_open" : "folder";
-        bool hasIcon = ctx.Icons.TryGet(folderKey, out var folderIcon)
-                       || ctx.Icons.TryGet("folder", out folderIcon);
-        if (hasIcon)
-        {
-            ImGui.Image(folderIcon.TextureId, IconSize, folderIcon.Uv0, folderIcon.Uv1);
-            ImGui.SameLine();
-        }
-
-        // Drive open state via one-shot request; otherwise let ImGui remember natively.
-        // During search, DefaultOpen flag auto-expands; do not also force via pending path.
+        // Drive open state via one-shot request; otherwise remembered. (During search the default opens everything.)
         if (!isSearching && state.PendingToggleFolderPath == fullPath)
         {
-            ImGui.SetNextItemOpen(state.PendingToggleOpen, ImGuiCond.Always);
+            open = state.PendingToggleOpen;
             state.PendingToggleFolderPath = null;
         }
+        else if (state.RevealCategory is { } reveal
+                 && (reveal == fullPath || reveal.StartsWith(fullPath + "/", StringComparison.Ordinal)))
+        {
+            // Initial selection: open every folder on the pre-selected entry's path.
+            open = true;
+        }
 
-        bool open = ImGui.TreeNodeEx(folder.Name, treeFlags);
+        string folderKey = open ? "folder_open" : "folder";
+        var icon = ctx.Icons.TryGet(folderKey, out var folderIcon) || ctx.Icons.TryGet("folder", out folderIcon)
+            ? RowIcon.Image(folderIcon) : RowIcon.None;
+        NodeEditor.Core.Widgets.TreeRow.Draw(fullPath, folder.Name, icon, depth, hasChildren: true, ref open, isFocused);
+        state.FolderOpen[fullPath] = open;
 
         // Record this folder as a visual row.
         state.VisualRows.Add(new PickerState.TreeRow(
@@ -156,8 +247,6 @@ internal static class TreeLayout
 
             foreach (var leaf in folder.Leaves)
                 DrawLeafItem(state, ctx, leaf.FilteredIndex, state.Filtered[leaf.FilteredIndex], depth + 1);
-
-            ImGui.TreePop();
         }
     }
 
@@ -173,20 +262,21 @@ internal static class TreeLayout
         int visualRowIndex = state.VisualRows.Count;
         bool isFocused = state.TreeFocusRow == visualRowIndex;
 
-        var treeFlags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanFullWidth;
-        if (isFocused)
-            treeFlags |= ImGuiTreeNodeFlags.Selected;
-        if (node.Children.Count == 0)
-            treeFlags |= ImGuiTreeNodeFlags.Leaf;
+        bool hasChildren = node.Children.Count > 0;
+        bool open = state.FolderOpen.TryGetValue(fullPath, out var remembered) && remembered;
 
-        // Drive open state via one-shot request; otherwise let ImGui remember natively.
+        // Drive open state via one-shot request; otherwise remembered.
         if (state.PendingToggleFolderPath == fullPath)
         {
-            ImGui.SetNextItemOpen(state.PendingToggleOpen, ImGuiCond.Always);
+            open = state.PendingToggleOpen;
             state.PendingToggleFolderPath = null;
         }
 
-        bool open = ImGui.TreeNodeEx(node.Name, treeFlags);
+        string folderKey = open ? "folder_open" : "folder";
+        var icon = ctx.Icons.TryGet(folderKey, out var folderIcon) || ctx.Icons.TryGet("folder", out folderIcon)
+            ? RowIcon.Image(folderIcon) : RowIcon.None;
+        NodeEditor.Core.Widgets.TreeRow.Draw(fullPath, node.Name, icon, depth, hasChildren, ref open, isFocused);
+        if (hasChildren) state.FolderOpen[fullPath] = open;
 
         // Record this folder as a visual row.
         state.VisualRows.Add(new PickerState.TreeRow(
@@ -214,15 +304,13 @@ internal static class TreeLayout
         {
             foreach (var child in node.Children)
                 DrawExplicitFolderNode(state, ctx, child, fullPath, depth + 1);
-
-            ImGui.TreePop();
         }
     }
 
     // ── leaf item ─────────────────────────────────────────────────────────────
 
     private static void DrawLeafItem(PickerState state, IPickerRenderContext ctx,
-                                     int filteredIdx, RankedEntry re, int depth = 0)
+                                     int filteredIdx, RankedEntry re, int depth = 0, bool showFolder = false)
     {
         bool sel    = state.SelectedFilteredIndices.Contains(filteredIdx);
         bool focus  = state.KeyboardFocusIndex == filteredIdx;
@@ -233,6 +321,18 @@ internal static class TreeLayout
         int visualRowIndex = state.VisualRows.Count;
         state.VisualRows.Add(new PickerState.TreeRow(
             IsFolder: false, FolderPath: "", FilteredIndex: filteredIdx, Depth: depth));
+
+        // Initial selection: the pre-selected leaf becomes the focused ROW, so Enter confirms it rather
+        // than expanding whatever folder happens to be row 0.
+        if (state.FocusLeafOnDraw == filteredIdx)
+        {
+            state.TreeFocusRow = visualRowIndex;
+            state.FocusLeafOnDraw = -1;
+        }
+
+        // ⭐ U-4 — the depth is the indent (TreeRow's rule: no TreePush any more), and the leaf keeps the chevron's slot.
+        float leafIndent = depth * ImGui.GetStyle().IndentSpacing;
+        if (leafIndent > 0f) ImGui.Indent(leafIndent);
 
         ImGui.PushID(filteredIdx);
 
@@ -263,42 +363,79 @@ internal static class TreeLayout
         if (focus)
             dl.AddRect(pos, pos + size, ImGui.GetColorU32(ctx.Theme.TextDefault with { W = 0.5f }), 2f);
 
-        float textX = pos.X + 4f;
+        float textX = pos.X + ImGui.GetTreeNodeToLabelSpacing();   // ⭐ U-4: the chevron's slot — the same x a TreeRow's icon starts at
         float textY = pos.Y + (size.Y - ImGui.GetTextLineHeight()) * 0.5f;
 
         // Draw type icon if available.
+        float iconSz = ImGui.GetFontSize();   // ⭐ U-4: the icon is the font's height, as in TreeRow
         float iconPadLeft = 0f;
         if (re.Entry.IconKey is { Length: > 0 } iconKey &&
             ctx.Icons.TryGet(iconKey, out var leafIcon))
         {
-            float iconY = pos.Y + (size.Y - IconSize.Y) * 0.5f;
+            float iconY = pos.Y + (size.Y - iconSz) * 0.5f;
             dl.AddImage(leafIcon.TextureId,
                 new Vector2(textX, iconY),
-                new Vector2(textX + IconSize.X, iconY + IconSize.Y),
+                new Vector2(textX + iconSz, iconY + iconSz),
                 leafIcon.Uv0, leafIcon.Uv1);
-            textX += IconSize.X + 4f;
-            iconPadLeft = IconSize.X + 4f;
+            textX += iconSz + ImGui.GetStyle().ItemInnerSpacing.X;
+            iconPadLeft = iconSz + 4f;
         }
         else
         {
             // Left-pad when no icon so text aligns with icon-bearing leaves.
-            textX += IconSize.X + 4f;
+            textX += iconSz + ImGui.GetStyle().ItemInnerSpacing.X;
         }
 
         // Render name with match highlights.
-        uint defaultTextColor = sel
-            ? ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f))
-            : ImGui.GetColorU32(ctx.Theme.TextDefault);
+        uint defaultTextColor = !re.Entry.IsEnabled
+            ? ImGui.GetColorU32(ctx.Theme.TextDefault with { W = 0.45f })
+            : sel
+                ? ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f))
+                : ImGui.GetColorU32(ctx.Theme.TextDefault);
         uint highlightColor = sel
             ? ImGui.GetColorU32(new Vector4(1f, 1f, 0.4f, 1f))
             : ImGui.GetColorU32(ctx.Theme.SelectionAccent);
 
-        var runs = PickerTextHighlighter.SplitRuns(re.Entry.Name, re.MatchPositions);
-        foreach (var run in runs)
+        if (re.MatchPositions.Count == 0)
         {
-            uint color = run.IsMatch ? highlightColor : defaultTextColor;
-            dl.AddText(new Vector2(textX, textY), color, run.Text);
-            textX += ImGui.CalcTextSize(run.Text).X;
+            // ⭐ CE-4359 (HOT PATH) — no query: one plain run, nothing allocated (SplitRuns builds a list per call)
+            dl.AddText(new Vector2(textX, textY), defaultTextColor, re.Entry.Name);
+        }
+        else
+        {
+            var runs = PickerTextHighlighter.SplitRuns(re.Entry.Name, re.MatchPositions);
+            foreach (var run in runs)
+            {
+                uint color = run.IsMatch ? highlightColor : defaultTextColor;
+                dl.AddText(new Vector2(textX, textY), color, run.Text);
+                textX += ImGui.CalcTextSize(run.Text).X;
+            }
+        }
+
+        // ⭐ CE-4398 — the flat search list: the folder, greyed, after the name (cached label: 0 B in a steady frame)
+        if (showFolder && re.Entry.Category is { Length: > 0 } folderPath)
+        {
+            if (!state.FolderLabels.TryGetValue(folderPath, out var label))
+                state.FolderLabels[folderPath] = label = folderPath.Replace("/", PickerTreeBuilder.FoldSeparator);
+            float endX = textX + (re.MatchPositions.Count == 0 ? ImGui.CalcTextSize(re.Entry.Name).X : 0f);
+            if (re.MatchPositions.Count != 0) endX = textX;   // textX already advanced past the highlighted runs
+            dl.AddText(new Vector2(endX + 14f, textY), ImGui.GetColorU32(ctx.Theme.TextMuted), label);
+        }
+
+        // ⭐ Terrain authoring E-2 (mockup 4) — the chips after the name and the hint right-aligned, as the flat list draws them (CE-4330 ⑤); nothing is drawn, and nothing allocated, for an entry with neither
+        if (re.Entry.Chips is { Count: > 0 } || re.Entry.Hint is { Length: > 0 })
+        {
+            float nameEnd = re.MatchPositions.Count == 0 ? textX + ImGui.CalcTextSize(re.Entry.Name).X : textX;
+            if (re.Entry.Chips is { Count: > 0 } chips)
+            {
+                nameEnd += 8f;
+                for (int c = 0; c < chips.Count; c++) nameEnd += PickerItemListHelper.DrawChip(dl, chips[c], new Vector2(nameEnd, pos.Y + 1f), size.Y - 2f) + 4f;
+            }
+            if (re.Entry.Hint is { Length: > 0 } hint)
+            {
+                float hx = pos.X + size.X - ImGui.CalcTextSize(hint).X - 6f;
+                if (hx > nameEnd + 8f) dl.AddText(new Vector2(hx, textY), ImGui.GetColorU32(ctx.Theme.TextMuted), hint);
+            }
         }
 
         // Handle mouse click for selection (A17/A18: also move TreeFocusRow).
@@ -310,10 +447,29 @@ internal static class TreeLayout
             state.TreeFocusRow = visualRowIndex;
         }
 
-        // Double-click confirms.
+        // A disabled entry says why on hover (its Description), since it cannot be picked.
+        if (!re.Entry.IsEnabled && ImGui.IsItemHovered() && re.Entry.Description is { Length: > 0 } why)
+            ImGui.SetTooltip(why);
+
+        // Double-click confirms (Confirm() refuses a disabled entry).
         if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
         {
             state.Confirmed = true;
+        }
+
+        // ⭐ Terrain authoring E-2 — the entry's own actions in its right-click menu (CE-4330 ⑦, as the flat list offers them): an entry with none gets no menu here, as before
+        if (re.Entry.Actions is { Count: > 0 } rowActions && ImGui.BeginPopupContextItem("##row_ctx"))
+        {
+            for (int a = 0; a < rowActions.Count; a++)
+            {
+                var act = rowActions[a];
+                var glyph = Core.Widgets.Icons.Get(act.IconKey);
+                ImGui.TextColored(glyph.Color, glyph.Glyph);
+                ImGui.SameLine();
+                if (ImGui.MenuItem(act.Label, null, false, act.DisabledReason is null)) act.Run();
+                if (act.DisabledReason is { } actWhy && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(actWhy);
+            }
+            ImGui.EndPopup();
         }
 
         // Scroll focused leaf into view (one-shot, gated on keyboard-nav flag — BATCH-52).
@@ -324,5 +480,6 @@ internal static class TreeLayout
         }
 
         ImGui.PopID();
+        if (leafIndent > 0f) ImGui.Unindent(leafIndent);
     }
 }

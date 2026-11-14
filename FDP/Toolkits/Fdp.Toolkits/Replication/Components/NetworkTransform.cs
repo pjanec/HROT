@@ -25,14 +25,45 @@ namespace Fdp.Toolkit.Replication.Components
     /// saving one component-ID slot over maintaining separate position and rotation components.
     /// </para>
     /// </summary>
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     [ComponentId(GlobalComponentIds.NetworkTransform)]
     public struct NetworkTransform
     {
         /// <summary>Last position that was sent to (or received from) the network.</summary>
-        public Vector3 LastPosition;
+        public WorldPoint LastPosition;
 
         /// <summary>Last orientation that was sent to (or received from) the network.</summary>
-        public Quaternion LastRotation;
+        public WorldRotation LastRotation;
+
+        /// <summary>
+        /// Simulation time (seconds, cluster-synced) at which the publisher sampled
+        /// <see cref="LastPosition"/>/<see cref="LastRotation"/>.
+        ///
+        /// <para>
+        /// Written by the ingress translator when a sample arrives, and by nothing else. Dead
+        /// reckoning reads it to age the sample — <c>target = LastPosition + Vel * (simNow - SimStamp)</c>
+        /// — which makes the extrapolated position a pure function of replicated data, so two nodes
+        /// running at different frame rates compute the same answer for the same <c>simNow</c>.
+        /// </para>
+        ///
+        /// <para>
+        /// <b>Nothing may advance this component between samples.</b> Doing so turns the anchor into
+        /// an accumulator that extrapolates from its own previous guess, which drifts with frame
+        /// rate and diverges across nodes. On the egress side the component keeps its original job
+        /// unchanged (the last-published shadow that the send threshold compares against), and this
+        /// field is not used there.
+        /// </para>
+        ///
+        /// <para>See <c>docs/DESIGN_Dead_Reckoning.md</c> — rules R2, R3 and R4.</para>
+        /// </summary>
+        public double SimStamp;
+
+        /// <summary>⭐ <c>CE-2348</c> ② — EGRESS only: the linear velocity last published. A change of velocity is a change worth sending:
+        /// 📐 a hull that coasted to a stop never moved another centimetre, so the last sample — still carrying its creep — stayed on every
+        /// other node for minutes (measured ~200 s on <c>uc-urban-battle</c>'s destroyed APC) and their dead reckoning read it as moving.</summary>
+        public Vector3 LastVelocity;
+
+        /// <summary>⭐ <c>CE-2348</c> ② — EGRESS only: the world tick of the last publish; the heartbeat counts from it.</summary>
+        public uint LastSentTick;
     }
 }

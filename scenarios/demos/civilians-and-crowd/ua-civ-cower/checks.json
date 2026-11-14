@@ -1,0 +1,81 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CV-7 fallback: no shelter, so a frightened civilian cowers in place. From the header's Judge (1)-(2): all three start Routine, all enter Cower with EffectState.Cowering set, none runs off (never Panic), then once the Hostile is down (the take's health cue, 72.7 s) each leaves Cower and Cowering clears. NOT expressed: 'stands still, < 0.3 m in 1.5 s' (a movement over time, not a value) and 'on CGF, SimHost and IG' (one world here). runFor 150 = the take's 72.7 s + the live check's 60 s fade.",
+  "runFor": 150,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "down": {
+      "on": "health",
+      "who": "Hostile",
+      "below": 0.01
+    }
+  },
+  "expect": [
+    {
+      "name": "all three start in Routine",
+      "on": "field",
+      "who": "*Civilian",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Routine",
+      "quantifier": "all"
+    },
+    {
+      "name": "under fire, all three cower",
+      "on": "field",
+      "who": "*Civilian",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Cower",
+      "quantifier": "all",
+      "after": "all three start in Routine"
+    },
+    {
+      "name": "Cowering is set on all three",
+      "on": "field",
+      "who": "*Civilian",
+      "path": "EffectState.Cowering",
+      "op": "==",
+      "value": 1,
+      "quantifier": "all",
+      "after": "all three start in Routine"
+    },
+    {
+      "name": "none runs off (never Panic)",
+      "never": {
+        "on": "field",
+        "who": "*Civilian",
+        "path": "CivilianState.Mode",
+        "op": "==",
+        "value": "Panic"
+      }
+    },
+    {
+      "name": "the firing ends (the Hostile is down)",
+      "on": "health",
+      "who": "Hostile",
+      "below": 0.01
+    },
+    {
+      "name": "each leaves Cower as his fear fades",
+      "on": "field",
+      "who": "*Civilian",
+      "path": "CivilianState.Mode",
+      "op": "!=",
+      "value": "Cower",
+      "quantifier": "all",
+      "after": "the firing ends (the Hostile is down)"
+    },
+    {
+      "name": "Cowering is cleared",
+      "on": "field",
+      "who": "*Civilian",
+      "path": "EffectState.Cowering",
+      "op": "==",
+      "value": 0,
+      "quantifier": "all",
+      "after": "each leaves Cower as his fear fades"
+    }
+  ]
+}

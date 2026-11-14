@@ -13,7 +13,7 @@ using Hrot.Animation.Replication.Translators.Descriptors;
 using Hrot.Animation.Replication.Translators.Events;
 using Hrot.Animation.Replication.Translators.SideBuffers;
 using Hrot.MuscleCharacter.Animation.Baking;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Contracts;
 using Hrot.MuscleCharacter.Animation.Events;
@@ -146,7 +146,9 @@ public sealed class AnimationNetworkLoopbackFixture : IDisposable
         // Brain world
         BrainWorld = new EntityRepository();
         BrainWorld.RegisterComponent<AnimationChannel>();
+        BrainWorld.RegisterComponent<AnimationChannelStatus>();
         BrainWorld.RegisterComponent<LookAtChannel>();
+        BrainWorld.RegisterComponent<LookAtChannelStatus>();
         BrainWorld.RegisterComponent<StanceIntent>();
         BrainWorld.RegisterComponent<StanceStatus>();
         BrainWorld.RegisterComponent<AnimationMontageQueue>();
@@ -161,7 +163,9 @@ public sealed class AnimationNetworkLoopbackFixture : IDisposable
         // Muscle world
         MuscleWorld = new EntityRepository();
         MuscleWorld.RegisterComponent<AnimationChannel>();
+        MuscleWorld.RegisterComponent<AnimationChannelStatus>();
         MuscleWorld.RegisterComponent<LookAtChannel>();
+        MuscleWorld.RegisterComponent<LookAtChannelStatus>();
         MuscleWorld.RegisterComponent<StanceStatus>();
         MuscleWorld.RegisterComponent<StanceIntent>();
         MuscleWorld.RegisterComponent<AnimationMontageQueue>();
@@ -269,13 +273,15 @@ public sealed class AnimationNetworkLoopbackFixture : IDisposable
     /// intent components; the Muscle entity has all animation-pipeline components.
     /// Returns the Brain entity (the one callers write intents to).
     /// </summary>
-    public Entity SpawnPairedHumanoid(long networkId)
+    public Entity SpawnPairedHumanoid(int networkId)
     {
         // Brain entity: intent components + NetworkIdentity
         var brainEntity = BrainWorld.CreateEntity();
         BrainWorld.AddComponent(brainEntity, new NetworkIdentity(networkId));
-        BrainWorld.AddComponent(brainEntity, new AnimationChannel { Status = NodeStatus.Failure });
-        BrainWorld.AddComponent(brainEntity, new LookAtChannel { Status = NodeStatus.Failure });
+        BrainWorld.AddComponent(brainEntity, new AnimationChannel());
+        BrainWorld.AddComponent(brainEntity, new AnimationChannelStatus { Status = NodeStatus.Failure });
+        BrainWorld.AddComponent(brainEntity, new LookAtChannel());
+        BrainWorld.AddComponent(brainEntity, new LookAtChannelStatus { Status = NodeStatus.Failure });
         BrainWorld.AddComponent(brainEntity, new StanceIntent
         {
             TargetStance = StanceId.Standing,
@@ -293,8 +299,10 @@ public sealed class AnimationNetworkLoopbackFixture : IDisposable
         // Muscle entity: full animation pipeline components + NetworkIdentity
         var muscleEntity = MuscleWorld.CreateEntity();
         MuscleWorld.AddComponent(muscleEntity, new NetworkIdentity(networkId));
-        MuscleWorld.AddComponent(muscleEntity, new AnimationChannel { Status = NodeStatus.Failure });
-        MuscleWorld.AddComponent(muscleEntity, new LookAtChannel { Status = NodeStatus.Failure });
+        MuscleWorld.AddComponent(muscleEntity, new AnimationChannel());
+        MuscleWorld.AddComponent(muscleEntity, new AnimationChannelStatus { Status = NodeStatus.Failure });
+        MuscleWorld.AddComponent(muscleEntity, new LookAtChannel());
+        MuscleWorld.AddComponent(muscleEntity, new LookAtChannelStatus { Status = NodeStatus.Failure });
         MuscleWorld.AddComponent(muscleEntity, new StanceStatus
         {
             CurrentStance = StanceId.Standing,
@@ -485,7 +493,7 @@ public sealed class AnimationNetworkLoopbackFixture : IDisposable
     public void ResetWorlds()
     {
         // Collect registered network IDs before destroying entities
-        var netIds = new System.Collections.Generic.List<long>(
+        var netIds = new System.Collections.Generic.List<int>(
             _brainEntityMap.Entries.Keys);
 
         foreach (var e in BrainWorld.Query().Build())

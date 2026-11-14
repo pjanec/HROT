@@ -21,7 +21,7 @@ All Part A debt items from BATCH-03 review resolved. CGF1-S0201 (BFS Transition 
 - `FDP/Kernel/Fdp.Kernel.Tests/xunit.runner.json` — `parallelizeAssembly: false`, `maxParallelThreads: 1`
 - `FDP/ModuleHost/ModuleHost.Core.Tests/xunit.runner.json` — same
 
-Ran `dotnet test IOS-IG-SimHost.sln --nologo` during session. Runner, SimHost, and IG test suites pass (112, 360, 429 tests respectively). DDS flake from those assemblies eliminated. Note: new DDS tests in `Hrot.Orchestrator.Tests` use domain 15 (non-conflicting); the policy of unique domains remains the required approach for any new DDS tests.
+Ran `dotnet test HROT.sln --nologo` during session. Runner, SimHost, and IG test suites pass (112, 360, 429 tests respectively). DDS flake from those assemblies eliminated. Note: new DDS tests in `Hrot.Orchestrator.Tests` use domain 15 (non-conflicting); the policy of unique domains remains the required approach for any new DDS tests.
 
 ### A.1 — `ClusterConfiguration.LoadFrom` fail-fast (P2)
 

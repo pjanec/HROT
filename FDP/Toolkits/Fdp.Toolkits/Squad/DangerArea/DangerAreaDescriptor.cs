@@ -14,7 +14,13 @@ namespace Fdp.Toolkit.Squad.DangerArea
         StreetCrossing = 2,
         Intersection  = 3,
         ChokePoint    = 4,
-        CrestLine     = 5
+        CrestLine     = 5,
+        /// <summary>⭐ <c>CE-3227</c> (docs/DESIGN_Civilians_And_Crowd_Control.md §7.3d-B G-1) — tear gas on or near the route: where the cloud
+        /// is and where the wind takes it. An area NOT to enter (the handles are the detour points), never one to cross.</summary>
+        GasCloud      = 6,
+        /// <summary>⭐ <c>CE-4583</c> (AQ101 §R D, R-2071 E-4) — where bursts keep landing (3 within 60 s, cooling 2 min after the last):
+        /// <see cref="ShelledAreas"/>. A threatened area — the crossing decision holds or crosses (rated 1, as gas).</summary>
+        Shelled       = 7,
     }
 
     /// <summary>
@@ -56,7 +62,11 @@ namespace Fdp.Toolkit.Squad.DangerArea
         /// <summary>Coarse feature classification.</summary>
         public DangerAreaKind Kind;
         private byte _pad0;
-        private ushort _pad1;
+        /// <summary>
+        /// ⭐ <c>CE-3272</c> (Q94 B, R-3018) — which of the sensor's <c>EqsContextPoints</c> (the unit's remembered contacts, slot i = bit i)
+        /// SEE this area, judged by the solver on its live terrain; every bit when the solver has no terrain. The Brain rates the area from it.
+        /// </summary>
+        public ushort SeenFrom;
 
         /// <summary>OBB footprint centre in world-space 3D.</summary>
         public Vector3 Center;
@@ -85,8 +95,14 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public Vector3 FarSideHandle;
 
         /// <summary>
+        /// ⭐ <c>CE-3072</c> B0 — metres along the watched route from the unit to where the route enters this area (B1″). The
+        /// producer keeps the next area ahead first; 0 for a provider that does not know the route.
+        /// </summary>
+        public float DistanceAlongRoute;
+
+        /// <summary>
         /// Pinned expected size in bytes.  Verified by <c>DangerAreaProviderTests.DangerAreaDescriptor_PinnedSize_MatchesActual</c>.
         /// </summary>
-        public const int PinnedSize = 68;
+        public const int PinnedSize = 72;
     }
 }

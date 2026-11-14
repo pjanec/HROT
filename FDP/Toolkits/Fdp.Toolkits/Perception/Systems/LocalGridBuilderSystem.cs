@@ -1,8 +1,10 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Terrain;
 
 namespace Fdp.Toolkit.Perception.Systems
 {
@@ -11,7 +13,7 @@ namespace Fdp.Toolkit.Perception.Systems
     /// <see cref="SpatialHashGrid"/> from the current simulation snapshot each tick.
     /// <para>
     /// This system runs <b>first</b> inside <see cref="PerceptionModule.Tick"/> so that
-    /// subsequent systems (e.g. <see cref="VisionBroadphaseSystem"/>) can query the freshly
+    /// subsequent readers (e.g. the visual sensor's <see cref="VisionBroadphase"/>) can query the freshly
     /// rebuilt grid without touching the main-thread's <see cref="SpatialHashGrid"/> singleton.
     /// </para>
     /// <para>
@@ -25,7 +27,7 @@ namespace Fdp.Toolkit.Perception.Systems
     /// <see cref="Fdp.Core.Collections.NativeArray{T}"/> wrappers around native pointers.
     /// Passing a struct copy here shares those native pointers with the caller's copy, so
     /// all <c>Clear()</c>, <c>Add()</c>, and <c>Remove()</c> mutations are visible to every
-    /// other holder of a struct copy (e.g. <see cref="VisionBroadphaseSystem"/>).
+    /// other holder of a struct copy (e.g. the visual template's <c>VisualSensorGenerator</c>).
     /// <see cref="EntityCount"/> and <see cref="SpatialHashGrid.FreeListCount"/> are updated
     /// locally in this system's copy; they do not need to match the caller's copy because
     /// <c>QueryNeighbors</c> iterates linked-list chains, not a count-bounded range.
@@ -59,10 +61,11 @@ namespace Fdp.Toolkit.Perception.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Manual)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class LocalGridBuilderSystem : IEcsModuleSystem
     {
         // Value-copy of the PerceptionModule's grid struct.
-        // Shares native-memory pointers with the caller's copy and VisionBroadphaseSystem's copy.
+        // Shares native-memory pointers with the caller's copy and the visual template's copy.
         private SpatialHashGrid _grid;
 
         // Per-entity position tracking: full Entity handle (Index + Generation) → last known XY position.
@@ -71,19 +74,36 @@ namespace Fdp.Toolkit.Perception.Systems
         private readonly Dictionary<Entity, Vector2> _prevPositions;
         private int _lastEntityCount = -1;
 
+        // ⭐ CE-3018 — the terrain the grid is fitted to, and the placement it had at composition.
+        private readonly Func<TerrainWorld?>? _terrainSource;
+        private readonly GridGeometry _defaultGeometry;
+        private TerrainWorld? _fittedTo;
+
+        // ⭐ CE-2194 — the entities already warned about since the last fit: one warning per entity per terrain fit, never per frame.
+        private readonly HashSet<Entity> _warned = new();
+
+        /// <summary>⭐ <c>CE-2194</c> — warnings logged so far (one per entity the perception grid could not place, per terrain fit).</summary>
+        public int Warnings { get; private set; }
+
         // Maps entity Index → the currently live entity occupying that index.
         // Used during the incremental path to detect and evict stale grid slots left
         // when an old entity is destroyed and a new one reuses the same index at a
         // stable entity count (the count-unchanged path skips FullRebuild).
         private readonly Dictionary<int, Entity> _liveByIndex;
+        private int _epoch;   // ⭐ CE-3294 — the world the remembered positions describe (the snapshot carries the epoch)
 
         /// <summary>
         /// Initialises the builder with a copy of the module's private grid.
         /// Ownership of the underlying native memory remains with <see cref="PerceptionModule"/>.
         /// </summary>
-        public LocalGridBuilderSystem(SpatialHashGrid grid)
+        /// <param name="terrainSource">⭐ CE-3018 (W9) — the live resident terrain (<see cref="TerrainWorldSource.Live"/>). When it
+        /// changes, this system — the perception grid's only writer, on the perception thread — REBASES the grid to cover it
+        /// and rebuilds. Null ⇒ the grid keeps its composition-time placement (a host with no terrain).</param>
+        public LocalGridBuilderSystem(SpatialHashGrid grid, Func<TerrainWorld?>? terrainSource = null)
         {
             _grid = grid;
+            _terrainSource = terrainSource;
+            _defaultGeometry = new GridGeometry(grid.OriginX, grid.OriginY, grid.CellSize);
             _prevPositions = new Dictionary<Entity, Vector2>();
             _liveByIndex   = new Dictionary<int, Entity>();
         }
@@ -91,13 +111,36 @@ namespace Fdp.Toolkit.Perception.Systems
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
+            // ⭐ CE-2125 (R-272) / CE-3110 I-2c (R-271) — a unit is not a body and an enclosed passenger is not visible: every pass skips
+            //   PhysicalPresence.IsHidden, and the incremental pass EVICTS an entity that became hidden (a boarding cancelled by a spawn
+            //   keeps the count equal, so the count check alone would leave it in the grid).
             var query = view.Query().With<SimTransform>().Build();
+
+            // ⭐ CE-3294 — a reload is a new world under the same handles: forget every remembered position and rebuild
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _prevPositions.Clear(); _liveByIndex.Clear(); _lastEntityCount = -1; FullRebuild(view, query); return; }
+
+            // ⭐ CE-3018 — a new terrain REBASES the grid (same memory: the visual template's copy sees the shared
+            //    geometry) and invalidates every remembered position, which was hashed with the old geometry.
+            if (_terrainSource != null)
+            {
+                var world = _terrainSource();
+                if (!ReferenceEquals(world, _fittedTo))
+                {
+                    _fittedTo = world;
+                    var g = SpatialGridFit.For(new System.Numerics.Vector2(_defaultGeometry.OriginX, _defaultGeometry.OriginY),
+                        _grid.Width, _grid.Height, _defaultGeometry.CellSize, world);
+                    _grid.Rebase(g.OriginX, g.OriginY, g.CellSize);
+                    _warned.Clear();   // ⭐ CE-2194 — a new fit: warn afresh about whoever is still outside it
+                    FullRebuild(view, query);
+                    return;
+                }
+            }
 
             // ── Count pass — O(n) reads, no grid mutations ────────────────────
             // Count entities and detect whether the entity set has changed.
             int newCount = 0;
             foreach (var entity in query)
-                newCount++;
+                if (!PhysicalPresence.IsHidden(view, entity)) newCount++;
 
             if (newCount != _lastEntityCount)
             {
@@ -113,6 +156,15 @@ namespace Fdp.Toolkit.Perception.Systems
             // at the new cell.  Unchanged entities stay in the grid as-is.
             foreach (var entity in query)
             {
+                if (PhysicalPresence.IsHidden(view, entity))
+                {
+                    if (_prevPositions.TryGetValue(entity, out var hiddenAt))
+                    {
+                        _grid.Remove(entity, hiddenAt);
+                        _prevPositions.Remove(entity);
+                    }
+                    continue;
+                }
                 ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
                 var newPos = new Vector2(tf.Position.X, tf.Position.Y);
 
@@ -141,12 +193,28 @@ namespace Fdp.Toolkit.Perception.Systems
                     _liveByIndex[entity.Index] = entity;
                 }
 
-                _grid.Add(entity, newPos);
+                Place(entity, newPos);
                 _prevPositions[entity] = newPos;
             }
         }
 
         // ── Private helpers ───────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2194</c> (DESIGN_Terrain_World §4.4; the perception twin of CE-2193) — adds <paramref name="entity"/> to the grid; one the
+        /// grid cannot place is seen and heard by NOBODY, so SAY SO, once per entity per terrain fit. ⛔ The grid is not widened: it follows
+        /// the terrain by design (W9) — a unit off its terrain is an authoring error to surface. 📐 Measured live (basic-desert, [0, 600]²):
+        /// a truck at (−150, 150) was hittable (the collider grid is [−750, 750)) and invisible (this grid is [0, 1000)) for 40 s.
+        /// </summary>
+        private void Place(Entity entity, Vector2 pos)
+        {
+            if (_grid.Add(entity, pos) || !_warned.Add(entity)) return;
+            Warnings++;
+            Fdp.Core.Logging.FdpLog<LocalGridBuilderSystem>.Warn(
+                $"[Perception] Entity #{entity.Index} at ({pos.X:F0}, {pos.Y:F0}) is outside the perception grid " +
+                $"[{_grid.OriginX:F0}..{_grid.OriginX + _grid.Width * _grid.CellSize:F0}] × " +
+                $"[{_grid.OriginY:F0}..{_grid.OriginY + _grid.Height * _grid.CellSize:F0}] (or over its capacity): nobody can see or hear it.");
+        }
 
         /// <summary>
         /// Full clear-and-rebuild.  Called when the entity count changes (spawn/destroy).
@@ -161,11 +229,12 @@ namespace Fdp.Toolkit.Perception.Systems
 
             foreach (var entity in query)
             {
+                if (PhysicalPresence.IsHidden(view, entity)) continue;
                 ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
                 var pos = new Vector2(tf.Position.X, tf.Position.Y);
                 _prevPositions[entity] = pos;
                 _liveByIndex[entity.Index] = entity;
-                _grid.Add(entity, pos);
+                Place(entity, pos);
                 _lastEntityCount++;
             }
         }

@@ -12,7 +12,7 @@ using Fdp.Toolkit.Lifecycle.Events;
 using Hrot.MuscleCharacter.Animation.Baking;
 using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Contracts;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Events;
 using Hrot.MuscleCharacter.Animation.Fake;
 using Hrot.MuscleCharacter.Animation.Hashing;
@@ -57,7 +57,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                         IsStanceTransition = false,
                     },
                 },
-                SupportedStances = new[] { Components.StanceId.Standing, Components.StanceId.Crouched },
+                SupportedStances = new[] { StanceId.Standing, StanceId.Crouched },
                 StanceTransitions = new List<StanceTransitionDto>(),
                 AimConfig = new AimConfigDto { MaxYawDegrees = 90f, MaxPitchDegrees = 70f, AimSourceBone = "head" },
                 NotifyMarkers = new List<NotifyMarkerDefDto>(),
@@ -79,7 +79,9 @@ namespace Hrot.MuscleCharacter.Animation.Tests
 
             var repo = new EntityRepository();
             repo.RegisterComponent<AnimationChannel>();
+            repo.RegisterComponent<AnimationChannelStatus>();
             repo.RegisterComponent<LookAtChannel>();
+            repo.RegisterComponent<LookAtChannelStatus>();
             repo.RegisterComponent<StanceIntent>();
             repo.RegisterComponent<StanceStatus>();
             repo.RegisterComponent<AnimationMontageQueue>();
@@ -98,7 +100,8 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             ActorCapabilities caps = ActorCapabilities.CanPlayAnimations | ActorCapabilities.CanChangeStance | ActorCapabilities.CanAim)
         {
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new AnimationChannel { Status = NodeStatus.Failure });
+            repo.AddComponent(entity, new AnimationChannel());
+            repo.AddComponent(entity, new AnimationChannelStatus { Status = NodeStatus.Failure });
             repo.AddComponent(entity, new ActorCapabilityState { Capabilities = caps });
             repo.AddComponent(entity, new CharacterAnimationDefRuntime
             {
@@ -127,7 +130,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.PlayMontage;
                 ch.ActionInstanceId = 1;
-                ch.DispatchedInstanceId = 0;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
                 var p = new PlayMontageParams { MontageId = ReloadId, PlayRate = 1.0f, BlendInTime = 0.1f };
                 fixed (byte* dst = ch.Params)
                     *(PlayMontageParams*)dst = p;
@@ -168,13 +171,13 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.PlayMontage;
                 ch.ActionInstanceId = 1;
-                ch.DispatchedInstanceId = 0;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
             }
 
             dispatchSystem.Execute(repo, 0.016f);
 
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
-            Assert.Equal(NodeStatus.Failure, ch2.Status);
+            Assert.Equal(NodeStatus.Failure, repo.GetComponent<AnimationChannelStatus>(entity).Status);
         }
 
         [Fact]
@@ -190,7 +193,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.PlayMontage;
                 ch.ActionInstanceId = 1;
-                ch.DispatchedInstanceId = 0;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
                 var p = new PlayMontageParams { MontageId = unchecked((int)0xDEADBEEFu), PlayRate = 1.0f };
                 fixed (byte* dst = ch.Params)
                     *(PlayMontageParams*)dst = p;
@@ -199,7 +202,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             dispatchSystem.Execute(repo, 0.016f);
 
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
-            Assert.Equal(NodeStatus.Failure, ch2.Status);
+            Assert.Equal(NodeStatus.Failure, repo.GetComponent<AnimationChannelStatus>(entity).Status);
         }
 
         [Fact]
@@ -216,15 +219,15 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.PlayMontage;
                 ch.ActionInstanceId = 5;
-                ch.DispatchedInstanceId = 5; // same
-                ch.Status = NodeStatus.Running;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 5; // same
+                repo.GetComponentRW<AnimationChannelStatus>(entity).Status = NodeStatus.Running;
             }
 
             dispatchSystem.Execute(repo, 0.016f);
 
             // Status should remain Running (no re-dispatch, no Failure)
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
-            Assert.Equal(NodeStatus.Running, ch2.Status);
+            Assert.Equal(NodeStatus.Running, repo.GetComponent<AnimationChannelStatus>(entity).Status);
         }
 
         // ─── StanceTransitionSystem tests (ANC-P3-03) ────────────────────────
@@ -232,8 +235,8 @@ namespace Hrot.MuscleCharacter.Animation.Tests
         private static Entity CreateStanceEntity(EntityRepository repo, ActorCapabilities caps)
         {
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new StanceIntent { TargetStance = Components.StanceId.Crouched, BlendTime = 0.3f, Version = 1 });
-            repo.AddComponent(entity, new StanceStatus { CurrentStance = Components.StanceId.Standing, AckVersion = 0 });
+            repo.AddComponent(entity, new StanceIntent { TargetStance = StanceId.Crouched, BlendTime = 0.3f, Version = 1 });
+            repo.AddComponent(entity, new StanceStatus { CurrentStance = StanceId.Standing, AckVersion = 0 });
             repo.AddComponent(entity, new CharacterAnimationDefRuntime { BackendHandle = ClassId, StanceCount = 2, SlotCount = 2 });
             repo.AddComponent(entity, new ActorCapabilityState { Capabilities = caps });
             return entity;
@@ -261,8 +264,8 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             var system = new StanceTransitionSystem(backend);
 
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new StanceIntent { TargetStance = Components.StanceId.Standing, BlendTime = 0.3f, Version = 1 });
-            repo.AddComponent(entity, new StanceStatus { CurrentStance = Components.StanceId.Standing, AckVersion = 0 });
+            repo.AddComponent(entity, new StanceIntent { TargetStance = StanceId.Standing, BlendTime = 0.3f, Version = 1 });
+            repo.AddComponent(entity, new StanceStatus { CurrentStance = StanceId.Standing, AckVersion = 0 });
             repo.AddComponent(entity, new CharacterAnimationDefRuntime { BackendHandle = ClassId, StanceCount = 2, SlotCount = 2 });
             repo.AddComponent(entity, new ActorCapabilityState { Capabilities = ActorCapabilities.CanChangeStance });
 
@@ -328,7 +331,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.PlayMontage;
                 ch.ActionInstanceId = 1;
-                ch.DispatchedInstanceId = 0;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
                 var p = new PlayMontageParams { MontageId = ReloadId, PlayRate = 1.0f, BlendInTime = 0.1f };
                 fixed (byte* dst = ch.Params)
                     *(PlayMontageParams*)dst = p;
@@ -350,6 +353,52 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             var slotState = backend.QuerySlotState(handle, 1);
             Assert.Equal(1, slotState.IsActive);
             Assert.Equal(ReloadId, slotState.ActiveMontage.Hash);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #15) — after a checkpoint restored into a FRESH process (a new world, a
+        /// new bridge, a new backend) the character registers again under its CLASS (its TkbIdentity), so a montage still plays. 🔴 Red-proof:
+        /// the encoded handle read as the class (as before) ⇒ the backend knows no such class ⇒ the slot stays idle ⇒ red.
+        /// </summary>
+        [Fact]
+        public void R3039_AfterACheckpointRestoredIntoAFreshProcess_TheCharacterRegistersUnderItsClass()
+        {
+            var (repo, backend, cache) = CreateFixture();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>())
+                repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var entity = CreateAnimatedEntity(repo);
+            repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)ClassId });   // as every TKB-spawned body
+            new AnimationRuntimeBridgeSystem(backend, cache).Execute(repo, 0.016f);   // registered: BackendHandle now holds the encoded handle
+
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(repo, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            var (fresh, freshBackend, freshCache) = CreateFixture();
+            if (!fresh.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>())
+                fresh.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+            var bridge = new AnimationRuntimeBridgeSystem(freshBackend, freshCache);
+            var dispatch = new AnimationDispatcherSystem(freshBackend, freshCache);
+            bridge.Execute(fresh, 0.016f);
+
+            unsafe
+            {
+                ref var ch = ref fresh.GetComponentRW<AnimationChannel>(entity);
+                ch.ActiveAction = AnimationActionIds.PlayMontage;
+                ch.ActionInstanceId = 1;
+                fresh.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
+                var p = new PlayMontageParams { MontageId = ReloadId, PlayRate = 1.0f, BlendInTime = 0.1f };
+                fixed (byte* dst = ch.Params)
+                    *(PlayMontageParams*)dst = p;
+            }
+            dispatch.Execute(fresh, 0.016f);
+            bridge.Execute(fresh, 0.016f);
+
+            var def = fresh.GetComponent<CharacterAnimationDefRuntime>(entity);
+            var handle = new AnimationBackendHandle
+            {
+                Index = (uint)(def.BackendHandle & 0xFFFFFFFF),
+                Generation = (uint)((def.BackendHandle >> 32) & 0xFFFFFFFF),
+            };
+            Assert.Equal(1, freshBackend.QuerySlotState(handle, 1).IsActive);
         }
 
         // ─── PlayMontageQueueExecutor tests (D-11, ANC-P3-04) ────────────────
@@ -402,13 +451,13 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.PlayMontageQueue;
                 ch.ActionInstanceId = 1;
-                ch.DispatchedInstanceId = 0;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
             }
 
             dispatchSystem.Execute(repo, 0.016f);
 
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
-            Assert.Equal(NodeStatus.Running, ch2.Status);
+            Assert.Equal(NodeStatus.Running, repo.GetComponent<AnimationChannelStatus>(entity).Status);
 
             var queueState = repo.GetComponent<AnimationMontageQueueState>(entity);
             Assert.Equal(0, queueState.CurrentEntryIndex);
@@ -430,13 +479,13 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.PlayMontageQueue;
                 ch.ActionInstanceId = 1;
-                ch.DispatchedInstanceId = 0;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
             }
 
             dispatchSystem.Execute(repo, 0.016f);
 
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
-            Assert.Equal(NodeStatus.Failure, ch2.Status);
+            Assert.Equal(NodeStatus.Failure, repo.GetComponent<AnimationChannelStatus>(entity).Status);
         }
 
         [Fact]
@@ -453,13 +502,13 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.PlayMontageQueue;
                 ch.ActionInstanceId = 1;
-                ch.DispatchedInstanceId = 0;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
             }
 
             dispatchSystem.Execute(repo, 0.016f);
 
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
-            Assert.Equal(NodeStatus.Failure, ch2.Status);
+            Assert.Equal(NodeStatus.Failure, repo.GetComponent<AnimationChannelStatus>(entity).Status);
         }
 
         [Fact]
@@ -477,7 +526,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.EnqueueMontage;
                 ch.ActionInstanceId = 2;
-                ch.DispatchedInstanceId = 0;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
                 var p = new EnqueueParams { MontageId = ReloadId, PlayRate = 1.0f, BlendIntoTime = 0.15f };
                 fixed (byte* dst = ch.Params)
                     *(EnqueueParams*)dst = p;
@@ -487,7 +536,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             dispatchSystem.Execute(repo, 0.016f);
 
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
-            Assert.Equal(NodeStatus.Success, ch2.Status);
+            Assert.Equal(NodeStatus.Success, repo.GetComponent<AnimationChannelStatus>(entity).Status);
 
             var queue = repo.GetComponent<AnimationMontageQueue>(entity);
             Assert.Equal(2, queue.Count);
@@ -510,7 +559,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.EnqueueMontage;
                 ch.ActionInstanceId = 2;
-                ch.DispatchedInstanceId = 0;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
                 var p = new EnqueueParams { MontageId = ReloadId, PlayRate = 1.0f };
                 fixed (byte* dst = ch.Params)
                     *(EnqueueParams*)dst = p;
@@ -520,7 +569,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
 
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
             // Silent no-op at capacity: Status=Running (accepted but not acted upon)
-            Assert.Equal(NodeStatus.Running, ch2.Status);
+            Assert.Equal(NodeStatus.Running, repo.GetComponent<AnimationChannelStatus>(entity).Status);
 
             // Queue count stays at 8
             var queue = repo.GetComponent<AnimationMontageQueue>(entity);
@@ -540,7 +589,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.EnqueueMontage;
                 ch.ActionInstanceId = 1;
-                ch.DispatchedInstanceId = 0;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
                 var p = new EnqueueParams { MontageId = unchecked((int)0xBADBAD00u), PlayRate = 1.0f };
                 fixed (byte* dst = ch.Params)
                     *(EnqueueParams*)dst = p;
@@ -549,7 +598,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             dispatchSystem.Execute(repo, 0.016f);
 
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
-            Assert.Equal(NodeStatus.Failure, ch2.Status);
+            Assert.Equal(NodeStatus.Failure, repo.GetComponent<AnimationChannelStatus>(entity).Status);
         }
 
         [Fact]
@@ -566,14 +615,14 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.ClearMontageQueue;
                 ch.ActionInstanceId = 2;
-                ch.DispatchedInstanceId = 0;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
             }
 
             var versionBefore = repo.GetComponent<AnimationMontageQueue>(entity).QueueVersion;
             dispatchSystem.Execute(repo, 0.016f);
 
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
-            Assert.Equal(NodeStatus.Success, ch2.Status);
+            Assert.Equal(NodeStatus.Success, repo.GetComponent<AnimationChannelStatus>(entity).Status);
 
             var queue = repo.GetComponent<AnimationMontageQueue>(entity);
             Assert.Equal(0, queue.Count);
@@ -597,13 +646,13 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.ClearMontageQueue;
                 ch.ActionInstanceId = 1;
-                ch.DispatchedInstanceId = 0;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
             }
 
             dispatchSystem.Execute(repo, 0.016f);
 
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
-            Assert.Equal(NodeStatus.Success, ch2.Status);
+            Assert.Equal(NodeStatus.Success, repo.GetComponent<AnimationChannelStatus>(entity).Status);
             Assert.Equal(0, repo.GetComponent<AnimationMontageQueue>(entity).Count);
         }
 
@@ -647,7 +696,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             unsafe
             {
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
-                ch.Status = NodeStatus.Running;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).Status = NodeStatus.Running;
             }
             ref var queueState = ref repo.GetComponentRW<AnimationMontageQueueState>(entity);
             queueState.CurrentEntryIndex = 0xFF;
@@ -657,7 +706,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             system.Execute(repo, 0.016f);
 
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
-            Assert.Equal(NodeStatus.Success, ch2.Status);
+            Assert.Equal(NodeStatus.Success, repo.GetComponent<AnimationChannelStatus>(entity).Status);
         }
 
         [Fact]
@@ -671,7 +720,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             unsafe
             {
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
-                ch.Status = NodeStatus.Running;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).Status = NodeStatus.Running;
             }
             ref var queueState = ref repo.GetComponentRW<AnimationMontageQueueState>(entity);
             queueState.CurrentEntryIndex = 0;
@@ -681,7 +730,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             system.Execute(repo, 0.016f);
 
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
-            Assert.Equal(NodeStatus.Running, ch2.Status);
+            Assert.Equal(NodeStatus.Running, repo.GetComponent<AnimationChannelStatus>(entity).Status);
         }
 
         [Fact]
@@ -691,7 +740,8 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             var system = new AnimationStateReporterSystem(backend);
 
             var entity = CreateAnimatedEntity(repo);
-            repo.AddComponent(entity, new LookAtChannel { Status = NodeStatus.Running });
+            repo.AddComponent(entity, new LookAtChannel());
+            repo.AddComponent(entity, new LookAtChannelStatus { Status = NodeStatus.Running });
             repo.AddComponent(entity, new LookAtExecutorState
             {
                 BlendOutWeight = 0f,
@@ -701,7 +751,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             system.Execute(repo, 0.016f);
 
             var lookAtCh = repo.GetComponent<LookAtChannel>(entity);
-            Assert.Equal(NodeStatus.Success, lookAtCh.Status);
+            Assert.Equal(NodeStatus.Success, repo.GetComponent<LookAtChannelStatus>(entity).Status);
 
             var execState = repo.GetComponent<LookAtExecutorState>(entity);
             Assert.Equal(0, execState.TargetType); // cleared after completion
@@ -710,7 +760,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
         // ─── AnimationCapabilityChangeReactorSystem tests (ANC-P3-09) ─────────
 
         [Fact]
-        public void CanPlayAnimations_Loss_SetsChannelToFailureAndClearsQueue()
+        public void CanPlayAnimations_Loss_SetsChannelToFailure_AndAbortsTheQueueInTheMusclesState()
         {
             var (repo, backend, cache) = CreateFixture();
             var system = new AnimationCapabilityChangeReactorSystem(backend);
@@ -721,7 +771,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             unsafe
             {
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
-                ch.Status = NodeStatus.Running;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).Status = NodeStatus.Running;
             }
 
             // Set capability: currently missing CanPlayAnimations (lost), previously had it
@@ -734,10 +784,12 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             system.Execute(repo, 0.016f);
 
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
-            Assert.Equal(NodeStatus.Failure, ch2.Status);
+            Assert.Equal(NodeStatus.Failure, repo.GetComponent<AnimationChannelStatus>(entity).Status);
 
-            var queue = repo.GetComponent<AnimationMontageQueue>(entity);
-            Assert.Equal(0, queue.Count);
+            // ⭐ CE-3008 (R-180) — the abort is the Muscle's (queue state); the Brain's queue keeps its entry
+            Assert.Equal(0xFF, repo.GetComponent<AnimationMontageQueueState>(entity).CurrentEntryIndex);
+            Assert.Equal(0, repo.GetComponent<AnimationMontageQueueState>(entity).TrackingActive);
+            Assert.Equal(1, repo.GetComponent<AnimationMontageQueue>(entity).Count);
         }
 
         [Fact]
@@ -751,8 +803,8 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             unsafe
             {
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
-                ch.Status = NodeStatus.Running;
-                ch.DispatchedInstanceId = 5;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).Status = NodeStatus.Running;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 5;
             }
 
             repo.GetComponentRW<ActorCapabilityState>(entity).Capabilities = ActorCapabilities.None;
@@ -765,7 +817,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
 
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
             // DispatchedInstanceId must be bumped
-            Assert.NotEqual((ushort)5, ch2.DispatchedInstanceId);
+            Assert.NotEqual((ushort)5, repo.GetComponent<AnimationChannelStatus>(entity).DispatchedInstanceId);
         }
 
         [Fact]
@@ -776,7 +828,8 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             repo.RegisterComponent<PreviousCapabilities>();
 
             var entity = CreateAnimatedEntity(repo);
-            repo.AddComponent(entity, new LookAtChannel { Status = NodeStatus.Running });
+            repo.AddComponent(entity, new LookAtChannel());
+            repo.AddComponent(entity, new LookAtChannelStatus { Status = NodeStatus.Running });
             repo.AddComponent(entity, new LookAtExecutorState { TargetType = 1 });
 
             // CanAim lost, previously had it
@@ -789,7 +842,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             system.Execute(repo, 0.016f);
 
             var lookAtCh = repo.GetComponent<LookAtChannel>(entity);
-            Assert.Equal(NodeStatus.Failure, lookAtCh.Status);
+            Assert.Equal(NodeStatus.Failure, repo.GetComponent<LookAtChannelStatus>(entity).Status);
         }
 
         // ─── AnimationMuscleModule registration tests (ANC-P3-10) ────────────
@@ -802,7 +855,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
         }
 
         [Fact]
-        public void AnimationMuscleModule_RegistersAllEightSystems_InCorrectOrder()
+        public void AnimationMuscleModule_RegistersAllEightSystems_InCorrectOrder()   // nine since CE-2121 (name kept: a rename is a Roslyn rename)
         {
             var (_, backend, cache) = CreateFixture();
             var module = new AnimationMuscleModule(backend, cache);
@@ -810,7 +863,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
 
             module.RegisterSystems(registry);
 
-            Assert.Equal(8, registry.Systems.Count);
+            Assert.Equal(9, registry.Systems.Count);   // ⭐ CE-2121: + StanceTransitionSystem, after the bridge
 
             // Verify order matches DD-1 §17
             Assert.IsType<AnimationCapabilityChangeReactorSystem>(registry.Systems[0]);
@@ -818,9 +871,10 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             Assert.IsType<LookAtDispatcherSystem>(registry.Systems[2]);
             Assert.IsType<MontageQueueAdvanceSystem>(registry.Systems[3]);
             Assert.IsType<AnimationRuntimeBridgeSystem>(registry.Systems[4]);
-            Assert.IsType<NotifyEventEmitterSystem>(registry.Systems[5]);
-            Assert.IsType<AnimationStateReporterSystem>(registry.Systems[6]);
-            Assert.IsType<AnimationBackendCleanupSystem>(registry.Systems[7]);
+            Assert.IsType<StanceTransitionSystem>(registry.Systems[5]);
+            Assert.IsType<NotifyEventEmitterSystem>(registry.Systems[6]);
+            Assert.IsType<AnimationStateReporterSystem>(registry.Systems[7]);
+            Assert.IsType<AnimationBackendCleanupSystem>(registry.Systems[8]);
         }
 
         // ─── Integration tests ────────────────────────────────────────────────
@@ -846,13 +900,13 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.PlayMontageQueue;
                 ch.ActionInstanceId = 1;
-                ch.DispatchedInstanceId = 0;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
             }
 
             dispatchSystem.Execute(repo, 0.016f);
 
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
-            Assert.Equal(NodeStatus.Running, ch2.Status);
+            Assert.Equal(NodeStatus.Running, repo.GetComponent<AnimationChannelStatus>(entity).Status);
 
             // Simulate queue completing: set CurrentEntryIndex = 0xFF, Count = 0
             {
@@ -866,7 +920,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             reporterSystem.Execute(repo, 0.016f);
 
             var ch3 = repo.GetComponent<AnimationChannel>(entity);
-            Assert.Equal(NodeStatus.Success, ch3.Status);
+            Assert.Equal(NodeStatus.Success, repo.GetComponent<AnimationChannelStatus>(entity).Status);
         }
 
         [Fact]
@@ -886,8 +940,11 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.PlayMontageQueue;
                 ch.ActionInstanceId = 1;
-                ch.DispatchedInstanceId = 0;
-                ch.Status = NodeStatus.Running;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).Status = NodeStatus.Running;
+                ref var qs = ref repo.GetComponentRW<AnimationMontageQueueState>(entity);   // the queue is playing its first entry
+                qs.CurrentEntryIndex = 0;
+                qs.TrackingActive = 1;
             }
 
             // Capability lost mid-play
@@ -901,11 +958,18 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             reactorSystem.Execute(repo, 0.016f);
 
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
-            Assert.Equal(NodeStatus.Failure, ch2.Status);
+            Assert.Equal(NodeStatus.Failure, repo.GetComponent<AnimationChannelStatus>(entity).Status);
 
-            // Queue is cleared
-            var queue = repo.GetComponent<AnimationMontageQueue>(entity);
-            Assert.Equal(0, queue.Count);
+            // ⭐ CE-3008 (R-180) — the Brain's queue is the Brain's: untouched. The abort is in the Muscle's own state.
+            Assert.Equal(2, repo.GetComponent<AnimationMontageQueue>(entity).Count);
+            var state = repo.GetComponent<AnimationMontageQueueState>(entity);
+            Assert.Equal(0xFF, state.CurrentEntryIndex);
+            Assert.Equal(0, state.TrackingActive);
+
+            // …and the queue does not resume on the Muscle: the next advance neither starts an entry nor reports Success
+            new MontageQueueAdvanceSystem(backend, cache).Execute(repo, 0.016f);
+            Assert.Equal(NodeStatus.Failure, repo.GetComponent<AnimationChannelStatus>(entity).Status);
+            Assert.Equal(0xFF, repo.GetComponent<AnimationMontageQueueState>(entity).CurrentEntryIndex);
         }
 
         // ─── OFX-002: NotifyEventEmitterSystem typed event dispatch ──────────
@@ -942,7 +1006,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                         IsStanceTransition = false,
                     },
                 },
-                SupportedStances = new[] { Components.StanceId.Standing },
+                SupportedStances = new[] { StanceId.Standing },
                 StanceTransitions = new List<StanceTransitionDto>(),
                 AimConfig = null,
                 NotifyMarkers = new List<NotifyMarkerDefDto>
@@ -1110,7 +1174,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.PlayMontageQueue;
                 ch.ActionInstanceId = 1;
-                ch.DispatchedInstanceId = 0;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
             }
             dispatchSystem.Execute(repo, 0f); // Stage first entry
             bridgeSystem.Execute(repo, 0f);   // Apply staged play
@@ -1160,7 +1224,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
                 ch.ActiveAction = AnimationActionIds.PlayMontageQueue;
                 ch.ActionInstanceId = 1;
-                ch.DispatchedInstanceId = 0;
+                repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
             }
             dispatchSystem.Execute(repo, 0f);
             bridgeSystem.Execute(repo, 0f);
@@ -1185,6 +1249,95 @@ namespace Hrot.MuscleCharacter.Animation.Tests
 
             var queueState = repo.GetComponent<AnimationMontageQueueState>(entity);
             Assert.Equal(1, queueState.CurrentEntryIndex); // Second entry is now current
+        }
+
+        // ─── CE-513 / R-180: the Muscle writes only its report, never the Brain's request ──────────
+
+        private static unsafe byte[] RequestBytes(EntityRepository repo, Entity entity)
+        {
+            var request = repo.GetComponent<AnimationChannel>(entity);
+            var bytes = new byte[sizeof(AnimationChannel)];
+            fixed (byte* dst = bytes)
+                *(AnimationChannel*)dst = request;
+            return bytes;
+        }
+
+        private static (AnimationRuntimeBridgeSystem bridge, AnimationDispatcherSystem dispatch, Entity entity, EntityRepository repo, FakeAnimationBackend backend)
+            StartAPlayingMontage()
+        {
+            var (repo, backend, cache) = CreateFixture();
+            var bridge = new AnimationRuntimeBridgeSystem(backend, cache);
+            var dispatch = new AnimationDispatcherSystem(backend, cache);
+            var entity = CreateAnimatedEntity(repo);
+            unsafe
+            {
+                ref var request = ref repo.GetComponentRW<AnimationChannel>(entity);
+                request.ActiveAction = AnimationActionIds.PlayMontage;
+                request.ActionInstanceId = 1;
+                var p = new PlayMontageParams { MontageId = ReloadId, PlayRate = 1.0f, BlendInTime = 0.1f };
+                fixed (byte* dst = request.Params)
+                    *(PlayMontageParams*)dst = p;
+            }
+            bridge.Execute(repo, 0.016f);
+            dispatch.Execute(repo, 0.016f);
+            bridge.Execute(repo, 0.016f);
+            Assert.Equal(1u, repo.GetComponent<AnimationChannelStatus>(entity).DispatchedInstanceId);
+            Assert.Equal(NodeStatus.Running, repo.GetComponent<AnimationChannelStatus>(entity).Status);
+            return (bridge, dispatch, entity, repo, backend);
+        }
+
+        /// <summary>
+        /// ⭐ CE-513 / R-180 (Architect_Question_80 §0 D) — teardown used to clear the Brain's <c>ActiveAction</c>; now the
+        /// dispatcher exits the action IT entered, reports Failure in its own component, and leaves the request alone.
+        /// Red-proof: restore the old <c>ActiveAction = 0</c> write and the request assertion fails.
+        /// </summary>
+        [Fact]
+        public void Teardown_ExitsTheDispatchedAction_ReportsFailure_AndLeavesTheBrainRequest_R180()
+        {
+            var (_, dispatch, entity, repo, _) = StartAPlayingMontage();
+            var before = RequestBytes(repo, entity);
+
+            repo.Bus.Publish(new DestructionOrder { Entity = entity });
+            repo.Bus.SwapBuffers();
+            dispatch.Execute(repo, 0.016f);
+
+            Assert.Equal(NodeStatus.Failure, repo.GetComponent<AnimationChannelStatus>(entity).Status);
+            Assert.Equal(before, RequestBytes(repo, entity));
+
+            // the next frame does not re-dispatch the torn-down action
+            repo.Bus.SwapBuffers();
+            dispatch.Execute(repo, 0.016f);
+            Assert.Equal(NodeStatus.Failure, repo.GetComponent<AnimationChannelStatus>(entity).Status);
+            Assert.Equal(before, RequestBytes(repo, entity));
+        }
+
+        /// <summary>
+        /// ⭐ CE-513 / R-180 — across dispatch, the reporter, a capability loss and the dispatcher's capability gate,
+        /// no Muscle system writes the Brain's <see cref="AnimationChannel"/>; every outcome lands in
+        /// <see cref="AnimationChannelStatus"/>.
+        /// </summary>
+        [Fact]
+        public void MuscleSystemsNeverWriteTheBrainRequest_R180()
+        {
+            var (bridge, dispatch, entity, repo, backend) = StartAPlayingMontage();
+            var before = RequestBytes(repo, entity);
+
+            var reporter = new AnimationStateReporterSystem(backend);
+            reporter.Execute(repo, 0.016f);
+            Assert.Equal(before, RequestBytes(repo, entity));
+
+            repo.RegisterComponent<PreviousCapabilities>();
+            repo.GetComponentRW<ActorCapabilityState>(entity).Capabilities = ActorCapabilities.None;
+            repo.AddComponent(entity, new PreviousCapabilities { Capabilities = ActorCapabilities.CanPlayAnimations });
+            new AnimationCapabilityChangeReactorSystem(backend).Execute(repo, 0.016f);
+            Assert.Equal(before, RequestBytes(repo, entity));
+            Assert.Equal(NodeStatus.Failure, repo.GetComponent<AnimationChannelStatus>(entity).Status);
+            Assert.Equal(2u, repo.GetComponent<AnimationChannelStatus>(entity).DispatchedInstanceId); // DD-1 §13 bump
+
+            dispatch.Execute(repo, 0.016f);   // capability gate: Failure, still in the report only
+            bridge.Execute(repo, 0.016f);
+            Assert.Equal(before, RequestBytes(repo, entity));
+            Assert.Equal(NodeStatus.Failure, repo.GetComponent<AnimationChannelStatus>(entity).Status);
         }
     }
 }

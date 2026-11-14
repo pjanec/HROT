@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -14,9 +15,45 @@ using InteractionKeyboardKey = Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKey
 
 namespace Fdp.Toolkit.Vis2D.Layers
 {
-    public class DebugGizmoLayer : IMapLayer
+    public class DebugGizmoLayer : ISceneLayer   // ⭐ CE-1379 — filmed: its FILM layers only (FilmLayers, RenderContext.Film)
     {
+        /// <summary>
+        /// ⭐ <c>CE-1379</c> / <c>CE-1380</c> (docs/DESIGN_Director_Timeline_Editor.md §11t "as built") — the layer bits a FILM frame draws from this buffer
+        /// (<see cref="RenderContext.Film"/>, <see cref="MapCanvas.DrawScene"/>), intersected with the frame's own mask as on screen: the scenario's
+        /// drawing (unit symbols, tactical graphics, routes, roads… — whatever the film's layer set turns on). ⛔ Never the UI panels and menus;
+        /// and a bit outside this mask (the selection, the always-on helpers) is not filmed. Default: none — a host that names no film layers
+        /// films no gizmos. Set by <c>MapInteractionPack.AttachMapLayers</c> on every map host.
+        /// </summary>
+        public LayerMask256 FilmLayers { get; set; }
+
+        /// <summary>⭐ CE-1379 — whether a primitive belongs in a film frame: what drawn primitives resolve against (anchors, the frame's mask) always,
+        /// the UI never, a drawn shape when its layer is one of <paramref name="film"/>.</summary>
+        public static bool InFilm(in DebugPrimitive p, in LayerMask256 film) => p.Shape switch
+        {
+            DebugPrimitiveShape.SpatialAnchor or DebugPrimitiveShape.LayerControlMask => true,
+            DebugPrimitiveShape.StructInspector or DebugPrimitiveShape.ContextMenuBinding
+                or DebugPrimitiveShape.InputCaptureBinding or DebugPrimitiveShape.MainMenuBinding => false,
+            _ => film.IsSet(p.DebugLayer),
+        };
+
+        private DebugPrimitive[] _filmFrame = Array.Empty<DebugPrimitive>();
+
+        /// <summary>The buffer's frame as this pass draws it: all of it on screen, its film primitives in a film's pass.</summary>
+        private ReadOnlySpan<DebugPrimitive> FrameFor(in RenderContext ctx)
+        {
+            var all = _buffer!.ReaderFrame();   // ⭐ EXPERIMENT (X-4) — the published copy when the kernel ticks on another thread
+            if (!ctx.Film) return all;
+            if (_filmFrame.Length < all.Length) _filmFrame = new DebugPrimitive[all.Length];
+            var film = FilmLayers;
+            int n = 0;
+            foreach (ref readonly var p in all)
+                if (InFilm(in p, in film)) _filmFrame[n++] = p;
+            return new ReadOnlySpan<DebugPrimitive>(_filmFrame, 0, n);
+        }
         public string Name => "Debug Gizmos";
+
+        /// <summary>⭐ CE-2387 — the entity menu built on right-click (passed to the terminal; see GizmoMap's <c>DebugGizmoLayer.MenuResolver</c>).</summary>
+        public Func<long, string?>? MenuResolver { get => _innerTerminal.MenuResolver; set => _innerTerminal.MenuResolver = value; }
         public int LayerBitIndex { get; private set; }
 
         private readonly DebugPrimitiveBuffer? _buffer;
@@ -26,6 +63,31 @@ namespace Fdp.Toolkit.Vis2D.Layers
         private readonly MapCamera? _mapCamera;
         private Camera2D _camera;
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>§6.7 — the world, for ONE job: turning a picked anchor id into an <c>Entity</c> in
+        /// <see cref="PickEntity"/>.</b> 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.
+        ///
+        /// <para>⚠⚠ <b>This is not the parameter that was deleted in <c>DESIGN_Gizmo_Renderer_Seam.md</c>
+        /// §6 R3, and the difference is the whole point.</b> That one was an <c>ISimulationView? view</c>
+        /// that was <b>stored nowhere and read by nothing</b> — a promised ECS dependency no code consumed,
+        /// which is what let <c>CE-259y</c> conclude the whole <c>EntityLocal</c> path was inert. ⭐ This
+        /// one has exactly one reader, named above.</para>
+        ///
+        /// <para>⛔ <b>The DRAW path still takes no world, and must not.</b> The two-pass
+        /// <c>SpatialAnchor</c> renderer exists to sever that reliance
+        /// (<c>.dev/_DONE/gizmos-1/feedback2.md:798</c>). ⇒ <c>null</c> is legal: a host that never picks
+        /// (or a headless rail) renders and routes interactions exactly as before, and only
+        /// <see cref="PickEntity"/> answers <c>null</c>.</para>
+        ///
+        /// <para>⭐⭐⭐ <b>A PROVIDER, not a reference, and that is measured rather than defensive.</b>
+        /// <c>ReplayBrowserSubsystem.RebindActiveRepo</c> REPLACES its repository on every seek and on
+        /// every view-mode switch — the Merged view builds a brand-new <c>EntityRepository</c> each time
+        /// (<c>BuildAndBindTransientMaster</c>). ⇒ a captured reference would pin the boot repo and
+        /// resolve picks against a world nobody is looking at. ⭐ The three fixed-world hosts simply pass
+        /// <c>() =&gt; _repo</c>.</para>
+        /// </summary>
+        private readonly Func<EntityRepository?>? _worldProvider;
+
         public DebugGizmoLayer(int layerBitIndex = 31)
         {
             LayerBitIndex = layerBitIndex;
@@ -34,6 +96,29 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 new GizmoMap.Presentation.DebugPrimitiveRenderer2D());
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>R3 (DESIGN_Gizmo_Renderer_Seam.md §6) — THE ONE BUFFER CONSTRUCTOR.</b>
+        ///
+        /// <para>⛔⛔ There used to be TWO, byte-identical apart from a fourth parameter: this one takes an
+        /// injectable <c>renderer</c>, the other took an <c>ISimulationView? view</c> — <b>and stored it
+        /// nowhere.</b> Four production hosts passed a live world into it
+        /// (<c>IgApplication</c>, <c>ReplayBrowserSubsystem</c>, <c>SimHostVisualization</c>,
+        /// <c>EditorSubsystem</c>), so the signature promised an ECS dependency that no code consumed.</para>
+        ///
+        /// <para>🔒 That promise is not merely unimplemented, it is <b>designed away</b>:
+        /// <c>.dev/_DONE/gizmos-1/feedback2.md:798</c> — the <c>SpatialAnchor</c> two-pass
+        /// <i>"completely severs the presentation layer's reliance on the heavy simulation ECS (like
+        /// SimTransform or NetworkEntityMap)"</i> — and <c>:871</c> <i>"Eradicating Entity"</i>.
+        /// ⭐ <c>EntityLocal</c> resolution goes through <c>SpatialAnchor</c> primitives, which
+        /// <c>EntityPresentationGizmo.cs:95</c> really does emit.</para>
+        ///
+        /// <para>⚠ <b>Deleting the parameter is the point, not tidiness:</b> it is what made
+        /// <c>CE-259y</c> conclude <i>"the whole EntityLocal gizmo path is inert"</i> — a finding that
+        /// cost real time and was <b>false</b>. A parameter nobody reads is a claim nobody checks.</para>
+        ///
+        /// <para>⭐ Collapsing the two also removes an ambiguity that deleting the parameter would
+        /// otherwise have created: <c>new DebugGizmoLayer(31, buf, bus)</c> would have matched both.</para>
+        /// </summary>
         public DebugGizmoLayer(
             int layerBitIndex,
             DebugPrimitiveBuffer buffer,
@@ -41,38 +126,188 @@ namespace Fdp.Toolkit.Vis2D.Layers
             Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D? renderer = null,
             MapCamera? camera = null,
             GizmoMap.Presentation.Shapes.IEntityShapeLibrary? shapeLibrary = null,
-            GizmoMap.Presentation.GizmoSchemaRegistry? schemaRegistry = null)
+            GizmoMap.Presentation.GizmoSchemaRegistry? schemaRegistry = null,
+            Func<EntityRepository?>? worldProvider = null)
         {
             LayerBitIndex = layerBitIndex;
             _buffer = buffer;
             _eventBus = eventBus;
             _mapCamera = camera;
+            _worldProvider = worldProvider;
             var imGuiAdapter = new GizmoMap.Presentation.ImGuiPropertyTreeAdapter(schemaRegistry);
-            _renderer = renderer ?? new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(null, shapeLibrary, imGuiAdapter);
+            _imGuiAdapter = imGuiAdapter;
+            _renderer = renderer ?? new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(shapeLibrary, imGuiAdapter);
             var innerRenderer = new GizmoMap.Presentation.DebugPrimitiveRenderer2D(null, imGuiAdapter);
             _innerTerminal = new GizmoMap.Presentation.DebugGizmoLayer(
                 innerRenderer);
         }
 
-        public DebugGizmoLayer(
-            int layerBitIndex,
-            DebugPrimitiveBuffer buffer,
-            FdpEventBus eventBus,
-            Fdp.ModuleHost.Abstractions.ISimulationView? view,
-            MapCamera? camera = null,
-            GizmoMap.Presentation.Shapes.IEntityShapeLibrary? shapeLibrary = null,
-            GizmoMap.Presentation.GizmoSchemaRegistry? schemaRegistry = null)
+        private bool _warnedNoCamera;
+
+        // ⭐ CE-1033 S3 — the 3-D path: the shared triage (the map's filters ON — target view, layer mask, LOD) and the drawer.
+        //   📄 docs/DESIGN_Map_3D_Mode.md §6e.
+        private readonly GizmoMap.Presentation.ImGuiPropertyTreeAdapter? _imGuiAdapter;
+        private readonly DebugPrimitiveTriage3D _triage3D = new()
         {
-            LayerBitIndex = layerBitIndex;
-            _buffer = buffer;
-            _eventBus = eventBus;
-            _mapCamera = camera;
-            var imGuiAdapter = new GizmoMap.Presentation.ImGuiPropertyTreeAdapter(schemaRegistry);
-            _renderer = new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(view, shapeLibrary, imGuiAdapter);
-            var innerRenderer = new GizmoMap.Presentation.DebugPrimitiveRenderer2D(null, imGuiAdapter);
-            _innerTerminal = new GizmoMap.Presentation.DebugGizmoLayer(
-                innerRenderer);
+            AcceptedTargets = PipelineTarget.Map2D | PipelineTarget.Viewport3D,   // every gizmo today targets Map2D (§7)
+            HonourLayerMask = true,
+        };
+        private readonly System.Collections.Generic.List<TriagedPrimitive3D> _triaged3D = new();
+
+        /// <summary>⭐ CE-1033 S3 — draws the gizmos in the map's 3-D mode (draping, real heights, labels — see the class).</summary>
+        public Fdp.Toolkit.Vis3D.GizmoRenderer3D Renderer3D { get; } = new();
+
+        /// <summary>⭐ CE-1033 S3 — the height above an entity's anchor its labels are lifted to (the top of its drawn body), by
+        /// network id; null for an unknown body. Set by <c>MapInteractionPack.AttachMapLayers</c> from the entity body layer.</summary>
+        public Func<long, float?>? LabelLift { get; set; }
+
+        /// <summary>What the last 3-D frame's triage dropped (target / layer / LOD / missing anchor) — read by rails.</summary>
+        public DebugPrimitiveTriage3D Triage3D => _triage3D;
+
+        /// <summary>Labels drawn by the last 3-D overlay pass.</summary>
+        public int LabelsDrawn3D { get; private set; }
+
+        public bool Has3D => true;
+
+        /// <summary>⭐ CE-4388 — the last 3-D pass in this process: primitives triaged, labels offered, labels drawn (read by the frame-stats log).</summary>
+        public static int LastPrimitives3D, LastLabels3D, LastLabelsDrawn3D, LastCardsDrawn;
+
+        public void Draw3D(RenderContext ctx)
+        {
+            GizmoMap.Presentation.GizmoTextDraw.Strings = _buffer?.InternMap;   // ⭐ B-17 P1 — long gizmo text resolves from THIS buffer
+            if (_buffer == null) return;
+            if (LayerBitIndex >= 0 && LayerBitIndex < 32 && (ctx.VisibleLayersMask & (1u << LayerBitIndex)) == 0) return;
+            if (CurrentCamera?.Invoke() is not Fdp.Toolkit.Vis3D.MapCamera3D camera) return;
+            var primitives = FrameFor(in ctx);   // ⭐ CE-1379 — a film's pass: its film layers only
+            // The menus and capture bindings the 2-D draw extracts — the same frame, whatever the view (⛔ not a film's pass: no UI there).
+            long tm = Fdp.Presentation.WindowManager.WindowTimings.Start();
+            if (!ctx.Film) _innerTerminal.ExtractMetaPrimitives(primitives, _buffer.InternMap);
+            Fdp.Presentation.WindowManager.WindowTimings.Record("gizmo3D meta", tm);
+            Draw3D(primitives, camera.ZoomAt, Fdp.Toolkit.Vis3D.RaylibGizmoSink3D.Shared);
+            long t2 = Fdp.Presentation.WindowManager.WindowTimings.Start();
+            Fdp.Toolkit.Vis3D.RaylibGizmoSink3D.Shared.Flush();   // ⭐ CE-1196 — the fills (biased, no depth writes), then the lines
+            Fdp.Presentation.WindowManager.WindowTimings.Record("gizmo3D flush", t2);
         }
+
+        /// <summary>The drawing half of <see cref="Draw3D(RenderContext)"/>, with the camera's zoom and the sink injected — the
+        /// rail's entry (no GL context needed with a capturing sink).</summary>
+        public void Draw3D(ReadOnlySpan<DebugPrimitive> primitives, Func<Vector3, float> zoomAt, Fdp.Toolkit.Vis3D.IGizmoSink3D sink)
+        {
+            _triage3D.ZoomAt = zoomAt;
+            long t0 = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4388 — the 3-D gizmo pass by stage (HROT_FRAME_STATS)
+            _triage3D.Triage(primitives, _triaged3D);
+            Fdp.Presentation.WindowManager.WindowTimings.Record("gizmo3D triage", t0);
+            LastPrimitives3D = primitives.Length;   // ⭐ CE-4388 — measuring the view filter's 3-D cost (HROT_FRAME_STATS)
+            long t1 = Fdp.Presentation.WindowManager.WindowTimings.Start();
+            Renderer3D.Draw(_triaged3D, zoomAt, sink);
+            Fdp.Presentation.WindowManager.WindowTimings.Record("gizmo3D draw", t1);
+            // A StructInspector is a SCREEN panel: scheduled exactly as the 2-D renderer schedules it, so it shows in 3-D too.
+            foreach (var p in Renderer3D.Panels)
+                _imGuiAdapter?.Schedule(p.StructNetworkId, p.StructSchemaHash, p.GizmoTypeId, p.StructAnchor,
+                                        p.StructOffsetX, p.StructOffsetY, p.SizeMode, p.StructIsReadOnly != 0);
+        }
+
+        /// <summary>⭐ CE-1033 S5b — draws the entity cards (one renderer for both modes, §3.6).</summary>
+        public GizmoMap.Presentation.EntityCardRenderer Cards { get; } = new();
+
+        public void DrawOverlay(RenderContext ctx)
+        {
+            GizmoMap.Presentation.GizmoTextDraw.Strings = _buffer?.InternMap;   // ⭐ B-17 P1 — long gizmo text resolves from THIS buffer
+            LabelsDrawn3D = 0;
+            if (_buffer == null) return;
+            if (LayerBitIndex >= 0 && LayerBitIndex < 32 && (ctx.VisibleLayersMask & (1u << LayerBitIndex)) == 0) return;
+            var live = CurrentCamera?.Invoke() ?? _mapCamera;
+            if (live is Fdp.Toolkit.Vis3D.MapCamera3D camera)
+            {
+                // ⭐ CE-4582 (§6am D-1, D-8) — one scope for the place labels and the cards: each drawn at its anchor's depth (the toggle off ⇒ on top)
+                Occlusion3D.AnchorOf ??= CardAnchorWorld3D;
+                Occlusion3D.Begin(camera);
+                Cards.Occlusion = Occlusion3D;
+                long t3 = Fdp.Presentation.WindowManager.WindowTimings.Start();
+                LabelsDrawn3D = Fdp.Toolkit.Vis3D.LabelOverlay3D.Draw(Renderer3D.Labels, camera, LabelLift, Occlusion3D);
+                Fdp.Presentation.WindowManager.WindowTimings.Record("gizmo3D labels", t3);
+                LastLabels3D = Renderer3D.Labels.Count; LastLabelsDrawn3D = LabelsDrawn3D;   // ⭐ CE-4388
+                long tc = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4388 — the cards alone (does decluttering pay?)
+                Cards.Draw(Renderer3D.Cards, CardAnchor3D(camera));
+                Occlusion3D.End();   // the renderer ends it before the selected cards; idempotent
+                Fdp.Presentation.WindowManager.WindowTimings.Record("cards", tc);
+                LastCardsDrawn = Cards.CardsDrawn;
+            }
+            else if (live != null)
+            {
+                long tc = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4388 — the cards alone
+                Cards.Draw(_renderer.CardPrimitives, CardAnchor2DReused(live, _buffer.ReaderFrame()));   // ⭐ CE-4432 — 0 B per frame
+                Fdp.Presentation.WindowManager.WindowTimings.Record("cards", tc);
+                LastCardsDrawn = Cards.CardsDrawn;
+            }
+        }
+
+        /// <summary>⭐ <c>CE-4582</c> (docs/DESIGN_Map_3D_Mode.md §6am) — hides the 3-D cards and place labels behind the terrain. The host sets its
+        /// switch (<see cref="Fdp.Toolkit.Vis3D.CardOcclusion.Enabled"/>) and the cards that always show (<c>Cards.AlwaysOnTop</c>).</summary>
+        public Fdp.Toolkit.Vis3D.CardOcclusion Occlusion3D { get; } = new();
+
+        private Func<long, Vector3?>? _cardAnchorWorld3D;
+
+        /// <summary>⭐ CE-4582 — an entity's card anchor in the WORLD: its anchor lifted to the top of its drawn body (the point <see cref="CardAnchor3D"/> projects).</summary>
+        private Func<long, Vector3?> CardAnchorWorld3D => _cardAnchorWorld3D ??= id =>
+        {
+            if (!_triage3D.TryGetAnchor(id, out var at)) return null;
+            at.Z += LabelLift?.Invoke(id) ?? Fdp.Toolkit.Vis3D.LabelOverlay3D.DefaultLift;
+            return at;
+        };
+
+        /// <summary>⭐ S5b — an entity's card anchor in 3-D: its anchor, lifted to the top of its drawn body, projected.</summary>
+        public Func<long, Vector2?> CardAnchor3D(Fdp.Toolkit.Vis3D.MapCamera3D camera)
+        {
+            _cardCamera3D = camera;   // ⭐ CE-4432 — ONE delegate over the latest camera (a closure per frame before)
+            return _cardAnchor3D ??= id => _cardCamera3D is { } c ? CardScreen3D(c, id) : null;
+        }
+
+        private Fdp.Toolkit.Vis3D.MapCamera3D? _cardCamera3D;
+        private Func<long, Vector2?>? _cardAnchor3D;
+
+        private Vector2? CardScreen3D(Fdp.Toolkit.Vis3D.MapCamera3D camera, long id)
+        {
+            if (!_triage3D.TryGetAnchor(id, out var at)) return null;
+            at.Z += LabelLift?.Invoke(id) ?? Fdp.Toolkit.Vis3D.LabelOverlay3D.DefaultLift;
+            var s = camera.WorldToScreen(at);
+            return s.X < -1e5f ? null : s;
+        }
+
+        /// <summary>⭐ S5b — an entity's card anchor in 2-D: its SpatialAnchor's ground point, through the (north-up) camera.</summary>
+        public static Func<long, Vector2?> CardAnchor2D(MapCamera camera, ReadOnlySpan<DebugPrimitive> frame)
+        {
+            var anchors = new System.Collections.Generic.Dictionary<long, Vector2>();
+            FillAnchors2D(frame, anchors);
+            return id => CardScreen2D(camera, anchors, id);
+        }
+
+        private static void FillAnchors2D(ReadOnlySpan<DebugPrimitive> frame, System.Collections.Generic.Dictionary<long, Vector2> anchors)
+        {
+            anchors.Clear();
+            foreach (ref readonly var p in frame)
+                if (p.Shape == DebugPrimitiveShape.SpatialAnchor) anchors[p.NetworkId] = new Vector2(p.AnchorWorldX, p.AnchorWorldY);
+        }
+
+        private static Vector2? CardScreen2D(MapCamera camera, System.Collections.Generic.Dictionary<long, Vector2> anchors, long id)
+            => anchors.TryGetValue(id, out var w) ? camera.WorldToScreen(w) - new Vector2(0f, 6f) : null;
+
+        // ⭐ CE-4432 (R-2084) — the draw's own CardAnchor2D: the same answer from ONE dictionary and ONE delegate, refilled each frame (a new
+        //   dictionary + closure per frame were ~4 MB/s of garbage at 8 000 units, measured on Windows).
+        private readonly System.Collections.Generic.Dictionary<long, Vector2> _cardAnchors2D = new();
+        private MapCamera? _cardCamera2D;
+        private Func<long, Vector2?>? _cardAnchor2D;
+
+        private Func<long, Vector2?> CardAnchor2DReused(MapCamera camera, ReadOnlySpan<DebugPrimitive> frame)
+        {
+            FillAnchors2D(frame, _cardAnchors2D);
+            _cardCamera2D = camera;
+            return _cardAnchor2D ??= id => _cardCamera2D is { } c ? CardScreen2D(c, _cardAnchors2D, id) : null;
+        }
+
+        /// <summary>⭐ CE-1033 S2 — the canvas' CURRENT camera (the 3-D one while the map is in 3-D); set by
+        /// <c>MapInteractionPack.AttachMapLayers</c>. Null ⇒ the construction-time camera, as before.</summary>
+        public Func<MapCamera?>? CurrentCamera { get; set; }
 
         public void Update(float dt)
         {
@@ -80,40 +315,193 @@ namespace Fdp.Toolkit.Vis2D.Layers
             if (_mapCamera != null)
                 _camera = _mapCamera.InnerCamera;
 
-            _innerTerminal.HandleInput(
-                _buffer.GetFrame(),
-                _buffer.InternMap,
-                _camera,
-                OnInteraction);
+            // ⭐⭐⭐ NO CAMERA IS A DEAD MAP, AND IT USED TO BE SILENT. 📐 Measured 2026-09-20:
+            //    CgfSubsystem built this layer without a camera, so `_camera` stayed `default(Camera2D)`
+            //    — zoom=0, offset=(0,0) — and Raylib.GetScreenToWorld2D ((screen − Offset) / Zoom +
+            //    Target) DIVIDED BY ZERO. Every mouse position became NaN, every hit-test comparison
+            //    false, every click fell through to the canvas. 708 pick boxes in the frame, none
+            //    reachable, and not one error anywhere.
+            // ⛔ The layer still RUNS without a camera on purpose — drawing and event routing are
+            //   unaffected, and a headless rail legitimately has none. ⭐ But INPUT cannot work, so it
+            //   says so, once, instead of failing invisibly for a whole session.
+            if (_mapCamera == null && !_warnedNoCamera)
+            {
+                _warnedNoCamera = true;
+                Fdp.Core.Logging.FdpLog<DebugGizmoLayer>.Warn(
+                    "[DebugGizmoLayer] constructed with NO CAMERA, so screen<->world is a divide by " +
+                    "zero and NOTHING ON THIS MAP CAN BE CLICKED. Drawing still works, which is why " +
+                    "this is easy to miss. Pass `camera:` at the construction site.");
+            }
+
+            // ⭐ CE-1033 S2 — in the map's 3-D mode the canvas' LIVE camera answers screen → world with height (the pick for a
+            //   press, the terrain for a drag) and the pixels-per-metre at the hit.
+            // ⭐ CE-1040 (N2) — and in 2-D too: the terminal's own fallback is Raylib.GetScreenToWorld2D, which knows nothing of
+            //   the north-up flip, so EVERY gizmo press / hover / drag / right-click goes through the camera's conversion.
+            var live = CurrentCamera?.Invoke() ?? _mapCamera;
+            // ⭐ CE-1072 — a camera DRIVER (the first-person view) holds the map's input (CE-3174: "a driver holds the map's input"):
+            //   the terminal polls the mouse itself, so without this every shot fired in first person was also a map click — a
+            //   rubber band on the selection, a canvas menu on a right click.
+            if (live is Fdp.Toolkit.Vis3D.MapCamera3D { Driver: not null })
+            {
+                _typedKeys.Clear();
+                return;
+            }
+            // ⭐ B-10 K1 (docs/UX/DESIGN_Input_And_Commands.md §5a, CE-4282) — the terminal's own key polls (Esc / Enter releases, a local
+            //   drag tool's Esc) follow the keyboard focus like the canvas' drain: ⛔ not while a panel has the keyboard.
+            bool keyboardCaptured = ImGuiNET.ImGui.GetIO().WantCaptureKeyboard || !Fdp.Presentation.Input.KeyboardFocus.MapHasKeyboard;
+            if (live != null)
+                _innerTerminal.HandleInput(
+                    _buffer.ReaderFrame(), _buffer.InternMap, _camera, OnInteraction,   // ⭐ POC 2 P-6 (A-4 ⑥) — the published frame on the drawing thread, never the worker's live buffer
+                    screenToWorld: (screen, forDrag) => live.ScreenToWorld3D(screen, forDrag),
+                    zoomAt: live.ZoomAt,
+                    nextTypedKey: _nextTypedKey,
+                    keyboardCaptured: keyboardCaptured,
+                    // ⭐ CE-1466 — in 3-D a drawn body is pressed by the camera's ray only (its drawn box + a few pixels), as the hover is (U-9)
+                    rayOnlyAnchor: live is Fdp.Toolkit.Vis3D.MapCamera3D cam3D ? RayOnlyOf(cam3D) : null);
+            else
+                _innerTerminal.HandleInput(
+                    _buffer.ReaderFrame(),   // ⭐ POC 2 P-6 (A-4 ⑥) — the published frame on the drawing thread, never the worker's live buffer
+                    _buffer.InternMap,
+                    _camera,
+                    OnInteraction,
+                    nextTypedKey: _nextTypedKey,
+                    keyboardCaptured: keyboardCaptured);
+            _typedKeys.Clear();   // a key the terminal did not stream (no raw route this frame) is not carried to the next
         }
 
         public void Draw(RenderContext ctx)
         {
+            GizmoMap.Presentation.GizmoTextDraw.Strings = _buffer?.InternMap;   // ⭐ B-17 P1 — long gizmo text resolves from THIS buffer
             if (_buffer == null) return;
-            var primitives = _buffer.GetFrame();
+            var primitives = FrameFor(in ctx);   // ⭐ CE-1379 / CE-1380 — a film's pass: its film layers only
 
             if (LayerBitIndex >= 0 && LayerBitIndex < 32)
             {
                 if ((ctx.VisibleLayersMask & (1u << LayerBitIndex)) == 0) return;
             }
 
-            _renderer.SetLayerMask((ushort)ctx.VisibleLayersMask);
-
+            // ⛔⛔ R2 (DESIGN_Gizmo_Renderer_Seam.md §6) — `_renderer.SetLayerMask((ushort)ctx
+            //   .VisibleLayersMask)` USED TO BE HERE, every frame, and the method was an EMPTY BODY.
+            //   🔒 Routing it would have been wrong, not a fix: Architect_Question_28_Map_Layers.md:20
+            //     rules the backend's LayerControlMask primitive "the only filter that reaches drawn
+            //     primitives", authoritative per frame. ctx.VisibleLayersMask is 32 bits against that
+            //     256 and would be a SECOND authority for one fact (ruling 9 / R-132).
+            //   ⭐ The LayerBitIndex gate directly above is a DIFFERENT concern — it is whether THIS
+            //     LAYER draws at all, which the map canvas legitimately owns. It stays.
             var mapCamera = ctx.Resources.Get<MapCamera>();
             if (mapCamera != null)
                 _camera = mapCamera.InnerCamera;
 
-            _innerTerminal.ExtractMetaPrimitives(primitives, _buffer.InternMap);
+            if (!ctx.Film) _innerTerminal.ExtractMetaPrimitives(primitives, _buffer.InternMap);   // ⛔ a film's pass carries no menus
+            _renderer.Camera = CurrentCamera?.Invoke() ?? _mapCamera;   // ⭐ CE-1040 — the renderer must know the camera is north-up
             _renderer.Render(primitives, ctx);
         }
 
-        // FDP Inputs are muted. Raw input is polled by the inner terminal.
+        /// <summary>
+        /// ⭐⭐ <b>Deliberately returns <see langword="false"/> — this layer does not consume
+        /// <c>IMapLayer</c> input.</b> <c>MapCanvas.cs:229-252</c> really does offer it to every layer
+        /// (and <c>GridMapLayer.cs:94</c> declines the same way); the gizmo layer declines because its
+        /// input arrives through <c>_innerTerminal.HandleInput(...)</c> in <see cref="Update"/>, which
+        /// polls the hardware directly.
+        ///
+        /// <para>⛔ <b>Do not "fix" this to make a test pass.</b> 📌 Seven rails in three classes asserted
+        /// that it returns <c>true</c> and publishes an event — rails for the pre-terminal input route
+        /// (<c>.dev/_DONE/gizmos-1/</c> BATCH-23 era). They never ran, because those classes crashed
+        /// first. Wiring a second input mechanism to satisfy them is exactly what ruling 9 forbids.
+        /// 📄 docs/DESIGN_Gizmo_Renderer_Seam.md §6 R4.</para>
+        /// </summary>
         public bool HandleInput(Vector2 worldPos, AbstractionMouseButton button, bool isPressed) => false;
         public void HandleHover(Vector2 mouseWorldPos) { }
         public bool HandleDrag(Vector2 worldPos, Vector2 delta) => false;
-        public bool HandleKeyInput(AbstractionKeyboardKey key) => false;
 
-        public Entity? PickEntity(Vector2 worldPos) => null;
+        /// <summary>
+        /// ⭐ <c>CE-3175</c> — the canvas' typed keys this frame, handed to the terminal in <see cref="Update"/>. 📐 Raylib's key queue
+        /// has ONE reader per frame and <c>MapCanvas.ProcessInputPipeline</c> drains it (to offer each key to its layers) BEFORE the
+        /// layers update, so the terminal's own read found it empty: no key PRESS ever reached a backend tool — Escape included,
+        /// which every interactive gizmo cancels on. ⭐ Not a second input mechanism: the terminal's raw-key route is unchanged, it is
+        /// only fed from the one drain. Returns <see langword="false"/> so the key still reaches every other layer.
+        /// </summary>
+        public bool HandleKeyInput(AbstractionKeyboardKey key)
+        {
+            _typedKeys.Enqueue((int)key);
+            return false;
+        }
+
+        private readonly System.Collections.Generic.Queue<int> _typedKeys = new();
+
+        /// <summary>The next typed key the canvas routed here (0 = none); what the terminal reads.</summary>
+        // ⭐ CE-1466 — the 3-D camera's ray-only rule as ONE delegate per camera (the terminal is asked every frame: no allocation in the steady state)
+        private Fdp.Toolkit.Vis3D.MapCamera3D? _rayOnlyCamera;
+        private Func<long, bool>? _rayOnlyFn;
+        private Func<long, bool> RayOnlyOf(Fdp.Toolkit.Vis3D.MapCamera3D camera)
+        {
+            if (!ReferenceEquals(camera, _rayOnlyCamera)) { _rayOnlyCamera = camera; _rayOnlyFn = camera.IsRayOnlyAnchor; }
+            return _rayOnlyFn!;
+        }
+
+        internal int NextTypedKey() => _typedKeys.Count > 0 ? _typedKeys.Dequeue() : 0;
+        private Func<int>? _nextTypedKeyFn;
+        private Func<int> _nextTypedKey => _nextTypedKeyFn ??= NextTypedKey;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-259p</c> — THE ENTITY HIT-TEST, implemented for real.</b>
+        /// 📄 <c>docs/UX/UX_Feature_Tool_Model.md</c> §4.7g.
+        ///
+        /// <para>🔴 <b>Measured `2026-09-09`, by an operator who could not complete a pick:</b> EVERY
+        /// production <c>IMapLayer.PickEntity</c> in the repo returned <c>null</c> — <c>GridMapLayer</c>,
+        /// <c>PerceptionMapLayer</c>, <c>SelectionRenderSystem</c>, both SimHost layers, and this one. The
+        /// only real implementation lived in an EXAMPLES project. ⇒ <c>MapCanvas.PickTopmostEntity</c> was
+        /// dead in production, and <c>EntityPickerGizmo</c> — whose entire pick arm is gated on it — could
+        /// never pick anything.</para>
+        ///
+        /// <para>⭐⭐ <b>The seam law:</b> there were TWO entity hit-tests and the picker used the dead one.
+        /// The LIVE one is the terminal's own <c>FindTopmostInteractivePrimitive</c> — the mechanism that
+        /// makes ordinary SELECTION work (<c>SelectionInteractionSystem</c> resolves
+        /// <c>GizmoInteractionStartedEvent.Token.Target</c>). ⇒ this routes to that, rather than adding a
+        /// third.</para>
+        ///
+        /// <para>⚠ The hit-test is deliberately NOT filtered by the capture binding — see
+        /// <c>GizmoMap.Presentation.DebugGizmoLayer.PickTopmostEntityAnchor</c>: <i>"only the capture
+        /// holder receives interactions"</i> and <i>"the capture holder may hit-test"</i> are compatible
+        /// claims, and conflating them is what blinded the picker.</para>
+        /// </summary>
+        public Entity? PickEntity(Vector2 worldPos)
+        {
+            if (_buffer == null) return null;
+
+            // ⭐⭐ U-9 (CE-4340) — IN 3-D THE ANSWER IS THE CAMERA'S OWN PICK: the entity the cursor's RAY hit (its DRAWN box plus a few pixels, EntityBoxPicker), nothing else.
+            //   📐 MEASURED (HoverPickVolumeTests): this hit-test used to read the zoom off the 3-D camera's hidden 2-D <c>InnerCamera</c> — unrelated to the 3-D view — and test the 2-D FOOTPRINT box (5 m long symbol ⇒ 3 m half) plus 5 px
+            //   of slack AT THAT ZOOM, so a 0.5 m man answered the hover from 5 m (inner zoom 3) to 23 m (inner zoom 0.3) away — 31 to 202 screen pixels. ⇒ the hover label showed ~15 m from the entity.
+            if ((CurrentCamera?.Invoke() ?? _mapCamera) is Fdp.Toolkit.Vis3D.MapCamera3D camera3D)
+            {
+                var pick = camera3D.LastPick;
+                if (pick.Kind != Fdp.Toolkit.Vis3D.PickKind.Entity || pick.NetworkId == 0) return null;
+                var hit3D = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveAnchorId(_worldProvider?.Invoke(), pick.NetworkId);
+                return hit3D.IsNull ? null : hit3D;
+            }
+
+            // ⚠ The camera is refreshed in Update(); a pick can arrive before the first frame, so fall
+            //   back to the live one rather than hit-testing against a default zoom of 0.
+            float zoom = _mapCamera?.InnerCamera.Zoom ?? _camera.Zoom;
+            if (zoom <= 0f) return null;
+
+            // ⭐⭐⭐ §6.7 — the hit-test answers with the anchor's NETWORK ID; the handle is RESOLVED.
+            //   ⛔ It used to be `new Entity(a.Index, a.Generation)` from a `(int, ushort)` the terminal
+            //     returned — an ECS handle rebuilt from primitive bytes, in the one assembly boundary
+            //     that exists to be ECS-free. ⇒ that is why this layer now takes a world: the
+            //     IMapLayer.PickEntity contract owes the caller an Entity, and resolving is the honest
+            //     way to produce one.
+            //   ⚠ No world ⇒ no pick. That is visible rather than silent: the four production hosts each
+            //     construct this with their repository (and each one ALREADY passed a live world to the
+            //     ctor overload deleted in DESIGN_Gizmo_Renderer_Seam.md §6 R3, which stored it nowhere).
+            var anchorId = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
+                _buffer.ReaderFrame(), worldPos, zoom);   // ⭐ POC 2 P-6 (A-4 ⑥) — the published frame on the drawing thread, never the worker's live buffer
+            if (anchorId is not { } id) return null;
+
+            var entity = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveAnchorId(   // ⭐ CE-4200: the one 64-bit-anchor rule
+                _worldProvider?.Invoke(), id);
+            return entity.IsNull ? null : entity;
+        }
 
         /// <summary>
         /// Resolver used to render colored icons for right-click context-menu items that carry an
@@ -137,8 +525,14 @@ namespace Fdp.Toolkit.Vis2D.Layers
             });
         }
 
+        /// <summary>⭐ CE-1234 — where the gizmos' UI states arrive in this process (the map pack's local transport): drained into the panel each
+        /// frame before it draws, so a panel shows what its gizmo holds (the layer control's view set, its remembered rows) — not only what
+        /// was clicked here. Null: the panel shows only its own edits (as before).</summary>
+        public Fdp.Toolkit.Diagnostics.Gizmos.Hub.LocalGizmoUiStateTransport? UiStates { get; set; }
+
         public void DrawStructInspector()
         {
+            if (_imGuiAdapter is { } adapter) UiStates?.PollAndApply(adapter.ReceiveUiState);
             _innerTerminal.DrawStructInspector((networkId, gizmoTypeId, json) =>
             {
                 _eventBus?.PublishManaged(new GizmoStructUpdateEvent
@@ -147,7 +541,9 @@ namespace Fdp.Toolkit.Vis2D.Layers
                     GizmoTypeId = gizmoTypeId,
                     PayloadJson = json,
                 });
-            });
+            },
+            // ⭐ CE-1066 — the panel's [X]: routed to its gizmo by anchor, like the struct update (and egressed to a remote one)
+            (networkId, gizmoTypeId) => _eventBus?.Publish(new GizmoInspectorClosedEvent { AnchorId = networkId, GizmoTypeId = gizmoTypeId }));
         }
 
         /// <summary>
@@ -157,7 +553,91 @@ namespace Fdp.Toolkit.Vis2D.Layers
         public System.Collections.Generic.IReadOnlyList<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto> ConsumeMainMenu()
             => _innerTerminal.ConsumeMainMenu();
 
-        private void OnInteraction(
+        /// <summary>
+        /// ⭐⭐⭐ <b>R4 (docs/DESIGN_Gizmo_Renderer_Seam.md §6) — <c>internal</c>, on purpose.</b>
+        ///
+        /// <para>This is the layer's whole reason for existing on the FDP side: turn a terminal
+        /// <c>GizmoPickToken</c> into a <c>PickToken</c> and publish the typed event. ⛔ In production it
+        /// is reached only through <c>_innerTerminal.HandleInput(..., OnInteraction)</c> in
+        /// <see cref="Update"/>, which polls Raylib — so a headless rail cannot get here through the
+        /// front door, and for years the rails tried the back one: <c>layer.HandleInput(...)</c>, which
+        /// returns <c>false</c> by design (see its note).</para>
+        ///
+        /// <para>⭐⭐ Making it <c>internal</c> lets a rail assert the thing that actually matters and is
+        /// otherwise UNCOVERED: that a token's <b>payload</b> becomes the right <c>PickToken.Target</c>
+        /// (<c>ToPickToken</c>, the S3 payload path of <c>DESIGN_Gizmo_Anchor_Identity.md</c>) and that
+        /// each <c>GizmoInteractionEventKind</c> publishes its matching event exactly once.</para>
+        /// </summary>
+        private bool _warnedUnpickable;
+
+        /// <summary>
+        /// ⭐⭐ Reports what the hit-test HAD to work with when it fell through to the canvas.
+        /// ⛔ Deliberately counts <c>BoxAnchorId != 0</c> rather than "any primitive": that is the exact
+        /// predicate <c>FindTopmostInteractivePrimitive</c> uses to decide a primitive is pickable
+        /// (its <c>:550</c> skip and <c>:563</c> identity), so a count of 0 here means "nothing on this
+        /// map is clickable", not "nothing is drawn".
+        /// </summary>
+        private void LogCanvasFallback(System.Numerics.Vector3 worldPos)
+        {
+            if (_buffer == null) return;
+
+            var frame   = _buffer.ReaderFrame();   // ⭐ POC 2 P-6 (A-4 ⑥) — the published frame on the drawing thread, never the worker's live buffer
+            int boxes   = 0;
+            float best  = float.MaxValue;
+            long  bestId = 0;
+
+            for (int i = 0; i < frame.Length; i++)
+            {
+                ref readonly var p = ref frame[i];
+                if (p.BoxAnchorId == 0) continue;
+                boxes++;
+                float dx = worldPos.X - p.BoxCenterX;
+                float dy = worldPos.Y - p.BoxCenterY;
+                float d  = MathF.Sqrt(dx * dx + dy * dy);
+                if (d < best) { best = d; bestId = p.BoxAnchorId; }
+            }
+
+            // ⭐⭐⭐ THE CAMERA IS PART OF THE EVIDENCE. 📐 Measured 2026-09-20: `pickable=708` with
+            //    `worldPos=(NaN,NaN)` proved the pick boxes were all present and the CONVERSION was
+            //    broken — so the useful question stopped being "are there boxes" and became "WHICH
+            //    camera field is poisoned". GetScreenToWorld2D is (screen − Offset) / Zoom + Target, so
+            //    naming the three fields identifies the producer's victim exactly.
+            bool camOk = float.IsFinite(_camera.Zoom) && _camera.Zoom > 0f
+                         && MapCamera.IsFinite(_camera.Target)
+                         && MapCamera.IsFinite(_camera.Offset);
+
+            // ⭐⭐⭐ SILENT WHEN HEALTHY. ⛔ A canvas fallback is NORMAL — it is what an empty-space click
+            //    IS — so logging every one would drown the log in routine operation. ⚠ This fires only
+            //    for the two states that are genuinely WRONG, and each warns ONCE:
+            //      · the camera cannot convert screen→world  ⇒ NOTHING is clickable (the CGF defect)
+            //      · the frame has primitives but NONE pickable ⇒ the projector is emitting no pick
+            //        boxes, which looks identical to "the map is fine" because drawing still works
+            // 🔒 Both were invisible for an entire session before 2026-09-20; neither has any other
+            //   symptom than "clicks do nothing", which an operator reasonably reports as a selection bug.
+            if (!camOk)
+            {
+                if (_warnedNoCamera) return;
+                _warnedNoCamera = true;
+                Fdp.Core.Logging.FdpLog<DebugGizmoLayer>.Warn(
+                    $"[MapPick] THE CAMERA CANNOT CONVERT SCREEN TO WORLD — zoom={_camera.Zoom} " +
+                    $"target=({_camera.Target.X},{_camera.Target.Y}) offset=({_camera.Offset.X},{_camera.Offset.Y}). " +
+                    "Every mouse position is NaN/degenerate, so NOTHING ON THIS MAP CAN BE CLICKED " +
+                    "while drawing still looks perfect. A zoom of 0 with a zero offset means no camera " +
+                    "was passed to this layer at all.");
+                return;
+            }
+
+            if (frame.Length > 0 && boxes == 0 && !_warnedUnpickable)
+            {
+                _warnedUnpickable = true;
+                Fdp.Core.Logging.FdpLog<DebugGizmoLayer>.Warn(
+                    $"[MapPick] {frame.Length} primitives in the frame and NOT ONE IS PICKABLE " +
+                    "(none carries a BoxAnchorId). The map draws but cannot be clicked — check that the " +
+                    "entity projector is running and that its entities have a non-zero network id.");
+            }
+        }
+
+        internal void OnInteraction(
             GizmoPickToken token,
             GizmoInteractionEventKind kind,
             Vector3 worldPos,
@@ -170,10 +650,29 @@ namespace Fdp.Toolkit.Vis2D.Layers
             switch (kind)
             {
                 case GizmoInteractionEventKind.Started:
+                    // ⭐⭐⭐ [SelDiag] — THE TERMINAL'S HALF. 📄 Added 2026-09-20 for an operator report
+                    //    whose first diagnostic round returned `anchor=#0`, i.e. the CANVAS FALLBACK:
+                    //    the hit-test found no interactive primitive under the cursor.
+                    // ⭐ That leaves exactly two possibilities, and this line separates them:
+                    //      · boxes=0            => the pick boxes are NOT IN THE FRAME the hit-test sees
+                    //                              (the projector is not running, or the buffer is empty
+                    //                              at canvas.Update() time)
+                    //      · boxes=N, nearest=D => they ARE there and the click missed by D world units,
+                    //                              which is a geometry/size question, not a wiring one
+                    // ⚠ Fires ONLY on a canvas-fallback press (anchor 0) — operator-paced, and silent
+                    //   once entities become clickable again.
+                    if (token.AnchorId == 0) LogCanvasFallback(worldPos);
                     _eventBus.Publish(new GizmoInteractionStartedEvent
                     {
                         Token = pickToken,
                         WorldPos = worldPos,
+                        // ⭐⭐⭐ UXI-11 S-4b — the terminal tags Started with its button in actionId, the
+                        //   same slot RawInput already uses for one. ⚠ Left is 0, so a producer that
+                        //   passes 0 (every left-press path, and the proxy tool) reads as Left, which is
+                        //   what it genuinely is. 📄 UX_Feature_Selection.md §2.7.14.
+                        // ⚠ Fully qualified: Fdp.Toolkit.Vis2D.Abstractions declares a MapMouseButton
+                        //   too, and both namespaces are imported here.
+                        Button = (Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton)actionId,
                     });
                     break;
                 case GizmoInteractionEventKind.DragUpdate:
@@ -233,24 +732,48 @@ namespace Fdp.Toolkit.Vis2D.Layers
             }
         }
 
-        private static PickToken ToPickToken(GizmoPickToken token)
+        /// <summary>
+        /// ⭐⭐⭐ <b>§6.7 (DESIGN_Gizmo_Anchor_Identity.md) — A FIELD COPY. THE IDENTITY IS CARRIED, NOT
+        /// TRANSLATED.</b>
+        ///
+        /// <para>⛔⛔ <b>What was here, and why it is gone.</b> This used to be
+        /// <c>Target = new Entity(token.AnchorIndex, (ushort)token.StreamId)</c>, gated on
+        /// <c>StreamId == 0</c>: it REBUILT an ECS handle out of a payload the terminal forwarded from the
+        /// picked primitive. The justification on record was that <c>ReplayBrowser</c> had no
+        /// <c>NetworkEntityMap</c>, so a resolve here would silently drop its selection. 🔒 The user
+        /// rejected that trade — *"replaybrowser is ecs module like any else. i do not want such
+        /// exceptions"* — and measuring agreed: nothing prevented giving it the map.</para>
+        ///
+        /// <para>⭐⭐ So the resolve moved to the CONSUMERS, each of which holds a world
+        /// (<c>DataDrivenGizmoSystem</c>, <c>SelectionInteractionSystem</c>), and this adapter keeps the
+        /// property the renderer seam is built on: <b>no ECS dependency on the presentation path.</b>
+        /// 📌 That is not incidental — <c>.dev/_DONE/gizmos-1/feedback2.md:798</c> is explicit that the
+        /// two-pass <c>SpatialAnchor</c> design exists to sever exactly this reliance.</para>
+        ///
+        /// <para>⚠ <c>AnchorId == 0</c> (an empty-canvas click) yields a token whose
+        /// <c>IsValid</c> is false, as before — the value that means "no anchor" simply travels instead of
+        /// being re-derived from a generation.</para>
+        /// </summary>
+        private static PickToken ToPickToken(GizmoPickToken token) => new PickToken
         {
-            // Reconstruct the ECS handle from the multiplexed payload.
-            // WARNING: A token.AnchorId of 0 is a perfectly valid ECS Index (Entity 0).
-            // Negative values denote canvas clicks or stateless tools, which safely fall through to Entity.Null.
-            if (token.AnchorId < 0 || token.AnchorId > int.MaxValue)
-                return default;
+            AnchorId     = token.AnchorId,
+            SubElementId = token.SubElementId,
+            GizmoTypeId  = token.GizmoTypeId,
+        };
 
-            return new PickToken
-            {
-                Target = new Entity((int)token.AnchorId, (ushort)token.StreamId),
-                SubElementId = token.SubElementId,
-                GizmoTypeId  = token.GizmoTypeId,
-            };
-        }
-
-        // Test hooks preserved for existing test surface.
-        internal bool TestHook_IsCaptureActive => false;
-        internal bool TestHook_IsInteractionActive => false;
+        // 🔴🔴 DELETED 2026-09-10 (R4, DESIGN_Gizmo_Renderer_Seam.md §6):
+        //     internal bool TestHook_IsCaptureActive     => false;
+        //     internal bool TestHook_IsInteractionActive => false;
+        //   ⛔⛔ Two HARD-CODED constants whose comment read "Test hooks preserved for existing test
+        //     surface." ⇒ every rail asserting `Assert.True(layer.TestHook_...)` was FAILING BY
+        //     CONSTRUCTION and every `Assert.False(...)` was VACUOUSLY GREEN. Nobody noticed either,
+        //     because those classes SIGSEGV'd before running at all (CE-259aa).
+        //   ⭐ R-142 ③ — fix the blindness in place, do not route around it. The real interaction and
+        //     capture state lives in GizmoMap.Presentation.DebugGizmoLayer._activeTool, one layer down
+        //     and private, behind a HandleInput that polls Raylib.
+        //   🔒 So the honest position, stated rather than hidden: that state is NOT railable headlessly
+        //     at this layer. What IS railable — and is now railed — is OnInteraction: the token→PickToken
+        //     conversion and the event publication. A constant that lets a rail claim otherwise is worse
+        //     than an admitted gap.
     }
 }

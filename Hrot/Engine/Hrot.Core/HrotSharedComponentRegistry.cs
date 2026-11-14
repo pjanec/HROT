@@ -36,15 +36,35 @@ public static class HrotSharedComponentRegistry
     /// </summary>
     public static void RegisterAll(EntityRepository world)
     {
+        // ⭐⭐ CE-4013 D19 (R-4057 + R-3015) — what the SHARED translator pack writes, registered with it. Every networked ECS node
+        //   runs that pack, so a node registering only this set must still accept every sample. 📌 Measured 2026-10-17: the traffic
+        //   node (this set only) crashed on "Component EntityInfo is not registered" from EntityInfoIngressTranslator. A sweep of
+        //   all 34 shared ingress translators found SIX such types, from three of them (EntityInfo, MapVisualOverlay, MapRoute);
+        //   the other hosts reached them only through their own role registries. Registration is idempotent, so those stay.
+        //   ⛔ Not the whole union of registries — DESIGN_Role_Affinity_Ownership.md §3.9b keeps registration narrowing.
+        //   Rail: SharedRegistryCoversTheSharedPackTests.
+        world.RegisterComponent<EntityInfo>();                                         // EntityInfoIngressTranslator
+        world.RegisterComponent<Hrot.Common.DeployRole>();                             // ⭐ Player Join S2 — a role, a spawn area, the gameplay settings (authored; read by the gameplay server pack)
+        world.RegisterComponent<Hrot.Common.SpawnArea>();
+        world.RegisterComponent<Hrot.Common.GameplaySettings>();
+        world.RegisterComponent<Hrot.Common.Playable>();                              // ⭐ Player Join D-9 — a unit a Player may deploy into (authored; read by the gameplay server pack)
+        world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();          // read by EntityInfoIngressTranslator
+        world.RegisterEvent<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>();        // published by EntityInfoIngressTranslator
+        world.RegisterEvent<Fdp.Core.CommandHierarchy.CmdRemoveSubordinate>();        // published by EntityInfoIngressTranslator
+        world.RegisterManagedComponent<Hrot.Map.Common.Components.EditablePolyline>();       // MapVisualOverlayIngressTranslator
+        world.RegisterComponent<Hrot.Map.Common.Components.MapOverlayStyle>();               // MapVisualOverlayIngressTranslator
+        world.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();      // MapRouteIngressTranslator
+
         // ── Network replication components ────────────────────────────────────
         world.RegisterComponent<NetworkIdentity>();
-        world.RegisterComponent<NetworkOwnership>();
-        world.RegisterComponent<NetworkAuthority>();
+        world.RegisterComponent<NetworkAuthority>();   // CE-281: NetworkOwnership retired (merged into NetworkAuthority)
         world.RegisterComponent<TkbIdentity>();
         world.RegisterComponent<GhostStateTracker>();
         world.RegisterComponent<PendingNetworkAck>();
+        world.RegisterComponent<ReportLifecycleOnActive>();   // CE-283: reliable-init barrier peer tag
         world.RegisterComponent<NetworkTransform>();
         world.RegisterComponent<NetworkVelocity>();
+        world.RegisterComponent<LightweightRound>();   // ⭐ LR-2 (R-271) — a round replicated with no lifecycle, on every node
 
         // ── Geographic / physics ──────────────────────────────────────────────
         world.RegisterComponent<SimTransform>();
@@ -52,9 +72,143 @@ public static class HrotSharedComponentRegistry
 
         // ── Hierarchical entity linking (personal routes, sub-entities) ──────
         world.RegisterComponent<PartMetadata>();
+        // ⭐ CE-485: the brain-local owner stamp of a part (an EQS sensor) — every host that can create one.
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();
+        // ⭐ WL-1 (DESIGN_Weapon_Layers W-9) — a turret part's pose; every node builds the turret children, so every node registers it.
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.TurretPose>();
+        // ⭐ WL-2 (W-11 / R-267) — the turret's order (Brain) and the muscle's report on it, on the same part.
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponTask>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponTaskStatus>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMuscleState>();   // ⭐ WL-3 — the muscle's fire timing, never sent
+        // ⭐ WL-6 (W-13, R-272) — the weapon brain's at ease / ready / aimed; the Brain writes it, every node draws it.
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        // ⭐ CE-3172 / CE-3173 S4e (docs/DESIGN_Entity_Control.md §8c) — possession's replicated state, on every host
+        world.RegisterComponent<Fdp.Toolkit.Navigation.ManualDrive>();
+        // ⭐ CE-2168 (Motion Domains MD-A) / M7 (FPV) — how a body moves, and a flyer's parameters and state; every node.
+        world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.FlightParams>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.FlightState>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();   // ⭐ CE-3174 — the HUD's ammunition (dtWeaponAmmo)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();   // ⭐ CE-1153 — the use verdict (dtOperatorUseStatus)
+        world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();                          // ⭐ CE-3224 — a person's gesture (dtGesture)
+        world.RegisterComponent<Fdp.Toolkit.Civilians.Custody>();                       // ⭐ CE-3256 — detained / restrained / searched (dtCustody)
+        world.RegisterComponent<Fdp.Toolkit.Civilians.Utterance>();                     // ⭐ CE-3264 (G1) — what a man says (dtUtterance)
+        world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();                     // ⭐ CE-3265 (G2) — how a civilian seems (dtDemeanour)
+        world.RegisterComponent<Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest>();       // ⭐ CE-3271 (Q94 D) — a spawn's birth level (dtSpawnLevel)
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.UnderFire>();             // ⭐ CE-1223 — when a man was last under fire (dtUnderFire); idempotent beside CombatComponentRegistry
+        world.RegisterComponent<Fdp.Toolkit.Combat.Lean>();                             // ⭐ CE-3257 — a man leaning round a corner (dtLean)
+        world.RegisterComponent<Fdp.Toolkit.Civilians.HostileAct>();                    // ⭐ CE-3238 — a man's hostile act (dtHostileAct)
+        world.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();                  // ⭐ CE-3219 part 3 — a gas / smoke cloud (dtAreaEffectCloud)
+        world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();                      // ⭐ CE-3219 — non-lethal effects (dtEffectState)
+        world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>();   // ⭐ CE-3210 — wounds per body part (dtPartDamage)
+        world.RegisterComponent<Fdp.Toolkit.Perception.Look.LookState>();      // ⭐ CE-3252 — where a person looks (dtLookState)
+        world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>();     // ⭐ CE-3210 — where rounds struck (dtHitMarks)
+        world.RegisterComponent<Fdp.Toolkit.Motion.Descent>();                  // ⭐ airborne B-1 — a man coming down (dtDescent)
+        world.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();            // ⭐ CE-4153 — the scenario file's stable entity key (dtEntityGuid)
+        world.RegisterComponent<Fdp.Toolkit.Scenario.RefKey>();                // ⭐ macros debt A1 (SR-65, SR-188) — the authored name "@Key" resolves against the LIVE world too
+                                                                                //   (was registered only on the staging repo ⇒ a runtime `@Key` arg never resolved, and a save dropped the keys)
+        world.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroExpansionIntent>();
+        world.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroExpandedWith>();     // ⭐ macros S3a ⑥ — the reconcile's baseline (transient)  // ⭐ macros S3a ④ — the wait of one expansion (transient)
+        world.RegisterManagedComponent<Fdp.Toolkit.Scenario.ParamBindings>();  // ⭐ macros S3a ① (SR-161) — scalar bindings to params; NoReplay, saved by its translator
+        world.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroInstance>();       // ⭐ macros S3a ③ (SR-170) — a macro instance (dtMacroInstance); saved by its translator
+        world.RegisterManagedComponent<Fdp.Toolkit.Scenario.VariantForms>();        // ⭐ CE-3374 (macros §17.1) — the authored variant forms of an instance (NoReplay); a variant scenario's spawn writes it (it threw: never registered)
+        world.RegisterComponent<Fdp.Toolkit.Scenario.MacroExpansionStatus>();       // ⭐ macros S3a ③ (SR-175) — the expansion verdict (dtMacroExpansionStatus); NoScenario
+        world.RegisterComponent<Fdp.Toolkit.Scenario.MacroOrigin>();                // ⭐ macros S3a ③ (SR-178) — an expanded entity's origin (dtMacroOrigin); NoScenario
+        world.RegisterComponent<Fdp.Toolkit.Motion.EjectionDone>();             // ⭐ R-3039 S1 — this aircraft's crew has ejected (EjectionSystem)
+
+        // ── Terrain / zone loading ────────────────────────────────────────────
+        // ⭐ Registered UNCONDITIONALLY on every ECS host, exactly like the save handler and
+        //   TkbLoadClusterStateHandler. A host that loads nothing still stamps the marker (a node with
+        //   nothing to do is satisfied immediately, not left unset) — if a non-building node left it
+        //   unset, its map would read "not loaded" forever.
+        // ⛔ Node-local: [DataPolicy(NoScenario | NoReplay)], never replicated. See the type's own notes.
+        world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainAssetLoadState>();
+
+        // ⚠⚠ THIS REGISTRATION IS LOAD-BEARING, NOT BOOKKEEPING. [DataPolicy] on a MANAGED type is
+        //    applied by RegisterManagedComponent and by nothing else — SetSingletonManaged
+        //    auto-registers through ManagedComponentType<T>.ID, which does not read the attribute and
+        //    leaves the registry defaults (recordable = saveable = TRUE). ⇒ remove this line and the
+        //    parsed terrain definition starts being written into flight recordings, silently, despite
+        //    carrying NoReplay. Pinned by SettingTheSingletonWithoutRegistering_SilentlyIgnoresTheDataPolicy.
+        world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainDefinition>();
+        // ⭐ CE-3288 — the loaded scenario's description (§4d), a managed singleton with the same policy as the terrain definition
+        world.RegisterManagedComponent<Fdp.Toolkit.Scenario.ScenarioDescriptionResident>();
+        // ⭐ Buildings Stage 5b — door entities: the replicated state and the terrain-object key (§3j). Shared: every node mirrors them.
+        world.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
+        world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+        // ⭐ CE-4391 S-1 (UTM §8.2 B-1, B-11) — a building's breaches (dtBuildingDamage): a runtime entity its deciding node owns, replicated to every node, read
+        //   by every view's DoorStates.Damage. The event is the local "a detonation breached this wall" the deciding node's system turns into the component.
+        world.RegisterComponent<Fdp.Toolkit.Terrain.BuildingDamage>();
+        // ⭐ O-4 (CE-4415, §18c) — authored terrain blocks / features: saved with the scenario, expanded into the overlay at save (never at load)
+        world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainBlock>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainFeature>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.BuildingDamageEvent>();
+        // ⭐ CE-3136 P-7a — static obstacles (a parked car, a sandbag wall …): terrain every node bakes. Shared: every node derives the
+        //   marker from the TKB and receives the box (EntityObstacleShape). 📄 docs/DESIGN_Peek_And_Fire.md §9.
+        world.RegisterComponent<Fdp.Toolkit.Terrain.StaticObstacle>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.ObstacleShape>();
+        // ⭐ CE-3172 S4e — possession: raised by a station anywhere, applied by the unit's brain owner (InteractionCodecs)
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>();
+        // ⭐ CE-1148 S2 (Node Roles §3.5) — the world events every node now receives (a shot, a burst, a round's mark).
+        world.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireNotification>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.RoundImpactNotification>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.DoorCommandEvent>();
+        // ⭐ CE-3235 (B-13) — picking a round up: the ask (to the round's flier) and the grant (to the man's brain owner), on EVERY host
+        world.RegisterEvent<Fdp.Toolkit.Combat.PickUpRoundEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.PickUpGrantEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.RestationEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();   // ⭐ CE-3246 — the EntityHitDamage ingress runs on every node
+        world.RegisterEvent<Fdp.Toolkit.Combat.Events.ManDownedEvent>();   // ⭐ CE-3364 D5 — the dtManDowned ingress runs on every node
+        world.RegisterEvent<Fdp.Toolkit.Combat.StrikeNotification>();   // ⭐ CE-3266 (G3) — a blow struck (MeleeStrike topic)
+        world.RegisterEvent<Fdp.Toolkit.Civilians.CustodyEvent>();   // ⭐ CE-3256 (BR-4) — search / detain / restrain (interaction kind 13)
+        world.RegisterEvent<Fdp.Toolkit.Combat.DetonateChargeEvent>();   // ⭐ CE-3233 (B-11b) — set a charge off, on its position owner   // ⭐ CE-3233 (B-11) — draw / stow / conceal, applied by the list owner   // ⭐ 5d — door commands: raised anywhere, applied by the door's owner
+        // ⭐ CE-3110 I-2a — the embarkation interaction kinds: raised on any node, carried to the vehicle's owner (R-221 needs each
+        //   kind's event on EVERY host — the ingress republishes it wherever a request lands).
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EjectPassengersCommand>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.StartDescentCommand>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EjectRequestEvent>();   // ⭐ airborne insertion B-8 — read by EjectionSystem (the Health owner)   // ⭐ airborne insertion B-4 — applied by the passenger's position owner
+        // ⭐⭐ CE-3110 I-2c — the embarkation STATE too, on every host: any node that can own a live entity can own a vehicle or a
+        //   passenger, and every node receives the passenger list (I-2b's ingress) and derives the passenger side. 🔴 They were
+        //   registered only by the CGF and SimHost registries, so IG — which runs I-2b's ingress — would have applied an
+        //   unregistered PassengerBuffer. (EmbarkationComponentRegistry still registers them too; registration is idempotent.)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();   // ⭐ CE-2151 — a carrier type's seats (Gen.Carrier)
+        // ⭐ Weapon systems WS-1 (R-2016) — a host's station seats; a weapon system's handling and its replicated deploy state.
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.SeatPresetsFilled>();   // ⭐ WS-4 (W-I)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();    // ⭐ WS-4 (W-I)
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+        world.RegisterComponent<Fdp.Toolkit.Weather.ScenarioClock>();   // ⭐ CE-3216 S1-0 — the World Environment's clock, on every node
+        world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>();   // ⭐ rules S1-a — an objective's status, on every node (dtObjectiveStatus)
+        world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveLinks>();    // ⭐ rules S1-a — an objective's subject / parent, on every node
+        world.RegisterComponent<Fdp.Toolkit.ScenarioRules.RuleLeaves>();        // ⭐ rules V-3 — a trigger's when-leaves with their live values, on every node (dtRuleLeaves)
+        world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ExerciseResult>();    // ⭐ rules S2-e — the exercise's phase and outcome per side, on every node (dtExerciseResult)
+        world.RegisterManagedComponent<Fdp.Toolkit.ScenarioRules.Actions.ActionArgs>();   // ⭐ rules S2-d — the step lists an entity's actions run (immutable record, 428)
+        world.RegisterManagedComponent<Fdp.Toolkit.ScenarioRules.RuleEdit>();              // ⭐ rules ② — a live edit of a rule's params (immutable record, 433), brain-local
+        world.RegisterComponent<Fdp.Toolkit.ScenarioRules.RuleControl>();                  // ⭐ rules V-4 — a rule entity's runtime control (430), brain-local
+        world.RegisterComponent<Fdp.Toolkit.ScenarioRules.Actions.ActionFailure>();      // ⭐ rules S2-d — the reason a shared action failed (CE-4165, 429)
+        world.RegisterComponent<Fdp.Toolkit.Weather.WeatherConditions>();   // ⭐ CE-3216 S1 — authored weather (global and regional), on every node
+        world.RegisterComponent<Fdp.Toolkit.Traffic.TrafficDemand>();   // ⭐ AQ93 R-4021 — the scenario's traffic settings, on every node
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();   // ⭐ CE-2152 — a person type that carries / drags a casualty
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsAssistingTag>();   // ⭐ T-a (R-2017) — a team carry's second man
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();   // I-2c (R-271) — the open-cabin vehicle type
+        // ⭐⭐ The transient-spawn tag (R-140 D2): NetworkSpawningSystem.ProcessSpawn stamps it on EVERY node that materialises a
+        //   transient entity — a door entity (5b, transient: the terrain recreates it), an IG sketch. 🔴 It was registered by no
+        //   host, only by the rails (each registers it itself), so the first door spawned in a cluster threw "ScenarioIgnoreTag is
+        //   not registered" in CGF's kernel and killed the process (found by the bt-doors live run, 2026-10-08).
+        world.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();
 
         // ── Shared managed definitions ────────────────────────────────────────
         world.RegisterComponent<VisualData>();
+        world.RegisterComponent<EntityAppearance>();   // ⭐ CE-1033 S5c — the body colour, stamped beside VisualData from the same TKB visual
         world.RegisterManagedComponent<SimCombatDef>();
         world.RegisterManagedComponent<TkbCompositionDef>();
 
@@ -63,36 +217,139 @@ public static class HrotSharedComponentRegistry
         // PendingAuthorityGrants: pre-genesis routing intent (Muscle role).
         world.RegisterManagedComponent<DescriptorOwnership>();
         world.RegisterManagedComponent<PendingAuthorityGrants>();
+        world.RegisterManagedComponent<OutgoingGrantsPending>();   // S5: the creator's unconfirmed grants (F7 window)
+        world.RegisterManagedComponent<NetworkAckPeerSet>();   // CE-283: reliable-init barrier peer set
 
         // ── Lifecycle events (network entity construction / destruction) ──────
         world.RegisterEvent<ConstructionOrder>();
         world.RegisterEvent<ConstructionAck>();
         world.RegisterEvent<DestructionOrder>();
         world.RegisterEvent<DestructionAck>();
+        world.RegisterEvent<EntityConstructionCompleted>();   // ⭐ AQ107 — the generic lifecycle notifications (§3.4e)
+        world.RegisterEvent<EntityDestructionCompleted>();
 
         // ── Combat ────────────────────────────────────────────────────────────
         // Health is shared so Brain, Muscle, and IG all materialise the same
         // unmanaged struct layout when applying a TKB template.
         world.RegisterComponent<Health>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.MobilityKill>(); // CE-3092 — the TKB mobility-kill opt-in
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>(); // ⭐ CE-2155 — a type's injury band (Gen.Injury), stamped on every node
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.BleedOut>();         // ⭐ R-3039 S1 — the bleed gathered between steps (BleedOutSystem)
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.CoverClaim>();   // CE-3158 G5 — squad-mates keep off each other's cover
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>();   // AQ89 B (R-269) — bravery / obedience; the editor saves it too
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatProficiency>();   // ⭐ CE-2273 DA-A — what he CAN do; the hit model reads it where fire resolves
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.SkillAmplifier>();   // ⭐ macros S3b B3 (SR-100) — the per-side amplifier, on the World Environment
+        // ⭐⭐ CE-3268 — a man's / a commander's sector (CE-2282 DA-L), replicated by its owner (dtEngagementArea, CE-3261) ⇒ every node takes it.
+        //   🔴 It was registered only by the brain's cognitive registry: SimHost crashed on the first sector order (measured live, 2026-10-19).
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.EngagementArea>();
 
         // ── Application-layer events ──────────────────────────────────────────
         world.RegisterEvent<FireInteractionEvent>();
         world.RegisterManagedEvent<AdvanceFrameIntent>();
         world.RegisterManagedEvent<FrameStepCompletedEvent>();
         world.RegisterManagedEvent<PauseTimeIntent>();
+        world.RegisterManagedEvent<SnapTimeIntent>();
+        world.RegisterManagedEvent<JumpTimeIntent>();   // ⭐ CE-3329 R4
         world.RegisterManagedEvent<ResumeTimeIntent>();
         world.RegisterManagedEvent<StepTimeIntent>();
         world.RegisterManagedEvent<SetTimeScaleIntent>();
         world.RegisterManagedEvent<SlaveNodeSetUpdatedEvent>();
         world.RegisterManagedEvent<SpawnEntityCommand>();
+        world.RegisterManagedEvent<EntityCreationRequest>();   // ⭐ CE-3228 — the creation request, published on the bus by every local author
         world.RegisterManagedEvent<UpdateEntityCommand>();
         world.RegisterManagedEvent<DestroyEntityCommand>();
         world.RegisterManagedEvent<DeferredTakeOwnershipCommand>();
+        world.RegisterManagedEvent<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>();   // CE-276
         world.RegisterEvent<SwitchTimeModeEvent>();
-        world.RegisterEvent<TimeSyncRequest>();
-        world.RegisterEvent<TimeSyncResponse>();
+        world.RegisterEvent<TimeSyncProbeEvent>();   // CE-4208: the wire TimeSyncRequest/Response never ride the bus
         world.RegisterEvent<TimeSyncOffsetCalculatedEvent>();
         world.RegisterEvent<Fdp.Toolkit.Replication.Components.DescriptorAuthorityChanged>();
         world.RegisterManagedEvent<Fdp.Toolkit.Replication.Events.UpdateEntityAttributeCommand>();
+        world.RegisterManagedEvent<Fdp.Toolkit.Replication.Edits.EditOutcome>();   // ⭐ CE-2380 part 1 — the outcome of a remote edit (EditOutcomes.Report / the wire ingress)
+
+        // ── Ownership handover bus contract ───────────────────────────────────
+        // ⭐⭐⭐ ADDED 2026-09-04 after a MEASURED live cluster failure: a `--mode all` run loaded
+        //    hill-attack (8 entities, OperatingLive), ran 50 s of sim time, and NOTHING MOVED.
+        //    The run log carried, on every frame:
+        //      "Strict Mode Violation: Unmanaged event type 'OwnershipUpdate' (ID: 9030) was
+        //       published without being explicitly registered."
+        //      at DeferredTakeoverSystem.ExecuteTakeover(...) DeferredTakeoverSystem.cs:125
+        //
+        // 📐 THE DAMAGE IS WORSE THAN A DROPPED EVENT, because the throw lands MID-METHOD:
+        //      2a  SetAuthority(entity, componentId, true)        ✅ applied
+        //      2b  Bus.Publish(new OwnershipUpdate{...})          🔴 THROWS  (:125)
+        //      3   SetManagedComponent(entity, ownership)         ⛔ never runs
+        //      4   RemoveManagedComponent<PendingAuthorityGrants> ⛔ never runs
+        //    ⇒ the Muscle claims raw authority bits but never records DescriptorOwnership, the
+        //    transient grant is never stripped so the system retries forever, and the Brain never
+        //    receives the yield so it never drops ITS bits. Measured on the live cluster: entity
+        //    1000 read HasAuthority=true/PrimaryOwnerId=400 on CGF and PrimaryOwnerId=-1 on
+        //    SimHost — the Muscle that integrates kinematics had no ownership, so nothing moved.
+        // 📄 docs/HROT architecture.md §444, §508-512 describe this handshake in five steps and
+        //    name step 5 "Symmetrical Yield ... publishes an OwnershipUpdate ... the Brain's
+        //    OwnershipIngressSystem ... drops its local authority bits". Step 5 never ran in
+        //    production. Searched docs/ and .dev/ for a record that the handover is deliberately
+        //    disabled — none found; user confirmed 2026-09-04 that it is not.
+        //
+        // ⚠⚠ THE LINE DIRECTLY ABOVE IS NOT THIS ONE — and that near-miss is why this was invisible.
+        //    There are TWO distinct types named DescriptorAuthorityChanged:
+        //      · Replication.Components.DescriptorAuthorityChanged  EventId 9010  — registered above,
+        //        and no production code publishes it;
+        //      · Replication.Messages.DescriptorAuthorityChanged    EventId 9031  — published by
+        //        OwnershipIngressSystem:87, and registered NOWHERE until now.
+        //    ⛔ The Components one is deliberately LEFT REGISTERED rather than deleted: it is
+        //    registered-and-unpublished, which is dormant, not harmful, and "unreferenced is not
+        //    unintentional" — removing it is a separate call with its own evidence.
+        //
+        // ⭐ Home chosen to match CE-161's fix exactly: the registration goes on the ONE Hrot-wide
+        //    path all four node bootstrappers already call, not into four host registries where it
+        //    would be four fresh chances to forget. Both publishers (DeferredTakeoverSystem and
+        //    OwnershipEgressSystem) and the consumer (OwnershipIngressSystem) are thereby served on
+        //    every node, which is what R-138's "nodes should be equal" requires.
+        world.RegisterEvent<Fdp.Toolkit.Replication.Messages.OwnershipUpdate>();
+        world.RegisterEvent<Fdp.Toolkit.Replication.Messages.NodeDeparted>();   // S7: a cluster node left (R-167 reclaim)
+        world.RegisterEvent<Fdp.Toolkit.Replication.Messages.DescriptorAuthorityChanged>();
+        world.RegisterEvent<Fdp.Toolkit.Replication.Messages.DescriptorHandedOver>();   // CE-4079 ②: the F7 giver releases its writer's instance
+
+        // ── Blueprint blackboard tiers ────────────────────────────────────────
+        // ⭐⭐⭐ ADDED 2026-09-03 after a MEASURED production crash: a `--mode all` cluster aborted on
+        //    its first live scenario load with
+        //      "Component BlueprintBlackboard1024 is not registered"
+        //    from BehaviorIngressSystem.ProvisionStatefulSlots, on CGF.
+        //
+        // 📐 BehaviorIngressSystem provisions these tiers and MissionControlModule schedules it, but the
+        //    only code that REGISTERED them was Hrot.Blueprints.Editor's BlueprintRuntimeWiring, whose
+        //    sole production caller is the Editor. ⇒ CGF scheduled the system and never registered its
+        //    precondition. Three of the four node bootstrappers were missing it.
+        //
+        // ⭐ The tier LIST lives with the tier TYPES (Fdp.Toolkits, the same assembly as the system that
+        //    needs them); this registry is the one Hrot-wide call site, so no node can be missing it.
+        //    ⛔ Deliberately NOT a line added to CgfComponentRegistry — that would be a fourth chance to
+        //    forget, which is exactly how this arose.
+        // 📄 docs/DESIGN_Entity_Creation_Unification.md §2.3b.
+        Fdp.Toolkit.Blueprints.Components.BlueprintBlackboardTiers.RegisterAll(world);
+
+        // ── Squad cognitive state (O1, 2026-09-20) ────────────────────────────
+        // ⭐⭐ REGISTERED HERE FOR THE SAME REASON THE TIERS ARE (CE-161): UnitHierarchySystem now
+        //    ADDS this component when an entity becomes a commander, and that system runs on every
+        //    node. A per-host registration would be a per-host chance to forget — which is exactly
+        //    how CE-161's "Component BlueprintBlackboard1024 is not registered" crash on CGF arose.
+        // ⚠ Registration is not allocation: it creates table metadata, and the 1024 bytes only
+        //    materialise on an entity that actually becomes a commander.
+        world.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
+        // ⭐ R-3039 S1 — the squad sense's memory (SquadSenseChanges), on the man and the commander, beside the squad state it reads.
+        world.RegisterComponent<Fdp.Toolkit.Squad.SquadMemberSense>();
+        world.RegisterComponent<Fdp.Toolkit.Squad.SquadUnitSense>();
+        // ⭐ CE-2125 (R-272) — a unit is not a body (the TKB translator stamps it on every node) and its leadership (CGF).
+        world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+        world.RegisterComponent<Fdp.Toolkit.Perception.MapGraphic>();   // ⭐ CE-2324 — a map graphic is not a body (TKB-stamped, like UnitEntity)
+        world.RegisterComponent<Fdp.Toolkit.Squad.SquadLeadership>();
+
+        // ── Brain interrupts (O2, 2026-09-20) ─────────────────────────────────
+        // ⭐ The entity-fact half of the BrainBlackboard split. Registered on the same Hrot-wide path
+        //   as the tiers and the squad state, for the same CE-161 reason: BehaviorTkbTranslator adds
+        //   it on every node that spawns a brain entity, so a per-host registration would be a
+        //   per-host chance to forget.
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainInterrupts>();
     }
 }

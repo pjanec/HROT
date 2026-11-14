@@ -157,6 +157,21 @@ internal static class PickerItemListHelper
         return result;
     }
 
+    /// <summary>⭐ CE-4330 — one chip: a rounded pill in its key's colour (faint fill), the glyph and the label; returns its width.</summary>
+    internal static float DrawChip(ImDrawListPtr dl, PickerChip chip, Vector2 at, float height)
+    {
+        var glyph = Core.Widgets.Icons.Get(chip.IconKey);
+        var col = glyph.Color;
+        float gw = ImGui.CalcTextSize(glyph.Glyph).X;
+        float lw = ImGui.CalcTextSize(chip.Label).X;
+        float w = 6f + gw + 4f + lw + 7f;
+        dl.AddRectFilled(at, at + new Vector2(w, height), ImGui.GetColorU32(col with { W = 0.16f }), height * 0.5f);
+        float ty = at.Y + (height - ImGui.GetTextLineHeight()) * 0.5f;
+        dl.AddText(new Vector2(at.X + 6f, ty), ImGui.GetColorU32(col), glyph.Glyph);
+        dl.AddText(new Vector2(at.X + 6f + gw + 4f, ty), ImGui.GetColorU32(col), chip.Label);
+        return w;
+    }
+
     private static void DrawRow(PickerState state, IPickerRenderContext ctx, int filteredIdx, RankedEntry re)
     {
         bool isChecked = state.SelectedFilteredIndices.Contains(filteredIdx);
@@ -228,7 +243,10 @@ internal static class PickerItemListHelper
 
         // Render display name with match highlights
         float textY = pos.Y + (size.Y - ImGui.GetTextLineHeight()) * 0.5f;
-        uint defaultTextColor = chunkMatched ? ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f)) : ImGui.GetColorU32(ctx.Theme.TextDefault);
+        // A disabled entry is dimmed (PickerEntry.IsEnabled); Confirm() never returns it.
+        uint defaultTextColor = !re.Entry.IsEnabled
+            ? ImGui.GetColorU32(ctx.Theme.TextDefault with { W = 0.45f })
+            : chunkMatched ? ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f)) : ImGui.GetColorU32(ctx.Theme.TextDefault);
         uint highlightColor   = chunkMatched ? ImGui.GetColorU32(new Vector4(1f, 1f, 0.4f, 1f)) : ImGui.GetColorU32(ctx.Theme.SelectionAccent);
 
         var runs = PickerTextHighlighter.SplitRuns(re.Entry.Name, re.MatchPositions);
@@ -237,6 +255,20 @@ internal static class PickerItemListHelper
             uint color = run.IsMatch ? highlightColor : defaultTextColor;
             dl.AddText(new Vector2(textX, textY), color, run.Text);
             textX += ImGuiNET.ImGui.CalcTextSize(run.Text).X;
+        }
+
+        // ⭐ CE-4330 (Recording Storage §8 ⑤) — the chips after the name, and the hint right-aligned.
+        if (re.Entry.Chips is { Count: > 0 } chips)
+        {
+            textX += 8f;
+            for (int c = 0; c < chips.Count; c++)
+                textX += DrawChip(dl, chips[c], new Vector2(textX, pos.Y + 1f), size.Y - 2f) + 4f;
+        }
+        if (re.Entry.Hint is { Length: > 0 } hint)
+        {
+            float w = ImGui.CalcTextSize(hint).X;
+            float hx = pos.X + size.X - w - 6f;
+            if (hx > textX + 8f) dl.AddText(new Vector2(hx, textY), ImGui.GetColorU32(ctx.Theme.TextMuted), hint);
         }
 
         if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
@@ -310,6 +342,20 @@ internal static class PickerItemListHelper
 
             if (ImGui.MenuItem("Copy ID"))
                 ImGui.SetClipboardText(re.Entry.Id);
+
+            if (re.Entry.Actions is { Count: > 0 } actions)   // ⭐ CE-4330 ⑦ — the entry's own actions
+            {
+                ImGui.Separator();
+                for (int a = 0; a < actions.Count; a++)
+                {
+                    var act = actions[a];
+                    var glyph = Core.Widgets.Icons.Get(act.IconKey);
+                    ImGui.TextColored(glyph.Color, glyph.Glyph);
+                    ImGui.SameLine();
+                    if (ImGui.MenuItem(act.Label, null, false, act.DisabledReason is null)) act.Run();
+                    if (act.DisabledReason is { } why && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(why);
+                }
+            }
 
             ImGui.EndPopup();
         }

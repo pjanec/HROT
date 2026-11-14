@@ -13,8 +13,21 @@ namespace Fhsm.Compiler.Graph
         public string? ActionFunction { get; set; }  // Optional action
         public ushort ActionId { get; set; } // Added for JSON parser support
         
-        public byte Priority { get; set; } = 128;  // Default normal
+        /// <summary>
+        /// 0-255, higher wins among transitions that match the same event. ⭐ CE-395 — defaults to 0, the SAME default the
+        /// editor model and the asset DTO use. ⛔ It was 128 here while the emitter omits a priority of 0 (the editor
+        /// default), so an AUTHORED 0 reached the kernel as 128 and outranked an authored 10.
+        /// </summary>
+        public byte Priority { get; set; }
         public bool IsInternal { get; set; }  // Internal vs External
+
+        /// <summary>
+        /// ⭐⭐ <b>CE-381 — evaluate this transition's guard every quiescent tick, with no event.</b>
+        /// ⛔ Distinct from an eventless (completion) transition, which the RTC loop already selects
+        /// once after another transition fires. 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c>
+        /// §3.1 / §2.3.
+        /// </summary>
+        public bool IsPolled { get; set; }
 
         /// <summary>
         /// Stable identity for editor/visualisation tooling.

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.IO;
 using System.Text.Json;
@@ -10,6 +11,7 @@ using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Replication;
+using Hrot.Map.Common;
 using Hrot.NED.Descriptors.Orchestration;
 using Xunit;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
@@ -34,27 +36,20 @@ public sealed class DistributedScenarioLoadTests : IDisposable
     private static int _domainSeq = DomainBase - 1;
     private static int NextDomainId() => Interlocked.Increment(ref _domainSeq);
 
-    // Offline staging IDs assigned by EditorHarness.SequentialIdAllocator (starts at 1000,
-    // returns _next++ so first entity gets 1000, second gets 1001).
-    private const long OfflineAttackerId = 1000L;
-    private const long OfflineTargetId   = 1001L;
+    // Offline staging IDs, given EXPLICITLY. ⛔ They used to be auto-allocated (1000/1001) — but the live cluster's
+    // allocator also starts at 1000 (deterministic network ids), so offline and live ids coincided and the remap this
+    // test exists to prove could not be observed. Ids outside the live range make the remap visible.
+    private const int OfflineAttackerId = 5000;
+    private const int OfflineTargetId   = 5001;
 
     private readonly string _scenarioId;
-    private readonly string _stagingDir;
 
     public DistributedScenarioLoadTests()
     {
         _scenarioId = "test_dist_load_" + Guid.NewGuid().ToString("N");
-        _stagingDir = Path.Combine(OrchestrationConstants.ResolveStagingRoot(), _scenarioId);
     }
 
-    public void Dispose()
-    {
-        if (Directory.Exists(_stagingDir))
-        {
-            try { Directory.Delete(_stagingDir, recursive: true); } catch { /* best-effort */ }
-        }
-    }
+    public void Dispose() => NasScenarioStaging.Remove(_scenarioId);
 
     /// <summary>
     /// Saves a two-entity scenario (attacker with FireAtTarget mission plan targeting a
@@ -75,7 +70,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
 
         // ── Phase 2: Live cluster boot & injection ────────────────────────────
         int domainId = NextDomainId();
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", domainId);
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", domainId);
 
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
 
@@ -96,7 +91,17 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = JsonSerializer.Serialize(new { TargetState = 31, ScenarioId = _scenarioId }),
+            // ⭐⭐ QA-027 — the enum NAME, not its integer. TransitionPayloadDto's TargetState carries
+            //    [JsonConverter(typeof(StrictStringEnumConverter))] and OrchestrationJsonOptions
+            //    documents itself as rejecting integer enum values "to avoid silent integer-as-enum
+            //    bugs". An int here deserialised to null ⇒ the adapter threw ⇒ ClusterMaster caught it
+            //    into a Warn log ⇒ the cluster silently stayed at state 0.
+            PayloadJson   = JsonSerializer.Serialize(
+                new
+                {
+                    TargetState = nameof(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingLive),
+                    ScenarioId  = _scenarioId,
+                }),
         }).ConfigureAwait(false);
 
         // Pump until the cluster master reaches OperatingLive (state 31).
@@ -117,13 +122,19 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         var cgfWorld = harness.Cgf!.World!;
         Assert.NotNull(cgfWorld);
 
-        // Pump until the CGF world has exactly 2 entities (scenario entities loaded).
+        // Pump until the CGF world has exactly 2 UNITS (scenario entities loaded).
+        // ⭐ CE-3036 (S3): each unit's TKB sensors are CHILD entities (PartMetadata) — counted out, not as units.
         bool entitiesLoaded = harness.PumpUntil(
-            () => cgfWorld.EntityCount == 2,
+            () => CountUnits(cgfWorld) == 2,
             timeoutFrames: 2000);
 
         Assert.True(entitiesLoaded,
-            $"CGF world must contain exactly 2 entities after scenario load. Actual: {cgfWorld.EntityCount}.");
+            $"CGF world must contain exactly 2 units after scenario load. Actual: {CountUnits(cgfWorld)} " +
+            $"({cgfWorld.EntityCount} entities with their part children): {DescribeUnits(cgfWorld)}.");
+
+        // ⭐ CE-4014 — and exactly ONE World Environment (C-3). 📌 Measured 2026-10-18: the scenario's units now materialise once (the
+        //   double load is gone); this test predated C-3 and counted the environment as a third unit.
+        Assert.Equal(1, CountWorldEnvironments(cgfWorld));
 
         // Find the attacker (has ActiveMissionPlan) and target entities.
         Entity attackerEntity = Entity.Null;
@@ -132,7 +143,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         for (int i = 0; i <= cgfWorld.MaxEntityIndex; i++)
         {
             var e = cgfWorld.GetEntityByIndex(i);
-            if (e == Entity.Null || !cgfWorld.IsAlive(e)) continue;
+            if (e == Entity.Null || !cgfWorld.IsAlive(e) || IsPart(cgfWorld, e) || IsWorldEnvironment(cgfWorld, e)) continue;
 
             if (cgfWorld.HasManagedComponent<ActiveMissionPlan>(e))
                 attackerEntity = e;
@@ -148,8 +159,8 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         // Obtain new live network IDs from the CGF ghost entity map.
         var cgfMap = harness.Cgf.GhostEntityMap!;
 
-        bool gotAttackerNetId = cgfMap.TryGetNetworkId(attackerEntity, out long newAttackerId);
-        bool gotTargetNetId   = cgfMap.TryGetNetworkId(targetEntity,   out long newTargetId);
+        bool gotAttackerNetId = cgfMap.TryGetNetworkId(attackerEntity, out int newAttackerId);
+        bool gotTargetNetId   = cgfMap.TryGetNetworkId(targetEntity,   out int newTargetId);
 
         Assert.True(gotAttackerNetId, "Attacker entity must be registered in CGF ghost entity map.");
         Assert.True(gotTargetNetId,   "Target entity must be registered in CGF ghost entity map.");
@@ -176,7 +187,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
 
         // Core success condition: the targetNetworkId in the mission plan must equal the
         // new live network ID of the target entity, NOT the offline staging ID.
-        Assert.Equal(newTargetId, paramsDto!.TargetNetworkId);
+        Assert.Equal(newTargetId, paramsDto!.TargetNetworkId.Ref.NetworkId);   // S9': the GUID resolved to the target's live network id
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -190,21 +201,25 @@ public sealed class DistributedScenarioLoadTests : IDisposable
     {
         using var harness = new EditorHarness();
 
-        // Spawn the attacker (offline ID 1000 from SequentialIdAllocator that starts at 1000).
+        var targetGuid = Guid.NewGuid();
+
+        // Spawn the attacker (offline ID 5000).
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType    = 1L,
-            NetworkId  = 0,  // auto-allocated; first entity gets 1000
-            OwnerNodeId = 0,
+            TkbType    = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),   // ⛔ was 1L — not in the CLUSTER's TKB: CGF rejected both creates
+            NetworkId  = OfflineAttackerId,
+            InitialComponents = new System.Collections.Generic.List<object> { new Fdp.Toolkit.Scenario.EntityGuid(Guid.NewGuid()) },   // CE-3357: a raw spawn skips CreateEntityRequestSystem, the only minter of the save key
+            OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType   = ReliableInitType.None,
         });
 
-        // Spawn the target (offline ID 1001).
+        // Spawn the target (offline ID 5001).
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType    = 1L,
-            NetworkId  = 0,  // auto-allocated; second entity gets 1001
-            OwnerNodeId = 0,
+            TkbType    = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),   // ⛔ was 1L — not in the CLUSTER's TKB: CGF rejected both creates
+            NetworkId  = OfflineTargetId,
+            InitialComponents = new System.Collections.Generic.List<object> { new Fdp.Toolkit.Scenario.EntityGuid(targetGuid) },
+            OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType   = ReliableInitType.None,
         });
 
@@ -219,7 +234,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
 
         // Build the ActiveMissionPlan with a FireAtTarget task referencing the target.
         var behaviorParams = JsonSerializer.Serialize(
-            new { targetNetworkId = OfflineTargetId, maxRounds = 5, cooldownSeconds = 1.0 });
+            new { targetNetworkId = targetGuid.ToString("D"), maxRounds = 5, cooldownSeconds = 1.0 });   // S9': the target is named by its GUID (Exact), never by a network id
 
         var missionPlan = new ActiveMissionPlan
         {
@@ -240,11 +255,17 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         };
 
         harness.Repo.SetManagedComponent(attackerEntity, missionPlan);
+        // ⭐ Its runtime queue too — production never has one without the other (MissionControlExecutionSystem adds the
+        //   queue when it assigns a plan; BehaviorTkbTranslator at spawn), and MissionPlanTranslator saves them as a pair.
+        if (!harness.Repo.HasComponent<MissionPlanQueue>(attackerEntity))
+            harness.Repo.AddComponent(attackerEntity, new MissionPlanQueue());
 
         // Pump a couple of frames so the component assignment is flushed.
         harness.PumpFrames(2);
 
-        harness.Editor.SaveScenarioAs(_scenarioId);
+        // ⭐ Stage the authored scenario where the cluster loads it from. ⛔ Not harness.Editor.SaveScenarioAs: since the
+        //   distributed save it writes no file — it publishes a storage request that only a cluster serves (NasScenarioStaging).
+        NasScenarioStaging.Write(harness.FileService, harness.Repo, _scenarioId);
     }
 
     // ── Private DTO for assertion ─────────────────────────────────────────────
@@ -252,6 +273,54 @@ public sealed class DistributedScenarioLoadTests : IDisposable
     private sealed class FireAtTargetParamsDto
     {
         [JsonPropertyName("targetNetworkId")]
-        public long TargetNetworkId { get; set; }
+        public Fdp.Toolkit.Replication.EntityLink TargetNetworkId { get; set; }
+    }
+
+    private static bool IsPart(EntityRepository w, Entity e)
+        => w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()
+           && w.HasComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(e);
+
+    /// <summary>⭐ CE-4014 — the scenario's World Environment (8810): every load has exactly one (docs/designs/weather/DESIGN_Weather_And_Time.md
+    /// C-3 — a scenario with none gets a default at load). It is not a unit.</summary>
+    private static bool IsWorldEnvironment(EntityRepository w, Entity e)
+        => w.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(e)
+           && w.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType == Hrot.Map.Common.TkbEntityTypes.WorldEnvironment;
+
+    private static int CountWorldEnvironments(EntityRepository w)
+    {
+        int n = 0;
+        for (int i = 0; i <= w.MaxEntityIndex; i++)
+        {
+            var e = w.GetEntityByIndex(i);
+            if (e != Entity.Null && w.IsAlive(e) && IsWorldEnvironment(w, e)) n++;
+        }
+        return n;
+    }
+
+    /// <summary>The units found, by TKB type and network id — so a wrong count names the extra one.</summary>
+    private static string DescribeUnits(EntityRepository w)
+    {
+        var parts = new List<string>();
+        for (int i = 0; i <= w.MaxEntityIndex; i++)
+        {
+            var e = w.GetEntityByIndex(i);
+            if (e == Entity.Null || !w.IsAlive(e) || IsPart(w, e)) continue;
+            string tkb = w.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(e) ? w.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType.ToString() : "-";
+            string net = w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
+                ? w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value.ToString() : "-";
+            parts.Add($"[tkb {tkb} net {net}]");
+        }
+        return string.Join(" ", parts);
+    }
+
+    private static int CountUnits(EntityRepository w)
+    {
+        int n = 0;
+        for (int i = 0; i <= w.MaxEntityIndex; i++)
+        {
+            var e = w.GetEntityByIndex(i);
+            if (e != Entity.Null && w.IsAlive(e) && !IsPart(w, e) && !IsWorldEnvironment(w, e)) n++;
+        }
+        return n;
     }
 }

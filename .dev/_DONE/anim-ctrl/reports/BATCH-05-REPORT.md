@@ -112,7 +112,7 @@ Successfully implemented the remaining Phase 3 systems and reactor extension:
 
 ✅ **Build Status:**
 - `Hrot.MuscleCharacter.Animation` — clean (0 errors, 0 warnings)
-- Full solution `IOS-IG-SimHost.sln` — clean (0 errors, 0 warnings)
+- Full solution `HROT.sln` — clean (0 errors, 0 warnings)
 
 ✅ **Test Results:**
 - 111 tests passing (39 new since BATCH-04)

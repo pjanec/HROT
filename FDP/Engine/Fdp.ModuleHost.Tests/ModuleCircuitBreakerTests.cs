@@ -215,6 +215,27 @@ namespace Fdp.ModuleHost.Tests
                 finalState == CircuitState.HalfOpen,
                 $"Circuit in unexpected state: {finalState}");
         }
+        /// <summary>
+        /// ⭐ CE-3032 — every state change is REPORTED, once: opening (with the last reason), the half-open probe and the
+        /// recovery. 🔴 An open circuit used to skip the module silently for the whole reset timeout.
+        /// </summary>
+        [Fact]
+        public void CircuitBreaker_ReportsEachTransitionOnce_CE3032()
+        {
+            var breaker = new ModuleCircuitBreaker(failureThreshold: 2, resetTimeoutMs: 1);
+            var seen = new System.Collections.Generic.List<string>();
+            breaker.StateChanged = (from, to, why) => seen.Add($"{from}->{to}:{why}");
+
+            breaker.RecordFailure("Timeout");
+            Assert.Empty(seen);                                   // below the threshold: nothing to report
+            breaker.RecordFailure("Timeout");
+            breaker.RecordFailure("Timeout");                     // already open: no second report
+            Assert.Equal(new[] { "Closed->Open:Timeout" }, seen);
+
+            Thread.Sleep(5);
+            Assert.True(breaker.CanRun());                        // the probe run
+            breaker.RecordSuccess();
+            Assert.Equal(new[] { "Closed->Open:Timeout", "Open->HalfOpen:reset timeout elapsed", "HalfOpen->Closed:recovered" }, seen);
+        }
     }
 }
-

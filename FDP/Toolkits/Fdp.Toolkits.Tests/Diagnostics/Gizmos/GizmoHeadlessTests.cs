@@ -87,6 +87,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
     }
 
     // IEcsModuleSystem stub that counts Execute calls.
+    [TickMode(TickPolicy.EveryFrame)]
     internal sealed class CountingSystem : IEcsModuleSystem
     {
         public int ExecuteCount { get; private set; }
@@ -341,8 +342,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var draw      = MakeBuffer();
             var dto       = new SimpleHeadlessDto { Value = 7 };
 
-            projector.EmitAndSync(draw, 100L, 1u, dto);
-            projector.EmitAndSync(draw, 100L, 1u, dto);
+            projector.EmitAndSync(draw, 100, 1u, dto);
+            projector.EmitAndSync(draw, 100, 1u, dto);
 
             Assert.Single(publisher.Published);
         }
@@ -357,10 +358,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var draw      = MakeBuffer();
             var dto       = new SimpleHeadlessDto { Value = 7 };
 
-            projector.EmitAndSync(draw, 100L, 1u, dto);
+            projector.EmitAndSync(draw, 100, 1u, dto);
 
             dto.Value = 99;
-            projector.EmitAndSync(draw, 100L, 1u, dto);
+            projector.EmitAndSync(draw, 100, 1u, dto);
 
             Assert.Equal(2, publisher.Published.Count);
         }
@@ -376,7 +377,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var dto       = new SimpleHeadlessDto { Value = 7 };
 
             // First emit publishes the initial state.
-            projector.EmitAndSync(draw, 100L, 1u, dto);
+            projector.EmitAndSync(draw, 100, 1u, dto);
             int countAfterFirst = publisher.Published.Count;
 
             // Build JSON payload by round-tripping through the edit service.
@@ -387,7 +388,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             projector.ApplyUpdate(payloadJson, ref dto);
 
             // Emit again with the same (unchanged) DTO — should NOT publish.
-            projector.EmitAndSync(draw, 100L, 1u, dto);
+            projector.EmitAndSync(draw, 100, 1u, dto);
 
             Assert.Equal(countAfterFirst, publisher.Published.Count);
         }
@@ -402,7 +403,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var dto       = new SimpleHeadlessDto { Value = 3 };
 
             var countBefore = draw.Count;
-            projector.EmitAndSync(draw, 100L, 1u, dto);
+            projector.EmitAndSync(draw, 100, 1u, dto);
 
             Assert.True(draw.Count > countBefore);
         }
@@ -549,8 +550,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
     internal sealed class StubNetworkFactory : IGizmoNetworkFactory
     {
         public DdsParticipant? Participant => null;
-        public IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buffer, long localNodeId) => null;
-        public IReadOnlyList<INetworkTranslator> CreateGizmoTranslators(FdpEventBus interactionBus, long localNodeId, bool headless)
+        public IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buffer, int localNodeId) => null;
+        public IReadOnlyList<INetworkTranslator> CreateGizmoTranslators(FdpEventBus interactionBus, int localNodeId, bool headless)
             => Array.Empty<INetworkTranslator>();
     }
 
@@ -639,7 +640,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             Assert.Equal(0, ctrl.ListenerCount);
 
-            using var module = new GizmoNetworkTransportModule(ctrl, hub, factory, buffer, 1L, bus);
+            using var module = new GizmoNetworkTransportModule(ctrl, hub, factory, buffer, 1, bus);
 
             Assert.Equal(0, ctrl.ListenerCount);
 
@@ -657,15 +658,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var buffer      = new DebugPrimitiveBuffer();
             var bus         = new FdpEventBus();
 
-            using var module = new GizmoNetworkTransportModule(ctrl, hub, factory, buffer, 1L, bus);
+            using var module = new GizmoNetworkTransportModule(ctrl, hub, factory, buffer, 1, bus);
 
-            module.Tracker.OnSample(1L, isAlive: true);
+            module.Tracker.OnSample(1, isAlive: true);
             Assert.Equal(1, ctrl.ListenerCount);
 
-            module.Tracker.OnSample(2L, isAlive: true);
+            module.Tracker.OnSample(2, isAlive: true);
             Assert.Equal(2, ctrl.ListenerCount);
 
-            module.Tracker.OnSample(1L, isAlive: false);
+            module.Tracker.OnSample(1, isAlive: false);
             Assert.Equal(1, ctrl.ListenerCount);
         }
     }
@@ -680,7 +681,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         {
             var (ctrl, hub) = GizmoTestHelpers.MakeControllerAndHub();
             var bus         = new FdpEventBus();
-            var module      = new GizmoNetworkTransportModule(ctrl, hub, new StubNetworkFactory(), new DebugPrimitiveBuffer(), 99L, bus);
+            var module      = new GizmoNetworkTransportModule(ctrl, hub, new StubNetworkFactory(), new DebugPrimitiveBuffer(), 99, bus);
             return (module, ctrl, bus);
         }
 
@@ -691,7 +692,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var (module, ctrl, bus) = MakeModule();
             using (module)
             {
-                module.Tracker.OnSample(42L, isAlive: true);
+                module.Tracker.OnSample(42, isAlive: true);
                 bus.SwapBuffers();
 
                 var events = bus.ReadManaged<TerminalConnectedEvent>();
@@ -708,11 +709,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var (module, ctrl, bus) = MakeModule();
             using (module)
             {
-                module.Tracker.OnSample(42L, isAlive: true);
+                module.Tracker.OnSample(42, isAlive: true);
                 bus.SwapBuffers();
                 bus.ReadManaged<TerminalConnectedEvent>(); // drain
 
-                module.Tracker.OnSample(42L, isAlive: false);
+                module.Tracker.OnSample(42, isAlive: false);
                 bus.SwapBuffers();
 
                 var events = bus.ReadManaged<TerminalDisconnectedEvent>();
@@ -729,7 +730,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var (module, ctrl, bus) = MakeModule();
             using (module)
             {
-                module.Tracker.OnSample(999L, isAlive: false);
+                module.Tracker.OnSample(999, isAlive: false);
                 bus.SwapBuffers();
 
                 var events = bus.ReadManaged<TerminalDisconnectedEvent>();
@@ -745,8 +746,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var (module, ctrl, bus) = MakeModule();
             using (module)
             {
-                module.Tracker.OnSample(99L, isAlive: true);
-                module.Tracker.OnSample(99L, isAlive: true);
+                module.Tracker.OnSample(99, isAlive: true);
+                module.Tracker.OnSample(99, isAlive: true);
 
                 Assert.Equal(1, ctrl.ListenerCount);
             }

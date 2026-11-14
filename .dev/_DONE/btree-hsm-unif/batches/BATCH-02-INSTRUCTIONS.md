@@ -40,7 +40,7 @@ Before touching any SourceGen files, study these existing source generators clos
 
 - `dotnet test FDP/ExtDeps/FastBTree/tests/Fbt.Tests/Fbt.Tests.csproj`
 - `dotnet test FDP/ExtDeps/FastHSM/tests/Fhsm.Tests/Fhsm.Tests.csproj`
-- `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet`
+- `dotnet build HROT.sln --no-restore -v quiet`
 
 ### Report Submission
 
@@ -286,7 +286,7 @@ Add a channel-safety validation pass called from `HsmCompiler.Compile()` after t
 - [ ] BHU-012: `Fbt.SourceGen` extended; compound-key adapters generated; offset resolution correct; three diagnostic IDs; hash cross-check passes
 - [ ] BHU-013: `Fhsm.SourceGen` extended; HSM guard/action thunks generated; `bridge->WorldHandle` used; hash equals BHU-012; ECS constraint comment present
 - [ ] BHU-014: BTree failure wrappers; HSM exit-cleanup thunks + `RequiredExitCleanups` dict; validator enforces exit cleanup; all runtime tests pass
-- [ ] `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet` — zero `error CS` lines
+- [ ] `dotnet build HROT.sln --no-restore -v quiet` — zero `error CS` lines
 
 ---
 

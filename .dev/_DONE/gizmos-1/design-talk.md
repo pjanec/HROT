@@ -840,7 +840,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
 
 ----------------
 
-Moving ephemeral presentation state entirely out of the ECS simulation components is the exact right architectural instinct. Storing debug-only interaction state inside simulation components violates the separation of concerns, risks cross-thread race conditions, and forces us to add explicit `DataPolicy.NoSave` and `DataPolicy.NoRecord` guards to keep the debug state from polluting the network and serialization pipelines. 
+Moving ephemeral presentation state entirely out of the ECS simulation components is the exact right architectural instinct. Storing debug-only interaction state inside simulation components violates the separation of concerns, risks cross-thread race conditions, and forces us to add explicit `DataPolicy.NoScenario` and `DataPolicy.NoReplay` guards to keep the debug state from polluting the network and serialization pipelines. 
 
 Your proposed design—a single registry that tracks stateful, memory-only gizmo instances tied to the lifecycle of behaviors—is a highly elegant solution. To implement this while adhering to the engine's strict performance and zero-allocation standards on the hot path, we should combine a centralized registry with the engine's existing event-driven lifecycle patterns.
 

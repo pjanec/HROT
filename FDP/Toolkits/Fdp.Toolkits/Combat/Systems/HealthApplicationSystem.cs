@@ -4,6 +4,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 
 namespace Fdp.Toolkit.Combat.Systems
@@ -21,20 +22,72 @@ namespace Fdp.Toolkit.Combat.Systems
     ///
     /// <para>
     /// <b>On reaching 0 HP:</b> <see cref="ActorCapabilities.CanMove"/> and
-    /// <see cref="ActorCapabilities.CanShoot"/> are cleared so that downstream systems
-    /// (e.g. <c>HsmDamageBridgeSystem</c>) can detect the mobility kill.  Entity destruction
-    /// is deferred to a separate workstream task.
+    /// <see cref="ActorCapabilities.CanShoot"/> are cleared so downstream systems
+    /// (e.g. <c>HsmDamageBridgeSystem</c>) detect the kill. ⛔ <b>The entity is NOT destroyed — a dead
+    /// body stays in the world.</b>
     /// </para>
+    ///
+    /// <para>⚠⚠ <b><c>CE-267</c> WAS REVERTED HERE (<c>2026-09-13</c>).</b> 🔒 User ruling: <i>"dead entity
+    /// should not vanish, it should stay dead in the world, every entity (no magic dead body vanishing)."</i>
+    /// An earlier version published a <c>DestroyEntityCommand</c> at 0 HP so that downstream
+    /// <c>!world.IsAlive(target)</c> checks (<c>AimAndFireExecutor</c>; formerly <c>Action_AimAndFireSpecific</c>, retired by <c>CE-2230</c>)
+    /// would come true. ⛔ That conflated two different concepts: <c>IsAlive</c> is an ECS-EXISTENCE
+    /// predicate (does the entity handle exist?), NOT a combat-death one. Deleting the body to satisfy an
+    /// existence check was the wrong fix. <b>Combat-death is the STATE <c>Health.Current &lt;= 0</c></b>
+    /// (+ capabilities stripped), which the target now carries while REMAINING in the world — the same
+    /// convention the target-finding EQS already uses (<c>AreaQuerySolverSystem</c>, which skips
+    /// <c>Health.Current &lt;= 0</c>). ⚠ The distributed-death defect CE-267 was meant to fix is real and
+    /// is being chased on its own terms, not by removing the corpse.</para>
     ///
     /// <para>
     /// <b>Execution phase:</b> <see cref="SimulationSystemGroup"/>.
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class HealthApplicationSystem : IEcsModuleSystem
     {
+        private EntityQuery? _bodies;
+
         public HealthApplicationSystem()
         {
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2367</c> (AQ102 S6) — a man DEAD or INCAPACITATED by his Health (<see cref="Injury.StateOf(ISimulationView, Entity)"/>) who
+        /// still holds <c>CanMove</c> or <c>CanShoot</c> loses them here, on the node that owns his Health, at the head of the frame — the
+        /// same rule a killing hit applies (<see cref="CombatLife.ApplyHitCapabilities"/>). 📐 Measured live (<c>rf-pinned-in-open</c>): three
+        /// squad mates authored with Health 0 fired ~200 rounds at the window from where they lay — the rule ran only on a HIT, so a body
+        /// that was never hit (a scenario's dead, a debug-API edit) kept fighting.
+        /// </summary>
+        private void StopTheDown(EntityRepository repo)
+        {
+            if (!repo.IsComponentTypeRegistered<Health>() || !repo.IsComponentTypeRegistered<ActorCapabilityState>()) return;
+            _bodies ??= repo.Query().With<Health>().With<ActorCapabilityState>().Build();
+            foreach (var e in _bodies)
+            {
+                if ((repo.GetComponentRO<ActorCapabilityState>(e).Capabilities & (ActorCapabilities.CanMove | ActorCapabilities.CanShoot)) == 0) continue;
+                ref readonly var health = ref repo.GetComponentRO<Health>(e);
+                if (Injury.StateOf(repo, e, in health) < InjuryState.Incapacitated || !HealthOwnership.AppliesHere(repo, e)) continue;
+                CombatLife.ApplyHitCapabilities(repo, e, in health);
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>R-2085</c> (user, `2026-11-09`: <i>"non-lethal hit never kills, just incapacitates"</i>) — the lowest health a hit of
+        /// <paramref name="effect"/> may leave: a KINETIC hit 0; a NON-LETHAL one (a baton blow or round, a stone, a stun or gas grenade, a shove)
+        /// never below the man's incapacitation line (<see cref="InjuryThresholds.IncapacitatedBelow"/>; a body with no thresholds: 1 % of its
+        /// health), so blows add up to "badly wounded" and the hit's own effect (knocked down, stunned) puts him out of action — ⛔ never dead,
+        /// and never into the incapacitated band <c>BleedOutSystem</c> drains to death. A man already below it (a lethal wound) loses nothing.
+        /// 📐 Live <c>ua-civ-escalation</c> (CE-4124): the Instigator was beaten to death by baton blows of 25.
+        /// </summary>
+        public static float NonLethalFloor(EntityRepository repo, Entity entity, in Health health, HitEffect effect)
+        {
+            if (effect == HitEffect.Kinetic) return 0f;
+            float line = repo.IsComponentTypeRegistered<InjuryThresholds>() && repo.HasComponent<InjuryThresholds>(entity)
+                ? repo.GetComponentRO<InjuryThresholds>(entity).IncapacitatedBelow * health.Max
+                : 0.01f * health.Max;
+            return MathF.Min(health.Current, MathF.Max(line, 0.01f * health.Max));
         }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -44,7 +97,10 @@ namespace Fdp.Toolkit.Combat.Systems
                     $"{nameof(HealthApplicationSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            var events = repo.Bus.Read<DamageAssessedEvent>();
+            // ⭐ CE-2367 — death always stops, however he got there (an authored body, an edited Health): see StopTheDown
+            StopTheDown(repo);
+
+            var events = repo.ReadEvents<DamageAssessedEvent>();
             if (events.Length == 0) return;
 
             for (int i = 0; i < events.Length; i++)
@@ -53,39 +109,69 @@ namespace Fdp.Toolkit.Combat.Systems
 
                 var targetEntity = evt.HitEntity;
 
-                // Skip if entity is no longer alive.
-                if (!repo.IsAlive(targetEntity))
+                // Authority gate: only the node that CLAIMS Health applies it. ⭐ CE-523 (S8): Health is in the Brain
+                //   group, so its claim follows the group's grant — an entity SimHost or IG created has its Brain group
+                //   (Health with it) on CGF while the ENTITY's primary owner stays the creator. The old entity-level
+                //   test (NetworkAuthority.HasAuthority) was false there and the damage was dropped on every node.
+                //   With no NetworkAuthority (no network) this node owns everything.
+                //   📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S8.
+                //   ⭐ CE-3246 — the rule (alive, has Health here, claims it) is HealthOwnership.AppliesHere, the ONE body the hit egress reads
+                //   too: it sends exactly the hits this node does not apply, so a hit is applied once, by its owner (BS-1 §6.4a).
+                if (!HealthOwnership.AppliesHere(repo, targetEntity))
                     continue;
 
-                // Authority gate: only the owning node applies health changes.
-                if (repo.HasComponent<NetworkAuthority>(targetEntity))
-                {
-                    ref readonly var auth = ref repo.GetComponentRO<NetworkAuthority>(targetEntity);
-                    if (!auth.HasAuthority) continue;
-                }
-
-                // Require a Health component to be present.
-                if (!repo.HasComponent<Health>(targetEntity))
-                    continue;
+                // ⭐ CE-3364 — was he in the fight before this hit? (the ONE kill authority: ManDowned.PublishIfDowned below)
+                bool before = ManDowned.Before(repo, targetEntity);
 
                 // Apply damage with a floor of 0.
                 ref var health = ref repo.GetComponentRW<Health>(targetEntity);
-                health.Current = MathF.Max(0f, health.Current - evt.TotalDamage);
+                health.Current = MathF.Max(NonLethalFloor(repo, targetEntity, in health, evt.Effect), health.Current - evt.TotalDamage);
 
-                // At zero HP: strip mobility and shoot capabilities.
-                if (health.Current <= 0f && repo.HasComponent<ActorCapabilityState>(targetEntity))
+                // ⭐⭐ CE-3210 (hit location HL-6) — the part it landed on keeps a damage level (its share of the body's health × 255),
+                //   beside Health, written by the same owner: a man's wounds (S2: a vehicle's compartments). Added on the first part hit.
+                if (evt.HasBodyPart != 0 && repo.IsComponentTypeRegistered<Fdp.Toolkit.Physics.BodyParts.PartDamage>())
                 {
-                    ref var caps = ref repo.GetComponentRW<ActorCapabilityState>(targetEntity);
-                    caps.Capabilities &= ~(ActorCapabilities.CanMove | ActorCapabilities.CanShoot);
+                    if (!repo.HasComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>(targetEntity))
+                        repo.AddComponent(targetEntity, new Fdp.Toolkit.Physics.BodyParts.PartDamage   // ⭐ CE-3211 — the body's own plan
+                        {
+                            Plan = Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(repo, targetEntity)?.Plan ?? Fdp.Toolkit.Physics.BodyParts.BodyPlan.Person,
+                        });
+                    ref var parts = ref repo.GetComponentRW<Fdp.Toolkit.Physics.BodyParts.PartDamage>(targetEntity);
+                    parts.Add(evt.BodyPart, Fdp.Toolkit.Physics.BodyParts.PartDamage.LevelFor(evt.TotalDamage, health.Max));
+                    // ⭐⭐ CE-3215 (hit location §12 S2c-5) — a CATASTROPHIC zone over its threshold (an aircraft's engine or tail) ends the
+                    //   body: Health to 0, the one value every reader of a killed body follows (the fall and crash, CE-2184).
+                    if (health.Current > 0f
+                        && Fdp.Toolkit.Physics.BodyParts.Wounds.Has(repo, targetEntity, Fdp.Toolkit.Tkb.Domain.WoundEffect.Catastrophic))
+                        health.Current = 0f;
                 }
-                // Non-lethal hit (HP below max but above 0): strip only CanMove (PACK-M002).
-                // This replaces the cross-domain ApcMobilityTriggerSystem so Brain-tier
-                // HsmDamageBridgeSystem can detect the capability change and inject MobilityLost.
-                else if (health.Current < health.Max && repo.HasComponent<ActorCapabilityState>(targetEntity))
+
+                // ⭐⭐ CE-3219 (civilians B-1, CV-6 ⓑ) — the hit's non-lethal effect is STORED beside Health by the same owner (never derived
+                //   from Health, rule I1): until when the man is knocked down, irritated, stunned. Replicated as dtEffectState.
+                if (evt.Effect != HitEffect.Kinetic && repo.IsComponentTypeRegistered<EffectState>())
                 {
-                    ref var caps = ref repo.GetComponentRW<ActorCapabilityState>(targetEntity);
-                    caps.Capabilities &= ~ActorCapabilities.CanMove;
+                    if (!repo.HasComponent<EffectState>(targetEntity)) repo.AddComponent(targetEntity, default(EffectState));
+                    Effects.Apply(ref repo.GetComponentRW<EffectState>(targetEntity), evt.Effect, evt.EffectSeconds, HitModel.Now(repo));
                 }
+
+                // At zero HP: strip mobility and shoot capabilities. ⛔ The entity is NOT destroyed —
+                //   a dead body stays in the world. 🔒 User ruling `2026-09-13`: *"dead entity should not
+                //   vanish, it should stay dead in the world, every entity (no magic dead body
+                //   vanishing)."*
+                //
+                // ⚠⚠ CE-267 REVERTED HERE `2026-09-13`. It published a DestroyEntityCommand at 0 HP to
+                //   make downstream `!IsAlive(target)` checks come true — but `IsAlive` is an ECS-EXISTENCE
+                //   predicate, not a combat-death one, and removing the body to satisfy it was the wrong
+                //   fix: it conflates "the entity exists" with "the unit is alive." Combat-death is the
+                //   STATE `Health.Current <= 0` (+ capabilities stripped), which the target now carries
+                //   while remaining in the world. The EQS already reads death as `Health.Current <= 0`
+                //   (AreaQuerySolverSystem), so the scenario terminates on health, not on removal.
+                //   📄 DESIGN_Node_Roles_And_Policies.md — and the real distributed-death defect CE-267
+                //   masked is being chased separately, not by deleting the corpse.
+                // ⭐ CE-3092 — the ONE rule for what a hit does to capabilities (death; a non-lethal hit only on an opted-in type).
+                Fdp.Toolkit.Combat.CombatLife.ApplyHitCapabilities(repo, targetEntity, in health);
+
+                // ⭐⭐ CE-3364 — a hit that took him out of the fight (the catastrophic-zone 0 included) is ONE ManDownedEvent with this hit's attribution; a corpse, or a wound that leaves him fighting, none.
+                ManDowned.PublishIfDowned(repo, targetEntity, before, in evt);
             }
         }
     }

@@ -242,6 +242,20 @@ public sealed class ReadEqsResultLoweringTests
         Assert.Contains("_EqsResultRead_", source);     // return type
     }
 
+    // ⭐ CE-3054 D — a read of the UNIT's sensor of a kind resolves it through UnitSensors.Of each read, not a variable.
+    [Fact]
+    public void CE3054_Lower_UnitSensorKind_ResolvesTheUnitsSensor()
+    {
+        var asset = BuildReadEqsResultAsset();
+        var read  = asset.Graphs[0].Nodes.OfType<ReadEqsResultNode>().Single();
+        read.SensorVariableName = "";
+        read.UnitSensorKind     = 4;   // Thermal
+        var source = Compile(asset);
+        Assert.NotNull(source);
+        Assert.Contains("UnitSensors.Of(view, self, (global::Fdp.Toolkit.Perception.Components.SensorModality)4)", source);
+        Assert.DoesNotContain(".CoverQuery;", source);
+    }
+
     [Fact]
     public void Lower_ClampsIndex()
     {

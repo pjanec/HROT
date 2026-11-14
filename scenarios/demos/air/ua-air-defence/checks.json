@@ -1,0 +1,37 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-2191: the ground fires back at aircraft. Judge (1) the Stinger gunner fires a missile (the take's proven cue, 87.8 s), the Apache gets a missile warning, (3) the ZU-23 fires 10+ rounds at the UH-60. Left out: the Apache 'stops firing and breaks to 25 m' (an altitude above ground, not z).",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "launch": {
+      "on": "shot",
+      "by": "Stinger Gunner",
+      "n": 1
+    }
+  },
+  "expect": [
+    {
+      "name": "the Stinger gunner fires a missile",
+      "on": "shot",
+      "by": "Stinger Gunner"
+    },
+    {
+      "name": "the Apache receives a missile warning",
+      "on": "field",
+      "who": "Apache",
+      "path": "MissileWarning.At",
+      "op": ">",
+      "value": 0,
+      "after": "launch"
+    },
+    {
+      "name": "the ZU-23 fires 10+ rounds at the UH-60",
+      "on": "shot",
+      "by": "*ZU-23",
+      "at": "Door Gunship UH-60",
+      "n": 10
+    }
+  ]
+}

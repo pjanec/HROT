@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.Navigation.Tests.Integration
         public S9_FlyingAgentRoutingTests()
         {
             // LoadCorridor map: Infantry navmesh, but FakeVolumetricPathProvider ignores navmesh.
-            // Default altitude bounds: minAltitude=0, maxAltitude=0 -> any Y=0 position is flyable.
+            // Default altitude bounds: minAltitude=0, maxAltitude=0 -> any Z=0 position is flyable (Z-up).
             _h = new NavTestHarness(NavTestMaps.LoadCorridor());
         }
 

@@ -98,7 +98,7 @@ namespace Hrot.SimHost.Tests
 
             // Create an entity with zero DisType but with TkbIdentity.
             var entity = repo.CreateEntity();
-            repo.SetComponent(entity, new TkbIdentity { TkbType = tkbType });
+            repo.SetComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(tkbType) });
             // DisType is zero by default — no call to SetDisType.
 
             var translator = new DisEntityTypeTranslator();

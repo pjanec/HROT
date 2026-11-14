@@ -73,13 +73,16 @@ namespace Fdp.Examples.Scenarios.Physics
         private readonly NetworkEntityMap _entityMap = new NetworkEntityMap();
 
         // Network IDs assigned to shooter and target.
-        private const long ShooterNetId = 1L;
-        private const long TargetNetId  = 2L;
+        private const int ShooterNetId = 1;
+        private const int TargetNetId  = 2;
 
         // ── Observable state for test assertions ──────────────────────────────
 
         /// <summary>Bullet entity captured on spawn (tick 1).</summary>
         public Entity BulletEntity { get; private set; }
+
+        /// <summary>⭐ CE-2126 — the bullet's SPEED at tick 2 (Phase 1): the muzzle velocity, whatever the sight line's tilt.</summary>
+        public float BulletSpeedAtTick2 { get; private set; }
 
         /// <summary>Bullet's SimVelocity.Linear.X captured at tick 2 (Phase 1).</summary>
         public float BulletVelocityXAtTick2 { get; private set; }
@@ -204,11 +207,15 @@ namespace Fdp.Examples.Scenarios.Physics
                 BulletEntity = bullet;
                 var vel = world.GetComponent<SimVelocity>(bullet);
                 BulletVelocityXAtTick2 = vel.Linear.X;
+                BulletSpeedAtTick2     = vel.Linear.Length();
 
-                if (MathF.Abs(vel.Linear.X - MuzzleVelocity) > 0.1f)
+                // ⭐ CE-2126 — the SPEED is the muzzle velocity. Since R-217 (Buildings §3d P2) a shot flies the sight line, from the
+                //   shooter's eye to the middle of the target's silhouette, so a level target 10 m away is aimed ~4.9° down and
+                //   Linear.X alone is 2000·cos θ ≈ 1992.8 — the old "X == muzzle" assertion predated that rule.
+                if (MathF.Abs(vel.Linear.Length() - MuzzleVelocity) > 0.1f || vel.Linear.X <= 0f)
                     throw new ScenarioFailureException(1,
-                        $"Phase 1 FAILED: bullet.SimVelocity.Linear.X={vel.Linear.X:F1} " +
-                        $"expected {MuzzleVelocity:F1} m/s");
+                        $"Phase 1 FAILED: |bullet.SimVelocity|={vel.Linear.Length():F1} (X={vel.Linear.X:F1}) " +
+                        $"expected {MuzzleVelocity:F1} m/s toward the target");
             }
 
             // ── Phase 2 (tick 3): bullet past target in raw navigation space ───
@@ -307,6 +314,7 @@ namespace Fdp.Examples.Scenarios.Physics
         /// Runs all ballistics pipeline systems in the required order and disposes
         /// the <see cref="RaycastBatchData"/> NativeArrays when the kernel shuts down.
         /// </summary>
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class BallisticsModule : IEcsModule, IDisposable
         {
             private readonly IEcsModuleSystem[] _modSystems;

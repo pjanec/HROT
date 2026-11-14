@@ -16,6 +16,12 @@ namespace Fdp.Core.Orchestration
     public interface IRecordReplayController
     {
         /// <summary>
+        /// ⭐ Node Features F-14 — a load starts: the node freezes its AtLoad features to the cluster layer the master stamped for it
+        /// (id → partial JSON; null = none). Default: nothing (a controller on a node with no feature reader).
+        /// </summary>
+        void FreezeFeaturesForLoad(System.Collections.Generic.IReadOnlyDictionary<string, string>? clusterLayer) { }
+
+        /// <summary>
         /// Opens a new exercise recording.  Installs the recording module into the
         /// kernel so that every subsequent frame is captured to disk.
         /// </summary>
@@ -26,6 +32,24 @@ namespace Fdp.Core.Orchestration
         Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory);
 
         /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> (R-3047) — opens a recording that BRANCHES: its first frames are a copy of
+        /// <paramref name="branch"/>'s parent up to the branch point, then every frame is captured after them. Null = an empty start
+        /// (<see cref="PrepareRecordingAsync(Guid, string)"/>). ⚠ The default supports only null — a controller that records implements it.
+        /// <para>⭐ CE-3299 D17 (R-3045) — <paramref name="checkpointingSeconds"/> &gt; 0 records in CHECKPOINTING mode (a keyframe every N s of sim
+        /// time, nothing else); 0 = FULL. A branch records in its PARENT's mode (one session, one mode) and ignores it.</para>
+        /// </summary>
+        Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, FlightRecorder.RecordingBranch? branch, double checkpointingSeconds = 0)
+            => branch == null && checkpointingSeconds <= 0
+                ? PrepareRecordingAsync(exerciseId, storageDirectory)
+                : throw new NotSupportedException($"{GetType().Name} cannot record a branch or a checkpointing session");
+
+        /// <summary>
+        /// ⭐ <c>D18</c> — where a branch from the replay on screen would start: this node's recording up to the frame it shows.
+        /// Null when no replay is open, or this node has no recording of it (a listener — its branch starts empty).
+        /// </summary>
+        FlightRecorder.RecordingBranch? CurrentReplayBranch => null;
+
+        /// <summary>
         /// Finalizes and closes the active recording.  Blocks until all LZ4
         /// buffers are flushed and the <c>.meta.json</c> manifest is written.
         /// </summary>
@@ -33,7 +57,7 @@ namespace Fdp.Core.Orchestration
         /// Highest network entity ID used during the recording session.  Pass <c>0</c>
         /// (or omit) when no network map is available (e.g. offline / test scenarios).
         /// </param>
-        Task FinalizeRecordingAsync(long maxNetworkId = 0);
+        Task FinalizeRecordingAsync(int maxNetworkId = 0);
 
         /// <summary>
         /// Opens a exercise recording for playback.  Installs the replay module and
@@ -54,6 +78,49 @@ namespace Fdp.Core.Orchestration
         Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks);
 
         /// <summary>
+        /// ⭐ CE-3329 PW (§12c W2) — hold this node's egress from a world swap until the master's commit: no sample is published in
+        /// between (the cleanup's disposes still go out). Released by <see cref="ReleaseEgress"/>, or it lapses (bounded).
+        /// A controller with no network world ignores it.
+        /// </summary>
+        void HoldEgress(string reason) { }
+
+        /// <summary>
+        /// ⭐ CE-3329 P0 (row 6) — the RECORDED sim time of the frame on screen (<c>GlobalTime.TotalTime</c> as the live run had it), or
+        /// <see langword="null"/> outside a replay. ⚠ Not <see cref="GetCurrentReplayTime"/>, which is the replay clock (wall after the zero).
+        /// </summary>
+        double? CurrentReplaySimSeconds => null;
+
+        /// <summary>⭐ CE-3329 P1 (R3, row 8) — the open replay's wall ↔ sim map (from its v7 frame index); <see langword="null"/> outside a
+        /// replay. Read once per replay — the node's prepare result carries it to the master.</summary>
+        FlightRecorder.ReplayTimeMap? ActiveReplayTimeMap => null;
+
+        /// <summary>⭐ CE-3329 (§9f) — the open replay's checkpoint marks (its recording's metadata); <see langword="null"/> outside a
+        /// replay. The node's prepare result carries them to the master's session layer.</summary>
+        FlightRecorder.Metadata.CheckpointMark[]? ActiveReplayCheckpoints => null;
+
+        /// <summary>⭐ AQ107 C — the geodetic origin the open replay's recording was made under (its metadata); <see langword="null"/>
+        /// outside a replay or for a recording that pre-dates the field. The node's prepare result carries it to the master, which
+        /// publishes it as the NED wire's frame origin.</summary>
+        FlightRecorder.Metadata.GeoOriginRecord? ActiveReplayGeoOrigin => null;
+
+        /// <summary>⭐ AQ107 C — the terrain that was resident while the open replay's recording was made; empty outside a replay or when none.</summary>
+        string ActiveReplayTerrainName => string.Empty;
+
+        /// <summary>⭐ CE-3329 PW — releases <see cref="HoldEgress"/>: the next egress frame republishes the world.</summary>
+        void ReleaseEgress() { }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4079</c> ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3) — waits, <b>bounded</b>, until this node's retraction
+        /// disposes are ACKNOWLEDGED by the matched readers: first for the sweep that follows a world swap to have run (the cleanup
+        /// writes the disposes on the next frame), then for the acknowledgements. The handlers call it before they report <i>prepared</i> /
+        /// <i>seek-done</i>, so no node publishes while another node's retraction of the same id may still be in flight.
+        /// </summary>
+        /// <param name="timeout">The whole wait — sweep and acknowledgements together.</param>
+        /// <returns><see langword="null"/> when everything was acknowledged (or there is nothing to wait for: no network world); otherwise
+        /// the text of the timeout, which the handler puts in its result. ⛔ A timeout is reported, never fatal.</returns>
+        Task<string?> AwaitRetractionAcksAsync(TimeSpan timeout) => Task.FromResult<string?>(null);
+
+        /// <summary>
         /// Advances playback by one frame.  Called by the application loop
         /// on every tick when <c>RunningReplay</c> is the active Cluster state.
         /// </summary>
@@ -66,6 +133,14 @@ namespace Fdp.Core.Orchestration
         /// for a Live-from-Replay branch (CGF1-S0305).
         /// </summary>
         Task TeardownReplayAsync();
+
+        /// <summary>
+        /// ⭐⭐ CE-3329 W5 (DESIGN_Replay_Time_Axis_And_Review §12u) — the exit's RELEASE: from <see cref="TeardownReplayAsync"/> until this
+        /// call the node's ingress stays gated as if it still restored (state left in the readers, events dropped); here every gated
+        /// ingress system is told to discard what its readers hold before it takes anything in again. Called by the ONE gate set
+        /// (<c>ReferenceReplayLoadHandler.LeaveReplayGates</c>) and by a branch to live. ⭐ A controller with no ingress does nothing.
+        /// </summary>
+        void ReleaseReplayExit() { }
 
         /// <summary>
         /// Returns <see langword="true"/> when a replay session is currently active
@@ -100,12 +175,28 @@ namespace Fdp.Core.Orchestration
         /// </summary>
         long ActiveRecordingStartWallTicks { get; }
 
+        /// <summary>⭐ R-4012 (Q91 §4-P) — the last recorded frame's wall-clock ticks, or <c>0</c> (no replay, or no recording).</summary>
+        long ActiveRecordingEndWallTicks { get; }
+
+        /// <summary>
+        /// ⭐⭐ R-4012 (Q91 §4-P P1) — the replay timeline's zero in wall-clock ticks: the CLUSTER's anchor once a seek has
+        /// delivered it, else this node's own first frame. Set by the seek handler.
+        /// </summary>
+        long ReplayAnchorWallTicks { get; set; }
+
+        /// <summary>⭐ R-3055 — the recording this node replays now, or <see langword="null"/> outside a replay: what the debug
+        /// surface's journal history and recording search scan, read-only.</summary>
+        string? ActiveReplayFilePath { get; }
+
+        /// <summary>⭐⭐ R-4012 — true while this node restores the current replay moment from its own recording.</summary>
+        bool IsRestoringReplay { get; }
+
         /// <summary>
         /// Returns the highest network entity ID encountered in the active recording,
         /// or <c>0</c> when no replay is active.  Published to the orchestrator via
         /// <c>ResultJson</c> so the ID allocator can be reset above the replay's ID
         /// space before live entities are spawned (CGF1-S0304).
         /// </summary>
-        long ActiveMaxNetworkId { get; }
+        int ActiveMaxNetworkId { get; }
     }
 }

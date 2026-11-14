@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Toolkit.Serialization;
+using Fdp.Core.Serialization;
 
 namespace Hrot.ClusterRunner.Migration;
 
@@ -166,8 +167,7 @@ internal sealed class MigrateMode
 
         if (!_dryRun)
         {
-            var opts = new JsonSerializerOptions { WriteIndented = true };
-            var json = dom.ToJsonString(opts);
+            var json = dom.ToJsonString(FdpJsonOptionsRegistry.Indented);
             json = JsonAestheticFormatter.FlattenNumericArrays(json);
             await File.WriteAllTextAsync(path, json, Encoding.UTF8, ct).ConfigureAwait(false);
         }

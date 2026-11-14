@@ -31,11 +31,6 @@ namespace Hrot.Network.Translators
         /// </summary>
         /// <param name="participant">Live DDS participant; passed to all translator constructors.</param>
         /// <param name="entityMap">Shared <see cref="NetworkEntityMap"/> for entity lookups.</param>
-        /// <param name="geoTransform">
-        ///   Geodetic transform used by <see cref="NavigationIntentEgressTranslator"/> to convert
-        ///   Cartesian waypoints to WGS-84 <c>GeoPosition</c>, and by <see cref="GeoSpatialIngressTranslator"/>
-        ///   to convert received coordinates back to Cartesian.
-        /// </param>
         /// <param name="behaviorRegistry">
         ///   Behavior registry forwarded to <see cref="EntityMissionEgressTranslator"/> and
         ///   <see cref="EntityMissionIngressTranslator"/> for mission-plan serialisation/deserialisation.
@@ -49,16 +44,23 @@ namespace Hrot.Network.Translators
         public static IEnumerable<IDescriptorTranslator> Create(
             DdsParticipant       participant,
             NetworkEntityMap     entityMap,
-            IGeographicTransform geoTransform,
             BehaviorRegistry?    behaviorRegistry,
             GhostCreationSystem  ghostCreationSystem,
-            long                 localNodeId = 0)
+            int                 localNodeId = 0)
         {
-            yield return new NavigationIntentEgressTranslator(participant, entityMap, geoTransform, localNodeId);
+            yield return new NavigationIntentEgressTranslator(participant, entityMap, localNodeId);
             yield return new EntityMissionEgressTranslator(participant, entityMap, behaviorRegistry);
             if (behaviorRegistry != null)
                 yield return new EntityMissionIngressTranslator(participant, entityMap, behaviorRegistry, ghostCreationSystem);
             yield return new NavigationStatusIngressTranslator(participant, entityMap, localNodeId);
+            // ⭐ CE-484 — a behaviour fault leaves the node whose behaviour raised it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §4c
+            yield return new BehaviorFaultEgressTranslator(participant, entityMap, behaviorRegistry, localNodeId);
+            // ⭐ CE-3048 — a unit's AI intent: the owner publishes it, every other Brain keeps it for a hand-over. 📄 Sensors §7.7
+            if (behaviorRegistry != null)
+            {
+                yield return new BrainIntentEgressTranslator(participant, behaviorRegistry);
+                yield return new BrainIntentIngressTranslator(participant, entityMap);
+            }
         }
     }
 }

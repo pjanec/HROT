@@ -45,8 +45,8 @@ dotnet build FDP/FDP.sln --no-restore
 dotnet test FDP/Engine/Fdp.Presentation.Tests/Fdp.Presentation.Tests.csproj
 
 # Before submitting report:
-dotnet build IOS-IG-SimHost.sln --no-restore
-dotnet test IOS-IG-SimHost.sln
+dotnet build HROT.sln --no-restore
+dotnet test HROT.sln
 ```
 
 ### Known pre-existing failure
@@ -324,7 +324,7 @@ This batch is DONE when:
 - [ ] All 10+ new CE09/CE10 tests pass
 - [ ] All pre-existing tests still pass (minus known failure)
 - [ ] `dotnet build FDP/FDP.sln --no-restore` exits 0 errors
-- [ ] `dotnet test IOS-IG-SimHost.sln` exits 0 new failures
+- [ ] `dotnet test HROT.sln` exits 0 new failures
 - [ ] Report submitted
 
 ---

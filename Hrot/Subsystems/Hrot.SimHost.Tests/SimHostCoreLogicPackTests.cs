@@ -1,4 +1,5 @@
-﻿using System;
+using System.Linq;
+using System;
 using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Road;
@@ -42,10 +43,6 @@ namespace Hrot.SimHost.Tests
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<InteractionChannel>();
             world.RegisterComponent<ActorCapabilityState>();
-            world.RegisterComponent<BrainBTreeState>();
-            world.RegisterComponent<BrainBlackboard>();
-            world.RegisterComponent<BrainHsm64>();
-            world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<PassengerBuffer>();
             world.RegisterComponent<IsEmbarkedTag>();
@@ -71,6 +68,7 @@ namespace Hrot.SimHost.Tests
 
             // Navigation CQRS
             world.RegisterComponent<NavigationIntent>();
+            world.RegisterComponent<NavigationApplied>();   // ⭐ R-3039 S1 — what the bridge already applied
             world.RegisterComponent<NavigationStatus>();
             world.RegisterComponent<FrustrationTicks>();
 
@@ -125,19 +123,36 @@ namespace Hrot.SimHost.Tests
             Assert.Null(ex);
 
             // Verify system counts match expected numbers from sub-module implementations:
-            // CombatModule: FireProcessingSystem, RaycastSolverSystem, HitResolutionSystem (input=3)
-            // PersonalRouteAuthoringSystem (input=1) -- InputSystems total = 4
-            Assert.Equal(4, pack.InputSystems.Count);
+            // CombatModule: WeaponTaskDispatcherSystem (⭐ WL-2, the weapon muscle), FireProcessingSystem, RaycastSolverSystem,
+            //   HitResolutionSystem (input=4)
+            // PersonalRouteAuthoringSystem (input=1) -- InputSystems total = 5
+            Assert.Equal(5, pack.InputSystems.Count);
 
             // CombatModule: no systems in sim (sim=0)
             // DamageAssessmentModule: DamageCalculationSystem (sim=1)
             // Navigation bridges: NavigationIntentBridgeSystem, RouteTrajectorySyncSystem (sim=2)
             // GroundKinematicsModule.SimulationSystems: SpatialHashSystem, FormationTargetSystem,
             //   VehicleCommandSystem, NavigationExecutionSystem (sim=4)
-            // UnitHierarchySystem (sim=1)
-            // EqsResultUpdateSystem (sim=1, added TH-3/A)
-            // total sim = 9
-            Assert.Equal(9, pack.SimulationSystems.Count);
+            // ⭐⭐ CE-221 — UnitHierarchySystem and EqsResultUpdateSystem are NO LONGER IN THIS PACK.
+            //    They are cross-role infrastructure: no role selects them, every carrier appended
+            //    them at the tail of Simulation, and carrying them here meant every Brain+Muscle
+            //    node registered each twice — which killed the hosted Stride editor outright once
+            //    [SingleInstance] made the duplicate loud. They now come from
+            //    CoreInfrastructureCapabilities.UnitHierarchy / EqsResultUpdateCapability, declared
+            //    once per plan, so the NODE still runs exactly one of each.
+            //    ⇒ sim = 9 - 2 = 7.
+            // ⭐ Buildings 5d-3 (2026-10-08) — +1: DoorPassageSystem in GroundKinematicsModule (stops at a closed door, opens it) ⇒ 8.
+            // ⭐ Buildings Stage 6 (CE-1032, 2026-10-08) — +1: AreaEffectSystem in DamageAssessmentModule (blast and fragments) ⇒ 9.
+            // ⭐ R-3039 S2 §7c (2026-10-22) — +1: TrajectoryRestoreSystem in GroundKinematicsModule (a restored mover's path is back) ⇒ 10.
+            // ⭐ CE-4391 S-1 (2026-11-10) — +1: BuildingDamageSystem in DamageAssessmentModule (the breaches a burst decided, written into the building's damage entity) ⇒ 11.
+            // ⭐ CE-4583 (2026-11-14) — +1: ShelledAreaSystem in DamageAssessmentModule (the shelled areas, from the same bursts) ⇒ 12.
+            Assert.Equal(12, pack.SimulationSystems.Count);
+            Assert.Contains(pack.SimulationSystems, s => s is Fdp.Toolkit.Squad.DangerArea.ShelledAreaSystem);
+
+            // ⛔ And assert the REMOVAL, so a silent re-add is caught rather than merely changing a
+            //    count somebody would re-baseline.
+            Assert.DoesNotContain(pack.SimulationSystems, s => s is UnitHierarchySystem);
+            Assert.DoesNotContain(pack.SimulationSystems, s => s is EqsResultUpdateSystem);
 
             // CombatModule: BallisticsSystem (postSim=1)
             // GroundKinematicsModule.PostSimulationSystems: CarKinematicsSystem, LinearKinematicsSystem (postSim=2)
@@ -145,6 +160,11 @@ namespace Hrot.SimHost.Tests
             Assert.Contains(pack.PostSimulationSystems, s => s is BallisticsSystem);
             Assert.Contains(pack.PostSimulationSystems, s => s is CarKinematicsSystem);
             Assert.Contains(pack.PostSimulationSystems, s => s is LinearKinematicsSystem);
+            // ⭐ CE-2168 (Motion Domains MD-B) / M7 — the AIR domain beside the ground one (this pack is the SimHost's and the editor's
+            //   Muscle): it moves the air bodies, then lets them meet what they fly into
+            int air = pack.PostSimulationSystems.ToList().FindIndex(s => s is Fdp.Toolkit.Motion.AirMotionSystem);
+            int impact = pack.PostSimulationSystems.ToList().FindIndex(s => s is Fdp.Toolkit.Motion.DroneImpactSystem);
+            Assert.True(air >= 0 && impact > air, $"air motion at {air}, drone impact at {impact}");
 
             // Cleanup
             roadNetwork.Dispose();
@@ -174,11 +194,15 @@ namespace Hrot.SimHost.Tests
 
             // DamageAssessmentModule systems
             Assert.Contains(simSystems, s => s is DamageCalculationSystem);
+            Assert.Contains(simSystems, s => s is AreaEffectSystem);   // ⭐ CE-1032 W-5 — beside the direct hit
+            Assert.Contains(simSystems, s => s is Fdp.Toolkit.Terrain.BuildingDamageSystem);   // ⭐ CE-4391 S-1 — after it: the breaches it decides
 
             // GroundKinematicsModule sim systems
             Assert.Contains(simSystems, s => s is SpatialHashSystem);
-            // UnitHierarchySystem (CS016)
-            Assert.Contains(simSystems, s => s is UnitHierarchySystem);
+            // ⭐ CE-221 — UnitHierarchySystem is no longer pack content; the coverage moved to the
+            //   capability that now supplies it, so it is asserted as ABSENT here rather than
+            //   dropped silently. See CoreInfrastructureCapabilities.
+            Assert.DoesNotContain(simSystems, s => s is UnitHierarchySystem);
             // GroundKinematicsModule post-sim systems
             Assert.Contains(postSimSystems, s => s is CarKinematicsSystem);
             Assert.Contains(postSimSystems, s => s is LinearKinematicsSystem);
@@ -187,6 +211,39 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("SimHostCoreLogicPack", pack.Name);
 
             DisposeRaycastBatchData(world);
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-221 — the coverage the two <c>DoesNotContain</c> assertions above gave up, re-homed
+        /// rather than deleted: the node still runs <c>UnitHierarchySystem</c> and
+        /// <c>EqsResultUpdateSystem</c>, they just arrive from the infrastructure capabilities instead of
+        /// from the pack.
+        ///
+        /// <para>⭐ Asserting ONE of each is the whole point. Both systems carry
+        /// <c>[SingleInstance]</c>, and a second copy is a corruption, not a wasted tick — a second
+        /// <c>UnitHierarchySystem</c> re-reads the same non-destructive <c>CmdAssignSubordinate</c>
+        /// events and appends a duplicate roster entry until legitimate assignments are rejected at
+        /// capacity.</para>
+        /// </summary>
+        [Fact]
+        public void TheInfrastructureCapabilitiesSupplyExactlyOneOfEachHoistedSystem()
+        {
+            var input      = new List<IEcsModuleSystem>();
+            var simulation = new List<IEcsModuleSystem>();
+            var postSim    = new List<IEcsModuleSystem>();
+
+            new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy()
+                .PopulateSystems(context: null!, input, simulation, postSim);
+            new Hrot.SimHost.EqsResultUpdateCapability()
+                .PopulateSystems(context: null!, input, simulation, postSim);
+
+            Assert.Single(simulation.Where(s => s is UnitHierarchySystem));
+            Assert.Single(simulation.Where(s => s is EqsResultUpdateSystem));
+
+            // ⛔ Infrastructure contributes to Simulation only — a stray input/post-sim registration
+            //    would change phase ordering on every host at once.
+            Assert.Empty(input);
+            Assert.Empty(postSim);
         }
 
         /// <summary>

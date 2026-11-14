@@ -154,19 +154,16 @@ namespace Fhsm.Tests.Data
             Assert.False(flags.HasFlag(StateFlags.IsFinal));
         }
 
+        /// <summary>⭐ CE-395 — priority is a full-byte FIELD now, not a nibble packed into the flags.</summary>
         [Fact]
-        public void TransitionFlags_Extract_Priority()
+        public void TransitionDef_Priority_IsAFullByteBesideAByteCost()
         {
-            // Set priority to 10 (1010 binary -> 0xA)
-            // Priority is in bits 12-15.
-            ushort priority = 10;
-            var flags = TransitionFlags.IsExternal | (TransitionFlags)(priority << 12);
-
-            // Extract
-            var extractedPriority = ((ushort)flags & (ushort)TransitionFlags.Priority_Mask) >> 12;
-
-            Assert.Equal(priority, extractedPriority);
-            Assert.True(flags.HasFlag(TransitionFlags.IsExternal));
+            var def = new TransitionDef { Flags = TransitionFlags.IsExternal, Cost = 3, Priority = 200 };
+            Assert.Equal(200, def.Priority);
+            Assert.Equal(3, def.Cost);
+            Assert.True(def.Flags.HasFlag(TransitionFlags.IsExternal));
+            Assert.Equal(15, (int)Marshal.OffsetOf<TransitionDef>(nameof(TransitionDef.Priority)));
+            Assert.Equal(16, Marshal.SizeOf<TransitionDef>());
         }
 
         [Fact]
@@ -192,15 +189,6 @@ namespace Fhsm.Tests.Data
             // Depth is byte, max 255
             var def = new StateDef { Depth = 255 };
             Assert.Equal(255, def.Depth);
-        }
-
-        [Fact]
-        public void TransitionFlags_Priority_Max_Value()
-        {
-            ushort maxPriority = 15;
-            var flags = (TransitionFlags)(maxPriority << 12);
-            var extracted = ((ushort)flags & (ushort)TransitionFlags.Priority_Mask) >> 12;
-            Assert.Equal(maxPriority, extracted);
         }
 
         [Fact]

@@ -1,0 +1,247 @@
+using System.Numerics;
+using System.Runtime.InteropServices;
+using Fbt.Kernel;
+using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+
+namespace Fdp.Toolkit.Squad.Command
+{
+    /// <summary>
+    /// ⭐ <c>CE-2292</c> CC-B — reading and keeping a commander's <see cref="CommandPicture"/>: the ONE place that maps a subordinate to its
+    /// row and a roster slot to a subordinate, shared by the picture guards, the command actions and the staff's inbox (CC-C).
+    /// </summary>
+    public static class CommandPictureOps
+    {
+        /// <summary>The id a picture keys a unit by: its network id, else its local handle (a world with no network — a test).</summary>
+        public static int NetIdOf(ISimulationView view, Entity e)
+        {
+            if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>())
+                return e.Index;   // CE-4200: the local fallback is the 32-bit slot index (a world with no network)
+            return view.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
+                ? view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value
+                : e.Index;
+        }
+
+        /// <summary>The commander's subordinate in roster slot <paramref name="slot"/> (<see cref="Entity.Null"/> when there is none).</summary>
+        public static Entity Subordinate(ISimulationView view, Entity commander, int slot)
+        {
+            if (slot < 0 || !view.HasComponent<UnitRoster>(commander)) return Entity.Null;
+            ref readonly var roster = ref view.GetComponentRO<UnitRoster>(commander);
+            return slot < roster.Count ? roster.SubordinateEntities[slot] : Entity.Null;
+        }
+
+        /// <summary>The picture's row index for <paramref name="unitNetId"/>, or -1.</summary>
+        public static int RowOf(in CommandPicture picture, int unitNetId)
+        {
+            for (int i = 0; i < picture.Subordinates.Count; i++)
+                if (picture.Subordinates.Items[i].UnitNetId == unitNetId) return i;
+            return -1;
+        }
+
+        /// <summary>The row for <paramref name="unitNetId"/>, added when absent (full ⇒ -1). Makes the picture on first use.</summary>
+        public static int EnsureRow(EntityRepository world, Entity commander, int unitNetId)
+        {
+            if (!world.IsComponentTypeRegistered<CommandPicture>()) return -1;
+            if (!world.HasComponent<CommandPicture>(commander))
+            {
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                var fresh = new CommandPicture();
+                int added = AddRow(ref fresh, unitNetId);
+                world.AddComponent(commander, fresh);
+                return added;
+            }
+            return AddRow(ref world.GetComponentRW<CommandPicture>(commander), unitNetId);
+        }
+
+        private static int AddRow(ref CommandPicture picture, int unitNetId)
+        {
+            int row = RowOf(picture, unitNetId);
+            if (row >= 0 || picture.Subordinates.Count >= CommandPicture.MaxSubordinates) return row;
+            row = picture.Subordinates.Count++;
+            picture.Subordinates.Items[row] = new SubordinateRow { UnitNetId = unitNetId };
+            return row;
+        }
+
+        /// <summary>⭐ CC-B — the commander gave <paramref name="subordinate"/> a NEW order: forget its progress on the last one, so a guard
+        /// waiting for "Set" waits for THIS order's Set (a stale Set from the previous leg would pass it at once).</summary>
+        public static void OrderGiven(EntityRepository world, Entity commander, Entity subordinate)
+        {
+            if (!world.IsComponentTypeRegistered<CommandPicture>()) return;
+            int netId = NetIdOf(world, subordinate);
+            if (!world.HasComponent<CommandPicture>(commander))
+            {
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                var fresh = new CommandPicture();
+                int freshRow = AddRow(ref fresh, netId);
+                if (freshRow >= 0) Restart(ref fresh.Subordinates.Items[freshRow], Now(world));
+                world.AddComponent(commander, fresh);
+                return;
+            }
+            int row = EnsureRow(world, commander, netId);
+            if (row < 0) return;
+            Restart(ref world.GetComponentRW<CommandPicture>(commander).Subordinates.Items[row], Now(world));
+        }
+
+        private static void Restart(ref SubordinateRow sub, SimInstant now)
+        {
+            sub.Progress = ProgressKind.NoProgress;
+            sub.OrderedAt = now;   // CE-2294: a PROGRESS observed before this order is the last order's
+        }
+
+        /// <summary>The latest progress the subordinate in <paramref name="slot"/> reported for its current order.</summary>
+        public static ProgressKind ProgressOf(ISimulationView view, Entity commander, int slot)
+        {
+            var sub = Subordinate(view, commander, slot);
+            if (sub.IsNull || !view.HasComponent<CommandPicture>(commander)) return ProgressKind.NoProgress;
+            ref readonly var picture = ref view.GetComponentRO<CommandPicture>(commander);
+            int row = RowOf(picture, NetIdOf(view, sub));
+            return row < 0 ? ProgressKind.NoProgress : picture.Subordinates.Items[row].Progress;
+        }
+
+        /// <summary>⭐ <c>CE-2305</c> RQ-3 — the commander ANSWERED the request at <paramref name="index"/>: it leaves the picture (the
+        /// answer is an order, followed by the subordinate's PROGRESS like any other). <c>false</c> when there is no such request.</summary>
+        public static bool Answered(EntityRepository world, Entity commander, int index)
+        {
+            if (!world.HasComponent<CommandPicture>(commander)) return false;
+            ref var requests = ref world.GetComponentRW<CommandPicture>(commander).Requests;
+            if (index < 0 || index >= requests.Count) return false;
+            for (int i = index + 1; i < requests.Count; i++) requests.Items[i - 1] = requests.Items[i];
+            requests.Count--;
+            return true;
+        }
+
+        /// <summary>The index of the oldest open request of <paramref name="kind"/> (NoRequest = any), or -1.</summary>
+        public static int FirstRequest(ISimulationView view, Entity commander, RequestKind kind)
+        {
+            if (!view.HasComponent<CommandPicture>(commander)) return -1;
+            ref readonly var requests = ref view.GetComponentRO<CommandPicture>(commander).Requests;
+            for (int i = 0; i < requests.Count; i++)
+                if (kind == RequestKind.NoRequest || requests.Items[i].Kind == kind) return i;
+            return -1;
+        }
+
+        /// <summary>The sim clock now (the world clock, a double — CE-4201), time zero when none.</summary>
+        public static SimInstant Now(ISimulationView view)
+            => view is EntityRepository repo && repo.HasSingletonUnmanaged<GlobalTime>() ? (SimInstant)repo.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : SimInstant.Zero;
+    }
+
+    /// <summary>Params of <see cref="PictureConditions.ProgressReached"/>.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ProgressReachedParams
+    {
+        /// <summary>Which subordinate: its slot in the commander's roster.</summary>
+        public int Slot;
+        public ProgressKind Progress;
+    }
+
+    /// <summary>Params of <see cref="PictureConditions.SubordinateColour"/>.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SubordinateColourParams
+    {
+        public int Slot;
+        /// <summary>True when the subordinate's strength is this colour or worse (Amber ⇒ Amber, Red or Black).</summary>
+        public StatusColour AtLeast;
+    }
+
+    /// <summary>Params of <see cref="PictureConditions.SubordinateFresh"/>.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SubordinateFreshParams
+    {
+        public int Slot;
+        /// <summary>Heard from within this many sim seconds.</summary>
+        public SimDuration WithinSeconds;
+    }
+
+    /// <summary>Params of <see cref="PictureConditions.ElementReported"/>.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ElementReportedParams
+    {
+        /// <summary>The smallest element that counts (SizeUnknown = any).</summary>
+        public ElementSize MinSize;
+        /// <summary>Within this many metres of the commander (0 = anywhere).</summary>
+        public float WithinMetres;
+        /// <summary>Observed within this many sim seconds (0 = any age).</summary>
+        public SimDuration FreshSeconds;
+    }
+
+    /// <summary>Params of <see cref="PictureConditions.PendingRequest"/>.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PendingRequestParams
+    {
+        /// <summary>The kind asked for (NoRequest = any).</summary>
+        public RequestKind Kind;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2292</c> CC-B (CB-46) — the PICTURE GUARDS: shared C# conditions any BTree / HSM / blueprint binds, reading only the
+    /// commander's <see cref="CommandPicture"/> — the unit's knowledge, the same for the task and a reaction that pauses it (R-2042). A
+    /// subordinate is named by its roster SLOT, so one play works for any platoon. 📄 Command Chain §6, §8 CC-B.
+    /// </summary>
+    public static class PictureConditions
+    {
+        /// <summary>The subordinate in <see cref="ProgressReachedParams.Slot"/> last reported exactly this progress for its current order
+        /// (a new order resets it — <see cref="CommandPictureOps.OrderGiven"/>).</summary>
+        [SharedAiCondition]
+        public static bool ProgressReached(ref ProgressReachedParams p, Entity self, EntityRepository world)
+            => p.Progress != ProgressKind.NoProgress && CommandPictureOps.ProgressOf(world, self, p.Slot) == p.Progress;
+
+        /// <summary>The subordinate's reported strength is <see cref="SubordinateColourParams.AtLeast"/> or worse.</summary>
+        [SharedAiCondition]
+        public static bool SubordinateColour(ref SubordinateColourParams p, Entity self, EntityRepository world)
+        {
+            if (!TryRow(world, self, p.Slot, out var row)) return false;
+            return row.Strength != StatusColour.ColourUnknown && row.Strength >= p.AtLeast;
+        }
+
+        /// <summary>The subordinate reported anything within <see cref="SubordinateFreshParams.WithinSeconds"/>; false = overdue.</summary>
+        [SharedAiCondition]
+        public static bool SubordinateFresh(ref SubordinateFreshParams p, Entity self, EntityRepository world)
+            => TryRow(world, self, p.Slot, out var row) && row.LastReportAt > 0f
+               && CommandPictureOps.Now(world) - row.LastReportAt <= p.WithinSeconds;
+
+        /// <summary>The picture holds an element at least <see cref="ElementReportedParams.MinSize"/>, near enough and fresh enough.</summary>
+        [SharedAiCondition]
+        public static bool ElementReported(ref ElementReportedParams p, Entity self, EntityRepository world)
+        {
+            if (!world.HasComponent<CommandPicture>(self)) return false;
+            ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);
+            var at = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : WorldPoint.Zero;
+            SimInstant now = CommandPictureOps.Now(world);
+            for (int i = 0; i < picture.Elements.Count; i++)
+            {
+                ref readonly var e = ref picture.Elements.Items[i];
+                if (e.Size < p.MinSize) continue;
+                if (p.FreshSeconds > 0f && now - e.ObservedAt > p.FreshSeconds) continue;
+                if (p.WithinMetres > 0f && Vector2.Distance(new Vector2(e.At.X, e.At.Y), new Vector2(at.X, at.Y)) > p.WithinMetres) continue;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>A subordinate's request of this kind waits for an answer.</summary>
+        [SharedAiCondition]
+        public static bool PendingRequest(ref PendingRequestParams p, Entity self, EntityRepository world)
+        {
+            if (!world.HasComponent<CommandPicture>(self)) return false;
+            ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);
+            for (int i = 0; i < picture.Requests.Count; i++)
+                if (p.Kind == RequestKind.NoRequest || picture.Requests.Items[i].Kind == p.Kind) return true;
+            return false;
+        }
+
+        private static bool TryRow(EntityRepository world, Entity self, int slot, out SubordinateRow row)
+        {
+            row = default;
+            var sub = CommandPictureOps.Subordinate(world, self, slot);
+            if (sub.IsNull || !world.HasComponent<CommandPicture>(self)) return false;
+            ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);
+            int i = CommandPictureOps.RowOf(picture, CommandPictureOps.NetIdOf(world, sub));
+            if (i < 0) return false;
+            row = picture.Subordinates.Items[i];
+            return true;
+        }
+    }
+}

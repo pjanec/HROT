@@ -2,6 +2,7 @@ using System;
 using Fdp.Core;
 using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Contracts;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Animation.Network.Integration.Tests;
 

@@ -23,11 +23,11 @@
 ### `Hrot\Subsystems\Hrot.Orchestrator\Events\DiagnosticsMergeEvents.cs`
 Local-bus-only event structs for the diagnostic log merge feature.
 
-- `MergeLogsIntent` (`[EventId(9059)]`, `DataPolicy.NoRecord`):  
+- `MergeLogsIntent` (`[EventId(9059)]`, `DataPolicy.NoReplay`):  
   - `string[] LogRelativePaths` — relative paths under NAS base path  
   - `string NasBasePath`  
   - `string DumpTimestamp`  
-- `LogMergeCompletedEvent` (`[EventId(9060)]`, `DataPolicy.NoRecord`):  
+- `LogMergeCompletedEvent` (`[EventId(9060)]`, `DataPolicy.NoReplay`):  
   - `string NasPath` — absolute path to the merged output file  
 
 ### `Hrot\Subsystems\Hrot.Orchestrator\DiagnosticLogMergeWorker.cs`

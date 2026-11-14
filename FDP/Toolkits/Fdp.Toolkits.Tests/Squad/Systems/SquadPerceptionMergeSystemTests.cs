@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fdp.Core;
@@ -23,9 +24,9 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             _repo = new EntityRepository();
             _repo.RegisterComponent<UnitRoster>();
             _repo.RegisterComponent<UnitSubordinate>();
-            _repo.RegisterComponent<Blackboard1024>();
+            _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<TargetMemory>();
-            _repo.RegisterComponent<SquadStateMarker>();
+            _repo.RegisterComponent<SquadCognitiveState>();
         }
 
         public void Dispose()
@@ -40,8 +41,8 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
         {
             var commander = _repo.CreateEntity();
             _repo.AddComponent(commander, new UnitRoster());
-            _repo.AddComponent(commander, new Blackboard1024());
-            _repo.AddComponent(commander, new SquadStateMarker());
+            _repo.AddComponent(commander, default(SquadCognitiveState));
+            _repo.AddComponent(commander, default(SquadCognitiveState));
 
             var members = new Entity[memberCount];
             for (int i = 0; i < memberCount; i++)
@@ -54,7 +55,7 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
                     Designation = TacticalDesignation.Undefined
                 });
                 ref var roster = ref _repo.GetComponentRW<UnitRoster>(commander);
-                UnitRoster.Add(ref roster, (long)m.PackedValue);
+                UnitRoster.Add(ref roster, m);
                 members[i] = m;
             }
             return (_repo, commander, members);
@@ -62,8 +63,7 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
 
         private ref SquadCognitiveState GetState(Entity commander)
         {
-            ref var bb = ref _repo.GetComponentRW<Blackboard1024>(commander);
-            return ref SquadCognitiveState.Project(ref bb);
+            return ref _repo.GetComponentRW<SquadCognitiveState>(commander);
         }
 
         private ref SquadContact GetContact(Entity commander, int index)
@@ -259,6 +259,129 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             Assert.Equal(5f, contact.PositionX, precision: 5);
             Assert.Equal(6f, contact.PositionY, precision: 5);
             Assert.Equal(7f, contact.PositionZ, precision: 5);
+        }
+
+        /// <summary>⭐ <c>CE-3063</c> ② — two members HEARING one shot are ONE squad contact: their circles meet, so the pool fuses
+        /// them by position (the radius shrinks, both members' bits set), flagged heard; a shot heard far away stays a second contact.</summary>
+        [Fact]
+        public void CE3063_TwoMembersHearingOneShot_AreOnePooledContact()
+        {
+            var (repo, commander, members) = CreateSquadWorld(3);
+            const byte smallArms = 4;
+            ref var mem0 = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.HearContact(ref mem0, 100f, 0f, 0f, 20f, smallArms, 50f, 1);
+            ref var mem1 = ref repo.GetComponentRW<TargetMemory>(members[1]);
+            TargetMemory.HearContact(ref mem1, 110f, 5f, 0f, 20f, smallArms, 60f, 1);
+            ref var mem2 = ref repo.GetComponentRW<TargetMemory>(members[2]);
+            TargetMemory.HearContact(ref mem2, -400f, 0f, 0f, 20f, smallArms, 40f, 1);
+
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 10, mergeIntervalTicks: 1);
+
+            ref var state = ref GetState(commander);
+            Assert.Equal(2, state.Contacts.Count);
+            ref var fused = ref GetContact(commander, 0);   // sorted by score: the fused one (60) first
+            Assert.True((fused.Flags & SquadContact.AnonymousFlag) != 0, "a heard contact stays flagged heard in the pool");
+            Assert.Equal((ushort)0b0011, fused.SourceMembersMask);
+            Assert.Equal(60f, fused.ThreatScore);
+            Assert.InRange(fused.PositionX, 100f, 110f);   // between the two estimates
+            Assert.True((GetContact(commander, 1).Flags & SquadContact.AnonymousFlag) != 0);
+        }
+
+        /// <summary>⭐ CE-2107 — one member SEES the enemy, another HEARS his shot inside the sound's circle: the pool holds ONE
+        /// contact, the sighting (its position, both members' bits, the higher score), not the sighting plus an anonymous point
+        /// that <c>SquadEnemyStrengthRatio</c> would count as a second armed enemy.</summary>
+        [Fact]
+        public void CE2107_AShotOneMemberHears_AndAnotherSees_IsOnePooledContact()
+        {
+            var (repo, commander, members) = CreateSquadWorld(2);
+            const byte smallArms = 4;
+            repo.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();
+            var enemy = repo.CreateEntity();
+            repo.AddComponent(enemy, new Fdp.Toolkit.Perception.Signatures.AcousticEmitter { FiringClass = smallArms });
+
+            ref var mem0 = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.AddOrUpdateTarget(ref mem0, (long)enemy.PackedValue, 100f, 0f, 50f, tick: 1);
+            ref var mem1 = ref repo.GetComponentRW<TargetMemory>(members[1]);
+            TargetMemory.HearContact(ref mem1, 105f, 3f, 0f, 20f, smallArms, 60f, 1);
+
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 10, mergeIntervalTicks: 1);
+
+            Assert.Equal(1, GetState(commander).Contacts.Count);
+            ref var c = ref GetContact(commander, 0);
+            Assert.Equal((long)enemy.PackedValue, c.EntityId);
+            Assert.True((c.Flags & SquadContact.AnonymousFlag) == 0, "the sighting absorbs the sound — the contact is identified");
+            Assert.Equal((ushort)0b0011, c.SourceMembersMask);
+            Assert.Equal(60f, c.ThreatScore);
+            Assert.Equal(100f, c.PositionX);   // the sighting's position, not the sound's estimate
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2348</c> ③ (R-2071 E-1, Sensing §8.6b) — A HEARD BURST IS NO ENEMY: a round landing 4 m from a SEEN enemy does not
+        /// refresh him (his last-seen tick stays), it is its own burst slot; a second burst there fuses with it (one slot), a rifle shot
+        /// there does not; the burst counts no enemy danger; and the squad pool holds only the seen enemy. 📐 Live <c>uc-urban-battle</c>:
+        /// the enemy's RPG bursts landing among the convoy kept it "in contact" after the ambush. 🔴 Red-proof: drop the
+        /// <c>IsBurst</c> skip in the merge and the pool holds two contacts; drop the HearContact rule and the enemy is refreshed.
+        /// </summary>
+        [Fact]
+        public void CE2348_AHeardBurst_IsNoEnemy_NotRefreshingOne_NotCountedNotPooled()
+        {
+            var (repo, commander, members) = CreateSquadWorld(2);
+            const byte burst = TargetMemory.BurstClass, smallArms = 4;
+            var enemy = repo.CreateEntity();
+            ref var mem0 = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.AddOrUpdateTarget(ref mem0, (long)enemy.PackedValue, 100f, 0f, 50f, tick: 1);
+            TargetMemory.HearContact(ref mem0, 104f, 0f, 0f, 20f, burst, 60f, 5);
+
+            Assert.Equal(2, mem0.Count);
+            int seen = mem0.EntityIds[0] == (long)enemy.PackedValue ? 0 : 1, heard = 1 - seen;
+            Assert.Equal(1u, mem0.LastSeenTick[seen]);
+            Assert.True(TargetMemory.IsBurst(in mem0, heard));
+            Assert.Equal(0f, Fdp.Toolkit.Perception.ThreatDanger.OfSlot(repo, members[0], in mem0, heard));
+
+            TargetMemory.HearContact(ref mem0, 106f, 2f, 0f, 20f, burst, 60f, 6);       // a second burst there: the same slot
+            Assert.Equal(2, mem0.Count);
+            TargetMemory.HearContact(ref mem0, 105f, 1f, 0f, 20f, smallArms, 60f, 7);   // a rifle shot there: never fused into the burst
+            int bursts = 0;
+            for (int i = 0; i < mem0.Count; i++) if (TargetMemory.IsBurst(in mem0, i)) bursts++;
+            Assert.Equal(1, bursts);
+
+            ref var mem1 = ref repo.GetComponentRW<TargetMemory>(members[1]);
+            TargetMemory.HearContact(ref mem1, 300f, 0f, 0f, 20f, burst, 60f, 5);      // only a burst
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 10, mergeIntervalTicks: 1);
+
+            for (int i = 0; i < GetState(commander).Contacts.Count; i++)
+                Assert.NotEqual(300f, GetContact(commander, i).PositionX);               // no burst in the pool
+            Assert.Contains(Enumerable.Range(0, GetState(commander).Contacts.Count),
+                i => GetContact(commander, i).EntityId == (long)enemy.PackedValue);
+        }
+
+        /// <summary>⭐ CE-2107 — the guard: a sound the seen entity cannot make (a rifle shot by a tracked engine), or a sound whose
+        /// circle does not hold the sighting, stays its own heard contact.</summary>
+        [Fact]
+        public void CE2107_AHeardContactStays_WhenTheSightingCannotMakeIt_OrLiesOutsideTheCircle()
+        {
+            var (repo, commander, members) = CreateSquadWorld(3);
+            const byte smallArms = 4, trackedEngine = 3;
+            repo.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();
+            var tank = repo.CreateEntity();
+            repo.AddComponent(tank, new Fdp.Toolkit.Perception.Signatures.AcousticEmitter { MovingClass = trackedEngine });
+            var rifleman = repo.CreateEntity();
+            repo.AddComponent(rifleman, new Fdp.Toolkit.Perception.Signatures.AcousticEmitter { FiringClass = smallArms });
+
+            ref var mem0 = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.AddOrUpdateTarget(ref mem0, (long)tank.PackedValue, 100f, 0f, 50f, tick: 1);
+            TargetMemory.AddOrUpdateTarget(ref mem0, (long)rifleman.PackedValue, 300f, 0f, 40f, tick: 1);
+            ref var mem1 = ref repo.GetComponentRW<TargetMemory>(members[1]);
+            TargetMemory.HearContact(ref mem1, 102f, 0f, 0f, 20f, smallArms, 60f, 1);   // over the tank: wrong class
+            ref var mem2 = ref repo.GetComponentRW<TargetMemory>(members[2]);
+            TargetMemory.HearContact(ref mem2, 340f, 0f, 0f, 20f, smallArms, 30f, 1);   // the rifleman's class, 40 m off: outside 20
+
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 10, mergeIntervalTicks: 1);
+
+            Assert.Equal(4, GetState(commander).Contacts.Count);
+            int heard = 0;
+            for (int i = 0; i < 4; i++) if ((GetContact(commander, i).Flags & SquadContact.AnonymousFlag) != 0) heard++;
+            Assert.Equal(2, heard);
         }
     }
 }

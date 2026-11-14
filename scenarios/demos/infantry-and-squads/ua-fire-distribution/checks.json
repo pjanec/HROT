@@ -1,0 +1,51 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — U6 (CE-3088): the leader spreads the squad's fire; a 10 HP man breaks off. From the header's Judge (3) (the hurt man's HoldProne, read through its StanceIntent, a utility winner not being readable) and (4) (every rifleman fires); the spread and the 2-per-target cap (2) are the squad's assignment table, not a component, so they are left out.",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "do": [
+    {
+      "name": "hurt",
+      "at": 5,
+      "set": {
+        "who": "Rifleman 4",
+        "component": "Health",
+        "patch": {
+          "Current": 10
+        }
+      }
+    }
+  ],
+  "expect": [
+    {
+      "name": "Rifleman 1 spends rounds",
+      "on": "shot",
+      "by": "Rifleman 1"
+    },
+    {
+      "name": "Rifleman 2 spends rounds",
+      "on": "shot",
+      "by": "Rifleman 2"
+    },
+    {
+      "name": "Rifleman 3 spends rounds",
+      "on": "shot",
+      "by": "Rifleman 3"
+    },
+    {
+      "name": "Rifleman 4 spends rounds",
+      "on": "shot",
+      "by": "Rifleman 4"
+    },
+    {
+      "name": "the hurt man (10 HP) asks to lie down (HoldProne)",
+      "on": "field",
+      "who": "Rifleman 4",
+      "path": "StanceIntent.TargetStance",
+      "op": "==",
+      "value": "Prone",
+      "after": "hurt"
+    }
+  ]
+}

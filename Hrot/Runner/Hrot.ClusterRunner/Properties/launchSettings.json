@@ -1,24 +1,16 @@
 {
   "profiles": {
-    "All (ExCon+IG+SIM+CGF)": {
+    "All (Player+SIM+CGF)": {
       "commandName": "Project",
       "commandLineArgs": "-m all"
     },
-    "All w/Stride (ExCon+CGF+StrideMock)": {
+    "Player": {
       "commandName": "Project",
-      "commandLineArgs": "-m orchestrator,excon,cgf,stridemock  --no-wait"
-    },
-    "IG": {
-      "commandName": "Project",
-      "commandLineArgs": "-m ig --no-wait"
+      "commandLineArgs": "-m player --no-wait"
     },
     "SimHost": {
       "commandName": "Project",
       "commandLineArgs": "-m simhost --no-wait"
-    },
-    "ExCon": {
-      "commandName": "Project",
-      "commandLineArgs": "-m excon --no-wait"
     },
     "Editor": {
       "commandName": "Project",

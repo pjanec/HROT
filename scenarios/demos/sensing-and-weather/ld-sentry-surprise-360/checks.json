@@ -1,0 +1,47 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — LD-5 control: the same cast with a 360-degree view. Only positions are expressible (the take's proven cue: B within 5 m of (185,40) at 20.6 s): the Sentry holds, A crosses, B walks up. Left out: 'A seen' and 'B seen while walking up' (visual memory, read over /memory, not a component). The golden pins the run as the take plays it (no operator sector).",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "near": {
+      "on": "near",
+      "who": "Hostile B",
+      "point": [
+        185,
+        40
+      ],
+      "within": 5
+    }
+  },
+  "expect": [
+    {
+      "name": "the Sentry holds (PersonHold)",
+      "on": "task",
+      "who": "Sentry",
+      "is": "PersonHold",
+      "before": 10
+    },
+    {
+      "name": "Hostile A crosses to the east end of its line at (198,150)",
+      "on": "near",
+      "who": "Hostile A",
+      "point": [
+        198,
+        150
+      ],
+      "within": 2
+    },
+    {
+      "name": "Hostile B walks up behind the Sentry (the take's cue: within 5 m of (185,40))",
+      "on": "near",
+      "who": "Hostile B",
+      "point": [
+        185,
+        40
+      ],
+      "within": 5
+    }
+  ]
+}

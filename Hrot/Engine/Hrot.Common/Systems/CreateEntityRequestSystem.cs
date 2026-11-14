@@ -1,0 +1,661 @@
+﻿// ⭐⭐ MOVED HERE 2026-08-31 (Q65 obstacle 1) FROM Hrot/Subsystems/Hrot.CGF/Systems/.
+//
+// WHY: this is the REQUEST TIER of entity genesis, and it is not CGF's. Q65 measured that
+// `isDefaultProcessor` is a BROADCAST TIEBREAKER, not an authority gate -- CreateEntityRequestSystem
+// processes a request targeted at the LOCAL node regardless of that flag. So every ECS-equipped node
+// should register this system; only one node carries isDefaultProcessor: true, for Owner == 0 broadcasts
+// from non-ECS clients like ExCon.
+//
+// While it lived in the Hrot.CGF host assembly, "every node registers it" was not even EXPRESSIBLE:
+// only CGF, the Editor and the Stride editor could construct it. This move is what makes
+// EntityCreationPack (DESIGN step 3) possible, and it is a PURE MOVE -- no behaviour change.
+//
+// The namespace changed from Hrot.CGF.Systems to Hrot.Common.Systems deliberately: keeping "CGF" in
+// the name of a type every node uses would perpetuate exactly the misconception Q65 exists to kill.
+//
+// WHY Hrot.Common AND NOT Hrot.Core (Q65 section 5.4 said Hrot.Core, and that was WRONG):
+// CreateEntityRequestSystem constructs Hrot.Common.Serializers.InitialUnitSubordinateIntent by
+// FULLY-QUALIFIED name in its child-blueprint branch. Hrot.Common already references Hrot.Core, so
+// Hrot.Core -> Hrot.Common would be a CYCLE. Measured 2026-08-31. Hrot.Common is reachable from
+// every host (CGF, SimHost, IG, Stride, ClusterRunner directly; Hrot.Editor transitively via
+// SimHost/CGF/NED) and is where SharedApplicationBootstrapper already lives, so "every node can
+// register it" holds.
+//
+// 📄 docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md sections 5.4 and 6
+// 📄 docs/DESIGN_Entity_Creation_Unification.md section 3.4
+using System;
+using Hrot.Core.Network;
+using System.Collections.Generic;
+using Fdp.Core.CommandHierarchy;
+using Fdp.Toolkit.Replication.Patching;
+using Fdp.Core.Logging;
+using Fdp.Interfaces;
+using Fdp.Core;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Replication.Abstractions;
+using Fdp.Toolkit.Replication;
+using Fdp.Toolkit.NetworkSpawning;
+
+namespace Hrot.Common.Systems
+{
+    /// <summary>
+    /// Handles entity creation requests arriving from the network (protocol-neutral).
+    ///
+    /// <para>
+    /// On every <see cref="Execute"/> call the system:
+    /// <list type="number">
+    ///   <item>Applies the Level-1 routing guard (<see cref="_isDefaultProcessor"/>) to prevent
+    ///     cluster-wide broadcast storms where multiple nodes attempt to process the same default request.</item>
+    ///   <item>Drains requests via a zero-allocation callback (no list alloc on ingress).</item>
+    ///   <item>Validates each request and allocates a network ID immediately.</item>
+    ///   <item>Sends a Phase 1 InProgress ACK right away so the ExCon client unblocks with minimal latency.</item>
+    ///   <item>Registers the request with <see cref="EntityRequestFinalizationSystem"/> for Phase 2 tracking.</item>
+    ///   <item>Enqueues the pre-validated data for time-sliced processing.</item>
+    ///   <item>Pops up to <see cref="MaxRequestsPerTick"/> items and publishes
+    ///     <see cref="SpawnEntityCommand"/> events for <c>NetworkSpawningSystem</c>.</item>
+    /// </list>
+    /// </para>
+    ///
+    /// Design constraint: this system is a thin translator.
+    /// It must NOT call CreateEntity, ApplyTo, or BeginConstruction directly —
+    /// all ECS spawning is delegated to NetworkSpawningSystem via the event bus.
+    /// </summary>
+    [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
+    public class CreateEntityRequestSystem : IEcsModuleSystem
+    {
+        /// <summary>Maximum <see cref="SpawnEntityCommand"/> events published per tick.</summary>
+        public const int MaxRequestsPerTick = 500;
+
+        private readonly IEntityCreationRequestSource       _requestSource;
+        private readonly IEntityAckSink                     _ackSink;
+        private readonly ITkbDatabase                       _tkbDb;
+        private readonly INetworkIdAllocator                _idAllocator;
+        private readonly NodeId                                _localNodeId;
+        private readonly bool                               _isDefaultProcessor;
+        private readonly JsonAttributeCompiler?             _jsonCompiler;
+
+        /// <summary>⭐ CE-4024 — true when a request's <c>InitialAttributesJson</c> is applied here (the host passed a compiler). The forwarding
+        /// rail asserts it on every host's CONSTRUCTED pack: a host that holds a geo transform and passes no compiler drops every attribute.</summary>
+        public bool AppliesAttributes => _jsonCompiler != null;
+        private readonly EntityRequestFinalizationSystem?      _finalizationSystem;
+        private readonly IOwnershipDistributionStrategy?    _ownershipStrategy;
+
+        /// <summary>
+        /// Reusable <see cref="ListPatchContext"/> instance. Reset per entity-creation call
+        /// to avoid allocating a new instance (and two internal dictionaries) for every
+        /// entity in a burst spawn, eliminating per-entity Gen0 GC pressure.
+        /// </summary>
+        private ListPatchContext? _reusablePatchContext;
+
+        // Pre-validated requests waiting to be converted into SpawnEntityCommands.
+        // Capacity pre-allocated to absorb large bursts without resizing.
+        private readonly Queue<PendingRequest> _pendingQueue = new(capacity: MaxRequestsPerTick * 4);
+        private int _worldEpoch;
+
+        /// <param name="requestSource">Source of incoming entity-creation requests.</param>
+        /// <param name="ackSink">Sink for entity lifecycle ACK messages.</param>
+        /// <param name="tkbDb">TKB database used to validate that the requested entity type exists.</param>
+        /// <param name="idAllocator">Allocator that produces unique network entity IDs.</param>
+        /// <param name="localNodeId">This node's ID used as <c>OwnerNodeId</c> in SpawnEntityCommand.</param>
+        /// <param name="isDefaultProcessor">
+        ///   When <c>true</c> this node intercepts broadcast requests where <c>Owner == 0</c>
+        ///   (no explicit target node).  Exactly one node in the cluster must set this to <c>true</c>
+        ///   to avoid duplicate ID allocation.  The Brain (CGF) node is always the default processor;
+        ///   Muscle (SimHost) nodes must set this to <c>false</c>.
+        /// </param>
+        /// <param name="jsonAttributeCompiler">
+        /// Optional <see cref="JsonAttributeCompiler"/> for applying <c>InitialAttributesJson</c>
+        /// overrides after descriptors have been mapped to components.
+        /// When <c>null</c>, <c>InitialAttributesJson</c> is ignored.
+        /// </param>
+        /// <param name="finalizationSystem">
+        /// Optional <see cref="EntityRequestFinalizationSystem"/> for Two-ACK lifecycle tracking.
+        /// When provided, the system registers each creation request for Phase 2 ACK dispatch.
+        /// </param>
+        /// <param name="ownershipStrategy">
+        ///   Optional <see cref="IOwnershipDistributionStrategy"/> used by the default processor
+        ///   to build the pre-genesis <c>DeferredTakeOwnership</c> routing table.
+        ///   When <c>null</c>, the default processor retains full ownership of all descriptors.
+        /// </param>
+        public CreateEntityRequestSystem(
+            IEntityCreationRequestSource        requestSource,
+            IEntityAckSink                      ackSink,
+            ITkbDatabase                        tkbDb,
+            INetworkIdAllocator                 idAllocator,
+            int                                 localNodeId,
+            JsonAttributeCompiler?              jsonAttributeCompiler = null,
+            EntityRequestFinalizationSystem?       finalizationSystem    = null,
+            bool                                isDefaultProcessor    = false,
+            IOwnershipDistributionStrategy?     ownershipStrategy     = null)
+        {
+            _requestSource      = requestSource  ?? throw new ArgumentNullException(nameof(requestSource));
+            _ackSink            = ackSink        ?? throw new ArgumentNullException(nameof(ackSink));
+            _tkbDb              = tkbDb          ?? throw new ArgumentNullException(nameof(tkbDb));
+            _idAllocator        = idAllocator    ?? throw new ArgumentNullException(nameof(idAllocator));
+            _localNodeId        = (Fdp.Core.NodeId)(localNodeId);
+            _isDefaultProcessor = isDefaultProcessor;
+            _jsonCompiler       = jsonAttributeCompiler;
+            _finalizationSystem = finalizationSystem;
+            _ownershipStrategy  = ownershipStrategy;
+            _processRequestDelegate = ProcessIncomingRequest;
+        }
+
+        /// <summary>Number of requests currently buffered and awaiting spawn commands.</summary>
+        public int PendingQueueCount => _pendingQueue.Count;
+
+        // Cached delegate for ProcessIncomingRequest — avoids a per-tick lambda allocation.
+        private readonly Action<EntityCreationRequest> _processRequestDelegate;
+
+        /// <inheritdoc />
+        public void Execute(ISimulationView view, float deltaTime)
+        {
+            // ⭐ R-3039 S3 — a world replacement (a load, a restore): a request accepted but not yet spawned was in flight; the restored world never asked for it (R-3041).
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _pendingQueue.Clear();
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
+            // ── Phase 1: Drain all incoming requests this frame ───────────────
+            // The callback fires synchronously for each valid network sample so no
+            // per-sample heap allocation occurs on ingress (GC03).
+            // Each valid request is validated, ID-allocated, ACK'd, and enqueued
+            // on the same frame it arrives, giving the requester minimum latency (GC04).
+            _requestSource.ProcessRequests(_processRequestDelegate);
+
+            // ── Phase 2: Time-sliced spawn dispatch ────────────────────────────
+            // Convert at most MaxRequestsPerTick buffered requests into
+            // SpawnEntityCommand events this tick to stay within the frame budget.
+            int toProcess = Math.Min(_pendingQueue.Count, MaxRequestsPerTick);
+            for (int i = 0; i < toProcess; i++)
+                ProcessPendingRequest(view, _pendingQueue.Dequeue());
+        }
+
+        /// <summary>
+        /// Processes a single incoming entity-creation request during the ingress phase.
+        /// Extracted from the inline lambda so the delegate instance can be cached once and
+        /// reused every tick (eliminates continuous Gen0 GC pressure from lambda captures).
+        /// </summary>
+        private void ProcessIncomingRequest(EntityCreationRequest request)
+        {
+            // ── Level-1 routing guard ──────────────────────────────────────────
+            // If the request specifies an explicit target node, only that node processes it.
+            // If the target is 0 (broadcast / "any default"), only the designated default
+            // processor intercepts it — all other nodes drop the packet silently to prevent
+            // duplicate ID allocation and cluster-wide race conditions.
+            //
+            // ⭐⭐ D1 — the rule itself now lives in EntityCreationRouting, because
+            //   ForwardingEntityCreationRequestSource must ask the SAME question to decide whether to
+            //   forward a locally-authored request. ⛔ Two copies of a routing rule is the duplicate-
+            //   implementation defect this programme exists to remove, and here it would be vicious:
+            //   if they ever disagreed a request would be serviced twice, or by nobody.
+            //   📄 docs/DESIGN_Entity_Creation_Unification.md §3.4b
+            if (!EntityCreationRouting.IsHandledLocally(request, _localNodeId, _isDefaultProcessor))
+                return; // Not our responsibility — silently ignore.
+
+            try
+            {
+                // Validate TkbType (already extracted by the adapter).
+                if (request.TkbType == 0)
+                {
+                    FdpLog<CreateEntityRequestSystem>.Warn(
+                        $"[Node-{_localNodeId}] CreateEntity {request.RequestId}: No EntityMaster descriptor or TkbType=0. Rejecting.");
+                    _ackSink.WriteAck(request.RequestId, 0, EntityOperationStatus.UnknownDescriptorType);
+                    return;
+                }
+
+                // Validate TkbType exists in the database.
+                if (!_tkbDb.TryGetByType(request.TkbType, out var requestedTemplate))
+                {
+                    FdpLog<CreateEntityRequestSystem>.Warn(
+                        $"[Node-{_localNodeId}] CreateEntity {request.RequestId}: TkbType={request.TkbType} not found. Rejecting.");
+                    _ackSink.WriteAck(request.RequestId, 0, EntityOperationStatus.UnknownDescriptorType);
+                    return;
+                }
+
+                // Allocate (or use pre-allocated) network ID, then immediately send Phase 1 ACK
+                // (InProgress) so the client unblocks now.
+                int newNetworkId = request.PreAllocatedNetworkId != 0
+                    ? request.PreAllocatedNetworkId
+                    : _idAllocator.AllocateId();
+                _ackSink.WriteAck(request.RequestId, newNetworkId, EntityOperationStatus.InProgress);
+
+                // Register for Phase 2 ACK dispatch once ELM confirms lifecycle.
+                _finalizationSystem?.Track(newNetworkId, request.RequestId, RequestKind.Create);
+
+                _pendingQueue.Enqueue(new PendingRequest
+                {
+                    Request   = request,
+                    NetworkId = newNetworkId,
+                    TkbType   = request.TkbType,
+                    DisType   = UnitTakesItsTemplatesDisType(requestedTemplate!, request.DisType),
+                });
+            }
+            catch (Exception ex)
+            {
+                FdpLog<CreateEntityRequestSystem>.Error(
+                    $"[Node-{_localNodeId}] CreateEntity ingress failed for request {request.RequestId}: {ex.Message}");
+                _ackSink.WriteAck(request.RequestId, 0, EntityOperationStatus.UnknownDescriptorType);
+            }
+        }
+
+        // ─── Private helpers ─────────────────────────────────────────────────
+
+        private void ProcessPendingRequest(ISimulationView view, in PendingRequest pending)
+        {
+            try
+            {
+                // 1. Seed component list from descriptor-converted components (if any).
+                //    These are populated by the network adapter (e.g. NedEntityCreationRequestSource)
+                //    via DescriptorMapper and represent the base state from the wire message.
+                List<object> allComponents = pending.Request.InitialComponents != null
+                    ? new List<object>(pending.Request.InitialComponents)
+                    : new List<object>();
+
+                // 1b. ⭐ CE-4153 (S2) — a scenario load carries the file key as an EntityGuid (StagingEntityExtractor keeps every staging
+                //     component). An entity AUTHORED now gets its identity minted ONCE at step 4 below, where this system decides to materialise it
+                //     (and its composite children / seat presets DERIVE theirs from it, EntityGuidDerivation) — this is the one creation point:
+                //     both the wire CreateEntityRequest and the in-process intent converge here. ⛔ A scenario-load request WITHOUT a key is a defect
+                //     of the loader: logged loudly (the mint below would otherwise give it a key that is not the file's). Rail:
+                //     ScenarioEntityKeySweepTests.EveryShippedScenario_ExtractsEveryEntityWithItsFileKey.
+                if (pending.Request.IsScenarioLoad && !allComponents.Exists(c => c is Fdp.Toolkit.Scenario.EntityGuid))
+                    FdpLog<CreateEntityRequestSystem>.Error(
+                        $"[Node-{_localNodeId}] CreateEntity {pending.Request.RequestId}: a SCENARIO-LOAD request carries no EntityGuid (tkb {pending.TkbType}) — the loader stamps every entity, so this is a defect. (CE-4153)");
+
+                // 2. Apply JSON attribute patches from InitialAttributesJson (ATTR-S5T2).
+                //    Patches are applied AFTER descriptor-based defaults so fine-grained
+                //    overrides win over template values.
+                if (_jsonCompiler != null && !string.IsNullOrEmpty(pending.Request.InitialAttributesJson))
+                {
+                    // Reuse the single cached context (Reset clears slots without releasing
+                    // the underlying Dictionary objects, eliminating per-entity heap traffic).
+                    _reusablePatchContext ??= new ListPatchContext(null);
+                    _reusablePatchContext.Reset(allComponents);
+                    _jsonCompiler.Compile(pending.Request.InitialAttributesJson, _reusablePatchContext);
+                    allComponents = _reusablePatchContext.FlushComponents();
+                }
+
+                // 3. Separate unmanaged structs into explicit typed SpawnEntityCommand fields
+                //    to avoid boxing them as List<object> items on the LOH (GC02).
+                SimTransform? initialTransform = null;
+                SimVelocity?  initialVelocity  = null;
+                List<object>? fallbackComponents = null;
+
+                foreach (var comp in allComponents)
+                {
+                    if (comp is SimTransform st) { initialTransform = st; continue; }
+                    if (comp is SimVelocity  sv) { initialVelocity  = sv; continue; }
+
+                    // All other (managed or rare) components go into the fallback list.
+                    fallbackComponents ??= new List<object>();
+                    fallbackComponents.Add(comp);
+                }
+
+				// 3.5. Ensure parent has IgEntityData if it's an auto-spawn composite
+				EntityInfo? parentInfo = null;
+                int parentInfoIdx = -1;
+                if (_tkbDb.TryGetByType(pending.TkbType, out var parentTemplate) && parentTemplate.ChildBlueprints.Count > 0)
+                {
+                    if (fallbackComponents != null)
+                    {
+                        for (int fi = 0; fi < fallbackComponents.Count; fi++)
+                        {
+                            if (fallbackComponents[fi] is EntityInfo info )
+                            {
+                                parentInfo = info;
+                                parentInfoIdx = fi;
+                                break; // Found the metadata component
+                            }
+                        }
+                    }
+
+                    // If the request didn't patch any metadata, ensure the parent has default metadata
+                    // so it's visible in the ORBAT tree and can be tracked.
+                    if (parentInfo == null)
+                    {
+                        var newInfo = new Fdp.Core.EntityInfo
+                        {
+                            Name = parentTemplate.Name,
+                            ForceId = ForceId.Neutral
+                        };
+                        fallbackComponents ??= new List<object>();
+                        fallbackComponents.Add(newInfo);
+                        parentInfo = newInfo;
+                    }
+                    else if (parentInfo.Value.Name.IsEmpty)
+                    {
+                        // Ensure parent has a valid name; update both the local copy and the list entry.
+                        var updated = parentInfo.Value;
+                        updated.Name = parentTemplate.Name;
+                        fallbackComponents![parentInfoIdx] = updated;
+                        parentInfo = updated;
+                    }
+                }
+
+                // 3.6 ⭐⭐ Weapon systems WS-4 (W-I, R-138; DESIGN_Weapon_Systems §4d) — the host's SEAT PRESETS (an M2 for its station, a
+                //   rifleman for its gunner seat) are filled ONCE, here, by the node servicing its creation: the host is marked filled
+                //   (SeatPresetsFilled, saved), so a scenario load — whose request carries that mark — never fills them again.
+                var seatPresets = Hrot.Common.EntityCreation.SeatPresets.ToFill(parentTemplate, allComponents);
+                if (seatPresets.Count > 0)
+                {
+                    fallbackComponents ??= new List<object>();
+                    fallbackComponents.Add(new Fdp.Toolkit.Behavior.Components.SeatPresetsFilled { Filled = 1 });
+                }
+
+                // 3.7 ⭐ Macros S3a ④ (DESIGN_Scenario_Macros §15 E-1/E-5) — an instance THIS node creates expands here: it is born Expanding with
+                //   the wait the load gate knows (MacroExpansionSystem does the work). ⭐ A nested instance arrives Done (its parent's expansion
+                //   flattened it); a ghost / promotion never passes here, so it never expands (SR-174).
+                if (fallbackComponents != null && fallbackComponents.Exists(c => c is Fdp.Toolkit.Scenario.MacroInstance)
+                    && !fallbackComponents.Exists(c => c is Fdp.Toolkit.Scenario.MacroExpansionStatus))
+                {
+                    fallbackComponents.Add(new Fdp.Toolkit.Scenario.MacroExpansionStatus { State = Fdp.Toolkit.Scenario.MacroExpansionState.Expanding });
+                    fallbackComponents.Add(new Fdp.Toolkit.Scenario.MacroExpansionIntent());
+                }
+
+                // 4. Publish SpawnEntityCommand — NetworkSpawningSystem handles all ECS work.
+                if (view is EntityRepository repo)
+                {
+                    // CQRS fix: if the request explicitly names an owner node, honour it.
+                    // If Owner == 0 the default processor (this node) claims ownership.
+                    int assignedOwner = (pending.Request.OwnerAppInstanceId == 0 || pending.Request.OwnerAppInstanceId == _localNodeId)
+                        ? _localNodeId
+                        : pending.Request.OwnerAppInstanceId;
+
+                    // 4-guid. ⭐ CE-4153 (S2) — the entity's stable identity: the file's key if the request brought one, else minted ONCE now
+                    //   (non-transient only: a sketch never reaches a scenario). The children and presets below derive theirs from it.
+                    Guid parentGuid = Guid.Empty;
+                    if (!pending.Request.IsTransient)
+                    {
+                        fallbackComponents ??= new List<object>();
+                        foreach (var c in fallbackComponents)
+                            if (c is Fdp.Toolkit.Scenario.EntityGuid g) { parentGuid = g.Value; break; }
+                        if (parentGuid == Guid.Empty)
+                        {
+                            parentGuid = Guid.NewGuid();
+                            fallbackComponents.Add(new Fdp.Toolkit.Scenario.EntityGuid(parentGuid));
+                        }
+                    }
+
+                    repo.Bus.PublishManaged(new SpawnEntityCommand
+                    {
+                        NetworkId         = pending.NetworkId,
+                        TkbType           = pending.TkbType,
+                        OwnerNodeId       = (Fdp.Core.NodeId)(assignedOwner),
+                        DisType           = pending.DisType,
+                        // ⭐⭐ CE-143 — was hardcoded ReliableInitType.AllPeers. The request now carries
+                        //   the axis, defaulted to AllPeers, so every existing caller is unchanged and an
+                        //   IG map drawing can say "do not wait for peers" without a stall.
+                        //   ⛔ Separate axis from OwnerAppInstanceId — see EntityCreationRequest.InitType.
+                        InitType          = pending.Request.InitType,
+                        ReliableInitTimeout = pending.Request.ReliableInitTimeout,   // CE-515 ③
+                        // ⭐⭐ D2 — the throwaway flag rides the ORDER so every receiver derives
+                        //   ScenarioIgnoreTag locally at spawn. See EntityCreationRequest.IsTransient.
+                        IsTransient       = pending.Request.IsTransient,
+                        SpawnHeight       = pending.Request.SpawnHeight,   // CE-1017 S2 — resolved by NetworkSpawningSystem
+                        InitialTransform  = initialTransform,
+                        InitialVelocity   = initialVelocity,
+                        InitialComponents = fallbackComponents,
+                        RequestId         = pending.Request.RequestId,
+                    });
+
+                    // 4b  The node servicing this creation OWNS the entity, so it MUST broadcast the
+                    //     pre-genesis routing table BEFORE the EntityMaster is published (strict egress
+                    //     ordering per Rule 1). The table is built by the injected
+                    //     IOwnershipDistributionStrategy.
+                    //
+                    // ⭐⭐⭐ CE-271 — the gate is `_ownershipStrategy != null`, NOT `_isDefaultProcessor`.
+                    //   🔒 R-138 (canon): the system is fully distributed; ANY ECS node that creates an
+                    //   entity it owns hands off the components its role does not cover — that is what
+                    //   auto-takeover (DeferredTakeOwnership) is FOR. Gating on `_isDefaultProcessor` was
+                    //   the pre-auto-takeover "the broadcast arbiter is the sole owner" assumption — the
+                    //   flag is a broadcast TIEBREAKER for Owner==0 requests (Q65 §4), not an authority
+                    //   gate. A non-arbiter local owner (e.g. IG under R-138) kept everything and handed
+                    //   off nothing, so a Muscle could never take dtWorldPos and the entity was frozen.
+                    //   ⚠ Cannot double-grant: exactly one node services a given creation (the level-1
+                    //   IsHandledLocally guard above), and only that node reaches this line. Reproduced
+                    //   red then green by CreateEntityRequestSystemTests
+                    //   .ProcessRequest_NonArbiterLocalOwner_PublishesDeferredTakeOwnership.
+                    if (_ownershipStrategy != null)
+                    {
+                        var grants = BuildOwnershipGrants(pending, assignedOwner);
+                        if (grants.Count > 0)
+                        {
+                            var dtoCmd = new Fdp.Toolkit.NetworkSpawning.Events.DeferredTakeOwnershipCommand
+                            {
+                                NetworkId = pending.NetworkId,
+                            };
+                            dtoCmd.Grants.AddRange(grants);
+                            repo.Bus.PublishManaged(dtoCmd);
+                        }
+                    }
+
+                    // 4c. ⭐⭐ WS-4 (W-I) — one spawn per seat preset, beside the host (the child-blueprint pattern below): of the host's
+                    //   side, at its place, inheriting its owner, init type and transience; SeatPresetSystem boards each into its seat.
+                    if (seatPresets.Count > 0)
+                    {
+                        var force = Hrot.Common.EntityCreation.SeatPresets.ForceOf(parentTemplate, allComponents);
+                        foreach (var (seat, presetType) in seatPresets)
+                        {
+                            int presetId = _idAllocator.AllocateId();
+                            _tkbDb.TryGetByType(presetType, out var presetTemplate);
+                            ulong presetDis = presetTemplate?.DisType.Value ?? 0UL;
+                            repo.Bus.PublishManaged(new SpawnEntityCommand
+                            {
+                                NetworkId           = presetId,
+                                TkbType             = (Fdp.Core.TkbTypeId)(presetType),
+                                OwnerNodeId         = (Fdp.Core.NodeId)(assignedOwner),
+                                DisType             = presetDis,
+                                InitType            = pending.Request.InitType,
+                                ReliableInitTimeout = pending.Request.ReliableInitTimeout,
+                                IsTransient         = pending.Request.IsTransient,
+                                SpawnHeight         = pending.Request.SpawnHeight,
+                                InitialTransform    = initialTransform,
+                                InitialVelocity     = initialVelocity,
+                                InitialComponents   = new List<object>
+                                {
+                                    new Fdp.Core.EntityInfo { Name = presetTemplate?.Name ?? $"preset-{seat}", ForceId = force },
+                                    new Fdp.Toolkit.Behavior.Components.PresetSeatIntent { HostNetworkId = pending.NetworkId, Seat = (byte)seat },
+                                }.WithDerivedGuid(parentGuid, $"seat:{seat}"),   // ⭐ CE-4153 — derived from the host, like a child
+                                RequestId           = Guid.NewGuid(),
+                            });
+                            if (_ownershipStrategy != null)
+                            {
+                                var presetGrants = _ownershipStrategy.GetInitialGrants(new GrantRequest(
+                                    new Fdp.Core.DISEntityType { Value = presetDis }, presetTemplate, assignedOwner));
+                                if (presetGrants != null && presetGrants.Count > 0)
+                                {
+                                    var presetCmd = new Fdp.Toolkit.NetworkSpawning.Events.DeferredTakeOwnershipCommand { NetworkId = presetId };
+                                    presetCmd.Grants.AddRange(presetGrants);
+                                    repo.Bus.PublishManaged(presetCmd);
+                                }
+                            }
+                        }
+                    }
+
+                    // 5. Automatically spawn child entities if defined in the TKB template.
+                    if (parentTemplate != null && parentTemplate.ChildBlueprints.Count > 0)
+                    {
+                        // ⭐ CE-3324 — a scenario load SAYS so (StagingEntityExtractor); ⛔ a fixed id is not one (an author may fix its id).
+                        bool isScenarioLoad = pending.Request.IsScenarioLoad;
+
+                        foreach (var childDef in parentTemplate.ChildBlueprints)
+                        {
+                            // FIX: Explicitly initialize the tuple to satisfy definite assignment rules
+                            (int PreAllocatedId, IReadOnlyList<object> Components) overrideEntry = default;
+            
+                            bool hasOverride = pending.Request.ChildComponentOverrides != null
+                                && pending.Request.ChildComponentOverrides.TryGetValue(childDef.InstanceId, out overrideEntry);
+
+                            // Prevent duplicate ORBAT entities on scenario load.
+                            // Tactical subordinates were extracted as root entities and must be skipped here.
+                            if (isScenarioLoad && !hasOverride)
+                            {
+                                continue;
+                            }
+
+                            // Determine child network ID
+                            int childNetworkId;
+                            if (hasOverride && overrideEntry.PreAllocatedId != 0)
+                            {
+                                childNetworkId = overrideEntry.PreAllocatedId;
+                            }
+                            else
+                            {
+                                childNetworkId = _idAllocator.AllocateId();
+                            }
+
+                            // Try to get child template to retrieve its DisType
+                            ulong childDisType = 0;
+                            if (_tkbDb.TryGetByType(childDef.ChildTkbType, out var childTemplate))
+                            {
+                                childDisType = childTemplate.DisType.Value;
+                            }
+
+                            var childComponents = new List<object>
+                            {
+                                new Fdp.Core.EntityInfo
+                                {
+                                    Name = $"{parentInfo!.Value.Name}-{childDef.InstanceId}",
+                                    ForceId = parentInfo.Value.ForceId,
+                                }
+                            };
+
+                            // Attach subordinate intent when the blueprint slot carries a designation
+                            if (childDef.Designation != TacticalDesignation.Undefined)
+                            {
+                                childComponents.Add(new Hrot.Common.Serializers.InitialUnitSubordinateIntent
+                                {
+                                    CommanderNetworkId = new Fdp.Toolkit.Replication.EntityRef(pending.NetworkId),
+                                    Designation        = childDef.Designation,
+                                });
+                            }
+
+                            // Merge component overrides for this child instance
+                            if (hasOverride)
+                            {
+                                childComponents.AddRange(overrideEntry.Components!);
+                            }
+
+                            // ⭐ CE-4153 (S2) — a child gets its GUID DERIVED from the parent's and its slot (the file's own key, carried in
+                            //   its override, wins): the same parent gives the same child GUID on every load and node.
+                            childComponents.WithDerivedGuid(parentGuid, $"child:{childDef.InstanceId}");
+
+                            repo.Bus.PublishManaged(new SpawnEntityCommand
+                            {
+                                NetworkId         = childNetworkId,
+                                TkbType           = childDef.ChildTkbType,
+                                OwnerNodeId       = (Fdp.Core.NodeId)(assignedOwner),
+                                DisType           = childDisType,
+                                // ⭐ CE-143 — children INHERIT the parent's InitType, decided explicitly
+                                //   rather than left implicit (Q65 §5.5's open line): a drawing's children
+                                //   are exactly as local as the drawing. ⛔ If a child ever needs to differ,
+                                //   that is a per-child override on the request, not a second hardcode here.
+                                InitType          = pending.Request.InitType,
+                                ReliableInitTimeout = pending.Request.ReliableInitTimeout,   // CE-515 ③ — inherited like InitType
+                                // ⭐ D2 — children INHERIT the parent's transience: a sketch's
+                                //   auto-spawned TKB children are part of the same sketch.
+                                IsTransient       = pending.Request.IsTransient,
+                                SpawnHeight       = pending.Request.SpawnHeight,   // CE-1017 S2 — each child resolves the same level at its own x,y
+                                InitialTransform  = initialTransform, 
+                                InitialVelocity   = initialVelocity,
+                                InitialComponents = childComponents.Count > 0 ? childComponents : null,
+                                RequestId         = Guid.NewGuid(), 
+                            });
+
+                            // Broadcast pre-genesis routing table for auto-spawned children.
+                            // ⭐ CE-271 — same gate change as the parent above: any local owner hands off
+                            //   its children's non-role components, not only the arbiter. A child inherits
+                            //   its parent's owner (assignedOwner), so the same "exactly one servicer"
+                            //   argument makes double-grant impossible.
+                            if (_ownershipStrategy != null)
+                            {
+                                var childGrants = _ownershipStrategy.GetInitialGrants(new GrantRequest(
+                                    new Fdp.Core.DISEntityType { Value = childDisType },
+                                    childTemplate,
+                                    assignedOwner));
+
+                                if (childGrants != null && childGrants.Count > 0)
+                                {
+                                    var childDtoCmd = new Fdp.Toolkit.NetworkSpawning.Events.DeferredTakeOwnershipCommand
+                                    {
+                                        NetworkId = childNetworkId,
+                                    };
+                                    childDtoCmd.Grants.AddRange(childGrants);
+                                    repo.Bus.PublishManaged(childDtoCmd);
+                                }
+                            }
+                        }
+                    }
+
+                }
+
+                FdpLog<CreateEntityRequestSystem>.Info(
+                    $"[Node-{_localNodeId}] Queued spawn entity {pending.NetworkId} (TkbType={pending.TkbType}) " +
+                    $"for request {pending.Request.RequestId}.");
+            }
+            catch (Exception ex)
+            {
+                FdpLog<CreateEntityRequestSystem>.Error(
+                    $"[Node-{_localNodeId}] SpawnEntityCommand creation failed for request " +
+                    $"{pending.Request.RequestId}: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2139</c> (C3, rule K2) — a COMPOSITE (a unit) always gets its template's DIS type, whatever the request
+        /// carries. ⚠ A scenario saved before C3 stores a unit as <c>1.1.&lt;country&gt;</c> (a land platform, which every tank
+        /// mask matches); <c>DisEntityTypeTranslator</c> injects that saved value and the staging extractor forwards it. ⭐ This
+        /// is the one funnel every creation path passes that also holds the TKB — the translator runs before
+        /// <c>TkbIdentity</c> is injected and the extractor holds no TKB.
+        /// </summary>
+        internal static ulong UnitTakesItsTemplatesDisType(TkbTemplate template, ulong requested)
+            => template.GetDescriptor<Hrot.Map.Definitions.Tkb.TkbCompositionDef>() is not null && template.DisType.Value != 0
+                ? template.DisType.Value
+                : requested;
+
+        /// <summary>
+        /// Builds the list of descriptor grants that should be delegated to non-local
+        /// nodes, according to the injected <see cref="_ownershipStrategy"/>.
+        ///
+        /// <para>Delegates entirely to the strategy: no network ordinal knowledge in the domain layer.</para>
+        /// </summary>
+        private List<DescriptorGrant> BuildOwnershipGrants(in PendingRequest pending, int assignedOwner)
+        {
+            if (_ownershipStrategy == null) return new List<DescriptorGrant>();
+
+            var disType = new Fdp.Core.DISEntityType { Value = pending.DisType };
+
+            // ⭐ D-6 — the template decides which role groups apply (G-4); the creator already holds the catalogue.
+            _tkbDb.TryGetByType(pending.TkbType, out var template);
+
+            // Delegate fully to the strategy: no network ordinal knowledge in the domain layer.
+            return new List<DescriptorGrant>(_ownershipStrategy.GetInitialGrants(
+                new GrantRequest(disType, template, assignedOwner)));
+        }
+
+        // ─── Inner types ─────────────────────────────────────────────────────
+
+        /// <summary>Holds pre-validated spawn data waiting in the time-slice queue.</summary>
+        private struct PendingRequest
+        {
+            public EntityCreationRequest Request;
+            public int                  NetworkId;
+            public TkbTypeId                  TkbType;
+            public ulong                 DisType;
+        }
+    }
+}
+
+namespace Hrot.Common.Systems
+{
+    internal static class EntityGuidListExtensions
+    {
+        /// <summary>Adds the GUID derived from <paramref name="parent"/> and <paramref name="slot"/> unless the list already carries an
+        /// <c>EntityGuid</c> (a scenario's own key) or the entity is transient (<paramref name="parent"/> empty).</summary>
+        public static List<object> WithDerivedGuid(this List<object> components, Guid parent, string slot)
+        {
+            if (parent == Guid.Empty || components.Exists(c => c is Fdp.Toolkit.Scenario.EntityGuid)) return components;
+            components.Add(new Fdp.Toolkit.Scenario.EntityGuid(Fdp.Toolkit.Scenario.EntityGuidDerivation.Derive(parent, slot)));
+            return components;
+        }
+    }
+}

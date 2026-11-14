@@ -1,7 +1,9 @@
+using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.Core.Collections;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.Physics.Components
 {
@@ -14,6 +16,7 @@ namespace Fdp.Toolkit.Physics.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.PhysicsCollider)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct PhysicsCollider
     {
         /// <summary>Radius of the bounding circle (metres). Used by Intersection2D.RaycastCircle.</summary>
@@ -23,6 +26,65 @@ namespace Fdp.Toolkit.Physics.Components
         /// Layer bitmask. Rays only hit this entity if (request.LayerMask &amp; CollisionLayer) != 0.
         /// </summary>
         public int CollisionLayer;
+
+        /// <summary>
+        /// Height of the collider above the entity's Z (metres). ⭐ <c>0 = unknown</c>, which a 3-D sight line
+        /// treats as blocking at EVERY height — exactly the 2-D behaviour from before this field existed, so an
+        /// unset value never makes something see-through. Filled from <c>StrideRenderModelDefDto.ShapeHeight</c>
+        /// by the TKB translators that stamp the collider. 📄 docs/DESIGN_Terrain_World.md §4.3.
+        /// </summary>
+        public float Height;
+    }
+
+    /// <summary>
+    /// ⭐ The ONE pair of collider readers every host hands perception — radius and height of an entity's
+    /// <see cref="PhysicsCollider"/>, 0 when it has none. (Three hosts used to inline the radius lambda.)
+    /// </summary>
+    public static class PhysicsColliderReaders
+    {
+        public static float Radius(ISimulationView view, Entity e)
+            => view.HasComponent<PhysicsCollider>(e) ? view.GetComponentRO<PhysicsCollider>(e).Radius : 0f;
+
+        public static float Height(ISimulationView view, Entity e)
+            => view.HasComponent<PhysicsCollider>(e) ? view.GetComponentRO<PhysicsCollider>(e).Height : 0f;
+
+        /// <summary>⭐ <c>CE-2340</c> — the height a man lying on the floor blocks a line up to (m): a prone body.</summary>
+        public const float LyingBlockerHeight = 0.4f;
+
+        /// <summary>
+        /// ⭐ <c>CE-2340</c> — what a body BLOCKS a line up to, for sight and for fragments (<c>ColliderOcclusion</c>): its collider height
+        /// (<see cref="Height"/>), except a PERSON down — dead or incapacitated (<c>Injury.IsInTheFight</c> false) — who lies on the floor:
+        /// <see cref="LyingBlockerHeight"/> (CE-2318: a man down is Prone for aim, sight and the round). 📌 <c>bc-house-clear</c>: a soldier
+        /// lying dead between his comrade and the insurgent 2 m away hid each from the other for ~4 minutes. ⚠ <see cref="Height"/> itself
+        /// is unchanged — <c>AimPoint</c> scales a body by it.
+        /// </summary>
+        public static float BlockerHeight(ISimulationView view, Entity e)
+        {
+            float h = Height(view, e);
+            if (!IsPedestrian(view, e) || global::Fdp.Toolkit.Combat.Injury.IsInTheFight(view, e)) return h;
+            return h > 0f ? MathF.Min(h, LyingBlockerHeight) : LyingBlockerHeight;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3116</c> — the height a TARGET's body profile scales by: its collider height for a vehicle, ⛔ 0 for a person
+        /// (<see cref="global::CarKinem.Core.VehicleClass.Pedestrian"/>), whose profile follows its posture instead (Buildings §3f). A soldier's
+        /// collider is 1.8 m tall (its capsule), and using that as a hull made sight, aim and fragments ignore prone and crouched on
+        /// the live world. ⚠ <see cref="Height"/> stays what a BLOCKER is: a body still blocks a line up to its full height.
+        /// </summary>
+        public static float HullHeight(ISimulationView view, Entity e)
+        {
+            float h = Height(view, e);
+            return h > 0f && IsPedestrian(view, e) ? 0f : h;
+        }
+
+        /// <summary>⭐ <c>CE-3136</c> P-2 — a PERSON (<see cref="global::CarKinem.Core.VehicleClass.Pedestrian"/>): hit only within its
+        /// body band (peek-and-fire D2), where a vehicle is hit anywhere in its circle.</summary>
+        public static bool IsPerson(ISimulationView view, Entity e) => IsPedestrian(view, e);
+
+        private static bool IsPedestrian(ISimulationView view, Entity e)
+            => (view is not EntityRepository repo || repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>())
+               && view.HasComponent<global::CarKinem.Core.VehicleParams>(e)
+               && view.GetComponentRO<global::CarKinem.Core.VehicleParams>(e).Class == global::CarKinem.Core.VehicleClass.Pedestrian;
     }
 
     // ── RaycastRequest ────────────────────────────────────────────────────────────
@@ -99,7 +161,7 @@ namespace Fdp.Toolkit.Physics.Components
         /// the egress translator can demultiplex hits back to the requesting Brain node.
         /// 0 = local-only (no distributed routing required).
         /// </summary>
-        public int SourceNodeId;    }
+        public NodeId SourceNodeId;    }
 
     // ── RaycastHit ────────────────────────────────────────────────────────────────
 
@@ -122,8 +184,7 @@ namespace Fdp.Toolkit.Physics.Components
 
         /// <summary>
         /// For LOS rays: observer entity propagated from <see cref="RaycastRequest.Observer"/>.
-        /// Used by <see cref="Systems.HitResolutionSystem"/> to emit <see cref="Fdp.Toolkit.Perception.Events.TargetVisibleEvent"/>
-        /// without bit-unpacking from <see cref="RayId"/>.
+        /// Lets the requester correlate a result without bit-unpacking <see cref="RayId"/>.
         /// </summary>
         public Entity Observer;
 
@@ -138,13 +199,28 @@ namespace Fdp.Toolkit.Physics.Components
         /// Propagated from <see cref="RaycastRequest.SourceNodeId"/> by <c>RaycastSolverSystem</c>.
         /// Used by the egress translator to route the result back to the originating Brain.
         /// </summary>
-        public int SourceNodeId;
+        public NodeId SourceNodeId;
         /// <summary>World-space ray start point propagated from the original request. Used by <c>HitResolutionSystem</c> to compute detonation position.</summary>
         public Vector3 Start;
         /// <summary>World-space ray end point propagated from the original request.</summary>
         public Vector3 End;
         /// <summary>Entity to ignore propagated from the original request (e.g. the shooter). Used by <c>HitResolutionSystem</c> to populate <c>DetonationNotification.Shooter</c>.</summary>
         public Entity IgnoreEntity;
+
+        // ⭐⭐ CE-3209 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-2, HL-5) — APPENDED: the PART a round met
+        //   (a person's head, torso or limb — S1; vehicles S2), the face it entered, and the point inside the part (−0.5 … 0.5 per axis).
+
+        /// <summary>1 when <see cref="BodyPart"/> / <see cref="Face"/> / <see cref="LocalPoint"/> are set (a part hit).</summary>
+        public byte HasBodyPart;
+
+        /// <summary>The part id within the body plan (<c>PersonPart</c> for a person).</summary>
+        public byte BodyPart;
+
+        /// <summary>The face entered (<c>Facing</c>: front, side, rear, top), in the body's frame.</summary>
+        public byte Face;
+
+        /// <summary>Where it entered, in the part's own unit box (−0.5 … 0.5).</summary>
+        public Vector3 LocalPoint;
     }
 
     // ── RaycastBatchData ──────────────────────────────────────────────────────────
@@ -155,6 +231,9 @@ namespace Fdp.Toolkit.Physics.Components
     /// results are written here by <c>RaycastResultMaterializationSystem</c> after the solver resolves them.
     /// Indexed by <c>RayId % RaycastBatchCapacity</c> (modulo ring buffer).
     /// </summary>
+    // ⭐ CE-3132 — NoScenario | NoReplay: the NativeArray is this process's memory; recorded, it carried raw pointers into a replay
+    //   (the class ZoneEnvironmentData showed, CE-3118). docs/DESIGN_Geo_Origin.md §5.6.
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
     [ComponentId(GlobalComponentIds.RaycastBatchData)]
     public struct RaycastBatchData
     {

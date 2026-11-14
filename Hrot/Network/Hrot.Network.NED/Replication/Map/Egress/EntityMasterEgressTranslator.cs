@@ -17,12 +17,16 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public class EntityMasterEgressTranslator : IDescriptorTranslator
     {
+        // ⭐ CE-2407 (DESIGN_Egress_Change_Detection §5, E1) — skips the entities none of these inputs changed for; NetworkIdentity is implied
+        private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(TkbIdentity), typeof(PendingNetworkAck), typeof(LightweightRound));
+
         private readonly DdsWriter<EntityMaster> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
-        private readonly HashSet<long> _publishedNetIds = new();
+        private readonly NodeId _localNodeId;
+        private readonly HashSet<int> _publishedNetIds = new();
+        private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 
-        public string TopicName => "EntityMaster";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityMaster>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEntityMaster;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -36,11 +40,11 @@ namespace Hrot.Map.Common.Replication.Egress
         public EntityMasterEgressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            long localNodeId)
+            int localNodeId)
         {
-            _writer = new DdsWriter<EntityMaster>(participant, "EntityMaster");
+            _writer = new DdsWriter<EntityMaster>(participant);
             _entityMap = entityMap;
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <summary>
@@ -55,19 +59,24 @@ namespace Hrot.Map.Common.Replication.Egress
         public void ScanAndPublish(ISimulationView view)
         {
             var repo = view as EntityRepository;
+            // ⭐ CE-2101 — "exactly once" is per entity LIFETIME: the next world reuses the ids from 1000.
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _publishedNetIds.Clear();
 
             var query = view.Query()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .With<TkbIdentity>()
-                // Lifecycle.All is crucial: Constructing entities must publish EntityMaster
-                // so remote peers can create ghosts and ACK the construction.
-                .WithLifecycle(EntityLifecycle.All)
+                // Constructing entities must publish EntityMaster so remote peers can create ghosts and ACK the construction.
+                // ⭐⭐ CE-4000 residual (Cluster Load Phase §8.3) — but never one in TEARDOWN: 📐 measured live, the dispose went out and this
+                //   scan (then Lifecycle.All) wrote the master again while the entity lingered in TearDown — every late joiner built a ghost.
+                .WithLifecycle(EntityLifecycle.AllButTearDown)
                 .Build();
 
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
+            _gate.Begin(view);
             foreach (var entity in query)
             {
+                if (!_gate.Visit(entity)) continue;   // ⭐ CE-2407 E1 — nothing this translator reads has changed since its last scan
                 // Authority check: replaced PrimaryOwnerId == LocalNodeId.
                 // Enables split-ownership scenarios.
                 if (!view.HasAuthority(entity, packedKey))
@@ -86,9 +95,19 @@ namespace Hrot.Map.Common.Replication.Egress
                     ? repo.GetEntityIndex().GetMetadata(entity.Index).DisType
                     : default;
 
+                // Reliable-init barrier (CE-283, §2c/§3a.2): a locally-owned entity created in
+                // reliable mode still carries PendingNetworkAck while it waits for peers. Mark the
+                // wire so receiving peers know to report their Active status. Fast-mode entities
+                // (no PendingNetworkAck) publish Flags=0 as before.
+                ulong flags = view.HasComponent<PendingNetworkAck>(entity)
+                    ? (ulong)EntityMasterFlags.WaitForAcks
+                    : 0UL;
+                // ⭐ LR-2 (R-271) — a replicated round: receivers create it Active, with no lifecycle and no acks.
+                if (view.HasComponent<LightweightRound>(entity)) flags |= (ulong)EntityMasterFlags.Lightweight;
+
                 _writer.Write(new EntityMaster
                 {
-                    EntityId = (int)netId.Value,
+                    EntityId = netId.Value,
                     TkbType = tkb.TkbType,
                     DisType = new DisTypeStruct
                     {
@@ -100,7 +119,7 @@ namespace Hrot.Map.Common.Replication.Egress
                         Specific    = dis.Specific,
                         Extra       = dis.Extra,
                     },
-                    Flags = 0
+                    Flags = flags,
                 });
 
                 SentSampleCount++;
@@ -118,9 +137,9 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>
         /// Sends a DDS dispose for the named EntityMaster instance.
         /// </summary>
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
-            _writer.DisposeInstance(new EntityMaster { EntityId = (int)networkEntityId });
+            _writer.DisposeInstance(new EntityMaster { EntityId = networkEntityId });
             _publishedNetIds.Remove(networkEntityId);
         }
     }

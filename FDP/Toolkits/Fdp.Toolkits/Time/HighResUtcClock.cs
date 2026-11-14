@@ -27,7 +27,7 @@ namespace Fdp.Toolkit.Time
     /// </list>
     /// </para>
     /// </summary>
-    internal static class HighResUtcClock
+    public static class HighResUtcClock
     {
         // Captured once at class initialisation (first use).
         private static readonly long s_utcBaseline = DateTime.UtcNow.Ticks;

@@ -45,30 +45,30 @@ public class DragDropIntegrationTests
     public DragDropIntegrationTests(ITestOutputHelper output) => _out = output;
 
     [Fact]
-    public void DragDrop_EntityPositionUpdatesOnIgWithinFewFrames()
+    public void DragDrop_EntityPositionUpdatesOnPlayerWithinFewFrames()
     {
         using var harness = new HrotRunnerHarness();
 
         // ── 1. Spawn a tank on SimHost at a known geo position ────────────────
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnGeo = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
         _out.WriteLine($"[D1] Spawned entity networkId={networkId}");
 
         // ── 2. Wait until the entity propagates to the IG ─────────────────────
-        bool igHasEntity = harness.PumpUntil(
-            () => IgHasNetworkEntity(harness, networkId),
+        bool playerHasEntity = harness.PumpUntil(
+            () => PlayerHasNetworkEntity(harness, networkId),
             SpawnTimeoutFrames);
-        Assert.True(igHasEntity,
-            $"IG did not receive entity (netId={networkId}) within {SpawnTimeoutFrames} frames.");
+        Assert.True(playerHasEntity,
+            $"Player did not receive entity (netId={networkId}) within {SpawnTimeoutFrames} frames.");
 
         // ── 2b. Diagnostic: verify IG entity has NetworkIdentity ─────────────
-        var igEntityMap = harness.Ig.App.TestHook_EntityMap;
-        igEntityMap.TryGetEntity(networkId, out var igEntity);
-        var igWorld = harness.Ig.App.World;
-        bool igHasNetId = igWorld.HasComponent<NetworkIdentity>(igEntity);
-        _out.WriteLine($"[D2] IG entity alive={igWorld.IsAlive(igEntity)}, hasNetworkIdentity={igHasNetId}, hasST={igWorld.HasComponent<SimTransform>(igEntity)}");
-        Assert.True(igHasNetId, "IG entity is missing NetworkIdentity — OnEntityDragEnded will bail early.");
+        var playerEntityMap = harness.Player.App.TestHook_EntityMap;
+        playerEntityMap.TryGetEntity(networkId, out var playerEntity);
+        var playerWorld = harness.Player.App.World;
+        bool playerHasNetId = playerWorld.HasComponent<NetworkIdentity>(playerEntity);
+        _out.WriteLine($"[D2] Player entity alive={playerWorld.IsAlive(playerEntity)}, hasNetworkIdentity={playerHasNetId}, hasST={playerWorld.HasComponent<SimTransform>(playerEntity)}");
+        Assert.True(playerHasNetId, "Player entity is missing NetworkIdentity — OnEntityDragEnded will bail early.");
 
         // ── 2c. Diagnostic: verify SimHost entity has correct NetworkAuthority ─
         bool shHasEntity = harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out var shEntity);
@@ -94,8 +94,8 @@ public class DragDropIntegrationTests
             "ScanAndPublish will skip this entity in the egress loop.");
 
         // ── 3. Capture the IG entity's current world-space position ───────────
-        var initialPos = GetIgSimTransform(harness, networkId).Position;
-        _out.WriteLine($"[D3] Initial IG position: ({initialPos.X:F2}, {initialPos.Y:F2}, {initialPos.Z:F2})");
+        var initialPos = GetPlayerSimTransform(harness, networkId).Position;
+        _out.WriteLine($"[D3] Initial Player position: ({initialPos.X:F2}, {initialPos.Y:F2}, {initialPos.Z:F2})");
 
         // ── 3b. Capture SimHost entity's current SimTransform ─────────────────
         var shTransformBefore = shWorld.GetComponent<SimTransform>(shEntity);
@@ -116,7 +116,7 @@ public class DragDropIntegrationTests
             harness.PumpFrames(10);
 
             // ── 5. Simulate the drag-end on the IG ───────────────────────────────
-            harness.Ig.App.TestHook_SimulateDragDrop(networkId, dropWorldPos);
+            harness.Player.App.TestHook_SimulateDragDrop(networkId, dropWorldPos);
             _out.WriteLine("[D5] TestHook_SimulateDragDrop called");
 
             // ── 5b. Check SimHost entity SimTransform updates within a few frames ─
@@ -140,9 +140,8 @@ public class DragDropIntegrationTests
                 {
                     if (!s.IsValid) continue;
                     if (s.Data.EntityId != (int)networkId) continue;
-                    var igGeo = HrotEnvironment.CreateGeoTransform();
-                    var pos = igGeo.ToCartesian(s.Data.Pos.Latitude, s.Data.Pos.Longitude, s.Data.Pos.Altitude);
-                    var observedPos = new Vector3((float)pos.X, (float)pos.Y, (float)pos.Z);
+                    // ⭐ AQ107 B — the wire is local ENU already: no conversion
+                    var observedPos = new Vector3((float)s.Data.Position.X, (float)s.Data.Position.Y, (float)s.Data.Position.Z);
                     _out.WriteLine($"[D5c] Observer saw GeoSpatial for entity {s.Data.EntityId}: ({observedPos.X:F2}, {observedPos.Y:F2})");
                     if (Vector3.Distance(observedPos, expectedGeoPos) <= PositionTolerance)
                     {
@@ -161,13 +160,13 @@ public class DragDropIntegrationTests
         // ── 6. Pump frames and wait for the position to be reflected on the IG ─
         var  expectedPos             = new Vector3(dropWorldPos.X, dropWorldPos.Y, 0f);
         bool positionReached         = harness.PumpUntil(
-            () => IgPositionWithinTolerance(harness, networkId, expectedPos, PositionTolerance),
+            () => PlayerPositionWithinTolerance(harness, networkId, expectedPos, PositionTolerance),
             RoundTripTimeoutFrames);
 
-        var actualPos = GetIgSimTransform(harness, networkId).Position;
-        _out.WriteLine($"[D6] IG final position: ({actualPos.X:F2}, {actualPos.Y:F2}), reached={positionReached}");
+        var actualPos = GetPlayerSimTransform(harness, networkId).Position;
+        _out.WriteLine($"[D6] Player final position: ({actualPos.X:F2}, {actualPos.Y:F2}), reached={positionReached}");
         Assert.True(positionReached,
-            $"IG entity position did not update after drag-drop within {RoundTripTimeoutFrames} frames. " +
+            $"Player entity position did not update after drag-drop within {RoundTripTimeoutFrames} frames. " +
             $"Expected ≈({expectedPos.X:F1}, {expectedPos.Y:F1}), " +
             $"got ({actualPos.X:F1}, {actualPos.Y:F1}).");
     }
@@ -180,21 +179,21 @@ public class DragDropIntegrationTests
         // ── 1. Spawn and wait for entity on IG ───────────────────────────────
         long tkbType   = TkbEntityTypes.Tank_M1Abrams;
         var  spawnGeo  = new CoreGeoPoint { Latitude = 52.522, Longitude = 13.407, Altitude = 0 };
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
 
-        bool igHasEntity = harness.PumpUntil(
-            () => IgHasNetworkEntity(harness, networkId),
+        bool playerHasEntity = harness.PumpUntil(
+            () => PlayerHasNetworkEntity(harness, networkId),
             SpawnTimeoutFrames);
-        Assert.True(igHasEntity, $"IG entity (netId={networkId}) not received in time.");
+        Assert.True(playerHasEntity, $"Player entity (netId={networkId}) not received in time.");
 
-        var initialPos  = GetIgSimTransform(harness, networkId).Position;
+        var initialPos  = GetPlayerSimTransform(harness, networkId).Position;
         var dropWorldPos = new Vector2(initialPos.X + 300f, initialPos.Y + 300f);
 
         // Record position before drag so we can detect the change.
-        var posBeforeDrag = GetIgSimTransform(harness, networkId).Position;
+        var posBeforeDrag = GetPlayerSimTransform(harness, networkId).Position;
 
         // ── 2. Simulate drag ─────────────────────────────────────────────────
-        harness.Ig.App.TestHook_SimulateDragDrop(networkId, dropWorldPos);
+        harness.Player.App.TestHook_SimulateDragDrop(networkId, dropWorldPos);
 
         // ── 3. Verify the position changes WELL BEFORE the rolling-window ────
         //      The rolling window fires every 600 ticks. We assert the update arrives
@@ -203,55 +202,55 @@ public class DragDropIntegrationTests
         bool changed = harness.PumpUntil(
             () =>
             {
-                var pos = GetIgSimTransform(harness, networkId).Position;
+                var pos = GetPlayerSimTransform(harness, networkId).Position;
                 return Vector3.Distance(pos, posBeforeDrag) > PositionTolerance;
             },
             RoundTripTimeoutFrames);
 
         Assert.True(changed,
-            $"IG entity did not move within {RoundTripTimeoutFrames} frames — " +
+            $"Player entity did not move within {RoundTripTimeoutFrames} frames — " +
             $"dirty-flag publish mechanism may be broken (falling back to rolling window).");
 
         // Additionally verify it moved to (approximately) the correct position.
-        var finalPos     = GetIgSimTransform(harness, networkId).Position;
+        var finalPos     = GetPlayerSimTransform(harness, networkId).Position;
         var expectedPos  = new Vector3(dropWorldPos.X, dropWorldPos.Y, 0f);
         float dist       = Vector3.Distance(finalPos, expectedPos);
         Assert.True(dist <= PositionTolerance,
-            $"IG entity moved but landed at wrong position. " +
+            $"Player entity moved but landed at wrong position. " +
             $"Expected ≈({expectedPos.X:F1}, {expectedPos.Y:F1}), " +
             $"got ({finalPos.X:F1}, {finalPos.Y:F1}), distance={dist:F3} m.");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static bool IgHasNetworkEntity(HrotRunnerHarness harness, long networkId)
+    private static bool PlayerHasNetworkEntity(HrotRunnerHarness harness, int networkId)
     {
-        var entityMap = harness.Ig.App.TestHook_EntityMap;
+        var entityMap = harness.Player.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity)) return false;
 
         // Also require that SimTransform is present so we can read position.
-        var world = harness.Ig.App.World;
+        var world = harness.Player.App.World;
         return world.IsAlive(entity) && world.HasComponent<SimTransform>(entity);
     }
 
-    private static SimTransform GetIgSimTransform(HrotRunnerHarness harness, long networkId)
+    private static SimTransform GetPlayerSimTransform(HrotRunnerHarness harness, int networkId)
     {
-        var entityMap = harness.Ig.App.TestHook_EntityMap;
+        var entityMap = harness.Player.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity))
             return default;
-        var world = harness.Ig.App.World;
+        var world = harness.Player.App.World;
         if (!world.IsAlive(entity) || !world.HasComponent<SimTransform>(entity))
             return default;
         return world.GetComponent<SimTransform>(entity);
     }
 
-    private static bool IgPositionWithinTolerance(
+    private static bool PlayerPositionWithinTolerance(
         HrotRunnerHarness harness,
-        long               networkId,
+        int               networkId,
         Vector3            expected,
         float              tolerance)
     {
-        var st = GetIgSimTransform(harness, networkId);
+        var st = GetPlayerSimTransform(harness, networkId);
         return Vector3.Distance(st.Position, expected) <= tolerance;
     }
 }

@@ -601,7 +601,7 @@ after all call-sites have been migrated in phases TCU-W001 through TCU-W004).
 **Success Conditions**
 
 1. `dotnet build FDP/FDP.sln` produces zero errors.
-2. `dotnet build IOS-IG-SimHost.sln` produces zero errors.
+2. `dotnet build HROT.sln` produces zero errors.
 3. `grep -r "SlaveTimeController\|SteppedMasterController\|DistributedTimeCoordinator\|SlaveTimeModeListener\|FrameLockstepDescriptorTranslator" --include="*.cs"` returns no matches
    outside of test files that were explicitly deleted or migrated.
 

@@ -1,3 +1,5 @@
+using Fdp.Toolkit.Replication;
+using Hrot.Core.Network;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,13 +9,13 @@ using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
-using Fdp.Toolkit.Behavior.Params;
+using Hrot.Map.Definitions.Behavior;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Scenario;
 using Hrot.CGF.Orchestration;
 using Hrot.Common.Serializers;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 
 namespace Hrot.SimHost.Tests
 {
@@ -127,6 +129,7 @@ namespace Hrot.SimHost.Tests
             _goldRepo.RegisterComponent<SimVelocity>();
             _goldRepo.RegisterComponent<TkbIdentity>();
             _goldRepo.RegisterComponent<NetworkIdentity>();
+            _goldRepo.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();   // S8: allocation + references are keyed by the GUID
             _goldRepo.RegisterComponent<NetworkAuthority>();
             _goldRepo.RegisterComponent<PartMetadata>();
             _goldRepo.RegisterComponent<WeaponState>();
@@ -134,9 +137,12 @@ namespace Hrot.SimHost.Tests
             _goldRepo.RegisterComponent<EpisodeTag>();
             _goldRepo.RegisterManagedComponent<InitialPassengersIntent>();
             _goldRepo.RegisterManagedComponent<InitialUnitSubordinateIntent>();
+            // ⚠ Its rail passed only when another test had registered it first (red alone, measured with CE-1057).
+            _goldRepo.RegisterManagedComponent<InitialTargetsIntent>();
             // EditablePolyline must be registered so StagingEntityExtractor.RegisterAllGlobalTypesInRepo
             // can include it regardless of test-execution order (D-5 fixture gap fix).
             _goldRepo.RegisterManagedComponent<EditablePolyline>();
+            _goldRepo.RegisterComponent<CombatTemperament>();   // ⭐ AQ89
         }
 
         public void Dispose() => _goldRepo.Dispose();
@@ -151,8 +157,123 @@ namespace Hrot.SimHost.Tests
             return builder.Build();
         }
 
+        /// <summary>S8: the GUID a test entity is saved under = its old test network id (so a stub can name it), else its index.</summary>
+        private static Guid GuidFor(int id) => new Guid(id, 0, 0, new byte[8]);
+
+        private static Fdp.Toolkit.Replication.EntityLink GuidLink(int id)
+            => new Fdp.Toolkit.Replication.EntityLink(default, Fdp.Core.RefSpec.ByExact(GuidFor(id)));
+
         private static string SerializeGoldRepo(EntityRepository repo, ScenarioSerializer serializer)
-            => serializer.Serialize(repo, new ScenarioHeader(SubsystemType)).ToJsonString();
+        {
+            for (int i = 0; i <= repo.MaxEntityIndex; i++)
+            {
+                var e = repo.GetEntityByIndex(i);
+                if (e == Entity.Null || !repo.IsAlive(e) || repo.HasComponent<Fdp.Toolkit.Scenario.EntityGuid>(e)) continue;
+                repo.SetComponent(e, new Fdp.Toolkit.Scenario.EntityGuid(GuidFor(repo.HasComponent<NetworkIdentity>(e) ? repo.GetComponent<NetworkIdentity>(e).Value : 100000 + i)));
+            }
+            return serializer.Serialize(repo, new ScenarioHeader(SubsystemType)).ToJsonString();
+        }
+
+        // ── BP-509: the staging→runtime id table is HANDED OUT ────────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>BP-509</c> — Pass 1's <c>oldToNewMap</c> reaches a subscriber.</b>
+        /// 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §5 · §8 ① · §8a.
+        ///
+        /// <para>⛔⛔ It was a LOCAL that died in <c>Extract</c>, so ⚠ anything keyed on a runtime network
+        /// id broke on every scenario reload with no way to recover the correspondence.</para>
+        ///
+        /// <para>⭐ The sink is a CALLBACK, not a bus *(🔒 user ruling <c>2026-08-19</c>)</b> — this class
+        /// stays a pure transform and <c>Hrot.CGF</c> never learns about a bus *(<c>R-79</c>)</b>.</para>
+        ///
+        /// <para>⚠ The authored ids come from the serialised gold repo and the allocator hands out
+        /// <c>500, 501</c>, so the table's DIRECTION is asserted, not just its size — ⛔ an inverted map
+        /// would satisfy a count assertion and resolve every pin to the wrong entity.</para>
+        /// </summary>
+        [Fact]
+        public void Extract_PublishesTheStagingToRuntimeMap_ThroughTheOnRemapSink()
+        {
+            var a = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(a, new SimTransform());
+            _goldRepo.SetComponent(a, new NetworkIdentity(11));
+            _goldRepo.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();
+            _goldRepo.SetComponent(a, new Fdp.Toolkit.Scenario.EntityGuid(new Guid(11, 0, 0, new byte[8])));
+            var b = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(b, new SimTransform());
+            _goldRepo.SetComponent(b, new NetworkIdentity(22));
+            _goldRepo.SetComponent(b, new Fdp.Toolkit.Scenario.EntityGuid(new Guid(22, 0, 0, new byte[8])));
+
+            var serializer = BuildSerializer();
+            var json       = SerializeGoldRepo(_goldRepo, serializer);
+
+            IReadOnlyDictionary<Guid, int>? published = null;
+            int calls = 0;
+
+            var extractor = new StagingEntityExtractor
+            {
+                OnRemap = map => { published = map; calls++; },
+            };
+            extractor.Extract(serializer, json, new StubIdAllocator(500));
+
+            Assert.Equal(1, calls);
+            Assert.NotNull(published);
+            Assert.Equal(2, published!.Count);
+
+            // ⭐ AUTHORED id → RUNTIME id, in that direction.
+            Assert.Contains(new Guid(11, 0, 0, new byte[8]), published.Keys);
+            Assert.Contains(new Guid(22, 0, 0, new byte[8]), published.Keys);
+            Assert.All(published.Values, v => Assert.InRange(v, 500, 501));
+            Assert.NotEqual(published[new Guid(11, 0, 0, new byte[8])], published[new Guid(22, 0, 0, new byte[8])]);
+        }
+
+        /// <summary>
+        /// ⚠ <b>A scenario with no networked entities publishes an EMPTY table, not nothing.</b>
+        /// ⭐ "Nothing to remap" is an answer a reader must be able to act on — ⛔ silence would leave the
+        /// previous load's table in place, which is the stale-mapping failure the mechanism removes.
+        /// </summary>
+        [Fact]
+        public void Extract_WithNoNetworkedEntities_PublishesAnEmptyMapRatherThanSkipping()
+        {
+            var e = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(e, new SimTransform());
+
+            var serializer = BuildSerializer();
+            var json       = SerializeGoldRepo(_goldRepo, serializer);
+
+            IReadOnlyDictionary<Guid, int>? published = null;
+            var extractor = new StagingEntityExtractor { OnRemap = map => published = map };
+            extractor.Extract(serializer, json, new StubIdAllocator(500));
+
+            Assert.NotNull(published);
+            Assert.Single(published!);   // S8: the table is guid -> runtime id for every keyed entity (a scenario with none would be empty)
+        }
+
+        /// <summary>
+        /// ⚠ <b>The published table is a COPY.</b> ⛔ Handing out the live local would let a later edit to
+        /// Pass 2 become visible to a reader that already stored it — 📌 the subscriber keeps the table
+        /// for the lifetime of the load.
+        /// </summary>
+        [Fact]
+        public void Extract_PublishesACopy_NotTheLiveLocal()
+        {
+            var a = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(a, new SimTransform());
+            _goldRepo.SetComponent(a, new NetworkIdentity(11));
+            _goldRepo.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();
+            _goldRepo.SetComponent(a, new Fdp.Toolkit.Scenario.EntityGuid(new Guid(11, 0, 0, new byte[8])));
+
+            var serializer = BuildSerializer();
+            var json       = SerializeGoldRepo(_goldRepo, serializer);
+
+            IReadOnlyDictionary<Guid, int>? first = null;
+            var extractor = new StagingEntityExtractor { OnRemap = map => first ??= map };
+            extractor.Extract(serializer, json, new StubIdAllocator(500));
+            long firstRuntimeId = first![new Guid(11, 0, 0, new byte[8])];
+
+            // ⭐ A SECOND load allocates fresh ids; the first table must be unchanged by it.
+            extractor.Extract(serializer, json, new StubIdAllocator(900));
+            Assert.Equal(firstRuntimeId, first[new Guid(11, 0, 0, new byte[8])]);
+        }
 
         // ── Test 1: Basic extraction — single root entity ─────────────────────────
 
@@ -163,7 +284,7 @@ namespace Hrot.SimHost.Tests
         {
             var e = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(e, new SimTransform { Position = new Vector3(1, 2, 3) });
-            _goldRepo.SetComponent(e, new TkbIdentity { TkbType = 42L });
+            _goldRepo.SetComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(42L) });
 
             var serializer = BuildSerializer();
             var json = SerializeGoldRepo(_goldRepo, serializer);
@@ -179,6 +300,29 @@ namespace Hrot.SimHost.Tests
             Assert.DoesNotContain(typeof(NetworkIdentity), types);
             Assert.DoesNotContain(typeof(NetworkAuthority), types);
             Assert.DoesNotContain(typeof(TkbIdentity), types);
+        }
+
+        /// <summary>
+        /// ⭐ AQ89 B (R-269) — an authored temperament REACHES the live entity. 📌 Measured on the cluster: a translator-consumed
+        /// component is excluded from extraction unless its translator says it is safe, so the brave Grenadier ran on the
+        /// defaults (0.5) and never closed to throw. 🔴 Red before <c>CombatTemperamentTranslator.IsExtractionSafe</c>.
+        /// </summary>
+        [Fact]
+        public void Extract_CarriesAnAuthoredTemperament_ToTheCreationRequest()
+        {
+            var e = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(e, new SimTransform());
+            _goldRepo.SetComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(42L) });
+            _goldRepo.SetComponent(e, new CombatTemperament { RiskAcceptance = 0.8f, Set = CombatTemperament.RiskAcceptanceSet });
+
+            var serializer = BuildSerializer(new Hrot.SimHost.Serializers.CombatTemperamentTranslator());
+            var json = SerializeGoldRepo(_goldRepo, serializer);
+            Assert.Contains("\"Temperament\"", json);
+
+            var req = Assert.Single(new StagingEntityExtractor().Extract(serializer, json, new StubIdAllocator(100)));
+            var t = Assert.Single(req.InitialComponents!.OfType<CombatTemperament>());
+            Assert.Equal(0.8f, t.RiskAcceptance);
+            Assert.Equal(CombatTemperament.RiskAcceptanceSet, t.Set);
         }
 
         // ── Test 2: TKB structural child entities are filtered out ────────────────
@@ -246,16 +390,81 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(episodeId, ((EpisodeTag)last).EpisodeId);
         }
 
+        // ── S0 item 3: authored references (RefKey) resolve at SCENARIO scope during the load ──────
+
+        public sealed class LinkParams { public EntityLink Target { get; set; } public PointLink At { get; set; } }
+
+        private (Entity Hq, Entity Unit) KeyedHqAndAUnitThatNamesIt(string paramsJson, string hqKey = "BlueHQ")
+        {
+            _goldRepo.RegisterComponent<Fdp.Toolkit.Scenario.RefKey>();
+            var hq = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(hq, new NetworkIdentity { Value = 1001 });
+            _goldRepo.SetComponent(hq, new SimTransform { Position = new System.Numerics.Vector3(40, 50, 2) });
+            _goldRepo.SetComponent(hq, new Fdp.Toolkit.Scenario.RefKey(hqKey));
+            var unit = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(unit, new NetworkIdentity { Value = 1002 });
+            _goldRepo.SetComponent(unit, new ActiveMissionPlan
+            {
+                Plan = new DomainMissionPlan { Tasks = new List<DomainMissionTask> { new() { BehaviorName = "LinkProbe", BehaviorParams = paramsJson } } },
+            });
+            return (hq, unit);
+        }
+
+        private IReadOnlyList<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest> ExtractWithLinkProbe()
+        {
+            var serializer = BuildSerializer(extraTranslator: new MissionPlanTranslator());
+            var json = SerializeGoldRepo(_goldRepo, serializer);
+            var remapper = new ScenarioBehaviorRemapper();
+            remapper.Register<LinkParams>("LinkProbe");
+            return new StagingEntityExtractor().Extract(serializer, json, new StubIdAllocator(2001), behaviorRemapper: remapper);
+        }
+
+        /// <summary>⭐ S0 item 3 (SR-126 / SR-130) — <c>"@BlueHQ"</c> in a unit's params becomes the HQ's NEW network id (and a point
+        /// written <c>"@BlueHQ"</c> its position); the authored form is kept beside the answer.</summary>
+        [Fact]
+        public void S0_AKeyedReference_ResolvesToTheEntitysNewId_AndAPointToItsPosition_KeepingTheForm()
+        {
+            KeyedHqAndAUnitThatNamesIt("{\"Target\":\"@BlueHQ\",\"At\":\"@BlueHQ\"}");
+            var requests = ExtractWithLinkProbe();
+            var hq = requests.Single(r => r.InitialComponents!.OfType<Fdp.Toolkit.Scenario.RefKey>().Any());
+            var plan = requests.Single(r => r.InitialComponents!.OfType<ActiveMissionPlan>().Any()).InitialComponents!.OfType<ActiveMissionPlan>().Single();
+            var p = System.Text.Json.JsonSerializer.Deserialize<LinkParams>(plan.Plan.Tasks[0].BehaviorParams!, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!;
+            Assert.Equal(new EntityRef(hq.PreAllocatedNetworkId), p.Target.Ref);
+            Assert.Equal("@BlueHQ", p.Target.Spec.ToString());
+            Assert.Equal(new WorldPoint(40, 50, 2), p.At.Local);
+        }
+
+        /// <summary>⭐ S0 item 3 — a key that names nothing fails the load LOUDLY, naming it (never a silent 0).</summary>
+        [Fact]
+        public void S0_AKeyThatNamesNothing_FailsTheLoadLoudly()
+        {
+            KeyedHqAndAUnitThatNamesIt("{\"Target\":\"@RedHQ\"}");
+            var ex = Assert.Throws<InvalidOperationException>(() => ExtractWithLinkProbe());
+            Assert.Contains("no entity with key 'RedHQ' here", ex.Message);
+        }
+
+        /// <summary>⭐ SR-188 (supersedes S0's "a duplicate key fails the load") — two entities with one key: the load goes on, the
+        /// reference resolves to the FIRST in file order (two instances of one macro legitimately give two "@SL"s).</summary>
+        [Fact]
+        public void SR188_ADuplicateKey_ResolvesToTheFirst_TheLoadGoesOn()
+        {
+            KeyedHqAndAUnitThatNamesIt("{}");
+            var twin = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(twin, new NetworkIdentity { Value = 1003 });
+            _goldRepo.SetComponent(twin, new Fdp.Toolkit.Scenario.RefKey("BlueHQ"));
+            var ex = Record.Exception(() => ExtractWithLinkProbe());
+            Assert.Null(ex);
+        }
+
         // ── Test 4: Network ID remapping in ActiveMissionPlan BehaviorParams ──────
 
-        // STABILITY(Broken): Component type ID 183 not registered — missing component registration in test fixture; investigate StagingEntityExtractor setup
-        [Trait("Stability", "Broken")]
+        // (A stale "STABILITY(Broken)" label sat here — the test runs and passes; removed 2026-10-01.)
         [Fact]
         public void Extract_WithBehaviorRemapper_ReplacesNetworkIdInBehaviorParams()
         {
             // Entity with NetworkIdentity and ActiveMissionPlan referencing same ID.
-            const long oldNetId = 1001L;
-            const long newNetId = 2001L;
+            const int oldNetId = 1001;
+            const int newNetId = 2001;
 
             var e = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(e, new NetworkIdentity { Value = oldNetId });
@@ -268,7 +477,7 @@ namespace Hrot.SimHost.Tests
                         new DomainMissionTask
                         {
                             BehaviorName     = "FireAtTarget",
-                            BehaviorParams = "{\"targetNetworkId\":1001,\"maxRounds\":5,\"cooldownSeconds\":1.0}",
+                            BehaviorParams = "{\"targetNetworkId\":\"000003e9-0000-0000-0000-000000000000\",\"maxRounds\":5,\"cooldownSeconds\":1.0}",
                         }
                     }
                 }
@@ -290,6 +499,49 @@ namespace Hrot.SimHost.Tests
                 .OfType<ActiveMissionPlan>()
                 .Single();
 
+            Assert.Contains("2001", plan.Plan.Tasks[0].BehaviorParams);
+            Assert.DoesNotContain("1001", plan.Plan.Tasks[0].BehaviorParams);
+        }
+
+        /// <summary>
+        /// ⭐⭐ The same remap, reached THROUGH <see cref="IScenarioEntityExtractor"/> — the path every live load takes
+        /// (<c>ScenarioLoadStep</c> holds the interface). 🔴 The interface's default for the remapping member ignores the
+        /// remapper, and this class did not implement it ⇒ the test above (concrete call) stayed green while every live
+        /// load dropped CGF's remapper. 📄 <c>DESIGN_Cluster_Load_Phase.md</c> §4.1c.
+        /// </summary>
+        [Fact]
+        public void Extract_ThroughTheInterface_StillAppliesTheBehaviorRemapper()
+        {
+            const int oldNetId = 1001;
+            const int newNetId = 2001;
+
+            var e = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(e, new NetworkIdentity { Value = oldNetId });
+            _goldRepo.SetComponent(e, new ActiveMissionPlan
+            {
+                Plan = new DomainMissionPlan
+                {
+                    Tasks = new List<DomainMissionTask>
+                    {
+                        new DomainMissionTask
+                        {
+                            BehaviorName   = "FireAtTarget",
+                            BehaviorParams = "{\"targetNetworkId\":\"000003e9-0000-0000-0000-000000000000\",\"maxRounds\":5,\"cooldownSeconds\":1.0}",
+                        }
+                    }
+                }
+            });
+
+            var serializer = BuildSerializer(extraTranslator: new MissionPlanTranslator());
+            var json = SerializeGoldRepo(_goldRepo, serializer);
+
+            var remapper = new ScenarioBehaviorRemapper();
+            remapper.Register<FireAtTargetParamsJsonDto>("FireAtTarget");
+
+            IScenarioEntityExtractor extractor = new StagingEntityExtractor();
+            var requests = extractor.Extract(serializer, json, new StubIdAllocator(newNetId), remapper);
+
+            var plan = Assert.Single(requests).InitialComponents!.OfType<ActiveMissionPlan>().Single();
             Assert.Contains("2001", plan.Plan.Tasks[0].BehaviorParams);
             Assert.DoesNotContain("1001", plan.Plan.Tasks[0].BehaviorParams);
         }
@@ -362,6 +614,33 @@ namespace Hrot.SimHost.Tests
             Assert.True(disposeCalled);
         }
 
+        /// <summary>⭐ CE-2396 — a REUSED staging world (the macro expander's) is emptied after each extraction: the second extraction sees
+        /// none of the first's entities, gives the same answer as a fresh world, and allocates a small fraction of a fresh world's
+        /// ≈ 93 MB. ✅ Red-proof: skip the empty-after-use (SoftClear) ⇒ the second extraction returns the first file's entity too.</summary>
+        [Fact]
+        public void CE2396_AReusedStagingWorld_IsEmptiedBetweenExtractions_AndAllocatesLittle()
+        {
+            var serializer = BuildSerializer();
+            var a = _goldRepo.CreateEntity(); _goldRepo.SetComponent(a, new SimTransform());
+            var jsonOne = SerializeGoldRepo(_goldRepo, serializer);
+            var b = _goldRepo.CreateEntity(); _goldRepo.SetComponent(b, new SimTransform());
+            var jsonTwo = SerializeGoldRepo(_goldRepo, serializer);
+
+            var reused = new StagingEntityExtractor(reuseStagingWorld: true);
+            Assert.Single(reused.Extract(serializer, jsonOne, new StubIdAllocator(100)));
+            Assert.Equal(2, reused.Extract(serializer, jsonTwo, new StubIdAllocator(200)).Count);
+            Assert.Single(reused.Extract(serializer, jsonOne, new StubIdAllocator(300)));        // nothing of the 2-entity file left over
+
+            var fresh = new StagingEntityExtractor();
+            long f0 = GC.GetAllocatedBytesForCurrentThread();
+            fresh.Extract(serializer, jsonOne, new StubIdAllocator(400));
+            long freshBytes = GC.GetAllocatedBytesForCurrentThread() - f0;
+            long r0 = GC.GetAllocatedBytesForCurrentThread();
+            reused.Extract(serializer, jsonOne, new StubIdAllocator(500));
+            long reusedBytes = GC.GetAllocatedBytesForCurrentThread() - r0;
+            Assert.True(reusedBytes * 10 < freshBytes, $"reused {reusedBytes / 1024} KB vs fresh {freshBytes / 1024} KB");
+        }
+
         // ── Test 8: PreAllocatedNetworkId is set from Pass 1 allocation ───────────
 
         // STABILITY(Broken): EditablePolyline managed component not registered — missing component in test fixture; investigate StagingEntityExtractor setup
@@ -369,8 +648,8 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Extract_EntityWithNetworkIdentity_SetsPreAllocatedNetworkId()
         {
-            const long oldNetId = 1001L;
-            const long expectedNewId = 2001L;
+            const int oldNetId = 1001;
+            const int expectedNewId = 2001;
 
             var e = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(e, new SimTransform());
@@ -404,7 +683,10 @@ namespace Hrot.SimHost.Tests
             var requests = new StagingEntityExtractor()
                 .Extract(serializer, json, new StubIdAllocator(100));
 
-            Assert.Equal(0L, Assert.Single(requests).PreAllocatedNetworkId);
+            var req = Assert.Single(requests);
+            Assert.Equal(100L, req.PreAllocatedNetworkId);   // S8: every GUID-keyed file entity gets a fresh id
+            // ⭐ CE-3324 — a scenario load SAYS so, even with no id to infer it from (its subordinates are roots in the file too)
+            Assert.True(req.IsScenarioLoad);
         }
 
         // ── Test 10: ChildComponentOverrides populated from PartMetadata children ─
@@ -414,8 +696,8 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Extract_WithChildEntity_PopulatesChildComponentOverrides()
         {
-            const long rootOldId  = 1000L;
-            const long childOldId = 1001L;
+            const int rootOldId  = 1000;
+            const int childOldId = 1001;
             const int  instanceId = 3;
 
             // Root
@@ -478,8 +760,8 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Extract_ChildWithNetworkIdentity_CarriesPreAllocatedIdToOverrides()
         {
-            const long rootOldId  = 1000L;
-            const long childOldId = 1001L;
+            const int rootOldId  = 1000;
+            const int childOldId = 1001;
             const int  instanceId = 3;
 
             var root = _goldRepo.CreateEntity();
@@ -513,9 +795,9 @@ namespace Hrot.SimHost.Tests
         private sealed class StubPassengersIntentTranslator : IEntityScenarioTranslator
         {
             private const string DomKey = "_stubPassengers";
-            private readonly long _passengerNetId;
+            private readonly int _passengerNetId;
 
-            public StubPassengersIntentTranslator(long passengerNetId)
+            public StubPassengersIntentTranslator(int passengerNetId)
                 => _passengerNetId = passengerNetId;
 
             public BitMask512 GetConsumedComponentsMask() => new BitMask512();
@@ -541,9 +823,9 @@ namespace Hrot.SimHost.Tests
                 Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
             {
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
-                var id = ((JsonObject)raw)["PassengerId"]!.GetValue<long>();
+                var id = ((JsonObject)raw)["PassengerId"]!.GetValue<int>();
                 var intent = new InitialPassengersIntent();
-                intent.PassengerNetworkIds.Add(id);
+                intent.PassengerNetworkIds.Add(GuidLink(id));
                 repo.SetManagedComponent(entity, intent);
             }
         }
@@ -555,8 +837,8 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Extract_InitialPassengersIntent_RemapsPassengerNetworkIdsViaOldToNewMap()
         {
-            const long vehicleOldId   = 1001L;
-            const long passengerOldId = 2001L;
+            const int vehicleOldId   = 1001;
+            const int passengerOldId = 2001;
 
             // Vehicle entity triggers the stub translator.
             var vehicle = _goldRepo.CreateEntity();
@@ -586,7 +868,204 @@ namespace Hrot.SimHost.Tests
 
             // Passenger old ID 2001 must have been remapped to 3002.
             Assert.Equal(1, intent.PassengerNetworkIds.Count);
-            Assert.Equal(3002L, intent.PassengerNetworkIds[0]);
+            Assert.Equal(3002L, intent.PassengerNetworkIds[0].Ref.NetworkId);
+        }
+
+        /// <summary>A stub translator that writes an <see cref="InitialTargetsIntent"/> naming one target.</summary>
+        private sealed class StubTargetsIntentTranslator : IEntityScenarioTranslator
+        {
+            private const string DomKey = "_stubTargets";
+            private readonly int _targetNetId;
+
+            public StubTargetsIntentTranslator(int targetNetId) => _targetNetId = targetNetId;
+
+            public BitMask512 GetConsumedComponentsMask() => new BitMask512();
+            public IEnumerable<string> GetOutputDomKeys() { yield return DomKey; }
+
+            public bool CanTranslate(EntityRepository repo, Entity entity)
+                => repo.GetEntityIndex().GetComponentMask(entity.Index).IsSet(GlobalComponentIds.SimTransform);
+
+            public Dictionary<string, object> Extract(EntityRepository repo, Entity entity, IGuidResolver guidResolver)
+                => new Dictionary<string, object> { [DomKey] = new JsonObject { ["TargetId"] = _targetNetId } };
+
+            public void Inject(EntityRepository repo, Entity entity, Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
+            {
+                if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
+                var id = ((JsonObject)raw)["TargetId"]!.GetValue<int>();
+                var intent = new InitialTargetsIntent();
+                intent.Entries.Add(new TargetEntry { NetworkId = GuidLink(id), PosX = 1f, PosY = 2f, PosZ = 7.5f, Score = 0.25f });
+                repo.SetManagedComponent(entity, intent);
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>DESIGN_Entity_Reference.md</c> D4 — a target-memory entry's reference is remapped by the ONE type plan and
+        /// nothing else in the entry moves. 🔴 The hand-coded case this replaced copied each entry field by field and
+        /// DROPPED <c>PosZ</c> (P3D-206), so every scenario load flattened remembered targets to altitude 0.
+        /// </summary>
+        [Fact]
+        public void Extract_InitialTargetsIntent_RemapsTheReference_AndKeepsEveryOtherField()
+        {
+            var vehicle = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(vehicle, new SimTransform());
+            _goldRepo.SetComponent(vehicle, new NetworkIdentity { Value = 1001 });
+            var target = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(target, new NetworkIdentity { Value = 2001 });
+
+            var serializer = BuildSerializer(new StubTargetsIntentTranslator(2001));
+            var requests = new StagingEntityExtractor()
+                .Extract(serializer, SerializeGoldRepo(_goldRepo, serializer), new StubIdAllocator(3001));
+
+            var entry = requests.Single(r => r.PreAllocatedNetworkId == 3001L).InitialComponents!
+                .OfType<InitialTargetsIntent>().Single().Entries.Single();
+            Assert.Equal(new EntityRef(3002), entry.NetworkId.Ref);
+            Assert.Equal(7.5f, entry.PosZ);
+            Assert.Equal(0.25f, entry.Score);
+        }
+
+        /// <summary>Writes an <see cref="InitialBrainIntent"/> (the saved AI, CE-3042) whose task AND SOP slots name one target by
+        /// network id in their params JSON.</summary>
+        private sealed class StubRouteTranslator : IEntityScenarioTranslator
+        {
+            private const string DomKey = "_stubRoute";
+            private readonly int _unitNetId;
+
+            private readonly System.Guid? _unitGuid;
+
+            public StubRouteTranslator(int unitNetId, System.Guid? unitGuid = null) { _unitNetId = unitNetId; _unitGuid = unitGuid; }
+
+            public BitMask512 GetConsumedComponentsMask() => new BitMask512();
+            public IEnumerable<string> GetOutputDomKeys() { yield return DomKey; }
+
+            public bool CanTranslate(EntityRepository repo, Entity entity)
+                => repo.GetEntityIndex().GetComponentMask(entity.Index).IsSet(GlobalComponentIds.SimTransform);
+
+            public Dictionary<string, object> Extract(EntityRepository repo, Entity entity, IGuidResolver guidResolver)
+                => new Dictionary<string, object> { [DomKey] = _unitGuid is { } g ? new JsonObject { ["HoldUnit"] = g.ToString("D") } : new JsonObject { ["HoldUnit"] = _unitNetId } };
+
+            public void Inject(EntityRepository repo, Entity entity, Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
+            {
+                if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
+                var unitNode = ((JsonObject)raw)["HoldUnit"]!;
+                var unit = unitNode.GetValueKind() == System.Text.Json.JsonValueKind.String
+                    ? new Fdp.Toolkit.Replication.EntityLink(default, Fdp.Core.RefSpec.ByExact(System.Guid.Parse(unitNode.GetValue<string>())))
+                    : GuidLink(unitNode.GetValue<int>());
+                var plan = new Hrot.Map.Common.Components.RoutePlan();
+                plan = plan.WithWaypoints(l =>
+                {
+                    l.Add(new Hrot.Map.Common.Components.RouteWaypoint { Hold = Fdp.Toolkit.Navigation.RouteHold.Unload });
+                    l.Add(new Hrot.Map.Common.Components.RouteWaypoint { Hold = Fdp.Toolkit.Navigation.RouteHold.Pickup, HoldUnit = unit });
+                });
+                repo.SetManagedComponent(entity, plan);
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2226</c> — a route's Pickup waypoint names the unit it waits for by its SAVED network id, and the load re-allocates
+        /// every id: the waypoint comes back naming the unit's NEW id. 🔴 Measured live on <c>ua-air-rescue</c>: it kept 9510, the hold
+        /// found nobody, and the UH-60 never lifted — <c>RoutePlan.Waypoints</c> is a read-only view the <see cref="EntityRef"/> type
+        /// plan cannot reach.
+        /// </summary>
+        [Fact]
+        public void S9Prime_ARoutesPickupUnit_WrittenAsAGuid_ResolvesToTheNewId()
+        {
+            _goldRepo.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
+            var guid = System.Guid.NewGuid();
+            _goldRepo.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();
+            var route = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(route, new Fdp.Toolkit.Scenario.EntityGuid(System.Guid.NewGuid()));
+            _goldRepo.SetComponent(route, new SimTransform());
+            _goldRepo.SetComponent(route, new NetworkIdentity { Value = 9502 });
+            var squad = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(squad, new NetworkIdentity { Value = 9510 });
+            _goldRepo.SetComponent(squad, new Fdp.Toolkit.Scenario.EntityGuid(guid));
+
+            var serializer = BuildSerializer(new StubRouteTranslator(9510, guid));
+            var requests = new StagingEntityExtractor()
+                .Extract(serializer, SerializeGoldRepo(_goldRepo, serializer), new StubIdAllocator(3001));
+
+            var plan = requests.Single(r => r.PreAllocatedNetworkId == 3001L).InitialComponents!
+                .OfType<Hrot.Map.Common.Components.RoutePlan>().Single();
+            Assert.Equal(3002, plan.Waypoints[1].HoldUnit.Ref.NetworkId);
+        }
+
+        [Fact]
+        public void CE2226_ARoutesPickupUnit_IsRemapped()
+        {
+            _goldRepo.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
+            var route = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(route, new SimTransform());
+            _goldRepo.SetComponent(route, new NetworkIdentity { Value = 9502 });
+            var squad = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(squad, new NetworkIdentity { Value = 9510 });
+
+            var serializer = BuildSerializer(new StubRouteTranslator(9510));
+            var requests = new StagingEntityExtractor()
+                .Extract(serializer, SerializeGoldRepo(_goldRepo, serializer), new StubIdAllocator(3001));
+
+            var plan = requests.Single(r => r.PreAllocatedNetworkId == 3001L).InitialComponents!
+                .OfType<Hrot.Map.Common.Components.RoutePlan>().Single();
+            Assert.True(plan.Waypoints[0].HoldUnit.IsNone);      // a stop that names nobody stays so
+            Assert.Equal(3002, plan.Waypoints[1].HoldUnit.Ref.NetworkId);   // the squad's NEW id
+        }
+
+        private sealed class StubBrainIntentTranslator : IEntityScenarioTranslator
+        {
+            private const string DomKey = "_stubBrain";
+            private readonly int _targetNetId;
+
+            public StubBrainIntentTranslator(int targetNetId) => _targetNetId = targetNetId;
+
+            public BitMask512 GetConsumedComponentsMask() => new BitMask512();
+            public IEnumerable<string> GetOutputDomKeys() { yield return DomKey; }
+
+            public bool CanTranslate(EntityRepository repo, Entity entity)
+                => repo.GetEntityIndex().GetComponentMask(entity.Index).IsSet(GlobalComponentIds.SimTransform);
+
+            public Dictionary<string, object> Extract(EntityRepository repo, Entity entity, IGuidResolver guidResolver)
+                => new Dictionary<string, object> { [DomKey] = new JsonObject { ["TargetId"] = _targetNetId } };
+
+            public void Inject(EntityRepository repo, Entity entity, Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
+            {
+                if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
+                var id = ((JsonObject)raw)["TargetId"]!.GetValue<int>();
+                string Params() => $"{{\"targetNetworkId\":\"{GuidFor(id)}\",\"maxRounds\":3,\"cooldownSeconds\":1}}";
+                repo.SetManagedComponent(entity, new InitialBrainIntent
+                {
+                    Behavior = new SavedBrainSlot { Name = BehaviorNames.FireAtTarget, Params = Params() },
+                    Sop      = new SavedBrainSlot { Name = BehaviorNames.FireAtTarget, Params = Params(), Origin = BehaviorOrigin.Sop },
+                });
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-1057</c> — a unit's saved AI names its target by the SAVED network id, and the load re-allocates every id:
+        /// the task and SOP params come back naming the target's NEW id, through the remapper every live load builds
+        /// (<see cref="Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper"/>). 🔴 Measured live on
+        /// <c>tt-convoy-ambush</c>: <c>FireAtTarget {targetNetworkId: 7300}</c> kept 7300, named nothing, and the behaviour
+        /// never ran — the params are a JSON string, which the <see cref="EntityRef"/> type plan cannot see.
+        /// </summary>
+        [Fact]
+        public void CE1057_ASavedBrainIntentsTarget_IsRemapped_InTheTaskAndTheSop()
+        {
+            _goldRepo.RegisterManagedComponent<InitialBrainIntent>();
+            var shooter = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(shooter, new SimTransform());
+            _goldRepo.SetComponent(shooter, new NetworkIdentity { Value = 1001 });
+            var target = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(target, new NetworkIdentity { Value = 7300 });
+
+            var serializer = BuildSerializer(new StubBrainIntentTranslator(7300));
+            var requests = new StagingEntityExtractor()
+                .Extract(serializer, SerializeGoldRepo(_goldRepo, serializer), new StubIdAllocator(3001),
+                    behaviorRemapper: Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper());
+
+            var brain = requests.Single(r => r.PreAllocatedNetworkId == 3001L).InitialComponents!
+                .OfType<InitialBrainIntent>().Single();
+            Assert.Contains("3002", brain.Behavior!.Params);   // S8: the GUID resolved to the new id
+            Assert.Contains("3002", brain.Sop!.Params);
+            Assert.Contains("\"maxRounds\":3", brain.Behavior.Params);
+            Assert.Equal(BehaviorOrigin.Sop, brain.Sop.Origin);
         }
 
         // ── Test 14: Unknown passenger NetworkId preserved as-is ──────────────────────
@@ -594,10 +1073,10 @@ namespace Hrot.SimHost.Tests
         // STABILITY(Broken): EditablePolyline managed component not registered — missing component in test fixture; investigate StagingEntityExtractor setup
         [Trait("Stability", "Broken")]
         [Fact]
-        public void Extract_InitialPassengersIntent_PreservesUnknownNetworkId()
+        public void Extract_InitialPassengersIntent_ARefToAGuidNotInTheFile_FailsTheLoad()
         {
-            const long vehicleOldId      = 1001L;
-            const long unknownPassengerId = 9999L; // no entity with this NetworkIdentity exists
+            const int vehicleOldId      = 1001;
+            const int unknownPassengerId = 9999; // no entity with this NetworkIdentity exists
 
             var vehicle = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(vehicle, new SimTransform());
@@ -608,17 +1087,8 @@ namespace Hrot.SimHost.Tests
             var serializer = BuildSerializer(new StubPassengersIntentTranslator(unknownPassengerId));
             var json = SerializeGoldRepo(_goldRepo, serializer);
 
-            var requests = new StagingEntityExtractor()
-                .Extract(serializer, json, allocator);
-
-            var req = Assert.Single(requests);
-            var intent = req.InitialComponents!
-                .OfType<InitialPassengersIntent>()
-                .Single();
-
-            // Unknown ID 9999 has no mapping — it must be preserved unchanged.
-            Assert.Equal(1, intent.PassengerNetworkIds.Count);
-            Assert.Equal(unknownPassengerId, intent.PassengerNetworkIds[0]);
+            // S8: a reference to a GUID that is not in the file fails the load loudly (no silent pass-through of a stale id).
+            Assert.ThrowsAny<Exception>(() => new StagingEntityExtractor().Extract(serializer, json, allocator));
         }
 
         // ── Test 15: Child entity InitialPassengersIntent NetworkId remapped (S313) ─
@@ -628,9 +1098,9 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Extract_ChildEntity_InitialPassengersIntent_NetworkIdIsRemapped()
         {
-            const long rootOldId      = 1000L;
-            const long childOldId     = 1001L;
-            const long passengerOldId = 2000L;
+            const int rootOldId      = 1000;
+            const int childOldId     = 1001;
+            const int passengerOldId = 2000;
             const int  instanceId     = 1;
 
             // Root entity — no SimTransform so stub translator does NOT fire for it.
@@ -670,7 +1140,7 @@ namespace Hrot.SimHost.Tests
 
             // passengerOldId 2000 must have been remapped to 3002.
             Assert.Equal(1, intent.PassengerNetworkIds.Count);
-            Assert.Equal(3002L, intent.PassengerNetworkIds[0]);
+            Assert.Equal(3002L, intent.PassengerNetworkIds[0].Ref.NetworkId);
         }
 
         // ── CS027-T01: InitialUnitSubordinateIntent CommanderNetworkId remapped ────
@@ -678,9 +1148,9 @@ namespace Hrot.SimHost.Tests
         private sealed class StubUnitSubordinateIntentTranslator : IEntityScenarioTranslator
         {
             private const string DomKey = "_stubSubordinate";
-            private readonly long _commanderNetId;
+            private readonly int _commanderNetId;
 
-            public StubUnitSubordinateIntentTranslator(long commanderNetId)
+            public StubUnitSubordinateIntentTranslator(int commanderNetId)
                 => _commanderNetId = commanderNetId;
 
             public BitMask512 GetConsumedComponentsMask() => new BitMask512();
@@ -705,8 +1175,8 @@ namespace Hrot.SimHost.Tests
                 Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
             {
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
-                var id = ((JsonObject)raw)["CommanderId"]!.GetValue<long>();
-                repo.SetManagedComponent(entity, new InitialUnitSubordinateIntent { CommanderNetworkId = id });
+                var id = ((JsonObject)raw)["CommanderId"]!.GetValue<int>();
+                repo.SetManagedComponent(entity, new InitialUnitSubordinateIntent { CommanderNetworkId = GuidLink(id) });
             }
         }
 
@@ -715,8 +1185,8 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Extract_InitialUnitSubordinateIntent_RemapsCommanderNetworkIdViaOldToNewMap()
         {
-            const long subordinateOldId = 1001L;
-            const long commanderOldId   = 2001L;
+            const int subordinateOldId = 1001;
+            const int commanderOldId   = 2001;
 
             var subordinate = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(subordinate, new SimTransform());
@@ -740,7 +1210,7 @@ namespace Hrot.SimHost.Tests
                 .Single();
 
             // commanderOldId 2001 must have been remapped to 3002.
-            Assert.Equal(3002L, intent.CommanderNetworkId);
+            Assert.Equal(3002L, intent.CommanderNetworkId.Ref.NetworkId);
         }
 
         // ── CS027-T02: Unknown CommanderNetworkId preserved as-is ─────────────────
@@ -748,10 +1218,10 @@ namespace Hrot.SimHost.Tests
         // STABILITY(Broken): EditablePolyline managed component not registered — missing component in test fixture; investigate StagingEntityExtractor setup
         [Trait("Stability", "Broken")]
         [Fact]
-        public void Extract_InitialUnitSubordinateIntent_PreservesUnknownCommanderNetworkId()
+        public void Extract_InitialUnitSubordinateIntent_ARefToAGuidNotInTheFile_FailsTheLoad_Commander()
         {
-            const long subordinateOldId     = 1001L;
-            const long unknownCommanderId   = 9999L;
+            const int subordinateOldId     = 1001;
+            const int unknownCommanderId   = 9999;
 
             var subordinate = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(subordinate, new SimTransform());
@@ -762,16 +1232,7 @@ namespace Hrot.SimHost.Tests
             var serializer = BuildSerializer(new StubUnitSubordinateIntentTranslator(unknownCommanderId));
             var json = SerializeGoldRepo(_goldRepo, serializer);
 
-            var requests = new StagingEntityExtractor()
-                .Extract(serializer, json, allocator);
-
-            var req = Assert.Single(requests);
-            var intent = req.InitialComponents!
-                .OfType<InitialUnitSubordinateIntent>()
-                .Single();
-
-            // Unknown ID 9999 has no mapping — must be preserved unchanged.
-            Assert.Equal(unknownCommanderId, intent.CommanderNetworkId);
+            Assert.ThrowsAny<Exception>(() => new StagingEntityExtractor().Extract(serializer, json, allocator));   // S8: loud, not preserved
         }
     }
 }

@@ -48,7 +48,7 @@ public sealed class PreviewModeVehicleMovementTests
         world.AddComponent(vehicle, new SimVelocity  { Linear   = new Vector3(5f, 0f, 0f) });
 
         // Attach an ActiveMissionPlan (transient managed component).
-        // The preview snapshot must capture it because PreviewClusterOpHandler uses
+        // The preview snapshot must capture it because Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler uses
         // includeTransient: true in LoadingPreviewCommit.
         world.SetManagedComponent(vehicle, new ActiveMissionPlan
         {
@@ -75,7 +75,7 @@ public sealed class PreviewModeVehicleMovementTests
         // The transient ActiveMissionPlan must survive the snapshot taken on entry.
         Assert.True(world.HasManagedComponent<ActiveMissionPlan>(vehicle),
             "ActiveMissionPlan was lost when entering preview mode. " +
-            "Verify that PreviewClusterOpHandler.LoadingPreviewCommit uses " +
+            "Verify that ReferencePreviewHandler.LoadingPreviewCommit uses " +
             "includeTransient: true in its SyncFrom call.");
 
         var plan = view.GetManagedComponentRO<ActiveMissionPlan>(vehicle);

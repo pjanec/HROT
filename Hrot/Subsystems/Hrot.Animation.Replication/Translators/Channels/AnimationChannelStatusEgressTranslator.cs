@@ -12,20 +12,20 @@ using Hrot.MuscleCharacter.Animation.Components;
 namespace Hrot.Animation.Replication.Translators.Channels;
 
 /// <summary>
-/// Egress translator: reads <see cref="AnimationChannel"/> from locally-owned entities
+/// Egress translator: reads <see cref="AnimationChannelStatus"/> (the Muscle's report, CE-513 / R-180) from locally-owned entities
 /// and publishes DDS status samples (Muscle -> Brain direction).
 /// Only publishes when (Status, DispatchedInstanceId) changes.
 /// Does NOT replicate Brain-authored intent fields (ActiveAction, ActionInstanceId, etc.).
 /// </summary>
 internal sealed class AnimationChannelStatusEgressTranslator : INetworkTranslator
 {
-    private const string TopicNameConst = "hrot/anim/status/AnimationChannel";
 
     private readonly IAnimDdsWriter<DdsAnimationChannelStatus> _writer;
     private readonly NetworkEntityMap _entityMap;
     private readonly Dictionary<Entity, (NodeStatus, uint)> _lastPublished = new();
+    private int _worldEpoch;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of(typeof(DdsAnimationChannelStatus).Namespace, new[] { nameof(DdsAnimationChannelStatus) });
     public TranslatorDirection Direction => TranslatorDirection.Egress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -33,7 +33,7 @@ internal sealed class AnimationChannelStatusEgressTranslator : INetworkTranslato
 
     internal AnimationChannelStatusEgressTranslator(
         DdsParticipant participant, NetworkEntityMap entityMap)
-        : this(new DdsLiveWriter<DdsAnimationChannelStatus>(participant, TopicNameConst), entityMap)
+        : this(new DdsLiveWriter<DdsAnimationChannelStatus>(participant), entityMap)
     {
     }
 
@@ -48,8 +48,10 @@ internal sealed class AnimationChannelStatusEgressTranslator : INetworkTranslato
 
     public void ScanAndPublish(ISimulationView view)
     {
+        // ⭐ R-3039 S3 — a world replacement (a load, a restore): forget what was published, so every owner republishes (R-3041).
+        if (WorldEpoch.Moved(view, ref _worldEpoch)) { _lastPublished.Clear(); }
         var query = view.Query()
-            .With<AnimationChannel>()
+            .With<AnimationChannelStatus>()
             .With<NetworkIdentity>()
             .Build();
 
@@ -57,12 +59,12 @@ internal sealed class AnimationChannelStatusEgressTranslator : INetworkTranslato
         {
             if (!view.HasAuthority(entity)) continue;
 
-            ref readonly var channel = ref view.GetComponentRO<AnimationChannel>(entity);
+            ref readonly var report = ref view.GetComponentRO<AnimationChannelStatus>(entity);
 
             // Fine-grained dirty filter: only publish when Status or DispatchedInstanceId changes.
             if (_lastPublished.TryGetValue(entity, out var last)
-                && last.Item1 == channel.Status
-                && last.Item2 == channel.DispatchedInstanceId)
+                && last.Item1 == report.Status
+                && last.Item2 == report.DispatchedInstanceId)
             {
                 DirtyFalsePositiveCount++;
                 continue;
@@ -73,11 +75,11 @@ internal sealed class AnimationChannelStatusEgressTranslator : INetworkTranslato
             _writer.Write(new DdsAnimationChannelStatus
             {
                 EntityId = netId.Value,
-                Status = (byte)channel.Status,
-                DispatchedInstanceId = channel.DispatchedInstanceId,
+                Status = (byte)report.Status,
+                DispatchedInstanceId = report.DispatchedInstanceId,
             });
             SentSampleCount++;
-            _lastPublished[entity] = (channel.Status, channel.DispatchedInstanceId);
+            _lastPublished[entity] = (report.Status, report.DispatchedInstanceId);
         }
     }
 }

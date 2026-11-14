@@ -6,7 +6,11 @@ using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Utilities;
 using Fdp.Toolkit.Spatial.Eqs;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Sensors;
+using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Toolkit.Spatial.Eqs.Topics;
 using Hrot.NED.Descriptors;
 
@@ -16,112 +20,441 @@ namespace Hrot.Network.NED.SimHost
     /// Muscle-side ingress translator: receives <see cref="EqsSensorConfigTopic"/> samples
     /// and applies the <c>EqsSensor</c> component to the corresponding ghost entity so the
     /// solver picks it up on the next tick.
-    /// On <c>NOT_ALIVE_DISPOSED</c>, removes <c>EqsSensor</c> from the ghost entity,
-    /// signalling the solver to drop the query.
+    /// On <c>NOT_ALIVE_DISPOSED</c>, removes a LEGACY sensor (part 0) from the ghost entity; a child sensor's dispose
+    /// only forgets the key — its carrier dies with its parent (<c>CE-486</c>). An ended child sensor arrives as a
+    /// <c>Suspended</c> config, which the solver skips. ⭐ <c>CE-492</c>: an instance can have two writers after an authority
+    /// move, so samples are taken in SOURCE-TIME order per instance, not arrival order (<see cref="Receive"/>).
     /// </summary>
-    public sealed class EqsSensorConfigIngressTranslator : IDescriptorTranslator
+    public sealed class EqsSensorConfigIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EqsSensorConfig";
         private readonly DdsReader<EqsSensorConfigTopic>? _reader;
         private readonly NetworkEntityMap _entityMap;
         // Dictionary-cached entity lookup: (ParentNetworkId, LocalChildIndex) -> child ghost entity.
         // Avoids ECS query scans inside the polling loop (O(1) steady-state lookup).
-        private readonly Dictionary<(long ParentNetId, int ChildIndex), Entity> _childGhostCache = new();
+        private readonly Dictionary<(int ParentNetId, int ChildIndex), Entity> _childGhostCache = new();
 
-        public string TopicName => DdsTopicName;
+        // ⭐ Samples whose parent or context-slot entities are not on this node YET. DDS Take() consumes
+        // a sample, and the Brain re-sends only on change — so a sample applied too early (or dropped
+        // because its parent was missing) would leave the sensor without its area FOREVER. Each poll
+        // retries these; a sample leaves the set once its parent and every named slot resolve.
+        private readonly Dictionary<(int ParentNetId, int ChildIndex), Pending> _pending = new();
+        private readonly List<(int ParentNetId, int ChildIndex)> _resolvedKeys = new();
+        // Carriers created through the command buffer and not yet visible in the world.
+        private readonly HashSet<(int ParentNetId, int ChildIndex)> _awaitingPlayback = new();
+        // ⭐ CE-492 — per instance, the newest source time taken; an older sample is stale (two writers after an authority move).
+        private readonly SourceTimeOrder<(int ParentNetId, int ChildIndex)> _order = new();
+
+        private struct Pending
+        {
+            public EqsSensorConfigTopic Data;
+            public bool Applied;          // applied at least once (parent was present)
+            public int  ResolvedSlotMask; // which named slots resolved when last applied
+            // ⭐ CE-2158 (EQS §17.6.1) — an ended lifetime's Suspended sample was overtaken in this batch by the next lifetime's
+            //   config: the carrier never sees the end, so the boundary is carried here.
+            public bool NewLifetime;
+        }
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EqsSensorConfigTopic>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsSensorConfig;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
-        public EqsSensorConfigIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
+        // ⭐ CE-3002 / R-179 — the config names its solver; only that node builds a carrier. 📄
+        //   DESIGN_Ownership_Groups_And_Grants.md §5.8.
+        private readonly NodeId _localNodeId;
+        private readonly Dictionary<(int ParentNetId, int ChildIndex), int> _recordedSolver = new();
+        private OwnershipApplier? _applier;
+        private int _worldEpoch;   // ⭐ CE-3076 — per-key bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
+
+        /// <summary>Sensors this node was told another node solves (diagnostics and rails).</summary>
+        public long SolvedElsewhereCount { get; private set; }
+
+        /// <param name="localNodeId">⭐ R-179: this node — a child sensor whose config names another solver gets no
+        /// carrier here.</param>
+        public EqsSensorConfigIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap, int localNodeId = 0)
         {
             if (entityMap == null) throw new ArgumentNullException(nameof(entityMap));
-            _entityMap = entityMap;
+            _entityMap   = entityMap;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _reader = participant != null
-                ? new DdsReader<EqsSensorConfigTopic>(participant, DdsTopicName)
+                ? new DdsReader<EqsSensorConfigTopic>(participant)
                 : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <inheritdoc/>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (_reader is null) return;
 
+            ForgetLastWorld(view);
+
             using var loan = _reader.Take();
             foreach (var sample in loan)
             {
-                long parentNetId;
-                int  localChildIndex;
                 if (sample.IsValid)
                 {
-                    parentNetId     = sample.Data.ParentNetworkId;
-                    localChildIndex = sample.Data.LocalChildIndex;
-                    ReceivedSampleCount++;
+                    Receive(cmd, sample.Data, valid: true, disposed: false, sample.Info.SourceTimestamp);
                 }
                 else
                 {
                     // For NOT_ALIVE samples the managed .Data property throws.
                     // Read key fields directly from the native serialised buffer.
-                    var keyData     = DdsTypeSupport.FromNative<EqsSensorConfigTopic>(sample.NativePtr);
-                    parentNetId     = keyData.ParentNetworkId;
-                    localChildIndex = keyData.LocalChildIndex;
+                    var keyData = DdsTypeSupport.FromNative<EqsSensorConfigTopic>(sample.NativePtr);
+                    Receive(cmd, keyData, valid: false,
+                        disposed: sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed, sample.Info.SourceTimestamp);
                 }
+            }
 
-                if (localChildIndex == 0)
+            ApplyPending(cmd, view);
+        }
+
+        /// <summary>
+        /// One sample, in arrival order. ⭐⭐ <c>CE-492</c> — a sample OLDER (by source time) than the newest one already
+        /// taken for its instance is STALE and dropped (<see cref="SourceTimeOrder{TKey}"/>). 📄
+        /// <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §3a. 🔴 The case: after an authority move an instance has two
+        /// writers — the old owner's last ACTIVE sample and the new owner's SUSPEND (its orphan sweep, <c>CE-490</c>). A
+        /// late-joining Muscle gets both from TransientLocal in discovery order, and whichever came last won — so an ended
+        /// sensor could be solved forever. ⚠ Not "the same epoch": the owner run is NOT unique across an authority move (a
+        /// new owner counts from the same start), so an epoch match cannot tell a stale sample from a new lifetime.
+        /// </summary>
+        /// <remarks>Internal so a rail can play a chosen arrival order with chosen source times — real DDS gives a test
+        /// control over neither.</remarks>
+        internal void Receive(IEntityCommandBuffer cmd, in EqsSensorConfigTopic data, bool valid, bool disposed, long sourceTimestamp)
+        {
+            if (!valid && !disposed) return;                     // unregistered / no writers: nothing to apply
+            int parentNetId    = data.ParentNetworkId;
+            int  localChildIndex = data.LocalChildIndex;
+            var  cacheKey       = (parentNetId, localChildIndex);
+            if (!_order.Accept(cacheKey, sourceTimestamp)) { StaleSampleCount++; return; }
+            if (valid) ReceivedSampleCount++;
+
+            if (localChildIndex == 0)
+            {
+                // Legacy single-sensor path: sensor lives directly on the parent ghost entity.
+                if (valid)
                 {
-                    // Legacy single-sensor path: sensor lives directly on the parent ghost entity.
-                    if (!_entityMap.TryGetEntity(parentNetId, out var parentGhost)) continue;
-
-                    if (sample.IsValid)
-                    {
-                        cmd.SetComponent(parentGhost, BuildSensor(sample.Data));
-                        _childGhostCache[(parentNetId, 0)] = parentGhost;
-                    }
-                    else if (sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed)
-                    {
-                        cmd.RemoveComponent<EqsSensor>(parentGhost);
-                        _childGhostCache.Remove((parentNetId, 0));
-                    }
+                    _pending[cacheKey] = new Pending { Data = data };
                 }
                 else
                 {
-                    // Child-entity sensor path: carrier ghost is spawned/reused from cache.
-                    if (!_entityMap.TryGetEntity(parentNetId, out var parentGhost)) continue;
-
-                    var cacheKey = (parentNetId, localChildIndex);
-
-                    if (sample.IsValid)
-                    {
-                        if (!_childGhostCache.TryGetValue(cacheKey, out var child))
-                        {
-                            // Cache miss: spawn carrier ghost entity.
-                            // No NetworkIdentity, TkbIdentity, or GhostStateTracker on the carrier.
-                            child = cmd.CreateEntity();
-                            cmd.AddComponent(child, new PartMetadata
-                            {
-                                ParentEntity      = parentGhost,
-                                InstanceId        = localChildIndex,
-                                DescriptorOrdinal = 0,
-                            });
-                            cmd.AddComponent(child, BuildSensor(sample.Data));
-                            cmd.AddComponent(child, default(EqsCognitiveBuffer));
-                            _childGhostCache[cacheKey] = child;
-                        }
-                        else
-                        {
-                            // Cache hit: update sensor parameters on existing carrier.
-                            cmd.SetComponent(child, BuildSensor(sample.Data));
-                        }
-                    }
-                    else if (sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed)
-                    {
-                        if (_childGhostCache.Remove(cacheKey, out var dead))
-                            cmd.DestroyEntity(dead);
-                    }
+                    _pending.Remove(cacheKey);
+                    if (!_entityMap.TryGetEntity(parentNetId, out var parentGhost)) return;
+                    cmd.RemoveComponent<EqsSensor>(parentGhost);
+                    _childGhostCache.Remove(cacheKey);
                 }
+                return;
+            }
+
+            // Child-entity sensor path: carrier ghost is spawned/reused from cache.
+            if (valid)
+            {
+                bool boundary = _pending.TryGetValue(cacheKey, out var before) && (before.Data.Suspended || before.NewLifetime) && !data.Suspended;
+                _pending[cacheKey] = new Pending { Data = data, NewLifetime = boundary };
+            }
+            else
+            {
+                // ⭐⭐ CE-486 — a child-sensor dispose is NOT "destroy the carrier". The Brain never disposes a
+                //    child instance while its parent lives (it writes Suspended instead), so a dispose now only
+                //    comes with the parent's death — and SubEntityCleanupSystem already destroys that parent's
+                //    carriers. 🔴 Destroying here was the design's §2 ② race: a dispose and a write for the same
+                //    key in one batch queued the destroy, then applied the new config to the doomed carrier.
+                //    📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D5 ③.
+                _pending.Remove(cacheKey);
+                _awaitingPlayback.Remove(cacheKey);
+                _childGhostCache.Remove(cacheKey);
             }
         }
+
+        /// <summary>Samples dropped as older than their instance's newest (<c>CE-492</c>; diagnostics and rails).</summary>
+        public long StaleSampleCount { get; private set; }
+
+        /// <summary>Applies what <see cref="Receive"/> left pending (exposed for rails that drive <c>Receive</c>).</summary>
+        /// <summary>
+        /// ⭐ <c>CE-3076</c> (<c>CE-2101</c>'s rule, <c>DESIGN_Cluster_Load_Phase.md</c> §8) — the per-world bookkeeping goes at the
+        /// world boundary: ids restart at 1000, so the next world's (parent, part) keys are the last world's. 🔴 Measured: a stale
+        /// <c>_recordedSolver</c> skipped <see cref="RecordSolver"/> for the new parent ghost ⇒ no <c>dtEqsResult</c> owner ⇒ the
+        /// commander's area query was never answered (NoAnswerTimeout) when <c>hill-attack-close</c> loaded after <c>ua-posture</c>.
+        /// A stale <c>_pending</c> would apply the last world's config to the new parent; a stale <c>_awaitingPlayback</c> would hold
+        /// its carrier forever. ⭐ Kept: <c>_order</c> (a last-world sample arriving late is still stale) and <c>_childGhostCache</c>
+        /// (every hit is re-validated against the world).
+        /// </summary>
+        private void ForgetLastWorld(ISimulationView view)
+        {
+            if (!Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) return;
+            _recordedSolver.Clear();
+            _pending.Clear();
+            _awaitingPlayback.Clear();
+        }
+
+        /// <summary>The start of a poll, for a rail that drives <see cref="Receive"/> without DDS.</summary>
+        internal void ObserveWorldForRail(ISimulationView view) => ForgetLastWorld(view);
+
+        internal void ApplyPendingForRail(IEntityCommandBuffer cmd, ISimulationView view) => ApplyPending(cmd, view);
+
+        // Applies every pending sample whose parent is present; re-applies one only when a named slot
+        // has newly resolved; drops it from the set once the parent and all named slots resolved.
+        private void ApplyPending(IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (_pending.Count == 0) return;
+
+            _resolvedKeys.Clear();
+            foreach (var key in new List<(int ParentNetId, int ChildIndex)>(_pending.Keys))
+            {
+                var pending = _pending[key];
+                if (!_entityMap.TryGetEntity(key.ParentNetId, out var parentGhost)) continue;
+
+                var sensor = BuildSensor(pending.Data);
+                int named  = NamedSlotMask(pending.Data);
+                int mask   = ResolvedSlotMask(in sensor);
+
+                if (!pending.Applied || mask != pending.ResolvedSlotMask)
+                {
+                    // A carrier created by an earlier poll is not in the world until that command
+                    // buffer plays back — wait for it rather than create a second one.
+                    if (!Apply(cmd, view, key, parentGhost, sensor, pending.Data, pending.NewLifetime)) continue;
+                    pending.Applied          = true;
+                    pending.ResolvedSlotMask = mask;
+                    _pending[key]            = pending;
+                }
+
+                if (mask == named) _resolvedKeys.Add(key);
+            }
+
+            foreach (var key in _resolvedKeys) _pending.Remove(key);
+        }
+
+        // Returns false when the sample must wait (its carrier is created but not yet played back).
+        private bool Apply(IEntityCommandBuffer cmd, ISimulationView view, (int ParentNetId, int ChildIndex) key,
+                           Entity parentGhost, EqsSensor sensor, in EqsSensorConfigTopic data, bool newLifetime = false)
+        {
+            int solverNodeId = data.SolverNodeId;
+            if (key.ChildIndex == 0)
+            {
+                // Legacy single-sensor path: sensor lives directly on the parent ghost entity.
+                cmd.SetComponent(parentGhost, sensor);
+                _childGhostCache[key] = parentGhost;
+                return true;
+            }
+
+            // ⭐ R-179 — the config is the per-sensor grant: every node records the named solver as the owner of result
+            //   part n (the S6 result gate reads it). Another node's sensor gets no carrier here, and a carrier left from
+            //   an earlier assignment stops solving.
+            if (solverNodeId != 0)
+            {
+                if (view is EntityRepository repo) RecordSolver(repo, parentGhost, key, solverNodeId);
+                if (solverNodeId != _localNodeId)
+                {
+                    SolvedElsewhereCount++;
+                    _awaitingPlayback.Remove(key);
+                    if (TryFindCarrier(view, parentGhost, key.ChildIndex, out var stale))
+                    {
+                        var stopped = sensor;
+                        stopped.Suspended = true;
+                        cmd.SetComponent(stale, stopped);
+                    }
+                    return true;
+                }
+            }
+
+            // ⭐⭐ CE-3036 — a TKB sensor (part id ≥ 1000) is BUILT FROM THE UNIT'S TKB on this node (R-185 K); a sample for
+            //    it is only an OVERRIDE, or the end of one. ⛔ Never build its carrier here — wait for the spawn instead.
+            if (key.ChildIndex >= SensorChildFactory.FirstTkbPartId)
+                return ApplyTkbOverride(cmd, view, key, parentGhost, sensor, in data);
+
+            // ⭐ CE-3036 / R-186 M′ — a behaviour-made sensor of ANY kind carries its per-kind config as JSON. ⛔ Bad JSON
+            //   or an unknown kind is REFUSED: no carrier is built and nothing half-configured ever solves.
+            SensorEntryDto? config = null;
+            // ⭐ CE-3249 (WS-2) — a WorldSurvey sensor's config is its REQUEST, not a sensor entry: the carrier gets it as is.
+            Fdp.Toolkit.Perception.Survey.WorldSurveyRequest? survey = null;
+            if (string.Equals(data.ConfigKind, Fdp.Toolkit.Perception.Survey.WorldSurveyRequestJson.Kind, StringComparison.Ordinal))
+            {
+                if (!Fdp.Toolkit.Perception.Survey.WorldSurveyRequestJson.TryDecode(data.ConfigJson, out survey))
+                {
+                    RefusedConfigCount++;
+                    return true;
+                }
+                if (view is EntityRepository repoS) Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.Register(repoS);
+            }
+            else if (!string.IsNullOrEmpty(data.ConfigJson) && !TryDecode(key, in data, out config)) return true;
+
+            if (TryFindCarrier(view, parentGhost, key.ChildIndex, out var child))
+            {
+                // Existing carrier: update its parameters.
+                _awaitingPlayback.Remove(key);
+                // ⭐⭐ CE-2158 (EQS §17.6.1) — a NEW LIFETIME on a reused part id starts as a fresh carrier did: its evaluation state goes.
+                //   The solver drops it only when it SEES the carrier suspended (CE-486); a next lifetime applied before the solver ran,
+                //   or whose Suspended sample this batch overtook, kept the last lifetime's "published this epoch" and top-K — and the
+                //   epoch is the same (StampOwner(1, run)), so a ScoreDelta answer equal to the last one was never published.
+                if (!sensor.Suspended && view is EntityRepository evalRepo && evalRepo.IsComponentTypeRegistered<SensorEvalState>()
+                    && view.HasComponent<SensorEvalState>(child)
+                    && (newLifetime || (view.HasComponent<EqsSensor>(child) && view.GetComponentRO<EqsSensor>(child).Suspended)))
+                    cmd.RemoveComponent<SensorEvalState>(child);
+                cmd.SetComponent(child, sensor);
+                if (config != null && view is EntityRepository repoC)
+                    SensorChildFactory.SetCapability(repoC, child, config, config);
+                if (survey != null) cmd.SetManagedComponent(child, survey);   // CE-3249 — the new request
+                ApplyContextPoints(cmd, view, child, in data, existing: true);   // CE-3272
+                return true;
+            }
+
+            if (_awaitingPlayback.Contains(key)) return false;
+
+            // ⭐ CE-486 — an ended sensor with no carrier needs none: there is nothing to solve. (A late-joining Muscle
+            //   receives every instance TransientLocal holds, suspended ones included.) The next lifetime's config for
+            //   this part id creates the carrier then.
+            if (sensor.Suspended) return true;
+
+            // ⭐ No carrier yet: create one. ⛔ The handle cmd.CreateEntity() returns is a PLACEHOLDER
+            // that is valid only inside this command buffer's playback — it used to be cached and reused
+            // for every later update and dispose, so on the Muscle a child sensor's parameters never
+            // changed after its first sample and a disposed sensor's carrier was never destroyed. The real
+            // entity is found in the world on the next poll (TryFindCarrier).
+            // No NetworkIdentity, TkbIdentity, or GhostStateTracker on the carrier.
+            child = cmd.CreateEntity();
+            cmd.AddComponent(child, new PartMetadata
+            {
+                ParentEntity      = parentGhost,
+                InstanceId        = key.ChildIndex,
+            });
+            cmd.AddComponent(child, sensor);
+            cmd.AddComponent(child, default(EqsCognitiveBuffer));
+            if (config != null)
+            {
+                cmd.AddComponent(child, new SensorTag { Kind = config.Kind });
+                // ⚠ registered on first use, as SensorChildFactory.SetCapability does — 🔴 a node that had built no TKB sensor
+                //   yet threw at playback ("SensorCapability not registered"), found by the CE-3036 cross-node rail.
+                if (view is EntityRepository repoN) repoN.RegisterManagedComponent<SensorCapability>();
+                cmd.AddManagedComponent(child, new SensorCapability { Default = config, Current = config });
+            }
+            if (survey != null) cmd.AddManagedComponent(child, survey);   // CE-3249 — what the solver answers
+            ApplyContextPoints(cmd, view, child, in data, existing: false);   // CE-3272
+            Fdp.Toolkit.Scenario.DerivedParts.MarkNotSaved(cmd, child, view);   // CE-3045 — a carrier is never saved
+            _awaitingPlayback.Add(key);
+            return true;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3272</c> (Q94 B) — the sample's <c>ContextPoints</c> onto the solver's carrier as <see cref="EqsContextPoints"/>: a
+        /// carrier that has points takes every sample's (an empty list clears them); one that never had any gets the component only when
+        /// points arrive, so no other sensor kind carries it.
+        /// </summary>
+        private static unsafe void ApplyContextPoints(IEntityCommandBuffer cmd, ISimulationView view, Entity child, in EqsSensorConfigTopic data,
+                                                      bool existing)
+        {
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<EqsContextPoints>()) return;
+            int n = Math.Min(data.ContextPoints?.Count ?? 0, EqsContextPoints.Capacity);
+            if (n == 0 && !(existing && view.HasComponent<EqsContextPoints>(child))) return;
+            var points = new EqsContextPoints { Count = n };
+            for (int i = 0; i < n; i++)
+            {
+                var w = data.ContextPoints![i];
+                points.Set(i, new System.Numerics.Vector3(w.X, w.Y, w.Z));
+            }
+            cmd.AddComponent(child, points);
+        }
+
+        /// <summary>Configs refused for malformed JSON / an unknown kind (R-186 M′) — never half-configured.</summary>
+        public long RefusedConfigCount { get; private set; }
+        private readonly HashSet<(int ParentNetId, int ChildIndex)> _refusalLogged = new();
+
+        private bool TryDecode((int ParentNetId, int ChildIndex) key, in EqsSensorConfigTopic data, out SensorEntryDto? config)
+        {
+            if (SensorConfigCodec.TryDecode(data.ConfigKind ?? string.Empty, data.ConfigJson ?? string.Empty, out config, out var error))
+                return true;
+            RefusedConfigCount++;
+            if (_refusalLogged.Add(key))
+                Console.Error.WriteLine($"[EqsSensorConfig][REFUSED] sensor ({key.ParentNetId}, part {key.ChildIndex}): {error}");
+            return false;
+        }
+
+        // ⭐ CE-3036 / R-187 N′ — apply (or end) the override of a TKB sensor whose carrier this node built from the TKB.
+        private bool ApplyTkbOverride(IEntityCommandBuffer cmd, ISimulationView view, (int ParentNetId, int ChildIndex) key,
+                                      Entity parentGhost, EqsSensor sensor, in EqsSensorConfigTopic data)
+        {
+            if (!TryFindCarrier(view, parentGhost, key.ChildIndex, out var tkbChild)) return false;   // the spawn has not built it yet
+            var repo = view as EntityRepository;
+            var cap  = repo != null && repo.HasManagedComponent<SensorCapability>(tkbChild)
+                ? ((ISimulationView)repo).GetManagedComponentRO<SensorCapability>(tkbChild) : null;
+
+            if (!data.Override)
+            {
+                // Back to the TKB default — the defaults this node derived itself, at the epoch the Brain moved to.
+                var restored = cap != null ? SensorChildFactory.SensorFor(cap.Default) : sensor;
+                restored.Epoch        = sensor.Epoch;
+                restored.ContextSlot0 = sensor.ContextSlot0;
+                restored.ContextSlot1 = sensor.ContextSlot1;
+                restored.ContextSlot2 = sensor.ContextSlot2;
+                restored.ContextPoint1    = sensor.ContextPoint1;      // ⭐ CE-3063
+                restored.ContextPointMask = sensor.ContextPointMask;
+                cmd.SetComponent(tkbChild, restored);
+                if (repo != null && cap != null) SensorChildFactory.SetCapability(repo, tkbChild, cap.Default, cap.Default);
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(data.ConfigJson))
+            {
+                if (!TryDecode(key, in data, out var config)) return true;   // refused: the sensor keeps what it had
+                if (repo != null) SensorChildFactory.SetCapability(repo, tkbChild, cap?.Default ?? config!, config!);
+            }
+            cmd.SetComponent(tkbChild, sensor);
+            return true;
+        }
+
+        private void RecordSolver(EntityRepository repo, Entity parentGhost, (int ParentNetId, int ChildIndex) key, int solver)
+        {
+            if (_recordedSolver.TryGetValue(key, out int recorded) && recorded == solver) return;
+            _applier ??= new OwnershipApplier(_localNodeId,
+                Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider.GetDescriptorMap(repo));
+            _applier.Apply(repo, parentGhost,
+                Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)EDescriptorType.dtEqsResult, key.ChildIndex), solver);
+            _recordedSolver[key] = solver;
+        }
+
+        // The carrier ghost for (parent, childIndex) as it exists in the WORLD — never an ECB placeholder.
+        private bool TryFindCarrier(ISimulationView view, Entity parentGhost, int childIndex, out Entity carrier)
+        {
+            if (_childGhostCache.TryGetValue((ParentKey(parentGhost), childIndex), out carrier)
+                && IsCarrierOf(view, carrier, parentGhost, childIndex))
+                return true;
+
+            foreach (var e in view.Query().With<PartMetadata>().With<EqsSensor>().Build())
+            {
+                if (!IsCarrierOf(view, e, parentGhost, childIndex)) continue;
+                carrier = e;
+                _childGhostCache[(ParentKey(parentGhost), childIndex)] = e;
+                return true;
+            }
+
+            carrier = Entity.Null;
+            return false;
+        }
+
+        private int ParentKey(Entity parentGhost)
+            => _entityMap.TryGetNetworkId(parentGhost, out int net) ? net : 0;
+
+        private static bool IsCarrierOf(ISimulationView view, Entity e, Entity parentGhost, int childIndex)
+        {
+            if (e.IsNull || e.Index < 0 || !view.IsAlive(e) || !view.HasComponent<PartMetadata>(e)) return false;
+            var meta = view.GetComponentRO<PartMetadata>(e);
+            return meta.ParentEntity == parentGhost && meta.InstanceId == childIndex;
+        }
+
+        private static int NamedSlotMask(in EqsSensorConfigTopic d)
+            => (d.ContextSlot0NetworkId != 0 ? 1 : 0)
+             | (d.ContextSlot1NetworkId != 0 ? 2 : 0)
+             | (d.ContextSlot2NetworkId != 0 ? 4 : 0);
+
+        private static int ResolvedSlotMask(in EqsSensor s)
+            => (s.ContextSlot0.IsNull ? 0 : 1)
+             | (s.ContextSlot1.IsNull ? 0 : 2)
+             | (s.ContextSlot2.IsNull ? 0 : 4);
+
+        /// <summary>Samples waiting for their parent or a context-slot entity (test hook).</summary>
+        internal int PendingCount => _pending.Count;
 
         /// <inheritdoc/>
         public void ScanAndPublish(ISimulationView view) { }
@@ -130,11 +463,11 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         // Resolves a wire network ID to the local Muscle-side Entity. Returns Entity.Null if
         // networkId == 0 or the entity is not yet in the ghost map.
-        internal Entity ResolveSlot(long networkId)
+        internal Entity ResolveSlot(int networkId)
         {
             if (networkId == 0L) return Entity.Null;
             return _entityMap.TryGetEntity(networkId, out Entity e) ? e : Entity.Null;
@@ -154,6 +487,9 @@ namespace Hrot.Network.NED.SimHost
             ContextSlot0        = ResolveSlot(data.ContextSlot0NetworkId),
             ContextSlot1        = ResolveSlot(data.ContextSlot1NetworkId),
             ContextSlot2        = ResolveSlot(data.ContextSlot2NetworkId),
+            Suspended           = data.Suspended,
+            ContextPoint1       = new System.Numerics.Vector3(data.ContextPoint1X, data.ContextPoint1Y, data.ContextPoint1Z),   // ⭐ CE-3063 ③
+            ContextPointMask    = data.ContextPointMask,
         };
     }
 }

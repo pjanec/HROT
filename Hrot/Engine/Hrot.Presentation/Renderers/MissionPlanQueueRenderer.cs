@@ -12,7 +12,7 @@ public sealed class MissionPlanQueueRenderer : IImGuiRenderer
     public string? GetSummary(object value)
     {
         var q = (MissionPlanQueue)value;
-        return $"Phases: {q.PhaseCount} (Current: {q.CurrentPhase})";
+        return $"Tasks: {q.TaskCount} (Current: {q.CurrentTask})";
     }
 
     public bool RenderValue(object value)
@@ -26,19 +26,19 @@ public sealed class MissionPlanQueueRenderer : IImGuiRenderer
             ImGui.TableSetupColumn( "Property", ImGuiTableColumnFlags.WidthFixed, ImGuiPropertyTree.NameColWidth );
             ImGui.TableSetupColumn( "Value", ImGuiTableColumnFlags.WidthStretch );
 
-            DrawLeafRow("CurrentPhase", q.CurrentPhase.ToString());
-            DrawLeafRow("PhaseCount", q.PhaseCount.ToString());
-            DrawLeafRow("PhaseElapsedSeconds", q.PhaseElapsedSeconds.ToString("F2"));
+            DrawLeafRow(nameof(MissionPlanQueue.CurrentTask), q.CurrentTask.ToString());
+            DrawLeafRow(nameof(MissionPlanQueue.TaskCount), q.TaskCount.ToString());
+            DrawLeafRow(nameof(MissionPlanQueue.TaskElapsedSeconds), q.TaskElapsedSeconds.Seconds.ToString("F2"));
 
             // Safe cast to Span bypasses the C# 12 InlineArray trap
-            ReadOnlySpan<MissionPhase> phases = q.Phases;
+            ReadOnlySpan<MissionTaskSlot> phases = q.Tasks;
 
-            for (int i = 0; i < q.PhaseCount; i++)
+            for (int i = 0; i < q.TaskCount; i++)
             {
                 ImGui.TableNextRow();
                 ImGui.TableSetColumnIndex(0);
                     
-                bool open = ImGui.TreeNodeEx($"Phase [{i}]", ImGuiTreeNodeFlags.SpanAvailWidth);
+                bool open = ImGui.TreeNodeEx($"Task [{i}]", ImGuiTreeNodeFlags.SpanAvailWidth);
                     
                 ImGui.TableSetColumnIndex(1);
                 ImGui.TextDisabled($"BehaviorId: {phases[i].BehaviorId}"); // Summary in value cell

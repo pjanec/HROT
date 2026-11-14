@@ -53,7 +53,7 @@ namespace Fdp.Core.Logging
                 LogSyntaxHighlighter.Parse(msg));
 
             lock (_lock)
-                _messages.Add(entry);
+                MessageLogLimits.Add(_messages, entry);   // ⭐ W-P1 — bounded
 
             // Fire on the NLog thread; subscribers must tolerate cross-thread calls.
             OnMessageAdded?.Invoke(entry);
@@ -64,6 +64,12 @@ namespace Fdp.Core.Logging
         {
             lock (_lock)
                 return _messages.ToArray();
+        }
+
+        /// <summary>⭐ CE-2403 — copied under the lock into the caller's list, no snapshot array (the Message Log asks every frame).</summary>
+        public void CopyMessagesTo(List<MessageLogEntry> into)
+        {
+            lock (_lock) { into.Clear(); into.AddRange(_messages); }
         }
 
         public void Clear()

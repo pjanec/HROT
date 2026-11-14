@@ -21,8 +21,15 @@ internal sealed class HsmCommandSink : IGraphCommandSink
         _asset = asset;
     }
 
+    /// <summary>⭐ CE-1276 — the document is a code-built (read-only) graph; the canvas asks this to hide its authoring affordances.</summary>
+    internal bool IsReadOnly => Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset);
+
     public GraphCommandResult Apply(GraphCommand command)
     {
+        // ⭐ CE-1252 (BV-19) — a code-built graph is read-only. ⭐ CE-1275 — a breakpoint and a node MOVE are view state, not an edit
+        //   of the behaviour, so they still go through (positions only, nothing dirty: see below and ApplyChangeParentMultiple).
+        if (Hrot.Editor.AiShared.Documents.AiDocument.RefusesCommand(_asset, command))
+            return new GraphCommandResult(false, Hrot.Editor.AiShared.Documents.AiDocument.ReadOnlyReason(_asset));
         switch (command)
         {
             case GraphCommand.MoveNodes cmd:
@@ -55,6 +62,18 @@ internal sealed class HsmCommandSink : IGraphCommandSink
             case GraphCommand.AddRegion cmd:
                 ApplyAddRegion(cmd);
                 break;
+            // ⭐ CE-1004 (R1): author-sized bands and containers (divider / corner-grip drag).
+            case GraphCommand.SetRegionPreferredSize cmd:
+                if (_asset.FindStateByStableId(cmd.ContainerId.Value) is { } rs
+                    && cmd.RegionIndex >= 0 && cmd.RegionIndex < rs.RegionNodes.Count)
+                    rs.RegionNodes[cmd.RegionIndex].PreferredSize = cmd.Size;
+                else return new GraphCommandResult(false, "SetRegionPreferredSize: no such region");
+                break;
+            case GraphCommand.SetContainerSize cmd:
+                if (_asset.FindStateByStableId(cmd.ContainerId.Value) is { } cs)
+                    cs.SizeOverride = cmd.Size;
+                else return new GraphCommandResult(false, "SetContainerSize: no such state");
+                break;
             case GraphCommand.RemoveRegion cmd:
                 ApplyRemoveRegion(cmd);
                 break;
@@ -84,11 +103,17 @@ internal sealed class HsmCommandSink : IGraphCommandSink
                         return result;
                 }
                 break;
+            // ⭐ CE-1062 (§13.10c E4) — an asset-level edit (the params DTO, its defaults) on this document's undo stack.
+            case Hrot.Editor.AiShared.Documents.AssetEditCommand assetEdit:
+                assetEdit.Mutate();
+                break;
+
             default:
                 return new GraphCommandResult(false, $"Unsupported: {command.GetType().Name}");
         }
 
-        _asset.MarkDirty();
+        if (!Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset))   // ⭐ CE-1275 — view state on a code-built graph is no document change
+            _asset.MarkDirty();
         return new GraphCommandResult(true, null);
     }
 
@@ -113,6 +138,9 @@ internal sealed class HsmCommandSink : IGraphCommandSink
 
             // Always persist the new position so nodes don't jump back.
             state.Position = m.NewLocalPosition;
+
+            // ⭐ CE-1275 — on a code-built graph a drop only MOVES the box; the hierarchy is the behaviour and is not touched.
+            if (Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset)) continue;
 
             // Reparent: if the new parent / region differs from current, update the hierarchy.
             // Resolve the new parent state (null means top-level / child of root).
@@ -179,7 +207,10 @@ internal sealed class HsmCommandSink : IGraphCommandSink
                 break;
         }
 
-        var state = new StateNode(name)
+        // ⭐ CE-1001 / HSM-006: emit binds transitions to their target BY NAME, so two "State"s were a silently
+        //    wrong machine. A new state takes the first free "Name", "Name 2", "Name 3", … (the validator's
+        //    DuplicateStateName still catches a rename into a clash).
+        var state = new StateNode(UniqueStateName(name))
         {
             StableId        = cmd.AssignedId.Value,
             Position        = cmd.Position,
@@ -190,6 +221,18 @@ internal sealed class HsmCommandSink : IGraphCommandSink
         };
 
         _asset.RegisterState(state, _asset.RootState);
+    }
+
+    /// <summary>CE-1001: <paramref name="baseName"/> if no state carries it, else the first free "baseName N" (N ≥ 2).</summary>
+    internal string UniqueStateName(string baseName)
+    {
+        var taken = new HashSet<string>(_asset.AllStates.Select(s => s.Name), StringComparer.Ordinal);
+        if (!taken.Contains(baseName)) return baseName;
+        for (int n = 2; ; n++)
+        {
+            var candidate = baseName + " " + n;
+            if (!taken.Contains(candidate)) return candidate;
+        }
     }
 
     private void ApplyRemoveNodes(GraphCommand.RemoveNodes cmd)
@@ -234,9 +277,16 @@ internal sealed class HsmCommandSink : IGraphCommandSink
             foreach (var t in incoming)
                 RemoveTransitionInternal(t);
 
-            // 3. Unregister every state in the subtree.
+            // 3. Unregister every state in the subtree, dropping the auto-managed params variable
+            //    each one's blueprint pick composed (CE-414) — the same rule
+            //    RemoveTransitionInternal already applies to a guard's variable. ⛔ Without this a
+            //    deleted state leaves an orphan row the author cannot delete (auto-managed rows are
+            //    not user-deletable) and cannot see the owner of.
             foreach (var s in subtree)
+            {
+                foreach (var b in s.Bindings) RemoveAutoManagedTargetVariable(b.ExpressionTargetField);   // CE-417: each slot's own
                 _asset.UnregisterState(s);
+            }
         }
     }
 
@@ -246,15 +296,22 @@ internal sealed class HsmCommandSink : IGraphCommandSink
     /// </summary>
     private void RemoveTransitionInternal(TransitionNode transition)
     {
-        if (!string.IsNullOrEmpty(transition.ExpressionTargetField))
-        {
-            var varEntry = _asset.BlackboardVariables
-                .FirstOrDefault(v => v.Name == transition.ExpressionTargetField);
-            if (varEntry is { IsAutoManaged: true })
-                _asset.RemoveVariable(transition.ExpressionTargetField);
-        }
+        RemoveAutoManagedTargetVariable(transition.Guard?.ExpressionTargetField);    // CE-417: each binding's own
+        RemoveAutoManagedTargetVariable(transition.Action?.ExpressionTargetField);
         _asset.UnregisterTransition(transition.VisualId);
     }
+
+    /// <summary>
+    /// ⭐⭐ <b>BB1 / <c>CE-414</c> — drops the variable a hosting site's pick composed, and ONLY if the
+    /// editor owns it.</b>
+    ///
+    /// <para>⛔ <c>IsAutoManaged</c> is the whole test: an author who pointed the site at a variable
+    /// they declared themselves keeps it, because deleting one node must never delete authored data.
+    /// ⭐ One body, because states (activity) and transitions (guard) now both compose one.</para>
+    /// </summary>
+    private void RemoveAutoManagedTargetVariable(string? targetField)
+        => Hrot.Editor.AiShared.Blackboard.AutoManagedVariables
+               .RemoveIfAutoManaged(_asset, targetField);
 
     private void ApplyAddLink(GraphCommand.AddLink cmd)
     {
@@ -311,6 +368,25 @@ internal sealed class HsmCommandSink : IGraphCommandSink
                 }
                 break;
             }
+            case "isInitial":
+            {
+                // ⭐ CE-1003 (Q84 B): "Set as Initial State" (and its undo) — through the asset's one writer.
+                if (_asset.FindStateByStableId(cmd.Node.Value) is { } child)
+                {
+                    if (cmd.Value is true) _asset.SetStartState(child);
+                    else _asset.ClearStartState(child);
+                }
+                break;
+            }
+            case "Title":
+            {
+                // ⭐ CE-1001: the canvas "Rename… (F2)" modal sends SetNodeProperty(node, "Title", …) — it was
+                //    silently ignored here, so renaming a state on the canvas did nothing. Empty names are refused.
+                if (cmd.Value is string title && !string.IsNullOrWhiteSpace(title)
+                    && _asset.FindStateByStableId(cmd.Node.Value) is { } renamed)
+                    renamed.Name = title.Trim();
+                break;
+            }
             // Other property keys are silently ignored (forward-compatible).
         }
     }
@@ -338,6 +414,15 @@ internal sealed class HsmCommandSink : IGraphCommandSink
         // Reindex all regions so RegionIndex stays contiguous.
         for (int i = 0; i < state.RegionNodes.Count; i++)
             state.RegionNodes[i].RegionIndex = (byte)i;
+
+        // ⭐ CE-1003 — HSM-005's mirror: inserting a region shifts every later region's CHILDREN up with it
+        //    (only the region records were re-indexed, so the children silently moved into the wrong region).
+        //    ⚠ Skipped when this is the FIRST region: children of a parallel state with no regions all sit at 0
+        //    and the new region 0 adopts them.
+        if (state.RegionNodes.Count > 1)
+            foreach (var child in state.Children)
+                if (child.RegionIndex >= insertAt)
+                    child.RegionIndex++;
 
         _asset.RegisterRegion(region);
     }
@@ -390,6 +475,13 @@ internal sealed class HsmCommandSink : IGraphCommandSink
         // Reindex remaining regions.
         for (int i = 0; i < state.RegionNodes.Count; i++)
             state.RegionNodes[i].RegionIndex = (byte)i;
+
+        // ⭐ CE-1003 / HSM-005 — the children of every LATER region shift down with it. Only the removed region's
+        //    own children used to be touched, so removing the middle of three regions left the third region's
+        //    children pointing past the end.
+        foreach (var child in state.Children)
+            if (child.RegionIndex > cmd.RegionIndex)
+                child.RegionIndex--;
     }
 
     private void ApplyReorderRegions(GraphCommand.ReorderRegions cmd)

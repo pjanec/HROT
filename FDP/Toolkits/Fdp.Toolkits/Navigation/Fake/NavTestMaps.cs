@@ -10,16 +10,16 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// </summary>
     public static class NavTestMaps
     {
-        // Helper: build a unit square polygon centred on (cx, cz) in the XZ plane.
-        private static Vector3[] Square(float cx, float cz, float size = 10f)
+        // Helper: build a square polygon centred on (cx, cy) in the XY ground plane at elevation Z = 0 (Z-up).
+        private static Vector3[] Square(float cx, float cy, float size = 10f)
         {
             float h = size * 0.5f;
             return new[]
             {
-                new Vector3(cx - h, 0f, cz - h),
-                new Vector3(cx + h, 0f, cz - h),
-                new Vector3(cx + h, 0f, cz + h),
-                new Vector3(cx - h, 0f, cz + h),
+                new Vector3(cx - h, cy - h, 0f),
+                new Vector3(cx + h, cy - h, 0f),
+                new Vector3(cx + h, cy + h, 0f),
+                new Vector3(cx - h, cy + h, 0f),
             };
         }
 
@@ -83,8 +83,8 @@ namespace Fdp.Toolkit.Navigation.Fake
             {
                 FromPolygonId = 0,
                 ToPolygonId   = 1,
-                StartPos      = new Vector3(10f, 0f, 5f),
-                EndPos        = new Vector3(20f, 0f, 5f),
+                StartPos      = new Vector3(10f, 5f, 0f),
+                EndPos        = new Vector3(20f, 5f, 0f),
                 Kind          = TraversalKind.Jump,
                 Cost          = 5f,
             };
@@ -169,7 +169,7 @@ namespace Fdp.Toolkit.Navigation.Fake
                 .Build();
 
         /// <summary>
-        /// Air layer with a no-fly zone between X=10 and X=20.
+        /// Air layer with a no-fly zone between X=10 and X=20 (Z-up: Y 0..100 north, altitude Z 0..5).
         /// </summary>
         public static NavTestMap LoadFlying()
             => new NavTestMapBuilder()
@@ -182,8 +182,8 @@ namespace Fdp.Toolkit.Navigation.Fake
                 .MinAltitude(0f)
                 .MaxAltitude(200f)
                 .NoFlyZone(new BoundingBox3D(
-                    new Vector3(10f, 0f,   0f),
-                    new Vector3(20f, 5f, 100f)))
+                    new Vector3(10f,   0f, 0f),
+                    new Vector3(20f, 100f, 5f)))
                 .Build();
 
         /// <summary>

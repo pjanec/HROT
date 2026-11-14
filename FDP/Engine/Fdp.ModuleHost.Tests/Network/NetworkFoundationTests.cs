@@ -91,7 +91,7 @@ namespace Fdp.ModuleHost.Tests.Network
         // 5. Interface Mock Tests
         private class MockStrategy : IOwnershipDistributionStrategy
         {
-            public IReadOnlyList<DescriptorGrant> GetInitialGrants(DISEntityType entityType, int masterNodeId)
+            public IReadOnlyList<DescriptorGrant> GetInitialGrants(in GrantRequest request)
                 => Array.Empty<DescriptorGrant>();
         }
 

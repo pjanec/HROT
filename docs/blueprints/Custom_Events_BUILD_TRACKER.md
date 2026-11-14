@@ -1,5 +1,7 @@
 # Custom Events — Build Tracker
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 Design: `Custom_Events_Design.md` (APPROVED). This tracks the overnight autonomous build.
 Legend: ⬜ todo · 🟡 in progress · ✅ done (committed) · ⏸️ deferred.
 
@@ -9,7 +11,7 @@ Legend: ⬜ todo · 🟡 in progress · ✅ done (committed) · ⏸️ deferred.
 - ✅ **1c** Editor-authored event-definition model + JSON asset (2b) — data model + round-trip
 - ⬜ **1d** Event-definition authoring UI (mirror blackboard/variables authoring)
 - ✅ **1e** Unified discovery (2a reflected + 2b asset) → single picker source
-- ⏸️ **1f** Migrate system-predefined events to reflection (retire baked `PayloadFields`) — after publish path proven
+- ✅ **1f** Migrate system-predefined events to reflection (retire baked `PayloadFields`) — ⭐ **DONE `2026-10-02` (CE-2016)** in the form the layering allows: the engine catalog keeps each system event's identity + metadata, and its FIELDS are reflected by the same editor discovery into the one picker source (`UnifiedEventDiscovery`), so "On: HitEvent" / "Publish: HitEvent" bake no hand list. ⚠ `[BlueprintEvent]` on the structs themselves (A2's full form) is blocked: the attribute lives in `Hrot.Editor.AiShared`, which the FDP toolkits cannot reference. 📄 [`DESIGN_Typed_Event_Nodes`](DESIGN_Typed_Event_Nodes.md) E5
 
 ## Phase 2 — Publish
 - ✅ **2a** PublishEvent data-in pins from discovery (editor bakes `EventTypeFqn` + `(field,type)` onto node)
@@ -23,8 +25,8 @@ Legend: ⬜ todo · 🟡 in progress · ✅ done (committed) · ⏸️ deferred.
 - ⬜ **3d** `Self`/`Any` recipient filter enforced at dispatch
 
 ## Phase 4 — Subscribe UX
-- ⬜ **4a** `EventEntryNode` keyed by type-id + reflected data-out pins (payload)
-- ⬜ **4b** `Self`/`Any` filter on the node + JSON (`TargetFilter`)
+- ✅ **4a** `EventEntryNode` keyed by type-id + reflected data-out pins (payload) — ⭐ **DONE `2026-10-02` (CE-2015)**: the "On: {Event}" palette entry bakes `EventTypeId` + `Fields` + recipient; pins come from `Fields` (+ a whole-event pin). Any number per Event graph. 📄 [`DESIGN_Typed_Event_Nodes`](DESIGN_Typed_Event_Nodes.md)
+- ✅ **4b** `Self`/`Any` filter on the node + JSON (`TargetFilter`) — ⭐ **DONE `2026-10-02` (CE-2015)**: the node's Details drawer edits `TargetFilterSelf` (with its Policy / Capacity); the runtime half was already built (3d)
 
 ## Decisions / notes (autonomous judgment calls logged here)
 - Keyed by event **type-id** (architect §7.1).
@@ -148,7 +150,7 @@ The full loop now works end-to-end and there is a runnable demo:
   publishes a `[EventId]` event on the live bus, pumps one frame through the production
   `BlueprintTickSystem`, asserts the handler mirrored the payload: **LastValue == 42**. Proves type-id
   routing + per-slot dispatch + thunk payload marshalling + handler `SetVariable` write, end-to-end.
-- **Editor demo blueprints (committed):** `Assets/Blueprints/CustomEventPublisherDemo.bp.json`
+- **Editor demo blueprints (committed):** `Assets/Blueprints/Samples/CustomEventPublisherDemo.bp.json`
   (Tick → Publish PingEvent{Value=42}) + `CustomEventSubscriberDemo.bp.json` (OnPing Event graph →
   SetVariable(LastValue)). `Hrot.AI.Behaviors` builds clean; the real generator emits correctly-wired
   `_Bp` classes (verified in the .g.cs: `EventHandlers["Hrot.AI.Behaviors.PingEvent"]=Event_OnPing_Thunk`,

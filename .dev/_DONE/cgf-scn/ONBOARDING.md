@@ -82,7 +82,7 @@ rejected.
 ```powershell
 # Build the solution
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Run CGF-related tests
 dotnet test Hrot\Subsystems\Hrot.CGF.Tests\Hrot.CGF.Tests.csproj

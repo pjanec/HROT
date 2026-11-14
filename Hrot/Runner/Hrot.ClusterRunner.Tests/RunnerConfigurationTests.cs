@@ -1,5 +1,7 @@
-﻿using System;
+﻿using CommandLine;
+using System;
 using System.IO;
+using System.Linq;
 using System.Collections.Generic;
 using Xunit;
 using Newtonsoft.Json;
@@ -22,10 +24,10 @@ namespace Hrot.ClusterRunner.Tests
             var config = new RunnerConfiguration { ModeString = "all", NoWait = true };
             config.Validate();
             Assert.True(config.RequestedSubsystems.Contains("simhost"));
-            Assert.True(config.RequestedSubsystems.Contains("ig"));
-            Assert.True(config.RequestedSubsystems.Contains("excon"));
+            Assert.True(config.RequestedSubsystems.Contains("player"));
             Assert.True(config.RequestedSubsystems.Contains("orchestrator"));
             Assert.True(config.RequestedSubsystems.Contains("cgf"));
+            Assert.True(config.RequestedSubsystems.Contains("traffic"));
         }
 
         [Fact]
@@ -38,43 +40,49 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
-        public void ParseMode_Ig_ReturnsSingleFlag()
+        public void ParseMode_Player_ReturnsSingleFlag()
         {
-            var config = new RunnerConfiguration { ModeString = "ig", NoWait = true };
+            var config = new RunnerConfiguration { ModeString = "player", NoWait = true };
             config.Validate();
-            Assert.True(config.RequestedSubsystems.Contains("ig"));
+            Assert.True(config.RequestedSubsystems.Contains("player"));
             Assert.Equal(1, config.RequestedSubsystems.Count);
         }
 
-        [Fact]
-        public void ParseMode_Ios_ReturnsSingleFlag()
+        /// <summary>
+        /// ⭐ R-3067 / AQ109 X2 — the ExCon node is retired: <c>excon</c> and its legacy alias <c>ios</c> are an INVALID mode (thrown), never a silent drop.
+        /// 🔴 Mutation: put "excon" back into the valid-names set ⇒ the <c>excon</c> case goes red.
+        /// </summary>
+        [Theory]
+        [InlineData("excon")]
+        [InlineData("ios")]
+        [InlineData("simhost,excon")]
+        [InlineData("editor,excon")]
+        public void ParseMode_ExCon_IsRejectedAsInvalid(string mode)
         {
-            // "ios" is a legacy alias for "excon"
-            var config = new RunnerConfiguration { ModeString = "ios", NoWait = true };
-            config.Validate();
-            Assert.True(config.RequestedSubsystems.Contains("excon"));
-            Assert.Equal(1, config.RequestedSubsystems.Count);
+            var config = new RunnerConfiguration { ModeString = mode, NoWait = true };
+            var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
+            Assert.Contains("Invalid mode", ex.Message);
         }
 
         [Fact]
-        public void ParseMode_ComboSimHostIg_ReturnsCorrectFlags()
+        public void ParseMode_ComboSimHostPlayer_ReturnsCorrectFlags()
         {
-            var config = new RunnerConfiguration { ModeString = "simhost,ig", NoWait = true };
+            var config = new RunnerConfiguration { ModeString = "simhost,player", NoWait = true };
             config.Validate();
             Assert.True(config.RequestedSubsystems.Contains("simhost"));
-            Assert.True(config.RequestedSubsystems.Contains("ig"));
+            Assert.True(config.RequestedSubsystems.Contains("player"));
             Assert.Equal(2, config.RequestedSubsystems.Count);
         }
 
         [Fact]
-        public void ParseMode_ComboAllFive_EqualsAllFlag()
+        public void ParseMode_ComboAllFour_ParsesEachToken()
         {
-            // All five tokens must produce the same set as "all".
-            var config = new RunnerConfiguration { ModeString = "simhost,ig,ios,orchestrator,cgf", NoWait = true };
+            // The explicit tokens each parse. Since 2026-10-28 this is "all" MINUS traffic:
+            // "all" also hosts the traffic node.
+            var config = new RunnerConfiguration { ModeString = "simhost,player,orchestrator,cgf", NoWait = true };
             config.Validate();
             Assert.True(config.RequestedSubsystems.Contains("simhost"));
-            Assert.True(config.RequestedSubsystems.Contains("ig"));
-            Assert.True(config.RequestedSubsystems.Contains("excon"));
+            Assert.True(config.RequestedSubsystems.Contains("player"));
             Assert.True(config.RequestedSubsystems.Contains("orchestrator"));
             Assert.True(config.RequestedSubsystems.Contains("cgf"));
         }
@@ -170,30 +178,41 @@ namespace Hrot.ClusterRunner.Tests
             var config = new RunnerConfiguration
             {
                 ModeString    = "simhost",
-                WaitForString = "ig,ios"
+                WaitForString = "player,simhost"
             };
             config.Validate();
-            Assert.Contains("ig",  config.WaitForPeers);
-            Assert.Contains("ios", config.WaitForPeers);
+            Assert.Contains("player",  config.WaitForPeers);
+            Assert.Contains("simhost", config.WaitForPeers);
             Assert.Equal(2, config.WaitForPeers.Count);
         }
 
         [Fact]
-        public void WaitFor_ThreePeers_AllParsed()
+        public void WaitFor_Player_IsAccepted()
         {
+            // ⭐ CE-3371 — "player" is the node's name in the wait-for list as in --mode.
             var config = new RunnerConfiguration
             {
                 ModeString    = "simhost",
-                WaitForString = "simhost,ig,ios"
+                WaitForString = "player,simhost"
             };
             config.Validate();
-            Assert.Equal(3, config.WaitForPeers.Count);
+            Assert.Contains("player",  config.WaitForPeers);
+            Assert.Contains("simhost", config.WaitForPeers);
+            Assert.Equal(2, config.WaitForPeers.Count);
+        }
+
+        [Fact]
+        public void WaitFor_Ios_IsNoLongerAPeer()
+        {
+            // R-3067 / AQ109 X2 — "ios" named the ExCon node; it is not a peer any more.
+            var config = new RunnerConfiguration { ModeString = "simhost", WaitForString = "simhost,player,ios" };
+            Assert.Throws<InvalidOperationException>(() => config.Validate());
         }
 
         [Fact]
         public void SeparateMode_WithoutWaitFor_AndWithoutNoWait_ThrowsError()
         {
-            var config = new RunnerConfiguration { ModeString = "ig" };
+            var config = new RunnerConfiguration { ModeString = "player" };
             var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
             Assert.Contains("wait-for", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
@@ -203,7 +222,7 @@ namespace Hrot.ClusterRunner.Tests
         [Fact]
         public void MergeFromJsonFile_OverridesModeString()
         {
-            var json = JsonConvert.SerializeObject(new { ModeString = "ig" });
+            var json = JsonConvert.SerializeObject(new { ModeString = "player" });
             var path = Path.GetTempFileName();
             try
             {
@@ -212,7 +231,7 @@ namespace Hrot.ClusterRunner.Tests
                 var config = new RunnerConfiguration { ModeString = "all", NoWait = true };
                 config.MergeFromJsonFile(path);
 
-                Assert.Equal("ig", config.ModeString);
+                Assert.Equal("player", config.ModeString);
             }
             finally
             {
@@ -238,6 +257,29 @@ namespace Hrot.ClusterRunner.Tests
             {
                 File.Delete(path);
             }
+        }
+
+        /// <summary>⭐ CE-4305 ② (R-4164, Seats and hats §2.2a) — the config file's <c>features</c> object is a node override layered BELOW <c>--feature</c>:
+        /// its entries come first, so a command-line entry for the same id wins (a node override list applies in order). 🔴 Red-proof (compiles): the file's
+        /// entries appended AFTER the command line ⇒ the order assertion fails.</summary>
+        [Fact]
+        public void CE4305_TheConfigFilesFeatures_AreANodeOverride_BelowTheCommandLine()
+        {
+            var path = Path.GetTempFileName();
+            try
+            {
+                File.WriteAllText(path, "{ \"features\": { \"station.seat\": { \"Seat\": \"Instructor\" }, \"hud.kill-cam\": \"off\" } }");
+                var config = new RunnerConfiguration { ModeString = "all", NoWait = true, FeatureTexts = new[] { "station.seat={\"Seat\":\"Observer\"}" } };
+                config.MergeFromJsonFile(path);
+                config.Validate();
+
+                Assert.Equal(new[] { "station.seat", "hud.kill-cam", "station.seat" }, config.FeatureOverrides.Select(o => o.Id).ToArray());
+                Assert.Contains("Instructor", config.FeatureOverrides[0].Json);
+                Assert.Equal("{\"Enabled\":false}", config.FeatureOverrides[1].Json);    // "off" reads as --feature reads it
+                Assert.Contains("Observer", config.FeatureOverrides[2].Json);              // the command line last: it wins
+                Assert.Empty(RunnerConfiguration.FeaturesOf("{ \"DomainId\": 3 }"));    // no features object ⇒ none
+            }
+            finally { File.Delete(path); }
         }
 
         [Fact]
@@ -270,14 +312,15 @@ namespace Hrot.ClusterRunner.Tests
         [Fact]
         public void ParseMode_AllMode_HasAllFiveFlags()
         {
-            // "all" includes all five subsystems: Orchestrator, SimHost, IG, ExCon, and CGF.
+            // "all" includes all five subsystems: Orchestrator, SimHost, IG, CGF and Traffic.
             var config = new RunnerConfiguration { ModeString = "all", NoWait = true };
             config.Validate();
             Assert.True(config.RequestedSubsystems.Contains("simhost"));
-            Assert.True(config.RequestedSubsystems.Contains("ig"));
-            Assert.True(config.RequestedSubsystems.Contains("excon"));
+            Assert.True(config.RequestedSubsystems.Contains("player"));
             Assert.True(config.RequestedSubsystems.Contains("orchestrator"));
             Assert.True(config.RequestedSubsystems.Contains("cgf"));
+            Assert.True(config.RequestedSubsystems.Contains("traffic"));
+            Assert.Equal(5, config.RequestedSubsystems.Count);
         }
 
         [Fact]
@@ -297,16 +340,31 @@ namespace Hrot.ClusterRunner.Tests
         [Fact]
         public void NodeId_DefaultsToZero()
         {
-            // When --node-id is not supplied the property must be 0 (legacy fallback sentinel).
+            // A config BUILT IN CODE keeps 0 (a forced base 0 — today's behaviour). ⭐ C1: only the COMMAND LINE turns an
+            // absent -n into −1 ("ask the master") — see NodeId_AbsentOnTheCommandLine_AsksTheMaster below.
             var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true };
             config.Validate();
             Assert.Equal(0, config.NodeId);
+            Assert.False(config.NodeIdAbsent);
+        }
+
+        /// <summary>⭐⭐ C1 (Q91 §4-O, R-4009) — on the command line an absent <c>-n</c> means "not forced"; a given one is forced.</summary>
+        [Theory]
+        [InlineData(new[] { "-m", "player" }, true)]
+        [InlineData(new[] { "-m", "player", "-n", "3" }, false)]
+        [InlineData(new[] { "-m", "player", "-n", "0" }, false)]
+        public void NodeId_AbsentOnTheCommandLine_AsksTheMaster(string[] args, bool absent)
+        {
+            RunnerConfiguration? parsed = null;
+            CommandLine.Parser.Default.ParseArguments<RunnerConfiguration>(args).WithParsed(c => parsed = c);
+            Assert.NotNull(parsed);
+            Assert.Equal(absent, parsed!.NodeIdAbsent);
         }
 
         [Fact]
         public void NodeId_SetExplicitly_PreservedAfterValidate()
         {
-            var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true, NodeId = 42 };
+            var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true, NodeId = (Fdp.Core.NodeId)(42) };
             config.Validate();
             Assert.Equal(42, config.NodeId);
         }
@@ -332,17 +390,9 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
-        public void ParseMode_EditorWithIg_ThrowsInvalidOperation()
+        public void ParseMode_EditorWithPlayer_ThrowsInvalidOperation()
         {
-            var config = new RunnerConfiguration { ModeString = "editor,ig", NoWait = true };
-            var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
-            Assert.Contains("Editor", ex.Message, StringComparison.OrdinalIgnoreCase);
-        }
-
-        [Fact]
-        public void ParseMode_EditorWithExCon_ThrowsInvalidOperation()
-        {
-            var config = new RunnerConfiguration { ModeString = "editor,excon", NoWait = true };
+            var config = new RunnerConfiguration { ModeString = "editor,player", NoWait = true };
             var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
             Assert.Contains("Editor", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
@@ -370,30 +420,22 @@ namespace Hrot.ClusterRunner.Tests
             var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
         }
 
-        // -- --network option --------------------------------------------------
+        // -- --network option is gone (R-4095 / CE-4077: NED is the one network stack) -----------
 
         [Fact]
-        public void NetworkProtocol_Default_IsNed()
+        public void NetworkOption_IsNoLongerAccepted()
         {
-            var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true };
-            config.Validate();
-            Assert.Equal("ned", config.NetworkProtocol, StringComparer.OrdinalIgnoreCase);
+            using var parser = new CommandLine.Parser(s => s.HelpWriter = null);
+            var result = parser.ParseArguments<RunnerConfiguration>(new[] { "--mode", "simhost", "--network", "ned" });
+            Assert.IsType<CommandLine.NotParsed<RunnerConfiguration>>(result);
         }
 
         [Fact]
-        public void NetworkProtocol_Bdc_SetCorrectly()
+        public void NoNetworkOption_Parses()
         {
-            var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true, NetworkProtocol = "bdc" };
-            config.Validate();
-            Assert.Equal("bdc", config.NetworkProtocol, StringComparer.OrdinalIgnoreCase);
-        }
-
-        [Fact]
-        public void NetworkProtocol_InvalidValue_ThrowsInvalidOperation()
-        {
-            var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true, NetworkProtocol = "unknown" };
-            var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
-            Assert.Contains("--network", ex.Message, StringComparison.OrdinalIgnoreCase);
+            using var parser = new CommandLine.Parser(s => s.HelpWriter = null);
+            var result = parser.ParseArguments<RunnerConfiguration>(new[] { "--mode", "simhost" });
+            Assert.IsType<CommandLine.Parsed<RunnerConfiguration>>(result);
         }
     }
 }

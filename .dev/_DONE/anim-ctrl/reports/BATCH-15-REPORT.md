@@ -74,7 +74,7 @@ Same file (`StrideAnimationBackend.cs`):
 
 **Modified files:**
 
-- `IOS-IG-SimHost.sln`
+- `HROT.sln`
   - Added project declarations for `Hrot.MuscleCharacter.Animation.Stride`
     (GUID `{C6D7E8F9-A0B1-2345-6789-ABCDEF012345}`) and
     `Hrot.MuscleCharacter.Animation.Stride.Tests`
@@ -146,7 +146,7 @@ Total tests: 31
 ### Full solution build
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug --no-restore -maxcpucount:4
+dotnet build HROT.sln -c Debug --no-restore -maxcpucount:4
 Build succeeded.
 ```
 

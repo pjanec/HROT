@@ -15,8 +15,12 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- ⭐ CE-3279 (a) — the terrain's spatial index (World Query Seam WQ-D), attached to every world TerrainResidency publishes -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Spatial.Bepu\Fdp.Toolkits.Spatial.Bepu.csproj" />
+    <!-- ⭐ CE-3330 — the node's live event timeline compiles its lanes with StructEdit's reflection edit service (as the editor's does) -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\StructEdit\src\StructEdit.Reflection\StructEdit.Reflection.csproj" />
     <!-- CycloneDDS.Runtime: DdsParticipant can be accepted/stored in HrotNodeConfig -->
-    <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
+    <PackageReference Include="CycloneDDS.NET" Version="$(CycloneDdsNetVersion)" />
   </ItemGroup>
   <ItemGroup>
     <!-- From Hrot.Common.csproj -->
@@ -31,7 +35,7 @@
     </AssemblyAttribute>
     <!-- From Hrot.Map.Common.csproj -->
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-      <_Parameter1>Hrot.IG.Tests</_Parameter1>
+      <_Parameter1>Hrot.Player.Tests</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Hrot.Map.Common.Tests</_Parameter1>

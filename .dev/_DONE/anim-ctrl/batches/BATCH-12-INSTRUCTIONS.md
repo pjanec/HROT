@@ -4,7 +4,7 @@
 **Phase:** 7 (Integration tests, networkless stage-1)  
 **Scope:** ANC-P7-05, ANC-P7-06, ANC-P7-07, ANC-P7-08, ANC-P7-09, ANC-P7-10, ANC-P7-11  
 **Duration Estimate:** 12–15 hours  
-**Target Build:** IOS-IG-SimHost.sln (Debug)  
+**Target Build:** HROT.sln (Debug)  
 **Success Criteria:** All 7 tasks complete; 7 scenarios passing; no regressions; all assertions in place.
 
 ---

@@ -230,5 +230,36 @@ namespace Fdp.Toolkit.Tkb.Tests.Vfs
             zipResults.Sort();
             Assert.Equal(dirResults, zipResults);
         }
+        /// <summary>
+        /// ⭐ B5 (docs/DESIGN_Asset_Management.md §3, <c>Q72-D</c>) — a TREE and an ARCHIVE of the same asset read the SAME
+        /// through <see cref="IAssetStorageStrategy"/>: same relative paths (subfolders kept, '/'), same bytes.
+        /// </summary>
+        [Fact]
+        public void ATreeAndAnArchive_ReadTheSameThroughTheAssetSeam_B5()
+        {
+            var tree = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            var zip = tree + ".zip";
+            try
+            {
+                Directory.CreateDirectory(Path.Combine(tree, "a", "b"));
+                File.WriteAllText(Path.Combine(tree, "top.json"), "T");
+                File.WriteAllText(Path.Combine(tree, "a", "b", "deep.bin"), "D");
+                ZipFile.CreateFromDirectory(tree, zip);
+
+                string[] Read(IAssetStorageStrategy s) => s.EnumerateFiles().OrderBy(p => p, StringComparer.Ordinal)
+                    .Select(p => { using var r = new StreamReader(s.OpenRead(p)); return p + ":" + r.ReadToEnd(); }).ToArray();
+
+                using var fromTree = AssetStorage.Open(tree);
+                using var fromZip = AssetStorage.Open(zip);
+                Assert.Equal(new[] { "a/b/deep.bin:D", "top.json:T" }, Read(fromTree));
+                Assert.Equal(Read(fromTree), Read(fromZip));
+                Assert.IsAssignableFrom<IAssetStorageStrategy>((ITkbStorageStrategy)fromZip);   // the TKB seam NARROWS it
+            }
+            finally
+            {
+                try { Directory.Delete(tree, true); } catch { }
+                try { File.Delete(zip); } catch { }
+            }
+        }
     }
 }

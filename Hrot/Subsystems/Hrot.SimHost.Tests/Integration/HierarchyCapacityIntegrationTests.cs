@@ -23,6 +23,7 @@ public sealed class HierarchyCapacityIntegrationTests : IDisposable
     {
         _repo = new EntityRepository();
         _repo.RegisterComponent<UnitRoster>();
+        _repo.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
         _repo.RegisterComponent<UnitSubordinate>();
         _repo.RegisterEvent<CmdAssignSubordinate>();
         _repo.RegisterEvent<CmdRemoveSubordinate>();

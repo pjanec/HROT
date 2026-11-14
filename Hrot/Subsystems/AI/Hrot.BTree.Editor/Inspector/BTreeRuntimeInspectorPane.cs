@@ -19,7 +19,13 @@ public sealed class BTreeRuntimeInspectorPane : IRuntimeInspectorPane
     /// <summary>Sets the debug session used for snapshot reads.</summary>
     public void SetSession(IBTreeDebugSession? session) => _session = session;
 
-    public void Draw()
+    /// <summary>
+    /// ⚠ <b>The context is IGNORED, deliberately, and this says so rather than leaving a reader to
+    /// check.</b> 📌 <c>CE-303</c> made it a parameter because the Blueprint pane read a GLOBAL and
+    /// therefore could not be pinned; ⭐ this pane is keyed on its debug SESSION, not on an entity,
+    /// so there is nothing here for a frozen context to change.
+    /// </summary>
+    public void Draw(Hrot.Editor.AiShared.Shell.DetailsContext context)
     {
         var snapshot = _session?.GetCurrentStateSnapshot();
         if (snapshot is null)

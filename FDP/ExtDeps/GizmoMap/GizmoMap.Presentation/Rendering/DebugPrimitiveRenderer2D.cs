@@ -26,12 +26,33 @@ namespace GizmoMap.Presentation
 
         private const float DegToRad = MathF.PI / 180f;
 
+        /// <summary>⭐ CE-1228 — <paramref name="a"/>, <paramref name="b"/>, <paramref name="c"/> in the order raylib draws with back-face
+        /// culling on (counter-clockwise ON SCREEN — its y-down pixels: a negative cross product there), given whether the view
+        /// <paramref name="mirrored"/> the plane (<see cref="WorldYUp"/> — the north-up map's Y flip). So exactly one triangle lands, culling on or off.</summary>
+        public static (Vector2 A, Vector2 B, Vector2 C) KeptWinding(Vector2 a, Vector2 b, Vector2 c, bool mirrored)
+        {
+            float cross = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
+            bool keep = mirrored ? cross > 0f : cross < 0f;
+            return keep ? (a, b, c) : (a, c, b);
+        }
+
         /// <summary>
         /// Optional Raylib Font used for all gizmo text rendering.
         /// Set once by the integration layer after the GL context and window are created.
         /// When null the renderer falls back to Raylib's built-in default font.
         /// </summary>
         public static Font? TextFont { get; set; }
+
+        /// <summary>
+        /// ⭐ CE-1040 (docs/DESIGN_Map_North_Up.md N3) — the map's camera draws world Y UP (north-up), a mirror of a plain
+        /// <c>Camera2D</c>. Set per frame by the host's camera; when true, world text is drawn upright (a local un-flip at its
+        /// point) and the badge's screen point is computed with the flip. False ⇒ exactly the old drawing (the standalone viewer).
+        /// </summary>
+        public bool WorldYUp { get; set; }
+
+        /// <summary>⭐ CE-1040 — re-enters the host camera's world mode after a screen-space primitive (a raw
+        /// <c>BeginMode2D(camera)</c> would drop the flip for every primitive after it). Null ⇒ <c>Raylib.BeginMode2D</c>.</summary>
+        public Action? BeginWorldMode { get; set; }
 
         public DebugPrimitiveRenderer2D(
             IEntityShapeLibrary? shapeLibrary = null,
@@ -41,6 +62,10 @@ namespace GizmoMap.Presentation
             _imGuiAdapter = imGuiAdapter ?? new ImGuiPropertyTreeAdapter();
         }
 
+        /// <summary>⭐ CE-1033 S5b — the frame's ENTITY-CARD primitives that passed the layer mask and LOD, collected by
+        /// <see cref="Render"/> (they are not world shapes) for the card pass the host draws in screen space after the camera mode.</summary>
+        public List<DebugPrimitive> CardPrimitives { get; } = new();
+
         /// <summary>
         /// Filters, resolves coordinate spaces using the two-pass SpatialAnchor cache,
         /// sorts by (DebugLayer, ZIndex) and dispatches each surviving primitive to
@@ -49,13 +74,15 @@ namespace GizmoMap.Presentation
         public void Render(ReadOnlySpan<DebugPrimitive> primitives, Camera2D camera, float zoom)
         {
             if (zoom <= 0f) zoom = 1f;
+            CardPrimitives.Clear();
 
             // Enforce stateless default: fully visible unless overridden by the backend this frame.
             var activeLayers = new LayerMask256();
             activeLayers.SetAll();
 
             // ---- Pass 1: build SpatialAnchor cache & extract global frame state ----
-            var anchors = new Dictionary<long, SpatialAnchorEntry>();
+            var anchors = _anchors;   // ⭐ CE-4432 (R-2084) — reused, cleared: this runs every frame (a new dictionary + list + index array + a
+            anchors.Clear();          //   capturing comparer per frame were ~25 MB/s of garbage at 8 000 units, measured on Windows)
             foreach (ref readonly var prim in primitives)
             {
                 if (prim.Shape == DebugPrimitiveShape.SpatialAnchor)
@@ -78,7 +105,8 @@ namespace GizmoMap.Presentation
             }
 
             // ---- Pass 2: resolve, filter, sort, dispatch -------------------
-            var sortBuffer = new List<DebugPrimitive>(primitives.Length);
+            var sortBuffer = _sortBuffer;
+            sortBuffer.Clear();
 
             foreach (ref readonly var prim in primitives)
             {
@@ -93,11 +121,17 @@ namespace GizmoMap.Presentation
                 if ((prim.TargetView & PipelineTarget.Map2D) == 0) continue;
 
                 // Filter: robust 256-bit layer mask evaluation.
-                if (!activeLayers.IsSet(prim.DebugLayer)) continue;
+                // ⭐ CE-3149 — a PANEL (StructInspector) is not a map layer: it is exempt, or unchecking "Entities" (bit 0, the default
+                //    layer of everything that names none) would hide the layer dialog that could turn it back on.
+                if (prim.Shape != DebugPrimitiveShape.StructInspector && !activeLayers.IsSet(prim.DebugLayer)) continue;
 
                 // Filter: LOD zoom culling.
                 if (prim.MinZoomLod != 0 && zoom < prim.MinZoomLod * 0.25f) continue;
                 if (prim.MaxZoomLod != 0 && zoom > prim.MaxZoomLod * 0.25f) continue;
+
+                // ⭐ CE-1033 S5b (§3.6) — a card primitive is never a world shape: it is set aside for the card pass.
+                //   (A terminal that did not know the space must skip it — this one draws it, in screen space, later.)
+                if (prim.Space == CoordinateSpace.EntityCard) { CardPrimitives.Add(prim); continue; }
 
                 if (prim.Space == CoordinateSpace.EntityLocal)
                 {
@@ -172,20 +206,91 @@ namespace GizmoMap.Presentation
                 sortBuffer.Add(prim);
             }
 
-            // Stable painter's-algorithm sort: DebugLayer ascending, ZIndex ascending.
-            sortBuffer.Sort(static (a, b) =>
-            {
-                int cmp = a.DebugLayer.CompareTo(b.DebugLayer);
-                return cmp != 0 ? cmp : a.ZIndex.CompareTo(b.ZIndex);
-            });
+            // Painter's-algorithm sort: DebugLayer ascending, ZIndex ascending, then EMISSION ORDER.
+            // ⛔ 2026-10-03: List.Sort is NOT stable (introsort), so equal-key primitives — most of them, at
+            //   layer 0 / ZIndex 0 — could swap draw order frame to frame (a filled terrain footprint flickering
+            //   over a unit). The emission index makes the order a total, stable one.
+            int n = sortBuffer.Count;
+            if (_order.Length < n) _order = new int[Math.Max(n, _order.Length * 2)];
+            var order = _order;
+            for (int i = 0; i < n; i++) order[i] = i;
+            order.AsSpan(0, n).Sort(_byLayerThenEmission);   // a span sort over ONE cached delegate (Array.Sort(…, IComparer) wraps the comparer in a new delegate per call)
 
-            foreach (var prim in sortBuffer)
+            for (int k = 0; k < n; k++)
+            {
+                var prim = sortBuffer[order[k]];
                 DispatchShape(in prim, camera, zoom);
+            }
         }
 
-        public void DrawStructInspector(Action<long, uint, string>? onStructUpdate = null)
+        // ⭐ CE-4432 — Render's per-frame buffers (grown, never shrunk) and its comparer, built once over the sort buffer
+        private readonly Dictionary<long, SpatialAnchorEntry> _anchors = new();
+        private readonly List<DebugPrimitive> _sortBuffer = new();
+        private int[] _order = Array.Empty<int>();
+        private Comparison<int>? _byLayerThenEmissionField;
+        private Comparison<int> _byLayerThenEmission => _byLayerThenEmissionField ??= new ByLayerThenEmission(_sortBuffer).Compare;
+
+        /// <summary>DebugLayer ascending, ZIndex ascending, then emission order (a total, stable order — see Render).</summary>
+        private sealed class ByLayerThenEmission
         {
-            _imGuiAdapter.DrawScheduled(onStructUpdate);
+            private readonly List<DebugPrimitive> _buffer;
+            public ByLayerThenEmission(List<DebugPrimitive> buffer) => _buffer = buffer;
+            public int Compare(int x, int y)
+            {
+                var a = _buffer[x];
+                var b = _buffer[y];
+                int cmp = a.DebugLayer.CompareTo(b.DebugLayer);
+                if (cmp != 0) return cmp;
+                cmp = a.ZIndex.CompareTo(b.ZIndex);
+                return cmp != 0 ? cmp : x.CompareTo(y);
+            }
+        }
+
+        public void DrawStructInspector(Action<long, uint, string>? onStructUpdate = null, Action<long, uint>? onClosed = null)
+        {
+            _imGuiAdapter.DrawScheduled(onStructUpdate, onClosed);   // ⭐ CE-1066 — and the panel's [X]
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-3154</c> — <b>THE OUTLINE OF A CLOSED SHAPE IS STROKED IN SCREEN PIXELS, whatever unit its
+        /// GEOMETRY is in.</b> Returns the stroke width in the units the camera is drawing in (world units inside
+        /// <c>BeginMode2D</c>), i.e. <c>pixels / zoom</c>.
+        ///
+        /// <para>🔒 <b>User, <c>2026-10-10</c>:</b> <i>"the green selection circle now scales but is now extremely
+        /// thick (was single pixel regardless of zoom before - should be like that). The drag and drop yellow marker
+        /// circle is thick - should be 1 pixel regardless of zoom."</i></para>
+        ///
+        /// <para>🔴 <b>The defect was a COUPLING, not a number.</b> One field, <see cref="SizeMode"/>, decided the
+        /// unit of BOTH a shape's size and its stroke, so "a ring 3 m across with a 2 px line" could not be said at
+        /// all: making the selection ring world-sized (<c>CE-3147</c>) silently turned its 2-unit stroke into
+        /// 2 METRES — ~200 px at zoom 100.</para>
+        ///
+        /// <para>📐 <b>INVENTORY, which is what made this a rule and not a patch</b> *(grep + graph text search,
+        /// <c>2026-10-10</c>: every non-test <c>DrawSphere(… thickness: …)</c>)* — 11 call sites, and <b>every one
+        /// writes a pixel-sized stroke</b> (1, 1.2, 1.5, 2) on a world-sized ring, because <c>DrawSphere</c>'s
+        /// <c>sizeMode</c> DEFAULTS to <c>WorldMeters</c> while <c>DrawLine</c>'s defaults to <c>ScreenPixels</c>:
+        /// <c>DetonationGizmo</c> ×2, <c>HearingGizmo</c> ×2, <c>PeekAndFireGizmo</c> ×3, <c>PlannedPathGizmo</c>,
+        /// <c>SquadGizmo</c>, <c>LineOfSightGizmo</c>, <c>SelectionHighlightGizmo</c>. ⚠ Several were therefore
+        /// drawing something other than what they wrote — <c>PeekAndFireGizmo</c> asks for a "2" stroke on a 0.35 m
+        /// circle, i.e. a 2 m band on a 0.35 m radius, which collapses to a SOLID DISC. Both explicit
+        /// <c>WorldMeters</c> boxes (<c>BoundingBoxPickerGizmo</c>, the replay browser's) ask for <c>1.5</c> too.
+        /// ⇒ ⛔ nobody wants a world-thick outline; it only looked tolerable below the old zoom cap of 10.</para>
+        ///
+        /// <para>⭐ <b>Precedent in this same method:</b> the <c>Arrow</c> case has always drawn <i>"a 1 px stroke …
+        /// and a fixed-pixel arrowhead, regardless of zoom"</i> on world-space geometry.</para>
+        ///
+        /// <para>⛔ <b>LINES ARE DELIBERATELY NOT INCLUDED.</b> A line has no size for <see cref="SizeMode"/> to
+        /// govern except its width, so an explicit <c>WorldMeters</c> on a line is a real request — that is how
+        /// <c>RoadNetworkGizmo</c> draws a road at its true width.</para>
+        ///
+        /// <para>⚠ <b>Screen-space primitives are left exactly as they were</b> (the camera transform is off there;
+        /// this method never knew their zoom relationship and this change does not guess at it).</para>
+        /// </summary>
+        public static float OutlineStroke(float baseThicknessPx, SizeMode sizeMode, float zoom, bool screenSpace)
+        {
+            if (screenSpace || zoom <= 0f)
+                return sizeMode == SizeMode.ScreenPixels && zoom > 0f ? baseThicknessPx / zoom : baseThicknessPx;
+            return baseThicknessPx / zoom;
         }
 
         /// <summary>
@@ -206,6 +311,9 @@ namespace GizmoMap.Presentation
 
             bool screenSpace = prim.Space == CoordinateSpace.Screen;
             if (screenSpace) Raylib.EndMode2D();
+
+            // ⭐ CE-3154 — the stroke of a CLOSED shape's outline (Sphere ring, Box2D border). See OutlineStroke.
+            float outlineThickness = OutlineStroke(baseThickness, prim.SizeMode, zoom, screenSpace);
 
             switch (prim.Shape)
             {
@@ -240,7 +348,7 @@ namespace GizmoMap.Presentation
                     }
                     if (baseThickness > 0f)
                     {
-                        float scaledThickness = thickness;
+                        float scaledThickness = outlineThickness;   // ⭐ CE-3154 — pixels, whatever the radius is measured in
                         if (prim.LineStyle == LineStyle.Solid)
                         {
                             float innerRadius = Math.Max(0f, scaledRadius - scaledThickness);
@@ -248,16 +356,11 @@ namespace GizmoMap.Presentation
                         }
                         else
                         {
-                            int segments = Math.Max(16, (int)(scaledRadius * 2f));
-                            float step = (MathF.PI * 2f) / segments;
-                            for (int i = 0; i < segments; i++)
-                            {
-                                float a0 = i * step;
-                                float a1 = (i + 1) * step;
-                                var p0 = center + new Vector2(MathF.Cos(a0), MathF.Sin(a0)) * scaledRadius;
-                                var p1 = center + new Vector2(MathF.Cos(a1), MathF.Sin(a1)) * scaledRadius;
-                                DrawStyledLine(p0, p1, scaledThickness, color, prim.LineStyle, geomScale);
-                            }
+                            // ⭐ B-17 P7 ⑤ — a DASHED / DOTTED ring: the pattern runs round the CIRCUMFERENCE, in screen pixels (the outline is pixels, CE-3154).
+                            //   ⛔ Was: 2 chords per metre each drawn through DrawStyledLine, whose dash (8 px, 8 m for a world-metre sphere) was longer than every
+                            //   chord ⇒ every chord was drawn whole ⇒ a "dashed" ring was a solid one.
+                            float unit = screenSpace || zoom <= 0f ? 1f : 1f / zoom;
+                            DrawStyledRing(center, scaledRadius, scaledThickness, color, prim.LineStyle, unit);
                         }
                     }
                     break;
@@ -274,6 +377,16 @@ namespace GizmoMap.Presentation
                     float arrowScreenScale = zoom > 0f ? 1f / zoom : 1f;
                     float arrowThickness = baseThickness * arrowScreenScale;
                     DrawArrow(from, to, prim.ArrowHeadSize * arrowScreenScale, color, arrowThickness);
+                    break;
+                }
+
+                case DebugPrimitiveShape.FilledTriangle:
+                {
+                    // ⭐ CE-1228 — ONE triangle, in the winding raylib keeps: whether a world-CCW triangle is screen-CCW depends on the
+                    //   camera's Y flip (WorldYUp, the one mirror flag the text already uses). ⛔ Was: both windings, "the culled one costs
+                    //   nothing" — but a map that turns culling OFF (the north-up mirror) drew both, and a translucent fill blended twice.
+                    var (a, b, c) = KeptWinding(prim.TriA, prim.TriB, prim.TriC, WorldYUp);
+                    Raylib.DrawTriangle(a, b, c, color);
                     break;
                 }
 
@@ -296,7 +409,7 @@ namespace GizmoMap.Presentation
                         Raylib.DrawRectanglePro(rect, origin, prim.BoxAngleDeg, fillColor);
                     }
 
-                    if (thickness > 0f && color.A > 0)
+                    if (outlineThickness > 0f && color.A > 0)
                     {
                         float ex = prim.BoxExtentX * geomScale;
                         float ey = prim.BoxExtentY * geomScale;
@@ -308,10 +421,11 @@ namespace GizmoMap.Presentation
                         var tr = c + new Vector2( ex * cos + ey * sin,  ex * sin - ey * cos);
                         var br = c + new Vector2( ex * cos - ey * sin,  ex * sin + ey * cos);
                         var bl = c + new Vector2(-ex * cos - ey * sin, -ex * sin + ey * cos);
-                        DrawStyledLine(tl, tr, thickness, color, prim.LineStyle, geomScale);
-                        DrawStyledLine(tr, br, thickness, color, prim.LineStyle, geomScale);
-                        DrawStyledLine(br, bl, thickness, color, prim.LineStyle, geomScale);
-                        DrawStyledLine(bl, tl, thickness, color, prim.LineStyle, geomScale);
+                        // ⭐ CE-3154 — the border is an OUTLINE: pixels, like the Sphere ring above.
+                        DrawStyledLine(tl, tr, outlineThickness, color, prim.LineStyle, geomScale);
+                        DrawStyledLine(tr, br, outlineThickness, color, prim.LineStyle, geomScale);
+                        DrawStyledLine(br, bl, outlineThickness, color, prim.LineStyle, geomScale);
+                        DrawStyledLine(bl, tl, outlineThickness, color, prim.LineStyle, geomScale);
                     }
                     break;
                 }
@@ -324,16 +438,10 @@ namespace GizmoMap.Presentation
                     // ThicknessU16 is repurposed for Text: carries the desired font size in pixels
                     // (stored as-is, NOT multiplied by 10 like line/sphere thickness).
                     // 0 means "use the renderer default of 13 px".
-                    float px = prim.ThicknessU16 > 0 ? prim.ThicknessU16 : 13f;
-
-                    string str = prim.TextContent.ToString();
-
-                    // Use the embedded TTF only if it actually loaded (valid GPU texture).
-                    // Drawing with an invalid font texture corrupts the active render batch
-                    // (symptom: missing lines AND no text), so fall back to the built-in font.
-                    Font font = (TextFont.HasValue && TextFont.Value.Texture.Id != 0)
-                        ? TextFont.Value
-                        : Raylib.GetFontDefault();
+                    // ⭐ CE-1033 S3 — size and font come from GizmoTextDraw, shared with the 3-D map's label overlay.
+                    float px = GizmoTextDraw.PixelSize(in prim);
+                    string str = GizmoTextDraw.TextOf(in prim);   // ⭐ B-17 P1 — the whole text, not the 31-character preview
+                    Font font = GizmoTextDraw.Font;
 
                     // AnchorGeneration carries a screen-pixel vertical line offset for Text
                     // (set via DrawText/DrawTextLong lineOffsetPx). Lets a gizmo stack multiple
@@ -342,8 +450,7 @@ namespace GizmoMap.Presentation
                     {
                         // Already outside camera space (outer guard called EndMode2D):
                         // TextX/TextY are screen pixels — draw at the requested pixel size.
-                        float offsetY = (short)prim.AnchorGeneration;
-                        Raylib.DrawTextEx(font, str, new Vector2(prim.TextX, prim.TextY + offsetY), px, 1f, color);
+                        GizmoTextDraw.DrawScreen(in prim, new Vector2(prim.TextX, prim.TextY), color);
                     }
                     else
                     {
@@ -357,10 +464,24 @@ namespace GizmoMap.Presentation
                         float camZoom = camera.Zoom > 0f ? camera.Zoom : (zoom > 0f ? zoom : 1f);
                         float invZoom = 1f / camZoom;
                         // Screen-pixel line offset (signed) converted to world units so it stays constant on screen.
-                        float offsetY = (short)prim.AnchorGeneration * invZoom;
-                        Raylib.DrawTextEx(
-                            font, str, new Vector2(prim.TextX, prim.TextY + offsetY),
-                            px * invZoom, 1f * invZoom, color);
+                        float offsetY = prim.LineOffsetPx * invZoom;   // S6 -- the alias, no cast
+                        if (WorldYUp)
+                        {
+                            // ⭐ CE-1040 (N3) — under the north-up mirror text would read upside down: un-flip locally at the
+                            //   text's point (rlgl transforms each vertex, no batch toggle). Local +Y is screen-DOWN again, so
+                            //   the pixel line offset keeps its meaning.
+                            Rlgl.PushMatrix();
+                            Rlgl.Translatef(prim.TextX, prim.TextY, 0f);
+                            Rlgl.Scalef(1f, -1f, 1f);
+                            GizmoTextDraw.DrawStyled(font, str, new Vector2(0f, offsetY), px * invZoom, 1f * invZoom, invZoom, prim.TextStyle, color);
+                            Rlgl.PopMatrix();
+                        }
+                        else
+                        {
+                            GizmoTextDraw.DrawStyled(
+                                font, str, new Vector2(prim.TextX, prim.TextY + offsetY),
+                                px * invZoom, 1f * invZoom, invZoom, prim.TextStyle, color);
+                        }
                     }
                     break;
                 }
@@ -371,7 +492,9 @@ namespace GizmoMap.Presentation
                     // BadgeTargetIndex holds the anchor network ID in the decoupled scenario.
                     float worldX = prim.BoxCenterX; // world position stored in BoxCenterX/Y for badge
                     float worldY = prim.BoxCenterY;
-                    var screenPos = Raylib.GetWorldToScreen2D(new Vector2(worldX, worldY), camera);
+                    var screenPos = WorldYUp   // ⭐ CE-1040 — the host camera's mirror, not Raylib's unflipped conversion
+                        ? camera.Offset + new Vector2(worldX - camera.Target.X, camera.Target.Y - worldY) * camera.Zoom
+                        : Raylib.GetWorldToScreen2D(new Vector2(worldX, worldY), camera);
                     var richText = prim.BadgeRichText;
                     RichTextRenderer.DrawRichTextBadge(ref richText, (int)screenPos.X, (int)screenPos.Y, 12);
                     break;
@@ -434,7 +557,14 @@ namespace GizmoMap.Presentation
                         // Constant 1-pixel border regardless of zoom (1 world unit * zoom would
                         // scale up; divide by zoom so the on-screen stroke stays 1 px).
                         float strokePx = zoom > 0f ? 1f / zoom : 1f;
+                        // ⭐ SR-191 — the unmapped-class rectangle of a transient entity is filled like any other footprint (outline unchanged)
+                        if ((prim.ConditionMask & (uint)EntityShapeCondition.Transient) != 0)
+                            Raylib.DrawRectangleRec(rect, PerspectiveShapeRenderer.TransientFillColor(color));
                         Raylib.DrawRectangleLinesEx(rect, strokePx, new Color((byte)255, (byte)0, (byte)255, color.A));
+                        // ⭐ W2 (VE-O) — a wreck with no profile still gets its X.
+                        if ((prim.ConditionMask & (uint)EntityShapeCondition.Destroyed) != 0)
+                            PerspectiveShapeRenderer.DrawDestroyedCross(new Vector2(worldX, worldY), Quaternion.Identity,
+                                len * geomScale, wid * geomScale, color, zoom);
                     }
                     break;
                 }
@@ -446,7 +576,8 @@ namespace GizmoMap.Presentation
                         prim.MilWorldPosX,
                         prim.MilWorldPosY,
                         camera,
-                        zoom);
+                        zoom,
+                        WorldYUp);
                     break;
                 }
 
@@ -468,7 +599,11 @@ namespace GizmoMap.Presentation
                     break;
             }
 
-            if (screenSpace) Raylib.BeginMode2D(camera);
+            if (screenSpace)
+            {
+                if (BeginWorldMode != null) BeginWorldMode();   // ⭐ CE-1040 — the host camera's own (north-up) world mode
+                else Raylib.BeginMode2D(camera);
+            }
         }
 
         // ---- Protected static helpers used by production DispatchShape ----------
@@ -545,6 +680,30 @@ namespace GizmoMap.Presentation
                 var segEnd = start + normDir * segEndDist;
                 Raylib.DrawLineEx(segStart, segEnd, thickness, color);
                 currentDist += dashLen + gapLen;
+            }
+        }
+
+        /// <summary>⭐ B-17 P7 ⑤ — a ring as <c>N</c> dashes round the circumference, each a short polyline; the dash / gap lengths are <paramref name="unit"/> × 8 / 8 (dashed) or 3 / 4 (dotted). Allocation-free.</summary>
+        internal static void DrawStyledRing(Vector2 centre, float radius, float thickness, Color color, LineStyle style, float unit)
+        {
+            if (radius <= 0f) return;
+            float dash = (style == LineStyle.Dashed ? 8f : 3f) * unit, gap = (style == LineStyle.Dashed ? 8f : 4f) * unit;
+            float circumference = MathF.PI * 2f * radius;
+            int pairs = Math.Max(3, (int)MathF.Round(circumference / (dash + gap)));
+            float span = MathF.PI * 2f / pairs;
+            float dashAngle = span * dash / (dash + gap);
+            int chords = Math.Clamp((int)MathF.Ceiling(dashAngle / 0.25f), 1, 8);
+            for (int i = 0; i < pairs; i++)
+            {
+                float a = i * span;
+                var prev = centre + new Vector2(MathF.Cos(a), MathF.Sin(a)) * radius;
+                for (int k = 1; k <= chords; k++)
+                {
+                    float b = a + dashAngle * k / chords;
+                    var next = centre + new Vector2(MathF.Cos(b), MathF.Sin(b)) * radius;
+                    Raylib.DrawLineEx(prev, next, thickness, color);
+                    prev = next;
+                }
             }
         }
 

@@ -28,6 +28,9 @@ namespace Fdp.Core
         // ----------------------------------------------------------
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>⭐ CE-2418 — word <paramref name="i"/> (0..7) of the mask, for a reader that walks its set bits.</summary>
+        internal readonly ulong Word(int i) => i switch { 0 => _q0, 1 => _q1, 2 => _q2, 3 => _q3, 4 => _q4, 5 => _q5, 6 => _q6, _ => _q7 };
+
         public void SetBit(int bitIndex)
         {
 #if FDP_PARANOID_MODE

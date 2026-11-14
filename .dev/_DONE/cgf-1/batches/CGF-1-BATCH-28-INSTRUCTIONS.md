@@ -43,7 +43,7 @@ topics defined in `Hrot.NED`.
 - `Hrot.Orchestrator.Tests`: 49
 - `Hrot.ClusterRunner.Tests`: 159
 
-All 253 tests were passing after BATCH-27. Run `dotnet build IOS-IG-SimHost.sln -c Debug`
+All 253 tests were passing after BATCH-27. Run `dotnet build HROT.sln -c Debug`
 and confirm green before starting.
 
 ---

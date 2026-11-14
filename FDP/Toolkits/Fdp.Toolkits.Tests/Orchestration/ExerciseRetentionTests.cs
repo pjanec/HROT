@@ -1,0 +1,201 @@
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using System.IO;
+using Fdp.Toolkit.Orchestration;
+using Xunit;
+
+namespace Fdp.Toolkits.Tests.Orchestration
+{
+    /// <summary>⭐ CE-3218 — a scratch staging tree keeps only its newest exercise recordings; a deployment's tree is left alone.</summary>
+    public class ExerciseRetentionTests : IDisposable
+    {
+        private readonly string _temp = Path.Combine(Path.GetTempPath(), "ce3218-" + Guid.NewGuid().ToString("N"));
+
+        public void Dispose()
+        {
+            if (Directory.Exists(_temp)) Directory.Delete(_temp, recursive: true);
+        }
+
+        private static Func<string, string?> Env(Dictionary<string, string> vars) => k => vars.TryGetValue(k, out var v) ? v : null;
+
+        private string Exercise(string root, string exercisesDir, int ageMinutes)
+        {
+            var dir = Path.Combine(root, exercisesDir, Guid.NewGuid().ToString());
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, "node_1.fdp"), "x");
+            Directory.SetLastWriteTimeUtc(dir, DateTime.UtcNow.AddMinutes(-ageMinutes));
+            return dir;
+        }
+
+        [Fact]
+        public void CE3218_Prune_KeepsTheNewestN_InTheSharedAndEveryNodeDirectory()
+        {
+            var shared = new List<string>();
+            var node = new List<string>();
+            for (int i = 0; i < 5; i++) shared.Add(Exercise(_temp, "exercises", ageMinutes: i));
+            for (int i = 0; i < 4; i++) node.Add(Exercise(_temp, Path.Combine("nodes", "node-400", "exercises"), ageMinutes: i));
+
+            int removed = ExerciseRetention.Prune(_temp, keepNewest: 2);
+
+            Assert.Equal(3 + 2, removed);
+            Assert.True(Directory.Exists(shared[0]) && Directory.Exists(shared[1]));      // the two newest stay
+            Assert.False(Directory.Exists(shared[2]) || Directory.Exists(shared[3]) || Directory.Exists(shared[4]));
+            Assert.True(Directory.Exists(node[0]) && Directory.Exists(node[1]));
+            Assert.False(Directory.Exists(node[2]) || Directory.Exists(node[3]));
+        }
+
+        /// <summary>⭐ CE-4090 (AQ108 D15) — discarding ONE recording is the retention code's own delete: that exercise's directory goes from the shared
+        /// <c>exercises</c> and from every node's; every other exercise stays; an id nothing holds deletes 0.</summary>
+        [Fact]
+        public void CE4090_Delete_RemovesOneExercise_FromTheSharedAndEveryNodeDirectory_AndNothingElse()
+        {
+            var id = Guid.NewGuid();
+            var doomed = new[]
+            {
+                Path.Combine(_temp, "exercises", id.ToString()),
+                Path.Combine(_temp, "nodes", "node-400", "exercises", id.ToString()),
+                Path.Combine(_temp, "nodes", "node-401", "exercises", id.ToString()),
+            };
+            foreach (var d in doomed) { Directory.CreateDirectory(d); File.WriteAllText(Path.Combine(d, "node.fdp"), "x"); }
+            var other = Exercise(_temp, "exercises", ageMinutes: 1);
+            var otherOnNode = Exercise(_temp, Path.Combine("nodes", "node-400", "exercises"), ageMinutes: 1);
+
+            Assert.Equal(3, ExerciseRetention.Delete(_temp, id));
+
+            Assert.All(doomed, d => Assert.False(Directory.Exists(d)));
+            Assert.True(Directory.Exists(other) && Directory.Exists(otherOnNode));
+            Assert.Equal(0, ExerciseRetention.Delete(_temp, id));                // gone: nothing left to delete
+            Assert.Equal(0, ExerciseRetention.Delete(_temp, Guid.NewGuid()));    // a stranger
+            Assert.Equal(0, ExerciseRetention.Delete(_temp, Guid.Empty));        // never the whole folder
+            Assert.True(Directory.Exists(other));
+        }
+
+        [Fact]
+        public void CE3218_Prune_WithZero_KeepsEverything()
+        {
+            for (int i = 0; i < 3; i++) Exercise(_temp, "exercises", ageMinutes: i);
+            Assert.Equal(0, ExerciseRetention.Prune(_temp, keepNewest: 0));
+            Assert.Equal(3, Directory.GetDirectories(Path.Combine(_temp, "exercises")).Length);
+        }
+
+        [Fact]
+        public void CE3218_ResolveKeep_AScratchRoot_DefaultsToTwenty_ADeploymentRoot_KeepsAll()
+        {
+            var none = Env(new());
+            var tempPath = Path.GetTempPath();
+
+            // the platform temp dir, no FDP_STAGING_ROOT: a scratch tree
+            Assert.Equal(ExerciseRetention.ScratchDefaultKeep,
+                ExerciseRetention.ResolveKeep(Path.Combine(tempPath, "FDP_Temp"), null, none, tempPath));
+
+            // a root the user chose (FDP_STAGING_ROOT) or a path outside temp: keep everything unless asked
+            Assert.Null(ExerciseRetention.ResolveKeep(Path.Combine(tempPath, "FDP_Temp"), null,
+                Env(new() { ["FDP_STAGING_ROOT"] = "/nas" }), tempPath));
+            Assert.Null(ExerciseRetention.ResolveKeep("/srv/fdp", null, none, tempPath));
+
+            // asked: the command line wins, then the variable; <= 0 keeps all
+            Assert.Equal(5, ExerciseRetention.ResolveKeep("/srv/fdp", 5, Env(new() { [ExerciseRetention.KeepVariable] = "7" }), tempPath));
+            Assert.Equal(7, ExerciseRetention.ResolveKeep("/srv/fdp", null, Env(new() { [ExerciseRetention.KeepVariable] = "7" }), tempPath));
+            Assert.Null(ExerciseRetention.ResolveKeep(Path.Combine(tempPath, "FDP_Temp"), 0, none, tempPath));
+        }
+
+        /// <summary>⭐⭐ <c>CE-4324</c> (lifecycle LC-21) — recordings default to a FIXED data folder beside the scenarios, not TEMP: with no
+        /// <c>FDP_STAGING_ROOT</c> a dev build's root is <c>&lt;repo&gt;/data</c> (git-ignored), never under the temp folder; that folder is still
+        /// pruned like a scratch root (dev runs are test output — CE-3218's 18 GB); an operator's chosen root keeps everything.
+        /// ✅ Red-proof: the old temp default ⇒ the first asserts red.</summary>
+        [Fact]
+        public void CE4324_TheDefaultRoot_IsTheDataFolderBesideTheScenarios_NotTemp_AndStillPrunedInADevTree()
+        {
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FDP_STAGING_ROOT"))) return;   // a run that chose its root
+            var tree = ContentLayout.TryFindSourceTree();
+            Assert.NotNull(tree);
+            string root = OrchestrationConstants.ResolveStagingRoot();
+            Assert.Equal(Path.Combine(tree!, OrchestrationConstants.DataDirectoryName), root);
+            Assert.True(Directory.Exists(ContentLayout.Scenarios(tree!)));                                   // beside the scenarios
+            Assert.False(Path.GetFullPath(root).StartsWith(Path.GetFullPath(Path.GetTempPath()), StringComparison.Ordinal));
+            Assert.Equal(ExerciseRetention.ScratchDefaultKeep, ExerciseRetention.ResolveKeep(root, null, Env(new()), Path.GetTempPath()));
+            Assert.Null(ExerciseRetention.ResolveKeep(root, null, Env(new() { ["FDP_STAGING_ROOT"] = root }), Path.GetTempPath()));
+        }
+
+        // ── ⭐ CE-4330 ④ — the node cache rule (docs/DESIGN_Recording_Storage.md §6) ─────────────────────────────────────────────────────────────────────
+
+        private static string Named(string dir) => Path.GetFileName(dir);
+
+        /// <summary>⭐ CE-4330 ④ — 7 recordings, keep the newest 2: only the ARCHIVED ones older than that go; an UN-archived older one stays (user data), and so do the newest two whatever they are.
+        /// 🔴 Mutation: the <c>isArchived</c> test dropped from the count rule ⇒ the unarchived older ones go ⇒ red.</summary>
+        [Fact]
+        public void CE4330_PruneArchivedCopies_RemovesOnlyTheArchivedOnesBeyondTheNewestN()
+        {
+            var ex = Path.Combine(_temp, "exercises");
+            var d = new string[7];
+            for (int i = 0; i < 7; i++) d[i] = Exercise(_temp, "exercises", ageMinutes: i);          // d[0] is the newest
+            var archived = new[] { d[1], d[2], d[4], d[5] }.Select(x => Guid.Parse(Named(x))).ToArray();   // d[1] is inside the newest two; d[3] and d[6] are older and NOT archived
+
+            int removed = ExerciseRetention.PruneArchivedCopies(ex, keepNewest: 2, archived, minFreeFraction: 0.10, disk: _ => (90, 100));
+
+            Assert.Equal(3, removed);
+            Assert.True(Directory.Exists(d[0])); Assert.True(Directory.Exists(d[1]));                 // the newest two stay (d[1] is archived — a cache copy kept by recency)
+            Assert.False(Directory.Exists(d[2])); Assert.False(Directory.Exists(d[4])); Assert.False(Directory.Exists(d[5]));   // archived and older: gone
+            Assert.True(Directory.Exists(d[3])); Assert.True(Directory.Exists(d[6]));                 // NOT archived: never removed
+        }
+
+        /// <summary>⭐ CE-4330 ④ — space: with the disk short of free space the OLDEST archived copy goes first, even inside the newest N, until the disk is above the threshold; an un-archived recording is never touched, and neither is a newer
+        /// archived one once there is room. 🔴 Mutations: the space loop starting from the NEWEST ⇒ the wrong ones go ⇒ red; the loop not checking <c>isArchived</c> ⇒ the unarchived one goes ⇒ red.</summary>
+        [Fact]
+        public void CE4330_PruneArchivedCopies_WhenTheDiskIsShort_TheOldestArchivedGoFirst_NeverAnUnarchivedOne()
+        {
+            var ex = Path.Combine(_temp, "exercises");
+            var d = new string[4];
+            for (int i = 0; i < 4; i++) d[i] = Exercise(_temp, "exercises", ageMinutes: i);          // d[0] newest … d[3] oldest
+            var archived = new[] { d[0], d[1], d[3] }.Select(x => Guid.Parse(Named(x))).ToArray();     // d[2] is NOT archived
+
+            // free space recovers by 4 per deleted directory: 5, 9, 13 of 100 ⇒ two removals reach the 10 % line
+            Func<string, (long, long)> fake = _ => (5 + 4 * (4 - new DirectoryInfo(ex).GetDirectories().Length), 100);
+            int removed = ExerciseRetention.PruneArchivedCopies(ex, keepNewest: 10, archived, 0.10, fake);   // keepNewest 10: the count rule removes nothing
+
+            Assert.Equal(2, removed);
+            Assert.False(Directory.Exists(d[3])); Assert.False(Directory.Exists(d[1]));               // the oldest archived first … (d[2] is skipped: not archived)
+            Assert.True(Directory.Exists(d[2]));                                                      // … never an un-archived one
+            Assert.True(Directory.Exists(d[0]));                                                      // and the newest archived stays once there is room
+
+            // a disk that never recovers: every archived copy goes, the un-archived one still stays
+            int more = ExerciseRetention.PruneArchivedCopies(ex, keepNewest: 10, archived, 0.10, _ => (0, 100));
+            Assert.Equal(1, more);
+            Assert.False(Directory.Exists(d[0])); Assert.True(Directory.Exists(d[2]));
+        }
+
+        /// <summary>⭐ CE-4331 ⑥ (§9b) — a node remembers its id per kind in one small file under the staging root: absent ⇒ 0, write then read ⇒ the id (the kind's name is case-insensitive), garbage / a non-positive number ⇒ 0, a newer write replaces it.
+        /// 🔴 Mutations (each compiles): <c>Read</c> returning 0 always ⇒ the round-trip cell reds; <c>Write</c> ignoring the kind (one file for all) ⇒ the two-kinds cell reds. (The `id > 0` guard in <c>Read</c> is redundant with <c>NumberStyles.None</c> and 0 ⇒ 0 either way: removing it changes nothing, so it carries no red-proof.)</summary>
+        [Fact]
+        public void CE4331_NodeIdMemory_IsAbsentZero_RoundTripsPerKind_AndGarbageIsZero()
+        {
+            Assert.Equal(0, NodeIdMemory.Read(_temp, "CGF"));                                  // absent
+            NodeIdMemory.Write(_temp, "CGF", 401);
+            NodeIdMemory.Write(_temp, "Player", 100);
+            Assert.Equal(401, NodeIdMemory.Read(_temp, "cgf"));                                // the kind is case-insensitive
+            Assert.Equal(100, NodeIdMemory.Read(_temp, "PLAYER"));                             // one file per kind
+            Assert.Equal(0, NodeIdMemory.Read(_temp, "SimHost"));
+            NodeIdMemory.Write(_temp, "CGF", 402);
+            Assert.Equal(402, NodeIdMemory.Read(_temp, "CGF"));                                // a newer grant replaces it
+
+            File.WriteAllText(NodeIdMemory.PathOf(_temp, "CGF"), "not a number");
+            Assert.Equal(0, NodeIdMemory.Read(_temp, "CGF"));                                  // garbage
+            File.WriteAllText(NodeIdMemory.PathOf(_temp, "CGF"), "-5");
+            Assert.Equal(0, NodeIdMemory.Read(_temp, "CGF"));
+            File.WriteAllText(NodeIdMemory.PathOf(_temp, "CGF"), "0");
+            Assert.Equal(0, NodeIdMemory.Read(_temp, "CGF"));                                  // 0 means "none", not an id
+            NodeIdMemory.Write(_temp, "CGF", 0);                                               // a refused / zero grant is never remembered
+            Assert.Equal(0, NodeIdMemory.Read(_temp, "CGF"));
+        }
+
+        /// <summary>⭐ CE-4330 ④ — the keep count: <c>FDP_KEEP_EXERCISES</c> when set (> 0), else 5.</summary>
+        [Fact]
+        public void CE4330_ResolveCacheKeep_IsFiveUnlessTheVariableSaysOtherwise()
+        {
+            Assert.Equal(5, ExerciseRetention.ResolveCacheKeep(Env(new())));
+            Assert.Equal(9, ExerciseRetention.ResolveCacheKeep(Env(new() { ["FDP_KEEP_EXERCISES"] = "9" })));
+            Assert.Equal(5, ExerciseRetention.ResolveCacheKeep(Env(new() { ["FDP_KEEP_EXERCISES"] = "0" })));      // ≤ 0 is "unset" for the cache (the scratch sweep reads it as keep-all)
+        }
+    }
+}

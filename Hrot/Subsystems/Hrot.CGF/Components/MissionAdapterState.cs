@@ -26,7 +26,8 @@ namespace Hrot.CGF.Components
     /// </para>
     /// </summary>
     [ComponentId(129)]
-    [DataPolicy(DataPolicy.Transient)]
+    // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
+    [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario)]
     public struct MissionAdapterState
     {
         /// <summary>

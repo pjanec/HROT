@@ -1,18 +1,33 @@
 using System.Reflection;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor;
+using Hrot.Editor.AiShared;
 
 namespace Hrot.Blueprints.Tests.Editor;
 
 /// <summary>
 /// MTB-P0-T3 SC1: Verify <see cref="BlueprintEditorBootstrap.DiscoverRecipes"/>
-/// reads from the new Recipes/Blueprints root.
+/// reads from the recipes/behaviors/Blueprints root of the content root.
+/// ⭐ CE-4089: the content root is the NAS (or the configured root); these rails point the configured root at the repository tree —
+/// where the recipes live — and restore it. ⚠ <see cref="AssetRoots.Configure"/> is process-global, hence the serial collection.
 /// </summary>
+[Collection(AssetRootsConfiguredCollection.Name)]
 public sealed class DiscoverRecipesTests
 {
+    private static T WithTheRepositoryAsContentRoot<T>(Func<T> body)
+    {
+        var saved = AssetRoots.ConfiguredRoot;
+        try
+        {
+            AssetRoots.Configure(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree());
+            return body();
+        }
+        finally { AssetRoots.Configure(saved); }
+    }
+
     /// <summary>
     /// The production recipes (CountingDemo, EditorTypesDemo, etc.) must be
-    /// discoverable from the Recipes/Blueprints output directory.
+    /// discoverable from the recipes/behaviors/Blueprints root.
     /// </summary>
     [Fact]
     public void Discovers_FromRecipesBlueprintsRoot()
@@ -23,7 +38,7 @@ public sealed class DiscoverRecipesTests
         // Force-load Hrot.AI.Behaviors so DiscoverRecipes can resolve its output directory.
         _ = Assembly.Load("Hrot.AI.Behaviors");
 
-        var recipes = BlueprintEditorBootstrap.DiscoverRecipes();
+        var recipes = WithTheRepositoryAsContentRoot(BlueprintEditorBootstrap.DiscoverRecipes);
 
         // At minimum the CountingDemo recipe must be present (it's the simplest
         // recipe and has been committed since WHEN-M11-T4).
@@ -51,11 +66,18 @@ public sealed class DiscoverRecipesTests
         // Force-load Hrot.AI.Behaviors so DiscoverRecipes can resolve its output directory.
         _ = Assembly.Load("Hrot.AI.Behaviors");
 
-        var recipes = BlueprintEditorBootstrap.DiscoverRecipes();
+        var recipes = WithTheRepositoryAsContentRoot(BlueprintEditorBootstrap.DiscoverRecipes);
 
         Assert.All(recipes, r =>
         {
             Assert.NotEqual(Guid.Empty, r.AssetId);
         });
     }
+}
+
+/// <summary>⭐ CE-4089 — classes that point the process-global <see cref="AssetRoots"/> at another root run alone.</summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class AssetRootsConfiguredCollection
+{
+    public const string Name = "AssetRootsConfigured";
 }

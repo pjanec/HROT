@@ -107,7 +107,7 @@ The instruction's signature was incorrect — the real method takes an `ISimulat
 ## 6. Build Result
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental -v quiet
+dotnet build HROT.sln --no-incremental -v quiet
 
 Result: 0 Error(s), 336 Warning(s) (all pre-existing xUnit/analyzer warnings)
 Time Elapsed: 00:00:33.39

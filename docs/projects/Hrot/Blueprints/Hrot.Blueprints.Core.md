@@ -1,5 +1,7 @@
 # Hrot.Blueprints.Core
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135); Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../../../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > Manually maintained; last verified 2026-07-21 against the implemented code.
 
 - **Project file**: `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Core/Hrot.Blueprints.Core.csproj`
@@ -380,10 +382,10 @@ Discriminator property `"kind"`.  Derived types:
 | `BooleanOp` | `BooleanOpNode` | `Operator` (AND/OR/XOR) |
 | `Not` | `NotNode` | -- |
 | `GetComponent` | `GetComponentNode` | `ComponentTypeFqn`, `FieldName`, `FieldTypeFqn` (baked, reflection-free ECS field read off `self` or an optional `Target` entity pin) |
-| `GetParameter` | `GetParameterNode` | reads a single `AiPrimitive` parameter |
+| `GetParameter` | ⛔ **REMOVED by `CE-2135` P4** (steer 2, R-2004) — `GetParameterNode` | read a single parameter; Get All Parameters names one pin per parameter (a named DTO's fields) |
 | `GetAllParameters` | `GetAllParametersNode` | reads all `AiPrimitive` parameters |
-| `GetShared` | `GetSharedNode` | multi-pin per-field read of `BlueprintSharedState` |
-| `SetShared` | `SetSharedNode` | multi-pin per-field write via `BlueprintSharedState.TrySetSharedField` |
+| `GetShared` | ⛔ **REMOVED by `CE-440`** — `GetSharedNode` | multi-pin per-field read of `BlueprintSharedState` |
+| `SetShared` | ⛔ **REMOVED by `CE-440`** — `SetSharedNode` | multi-pin per-field write via `BlueprintSharedState.TrySetSharedField` |
 | `PartitionElements` | `PartitionElementsNode` | squad quartet: partitions a roster into groups |
 | `AssignRoles` | `AssignRolesNode` | squad quartet: assigns roles to partitioned members |
 | `AdvancePhase` | `AdvancePhaseNode` | squad quartet: advances a squad's phase state |
@@ -391,7 +393,7 @@ Discriminator property `"kind"`.  Derived types:
 
 Custom events pub/sub (`PublishEvent` + `EventEntry` with a Self/Any filter, discovered via
 `[BlueprintEvent]`/`[EventTarget]`, dispatched by `BlueprintEventDispatch`), multi-pin per-field pins
-(`PublishEvent`/`GetShared`/`SetShared`), and struct-typed `Variables` are all shipped. See
+(`PublishEvent`; ⛔ `GetShared`/`SetShared` removed by `CE-440`), and struct-typed `Variables` are all shipped. See
 Stage 0 (`Stage0_Rehydrate`) above for the pin/link reconstruction that these node kinds rely on.
 
 #### `WhenNode` and EQS nodes (schema detail)
@@ -630,8 +632,16 @@ byte[]?                       PortablePe
 
 #### `BlackboardTier` (enum)
 
-`Blackboard1024`, `Blackboard4096`, `Blackboard16384`.  Selects the ECS component size for
-the entity-attached blackboard used by Instance Blueprints.
+`Blackboard1024 = 0`, `Blackboard4096 = 1`, `Blackboard16384 = 2` (a `byte` enum, declared in
+`Hrot.Blueprints.Compiler/Compiler/Compatibility/BlueprintCompilerContracts.cs:10`).
+
+⚠ **This is a compiler-contract type, not the tier selector.** Its only reference is
+`IrAsset.SelectedTier` (`Compiler/Ir/IrAsset.cs:111`), which nothing writes or reads. Runtime tier
+selection uses the **four**-valued `Fdp.Toolkit.Blueprints.BlackboardTier`
+(`B1024 = 0`, `B4096 = 1`, `B16384 = 2`, `B256 = 3`), whose ordinals are ABI -- `B256` is *appended*
+at 3 although it is the smallest tier, so the numeric order is deliberately not the size order and
+`BlueprintTierTable.Ascending` is what gives size order. The payload figures live in
+`BlueprintTierLadder`: 176 / 800 / 3 808 / 16 096 B.
 
 #### `BlueprintSignature` (record)
 
@@ -676,7 +686,7 @@ Read-only catalogs that expose `GetEntries()` or a `Contains` check.  Built-in s
 `BuiltInWaitPrimitiveCatalog.Instance`.
 
 `BuiltInEngineEventCatalog` provides 11 entries in three categories:
-- **General**: `HitEvent`, `BehaviorFinishedEvent`, `TargetVisibleEvent`
+- **General**: `HitEvent`, `BehaviorFinishedEvent`, `SensorChangedEvent` *(`TargetVisibleEvent` retired, `CE-3052`)*
 - **Animation lifecycle** (Reliable, propagates across nodes): `MontageStartedEvent`, `MontageEndedEvent`, `MontageSectionAdvancedEvent`, `StanceChangedEvent`
 - **Animation notify**: `FootstepEvent` (Muscle-local only, `PropagatesAcrossNodes=false`), `HitWindowOpenedEvent`, `HitWindowClosedEvent`, `HitNotifyEvent`
 
@@ -732,7 +742,7 @@ Selected subtypes:
 | `IrOp_Compare` / `IrOp_BinaryOp` / `IrOp_BooleanOp` / `IrOp_Not` | `CompareNode`/`BinaryOpNode`/`BooleanOpNode`/`NotNode` -- native infix comparison/arithmetic/boolean/negation expressions |
 | `IrOp_FieldRead` | Reads one field off an already-resolved value (component ref, struct value, EQS result struct) |
 | `IrOp_MakeStruct` / `IrOp_SetMembers` | `MakeStructNode` (construct from per-field pins) / `SetMembersNode` (copy + overwrite wired member fields) |
-| `IrOp_ReadShared` / `IrOp_WriteShared` / `IrOp_WriteSharedField` | `GetSharedNode`/`SetSharedNode` -- whole-struct or per-field read/write of entity-scoped `BlueprintSharedState` |
+| `IrOp_ReadShared` / `IrOp_WriteShared` / `IrOp_WriteSharedField` | ⛔ **REMOVED by `CE-440`** — `GetSharedNode`/`SetSharedNode` -- whole-struct or per-field read/write of entity-scoped `BlueprintSharedState` |
 | `IrOp_ScoreDecision` / `IrOp_ReadRankedResult` | `ScoreDecisionNode` / `ReadRankedResultNode` -- Utility AI decision evaluation and ranked-result read |
 | `IrOp_ChannelCommand` | Typed command to a channel component |
 | `IrOp_WaitForChannel` / `IrOp_WaitForEvent` | Latent wait primitives |
@@ -811,7 +821,7 @@ Public constants for all compiler diagnostic codes.  Series:
 | `BP2001`-`BP2017` | Stage 2 -- `WhenNode` rules (mode/payload consistency, edge rules, dispatch restrictions, BestEffort and cross-node event warnings) |
 | `BP2020`-`BP2021` | Stage 2 -- `ReadEqsResultNode` rules (dispatch check, sensor variable lookup) |
 | `BP2030`-`BP2032` | Stage 2 -- `SpawnEqsSensorNode` rules (dispatch check, template lookup, instance-id collision) |
-| `BP2040`-`BP2042` | Stage 2 -- `V_SharedStateRules` (`GetShared`/`SetShared`: empty/unresolvable `SharedTypeId`, unsupported Library dispatch) |
+| `BP2040`-`BP2042` | ⛔ **REMOVED by `CE-440`** — Stage 2 -- `V_SharedStateRules` (`GetShared`/`SetShared`: empty/unresolvable `SharedTypeId`, unsupported Library dispatch) |
 | `BP2050` | Stage 2 -- `V_FlowForEachRules` (`FlowForEach` body contains a latent or Branch node) |
 | `BP3001`, `BP3010`-`BP3012` | Stage 3 / 4 -- normalize and type-resolve |
 | `BP4001`-`BP4004` | Stage 5 -- schedule |
@@ -1108,7 +1118,7 @@ by `Stage2_Validate`.  Stops early on fatal errors.  Validators cover:
 - `V_FlowForEachRules` -- `FlowForEach` body must be a synchronous, latent-free (and branch-free) sub-DAG (BP2050)
 - `V_ReadEqsResultNodeRules` -- ReadEqsResultNode dispatch check and sensor variable lookup
 - `V_SpawnEqsSensorNodeRules` -- SpawnEqsSensorNode dispatch check, template lookup, instance-id collision
-- `V_SharedStateRules` -- GetShared/SetShared `SharedTypeId` resolution and Library-dispatch restriction (BP2040-BP2042)
+- `V_SharedStateRules` -- GetShared/SetShared `SharedTypeId` resolution and Library-dispatch restriction (BP2040-BP2042)  ⛔ *(removed by `CE-440`)*
 - `V_FunctionGraphCallRules` -- `FunctionCallNode.TargetGraphId` resolution, arg count/type match, cycle detection (BP1650-BP1654)
 - `V_ExecOutFanOut` -- exec-out pin fan-out check (BP1411); dropped-successor detection (BP1412) is a separate Stage 5 scheduler check, not part of this validator
 

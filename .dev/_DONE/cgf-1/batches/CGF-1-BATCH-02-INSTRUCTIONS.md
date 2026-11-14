@@ -13,7 +13,7 @@
 
 ### Developer instructions
 
-Complete **all corrective items in part A first** (so P2/P3 from BATCH-01 does not accumulate), then implement **CGF1-S0104** per task detail. Run tests after each logical chunk; before the report, run **`dotnet test IOS-IG-SimHost.sln`** and resolve failures (including parallel-run DDS issues per part A). Do not ask for permission to fix obvious test or build breaks.
+Complete **all corrective items in part A first** (so P2/P3 from BATCH-01 does not accumulate), then implement **CGF1-S0104** per task detail. Run tests after each logical chunk; before the report, run **`dotnet test HROT.sln`** and resolve failures (including parallel-run DDS issues per part A). Do not ask for permission to fix obvious test or build breaks.
 
 ### Required reading (in order)
 
@@ -34,13 +34,13 @@ Complete **all corrective items in part A first** (so P2/P3 from BATCH-01 does n
 | Orchestrator bootstrap test | `Hrot.Orchestrator.Tests/ClusterMasterBootstrapTests.cs` |
 | DDS integration | `Hrot.SimHost.Integration.Tests/` (migration + lifecycle / domain isolation) |
 | Runner orchestrator | `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs` |
-| Solution | `IOS-IG-SimHost.sln` |
+| Solution | `HROT.sln` |
 
 ### Build and test
 
 ```powershell
-dotnet build IOS-IG-SimHost.sln
-dotnet test IOS-IG-SimHost.sln
+dotnet build HROT.sln
+dotnet test HROT.sln
 ```
 
 If parallel full-suite runs remain flaky after part A.2, document residual risk in the report and prefer a **repeatable** local command (e.g. run `Hrot.SimHost.Integration.Tests` alone) for gatekeeping until CI policy is updated.
@@ -92,7 +92,7 @@ Resolve these DEBT-TRACKER items (and any you mark ✅ in the same pass):
 - configurable **non-zero default test domain** for new CGF harnesses; **and/or**  
 - a short **contributor note** in `.dev/cgf-1/CGF-1-ONBOARDING.md` or `README.md` if CI must use `--maxcpucount:1` until a broader fix lands.
 
-Choose what actually eliminates or greatly reduces flakes **in this repo**; verify with at least one full `dotnet test IOS-IG-SimHost.sln` run (note outcome in report).
+Choose what actually eliminates or greatly reduces flakes **in this repo**; verify with at least one full `dotnet test HROT.sln` run (note outcome in report).
 
 ### A.3 — P3: `OrchestrationSchemaTests` namespace scan (DEBT-TRACKER: Testing / CGF-1-BATCH-01)
 
@@ -123,7 +123,7 @@ Choose what actually eliminates or greatly reduces flakes **in this repo**; veri
 
 ### B.1 — Projects
 
-- Add **`Hrot.CGF`** (`net8.0` library) and **`Hrot.CGF.Standalone`** (executable), registered in `IOS-IG-SimHost.sln`.  
+- Add **`Hrot.CGF`** (`net8.0` library) and **`Hrot.CGF.Standalone`** (executable), registered in `HROT.sln`.  
 - References per design / task (DataModel, Map.Common, Fdp.Kernel, network stack as needed — **no FDP project may reference `Hrot.*` for `IDsmHandler`**).
 
 ### B.2 — `IDsmHandler`
@@ -181,8 +181,8 @@ Tests must assert **real roster / state values**, not log strings or null checks
 
 - [ ] All **CGF-1-BATCH-02** rows in [.dev/DEBT-TRACKER.md](../../DEBT-TRACKER.md) addressed (✅ or consciously deferred with new row).  
 - [ ] **CGF1-S0104** success conditions satisfied.  
-- [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors; new code warning-free to repo standard.  
-- [ ] `dotnet test IOS-IG-SimHost.sln` outcome documented (parallel flake status).  
+- [ ] `dotnet build HROT.sln` — 0 errors; new code warning-free to repo standard.  
+- [ ] `dotnet test HROT.sln` outcome documented (parallel flake status).  
 - [ ] Report submitted.  
 
 ---

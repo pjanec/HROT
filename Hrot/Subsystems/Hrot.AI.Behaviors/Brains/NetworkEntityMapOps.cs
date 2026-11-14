@@ -1,7 +1,6 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Services;
-using Hrot.Editor.AiShared;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -10,7 +9,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// <c>FunctionCall</c> nodes (see <c>docs/blueprints/AimAndFireSpecific_Slice_Design.md</c>,
     /// architect Q6-B). Resolves a replicated <c>TargetNetworkId</c> to a local <see cref="Entity"/>
     /// via the <c>NetworkEntityMap</c> world-singleton -- the first slice needing the target-resolve
-    /// capability. Does not modify or replace the C# oracle (<c>HillAttackTankNodes</c>).
+    /// capability. (The C# oracle it mirrored, <c>HillAttackTankNodes.Action_AimAndFireSpecific</c>, is retired by <c>CE-2230</c>.)
     /// </summary>
     public static class NetworkEntityMapOps
     {
@@ -27,7 +26,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <paramref name="targetNetworkId"/> is a visible/wireable blueprint data pin.
         /// </para>
         /// <para>
-        /// <b>GAP-10 (mirrors <see cref="HillAssault2TankOps.HasTarget"/>):</b> <see cref="ISimulationView"/>
+        /// <b>GAP-10 (as the retired <c>HillAssault2TankOps.HasTarget</c> did):</b> <see cref="ISimulationView"/>
         /// exposes no singleton read API, so this helper downcasts back to the real
         /// <see cref="EntityRepository"/> (which the compiler's P7 "view" argument always is, for the
         /// AiPrimitive dispatch this slice targets) to reach the singleton. Declared parameter type
@@ -36,17 +35,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="Entity.Null"/> rather than throw.
         /// </para>
         /// </summary>
-        [BlueprintCallable("NetworkMap")]
-        public static Entity ResolveTarget(long targetNetworkId, ISimulationView view)
-        {
-            if (view is not EntityRepository world)
-                return Entity.Null;
-
-            if (!world.HasSingletonManaged<NetworkEntityMap>())
-                return Entity.Null;
-
-            var map = world.GetSingletonManaged<NetworkEntityMap>();
-            return (map != null && map.TryGetEntity(targetNetworkId, out var target)) ? target : Entity.Null;
-        }
+        /// <remarks>⭐ <c>CE-469</c>: routed to the built-in
+        /// <see cref="StandardLibrary.BlueprintWorldLibrary.EntityFromNetworkId"/> — one implementation. Kept for
+        /// <c>HsmFireActivity.bp.json</c>'s baked FunctionCall (the <c>HillAssault2_*</c> twins that also called it retired
+        /// <c>2026-10-01</c>). ⚠ Deliberately NOT <c>[BlueprintCallable]</c>: the palette offers only <i>Entity From Network
+        /// Id</i> (the compiler never reads the attribute, so the baked call still compiles).</remarks>
+        public static Entity ResolveTarget(Fdp.Toolkit.Replication.EntityLink target, ISimulationView view)
+            => StandardLibrary.BlueprintWorldLibrary.EntityFromNetworkId(target.Ref.NetworkId, view);
     }
 }

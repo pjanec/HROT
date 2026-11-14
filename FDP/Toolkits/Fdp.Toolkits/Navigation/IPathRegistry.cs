@@ -9,6 +9,9 @@ namespace Fdp.Toolkit.Navigation
     /// pool (<c>MusclePathRegistry</c>) and the Brain-side cache (<c>BrainPathRegistry</c>),
     /// as well as the all-in-one <c>SharedPathRegistry</c>.
     /// </summary>
+    // ⭐ D7 (restore design) — content / service / index, never world state: a keyframe must not carry it, and an apply must
+    //   not replace the loaded instance (R-3043).
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
     [ComponentId(GlobalComponentIds.IPathRegistry)]
     public interface IPathRegistry
     {

@@ -23,12 +23,6 @@ public sealed class NullSlaveOrchestrationTranslator : ISlaveOrchestrationTransl
     public void Dispose() { }
 }
 
-/// <summary>No-op implementation of <see cref="IOrchestrationObserver"/> for headless/offline mode.</summary>
-public sealed class NullOrchestrationObserver : IOrchestrationObserver
-{
-    public void Tick() { }
-    public void Dispose() { }
-}
 
 /// <summary>No-op implementation of <see cref="IDisposable"/> for factory methods that return IDisposable handles.</summary>
 public sealed class NullDisposable : IDisposable

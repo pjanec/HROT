@@ -73,6 +73,13 @@ internal static class WaitLowering_AiPrimitive
         for (int k = 1; k <= n - 1; k++)
             chainBlockId[k] = NewBlk();
 
+        // ⭐ S1 / I12 (DESIGN_Unified_Behaviour_Run §2) — a SUCCESS resume clears __phase before it continues, as the
+        //   Failure and Delay paths already do; the Instance lowering had the same gap. Allocated after the chain blocks
+        //   so every pre-existing block keeps its id.
+        var successBlockId = new IrBlockId[n + 1];
+        for (int k = 1; k <= n; k++)
+            successBlockId[k] = NewBlk();
+
         // For N==1 dispatch goes directly to checkBlockId[1] on the else branch (no chain needed).
 
         // ---------------------------------------------------------------
@@ -90,11 +97,11 @@ internal static class WaitLowering_AiPrimitive
             // Find the wait op for this suspend.
             IrOperation? waitOp = sb.Statements
                 .Select(s => s.Operation)
-                .FirstOrDefault(o => o is IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay or IrOp_InlineActionCall);
+                .FirstOrDefault(SuspendOps.Is);
 
             // Filter out: the wait-op stmt and the resume-point Const stmt.
             var keptStmts = sb.Statements
-                .Where(s => s.Operation is not (IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay or IrOp_InlineActionCall))
+                .Where(s => !SuspendOps.Is(s.Operation))
                 .Where(s => !(s.ResultValue.HasValue && s.ResultValue.Value.Index == resumePointIdx))
                 .ToList();
 
@@ -173,7 +180,8 @@ internal static class WaitLowering_AiPrimitive
             };
 
             // If phase != k, go to checkBlockId[k+1] (last chain goes directly to last check).
-            IrBlockId elseOfChain = checkBlockId[k + 1];
+            // ⭐ CE-2018 — the next LINK (the comment above always said so); only the last link falls to the last check.
+            IrBlockId elseOfChain = k + 1 <= n - 1 ? chainBlockId[k + 1] : checkBlockId[k + 1];
 
             synthesizedBlocks.Add(new IrBlock
             {
@@ -196,7 +204,7 @@ internal static class WaitLowering_AiPrimitive
 
             IrOperation? waitOp = sb.Statements
                 .Select(s => s.Operation)
-                .FirstOrDefault(o => o is IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay or IrOp_InlineActionCall);
+                .FirstOrDefault(SuspendOps.Is);
 
             if (waitOp is IrOp_InlineActionCall iac)
             {
@@ -254,7 +262,15 @@ internal static class WaitLowering_AiPrimitive
                     Label      = $"phase{k}_not_running",
                     Statements = notRunStmts,
                     Terminator = new IrTerm_Branch(isFailV2,
-                        failureBlockId[k], resumeBlockId) { Debug = Synth() },
+                        failureBlockId[k], successBlockId[k]) { Debug = Synth() },
+                });
+
+                synthesizedBlocks.Add(new IrBlock
+                {
+                    Id         = successBlockId[k],
+                    Label      = $"phase{k}_success",
+                    Statements = new[] { Stmt(null, new IrOp_WriteWorkingStatePhase(0)) },
+                    Terminator = new IrTerm_Goto(resumeBlockId) { Debug = Synth() },
                 });
 
                 // Failure block: reset phase to 0, then Q#13: if the wait carries a FailureBlock
@@ -392,7 +408,15 @@ internal static class WaitLowering_AiPrimitive
                     Label      = $"phase{k}_not_running",
                     Statements = notRunStmts,
                     Terminator = new IrTerm_Branch(isFailV,
-                        failureBlockId[k], resumeBlockId) { Debug = Synth() },
+                        failureBlockId[k], successBlockId[k]) { Debug = Synth() },
+                });
+
+                synthesizedBlocks.Add(new IrBlock
+                {
+                    Id         = successBlockId[k],
+                    Label      = $"phase{k}_success",
+                    Statements = new[] { Stmt(null, new IrOp_WriteWorkingStatePhase(0)) },
+                    Terminator = new IrTerm_Goto(resumeBlockId) { Debug = Synth() },
                 });
 
                 // Failure block: reset phase to 0, then Q#13: if the wait carries a FailureBlock
@@ -440,6 +464,9 @@ internal static class WaitLowering_AiPrimitive
                 allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == notRunningBlockId[k].Value));
             if (synthesizedBlocks.Any(b => b.Id.Value == failureBlockId[k].Value))
                 allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == failureBlockId[k].Value));
+            // ⭐ S1 / I12 — the success block (clears the cursor, then continues).
+            if (synthesizedBlocks.Any(b => b.Id.Value == successBlockId[k].Value))
+                allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == successBlockId[k].Value));
         }
 
         // C0: dead-block filtering — remove unreferenced blocks (e.g. LatentDelay

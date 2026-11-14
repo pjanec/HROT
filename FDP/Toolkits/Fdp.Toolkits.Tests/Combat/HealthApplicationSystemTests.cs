@@ -4,6 +4,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Combat.Systems;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Xunit;
 
@@ -22,8 +23,14 @@ namespace Fdp.Toolkit.Combat.Tests
             _world = new EntityRepository();
             _world.RegisterComponent<Health>();
             _world.RegisterComponent<ActorCapabilityState>();
+            _world.RegisterComponent<MobilityKill>();
             _world.RegisterComponent<NetworkAuthority>();
+            _world.RegisterComponent<NetworkIdentity>();
             _world.RegisterEvent<DamageAssessedEvent>();
+            _world.RegisterEvent<ManDownedEvent>();                // ⭐ CE-3364
+            _world.RegisterComponent<InjuryThresholds>();
+            _world.RegisterComponent<BleedOut>();
+            _world.RegisterManagedEvent<DestroyEntityCommand>();   // CE-267
 
             _sys = new HealthApplicationSystem();
         }
@@ -43,6 +50,11 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(entity, new NetworkAuthority(
                 primaryOwnerId: authoritative ? 1 : 2,
                 localNodeId: 1));
+
+            // CE-267 — the destroy path addresses the entity by NETWORK id, so every target needs one.
+            _world.AddComponent(entity, new NetworkIdentity(9000 + entity.Index));
+            // ⭐ CE-523 (S8): the gate is the Health CLAIM — the owner holds it (the spawn sets it at birth; a grant moves it).
+            if (authoritative) _world.SetAuthority<Health>(entity, true);
 
             if (addCapabilities)
                 _world.AddComponent(entity, new ActorCapabilityState
@@ -82,6 +94,48 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         // â”€â”€ SC-2: Health cannot go below zero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+        /// <summary>
+        /// ⭐ <c>R-2085</c> (CE-4124) — a NON-LETHAL hit never kills: blows of 25 on a man of 100 stop at his incapacitation line (30 here),
+        /// whatever their number; a KINETIC hit still kills; a man already below the line (a lethal wound) loses nothing to a blow.
+        /// 🔴 Red-proof: make <c>NonLethalFloor</c> return 0 ⇒ the man beaten ten times is dead.
+        /// </summary>
+        [Fact]
+        public void R2085_ANonLethalHitNeverKills_ItStopsAtTheIncapacitationLine()
+        {
+            var beaten = SpawnTarget(currentHealth: 100f);
+            _world.AddComponent(beaten, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+            for (int i = 0; i < 10; i++)
+            {
+                _world.Bus.Publish(new DamageAssessedEvent { HitEntity = beaten, TotalDamage = 25f, Effect = Fdp.Toolkit.Combat.HitEffect.Blunt });
+                _world.Bus.SwapBuffers();
+                _sys.Execute(_world, 0.016f);
+            }
+            Assert.Equal(30f, _world.GetComponent<Health>(beaten).Current, 3);
+
+            var shot = SpawnTarget(currentHealth: 100f);
+            _world.AddComponent(shot, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+            PublishEvent(hitEntity: shot, totalDamage: 120f);   // kinetic
+            _sys.Execute(_world, 0.016f);
+            Assert.Equal(0f, _world.GetComponent<Health>(shot).Current);
+
+            var wounded = SpawnTarget(currentHealth: 20f);
+            _world.AddComponent(wounded, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = wounded, TotalDamage = 25f, Effect = Fdp.Toolkit.Combat.HitEffect.Blunt });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            Assert.Equal(20f, _world.GetComponent<Health>(wounded).Current);
+
+            // a stun grenade's burst damage carries the warhead's non-lethal kind (AreaEffectSystem / DamageCalculationSystem) and floors too
+            Assert.Equal(Fdp.Toolkit.Combat.HitEffect.Stun, Fdp.Toolkit.Combat.Systems.AreaEffectSystem.NonLethalEffectOf(Fdp.Toolkit.Tkb.Domain.WarheadKind.Stun));
+            Assert.Equal(Fdp.Toolkit.Combat.HitEffect.Kinetic, Fdp.Toolkit.Combat.Systems.AreaEffectSystem.NonLethalEffectOf(Fdp.Toolkit.Tkb.Domain.WarheadKind.HighExplosive));
+            var stunned = SpawnTarget(currentHealth: 100f);
+            _world.AddComponent(stunned, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = stunned, TotalDamage = 200f, Effect = Fdp.Toolkit.Combat.HitEffect.Stun });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            Assert.Equal(30f, _world.GetComponent<Health>(stunned).Current, 3);
+        }
 
         /// <summary>
         /// BS1-T014 SC-2: <see cref="Health.Current"/> must be clamped to 0 and never go negative.
@@ -149,10 +203,13 @@ namespace Fdp.Toolkit.Combat.Tests
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new Health { Current = 500f, Max = 500f });
             _world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            _world.SetAuthority<Health>(entity, true);   // CE-523: the owner claims Health
             _world.AddComponent(entity, new ActorCapabilityState
             {
                 Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanInteract,
             });
+            // CE-3092: the strip is now an opt-in of the platform (a vehicle's mobility kill).
+            _world.AddComponent(entity, new MobilityKill { BelowFraction = 1f });
 
             // Non-lethal hit: 100 damage out of 500 max.
             _world.Bus.Publish(new DamageAssessedEvent { HitEntity = entity, TotalDamage = 100f });
@@ -180,6 +237,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new Health { Current = 500f, Max = 500f });
             _world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            _world.SetAuthority<Health>(entity, true);   // CE-523: the owner claims Health
             _world.AddComponent(entity, new ActorCapabilityState
             {
                 Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot,
@@ -210,6 +268,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new Health { Current = 200f, Max = 200f });
             _world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            _world.SetAuthority<Health>(entity, true);   // CE-523: the owner claims Health
             // No ActorCapabilityState registered.
 
             _world.Bus.Publish(new DamageAssessedEvent { HitEntity = entity, TotalDamage = 50f });
@@ -220,6 +279,344 @@ namespace Fdp.Toolkit.Combat.Tests
 
             var health = _world.GetComponent<Health>(entity);
             Assert.Equal(150f, health.Current);
+        }
+
+        // ── CE-523 (S8): the gate is the Health CLAIM, not the entity's primary owner ─────────────────────
+
+        /// <summary>⭐ <c>CE-523</c> — SimHost created the entity (primary owner 2) and its Brain group, Health with it,
+        /// was granted to this node: this node claims Health and applies the damage. The old entity-level gate dropped
+        /// it (primary owner ≠ me) and no node applied it. 📄 <c>DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S8.</summary>
+        [Fact]
+        public void TheNodeThatClaimsHealth_AppliesTheDamage_EvenWhenAnotherNodeIsThePrimaryOwner()
+        {
+            var entity = SpawnTarget(currentHealth: 100f, authoritative: false);   // primary owner: node 2
+            _world.SetAuthority<Health>(entity, true);                              // the Brain group was granted here
+
+            PublishEvent(entity, 30f);
+            _sys.Execute(_world, 0.016f);
+
+            Assert.Equal(70f, _world.GetComponent<Health>(entity).Current);
+        }
+
+        /// <summary>⭐ <c>CE-523</c> — the converse: this node is the primary owner (it created the entity) but granted
+        /// the Brain group away, so it no longer claims Health and must not apply the damage (the grantee does).</summary>
+        [Fact]
+        public void ThePrimaryOwnerThatGrantedHealthAway_DoesNotApplyTheDamage()
+        {
+            var entity = SpawnTarget(currentHealth: 100f, authoritative: true);
+            _world.SetAuthority<Health>(entity, false);                             // the Brain group moved away
+
+            PublishEvent(entity, 30f);
+            _sys.Execute(_world, 0.016f);
+
+            Assert.Equal(100f, _world.GetComponent<Health>(entity).Current);
+        }
+
+        /// <summary>A world with no network (no <see cref="NetworkAuthority"/>) owns everything: damage applies.</summary>
+        [Fact]
+        public void WithNoNetwork_TheDamageApplies()
+        {
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new Health { Current = 100f, Max = 100f });
+
+            PublishEvent(entity, 25f);
+            _sys.Execute(_world, 0.016f);
+
+            Assert.Equal(75f, _world.GetComponent<Health>(entity).Current);
+        }
+
+        // ── CE-267: the KILL must DESTROY, and it must replicate ──────────────────────────────
+
+        /// <summary>⭐ Drains whatever destroy commands the system published this frame.</summary>
+        private System.Collections.Generic.List<DestroyEntityCommand> DrainDestroys()
+        {
+            _world.Bus.SwapBuffers();
+            var got = new System.Collections.Generic.List<DestroyEntityCommand>();
+            foreach (var c in _world.Bus.ReadManaged<DestroyEntityCommand>()) got.Add(c);
+            return got;
+        }
+
+        /// <summary>
+        /// ⛔⛔ <b><c>CE-267</c> REVERTED — a lethal hit must NOT destroy the entity; the dead body stays.</b>
+        ///
+        /// <para>🔒 User ruling <c>2026-09-13</c>: <i>"dead entity should not vanish, it should stay dead in
+        /// the world, every entity (no magic dead body vanishing)."</i> CE-267 had this system publish a
+        /// <c>DestroyEntityCommand</c> at 0 HP so that downstream <c>!world.IsAlive(target)</c> checks came
+        /// true — but <c>IsAlive</c> is ECS EXISTENCE, not combat-death; deleting the body to satisfy it was
+        /// the wrong fix. ⭐ Combat-death is the STATE <c>Health.Current &lt;= 0</c> (+ capabilities
+        /// stripped), which the target now carries while REMAINING alive as an ECS entity. This rail pins
+        /// that: no destroy is published, the entity still exists, health is 0, and CanShoot is cleared.</para>
+        /// </summary>
+        [Fact]
+        public void ALethalHit_DoesNotDestroyTheEntity_TheBodyStays()
+        {
+            var target = SpawnTarget(currentHealth: 10f, addCapabilities: true);
+            PublishEvent(target, totalDamage: 25f);
+
+            _sys.Execute(_world, 0.016f);
+
+            Assert.Empty(DrainDestroys());                              // ⛔ no vanishing
+            Assert.True(_world.IsAlive(target));                        // the body still exists
+            Assert.Equal(0f, _world.GetComponentRO<Health>(target).Current);   // but combat-dead
+            var caps = _world.GetComponentRO<ActorCapabilityState>(target).Capabilities;
+            Assert.False(caps.HasFlag(ActorCapabilities.CanShoot));     // dead can't shoot
+        }
+
+        /// <summary>
+        /// ⛔⛔ <b>…and a NON-lethal hit must publish NOTHING.</b> ⚠ Without this the rail above passes on a
+        /// system that destroys on every hit — which would be a far worse defect than the one being fixed.
+        /// </summary>
+        [Fact]
+        public void ANonLethalHit_PublishesNoDestroyCommand()
+        {
+            var target = SpawnTarget(currentHealth: 100f, addCapabilities: true);
+            PublishEvent(target, totalDamage: 25f);
+
+            _sys.Execute(_world, 0.016f);
+
+            Assert.Empty(DrainDestroys());
+            Assert.Equal(75f, _world.GetComponentRO<Health>(target).Current);
+        }
+
+        /// <summary>
+        /// ⛔ <b>Repeated hits on a corpse still never destroy it, and health stays clamped at 0.</b>
+        /// Further <c>DamageAssessedEvent</c>s against a dead-but-present target keep arriving (shooters do
+        /// not know it is dead until their own fire action reads <c>Health &lt;= 0</c>); none of them may
+        /// remove the body.
+        /// </summary>
+        [Fact]
+        public void RepeatedHitsOnACorpse_NeverDestroyIt()
+        {
+            var target = SpawnTarget(currentHealth: 10f, addCapabilities: true);
+
+            for (int i = 0; i < 4; i++)
+            {
+                PublishEvent(target, totalDamage: 25f);
+                _sys.Execute(_world, 0.016f);
+                Assert.Empty(DrainDestroys());
+                Assert.True(_world.IsAlive(target));
+                Assert.Equal(0f, _world.GetComponentRO<Health>(target).Current);
+            }
+        }
+
+        /// <summary>
+        /// ⛔ <b>A NON-AUTHORITATIVE node must not destroy anything</b> — it does not own the entity, and two
+        /// nodes publishing the same teardown is the duplicate-destroy shape. ⚠ The existing authority gate
+        /// already covered the health write; this pins that it covers the destroy too.
+        /// </summary>
+        [Fact]
+        public void ANonAuthoritativeNode_PublishesNoDestroyCommand()
+        {
+            var target = SpawnTarget(currentHealth: 10f, authoritative: false, addCapabilities: true);
+            PublishEvent(target, totalDamage: 25f);
+
+            _sys.Execute(_world, 0.016f);
+
+            Assert.Empty(DrainDestroys());
+            Assert.Equal(10f, _world.GetComponentRO<Health>(target).Current);
+        }
+
+        // ── CE-3092: the non-lethal strip is the platform's opt-in, not a rule for every unit ──
+
+        private Entity SpawnCapable(float max, MobilityKill? kill)
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new Health { Current = max, Max = max });
+            _world.AddComponent(e, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            _world.SetAuthority<Health>(e, true);
+            _world.AddComponent(e, new ActorCapabilityState
+            {
+                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot,
+            });
+            if (kill.HasValue) _world.AddComponent(e, kill.Value);
+            return e;
+        }
+
+        private ActorCapabilities HitAndRead(Entity e, float damage)
+        {
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = damage });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            return _world.GetComponent<ActorCapabilityState>(e).Capabilities;
+        }
+
+        /// <summary>
+        /// CE-3092: a wounded soldier keeps moving. 📌 Measured: the unconditional strip froze a rifleman
+        /// at the first graze, so every posture leg (take cover, flank, flee) stalled at the spot he was hit.
+        /// </summary>
+        [Fact]
+        public void ANonLethalHit_OnAUnitWithoutAMobilityKill_KeepsCanMove_CE3092()
+        {
+            var e = SpawnCapable(100f, kill: null);
+            var caps = HitAndRead(e, 75f);
+            Assert.True(caps.HasFlag(ActorCapabilities.CanMove), "a wounded unit with no mobility-kill opt-in keeps moving");
+            Assert.True(caps.HasFlag(ActorCapabilities.CanShoot));
+        }
+
+        /// <summary>CE-3092: death still stops every unit, opted in or not.</summary>
+        [Fact]
+        public void ALethalHit_OnAUnitWithoutAMobilityKill_StillStripsBoth_CE3092()
+        {
+            var e = SpawnCapable(100f, kill: null);
+            var caps = HitAndRead(e, 100f);
+            Assert.False(caps.HasFlag(ActorCapabilities.CanMove));
+            Assert.False(caps.HasFlag(ActorCapabilities.CanShoot));
+        }
+
+        /// <summary>CE-3092: a threshold opt-in strips CanMove only once health drops BELOW the fraction.</summary>
+        [Fact]
+        public void AThresholdMobilityKill_StripsOnlyBelowTheFraction_CE3092()
+        {
+            var e = SpawnCapable(100f, new MobilityKill { BelowFraction = 0.5f });
+
+            var afterGraze = HitAndRead(e, 30f);   // 70 % left
+            Assert.True(afterGraze.HasFlag(ActorCapabilities.CanMove), "above the threshold the unit keeps moving");
+
+            var afterHeavy = HitAndRead(e, 30f);   // 40 % left
+            Assert.False(afterHeavy.HasFlag(ActorCapabilities.CanMove), "below the threshold the mobility kill applies");
+            Assert.True(afterHeavy.HasFlag(ActorCapabilities.CanShoot), "a mobility kill never strips CanShoot");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3219</c> (civilians B-1, CV-6 ⓑ; DESIGN_Civilians_And_Crowd_Control §7.3) — a blunt hit knocks the man down for its duration
+        /// with his health barely moved; the effect is STORED (never derived from Health, rule I1); a second, shorter hit never shortens it;
+        /// a kinetic hit stores nothing; a non-owner stores nothing either.
+        /// </summary>
+        [Fact]
+        public void CE3219_ABluntHit_StoresKnockedDown_HealthBarelyMoves_AndAShorterHitNeverShortensIt()
+        {
+            _world.RegisterComponent<EffectState>();
+            _world.SetSingleton(new GlobalTime { TotalTime = 100d });
+            var man = SpawnTarget(currentHealth: 100f);
+
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = man, TotalDamage = 2f, Effect = HitEffect.Blunt, EffectSeconds = 6f });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0f);
+
+            Assert.Equal(98f, _world.GetComponentRO<Health>(man).Current);
+            Assert.Equal(106d, _world.GetComponentRO<EffectState>(man).KnockedDownUntil);
+            Assert.True(Effects.IsKnockedDown(_world, man));
+            Assert.False(Effects.IsStunned(_world, man));
+
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = man, TotalDamage = 0f, Effect = HitEffect.Push, EffectSeconds = 1f });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0f);
+            Assert.Equal(106d, _world.GetComponentRO<EffectState>(man).KnockedDownUntil);
+
+            _world.SetSingleton(new GlobalTime { TotalTime = 107d });
+            Assert.False(Effects.IsKnockedDown(_world, man));
+
+            var other = SpawnTarget(currentHealth: 100f);
+            PublishEvent(other, 10f);
+            _sys.Execute(_world, 0f);
+            Assert.False(_world.HasComponent<EffectState>(other));
+
+            var replica = SpawnTarget(currentHealth: 100f, authoritative: false);
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = replica, TotalDamage = 0f, Effect = HitEffect.Stun, EffectSeconds = 5f });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0f);
+            Assert.False(_world.HasComponent<EffectState>(replica));
+        }
+
+        /// <summary>⭐ ui finding F-3 (civilians design §7.6) — cowering is a MODE the behaviour sets and clears: a hit's timed effect neither
+        /// clears it nor is cleared by it, and it holds with no clock running out.</summary>
+        [Fact]
+        public void CE3219_F3_Cowering_IsAModeTheBehaviourSets_AndAHitLeavesIt()
+        {
+            _world.RegisterComponent<EffectState>();
+            _world.SetSingleton(new GlobalTime { TotalTime = 100d });
+            var man = SpawnTarget(currentHealth: 100f);
+            Assert.True(Effects.SetCowering(_world, man, false));
+            Assert.False(_world.HasComponent<EffectState>(man));   // clearing what was never set adds nothing
+
+            Assert.True(Effects.SetCowering(_world, man, true));
+            Assert.True(Effects.IsCowering(_world, man));
+
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = man, TotalDamage = 0f, Effect = HitEffect.Stun, EffectSeconds = 5f });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0f);
+            Assert.True(Effects.IsCowering(_world, man));
+            Assert.True(Effects.IsStunned(_world, man));
+
+            _world.SetSingleton(new GlobalTime { TotalTime = 1000d });
+            Assert.True(Effects.IsCowering(_world, man));
+
+            Assert.True(Effects.SetCowering(_world, man, false));
+            Assert.False(Effects.IsCowering(_world, man));
+            Assert.Equal(105d, _world.GetComponentRO<EffectState>(man).StunnedUntil);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2367</c> (AQ102 S6) — a body DEAD by its Health that no hit killed (a scenario's dead, a debug-API edit) loses
+        /// <c>CanMove</c>/<c>CanShoot</c> on the next frame with no damage event; a living man keeps them, and a node that does not own the
+        /// Health leaves them alone. 📐 Live: three authored-dead squad mates fired ~200 rounds. ✅ Red-proof: the sweep removed ⇒ the dead
+        /// man keeps both ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2367_ADeadBodyNoHitKilled_LosesMoveAndShoot_WithoutADamageEvent()
+        {
+            var dead = SpawnTarget(currentHealth: 0f, addCapabilities: true);
+            var alive = SpawnTarget(currentHealth: 40f, addCapabilities: true);
+            var notMine = SpawnTarget(currentHealth: 0f, authoritative: false, addCapabilities: true);
+            _world.Bus.SwapBuffers();
+
+            _sys.Execute(_world, 0.016f);
+
+            const ActorCapabilities both = ActorCapabilities.CanMove | ActorCapabilities.CanShoot;
+            Assert.Equal((ActorCapabilities)0, _world.GetComponentRO<ActorCapabilityState>(dead).Capabilities & both);
+            Assert.Equal(both, _world.GetComponentRO<ActorCapabilityState>(alive).Capabilities & both);
+            Assert.Equal(both, _world.GetComponentRO<ActorCapabilityState>(notMine).Capabilities & both);
+        }
+
+        // ── CE-3364 — ONE kill authority: ManDownedEvent ──────────────────────────────────────────
+
+        private ManDownedEvent[] Downed() { _world.Bus.SwapBuffers(); return _world.ReadEvents<ManDownedEvent>().ToArray(); }
+
+        private void Hit(Entity victim, float damage, Entity source = default, Entity original = default)
+        {
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = victim, TotalDamage = damage, Source = source, OriginalSource = original, HasBodyPart = 1, BodyPart = 7 });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+        }
+
+        /// <summary>⭐ <c>CE-3364</c> — the hit that takes a man out of the fight publishes ONE <see cref="ManDownedEvent"/> naming him, the state it made of him and the hit's Source / OriginalSource / part; a hit on a
+        /// body already down publishes none (⇒ a corpse is never a second man's kill); a hit that wounds but leaves him in the fight publishes none. ✅ Red-proof: the <c>before</c> guard removed from
+        /// <c>ManDowned.PublishIfDowned</c> ⇒ the corpse hit publishes ⇒ red.</summary>
+        [Fact]
+        public void CE3364_AKillingHit_PublishesOneManDowned_ACorpseHitAndAWoundNone()
+        {
+            var shooter = _world.CreateEntity(); var first = _world.CreateEntity();
+            var man = SpawnTarget(currentHealth: 40f);
+            Hit(man, 10f, shooter);                                          // 30 left: wounds, still fighting
+            Assert.Empty(Downed());
+            Hit(man, 50f, shooter, first);                                   // the killing hit
+            var killed = Downed();
+            Assert.Single(killed);
+            Assert.Equal((man, shooter, first, InjuryState.Dead, (byte)1, (byte)7), (killed[0].Victim, killed[0].Source, killed[0].OriginalSource, killed[0].State, killed[0].HasBodyPart, killed[0].BodyPart));
+            Hit(man, 10f, _world.CreateEntity());                            // a second man shoots the corpse
+            Assert.Empty(Downed());
+        }
+
+        /// <summary>⭐ <c>CE-3364</c> — an INCAPACITATED man (down, bleeding) is the downing (state Incapacitated); his bleed-out to Dead publishes nothing (he was already out), and a hit on him now none either.
+        /// ✅ Red-proof: the same <c>before</c> guard ⇒ the finishing hit would publish ⇒ red.</summary>
+        [Fact]
+        public void CE3364_IncapacitatedIsTheDowning_TheBleedOutToDeadIsNot()
+        {
+            var shooter = _world.CreateEntity();
+            var man = SpawnTarget(currentHealth: 100f);
+            _world.AddComponent(man, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.25f, BleedPerSecond = 0.1f });
+            Hit(man, 30f, shooter);                                          // 70 %: Ok
+            Assert.Empty(Downed());
+            Hit(man, 50f, shooter);                                          // 20 %: incapacitated
+            var down = Downed();
+            Assert.Single(down);
+            Assert.Equal((InjuryState.Incapacitated, shooter), (down[0].State, down[0].Source));
+            var bleed = new BleedOutSystem();
+            for (int i = 0; i < 4; i++) { bleed.Execute(_world, 1f); _world.Bus.SwapBuffers(); }   // 10 % of Max a second: dead after two
+            Assert.Equal(0f, _world.GetComponentRO<Health>(man).Current);
+            Assert.Empty(_world.ReadEvents<ManDownedEvent>().ToArray());
+            Hit(man, 5f, shooter);                                           // shooting the dead man
+            Assert.Empty(Downed());
         }
     }
 }

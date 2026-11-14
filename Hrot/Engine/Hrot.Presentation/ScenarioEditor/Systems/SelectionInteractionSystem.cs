@@ -6,8 +6,13 @@ using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
+using Fdp.Toolkit.Input;
 using Hrot.ScenarioEditor.Gizmos;
+using Hrot.ScenarioEditor.Map;
+// ⚠ Aliased, not imported: Fdp.Toolkit.Vis2D.Abstractions also declares MapKeyboardKey, which
+//   would make the Delete-key check ambiguous with the gizmo interaction one already in use.
+using SelectionChangeRequest = Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest;
 
 namespace Hrot.ScenarioEditor.Systems;
 
@@ -27,9 +32,43 @@ namespace Hrot.ScenarioEditor.Systems;
 /// </summary>
 public sealed class SelectionInteractionSystem
 {
-    private readonly EntityRepository _world;
+    private readonly Func<EntityRepository> _worldOf;
+
+    // ⭐ CE-3328 — resolved per use: a host that switches the world it shows (the Replay Browser) hands a provider.
+    private EntityRepository _world => _worldOf();
     private readonly FdpEventBus _interactionBus;
     private readonly RubberBandState? _rubberBandState;
+    /// <summary>⭐ B-10 K7 (§6b) — the MAP scope's gesture rows: WHICH selection effect a click has is declared in the keymap, not branched on here.</summary>
+    private readonly MapGestureRouter _gestures;
+
+    /// ⭐⭐ UXI-11 S-1 -- the component writes live in ONE place now.
+    /// ⛔ This system used to carry its own SetSelected/ClearAllSelections; EcsSelectionState carries
+    ///   the same two and is the view every host reads through, so keeping both would be two
+    ///   implementations of "what selected looks like on the component" (ruling 9).
+    /// ⭐ Constructing our own is correct, not a silent default: the view is a read-through HANDLE
+    ///   with no store behind it, so an instance made here and one made by the host cannot disagree.
+    private readonly Hrot.ScenarioEditor.Selection.EcsSelectionState _selection;
+
+    /// <summary>
+    /// ⭐⭐ Isolates the BUTTON from <see cref="MapMouseButton"/>'s modifier masks. ⚠ The enum is
+    /// <c>[Flags]</c> and packs <c>ShiftMask</c>/<c>CtrlMask</c>/<c>AltMask</c> into bits 28-30, so
+    /// <c>Button == MapMouseButton.Right</c> would be FALSE for a shift-right-click — ⛔ a bug that
+    /// would appear only once someone held a modifier, which is the worst kind to ship.
+    /// </summary>
+    private const MapMouseButton ButtonMask = (MapMouseButton)0xFF;
+
+    // ⭐ B-17 P5 — Shift-drag band: the band ADDS to the selection (a plain band replaces it).
+    private bool    _boxAdds;
+
+    // ⭐ B-17 P5 — a plain press on a member of a MULTI-selection must not narrow it before we know whether it is a click or the start of a
+    //   drag (a drag on any selected unit moves them ALL — GroupTransform): the narrowing waits for the release and only happens when
+    //   nothing was dragged. ⚠ Still "a left-click on a member of a five-selection narrows it to that one" — at the release.
+    private Entity _pendingNarrow = Entity.Null;
+    private Vector3 _pendingNarrowPos;
+    private bool   _pendingDragged;
+
+    // ⭐ B-17 P5 — Alt-click cycling: the unit the last Alt-click chose (a request is served a frame later, so the selection cannot say).
+    private Entity _cycleLast = Entity.Null;
 
     // Rubber-band selection tracking.
     private bool    _isBoxSelecting;
@@ -45,14 +84,43 @@ public sealed class SelectionInteractionSystem
     /// </summary>
     public Action<Entity, System.Numerics.Vector3>? OnSelectionChanged;
 
+    /// <summary>
+    /// ⭐ B-17 P6 — whether a tool holds the keyboard (an exclusive gizmo that wants raw input — the shape and route editors): while it does, Delete is THE TOOL'S
+    /// (it deletes the selected point) and this system does not also destroy the selected entities. Null = no such arbiter (a bare host or a rail): Delete deletes, as before.
+    /// <c>MapInteractionPack</c> sets it from the one focus slot.
+    /// </summary>
+    public Func<bool>? ToolOwnsKeys { get; set; }
+
     public SelectionInteractionSystem(
         EntityRepository world,
         FdpEventBus interactionBus,
-        RubberBandState? rubberBandState = null)
+        RubberBandState? rubberBandState = null,
+        Hrot.ScenarioEditor.Selection.EcsSelectionState? selection = null,
+        MapGestureRouter? gestures = null)
+        : this(Fixed(world), interactionBus, rubberBandState, selection, gestures) { }
+
+    private static Func<EntityRepository> Fixed(EntityRepository world)
     {
-        _world           = world          ?? throw new ArgumentNullException(nameof(world));
+        ArgumentNullException.ThrowIfNull(world);
+        return () => world;
+    }
+
+    /// <summary>⭐ <c>CE-3328</c> — over the world a provider returns each frame (the shown world, which a host may switch).</summary>
+    public SelectionInteractionSystem(
+        Func<EntityRepository> world,
+        FdpEventBus interactionBus,
+        RubberBandState? rubberBandState = null,
+        // ⭐⭐⭐ UXI-11 — the PACK's view. ⚠ Optional only for direct test construction; ⛔ in
+        //   production MapInteractionPack always passes the one it built, so this system and the
+        //   host write through the same object rather than two handles over one world.
+        Hrot.ScenarioEditor.Selection.EcsSelectionState? selection = null,
+        MapGestureRouter? gestures = null)
+    {
+        _gestures        = gestures ?? MapGestureRouter.Shared;   // ⭐ the process's map keymap — one declaration, not per-host state
+        _worldOf         = world          ?? throw new ArgumentNullException(nameof(world));
         _interactionBus  = interactionBus ?? throw new ArgumentNullException(nameof(interactionBus));
         _rubberBandState = rubberBandState;
+        _selection       = selection ?? new Hrot.ScenarioEditor.Selection.EcsSelectionState(_worldOf);
     }
 
     public void Tick(float dt)
@@ -60,12 +128,42 @@ public sealed class SelectionInteractionSystem
         // Selection from gizmo entity clicks / rubber-band start.
         foreach (ref readonly var evt in _interactionBus.Read<GizmoInteractionStartedEvent>())
         {
-            var entity = evt.Token.Target;
+            // ⭐⭐⭐ §6.7 (DESIGN_Gizmo_Anchor_Identity.md) — the token carries the anchor's NETWORK id;
+            //   this system holds the world, so this is where it becomes a handle.
+            //   ⛔ It used to read `evt.Token.Target` — an ECS handle the terminal had forwarded as a
+            //     token payload so that no lookup was needed here. See GizmoPickToken.cs for why that
+            //     payload is gone.
+            //   ⚠ Entity.Null still means "empty space" and still starts a rubber band: an AnchorId of
+            //     0 or -1 (the canvas sentinel) resolves to nothing, which is the same signal.
+            var entity = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveAnchorId(
+                _world, evt.Token.AnchorId);
+
+            // ⭐⭐⭐ UXI-11 S-4b — §2.3's rows are BUTTON-SPECIFIC, so this is where the two gestures
+            //   part company. ⛔ Until the terminal tagged the button, a right-release and a left-press
+            //   arrived as the same event and every press took the left branch below.
+            bool isRight = (evt.Button & ButtonMask) == MapMouseButton.Right;
+            var button = isRight ? GestureButton.Right : GestureButton.Left;
 
             if (entity.IsNull)
             {
-                // Empty-space press: begin rubber-band selection.
+                if (isRight)
+                {
+                    // ⭐ A4 / R-4163 — right-click on empty space leaves the selection ALONE (its menu is the empty-space menu only:
+                    //   measure, add entity here …). 🔒 "if there are entities selected and I right click the empty space, the menu should be for
+                    //   the empty space only, not for the selection". ⛔ SUPERSEDED: §2.3 row 3 "right-click on empty space CLEARS".
+                    //   ⛔ It must not start a rubber band either: a band is a left-drag gesture. ⭐ K7: the map scope's row says so
+                    //   (map.menu.empty) — there is nothing to do here, the terminal opens the menu.
+                    continue;
+                }
+
+                // Empty-space press: begin rubber-band selection — ⭐ K7: when the map scope binds a left DRAG on ground to the band.
+                var drag = new MapGesture(button, GestureKind.Drag, ModifiersOf(evt.Button), GestureTarget.Ground);
+                if (!_gestures.ResolveMap(in drag, out var bandRow)) continue;
+                bool bandAdds = MapGestureIds.Is(bandRow, MapGestureIds.BandAdd);
+                if (!bandAdds && !MapGestureIds.Is(bandRow, MapGestureIds.Band)) continue;
                 _isBoxSelecting = true;
+                _boxAdds = bandAdds;
+                _pendingNarrow = Entity.Null;
                 _boxStart   = new Vector2(evt.WorldPos.X, evt.WorldPos.Y);
                 _boxCurrent = _boxStart;
                 if (_rubberBandState != null)
@@ -73,14 +171,68 @@ public sealed class SelectionInteractionSystem
                     _rubberBandState.IsActive = false;
                     _rubberBandState.Start    = _boxStart;
                     _rubberBandState.Current  = _boxStart;
+                    // ⭐ CE-1136 — in 3-D the band is the screen rectangle between the press and the cursor
+                    var screen = _rubberBandState.Projector?.Invoke(evt.WorldPos);
+                    _rubberBandState.InScreen = screen.HasValue;
+                    _rubberBandState.ScreenStart = _rubberBandState.ScreenCurrent = screen ?? default;
                 }
             }
             else if (_world.IsAlive(entity))
             {
-                // TODO(P2): read Raylib shift/ctrl state for multi-select.
-                // Phase 5 implements single-select only.
-                ClearAllSelections();
-                SetSelected(entity, isPrimary: true);
+                // ⭐⭐⭐ UXI-11 S-4b — §2.3's rows are BUTTON-SPECIFIC, so this is where the two gestures
+                //   part company. ⭐ B-10 K7 — and TARGET-specific: the map scope declares them (MapGestureBindings):
+                //   map.menu.selection = a right-click INSIDE the selection leaves it alone — 🔒 ruled 2026-08-12, load-bearing: the 2026-09-10
+                //   fan-out ruling ("a menu opened on a selection affects all selected") is impossible if the gesture that opens the menu
+                //   destroys the multi-selection. ⛔ NOT applied to a left-press (map.select): a left-click on a member of a five-selection
+                //   must still narrow it to that one. ⚠ A right-click OUTSIDE the selection (map.menu.entity) still replaces it.
+                var target = _selection.IsSelected(entity) ? GestureTarget.Selected : GestureTarget.Entity;
+                var gesture = new MapGesture(button, GestureKind.Click, ModifiersOf(evt.Button), target);
+                if (!_gestures.ResolveMap(in gesture, out var row)) continue;   // unbound ⇒ not ours
+                if (MapGestureIds.Is(row, MapGestureIds.MenuSelection))
+                {
+                    OnSelectionChanged?.Invoke(entity, evt.WorldPos);
+                    continue;
+                }
+                bool isAdd = MapGestureIds.Is(row, MapGestureIds.SelectAdd), isToggle = MapGestureIds.Is(row, MapGestureIds.SelectToggle), isCycle = MapGestureIds.Is(row, MapGestureIds.SelectCycle);
+                if (!isAdd && !isToggle && !isCycle && !MapGestureIds.Is(row, MapGestureIds.Select) && !MapGestureIds.Is(row, MapGestureIds.MenuEntity)) continue;   // the menu / band rows are not selection effects
+                _pendingNarrow = Entity.Null;
+
+                // ⭐ B-17 P5 — the modifier rows (declared in MapGestureBindings, never keys checked here): Shift adds · Ctrl toggles · Alt cycles the overlapped units.
+                if (isAdd)    { Request(SelectionChangeRequest.AddTo(entity, "Map.ShiftClick")); OnSelectionChanged?.Invoke(entity, evt.WorldPos); continue; }
+                if (isToggle)
+                {
+                    Request(_selection.IsSelected(entity) ? SelectionChangeRequest.RemoveFrom(entity, "Map.CtrlClick") : SelectionChangeRequest.AddTo(entity, "Map.CtrlClick"));
+                    OnSelectionChanged?.Invoke(entity, evt.WorldPos);
+                    continue;
+                }
+                if (isCycle)
+                {
+                    var next = NextOverlapped(entity, evt.WorldPos);
+                    _cycleLast = next;
+                    Request(SelectionChangeRequest.ReplaceWith(next, "Map.AltClick"));
+                    OnSelectionChanged?.Invoke(next, evt.WorldPos);
+                    continue;
+                }
+                _cycleLast = Entity.Null;
+
+                // ⭐ B-17 P5 — a plain LEFT press on a member of a multi-selection waits for the release (see _pendingNarrow).
+                if (!isRight && target == GestureTarget.Selected && _selection.SelectedEntities.Count > 1)
+                {
+                    _pendingNarrow = entity; _pendingNarrowPos = evt.WorldPos; _pendingDragged = false;
+                    continue;
+                }
+
+                // ⭐⭐⭐ UXI-11 S-4 — A MAP CLICK IS A REQUEST NOW, like every other surface.
+                // 🔴 This closes a defect S-3 introduced: the hand-syncs that pointed each host's
+                //    IInspectorContext at a map click were deleted in favour of the NOTIFICATION —
+                //    but this system wrote the component DIRECTLY and announced nothing, so the
+                //    details pane stopped following map clicks on every host. Requesting fixes it
+                //    for all of them at once, because the request system is what announces.
+                // ⚠ The callback still fires IMMEDIATELY: it means "the operator clicked this
+                //   entity", which is true now — ⛔ not "the selection is X", which is true next frame.
+                // ⭐ B-17 P5 — the modifier masks are read ABOVE (Shift => Add, Ctrl => toggle, Alt => cycle), through the map scope's rows.
+                Request(SelectionChangeRequest.ReplaceWith(entity,
+                    isRight ? "Map.RightClick" : "Map.Click"));
                 OnSelectionChanged?.Invoke(entity, evt.WorldPos);
             }
         }
@@ -88,18 +240,30 @@ public sealed class SelectionInteractionSystem
         // Rubber-band position update.
         foreach (ref readonly var evt in _interactionBus.Read<GizmoDragUpdateEvent>())
         {
+            if (!_pendingNarrow.IsNull) _pendingDragged = true;   // ⭐ B-17 P5 — the press became a drag: the selection stays whole, the drag moves it all
             if (!_isBoxSelecting) continue;
             _boxCurrent = new Vector2(evt.WorldPos.X, evt.WorldPos.Y);
             if (_rubberBandState != null)
             {
                 _rubberBandState.IsActive = true;
                 _rubberBandState.Current  = _boxCurrent;
+                if (_rubberBandState.InScreen && _rubberBandState.Projector?.Invoke(evt.WorldPos) is { } screen)
+                    _rubberBandState.ScreenCurrent = screen;   // ⭐ CE-1136
             }
         }
 
         // Commit: finalise rubber-band selection (or treat tiny drag as deselect).
         foreach (ref readonly var evt in _interactionBus.Read<GizmoInteractionCommitEvent>())
         {
+            if (!_pendingNarrow.IsNull)
+            {
+                var pending = _pendingNarrow; _pendingNarrow = Entity.Null;
+                if (!_pendingDragged && _world.IsAlive(pending))
+                {
+                    Request(SelectionChangeRequest.ReplaceWith(pending, "Map.Click"));
+                    OnSelectionChanged?.Invoke(pending, _pendingNarrowPos);
+                }
+            }
             if (!_isBoxSelecting) continue;
             _isBoxSelecting = false;
             if (_rubberBandState != null) _rubberBandState.IsActive = false;
@@ -109,6 +273,7 @@ public sealed class SelectionInteractionSystem
         // Cancel: abort rubber-band.
         foreach (ref readonly var evt in _interactionBus.Read<GizmoInteractionCancelEvent>())
         {
+            _pendingNarrow = Entity.Null;
             if (!_isBoxSelecting) continue;
             _isBoxSelecting = false;
             if (_rubberBandState != null) _rubberBandState.IsActive = false;
@@ -118,6 +283,8 @@ public sealed class SelectionInteractionSystem
         foreach (ref readonly var key in _interactionBus.Read<GizmoKeyEvent>())
         {
             if (key.Key != MapKeyboardKey.Delete || key.IsPressed) continue;
+            if (ToolOwnsKeys?.Invoke() == true) continue;   // ⭐ B-17 P6 — a tool that takes raw input owns Delete (the shape / route editors delete a POINT with it, never the selected unit or route)
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(_world)) continue;   // ⭐ DAR F7 — a recording is not edited
 
             var toDestroy = new List<Entity>();
             var q = _world.Query().With<SelectionState>().WithLifecycle(EntityLifecycle.All).Build();
@@ -131,50 +298,41 @@ public sealed class SelectionInteractionSystem
 
             foreach (var e in toDestroy)
             {
-                if (!_world.IsAlive(e)) continue;
-                if (_world.HasComponent<NetworkIdentity>(e))
-                {
-                    ref readonly var netId = ref _world.GetComponentRO<NetworkIdentity>(e);
-                    _world.Bus.PublishManaged(new DestroyEntityCommand
-                    {
-                        NetworkId = netId.Value,
-                        Reason    = "user-deleted",
-                    });
-                }
-                else
-                {
-                    _world.DestroyEntity(e);
-                }
+                DeleteEntity(_world, e);
             }
 
             if (toDestroy.Count > 0)
-                ClearAllSelections();
+                Request(SelectionChangeRequest.ClearAll("Map.DeleteKey"));
         }
+    }
+
+    /// <summary>⭐ CE-4410 — THE delete of one entity, shared by the Delete key and the map / inspector entity menu's Delete (one path, never two): a replicated entity goes
+    /// through the edit framework (⭐ CE-4276 F2 — the request id end to end; a non-owner asks the owner and keeps the replica until it is disposed), a local one is destroyed here.</summary>
+    public static void DeleteEntity(EntityRepository world, Entity e)
+    {
+        if (!world.IsAlive(e)) return;
+        if (Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(world, e) > 0)   // an id of 0 is "no durable identity" — nothing to ask an owner about
+            Fdp.Toolkit.Replication.Edits.Edits.Submit(world, Fdp.Toolkit.Replication.Edits.EditOp.Delete(e, "Delete"));
+        else
+            world.DestroyEntity(e);
     }
 
     /// <summary>
     /// Clears all ECS SelectionState components. Call before a world reset.
+    ///
+    /// <para>⭐⭐ <b>Deliberately IMMEDIATE, unlike every gesture above.</b> A world reset cannot wait a
+    /// frame for a request to be served — the world it would apply to is the one being torn down.
+    /// ⛔ It is also the only member of this class with no production caller: it exists for the reset
+    /// path and the rails, which is why it is safe for it to bypass the request.</para>
     /// </summary>
-    public void ClearAllSelections()
-    {
-        var q = _world.Query().With<SelectionState>().WithLifecycle(EntityLifecycle.All).Build();
-        foreach (var e in q)
-        {
-            if (_world.IsAlive(e))
-                _world.SetComponent(e, new SelectionState { IsSelected = false, IsPrimarySelection = false });
-        }
-    }
+    public void ClearAllSelections() => _selection.ClearCore();
 
-    private void SetSelected(Entity entity, bool isPrimary)
-    {
-        if (!_world.HasComponent<SelectionState>(entity))
-            _world.AddComponent(entity, new SelectionState());
-        _world.SetComponent(entity, new SelectionState
-        {
-            IsSelected         = true,
-            IsPrimarySelection = isPrimary,
-        });
-    }
+    /// <summary>
+    /// ⭐⭐⭐ Every gesture goes through here — 🔒 §2.7.3 rule 1, <c>SelectionRequestSystem</c> is the
+    /// only writer. ⚠ One frame later than the direct write it replaces; §2.5 rules that structural.
+    /// </summary>
+    private void Request(SelectionChangeRequest request)
+        => _world.Bus.PublishManaged(request);
 
     /// <summary>
     /// Finalises a rubber-band selection. Selects all entities with
@@ -184,13 +342,14 @@ public sealed class SelectionInteractionSystem
     /// </summary>
     private void ExecuteBoxSelection()
     {
+        if (_rubberBandState is { InScreen: true, Projector: { } projector }) { ExecuteScreenBoxSelection(_rubberBandState, projector); return; }
+
         float dx = Math.Abs(_boxCurrent.X - _boxStart.X);
         float dy = Math.Abs(_boxCurrent.Y - _boxStart.Y);
         if (dx < 2f && dy < 2f)
         {
             // Tiny drag: treat as deselect-all click.
-            ClearAllSelections();
-            OnSelectionChanged?.Invoke(Entity.Null, new Vector3(_boxStart.X, _boxStart.Y, 0f));
+            EmptyClick();
             return;
         }
 
@@ -199,8 +358,11 @@ public sealed class SelectionInteractionSystem
         float minY = Math.Min(_boxStart.Y, _boxCurrent.Y);
         float maxY = Math.Max(_boxStart.Y, _boxCurrent.Y);
 
-        ClearAllSelections();
-        bool anySelected = false;
+        // ⭐⭐⭐ UXI-11 S-4 — ONE request carrying the whole set, rather than a clear plus N writes.
+        // ⭐ This is what SelectionChangeMode was for: a rubber band is a single Replace, so the ring,
+        //   the panels and the announcement all see the finished selection instead of N intermediate
+        //   ones. ⛔ The old loop published nothing at all.
+        var inBox = new List<Entity>();
 
         var q = _world.Query().With<SimTransform>().WithLifecycle(EntityLifecycle.All).Build();
         foreach (var e in q)
@@ -211,11 +373,79 @@ public sealed class SelectionInteractionSystem
             float px = tf.Position.X;
             float py = tf.Position.Y;
             if (px >= minX && px <= maxX && py >= minY && py <= maxY)
-            {
-                SetSelected(e, isPrimary: !anySelected);
-                anySelected = true;
-            }
+                inBox.Add(e);
         }
+
+        RequestBand(inBox);
     }
+
+    /// <summary>⭐ B-17 P5 — the band's result: a Shift-band ADDS to the selection, a plain band replaces it.</summary>
+    private void RequestBand(List<Entity> inBox)
+        => Request(_boxAdds ? SelectionChangeRequest.AddTo(inBox, "Map.RubberBand.Add") : SelectionChangeRequest.ReplaceWith(inBox, "Map.RubberBand"));
+
+    /// <summary>⭐ CE-1136 — the 3-D band: a drag under <see cref="ScreenClickPixels"/> is a click on empty space (clears); otherwise every
+    /// entity with a <see cref="NetworkIdentity"/> whose position projects inside the screen rectangle (and lies in front of the eye).</summary>
+    private void ExecuteScreenBoxSelection(RubberBandState band, Func<Vector3, Vector2?> projector)
+    {
+        var a = band.ScreenStart; var b = band.ScreenCurrent;
+        if (Math.Abs(a.X - b.X) < ScreenClickPixels && Math.Abs(a.Y - b.Y) < ScreenClickPixels)
+        {
+            EmptyClick();
+            return;
+        }
+        var min = Vector2.Min(a, b); var max = Vector2.Max(a, b);
+        var inBox = new List<Entity>();
+        foreach (var e in _world.Query().With<SimTransform>().WithLifecycle(EntityLifecycle.All).Build())
+        {
+            if (!_world.IsAlive(e) || !_world.HasComponent<NetworkIdentity>(e)) continue;
+            if (projector(_world.GetComponentRO<SimTransform>(e).Position) is not { } p) continue;
+            if (p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y) inBox.Add(e);
+        }
+        RequestBand(inBox);
+    }
+
+    /// <summary>⭐ B-10 K7 — a click on empty ground: cleared when the map scope's left click on ground is <c>map.clear</c> (R-4163).</summary>
+    private void EmptyClick()
+    {
+        if (_boxAdds) return;   // ⭐ B-17 P5 — a Shift-drag that did not go anywhere adds nothing and clears nothing
+        var click = new MapGesture(GestureButton.Left, GestureKind.Click, GestureModifiers.None, GestureTarget.Ground);
+        if (!_gestures.ResolveMap(in click, out var row) || !MapGestureIds.Is(row, MapGestureIds.Clear)) return;
+        Request(SelectionChangeRequest.ClearAll("Map.EmptyClick"));
+        OnSelectionChanged?.Invoke(Entity.Null, new Vector3(_boxStart.X, _boxStart.Y, 0f));
+    }
+
+    /// <summary>
+    /// ⭐ B-17 P5 — Alt-click: the units OVERLAPPED under <paramref name="at"/> are those whose own pick area (<c>EntityFootprint.InteractionRadiusMetres</c>, the same query
+    /// select and drag use) contains the point; they are cycled in entity-index order. The first Alt-click gives the unit that was picked, each next one the next unit; the
+    /// reference is the unit the last Alt-click chose, else the primary selection. ⚠ The pick itself names ONE unit (the terminal's hit-test), so the set comes from the world.
+    /// </summary>
+    private Entity NextOverlapped(Entity picked, Vector3 at)
+    {
+        var hits = new List<Entity>();
+        foreach (var e in _world.Query().With<SimTransform>().WithLifecycle(EntityLifecycle.All).Build())
+        {
+            if (!_world.IsAlive(e) || !_world.HasComponent<NetworkIdentity>(e)) continue;
+            var p = _world.GetComponentRO<SimTransform>(e).Position;
+            float r = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.InteractionRadiusMetres(_world, e);
+            if (e == picked || (Math.Abs(p.X - at.X) <= r && Math.Abs(p.Y - at.Y) <= r)) hits.Add(e);
+        }
+        if (hits.Count < 2) return picked;
+        hits.Sort((a, b) => a.Index.CompareTo(b.Index));
+
+        Entity reference = !_cycleLast.IsNull && hits.Contains(_cycleLast) ? _cycleLast
+                         : _selection.PrimarySelected is { } primary && !primary.IsNull && hits.Contains(primary) ? primary
+                         : Entity.Null;
+        if (reference.IsNull) return picked;
+        return hits[(hits.IndexOf(reference) + 1) % hits.Count];
+    }
+
+    /// <summary>The modifiers the terminal packed into the button's high bits (<see cref="MapMouseButton.ShiftMask"/> …).</summary>
+    private static GestureModifiers ModifiersOf(MapMouseButton button)
+        => ((button & MapMouseButton.ShiftMask) != 0 ? GestureModifiers.Shift : 0)
+         | ((button & MapMouseButton.CtrlMask) != 0 ? GestureModifiers.Ctrl : 0)
+         | ((button & MapMouseButton.AltMask) != 0 ? GestureModifiers.Alt : 0);
+
+    /// <summary>⭐ CE-1136 — a 3-D drag smaller than this (px, both ways) is a click.</summary>
+    public const float ScreenClickPixels = 4f;
 }
 

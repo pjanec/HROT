@@ -142,7 +142,7 @@ dotnet test Hrot.ClusterRunner.Tests (filter: new tests)
 dotnet test Hrot.IG.Tests (filter: DeadReckoningSyncSystem)
   Total: 3   Passed: 3   Failed: 0
 
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
   Build succeeded.
 ```
 

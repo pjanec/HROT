@@ -11,7 +11,8 @@ using Fdp.ModuleHost.Abstractions;
 namespace Hrot.Network.NED.SimHost
 {
     /// <summary>
-    /// Authority-node ingress translator: polls the <c>EntityHitDamage</c> DDS topic and
+    /// ⭐ <c>CE-3246</c> — on EVERY node (<c>SharedTranslatorPack</c>, BS-1 §6.4a); only the <c>Health</c> owner applies what it publishes.
+    /// Ingress translator: polls the <c>EntityHitDamage</c> DDS topic and
     /// re-publishes each decoded sample as a local <see cref="DamageAssessedEvent"/> ECS
     /// event for <c>HealthApplicationSystem</c> to apply.
     ///
@@ -21,14 +22,14 @@ namespace Hrot.Network.NED.SimHost
     /// If unknown, the sample is silently skipped.
     /// </para>
     /// </summary>
-    public sealed class EntityHitDamageIngressTranslator : IDescriptorTranslator
+    public sealed class EntityHitDamageIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityHitDamage";
 
         private readonly DdsReader<EntityHitDamage>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        private readonly NodeId _localNodeId;
 
-        public string TopicName       => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityHitDamage>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtEntityHitDamage;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -40,11 +41,13 @@ namespace Hrot.Network.NED.SimHost
         /// </summary>
         public EntityHitDamageIngressTranslator(
             DdsParticipant? participant,
-            NetworkEntityMap entityMap)
+            NetworkEntityMap entityMap,
+            int localNodeId)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _reader    = participant is not null
-                ? new DdsReader<EntityHitDamage>(participant, DdsTopicName)
+                ? new DdsReader<EntityHitDamage>(participant)
                 : null;
         }
 
@@ -53,6 +56,12 @@ namespace Hrot.Network.NED.SimHost
         /// publishes each valid sample as a <see cref="DamageAssessedEvent"/> on the local
         /// event bus via the command buffer.
         /// </summary>
+        /// <summary>⭐ R-4007 (Q91 §4-M) — a one-shot world event: discarded while the node is frozen for a join.</summary>
+        public TranslatorClass Category => TranslatorClass.WorldEvent;
+
+        /// <inheritdoc/>
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
+
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (_reader is null) return;
@@ -76,12 +85,22 @@ namespace Hrot.Network.NED.SimHost
             IEntityCommandBuffer cmd,
             ISimulationView view)
         {
+            // ⭐ CE-3246 (R-3015) — on every node now, so a node drops its OWN sample (DDS hands it back); 0 = an older sender, taken
+            if (msg.SourceNodeId != 0 && msg.SourceNodeId == _localNodeId) return;
             if (!_entityMap.TryGetEntity(msg.HitEntityId, out var hitEntity)) return;
 
             cmd.PublishEvent(new DamageAssessedEvent
             {
                 HitEntity   = hitEntity,
                 TotalDamage = msg.TotalDamage,
+                HasBodyPart = (byte)(msg.BodyPart != 0 ? 1 : 0),   // ⭐ CE-3210 — the wire carries id + 1, 0 = none
+                BodyPart    = msg.BodyPart != 0 ? (byte)(msg.BodyPart - 1) : Fdp.Toolkit.Physics.BodyParts.PersonPart.None,
+                Effect        = (Fdp.Toolkit.Combat.HitEffect)msg.EffectKind,   // ⭐ CE-3219
+                EffectSeconds = msg.EffectSeconds,
+                // ⭐ CE-3237 (B-15, DS-2) — who caused it, as this node's entity; 0 or not known here ⇒ Null (unknown)
+                Source        = msg.SourceEntityId != 0 && _entityMap.TryGetEntity(msg.SourceEntityId, out var source) ? source : Entity.Null,
+                // ⭐ CE-4155 (SR-82) — the first thrower of a rethrown round; 0 / unknown here ⇒ Null (= the same as Source)
+                OriginalSource = msg.OriginalSourceEntityId != 0 && _entityMap.TryGetEntity(msg.OriginalSourceEntityId, out var original) ? original : Entity.Null,
                 IsRemote    = true,
             });
         }
@@ -93,6 +112,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

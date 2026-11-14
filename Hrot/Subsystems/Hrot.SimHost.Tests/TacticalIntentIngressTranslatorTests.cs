@@ -1,5 +1,7 @@
 using System;
 using Fdp.Core;
+using System.Linq;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.NED.Messages;
@@ -28,11 +30,11 @@ namespace Hrot.SimHost.Tests
             var translator = new TacticalIntentIngressTranslator(null, _entityMap);
 
             var entity = _world.CreateEntity();
-            _entityMap.Register(42L, entity);
+            _entityMap.Register(42, entity);
 
             var sample = new TacticalIntentRequest
             {
-                TargetEntityId = 42L,
+                TargetEntityId = 42,
                 IntentId       = "DefendArea",
                 JsonParams     = "{\"radius\":100}",
             };
@@ -56,7 +58,7 @@ namespace Hrot.SimHost.Tests
 
             var sample = new TacticalIntentRequest
             {
-                TargetEntityId = 99L,
+                TargetEntityId = 99,
                 IntentId       = "DefendArea",
                 JsonParams     = "{}",
             };
@@ -70,6 +72,151 @@ namespace Hrot.SimHost.Tests
             _world.Bus.SwapBuffers();
             var events = _world.Bus.ReadManaged<AssignTacticalIntentEvent>();
             Assert.Empty(events);
+        }
+
+        /// <summary>⭐ CE-3167 — the wire's Kind and Flags come back as the event's Kind and ClearsPriorIntent.</summary>
+        [Fact]
+        public void CE3167_KindAndFlags_BecomeTheEventsKindAndClearsPriorIntent()
+        {
+            var translator = new TacticalIntentIngressTranslator(null, _entityMap);
+            var entity = _world.CreateEntity();
+            _entityMap.Register(42, entity);
+
+            var sample = new TacticalIntentRequest
+            {
+                TargetEntityId = 42, IntentId = "Idle", JsonParams = "{}",
+                Kind = (byte)TacticalIntentKind.Clear, Flags = TacticalIntentFlags.ClearsPriorIntent,
+            };
+            translator.ProcessSample(in sample, _world);
+            _world.Bus.SwapBuffers();
+
+            var evt = Assert.Single(_world.Bus.ReadManaged<AssignTacticalIntentEvent>());
+            Assert.Equal(TacticalIntentKind.Clear, evt.Kind);
+            Assert.True(evt.ClearsPriorIntent);
+        }
+
+        /// <summary>⭐ CE-3251 (BR-13) — a forwarded ROE is raised again as the local <see cref="SetRoeEvent"/> with its origin, for
+        /// the owner's RoeSystem gate; it is never read as an order.</summary>
+        [Fact]
+        public void CE3251_AForwardedRoe_IsRaisedAgain_NotAsAnOrder()
+        {
+            var translator = new TacticalIntentIngressTranslator(null, _entityMap);
+            _world.Bus.Register<SetRoeEvent>();
+            var entity = _world.CreateEntity();
+            _entityMap.Register(42, entity);
+            var sent = new SetRoeEvent { Fire = RoeFire.HoldFire, Reactions = RoeReactions.StayOnTask,
+                                         ReturnFireWindowSeconds = 4f, ForceLevel = RoeForceLevel.Warn };
+
+            var sample = new TacticalIntentRequest
+            {
+                TargetEntityId = 42, IntentId = string.Empty, Kind = TacticalIntentWireKind.SetRoe,
+                Origin = (byte)BehaviorOrigin.Superior, JsonParams = RoeDirectiveJson.Encode(in sent),
+            };
+            translator.ProcessSample(in sample, _world);
+            _world.Bus.SwapBuffers();
+
+            Assert.Empty(_world.Bus.ReadManaged<AssignTacticalIntentEvent>());
+            var roe = Assert.Single(_world.Bus.Read<SetRoeEvent>().ToArray());
+            Assert.Equal(entity, roe.Entity);
+            Assert.Equal(BehaviorOrigin.Superior, roe.Origin);
+            Assert.Equal(RoeFire.HoldFire, roe.Fire);
+            Assert.Equal(RoeReactions.StayOnTask, roe.Reactions);
+            Assert.Equal(4f, (float)(roe.ReturnFireWindowSeconds));
+            Assert.Equal(RoeForceLevel.Warn, roe.ForceLevel);
+        }
+
+        /// <summary>⭐ CE-3251 — a directive kind this node does not know (a newer sender) is counted and dropped — ⛔ before BR-13 any
+        /// Kind was cast to an order kind.</summary>
+        [Fact]
+        public void CE3251_AnUnknownDirective_IsCounted_NeverAnOrder()
+        {
+            var translator = new TacticalIntentIngressTranslator(null, _entityMap);
+            var entity = _world.CreateEntity();
+            _entityMap.Register(42, entity);
+
+            var sample = new TacticalIntentRequest { TargetEntityId = 42, IntentId = "Idle", JsonParams = "{}",
+                                                     Kind = 9 };   // a kind this build does not know
+            translator.ProcessSample(in sample, _world);
+            _world.Bus.SwapBuffers();
+
+            Assert.Empty(_world.Bus.ReadManaged<AssignTacticalIntentEvent>());
+            Assert.Equal(1, translator.UnhandledDirectiveCount);
+        }
+
+        /// <summary>⭐ CE-3251 (BR-13) — forwarded reporting requirements (CE-2291 CC-2) are raised again as the local
+        /// <see cref="Fdp.Toolkit.Squad.Command.SetReportingEvent"/> with their origin, for the owner's gate; never an order.</summary>
+        [Fact]
+        public void CE3251_ForwardedReportingRequirements_AreRaisedAgain_NotAsAnOrder()
+        {
+            var translator = new TacticalIntentIngressTranslator(null, _entityMap);
+            _world.Bus.Register<Fdp.Toolkit.Squad.Command.SetReportingEvent>();
+            var entity = _world.CreateEntity();
+            _entityMap.Register(42, entity);
+            var sent = new Fdp.Toolkit.Squad.Command.SetReportingEvent
+            {
+                Pir = Fdp.Toolkit.Squad.Command.PirFlags.AnyElement | Fdp.Toolkit.Squad.Command.PirFlags.InArea,
+                Ffir = Fdp.Toolkit.Squad.Command.FfirFlags.EveryPhase, SitrepEverySeconds = 30f, PirArea = 4711L,
+            };
+
+            var sample = new TacticalIntentRequest
+            {
+                TargetEntityId = 42, IntentId = string.Empty, Kind = TacticalIntentWireKind.SetReporting,
+                Origin = (byte)BehaviorOrigin.Superior, JsonParams = ReportingDirectiveJson.Encode(in sent),
+            };
+            translator.ProcessSample(in sample, _world);
+            _world.Bus.SwapBuffers();
+
+            Assert.Empty(_world.Bus.ReadManaged<AssignTacticalIntentEvent>());
+            var got = Assert.Single(_world.Bus.Read<Fdp.Toolkit.Squad.Command.SetReportingEvent>().ToArray());
+            Assert.Equal((entity, BehaviorOrigin.Superior), (got.Entity, got.Origin));
+            Assert.Equal((sent.Pir, sent.Ffir, 30f, 4711L), (got.Pir, got.Ffir, (float)(got.SitrepEverySeconds), got.PirArea));
+            Assert.Equal(0, translator.UnhandledDirectiveCount);
+        }
+
+        /// <summary>⭐ CE-3261 — a forwarded SECTOR is raised again as the local <see cref="SetEngagementAreaEvent"/> with its origin, for
+        /// the owner's <c>EngagementAreaSystem</c>; never an order. ✅ Red-proof: the kind-4 branch removed ⇒ counted unhandled ⇒ red.</summary>
+        [Fact]
+        public void CE3261_AForwardedSector_IsRaisedAgain_NotAsAnOrder()
+        {
+            var translator = new TacticalIntentIngressTranslator(null, _entityMap);
+            _world.Bus.Register<Fdp.Toolkit.Behavior.Components.SetEngagementAreaEvent>();
+            var entity = _world.CreateEntity();
+            _entityMap.Register(42, entity);
+            var sent = new Fdp.Toolkit.Behavior.Components.SetEngagementAreaEvent { ArcSet = 1, LeftBearing = 270f, RightBearing = 90f, AllowArea = 9 };
+            sent.NoFire.Items[0] = 77; sent.NoFire.Count = 1;
+
+            var sample = new TacticalIntentRequest
+            {
+                TargetEntityId = 42, IntentId = string.Empty, Kind = TacticalIntentWireKind.SetEngagementArea,
+                Origin = (byte)BehaviorOrigin.Superior, JsonParams = EngagementAreaDirectiveJson.Encode(in sent),
+            };
+            translator.ProcessSample(in sample, _world);
+            _world.Bus.SwapBuffers();
+
+            Assert.Empty(_world.Bus.ReadManaged<AssignTacticalIntentEvent>());
+            var got = Assert.Single(_world.Bus.Read<Fdp.Toolkit.Behavior.Components.SetEngagementAreaEvent>().ToArray());
+            Assert.Equal((entity, BehaviorOrigin.Superior, (byte)1, 270f, 90f, 9L), (got.Entity, got.Origin, got.ArcSet, got.LeftBearing, got.RightBearing, got.AllowArea));
+            Assert.Equal((1, 77L), (got.NoFire.Count, got.NoFire.Items[0]));
+            Assert.Equal(0, translator.UnhandledDirectiveCount);
+        }
+
+        /// <summary>CE-4306 (F5) — the wire's RequestId comes back on the event (and an old sender's empty one stays empty). ✅ Red-proof: <c>RequestId</c> dropped from the ingress's event ⇒ red.</summary>
+        [Fact]
+        public void F5_TheWiresRequestId_BecomesTheEventsRequestId()
+        {
+            var translator = new TacticalIntentIngressTranslator(null, _entityMap);
+            var entity = _world.CreateEntity();
+            _entityMap.Register(42, entity);
+            var id = Guid.NewGuid();
+
+            var sample = new TacticalIntentRequest { TargetEntityId = 42, IntentId = "Order.Move", JsonParams = "{}", RequestId = id };
+            translator.ProcessSample(in sample, _world);
+            var older = new TacticalIntentRequest { TargetEntityId = 42, IntentId = "Order.Hold", JsonParams = "{}" };
+            translator.ProcessSample(in older, _world);
+            _world.Bus.SwapBuffers();
+
+            var events = _world.Bus.ReadManaged<AssignTacticalIntentEvent>();
+            Assert.Equal(new[] { id, Guid.Empty }, events.Select(e => e.RequestId).ToArray());
         }
     }
 }

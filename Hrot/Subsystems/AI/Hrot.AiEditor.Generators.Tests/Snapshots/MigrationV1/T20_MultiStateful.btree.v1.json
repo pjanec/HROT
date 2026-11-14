@@ -1,0 +1,120 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 1
+  },
+  "AssetId": "bb000020-0000-0000-0000-000000000000",
+  "Name": "T20_MultiStateful",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "bb200000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "bb200000-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 0,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "bb200000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [
+        "bb200000-0000-0000-0000-000000000003",
+        "bb200000-0000-0000-0000-000000000004",
+        "bb200000-0000-0000-0000-000000000005"
+      ],
+      "DisplayLabel": "Sequence",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 130,
+        "Comment": "Sequence[ AdvanceCursor_A(Limit=3), AdvanceCursor_B(Limit=5), IncrementCounter ]",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor",
+        "ExpressionTargetField": "Params.cursorA",
+        "DelegateShape": "ThreeParamReusableStateful",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorState"
+      },
+      "VisualId": "bb200000-0000-0000-0000-000000000003",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Action_AdvanceCursor_A",
+      "EditorMetadata": {
+        "X": 0,
+        "Y": 260,
+        "Comment": "Stateful node A — distinct VisualId → distinct FNV-1a slot key → independent DemoCursorState. Limit=3 (from cursorA.DefaultValueJson). WorkingState lives in partition slot, NOT BrainBlackboard.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor",
+        "ExpressionTargetField": "Params.cursorB",
+        "DelegateShape": "ThreeParamReusableStateful",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorState"
+      },
+      "VisualId": "bb200000-0000-0000-0000-000000000004",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Action_AdvanceCursor_B",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 260,
+        "Comment": "Stateful node B — distinct VisualId → distinct FNV-1a slot key → independent DemoCursorState. Limit=5 (from cursorB.DefaultValueJson). WorkingState lives in partition slot, NOT BrainBlackboard.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter",
+        "ExpressionTargetField": "Params.counter",
+        "DelegateShape": "ThreeParamReusable"
+      },
+      "VisualId": "bb200000-0000-0000-0000-000000000005",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Action_IncrementCounter",
+      "EditorMetadata": {
+        "X": 600,
+        "Y": 260,
+        "Comment": "Stateless action — params projected from BrainBlackboard at baked offset. Proves mixed stateless+stateful coexistence.",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.T20Params",
+  "ParamsDefaultJson": "{\"cursorA\":{\"Limit\":3},\"cursorB\":{\"Limit\":5},\"counter\":{\"Counter\":0,\"Threshold\":1000}}",
+  "Pills": [],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "SubtreeSyncBindings": {},
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": []
+  }
+}

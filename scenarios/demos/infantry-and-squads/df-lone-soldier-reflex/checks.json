@@ -1,0 +1,70 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — AQ97 A/C: a lone soldier reacts by default, InertSop is the explicit none. Judge (1) Reflex's task becomes FightFromCover, (2) Inert never gets a task and never moves (a 1 m box round his spot). Left out: 'Reflex moves off his spot' (the direction behind the block is not in the file, and a distance from the start is not a field).",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the hostile opens fire",
+      "on": "shot",
+      "by": "Hostile"
+    },
+    {
+      "name": "Reflex reacts by himself: FightFromCover",
+      "on": "task",
+      "who": "Reflex",
+      "is": "FightFromCover"
+    },
+    {
+      "name": "Inert never gets a task",
+      "never": {
+        "on": "field",
+        "who": "Inert",
+        "path": "BehaviorState.ActiveBehaviorHash",
+        "op": "!=",
+        "value": 0
+      }
+    },
+    {
+      "name": "Inert never moves east",
+      "never": {
+        "on": "field",
+        "who": "Inert",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 211
+      }
+    },
+    {
+      "name": "Inert never moves west",
+      "never": {
+        "on": "field",
+        "who": "Inert",
+        "path": "SimTransform.Position.0",
+        "op": "<",
+        "value": 209
+      }
+    },
+    {
+      "name": "Inert never moves north",
+      "never": {
+        "on": "field",
+        "who": "Inert",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 186
+      }
+    },
+    {
+      "name": "Inert never moves south",
+      "never": {
+        "on": "field",
+        "who": "Inert",
+        "path": "SimTransform.Position.1",
+        "op": "<",
+        "value": 184
+      }
+    }
+  ]
+}

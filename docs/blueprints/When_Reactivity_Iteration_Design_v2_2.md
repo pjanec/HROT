@@ -1,4 +1,28 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-06
+current-answer: §6.4a (the EQS triggers as built — per answer, first answer compared); the rest of §6 for structure
+stale-below: §6.3 (epoch gate — superseded by CE-2089's per-answer gate) · the `prev.LastEvaluatedEpoch != 0` guard in §6.5/§6.7 code and bullets (superseded by CE-2113)
+known-rot: §6.5/§6.7 show OnFired INLINE; the lowering jumps to a separate block (`goto __block_N`) and never returns
+related-designs:
+  - docs/DESIGN_Sensors_And_Doctrine.md — §7.9 owns the per-answer gate (CE-2089); §7.10 owns When SensorResult (N4), the generic successor
+-->
 # When-Node Reactivity Iteration — Design (v2.2)
+
+> ⚠ **Implementation status (2026-08-06) — the design shipped; the authoring surface only partly did.**
+> `WhenNode`, `ReadEqsResultNode` and `SpawnEqsSensorNode` all exist, lower and run. But of the
+> **four per-mode authoring forms** designed in §3, only **`EventFired`** was ever built (and it was a
+> `TextDisabled` stub until BP-10 in 2026-08). `ValueChanged`, `ConditionMet` and `EqsResult` are
+> still one-line stubs in `WhenNodeDrawer` — **so the node is effectively EventFired-only in the
+> editor**, whatever the graph JSON can express. Tracked as **BP-67**; see
+> [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md).
+> `ReadEqsResultNode`'s own drawer *is* built, and its `EqsSensorHandle` variable picker is the
+> reusable piece for the EqsResult form.
+>
+> ⚠ **`2026-10-01` — `SpawnEqsSensorNode` is FIND-OR-CREATE, not one-shot** (§1.6/§7 below say "each execution creates a
+> new sensor"). Its handle used to be the ECB placeholder, never alive after playback, so `ReadEqsResultNode` could not
+> work; it now goes through `EqsChildSensor.Ensure` (handle pending on the creating tick). Built-ins
+> `Refresh EQS Sensor` / `Destroy EQS Sensor` close the lifecycle. 📄 [`DESIGN_Hill_Attack_Eqs_Migration.md`](DESIGN_Hill_Attack_Eqs_Migration.md) §4 D3, §6.
 
 > **Status:** Detailed design for the next development iteration on top of the existing Blueprint subsystem (Architecture v1.2 + all subsequent detailed designs and inline patches), the AI Editor Shared Infrastructure, and the EQS v1.3 design. Architect-approved scope, fully resolved — ready for implementation.
 > **Version:** v2.2 supersedes v2.1. Changes from v2.1: `SpawnEqsSensorNode` simplified to use the engine's actual fixed `EqsSensor` struct shape (no dynamic-reflection per-template parameter struct; the parameters are a fixed set of universal `EqsSensor` fields exposed as standard typed input pins). Recipe 1's OnSpawn graph replaced with a first-tick pattern in the Tick graph (no dependency on a lifecycle event with filter syntax). All §17 open questions now resolved. The §17 section becomes "Resolutions Summary." Effort estimates tick down by ~1-2 days each on M4 and M5 (no dynamic-binding scaffolding needed).
@@ -88,7 +112,7 @@ This iteration is **predominantly an editor + compiler addition**, with one smal
 | Subsystem | What we reuse | What we add |
 |---|---|---|
 | **Blueprint compiler** | All eight pipeline stages, the existing `IrOperation` taxonomy, structure-hash machinery, generator output topology, `IEntityCommandBuffer ecb` parameter in Tick methods | Three new IR primitives (`WhenIrNode`, `ReadEqsResultIrNode`, `SpawnEqsSensorIrNode`); three new node-discriminator entries; small additions to validator and structure-hash contribution |
-| **Blueprint runtime** | `BlueprintTickSystem`, `BlueprintRegistry`, per-slot soft/hard reconciliation, `Blackboard1024` / `BlueprintBlackboard*` projection | Nothing structural — only generated code uses the existing surface |
+| **Blueprint runtime** | `BlueprintTickSystem`, `BlueprintRegistry`, per-slot soft/hard reconciliation, `BlueprintBlackboard*` occurrence-slot projection | Nothing structural — only generated code uses the existing surface |
 | **Predicate infrastructure** | `SearchPredicateDto` family, `IPredicateCompiler`, `IEventScannerCompiler`, all five specialized StructEdit drawers, JSON polymorphic round-trip, hot-reload recompile pattern from `DataBreakpointManager` | Nothing — consumed as-is |
 | **EQS** | `EqsSensor`, `EqsCognitiveBuffer`, `EqsResultArray` (`[InlineArray(16)]`), `GetSpanRO()` access pattern, sensor `Epoch` field, `LastUpdateTick` field (deterministic), child-entity hosting via `PartMetadata` + `SubEntityCleanupSystem`, `EqsTemplateRegistry`, `EqsTemplate` attribute, the per-template parameter struct convention | One additive field: `EqsCognitiveBuffer.LastUpdateTimeSeconds` (float). One new wrapper struct: `EqsSensorHandle { Entity ChildId; }` |
 | **ECS / `IEntityCommandBuffer`** | Existing deferred-component-attach API (`ecb.AddComponent<T>`, `ecb.CreateEntity`), `PartMetadata`, `SubEntityCleanupSystem`, `view.IsAlive(Entity)` | Nothing — consumed as-is |
@@ -862,7 +886,22 @@ Key points:
 - **`buffer.GetSpanRO()`** — inline-array-safe
 - **`top.EntityId != 0L ? top.EntityId : HashCode.Combine(top.PositionX, top.PositionY)`** — on-the-fly identity hash
 - **`prev.LastEvaluatedEpoch != 0` guard** inside the comparison prevents the initial epoch transition from firing TopChanged
-- **`prev.PrevTopId` updated unconditionally on each new epoch** — correct baseline for next detection
+- **`prev.PrevTopId` updated unconditionally on each new epoch** — correct baseline for next detection  *(⛔ the `!= 0` guard above is SUPERSEDED — §6.4a)*
+
+### 6.4a ⭐ AS BUILT (`2026-10-06`, CE-2113) — the EQS triggers compare the FIRST answer, and record BEFORE firing
+
+| | as built | ⛔ superseded |
+|---|---|---|
+| gate | once per ANSWER (`buffer.LastUpdateTick`, CE-2089, [Sensors §7.9](../DESIGN_Sensors_And_Doctrine.md)) | once per `sensor.Epoch` (§6.3) |
+| first answer, **TopChanged** | ⭐ **fires** (compared against `PrevTopId = 0`, "no top") | skipped by `prev.LastEvaluatedEpoch != 0` |
+| first answer, **ScoreCrossed** | ⭐ **fires when already ≥ threshold** (from "below", as N4's `FieldCrossed`); a first answer below fires nothing | skipped by the same guard |
+| state update | ⭐ `PrevTopId` / `PrevTopScore` / `LastEvaluatedEpoch` written **before** the `goto` to OnFired / OnEnded | written after the fire — but the fire is a jump to a separate block that never returns, so the answer was never recorded and **the same answer re-fired every tick** |
+
+Why: this design's own acceptance (`CoverAwarePatrol_FullScenario`, §15) says a `TopChanged` `When` *"fires on first
+result"*, and a cover already over the threshold at first sight was otherwise never "crossed" until it dipped and rose.
+⚠ No shipped blueprint used either trigger (both `CoverAwarePatrol.bp.json` copies are unwired 5-node stubs, 0 links), so
+both defects were latent. ⛔ Rejected: keep the skip and pair with `FirstReady` (the acceptance says otherwise).
+Rails: `WhenNodeRuntimeTests.CE2113_*` (5).
 
 ### 6.6 Lowered code — FirstReady trigger
 

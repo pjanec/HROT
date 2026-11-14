@@ -152,7 +152,7 @@ feat(commander-subordinates): BATCH-01 foundational components, events, formatio
 CS001: TacticalDesignation dual-enum (Hrot.Core + NED), TacticalDesignationMapper (cast-only)
 CS015: CmdAssignSubordinate (2200), CmdRemoveSubordinate (2201), CmdAssignSubordinateRejected (2202)
 CS002: UnitSubordinate (Entity Commander + TacticalDesignation Designation, 12 B, ID 183)
-CS003: UnitRoster unsafe (fixed long[16] + ushort[16], 168 B, ID 182, NoSave)
+CS003: UnitRoster unsafe (fixed long[16] + ushort[16], 168 B, ID 182, NoScenario)
 CS004: HrotComponentIds 182/183/184; register UnitRoster+UnitSubordinate in SimHostComponentRegistry
 CS005: FormationRoster -> FormationController (ID 33, no member arrays)
 CS006: FormationMember -> FormationFollower (ID 45, Entity LeaderEntity kept pending CS007)

@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication.Attributes;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
@@ -37,16 +38,15 @@ namespace Hrot.SimHost.Tests
             using var participant = new DdsParticipant(domain);
 
             var entityMap      = new NetworkEntityMap();
-            var wgs84          = HrotEnvironment.CreateGeoTransform();
             var behaviorReg    = new BehaviorRegistry();
-            var compiler       = AttributeCompilerFactory.Build(wgs84);
+            var compiler       = AttributeCompilerFactory.Build();
 
             var systems = new System.Collections.Generic.List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>();
 
             // Register the exact same set that SimHostApp._kernelGroup builds.
             systems.Add(new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, behaviorReg, new TacticalIntentMapperRegistry()));
-            systems.Add(new UpdateEntityDescriptorRequestSystem(participant, entityMap, wgs84));
-            systems.Add(new UpdateEntityAttributeRequestSystem(participant, entityMap, wgs84, compiler));
+            systems.Add(new UpdateEntityDescriptorRequestSystem(participant, entityMap));
+            systems.Add(new UpdateEntityAttributeRequestSystem(participant, entityMap, compiler));
             // (The duplicate in SimHostApp was the second UpdateEntityDescriptorRequestSystem —
             //  it is intentionally NOT added here to mirror the fixed code.)
 
@@ -57,56 +57,8 @@ namespace Hrot.SimHost.Tests
             Assert.Single(descriptorSystems);
         }
 
-        // ── BUG2-R001: LoadRoadNetwork static helper ──────────────────────────
-
-        /// <summary>
-        /// When a valid path is supplied and the loader succeeds, the returned blob
-        /// must equal the value produced by the loader.
-        /// </summary>
-        [Fact]
-        public void LoadRoadNetwork_ValidPath_ReturnsLoadedBlob()
-        {
-            var expected = new RoadNetworkBuilder().Build(10f, 3, 3);
-            var returned = SimHostApp.LoadRoadNetwork(
-                "some_road.json",
-                loader: _ => expected);
-
-            Assert.Equal(expected, returned);
-        }
-
-        /// <summary>
-        /// When the loader throws, no exception must escape and the method must return
-        /// a default (empty) <see cref="RoadNetworkBlob"/>.
-        /// </summary>
-        [Fact]
-        public void LoadRoadNetwork_InvalidPath_DoesNotThrow()
-        {
-            var returned = SimHostApp.LoadRoadNetwork(
-                "nonexistent.json",
-                loader: _ => throw new System.IO.FileNotFoundException("not found"));
-
-            // No exception propagated; a default blob is returned.
-            Assert.Equal(default, returned);
-        }
-
-        /// <summary>
-        /// When the path is empty or whitespace, a default blob is returned without
-        /// invoking the loader at all.
-        /// </summary>
-        [Theory]
-        [InlineData(null)]
-        [InlineData("")]
-        [InlineData("   ")]
-        public void LoadRoadNetwork_EmptyPath_ReturnsDefault(string? path)
-        {
-            bool loaderCalled = false;
-            var returned = SimHostApp.LoadRoadNetwork(
-                path,
-                loader: _ => { loaderCalled = true; return new RoadNetworkBuilder().Build(1f, 2, 2); });
-
-            Assert.False(loaderCalled);
-            Assert.Equal(default, returned);
-        }
+        // ⛔ CE-3127 — the LoadRoadNetwork helper (BUG2-R001) is gone with NodeConfiguration.RoadNetworkBlobPath: the road graph
+        //   comes from the terrain (TerrainLoadStepTests covers it).
 
         [Fact]
         public void TestHook_SetMovementIntent_PreservesAndIncrementsExistingIntentId()
@@ -118,19 +70,19 @@ namespace Hrot.SimHost.Tests
             world.AddComponent(entity, new NavigationIntent { IntentId = 5u });
 
             var entityMap = new NetworkEntityMap();
-            entityMap.Register(42L, entity);
+            entityMap.Register(42, entity);
 
             var app = new SimHostApp();
             SetPrivateField(app, "_world", world);
             SetPrivateField(app, "_entityMap", entityMap);
 
             var destination = new Vector2(10f, 20f);
-            app.TestHook_SetMovementIntent(42L, destination, speed: 12f);
+            app.TestHook_SetMovementIntent(42, destination, speed: 12f);
 
             var intent = world.GetComponent<NavigationIntent>(entity);
             Assert.Equal(6u, intent.IntentId);
             Assert.Equal(NavigationMode.DirectPoint, intent.Mode);
-            Assert.Equal(new Vector3(destination.X, destination.Y, 0f), intent.FinalDestination);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(destination.X, destination.Y, 0f), intent.FinalDestination);
             Assert.Equal(12f, intent.TargetSpeed);
             Assert.Equal(20f, intent.ArrivalRadius);
         }

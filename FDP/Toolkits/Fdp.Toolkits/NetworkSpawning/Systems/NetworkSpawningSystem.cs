@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Core.Logging;
@@ -19,13 +19,14 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
     /// the ECS + ELM lifecycle machinery.
     /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class NetworkSpawningSystem : IEcsModuleSystem
     {
         private readonly ITkbDatabase _tkbDb;
         private readonly EntityLifecycleModule _elm;
         private readonly NetworkEntityMap _networkMap;
         private readonly INetworkIdAllocator _idAllocator;
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
         private readonly IReadOnlyList<ITkbEntityTranslator> _translators;
         private readonly Action<EntityRepository, Entity, bool>? _onEntitySpawned;
 
@@ -33,7 +34,36 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
         /// <param name="elm">Entity lifecycle module that manages construction/destruction handshakes.</param>
         /// <param name="networkMap">Entity ↔ network-ID registry.</param>
         /// <param name="idAllocator">Network-ID allocator (stub or DDS-backed).</param>
-        /// <param name="localNodeId">This node's logical ID, used to fill NetworkOwnership.</param>
+        /// <param name="translators">
+        /// 🔴🔴 <b>The node's TKB→ECS projection list. Omitting it means "spawn entities with NO TKB
+        /// template components at all" — not "spawn a default set".</b>
+        ///
+        /// <para>⚠⚠ <b>This parameter is optional and defaults to <c>Array.Empty</c>, which is a
+        /// SILENT no-op:</b> step 4 of <c>ProcessSpawn</c> is <c>foreach (var t in _translators)
+        /// t.Inject(...)</c> — the only writer of descriptor-derived components in this system — so an
+        /// empty list turns it into a zero-iteration loop. The entity still gets its
+        /// <c>NetworkIdentity</c>, <c>NetworkAuthority</c>, <c>TkbIdentity</c> and DIS header, so it
+        /// looks spawned; it simply carries none of its type's kinematics, combat, perception,
+        /// behaviour or presentation. 📌 Measured 2026-08-30 (<c>CE-138</c>): one host reached
+        /// production this way.</para>
+        ///
+        /// <para>⛔⛔ <b>Do NOT use a short list to narrow what a host materialises.</b> That is not the
+        /// narrowing lever. Every <see cref="ITkbEntityTranslator"/> is contractually required to guard
+        /// each write with <c>repo.IsComponentTypeRegistered&lt;T&gt;()</c>, so a translator whose
+        /// components this host never registered is already a no-op. ⇒ ⭐ <b>the per-host difference is
+        /// the REGISTRATION SET; the translator list should be the node's full projection set.</b>
+        /// A component the host does not want is excluded by not registering it, which fails loudly at
+        /// one place, rather than by omitting a translator, which fails silently everywhere.</para>
+        ///
+        /// <para>⭐ Pass the SAME instance to <see cref="EntityLifecycleModule"/> and
+        /// <c>GhostPromotionSystem</c> — <c>docs/designs/tkb-1/DESIGN.md</c> §6.5 calls that the node's
+        /// "single point of truth".</para>
+        /// </param>
+        /// <param name="onEntitySpawned">
+        /// Optional post-spawn hook: <c>(world, entity, isLocalAuthority)</c>, invoked after components
+        /// and authority bits are set and before the entity is registered in the network map.
+        /// </param>
+        /// <param name="localNodeId">This node's logical ID, used to fill NetworkAuthority.</param>
         public NetworkSpawningSystem(
             ITkbDatabase tkbDb,
             EntityLifecycleModule elm,
@@ -41,20 +71,28 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             INetworkIdAllocator idAllocator,
             int localNodeId,
             IReadOnlyList<ITkbEntityTranslator>? translators = null,
-            Action<EntityRepository, Entity, bool>? onEntitySpawned = null)
+            Action<EntityRepository, Entity, bool>? onEntitySpawned = null,
+            Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? expectedPeers = null)
         {
             _tkbDb            = tkbDb       ?? throw new ArgumentNullException(nameof(tkbDb));
             _elm              = elm         ?? throw new ArgumentNullException(nameof(elm));
             _networkMap       = networkMap  ?? throw new ArgumentNullException(nameof(networkMap));
             _idAllocator      = idAllocator ?? throw new ArgumentNullException(nameof(idAllocator));
-            _localNodeId      = localNodeId;
+            _localNodeId      = (Fdp.Core.NodeId)(localNodeId);
             _translators      = translators ?? System.Array.Empty<ITkbEntityTranslator>();
             _onEntitySpawned  = onEntitySpawned;
+            _expectedPeers    = expectedPeers;
         }
+
+        // Resolves the peer set a reliable-init entity must wait for (null ⇒ no cross-node wait).
+        // See DESIGN_Cross_Node_Construction_Barrier.md §3a.4/§3a.7.
+        private readonly Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? _expectedPeers;
+
 
         /// <inheritdoc />
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             var world = view as EntityRepository;
             if (world == null) return;
 
@@ -76,7 +114,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             SpawnEntityCommand cmd, IEntityCommandBuffer cmdBuffer)
         {
             // 1. Resolve network ID (0 = allocate a new one)
-            long networkId = cmd.NetworkId != 0 ? cmd.NetworkId : _idAllocator.AllocateId();
+            int networkId = cmd.NetworkId != 0 ? cmd.NetworkId : _idAllocator.AllocateId();
             FdpLog<NetworkSpawningSystem>.Debug(
                 "[Node-{0}] ProcessSpawn: NetworkId={1} TkbType={2}", _localNodeId, networkId, cmd.TkbType);
 
@@ -92,7 +130,12 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
                 return;
             }
 
-            // 4. Create ECS entity and apply TKB blueprint defaults
+            // 4. Create ECS entity and apply TKB blueprint defaults.
+            // ⚠ This loop IS the "Apply TKB template components" step of the spawn flow in
+            //   docs/projects/relationships/Hrot-Simulation-Pipeline.md §4.3, and it is the ONLY writer
+            //   of descriptor-derived components in this method. With an empty _translators it is a
+            //   zero-iteration loop and the entity is born with identity but no type — see the
+            //   `translators` ctor doc.
             var entity = world.CreateEntity();
             // Set lifecycle header immediately so queries that filter by Constructing
             // can find this entity even before all peer ACKs arrive.
@@ -102,11 +145,8 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
 
             // 5. Core network components (order matches design doc §4.3)
             world.SetComponent(entity, new NetworkIdentity(networkId));
-            world.SetComponent(entity, new NetworkOwnership
-            {
-                PrimaryOwnerId = cmd.OwnerNodeId,
-                LocalNodeId    = _localNodeId
-            });
+            // NetworkAuthority is the single ownership component (CE-281 — NetworkOwnership retired,
+            // it was a byte-identical duplicate written on the line below).
             world.AddComponent(entity, new NetworkAuthority(cmd.OwnerNodeId, _localNodeId));
 
             // Permanent identity component — lives on the entity forever and drives
@@ -123,7 +163,40 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
 
             // 7. Optional reliable-init handshake component
             if (cmd.InitType != ReliableInitType.None)
+            {
                 world.AddComponent(entity, new PendingNetworkAck { ExpectedType = cmd.InitType });
+
+                // Cross-node construction barrier (CE-283, §3a.4): stamp the peer set the creator must
+                // collect Active acks from, in the SAME frame as PendingNetworkAck so the gateway sees it
+                // when it processes the ConstructionOrder BeginConstruction publishes below. A null provider
+                // (or an empty set) leaves the entity fast-mode: the gateway acks it immediately.
+                if (_expectedPeers != null)
+                {
+                    // CE-287 (C1): the provider yields the capability-filtered present peers (advertising
+                    // fdp.reliable-init) minus local. Intersect with the creator's OPTIONAL narrowing list
+                    // (its own role policy) — null ⇒ wait for all of them (§3b.1).
+                    var peers = _expectedPeers.GetExpectedPeers(cmd.TkbType, _localNodeId);
+                    var arr = IntersectReliablePeers(peers, cmd.ReliableInitPeers);
+                    if (arr.Length > 0)
+                    {
+                        world.AddComponent(entity, new NetworkAckPeerSet
+                        {
+                            ExpectedAckPeers = arr,
+                            TimeoutSeconds   = cmd.ReliableInitTimeout?.TotalSeconds ?? 0.0,
+                        });
+                    }
+                }
+            }
+
+            // 7b. ⭐⭐⭐ D2 — a THROWAWAY entity is stamped so the scenario serializer skips it.
+            //   Every node that materialises the entity runs this, so the sketch is excluded from the
+            //   save on the SAVING node too -- which is the whole point: the creator (e.g. an IG) never
+            //   answers the cluster-wide save, but its entity still replicates into worlds that do.
+            //   ⛔ Derived HERE rather than replicated as component state: the decision must survive the
+            //   authoring node disconnecting, and a receiver cannot resolve a departed node's role.
+            //   📄 docs/DESIGN_Node_Roles_And_Policies.md §7.3 (R-140).
+            if (cmd.IsTransient)
+                world.AddComponent(entity, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
 
             // 8. Apply caller-supplied component overrides on top of TKB defaults.
             // Fast path: explicitly typed fields, no boxing, no reflection.
@@ -134,8 +207,23 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
 
             // Fallback: rare/managed components via reflection.
             if (cmd.InitialComponents != null)
+            {
+                bool savedStance = false;
                 foreach (var component in cmd.InitialComponents)
+                {
                     EntityComponentReflector.SetComponent(world, entity, component);
+                    savedStance |= component is Hrot.MuscleCharacter.Animation.Components.StanceIntent;
+                }
+                // ⭐ B-4 (Details forms D2, Q7) — a SAVED stance: the body starts IN it (status = intent, acknowledged) — no stand-up-then-drop transition
+                if (savedStance) Fdp.Toolkit.Replication.Attributes.FormAttributes.SeedStatus(world, entity);
+            }
+
+            // 8b. ⭐ CE-1017 S2 — the birth-height request, AFTER every override so it wins over a transform carried in
+            //   InitialComponents too. 📄 docs/DESIGN_Add_Entity_Picker.md §2e (here, not in CreateEntityRequestSystem: eleven
+            //   direct publishers bypass that system). ⭐⭐ CE-3271 (Q94 D, R-3018) — ASKED here, not resolved: SpawnLevelSystem
+            //   resolves it on the node that owns the position (this one, unless the yield grants it away this frame).
+            if (cmd.SpawnHeight is { } height)
+                SpawnLevels.Request(world, entity, height);
 
             bool isLocalAuthority = cmd.OwnerNodeId == _localNodeId;
             if (isLocalAuthority)
@@ -145,6 +233,12 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
                 ref var compNS = ref world.GetComponentMask(entity.Index);
                 ref var metaNS = ref world.GetMetadata(entity.Index);
                 metaNS.AuthorityMask = compNS;
+
+                // ⭐⭐⭐ S4 / D-7 — the CREATOR CLAIMS ALL (push-only, R-164). 📄 docs/DESIGN_Ownership_Groups_And_Grants.md
+                //   §5.5 D-7; Q79 §0.7 ③. The role-affinity decline that stood here (P3 step 2) is RETIRED: the
+                //   creator keeps everything it did not GRANT away, and LocalAuthorityYieldSystem removes exactly the
+                //   granted groups. ⛔ A creator that declines by role leaves those components unowned until a
+                //   promoter claims them — and several nodes may hold one role (R-162), so "the promoter" is not one node.
             }
             _onEntitySpawned?.Invoke(world, entity, isLocalAuthority);
 
@@ -155,6 +249,25 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
 
             // 10. ELM BeginConstruction — must be the very last call
             _elm.BeginConstruction(entity, cmd.TkbType, tick, cmdBuffer);
+        }
+
+        /// <summary>CE-287 (C1): the effective reliable-init wait-set. <paramref name="capabilityFiltered"/> is
+        /// the provider's capability-filtered present peers (already minus local); <paramref name="creatorList"/>
+        /// is the creator's OPTIONAL narrowing (its own role policy). null ⇒ wait for all of the filtered set;
+        /// otherwise the intersection. Empty ⇒ no cross-node wait (the gateway acks immediately, fast-mode).</summary>
+        private static int[] IntersectReliablePeers(IReadOnlyList<int>? capabilityFiltered, int[]? creatorList)
+        {
+            if (capabilityFiltered == null || capabilityFiltered.Count == 0)
+                return Array.Empty<int>();
+            if (creatorList == null)
+                return capabilityFiltered is int[] a ? a : System.Linq.Enumerable.ToArray(capabilityFiltered);
+
+            var narrow = new HashSet<int>(creatorList);
+            var result = new List<int>(capabilityFiltered.Count);
+            foreach (var id in capabilityFiltered)
+                if (narrow.Contains(id))
+                    result.Add(id);
+            return result.ToArray();
         }
 
         // ─── Update ───────────────────────────────────────────────────────────
@@ -185,6 +298,11 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
                     $"[NS] DestroyEntityCommand for unknown network entity {cmd.NetworkId} – ignored.");
                 return;
             }
+
+            // ⭐ CE-4276 (edit framework F2) — a user's delete on a node that does not own the entity: the egress asks the owner (with the request id);
+            //   ⛔ the replica is NOT torn down here — the owner's dispose removes it. (Was: the local ghost torn down at once, before any answer.)
+            if (cmd.RequestId != Guid.Empty && !cmd.IsRemote && !Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(world, entity))
+                return;
 
             // Mark TearDown in lifecycle state so queries / other systems see the intent
             // immediately (before ACK round-trip completes).

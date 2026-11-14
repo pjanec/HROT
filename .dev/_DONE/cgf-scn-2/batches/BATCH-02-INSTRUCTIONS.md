@@ -63,7 +63,7 @@ This batch implements Phase 2 and Phase 3 of the cgf-scn-2 workstream.
 Build and test with:
 ```powershell
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
 dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj --no-build
 dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj --no-build
 ```
@@ -277,7 +277,7 @@ field, throw `InvalidOperationException`.
 1. Struct with a `[InlineArray(3)]` of `float`; serialize; assert JSON array length is 3
    with correct values.
 2. Inject from JSON array; assert all 3 values are restored.
-3. `MissionPlanQueue` auto-serialization round-trip (WITHOUT `DataPolicy.NoSave`): create
+3. `MissionPlanQueue` auto-serialization round-trip (WITHOUT `DataPolicy.NoScenario`): create
    a queue with 2 phases; serialize; inject into a fresh component; assert all
    `BehaviorId`, `Trigger`, `CurrentPhase`, `PhaseElapsedSeconds` match.
 

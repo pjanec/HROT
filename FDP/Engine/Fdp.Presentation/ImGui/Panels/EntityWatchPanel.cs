@@ -1,4 +1,7 @@
+using System.Collections.Generic;
+using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Scenario;
@@ -7,6 +10,24 @@ using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 
 namespace Fdp.Presentation.Panels;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="EntityWatchPanel"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example. ⚠ Not the same concept as
+/// <c>PanelIds.Watch</c> (the blueprint pinned-variable watch) — different source, different columns
+/// — so <c>PanelKind</c> stays a local literal on the host rather than reusing that constant.
+/// </summary>
+public sealed record EntityWatchPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    bool EntityAlive,
+    int TargetEntityIndex,
+    int TargetEntityGeneration,
+    IReadOnlyList<string> ComponentTypeNames) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Reusable panel that renders the component tree for a single fixed entity.
@@ -36,6 +57,24 @@ public class EntityWatchPanel
     {
         _targetEntity = targetEntity;
         _reflector.CopyComponentJsonFunc = (s, e, t, d) => InspectorJsonUtils.BuildComponentJson(s, e, t, d, Serializer);
+    }
+
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of the target entity's attached component types. No ImGui.</summary>
+    public EntityWatchPanelViewModel BuildViewModel(IInspectableSession session, string panelId, string panelKind)
+    {
+        bool alive = session.IsAlive(_targetEntity);
+        var names = new List<string>();
+        if (alive)
+        {
+            foreach (var t in session.GetAllComponentTypes())
+                if (session.HasComponent(_targetEntity, t))
+                    names.Add(t.Name);
+            names.Sort(System.StringComparer.Ordinal);
+        }
+
+        return new EntityWatchPanelViewModel(
+            panelId, panelKind, alive, _targetEntity.Index, _targetEntity.Generation, names);
     }
 
     /// <summary>

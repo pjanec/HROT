@@ -1,0 +1,97 @@
+{
+  "title": "Grenade or rifle",
+  "caption": "A hidden target behind sandbags: the grenadier closes and lobs a grenade over them",
+  "clip": "F-21",
+  "chapter": 5,
+  "state": "ready",
+  "endAt": "m+4",
+  "anchors": {
+    "m": {
+      "on": "hit",
+      "target": "Hostile behind the sandbags"
+    }
+  },
+  "keys": [
+    {
+      "at": "m-12",
+      "follow": "Grenadier",
+      "distance": 60,
+      "yaw": 200,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Grenadier",
+      "toward": "Hostile behind the sandbags",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Grenadier",
+      "toward": "Hostile behind the sandbags",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Hostile behind the sandbags",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m-0.6",
+      "follow": "Hostile behind the sandbags",
+      "distance": 12,
+      "yaw": 200,
+      "pitch": -10,
+      "lift": 1.4,
+      "fov": 35,
+      "segment": "replay"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-12",
+      "to": "m-4",
+      "speed": 1.5
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+4"
+    },
+    {
+      "id": "replay",
+      "from": "m-0.6",
+      "to": "m+1.2",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-12",
+      "until": "m+4",
+      "text": "A hidden target behind sandbags: the grenadier closes and lobs a grenade over them"
+    }
+  ]
+}

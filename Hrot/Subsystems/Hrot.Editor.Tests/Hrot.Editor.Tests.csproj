@@ -11,10 +11,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Editor\Hrot.Editor.csproj" />
+    <!-- CE-349: the shared AI debug-session composition both hosts call. Referenced EXPLICITLY —
+         the transitive reference through Hrot.Editor did not surface the namespace at compile time. -->
+    <ProjectReference Include="..\..\Editor\Hrot.Editor.AiComposition\Hrot.Editor.AiComposition.csproj" />
     <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
     <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />
     <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <ProjectReference Include="..\..\Editor\Hrot.Editor.UiFrameRail\Hrot.Editor.UiFrameRail.csproj" />   <!-- CE-4210 MA-8: the real-ImGui frame rail of the Macro section -->
   </ItemGroup>
 
   <ItemGroup>
@@ -22,6 +26,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="Xunit.SkippableFact" Version="1.4.13" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -31,4 +36,17 @@
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
+  <!-- The ONE [FlakyFact] (timing-flaky tests are opt-in via HROT_RUN_FLAKY=1), shared by source link. -->
+  <ItemGroup>
+    <Compile Include="..\..\..\FDP\TestShared\FlakyFactAttribute.cs" Link="Shared\FlakyFactAttribute.cs" />
+    <Compile Include="..\..\TestShared\TestEntityCreation.cs" Link="Shared\TestEntityCreation.cs" />   <!-- CE-259ax: a real EntityCreation over a world, for rails on an AUTHOR -->
+    <Compile Include="..\..\..\FDP\TestShared\TestRepo.cs" Link="Shared\TestRepo.cs" />   <!-- CE-3343: the ONE test-side repository-root walk-up (built on ContentLayout.TryFindSourceTree) -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- CE-4293: the test-only node extension, built the way a foreign product builds one and staged by path (not referenced) -->
+    <ProjectReference Include="..\..\Engine\Hrot.Common.Tests.SampleExtension\SampleNodeExtension.csproj" ReferenceOutputAssembly="false" OutputItemType="SampleExtensionOutput" />
+    <Compile Include="..\..\Engine\Hrot.Common.Tests.SampleExtension\Shared\SampleExtensionStaging.cs" Link="Shared\SampleExtensionStaging.cs" />
+  </ItemGroup>
+  <Import Project="..\..\Engine\Hrot.Common.Tests.SampleExtension\CopySampleExtension.targets" />
 </Project>

@@ -19,6 +19,7 @@ using Fdp.Toolkit.Replication.Utilities;
 using Fdp.ModuleHost.Abstractions;
 using Hrot.NED.Common;
 using Hrot.NED.Descriptors;
+using NodeId = Fdp.Core.NodeId;
 
 namespace Hrot.Network.NED.SimHost
 {
@@ -26,15 +27,17 @@ namespace Hrot.Network.NED.SimHost
 
     /// <summary>
     /// Egress translator. Publishes <c>SensorConfig</c> for owned entities (Brain -> Solver).
-    /// Converts the FDP cosine-based FOV back to wire-format degrees, applies SmartEgress
+    /// Converts the FDP cosine-based FOV back to wire-format radians, applies SmartEgress
     /// dirty-tracking so configs are only re-sent when they change.
     /// </summary>
     public sealed class SensorConfigEgressTranslator : IDescriptorTranslator
     {
-        private readonly DdsWriter<SensorConfig>? _writer;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the instances it deletes on a destruction, a wipe or (as an
+        //   unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<SensorConfig> _instances;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtSensorConfig;
-        public string TopicName         => "SensorConfig";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<SensorConfig>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
@@ -44,22 +47,24 @@ namespace Hrot.Network.NED.SimHost
             NetworkEntityMap     entityMap,
             IGeographicTransform geoTransform)   // geoTransform reserved for future geodetic encoding
         {
-            _writer = participant != null ? new DdsWriter<SensorConfig>(participant, TopicName) : null;
+            _instances = new(participant != null ? new DdsWriter<SensorConfig>(participant) : null, static key => new SensorConfig { EntityId = (int)key });
         }
 
         public void ScanAndPublish(ISimulationView view)
         {
-            if (_writer is null) return;
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
 
             var query = view.Query()
                 .With<PerceptionReceptor>()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .Build();
 
             foreach (var entity in query)
             {
                 // Authority gate: only publish for entities this node owns.
-                if (!view.HasAuthority(entity, DescriptorOrdinal)) continue;
+                // ⭐ CE-507 (S6): the descriptor key, not the raw ordinal (which matched no record entry, so the brain
+                //   that holds the granted brain group never published this).
+                if (!view.HasAuthority(entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0))) continue;
 
                 // SmartEgress dirty-tracking: skip entities whose config hasn't changed.
                 if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))
@@ -68,16 +73,15 @@ namespace Hrot.Network.NED.SimHost
                 ref readonly var perc    = ref view.GetComponentRO<PerceptionReceptor>(entity);
                 ref readonly var netId   = ref view.GetComponentRO<NetworkIdentity>(entity);
 
-                // Convert precomputed cosine of half-angle back to full FOV degrees for the wire schema.
-                float halfFovRad = MathF.Acos(Math.Clamp(perc.FieldOfViewCos, -1f, 1f));
-                float fovDegrees = halfFovRad * 2f * (180f / MathF.PI);
+                // Convert precomputed cosine of half-angle back to the full FOV (radians — SI on the wire, ⭐ AQ107 I).
+                float fovRad = FovRadOf(perc.FieldOfViewCos);
 
-                _writer.Write(new SensorConfig
+                _instances.Write(netId.Value, new SensorConfig
                 {
                     EntityId     = netId.Value,
                     VisionRange  = perc.VisionRange,
                     HearingRange = perc.HearingRange,
-                    FovDegrees   = fovDegrees,
+                    FovRad       = fovRad,
                 });
                 SentSampleCount++;
 
@@ -85,13 +89,16 @@ namespace Hrot.Network.NED.SimHost
             }
         }
 
+        /// <summary>⭐ AQ107 I — the wire's full field of view (RADIANS) of a receptor's precomputed cosine of the half angle (the test seam).</summary>
+        internal static float FovRadOf(float fieldOfViewCos) => MathF.Acos(Math.Clamp(fieldOfViewCos, -1f, 1f)) * 2f;
+
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId)
-        {
-            _writer?.DisposeInstance(new SensorConfig { EntityId = networkEntityId });
-        }
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — only what this writer published
+
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it. ⚠ A reclaim republishes through the dirty mark the ownership applier sets when this node gains the descriptor.</summary>
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
     }
 
     /// <summary>
@@ -104,13 +111,12 @@ namespace Hrot.Network.NED.SimHost
     {
         private readonly DdsWriter<RaycastRequestBatch>? _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly IGeographicTransform _geoTransform;
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
 
         private uint _batchCorrelationId;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastRequestBatch;
-        public string TopicName         => "RaycastRequestBatch";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<RaycastRequestBatch>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
@@ -122,9 +128,8 @@ namespace Hrot.Network.NED.SimHost
             int                  localNodeId = 0)
         {
             _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
-            _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
-            _localNodeId  = localNodeId;
-            _writer       = participant != null ? new DdsWriter<RaycastRequestBatch>(participant, TopicName) : null;
+            _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
+            _writer       = participant != null ? new DdsWriter<RaycastRequestBatch>(participant) : null;
         }
 
         public void ScanAndPublish(ISimulationView view)
@@ -134,10 +139,9 @@ namespace Hrot.Network.NED.SimHost
             var events = view.ReadEvents<RaycastRequestEvent>();
             if (events.IsEmpty) return;
 
-            // Spatial precision anchor: convert first ray origin to WGS-84 GeoPoint.
+            // Spatial precision anchor: the first ray origin, as local ENU (AQ107 B) — copied.
             var anchorCartesian = events[0].Start;
-            var (lat, lon, alt) = _geoTransform.ToGeodetic(anchorCartesian);
-            var batchOrigin = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt };
+            var batchOrigin = Hrot.Map.Common.Replication.Utils.EnuWire.ToWire(anchorCartesian);
 
             var ddsRequests = new List<DdsRaycastRequest>(events.Length);
             for (int i = 0; i < events.Length; i++)
@@ -145,7 +149,7 @@ namespace Hrot.Network.NED.SimHost
                 ref readonly var req = ref events[i];
 
                 // Network firewall: map local ECS entity handle to network ID.
-                long ignoreNetId = 0;
+                int ignoreNetId = 0;
                 if (!req.IgnoreEntity.IsNull)
                     _entityMap.TryGetNetworkId(req.IgnoreEntity, out ignoreNetId);
 
@@ -181,7 +185,7 @@ namespace Hrot.Network.NED.SimHost
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -197,13 +201,13 @@ namespace Hrot.Network.NED.SimHost
     /// DDS-to-event-bus bridge with no component-mutation logic.
     /// Enforces entity-pointer safety: raw network IDs are resolved to generational ECS handles before publishing.
     /// </summary>
-    public sealed class SensorTrackStateIngressTranslator : IDescriptorTranslator
+    public sealed class SensorTrackStateIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<SensorTrackState>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtSensorTrackState;
-        public string TopicName         => "SensorTrackState";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<SensorTrackState>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
@@ -213,8 +217,11 @@ namespace Hrot.Network.NED.SimHost
             NetworkEntityMap entityMap)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _reader    = participant != null ? new DdsReader<SensorTrackState>(participant, TopicName) : null;
+            _reader    = participant != null ? new DdsReader<SensorTrackState>(participant) : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
@@ -244,13 +251,14 @@ namespace Hrot.Network.NED.SimHost
                         : Fdp.Toolkit.Perception.Events.SensorTrackStatus.Lost,
                     PositionX = data.PositionX,
                     PositionY = data.PositionY,
+                    Modality  = (Fdp.Toolkit.Perception.Components.SensorModality)data.Modality,   // CE-3060
                 });
             }
         }
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -258,14 +266,14 @@ namespace Hrot.Network.NED.SimHost
     /// and injects the resolved hit results into the local <c>RaycastBatchData</c> singleton.
     /// Accepts TargetNodeId == 0 (broadcast) in addition to the local node ID.
     /// </summary>
-    public sealed class RaycastBatchIngressTranslator : IDescriptorTranslator
+    public sealed class RaycastBatchIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<RaycastResponseBatch>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastResponseBatch;
-        public string TopicName         => "RaycastResponseBatch";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<RaycastResponseBatch>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
@@ -276,9 +284,12 @@ namespace Hrot.Network.NED.SimHost
             int              localNodeId = 0)
         {
             _entityMap   = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
-            _reader      = participant != null ? new DdsReader<RaycastResponseBatch>(participant, TopicName) : null;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
+            _reader      = participant != null ? new DdsReader<RaycastResponseBatch>(participant) : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
@@ -318,7 +329,7 @@ namespace Hrot.Network.NED.SimHost
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     // ── Solver-side perception translators (Perception Solver -> Brain) ────────────
@@ -326,17 +337,17 @@ namespace Hrot.Network.NED.SimHost
     /// <summary>
     /// Ingress translator. Receives <c>SensorConfig</c> from the Brain node and applies it
     /// to the local <c>PerceptionReceptor</c> component on the
-    /// Perception Solver.  Performs the FovDegrees -> FovCos conversion at the network boundary
+    /// Perception Solver.  Performs the FovRad -> FovCos conversion at the network boundary
     /// so the spatial-hash solver never executes trigonometry on the hot path.
     /// </summary>
-    public sealed class SensorConfigIngressTranslator : IDescriptorTranslator
+    public sealed class SensorConfigIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<SensorConfig>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly GhostCreationSystem _ghostCreationSystem;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtSensorConfig;
-        public string TopicName         => "SensorConfig";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<SensorConfig>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
@@ -348,8 +359,11 @@ namespace Hrot.Network.NED.SimHost
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
-            _reader    = participant != null ? new DdsReader<SensorConfig>(participant, TopicName) : null;
+            _reader    = participant != null ? new DdsReader<SensorConfig>(participant) : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
@@ -369,9 +383,16 @@ namespace Hrot.Network.NED.SimHost
                     entity = _ghostCreationSystem.CreateGhost(repo, data.EntityId, view.Tick);
                 }
 
+                // ⭐ S8 / F-5 — skip our OWN sample looping back: the descriptor's RECORDED owner writes this state, so the
+                //   last value it published must not overwrite the one it holds now. ⛔ Recorded owner only (IsRecordedOwner):
+                //   a ghost still being built has no record and takes the sample. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md
+                //   §3 F-5, §5.6 S8.
+                if (Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(
+                        view, entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0)))
+                    continue;
+
                 // ACL transformation: precompute FovCos once at the network boundary.
-                float halfFovRad = data.FovDegrees * 0.5f * (MathF.PI / 180f);
-                float fovCos = MathF.Cos(halfFovRad);
+                float fovCos = FovCosOf(data.FovRad);
 
                 cmd.SetComponent(entity, new PerceptionReceptor
                 {
@@ -383,9 +404,12 @@ namespace Hrot.Network.NED.SimHost
             }
         }
 
+        /// <summary>⭐ AQ107 I — the receptor's precomputed cosine of the half angle from the wire's full field of view in RADIANS (the test seam).</summary>
+        internal static float FovCosOf(float fovRad) => MathF.Cos(fovRad * 0.5f);
+
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -394,15 +418,14 @@ namespace Hrot.Network.NED.SimHost
     /// <c>RaycastResponseBatch</c> back to the requesting brain node.
     /// This avoids touching the shared <c>RaycastBatchData</c> singleton used by ballistics.
     /// </summary>
-    public sealed class RaycastBatchSolverIngressTranslator : IDescriptorTranslator
+    public sealed class RaycastBatchSolverIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<RaycastRequestBatch>? _reader;
         private readonly DdsWriter<RaycastResponseBatch>? _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly IGeographicTransform _geoTransform;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastRequestBatch;
-        public string TopicName         => "RaycastRequestBatch";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<RaycastRequestBatch>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
@@ -413,10 +436,12 @@ namespace Hrot.Network.NED.SimHost
             IGeographicTransform geoTransform)
         {
             _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
-            _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
-            _reader       = participant != null ? new DdsReader<RaycastRequestBatch>(participant, TopicName) : null;
-            _writer       = participant != null ? new DdsWriter<RaycastResponseBatch>(participant, "RaycastResponseBatch") : null;
+            _reader       = participant != null ? new DdsReader<RaycastRequestBatch>(participant) : null;
+            _writer       = participant != null ? new DdsWriter<RaycastResponseBatch>(participant) : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
@@ -433,15 +458,8 @@ namespace Hrot.Network.NED.SimHost
                 var data = sample.Data;
                 if (data.Requests == null || data.Requests.Count == 0) continue;
 
-                // Spatial precision reconstruction: convert geodetic anchor to absolute Cartesian.
-                var originCartesian = _geoTransform.ToCartesian(
-                    data.BatchOrigin.Latitude,
-                    data.BatchOrigin.Longitude,
-                    data.BatchOrigin.Altitude);
-                var anchor = new Vector3(
-                    (float)originCartesian.X,
-                    (float)originCartesian.Y,
-                    (float)originCartesian.Z);
+                // Spatial precision reconstruction: the anchor is local ENU (AQ107 B).
+                var anchor = Hrot.Map.Common.Replication.Utils.EnuWire.FromWire(data.BatchOrigin);
 
                 var grid = repo.GetSingleton<SpatialGridData>().Grid;
                 var responseHits = new List<DdsRaycastHit>(data.Requests.Count);
@@ -459,9 +477,9 @@ namespace Hrot.Network.NED.SimHost
                     int candidateCount = grid.QueryNeighbors(midpoint, queryRadius, candidates);
 
                     float bestT = float.MaxValue;
-                    long hitNetId = 0;
+                    int hitNetId = 0;
                     bool anyHit = false;
-                    long ignoreNetId = ddsReq.IgnoreEntityId;
+                    int ignoreNetId = ddsReq.IgnoreEntityId;
 
                     for (int i = 0; i < candidateCount; i++)
                     {
@@ -469,7 +487,7 @@ namespace Hrot.Network.NED.SimHost
                         if (!repo.IsAlive(candidate) || !repo.HasComponent<PhysicsCollider>(candidate)) continue;
 
                         if (ignoreNetId != 0 &&
-                            _entityMap.TryGetNetworkId(candidate, out long candidateNetId) &&
+                            _entityMap.TryGetNetworkId(candidate, out int candidateNetId) &&
                             candidateNetId == ignoreNetId)
                             continue;
 
@@ -505,7 +523,7 @@ namespace Hrot.Network.NED.SimHost
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -516,7 +534,7 @@ namespace Hrot.Network.NED.SimHost
     /// <para>
     /// The translator is a pure event-bus-to-DDS bridge with no change-detection logic.
     /// State transitions are now detected and published as <see cref="Fdp.Toolkit.Perception.Events.SensorTrackStateEvent"/>
-    /// by <see cref="Fdp.Toolkit.Perception.Systems.SensorTrackDebounceSystem"/>; this
+    /// by the EQS solver's memory stage (<c>SensorMemoryStage</c>); this
     /// translator merely serialises them to the wire.
     /// </para>
     /// Uses Reliable / TransientLocal QoS -- one sample per contact event,
@@ -528,7 +546,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly NetworkEntityMap _entityMap;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtSensorTrackState;
-        public string TopicName         => "SensorTrackState";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<SensorTrackState>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
@@ -538,7 +556,7 @@ namespace Hrot.Network.NED.SimHost
             NetworkEntityMap entityMap)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _writer    = participant != null ? new DdsWriter<SensorTrackState>(participant, TopicName) : null;
+            _writer    = participant != null ? new DdsWriter<SensorTrackState>(participant) : null;
         }
 
         public void ScanAndPublish(ISimulationView view)
@@ -551,9 +569,9 @@ namespace Hrot.Network.NED.SimHost
             foreach (ref readonly var evt in events)
             {
                 // Map local ECS observer handle to network ID.
-                if (!_entityMap.TryGetNetworkId(evt.Observer, out long observerNetId)) continue;
+                if (!_entityMap.TryGetNetworkId(evt.Observer, out int observerNetId)) continue;
                 // Map local ECS target handle to network ID.
-                if (!_entityMap.TryGetNetworkId(evt.Target, out long targetNetId)) continue;
+                if (!_entityMap.TryGetNetworkId(evt.Target, out int targetNetId)) continue;
 
                 _writer.Write(new SensorTrackState
                 {
@@ -562,6 +580,7 @@ namespace Hrot.Network.NED.SimHost
                     State            = evt.State == Fdp.Toolkit.Perception.Events.SensorTrackStatus.Acquired ? (byte)1 : (byte)0,
                     PositionX        = evt.PositionX,
                     PositionY        = evt.PositionY,
+                    Modality         = (byte)evt.Modality,   // CE-3060
                     Tick             = view.Tick,
                 });
                 SentSampleCount++;
@@ -571,7 +590,7 @@ namespace Hrot.Network.NED.SimHost
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -589,7 +608,7 @@ namespace Hrot.Network.NED.SimHost
         private uint _batchCorrelationId;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastResponseBatch;
-        public string TopicName         => "RaycastResponseBatch";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<RaycastResponseBatch>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
@@ -599,7 +618,7 @@ namespace Hrot.Network.NED.SimHost
             NetworkEntityMap entityMap)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _writer    = participant != null ? new DdsWriter<RaycastResponseBatch>(participant, TopicName) : null;
+            _writer    = participant != null ? new DdsWriter<RaycastResponseBatch>(participant) : null;
         }
 
         public void ScanAndPublish(ISimulationView view)
@@ -627,7 +646,7 @@ namespace Hrot.Network.NED.SimHost
                 }
 
                 // Firewall: map local ECS hit handle to network ID.
-                long hitNetId = 0;
+                int hitNetId = 0;
                 if (hit.HasHit != 0 && !hit.HitEntity.IsNull)
                     _entityMap.TryGetNetworkId(hit.HitEntity, out hitNetId);
 
@@ -655,6 +674,6 @@ namespace Hrot.Network.NED.SimHost
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

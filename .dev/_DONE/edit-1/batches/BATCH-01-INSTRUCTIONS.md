@@ -30,7 +30,7 @@ Nothing else can be built until these three tasks are complete and compiling cle
 - **Existing project (modify):** `Hrot.Map.Definitions/` — add `BehaviorCatalog.cs`
 - **Existing file (modify):** `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorRegistry.cs` — add `GetRegisteredNames()`
 - **FDP submodule root:** `FDP/` (this is a git submodule; changes to it require their own submodule commit on the dev branch)
-- **Solution file:** `IOS-IG-SimHost.sln` — add `Hrot.UI.Common` project reference
+- **Solution file:** `HROT.sln` — add `Hrot.UI.Common` project reference
 - **Test project for Map.Definitions:** `Hrot.Map.Common.Tests/` — add `BehaviorCatalogTests.cs`
 - **Test project for FDP.Toolkit.Behavior:** No dedicated test project exists yet; use `Hrot.ClusterRunner.Tests/` or create `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/` if needed. Check how other FDP toolkit tests are structured first.
 
@@ -39,7 +39,7 @@ Nothing else can be built until these three tasks are complete and compiling cle
 ```powershell
 # Build
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Test (run these repeatedly after each task)
 dotnet test Hrot.Map.Common.Tests --no-build
@@ -97,7 +97,7 @@ No panel or adapter implementations go in this batch.
 **Summary of scope:**
 - New project: `Hrot.UI.Common/Hrot.UI.Common.csproj` (class library, same target framework as solution — check `Directory.Build.props`)
 - Add project references: `FDP/Toolkits/FDP.Toolkit.ImGui/FDP.Toolkit.ImGui.csproj`, `Hrot.NED/Hrot.NED.csproj`, `Hrot.Map.Definitions/Hrot.Map.Definitions.csproj`
-- Add `Hrot.UI.Common` to `IOS-IG-SimHost.sln`
+- Add `Hrot.UI.Common` to `HROT.sln`
 - Create **nine** interfaces in `Hrot.UI.Common/Facades/` (see TASK-DETAIL for full signatures):
   - `ISpawnController`, `IMissionEditorService`, `IOrbatDataProvider`, `IOrbatController`
   - `IMapConfigController`, `IPreviewController`, `IZoneAuthoringController`
@@ -229,7 +229,7 @@ What should the next developer watch out for?
 ## 🎯 Success Criteria
 
 This batch is DONE when:
-- [ ] `Hrot.UI.Common` project exists, builds with zero warnings, and is added to `IOS-IG-SimHost.sln`
+- [ ] `Hrot.UI.Common` project exists, builds with zero warnings, and is added to `HROT.sln`
 - [ ] All nine Port interfaces compile with correct signatures
 - [ ] All three DTOs compile as records
 - [ ] `TkbEntityTypes` has constants for `CivilianPedestrian`, `CivilianCar`, `MilitaryApc`, `InfantrySoldier`, `Insurgent`
@@ -249,5 +249,5 @@ This batch is DONE when:
 - **Existing BehaviorRegistry:** `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorRegistry.cs`
 - **Existing BehaviorConstants:** `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorConstants.cs`
 - **Pattern reference for interfaces:** `Hrot.ExCon/Services/IMapPickService.cs`, `Hrot.ExCon/Services/IMissionEditorService.cs`
-- **Solution file:** `IOS-IG-SimHost.sln`
+- **Solution file:** `HROT.sln`
 - **Framework version:** Check `Directory.Build.props` at repo root

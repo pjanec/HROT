@@ -23,6 +23,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     ///           when the PlayMontage slot finishes, begin the first queued entry.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class MontageQueueAdvanceSystem : IEcsModuleSystem
     {
         private readonly IAnimationBackend _backend;
@@ -36,6 +37,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
 
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(MontageQueueAdvanceSystem)} requires direct EntityRepository access.");
@@ -53,7 +55,9 @@ namespace Hrot.MuscleCharacter.Animation.Systems
                 ref var queue = ref repo.GetComponentRW<AnimationMontageQueue>(entity);
                 ref var queueState = ref repo.GetComponentRW<AnimationMontageQueueState>(entity);
                 ref var execState = ref repo.GetComponentRW<AnimationExecutorState>(entity);
-                ref var channel = ref repo.GetComponentRW<AnimationChannel>(entity);
+                // ⭐ CE-513 / R-180 — read the Brain's request, write only the Muscle's report.
+                var channel = repo.GetComponent<AnimationChannel>(entity);
+                ref var status = ref ChannelReports.Animation(repo, entity);
                 var def = repo.GetComponent<CharacterAnimationDefRuntime>(entity);
 
                 // Skip if not yet registered with the backend
@@ -137,13 +141,13 @@ namespace Hrot.MuscleCharacter.Animation.Systems
                             queueState.CurrentEntryIndex = 0xFF;
                             queueState.TrackingActive = 0;
                             queueState.EntryElapsedSeconds = 0f;
-                            channel.Status = NodeStatus.Success;
+                            status.Status = NodeStatus.Success;
                         }
                     }
                 }
                 else if (!trackingActive && slotInactive &&
                          channel.ActiveAction == AnimationActionIds.PlayMontage &&
-                         channel.Status == NodeStatus.Running)
+                         status.Status == NodeStatus.Running)
                 {
                     // Case B: A standalone PlayMontage just finished but the queue has pending entries
                     // (i.e., IssueEnqueueMontage was called while PlayMontage was active).

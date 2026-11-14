@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 
@@ -26,6 +27,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// Total = 8 + 16 + 16 + 12 = 52 bytes.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public struct PlatoonHillAttackParams
     {
         // TargetAreaEntity first to ensure 8-byte alignment with no padding before floats.
@@ -73,25 +75,32 @@ namespace Hrot.AI.Behaviors.Brains
     }
 
     /// <summary>
-    /// Single-field blackboard wrapper used as <c>TBlackboard</c> in the PlatoonHillAttack
-    /// <c>BTreeBuilder</c> expression-binding overloads.
+    /// The hand-written PlatoonHillAttack tree's <c>TBlackboard</c> — its ONE block: the authored params and the
+    /// commander's working state, side by side.
+    ///
+    /// <para>⭐ <c>CE-430</c> (<c>Q76</c> §12.23): <see cref="State"/> is back. S3-G had moved it out into a
+    /// Behavior-scoped partition slot, leaving a one-field wrapper; the stateful nodes now project both fields
+    /// from <c>ref bb</c>. The GENERATED twin (<c>PlatoonHillAttack_Block { In.Params; St.State }</c>, from the
+    /// JSON asset that owns this behaviour's production topology) has had the same two homes since
+    /// <c>CE-437</c>.</para>
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct PlatoonHillAttackBlackboard
     {
         /// <summary>Static configuration parameters for the hill attack.</summary>
         public PlatoonHillAttackParams Params;
+
+        /// <summary>The commander's mutable working state (wave cursor, slot masks, EQS handles, attackers).</summary>
+        public HillAttackMutableState State;
     }
 
     /// <summary>
     /// Mutable working state for the PlatoonHillAttack commander behavior.
     ///
-    /// <para>Since S3-G this lives in a <b>Behavior-scoped</b> <c>BlueprintBlackboard</c>
-    /// partition slot (provisioned by <c>BehaviorIngressSystem</c> from the behavior's
-    /// <c>StatefulWorkingSlots</c> manifest and projected into the stateful node delegates),
-    /// not in a fixed <c>Blackboard1024.Memory</c> offset via <c>Unsafe.As</c> — that legacy
-    /// hack was removed. See <c>Behavior_Parameter_Resolver_Detailed_Design.md</c> and the
-    /// S3-G reports for the migration.</para>
+    /// <para>⭐ Lives in the behaviour's own block: the generated <c>PlatoonHillAttack_Block.St.State</c>
+    /// (<c>CE-437</c>) and the hand-written <see cref="PlatoonHillAttackBlackboard.State"/> (<c>CE-430</c>).
+    /// ⛔ HISTORY — S3-G had put it in a Behavior-scoped partition slot provisioned from a manifest, which
+    /// itself replaced a fixed <c>Blackboard1024.Memory</c> offset via <c>Unsafe.As</c>.</para>
     ///
     /// <para>All <c>fixed</c> arrays are sized to 8 entries, matching
     /// <c>UnitRoster.MaxSubordinates / 2</c> (maximum wave size from a 16-subordinate platoon).</para>
@@ -102,44 +111,45 @@ namespace Hrot.AI.Behaviors.Brains
         // Fields ordered to satisfy natural alignment and avoid implicit padding.
 
         /// <summary>
-        /// <c>RequestId</c> returned by <c>AreaQueryBatchHelper.RequestAreaQuery</c>.
-        /// Stored between <c>Action_RequestAreaQuery</c> and <c>Condition_IsAreaQueryResolved</c>.
+        /// The area query in flight: the packed EQS child sensor (<c>Fdp.Toolkit.Spatial.Eqs.EqsChildSensor</c>) whose answer
+        /// is awaited, or <c>-1</c> when no query is in flight. Set by <c>Action_RequestAreaQuery</c>, read by
+        /// <c>Condition_IsAreaQueryResolved</c> and <c>Action_DispatchWaveWithTargets</c>.
+        /// ⭐ Was the <c>AreaQueryBatchHelper</c> request id; the name is kept because <c>Hrot.Player.Tests</c> pins it
+        /// (<c>DESIGN_Hill_Attack_Eqs_Migration.md</c> §4 D5).
         /// </summary>
         public long CachedEqsRequestId;              // 8, offset 0
 
         /// <summary>Total number of firing-line slots computed from segment length / TankSpacing.</summary>
         public int TotalSlots;                        // 4, offset 8
 
-        /// <summary>
-        /// <c>TargetGroupHandle</c> from the EQS result.
-        /// Stored between <c>Condition_IsAreaQueryResolved</c> and <c>Action_DispatchWaveWithTargets</c>.
-        /// Initialized to -1.
-        /// </summary>
-        public int CachedTargetGroupHandle;           // 4, offset 12
-
         /// <summary>Number of tanks currently executing the attack run in the current wave.</summary>
-        public int ActiveAttackerCount;               // 4, offset 16
+        /// <remarks>⛔ <c>CachedTargetGroupHandle</c> (the old pool handle) retired with the EQS migration: the targets are read
+        /// straight from the sensor's <c>EqsCognitiveBuffer</c>.</remarks>
+        public int ActiveAttackerCount;               // 4, offset 12
 
         /// <summary>Firing-line slot indices permanently blocked by wrecks.</summary>
-        public ushort BurnedSlotsMask;                // 2, offset 20
+        public ushort BurnedSlotsMask;                // 2, offset 16
 
         /// <summary>Firing-line slot indices occupied by the current wave.</summary>
-        public ushort WaveUsedSlotsMask;              // 2, offset 22
+        public ushort WaveUsedSlotsMask;              // 2, offset 18
 
         /// <summary>Baseline slot indices currently reserved by live tanks.</summary>
-        public ushort BaselineReservedMask;           // 2, offset 24
+        public ushort BaselineReservedMask;           // 2, offset 20
 
         /// <summary>Wave index (0 or 1); toggles between waves.</summary>
-        public byte CurrentWave;                      // 1, offset 26
+        public byte CurrentWave;                      // 1, offset 22
 
         // Consume trailing padding for EQS timeout tracking.
-        private byte _pad0;                           // 1, offset 27
+        private byte _pad0;                           // 1, offset 23
 
         /// <summary>
         /// Simulation time at which the current EQS request was submitted.
         /// Used by commander timeout recovery in Condition_IsAreaQueryResolved.
         /// </summary>
-        public float EqsRequestTime;                  // 4, offset 28
+        public SimInstant EqsRequestTime;                  // 4, offset 24
+
+        // 4 explicit pad bytes where CachedTargetGroupHandle was — keeps the struct at 120 with no implicit padding.
+        private int _pad1;                            // 4, offset 28
 
         // offset 32 — 8-byte aligned, required for fixed long array.
 
@@ -162,7 +172,20 @@ namespace Hrot.AI.Behaviors.Brains
         /// Prevents false completion detection during the one-frame ingress delay.
         /// </summary>
         public fixed byte HasStartedRun[8];           // 8, offset 112
-        // Total: 120 bytes (well within 1024-byte Blackboard1024.ByteSize)
+
+        /// <summary>
+        /// ⭐ CE-2230 H-6 — where the PREVIOUS wave came up: each attacker's firing point, in metres along the firing line from its start.
+        /// The next wave's points are chosen away from these, so the enemy cannot lay its gun on the spot and wait (user, 2026-10-16).
+        /// </summary>
+        public fixed float LastFireAlong[8];          // 32, offset 120
+        /// <summary>
+        /// ⭐ CE-2230 H-6 — and where the wave BEFORE that came up. 📐 Live: avoiding only the last wave, a pair came back to the exact
+        /// spot it had fired from two waves earlier (0.7 m) — the other pair's wave between had fired nothing.
+        /// </summary>
+        public fixed float PrevFireAlong[8];          // 32, offset 152
+        /// <summary>How many of <see cref="LastFireAlong"/> / <see cref="PrevFireAlong"/> are set (0 before the first waves).</summary>
+        public byte LastFireCount, PrevFireCount;     // 2, offset 184
+        // Total: 192 bytes (6 trailing padding; well within 1024-byte Blackboard1024.ByteSize)
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -179,12 +202,14 @@ namespace Hrot.AI.Behaviors.Brains
     ///   <item>Attack direction: <c>AttackDirX, AttackDirY</c> (8 bytes) at offset 16.</item>
     ///   <item>Kinematic limits: <c>ApproachSpeed, CreepSpeed</c> (8 bytes) at offset 24.</item>
     ///   <item>Assigned target: <c>TargetNetworkId</c> (long, 8 bytes) at offset 32.</item>
-    ///   <item>Shot quota: <c>MaxRounds</c> and <c>RoundsFired</c> (8 bytes) at offsets 40 and 44.</item>
-    ///   <item>Tracking: <c>LastObservedAmmo</c> (4 bytes) at offset 48.</item>
+    ///   <item>The wave's go time: <c>GoAt</c> (double, 8 bytes) at offset 40 (CE-2230 H-5).</item>
     /// </list>
-    /// Total = 52 bytes.
+    /// Total = 48 bytes. ⭐ CE-2230 — the run is the vehicle exposure cycle's lane (<see cref="HillAttackTankNodes.ResolveHullDownAttackRun"/>):
+    /// one round per run is the cycle's own count (R-2022). ⛔ HISTORY: <c>MaxRounds</c> / <c>RoundsFired</c> / <c>LastObservedAmmo</c> were
+    /// the retired fire node's ammo-diff counter.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
     public struct HullDownAttackParams
     {
         /// <summary>X coordinate of the assigned firing-line slot (metres).</summary>
@@ -216,30 +241,14 @@ namespace Hrot.AI.Behaviors.Brains
         /// Resolved to a local ECS <c>Entity</c> via <c>NetworkEntityMap</c> at runtime.
         /// Never stores a local generational entity handle (would become stale across frames).
         /// </summary>
-        public long TargetNetworkId;     // 8, offset 32 (8-byte aligned)
-
-        /// <summary>Maximum rounds to fire before the node returns success. 0 means unlimited.</summary>
-        public int MaxRounds;            // 4, offset 40
-
-        /// <summary>Rounds fired so far during this behavior run.</summary>
-        public int RoundsFired;          // 4, offset 44
+        public Fdp.Toolkit.Replication.EntityLink TargetNetworkId;     // ⭐ S0 item 5 (SR-140) — an authored reference; was a raw long (8 B); EntityLink is 48 B
 
         /// <summary>
-        /// Last observed ammo value used to detect discrete shots via ammo drop.
-        /// Initialized to -1 on parse and set on first tick.
+        /// ⭐ CE-2230 H-5 — the WAVE's go time (simulation seconds; 0 = go when ready): every tank of a wave waits in its hide until
+        /// then, so the pair crests together (🔒 R-2022: "another pair comes up the hill"). The commander sets it to the slowest
+        /// member's estimated arrival at its hide.
         /// </summary>
-        public int LastObservedAmmo;     // 4, offset 48
-        // Total: 52 bytes
-    }
-
-    /// <summary>
-    /// Single-field blackboard wrapper used as <c>TBlackboard</c> in the HullDownAttackRun
-    /// <c>BTreeBuilder</c> expression-binding overloads.
-    /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    public struct HullDownAttackBlackboard
-    {
-        /// <summary>Per-tank static configuration for the attack run.</summary>
-        public HullDownAttackParams Params;
+        public SimInstant GoAt;              // 8, offset 40
+        // Total: 48 bytes
     }
 }

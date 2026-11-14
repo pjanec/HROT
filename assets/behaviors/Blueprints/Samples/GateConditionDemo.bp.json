@@ -1,0 +1,98 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000000-aaaa-0002-0000-0000000000d1",
+  "Name": "GateConditionDemo",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": {
+    "Intent": "Condition",
+    "Hostings": [
+      "BTreeCondition"
+    ]
+  },
+  "ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.GateConditionDemoParams",
+  "Declarations": [
+    {
+      "Kind": "Variable",
+      "Id": "d1010002-0002-0002-0002-000000000002",
+      "Name": "LastEvaluated",
+      "Type": {
+        "TypeId": "System.Boolean",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "d1010000-0001-0001-0001-000000000001",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "d1010010-0001-0001-0001-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 220,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "d1010010-0002-0002-0002-000000000002",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 420,
+            "Y": 220,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "d1010010-0001-0001-0001-000000000001",
+          "FromPinId": "d1010020-0001-a001-0001-000000000001",
+          "ToNodeId": "d1010010-0002-0002-0002-000000000002",
+          "ToPinId": "d1010020-0002-b001-0001-000000000001"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "Committed compiled instance of the GateConditionDemo Condition recipe (Recipes/Blueprints/GateConditionDemo.bp.json), fed to the blueprint source generator via Assets/Blueprints/**/*.bp.json to prove AiPrimitive Condition \u002B BTreeCondition emission compiles end-to-end. EventEntry -\u003E Return(Success): synchronous Success/Failure only, no Running, no latent nodes.",
+    "Category": null,
+    "Recipe": null
+  }
+}

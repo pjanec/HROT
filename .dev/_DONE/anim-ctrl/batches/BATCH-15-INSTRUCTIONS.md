@@ -116,7 +116,7 @@ At minimum:
 3. Solution build remains clean.
 
 Run and include summary output for:
-- `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore`
+- `dotnet build HROT.sln -c Debug --no-restore`
 - relevant Stride backend test project command(s)
 - `dotnet test Hrot/Subsystems/Hrot.Animation.Replication.Tests/Hrot.Animation.Replication.Tests.csproj -c Debug --no-build`
 

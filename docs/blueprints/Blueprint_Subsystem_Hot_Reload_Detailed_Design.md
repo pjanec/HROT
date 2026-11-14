@@ -169,8 +169,8 @@ A cursor's `InstanceVersion` matches the slot's `InstanceVersion`. After reload:
 - *Soft path* (hash unchanged): both versions are preserved verbatim; the cursor resumes at the same `ResumeAt` block, but now in the new code. As long as the new code has matching block labels, execution continues seamlessly.
 - *Hard path* (hash changed): slot's payload is zeroed by `ResetSlot`, `InstanceVersion` is bumped, cursor is implicitly reset to `{ResumeAt=0, InstanceVersion=0}`. The new tick enters `case 0: goto __block_initial`, restarting cleanly.
 
-**State 2 — AiPrimitive working state in `Blackboard1024`.**
-The generated thunk's inline hash check (per Compiler DD §10.4) handles this: on first call after reload, the thunk sees `*(ulong*)memory != StructureHash`, zeros the working memory, writes the new hash, calls `InitDefaultWorkingState`, then proceeds with phase 0. Same effect as the Instance hard-reset path, but per-thunk-call instead of per-tick-system-sweep.
+**State 2 — AiPrimitive working state in its own occurrence slot (a `BlueprintBlackboard*` tier).**
+The generated thunk's inline hash check (per Compiler DD §10.4) handles this: on first call after reload, the thunk sees `*(ulong*)slotBytes != StructureHash`, zeros the slot's working memory, writes the new hash, calls `InitDefaultWorkingState`, then proceeds with phase 0. Same effect as the Instance hard-reset path, but per-thunk-call instead of per-tick-system-sweep.
 
 Both cases are handled by code that already exists in the Compiler DD and Runtime DD. The Hot Reload coordinator just needs to ensure the swap happens atomically; the downstream reconciliation is each subsystem's responsibility.
 

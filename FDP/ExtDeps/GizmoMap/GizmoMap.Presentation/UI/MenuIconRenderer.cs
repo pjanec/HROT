@@ -18,6 +18,9 @@ namespace GizmoMap.Presentation
     /// </summary>
     public delegate bool MenuIconResolver(string key, out nint textureId, out Vector2 uv0, out Vector2 uv1);
 
+    /// <summary>⭐ Terrain authoring — resolves a menu item's icon key to a coloured FontAwesome GLYPH (the editor's one icon table, <c>NodeEditor.Core.Widgets.Icons</c>) instead of an atlas sprite; false = not a glyph key (the atlas resolver is tried).</summary>
+    public delegate bool MenuGlyphResolver(string key, out string glyph, out Vector4 colour);
+
     /// <summary>
     /// Shared helper for rendering a colored icon in a fixed left "gutter" of a menu row.
     /// The gutter is reserved by left-padding the label with spaces, so the native
@@ -26,6 +29,9 @@ namespace GizmoMap.Presentation
     /// </summary>
     public static class MenuIconRenderer
     {
+        /// <summary>⭐ Set once by the host that has the glyph table; consulted before the atlas resolver, and works with no atlas resolver at all.</summary>
+        public static MenuGlyphResolver? GlyphResolver { get; set; }
+
         /// <summary>
         /// Left-pad <paramref name="label"/> with spaces sized to clear one icon cell, and report
         /// the reserved gutter width in pixels. Draw the row with the returned label, then call
@@ -48,13 +54,40 @@ namespace GizmoMap.Presentation
         /// when the resolver is null, the key is empty, or the key does not resolve.
         /// </summary>
         public static void DrawIcon(MenuIconResolver? resolver, string? key, Vector2 rowStart, float gutterPx)
-        {
-            if (resolver == null || string.IsNullOrEmpty(key) || gutterPx <= 0f)
-                return;
-            if (!resolver(key!, out var tex, out var uv0, out var uv1) || tex == 0)
-                return;
+            => DrawIcon(resolver, key, rowStart, gutterPx, ImGui.GetWindowDrawList());
 
+        /// <summary>
+        /// ⭐ CE-1027 — a SUBMENU row: captures the row's own draw list BEFORE <c>BeginMenu</c>, then draws the icon onto it.
+        /// 📐 Measured: <c>BeginMenu</c> returning true has already begun the submenu's popup, so <c>GetWindowDrawList()</c> after it
+        /// is the POPUP's list — the icon was drawn at the row's position into the popup and clipped away, so a menu's icon vanished
+        /// whenever it was open (on the menu bar: as soon as it is hovered with another menu open). Returns what <c>BeginMenu</c>
+        /// returned; the caller ends the menu as usual.
+        /// </summary>
+        public static bool BeginMenu(string paddedLabel, bool enabled, MenuIconResolver? resolver, string? key, Vector2 rowStart, float gutterPx)
+        {
+            var rowList = ImGui.GetWindowDrawList();
+            bool open = ImGui.BeginMenu(paddedLabel, enabled);
+            DrawIcon(resolver, key, rowStart, gutterPx, rowList);
+            return open;
+        }
+
+        /// <summary>As <see cref="DrawIcon(MenuIconResolver?, string?, Vector2, float)"/>, onto <paramref name="target"/>.</summary>
+        public static void DrawIcon(MenuIconResolver? resolver, string? key, Vector2 rowStart, float gutterPx, ImDrawListPtr target)
+        {
+            if (string.IsNullOrEmpty(key) || gutterPx <= 0f)
+                return;
             float sz = ImGui.GetTextLineHeight();
+            if (GlyphResolver != null && GlyphResolver(key!, out var glyph, out var colour))
+            {
+                var gmin = ImGui.GetItemRectMin();
+                var gmax = ImGui.GetItemRectMax();
+                float gy = (gmin.Y + gmax.Y) * 0.5f - sz * 0.5f;
+                float gw = ImGui.CalcTextSize(glyph).X;
+                target.AddText(new Vector2(rowStart.X + (gutterPx - gw) * 0.5f, gy), ImGui.GetColorU32(colour), glyph);
+                return;
+            }
+            if (resolver == null || !resolver(key!, out var tex, out var uv0, out var uv1) || tex == 0)
+                return;
 
             // Vertically center in the ACTUAL item rect (valid immediately after the item was
             // drawn). The main menu bar is intentionally taller than a text line with the label
@@ -65,7 +98,7 @@ namespace GizmoMap.Presentation
             float cy = (rmin.Y + rmax.Y) * 0.5f - sz * 0.5f;
 
             var min = new Vector2(rowStart.X + (gutterPx - sz) * 0.5f, cy);
-            ImGui.GetWindowDrawList().AddImage(tex, min, min + new Vector2(sz, sz), uv0, uv1);
+            target.AddImage(tex, min, min + new Vector2(sz, sz), uv0, uv1);
         }
 
         /// <summary>True when any item at this menu level carries an icon — meaning the whole

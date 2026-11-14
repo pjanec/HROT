@@ -1,0 +1,303 @@
+using System.Collections.Generic;
+using System.Numerics;
+using CarKinem.Core;
+using CarKinem.Trajectory;
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Terrain;
+using NavResult = Fdp.Toolkit.Navigation.NavigationResult;
+
+namespace CarKinem.Systems
+{
+    /// <summary>
+    /// ⭐ Buildings Stage 5d-3/5d-4 (📄 docs/DESIGN_Building_Interiors.md §3j "5d") — an agent following a planned path through a
+    /// doorway, on the node that MOVES it. The planner marks doorway corners (<see cref="TraversalKind.Door"/>, carried on
+    /// <see cref="TrajectoryWaypoint.Traversal"/>); for the next mark ahead this system reads that door's state in THIS node's view:
+    /// <list type="bullet">
+    ///   <item><description><b>Closed</b> — within reach it HOLDS the agent (<see cref="NavState.IsBlocked"/>: the mover stops, path and
+    ///   progress kept), spends the open time (<see cref="DoorRules.ActionSeconds"/>), raises ONE <see cref="DoorCommandEvent"/>
+    ///   (Open) — the interaction transport carries it to the door's owner (R-221) — and releases the agent when the door's
+    ///   replicated state says Open. No answer in <see cref="AnswerTimeoutSeconds"/> ⇒ treated as a door it cannot pass.</description></item>
+    ///   <item><description><b>Locked</b> (or a Closed door that would not open) — the route is stale (R-218 P3): a replan through the
+    ///   shared <see cref="NavigationExecutionSystem.RequestReplan"/>, or <see cref="NavResult.FailedBlocked"/> when the intent allows
+    ///   none. The planner already treats a locked door as a wall, so the new path goes round it.</description></item>
+    ///   <item><description><b>Open / Destroyed</b> — nothing to do.</description></item>
+    /// </list>
+    /// <para>⚠ The hold state is node-local and transient (a dictionary here): it lives only between "reached the door" and "the door
+    /// opened". ⛔ This system never writes the door — only its owner does (<see cref="DoorCommandSystem"/>).</para>
+    /// </summary>
+    [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
+    public sealed class DoorPassageSystem : IEcsModuleSystem
+    {
+        /// <summary>How far ahead along the path (m) a door mark is considered.</summary>
+        public const float LookAheadMetres = 4f;
+        /// <summary>A door mark within this (m, horizontally) of a door's centre belongs to that door.</summary>
+        public const float DoorMatchMetres = 1.5f;
+        /// <summary>How long to wait (s) for the owner's answer after the Open command was sent.</summary>
+        public const float AnswerTimeoutSeconds = 3f;
+        /// <summary>After asking for a new path because of a door, how long (s) before asking again for the same door.</summary>
+        public const float ReplanQuietSeconds = 2f;
+
+        private readonly TrajectoryPoolManager _pool;
+        // ⭐ R-3039 S1 — each walker's passage is on the walker (DoorPassage), not here: a checkpoint restored into a fresh system carries it on.
+        private readonly Dictionary<string, Entity> _doorEntities = new(System.StringComparer.Ordinal);
+        private int _epoch;   // ⭐ CE-3294 — the world the door-entity cache below describes
+        private readonly List<Entity> _stale = new();
+        // ⭐ CE-4040 — per door this frame, the walker whose TURN it is: in reach, not yet through, nearest the door's centre
+        private readonly Dictionary<int, (Entity Who, float Distance)> _turn = new();
+
+        private int _frame;
+
+        /// <summary>Open commands this system raised (a rail and diagnostics read it).</summary>
+        public long OpenCommandsSent { get; private set; }
+        /// <summary>Replans this system requested because a door ahead could not be passed.</summary>
+        public long DoorReplans { get; private set; }
+
+        public DoorPassageSystem(TrajectoryPoolManager pool) => _pool = pool;
+
+        public void Execute(ISimulationView view, float deltaTime)
+        {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _doorEntities.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<DoorPassage>()) return;
+            if (!repo.HasSingletonManaged<TerrainWorld>() || repo.GetSingletonManaged<TerrainWorld>() is not { Doors.Count: > 0 } terrain)
+            {
+                ReleaseAll(repo);
+                return;
+            }
+            _frame++;
+
+            // ⭐ CE-4040 — TURNS at a doorway: one walker passes at a time. 📌 Live in ua-civ-shelter four panicked civilians reached
+            //   House A's door together; at a one-man doorway they jostled with no progress until the watchdog failed every move
+            //   (replans are not allowed) — at best one got in. The walker nearest the door's centre who has not yet passed it goes;
+            //   every other walker in reach of that door is held (standing, and the watchdogs skip a held walker) until he is through.
+            _turn.Clear();
+            foreach (var e in repo.Query().With<NavState>().With<SimTransform>().Build())
+            {
+                var nav = repo.GetComponentRO<NavState>(e);
+                if (nav.Mode != KinematicsMode.CustomTrajectory || nav.HasArrived != 0
+                    || !_pool.TryGetTrajectory(nav.TrajectoryId, out var traj)
+                    || DoorToPass(traj, nav.ProgressS, terrain, new Vector2(repo.GetComponentRO<SimTransform>(e).Position.X,
+                                                                           repo.GetComponentRO<SimTransform>(e).Position.Y)) is not int doorIndex) continue;
+                var at = repo.GetComponentRO<SimTransform>(e).Position;
+                float d = Vector2.Distance(new Vector2(at.X, at.Y), terrain.Doors[doorIndex].Center);
+                if (d > DoorRules.ReachMetres) continue;
+                if (!_turn.TryGetValue(doorIndex, out var first) || d < first.Distance
+                    || (d == first.Distance && e.Index < first.Who.Index))
+                    _turn[doorIndex] = (e, d);
+            }
+
+            foreach (var e in repo.Query().With<NavState>().With<SimTransform>().Build())
+            {
+                var nav = repo.GetComponentRO<NavState>(e);
+                if (nav.Mode != KinematicsMode.CustomTrajectory || nav.HasArrived != 0
+                    || !_pool.TryGetTrajectory(nav.TrajectoryId, out var traj)
+                    || NextDoorAhead(traj, nav.ProgressS, terrain) is not int doorIndex)
+                {
+                    Release(repo, e);
+                    continue;
+                }
+
+                bool had = repo.HasComponent<DoorPassage>(e);
+                var p = had ? repo.GetComponentRO<DoorPassage>(e) : default;
+                if (!had || p.DoorIndex != doorIndex) p = new DoorPassage { DoorIndex = doorIndex };
+                p.Seen = _frame;
+                p.SinceReplan += deltaTime;
+
+                var def = terrain.Doors[doorIndex];
+                var door = DoorEntity(repo, def.Key);
+                var state = door.IsNull ? def.Initial : repo.GetComponentRO<DoorState>(door).State;
+                var pos = repo.GetComponentRO<SimTransform>(e).Position;
+                bool inReach = Vector2.Distance(new Vector2(pos.X, pos.Y), def.Center) <= DoorRules.ReachMetres;
+
+                switch (state)
+                {
+                    case TerrainDoorState.Open:
+                    case TerrainDoorState.Destroyed:
+                        // ⭐ CE-4040 — another walker's turn at this doorway: wait in reach (one at a time). ⭐ CE-2259 — never a walker
+                        //   already THROUGH it (the turn's own test): 📌 bc-house-clear, a rifleman just past the front door was held there
+                        //   (his path still shows the door 1.5 m behind) and stood in the way of the man whose turn it was, for good
+                        if (inReach && _turn.TryGetValue(doorIndex, out var turn) && turn.Who != e
+                            && DoorToPass(traj, nav.ProgressS, terrain, new Vector2(pos.X, pos.Y)) is not null) Hold(repo, e, ref p);
+                        else Unhold(repo, e, ref p);
+                        break;
+
+                    case TerrainDoorState.Locked:
+                        Unhold(repo, e, ref p);
+                        CannotPass(repo, e, ref p);
+                        break;
+
+                    default:   // Closed
+                        if (!inReach || door.IsNull) { Unhold(repo, e, ref p); break; }   // not there yet / nothing to command
+                        Hold(repo, e, ref p);
+                        if (p.Sent == 0)
+                        {
+                            p.Elapsed += deltaTime;
+                            if (p.Elapsed >= DoorRules.ActionSeconds(DoorVerb.Open))
+                            {
+                                repo.Bus.Publish(new DoorCommandEvent { Door = door, Verb = DoorVerb.Open, Actor = e });
+                                p.Sent = 1;
+                                OpenCommandsSent++;
+                            }
+                        }
+                        else if ((p.SinceSent += deltaTime) > AnswerTimeoutSeconds)
+                        {
+                            Unhold(repo, e, ref p);
+                            CannotPass(repo, e, ref p);
+                        }
+                        break;
+                }
+                if (had) repo.GetComponentRW<DoorPassage>(e) = p; else repo.AddComponent(e, p);
+            }
+
+            // agents that left the query (despawned, lost their path component) must not stay held
+            _stale.Clear();
+            foreach (var e in repo.Query().With<DoorPassage>().Build()) if (repo.GetComponentRO<DoorPassage>(e).Seen != _frame) _stale.Add(e);
+            foreach (var e in _stale) Release(repo, e);
+        }
+
+        /// <summary>
+        /// The first door mark on <paramref name="traj"/> from just behind <paramref name="progressS"/> to
+        /// <see cref="LookAheadMetres"/> ahead, as the index of the terrain door it stands in; null when there is none.
+        /// </summary>
+        public static int? NextDoorAhead(in CustomTrajectory traj, float progressS, TerrainWorld terrain)
+            => NextDoorAhead(traj, progressS, terrain, out _);
+
+        /// <summary>As <see cref="NextDoorAhead(in CustomTrajectory, float, TerrainWorld)"/>; <paramref name="markS"/> is the door mark's
+        /// distance along the path (⭐ CE-4040 — a walker past it is through the doorway).</summary>
+        public static int? NextDoorAhead(in CustomTrajectory traj, float progressS, TerrainWorld terrain, out float markS)
+        {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427 — it scans every door of the terrain per door mark
+            var r = NextDoorAheadCore(traj, progressS, terrain, out markS);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_NextDoor, t0);
+            return r;
+        }
+        private static readonly int S_NextDoor = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("doors.NextDoorAhead");
+
+        private static int? NextDoorAheadCore(in CustomTrajectory traj, float progressS, TerrainWorld terrain, out float markS)
+        {
+            markS = 0f;
+            var wps = traj.Waypoints;
+            for (int i = 0; i < wps.Length; i++)
+            {
+                var wp = wps[i];
+                if (wp.CumulativeDistance < progressS - DoorMatchMetres) continue;
+                if (wp.CumulativeDistance > progressS + LookAheadMetres) break;
+                if (wp.Traversal != (byte)TraversalKind.Door) continue;
+                int best = -1; float bestD = DoorMatchMetres;
+                var at = new Vector2(wp.Position.X, wp.Position.Y);
+                for (int d = 0; d < terrain.Doors.Count; d++)
+                {
+                    float dist = Vector2.Distance(at, terrain.Doors[d].Center);
+                    if (dist <= bestD && System.MathF.Abs(wp.Position.Z - terrain.Doors[d].SillZ) < DoorRules.ReachHeightMetres) { best = d; bestD = dist; }
+                }
+                if (best >= 0) { markS = wp.CumulativeDistance; return best; }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4040</c> — the door on <paramref name="traj"/> ahead that a walker at <paramref name="at"/> has NOT yet passed, or null.
+        /// Passed is geometric: he stands on the far side of the door's wall from where his path comes to it. ⛔ Not by progress: a man
+        /// beside the doorway projects onto the path at its door mark, and read as through he was neither held nor led in.
+        /// </summary>
+        public static int? DoorToPass(in CustomTrajectory traj, float progressS, TerrainWorld terrain, Vector2 at)
+            => DoorToPass(traj, progressS, terrain, at, out _);
+
+        /// <summary>As <see cref="DoorToPass(in CustomTrajectory, float, TerrainWorld, Vector2)"/>; <paramref name="from"/> is the path
+        /// point he comes to the door from (⭐ CE-2259 — the door funnel orients by it).</summary>
+        public static int? DoorToPass(in CustomTrajectory traj, float progressS, TerrainWorld terrain, Vector2 at, out Vector2 from)
+        {
+            from = at;
+            if (NextDoorAhead(traj, progressS, terrain, out float markS) is not int door) return null;
+            var c = terrain.Doors[door].Center;
+            var wps = traj.Waypoints;
+            Vector2? cameFrom = null;   // the last path point before the mark that stands off the doorway
+            for (int i = 0; i < wps.Length && wps[i].CumulativeDistance < markS; i++)
+            {
+                var p = new Vector2(wps[i].Position.X, wps[i].Position.Y);
+                if (Vector2.Distance(p, c) > 0.5f) cameFrom = p;
+            }
+            // ⭐ CE-2259 — a path that STARTS in the doorway has no point behind the door: his side is the opposite of where it goes next
+            //   (the first point past the mark off the doorway, mirrored through the centre). 📌 bc-house-clear: a man leaving room A from
+            //   his post by the door had no "from", was never through, and was held 0.3 m into the hall — in the way of the man whose turn it was
+            if (cameFrom == null)
+                for (int i = 0; i < wps.Length; i++)
+                {
+                    if (wps[i].CumulativeDistance <= markS) continue;
+                    var p = new Vector2(wps[i].Position.X, wps[i].Position.Y);
+                    if (Vector2.Distance(p, c) > 0.5f) { cameFrom = c - (p - c); break; }
+                }
+            if (cameFrom is { } f) from = f;
+            return cameFrom is { } g && DoorApproach.Through(terrain, door, g, at) ? null : door;
+        }
+
+        private void CannotPass(EntityRepository repo, Entity e, ref DoorPassage p)
+        {
+            if (p.Replanned != 0 && p.SinceReplan < ReplanQuietSeconds) return;   // one request per door, until it lands
+            if (!repo.HasComponent<NavigationIntent>(e) || !repo.HasComponent<NavigationStatus>(e)) return;
+            var intent = repo.GetComponentRO<NavigationIntent>(e);
+            var status = repo.GetComponent<NavigationStatus>(e);
+            if (status.Result != NavResult.InProgress) return;
+            float elapsed = repo.HasComponent<FrustrationTicks>(e) ? repo.GetComponentRO<FrustrationTicks>(e).ElapsedSinceFirstReplan : 0f;
+            if (NavigationExecutionSystem.CanReplan(in intent, in status, elapsed))
+            {
+                NavigationExecutionSystem.RequestReplan(repo, e, in intent, ref status, repo.GetComponentRO<SimTransform>(e).Position);
+                DoorReplans++;
+            }
+            else NavigationExecutionSystem.FailBlocked(repo, e, in intent, ref status);
+            p.Replanned = 1;
+            p.SinceReplan = 0f;
+            p.Sent = 0; p.Elapsed = 0f; p.SinceSent = 0f;
+        }
+
+        private static void Hold(EntityRepository repo, Entity e, ref DoorPassage p)
+        {
+            if (p.Holding != 0) return;
+            var nav = repo.GetComponent<NavState>(e);
+            nav.IsBlocked = 1;
+            repo.SetComponent(e, nav);
+            p.Holding = 1;
+        }
+
+        private static void Unhold(EntityRepository repo, Entity e, ref DoorPassage p)
+        {
+            if (p.Holding == 0) return;
+            if (repo.IsAlive(e) && repo.HasComponent<NavState>(e))
+            {
+                var nav = repo.GetComponent<NavState>(e);
+                nav.IsBlocked = 0;
+                repo.SetComponent(e, nav);
+            }
+            p.Holding = 0;
+        }
+
+        private void Release(EntityRepository repo, Entity e)
+        {
+            if (!repo.IsAlive(e) || !repo.HasComponent<DoorPassage>(e)) return;
+            var p = repo.GetComponentRO<DoorPassage>(e);
+            Unhold(repo, e, ref p);
+            repo.RemoveComponent<DoorPassage>(e);
+        }
+
+        private void ReleaseAll(EntityRepository repo)
+        {
+            if (!repo.IsComponentTypeRegistered<DoorPassage>()) return;
+            _stale.Clear();
+            foreach (var e in repo.Query().With<DoorPassage>().Build()) _stale.Add(e);
+            foreach (var e in _stale) Release(repo, e);
+        }
+
+        /// <summary>The door entity of terrain-object <paramref name="key"/> on this node (cached; re-read when it is gone).</summary>
+        private Entity DoorEntity(EntityRepository repo, string key)
+        {
+            if (_doorEntities.TryGetValue(key, out var e) && repo.IsAlive(e) && repo.HasComponent<DoorState>(e)) return e;
+            if (!repo.IsComponentTypeRegistered<DoorState>()) return Entity.Null;
+            e = TerrainObjects.Find(repo, key);
+            if (!e.IsNull && !repo.HasComponent<DoorState>(e)) e = Entity.Null;
+            if (e.IsNull) _doorEntities.Remove(key); else _doorEntities[key] = e;
+            return e;
+        }
+    }
+}

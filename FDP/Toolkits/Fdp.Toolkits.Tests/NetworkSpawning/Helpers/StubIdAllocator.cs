@@ -6,23 +6,23 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests.Helpers
     /// </summary>
     public sealed class StubIdAllocator : INetworkIdAllocator
     {
-        private long _next;
+        private int _next;
 
         /// <summary>Last ID returned by <see cref="AllocateId"/>.</summary>
-        public long LastAllocatedId { get; private set; }
+        public int LastAllocatedId { get; private set; }
 
         /// <param name="startId">First ID to return (default 1).</param>
-        public StubIdAllocator(long startId = 1) => _next = startId;
+        public StubIdAllocator(int startId = 1) => _next = startId;
 
         /// <inheritdoc />
-        public long AllocateId()
+        public int AllocateId()
         {
             LastAllocatedId = _next;
             return _next++;
         }
 
         /// <inheritdoc />
-        public void Reset(long startId = 0) => _next = startId;
+        public void Reset(int startId = 0) => _next = startId;
 
         /// <inheritdoc />
         public void Dispose() { }

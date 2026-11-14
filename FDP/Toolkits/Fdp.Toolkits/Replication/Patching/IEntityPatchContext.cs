@@ -50,11 +50,20 @@ public interface IEntityPatchContext
     T GetManagedComponent<T>() where T : class;
 
     /// <summary>
+    /// ⭐ rules ② (R1, <c>docs/DESIGN_Scenario_Rules.md</c> §00.11a) — REPLACES a managed class component with <paramref name="value"/> (a new instance).
+    /// The setter the router lacked: a managed component is IMMUTABLE (a <c>record</c>, CLAUDE.md "NEW COMPONENTS"), so a handler builds
+    /// <c>old with { Field = v }</c> and sets it — ⛔ never mutates the instance <see cref="GetManagedComponent{T}"/> returned. The caller checks
+    /// <see cref="CanWriteManaged{T}"/> first (the registration's gate does).
+    /// </summary>
+    void SetManagedComponent<T>(T value) where T : class;
+
+    /// <summary>
     /// Called after all JSON compilation is complete to flush dirty-marks for every
     /// component type touched during this session.  ListPatchContext is a no-op;
     /// EcsPatchContext calls SmartEgressUtil.MarkDirty for each distinct ordinal.
     /// </summary>
     void FlushDirtyMarks();
+
 
     /// <summary>
     /// Returns true if the current context has authority to write the unmanaged struct component

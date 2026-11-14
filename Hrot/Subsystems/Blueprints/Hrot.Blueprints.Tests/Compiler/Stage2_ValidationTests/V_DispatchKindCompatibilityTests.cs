@@ -66,6 +66,50 @@ public sealed class V_DispatchKindCompatibilityTests
         Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP1011);
     }
 
+    /// <summary>
+    /// ⭐ <b><c>U-12</c> — <c>BP1011</c> restated to <i>any</i> asset-scope declaration.</b> A Library
+    /// carrying a <c>Parameter</c> or a working-state entry was quietly legal before, for no stated
+    /// reason: the rule named <c>Variables</c> only because the lists were separate.
+    ///
+    /// <para>⭐⭐ <b>Batch 86 — RESTATED, not deleted.</b> The second row said <c>WorkingState</c>;
+    /// <c>R-01</c> makes that <c>Variable</c>. ⚠ <b>The AUTHORING path is deliberately unchanged</b> —
+    /// it still builds through <c>WithWorkingStateField</c>, which is now the retired alias onto the
+    /// leading part of the one state run. ⇒ the row still covers the entry point a v1-shaped asset
+    /// arrives through, which is the only reason this row differs from
+    /// <c>Library_WithVariable_EmitsBP1011</c> above.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(DeclarationKind.Parameter)]
+    [InlineData(DeclarationKind.Variable)]
+    [CoversDiagnosticCode("BP1011")]
+    public void Library_WithAnyAssetScopeDeclaration_EmitsBP1011(DeclarationKind kind)
+    {
+        var builder = BlueprintAssetBuilder.Library("L");
+        var asset   = (kind == DeclarationKind.Parameter
+                        ? builder.WithParameter("x", typeof(int))
+                        : builder.WithWorkingStateField("x", typeof(int)))
+                      .Build();
+
+        var diags = Validate(asset);
+
+        Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP1011);
+    }
+
+    /// <summary>⛔ And a Library that declares nothing is still fine — the widening must not turn
+    /// into "a Library is refused".</summary>
+    [Fact]
+    public void Library_DeclaringNothing_DoesNotEmitBP1011()
+    {
+        var asset = BlueprintAssetBuilder
+            .Library("L")
+            .WithGraph("G", g => g.Entry().Return())
+            .Build();
+
+        var diags = Validate(asset);
+
+        Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP1011);
+    }
+
     [Fact]
     [CoversDiagnosticCode("BP1012")]
     public void Library_WithCustomEvent_EmitsBP1012()
@@ -156,19 +200,33 @@ public sealed class V_DispatchKindCompatibilityTests
         Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP1023);
     }
 
+    /// <summary>
+    /// ⭐⭐ <b><c>U-12</c> Pass 1 — <c>BP1024</c> is RETIRED.</b> It refused an AiPrimitive that
+    /// declared a <c>Variable</c>, on the reasoning that <i>"AiPrimitive uses parameters and
+    /// workingState"</i>. ⛔ Under the unified model <c>Variable</c> and <c>WorkingState</c> are the
+    /// <b>same cell</b>, <c>(State, Asset)</c> — the rule was enforcing a spelling, not a semantic.
+    ///
+    /// <para>
+    /// ⚠ This test is the inverse of the one it replaces: it asserts the diagnostic <b>does not</b>
+    /// fire, so the retirement cannot be silently undone. The gate's own wording — ⭐ <i>"an
+    /// AiPrimitive with (State, Asset) entries compiles"</i> — is the second assertion.
+    /// </para>
+    /// </summary>
     [Fact]
-    [CoversDiagnosticCode("BP1024")]
-    public void AiPrimitive_WithVariable_EmitsBP1024()
+    public void AiPrimitive_WithStateAssetEntriesOfBothSpellings_Compiles()
     {
         var asset = BlueprintAssetBuilder
             .AiPrimitive("A")
             .WithHostings(AiPrimitiveHosting.BTreeAction)
-            .WithVariable("x", typeof(int))
+            .WithWorkingStateField("ws", typeof(int))
+            .WithVariable("v", typeof(int))
+            .WithGraph("Main", g => g.Entry().Return())
             .Build();
 
         var diags = Validate(asset);
 
-        Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP1024);
+        Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP1024);
+        Assert.DoesNotContain(diags, d => d.Severity == DiagnosticSeverity.Error);
     }
 
     [Fact]
@@ -206,18 +264,56 @@ public sealed class V_DispatchKindCompatibilityTests
         Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP1030);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 70 — <c>BP1031</c> is RETIRED, and this assertion is INVERTED.</b>
+    ///
+    /// <para>
+    /// <c>U-12</c> kept the <c>Parameter</c> half on the reasoning <i>"a spawn-time input the Instance
+    /// dispatch has no way to supply"</i> — the rule's own message said so. 🔴 <b>The Instance params
+    /// seam supplies it</b> (<c>DESIGN_Parameter_Model.md</c> §3.3): the attach event carries the JSON,
+    /// <c>BlueprintDefinition.ParseParams</c> resolves it through the SAME delegate a behaviour uses,
+    /// and the payload reserves <c>[Cursor 16][Params N][State M]</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ Leaving it standing would have made the seam unreachable — the "inert rule" shape this
+    /// programme keeps filing rather than shipping. ⭐ Inverted rather than deleted, so the retirement
+    /// is asserted rather than merely uncommented.
+    /// </para>
+    /// </summary>
     [Fact]
-    [CoversDiagnosticCode("BP1031")]
-    public void Instance_WithParams_EmitsBP1031()
+    public void Instance_WithParams_NoLongerEmitsBP1031()
     {
         var asset = BlueprintAssetBuilder
             .Instance("I")
             .WithParameter("p", typeof(int))
+            .WithGraph("Tick", g => g.Entry().Return())
             .Build();
 
         var diags = Validate(asset);
 
-        Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP1031);
+        Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP1031);
+        Assert.DoesNotContain(diags, d => d.Severity == DiagnosticSeverity.Error);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>U-12</c> Pass 2 — the half that was SPLIT OFF.</b> Refusing an Instance's
+    /// <c>WorkingState</c> was the same spelling rule as <c>BP1024</c>: <c>WorkingState</c> and
+    /// <c>Variable</c> are one cell. ⛔ It must no longer fire.
+    /// </summary>
+    [Fact]
+    public void Instance_WithWorkingState_NoLongerEmitsBP1031()
+    {
+        var asset = BlueprintAssetBuilder
+            .Instance("I")
+            .WithWorkingStateField("ws", typeof(int))
+            .WithGraph("Tick", g => g.Entry().Return())
+            .Build();
+
+        var diags = Validate(asset);
+
+        Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP1031);
+        Assert.DoesNotContain(diags, d => d.Severity == DiagnosticSeverity.Error);
     }
 
     // ---- Catalog reference tests ----------------------------------------

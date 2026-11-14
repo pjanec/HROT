@@ -42,7 +42,12 @@ public class FdpApplicationTests
         }
     }
 
-    [Fact]
+    // ⭐⭐⭐ RequiresDisplayFact, not Fact (2026-09-10). `app.Run()` calls Raylib.InitWindow, which
+    //   SEGFAULTS without a GL context — and a segfault aborts the WHOLE RUN, hiding every test ordered
+    //   after it. That is one of the two crash sites behind CE-259aa. ⛔ Do not "fix" this by deleting
+    //   the test: it is the only rail on the application lifecycle ORDER and it passes on a machine with
+    //   a display. See RequiresDisplayFactAttribute for the reasoning.
+    [RequiresDisplayFact]
     public void FdpApplication_Run_CallsLifecycleMethods_InOrder()
     {
         // Arrange

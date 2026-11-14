@@ -13,6 +13,9 @@ internal static class WhenLowering_Instance
     private static readonly IrTypeRef FloatType =
         new IrTypeRef { FullName = "System.Single", IsUnmanaged = true, SizeBytes = 4 };
 
+    private static readonly IrTypeRef ByteType =
+        new IrTypeRef { FullName = "System.Byte", IsUnmanaged = true, SizeBytes = 1 };
+
     private static readonly IrTypeRef BoolType =
         new IrTypeRef { FullName = "System.Boolean", IsUnmanaged = true, SizeBytes = 1 };
 
@@ -70,6 +73,30 @@ internal static class WhenLowering_Instance
                     DefaultValueCSharp = "default",
                 });
             }
+            else if (stmt.Operation is IrOp_WhenSensorResultCheck sns)
+            {
+                // ⭐ CE-3078 N4 — as the EQS When: one prev-state struct per node.
+                if (!seen.Add(sns.SynthFieldName)) continue;
+                toAdd.Add(new IrField
+                {
+                    Id                 = SynthesizedGuids.WhenPrevField(asset.AssetId, DeriveNodeIdFromFieldName(sns.SynthFieldName)),
+                    Name               = sns.SynthFieldName,
+                    Type               = new IrTypeRef { FullName = sns.SynthStructTypeName, IsUnmanaged = true, SizeBytes = sns.SynthStructSizeBytes },
+                    DefaultValueCSharp = "default",
+                });
+            }
+            else if (stmt.Operation is IrOp_ScoreDecision sd)
+            {
+                // ⭐ CE-2070 — the node's last winner: the hysteresis memory, per node, never on the unit.
+                if (!seen.Add(sd.SynthFieldName)) continue;
+                toAdd.Add(new IrField
+                {
+                    Id                 = SynthesizedGuids.ScoreLastWinnerField(asset.AssetId, sd.NodeId8),
+                    Name               = sd.SynthFieldName,
+                    Type               = ByteType,
+                    DefaultValueCSharp = "default",
+                });
+            }
             else
             {
                 continue;
@@ -80,6 +107,11 @@ internal static class WhenLowering_Instance
 
         // Append synthesized fields after declared variables; deterministic order by name.
         toAdd.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.Ordinal));
+        // ⭐ S2 (DESIGN_Unified_Behaviour_Run U-1) — a blueprint BEHAVIOUR keeps its When memory in its brain state
+        //   (`Exec`), never in its blackboard block: it is execution state no resolver or reader should see. It joins
+        //   the name-addressed execution-state slots. An Instance keeps it in its one payload, as before.
+        if (asset.Dispatch == Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Behavior)
+            return asset with { GraphLocalSlots = asset.GraphLocalSlots.Concat(toAdd).ToList() };
         var newVariables = asset.Variables.Concat(toAdd).ToList();
         return asset with { Variables = newVariables };
     }

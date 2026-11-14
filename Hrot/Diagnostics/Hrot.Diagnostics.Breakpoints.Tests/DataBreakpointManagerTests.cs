@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
@@ -426,10 +426,21 @@ public sealed class TripleBufferPauseTests
     }
 
     /// <summary>
-    /// RequestContinue when not paused must be a no-op (no events, no clock calls).
+    /// ⭐⭐⭐ <b><c>CE-035</c> — SUPERSEDES <c>RequestContinue_WhenNotPaused_IsNoOp</c>.</b>
+    ///
+    /// <para>⚠ This rail previously asserted <c>ResumeCount == 0</c> when not paused. 🔴 That assertion
+    /// ENCODED THE DEFECT: after <c>RequestStep()</c>, <c>_isPaused</c> is false while the clock is still
+    /// halted, so *"not paused ⇒ do nothing"* made *step, look, continue* leave the operator halted
+    /// forever. 📐 The <c>CE-029</c> barrier rail measured it and had to call
+    /// <c>controller.RequestResume()</c> directly with a comment saying why.</para>
+    ///
+    /// <para>⭐ The contract now: the REWIND-UNDO half is conditional on <c>IsPaused</c>; the RESUME half
+    /// is not, because only the time controller knows whether time is running. ⇒ no state change to
+    /// announce *(no <c>OnPauseStateChanged</c>)*, and a resume that is idempotent when already
+    /// running.</para>
     /// </summary>
     [Fact]
-    public void RequestContinue_WhenNotPaused_IsNoOp()
+    public void RequestContinue_WhenNotPaused_StillResumesTheClock_AndRaisesNoEvent()
     {
         var (manager, _, _, tc) = ManagerFactory.Create();
 
@@ -438,8 +449,32 @@ public sealed class TripleBufferPauseTests
 
         manager.RequestContinue();
 
-        Assert.Equal(0, tc.ResumeCount);
+        Assert.Equal(1, tc.ResumeCount);
         Assert.Equal(0, eventCount);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-035</c>'s actual gesture: STEP, then CONTINUE.</b>
+    ///
+    /// <para>⛔ Before the fix this asserted zero resumes — the step cleared <c>IsPaused</c> and the
+    /// continue returned early, so the clock stayed halted with no way back through this surface.</para>
+    /// </summary>
+    [Fact]
+    public void ContinueAfterAStepResumesTheClock()
+    {
+        var (manager, _, _, tc) = ManagerFactory.Create();
+
+        manager.Add(ManagerFactory.MakeBreakpoint(enabled: true));
+        manager.OnHit(manager.AllBreakpoints[0], new Entity(1, 0));
+        Assert.True(manager.IsPaused);
+
+        manager.RequestStep();
+        Assert.False(manager.IsPaused);          // 📐 the measured contract — RequestStep clears it
+        Assert.Equal(0, tc.ResumeCount);         // ⛔ a step is not a resume
+
+        manager.RequestContinue();
+
+        Assert.Equal(1, tc.ResumeCount);
     }
 
     /// <summary>
@@ -639,8 +674,13 @@ public sealed class TripleBufferPauseTests
 
 /// <summary>
 /// Verifies the contract of <see cref="IEngineDebugTimeController"/> as implemented
-/// by <see cref="MockDebugTimeController"/>, and confirms that
-/// <see cref="IBlueprintTimeController"/> still resolves through inheritance.
+/// by <see cref="MockDebugTimeController"/>.
+///
+/// <para>⛔ <c>CE-350</c> (<c>2026-09-26</c>): the companion test
+/// <c>IBlueprintTimeController_Still_Resolves_Through_Inheritance</c> is <b>DELETED</b>, not
+/// re-pointed — the obsolete alias it asserted is gone, so the claim no longer has a subject.
+/// ⭐ Re-pointing it at <see cref="IEngineDebugTimeController"/> would have produced a tautology
+/// (<i>"the interface is assignable from itself"</i>) dressed as a regression test.</para>
 /// </summary>
 public sealed class EngineDebugTimeControllerTests
 {
@@ -666,18 +706,6 @@ public sealed class EngineDebugTimeControllerTests
         Assert.False(tc.IsPausedByDebugger);
     }
 
-    /// <summary>
-    /// <see cref="IBlueprintTimeController"/> must still derive from
-    /// <see cref="IEngineDebugTimeController"/> so callers that hold an
-    /// <c>IBlueprintTimeController</c> reference can use it as the base interface.
-    /// </summary>
-    [Fact]
-    public void IBlueprintTimeController_Still_Resolves_Through_Inheritance()
-    {
-        // IBlueprintTimeController IS-A IEngineDebugTimeController.
-        Assert.True(
-            typeof(IEngineDebugTimeController).IsAssignableFrom(typeof(IBlueprintTimeController)));
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -878,7 +906,7 @@ public sealed class DataBreakpointSystemEventTests
         var compiler      = new PredicateCompiler(new ComponentEditServiceBuilder().Build());
         var eventCompiler = new EventScannerCompiler(new ComponentEditServiceBuilder().Build());
         var manager       = new DataBreakpointManager(repo, preTick, provider, tc, compiler, eventCompiler);
-        var bus           = new FdpEventBus();
+        var bus           = repo.Bus;   // CE-3293 S3 — the world's own bus: the scanners read it through the repository
         var system        = new DataBreakpointSystem(manager, bus);
         return (manager, system, repo, bus);
     }
@@ -949,5 +977,100 @@ public sealed class DataBreakpointSystemEventTests
         bus.SwapBuffers();
         system.Execute(repo, 0f);
         Assert.True(manager.IsPaused);
+    }
+}
+
+// =========================================================================
+// ⭐ CE-1258 (BV-28, R-1029) — a Changed condition is exact per entity
+// =========================================================================
+
+/// <summary>
+/// ⭐⭐ <c>CE-1258</c> — <c>Changed</c> compares the entity with the start-of-tick copy. 📐 Before, it was <c>true</c> for every entity of a chunk
+/// that changed, so a breakpoint filtered to unit A fired when its NEIGHBOUR B (same chunk) wrote — which made "stop when this unit changes
+/// its mind" impossible. 📄 docs/DESIGN_Entity_Brain_View.md §10 BV-28.
+/// </summary>
+[Collection("ComponentRegistry")]
+public sealed class TheChangedConditionIsPerEntityTests
+{
+    /// <summary>🔴 Red-proof: return <c>true</c> at the top of <c>BuildChangedMatcher</c>'s delegate (the old answer) ⇒ red at the
+    /// neighbour step.</summary>
+    [Fact]
+    public void ANeighboursWrite_DoesNotHit_TheUnitsOwnWriteDoes()
+    {
+        ComponentTypeRegistry.Clear();
+        var live     = new EntityRepository();
+        var snapshot = new EntityRepository();
+        live.RegisterComponent<TestHealth>();
+        snapshot.RegisterComponent<TestHealth>();
+        var a = live.CreateEntity(); live.AddComponent(a, new TestHealth { Current = 10 });
+        var b = live.CreateEntity(); live.AddComponent(b, new TestHealth { Current = 10 });
+
+        var provider = new DebugSnapshotProvider(snapshot);
+        var manager  = new DataBreakpointManager(live, snapshot, provider, new MockDebugTimeController(),
+            new PredicateCompiler(new ComponentEditServiceBuilder().Build()),
+            new EventScannerCompiler(new ComponentEditServiceBuilder().Build()));
+        manager.AddBreakpoint(new PropertyMatchDto
+        {
+            ComponentType = typeof(TestHealth), PropertyPath = nameof(TestHealth.Current), Operator = SearchOperator.Changed,
+            Predicate = new NumericPredicateDto(),
+        }, a);
+        var system = new DataBreakpointSystem(manager, null);
+
+        live.Tick();                                   // a frame: the version moves (the kernel does this every frame) …
+        provider.Execute(live, 0f);                    // … start-of-tick copy …
+        system.Execute(live, 0f);                      // … nothing changed
+        Assert.False(manager.IsPaused);
+
+        live.Tick();
+        provider.Execute(live, 0f);
+        live.GetComponentRW<TestHealth>(b).Current = 5;   // the NEIGHBOUR writes (same chunk)
+        system.Execute(live, 0f);
+        Assert.False(manager.IsPaused);
+
+        live.Tick();
+        provider.Execute(live, 0f);
+        live.GetComponentRW<TestHealth>(a).Current = 7;   // the unit itself writes
+        system.Execute(live, 0f);
+        Assert.True(manager.IsPaused);
+    }
+
+    /// <summary>⭐⭐ <c>CE-1284</c> (Behaviour Debugging DBG-8) — in the REAL phase order a write made in <b>Input</b> (where the ingress starts a
+    /// task and writes the brain journal) is a change: the baseline is taken in PreFrame, before it. 🔴 Measured before: the baseline was the
+    /// BeforeSync copy, AFTER Input ⇒ the change was already in it ⇒ "Break when it changes its mind" never broke.
+    /// ✅ Red-proof: drop the <see cref="ChangeBaselineSystem"/> (the manager falls back to the BeforeSync copy) ⇒ red.</summary>
+    [Fact]
+    public void CE1284_AWriteInInput_IsAChange_BecauseTheBaselineIsTakenInPreFrame()
+    {
+        ComponentTypeRegistry.Clear();
+        EntityRepository World() { var w = new EntityRepository(); w.RegisterComponent<TestHealth>(); return w; }
+        var live = World();
+        var snapshot = World();
+        var a = live.CreateEntity(); live.AddComponent(a, new TestHealth { Current = 10 });
+
+        var provider = new DebugSnapshotProvider(snapshot);
+        var manager  = new DataBreakpointManager(live, snapshot, provider, new MockDebugTimeController(),
+            new PredicateCompiler(new ComponentEditServiceBuilder().Build()),
+            new EventScannerCompiler(new ComponentEditServiceBuilder().Build()));
+        manager.AddBreakpoint(new PropertyMatchDto
+        {
+            ComponentType = typeof(TestHealth), PropertyPath = nameof(TestHealth.Current), Operator = SearchOperator.Changed,
+            Predicate = new NumericPredicateDto(),
+        }, a);
+        var baseline = new ChangeBaselineSystem(manager, World());
+        var system = new DataBreakpointSystem(manager, null);
+
+        void Frame(System.Action? input)
+        {
+            live.Tick();
+            baseline.Execute(live, 0f);                   // PreFrame
+            input?.Invoke();                              // Input — the ingress writes here
+            provider.Execute(live, 0f);                   // BeforeSync — the rewind snapshot
+            system.Execute(live, 0f);                     // PostSimulation
+        }
+
+        Frame(null);
+        Assert.False(manager.IsPaused);
+        Frame(() => live.GetComponentRW<TestHealth>(a).Current = 7);
+        Assert.True(manager.IsPaused, "a change written in Input must hit");
     }
 }

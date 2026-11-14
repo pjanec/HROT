@@ -26,7 +26,7 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
     // A LOS service that always reports no line-of-sight (all cover is "good cover").
     private sealed class AlwaysBlockedLosService : ILosService
     {
-        public bool HasCheapLineOfSight(Vector2 observer, Vector2 target) => false;
+        public bool HasLineOfSight(Vector3 eye, Vector3 aim) => false;
     }
 
     // ── Inner types ────────────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
         {
             int count = Math.Min(_xs.Length, candidates.Length);
             for (int i = 0; i < count; i++)
-                candidates[i] = new EqsResult { EntityId = 0L, PositionX = _xs[i], PositionY = 0f, Score = 1f };
+                candidates[i] = new EqsResult { EntityId = 0, PositionX = _xs[i], PositionY = 0f, Score = 1f };
             return count;
         }
     }
@@ -90,13 +90,25 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
     // ── T-FM1: struct size unchanged ──────────────────────────────────────────
 
     /// <summary>
-    /// T-FM1: <see cref="EqsResult"/> struct size must remain 24 bytes after replacing
-    /// <c>_pad</c> with <see cref="EqsResult.FlagsMeaningful"/>.
+    /// T-FM1: replacing <c>_pad</c> with <see cref="EqsResult.FlagsMeaningful"/> must not GROW the
+    /// struct — the new field has to live in the tail padding.
+    ///
+    /// <para>⭐ <c>QA-014</c> — <b>the number is 32, not 24, and that is a deliberate change this
+    /// assertion never tracked.</b> 📐 <c>P3D-201</c> promoted the result to 3-D and added
+    /// <see cref="EqsResult.PositionZ"/>: <c>long</c>(8) + 4×<c>float</c>(16) + 2×<c>short</c>(4) = 28,
+    /// padded to <b>32</b> on the 8-byte alignment the <c>long</c> forces. Before <c>PositionZ</c> the
+    /// same arithmetic gave exactly 24. ⚠ This project's own csproj already carries
+    /// <c>EQS_HAS_POSITIONZ</c> for that promotion — only this one assertion was left behind.</para>
+    ///
+    /// <para>⭐⭐ <b>The invariant T-FM1 exists for still HOLDS</b>, and is now stated so it cannot drift
+    /// again: with <c>_pad</c> the struct was 8+16+2+2 = 28 → 32 as well, so <c>FlagsMeaningful</c> is
+    /// still free. ⛔ A jump to 40 would mean the field stopped fitting the padding — that is the
+    /// regression this guards, not the literal 24.</para>
     /// </summary>
     [Fact]
     public void EqsResult_FlagsMeaningful_StructSizeUnchanged()
     {
-        Assert.Equal(24, Marshal.SizeOf<EqsResult>());
+        Assert.Equal(32, Marshal.SizeOf<EqsResult>());
     }
 
     // ── T-FM2: bypass path does NOT set FlagsMeaningful ─────────────────────
@@ -129,7 +141,7 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
 
         // Threat score 10 < threshold 50 → bypass.
         var mem1 = new TargetMemory();
-        TargetMemory.AddOrUpdateTarget(ref mem1, entityId: 1L, posX: 20f, posY: 0f, scoreBoost: 10f, tick: 1);
+        TargetMemory.AddOrUpdateTarget(ref mem1, entityId: (long)_harness.Repo.CreateEntity().PackedValue, posX: 20f, posY: 0f, scoreBoost: 10f, tick: 1);
         _harness.Repo.AddComponent(observer, mem1);
 
         // Context slot 1 entity -- needed to reach the threshold bypass gate.
@@ -147,7 +159,7 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
             ThreatThreshold = 50f, // threat (10) < threshold (50) → bypass
             ContextSlot1    = targetEntity1,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8200L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8200 });
 
         // Act: pump until buffer is ready.
         bool ready = _harness.PumpUntil(
@@ -195,7 +207,7 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
         });
 
         var mem3 = new TargetMemory();
-        TargetMemory.AddOrUpdateTarget(ref mem3, entityId: 2L, posX: 20f, posY: 0f, scoreBoost: 100f, tick: 1);
+        TargetMemory.AddOrUpdateTarget(ref mem3, entityId: (long)_harness.Repo.CreateEntity().PackedValue, posX: 20f, posY: 0f, scoreBoost: 100f, tick: 1);
         _harness.Repo.AddComponent(observer, mem3);
 
         // Context slot 1 entity -- provides threat position for CheapLineOfSightTest.
@@ -213,7 +225,7 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
             ThreatThreshold = 50f, // threat (100) > threshold (50) → test runs
             ContextSlot1    = targetEntity3,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8201L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8201 });
 
         bool ready = _harness.PumpUntil(
             () => _harness.Repo.HasComponent<EqsCognitiveBuffer>(observer)
@@ -223,12 +235,13 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
 
         Assert.True(ready, "CognitiveBuffer must be ready with results within timeout");
 
-        // Assert: all surviving candidates have FlagsMeaningful bit 0 set.
+        // Assert: all surviving candidates have FlagsMeaningful bit 1 set — §4.2 HasLOSToContext1 (the test reads slot 1).
+        // ⛔ SUPERSEDED (EQS §19.5): bit 0, which the LOS test used to set for "covered from slot 1".
         ref readonly var buffer = ref _harness.Repo.GetComponentRO<EqsCognitiveBuffer>(observer);
         var span = buffer.GetSpanRO();
         for (int i = 0; i < buffer.Count; i++)
         {
-            Assert.NotEqual(0, span[i].FlagsMeaningful & 1);
+            Assert.NotEqual(0, span[i].FlagsMeaningful & 2);
         }
     }
 
@@ -259,7 +272,7 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
         harness.SimHost.World!.SetSingletonManaged<IEqsTemplateRegistry>(registry);
 
         // Spawn entity with split authority (Brain = CGF, Muscle = SimHost).
-        long networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         // Wait for the Muscle ghost entity to appear.

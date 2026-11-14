@@ -1,0 +1,66 @@
+{
+  "title": "Fire distribution",
+  "caption": "Five men, three targets: the leader spreads the fire — no more than two on a target",
+  "clip": "F-29",
+  "chapter": 6,
+  "state": "ready",
+  "endAt": "m+12",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Leader",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-2.3",
+      "over": "Leader",
+      "toward": "Centre Hostile",
+      "back": 12,
+      "height": 4,
+      "lift": 1.6,
+      "fov": 60,
+      "segment": "intro"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Leader",
+      "toward": "Centre Hostile",
+      "back": 8,
+      "height": 3,
+      "lift": 1.6,
+      "fov": 32,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Centre Hostile",
+      "distance": 45,
+      "yaw": 20,
+      "pitch": -30,
+      "lift": 1.5,
+      "fov": 50,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-2.3",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+12"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-2.3",
+      "until": "m+12",
+      "text": "Five men, three targets: the leader spreads the fire — no more than two on a target"
+    }
+  ]
+}

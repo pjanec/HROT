@@ -46,18 +46,168 @@ namespace Fdp.Core.FlightRecorder.Metadata
         /// was not supplied with a network entity map.
         /// </para>
         /// </summary>
-        public long MaxNetworkId { get; set; } = 0;
+        public int MaxNetworkId { get; set; } = 0;
 
         /// <summary>
         /// Distributed exercise identifier shared by all nodes participating in one exercise session.
         /// Defaults to <see cref="Guid.Empty"/> for legacy recordings that pre-date federation support.
         /// </summary>
-        public Guid ExerciseId { get; set; } = Guid.Empty;
+        public ExerciseId ExerciseId { get; set; } = ExerciseId.Empty;
 
         /// <summary>
         /// Identifier of the distributed node that produced this recording.
         /// Defaults to <c>0</c> for legacy recordings that pre-date federation support.
         /// </summary>
-        public int NodeId { get; set; } = 0;
+        public NodeId NodeId { get; set; } = (Fdp.Core.NodeId)(0);
+
+        /// <summary>⭐ CE-4331 ① (📄 docs/DESIGN_Recording_Storage.md §9a) — the recording node's NAME (unique in its cluster; a configured name stays across runs) —
+        /// an AAR on a later cluster places this file on the node of the same name first. Empty in a recording made before CE-4331.</summary>
+        public string NodeName { get; set; } = "";
+
+        /// <summary>⭐ CE-4331 ① — the recording node's SUBSYSTEM (<c>CGF</c>, <c>SimHost</c>, <c>IG</c>, <c>Player</c>, …): with <see cref="Roles"/> its KIND, which a
+        /// placement must match (§9a). Empty in a recording made before CE-4331.</summary>
+        public string Subsystem { get; set; } = "";
+
+        /// <summary>⭐ CE-4331 ① — the recording node's roles (the <c>NodeRole</c> flags, as an int); 0 = not recorded.</summary>
+        public int Roles { get; set; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3126</c> (R-229) — the terrain resident while recording (the name the scenario resolved it by), so a
+        /// replay can load it again. Empty when no terrain was loaded, and for recordings that pre-date this field.
+        /// 📄 docs/DESIGN_Geo_Origin.md §2 E.
+        /// </summary>
+        public string TerrainName { get; set; } = "";
+
+        /// <summary>⭐ O-8 (CE-4420, docs/DESIGN_Terrain_Authoring.md §18) — the content hash of the terrain OVERLAY (the scenario's compiled blocks / features) resident while recording, so a replay loads the same
+        /// additions by hash. Empty when the terrain had none, and for recordings that pre-date the field.</summary>
+        public string OverlayHash { get; set; } = "";
+
+        /// <summary>⭐ O-8 — the content hash of the BASE terrain the overlay was merged over (set with <see cref="OverlayHash"/>; empty without an overlay and in older recordings).</summary>
+        public string TerrainHash { get; set; } = "";
+
+        /// <summary>
+        /// ⭐ <c>CE-4058</c> ② (Director Timeline TE-13) — the scenario this recording ran (its name/id) and its hash as loaded
+        /// (<c>ScenarioDescription.HashOf</c>, the director's <c>TakeStore.ScenarioHash</c> rule), so a kept recording, its takes and a
+        /// "promote" know what it is. Empty for a new scenario and for recordings that pre-date these fields.
+        /// <para>⚠ <b>CE-3340 ②</b> — the hash is "AS LOADED" (stamped once by the load step), so ⛔ it is NOT "the version that ran" after an edit → save →
+        /// go-live. The one reader of that is <c>RecordedScenarioStamp.VersionOf</c> (the go-live stamp of the recording's copy), which falls back to this
+        /// hash only when no copy / stamp is reachable. Kept for that fallback and the file format (an old recording reads on).</para>
+        /// </summary>
+        public string ScenarioName { get; set; } = "";
+
+        /// <inheritdoc cref="ScenarioName"/>
+        public string ScenarioHash { get; set; } = "";
+
+        /// <summary>⭐ Macros S3a ⑦ (SR-176, docs/DESIGN_Scenario_Macros.md §15.3) — the scenario args the run was loaded with (a JSON object text:
+        /// the header's defaults ▸ the run's args); empty when the scenario declares no params. "Run it again with the same setup" reads it.</summary>
+        public string ScenarioArgs { get; set; } = "";
+
+        /// <summary>
+        /// ⭐ <c>CE-3126</c> (R-229) — the geodetic origin the recording node converted with. 🔒 User: <i>"Origin can be saved in
+        /// recording metadata in case terrain with remembered name no longer exists"</i> — so a replay places the recording
+        /// where it was recorded even when the terrain is gone or its origin was edited since. <c>null</c> for recordings that
+        /// pre-date this field. 📄 docs/DESIGN_Geo_Origin.md §2 E/F.
+        /// </summary>
+        public GeoOriginRecord? GeoOrigin { get; set; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B3 (R-3044) — the CHECKPOINTS in this recording: each a keyframe the recorder wrote on request and
+        /// named. A restore seeks straight to one by its label. Empty for recordings without any (and for those that pre-date it).
+        /// 📄 docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md §1g.
+        /// </summary>
+        public List<CheckpointMark> Checkpoints { get; set; } = new List<CheckpointMark>();
+
+        /// <summary>
+        /// ⭐ <c>CE-3329</c> R8 / row 17 — the During Action Reviews taken while this recording ran: where in the run each was opened and
+        /// how long it lasted. The recording is suspended during one and resumes the SAME file at the live point, so the run shows no gap;
+        /// this is how the timeline labels where a review was. Empty for a run with none, and for recordings that pre-date it.
+        /// </summary>
+        public List<ReviewMark> Reviews { get; set; } = new List<ReviewMark>();
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> — the exercise this recording BRANCHED from (a checkpoint restore, or a replay going live);
+        /// <c>Guid.Empty</c> for a recording that began at a load. Its first frames are a copy of that exercise's up to
+        /// <see cref="BranchWallTicks"/>.
+        /// </summary>
+        public ExerciseId ParentExerciseId { get; set; } = ExerciseId.Empty;
+
+        /// <summary>
+        /// ⭐ Node Features F-15/F-24 — the effective FULL config (JSON object) of every AtLoad feature this node had when the run was loaded
+        /// (id → JSON). A branch to live from this recording re-applies it: the recording wins. Empty for a recording that predates features.
+        /// </summary>
+        public Dictionary<string, string> FeatureConfigsAtLoad { get; set; } = new Dictionary<string, string>();
+
+        /// <summary>⭐ <c>D18</c> — the wall time of the branch point (0 when not a branch).</summary>
+        public long BranchWallTicks { get; set; }
+
+        /// <summary>⭐ CE-3299 D17 (R-3045) — 0: a FULL recording (every frame). N &gt; 0: a CHECKPOINTING recording — a keyframe every N s of sim time
+        /// (and at each named checkpoint), nothing between: restore points, no smooth replay.</summary>
+        public double CheckpointingSeconds { get; set; }
+    }
+
+    /// <summary>⭐ <c>CE-3299</c> B3 — one named keyframe of a recording: its label, its frame (0-based, in file order) and its wall time.</summary>
+    [Serializable]
+    /// <summary>⭐ <c>CE-3329</c> R8 — one During Action Review of a recorded run (<see cref="RecordingMetadata.Reviews"/>).</summary>
+    public sealed class ReviewMark
+    {
+        /// <summary>The review's label — the live point's checkpoint (<c>review-&lt;n&gt;</c>).</summary>
+        public string Label { get; set; } = "";
+
+        /// <summary>The live point's sim time — the run's own clock when the review opened.</summary>
+        public double AtSimSeconds { get; set; }
+
+        /// <summary>The live point's wall stamp — the last frame written before the review.</summary>
+        public long AtWallTicks { get; set; }
+
+        /// <summary>When the review opened and when the run resumed (UTC); <see cref="EndedUtc"/> is null while it is open.</summary>
+        public DateTime StartedUtc { get; set; }
+
+        /// <inheritdoc cref="StartedUtc"/>
+        public DateTime? EndedUtc { get; set; }
+    }
+
+    public sealed class CheckpointMark
+    {
+        /// <summary>The checkpoint's name — unique within the recording.</summary>
+        public string Label { get; set; } = "";
+
+        /// <summary>The keyframe's position among the recording's frames (0 = the first written).</summary>
+        public int Frame { get; set; }
+
+        /// <summary>The keyframe's frame-locked wall time (<c>GlobalTime.TotalWallTicks</c>).</summary>
+        public long WallTicks { get; set; }
+
+        /// <summary>⭐ <c>CE-3299</c> B4 (D5) — the simulation clock at the keyframe (<c>GlobalTime.TotalTime</c>): a restore moves the
+        /// cluster's clock back to it.</summary>
+        public double TotalTime { get; set; }
+
+        /// <summary>⭐ B4 — <c>GlobalTime.UnscaledTotalTime</c> at the keyframe.</summary>
+        public double UnscaledTotalTime { get; set; }
+
+        /// <summary>⭐ B4 — <c>GlobalTime.FrameNumber</c> at the keyframe.</summary>
+        public long FrameNumber { get; set; }
+
+        /// <summary>⭐ <c>CE-3299</c> B5 — the clock this mark stood at, as the one value a restore snaps the clock to (D5).</summary>
+        public GlobalTime ToGlobalTime() => new()
+        {
+            TotalWallTicks = WallTicks, TotalTime = TotalTime, UnscaledTotalTime = UnscaledTotalTime, FrameNumber = FrameNumber,
+        };
+    }
+
+    /// <summary>A geodetic point — latitude and longitude in degrees, altitude in metres — as written into a recording.</summary>
+    [Serializable]
+    public sealed class GeoOriginRecord
+    {
+        public double Lat { get; set; }
+        public double Lon { get; set; }
+        public double Alt { get; set; }
+
+        /// <summary>
+        /// ⭐ CE-4396 (docs/DESIGN_Geo_Origin.md §6.1a, R-4197) — the UTM frame IS this origin (zone = its longitude band, hemisphere = its latitude's
+        /// sign, E0 / N0 = it projected there). These two say a zone OTHER than that one — written only when the terrain used another; null in
+        /// every old recording and in nearly every new one.
+        /// </summary>
+        public int? UtmZoneOverride { get; set; }
+        public bool? UtmSouthOverride { get; set; }
     }
 }

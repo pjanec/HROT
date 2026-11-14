@@ -54,6 +54,8 @@ internal sealed class HsmEditorHostServices : IEditorHostServices
     public ITypeSystem                          TypeSystem            => _typeSystem;
     public ILinkValidator                       LinkValidator         => _linkValidator;
     public IGraphCommandSink                    CommandSink           => _commandSink;
+    /// <summary>⭐ CE-1276 — the one read-only gate (CE-1252): the canvas hides the authoring affordances on a code-built machine.</summary>
+    public bool                                 IsReadOnly            => _commandSink.IsReadOnly;
     public IPickerRegistry                      Pickers               => _pickers;
     public IClipboard                           Clipboard             => _clipboard;
     public IIconProvider                        Icons                 => _icons;
@@ -66,6 +68,24 @@ internal sealed class HsmEditorHostServices : IEditorHostServices
     // Allows attaching/detaching the debug session at runtime.
     public void SetDebugSession(IDebugSession? session) => _debug = session;
 
+    // ⭐ CE-1003 — the HSM node context menu ("Set as Initial State"), undoable through the view's recorder.
+    private HsmNodeContextMenuProvider? _nodeContextMenu;
+
+    /// <summary>Installs the node context menu for <paramref name="asset"/>, recording through <paramref name="view"/>.</summary>
+    public void SetNodeContextMenu(Model.HsmAsset asset, NodeEditor.Core.View.GraphView view)
+    {
+        _nodeContextMenu = new HsmNodeContextMenuProvider(asset) { Recorder = (f, i, l) => view.Execute(f, i, l), Breakpoints = _manager };
+        // ⭐ CE-1323 (DBG-13/14) — the dot's menu finds the real state; a transition line gets "Break when it fires"
+        if (_bpContextMenuProvider != null) _bpContextMenuProvider.Asset = asset;
+        _linkContextMenu = _manager != null ? new HsmLinkContextMenuProvider(asset, _manager) : null;
+    }
+
+    INodeContextMenuProvider? IEditorHostServices.NodeContextMenu => _nodeContextMenu;
+
+    private HsmLinkContextMenuProvider? _linkContextMenu;
+    ILinkContextMenuProvider? IEditorHostServices.LinkContextMenu => _linkContextMenu;
+    private IDataBreakpointManager? _manager;
+
     // ---- Breakpoint manager wiring (UBP-P10T8) ----
 
     private HsmBreakpointContextMenuProvider? _bpContextMenuProvider;
@@ -76,6 +96,7 @@ internal sealed class HsmEditorHostServices : IEditorHostServices
 
     public void SetBreakpointManager(IDataBreakpointManager? manager)
     {
+        _manager = manager;
         _bpContextMenuProvider = manager != null
             ? new HsmBreakpointContextMenuProvider(manager)
             : null;

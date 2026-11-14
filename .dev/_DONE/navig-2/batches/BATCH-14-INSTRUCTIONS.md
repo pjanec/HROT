@@ -501,7 +501,7 @@ Search for this interface definition. It probably has methods like `BlockPolygon
 
 ```powershell
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln 2>&1 | Select-Object -Last 20
+dotnet build HROT.sln 2>&1 | Select-Object -Last 20
 
 cd FDP\Toolkits
 dotnet test Fdp.Toolkits.Tests --filter "FullyQualifiedName~Navigation" 2>&1 | Select-Object -Last 15
@@ -511,7 +511,7 @@ dotnet test Fdp.Toolkits.Tests --filter "FullyQualifiedName~Navigation" 2>&1 | S
 
 ## Success criteria
 
-1. `dotnet build IOS-IG-SimHost.sln` = 0 errors
+1. `dotnet build HROT.sln` = 0 errors
 2. Navigation tests >= 259 (existing 259 + new tests)
 3. `NavTestHarness.LoadMap(NavTestMaps.LoadCorridor())` builds and disposes without exception
 4. At minimum: one test that creates a harness, spawns an entity, and calls `Tick()` without throwing

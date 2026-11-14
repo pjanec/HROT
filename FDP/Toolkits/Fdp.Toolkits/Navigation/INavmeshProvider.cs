@@ -5,10 +5,42 @@ using Fdp.Core;
 namespace Fdp.Toolkit.Navigation
 {
     /// <summary>
-    /// Navmesh query interface consumed by EQS tests, generators, and navigation systems.
-    /// All coordinates are in 3-D world space; for flat-earth queries map 2D (x, y_north) as
-    /// <c>new Vector3(x, 0f, y_north)</c> and extract back via <c>(v.X, v.Z)</c>.
+    /// ⭐ <c>CE-4391</c> S-3 (UTM §8.1 P3-a) — what a baked navmesh knows about its TILES: the tile edge and each tile's CONTENT key (equal key ⇔ the same tile, the tile cache's own).
+    /// Keyed by <c>((long)tileX &lt;&lt; 32) | (uint)tileZ</c>, the grid anchored at the world origin (tile z = engine y). Implemented by the Recast provider; read by
+    /// <see cref="SwitchableNavmeshProvider.Publish"/> to bump the version of the tiles whose key changed — and only those.
     /// </summary>
+    public interface INavmeshTileKeys
+    {
+        /// <summary>The tile edge (m); 0 = no tile grid.</summary>
+        float TileMetres { get; }
+        /// <summary>Tile → content key (a tile with no walkable polygon may be absent).</summary>
+        System.Collections.Generic.IReadOnlyDictionary<long, ulong> TileKeys { get; }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4391</c> S-3 (UTM §8.1 P3-a / P3-b) — per-TILE versions on a node's navmesh. <see cref="ChangeSequence"/> only ever grows; a tile's version is the sequence at which its
+    /// content last changed. A path stamped with the sequence it was planned at is STALE exactly when a tile it crosses has a higher version — one integer compare, no allocation.
+    /// </summary>
+    public interface INavmeshTileVersions
+    {
+        float TileMetres { get; }
+        /// <summary>The newest tile change (0 = none ever). Equal on two reads ⇒ no tile moved between them.</summary>
+        uint ChangeSequence { get; }
+        /// <summary>The sequence at which tile (<paramref name="tileX"/>, <paramref name="tileZ"/>) last changed; 0 = never changed / unknown.</summary>
+        uint TileVersion(int tileX, int tileZ);
+    }
+
+    /// <summary>
+    /// Navmesh query interface consumed by EQS tests, generators, and navigation systems.
+    /// ⭐ All coordinates are in the engine's <b>Z-up</b> 3-D world space — X east, Y north, Z up (R-182,
+    /// DESIGN_Terrain_World W7). ⛔ Never pass Z = 0 meaning "on the ground" (R-248, CE-1034 H3): the search box around a query
+    /// point is only a few metres tall, so on a hill a point at 0 finds nothing — pass the ground height there
+    /// (<c>IWorldQuery.GroundHeightAt</c>) or a real Z. An implementation whose solver is Y-up (DotRecast) converts INSIDE itself,
+    /// for every input and every output; callers never swizzle.
+    /// </summary>
+    // ⭐ D7 (restore design) — content / service / index, never world state: a keyframe must not carry it, and an apply must
+    //   not replace the loaded instance (R-3043).
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
     [ComponentId(GlobalComponentIds.INavmeshProvider)]
     public interface INavmeshProvider
     {
@@ -48,5 +80,35 @@ namespace Fdp.Toolkit.Navigation
         /// Returns the number of waypoints written, or 0 if no path was found.
         /// </summary>
         int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF);
+
+        // ── ⭐ R-219 — the same queries judged by the door states of the CALLER's view ──────────────────────────────────────
+        //   A background solver passes the table built from its snapshot (Fdp.Toolkit.Terrain.DoorStates.Of(view, terrain)), so a
+        //   path or reachability answer sees the doors of the tick it runs on. Defaults ignore doors (implementations without them).
+
+        /// <inheritdoc cref="PlanPath(Vector3, Vector3, Span{NavWaypoint}, uint)"/>
+        int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+            => PlanPath(from, to, waypoints, layerMask);
+
+        /// <inheritdoc cref="PathExists(Vector3, Vector3, uint)"/>
+        bool PathExists(Vector3 from, Vector3 to, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+            => PathExists(from, to, layerMask);
+
+        /// <inheritdoc cref="PathCost(Vector3, Vector3, uint)"/>
+        float PathCost(Vector3 from, Vector3 to, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+            => PathCost(from, to, layerMask);
+
+        /// <summary>
+        /// ⭐ <c>CE-3279</c> (b) — the path cost from <paramref name="from"/> to EACH of <paramref name="to"/> into
+        /// <paramref name="costs"/> (<see cref="float.MaxValue"/> = no path), for a caller asking ONE origin about many points (an
+        /// EQS sensor's candidates). The default asks <see cref="PathCost(Vector3, Vector3, uint, Fdp.Toolkit.Terrain.DoorStates?)"/>
+        /// per point; a provider may answer them all from one search that reaches no farther than <paramref name="reach"/> from the
+        /// origin — a point it does not reach within that reads as no path. Returns the polygons the search visited (the work the EQS
+        /// budget counts), or −1 when it searched per point (the caller counts a path per point).
+        /// </summary>
+        int PathCosts(Vector3 from, ReadOnlySpan<Vector3> to, Span<float> costs, float reach, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+        {
+            for (int i = 0; i < to.Length; i++) costs[i] = PathCost(from, to[i], layerMask, doors);
+            return -1;
+        }
     }
 }

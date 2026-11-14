@@ -1,0 +1,288 @@
+using System;
+using Fdp.Core;
+using Fdp.Toolkit.Scenario;
+using Fdp.Toolkit.Terrain;
+using Xunit;
+
+namespace Fdp.Toolkit.Terrain.Tests;
+
+/// <summary>
+/// B5 / B6 — the terrain NAME in the scenario header, and the terrain DEFINITION asset + its singleton.
+///
+/// <para>⭐ The absence half is asserted at the gate the engine really applies. For the singleton that is
+/// <c>ComponentTypeRegistry.IsRecordable</c>, because <c>RecorderSystem.RecordSingletons</c> walks the
+/// singleton tables and records every one whose type is recordable — so <c>NoReplay</c> here is
+/// load-bearing, not decoration.</para>
+///
+/// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1e ① ①a ②.
+/// </summary>
+public sealed class TerrainDefinitionTests
+{
+    // ── B5: the header carries the terrain NAME, independently of TkbName ─────────────────
+
+    [Fact]
+    public void Serialize_WithTerrainName_WritesItIntoTheHeader()
+    {
+        ComponentTypeRegistry.Clear();
+        using var repo = new EntityRepository();
+
+        var dom = new ScenarioSerializerBuilder("Hrot.SimHost").Build()
+            .Serialize(repo, new ScenarioHeader("Hrot.SimHost", TerrainName: "desert/kandahar"));
+
+        Assert.Equal("desert/kandahar", dom["Header"]!["TerrainName"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void Serialize_WithTerrainNameButNoTkb_StillWritesTheHeader()
+    {
+        // ⛔ THE REGRESSION THIS PINS: the Header node used to exist only when TkbName was set, so a
+        //    terrain-only scenario would have had its terrain name silently dropped.
+        ComponentTypeRegistry.Clear();
+        using var repo = new EntityRepository();
+
+        var dom = new ScenarioSerializerBuilder("Hrot.SimHost").Build()
+            .Serialize(repo, new ScenarioHeader("Hrot.SimHost", TerrainName: "kandahar"));
+
+        Assert.NotNull(dom["Header"]);
+        Assert.Equal("kandahar", dom["Header"]!["TerrainName"]!.GetValue<string>());
+        Assert.Null(dom["Header"]!["TkbName"]);
+    }
+
+    [Fact]
+    public void Serialize_CarriesTheTerrainName_AndNeverATkbName()
+    {
+        // ⛔ R-4018 — was "with both names, carries both"; a scenario never names a TKB.
+        ComponentTypeRegistry.Clear();
+        using var repo = new EntityRepository();
+
+        var dom = new ScenarioSerializerBuilder("Hrot.SimHost").Build()
+            .Serialize(repo, new ScenarioHeader("Hrot.SimHost", TerrainName: "kandahar"));
+
+        Assert.Null(dom["Header"]!["TkbName"]);
+        Assert.Equal("kandahar", dom["Header"]!["TerrainName"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void Serialize_WithNeitherName_OmitsTheHeaderEntirely()
+    {
+        // Graceful absence: a scenario with no opinion about terrain is legal and still loads.
+        ComponentTypeRegistry.Clear();
+        using var repo = new EntityRepository();
+
+        var dom = new ScenarioSerializerBuilder("Hrot.SimHost").Build()
+            .Serialize(repo, new ScenarioHeader("Hrot.SimHost"));
+
+        Assert.Null(dom["Header"]);
+    }
+
+    // ── B6: the definition asset parses, and the singleton is in NEITHER output ───────────
+
+    private const string OneRoadNetwork = """
+        {
+          "schemaVersion": 1,
+          "name": "kandahar",
+          "roadNetworks": [ "roads/main.net.xml" ]
+        }
+        """;
+
+    [Fact]
+    public void Parse_ADefinitionListingOneRoadNetwork_ProducesIt()
+    {
+        var def = TerrainDefinitionParser.Parse(OneRoadNetwork);
+
+        Assert.Equal(1, def.SchemaVersion);
+        Assert.Equal("kandahar", def.Name);
+        Assert.Equal(new[] { "roads/main.net.xml" }, def.RoadNetworks);
+        Assert.False(def.IsEmpty);
+    }
+
+    [Fact]
+    public void Parse_ADefinitionDeclaringNoContent_IsValidAndEmpty()
+    {
+        var def = TerrainDefinitionParser.Parse("""{ "schemaVersion": 1, "name": "bare" }""");
+
+        Assert.True(def.IsEmpty);
+        Assert.Equal("bare", def.Name);
+    }
+
+    [Theory]
+    [InlineData("")]                                              // empty
+    [InlineData("not json")]                                      // unparseable
+    [InlineData("[1,2,3]")]                                       // not an object
+    [InlineData("""{ "name": "no version" }""")]                  // missing versioned root
+    [InlineData("""{ "schemaVersion": 99, "name": "future" }""")] // newer than this build
+    public void Parse_RejectsAMalformedOrUnsupportedDefinition_LoudlyRatherThanAsEmpty(string json)
+    {
+        // ⭐ An unreadable terrain must not degrade into "this terrain provides nothing" — the two are
+        //   indistinguishable downstream, and loading the scenario's terrain is mandatory.
+        Assert.Throws<ArgumentException>(() => TerrainDefinitionParser.Parse(json));
+    }
+
+    [Fact]
+    public void TerrainDefinitionSingleton_IsInNeitherTheScenarioNorTheRecording()
+    {
+        ComponentTypeRegistry.Clear();
+        using var repo = new EntityRepository();
+
+        // ⚠⚠ THE REGISTRATION IS LOAD-BEARING, NOT CEREMONY — see
+        //    SettingTheSingletonWithoutRegistering_SilentlyIgnoresTheDataPolicy below. This is why
+        //    HrotSharedComponentRegistry registers the type on every ECS host.
+        repo.RegisterManagedComponent<TerrainDefinition>();
+
+        repo.SetSingletonManaged(TerrainDefinitionParser.Parse(OneRoadNetwork));
+        Assert.True(repo.HasSingletonManaged<TerrainDefinition>(), "precondition: the singleton is set");
+
+        int id = ManagedComponentType<TerrainDefinition>.ID;
+
+        // ⭐ The RECORDING gate: RecorderSystem.RecordSingletons skips a table whose type is not
+        //   recordable. Without [DataPolicy(NoReplay)] the parsed definition would be written out.
+        Assert.False(ComponentTypeRegistry.IsRecordable(id),
+            "TerrainDefinition is [DataPolicy(NoReplay)] ⇒ RecordSingletons must skip it: it is "
+          + "re-derived from the named asset on every load and must never be replayed from a file.");
+
+        // ⭐ The SCENARIO gate: it is not saveable, and the serializer walks entities in any case.
+        Assert.False(ComponentTypeRegistry.IsSaveable(id),
+            "TerrainDefinition is [DataPolicy(NoScenario)] ⇒ never written into a scenario.");
+
+        var json = new ScenarioSerializerBuilder("Hrot.SimHost").Build()
+            .Serialize(repo, new ScenarioHeader("Hrot.SimHost", TerrainName: "kandahar"))
+            .ToJsonString();
+
+        // The NAME rides in the header; the parsed CONTENT does not appear anywhere.
+        Assert.Contains("kandahar", json);
+        Assert.DoesNotContain("TerrainDefinition", json);
+        Assert.DoesNotContain("roads/main.net.xml", json);
+    }
+
+    /// <summary>
+    /// ✅ <b>ENGINE HAZARD FIXED <c>2026-10-22</c></b> (D7, docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md §1c). ⛔ SUPERSEDED: this
+    /// rail used to pin the defect — <i>"<c>SetSingletonManaged</c> auto-registers through
+    /// <c>ManagedComponentType&lt;T&gt;.ID</c>, which does NOT read the attribute, so the type keeps the registry defaults
+    /// (recordable = saveable = TRUE)"</i>, and said to delete it once the engine was fixed. ⭐ Kept and INVERTED instead: the
+    /// first registration now reads <c>[DataPolicy]</c>, so the policy holds even with no prior registration.
+    /// </summary>
+    [Fact]
+    public void SettingTheSingletonWithoutRegistering_HonoursTheDataPolicy()
+    {
+        ComponentTypeRegistry.Clear();
+        using var repo = new EntityRepository();
+
+        // NOTE: no RegisterManagedComponent<TerrainDefinition>() here — that is the whole point.
+        repo.SetSingletonManaged(TerrainDefinitionParser.Parse(OneRoadNetwork));
+
+        int id = ManagedComponentType<TerrainDefinition>.ID;
+
+        Assert.False(ComponentTypeRegistry.IsRecordable(id),
+            "D7: the first registration reads [DataPolicy] — TerrainDefinition is NoReplay even when nothing registered it.");
+        Assert.False(ComponentTypeRegistry.IsSaveable(id), "… and NoScenario.");
+    }
+
+    // ── CE-3126 (R-229): the geo origin is part of the terrain file ────────────────────────────
+
+    [Fact]
+    public void CE3126_Parse_ReadsTheOrigin_AbsentIsNull_MalformedThrows()
+    {
+        var d = TerrainDefinitionParser.Parse("""{"schemaVersion":2,"origin":{"lat":48.1,"lon":-11.5,"alt":420}}""");
+        Assert.Equal(new TerrainGeoOrigin(48.1, -11.5, 420), d.Origin);
+
+        Assert.Equal(new TerrainGeoOrigin(1, 2, 0), TerrainDefinitionParser.Parse("""{"schemaVersion":2,"origin":{"lat":1,"lon":2}}""").Origin);
+        Assert.Null(TerrainDefinitionParser.Parse("""{"schemaVersion":2}""").Origin);   // ⛔ no default — zeros downstream
+
+        Assert.Throws<ArgumentException>(() => TerrainDefinitionParser.Parse("""{"schemaVersion":2,"origin":{"lat":1}}"""));
+        Assert.Throws<ArgumentException>(() => TerrainDefinitionParser.Parse("""{"schemaVersion":2,"origin":[1,2]}"""));
+        Assert.Throws<ArgumentException>(() => TerrainDefinitionParser.Parse("""{"schemaVersion":2,"origin":{"lat":91,"lon":0}}"""));
+    }
+
+    /// <summary>⭐ The shipped terrains carry their origin as data (Berlin — the scenarios on them store Berlin lat/lon).</summary>
+    [Theory]
+    [InlineData("test-town")]
+    [InlineData("bt-range")]
+    [InlineData("basic-desert")]
+    [InlineData("highway-rest")]   // ⭐ CE-1034 H5d
+    public void CE3126_EveryShippedTerrain_DeclaresItsOrigin(string terrain)
+    {
+        var path = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), terrain, "terrain.json");
+        var d = TerrainDefinitionParser.Parse(System.IO.File.ReadAllText(path));
+        Assert.Equal(new TerrainGeoOrigin(52.52, 13.405, 0.0), d.Origin);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4396 — the node's transform starts LOCAL-ONLY (no default place) and a set origin gives the UTM frame at that point;
+    /// the round trip stays exact.
+    /// </summary>
+    [Fact]
+    public void CE4396_TheSwitchableTransform_StartsLocalOnly_AndAnOriginGivesUtm()
+    {
+        var t = new Fdp.Modules.Geographic.Transforms.SwitchableGeoTransform();
+        Assert.False(t.HasFrame);
+        var local = new System.Numerics.Vector3(489f, 296f, 0f);
+        t.SetOrigin(52.52, 13.405, 0.0);
+        Assert.True(t.HasFrame);
+        var (lat, lon, alt) = t.ToGeodetic(local);
+        Assert.InRange(lat, 52.522, 52.523);
+        var back = t.ToCartesian(lat, lon, alt);
+        Assert.True(System.Numerics.Vector3.Distance(back, local) < 0.05f, $"{back}");
+        Assert.Equal(52.52, t.Origin.lat, 8);
+    }
+
+    /// <summary>
+    /// ⭐ CE-3128 (R-231) — the shipped terrains that have roads declare them as a road GRAPH that loads, with the widths of the
+    /// polygons they replace: test-town's two 20 m streets meeting at one junction, basic-desert's 10 m track.
+    /// </summary>
+    [Theory]
+    [InlineData("test-town", 5, 4, 20f)]
+    [InlineData("basic-desert", 3, 2, 10f)]
+    public void CE3128_ShippedTerrains_DeclareALoadableRoadGraph(string terrain, int nodes, int segments, float width)
+    {
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), terrain);
+        var d = TerrainDefinitionParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "terrain.json")));
+        var road = Assert.Single(d.RoadNetworks);
+        using var blob = global::CarKinem.Road.RoadNetworkLoader.LoadFromJson(System.IO.Path.Combine(folder, road));
+        Assert.Equal(nodes, blob.Nodes.Length);
+        Assert.Equal(segments, blob.Segments.Length);
+        for (int i = 0; i < blob.Segments.Length; i++)
+            Assert.Equal(width, blob.Segments[i].LaneWidth * blob.Segments[i].LaneCount, 3);
+        // ⛔ and no road polygon remains in the world file (R-231: the graph IS the road)
+        Assert.DoesNotContain("\"surface\": \"road\"", System.IO.File.ReadAllText(System.IO.Path.Combine(folder, d.World)));
+    }
+
+    // ── AQ93 R-4021 / E1b: the terrain's SUMO net ────────────────────────────────────────────
+
+    [Fact]
+    public void AQ93_SumoNet_IsParsedWithItsAnchor_AndStaysOutOfTheRoadGraphs()
+    {
+        var d = TerrainDefinitionParser.Parse(
+            "{\"schemaVersion\": 2, \"name\": \"x\", \"sumoNet\": {\"file\": \"x.net.xml\", \"anchor\": [2200, 2150.5]}}");
+
+        Assert.Equal(new TerrainSumoNet("x.net.xml", 2200.0, 2150.5), d.SumoNet);
+        Assert.Empty(d.RoadNetworks);   // R-4026: the SUMO net is not one of our CarKinem road graphs
+        Assert.False(d.IsEmpty);
+    }
+
+    [Fact]
+    public void AQ93_SumoNet_WithoutAnAnchor_AnchorsAtZero_AndAbsentIsNull()
+    {
+        Assert.Equal(new TerrainSumoNet("y.net.xml", 0, 0),
+            TerrainDefinitionParser.Parse("{\"schemaVersion\": 2, \"sumoNet\": {\"file\": \"y.net.xml\"}}").SumoNet);
+        Assert.Null(TerrainDefinitionParser.Parse("{\"schemaVersion\": 2}").SumoNet);
+    }
+
+    [Theory]
+    [InlineData("{\"schemaVersion\": 2, \"sumoNet\": \"x.net.xml\"}")]
+    [InlineData("{\"schemaVersion\": 2, \"sumoNet\": {\"anchor\": [1, 2]}}")]
+    [InlineData("{\"schemaVersion\": 2, \"sumoNet\": {\"file\": \"x\", \"anchor\": [1]}}")]
+    public void AQ93_SumoNet_Malformed_IsAnError(string json)
+        => Assert.Throws<ArgumentException>(() => TerrainDefinitionParser.Parse(json));
+
+    [Fact]
+    public void AQ93_ShippedDemoCity_NamesItsSumoNet_AndTheFileExists()
+    {
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "demo-city");
+        var d = TerrainDefinitionParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "terrain.json")));
+
+        Assert.NotNull(d.SumoNet);
+        Assert.Equal(2200.0, d.SumoNet!.AnchorX);
+        Assert.True(System.IO.File.Exists(System.IO.Path.Combine(folder, d.SumoNet.File)));
+        Assert.True(System.IO.File.Exists(System.IO.Path.Combine(folder, d.World)));
+    }
+}

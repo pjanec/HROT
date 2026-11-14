@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using CycloneDDS.Schema;
 using Hrot.NED.Common;
+using Hrot.NED.Messages;
 
 namespace Hrot.NED.Descriptors
 {
@@ -19,9 +20,9 @@ namespace Hrot.NED.Descriptors
     // - If MapGroupId == 0, it applies to EVERYONE (Global override).
     // - If MapGroupId > 0, it applies ONLY to IGs configured with that GroupId.
     // - IG Logic: Look for specific override; if none, look for global; if none, use TKB default.
-    [DdsTopic("MapEntitySymbol")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     [DdsManaged]
     public partial struct MapEntitySymbol
     {
@@ -53,9 +54,9 @@ namespace Hrot.NED.Descriptors
         MODE_PERSISTENT   // Saved to database, survives restarts
     }
 
-    [DdsTopic("MapVisualOverlay")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     [DdsManaged]
     public partial struct MapVisualOverlay
     {
@@ -86,8 +87,11 @@ namespace Hrot.NED.Descriptors
         // Geometry - interpretation depends on TKB type
         // For icon/bitmap: points[0] is anchor position
         // For line/area: points define vertices
+        // ⭐ AQ107 B: ABSOLUTE positions in local ENU metres (X east, Y north, Z up), like every position on the wire. ⛔ Not the old
+        //   relative lat/lon offsets (three producers had three conventions); a receiver subtracts the entity's own position to get the
+        //   entity-relative polyline its ECS holds.
         [DdsManaged]
-        public List<GeoPoint> Points;
+        public List<Vec3d> Points;
 
         // Performance optimization for large shapes during editing
         public bool IsPartialUpdate;
@@ -107,8 +111,8 @@ namespace Hrot.NED.Descriptors
     [DdsManaged]
     public partial struct Waypoint
     {
-        // 3D Position.
-        public GeoPoint Position;
+        // 3D Position: local ENU metres (X east, Y north, Z up) — AQ107 B.
+        public Vec3d Position;
 
         // Optional label (e.g., "Checkpoint Alpha").
         public string Name;
@@ -118,12 +122,24 @@ namespace Hrot.NED.Descriptors
 
         // JSON payload for mission-specific logic (e.g., "Hold for 5 mins", "Deploy sensors").
         public string ExtensionJson;
+
+        // ⭐ Air Ops B1 (DESIGN_Air_Operations §5; R-169: APPENDED, reported) — a ground unit ignores these, a flyer reads them.
+        // Waypoint kind (Fdp.Toolkit.Navigation.RouteWaypointKind: 0 Pass, 1 Ground).
+        public byte Kind;
+        // > 0 ⇒ a flyer holds this height above the terrain (m); 0 ⇒ Position's altitude.
+        public float HeightAgl;
+        // Hold on a Ground waypoint (Fdp.Toolkit.Navigation.RouteHold: 0 None, 1 Seconds, 2 Unload, 3 Pickup).
+        public byte Hold;
+        // The Seconds hold (s).
+        public float HoldSeconds;
+        // The unit a Pickup hold waits for (network id); 0 = none.
+        public int HoldUnit;
     }
 
     // Defines a navigation route composed of multiple waypoints.
-    [DdsTopic("MapRoute")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     [DdsManaged]
     public partial struct MapRoute
     {
@@ -142,117 +158,5 @@ namespace Hrot.NED.Descriptors
         public string ExtensionJson;
     }
 
-    // ===================================================================================
-    // MAP CONFIGURATION & STATUS
-    // ===================================================================================
-    // These messages manage the setup of the map display (Layers, Tools) and the
-    // reporting of the IG's capabilities.
-    // Principle:
-    // - ExCon sends "Configuration" to a MapGroup (Role).
-    // - IG sends "Status" for its specific MapId (Instance).
-    // ===================================================================================
-
-    // Configuration command sent from ExCon to a group of IGs.
-    // Uses JSON Merge Patch to support partial updates (e.g., just toggle one layer).
-    // Scope: Group-based (Role). All IGs in "Blue Force" group receive this.
-    [DdsTopic("MapInteractionConfig")]
-    [DdsIdlFile("hrot-map-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
-    [DdsManaged]
-    public partial struct MapInteractionConfig
-    {
-        /// <summary>
-        /// The Target Group ID (Logical Role).
-        /// Identifies a logical group of displays that share business logic, configuration, and 
-        /// styling (e.g., "Blue Force", "Instructor Station") [1].
-        /// 
-        /// Resolution Priority (Layer 3 - Group / Layer 2 - Global):
-        /// - Only evaluated if MapId == 0.
-        /// - If MapGroupId > 0, the configuration applies to all physical IG instances 
-        ///   assigned to this specific logical role [1, 3].
-        /// - If MapId == 0 AND MapGroupId == 0, the configuration applies to EVERYONE 
-        ///   as a Global baseline policy [2].
-        /// </summary>
-        [DdsKey]
-        public int MapGroupId;
-
-        /// <summary>
-        /// The Target Map ID (Concrete Instance / Hardware).
-        /// Identifies a specific physical application instance or window [1].
-        /// 
-        /// Resolution Priority (Layer 4 - Highest):
-        /// - If MapId > 0, this configuration serves as a strict local override for that specific screen.
-        /// - JSON settings defined here override any conflicting Group or Global settings.
-        /// - Omitted fields in the JSON payload are ignored, allowing the IG to safely inherit 
-        ///   the underlying Group or Global values for those specific fields.
-        /// - If MapId == 0, this instance-level tier is skipped entirely, and resolution falls back 
-        ///   to the MapGroupId [1, 2].
-        /// </summary>
-        [DdsKey]
-        public int MapId;
-
-        // The Correlation ID of the currently active tool on the ExCon side.
-        // Example: ExCon activates "Place Tank" tool -> Generates GUID "A".
-        // IG receives "A" -> Stores it.
-        // When user clicks map -> IG sends ClickEvent with ContextId "A".
-        // ExCon validates "A" matches current tool -> Executes logic.
-        public Guid ActiveContextId;
-
-        // Version number for the JSON schema, ensuring compatibility.
-        public int JsonSchemaVersion;
-
-        // The configuration payload (JSON Merge Patch - RFC 7396).
-        // Keys include: "view" (layers), "tools" (active cursor), "styles".
-        // Null values in JSON indicate "Reset to Default".
-        public string ConfigurationJson;
-    }
-
-    // Feedback from a concrete IG instance reporting its current state.
-    // Used by the ExCon to synchronize its UI (e.g., checkboxes) with the reality.
-    // Scope: Instance-based.
-    [DdsTopic("MapConfigStatus")]
-    [DdsIdlFile("hrot-map-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
-    [DdsManaged]
-    public partial struct MapConfigStatus
-    {
-        // The specific IG Instance reporting status.
-        [DdsKey]
-        public int MapId;
-
-        // Name of the preset currently loaded (e.g., "Tactical_Default").
-        public string PresetName;
-
-        // The FULL current configuration state (JSON).
-        // Unlike 'MapInteractionConfig' which can be partial, this is always the complete Truth.
-        public string CurrentSettingsJson;
-    }
-
-    // Announcement message sent by an IG instance when it starts up.
-    // Enables the ExCon to dynamically build its UI based on what the IG supports.
-    // IG -> ExCon
-    [DdsTopic("IGCapabilitiesAnnounce")]
-    [DdsIdlFile("hrot-map-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
-    [DdsManaged]
-    public partial struct IGCapabilitiesAnnounce
-    {
-        // The specific IG Instance.
-        [DdsKey]
-        public int MapId;
-
-        // Defines the layer structure (folders/items) for the ExCon "Layers" panel.
-        // JSON Tree format.
-        public string LayerTreeJson;
-
-        // JSON Schemas defining valid configuration options (e.g., "What tools are available?").
-        public string ConfigurationSchemasJson;
-
-        // JSON Schema validating the 'styleOverrideJson' field in overlays.
-        public string OverlayStyleSchemaJson;
-
-        // JSON Manifest of TKB types that this IG specifically supports with special visuals.
-        // Used to populate "Add Entity" menus with only valid options.
-        public string TkbManifestJson;
-    }
+    // ⛔ R-3067 / AQ109 X3+X4 — MapInteractionConfig, MapConfigStatus and the descriptors-namespace IGCapabilitiesAnnounce are RETIRED (reserved names: MapMessages.cs tombstone).
 }

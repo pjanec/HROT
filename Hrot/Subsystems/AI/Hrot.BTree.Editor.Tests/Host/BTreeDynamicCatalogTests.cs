@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -93,7 +94,7 @@ public sealed class BTreeDynamicCatalogTests
         var fake = new FakeActionSchemaExporter();
         fake.Seed("Ns.Combat.DoThing", new ActionSchemaEntry(
             "Ns.Combat.DoThing", typeof(object), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false));
+            BlackboardAccess.Unknown, IsCondition: false));
 
         var catalog = new BTreeNodeCatalog(fake);
 
@@ -108,7 +109,7 @@ public sealed class BTreeDynamicCatalogTests
         var fake = new FakeActionSchemaExporter();
         fake.Seed("Ns.Combat.DoThing", new ActionSchemaEntry(
             "Ns.Combat.DoThing", typeof(object), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false));
+            BlackboardAccess.Unknown, IsCondition: false));
 
         var catalog = new BTreeNodeCatalog(fake);
 
@@ -125,7 +126,7 @@ public sealed class BTreeDynamicCatalogTests
         var fake = new FakeActionSchemaExporter();
         fake.Seed("Ns.Combat.IsThing", new ActionSchemaEntry(
             "Ns.Combat.IsThing", typeof(object), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: true));
+            BlackboardAccess.Unknown, IsCondition: true));
 
         var catalog = new BTreeNodeCatalog(fake);
 
@@ -140,7 +141,7 @@ public sealed class BTreeDynamicCatalogTests
         var fake = new FakeActionSchemaExporter();
         fake.Seed("Ns.Combat.IsThing", new ActionSchemaEntry(
             "Ns.Combat.IsThing", typeof(object), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: true));
+            BlackboardAccess.Unknown, IsCondition: true));
 
         var catalog = new BTreeNodeCatalog(fake);
 
@@ -157,7 +158,7 @@ public sealed class BTreeDynamicCatalogTests
         var fake = new FakeActionSchemaExporter();
         fake.Seed("Ns.Hsm.DoHsm", new ActionSchemaEntry(
             "Ns.Hsm.DoHsm", typeof(object), ActionHosting.Hsm,
-            BlackboardAccess.Unknown, null, IsCondition: false));
+            BlackboardAccess.Unknown, IsCondition: false));
 
         var catalog = new BTreeNodeCatalog(fake);
 
@@ -179,7 +180,7 @@ public sealed class BTreeDynamicCatalogTests
         // Add and raise Changed.
         fake.Add("Ns.Late.DoLate", new ActionSchemaEntry(
             "Ns.Late.DoLate", typeof(object), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false));
+            BlackboardAccess.Unknown, IsCondition: false));
 
         // After Changed: must be present.
         catalog.All.Should().Contain(e => e.Kind.Id == "bt.leaf.action::Ns.Late.DoLate");
@@ -318,7 +319,7 @@ public sealed class BTreeDynamicCatalogTests
         const string fqn = "Ns.Gen.FakeBlueprint_1A2B3C4D_Bp.TickCore";
         fake.Seed(fqn, new ActionSchemaEntry(
             fqn, typeof(FakeGeneratedAiPrimitive_Bp.Params), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+            BlackboardAccess.Unknown, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
 
         var asset = MakeAsset();
         var graph = new StubGraphModel();
@@ -343,7 +344,7 @@ public sealed class BTreeDynamicCatalogTests
         var fake = new FakeActionSchemaExporter();
         fake.Seed(fqn, new ActionSchemaEntry(
             fqn, typeof(FakeGeneratedAiPrimitive_Bp.Params), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+            BlackboardAccess.Unknown, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
 
         var asset  = MakeAsset();
         var graph  = new StubGraphModel();
@@ -361,7 +362,7 @@ public sealed class BTreeDynamicCatalogTests
         node!.KernelType.Should().Be(NodeType.Action);
         node.Action.Should().NotBeNull();
         node.Action!.MethodFqn.Should().Be(fqn);
-        node.Action.DelegateShape.Should().Be(BTreeActionDelegateShape.AiPrimitiveTickCore,
+        node.DelegateShape.Should().Be(BTreeActionDelegateShape.AiPrimitiveTickCore,
             "T31's Action node uses DelegateShape=AiPrimitiveTickCore");
         node.Action.WorkingStateTypeId.Should().Be(
             typeof(FakeGeneratedAiPrimitive_Bp.WorkingState).FullName,
@@ -387,8 +388,7 @@ public sealed class BTreeDynamicCatalogTests
         var wsEntry = asset.BlackboardVariables.Should()
             .ContainSingle(v => v.Name == node.Action.WorkingStateTargetField).Which;
         wsEntry.FieldType.Should().Be(typeof(FakeGeneratedAiPrimitive_Bp.WorkingState));
-        wsEntry.Role.Should().Be(Hrot.AiEditor.Persistence.BlackboardVariableRole.State);
-        wsEntry.Scope.Should().Be(Hrot.AiEditor.Persistence.WorkingStateScope.Node);
+        asset.WorkingStateVariableNames().Should().Contain(wsEntry.Name, "CE-3193: the binding names it as working state");
     }
 
     [Fact]
@@ -398,7 +398,7 @@ public sealed class BTreeDynamicCatalogTests
         var fake = new FakeActionSchemaExporter();
         fake.Seed(fqn, new ActionSchemaEntry(
             fqn, typeof(FakeGeneratedAiPrimitive_Bp.Params), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+            BlackboardAccess.Unknown, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
 
         var asset = MakeAsset();
         asset.AddVariable(new BlackboardVariableEntry("bpParams", typeof(int), null));
@@ -426,7 +426,7 @@ public sealed class BTreeDynamicCatalogTests
         const string fqn = "Ns.Combat.DoThing";
         var fake = new FakeActionSchemaExporter();
         fake.Seed(fqn, new ActionSchemaEntry(
-            fqn, typeof(object), ActionHosting.BTree, BlackboardAccess.Unknown, null, IsCondition: false));
+            fqn, typeof(object), ActionHosting.BTree, BlackboardAccess.Unknown, IsCondition: false));
 
         var asset  = MakeAsset();
         var graph  = new StubGraphModel();
@@ -441,7 +441,7 @@ public sealed class BTreeDynamicCatalogTests
 
         var node = asset.FindNode(nodeId.Value);
         node!.Action!.MethodFqn.Should().Be(fqn);
-        node.Action.DelegateShape.Should().Be(BTreeActionDelegateShape.ThreeParamReusable,
+        node.DelegateShape.Should().Be(BTreeActionDelegateShape.Plain,
             "default enum value; non-AiPrimitive placement must stay unaffected by E2");
         node.Action.WorkingStateTypeId.Should().BeNull();
         node.Action.ExpressionTargetField.Should().BeNull();
@@ -459,10 +459,10 @@ public sealed class BTreeDynamicCatalogTests
 
         fake.Seed(matchingFqn, new ActionSchemaEntry(
             matchingFqn, typeof(BrainBlackboardStub), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false));
+            BlackboardAccess.Unknown, IsCondition: false));
         fake.Seed(mismatchedFqn, new ActionSchemaEntry(
             mismatchedFqn, typeof(SomeOtherDto), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false));
+            BlackboardAccess.Unknown, IsCondition: false));
 
         var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
 
@@ -481,10 +481,10 @@ public sealed class BTreeDynamicCatalogTests
 
         fake.Seed(matchingFqn, new ActionSchemaEntry(
             matchingFqn, typeof(BrainBlackboardStub), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: true));
+            BlackboardAccess.Unknown, IsCondition: true));
         fake.Seed(mismatchedFqn, new ActionSchemaEntry(
             mismatchedFqn, typeof(SomeOtherDto), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: true));
+            BlackboardAccess.Unknown, IsCondition: true));
 
         var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
 
@@ -498,10 +498,10 @@ public sealed class BTreeDynamicCatalogTests
         var fake = new FakeActionSchemaExporter();
         fake.Seed("Ns.Combat.DoThing", new ActionSchemaEntry(
             "Ns.Combat.DoThing", typeof(BrainBlackboardStub), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false));
+            BlackboardAccess.Unknown, IsCondition: false));
         fake.Seed("Ns.Combat.DoOther", new ActionSchemaEntry(
             "Ns.Combat.DoOther", typeof(SomeOtherDto), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false));
+            BlackboardAccess.Unknown, IsCondition: false));
 
         // blackboardTypeName: null → no DTO filter (back-compat).
         var catalog = new BTreeNodeCatalog(fake, null);
@@ -521,7 +521,7 @@ public sealed class BTreeDynamicCatalogTests
         // (their Params are bin-packed into the blackboard at a baked offset).
         fake.Seed("Ns.Bp.MoveToAndFire", new ActionSchemaEntry(
             "Ns.Bp.MoveToAndFire", typeof(SomeOtherDto), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+            BlackboardAccess.Unknown, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
 
         var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
 
@@ -534,7 +534,7 @@ public sealed class BTreeDynamicCatalogTests
         var fake = new FakeActionSchemaExporter();
         fake.Seed("Ns.Bp.MoveToAndFire", new ActionSchemaEntry(
             "Ns.Bp.MoveToAndFire", typeof(SomeOtherDto), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+            BlackboardAccess.Unknown, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
 
         var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
 
@@ -551,7 +551,7 @@ public sealed class BTreeDynamicCatalogTests
         var fake = new FakeActionSchemaExporter();
         fake.Seed("Ns.Bp.MoveToAndFire", new ActionSchemaEntry(
             "Ns.Bp.MoveToAndFire", typeof(SomeOtherDto), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+            BlackboardAccess.Unknown, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
 
         var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
 
@@ -565,7 +565,7 @@ public sealed class BTreeDynamicCatalogTests
         var fake = new FakeActionSchemaExporter();
         fake.Seed("Ns.Bp.IsReady", new ActionSchemaEntry(
             "Ns.Bp.IsReady", typeof(SomeOtherDto), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: true, DtoFields: null, IsAiPrimitive: true));
+            BlackboardAccess.Unknown, IsCondition: true, DtoFields: null, IsAiPrimitive: true));
 
         var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
 
@@ -592,7 +592,7 @@ public sealed class BTreeDynamicCatalogTests
         var fake = new FakeActionSchemaExporter();
         fake.Seed(fqn, new ActionSchemaEntry(
             fqn, typeof(SomeOtherDto), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+            BlackboardAccess.Unknown, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
 
         var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
 
@@ -608,7 +608,7 @@ public sealed class BTreeDynamicCatalogTests
         var fake = new FakeActionSchemaExporter();
         fake.Seed("Ns.Combat.DoOther", new ActionSchemaEntry(
             "Ns.Combat.DoOther", typeof(SomeOtherDto), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false));
+            BlackboardAccess.Unknown, IsCondition: false));
 
         var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
 
@@ -622,7 +622,7 @@ public sealed class BTreeDynamicCatalogTests
         // Seed only an incompatible action to ensure dynamic entries are filtered out.
         fake.Seed("Ns.Combat.DoOther", new ActionSchemaEntry(
             "Ns.Combat.DoOther", typeof(SomeOtherDto), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false));
+            BlackboardAccess.Unknown, IsCondition: false));
 
         var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
 

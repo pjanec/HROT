@@ -11,10 +11,10 @@ using Fdp.ModuleHost.Abstractions;
 namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
-    /// Evaluates the trigger condition of the current <see cref="MissionPhase"/> for every entity
+    /// Evaluates the trigger condition of the current <see cref="MissionTaskSlot"/> for every entity
     /// that has a <see cref="MissionPlanQueue"/> and a <see cref="BehaviorState"/>.
-    /// When a trigger fires the system advances <see cref="MissionPlanQueue.CurrentPhase"/>,
-    /// resets <see cref="MissionPlanQueue.PhaseElapsedSeconds"/>, and updates
+    /// When a trigger fires the system advances <see cref="MissionPlanQueue.CurrentTask"/>,
+    /// resets <see cref="MissionPlanQueue.TaskElapsedSeconds"/>, and updates
     /// <see cref="BehaviorState.ActiveBehaviorHash"/> + increments
     /// <see cref="BehaviorState.InstanceId"/> so that <see cref="ChannelArbitrationSystem"/>
     /// preempts stale action channels naturally.
@@ -61,13 +61,24 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     // [UpdateBefore(typeof(ChannelArbitrationSystem))] -- ordering maintained by array position in MissionControlModule.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class MissionDirectorSystem : IEcsModuleSystem
     {
         /// <summary>
-        /// Entities for which a <see cref="BehaviorFinishedEvent"/> arrived this frame,
-        /// built once per <see cref="OnUpdate"/> call to allow O(1) per-entity lookup.
+        /// ⭐⭐⭐ <c>P3</c> step <c>3b</c> — the EXECUTION gate; see
+        /// <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.5. ⚠ Defaults to <c>false</c>: a promoted
+        /// ghost owns nothing until a policy or grant says otherwise, so enabling it before the node has
+        /// a policy would stop it processing every entity it did not create.
         /// </summary>
-        private readonly HashSet<int> _behaviorFinishedThisFrame = new();
+        private readonly bool _gateOnAuthority;
+
+        public MissionDirectorSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
+
+        /// <summary>⭐ <c>CE-483</c>: how each entity's run ended this frame (entity index ⇒ outcome).</summary>
+        private readonly Dictionary<int, BehaviorOutcome> _outcomeThisFrame = new();
+
+        /// <summary>⭐ <c>CE-4298</c> — each task's compiled then / give-up (D3).</summary>
+        private readonly PlanConditionCache _conditions = new();
 
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
@@ -81,109 +92,93 @@ namespace Fdp.Toolkit.Behavior.Systems
             // -- Build BehaviorFinished lookup for this frame --
             // Consume all BehaviorFinishedEvents once, cache the entity indices, then
             // look them up in O(1) during the entity query loop below.
-            _behaviorFinishedThisFrame.Clear();
-            var behaviorFinishedEvents = repo.Bus.Read<BehaviorFinishedEvent>();
+            _outcomeThisFrame.Clear();
+            var behaviorFinishedEvents = repo.ReadEvents<BehaviorFinishedEvent>();
             foreach (var finishedEvt in behaviorFinishedEvents)
             {
-                _behaviorFinishedThisFrame.Add(finishedEvt.Entity.Index);
+                // ⭐ CE-2078 — a REACTION ending is not the phase's task ending (the paused task restarts after it).
+                if (BehaviorOriginRank.Pauses(finishedEvt.Origin)) continue;   // ⭐ CE-3172 — nor is a possession ending
+                // A fault outranks any other end reported for the same entity in the same frame.
+                if (!_outcomeThisFrame.TryGetValue(finishedEvt.Entity.Index, out var seen) || seen != BehaviorOutcome.Faulted)
+                    _outcomeThisFrame[finishedEvt.Entity.Index] = finishedEvt.Outcome;
             }
 
+            // ⭐ P3 step 3b — advances mission phases (GetComponentRW<MissionPlanQueue>), which is
+            //   Brain work: two nodes advancing one mission would double-step it. Gated on
+            //   BehaviorState, which this query already required.
             var query = repo.Query()
                 .With<MissionPlanQueue>()
-                .With<BehaviorState>()
+                .WithOwnedWhen<BehaviorState>(_gateOnAuthority)
                 .Build();
 
             foreach (var entity in query)
             {
+                // ⭐ The parallel experiment, E-4 (M-1: MissionPlanQueue 99 % unchanged dirty chunks) — the early-outs read; the queue is taken
+                //   writable only for a plan that can advance.
+                ref readonly var peek = ref repo.GetComponentRO<MissionPlanQueue>(entity);
+
+                // Mission complete — nothing left to do.
+                if (peek.CurrentTask >= peek.TaskCount) continue;
+
+                // ⭐ CE-483 — a halted plan waits for an operator command (a jump or a new plan). 📄
+                //   DESIGN_Behaviour_Fault_And_Teardown.md §1 D3.
+                if (peek.Halted != 0) continue;
+
                 ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
                 var behavior  = repo.GetComponent<BehaviorState>(entity);
 
-                // Mission complete — nothing left to do.
-                if (queue.CurrentPhase >= queue.PhaseCount) continue;
-
                 // Safe access to the inline Phases buffer: cast to Span to avoid the
                 // C#/[InlineArray] defensive-copy trap when indexing a nested value-type.
-                Span<MissionPhase> phases = queue.Phases;
-                var phase = phases[queue.CurrentPhase];
+                Span<MissionTaskSlot> phases = queue.Tasks;
+                Span<MissionPhaseOutcome> outcomes = queue.Outcomes;
+                var phase = phases[queue.CurrentTask];
 
-                bool triggered = false;
-
-                switch (phase.Trigger)
+                // ⭐ CE-483 — record how this phase's run ended: Succeeded ⇒ Done · Failed ⇒ Failed, and the plan goes on (3a) ·
+                //   Faulted ⇒ Failed AND HALT — the run told us it could not do its job; ⛔ do not quietly start the next phase.
+                if (_outcomeThisFrame.TryGetValue(entity.Index, out var outcome))
                 {
-                    case MissionTrigger.TimerElapsed:
-                        queue.PhaseElapsedSeconds += dt;
-                        if (queue.PhaseElapsedSeconds >= phase.TriggerParam)
-                            triggered = true;
-                        break;
-
-#pragma warning disable CS0618 // intentional use of obsolete enum value for backward compat
-                    case MissionTrigger.ReachedDestination:
-                        // BS1-T022: Previously polled NavState.HasArrived (Muscle-tier physics
-                        // component not available on a Brain node).  Now evaluated identically
-                        // to BehaviorFinished so that MissionDirectorSystem remains CQRS-clean.
-                        // The enum value is kept for backward compatibility with serialised
-                        // mission plans; new UI code should emit BehaviorFinished instead.
-#pragma warning restore CS0618
-#pragma warning disable CS0618 // intentional use of obsolete enum value for backward compat
-                        if (_behaviorFinishedThisFrame.Contains(entity.Index))
-                            triggered = true;
-#pragma warning restore CS0618
-                        break;
-
-                    case MissionTrigger.UnderAttack:
-                        if (repo.HasComponent<TargetMemory>(entity))
-                        {
-                            ref readonly var mem = ref repo.GetComponentRO<TargetMemory>(entity);
-                            for (int i = 0; i < mem.Count; i++)
-                            {
-                                if (mem.ThreatScores[i] > 0f)
-                                {
-                                    triggered = true;
-                                    break;
-                                }
-                            }
-                        }
-                        break;
-
-                    case MissionTrigger.HealthCritical:
-                        // BUG2-A001: Read Health directly from FDP.Toolkit.Combat.Contracts.
-                        // HealthData mirror (DEBT-033) is no longer needed.
-                        if (repo.HasComponent<Health>(entity))
-                        {
-                            var h = repo.GetComponent<Health>(entity);
-                            float fraction = h.Max > 0f ? h.Current / h.Max : 0f;
-                            if (fraction <= phase.TriggerParam)
-                                triggered = true;
-                        }
-                        break;
-
-                    case MissionTrigger.BehaviorFinished:
-                        // BehaviorFinishedEvent is consumed once per frame into
-                        // _behaviorFinishedThisFrame (built at the top of OnUpdate),
-                        // so this lookup is O(1).
-                        if (_behaviorFinishedThisFrame.Contains(entity.Index))
-                            triggered = true;
-                        break;
+                    outcomes[queue.CurrentTask] = outcome == BehaviorOutcome.Succeeded ? MissionPhaseOutcome.Done : MissionPhaseOutcome.Failed;
+                    if (outcome == BehaviorOutcome.Faulted)
+                    {
+                        queue.Halted = 1;
+                        continue;
+                    }
                 }
+
+                // ⭐⭐ CE-4298 (mission plan D3/D4, R-4160) — the task's then and give-up are ONE shared condition each (PlanConditionCache: a stored
+                //   condition, or the old trigger type translated to the condition it means), compiled once, evaluated here with no allocation. The
+                //   give-up is asked FIRST: it ends the task Failed. ⛔ SUPERSEDED: the switch over five built-in trigger kinds.
+                queue.TaskElapsedSeconds += dt;   // every task's elapsed time ("after N s" reads it, whatever its condition)
+                _conditions.Get(repo, entity, queue.CurrentTask, phase, out var then, out var giveUp);
+                bool gaveUp = giveUp != null && giveUp(repo, entity);
+                bool triggered = gaveUp || then(repo, entity);
+                if (gaveUp) outcomes[queue.CurrentTask] = MissionPhaseOutcome.Failed;
 
                 if (triggered)
                 {
-                    queue.CurrentPhase++;
-                    queue.PhaseElapsedSeconds = 0f;
+                    // A phase advanced by its trigger (a timer, a health threshold) while nothing reported an end ⇒ Done.
+                    if (outcomes[queue.CurrentTask] == MissionPhaseOutcome.None)
+                        outcomes[queue.CurrentTask] = MissionPhaseOutcome.Done;
+                    queue.CurrentTask++;
+                    queue.TaskElapsedSeconds = 0f;
 
-                    if (queue.CurrentPhase < queue.PhaseCount)
+                    // ⭐⭐ CE-4298 (D2) — the director only ADVANCES a named plan: the adapter starts the next task by name (and clears at the end, and
+                    //   for a Wait task) — ⛔ never both. Only a RAW queue (no plan beside it) is started here, by its stored id. MissionTaskStart.ByName.
+                    if (MissionTaskStart.ByName(repo, entity, queue.CurrentTask - 1)) { }
+                    else if (queue.CurrentTask < queue.TaskCount)
                     {
                         // More phases remain: tell BehaviorIngressSystem which behavior to activate.
                         repo.Bus.Publish(new AssignBehaviorHashEvent
                         {
                             Entity       = entity,
-                            BehaviorHash = phases[queue.CurrentPhase].BehaviorId,
+                            BehaviorHash = phases[queue.CurrentTask].BehaviorId,
+                            Origin       = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior,   // ⭐ CE-3034 — a mission plan (R-193)
                         });
                     }
                     else
                     {
                         // Plan exhausted: clear the active behavior so the entity goes brain-dead.
-                        repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity });
+                        repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior });   // ⭐ CE-3034
                     }
                 }
             }

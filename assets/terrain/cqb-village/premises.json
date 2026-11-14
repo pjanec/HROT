@@ -1,0 +1,16 @@
+{
+  "$comment": "UI-4 (HANDOFF_Behaviors_To_Ui_Platoon_Demos) — cqb-village's PREMISES (the bt-range file's format; docs/DESIGN_Terrain_Combat_Tuning.md §3 layer 2): the sight lines the platoon demos need (DESIGN_Platoon_Attack_Defend_Clear §12.1, PC-12). DemoPremisesTests (Hrot.Core.Tests) evaluates each row against THIS terrain with a margin (sight ≥ 0.6 or ≤ 0.4) and prints every crossing. OBJ = house-3f with its front north (rotation 180): its south (back) windows are the ground one at x 120.5..121.7 and the upper one at x 119.0..120.2, both in the wall y = 153; its north (front) upper windows are at x 122.3..123.5 and 117.3..118.5 in the wall y = 161. SNP = house-3f, front south, roof floor 6 m. The support line is the SBF berm (x 90..150, y 40, 1 m).",
+  "demos": {
+    "pc-stage": {
+      "summary": "the stage every platoon demo shares: the support line sees OBJ's south windows (both storeys); SNP sees OBJ and the support line; the hedge route is hidden from OBJ's south face; the CMP gate is seen from the NE sandbag post",
+      "premises": [
+        { "id": "the support line sees OBJ's south ground-floor window", "kind": "sight", "from": [121.1, 38.0, 1.6], "to": [121.1, 154.0, 1.5], "expect": "seesThrough" },
+        { "id": "the support line sees OBJ's south upper window", "kind": "sight", "from": [119.6, 38.0, 1.6], "to": [119.6, 154.0, 4.5], "expect": "seesThrough" },
+        { "id": "SNP's roof sees a man at OBJ's north upper window", "kind": "sight", "from": [305.0, 204.6, 7.7], "to": [122.9, 161.3, 4.5], "expect": "seesThrough" },
+        { "id": "SNP's roof sees a man firing over the support-line berm", "kind": "sight", "from": [305.0, 204.6, 7.7], "to": [120.0, 38.0, 1.6], "expect": "seesThrough" },
+        { "id": "the hedge route is hidden from OBJ's south upper window", "kind": "sight", "from": [119.8, 153.0, 4.5], "to": [36.0, 100.0, 1.0], "expect": "blocks" },
+        { "id": "the CMP gate is seen from the NE sandbag post (the line leaves the compound through it)", "kind": "sight", "from": [285.0, 103.5, 1.6], "to": [236.0, 82.5, 1.5], "expect": "seesThrough" }
+      ]
+    }
+  }
+}

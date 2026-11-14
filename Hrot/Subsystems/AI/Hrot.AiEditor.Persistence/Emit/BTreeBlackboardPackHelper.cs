@@ -16,10 +16,44 @@ namespace Hrot.AiEditor.Persistence.Emit;
 /// </summary>
 public static class BTreeBlackboardPackHelper
 {
-    /// <summary>Maximum inline bytes available (mirrors BehaviorConstants.MaxBehaviorParamByteSize).</summary>
-    public const int MaxInlineBytes = 100;
+    /// <summary>
+    /// Maximum bytes a behaviour's packed variable table may occupy — mirrors
+    /// <c>BehaviorConstants.MaxRootParamsByteSize</c>, the payload of the largest occurrence storage
+    /// tier. Inlined because this assembly is netstandard2.0 and cannot reference the net8.0 runtime;
+    /// pinned against every other copy by <c>InlineBudgetConstantAgreementTests</c>.
+    ///
+    /// <para>⭐⭐⭐ <b><c>CE-307</c> (2026-09-22) — was <b>100</b>.</b> ⛔ That number was a buffer-overrun
+    /// guard for params stored inline in <c>BrainBlackboard</c> beside tail registers; <c>O2</c> moved
+    /// the registers out and <c>P3-C</c> moved params into their own slot, so nothing neighbours them.
+    /// 🔴 <b>This mirror is the one with teeth:</b> <c>BTreeJsonGenerator</c> treats an overflow as
+    /// <i>"asset skipped"</i> — it emits NO code for the asset at all — so 100 was a hard authoring
+    /// limit on every generated BTree blackboard.</para>
+    /// </summary>
+    public const int MaxInlineBytes = 16096;
 
     private const int AlignmentCap = 8;
+
+    /// <summary>
+    /// ⭐ <b><c>CE-455</c> — the root block's LAYOUT, as a stable 64-bit hash</b> (FNV-1a over the field list — ⛔ never
+    /// <c>string.GetHashCode</c>, which differs per process). Emitted into <c>BehaviorDefinition.BlueprintStructureHash</c>
+    /// for BTree and HSM roots, so <c>BrainTickSystem.RestartIfRelaidOut</c> — which already compares it for every tier —
+    /// restarts a running behaviour when a hot reload reorders or retypes its parameters at the SAME width (a width change
+    /// it already caught). 📄 <c>Architect_Question_77</c> §5.12.
+    /// <para>Covers every Input field (name, type, offset, size) and every State-half variable (name, type, in order —
+    /// their offsets follow from that). 0 is reserved for "no layout"; a computed 0 is mapped to 1.</para>
+    /// </summary>
+    public static ulong LayoutHash(
+        IEnumerable<PackedField>? inputs, IEnumerable<KeyValuePair<string, string>>? stateFields = null)
+    {
+        const ulong offset = 14695981039346656037UL, prime = 1099511628211UL;
+        ulong h = offset;
+        void Mix(string s) { foreach (char c in s) { h ^= c; h *= prime; } h ^= 0x1F; h *= prime; }
+        if (inputs != null)
+            foreach (var f in inputs) { Mix("I"); Mix(f.Name); Mix(f.TypeId); Mix(f.ByteOffset.ToString(System.Globalization.CultureInfo.InvariantCulture)); Mix(f.ByteSize.ToString(System.Globalization.CultureInfo.InvariantCulture)); }
+        if (stateFields != null)
+            foreach (var s in stateFields) { Mix("S"); Mix(s.Key); Mix(s.Value); }
+        return h == 0 ? 1UL : h;
+    }
 
     /// <summary>
     /// A single variable after packing.
@@ -44,59 +78,14 @@ public static class BTreeBlackboardPackHelper
             $"PackedField({Name}, {TypeId}, offset={ByteOffset}, size={ByteSize})";
     }
 
-    /// <summary>
-    /// Known managed sizes for CLR type FQNs.
-    /// Mirrors <c>BlackboardBinPacker.PrimitiveSizes</c> plus common value-type structs.
-    /// bool = 1 (C# sequential layout, not Win32 BOOL = 4).
-    /// </summary>
-    private static readonly Dictionary<string, int> KnownSizes = new(StringComparer.Ordinal)
-    {
-        { "System.Boolean",  1 },
-        { "System.Byte",     1 },
-        { "System.SByte",    1 },
-        { "System.Char",     2 },
-        { "System.Int16",    2 },
-        { "System.UInt16",   2 },
-        { "System.Int32",    4 },
-        { "System.UInt32",   4 },
-        { "System.Single",   4 },
-        { "System.Int64",    8 },
-        { "System.UInt64",   8 },
-        { "System.Double",   8 },
-        // Common game-math value types
-        { "System.Numerics.Vector2",    8  },
-        { "System.Numerics.Vector3",    12 },
-        { "System.Numerics.Vector4",    16 },
-        { "System.Numerics.Quaternion", 16 },
-        // Unity/engine math aliases (common in game code)
-        { "UnityEngine.Vector2",    8  },
-        { "UnityEngine.Vector3",    12 },
-        { "UnityEngine.Vector4",    16 },
-        { "UnityEngine.Quaternion", 16 },
-        // C# alias forms — mirror of BlackboardTypeHelper
-        { "bool",       1 },
-        { "byte",       1 },
-        { "sbyte",      1 },
-        { "char",       2 },
-        { "short",      2 },
-        { "ushort",     2 },
-        { "int",        4 },
-        { "uint",       4 },
-        { "float",      4 },
-        { "long",       8 },
-        { "ulong",      8 },
-        { "double",     8 },
-        { "Vector2",    8  },
-        { "Vector3",    12 },
-        { "Vector4",    16 },
-        { "Quaternion", 16 },
-    };
+    // ⭐⭐ CE-2027 — the known-type table is ONE file now, FDP/Toolkits/Fdp.Toolkits.Analyzers/Shared/KnownTypeLayouts.cs
+    //    (linked here and into every analyzer/generator); it carries the CLR alignment too, which this table never did.
 
     /// <summary>
     /// Returns the byte size for a known type FQN, or 0 if not in the table.
     /// </summary>
     public static bool TryGetSize(string typeId, out int size) =>
-        KnownSizes.TryGetValue(typeId, out size);
+        global::Fdp.Toolkit.Behavior.Shared.KnownTypeLayouts.TryGetSize(typeId, out size);
 
     /// <summary>
     /// Packs <paramref name="variables"/> using declaration order (master-var invariant:
@@ -111,8 +100,8 @@ public static class BTreeBlackboardPackHelper
 
     /// <summary>
     /// Packs <paramref name="variables"/> using declaration order, with an optional injected
-    /// size resolver for struct-DTO types not in <see cref="KnownSizes"/>.
-    /// Lookup order: <see cref="KnownSizes"/> → <paramref name="extraSizeResolver"/>(<c>TypeId</c>).
+    /// size resolver for struct-DTO types not in <c>KnownTypeLayouts</c>.
+    /// Lookup order: <c>KnownTypeLayouts</c> → <paramref name="extraSizeResolver"/>(<c>TypeId</c>).
     /// Throws <see cref="NotSupportedException"/> when no resolver returns a size.
     /// Returns total byte size via <paramref name="totalBytes"/>.
     ///
@@ -137,7 +126,7 @@ public static class BTreeBlackboardPackHelper
             // region — so they are excluded from param packing. Byte-identical for the existing
             // corpus (all Input-role); prevents a large working-state struct (e.g. the 120-byte
             // HillAttackMutableState) from overflowing the ≤100-byte inline param budget.
-            if (v.Role == BlackboardVariableRole.State) continue;
+            if (v.IsWorkingState) continue;
 
             string typeId = v.Type?.TypeId ?? string.Empty;
 
@@ -185,7 +174,7 @@ public static class BTreeBlackboardPackHelper
         {
             // S3-G: State-role vars live in the partition tier, not the inline param region
             // (see Pack) — exclude them from the overflow budget.
-            if (v.Role == BlackboardVariableRole.State) continue;
+            if (v.IsWorkingState) continue;
 
             string typeId = v.Type?.TypeId ?? string.Empty;
             if (!TryResolveSize(typeId, extraSizeResolver, out int size))
@@ -202,12 +191,12 @@ public static class BTreeBlackboardPackHelper
     }
 
     /// <summary>
-    /// Resolves the byte size for <paramref name="typeId"/> via <see cref="KnownSizes"/>
+    /// Resolves the byte size for <paramref name="typeId"/> via <c>KnownTypeLayouts</c>
     /// then <paramref name="extraSizeResolver"/>. Returns true when resolved.
     /// </summary>
     private static bool TryResolveSize(string typeId, Func<string, int?>? extraSizeResolver, out int size)
     {
-        if (KnownSizes.TryGetValue(typeId, out size))
+        if (global::Fdp.Toolkit.Behavior.Shared.KnownTypeLayouts.TryGetSize(typeId, out size))
             return true;
 
         if (extraSizeResolver != null)

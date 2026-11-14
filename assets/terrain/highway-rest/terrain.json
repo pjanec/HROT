@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2,
+  "origin": {
+    "lat": 52.52,
+    "lon": 13.405,
+    "alt": 0.0
+  },
+  "name": "highway-rest",
+  "roadNetworks": [
+    "roads.json"
+  ],
+  "world": "highway-rest.world.geojson"
+}

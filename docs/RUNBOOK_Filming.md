@@ -1,0 +1,259 @@
+<!--STATUS
+state: LIVE
+doc-type: runbook (how to film the 3-D map — not a design; the design and its UML are Map 3D Mode §6ab)
+updated: 2026-11-09 (§0b — arming Live from Edit loads Live; /run-mode waits for it) · 2026-11-06 (§8 thumbnails — CE-4268 / CE-4271) · 2026-10-30 (§0b — CE-3354: one-call load-and-run, the filming node's 3-D map in its load) · 2026-10-30 (§0b traps from the film pilot: paused live load, launch order, wait for the index, CE-4118 / CE-4119) · 2026-10-29 (§0b record a live run in the editor, film it in the Replay Browser — the HTTP sequence, measured CE-4102) · 2026-10-21 (§0a the film director, CE-4038 — takes, reels, /director/*, film.py --take; the shot math is the engine's) · 2026-10-21 (§0 --mode editor; R-3034 — runs are not repeatable, load again for each)
+current-answer: this whole file — ⭐ §0a the film director (takes, reels, live or to film); ⭐ §0b record an exercise in the editor and film it in the Replay Browser; §0 film in --mode editor; §1 the quick start, §2 shots, §3 a plan with cuts, §4 finding when things happen, §5 checking the
+  film, §6 the traps.
+stale-below: nothing.
+known-rot: none.
+related-designs:
+  - DESIGN_Film_Director.md — the designed successor: takes and reels played in the editor live or to film; film.py becomes its client (D-9)
+  - PLAN_Feature_Films.md — OWNS what to film (the clip list, docs/films/clips.json) and the overnight pipeline proposal (CE-4034)
+  - docs/DESIGN_Map_3D_Mode.md §6ab — OWNS the design (the director camera, the scene capture, the routes; UML; as-built and measured limits §6ab-i)
+  - docs/Editor_Headless_Xvfb.md — OWNS the headless launch (Xvfb + Mesa) the films run under
+  - blueprints/Architect_Question_108_Run_Mode_Picker.md — OWNS the armed mode (Preview / Live / AAR), ▶ and ■ (§2.8, §2.14, D22)
+  - docs/RUNBOOK_Cluster_Debugging_Over_Http.md — OWNS the HTTP debug API and its traps (the localhost HOSTNAME, a paused cluster)
+-->
+# RUNBOOK — filming the 3-D map
+
+Short videos of the 3-D map: **the scene alone** (sky, terrain, buildings, vehicles, people, flashes, blasts, smoke, rounds) — ⛔ no
+panels, no gizmos / cards / HUD. Works in a cloud session (Xvfb + Mesa, no GPU) from any lane. `CE-3289`, ruling `R-3032`.
+
+```mermaid
+graph LR
+  A["film-events.py: WHEN things happen"] --> B["write a plan: shots at sim times"]
+  B --> C["film.py: pause, shot, capture, step"]
+  C --> D["look at frames / scene scores"]
+  D -->|"adjust angles or times"| B
+  C --> E["MP4"]
+```
+
+*Caption:* filming is a loop — find the moments, place the cameras, film, look, adjust. A film costs minutes, so look at a few frames of
+a short take before filming the whole plan.
+
+## 0. ⭐ Film in `--mode editor` — the preferred host for demos *(user, `2026-10-21`)*
+
+> 🔒 *"pls try the filming on the clusterrunner --mode editor (this is preferred for demos — might hide some network related engine
+> bugs)"* · *"stepping in the editor is more 'deterministic' (no network included, faster)"*
+
+| 📐 measured on `ua-tank-ammo`, `2026-10-21` | `--mode editor` | `--mode all` |
+|---|---|---|
+| one world / network | ⭐ one world, no wire | five nodes over DDS |
+| a cut | ⭐ **STEPS** to the next `at` — frame-exact in sim time | plays in real time, overshoots ~0.1 s |
+| a film frame | ⭐ **~0.8 s** | ~1.85 s |
+| stepping to a cut | ~20 s per sim second skipped | (plays in real time) |
+| the M1's shots on the T-72 | **8.85 s, 17.58 s** (`film-events.py --mode editor`) | ~10, ~20, ~30 s |
+
+```bash
+python3 scripts/film-events.py ua-tank-ammo --mode editor --seconds 35      # exact shot times (each shot's own firedAt)
+python3 scripts/film.py ua-tank-ammo --mode editor --plan plan.json --out /tmp/film.mp4 --keep-frames   # background
+```
+
+⚠ **Two runs are NOT the same run** (R-3034, measured CE-3291: the first load after boot plays differently, later loads drift) — so
+`film-events.py`'s times are a GUIDE for the next run, not a promise. Load again for every run; never Stop-and-rewind a preview to
+rerun it (a rewind leaks brain and perception state). Look at the frames and adjust. 📐 The first editor film caught the second round's impact on the T-72 on the frame the plan
+aimed at (`at` 17.3 for a shot fired at 17.58). ⚠ A muzzle flash shows ~0.1 s after `firedAt` (the effect spawns a few frames later).
+⚠ An editor result says nothing about the wire — a demo that must prove the CLUSTER films `--mode all`.
+
+## 0a. ⭐ The film director — takes and reels, live or to film *(CE-4038, built `2026-10-21`)*
+
+⭐ A scenario's camera script is a **take** (`scenarios/<s>/takes/<take>.take.json`; 55 seeded from `docs/films/clips.json`), and a
+**reel** (`films/<name>.reel.json`) plays several as ONE movie. The editor plays them — 📄 [DESIGN_Film_Director.md](DESIGN_Film_Director.md)
+§8 as built. ⭐ **One step per rendered frame** (R-3038), the frame held to real time.
+
+| you want | do |
+|---|---|
+| watch a reel on your machine, live | View › **Director** → Reel → Play (Esc stops) · or `POST /director/play {"reel":"highlights"}` |
+| one take again | the Director panel's row → Replay · `POST /director/play {"scenario":"ua-tank-ammo","take":"main"}` |
+| bake a take's beat times (scout) | panel → Prepare · `POST /director/scout {"scenario":"ua-tank-ammo"}` — ⚠ re-scout every take after CE-3293 S5 |
+| film a reel overnight (cloud VM, Xvfb) | `POST /director/play {"reel":"features","capture":{"dir":"/tmp/films/features","fps":30,"size":"1280x720"}}` → one MP4 with chapters and sound |
+| film one take from the shell | `python3 scripts/film.py ua-tank-ammo --take main --out /tmp/tank.mp4` (launches `--mode editor`) |
+| the status | `GET /director/status` — the phase, the shot, the realtime factor, and per take: missing beats, drifted beats, the world at every cut |
+| the map's layers / the sound, as the user's clicks | `GET/POST /map/layers` · `GET/POST /audio` — ⚠ a TAKE's layers are transient and never saved |
+
+⚠ `film.py`'s own `--plan` / shot flags still work, but the camera math is the engine's now (`POST /film/shot {spec, t}`, D-9).
+
+## 0b. ⭐ Record an exercise in the editor, film it in the Replay Browser *(CE-4102, measured `2026-10-29`)*
+
+🔒 *User: "the goal here is to make it possible to easily record exercise so we can prepare movie clips using director in replay browser"*.
+Two processes, ONE staging root: the editor records a LIVE run to disk, the Replay Browser lists it, opens it and the director films it.
+
+```mermaid
+sequenceDiagram
+  participant E as editor :8120
+  participant D as disk FDP_STAGING_ROOT
+  participant R as Replay Browser :8121
+  E->>E: POST /scenario/load/edit · POST /run-mode armed live
+  E->>D: POST /scenario/load/live — runs, records (Record live runs ON)
+  E->>E: POST /sim/stop — ■ back to editing, Live stays armed
+  D-->>R: nodes/node-1/exercises/ID/node_1.fdp + .meta.json
+  R->>R: GET /exercises · POST /replay exerciseId
+  R->>R: POST /director/play scenario + recording + take → GET /director/status until Done
+```
+
+*Caption:* the recording is the only thing the two processes share — the Replay Browser needs no cluster, only the folder.
+
+**① Launch both, the same `FDP_STAGING_ROOT`** (build `Hrot.ClusterRunner` first):
+
+```bash
+D=/home/user/HROT/Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0
+launch() { (cd $D && FDP_STAGING_ROOT=/tmp/films-staging HROT_DEBUG_API_PORT=$2 setsid nohup \
+  xvfb-run -a --server-args="-screen 0 1600x1000x24" dotnet Hrot.ClusterRunner.dll -m $1 --no-wait > /tmp/$1.log 2>&1 < /dev/null &) ; }
+launch editor 8120          # up in ~15 s
+launch replaybrowser 8121   # up in ~9 s — may start later, it scans the folder when asked
+c() { if [ "$1" = POST ]; then curl -s --noproxy '*' -m 150 -X POST "http://localhost:$2$3" -H 'Content-Type: application/json' -d "${4:-{\}}"
+      else curl -s --noproxy '*' -m 30 "http://localhost:$2$3"; fi; echo; }   # usage: c GET|POST <port> <route> [json]
+```
+
+**② Record a live run in the editor:**
+
+```bash
+c POST 8120 /scenario/load/edit '{"name":"hill-attack","waitForReady":true}'
+c POST 8120 /run-mode '{"armed":"live","discardUnsaved":true}'  # FROM EDIT THIS LOADS LIVE (CE-3411) and answers once it is OperatingLive (2026-11-09)
+c POST 8120 /scenario/load/live '{"name":"hill-attack","waitForReady":true}'   # OperatingLive, running, recording:true in GET /status
+sleep 60                                                       # the run; GET /status → simTime
+c POST 8120 /sim/stop                                          # ■: back to editing at the start, Live stays armed, the exercise is on disk
+```
+
+**③ Film it in the Replay Browser:**
+
+```bash
+c GET  8121 /exercises                                         # {exerciseId, scenario, durationSeconds} — newest first
+c POST 8121 /replay '{"exerciseId":"<id>"}'                    # OperatingReplay, the recorded entities
+c GET  8121 /director/moments                                  # combat beats to anchor shots on (empty if nothing fired)
+c GET  8121 /entities/<networkId>                          # Components.SimTransform.Position — where to point the camera
+c POST 8121 /director/play '{"scenario":"hill-attack","recording":"<id>","speed":4,
+  "take":{"title":"…","shots":[{"at":2,"seconds":6,"lookAt":[668,522,0],"distance":150,"yaw":45,"pitch":-35,"orbit":3},
+                               {"at":10,"seconds":6,"lookAt":[668,522,0],"distance":40,"yaw":225,"pitch":-15}]}}'
+c GET  8121 /director/status                                   # poll: phase Playing → Done; reports[0]: status ok, problems [], cuts per shot
+```
+
+⭐ To FILM to disk add `"capture":{"dir":"/tmp/films/x","fps":30,"size":"1280x720"}` to `/director/play` (§0a). ⭐ A take may be inline (as
+above, played and never saved), a saved name (`"take":"main"`, `scenarios/<s>/takes/main.take.json`), or drafted on a beat
+(`POST /director/draft {lane, eventIndex}` — needs `/director/moments`).
+
+| ⚠ trap — measured | |
+|---|---|
+| ⛔ **`POST /sim/play` from Edit does NOT start Live** — routes are raw (AQ108 D22): from Edit it is the Preview dry run, which records nothing | start the live run with `POST /scenario/load/live` (the UI's ▶ with Live armed does the same load) |
+| ⚠ **`POST` with no body answers `411 Length Required`** | always send a body — `-d '{}'` (the `c` helper does) |
+| ⚠ **the two processes must share `FDP_STAGING_ROOT`** — the editor writes `{root}/nodes/node-1/exercises/<id>/`, the Replay Browser scans `{root}` | set it on BOTH launches; ⛔ the default is `$TMPDIR/FDP_Temp`, shared with every other run on the box |
+| ⚠ **`/director/moments` is EMPTY when nothing fired** (`hill-attack`, 103 s: 0 beats) | anchor shots on plain seconds (`"at": 2`) and point them at an entity's recorded position |
+| ⚠ **slow under Xvfb + Mesa**: a 16 s take at `speed: 4` took **82 s** (realtime factor ~0.2) | poll `/director/status`; don't block on it |
+| ⚠ before any scenario is opened the editor's `/status.armedMode` (its own default, Preview) may differ from the cluster's `/run-settings.armed` (Live) | they agree from the first open / arm (AQ108 §2.14) |
+| ⚠ `GET /exercises` listed `scenario: null` before `3f7785c24` | fixed: the scenario comes from the recording's sidecar |
+| ⛔ **a batch of renders must check the Replay Browser is ALIVE first, and abort on an EMPTY answer** | 📌 `2026-10-30`: the cloud machine restarted between turns, the Replay Browser was gone, and a script polling `/director/status` for `Done` waited 50 min per clip on empty answers — 73 min lost, nothing rendered. ⭐ Launch / wait for `/status` before the batch; `[ -z "$st" ] && exit 1` inside every wait |
+| ⚠ **a load sent before the cluster is ready is REFUSED** (`notOperable: "no cluster state has reached this node yet"`) — measured right after launch | wait for `GET /status` → `canOperate: true` before the first load (the readiness protocol, R-3072) |
+| ⛔ **from Edit, `POST /run-mode {armed:live}` IS a live load** — the next `/scenario/load/live` is a second (reloading) load | 📐 `2026-11-09` (behaviors' NOTE_Behaviors_To_Backend_Editor_Live_Load_Rejected): the route used to answer at once while its load was parked ~0.1 s for its staging, so the next load was REJECTED (the master parks at most one transition, L8 §7.2c). ⭐ Fixed: the route now waits for `OperatingLive` when it started a load. The explicit live load after it is optional (it reloads) — use it for `startPaused:false` / args |
+| ⚠ **the live load comes up PAUSED** by design (`startPaused` defaults to true, Q86 §4-G) | either send `POST /sim/play` after `/scenario/load/live {waitForReady:true}`, or load and run in ONE call: `{"name":…, "waitForReady":true, "startPaused":false}` — the master starts the clock when every node's load succeeded (CE-3354 / CE-4122 fixed `2026-10-30`; ⛔ before that `startPaused:false` stayed paused) |
+| ⭐ **film on a node whose 3-D map is IN the load** (CE-3354, R-3075) | once per session: `POST /run-settings {"mapInLoad":true}` on the filming node's own port (or `{"mapInLoadNodes":["film-cam"]}` by name — names in `GET /cluster/roster`; name a node with `--node-name film-cam`). Then `waitForReady` returns only when its 3-D map is built too; `GET /status.load.phase` = `Loaded`. From the command line: `-m editor --node-name film-cam -s <scenario> --play --map-in-load` |
+| ~~launching both in the same second crashed the editor on the shared `imgui.ini`~~ — ✅ fixed (CE-4116: the layout reset replaces the file by rename, retries, and keeps the existing layout if it still cannot) | the two may start together |
+| ⚠ **wait for the recording's index** before drafting or playing: `GET /timeline/lanes` until `complete: true` — `/director/moments` answered `complete: true, count: 0` while the index was still at 0 % | — |
+| ~~a Live recording has no shot / hit events (CE-4118); an event-anchored take renders unresolved on a recording (CE-4119)~~ — ✅ both fixed `2026-10-30` (the recorder writes the read buffer; the timeline sidecar keeps the sim times, so a REOPENED recording resolves) | ⚠ recordings made before the fixes lack their combat events — re-record; a `.timeline` sidecar of schema 3 rebuilds by itself |
+| ⚠ **stop both processes after** — and ⛔ never with `pkill -f '<pattern>'` from a command whose OWN text contains the pattern (it kills the calling shell, exit 144), nor a match on `dotnet …` (the process line is `/root/.dotnet/dotnet …`): kill by pid — `for p in $(pgrep -f ClusterRunner.dll); do case "$(tr '\\0' ' ' </proc/$p/cmdline)" in *replaybrowser*) kill $p;; esac; done` | 📌 `2026-10-30`: a stale Replay Browser kept its port, the relaunch died silently, and a fix was "tested" on the OLD binary — check `ps -o lstart` |
+
+## 1. Quick start
+
+```bash
+dotnet build Hrot/Runner/Hrot.ClusterRunner --no-restore        # film.py refuses a runner older than the source (or HROT_ALLOW_STALE_RUNNER=1)
+which ffmpeg Xvfb                                                # both are in the cloud image
+python3 scripts/film.py ua-tank-ammo --follow Tank --distance 28 --pitch -14 --yaw 230 --orbit 4 \
+        --warmup 8 --seconds 6 --out /tmp/tank.mp4               # ⚠ ~1.85 s per frame: 6 s of film ≈ 6 min — run it in the BACKGROUND
+```
+
+`film.py` launches `ClusterRunner --mode all` under Xvfb on port 8111, loads the scenario, runs it to `--warmup`, **pauses**, then per
+film frame: holds the camera (`POST /film/shot`), writes the scene (`POST /film/capture`), steps the sim one film frame
+(`POST /sim/step`). ffmpeg joins the PNGs. `--keep-frames` keeps them beside the MP4 (`<out>-frames/`). `--size 1280x720`,
+`--fps 30`, `--supersample 2` (smoother edges, 4× the render cost).
+
+## 2. Shots
+
+| shot | flags | what it does |
+|---|---|---|
+| **follow** | `--follow NAME\|ID --distance --yaw --pitch [--orbit deg/s] [--lift]` | looks at the unit (every frame, it moves) from that distance and angle; `--orbit` circles it |
+| **over the shoulder** | `--over NAME --toward NAME2 --back --height [--ahead] [--lift]` | behind NAME on the line to NAME2, `--back` m behind, `--height` up, looking `--ahead` (share) of the way to NAME2 |
+| **fixed point** | `--look-at X,Y,Z --distance --yaw --pitch [--orbit]` | a fixed point (a wide shot, a place) |
+| **any shot** | `--fov DEG` | the lens: 45° default; ⭐ **narrow = telephoto** — a target 200 m away fills the frame at ~10° |
+
+| ⭐ the angles | |
+|---|---|
+| **yaw** | the direction the camera LOOKS, degrees from **east, counter-clockwise**: 0 looks east, 90 north, 180 west, 270 south. ⇒ to see a unit from its south, look north: yaw 90 |
+| **pitch** | negative looks down: −10 a low side view, −30 a high one, −89 straight down |
+| **positions** | HROT metres, Z up; `film-events.py` prints every named entity's start position |
+
+## 3. A plan — several shots with cuts
+
+```json
+[
+  {"at": 9.4,  "seconds": 1.8, "over": "Tank", "toward": "Enemy Tank", "back": 14, "height": 4.5, "ahead": 0.2, "lift": 2},
+  {"at": 18.5, "seconds": 2.6, "follow": "Enemy Tank", "distance": 30, "yaw": 180, "pitch": -10, "fov": 25},
+  {"at": 29.9, "seconds": 2.6, "look_at": "300,400,2", "distance": 190, "yaw": 180, "pitch": -9}
+]
+```
+
+```bash
+python3 scripts/film.py ua-tank-ammo --plan plan.json --out /tmp/cut.mp4 --keep-frames     # background
+```
+
+Each segment starts at sim time `at` (seconds of the scenario) and lasts `seconds`; keys are the flags without dashes (`look_at`,
+`fov`). Between segments the sim **plays in real time** to the next `at` — a cut. ⚠ See §6: a cut overshoots.
+
+## 4. Finding WHEN things happen
+
+```bash
+python3 scripts/film-events.py ua-tank-ammo --seconds 40      # ~1.5 min; prints positions, then "sim 10.2: Tank -> Enemy Tank InFlight"
+```
+
+📐 ua-tank-ammo: the M1 (1000, at 300,280) fires on the T-72 (1001, at 300,520) at about sim **10**, **20** and **30** s; the third
+kills it (burning). ⚠ Shots only — a scenario whose action is movement (an air assault, a crowd) needs its own probe: poll
+`GET /entities/{id}` positions the same way.
+
+## 5. Checking the film without watching it
+
+```bash
+# where the action is: frames that differ most from the one before (flash, blast, cut)
+ffmpeg -i film.mp4 -vf "select='gt(scene,0.003)',metadata=print:file=-" -f null - 2>&1 \
+  | grep -oE "pts_time:[0-9.]+|scene_score=[0-9.]+" | paste - - | head
+```
+
+Then open a few PNGs from `<out>-frames/` (an agent can read them as images) — the frame at each event, and one per segment for the
+composition. 📐 A muzzle flash scores ~0.01, a cut ~0.07–0.17.
+
+## 6. The traps — each one measured
+
+| trap | what to do |
+|---|---|
+| ⚠ **~0.8 s per film frame in the editor, ~1.85 s in `--mode all`** (1280×720, llvmpipe) — each sim step is a full frame of the window | run film.py in the background; film a 1–2 s take of a shot first and look at it |
+| ⚠ **a cut overshoots ~0.1 s in `--mode all`, and NO host repeats a run exactly (R-3034)** | film in the editor (§0); put `at` ≥ 0.5 s before the event and check the frames (📐 the first plan's cut landed just AFTER the T-72 was hit) |
+| ⚠ **far is tiny** — 45° makes a tank 240 m away a speck | `--fov 10…25` (telephoto) or a closer camera |
+| ⚠ **the first frame of a new shot has the previous camera's sky** | film.py throws it away (a 64-px capture) — keep that if you script the routes yourself |
+| ⚠ **buildings between camera and subject** are drawn | move the camera (yaw / distance) — 📐 a wide shot east of ua-tank-ammo's T-72 crossed a roof |
+| ⚠ **`--mode all` films the map ON SCREEN** — the perspective shown (the default Scenario) | `/combat/shots` and friends switch perspective; do not poll them while filming |
+| ⚠ **504 "no map drew a frame"** | no window (a headless runner, no Xvfb) or the map not visible |
+
+## 7. Driving it by hand (any HTTP client)
+
+| route | body |
+|---|---|
+| `POST /film/shot` | `{follow, distance, yawDeg, pitchDeg, lift, fovDeg}` · `{eye:[x,y,z], target:[x,y,z]}` · `{lookAt:[x,y,z], distance, yawDeg, pitchDeg}` |
+| `DELETE /film/shot` | gives the camera back |
+| `POST /film/capture` | `{path, width?, height?, supersample?}` → `{path, width, height, simTime}` |
+| `POST /sim/pause` · `POST /sim/step {count}` | one sim step = 1/60 s; 2 per frame at 30 fps |
+
+⭐ `--mode editor` films the same way (§0) — every map host carries the film layer. The code:
+`Hrot/Engine/Hrot.Presentation/Map3D/Film.cs`, `MapCanvas.DrawScene`, the routes in `DebugApiHost`; rails `FilmTests`, `FilmFrameRail`.
+
+## 8. ⭐ Thumbnails — the pickers' pictures *(CE-4268 / CE-4271, `docs/DESIGN_Add_Entity_Picker.md` §2i–§2j)*
+
+`scripts/thumbnails.py` films ONE scenario or ONE entity type through the routes above and files the picture where the pickers read it. Needs a running **editor** (`--attach --port N`, or it launches one under Xvfb) and, for the atlas, **Pillow**
+(`py -3 -m pip install pillow` · Linux `python3 -m pip install pillow`).
+
+| what | command (Linux · Windows `py -3 scripts\thumbnails.py …`) | where it lands |
+|---|---|---|
+| a **scenario's** still | `python3 scripts/thumbnails.py --scenarios ua-tank-ammo hill-attack --attach --port 5195` (no names = every repository scenario WITHOUT a still; one with a `preview.jpg` / `preview.png` is skipped unless `--force`) | `scenarios/<name>/preview.jpg` **in the repository** — 320 × 180 JPEG q85, committed beside `scenario.json`; commit a re-shot one only on purpose |
+| an **entity type's** picture | `python3 scripts/thumbnails.py --types 103 200 --attach --port 5195` (ids from `GET /tkb/types`) | `<NasRoot>/assets/thumbnails/generated/<TypeName>.png` — the picker shows it at the next open |
+| … and put it in the **atlas** | add `--pack` to the line above, or `python3 scripts/thumbnails.py --pack` later (folds every loose `generated/*.png`) | `Hrot/Engine/Hrot.Presentation/Thumbnails/entities-<n>.jpg` + `entities.atlas.json` — **commit these** (R-4117: the only pictures allowed in git) and rebuild: they are embedded |
+| a **hand-made / downloaded** picture | `python3 scripts/thumbnails.py --add-image C:\pics\a10.png --name A-10C` (no editor needed; centre-cropped to 16:9, 320 × 180) | the atlas, as above |
+| see / free a slot | `python3 scripts/thumbnails.py --atlas-list` · `--atlas-remove A-10C` | the atlas |
+
+`<NasRoot>` is the runtime shared root: `/tmp/FDP_Temp/shared` on Linux, `C:\FDP_Temp\shared` on Windows (`--nas` overrides). ⭐ A name keeps its slot; only a page whose pixels changed is re-encoded; the index has sorted keys — a diff shows exactly the names
+added. ⛔ Nothing else renders into git;. Rails: `scripts/test_thumbnails_atlas.py` (the packer), `AtlasIndex` / `ThumbnailAtlas` / `ThumbnailAtlasTileFrameRail` (the reader).

@@ -38,7 +38,7 @@ This batch establishes the pure FDP domain vocabulary for the ClusterMaster CQRS
 ```powershell
 # Build (run from repo root d:\Work\IOS-IG-SimHost-FDP-2)
 dotnet build FDP/FDP.sln -v q
-dotnet build IOS-IG-SimHost.sln -v q
+dotnet build HROT.sln -v q
 
 # Test the FDP orchestration toolkit
 dotnet test FDP/Toolkits/FDP.Toolkit.Orchestration.Tests/FDP.Toolkit.Orchestration.Tests.csproj
@@ -145,7 +145,7 @@ Repeat for `NodeOpType` and `ClusterOpType`.
 using Fdp.Kernel;
 
 [EventId(9011)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct ClusterOpCompletedEvent { ... }
 ```
 
@@ -159,7 +159,7 @@ public struct ClusterOpCompletedEvent { ... }
 Add `FdpOrchestrationCqrsStructTests.cs` in `FDP/Toolkits/FDP.Toolkit.Orchestration.Tests/`.
 
 Required tests:
-1. Each struct has `[DataPolicy(DataPolicy.NoRecord)]` — check via reflection
+1. Each struct has `[DataPolicy(DataPolicy.NoReplay)]` — check via reflection
 2. Each struct has unique `[EventId]` — check via reflection  
 3. `ExecuteNodeOpIntent` has field `DomainPayload` of type `object?` (no field named `PayloadJson`) — check via `typeof(ExecuteNodeOpIntent).GetFields()`
 4. `NodeOpCompletedEvent` and `ClusterOpCompletedEvent` have field `ResultPayload` of type `object?`
@@ -175,7 +175,7 @@ Required tests:
 **Task Definition:** See [TASK-DETAIL.md CMC-S003](../TASK-DETAIL.md#cmc-s003--specific-operation-payload-intent-structs)  
 **Design Reference:** [DESIGN.md §3.3](../DESIGN.md#33-specific-operation-payload-intents)
 
-**Structs to define (all in `FDP.Toolkit.Orchestration` namespace, all `[DataPolicy(DataPolicy.NoRecord)]`):**
+**Structs to define (all in `FDP.Toolkit.Orchestration` namespace, all `[DataPolicy(DataPolicy.NoReplay)]`):**
 
 | Type | EventId | Key Fields |
 |------|---------|------------|
@@ -200,7 +200,7 @@ Required tests:
 Extend `FdpOrchestrationCqrsStructTests.cs` in `FDP/Toolkits/FDP.Toolkit.Orchestration.Tests/`.
 
 Required tests:
-1. Reflection check: all 8 struct types (not the enum) have `[DataPolicy(DataPolicy.NoRecord)]`
+1. Reflection check: all 8 struct types (not the enum) have `[DataPolicy(DataPolicy.NoReplay)]`
 2. Reflection check: EventIds 9050-9057 are all present and non-overlapping
 3. `TransitionStateIntent.TargetState` field is of type `FDP.Toolkit.Orchestration.ClusterState` — NOT `int`, NOT Hrot type
 4. `ManageEpisodeIntent` has `bool IsStart`, `Guid EpisodeId`, `string? ScenarioId`
@@ -247,7 +247,7 @@ This batch is DONE when:
 - [ ] CMC-S003: `ClusterOpIntents.cs` with 9 types exists in `Events/`
 - [ ] CMC-S003: 6 struct tests pass
 - [ ] `dotnet build FDP/FDP.sln` succeeds with 0 errors
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds with 0 errors
+- [ ] `dotnet build HROT.sln` succeeds with 0 errors
 - [ ] All new tests pass
 - [ ] Report submitted
 

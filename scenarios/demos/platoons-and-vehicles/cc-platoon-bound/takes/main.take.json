@@ -1,0 +1,88 @@
+{
+  "title": "Platoon bound",
+  "caption": "One squad sets a support position while the other moves up",
+  "clip": "F-31",
+  "chapter": 7,
+  "state": "ready",
+  "endAt": "m+8",
+  "anchors": {
+    "m": {
+      "on": "near",
+      "who": "Bravo 1",
+      "point": [
+        195,
+        170
+      ],
+      "within": 25
+    }
+  },
+  "keys": [
+    {
+      "at": 0.5,
+      "follow": "Alpha 1",
+      "distance": 40,
+      "yaw": 20,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "a"
+    },
+    {
+      "at": 40,
+      "follow": "Alpha 1",
+      "distance": 40,
+      "yaw": 120,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "a"
+    },
+    {
+      "at": 64,
+      "follow": "Bravo 1",
+      "distance": 40,
+      "yaw": 60,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "b"
+    },
+    {
+      "at": 110,
+      "follow": "Bravo 1",
+      "distance": 40,
+      "yaw": 150,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "b"
+    }
+  ],
+  "segments": [
+    {
+      "id": "a",
+      "from": 0.5,
+      "to": 60,
+      "speed": 6
+    },
+    {
+      "id": "b",
+      "from": 60,
+      "to": "m+8",
+      "speed": 6
+    }
+  ],
+  "subtitles": [
+    {
+      "at": 0.5,
+      "until": 60,
+      "text": "One squad sets its support position"
+    },
+    {
+      "at": 60,
+      "until": "m+8",
+      "text": "The other bounds forward"
+    }
+  ],
+  "needs": "the enemy is never turned hostile without the check, so no contact freezes the bound"
+}

@@ -7,6 +7,7 @@ using Fdp.ModuleHost.Abstractions;
 namespace Fdp.Toolkit.Replication.Systems
 {
     [UpdateInPhase(SystemPhase.Export)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class SmartEgressSystem : IEcsModuleSystem
     {
         private const uint REFRESH_INTERVAL = 600;  // Refresh every 10 seconds at 60Hz
@@ -23,7 +24,7 @@ namespace Fdp.Toolkit.Replication.Systems
         /// Determines if an unreliable descriptor needs refresh.
         /// Uses entity ID as salt for even distribution.
         /// </summary>
-        private bool NeedsRefresh(long entityId, uint currentTick, uint lastPublishedTick)
+        private bool NeedsRefresh(int entityId, uint currentTick, uint lastPublishedTick)
         {
             // Dirty descriptors always publish immediately
             if (currentTick == lastPublishedTick) return false;

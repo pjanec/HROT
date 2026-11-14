@@ -47,8 +47,14 @@ internal sealed class HsmNodeCatalog : INodeCatalog
         return results.ToList();
     }
 
+    /// <summary>
+    /// ⭐ CE-1001 — a transition dropped on empty canvas offers the states it can create, Simple first (so Enter
+    /// creates a plain state). Pseudo-states that cannot be a transition target are left out.
+    /// </summary>
     public IReadOnlyList<NodeCatalogEntry> QueryForPinContext(PinContextQuery q)
-        => Array.Empty<NodeCatalogEntry>();
+        => Query(new NodeSearchQuery(q.Text ?? string.Empty))
+            .Where(e => e.Kind.Id != HsmKinds.History && e.Kind.Id != HsmKinds.DeepHistory)
+            .ToList();
 
     // ---- Static catalog construction ----
 
@@ -62,10 +68,8 @@ internal sealed class HsmNodeCatalog : INodeCatalog
              new[] { "state", "parallel", "orthogonal", "fork" },   "hsm/state_parallel"),
         Make(HsmKinds.Final,       "Final State",        "A terminal state; no outgoing transitions allowed.",
              new[] { "state", "final", "terminal", "end" },         "hsm/state_final"),
-        Make(HsmKinds.History,     "History State",      "Shallow history pseudo-state.",
-             new[] { "state", "history", "shallow" },               "hsm/state_history"),
-        Make(HsmKinds.DeepHistory, "Deep History State", "Deep history pseudo-state.",
-             new[] { "state", "history", "deep" },                  "hsm/state_deep_history"),
+        // ⭐ Q84 C1 (HSM-010): no History / Deep History palette entries. History is a property of a composite
+        //    ("On re-entry" in its inspector) — the kernel has no history pseudo-state, so those nodes did nothing.
     };
 
     private static NodeCatalogEntry Make(

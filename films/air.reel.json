@@ -1,0 +1,66 @@
+{
+ "title": "HROT — Drones, aircraft and air defence · Weapon systems and airborne",
+ "transition": "fade",
+ "items": [
+  {
+   "scenario": "ua-drone-shelter",
+   "take": "main",
+   "title": "Hide from the drone",
+   "clip": "F-48"
+  },
+  {
+   "scenario": "ua-air-strike",
+   "take": "main",
+   "title": "Level bomb",
+   "clip": "F-49"
+  },
+  {
+   "scenario": "ua-air-attack",
+   "take": "door-gun",
+   "title": "Door-gun orbit",
+   "clip": "F-50"
+  },
+  {
+   "scenario": "ua-air-attack",
+   "take": "gun-runs",
+   "title": "Gun and rocket runs",
+   "clip": "F-51"
+  },
+  {
+   "scenario": "ua-air-defence",
+   "take": "main",
+   "title": "Missile warning",
+   "clip": "F-52"
+  },
+  {
+   "scenario": "ua-air-assault",
+   "take": "main",
+   "title": "Air assault",
+   "clip": "F-53"
+  },
+  {
+   "scenario": "ua-air-rescue",
+   "take": "main",
+   "title": "Air rescue",
+   "clip": "F-54"
+  },
+  {
+   "scenario": "ua-fast-rope-roof",
+   "take": "main",
+   "title": "Fast rope",
+   "clip": "F-55"
+  },
+  {
+   "scenario": "ua-airborne-drop",
+   "take": "main",
+   "title": "Parachute drop",
+   "clip": "F-56"
+  },
+  {
+   "scenario": "ua-weapon-systems",
+   "take": "main",
+   "title": "Crew weapons",
+   "clip": "F-60"
+  }
+ ]
+}

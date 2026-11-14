@@ -11,17 +11,16 @@ using Fdp.ModuleHost.Abstractions;
 namespace Hrot.Network.NED.SimHost
 {
     /// <summary>
-    /// Perception egress translator: consumes <see cref="TargetHeardEvent"/> ECS events
+    /// Perception egress translator: consumes <see cref="SoundContactEvent"/> ECS events
     /// and publishes an <see cref="AudioTargetDetected"/> DDS message for each one.
     /// </summary>
     public sealed class AudioTargetDetectedEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "AudioTargetDetected";
 
         private readonly IDdsWriter<AudioTargetDetected> _writer;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<AudioTargetDetected>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtAudioTargetDetected;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -29,7 +28,7 @@ namespace Hrot.Network.NED.SimHost
 
         /// <summary>Production constructor â€” creates a live DDS writer.</summary>
         public AudioTargetDetectedEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
-            : this(new DdsWriterAdapter<AudioTargetDetected>(participant, DdsTopicName), entityMap)
+            : this(new DdsWriterAdapter<AudioTargetDetected>(participant), entityMap)
         {
         }
 
@@ -44,22 +43,27 @@ namespace Hrot.Network.NED.SimHost
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
         /// <summary>
-        /// Drains <see cref="TargetHeardEvent"/> events from the view and publishes an
+        /// Drains <see cref="SoundContactEvent"/> events from the view and publishes an
         /// <see cref="AudioTargetDetected"/> DDS message for each one.
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
-            var events = view.ReadEvents<TargetHeardEvent>();
+            // ⭐ CE-3062 — what the memory stage heard (anonymous), to the Brain.
+            var events = view.ReadEvents<SoundContactEvent>();
             foreach (ref readonly var evt in events)
             {
-                if (!_entityMap.TryGetNetworkId(evt.Listener, out long listenerId)) continue;
+                if (!_entityMap.TryGetNetworkId(evt.Observer, out int listenerId)) continue;
                 _writer.Write(new AudioTargetDetected
                 {
-                    ListenerEntityId  = listenerId,
-                    SourceEntityIndex = evt.SourceEntityIndex,
-                    OriginX           = evt.Origin.X,
-                    OriginY           = evt.Origin.Y,
-                    OriginZ           = evt.Origin.Z,
+                    ListenerEntityId = listenerId,
+                    OriginX          = evt.X,
+                    OriginY          = evt.Y,
+                    OriginZ          = evt.Z,
+                    Radius           = evt.Radius,
+                    Kind             = evt.Kind,
+                    SourceClass      = evt.SourceClass,
+                    Family           = evt.Family,      // ⭐ CE-3283
+                    Signature        = evt.Signature,
                 });
                 SentSampleCount++;
             }
@@ -69,6 +73,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

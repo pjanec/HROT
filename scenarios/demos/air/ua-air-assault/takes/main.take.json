@@ -1,0 +1,82 @@
+{
+  "title": "Air assault",
+  "caption": "The UH-60 lands, the squad gets out, it lifts off",
+  "clip": "F-53",
+  "chapter": 10,
+  "state": "ready",
+  "endAt": "m+12",
+  "anchors": {
+    "m": {
+      "on": "embark",
+      "who": "Leader",
+      "is": false
+    }
+  },
+  "keys": [
+    {
+      "at": "m-25",
+      "follow": "UH-60 (doors off)",
+      "distance": 100,
+      "yaw": 60,
+      "pitch": 5,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "follow": "UH-60 (doors off)",
+      "distance": 14,
+      "yaw": 150,
+      "pitch": -10,
+      "lift": 1.6,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "follow": "Leader",
+      "distance": 14,
+      "yaw": 120,
+      "pitch": -10,
+      "lift": 1.6,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "UH-60 (doors off)",
+      "distance": 60,
+      "yaw": 30,
+      "pitch": -20,
+      "lift": 2,
+      "fov": 50,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-25",
+      "to": "m-4",
+      "speed": 3
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+12"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-25",
+      "until": "m+12",
+      "text": "The UH-60 lands, the squad gets out, it lifts off"
+    }
+  ]
+}

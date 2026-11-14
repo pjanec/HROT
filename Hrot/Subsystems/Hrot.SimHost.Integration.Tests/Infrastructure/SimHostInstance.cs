@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
@@ -14,6 +14,9 @@ using Hrot.AI.Behaviors;
 using Hrot.CGF;
 using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
+using Hrot.Common.Systems;   // Q65 obstacle 1: the request tier moved here
+using Hrot.Common.EntityCreation;   // CE-160: the harness composes through the shared pack
+using Fdp.Toolkit.Replication.Attributes;   // PRE-EXISTING BREAK: AttributeCompilerFactory was never imported
 using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Map.Definitions.Tkb;
@@ -85,24 +88,21 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
     /// <summary>
     /// In-memory ACK sink: records acknowledgements written by
     /// <see cref="CreateEntityRequestSystem"/>.
-    /// Stores records internally as <see cref="CreateUpdateDeleteEntityAck"/> for
-    /// compatibility with existing test assertions.
+    /// Stores records as <see cref="LifecycleAck"/> (⭐ edit framework F2: the DDS <c>CreateUpdateDeleteEntityAck</c> is retired; this is the
+    /// in-memory shape the assertions read, same field names).
     /// </summary>
+    public readonly record struct LifecycleAck(Guid RequestId, int EntityId, int StatusCode);
+
     public sealed class StubAckSink : IEntityAckSink
     {
-        private readonly List<CreateUpdateDeleteEntityAck> _written = new();
+        private readonly List<LifecycleAck> _written = new();
 
-        public IReadOnlyList<CreateUpdateDeleteEntityAck> WrittenAcks => _written;
+        public IReadOnlyList<LifecycleAck> WrittenAcks => _written;
 
-        public void WriteAck(Guid requestId, long entityId, EntityOperationStatus status)
-            => _written.Add(new CreateUpdateDeleteEntityAck
-            {
-                RequestId  = requestId,
-                EntityId   = (int)entityId,
-                StatusCode = (int)status,
-            });
+        public void WriteAck(Guid requestId, int entityId, EntityOperationStatus status)
+            => _written.Add(new LifecycleAck(requestId, entityId, (int)status));
 
-        public CreateUpdateDeleteEntityAck? TryGetAck(Guid requestId)
+        public LifecycleAck? TryGetAck(Guid requestId)
         {
             foreach (var a in _written)
                 if (a.RequestId == requestId)
@@ -114,7 +114,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// Returns the first terminal (non-InProgress) ACK matching <paramref name="requestId"/>,
         /// or <c>null</c> if no such ACK has been written yet.
         /// </summary>
-        public CreateUpdateDeleteEntityAck? TryGetTerminalAck(Guid requestId)
+        public LifecycleAck? TryGetTerminalAck(Guid requestId)
         {
             foreach (var a in _written)
                 if (a.RequestId == requestId && a.StatusCode != (int)EntityOperationStatus.InProgress)
@@ -130,13 +130,13 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
     /// </summary>
     public sealed class StubIdAllocator : INetworkIdAllocator
     {
-        private long _next;
+        private int _next;
         public long LastAllocatedId { get; private set; }
 
-        public StubIdAllocator(long startId = 1000) => _next = startId;
+        public StubIdAllocator(int startId = 1000) => _next = startId;
 
-        public long AllocateId() { LastAllocatedId = _next; return _next++; }
-        public void Reset(long startId = 0) { _next = startId; LastAllocatedId = 0; }
+        public int AllocateId() { LastAllocatedId = _next; return _next++; }
+        public void Reset(int startId = 0) { _next = startId; LastAllocatedId = 0; }
         public void Dispose() { }
     }
 
@@ -200,7 +200,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         private readonly EntityRepository _world;
 
         // â”€â”€ Infrastructure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        private readonly WGS84Transform   _wgs84;
+        private readonly UtmTransform   _wgs84;
         private readonly NetworkEntityMap _entityMap;
         private readonly TkbDatabase      _tkbDb;
         private readonly BehaviorRegistry _behaviorRegistry;
@@ -215,17 +215,80 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         public readonly StubAckSink       AckSink       = new();
         public readonly StubIdAllocator   IdAllocator   = new(startId: 1000);
 
+        /// <summary>
+        /// ⭐ <c>CE-160</c> — the node id this harness runs as. A request whose
+        /// <c>OwnerAppInstanceId</c> does not match it is not targeted at this node and is dropped,
+        /// so tests must build requests against THIS constant rather than a repeated literal
+        /// (three test methods carried a bare <c>1</c> and a comment explaining it).
+        /// </summary>
+        public const int LocalNodeId = 1;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-160</c> — the translator list the pack composed, exposed so a rail can assert
+        /// the harness projects the SAME component set as production. ⛔ Before the pack adoption
+        /// this harness hand-rolled FIVE translators where <c>TkbTranslatorSet.Base()</c> carries
+        /// SIX; nothing could see the drift because nothing could see the list.
+        /// </summary>
+        public IReadOnlyList<ITkbEntityTranslator> Translators { get; private set; } =
+            System.Array.Empty<ITkbEntityTranslator>();
+
         // â”€â”€ Systems: IEcsModuleSystem-based (executed manually each tick) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         private readonly CreateEntityRequestSystem      _requestSystem;
         private readonly NetworkSpawningSystem          _spawnSystem;
         private readonly EntityRequestFinalizationSystem   _finalizationSystem;
+
+        /// <summary>
+        /// ⭐⭐ <c>P2</c> — the pack's fourth piece since ghost promotion's registrar moved out of
+        /// <c>NedReplicationModule</c> *(<c>DESIGN_Role_Affinity_Ownership.md</c> §3.7)*.
+        /// <para>⚠ <b>It idles in this harness and is ticked anyway, deliberately.</b> 📐 This harness
+        /// composes no replication module and runs zero participants, so no ghost ever arrives and the
+        /// promotion query is always empty. ⛔ But <see cref="EntityCreation.Unserviceable"/> now reports
+        /// it, and this harness THROWS on any unserviceable piece — *"asserting here rather than logging
+        /// keeps the harness honest about the thing it now exists to prove."* ⇒ ticking a system that has
+        /// nothing to do is the honest outcome; silencing the assertion would not be.</para>
+        /// </summary>
+        private readonly Fdp.Toolkit.Replication.Systems.GhostPromotionSystem _promotionSystem;
+        // ⭐ CE-3136 P-7a — the pack's obstacle bake (a static obstacle waits Constructing until this node's terrain holds it).
+        private readonly Hrot.Map.Common.Services.StaticObstacleBakeSystem _obstacleBakeSystem;
+        private readonly Hrot.Common.Macros.MacroExpansionSystem _macroExpansionSystem;   // ⭐ CE-2420 — scheduled as EntityCreation.RegisterOn does (:321)
+        private readonly Hrot.Common.EntityCreation.SeatPresetSystem _seatPresetSystem;   // ⭐ WS-4 (W-I)
+        private readonly Fdp.Toolkit.NetworkSpawning.Systems.SpawnLevelSystem _spawnLevelSystem;   // ⭐ CE-3271 (Q94 D)
         private readonly SystemList                     _elmSystems  = new();
         private readonly SystemList                     _geoSystems  = new();
 
         // â"€â"€ Simulation system lists (executed manually via IEcsModuleSystem.Execute) â"€â"€â"€â"€â"€â"€â"€
         private readonly IReadOnlyList<IEcsModuleSystem> _inputSystems;
+        // ⭐ CE-2153 — baked ONCE per process (~1.5 s cold): the meshes are read-only to queries, each instance wraps them in its own provider.
+        private static readonly Lazy<Dictionary<Fdp.Toolkit.Navigation.NavLayerMask, DotRecast.Detour.DtNavMesh>> FlatGroundMeshes = new(() =>
+            Fdp.Toolkit.Navigation.Recast.RecastNavmeshBaker.BakeFlatGround(
+                FlatGroundMinX, FlatGroundMaxX, FlatGroundMinZ, FlatGroundMaxZ,
+                Fdp.Toolkit.Navigation.NavLayerMask.Infantry | Fdp.Toolkit.Navigation.NavLayerMask.Vehicle),
+            System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
+        // ⭐ CE-2153 — the flat ground the harness paths over (navmesh space X=East, Z=North), big enough for the mission rails.
+        private const float FlatGroundMinX = -100f, FlatGroundMaxX = 700f, FlatGroundMinZ = -200f, FlatGroundMaxZ = 200f;
+        private Fdp.Toolkit.Navigation.EngineBacked.EngineBackedNavigationModule? _navigationModule;   // ⭐ CE-2153
         private readonly IReadOnlyList<IEcsModuleSystem> _simSystems;
         private readonly IReadOnlyList<IEcsModuleSystem> _postSimSystems;
+
+        // ── Diagnostic seams ──────────────────────────────────────────────────────
+        // ⭐ Read-only views of what this harness actually SCHEDULES, and of the behaviour
+        //   registry it resolves names against. A test that fails "the entity did not move"
+        //   cannot distinguish "the system is absent" from "the system ran and did nothing";
+        //   these two make that distinction measurable instead of inferred.
+        public IReadOnlyList<IEcsModuleSystem> TestHook_InputSystems      => _inputSystems;
+        public IReadOnlyList<IEcsModuleSystem> TestHook_SimulationSystems => _simSystems;
+        public IReadOnlyList<IEcsModuleSystem> TestHook_PostSimSystems    => _postSimSystems;
+        public BehaviorRegistry                TestHook_BehaviorRegistry  => _behaviorRegistry;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-144</c> — the lifecycle module, exposed so a destroy rail can assert WHO destroyed
+        /// the entity. ⛔ <c>GetStatistics().destructed</c> only increments inside the ELM's own
+        /// completion paths, so it is the one observable that separates a teardown THROUGH the module
+        /// from a hard <c>DestroyEntity</c> that bypassed it — and the intermediate <c>TearDown</c> state
+        /// is not observable from outside, because it is set and completed within a single harness tick
+        /// (measured <c>2026-09-03</c>).
+        /// </summary>
+        public EntityLifecycleModule           TestHook_Elm               => _elm;
 
         // â”€â”€ Performance metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         private bool               _metricsEnabled;
@@ -242,42 +305,87 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             _world = BuildWorld();
 
             // 2. Infrastructure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            _wgs84 = new WGS84Transform();
-            _wgs84.SetOrigin(32.0853, 34.7818, 10.0);   // Tel-Aviv origin (same as config.json)
+            _wgs84 = UtmTransform.AtOrigin(32.0853, 34.7818, 10.0);   // Tel-Aviv origin (same as config.json) — its UTM zone by the rule (CE-4396)
+
+            // 🔴🔴 PUBLISH IT AS THE WORLD SINGLETON — the harness HELD this transform and did not
+            //   pass it, which is the SILENT-DEFAULT shape in its purest form.
+            //
+            // 📐 Measured 2026-09-01: every production host does this —
+            //   SimHostApp.cs:509 · CgfSubsystem.cs:544 · EditorSubsystem.cs:1025 — because behaviour
+            //   PARAMETER RESOLVERS reach the transform through the world, not through a captured
+            //   closure: CgfNodes.ResolveMoveToParams (:163) reads
+            //   HasSingletonManaged<IGeographicTransform>() and passes null when absent.
+            //
+            // ⛔ And a null transform does NOT fail loudly. CgfNodes.cs:205 guards the geo branch as
+            //      if ((dto.TargetLat != 0 || dto.TargetLon != 0) && geoTransform != null)
+            //   with Speed and ArrivalRadius assigned ABOVE it. ⇒ a MoveToLocation mission produced a
+            //   NavigationIntent with Mode=DirectPoint, TargetSpeed=15, ArrivalRadius=5 and
+            //   FinalDestination=(0,0) — an order to drive to where the vehicle already stands. The
+            //   rail reported "moved 0.0m", which reads as broken physics and was nothing of the sort.
+            //   📄 WhyDoesTheMissionNotMoveProbe carries the full per-hop measurement.
+            _world.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(_wgs84);
 
             _entityMap        = new NetworkEntityMap();
             _tkbDb            = BuildTkbDatabase();
             _behaviorRegistry = BuildBehaviorRegistry(_wgs84, _entityMap);
 
-            // 3. Entity lifecycle module (empty participant list -> bypass ACK protocol) -
-            var translators = new List<ITkbEntityTranslator>
+            // 3-4. THE ENTITY-CREATION TIER -- built by the SHARED PACK, exactly as every
+            //   production host builds it.
+            //
+            // CE-160: this harness used to hand-assemble the tier -- its own translator list, its
+            //   own ELM wiring, and its own three `new` calls. That made it a SEVENTH composition
+            //   root for entity creation, and it had already DRIFTED: the hand-rolled list carried
+            //   FIVE translators where TkbTranslatorSet.Base() carries SIX (PresentationTkbTranslator
+            //   was missing), so every test below projected a different component set than production.
+            //
+            //   The drift is the point. A test harness that assembles the pipeline itself cannot
+            //   detect a defect in how the pipeline is assembled -- it can only ever prove that the
+            //   SYSTEMS work, never that the PACK composes them correctly. Going through
+            //   EntityCreationPack.Build makes the list correct BY CONSTRUCTION and turns the seven
+            //   flow tests below into real coverage of the unification.
+            //
+            //   IsBroadcastArbiter is FALSE, matching CreateEntityRequestSystem's own default, which
+            //   is what this harness passed implicitly before. The tests target their requests at
+            //   OwnerAppInstanceId == NodeId, so the broadcast tiebreaker never applies.
+            var jsonAttributeCompiler = AttributeCompilerFactory.Build();
+
+            _elm = new EntityLifecycleModule(_tkbDb, new List<int>());
+
+            var creation = EntityCreationPack.Build(new EntityCreationContext
             {
-                new SpatialCoreTkbTranslator(),
-                new VehicleKinematicsTkbTranslator(),
-                new BehaviorTkbTranslator(),
-                new CombatTkbTranslator(),
-                new PerceptionTkbTranslator(),
-            }.AsReadOnly();
-            _elm = new EntityLifecycleModule(_tkbDb, new List<int>(), translators: translators);
+                World                 = _world,
+                EntityMap             = _entityMap,
+                TkbDb                 = _tkbDb,
+                IdAllocator           = IdAllocator,
+                Elm                   = _elm,
+                NodeId                = (Fdp.Core.NodeId)(LocalNodeId),
+                NetworkRequestSource  = RequestSource,
+                AckSink               = AckSink,
+                JsonAttributeCompiler = jsonAttributeCompiler,
+                IsBroadcastArbiter    = false,
+            });
+
+            // The pack calls Elm.SetTranslators; RegisterSystems follows it, as on every host.
             _elm.RegisterSystems(_elmSystems);
 
-            // 4. Request / spawn systems â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            var jsonAttributeCompiler = AttributeCompilerFactory.Build(_wgs84);
-            _finalizationSystem = new EntityRequestFinalizationSystem(AckSink, _entityMap);
-            _requestSystem = new CreateEntityRequestSystem(
-                RequestSource, AckSink, _tkbDb, IdAllocator, localNodeId: 1,
-                jsonAttributeCompiler: jsonAttributeCompiler, finalizationSystem: _finalizationSystem);
+            _requestSystem      = creation.RequestSystem;
+            _spawnSystem        = creation.SpawnSystem;
+            _finalizationSystem = creation.FinalizationSystem;
+            _promotionSystem    = creation.PromotionSystem;
+            _obstacleBakeSystem = creation.ObstacleBakeSystem;
+            _seatPresetSystem = creation.SeatPresetSystem;
+            _spawnLevelSystem = creation.SpawnLevelSystem;
+            _macroExpansionSystem = creation.MacroExpansionSystem;
+            Translators         = creation.Translators;
 
-            _spawnSystem = new NetworkSpawningSystem(
-                _tkbDb, _elm, _entityMap, IdAllocator, localNodeId: 1,
-                translators: translators,
-                onEntitySpawned: (world, entity, isLocalAuthority) =>
-                {
-                    // Mark locally-owned physics components as authoritative so
-                    // CarKinematicsSystem (.WithOwned<SimTransform>()) processes this entity.
-                    if (isLocalAuthority && world.HasComponent<SimTransform>(entity))
-                        world.SetAuthority<SimTransform>(entity, true);
-                });
+            // The pack builds every piece; this harness schedules all three below in Tick(), so
+            // nothing may be unserviceable. Asserting here rather than logging keeps the harness
+            // honest about the thing it now exists to prove.
+            var unserviceable = creation.Unserviceable(new object[]
+                { _requestSystem, _spawnSystem, _finalizationSystem, _promotionSystem, _obstacleBakeSystem, _seatPresetSystem, _spawnLevelSystem, _macroExpansionSystem });
+            if (unserviceable.Length > 0)
+                throw new InvalidOperationException(
+                    "SimHostInstance did not schedule every EntityCreationPack piece: " + unserviceable);
 
             // 5. Geographic systems â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             new GeographicModule(_wgs84).RegisterSystems(_geoSystems);
@@ -288,12 +396,10 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             // Use dedicated packs instead of SimulationLogicModule to get IEcsModuleSystem lists.
             var musclePack = new SimHostCoreLogicPack(_entityMap, roadNetwork, trajectoryPool);
-            var mapperRegistry = new TacticalIntentMapperRegistry();
-            mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.DefendAreaMapper());
-            mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
+            var mapperRegistry = Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create();   // CE-454: the production list
             var brainPack  = new CgfLogicPack(_behaviorRegistry, _entityMap,
-                new ScenarioEntityCreationRequestSource(),
-                mapperRegistry);
+                mapperRegistry,
+                new Fdp.Toolkit.Blueprints.BlueprintRegistry());
 
             var inputList   = new List<IEcsModuleSystem>();
             var simList     = new List<IEcsModuleSystem>();
@@ -302,13 +408,42 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             foreach (var s in brainPack.InputSystems)       inputList.Add(s);
             foreach (var s in musclePack.InputSystems)      inputList.Add(s);
 
+            // ⭐⭐ CE-2144 (R-2008) — damage application left CgfLogicPack for the shared plan head; production runs it FIRST in Simulation.
+            new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.HealthApplication().PopulateSystems(context: null!, inputList, simList, postSimList);
             foreach (var s in brainPack.SimulationSystems)  simList.Add(s);
             foreach (var s in musclePack.SimulationSystems) simList.Add(s);
-            // MissionAdapterSystem bridges ActiveMissionPlan BehaviorParams into BrainBlackboard,
-            // enabling end-to-end mission execution tests without a live CGF node.
-            simList.Add(new MissionAdapterSystem());
+            // ⭐ CE-3110 — the interaction appliers left CgfLogicPack for the cross-role CoreInfrastructureCapabilities.Interactions (every production
+            //   plan declares it); this harness wires packs by hand, so it takes the capability's systems the same way (CE-493's lesson).
+            new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions().PopulateSystems(context: null!, inputList, simList, postSimList);
+            // ⛔ CE-453 (2026-09-30): a SECOND MissionAdapterSystem used to be added here. CgfLogicPack already schedules
+            //   its own (CgfLogicPack.cs:187), so the harness ran two per frame — harmless only because both share the
+            //   per-entity MissionAdapterState and the second always skipped. Production runs one.
+
+            // ⭐⭐ CE-2153 (X-4) — PRODUCTION PARITY: production composes a NavigationSolverModule (MuscleRoleInputs.BuildSolver) over the
+            //   node's ONE trajectory pool (CE-180) and a navmesh; this harness composed none, so NavigationIntentBridgeSystem held every
+            //   PathToPoint forever (Mode None, speed 0) and a MoveToLocation mission never moved. The module's own systems are executed
+            //   in registration order after the logic packs: result materialization, the path solver (it reads the requests the bridge
+            //   published this tick and writes the route into the shared pool), placement. The flat navmesh stands in for a terrain bake.
+            var navmeshProvider = new Fdp.Toolkit.Navigation.SwitchableNavmeshProvider();
+            navmeshProvider.Publish(new Fdp.Toolkit.Navigation.Recast.DotRecastNavmeshProvider(FlatGroundMeshes.Value));
+            var solverRegistry = new SystemList();
+            new Fdp.Toolkit.Navigation.Modules.NavigationSolverModule(roadNetwork, trajectoryPool, navmeshProvider).RegisterSystems(solverRegistry);
+            // ... and the muscle's half — EngineBackedPathResponseSystem turns the solver's result into the entity's NavState (trajectory, mode, speed);
+            //   production composes it beside the solver (MuscleRoleInputs.Build → EngineBackedNavigationModule), over the SAME pool and navmesh.
+            _navigationModule = new Fdp.Toolkit.Navigation.EngineBacked.EngineBackedNavigationModule(roadNetwork, trajectoryPool, navmeshProvider);
+            _navigationModule.RegisterSystems(solverRegistry);
+            foreach (var s in solverRegistry.Systems) simList.Add(s);
 
             foreach (var s in musclePack.PostSimulationSystems) postSimList.Add(s);
+
+            // ⭐⭐⭐ CE-144 — PRODUCTION PARITY, and its absence was another instance of the drift this
+            //   file's header describes. Every replicating host registers DisposalMonitoringSystem
+            //   (NedReplicationModule.cs:420); this harness composes no NED module, so it had none —
+            //   which means the NetworkEntityMap kept entries for entities the ELM had destroyed, and
+            //   nothing could see it. It is the shared owner of BOTH map prunes (dead entities into the
+            //   graveyard, then the graveyard itself), so a destroy rail without it can only ever assert
+            //   half the teardown.
+            postSimList.Add(new Fdp.Toolkit.Replication.Systems.DisposalMonitoringSystem(_entityMap));
 
             _inputSystems   = inputList;
             _simSystems     = simList;
@@ -316,6 +451,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             var physicsModule = new PhysicsToolkitModule();
             physicsModule.Initialize(_world);
+            _navigationModule.RegisterProviders(_world);   // ⭐ CE-2153 — the INavmeshProvider / IPathRegistry singletons, as production does after Kernel.Initialize
 
             // 7. Seed GlobalTime â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             const float dt = 1f / 60f;
@@ -332,8 +468,8 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// </summary>
         /// <param name="tkbType">Entity template type (e.g. <see cref="TkbEntityTypes.Tank_M1Abrams"/>).</param>
         /// <param name="position">Cartesian spawn position (ENU metres from origin).</param>
-        /// <returns>The <see cref="CreateUpdateDeleteEntityAck"/> produced by <see cref="CreateEntityRequestSystem"/>.</returns>
-        public CreateUpdateDeleteEntityAck CreateEntity(long tkbType, Vector2 position = default)
+        /// <returns>The <see cref="LifecycleAck"/> produced by <see cref="CreateEntityRequestSystem"/>.</returns>
+        public LifecycleAck CreateEntity(long tkbType, Vector2 position = default)
         {
             var requestId = Guid.NewGuid();
 
@@ -341,7 +477,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             {
                 RequestId          = requestId,
                 OwnerAppInstanceId = 1,
-                TkbType            = tkbType,
+                TkbType            = (Fdp.Core.TkbTypeId)(tkbType),
                 DisType            = 0,
             };
 
@@ -382,23 +518,23 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         {
             var queue = new MissionPlanQueue
             {
-                CurrentPhase = 0,
-                PhaseElapsedSeconds = 0f,
-                PhaseCount = (byte)Math.Min(plan.Tasks?.Count ?? 0, MissionPlanQueue.MaxPhases)
+                CurrentTask = 0,
+                TaskElapsedSeconds = 0f,
+                TaskCount = (byte)Math.Min(plan.Tasks?.Count ?? 0, MissionPlanQueue.MaxTasks)
             };
 
             var tasks = plan.Tasks ?? new List<NedMissionTask>();
-            int count = Math.Min(tasks.Count, MissionPlanQueue.MaxPhases);
+            int count = Math.Min(tasks.Count, MissionPlanQueue.MaxTasks);
 
             for (int i = 0; i < count; i++)
             {
                 var task = tasks[i];
                 int behaviorId = ResolveBehaviorId(task.BehaviorId);
-                var (trigger, param) = ResolveTrigger(task.Triggers);
+                var (trigger, param) = ResolveTrigger(task.Triggers, task.TaskId.ToString());
                 
                 System.Console.WriteLine($"[SimHostInstance] task {i}: trigger={trigger}, param={param}");
 
-                queue.Phases[i] = new MissionPhase
+                queue.Tasks[i] = new MissionTaskSlot
                 {
                     BehaviorId   = behaviorId,
                     Trigger      = trigger,
@@ -406,7 +542,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 };
             }
 
-            queue.PhaseCount = (byte)count;
+            queue.TaskCount = (byte)count;
             return queue;
         }
 
@@ -437,34 +573,10 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             return new ActiveMissionPlan { Plan = plan };
         }
 
+        /// <summary>⭐ CE-4157 — the core parser (the one switch).</summary>
         private static (Fdp.Toolkit.Behavior.Components.MissionTrigger Trigger, float Param) ResolveTrigger(
-            List<Hrot.NED.Descriptors.MissionTrigger>? triggers)
-        {
-            if (triggers == null || triggers.Count == 0)
-                return (Fdp.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, float.MaxValue);
-
-            var trigger = triggers[0];
-            var type = trigger.Type ?? string.Empty;
-
-            return type switch
-            {
-                "TimerElapsed"       => (Fdp.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, ParseTriggerParam(trigger.Params)),
-                "ReachedDestination" => (Fdp.Toolkit.Behavior.Components.MissionTrigger.BehaviorFinished, 0f),
-                "HealthCritical"     => (Fdp.Toolkit.Behavior.Components.MissionTrigger.HealthCritical, ParseTriggerParam(trigger.Params)),
-                _                    => (Fdp.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, float.MaxValue)
-            };
-        }
-
-        private static float ParseTriggerParam(string? raw)
-        {
-            if (string.IsNullOrWhiteSpace(raw))
-                return 0f;
-
-            return float.TryParse(raw, System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture, out var value)
-                ? value
-                : 0f;
-        }
+            List<Hrot.NED.Descriptors.MissionTrigger>? triggers, string task)
+            => Hrot.Map.Common.Helpers.MissionTriggerHelper.ResolveTrigger(triggers, task);
 
         /// <summary>
         /// Runs the simulation loop for <paramref name="seconds"/> wall-clock-equivalent seconds
@@ -475,6 +587,35 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             int ticks = Math.Max(1, (int)(seconds * 60f));
             RunForTicks(ticks);
         }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-144</c> — <b>publishes a <see cref="Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand"/>
+        /// and opens the lifecycle window so the harness actually RUNS the teardown.</b>
+        ///
+        /// <para>⛔ <b>Why a helper rather than publishing on the bus directly.</b> 📐 This harness gates
+        /// the whole spawn/lifecycle block on <c>RequestSource.HasPendingRequests</c> — i.e. on a pending
+        /// <i>create</i> — so <c>NetworkSpawningSystem.ProcessDestroy</c> and the ELM systems <b>never ran
+        /// on a destroy-only tick</b>, and the pack's entire destroy half was unreachable here. ⚠ The gate
+        /// itself is deliberate (it skips the bus sub-swaps that would otherwise drop simulation events
+        /// written in phase 1), so the fix is to open the window explicitly rather than to remove it.</para>
+        ///
+        /// <para>⭐ The window spans several ticks because the ELM's destruction handshake needs them:
+        /// <c>DrainInstantComplete</c> only completes an ack-less destruction once
+        /// <c>currentFrame &gt; StartFrame</c>.</para>
+        /// </summary>
+        public void RequestDestroy(int networkId, string reason = "test")
+        {
+            _world.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand
+            {
+                NetworkId = networkId,
+                Reason    = reason,
+            });
+            _lifecycleTicksRemaining = LifecycleWindowTicks;
+        }
+
+        /// <summary>Ticks for which the lifecycle block stays open after <see cref="RequestDestroy"/>.</summary>
+        public const int LifecycleWindowTicks = 8;
+        private int _lifecycleTicksRemaining;
 
         /// <summary>Runs exactly <paramref name="ticks"/> simulation ticks at 1/60 s each.</summary>
         public void RunForTicks(int ticks)
@@ -499,9 +640,8 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
         /// <summary>
         /// Reads the latest <see cref="WorldPos"/> state of the entity identified by
-        /// <paramref name="networkId"/> by querying its <see cref="SimTransform"/> ECS
-        /// component and converting to geodetic coordinates on-the-fly.
-        /// Returns <c>null</c> when no such entity is found.
+        /// <paramref name="networkId"/> from its <see cref="SimTransform"/> ECS component (⭐ AQ107 B / D: the wire pose is the
+        /// local-ENU one, a copy — no geodetic conversion). Returns <c>null</c> when no such entity is found.
         /// </summary>
         public WorldPos? ReadGeoSpatial(int networkId)
         {
@@ -512,20 +652,12 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 return null;
 
             ref readonly var simTf = ref _world.GetComponentRO<SimTransform>(entity);
-            var (lat, lon, alt) = _wgs84.ToGeodetic(simTf.Position);
-
-            return new WorldPos
-            {
-                EntityId = networkId,
-                Time     = DateTime.UtcNow,
-                Pos      = new Hrot.NED.Common.GeoPoint
-                {
-                    Latitude  = lat,
-                    Longitude = lon,
-                    Altitude  = alt,
-                }
-            };
+            return Hrot.Map.Common.Replication.Utils.WorldPosCodec.Encode(
+                networkId, 0.0, simTf.Position, simTf.Rotation, Vector3.Zero, Vector3.Zero);
         }
+
+        /// <summary>The local ENU position (X east, Y north) of a <see cref="WorldPos"/> (AQ107 B: already local, a copy).</summary>
+        public static Vector2 LocalXY(WorldPos pose) => new Vector2((float)pose.Position.X, (float)pose.Position.Y);
 
         /// <summary>
         /// Converts a <see cref="GeoPoint"/> back to a local Cartesian
@@ -537,10 +669,6 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             var cart = _wgs84.ToCartesian(geoPos.Latitude, geoPos.Longitude, geoPos.Altitude);
             return new Vector2(cart.X, cart.Y);
         }
-
-        /// <summary>Overload that accepts the NED protocol <see cref="Hrot.NED.Common.GeoPoint"/>.</summary>
-        public Vector2 GeoToCartesian(Hrot.NED.Common.GeoPoint geoPos)
-            => GeoToCartesian(new GeoPoint { Latitude = geoPos.Latitude, Longitude = geoPos.Longitude, Altitude = geoPos.Altitude });
 
         public GeoPoint CartesianToGeo(System.Numerics.Vector3 cartesian)
         {
@@ -591,6 +719,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 ref var batch = ref _world.GetSingleton<RaycastBatchData>();
                 if (batch.Hits.IsCreated) batch.Hits.Dispose();
             }
+            Hrot.SimHost.NavigationSolverComponentRegistry.DisposeAll(_world);
             _world.Dispose();
         }
 
@@ -620,6 +749,25 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// </summary>
         private void Tick(float dt)
         {
+            // 🔴🔴🔴 ADVANCE THE WORLD'S VERSION CLOCK — the kernel does this on EVERY frame and this
+            //   hand-rolled loop did not. ModuleHostKernel.cs:495 is `_liveWorld.Tick(); // Increment
+            //   version`, called UNCONDITIONALLY (BehaviorFrame.cs:16 documents that word).
+            //
+            // ⛔ Without it GlobalVersion stays pinned at its initial 1 for the life of the harness
+            //   (measured 2026-09-01: "version 1→1" on every tick while components were demonstrably
+            //   being written). ⇒ EVERY CHANGE-DETECTION QUERY IN THE HARNESS IS PERMANENTLY EMPTY:
+            //   QueryDelta(query, since) can never report a change when no version ever exceeds `since`.
+            //
+            // ⚠ That is not a niche facility. NavigationIntentBridgeSystem — the seam that turns a
+            //   behaviour's NavigationIntent into the NavState physics reads — scans exactly this way
+            //   (QueryDelta(query, _lastScanTick)). It was scheduled, ticked, and structurally blind:
+            //   a MoveToLocation mission produced a perfectly good intent and NavState never left
+            //   Mode=None, so the entity stood still and the rail reported "moved 0.0m".
+            //   📄 WhyDoesTheMissionNotMoveProbe proves the mapping logic itself is correct: driving a
+            //      fresh bridge by hand sets Mode=Direct, it survives the next scheduled tick, and the
+            //      vehicle starts moving.
+            _world.Tick();
+
             var view   = (ISimulationView)_world;
             var cmdBuf = (EntityCommandBuffer)view.GetCommandBuffer();
 
@@ -643,8 +791,10 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             // create-entity request is actually pending.  Skipping sub-swaps in
             // the common steady-state case preserves the simulation write-buffer
             // so the final swap below makes sim events available next tick.
-            if (RequestSource.HasPendingRequests)
+            if (RequestSource.HasPendingRequests || _lifecycleTicksRemaining > 0)
             {
+                if (_lifecycleTicksRemaining > 0) _lifecycleTicksRemaining--;
+
                 // CreateEntityRequestSystem â†’ publishes SpawnEntityCommand + writes ACK.
                 _requestSystem.Execute(view, dt);
 
@@ -655,6 +805,12 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 // NetworkSpawningSystem â†’ consumes SpawnEntityCommand, creates ECS entity,
                 // calls elm.BeginConstruction (publishes ConstructionOrder via cmd buf).
                 _spawnSystem.Execute(view, dt);
+                cmdBuf.Playback(_world);
+
+                // ⭐⭐ P2 — GhostPromotionSystem, in its real phase position: BeforeSync, after ghost
+                //    creation. ⚠ A no-op here (no replication module, zero participants ⇒ no ghosts
+                //    arrive), but scheduled so Unserviceable() stays satisfied rather than silenced.
+                _promotionSystem.Execute(view, dt);
                 cmdBuf.Playback(_world);
 
                 // Sub-swap B: ConstructionOrder moves to read buffer so
@@ -671,6 +827,14 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             // Force-activate any entity still in Constructing state.
             // (With zero ELM participants the ACK protocol never completes, so we
             // short-circuit it here for the test harness.)
+            // ⭐ CE-3136 P-7a — scheduled as SimHostNodeBootstrapper does (:562); the guard above refused the harness without it
+            //   from 0566241b1 on, which left this whole suite unconstructible (found running CE-2144's gates, 2026-10-13).
+            _obstacleBakeSystem.Execute(view, dt);
+            _seatPresetSystem.Execute(view, dt);
+            _spawnLevelSystem.Execute(view, dt);   // ⭐ CE-3271 — Simulation: after the spawn and the yield
+            // ⭐ CE-2420 — macros S3a ④, as production registers it (EntityCreation.RegisterOn :321); the guard above refused the harness without it,
+            //   which left this whole suite unconstructible again (27 of 49 red at 5858663d4 — found running CE-2417's gates, 2026-11-05).
+            _macroExpansionSystem.Execute(view, dt);
             ActivateConstructingEntities();
 
             // Phase-2 ACK dispatch: now that entities have been force-activated, the
@@ -709,13 +873,24 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         {
             var world = new EntityRepository();
 
+            // ⭐⭐ CE-453 (2026-09-30): THE SAME BASE REGISTRATION EVERY PRODUCTION NODE CALLS (IG, Stride, CGF via
+            //   CgfComponentRegistry, SimHost via SimHostComponentRegistry). 🔴 This host hand-picked its list and never
+            //   called it, so the blueprint blackboard TIER LADDER (BlueprintBlackboardTiers.RegisterAll — CE-161: "the
+            //   Hrot-wide component registry calls it once for every node") was missing ⇒ no occurrence store ⇒ since P3-C
+            //   made the root params slot the ONLY home of a behaviour's parameters, every MoveToLocation start threw
+            //   "nowhere to put them". The explicit registrations below stay: they add this host's extras, and
+            //   registering an already-registered type is idempotent.
+            HrotSharedComponentRegistry.RegisterAll(world);
+            // ⭐ CE-2153 — the navigation solver's request/result events + singletons (the pair the solver module below publishes), as every
+            //   production node that composes it registers them. Freed in Dispose (DisposeAll is the registry's other half).
+            Hrot.SimHost.NavigationSolverComponentRegistry.RegisterAll(world);
+
             // â”€â”€ IG metadata component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             world.RegisterComponent<Fdp.Core.EntityInfo>();
             world.RegisterManagedComponent<ActiveMissionPlan>();
 
             // â”€â”€ Network components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             world.RegisterComponent<NetworkIdentity>();
-            world.RegisterComponent<NetworkOwnership>();
             world.RegisterComponent<NetworkAuthority>();
             world.RegisterComponent<TkbIdentity>();
             world.RegisterComponent<GhostStateTracker>();
@@ -731,16 +906,16 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<InteractionChannel>();
             world.RegisterComponent<ActorCapabilityState>();
-            world.RegisterComponent<BrainBTreeState>();
-            world.RegisterComponent<BrainBlackboard>();
             world.RegisterComponent<Hrot.CGF.Components.MissionAdapterState>();
 
-            // HSM brain tiers (for APC-style HSM behaviors)
-            world.RegisterComponent<BrainHsm64>();
-            world.RegisterComponent<BrainHsm128>();
+            // ⛔ O7c-④d (2026-09-23): the HSM brain tier is no longer a component. The instance is
+            //   an occurrence slot, so what an HSM-brained entity needs registered is the tier
+            //   ladder — HrotSharedComponentRegistry.RegisterAll at the top of this method.
+            //   ⚠ (CE-453: this line used to credit a "BlueprintComponentRegistry" that does not exist.)
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<PassengerBuffer>();
             world.RegisterComponent<IsEmbarkedTag>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsAssistingTag>();   // ⭐ T-a
 
             // Perception
             world.RegisterComponent<PerceptionReceptor>();
@@ -765,6 +940,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             // These components live in NedTkbBuilder.WithBehavior templates
             // and are written/read by MoveToExecutor and NavigationExecutionSystem.
             world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
+            world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationApplied>();   // ⭐ R-3039 S1 — what the bridge already applied
             world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationStatus>();
             world.RegisterComponent<CarKinem.Core.FrustrationTicks>();
 
@@ -821,6 +997,11 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 Width       = preset.Width,
                 MaxSpeedFwd = maxSpeed,
                 MaxAccel    = preset.MaxAccel,
+                // Carry the class itself, not just the dimensions it implied.  Flattening
+                // the preset lost it, so the translator re-derived PersonalCar and every
+                // template in this harness got a car's steering and accel gain regardless
+                // of the vehicleClass the caller asked for.
+                VehicleClass = vehicleClass,
             });
 
             // Behavior DTO -- consumed by BehaviorTkbTranslator.

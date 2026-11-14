@@ -25,9 +25,11 @@ namespace Hrot.SimHost.Tests
         public BlueprintMaterializationSystemTests()
         {
             _repo = new EntityRepository();
-            _repo.RegisterComponent<BlueprintBlackboard1024>();
-            _repo.RegisterComponent<BlueprintBlackboard4096>();
-            _repo.RegisterComponent<BlueprintBlackboard16384>();
+            // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+            //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+            //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+            //   O3b added one. Production never had the bug: it registers from the table.
+            BlueprintTierTable.RegisterAll(_repo);
             _repo.RegisterManagedComponent<InitialBlueprintsIntent>();
             _registry = new BlueprintRegistry();
         }
@@ -120,16 +122,19 @@ namespace Hrot.SimHost.Tests
             // Intent removed
             Assert.False(_repo.HasManagedComponent<InitialBlueprintsIntent>(entity));
 
-            // Correct tier chosen: B1024 (300 bytes ≤ 928, 3 slots ≤ 4)
-            Assert.True(_repo.HasComponent<BlueprintBlackboard1024>(entity));
-            Assert.False(_repo.HasComponent<BlueprintBlackboard4096>(entity));
-            Assert.False(_repo.HasComponent<BlueprintBlackboard16384>(entity));
+            // ⭐ B4 — design §17.7. The property is "the aggregate lands on the tier the LADDER
+            //   picks for it", not "1024": 300 B / 3 slots named 1024 under 4/8/16 and still does
+            //   under 12/16/16, but pinning the NAME is what reddened three tests at B3② and more
+            //   at B4. ⇒ derive it, so the next ladder move is free.
+            Assert.True(OccurrenceStoreAccess.HasStore(_repo, entity));
+            Assert.Equal(BlueprintTierTable.Select(300, 3).Tier,
+                         BlueprintTierTable.Of(_repo, entity)!.Tier);
 
             // 3 slots occupied
             unsafe
             {
-                ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                fixed (byte* mem = bb.Memory)
+                // ⭐ B4 — design §17.7: resolve the store through the SEAM, not a named tier.
+                byte* mem = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
                 {
                     ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
                     Assert.Equal(BlueprintBlackboardHeader.MagicValue, header.MagicAndVersion);
@@ -160,10 +165,13 @@ namespace Hrot.SimHost.Tests
             var sys = CreateSystem();
             sys.Execute(_repo, 0f);
 
-            // Correct tier: B4096 (1000 bytes > 928 but ≤ 3936)
-            Assert.False(_repo.HasComponent<BlueprintBlackboard1024>(entity));
-            Assert.True(_repo.HasComponent<BlueprintBlackboard4096>(entity));
-            Assert.False(_repo.HasComponent<BlueprintBlackboard16384>(entity));
+            // ⭐ B4 — design §17.7: the aggregate must select the tier the LADDER selects, and it
+            //   must be a LARGER one than the small case above. ⛔ Not the literal name B4096.
+            var chosen = BlueprintTierTable.Of(_repo, entity);
+            Assert.NotNull(chosen);
+            Assert.Equal(BlueprintTierTable.Select(1000, 4).Tier, chosen!.Tier);
+            Assert.True(chosen.TotalSize > BlueprintTierTable.Select(300, 3).TotalSize,
+                "1000 B over 4 slots must outgrow the tier the 300 B / 3 slot case lands on");
         }
 
         // ── Test 3: Ceiling guard ──────────────────────────────────────────────
@@ -189,20 +197,29 @@ namespace Hrot.SimHost.Tests
             // Must not throw
             sys.Execute(_repo, 0f);
 
-            // Entity has B16384 (max tier)
-            Assert.True(_repo.HasComponent<BlueprintBlackboard16384>(entity));
+            // ⛔⛔ THIS ASSERTED `HasComponent<BlueprintBlackboard16384>` UNTIL B3② (2026-09-20), AND
+            //   THAT WAS PINNING THE LADDER, NOT THE INVARIANT.
+            //   📐 20 blueprints × 50 B truncate to the largest tier's 16 slots ⇒ 16 slots / 800 B.
+            //      Under the old 4/8/16 ladder nothing below 16384 held 16 slots, so the entity
+            //      landed there. Re-picked to 12/16/16, the 4096 tier holds it — a 4× reduction,
+            //      which is the point of the re-pick, not a regression.
+            //   ⭐ The invariant this test actually owns is "exceeding the ceiling TRUNCATES and does
+            //      not throw": some tier was chosen, its header is initialised, the slot count is
+            //      within THAT tier's capacity, and some slots made it in. Expressed against the
+            //      ladder, it cannot rot the next time the ladder moves.
+            var spec = BlueprintTierTable.Of(_repo, entity);
+            Assert.NotNull(spec);
 
-            // Slot count ≤ 16 (truncated)
             unsafe
             {
-                ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* mem = bb.Memory)
-                {
-                    ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
-                    Assert.Equal(BlueprintBlackboardHeader.MagicValue, header.MagicAndVersion);
-                    Assert.True(header.SlotCount <= BlueprintBlackboard16384.MaxSlots);
-                    Assert.True(header.SlotCount > 0); // at least some made it in
-                }
+                byte* mem = spec!.Memory(_repo, entity);
+                ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
+                Assert.Equal(BlueprintBlackboardHeader.MagicValue, header.MagicAndVersion);
+                Assert.True(header.SlotCount <= spec.MaxSlots,
+                    $"slot count {header.SlotCount} exceeds the chosen tier's capacity {spec}");
+                Assert.True(header.SlotCount <= BlueprintTierTable.Largest.MaxSlots,
+                    "truncation must respect the ladder's ceiling");
+                Assert.True(header.SlotCount > 0); // at least some made it in
             }
 
             // Intent is removed
@@ -229,11 +246,11 @@ namespace Hrot.SimHost.Tests
             sys.Execute(_repo, 0f);
 
             // Valid blueprint attached (slot count == 1)
-            Assert.True(_repo.HasComponent<BlueprintBlackboard1024>(entity));
+            Assert.True(OccurrenceStoreAccess.HasStore(_repo, entity));
             unsafe
             {
-                ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                fixed (byte* mem = bb.Memory)
+                // ⭐ B4 — design §17.7: resolve the store through the SEAM, not a named tier.
+                byte* mem = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
                 {
                     ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
                     Assert.Equal(1, header.SlotCount);
@@ -308,7 +325,7 @@ namespace Hrot.SimHost.Tests
             matSys.Execute(_repo, 0f);
 
             Assert.False(_repo.HasManagedComponent<InitialBlueprintsIntent>(entity));
-            Assert.True(_repo.HasComponent<BlueprintBlackboard1024>(entity));
+            Assert.True(OccurrenceStoreAccess.HasStore(_repo, entity));
 
             // Tick the BlueprintTickSystem several times
             var tickSys = new BlueprintTickSystem(_registry);

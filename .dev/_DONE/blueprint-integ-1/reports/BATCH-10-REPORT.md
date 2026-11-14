@@ -7,7 +7,7 @@
 **New assembly created:** `Hrot/Editor/Hrot.Editor.AiContracts/Hrot.Editor.AiContracts.csproj`
 
 - Target framework: net8.0; no ImGui / NodeEdit / AiShared-heavy deps — only `System.Numerics` (implicit).
-- Project GUID: `{A0B1C2D3-E4F5-6789-0ABC-DEF012345678}`, added to `IOS-IG-SimHost.sln` under the `Editor` solution folder.
+- Project GUID: `{A0B1C2D3-E4F5-6789-0ABC-DEF012345678}`, added to `HROT.sln` under the `Editor` solution folder.
 
 **Types moved from `Hrot.Editor.AiShared` → `Hrot.Editor.AiContracts`** (namespaces kept identical):
 
@@ -114,7 +114,7 @@ Changed from `"Hrot.AI.Behaviors.Trees.Layout"` (wrong, never existed) to `"Hrot
 | `Hrot.Hsm.Editor.Tests` | 330 | 0 | 0 | Includes 7 new SampleGuard tests |
 | `Hrot.ClusterRunner.Integration.Tests --filter EditorSubsystemBoot` | 10 | 0 | 0 | Boot integration tests green |
 | `Hrot.Blueprints.Tests` | 889 | 10 | 8 | Same 10 pre-existing failures (golden + timing + allocation); no new failures |
-| **Full solution build** | — | **0 errors** | — | `dotnet build IOS-IG-SimHost.sln` → 0 errors, 0 warnings |
+| **Full solution build** | — | **0 errors** | — | `dotnet build HROT.sln` → 0 errors, 0 warnings |
 
 Pre-existing Blueprints failures (not caused by this batch):
 - 7 golden/snapshot failures (`EmitMatchesGoldenSource`, `GeneratedSource_Snapshot`)

@@ -25,23 +25,32 @@ namespace CarKinem.Tkb
             yield return typeof(VehicleParametersDto);
         }
 
+        /// <summary>⭐ Every entry is a template constant or empty runtime state, so none carries
+        /// <c>[PerInstanceValue]</c> and this translator adds nothing to a promotion gate. ⚠ Note
+        /// <see cref="NavigationIntent"/> in particular: it is Brain-OWNED and replicated to Muscle, but its
+        /// initial value is legitimately empty ⇒ waiting for it would be wrong.</summary>
+        public IEnumerable<Type> GetProducedComponents()
+        {
+            yield return typeof(VehicleParams);
+            yield return typeof(VehicleState);
+            yield return typeof(NavState);
+            yield return typeof(PhysicsCollider);
+            yield return typeof(NavigationIntent);
+            yield return typeof(NavigationStatus);
+            yield return typeof(FrustrationTicks);
+            yield return typeof(FormationController);
+        }
+
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
         {
             var dto = template.GetDescriptor<VehicleParametersDto>();
             if (dto == null) return;
 
             if (repo.IsComponentTypeRegistered<VehicleParams>() && !repo.HasComponent<VehicleParams>(entity))
-                repo.AddComponent(entity, new VehicleParams
-                {
-                    Length      = dto.Length,
-                    Width       = dto.Width,
-                    WheelBase   = dto.Length * 0.6f,
-                    MaxSpeedFwd = dto.MaxSpeedFwd,
-                    MaxAccel    = dto.MaxAccel
-                });
+                repo.AddComponent(entity, BuildVehicleParams(dto));
 
             if (repo.IsComponentTypeRegistered<VehicleState>() && !repo.HasComponent<VehicleState>(entity))
-                repo.AddComponent(entity, new VehicleState { Speed = 0, SteerAngle = 0 });
+                repo.AddComponent(entity, new VehicleState { Speed = 0, SteerAngle = (Fdp.Core.Angle)(0) });
 
             if (repo.IsComponentTypeRegistered<NavState>() && !repo.HasComponent<NavState>(entity))
                 repo.AddComponent(entity, new NavState { Mode = KinematicsMode.None });
@@ -50,7 +59,13 @@ namespace CarKinem.Tkb
                 repo.AddComponent(entity, new PhysicsCollider
                 {
                     Radius         = System.Math.Max(dto.Length, dto.Width) / 2f,
-                    CollisionLayer = 1
+                    CollisionLayer = 1,
+                    // ⭐ Height's home is the render/collider descriptor (see VehicleParametersDto remarks);
+                    // 0 when absent = unknown height, which blocks sight at every height as before.
+                    //   ⭐ B8 (M6) — else the engine-neutral Body.Geometry height (the NED types state it; they have no Stride model), so
+                    //   a NED hull gets its height band (M1) and is no longer taken for a person by the blast rule.
+                    Height         = template.GetDescriptor<StrideRenderModelDefDto>()?.ShapeHeight
+                                     ?? (template.GetDescriptor<BodyGeometryDto>() is { Height: > 0f } g ? g.Height : 0f),
                 });
 
             if (repo.IsComponentTypeRegistered<NavigationIntent>() && !repo.HasComponent<NavigationIntent>(entity))
@@ -64,6 +79,56 @@ namespace CarKinem.Tkb
 
             if (repo.IsComponentTypeRegistered<FormationController>() && !repo.HasComponent<FormationController>(entity))
                 repo.AddComponent(entity, new FormationController());
+
+            // ⛔ CE-2151 (R-2009 B2) — the open-cabin opt-in moved to Gen.Carrier (CarrierTkbTranslator): carrying is the carrier's fact.
+        }
+
+        /// <summary>
+        /// Builds <see cref="VehicleParams"/> from the TKB descriptor: a
+        /// <see cref="VehiclePresets"/> baseline chosen by
+        /// <see cref="VehicleParametersDto.VehicleClass"/>, then overridden field by field
+        /// with whatever the template authored.
+        /// </summary>
+        /// <remarks>
+        /// A preset baseline is what makes the result driveable.  The kinematics fields
+        /// that no TKB descriptor carries -- <c>MaxSteerAngle</c>, <c>AccelGain</c>,
+        /// <c>MaxDecel</c>, <c>MaxLatAccel</c>, <c>AvoidanceRadius</c>, the lookahead
+        /// window -- come from the preset, and a vehicle with <c>AccelGain = 0</c> and
+        /// <c>MaxSteerAngle = 0</c> cannot accelerate or steer at all.  Writing only the
+        /// authored fields left every one of those at zero.
+        /// <para>
+        /// Every override is guarded by <c>&gt; 0f</c>, so an unauthored (or, for a TKB
+        /// zip predating a field, absent) value keeps the preset's -- see
+        /// <see cref="VehicleParametersDto"/> on the two-producer hazard.
+        /// </para>
+        /// </remarks>
+        internal static VehicleParams BuildVehicleParams(VehicleParametersDto dto)
+        {
+            var vehicleClass = dto.VehicleClass ?? VehicleClass.PersonalCar;
+
+            var p = VehiclePresets.GetPreset(vehicleClass);
+
+            if (dto.Length > 0f)
+            {
+                p.Length    = dto.Length;
+                p.WheelBase = dto.Length * 0.6f;
+            }
+            if (dto.Width > 0f)
+                p.Width = dto.Width;
+            if (dto.MaxSpeedFwd > 0f)
+                p.MaxSpeedFwd = dto.MaxSpeedFwd;
+            if (dto.MaxSpeedRev > 0f)
+                p.MaxSpeedRev = dto.MaxSpeedRev;
+            if (dto.MaxAccel > 0f)
+                p.MaxAccel = dto.MaxAccel;
+            if (dto.WalkSpeed > 0f)
+                p.WalkSpeed = dto.WalkSpeed;   // ⭐ CE-1208
+            if (dto.TurnRate > 0f)
+                p.MaxSteerRate = dto.TurnRate * (MathF.PI / 180f);
+            if (dto.AvoidanceRadius > 0f)
+                p.AvoidanceRadius = dto.AvoidanceRadius;   // ⭐ CE-2336 (R-2065) — a soldier's close order; a civilian keeps the preset's
+
+            return p;
         }
     }
 }

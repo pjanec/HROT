@@ -20,15 +20,17 @@ namespace Hrot.Map.Common.Replication.Egress
     /// for all locally-owned entities and publishes a DDS <see cref="Hrot.NED.Descriptors.NavigationStatus"/>
     /// sample for each when the status changes.
     /// </summary>
-    public sealed class NavigationStatusEgressTranslator : IDescriptorTranslator
+    public sealed class NavigationStatusEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         // â”€â”€ DDS writer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-        private readonly DdsWriter<Hrot.NED.Descriptors.NavigationStatus> _writer;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the instances it deletes on a destruction, a wipe or (as an
+        //   unregister) a hand-over. The change cache below stays: it compares (IntentId, Result, Phase), finer than the wire sample.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<Hrot.NED.Descriptors.NavigationStatus> _instances;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
-        public string TopicName      => "NavigationStatus";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<Hrot.NED.Descriptors.NavigationStatus>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationStatus;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -52,11 +54,11 @@ namespace Hrot.Map.Common.Replication.Egress
         public NavigationStatusEgressTranslator(
             DdsParticipant   dds,
             NetworkEntityMap entityMap,
-            long localNodeId)
+            int localNodeId)
         {
-            _writer    = new DdsWriter<Hrot.NED.Descriptors.NavigationStatus>(dds, "NavigationStatus");
+            _instances = new(new DdsWriter<Hrot.NED.Descriptors.NavigationStatus>(dds), static key => new Hrot.NED.Descriptors.NavigationStatus { EntityId = (int)key });
             _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <summary>No ingress for this translator.</summary>
@@ -69,10 +71,24 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — on the live world, in the egress system's slot (the bus and the world epoch are the live world's).</summary>
+        public void BeginFrame(ISimulationView live)
+        {
+            if (_instances.OnFrame(live)) _lastPublished.Clear();   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3); the change cache restarts with it
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the scan: reads only <paramref name="view"/> (it may be the off-frame replica); the change cache is this
+        /// translator's own, touched by <see cref="Dispose"/> only on the main thread after the join.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
             var query = view.Query()
                 .With<EcsNavigationStatus>()
-                .With<NetworkIdentity>()
-                .WithLifecycle(EntityLifecycle.All)
+                .DefaultRoutePublishable()
+                .WithLifecycle(EntityLifecycle.AllButTearDown)
                 .Build();
 
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
@@ -102,9 +118,9 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 
-                _writer.Write(new Hrot.NED.Descriptors.NavigationStatus
+                _instances.Write(netId.Value, new Hrot.NED.Descriptors.NavigationStatus
                 {
-                    EntityId              = (int)netId.Value,
+                    EntityId              = netId.Value,
                     IntentId              = status.IntentId,
                     Result                = MapResult(status.Result),
                     ProgressS             = status.ProgressS,
@@ -127,10 +143,18 @@ namespace Hrot.Map.Common.Replication.Egress
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <summary>Cleans up the per-entity change-detection cache on entity disposal.</summary>
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
             if (_entityMap.TryGetEntity(networkEntityId, out var entity))
                 _lastPublished.Remove(entity);
+            _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
+        }
+
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
+        public void ReleaseInstance(int networkEntityId, long instanceId)
+        {
+            if (_entityMap.TryGetEntity(networkEntityId, out var entity)) _lastPublished.Remove(entity);
+            _instances.Release(networkEntityId);
         }
 
         // â”€â”€ Enum mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

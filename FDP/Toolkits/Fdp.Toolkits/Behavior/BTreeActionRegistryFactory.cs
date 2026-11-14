@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Behavior;
 /// Builds a populated <see cref="ActionRegistry{TBlackboard,TContext}"/> for the BTree
 /// node logic of a single assembly by discovering its <c>[Fbt.FbtRegistrar]</c>-decorated
 /// classes (the source-generated <c>FbtActionRegistrar</c>) and invoking their
-/// <c>RegisterAll(ActionRegistry&lt;BrainBlackboard,BTreeContext&gt;)</c> method.
+/// <c>RegisterAll(ActionRegistry&lt;byte,BTreeContext&gt;)</c> method.
 ///
 /// <para>
 /// Unlike <c>Fbt.Compiler.FbtAutoDiscovery</c> (which scans <b>all</b> loaded assemblies),
@@ -28,15 +28,23 @@ public static class BTreeActionRegistryFactory
     /// Creates a fresh registry and populates it from every <c>[FbtRegistrar]</c> type in
     /// <paramref name="assembly"/> by invoking each <c>RegisterAll(registry)</c> overload
     /// whose single parameter is an <see cref="ActionRegistry{TBlackboard,TContext}"/> of
-    /// <see cref="BrainBlackboard"/>/<see cref="BTreeContext"/>. Never throws on a single
-    /// registrar failure or a partially-loadable assembly — those are skipped so a bad
-    /// registrar cannot abort the whole load.
+    /// <c>byte</c>/<see cref="BTreeContext"/> — the root params slot base (<c>P4</c>-②).
+    /// Never throws on a single registrar failure or a partially-loadable assembly — those are
+    /// skipped so a bad registrar cannot abort the whole load.
+    ///
+    /// <para>
+    /// ⚠ Both skips are SILENT: a <c>RegisterAll</c> whose parameter type does not match the
+    /// comparison below is passed over, and a registrar whose body throws is swallowed. Either
+    /// leaves keys unregistered, and <c>Interpreter.BindActions</c> then binds them to a
+    /// <c>Failure</c> fallback. <c>BTreeActionRegistryFactoryTests.Scan_BindsEveryNode_ZeroFailureFallbacks</c>
+    /// is the rail that turns that into a red.
+    /// </para>
     /// </summary>
-    public static ActionRegistry<BrainBlackboard, BTreeContext> BuildFromAssembly(Assembly assembly)
+    public static ActionRegistry<byte, BTreeContext> BuildFromAssembly(Assembly assembly)
     {
         if (assembly is null) throw new ArgumentNullException(nameof(assembly));
 
-        var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var registry = new ActionRegistry<byte, BTreeContext>();
 
         Type[] types;
         try
@@ -61,7 +69,7 @@ public static class BTreeActionRegistryFactory
 
                 var ps = method.GetParameters();
                 if (ps.Length != 1 ||
-                    ps[0].ParameterType != typeof(ActionRegistry<BrainBlackboard, BTreeContext>))
+                    ps[0].ParameterType != typeof(ActionRegistry<byte, BTreeContext>))
                     continue;
 
                 try

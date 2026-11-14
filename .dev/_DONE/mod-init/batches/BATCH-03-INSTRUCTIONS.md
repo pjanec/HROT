@@ -179,7 +179,7 @@ _context.Kernel.RegisterModule(_context.NedReplication!);   // replaces manual N
 **Verify:**
 ```powershell
 Select-String "P2 debt|_nedReplicationModule" Hrot.SimHost/SimHostApp.cs   # → 0 results
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test Hrot.SimHost.Integration.Tests/Hrot.SimHost.Integration.Tests.csproj --no-build
 ```
 
@@ -222,7 +222,7 @@ dotnet test Hrot.SimHost.Integration.Tests/Hrot.SimHost.Integration.Tests.csproj
 **Verify:**
 ```powershell
 Select-String "new EntityMasterIngressTranslator|new GeoSpatialIngressTranslator|new EntityInfoIngressTranslator|RegisterGlobalSystem.*DeadReckoningSyncSystem" Hrot.IG/IgApplication.cs  # → 0 results
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test Hrot.IG.Tests/Hrot.IG.Tests.csproj --no-build
 ```
 
@@ -267,7 +267,7 @@ internal NodeRole _replicationRole;
 
 Also remove the corresponding comment block. The `InternalsVisibleTo("Hrot.Network")` in `Hrot.Common.csproj` may remain (it's still valid for future extensions).
 
-**Verify:** `dotnet build IOS-IG-SimHost.sln` still succeeds after removal.
+**Verify:** `dotnet build HROT.sln` still succeeds after removal.
 
 ---
 
@@ -302,7 +302,7 @@ Do NOT stop to ask for permission or confirmation for routine operations. If a t
 
 The driver commands:
 ```powershell
-dotnet test IOS-IG-SimHost.sln  # full suite
+dotnet test HROT.sln  # full suite
 # Or per project:
 dotnet test Hrot.SimHost.Integration.Tests/Hrot.SimHost.Integration.Tests.csproj
 dotnet test Hrot.IG.Tests/Hrot.IG.Tests.csproj
@@ -322,7 +322,7 @@ For each task (DEBT-004, S301, S302, S402, DEBT-006): ✅ Done / ⚠️ Partial 
 
 ### 2. Validation Outputs
 Paste:
-- Final `dotnet build IOS-IG-SimHost.sln` output (last 5 lines)
+- Final `dotnet build HROT.sln` output (last 5 lines)
 - Full test results summary for each project tested
 - Output of the MODINIT-S402 boundary queries
 
@@ -352,7 +352,7 @@ This batch is DONE when:
 - [ ] `Select-String "<ProjectReference.*ClusterRunner"` returns 0 for SimHost, IG, CGF `.csproj` (MODINIT-S402)
 - [ ] Isolated builds of SimHost, IG, CGF succeed (`dotnet build ... --no-restore`) (MODINIT-S402)
 - [ ] `HrotNodeBuilder._replicationConfigured` and `_replicationRole` fields removed (DEBT-006)
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds — 0 errors
+- [ ] `dotnet build HROT.sln` succeeds — 0 errors
 - [ ] All pre-existing test results unchanged (no new failures)
 - [ ] Report submitted to `.dev/mod-init/reports/BATCH-03-REPORT.md`
 

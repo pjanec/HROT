@@ -23,6 +23,7 @@ public sealed class AssetBaseNameCollisionGuardTests
     [InlineData("Foo.btree.json", "Foo")]
     [InlineData("Foo.hsm.json",   "Foo")]
     [InlineData("Foo.bp.json",    "Foo")]
+    [InlineData("Foo.params.json", "Foo")]   // CE-3185
     [InlineData("Foo.cs",         "Foo")]
     [InlineData("Foo.txt",        "Foo")]
     [InlineData("Foo.bar.txt",    "Foo.bar")]    // only final extension stripped for unknowns
@@ -83,6 +84,22 @@ public sealed class AssetBaseNameCollisionGuardTests
         Assert.Contains("Foo.btree.json", error);
         Assert.Contains("Foo.cs",         error);
         Assert.Contains("/trees",          error);
+    }
+
+    /// <summary>
+    /// ⭐ CE-3185 — creating Foo.params.json when Foo.cs already exists → collision (the generator would emit a second Foo).
+    /// </summary>
+    [Fact]
+    public void CheckCollision_ParamsJson_BlockedBy_ExistingCs()
+    {
+        var error = AssetBaseNameCollisionGuard.CheckCollision(
+            targetFileName:   "Foo.params.json",
+            siblingFileNames: new[] { "Foo.cs" },
+            directoryForMessage: "/params");
+
+        Assert.NotNull(error);
+        Assert.Contains("Foo.params.json", error);
+        Assert.Contains("Foo.cs",          error);
     }
 
     /// <summary>
@@ -234,6 +251,17 @@ public sealed class AssetBaseNameCollisionGuardTests
 
     // ── CheckCollisionOnDisk ─────────────────────────────────────────────────
 
+    // BP-64: these paths are built with the platform's own separator rather than hardcoded as
+    // Windows literals. CheckCollisionOnDisk splits with Path.GetDirectoryName/GetFileName, and on
+    // Linux a backslash is an ordinary filename character — so @"C:\Trees\Foo.btree.json" is ONE
+    // long file name in the current directory, GetDirectoryName returns "", and the split under
+    // test never happens. The assertions were passing for the wrong reason on Windows and failing
+    // outright elsewhere.
+    private static readonly string TreesDir =
+        Path.Combine(Path.GetPathRoot(Environment.CurrentDirectory) ?? string.Empty, "Trees");
+
+    private static string InTrees(string fileName) => Path.Combine(TreesDir, fileName);
+
     [Fact]
     public void CheckCollisionOnDisk_ConsultsOnlyTargetDirectory()
     {
@@ -241,14 +269,14 @@ public sealed class AssetBaseNameCollisionGuardTests
         string? queriedDir = null;
 
         var result = AssetBaseNameCollisionGuard.CheckCollisionOnDisk(
-            targetFilePath: @"C:\Trees\Foo.btree.json",
+            targetFilePath: InTrees("Foo.btree.json"),
             listFilesInDir: dir =>
             {
                 queriedDir = dir;
-                return new[] { @"C:\Trees\Bar.cs" }; // no collision (different base name)
+                return new[] { InTrees("Bar.cs") }; // no collision (different base name)
             });
 
-        Assert.Equal(@"C:\Trees", queriedDir);
+        Assert.Equal(TreesDir, queriedDir);
         Assert.Null(result); // no collision — Bar ≠ Foo
     }
 
@@ -257,8 +285,8 @@ public sealed class AssetBaseNameCollisionGuardTests
     {
         // Simulate: Trees/ contains Foo.cs → Foo.btree.json would collide.
         var error = AssetBaseNameCollisionGuard.CheckCollisionOnDisk(
-            targetFilePath: @"C:\Trees\Foo.btree.json",
-            listFilesInDir: _ => new[] { @"C:\Trees\Foo.cs", @"C:\Trees\Bar.cs" });
+            targetFilePath: InTrees("Foo.btree.json"),
+            listFilesInDir: _ => new[] { InTrees("Foo.cs"), InTrees("Bar.cs") });
 
         Assert.NotNull(error);
         Assert.Contains("Foo.btree.json", error);
@@ -270,7 +298,9 @@ public sealed class AssetBaseNameCollisionGuardTests
     {
         // If the lister throws (dir absent), there are no siblings → no collision.
         var error = AssetBaseNameCollisionGuard.CheckCollisionOnDisk(
-            targetFilePath: @"C:\NonExistent\Foo.btree.json",
+            targetFilePath: Path.Combine(
+                Path.GetPathRoot(Environment.CurrentDirectory) ?? string.Empty,
+                "NonExistent", "Foo.btree.json"),
             listFilesInDir: _ => throw new DirectoryNotFoundException("does not exist"));
 
         Assert.Null(error);
@@ -281,8 +311,8 @@ public sealed class AssetBaseNameCollisionGuardTests
     {
         // CS→JSON direction via disk: creating Foo.cs when Foo.btree.json exists.
         var error = AssetBaseNameCollisionGuard.CheckCollisionOnDisk(
-            targetFilePath: @"C:\Trees\Foo.cs",
-            listFilesInDir: _ => new[] { @"C:\Trees\Foo.btree.json" });
+            targetFilePath: InTrees("Foo.cs"),
+            listFilesInDir: _ => new[] { InTrees("Foo.btree.json") });
 
         Assert.NotNull(error);
         Assert.Contains("Foo.cs",         error);

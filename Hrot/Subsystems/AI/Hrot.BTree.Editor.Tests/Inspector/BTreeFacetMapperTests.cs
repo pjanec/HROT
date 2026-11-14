@@ -45,14 +45,26 @@ public sealed class BTreeFacetMapperTests
             Guid.NewGuid(), blob.TreeName, "/test.cs", false,
             string.Empty, string.Empty);
 
-    private static InspectorWindow MakeInspectorWindow(
-        EditorSelectionStore store, IFacetDispatcher? dispatcher = null)
+    /// <summary>
+    /// ⭐⭐ <b><c>S2</c> (<c>BP-399</c>) — the facet now resolves through
+    /// <c>NodePropertiesSource</c>, not through <c>InspectorWindow</c>.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.6 ②: the node arms were EXTRACTED to
+    /// <c>details.nodeproperties</c>. ⚠ The claim each test below makes is UNCHANGED — it was always
+    /// about the MAPPER; the window was only a convenient driver.
+    /// <para>⭐ And the port is closer to production: the context is built by
+    /// <c>DetailsContextBuilder</c>, the same call the shell makes every frame.</para>
+    /// </summary>
+    private static Hrot.Editor.AiShared.Shell.NodePropertiesSource MakeFacetSource(
+        IFacetDispatcher? dispatcher = null)
     {
-        var refactor = new StubRefactor();
-        var findResults = new FindResultsWindow();
-        return new InspectorWindow(store, refactor, findResults,
-            facetDispatcher: dispatcher);
+        var source = new Hrot.Editor.AiShared.Shell.NodePropertiesSource();
+        source.SetFacetDispatcher(dispatcher);
+        return source;
     }
+
+    private static Hrot.Editor.AiShared.Shell.DetailsContext ContextOf(EditorSelectionStore store)
+        => Hrot.Editor.AiShared.Shell.DetailsContextBuilder.Build(
+               store, "BTree", Hrot.Editor.AiShared.Variables.VariableRunState.Planning);
 
     // ── BTreeFacetMapper tests ────────────────────────────────────────────────
 
@@ -75,7 +87,7 @@ public sealed class BTreeFacetMapperTests
         facet.Should().NotBeNull();
         facet.Should().BeOfType<BTreeActionFacet>();
         var af = (BTreeActionFacet)facet!;
-        af.MethodFqn.Should().Be("Ns.C.Action1");
+        af.Action.MethodFqn.Should().Be("Ns.C.Action1");
     }
 
     [Fact]
@@ -140,10 +152,10 @@ public sealed class BTreeFacetMapperTests
         store.ActiveAsset = asset;
         // No sub-selection set.
 
-        var window = MakeInspectorWindow(store, mapper);
+        var source = MakeFacetSource(mapper);
 
-        // GetCurrentFacet should return null when no sub-selection.
-        window.GetCurrentFacet().Should().BeNull(
+        // FacetFor should return null when no sub-selection.
+        source.FacetFor(ContextOf(store)).Should().BeNull(
             "no sub-selection means no facet returned");
     }
 
@@ -161,7 +173,7 @@ public sealed class BTreeFacetMapperTests
     }
 
     [Fact]
-    public void Inspector_GetCurrentFacet_MatchesDirectMapperOutput()
+    public void Inspector_FacetForContext_MatchesDirectMapperOutput()
     {
         var asset  = MakeAsset(RootSequence2Actions());
         var mapper = new BTreeFacetMapper(asset);
@@ -172,14 +184,14 @@ public sealed class BTreeFacetMapperTests
         var sel = new BTreeNodeSelection(actionNode.VisualId);
         store.ActiveSubSelection = sel;
 
-        var window = MakeInspectorWindow(store, mapper);
+        var source = MakeFacetSource(mapper);
 
-        // InspectorWindow.GetCurrentFacet() must return the same type as direct mapper call.
-        var windowFacet = window.GetCurrentFacet();
+        // NodePropertiesSource.FacetFor() must return the same type as a direct mapper call.
+        var sourceFacet = source.FacetFor(ContextOf(store));
         var directFacet = mapper.GetFacet(sel);
 
-        windowFacet.Should().NotBeNull();
-        windowFacet!.GetType().Should().Be(directFacet!.GetType());
+        sourceFacet.Should().NotBeNull();
+        sourceFacet!.GetType().Should().Be(directFacet!.GetType());
     }
 
     // ── stub helpers ──────────────────────────────────────────────────────────
@@ -198,5 +210,148 @@ public sealed class BTreeFacetMapperTests
             Task.FromResult(PreviewRename(f, t, o));
         public Task<RefactorResult> ApplyRenameAsync(RefactorPreview p, CancellationToken ct = default) =>
             Task.FromResult(ApplyRename(p));
+    }
+
+    // ── ⭐⭐ CE-439 — the subtree pick LANDS and binds the child's params (Q76 §12.28) ──────────────
+
+    public struct PatrolInputs { public float Speed; public int Laps; }
+
+    private sealed class ChildTree : Hrot.Editor.AiShared.IEditableAsset
+    {
+        public Guid AssetId { get; } = Guid.NewGuid();
+        public string Name => "PatrolTree";
+        public Hrot.Editor.AiShared.AssetKind Kind => Hrot.Editor.AiShared.AssetKind.BTree;
+        public string SourceFilePath => "/patrol.btree.json";
+        public bool IsDirty => false;
+        public bool IsEditorOwned => false;
+        // ⭐ S8b-2: what the ONE child-inputs lookup answers for this child (the test stands in for the registry).
+        public string? InputsTypeId { get; init; }
+#pragma warning disable 67
+        public event Action? Changed;
+#pragma warning restore 67
+    }
+
+    private sealed class OneAssetCatalog : Hrot.Editor.AiShared.Catalog.IAssetCatalog
+    {
+        private readonly Hrot.Editor.AiShared.IEditableAsset _a;
+        public OneAssetCatalog(Hrot.Editor.AiShared.IEditableAsset a) => _a = a;
+        public System.Collections.Generic.IReadOnlyList<Hrot.Editor.AiShared.IEditableAsset> All => new[] { _a };
+        public Hrot.Editor.AiShared.IEditableAsset? FindByAssetId(Guid id) => _a.AssetId == id ? _a : null;
+        public Hrot.Editor.AiShared.IEditableAsset? FindByName(string n) => _a.Name == n ? _a : null;
+        public System.Collections.Generic.IReadOnlyList<Hrot.Editor.AiShared.IEditableAsset> WhereDependsOn(Guid id)
+            => Array.Empty<Hrot.Editor.AiShared.IEditableAsset>();
+#pragma warning disable 67
+        public event Action<Hrot.Editor.AiShared.AssetKind>? Changed;
+#pragma warning restore 67
+    }
+
+    private static BehaviorTreeBlob RootHostingOneSubtree() =>
+        new BehaviorTreeBlob
+        {
+            TreeName = "Host",
+            Nodes = new[]
+            {
+                new NodeDefinition { Type = NodeType.Root,    ChildCount = 1, SubtreeOffset = 2 },
+                new NodeDefinition { Type = NodeType.Subtree, ChildCount = 0, SubtreeOffset = 1, RawPayloadIndex = 0 },
+            },
+            MethodNames     = Array.Empty<string>(),
+            FloatParams     = Array.Empty<float>(),
+            IntParams       = Array.Empty<int>(),
+            SubtreeAssetIds = new[] { "" },
+        };
+
+    /// <summary>
+    /// 🔴 RED before: <c>ApplyFacet</c>'s <c>BTreeSubtreeFacet</c> arm wrote only <c>Comment</c>/<c>IsBreakpoint</c> ⇒ the
+    /// picked name was DISCARDED. ⭐ Now the pick lands (name + Guid captured at pick time) and a child with Inputs brings a
+    /// <c>Role=Input</c> host variable typed as its Inputs struct, bound as the site's <c>ParamsVariable</c>.
+    /// </summary>
+    [Fact]
+    public void CE439_PickingASubtree_LandsAndBindsTheChildsParams()
+    {
+        var child  = new ChildTree { InputsTypeId = typeof(PatrolInputs).FullName };
+        var asset  = MakeAsset(RootHostingOneSubtree());
+        var mapper = new BTreeFacetMapper(asset, new OneAssetCatalog(child),
+                                          childInputsTypeOf: name => name == child.Name ? child.InputsTypeId : null);
+        var node   = asset.Nodes.Single(n => n.KernelType == NodeType.Subtree);
+        var sel    = new BTreeNodeSelection(node.VisualId);
+
+        var facet = (BTreeSubtreeFacet)mapper.GetFacet(sel)!;
+        facet.SubtreeName = "PatrolTree";
+        mapper.ApplyFacet(sel, facet);
+
+        node.Subtree!.SubtreeName.Should().Be("PatrolTree");
+        node.Subtree.SubtreeAssetId.Should().Be(child.AssetId);
+        node.Subtree.ParamsVariable.Should().Be("PatrolTreeParams");
+        asset.BlackboardVariables.Single(v => v.Name == "PatrolTreeParams").FieldType.Should().Be(typeof(PatrolInputs));
+    }
+
+    /// <summary>⭐ A child with no Inputs: the pick lands, nothing is bound.</summary>
+    [Fact]
+    public void CE439_PickingASubtreeWithNoInputs_LandsAndBindsNothing()
+    {
+        var asset  = MakeAsset(RootHostingOneSubtree());
+        var mapper = new BTreeFacetMapper(asset, new OneAssetCatalog(new ChildTree()), childInputsTypeOf: _ => null);
+        var node   = asset.Nodes.Single(n => n.KernelType == NodeType.Subtree);
+        var sel    = new BTreeNodeSelection(node.VisualId);
+
+        var facet = (BTreeSubtreeFacet)mapper.GetFacet(sel)!;
+        facet.SubtreeName = "PatrolTree";
+        mapper.ApplyFacet(sel, facet);
+
+        node.Subtree!.SubtreeName.Should().Be("PatrolTree");
+        node.Subtree.ParamsVariable.Should().BeNull();
+    }
+    // ── ⭐ CE-2079 — the SOP order on an action node (docs/DESIGN_Decision_Layer.md §4.6) ────────────────────────
+
+    /// <summary>
+    /// ⭐ An action node carrying an SOP order gets the SOP-order facet, not the binding facet; picking its behaviour composes a
+    /// variable of that behaviour's params type (bound as the order's <c>ParamsVariable</c>) and the urgency lands.
+    /// </summary>
+    [Fact]
+    public void CE2079_PickingAnSopOrdersBehaviour_BindsItsParams_AndTheUrgencyLands()
+    {
+        var asset  = MakeAsset(RootSequence2Actions());
+        var node   = asset.Nodes.First(n => n.KernelType == NodeType.Action);
+        node.Action   = null;
+        node.SopOrder = new BTreeSopOrderPayload { Kind = Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.React };
+        var mapper = new BTreeFacetMapper(asset,
+            sopParamsTypeOf: name => name == "TakeCover" ? typeof(PatrolInputs).FullName : null);
+        var sel = new BTreeNodeSelection(node.VisualId);
+
+        var facet = mapper.GetFacet(sel).Should().BeOfType<BTreeSopOrderFacet>().Subject;
+        facet.Kind.Should().Be("React");
+        facet.BehaviorName = "TakeCover";
+        facet.Urgency      = Hrot.AiEditor.Persistence.BTree.SopUrgencyDto.Hit;
+        mapper.ApplyFacet(sel, facet);
+
+        node.SopOrder!.BehaviorName.Should().Be("TakeCover");
+        node.SopOrder.Urgency.Should().Be(Hrot.AiEditor.Persistence.BTree.SopUrgencyDto.Hit);
+        node.SopOrder.ParamsVariable.Should().Be("TakeCoverParams");
+        asset.BlackboardVariables.Single(v => v.Name == "TakeCoverParams").FieldType.Should().Be(typeof(PatrolInputs));
+        node.DisplayLabel.Should().Be("React: TakeCover");
+    }
+
+    /// <summary>⭐ The order survives a save/load: the model ↔ DTO mapper carries every field both ways.</summary>
+    [Fact]
+    public void CE2079_AnSopOrder_RoundTripsThroughTheAssetMapper()
+    {
+        var asset = MakeAsset(RootSequence2Actions());
+        var node  = asset.Nodes.First(n => n.KernelType == NodeType.Action);
+        node.Action   = null;
+        node.SopOrder = new BTreeSopOrderPayload
+        {
+            Kind = Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.DoWhenIdle, BehaviorName = "Patrol",
+            ParamsVariable = "PatrolParams", Urgency = Hrot.AiEditor.Persistence.BTree.SopUrgencyDto.Contact,
+        };
+
+        var back = Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.FromDto(
+            Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(asset));
+        var order = back.Nodes.Single(n => n.VisualId == node.VisualId).SopOrder;
+
+        order.Should().NotBeNull();
+        order!.Kind.Should().Be(Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.DoWhenIdle);
+        order.BehaviorName.Should().Be("Patrol");
+        order.ParamsVariable.Should().Be("PatrolParams");
+        order.Urgency.Should().Be(Hrot.AiEditor.Persistence.BTree.SopUrgencyDto.Contact);
     }
 }

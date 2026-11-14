@@ -26,7 +26,7 @@ What IS included:
 - Create `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tests.csproj` targeting `net8.0`, type xUnit test project. References `Hrot.Blueprints.Core`, `Fdp.Core`, `xUnit`. Contains one placeholder `[Fact]` test that asserts `true`.
 - Add `Blueprints/` subdirectory under `FDP/Toolkits/Fdp.Toolkits/` with placeholder files as listed in Roadmap §2. No new `.csproj` -- this folder is part of the existing `Fdp.Toolkits.csproj`.
 - Create `Hrot/Subsystems/Hrot.AI.Behaviors/Blueprints/` directory (empty; receives `.bp.json` files later).
-- Add all four new projects to the solution (`IOS-IG-SimHost.sln` or, if scoped to FDP only, `FDP/FDP.sln`).
+- Add all four new projects to the solution (`HROT.sln` or, if scoped to FDP only, `FDP/FDP.sln`).
 - Modify `Hrot.AI.Behaviors.csproj` with the properties and project references specified in Roadmap M0 acceptance: `EmitCompilerGeneratedFiles`, `CompilerGeneratedFilesOutputPath`, `DebugType`, `DebugSymbols`, generator `ProjectReference` with `OutputItemType="Analyzer" ReferenceOutputAssembly="false"`, `AdditionalFiles` glob for `Blueprints\**\*.bp.json`.
 
 What is NOT included:

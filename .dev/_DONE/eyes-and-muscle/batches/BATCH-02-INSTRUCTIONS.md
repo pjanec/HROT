@@ -507,7 +507,7 @@ public void Module_Tick_RunsOnNonMainThread()
 
 ```powershell
 # Build
-dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln --no-restore
+dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln --no-restore
 
 # Run new unit tests (including NedReplication fix and EyesAndMuscle unit tests)
 dotnet test Hrot.ClusterRunner.Tests --no-build --filter "NedReplication|HrotNodeBuilder|EyesAndMuscle" --logger "console;verbosity=normal"

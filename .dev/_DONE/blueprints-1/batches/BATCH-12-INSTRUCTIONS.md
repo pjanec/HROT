@@ -1315,7 +1315,7 @@ After implementation:
 
 ```
 cd d:\WORK\IOS-IG-SimHost-FDP
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tests.csproj --no-build
 ```
 

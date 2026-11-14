@@ -4,8 +4,55 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// Payload for <see cref="ReferenceEditLoadHandler"/> commands.
     /// <c>TargetState</c> must equal <c>ClusterState.LoadingEdit</c> for the
     /// handler to perform any I/O; other target states are no-ops.
+    ///
+    /// <para>⛔⛔ <b><c>R-4018</c> — no TKB name here.</b> The TKB is not tied to a scenario: its name travels with the
+    /// file sync that delivers it (<c>StagedTkb</c>), never with this load command.</para>
+    ///
+    /// <para>⭐⭐⭐ <c>L1</c> — <b><c>TerrainName</c> is a SHARED CONTENT NAME</b>,
+    /// extracted by the orchestrator from the MASTER scenario on the NAS and carried to every node on the
+    /// message that opens the <c>Loading*</c> phase.
+    /// 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §4.2, <c>L1</c>.</para>
+    ///
+    /// <para>⭐⭐ <b>Why they ride the MESSAGE and not the scenario file.</b> 📐 Measured: four of the five
+    /// roles never open the scenario file at all — only <c>Brain</c> reads it, because only <c>Brain</c>
+    /// also edits and saves it. A muscle, navigation or map node therefore cannot read these names out of
+    /// the scenario, yet every ECS node needs the knowledge base (it composes the full genesis pipeline —
+    /// <c>Q65-A′</c>) and the movement roles need the terrain.</para>
+    ///
+    /// <para>⛔ <b>They previously travelled as a staged sidecar file</b>
+    /// (<c>{node staging}/TKB/ScenarioHeader.json</c>), written during the file copy — a channel that
+    /// RACES the step consuming it. 📐 Measured in one load: the content step was dispatched 6 ms after the
+    /// copy STARTED and 49 ms before the files were fanned out. The scenario loader survived only on a
+    /// two-second retry; the knowledge-base and terrain loaders do not retry and silently concluded
+    /// <i>"this scenario names none"</i> — indistinguishable from the truth.</para>
+    ///
+    /// <para>⚠ Both are <see langword="null"/>-tolerant: a scenario naming neither is legal and silent
+    /// (an absent <b>artifact</b> for a name that IS given is the loud case, and belongs to the loader).
+    /// ⭐ The pair is additive on the wire — the payload crosses as JSON, so an older reader ignores them.</para>
     /// </summary>
-    public record struct EditLoadHandlerPayload(string? ScenarioId, bool IsNewScenario = false, ClusterState TargetState = ClusterState.LoadingEdit, System.Guid ExerciseId = default);
+    public record struct EditLoadHandlerPayload(
+        string? ScenarioId,
+        bool IsNewScenario = false,
+        ClusterState TargetState = ClusterState.LoadingEdit,
+        Fdp.Core.ExerciseId ExerciseId = default,
+        string? TerrainName = null,
+        // ⭐ CE-2101 — true on the load step entered FROM Idle: the world boundary, where every node clears its world
+        //   before the load builds the new one (docs/DESIGN_Deterministic_Network_Ids.md §11b, §11g.4). Set by the
+        //   master, by the same rule that resets the id authority.
+        bool IsWorldBoundary = false,
+        // ⭐⭐ C7 (Q91 §4-M, R-4015) — a LATE JOINER's catch-up load: only the universal parts (knowledge base, terrain) run,
+        //   whatever the node's roles; the scenario is never read and no entity is created — the world arrives by replication.
+        bool IsCatchUp = false,
+        // ⭐ CE-3299 D17 (R-3045) — the session's recording mode: 0 = FULL, N > 0 = a keyframe every N s of sim time (a live load only).
+        double CheckpointingSeconds = 0,
+        // ⭐ CE-4090 (AQ108 D14) — true on a live load (or a replay → live branch) whose run must NOT be recorded: the cluster's
+        //   "Record live runs" setting was off when the master minted the session. ⭐ Inverse polarity so `default` and an older sender
+        //   (the field is absent on the wire) both mean today's behaviour — record. ⭐ ONE field on the ONE message every node reads.
+        bool RecordingOff = false,
+        // ⭐ Node Features F-14 — per node: the cluster layer the master stamped for the AtLoad-capable features this node has (id → partial JSON); the node freezes it for the load.
+        System.Collections.Generic.IReadOnlyDictionary<string, string>? FeatureConfigsAtLoad = null,
+        // ⭐ Macros S3a ⑦ (SR-41, SR-176) — the load's scenario args (a JSON object text), the same on every node; null = the header's defaults.
+        string? ScenarioArgsJson = null);
 
     /// <summary>
     /// Reference implementation of the edit-load Cluster handler.

@@ -1,0 +1,82 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: On test-town, 'Rifleman' (Friend, BasicInfantrySop, no task) at (295,285) in the open alley sees 'Hostile' (rifleman, InertSop, no orders) at (360,320). Shows the SOP's reaction to contact: the real TakeCover tree. Judge: (1) the Rifleman perceives the hostile; (2) his SOP reacts with TakeCover (under HoldFire the variant is FallBack); (3) he moves and ends at a spot the terrain hides from the hostile. Fail: he stays in the open, or no reaction starts. Check: none (no live check); rails TakeCoverScenarioTests (CE-2094, CE-2101, Hrot.ClusterRunner.Integration.Tests)."
+  },
+  "entities": {
+    "2a940000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          295,
+          285,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicInfantrySop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "2a940000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          360,
+          320,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

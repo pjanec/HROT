@@ -19,11 +19,12 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class EqsResultEventEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EqsResult";
-        private readonly DdsWriter<EqsResultTopic>? _writer;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: one instance per (parent network id, child index), packed
+        //   into the key; the instances it deletes when the parent is destroyed or the world is wiped.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EqsResultTopic> _instances;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EqsResultTopic>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsResult;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -33,14 +34,16 @@ namespace Hrot.Network.NED.SimHost
         {
             if (participant == null) throw new ArgumentNullException(nameof(participant));
             if (entityMap == null) throw new ArgumentNullException(nameof(entityMap));
-            _writer    = new DdsWriter<EqsResultTopic>(participant, DdsTopicName);
+            _instances = new(new DdsWriter<EqsResultTopic>(participant),
+                static key => new EqsResultTopic { ParentNetworkId = (int)(key >> 32), LocalChildIndex = (int)(uint)key },
+                static key => (int)(key >> 32));
             _entityMap = entityMap;
         }
 
         /// <inheritdoc/>
         public void ScanAndPublish(ISimulationView view)
         {
-            if (_writer is null) return;
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             if (view is not EntityRepository repo) return;
 
             var events = view.ReadEvents<EqsResultEvent>();
@@ -53,13 +56,24 @@ namespace Hrot.Network.NED.SimHost
                 // Skip local-only results (ParentNetworkId == 0): they are not replicated via DDS.
                 if (evt.ParentNetworkId == 0) continue;
 
+                // ⭐ S6 (F-12): only the node that owns this sensor's RESULT instance publishes it — the Perception group's
+                //   record, (dtEqsResult, part), falling back to the group's (dtEqsResult, 0) and then the primary owner.
+                //   Every Muscle node builds carriers and solves; without this gate two of them would both publish.
+                //   📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S6.
+                // ⭐ CE-4007 (Cluster Load Phase §8.3) — a parent gone or in TearDown: its results' deletes may be out already; never write them again (📐 live: a result one frame late re-published a destroyed unit's EQS result).
+                if (!_entityMap.TryGetEntity(evt.ParentNetworkId, out var dying) || !view.IsAlive(dying) || Fdp.Network.Cyclone.Translators.PublishedInstances.IsTearingDown(view, dying)) continue;
+                if (_entityMap.TryGetEntity(evt.ParentNetworkId, out var parent) && view.IsAlive(parent) &&
+                    !Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(
+                        view, parent, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, evt.LocalChildIndex)))
+                    continue;
+
                 // Build the managed DDS payload from the unmanaged pool slice.
                 // EntryCount == 0 (Phase 1 stub) is valid: publish an empty result.
                 var entries = new List<EqsResultEntry>(evt.EntryCount);
                 if (evt.EntryCount > 0)
                 {
                     if (!repo.HasSingletonUnmanaged<EqsResultPool>()) continue;
-                    ref readonly var pool = ref repo.GetSingletonUnmanaged<EqsResultPool>();
+                    ref readonly var pool = ref repo.GetSingletonUnmanagedRO<EqsResultPool>();
 
                     for (int i = 0; i < evt.EntryCount; i++)
                     {
@@ -67,11 +81,14 @@ namespace Hrot.Network.NED.SimHost
 
                         // For entity-shaped results translate local EntityId -> NetworkId.
                         // EntityId = 0 means positional candidate (no translation needed).
-                        long resolvedNetId = 0L;
+                        // ⭐ A target with no network id cannot be named on the wire — DROP it, as the
+                        // area-query egress does. Sending it as 0 would make the Brain read it as a
+                        // POSITIONAL candidate at the target's position.
+                        int resolvedNetId = 0;
                         if (r.EntityId != 0L && r.EntityId != -1L)
                         {
                             var targetEntity = new Entity((ulong)r.EntityId);
-                            _entityMap.TryGetNetworkId(targetEntity, out resolvedNetId);
+                            if (!_entityMap.TryGetNetworkId(targetEntity, out resolvedNetId)) continue;
                         }
 
                         entries.Add(new EqsResultEntry
@@ -83,11 +100,13 @@ namespace Hrot.Network.NED.SimHost
                             Score          = r.Score,
                             Flags          = (ushort)r.Flags,
                             FlagsMeaningful = (ushort)r.FlagsMeaningful,
+                            Stance         = r.Stance,   // ⭐ CE-3135
+                            Kind           = r.Kind,     // ⭐ CE-3158 G1
                         });
                     }
                 }
 
-                _writer.Write(new EqsResultTopic
+                _instances.Write(((long)evt.ParentNetworkId << 32) | (uint)evt.LocalChildIndex, new EqsResultTopic
                 {
                     ParentNetworkId = evt.ParentNetworkId,
                     LocalChildIndex = evt.LocalChildIndex,
@@ -107,7 +126,7 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the parent is gone: delete its result instances on the wire
     }
 }
 

@@ -1,0 +1,80 @@
+{
+  "title": "Door-gun orbit",
+  "caption": "The UH-60 circles its target with its door guns",
+  "clip": "F-50",
+  "chapter": 10,
+  "state": "ready",
+  "endAt": "m+12",
+  "anchors": {
+    "m": {
+      "on": "hit",
+      "target": "Orbit Truck"
+    }
+  },
+  "keys": [
+    {
+      "at": "m-6",
+      "follow": "Door Gunship UH-60",
+      "distance": 90,
+      "yaw": 90,
+      "pitch": 10,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Door Gunship UH-60",
+      "toward": "Orbit Truck",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "follow": "Door Gunship UH-60",
+      "distance": 40,
+      "yaw": 60,
+      "pitch": 5,
+      "lift": 2,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Orbit Truck",
+      "distance": 60,
+      "yaw": 60,
+      "pitch": -30,
+      "lift": 1,
+      "fov": 50,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-6",
+      "to": "m-4"
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+12"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-6",
+      "until": "m+12",
+      "text": "The UH-60 circles its target with its door guns"
+    }
+  ]
+}

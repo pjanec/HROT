@@ -1,0 +1,48 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Urban Armour: an IFV fights from stand-off, an RPG man up close hits the other. From the header's Judge (1)-(3); the stand-off distance (~326 m) is not a condition. The take's far/close anchors are proven.",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the stand-off IFV fires",
+      "on": "shot",
+      "by": "IFV Standoff"
+    },
+    {
+      "name": "the stand-off IFV hits an RPG man",
+      "on": "shot",
+      "by": "IFV Standoff",
+      "hit": "*RPG Man A"
+    },
+    {
+      "name": "the stand-off IFV is never hurt",
+      "never": {
+        "on": "field",
+        "who": "IFV Standoff",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 500
+      }
+    },
+    {
+      "name": "RPG Man C fires at IFV Close",
+      "on": "shot",
+      "by": "RPG Man C"
+    },
+    {
+      "name": "the RPG hits IFV Close",
+      "on": "hit",
+      "target": "IFV Close"
+    },
+    {
+      "name": "IFV Close is hurt",
+      "on": "field",
+      "who": "IFV Close",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 500
+    }
+  ]
+}

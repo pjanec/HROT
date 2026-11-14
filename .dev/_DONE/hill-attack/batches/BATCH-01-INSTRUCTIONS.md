@@ -57,10 +57,10 @@ enemies inside a polygon area.
 
 ```bat
 :: Full solution build from workspace root
-dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln
+dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln
 
 :: Run all tests (from workspace root)
-dotnet test d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln --no-build
+dotnet test d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln --no-build
 
 :: Run only SimHost tests
 dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot\Subsystems\Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj --no-build
@@ -409,7 +409,7 @@ decorated with `[BTreeDefinition("HullDownAttackRun")]`
 - [ ] TASK-HA008: `Action_AimAndFireSpecific` and `Action_ReverseToBaseline` implemented
 - [ ] TASK-HA009: `HullDownAttackRun` BTree, `HullDownAttackMapper`, and registration complete
 - [ ] All 25+ unit tests pass
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds with zero errors and zero warnings
+- [ ] `dotnet build HROT.sln` succeeds with zero errors and zero warnings
 - [ ] Report submitted to `.dev/hill-attack/reports/BATCH-01-REPORT.md`
 
 ---

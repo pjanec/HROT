@@ -130,24 +130,32 @@ internal sealed class AttachmentRenderer
             else if ((model.State & AttachmentState.Warning) != 0)
                 dl.AddRect(pillMin, pillMax, ImGui.GetColorU32(theme.WarningColor), cornerRadius, ImDrawFlags.None, 1f * zoom);
 
-            // Text content: optional glyph then optional label.
-            float textLineH = font.CalcTextSizeA(targetFontSize, float.MaxValue, 0f, "A").Y;
-            float textY = pillMin.Y + (placement.Size.Y * zoom - textLineH) * 0.5f;
-            float textX = pillMin.X + AttachmentLayoutEngine.PillPaddingH * zoom;
-            uint textColor = ImGui.GetColorU32(theme.TextDefault);
-
-            if (!string.IsNullOrEmpty(model.Glyph))
-            {
-                dl.AddText(font, targetFontSize, new Vector2(textX, textY), textColor, model.Glyph);
-                textX += font.CalcTextSizeA(targetFontSize, float.MaxValue, 0f, model.Glyph).X;
-                if (!string.IsNullOrEmpty(model.Label))
-                    textX += 4f * zoom;
-            }
-            if (!string.IsNullOrEmpty(model.Label))
-                dl.AddText(font, targetFontSize, new Vector2(textX, textY), textColor, model.Label);
+            DrawPillText(dl, font, targetFontSize, pillMin, placement.Size.Y * zoom, zoom, model, ImGui.GetColorU32(theme.TextDefault));
         }
 
         if (useFont) ImGui.PopFont();
+    }
+
+    /// <summary>
+    /// The pill's content: the optional glyph, then the optional label. ⭐ U-3: the glyph is drawn in the model's <see cref="IAttachmentModel.GlyphColor"/> (its icon's own colour) when it has one;
+    /// the label always stays <paramref name="textColor"/>. Split out of <c>DrawPills</c> so a frame rail can paint one pill without a graph view.
+    /// </summary>
+    internal static void DrawPillText(ImDrawListPtr dl, ImFontPtr font, float fontSize, Vector2 pillMin, float pillHeight, float zoom, IAttachmentModel model, uint textColor)
+    {
+        float textLineH = font.CalcTextSizeA(fontSize, float.MaxValue, 0f, "A").Y;
+        float textY = pillMin.Y + (pillHeight - textLineH) * 0.5f;
+        float textX = pillMin.X + AttachmentLayoutEngine.PillPaddingH * zoom;
+
+        if (!string.IsNullOrEmpty(model.Glyph))
+        {
+            uint glyphColor = model.GlyphColor is { } gc ? ImGui.GetColorU32(gc) : textColor;
+            dl.AddText(font, fontSize, new Vector2(textX, textY), glyphColor, model.Glyph);
+            textX += font.CalcTextSizeA(fontSize, float.MaxValue, 0f, model.Glyph).X;
+            if (!string.IsNullOrEmpty(model.Label))
+                textX += 4f * zoom;
+        }
+        if (!string.IsNullOrEmpty(model.Label))
+            dl.AddText(font, fontSize, new Vector2(textX, textY), textColor, model.Label);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

@@ -11,7 +11,7 @@
 
 ```powershell
 # Build
-dotnet build IOS-IG-SimHost.sln --nologo
+dotnet build HROT.sln --nologo
 # → Build succeeded. 0 Warning(s). 0 Error(s).
 
 # Test — targeted projects
@@ -34,7 +34,7 @@ dotnet test Hrot.IG.Tests --nologo --no-build
 | `Hrot.SimHost.Tests` | 360 | 0 | No regressions |
 | `Hrot.IG.Tests` | 429 | 0 | No regressions |
 
-**Full-solution parallel run note:** `dotnet test IOS-IG-SimHost.sln` may still produce intermittent failures across other assemblies (FDP.Toolkit tests, NetworkDemo) that use domain 0 concurrently. Mitigations applied in this batch (domain isolation + `[Collection]` for CGF tests) eliminate CGF-originated flakes. Residual risk documented in `CGF-1-ONBOARDING.md`. Recommended CI workaround until a broader solution lands: `dotnet test IOS-IG-SimHost.sln --maxcpucount:1` or run integration-test assemblies individually.
+**Full-solution parallel run note:** `dotnet test HROT.sln` may still produce intermittent failures across other assemblies (FDP.Toolkit tests, NetworkDemo) that use domain 0 concurrently. Mitigations applied in this batch (domain isolation + `[Collection]` for CGF tests) eliminate CGF-originated flakes. Residual risk documented in `CGF-1-ONBOARDING.md`. Recommended CI workaround until a broader solution lands: `dotnet test HROT.sln --maxcpucount:1` or run integration-test assemblies individually.
 
 ---
 
@@ -106,7 +106,7 @@ Added `CanHandle`, `PrepareAsync`, `Commit`, `Abort` stubs (returns `false` / no
 | CGF1-S0103 task text says "wait for orchestrator heartbeat"; implementation uses publication match — align docs | CGF-1-BATCH-03 |
 | `NodeOpType` uses `NodeReplaySeek` (value 13) vs design `ReplaySeek` — naming inconsistency in docs | CGF-1-BATCH-03 |
 | `EjectNode(Guid)` vs `NodeHeartbeat.NodeId (int)` in S0105 spec — reconcile before implementing | CGF-1-BATCH-03 |
-| Full `dotnet test IOS-IG-SimHost.sln` may still flake from non-CGF assemblies sharing domain 0 | Broader isolation initiative |
+| Full `dotnet test HROT.sln` may still flake from non-CGF assemblies sharing domain 0 | Broader isolation initiative |
 
 ---
 

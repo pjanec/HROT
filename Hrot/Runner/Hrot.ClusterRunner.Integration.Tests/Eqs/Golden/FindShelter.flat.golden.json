@@ -1,0 +1,80 @@
+{
+  "Name": "FindShelter",
+  "BlueprintId": 120482086,
+  "Count": 9,
+  "Rows": [
+    {
+      "EntityId": 0,
+      "PositionX": 5,
+      "PositionY": 0,
+      "Score": 0.8,
+      "Flags": 0,
+      "FlagsMeaningful": 0
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 5,
+      "PositionY": 5,
+      "Score": 0.71715724,
+      "Flags": 0,
+      "FlagsMeaningful": 0
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 10,
+      "PositionY": 0,
+      "Score": 0.6,
+      "Flags": 0,
+      "FlagsMeaningful": 0
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 5,
+      "PositionY": 10,
+      "Score": 0.5527864,
+      "Flags": 0,
+      "FlagsMeaningful": 0
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 10,
+      "PositionY": 5,
+      "Score": 0.5527864,
+      "Flags": 0,
+      "FlagsMeaningful": 0
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 10,
+      "PositionY": 10,
+      "Score": 0.43431455,
+      "Flags": 0,
+      "FlagsMeaningful": 0
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 15,
+      "PositionY": 0,
+      "Score": 0.39999998,
+      "Flags": 0,
+      "FlagsMeaningful": 0
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 15,
+      "PositionY": 5,
+      "Score": 0.36754447,
+      "Flags": 0,
+      "FlagsMeaningful": 0
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 15,
+      "PositionY": 10,
+      "Score": 0.27888978,
+      "Flags": 0,
+      "FlagsMeaningful": 0
+    }
+  ],
+  "MaxAbsPositionZ": 0
+}

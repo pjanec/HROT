@@ -22,8 +22,8 @@ namespace Hrot.DDS.DataModel.Tests
         public async Task SubsystemStatusAnnounce_PubSub_RoundTrip()
         {
             using var participant = new DdsParticipant(DomainRoundTrip);
-            using var writer      = new DdsWriter<SubsystemStatusAnnounce>(participant, "SubsystemStatusAnnounce");
-            using var reader      = new DdsReader<SubsystemStatusAnnounce>(participant, "SubsystemStatusAnnounce");
+            using var writer      = new DdsWriter<SubsystemStatusAnnounce>(participant);
+            using var reader      = new DdsReader<SubsystemStatusAnnounce>(participant);
 
             // Allow discovery
             await Task.Delay(500);
@@ -78,13 +78,13 @@ namespace Hrot.DDS.DataModel.Tests
         {
             // A writer publishes BEFORE the reader is created
             using var writerParticipant = new DdsParticipant(DomainLateJoiner);
-            using var earlyWriter       = new DdsWriter<SubsystemStatusAnnounce>(writerParticipant, "SubsystemStatusAnnounce");
+            using var earlyWriter       = new DdsWriter<SubsystemStatusAnnounce>(writerParticipant);
 
             const int earlyNodeId = 200;
             earlyWriter.Write(new SubsystemStatusAnnounce
             {
                 NodeId        = earlyNodeId,
-                SubsystemName = "IG",
+                SubsystemName = "Player",
                 DomainId      = (int)DomainLateJoiner,
                 Ready         = false,
                 Timestamp     = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
@@ -95,7 +95,7 @@ namespace Hrot.DDS.DataModel.Tests
 
             // Late-joining reader subscribes AFTER write
             using var readerParticipant = new DdsParticipant(DomainLateJoiner);
-            using var lateReader        = new DdsReader<SubsystemStatusAnnounce>(readerParticipant, "SubsystemStatusAnnounce");
+            using var lateReader        = new DdsReader<SubsystemStatusAnnounce>(readerParticipant);
 
             // TransientLocal: late reader should receive the cached sample
             await Task.Delay(500);
@@ -114,7 +114,7 @@ namespace Hrot.DDS.DataModel.Tests
                     {
                         if (loan[i].NodeId == earlyNodeId)
                         {
-                            Assert.Equal("IG", loan[i].SubsystemName);
+                            Assert.Equal("Player", loan[i].SubsystemName);
                             found = true;
                             break;
                         }

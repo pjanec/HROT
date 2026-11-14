@@ -4,6 +4,7 @@ using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.MuscleCharacter.Animation.Components;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Animation.Replication.Translators.Descriptors;
 
@@ -12,14 +13,13 @@ namespace Hrot.Animation.Replication.Translators.Descriptors;
 /// and updates the Muscle ghost's <see cref="StanceIntent"/> component.
 /// All fields are Brain-authored so the full component is replaced.
 /// </summary>
-internal sealed class StanceIntentIngressTranslator : INetworkTranslator
+internal sealed class StanceIntentIngressTranslator : INetworkTranslator, IDiscardableIngress
 {
-    private const string TopicNameConst = "hrot/anim/StanceIntent";
 
     private readonly DdsReader<DdsStanceIntent>? _reader;
     private readonly NetworkEntityMap _entityMap;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DdsStanceIntent>();
     public TranslatorDirection Direction => TranslatorDirection.Ingress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -28,10 +28,13 @@ internal sealed class StanceIntentIngressTranslator : INetworkTranslator
         DdsParticipant participant, NetworkEntityMap entityMap)
     {
         _reader = participant is not null
-            ? new DdsReader<DdsStanceIntent>(participant, TopicNameConst)
+            ? new DdsReader<DdsStanceIntent>(participant)
             : null;
         _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
     }
+
+    /// <inheritdoc />
+    public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
     {

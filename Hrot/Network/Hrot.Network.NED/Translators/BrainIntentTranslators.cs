@@ -1,0 +1,231 @@
+using System;
+using System.Collections.Generic;
+using System.Text.Json;
+using CycloneDDS.Runtime;
+using Fdp.Core;
+using Fdp.Core.Serialization;
+using Fdp.Interfaces;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Services;
+using Hrot.Map.Common.Dds;
+using Hrot.NED.Descriptors;
+using Hrot.NED.Messages;
+
+namespace Hrot.Network.Translators
+{
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-3048</c> — the Brain owner publishes what its unit runs.</b> 📄 <c>docs/DESIGN_Sensors_And_Doctrine.md</c> §7.7.
+    /// <para>For every unit whose <see cref="EDescriptorType.dtBrainIntent"/> this node owns: when the slots' SIGNATURE moved
+    /// (task, SOP, ROE — unmanaged reads only, every frame), it reads the intent with <see cref="BrainIntentReader"/> in the
+    /// <see cref="BrainIntentScope.Running"/> scope and writes it when the JSON differs from the last one sent. ⭐ On the
+    /// <c>EntityMission</c> precedent (CE-483 W2): every writer of the slots is covered without remembering a MarkDirty.</para>
+    /// </summary>
+    public sealed class BrainIntentEgressTranslator : IDescriptorTranslator
+    {
+        // ⭐ CE-2407 (DESIGN_Egress_Change_Detection §5, E1) — skips the entities none of these inputs changed for; NetworkIdentity is implied
+        private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(BehaviorState), typeof(SopState), typeof(Roe));
+
+
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the instances it deletes on a destruction, a wipe or (as an
+        //   unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityBrainIntent> _instances;
+        private readonly BehaviorRegistry _registry;
+        private readonly Dictionary<int, Signature> _lastSignature = new();
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityBrainIntent>();
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtBrainIntent;
+        public long   ReceivedSampleCount { get; private set; }
+        public long   SentSampleCount     { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
+
+        /// <summary>Production constructor — creates a live DDS writer.</summary>
+        public BrainIntentEgressTranslator(DdsParticipant participant, BehaviorRegistry registry)
+            : this(new DdsWriterAdapter<EntityBrainIntent>(participant), registry)
+        {
+        }
+
+        /// <summary>Testable constructor — accepts an injected writer.</summary>
+        internal BrainIntentEgressTranslator(IDdsWriter<EntityBrainIntent> writer, BehaviorRegistry registry)
+        {
+            if (writer is null) throw new ArgumentNullException(nameof(writer));
+            _instances = new(s => writer.Write(s), s => writer.DisposeInstance(s), s => writer.UnregisterInstance(s),
+                static key => new EntityBrainIntent { EntityId = (int)key, IntentJson = string.Empty });
+            _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+        }
+
+        /// <inheritdoc/>
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
+
+        /// <inheritdoc/>
+        public void ScanAndPublish(ISimulationView view)
+        {
+            if (_instances.OnFrame(view)) _lastSignature.Clear();   // CE-2101 — the next world resends; CE-4007 (§8.3): what this writer published is deleted
+            if (view is not EntityRepository repo) return;
+            long key = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            var query = view.Query().DefaultRoutePublishable().With<BehaviorState>().WithLifecycle(EntityLifecycle.AllButTearDown).Build();
+            _gate.Begin(view);
+            foreach (var entity in query)
+            {
+                if (!_gate.Visit(entity)) continue;   // ⭐ CE-2407 E1 — nothing this translator reads has changed since its last scan
+                if (!view.HasAuthority(entity, key)) continue;
+                int netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
+
+                var signature = Signature.Of(repo, entity);
+                if (_lastSignature.TryGetValue(netId, out var last) && last.Equals(signature)) continue;
+                _lastSignature[netId] = signature;
+
+                var intent = BrainIntentReader.Read(repo, entity, _registry, BrainIntentScope.Running);
+                string json = JsonSerializer.Serialize(intent, FdpJsonOptionsRegistry.DefaultRelaxed);
+                if (_instances.TryGetLast(netId, out var sent) && sent.IntentJson == json) continue;
+
+                _instances.Write(netId, new EntityBrainIntent { EntityId = netId, IntentJson = json });
+                SentSampleCount++;
+            }
+        }
+
+        /// <inheritdoc/>
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
+
+        /// <summary>The unit is gone: forget it and end its durable instance, so a late joiner is not handed a dead unit.</summary>
+        public void Dispose(int networkEntityId)
+        {
+            _lastSignature.Remove(networkEntityId);
+            _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the one delete path
+        }
+
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
+        public void ReleaseInstance(int networkEntityId, long instanceId)
+        {
+            _lastSignature.Remove(networkEntityId);
+            _instances.Release(networkEntityId);
+        }
+
+        /// <summary>What the published intent depends on, as plain values — cheap to compare every frame.</summary>
+        internal readonly record struct Signature(
+            int Hash, uint Instance, BehaviorOrigin Origin,
+            int SopHash, uint SopInstance, BehaviorOrigin SopOrigin,
+            RoeFire Fire, RoeReactions Reactions, BehaviorOrigin RoeSetBy, float RoeReturnFireWindow, RoeForceLevel RoeForceLevel)
+        {
+            public static Signature Of(EntityRepository repo, Entity entity)
+            {
+                var state = repo.GetComponentRO<BehaviorState>(entity);
+                var sop = repo.IsComponentTypeRegistered<SopState>() && repo.HasComponent<SopState>(entity)
+                    ? repo.GetComponentRO<SopState>(entity) : default;
+                var roe = repo.IsComponentTypeRegistered<Roe>() && repo.HasComponent<Roe>(entity)
+                    ? repo.GetComponentRO<Roe>(entity) : default;
+                return new Signature(state.ActiveBehaviorHash, state.InstanceId, state.Origin,
+                                     sop.SopHash, sop.SopInstanceId, sop.SopOrigin, roe.Fire, roe.Reactions, roe.SetBy,
+                                     roe.ReturnFireWindowSeconds,   // CE-2095: a changed window re-publishes
+                                     roe.ForceLevel);               // CE-2239 part 1: and a changed force level
+            }
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-3048</c> — every other Brain node keeps the last published intent</b> as <see cref="ReplicatedBrainIntent"/>,
+    /// for <c>BrainHandOverSystem</c> to start if this node gains the Brain. 📄 <c>docs/DESIGN_Sensors_And_Doctrine.md</c> §7.7.
+    /// <para>Skips its own samples (the recorded owner of <see cref="EDescriptorType.dtBrainIntent"/> — the F-5 rule, as
+    /// <c>EntityMissionIngressTranslator</c>). A sample for a unit not yet known here is HELD and applied when the unit
+    /// appears: the sample is durable but delivered once. A writer that goes away (a failover) does NOT clear the replica
+    /// — that is exactly when it is needed.</para>
+    /// </summary>
+    public sealed class BrainIntentIngressTranslator : IDescriptorTranslator, IDiscardableIngress
+    {
+        private readonly DdsReader<EntityBrainIntent>? _reader;
+        private readonly NetworkEntityMap _entityMap;
+        private readonly Dictionary<int, string> _held = new();
+        private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityBrainIntent>();
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtBrainIntent;
+        public long   ReceivedSampleCount { get; private set; }
+        public long   SentSampleCount     { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
+
+        /// <summary>Production constructor. A <c>null</c> participant makes <see cref="PollIngress"/> read nothing (tests).</summary>
+        public BrainIntentIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
+        {
+            _reader    = participant is not null ? new DdsReader<EntityBrainIntent>(participant) : null;
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+        }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
+
+        /// <inheritdoc/>
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _held.Clear();   // CE-2101 — held for the last world
+            if (_reader is not null)
+            {
+                using var loan = _reader.Take();
+                foreach (var sample in loan)
+                {
+                    if (!sample.IsValid) continue;            // a dispose or a writer gone: keep what we hold
+                    var data = sample.Data;
+                    ReceivedSampleCount++;
+                    _held[data.EntityId] = data.IntentJson ?? string.Empty;
+                }
+            }
+            Apply(cmd, view);
+        }
+
+        /// <summary>Holds one received sample (tests, and the reader above).</summary>
+        internal void Receive(in EntityBrainIntent sample) => _held[sample.EntityId] = sample.IntentJson ?? string.Empty;
+
+        /// <summary>Applies every held sample whose unit is known here.</summary>
+        internal void Apply(IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (_held.Count == 0 || view is not EntityRepository repo) return;
+            long key = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            List<long>? done = null;
+            foreach (var (netId, json) in _held)
+            {
+                if (!_entityMap.TryGetEntity(netId, out var entity) || !repo.IsAlive(entity)) continue;
+                (done ??= new List<long>()).Add(netId);
+                if (AuthorityExtensions.IsRecordedOwner(view, entity, key)) continue;   // our own sample came back
+
+                InitialBrainIntent? intent = null;
+                try { intent = JsonSerializer.Deserialize<InitialBrainIntent>(json, FdpJsonOptionsRegistry.DefaultRelaxed); }
+                catch (JsonException e)
+                {
+                    Fdp.Core.Logging.FdpLog<BrainIntentIngressTranslator>.Warn(
+                        "[BrainIntent] unit {0}: unreadable intent ({1}).", netId, e.Message);
+                }
+                if (intent == null) continue;
+
+                if (!repo.TryGetTable(typeof(ReplicatedBrainIntent), out _)) repo.RegisterManagedComponent<ReplicatedBrainIntent>();
+                cmd.SetManagedComponent(entity, new ReplicatedBrainIntent { Intent = intent });
+
+                // ⭐ CE-3251 (BR-13) — the unit's ROE follows its owner here too: a superior's ROE raised on this node went to the owner
+                //   (TacticalIntentRequest SetRoe) and comes back in the owner's intent; and a subordinate's brain on this node reads
+                //   its commander's ROE (CE-2289's chain walk) from this copy. RoeSystem never writes it (the replica's ROE is left to
+                //   the owner), so this is the one writer here.
+                if (intent.Roe is { } saved && repo.IsComponentTypeRegistered<Roe>())
+                {
+                    var roe = new Roe
+                    {
+                        Fire = saved.Fire, Reactions = saved.Reactions, SetBy = saved.SetBy,
+                        ReturnFireWindowSeconds = saved.ReturnFireWindowSeconds, ForceLevel = saved.ForceLevel,
+                    };
+                    if (repo.HasComponent<Roe>(entity)) cmd.SetComponent(entity, roe);
+                    else cmd.AddComponent(entity, roe);
+                }
+            }
+            if (done != null) foreach (int id in done) _held.Remove(id);
+        }
+
+        /// <inheritdoc/>
+        public void ScanAndPublish(ISimulationView view) { }
+
+        /// <inheritdoc/>
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
+
+        /// <inheritdoc/>
+        public void Dispose(int networkEntityId) => _held.Remove(networkEntityId);
+    }
+}

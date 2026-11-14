@@ -89,7 +89,7 @@ public sealed class PerspectiveToolbarSection
     /// </summary>
     public IReadOnlyList<PerspectiveRadioEntry> BuildRadioModel()
     {
-        var perspectives = _wm.GetPerspectives();
+        var perspectives = _wm.GetSelectablePerspectives();   // ⭐ CE-4096: Start is entered by the gate only
         var result = new List<PerspectiveRadioEntry>(perspectives.Count);
 
         foreach (var p in perspectives)

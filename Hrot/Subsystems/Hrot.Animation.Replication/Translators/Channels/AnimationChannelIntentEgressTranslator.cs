@@ -14,19 +14,19 @@ namespace Hrot.Animation.Replication.Translators.Channels;
 /// Egress translator: reads <see cref="AnimationChannel"/> from locally-owned entities
 /// and publishes DDS intent samples (Brain -> Muscle direction).
 /// Only publishes when <see cref="AnimationChannel.ActionInstanceId"/> changes.
-/// Does NOT replicate Muscle-authored fields (DispatchedInstanceId, Status, State).
+/// The Muscle's report is a separate component, <see cref="AnimationChannelStatus"/> (CE-513 / R-180).
 /// </summary>
 internal sealed class AnimationChannelIntentEgressTranslator : INetworkTranslator
 {
-    private const string TopicNameConst = "hrot/anim/intent/AnimationChannel";
 
     private readonly IAnimDdsWriter<DdsAnimationChannelIntent> _writer;
     private readonly NetworkEntityMap _entityMap;
     private readonly Dictionary<Entity, uint> _lastPublishedActionInstanceId = new();
     // Tracks the ActionParams blob per entity (4 x ulong covers the 32-byte fixed array).
     private readonly Dictionary<Entity, (ulong p0, ulong p1, ulong p2, ulong p3)> _lastPublishedActionParams = new();
+    private int _worldEpoch;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of(typeof(DdsAnimationChannelIntent).Namespace, new[] { nameof(DdsAnimationChannelIntent) });
     public TranslatorDirection Direction => TranslatorDirection.Egress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -39,7 +39,7 @@ internal sealed class AnimationChannelIntentEgressTranslator : INetworkTranslato
 
     internal AnimationChannelIntentEgressTranslator(
         DdsParticipant participant, NetworkEntityMap entityMap)
-        : this(new DdsLiveWriter<DdsAnimationChannelIntent>(participant, TopicNameConst), entityMap)
+        : this(new DdsLiveWriter<DdsAnimationChannelIntent>(participant), entityMap)
     {
     }
 
@@ -54,6 +54,8 @@ internal sealed class AnimationChannelIntentEgressTranslator : INetworkTranslato
 
     public unsafe void ScanAndPublish(ISimulationView view)
     {
+        // ⭐ R-3039 S3 — a world replacement (a load, a restore): forget what was published, so every owner republishes (R-3041).
+        if (WorldEpoch.Moved(view, ref _worldEpoch)) { _lastPublishedActionInstanceId.Clear(); _lastPublishedActionParams.Clear(); }
         var query = view.Query()
             .With<AnimationChannel>()
             .With<NetworkIdentity>()

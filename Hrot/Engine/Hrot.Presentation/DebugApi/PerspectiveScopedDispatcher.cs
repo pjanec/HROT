@@ -1,0 +1,380 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Fdp.Core;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Time.Controllers;
+using Hrot.UI.Common.Facades;
+
+namespace Hrot.Presentation.DebugApi;
+
+/// <summary>
+/// ⭐⭐⭐ <b>RESOLVES THE ACTIVE PERSPECTIVE TO THE SUBSYSTEM THAT OWNS IT, and issues reads/drives there.</b>
+/// 📄 <c>Architect_Question_54</c> Q54-2 *(Option B + C)* · <c>DESIGN_Perspective_Unification.md</c> §1b.
+///
+/// <para>🔒 <b>User, `2026-08-24`:</b> <i>"MCP in 'mode all' should work from the context of the currently
+/// selected perspective to be closest to how the user would control it."</i></para>
+///
+/// <para>⭐⭐⭐ <b>Issue where the user is, confirm where the truth is.</b> A step is issued through the ACTIVE
+/// perspective's own drive facade — on a slave that is <c>StepTimeIntent</c> → its bus → DDS → the master,
+/// exactly the path the operator's button takes. ⛔ But completion is read from the MASTER's
+/// <see cref="MasterSyncController.IsAwaitingStepAcks"/>, because that is the only place that knows the tick
+/// landed on every roster node. ⚠ Not a contradiction — two different questions.</para>
+///
+/// <para>⛔⛔ <b>PARTICIPATE ≠ OBSERVE</b> *(Q54)*. The roster that must ACK is <b>SimHost · IG · CGF</b> —
+/// the nodes with an ECS kernel and a frame to execute. ⭐ ExCon has no kernel, so it can never be a barrier
+/// participant; it does not need to be, because completion is OBSERVED on the master. ⛔ Adding a console to
+/// the roster would stall the cluster forever waiting on an ACK it cannot produce.</para>
+///
+/// <para>⭐ <b>In <c>--mode all</c> every user-selectable perspective is a SLAVE context</b> — 📐 the
+/// orchestrator has no perspective of its own *(both its windows are Global)*. ⇒ there is no
+/// "direct on master" case among selectable perspectives today; the per-provider seam is kept so a future
+/// master-owned perspective drops in without a special case.</para>
+/// </summary>
+public sealed class PerspectiveScopedDispatcher
+{
+    private readonly IReadOnlyList<ISubsystemDebugProvider> _providers;
+    private readonly Func<string> _currentPerspective;
+    private readonly Func<bool?>? _acksPending;
+    private readonly Func<string?>? _rememberedPerspective;
+
+    /// <param name="providers">One per contributing subsystem. ⚠ An empty list is legal — the manifest then honestly reports nothing routable.</param>
+    /// <param name="currentPerspective">
+    /// ⭐ Reads the LIVE perspective *(the window manager's)*, never a cached copy — 📌 <c>R-126</c>'s shape:
+    /// read the source, do not latch it.
+    /// </param>
+    /// <param name="acksPending">
+    /// ⭐⭐ <b>The ack-gate's live read: <see langword="null"/> ⇒ no master on this host, otherwise the master's
+    /// own "still awaiting step ACKs?".</b> 📄 <c>HN-028</c>. ⭐ A <see cref="Func{T}"/> of
+    /// <see cref="Nullable{Boolean}"/>, not a controller and not a latched value, for three measured reasons:
+    /// the master is created after the composition root and destroyed before it *(a captured reference lies —
+    /// 📌 exactly deviation ③ of the conformance batch)*; <see langword="null"/> makes ABSENCE assertable
+    /// *(charter `D3`/`D4`)*; and it withholds <c>Step</c>/<c>SetTimeScale</c>, which belong to the
+    /// perspective-scoped drive facade *(Q54-2)*, not to the gate.
+    /// ⛔ Pass <see langword="null"/> when this host has no orchestrator at all.
+    /// </param>
+    /// <param name="rememberedPerspective">
+    /// ⭐⭐⭐ <c>CE-4094</c> (AQ108 M7/D22) — the perspective the window manager REMEMBERED when the <c>Start</c> perspective was
+    /// entered (<c>WindowManager.RememberedPerspective</c>). While Start shows, every world/time/AI read routes there — the ONE
+    /// place the <c>Start</c> alias lives. Read LIVE through a delegate, like <paramref name="currentPerspective"/>, never a
+    /// copy. ⚠ <see langword="null"/> (the default) ⇒ no alias source: Start then routes to nothing, or to the single provider on a
+    /// one-provider host.
+    /// </param>
+    public PerspectiveScopedDispatcher(
+        IEnumerable<ISubsystemDebugProvider> providers,
+        Func<string> currentPerspective,
+        Func<bool?>? acksPending,
+        Func<string?>? rememberedPerspective = null)
+    {
+        _rememberedPerspective = rememberedPerspective;
+        _providers = (providers ?? throw new ArgumentNullException(nameof(providers)))
+                     .Where(p => p != null).ToList();
+        _currentPerspective = currentPerspective ?? throw new ArgumentNullException(nameof(currentPerspective));
+        _acksPending = acksPending;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>MD-002</c> — EVERY provider, not just the active one.</b>
+    /// <para>⛔⛔ Deliberately not <see cref="Active"/>: architecture diagnostics are the one read where
+    /// "the perspective the user is looking at" is the WRONG scope. 📐 A <c>--mode all</c> node runs
+    /// SimHost, IG, CGF and the orchestrator side by side, each with its own <c>ModuleHostKernel</c> —
+    /// and an operator asking *"what is this NODE running?"* means all of them. ⚠ Every other read here
+    /// is perspective-scoped precisely because it answers a different question.</para>
+    /// </summary>
+    public IReadOnlyList<ISubsystemDebugProvider> AllProviders => _providers;
+
+    /// <summary>⭐ The perspectives this dispatcher can route to, for the manifest and for diagnostics.</summary>
+    public IReadOnlyList<string> RoutablePerspectives =>
+        _providers.Select(p => p.Perspective).OrderBy(p => p, StringComparer.Ordinal).ToList();
+
+    /// <summary>
+    /// ⭐ The live perspective name, as the window manager reports it — or, on a process with exactly ONE provider whose
+    /// perspective no window claims, that provider's.
+    /// <para>📌 Measured 2026-10-17: a headless traffic node has a window manager but no windows, so its perspective stayed
+    /// "Default", matched no provider, and every world read answered NOT_SUPPORTED_HERE — the node could not be observed over
+    /// HTTP at all. ⭐ With one provider there is no "wrong node" to answer for (the reason <see cref="Active"/> never falls back
+    /// to the first of SEVERAL), so it is the only honest answer.</para>
+    /// <para>⭐⭐ <c>CE-4094</c> — <b><c>Start</c> is reported AS <c>Start</c></b> (never renamed to a provider's perspective), so
+    /// <c>/status</c> and <c>GET /perspectives</c> agree; where reads GO is <see cref="RoutedTo"/>.</para>
+    /// </summary>
+    public string CurrentPerspective
+    {
+        get
+        {
+            string current = _currentPerspective();
+            return IsStart(current) ? current : OrSoleProvider(current);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4094</c> — <b>the perspective every read resolves through</b>: the current one, except that <c>Start</c> routes to
+    /// the window manager's REMEMBERED perspective (the one leaving Start restores). The single-provider fallback applies to the
+    /// routed name, so a one-provider host stays readable while Start shows.
+    /// </summary>
+    public string RoutedTo
+    {
+        get
+        {
+            string current = _currentPerspective();
+            return OrSoleProvider(IsStart(current) ? _rememberedPerspective?.Invoke() ?? string.Empty : current);
+        }
+    }
+
+    private static bool IsStart(string perspective)
+        => string.Equals(perspective, Fdp.Presentation.WindowManager.WindowManager.StartPerspectiveName, StringComparison.Ordinal);
+
+    /// <remarks>
+    /// ⭐⭐ <c>CE-1474</c> — and on a process whose providers hold exactly ONE world between them, that world's provider: 📌 the headless
+    /// fused server (<c>-m server</c>: Orchestrator + CGF, no window manager ⇒ perspective <c>""</c>) answered <c>POST /sim/play</c> with
+    /// NOT_SUPPORTED_HERE and <c>/status</c> with no <c>simTime</c>. The orchestrator holds no world, so there is still no "wrong node" to
+    /// answer for, and time routes to CGF's <c>ClusterTimeTransportAdapter</c> — the same transport the editor and the cluster drive.
+    /// ⛔ Two world-holding providers (<c>-m all</c>) still resolve to none.
+    /// </remarks>
+    private string OrSoleProvider(string name)
+    {
+        if (Resolve(name) is not null) return name;
+        if (_providers.Count == 1) return _providers[0].Perspective;
+        ISubsystemDebugProvider? only = null;
+        for (int i = 0; i < _providers.Count; i++)
+        {
+            if (_providers[i].World is null) continue;
+            if (only is not null) return name;
+            only = _providers[i];
+        }
+        return only?.Perspective ?? name;
+    }
+
+    /// <summary>
+    /// ⭐⭐ The provider owning the active perspective, or <see langword="null"/> when nothing claims it.
+    /// <para>⚠ <see langword="null"/> is a real answer: in <c>--mode all</c> the startup perspective may be
+    /// one whose subsystem contributes no surface. ⛔ The caller reports <c>NOT_SUPPORTED_HERE</c>; it does
+    /// not silently fall back to "the first provider", which would answer for the wrong node.</para>
+    /// <para>⭐ <c>CE-4094</c> — while <c>Start</c> shows this is the REMEMBERED perspective's provider (<see cref="RoutedTo"/>).</para>
+    /// </summary>
+    public ISubsystemDebugProvider? Active()
+        => Resolve(RoutedTo);
+
+    /// <summary>⭐ The provider for a NAMED perspective — <c>Q54-2</c>'s optional <c>?perspective=</c> override.</summary>
+    public ISubsystemDebugProvider? Resolve(string? perspective)
+        => perspective is null
+            ? null
+            : _providers.FirstOrDefault(p => string.Equals(p.Perspective, perspective, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The ack-gate's truth, read on the MASTER.</b> ⛔ <see langword="false"/> when this host has no
+    /// master: nothing here can be confirmed cluster-wide, and answering <see langword="true"/> forever would
+    /// hang every step.
+    /// </summary>
+    public bool IsAwaitingStepAcks => _acksPending?.Invoke() ?? false;
+
+    /// <summary>
+    /// ⭐ True when a master is present, so the manifest can say whether a step is confirmable here.
+    /// ⚠ Evaluated LIVE — the master exists only between the orchestrator's <c>Initialize</c> and
+    /// <c>Shutdown</c>, so this is a question with a different answer at different times, not a constant.
+    /// </summary>
+    public bool HasMaster => _acksPending?.Invoke() is not null;
+
+    // ── the read/drive surface, per active perspective ────────────────────────
+
+    /// <summary>⭐ The active perspective's world, or <see langword="null"/> ⇒ <c>NOT_SUPPORTED_HERE</c>.</summary>
+    public EntityRepository? World => Active()?.World;
+
+    /// <summary>⭐ The active perspective's entity map, or <see langword="null"/>.</summary>
+    public NetworkEntityMap? EntityMap => Active()?.EntityMap;
+
+    /// <summary>⭐ CE-276 — the active perspective node's descriptor↔component ownership map, or
+    /// <see langword="null"/> (no NED transport ⇒ the ownership endpoints answer 503). Perspective-scoped
+    /// because ownership is a per-node fact.</summary>
+    public Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap? DescriptorMap => Active()?.DescriptorMap;
+
+    /// <summary>⭐⭐ CE-276 — publish a TransferEntityOwnershipRequest onto the active perspective node's bus,
+    /// or <see langword="null"/> when that node has no NED transport. Perspective-scoped (NOT any-node): the
+    /// entity and its ownership live on the node whose world this dispatcher reads.</summary>
+    public Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>? RequestOwnershipTransfer
+        => Active()?.RequestOwnershipTransfer;
+
+    /// <summary>
+    /// ⭐ The ACTIVE perspective's own extraction service, or <see langword="null"/> when that subsystem
+    /// has none. ⛔ <c>CE-171</c>: consumers must PREFER this over building their own — a self-built one
+    /// has no <c>ScenarioSerializer</c> and therefore no translator pipeline.
+    /// </summary>
+    public Fdp.Toolkit.Diagnostics.IEntityStateExtractionService? Extraction => Active()?.Extraction;
+
+    /// <summary>⭐ The active perspective's drive facade, or <see langword="null"/>.</summary>
+    public ITimeTransportFacade? Drive => Active()?.Drive;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-487</c> — the active perspective's MAP FEED</b>, or <see langword="null"/> ⇒
+    /// <c>NOT_SUPPORTED_HERE(panels.gizmo)</c>.
+    /// 📄 <c>DESIGN_Subsystem_Composition_Unification.md</c> §5.6.
+    ///
+    /// <para>⛔⛔ <b>Perspective-scoped, NOT a single latched buffer</b> — 📐 <c>--mode all</c> runs CGF
+    /// <b>and</b> IG <b>and</b> SimHost, each drawing its own map into its own
+    /// <c>DebugPrimitiveBuffer</c>. ⚠ A host-wide buffer would answer for whichever subsystem happened to be
+    /// constructed first, which is the *"a value-captured provider LIES"* shape
+    /// *(<c>ClusterRunner/Program.cs:399</c>)* one level up.</para>
+    ///
+    /// <para>⭐ <see langword="null"/> on ExCon, which draws no gizmos — declared absent, not empty
+    /// *(ruling 49)*.</para>
+    /// </summary>
+    public Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? GizmoBuffer => Active()?.GizmoBuffer;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-066</c> — the active perspective's MISSION EDITOR</b>, or <see langword="null"/> ⇒
+    /// <c>NOT_SUPPORTED_HERE(mission.edit)</c>. 📄 §5.9.
+    /// <para>⭐ Perspective-scoped for the same reason the feed above is: a mission plan belongs to an
+    /// entity in a specific node's world, so committing one through another node's editor would write to
+    /// the wrong world. ⛔ Measured: only CGF builds one among the cluster subsystems.</para>
+    /// </summary>
+    public Hrot.UI.Common.Facades.IMissionEditorService? MissionEditor => Active()?.MissionEditor;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-110</c> — the active perspective's TKB CATALOG</b>, or <see langword="null"/> ⇒
+    /// <c>NOT_SUPPORTED_HERE(tkb.read)</c>. 📄 §5.10.
+    /// <para>⭐⭐ Perspective-scoped, and here that is not a precaution but a REQUIREMENT: each node loads
+    /// its own scenario-specific TKB from its own staging area *(<c>TkbLoadClusterStateHandler</c>)*, so a
+    /// host-wide catalog would report one node's templates as every node's.</para>
+    /// <para>⛔ Before this member the cluster service held a <b>private empty</b> <c>TkbDatabase</c> and
+    /// <c>/tkb/types</c> answered <c>[]</c> — ⚠ an instrument reporting ABSENT where the truth is PRESENT,
+    /// which cost a wrong root-cause hypothesis for <c>CE-103</c>.</para>
+    /// </summary>
+    public Fdp.Interfaces.ITkbDatabase? TkbDb => Active()?.TkbDb;
+
+    /// <summary>
+    /// ⭐⭐ <b>The cluster's state, from whichever node tracks it</b> — the readiness gate for
+    /// <c>scenario/load/*</c>. <see langword="null"/> when no node here does.
+    ///
+    /// <para>⚠⚠ <b>This is the ONE member that deliberately falls back past the active perspective</b>, and the
+    /// reason is not convenience: ⭐ <b>there is one cluster and one cluster state.</b> A node's
+    /// <c>ClusterUiCache</c> is a CACHE OF A GLOBAL FACT, not that node's own data — so reading it from
+    /// whichever node keeps one answers the same question. ⛔ Contrast <see cref="World"/>: falling back there
+    /// would answer about the WRONG NODE, which is exactly what Q54-2 forbids. 📌 Measured: in
+    /// <c>--mode all</c> only ExCon builds a cache, so without this fallback a load from the <c>Scenario</c> or
+    /// <c>SimHost</c> perspective could never observe its own completion.</para>
+    /// </summary>
+    public Fdp.Toolkit.Orchestration.ClusterState? ClusterStateAnyNode
+        => Active()?.ClusterState
+           ?? _providers.Select(p => p.ClusterState).FirstOrDefault(s => s is not null);
+
+    /// <summary>⭐ <c>MD-007</c> — the last dump's outcome from whichever node caches it; same one-cluster-one-fact rationale as <see cref="ClusterStateAnyNode"/>.</summary>
+    public DiagnosticDumpStatus? DumpStatusAnyNode
+        => Active()?.DumpStatus
+           ?? _providers.Select(p => p.DumpStatus).FirstOrDefault(s => s is not null);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4002</c> — the master's roster from whichever subsystem hosts the <c>ClusterMaster</c>. ⭐ One cluster,
+    /// one roster — the same one-cluster-one-fact rationale as <see cref="ClusterStateAnyNode"/>; ⚠ but unlike the state
+    /// cache, only the MASTER holds it, so a host with no master answers <see langword="null"/>.
+    /// </summary>
+    public IReadOnlyList<ClusterRosterEntry>? ClusterRosterAnyNode
+        => Active()?.ClusterRoster
+           ?? _providers.Select(p => p.ClusterRoster).FirstOrDefault(r => r is not null);
+
+    /// <summary>⭐⭐ <c>CE-4087</c> — the master's load-gate text (waiting for a role / the refusal) from whichever subsystem hosts the master.</summary>
+    public string? ClusterLoadNoticeAnyNode
+        => Active()?.ClusterLoadNotice
+           ?? _providers.Select(p => p.ClusterLoadNotice).FirstOrDefault(n => n is not null);
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>R-3052</c>…<c>R-3055</c> — <b>the cluster master, from whichever node can reach it.</b> ⭐ Every node's bus reaches the ONE
+    /// master (directly on the host that holds it, through <c>ClusterOpEgressTranslator</c> elsewhere), so which node asks does not
+    /// matter — the active perspective is preferred so a request travels the path that operator's own button takes.
+    /// </summary>
+    public IClusterMasterControl? MasterAnyNode
+        => Active()?.Master
+           ?? _providers.Select(p => p.Master).FirstOrDefault(m => m is not null);
+
+    /// <summary>⭐ <c>R-3055</c> — the master's exercise inventory from whichever node caches it (one cluster, one inventory).</summary>
+    public IReadOnlyList<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>? ExercisesAnyNode
+        => Active()?.Exercises
+           ?? _providers.Select(p => p.Exercises).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ <c>CE-1265</c>/<c>CE-1266</c> — the ACTIVE node's own replay recording. ⛔ No fallback: a journal is in the recording of
+    /// the node that runs the brain, so another node's file would answer about the wrong node (Q54-2).</summary>
+    public string? ReplayRecordingPath => Active()?.ReplayRecordingPath;
+
+    /// <summary>⭐ RB-3 — the active provider's Replay Browser seam. ⛔ No fallback: only the standalone Replay Browser has one, and it is the
+    /// only provider in its process (R-4080).</summary>
+    public IReplayBrowserControl? ReplayBrowser => Active()?.ReplayBrowser;
+
+    /// <summary>⭐ RB-2 — the ACTIVE node's replay position (its own recording). ⛔ No fallback, as <see cref="ReplayRecordingPath"/>.</summary>
+    public ReplayPosition? ReplayPosition => Active()?.ReplayPosition;
+
+    /// <summary>⭐ RB-5 — the ACTIVE provider's event history. ⛔ No fallback: another node's events would answer about the wrong world.</summary>
+    public Fdp.Core.Diagnostics.IDiagnosticEventHistoryService? EventHistory => Active()?.EventHistory;
+
+    /// <summary>⭐ RB-6 — the ACTIVE provider's timeline index. ⛔ No fallback: an index describes one node's recording.</summary>
+    public TimelineAccess? Timeline => Active()?.Timeline;
+
+    /// <summary>⭐ <c>R-3055</c> — the loaded replay's length from whichever node caches it.</summary>
+    /// <summary>⭐ CE-3329 R-3058 — the replay session's axis from the active node, else any node that keeps a read model.</summary>
+    public Fdp.Toolkit.Orchestration.ReplayAxis? ReplayAxisAnyNode
+        => Active()?.ReplayAxis ?? _providers.Select(p => p.ReplayAxis).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ CE-4090 (AQ108 D14) — the master's "this run was not recorded" from the active node, else any node that keeps a cluster
+    /// read model: one cluster, one fact (as <see cref="ClusterStateAnyNode"/>). <see langword="null"/> when no node here tracks it.</summary>
+    /// <summary>⭐ CE-4090 — the cluster's <i>Record live runs</i> setting is OFF, from the active node else any node (one cluster, one fact).</summary>
+    public bool? RecordLiveRunsOffAnyNode
+        => Active()?.RecordLiveRunsOff ?? _providers.Select(p => p.RecordLiveRunsOff).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> setting is ON, from the active node else any node (one cluster, one fact).</summary>
+    public bool? AskToKeepRecordingsAnyNode
+        => Active()?.AskToKeepRecordings ?? _providers.Select(p => p.AskToKeepRecordings).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting is ON, from the active node else any node (one cluster, one fact).</summary>
+    public bool? StartLiveImmediatelyAnyNode
+        => Active()?.StartLiveImmediately ?? _providers.Select(p => p.StartLiveImmediately).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ CE-4099 phase 2 — the cluster's <i>Autosave</i> interval in minutes, from the active node else any node (one cluster, one fact).</summary>
+    public int? AutosaveMinutesAnyNode
+        => Active()?.AutosaveMinutes ?? _providers.Select(p => p.AutosaveMinutes).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ CE-3341 (R-3068) — the cluster's armed run mode from the active node else any node (one cluster, one fact).</summary>
+    public Fdp.Toolkit.Orchestration.ClusterArmedMode? ArmedModeAnyNode
+        => Active()?.ArmedMode ?? _providers.Select(p => p.ArmedMode).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐⭐ CE-3344 (R-3069) — the cluster read model from the active node, else any node that keeps one (one cluster, one fact, as <see cref="ClusterStateAnyNode"/>): what the HTTP cluster routes' 409 gate reads.
+    /// <see langword="null"/> when no node here keeps one.</summary>
+    public Fdp.Toolkit.Orchestration.ClusterView? ClusterViewAnyNode
+        => Active()?.ClusterView ?? _providers.Select(p => p.ClusterView).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ CE-1451 — the run choice of the active node, else any node that has one (independent of the time drive).</summary>
+    public Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceAnyNode
+        => Active()?.RunChoice ?? _providers.Select(p => p.RunChoice).FirstOrDefault(x => x is not null);
+
+    public bool? RunNotRecordedAnyNode
+        => Active()?.RunNotRecorded ?? _providers.Select(p => p.RunNotRecorded).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ CE-4093 — how check round <paramref name="requestId"/> ended, from the active node, else any node that keeps a cluster read model
+    /// (the master's answer reaches every host: one cluster, one fact). <see langword="null"/> while it has not.</summary>
+    public Fdp.Toolkit.Orchestration.UnsavedCheckOutcome? UnsavedCheckAnyNode(Guid requestId)
+        => Active()?.UnsavedCheck(requestId) ?? _providers.Select(p => p.UnsavedCheck(requestId)).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ CE-4093 — the last check round's verdict (<see langword="null"/> = none ran), from the active node, else any node that keeps a read model.</summary>
+    /// <summary>⭐ CE-4093 — some node here keeps the read model that sees check-round answers.</summary>
+    public bool ObservesUnsavedChecksAnyNode => _providers.Any(p => p.ObservesUnsavedChecks);
+
+    public bool? ScenarioDirtyAnyNode
+        => Active()?.ScenarioDirty ?? _providers.Select(p => p.ScenarioDirty).FirstOrDefault(x => x is not null);
+
+    public float? ReplayDurationAnyNode
+        => Active()?.ReplayDurationSeconds
+           ?? _providers.Select(p => p.ReplayDurationSeconds).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ Scenario inventory from whichever node caches it — same rationale as <see cref="ClusterStateAnyNode"/>.</summary>
+    public IReadOnlyList<string>? AvailableScenariosAnyNode
+        => Active()?.AvailableScenarios
+           ?? _providers.Select(p => p.AvailableScenarios).FirstOrDefault(s => s is not null);
+
+    /// <summary>
+    /// ⭐⭐ <b>The measured availability matrix — <c>(perspective × capability) → present</c>.</b>
+    /// 📄 Q54 § Manifest scope. ⛔ Every cell comes from a provider's own wired-dependency check; nothing
+    /// here is authored.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, bool>> Matrix()
+        => _providers.ToDictionary(
+            p => p.Perspective,
+            p => p.DescribeCapabilities(),
+            StringComparer.Ordinal);
+}

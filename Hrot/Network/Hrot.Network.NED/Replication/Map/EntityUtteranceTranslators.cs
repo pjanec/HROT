@@ -1,0 +1,127 @@
+using System;
+using System.Collections.Generic;
+using Hrot.NED.Descriptors;
+using CycloneDDS.Runtime;
+using Fdp.Core;
+using Fdp.Interfaces;
+using Fdp.Toolkit.Civilians;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.ModuleHost.Abstractions;
+
+namespace Hrot.Map.Common.Replication.Egress
+{
+    /// <summary>
+    /// ⭐ <c>CE-3264</c> (G1, SP-3; docs/DESIGN_Civilians_And_Crowd_Control.md §7.18) — publishes what a man is SAYING (<see cref="Utterance"/>:
+    /// the kind, whom, until when) from the node owning its <c>dtUtterance</c> (the brain owner), on change, with the target as a NETWORK
+    /// id (0 = everyone around; a local entity would mean nothing elsewhere — the <c>LookState</c> G7 lesson).
+    /// </summary>
+    public sealed class EntityUtteranceEgressTranslator : IDescriptorTranslator
+    {
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityUtterance> _instances;
+
+        private static readonly int[] s_targetIds = { GlobalComponentIds.Utterance };
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityUtterance>();
+        public long DescriptorOrdinal => (long)EDescriptorType.dtUtterance;
+        public IReadOnlyList<int> TargetComponentIds => s_targetIds;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
+
+        private readonly NetworkEntityMap _entityMap;
+
+        public EntityUtteranceEgressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
+        {
+            _instances = new(participant is not null ? new DdsWriter<EntityUtterance>(participant) : null, static key => new EntityUtterance { EntityId = (int)key });
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+        }
+
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
+
+        public void ScanAndPublish(ISimulationView view)
+        {
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+            if (view is EntityRepository r && !r.IsComponentTypeRegistered<Utterance>()) return;
+            long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            foreach (var unit in view.Query().With<Utterance>().DefaultRoutePublishable().Build())
+            {
+                if (!view.HasAuthority(unit, packedKey)) continue;
+                int netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
+                ref readonly var said = ref view.GetComponentRO<Utterance>(unit);
+                int targetId = !said.Target.IsNull && _entityMap.TryGetNetworkId(said.Target, out int tid) ? tid : 0;
+                var sample = ToSample(netId, said, targetId);
+                if (_instances.Unchanged(netId, sample)) continue;
+                _instances.Write(netId, sample);
+                SentSampleCount++;
+            }
+        }
+
+        /// <summary>The wire form (the test seam).</summary>
+        internal static EntityUtterance ToSample(int netId, in Utterance c, int targetId)
+            => new() { EntityId = netId, Kind = (byte)c.Kind, TargetId = targetId, Until = c.Until };
+
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
+
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
+    }
+}
+
+namespace Hrot.Map.Common.Replication.Ingress
+{
+    /// <summary>⭐ <c>CE-3264</c> — applies a man's published <see cref="Utterance"/> on this node, the target back to this node's entity (ui
+    /// draws it; the target's brain reads a command addressed to him). An unknown unit is dropped; the recorded owner never takes its own
+    /// sample back.</summary>
+    public sealed class EntityUtteranceIngressTranslator : IDescriptorTranslator, IDiscardableIngress
+    {
+        private const long OrdinalValue = (long)EDescriptorType.dtUtterance;
+        private readonly DdsReader<EntityUtterance>? _reader;
+        private readonly NetworkEntityMap _entityMap;
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityUtterance>();
+        public long DescriptorOrdinal => OrdinalValue;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
+        public long DroppedSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
+
+        public EntityUtteranceIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
+        {
+            _reader = participant is not null ? new DdsReader<EntityUtterance>(participant) : null;
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+        }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
+
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (_reader is null) return;
+            using var loan = _reader.Take();
+            foreach (var sample in loan)
+            {
+                if (!sample.IsValid || sample.Info.InstanceState != DdsInstanceState.Alive) continue;
+                ReceivedSampleCount++;
+                Apply(sample.Data, cmd, view);
+            }
+        }
+
+        /// <summary>Applies one sample (the test seam).</summary>
+        internal void Apply(in EntityUtterance d, IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (!_entityMap.TryGetEntity(d.EntityId, out var unit) || !view.IsAlive(unit)) { DroppedSampleCount++; return; }
+            if (view is EntityRepository repo
+                && AuthorityExtensions.IsRecordedOwner(repo, unit, OwnershipExtensions.PackKey(OrdinalValue, 0))) return;
+            cmd.AddComponent(unit, new Utterance { Kind = (UtteranceKind)d.Kind, Target = d.TargetId != 0 && _entityMap.TryGetEntity(d.TargetId, out var t) ? t : Entity.Null, Until = (SimInstant)d.Until });
+        }
+
+        public void ScanAndPublish(ISimulationView view) { }
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
+        public void Dispose(int networkEntityId) { }
+    }
+}

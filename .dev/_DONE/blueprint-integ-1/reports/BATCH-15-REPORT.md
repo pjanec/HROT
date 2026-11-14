@@ -97,7 +97,7 @@ New tests:
 | `EditorSubsystemBoot` filter | **10 / 0** |
 
 ### Full solution build
-`dotnet build IOS-IG-SimHost.sln` → **Build succeeded. 0 Warning(s). 0 Error(s).** (GizmoMap.Contracts 0.2.2 untouched; Hrot.IG/DDS untouched.)
+`dotnet build HROT.sln` → **Build succeeded. 0 Warning(s). 0 Error(s).** (GizmoMap.Contracts 0.2.2 untouched; Hrot.IG/DDS untouched.)
 
 ## Developer Insights
 

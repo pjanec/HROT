@@ -31,6 +31,43 @@ namespace CarKinem.Trajectory
             bool looped = false,
             TrajectoryInterpolation interpolation = TrajectoryInterpolation.Linear,
             Vector2[]? tangents = null)
+            => Register(null, positions, speeds, looped, interpolation, tangents);
+
+        /// <summary>
+        /// ⭐ <c>R-3039</c> S2 (docs/DESIGN_System_State_Inventory.md §7b/§7d) — registers a trajectory under an id THIS pool issued before
+        /// (<see cref="RegisterTrajectory(Vector3[], float[], bool, TrajectoryInterpolation, Vector2[])"/>), replacing whatever is there: the
+        /// re-derive after a world was put back, when a restored component still names the id. Later ids are issued past it, so a new
+        /// trajectory can never take an id a restored vehicle is driving. ⛔ Not for caller-keyed handles (<see cref="RegisterTrajectoryWithKey(Vector3[], int, byte[])"/>):
+        /// those live in their own range and must not lift this pool's counter into it.
+        /// </summary>
+        public void RegisterTrajectoryAt(
+            int id,
+            Vector3[] positions,
+            float[]? speeds = null,
+            bool looped = false,
+            TrajectoryInterpolation interpolation = TrajectoryInterpolation.Linear,
+            Vector2[]? tangents = null)
+        {
+            if (id <= 0) throw new ArgumentOutOfRangeException(nameof(id), "a pool-issued id is positive");
+            Register(id, positions, speeds, looped, interpolation, tangents);
+        }
+
+        /// <summary>
+        /// ⭐ <c>R-3039</c> S2 (§7d) — the next id this pool issues is above <paramref name="id"/>: after a world was put back, no new
+        /// trajectory may take an id a restored component still names (the <c>CrowdSystem._nextId</c> rule: derived, never stored).
+        /// </summary>
+        public void EnsureIdsAbove(int id)
+        {
+            lock (_lock) { if (id >= _nextId) _nextId = id + 1; }
+        }
+
+        private int Register(
+            int? at,
+            Vector3[] positions,
+            float[]? speeds,
+            bool looped,
+            TrajectoryInterpolation interpolation,
+            Vector2[]? tangents)
         {
             if (positions == null || positions.Length < 2)
                 throw new ArgumentException("Trajectory must have at least 2 waypoints", nameof(positions));
@@ -46,7 +83,14 @@ namespace CarKinem.Trajectory
 
             lock (_lock)
             {
-                int id = _nextId++;
+                int id;
+                if (at is { } given)
+                {
+                    id = given;
+                    if (_trajectories.TryGetValue(id, out var existing) && existing.Waypoints.IsCreated) existing.Waypoints.Dispose();
+                    if (id >= _nextId) _nextId = id + 1;
+                }
+                else id = _nextId++;
 
                 // Project to XY for all arc-length / spline-curvature math (§0.2): the carried Z
                 // (positions[i].Z) is stored on the waypoint but never feeds curvature or heading.
@@ -136,7 +180,8 @@ namespace CarKinem.Trajectory
         public void RegisterTrajectoryWithKey(Vector2[] positions, int key)
             => RegisterTrajectoryWithKey(Lift(positions), key);
 
-        public void RegisterTrajectoryWithKey(Vector3[] positions, int key)
+        /// <param name="traversals">⭐ 5d-3 — per waypoint, how it is passed (<c>TraversalKind</c> as a byte); null = all Walk.</param>
+        public void RegisterTrajectoryWithKey(Vector3[] positions, int key, byte[]? traversals = null)
         {
             if (positions == null || positions.Length < 2)
                 throw new ArgumentException("Trajectory must have at least 2 waypoints", nameof(positions));
@@ -165,6 +210,7 @@ namespace CarKinem.Trajectory
                         Tangent            = GetTangent(posXY, null, i, TrajectoryInterpolation.Linear),
                         DesiredSpeed       = 10.0f,
                         CumulativeDistance = cumulativeDistance,
+                        Traversal          = traversals != null && i < traversals.Length ? traversals[i] : (byte)0,
                     };
                 }
 
@@ -259,7 +305,12 @@ namespace CarKinem.Trajectory
                         Vector2 t1 = waypoints[i].Tangent;
 
                         Vector2 xy = EvaluateHermite(t, a, t0, b, t1);
-                        tangent = Vector2.Normalize(EvaluateHermiteTangent(t, a, t0, b, t1));
+                        // ⭐ CE-4462 (found by the overnight threaded build) — a ZERO curve tangent (a Catmull-Rom path whose first two
+                        //   waypoints coincide — a path starting at the vehicle's own position — has t0 = 0, and at t = 0 the curve's
+                        //   tangent IS t0) was normalised into NaN: the vehicle's speed and position went NaN on its first step and every
+                        //   passenger inherited it. The linear branch above always guarded this; the curve falls back to the chord, then +X.
+                        tangent = CarKinem.Core.VectorMath.SafeNormalize(EvaluateHermiteTangent(t, a, t0, b, t1),
+                                      CarKinem.Core.VectorMath.SafeNormalize(b - a, new Vector2(1, 0)));
                         speed = waypoints[i - 1].DesiredSpeed +
                                 (waypoints[i].DesiredSpeed - waypoints[i - 1].DesiredSpeed) * t;
                         pos = new Vector3(xy.X, xy.Y, zLerp);
@@ -271,13 +322,25 @@ namespace CarKinem.Trajectory
 
             // End of trajectory (or exactly at end)
             var lastWp = waypoints[waypoints.Length - 1];
-            Vector2 lastTangent = waypoints.Length > 1
-                ? Vector2.Normalize(
-                    new Vector2(lastWp.Position.X, lastWp.Position.Y)
-                    - new Vector2(waypoints[waypoints.Length - 2].Position.X, waypoints[waypoints.Length - 2].Position.Y))
-                : new Vector2(1, 0);
+            return (lastWp.Position, EndTangent(waypoints), lastWp.DesiredSpeed);
+        }
 
-            return (lastWp.Position, lastTangent, lastWp.DesiredSpeed);
+        /// <summary>
+        /// The direction a trajectory ends in: its last segment of non-zero length, or +X when it has none (one waypoint, or
+        /// every point coincident). ⭐ CE-3128 — a move to where the unit stands is two coincident points, and normalising that
+        /// zero segment put NaN into the unit's position.
+        /// </summary>
+        public static Vector2 EndTangent(NativeArray<TrajectoryWaypoint> waypoints)
+        {
+            if (waypoints.Length == 0) return new Vector2(1, 0);
+            var last = waypoints[waypoints.Length - 1].Position;
+            for (int i = waypoints.Length - 2; i >= 0; i--)
+            {
+                var p = waypoints[i].Position;
+                var d = new Vector2(last.X - p.X, last.Y - p.Y);
+                if (d.LengthSquared() > 1e-6f) return Vector2.Normalize(d);
+            }
+            return new Vector2(1, 0);
         }
 
         /// <summary>Projects an array of Sim (Z-up) positions to their XY (ground-plane) components.</summary>

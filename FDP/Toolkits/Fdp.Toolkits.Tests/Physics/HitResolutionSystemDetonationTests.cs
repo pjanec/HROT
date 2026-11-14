@@ -98,6 +98,69 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(0f, det.HitZ, precision: 4);
         }
 
+        // ── ⭐ Buildings §3d P2 (R-217): the walls crossed BEFORE the struck unit, on this segment ─────────────
+
+        /// <summary>A wooden fence (0.05 m, 3 mm RHA) at x = 5 on the segment (0,0,1.6) → (10,0,1.6). A unit struck at x = 4 (before it)
+        /// takes the round as it left the muzzle; one struck at x = 8 (beyond it) takes what got through: rifle 5 mm vs 3 mm passes
+        /// with chance 1 (full damage) but arrives with 2 mm; a 2.6 mm round passes with chance 0.17 ⇒ 17 % of its damage.</summary>
+        [Theory]
+        [InlineData(0.4f, 5f,   5f,   25f)]     // before the fence
+        [InlineData(0.8f, 5f,   2f,   25f)]     // beyond: chance 1, penetration − 3
+        [InlineData(0.8f, 2.6f, 1e-3f, 4.1667f)]  // beyond: 2.6/3 = 0.867 ⇒ chance (0.867 − 0.8)/0.4 = 0.1667 ⇒ 25 × 0.1667; spent, not unknown
+        public void R217_AStruckUnit_TakesTheRoundAsItArrived_FencesBeforeItCount_FencesBehindItDoNot(float t, float pen, float expectPen, float expectDamage)
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            _world.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("""
+            { "type": "FeatureCollection", "features": [
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2 }, "geometry": { "type": "LineString", "coordinates": [[5,-5],[5,5]] } } ] }
+            """));
+            var bullet = _world.CreateEntity();
+            _world.AddComponent(bullet, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Damage = 25f, Penetration = pen });
+            var unit = _world.CreateEntity();
+            _world.Bus.Publish(new RaycastResultEvent { Hit = new RaycastHit
+            {
+                HasHit = 1, RayId = PhysicsConstants.PackBulletRayId(bullet.Index), HitEntity = unit,
+                Start = new Vector3(0, 0, 1.6f), End = new Vector3(10, 0, 1.6f), T = t,
+            } });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+            var det = Assert.Single(_world.Bus.Read<DetonationNotification>().ToArray());
+            Assert.Equal(expectPen, det.Penetration, 3);
+            Assert.Equal(expectDamage, det.Damage, 2);
+        }
+
+        // ── ⭐ M1 (DESIGN_Armour_Hit_Model §3): the way the round was travelling rides on the detonation ─────────────
+
+        /// <summary>
+        /// ⭐ M1 — a hit carries the round's TRAVEL: the swept segment (straight, or an arc's descending last segment), and for a
+        /// zero-length first segment the line from the muzzle. All three 0 means "unknown" to the damage step.
+        /// </summary>
+        [Theory]
+        [InlineData(0f, 0f, 1.6f,   10f, 0f, 1.6f,   10f, 0f, 0f)]      // a straight round
+        [InlineData(0f, 0f, 20f,    3f, 0f, 16f,     3f, 0f, -4f)]      // an arc's last segment, descending
+        [InlineData(5f, 0f, 1.6f,   5f, 0f, 1.6f,    5f, 0f, -0.4f)]    // zero-length: from the muzzle (0,0,2) to the hit (5,0,1.6)
+        public void M1_HitResolution_CarriesTheTravelDirection(float sx, float sy, float sz, float ex, float ey, float ez, float tx, float ty, float tz)
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            var bullet = _world.CreateEntity();
+            _world.AddComponent(bullet, new Fdp.Toolkit.Combat.Components.BallisticProjectile
+                { Damage = 25f, Penetration = 5f, Muzzle = new Vector3(0, 0, 2f), TerrainFlags = 1 });
+            var unit = _world.CreateEntity();
+            _world.Bus.Publish(new RaycastResultEvent { Hit = new RaycastHit
+            {
+                HasHit = 1, RayId = PhysicsConstants.PackBulletRayId(bullet.Index), HitEntity = unit,
+                Start = new Vector3(sx, sy, sz), End = new Vector3(ex, ey, ez), T = 0.5f,
+            } });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+            var det = Assert.Single(_world.Bus.Read<DetonationNotification>().ToArray());
+            Assert.Equal(tx, det.TravelX, 3);
+            Assert.Equal(ty, det.TravelY, 3);
+            Assert.Equal(tz, det.TravelZ, 3);
+        }
+
         // ── SC-2: LOS hit → no DetonationNotification ────────────────────────
 
         /// <summary>
@@ -172,5 +235,96 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(hitEntity,     detonations[0].Target);
             Assert.Equal(shooterEntity, detonations[0].Shooter);
         }
-    }
+
+        /// <summary>
+        /// ⭐ <c>CE-3071</c> — the detonation carries the BULLET's munition (the fired mount's penetration and damage), so the
+        /// damage step knows what struck. A bullet with no numbers reaches it as an unknown munition (0, 0 here — no bullet).
+        /// </summary>
+        [Fact]
+        public void CE3071_ABulletHit_CarriesTheBulletsMunition_IntoTheDetonation()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            var hitEntity = _world.CreateEntity();
+            var shooter   = _world.CreateEntity();
+            var bullet    = _world.CreateEntity();
+            _world.AddComponent(bullet, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = shooter, Damage = 1100, Penetration = 600 });
+
+            _world.Bus.Publish(new RaycastResultEvent
+            {
+                Hit = new RaycastHit
+                {
+                    HasHit = 1, RayId = PhysicsConstants.PackBulletRayId(bullet.Index), HitEntity = hitEntity,
+                    IgnoreEntity = shooter, Start = Vector3.Zero, End = new Vector3(10, 0, 0), T = 0.5f,
+                }
+            });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+
+            var det = Assert.Single(_world.Bus.Read<DetonationNotification>().ToArray());
+            Assert.Equal(600f,  det.Penetration);
+            Assert.Equal(1100f, det.Damage);
+        }
+    
+        // ── ⭐⭐ CE-2204 — a round hits ONCE, and a late result never lands on the round that took its slot ─────────────────────────
+
+        private void Result(long rayId, Entity hitEntity, Entity shooter)
+            => _world.Bus.Publish(new RaycastResultEvent { Hit = new RaycastHit
+            {
+                HasHit = 1, RayId = rayId, HitEntity = hitEntity, IgnoreEntity = shooter, Start = Vector3.Zero, End = new Vector3(10, 0, 0), T = 0.5f,
+            } });
+
+        private DetonationNotification[] Resolve()
+        {
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            ((EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+            return _world.Bus.Read<DetonationNotification>().ToArray();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2204</c> — a rifle round's late raycast result (its round already spent and destroyed) resolves AFTER a tank's new HE
+        /// round took the rifle round's entity slot: it must be dropped — never a hit by the HE round, with the HE round's numbers, on the
+        /// tank that fired it. 🔴 Red before: the RayId carried the index only, so the result resolved against the HE round (live
+        /// ua-tank-ammo: "the tank hit its own hull").
+        /// </summary>
+        [Fact]
+        public void CE2204_ALateResult_ForADeadRound_NeverLandsOnTheRoundThatTookItsSlot()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            var tank = _world.CreateEntity();
+            var rifleman = _world.CreateEntity();
+            var rifleRound = _world.CreateEntity();
+            _world.AddComponent(rifleRound, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = rifleman, Damage = 25, Penetration = 5 });
+            long rayId = PhysicsConstants.PackBulletRayId(rifleRound);
+            _world.DestroyEntity(rifleRound);
+            var he = _world.CreateEntity();
+            Assert.Equal(rifleRound.Index, he.Index);   // the slot is reused (the condition the live run hit)
+            _world.AddComponent(he, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = tank, Damage = 600, Penetration = 50 });
+
+            Result(rayId, tank, rifleman);
+            Assert.Empty(Resolve());
+            Assert.Equal(EntityLifecycle.Active, _world.GetLifecycleState(he));   // the HE round flies on
+        }
+
+        /// <summary>⭐ <c>CE-2204</c> — two segments of one round crossing the same body (they often do) resolve as ONE hit, in the same
+        /// frame and in the next (the round torn down by the first).</summary>
+        [Fact]
+        public void CE2204_ARound_HitsOnce_ThoughTwoOfItsSegmentsCrossTheBody()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            var target = _world.CreateEntity();
+            var shooter = _world.CreateEntity();
+            var round = _world.CreateEntity();
+            _world.AddComponent(round, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = shooter, Damage = 25, Penetration = 5 });
+            long rayId = PhysicsConstants.PackBulletRayId(round);
+            Result(rayId, target, shooter);
+            Result(rayId, target, shooter);
+            Assert.Single(Resolve());
+            Result(rayId, target, shooter);   // the next frame: the round is torn down
+            Assert.Empty(Resolve());
+        }
 }
+}
+

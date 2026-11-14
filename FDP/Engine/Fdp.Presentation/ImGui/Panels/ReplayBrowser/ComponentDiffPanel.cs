@@ -1,15 +1,40 @@
 using System;
+using NodeEditor.Core.Widgets;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Icons;
 using Fdp.Presentation.Utils.ReplayBrowser;
 using Fdp.Toolkit.ReplayBrowser.Diff;
 using ImGuiNET;
 
 namespace Fdp.Presentation.Panels.ReplayBrowser;
+
+/// <summary>⭐ One visible diff row, flattened (not a tree — the tree structure is ImGui-only
+/// nesting/indent, not information the model needs to duplicate). A group row has null
+/// Old/NewValue; a leaf row carries both.</summary>
+public sealed record ComponentDiffRowViewModel(string Name, bool IsGroup, string? OldValue, string? NewValue, string? ValueTypeKind);
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="ComponentDiffPanel"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example. ⭐ Built from
+/// <see cref="ComponentDiffPanel.CollectVisibleNodes"/> — the SAME filter <see cref="DrawContent(System.Collections.Generic.IReadOnlyList{Fdp.Toolkit.ReplayBrowser.Diff.DiffNode})"/>
+/// walks, already exposed as a testable helper before this conversion.
+/// </summary>
+public sealed record ComponentDiffPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    bool IgnoreEpsilon,
+    bool HideUnchanged,
+    IReadOnlyList<ComponentDiffRowViewModel> Rows) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Renders a hierarchical diff tree showing per-field changes between two consecutive
@@ -24,8 +49,20 @@ public sealed class ComponentDiffPanel
     private string _typeFilter = string.Empty;
 
     /// <summary>Current diff list displayed by <see cref="DrawContent()"/>.</summary>
-    public IReadOnlyList<DiffNode> CurrentDiffs { get; set; }
-        = Array.Empty<DiffNode>();
+    public IReadOnlyList<DiffNode> CurrentDiffs
+    {
+        get => _currentDiffs;
+        set { _currentDiffs = value; _labels.Clear(); }
+    }
+    private IReadOnlyList<DiffNode> _currentDiffs = Array.Empty<DiffNode>();
+
+    /// <summary>⭐ R-2 / V2 — each row's tree label (<c>name##hash</c>) built ONCE per diff, not per frame: a steady frame draws 0 B.</summary>
+    private readonly Dictionary<DiffNode, string> _labels = new(ReferenceEqualityComparer.Instance);
+    private string LabelOf(DiffNode n)
+    {
+        if (!_labels.TryGetValue(n, out var label)) _labels[n] = label = $"{n.Name}##{n.GetHashCode()}";
+        return label;
+    }
 
     /// <summary>
     /// Fired when the user clicks an entity-handle button inside the diff tree.
@@ -50,6 +87,20 @@ public sealed class ComponentDiffPanel
     internal static bool IsSeekToChangeEnabled(bool isSearching, bool isMerged)
         => !isSearching && !isMerged;
 
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure, flattened projection of the visible diff rows. No ImGui.
+    /// ⭐ Reuses <see cref="CollectVisibleNodes"/>, exactly the set <see cref="DrawContent(System.Collections.Generic.IReadOnlyList{Fdp.Toolkit.ReplayBrowser.Diff.DiffNode})"/>
+    /// visits.</summary>
+    public ComponentDiffPanelViewModel BuildViewModel(string panelId, string panelKind)
+    {
+        var visible = CollectVisibleNodes(CurrentDiffs, _hideUnchanged);
+        var rows = visible.Select(n => n is DiffValue v
+            ? new ComponentDiffRowViewModel(v.Name, false, v.OldValue, v.NewValue, v.ValueType.ToString())
+            : new ComponentDiffRowViewModel(n.Name, true, null, null, null))
+            .ToList();
+        return new ComponentDiffPanelViewModel(panelId, panelKind, _ignoreEpsilon, _hideUnchanged, rows);
+    }
+
     // ── Draw entry point ──────────────────────────────────────────────────
 
     public void DrawContent()
@@ -58,14 +109,31 @@ public sealed class ComponentDiffPanel
     /// <summary>
     /// Renders <paramref name="diffs"/> using the current filter settings.
     /// </summary>
-    public void DrawContent(IReadOnlyList<DiffNode> diffs)
-    {
-        Gui.Checkbox("Ignore Epsilon (< 0.001)", ref _ignoreEpsilon);
-        Gui.SameLine();
-        Gui.Checkbox("Hide Unchanged", ref _hideUnchanged);
+    private static readonly string[] DiffLabels = { "Ignore Epsilon (< 0.001)", "Hide Unchanged", "Compressed size", "Seek to change" };
 
-        Gui.SameLine();
-        if (Gui.Button("Filter"))
+    /// <summary>⭐ B-7 part 3 — whether a recording is loaded (the host binds the timeline panel's); drives the meta row below.</summary>
+    public Func<bool>? HasRecording { get; set; }
+
+    /// <summary>⭐ R-2 / V2 (docs/UX/DESIGN_Review_Perspective.md §4) — when the host returns text, the panel draws only that (<i>"Open an exercise recording (AAR) to diff frames"</i>). Null / returning null ⇒ as ever.</summary>
+    public Func<string?>? UnavailableReason { get; set; }
+
+    /// <summary>
+    /// ⭐ B-7 part 3 (R-4155) — the per-frame debug row that used to sit empty in the retired Replay Timeline window (<c>Tick · SimFrame · SimTime · FrameType · CompressedSize</c>;
+    /// still a placeholder: the values are not read from the recording yet). It belongs with the frame diff, which is per-frame debug.
+    /// </summary>
+    private void DrawMetaRows()
+    {
+        bool rec = HasRecording?.Invoke() ?? false;
+        FormGrid.Row("Tick");             Gui.TextDisabled("-");
+        FormGrid.Row("Sim frame");        Gui.TextDisabled("-");
+        FormGrid.Row("Sim time");         Gui.TextDisabled("-");
+        FormGrid.Row(rec ? "Frame type" : "Type"); Gui.TextDisabled("-");
+        FormGrid.Row(rec ? "Compressed size" : "Size"); Gui.TextDisabled("-");
+    }
+
+    private void DrawTypeFilter()
+    {
+        if (Gui.Button("Filter…"))
             Gui.OpenPopup("##diff_filter_popup");
 
         if (Gui.BeginPopup("##diff_filter_popup"))
@@ -107,10 +175,10 @@ public sealed class ComponentDiffPanel
         if (!Gui.IsPopupOpen("##diff_filter_popup"))
             _typeFilter = string.Empty;
 
-        bool isMerged = IsMergedViewQuery?.Invoke() ?? false;
-        bool prevNextEnabled = !IsSearching && !isMerged;
+    }
 
-        Gui.SameLine();
+    private void DrawSeekButtons(bool isMerged, bool prevNextEnabled)
+    {
         TransportIconRenderer.DrawButton("##prev_change", 20f, TransportShape.StepBack, prevNextEnabled, out _, out bool prevClicked);
         if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
         {
@@ -132,6 +200,26 @@ public sealed class ComponentDiffPanel
         if (nextClicked && prevNextEnabled)
             OnSeekToChangeRequested?.Invoke(1);
 
+    }
+
+    public void DrawContent(IReadOnlyList<DiffNode> diffs)
+    {
+        if (UnavailableReason?.Invoke() is { } unavailable) { Gui.TextDisabled(unavailable); return; }
+        bool isMerged = IsMergedViewQuery?.Invoke() ?? false;
+        bool prevNextEnabled = !IsSearching && !isMerged;
+        // ⭐ CE-4289 ⑧ — label-first like every form (E17 §3): the per-frame meta, the options, the component filter and the seek-to-change buttons are ROWS of one grid (label | control)
+        if (FormGrid.Begin("diff.options", DiffLabels))
+        {
+            DrawMetaRows();
+            FormGrid.Row("Ignore Epsilon (< 0.001)"); Gui.Checkbox("##ignoreepsilon", ref _ignoreEpsilon);
+            FormGrid.Row("Hide Unchanged");           Gui.Checkbox("##hideunchanged", ref _hideUnchanged);
+            FormGrid.Row("Components");
+            DrawTypeFilter();
+            FormGrid.Row("Seek to change");
+            DrawSeekButtons(isMerged, prevNextEnabled);
+            FormGrid.End();
+        }
+
         Gui.Separator();
 
         if (diffs.Count == 0)
@@ -152,8 +240,8 @@ public sealed class ComponentDiffPanel
         Gui.TableSetupColumn("Value Transition", ImGuiTableColumnFlags.WidthStretch);
         Gui.TableHeadersRow();
 
-        foreach (var root in diffs)
-            DrawDiffNode(root);
+        for (int i = 0; i < diffs.Count; i++)   // ⭐ R-2 / V2 — indexed: a foreach over the interface boxes its enumerator (a steady frame draws 0 B)
+            DrawDiffNode(diffs[i]);
 
         Gui.EndTable();
     }
@@ -172,20 +260,21 @@ public sealed class ComponentDiffPanel
         if (node is DiffObject group)
         {
             bool isOpen = Gui.TreeNodeEx(
-                $"{group.Name}##{group.GetHashCode()}",
+                LabelOf(group),
                 ImGuiTreeNodeFlags.DefaultOpen | ImGuiTreeNodeFlags.SpanAvailWidth);
 
             if (isOpen)
             {
-                foreach (var child in group.Children)
-                    DrawDiffNode(child);
+                var children = group.Children;
+                for (int i = 0; i < children.Count; i++)
+                    DrawDiffNode(children[i]);
                 Gui.TreePop();
             }
         }
         else if (node is DiffValue val)
         {
             Gui.TreeNodeEx(
-                $"{val.Name}##{val.GetHashCode()}",
+                LabelOf(val),
                 ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen | ImGuiTreeNodeFlags.SpanAvailWidth);
 
             Gui.TableSetColumnIndex(1);

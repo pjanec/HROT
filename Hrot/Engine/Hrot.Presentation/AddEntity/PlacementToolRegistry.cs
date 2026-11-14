@@ -1,0 +1,141 @@
+using System.Text.Json;
+using Hrot.Core.Mission;
+using Hrot.Map.Common;
+using Hrot.UI.Common.Facades;
+using Fdp.Core.Serialization;
+using Fdp.Core;
+
+namespace Hrot.UI.Common.AddEntity;
+
+/// <summary>Which placement tool a type's pick arms. 📄 docs/DESIGN_Add_Entity_Picker.md D4.</summary>
+public enum PlacementToolKind
+{
+    /// <summary>One click per entity (<c>EntityPlacementGizmo</c>) — every physical type.</summary>
+    Point,
+    /// <summary>A drawn polygon (<c>PointSequenceGizmo</c>, area style).</summary>
+    Area,
+    /// <summary>A drawn polyline.</summary>
+    Route,
+    /// <summary>A drawn polygon born as <c>TkbEntityTypes.TerrainZone</c>.</summary>
+    Zone,
+    /// <summary>Listed but not placeable yet (shown disabled with its reason).</summary>
+    None,
+}
+
+/// <summary>One map graphic the picker lists under <c>Map Graphics</c>: a type with no TKB master, so the
+/// registry supplies its name, its tool and why it may be disabled.</summary>
+/// <param name="IconName">The glyph the entity icon library draws for it (S5).</param>
+public sealed record MapGraphicInfo(TkbTypeId TkbType, string Name, PlacementToolKind Tool, string IconName, string? DisabledReason = null);
+
+/// <summary>
+/// ⭐ <c>CE-1017</c> S1 — the small table that says which placement tool a TKB type arms and whether it has a side.
+/// 📄 docs/DESIGN_Add_Entity_Picker.md D4/D6/D7.
+///
+/// <para>⭐ Keyed by TKB type in <c>Hrot.Presentation</c>, not a TKB field: tools are editor UI and the TKB is shared
+/// sim data (D4, rejected alternative). Every type not listed here is a physical entity ⇒ <see cref="PlacementToolKind.Point"/>
+/// with a side.</para>
+///
+/// <para>🔒 Every pick ARMS a tool — nothing is created directly (D4). <see cref="Arm"/> is the one place that maps a
+/// kind onto <see cref="ISpawnController"/>, shared by the map menu and the spawn panels.</para>
+/// </summary>
+public static class PlacementToolRegistry
+{
+    /// <summary>The side-less map graphics, in the order the picker lists them.</summary>
+    public static readonly IReadOnlyList<MapGraphicInfo> Graphics = new[]
+    {
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area),     "Area",         PlacementToolKind.Area,  "_area"),
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Route),    "Route",        PlacementToolKind.Route, "_route"),
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.TerrainZone),         "Terrain Zone", PlacementToolKind.Zone,  "_zone"),
+        // ⭐ CE-1161 (Weather and Time §7 E-4) — an area born as a Weather Region (8811); the arm gives it WeatherConditions.Standard.
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.WeatherRegion),       "Weather Region", PlacementToolKind.Area, "_area"),
+        // ⭐ CE-3235 (B-13, AW-8) — an area born as a Stone Source (8812): a man inside it picks stones up (ItemSources.Refill).
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.StoneSource),         "Stone Source", PlacementToolKind.Area, "_area"),
+        // ⭐ Player Join S2-b (D-11) — an area born as a Spawn Area (8814); the arm gives it SpawnArea { Friend, 0° }.
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.SpawnArea),           "Spawn Area",   PlacementToolKind.Area, "_area"),
+        // ⭐ Player Join S2-a (D-10) — a Deploy Role (8815): placed with the point tool, born with DeployRole (GameplayBirth); its position means nothing.
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.DeployRole),          "Deploy Role",  PlacementToolKind.Point, "_area"),
+        // ⭐ U-25 / S4 (DESIGN_Initial_State §3) — a named Point (8816): placed with the point tool, drawn by NamedPointGizmo; pickers resolve it to its position (PointLink, SR-130)
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.Point),               "Point",        PlacementToolKind.Point, "_area"),
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_FireLine), "Fire Line",    PlacementToolKind.None,  "_fireline",
+                           DisabledReason: "No placement tool yet."),
+    };
+
+    /// <summary>The tool a type arms: a listed graphic's own tool, else <see cref="PlacementToolKind.Point"/>.</summary>
+    public static PlacementToolKind ToolFor(long tkbType)
+    {
+        foreach (var g in Graphics)
+            if (g.TkbType == tkbType) return g.Tool;
+        return PlacementToolKind.Point;
+    }
+
+    /// <summary>True for a type placed with a side (Friendly/Hostile/Neutral); false for the map graphics.</summary>
+    public static bool HasSide(long tkbType)
+    {
+        foreach (var g in Graphics)
+            if (g.TkbType == tkbType) return false;
+        return true;
+    }
+
+    /// <summary>
+    /// Arms the type's tool on <paramref name="spawn"/>. <paramref name="side"/> is used only by a side-bearing type
+    /// (carried as <c>{"Affiliation": "FORCE_…"}</c>, the shape <c>SpawnerPanel</c> and the placement ghost read).
+    /// Returns false when the type has no tool (<see cref="PlacementToolKind.None"/>) — nothing is armed.
+    /// </summary>
+    public static bool Arm(ISpawnController spawn, long tkbType, eForceIdentifier side)
+    {
+        ArgumentNullException.ThrowIfNull(spawn);
+        switch (ToolFor(tkbType))
+        {
+            case PlacementToolKind.Point:
+                spawn.StartPlacementMode(tkbType, AffiliationJson(side));
+                return true;
+            case PlacementToolKind.Area:
+                if (tkbType == TkbEntityTypes.TacGraphic_Area) spawn.StartAreaAuthoringMode();
+                else spawn.StartAreaAuthoringMode(tkbType);   // ⭐ CE-1161 — an area born as its own type (a Weather Region)
+                return true;
+            case PlacementToolKind.Route:
+                spawn.StartRouteAuthoringMode();
+                return true;
+            case PlacementToolKind.Zone:
+                spawn.StartZoneAuthoringMode();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>The initial-properties JSON carrying a side.</summary>
+    /// <summary>
+    /// ⭐ CE-4210 MA-7 — arms the ordinary point tool for a macro FILE: the macro instance type (8813) with the macro's path riding in the placement JSON (<see cref="MacroBirth"/> reads it at the tool's commit, in the ONE
+    /// adapter every host's point commit passes, and gives the new entity its <c>MacroInstance</c>).
+    /// </summary>
+    public static bool ArmMacro(ISpawnController spawn, string macroPath, eForceIdentifier side)
+    {
+        ArgumentNullException.ThrowIfNull(spawn);
+        if (string.IsNullOrWhiteSpace(macroPath)) return false;
+        spawn.StartPlacementMode(TkbEntityTypes.ScenarioMacro, MacroBirth.PlacementJson(side, macroPath));
+        return true;
+    }
+
+    /// <summary>
+    /// ⭐ Terrain authoring U-2 — arms the ordinary point tool for a terrain block / house: the block (8817) or feature (8818) type with the pick's spec riding in the placement JSON
+    /// (<see cref="TerrainBirth"/> reads it at the tool's commit, in the ONE adapter every host's point commit passes, and gives the new entity its <c>TerrainBlock</c> / <c>TerrainFeature</c>).
+    /// </summary>
+    public static bool ArmTerrain(ISpawnController spawn, TerrainPick pick)
+    {
+        ArgumentNullException.ThrowIfNull(spawn);
+        ArgumentNullException.ThrowIfNull(pick);
+        if (pick.Disabled is not null) return false;   // ⛔ U-7 — a pick the engine cannot place yet arms nothing
+        // ⭐ U-7 — a LINE or AREA feature (a wall, a wood, a bridge) is DRAWN: the existing drawing tool (the area / route arm), its spec riding in the style JSON; a point feature, a block and a house are one click
+        if (pick.Kind == TerrainPickKind.Feature && pick.Shape != TerrainShape.Point)
+        {
+            spawn.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, TerrainBirth.PlacementJson(pick));
+            return true;
+        }
+        spawn.StartPlacementMode(pick.Kind == TerrainPickKind.Block ? TkbEntityTypes.TerrainBlock : TkbEntityTypes.TerrainFeature, TerrainBirth.PlacementJson(pick));
+        return true;
+    }
+
+    public static string AffiliationJson(eForceIdentifier side)
+        => JsonSerializer.Serialize(new { Affiliation = side.ToString() }, FdpJsonOptionsRegistry.DefaultRelaxed);
+}

@@ -32,7 +32,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { World = repo };
 
-            var result = CommanderNodes.Action_IssueTacticalIntent(ref p, ref state, ref ctx);
+            var result = CommanderNodes.Action_IssueTacticalIntent(ref p, ctx.Self, ctx.World);
 
             repo.Bus.SwapBuffers();
 
@@ -61,7 +61,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { World = repo };
 
-            var result = CommanderNodes.Action_IssueTacticalIntent(ref p, ref state, ref ctx);
+            var result = CommanderNodes.Action_IssueTacticalIntent(ref p, ctx.Self, ctx.World);
 
             repo.Bus.SwapBuffers();
 

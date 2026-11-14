@@ -1,0 +1,21 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — PlatoonAttack's decisions on FAKED reports: DEMO (16 units). Only Judge (1) is a state: the platoon runs PlatoonAttack and one squad SquadDefends first as the base of fire. Left out: (2)-(4), which the live check drives by faking Set / BuildingClear squad reports over HTTP (not components).",
+  "runFor": 30,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the platoon runs PlatoonAttack",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "PlatoonAttack",
+      "before": 15
+    },
+    {
+      "name": "one squad SquadDefends first, as the base of fire",
+      "on": "task",
+      "who": "*Blue Squad ",
+      "is": "SquadDefend",
+      "before": 20
+    }
+  ]
+}

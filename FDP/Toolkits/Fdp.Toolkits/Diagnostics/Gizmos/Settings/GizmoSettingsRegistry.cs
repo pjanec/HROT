@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using Fdp.Interfaces;
+using Fdp.Core.Serialization;
 
 namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
 {
@@ -23,6 +24,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
 
         public bool IsDirty => _isDirty;
 
+        /// <summary>⭐ CE-1480 G5 — moves on EVERY change of an active value (a write, a reset, a load, a registration): a gizmo whose picture reads a setting
+        /// declares it as its <c>GizmoInputs.Version</c> and is held until it moves.</summary>
+        public long Version { get; private set; }
+
         /// <summary>Optional cold-path notification; NOT called on the hot execute path.</summary>
         public event Action<uint>? OnSettingChanged;
 
@@ -37,7 +42,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
             _keyNames[hash] = keyName;
             if (!_active.ContainsKey(hash))
             {
-                _active[hash]   = defaultValue;
+                _active[hash]   = defaultValue; Version++;
                 _defaults[hash] = defaultValue;
             }
             else if (_defaults.TryGetValue(hash, out var existing) && existing != defaultValue)
@@ -56,7 +61,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
         /// </summary>
         public void Write(uint keyHash, GizmoSettingValue value, IEntityCommandBuffer? cmd = null, SettingScope scope = SettingScope.Global)
         {
-            _active[keyHash] = value;
+            _active[keyHash] = value; Version++;
             _scopes[keyHash] = scope;
             _isDirty = true;
             cmd?.PublishEvent(new GizmoSettingChangedEvent { KeyHash = keyHash });
@@ -71,7 +76,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
         public void ResetToDefault(uint keyHash)
         {
             if (_defaults.TryGetValue(keyHash, out var def))
-                _active[keyHash] = def;
+                _active[keyHash] = def; Version++;
             _isDirty = false;
         }
 
@@ -112,6 +117,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
         /// Settings with a different scope are excluded.
         /// </summary>
         public void SaveToDisk(string path, SettingScope scope = SettingScope.Global)
+            => File.WriteAllText(path, ToJson(scope));
+
+        /// <summary>CE-1441 - the <paramref name="scope"/>'s settings as the JSON <see cref="SaveToDisk"/> writes (so a host that owns the
+        /// file IO - the user-folder preferences - writes the same text).</summary>
+        public string ToJson(SettingScope scope = SettingScope.Global)
         {
             var records = new List<ScopeRecord>();
             foreach (var kv in _keyNames)
@@ -126,7 +136,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
                     value = FormatValue(active),
                 });
             }
-            File.WriteAllText(path, JsonSerializer.Serialize(records));
+            return JsonSerializer.Serialize(records, FdpJsonOptionsRegistry.DefaultRelaxed);
         }
 
         /// <summary>
@@ -135,7 +145,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
         public void LoadFromDisk(string path, SettingScope scope = SettingScope.Global)
         {
             if (!File.Exists(path)) return;
-            var records = JsonSerializer.Deserialize<List<ScopeRecord>>(File.ReadAllText(path));
+            LoadFromJson(File.ReadAllText(path), scope);
+        }
+
+        /// <summary>CE-1441 - <see cref="LoadFromDisk"/>'s body on text already read (see <see cref="ToJson"/>).</summary>
+        public void LoadFromJson(string json, SettingScope scope = SettingScope.Global)
+        {
+            var records = JsonSerializer.Deserialize<List<ScopeRecord>>(json, FdpJsonOptionsRegistry.DefaultRelaxed);
             if (records == null) return;
             foreach (var rec in records)
             {
@@ -168,12 +184,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
             _                   => string.Empty,
         };
 
+        // ⭐ CE-1203 — SaveToDisk writes SettingType.ToString(), i.e. "CsInt32" / "CsFloat32", which this switch did not know: every int
+        //   and float setting came back as default(GizmoSettingValue) (a family scope as 0, the navmesh choice as 0). Never seen because
+        //   nothing called SaveToDisk / LoadFromDisk until the map layers did. The short names stay readable.
         private static GizmoSettingValue ParseValue(string type, string value) => type switch
         {
-            "Bool"    => GizmoSettingValue.From(bool.Parse(value)),
-            "Int32"   => GizmoSettingValue.From(int.Parse(value, CultureInfo.InvariantCulture)),
-            "Float32" => GizmoSettingValue.From(float.Parse(value, CultureInfo.InvariantCulture)),
-            _         => default,
+            "Bool"                   => GizmoSettingValue.From(bool.Parse(value)),
+            "CsInt32"   or "Int32"   => GizmoSettingValue.From(int.Parse(value, CultureInfo.InvariantCulture)),
+            "CsFloat32" or "Float32" => GizmoSettingValue.From(float.Parse(value, CultureInfo.InvariantCulture)),
+            _                        => default,
         };
 
         private sealed class ScopeRecord

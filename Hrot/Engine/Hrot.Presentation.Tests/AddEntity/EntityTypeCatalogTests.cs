@@ -1,0 +1,776 @@
+using Fdp.Core;
+using Fdp.Presentation.Icons;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Interfaces;
+using Fdp.Toolkit.Tkb;
+using Fdp.Toolkit.Tkb.Domain;
+using Hrot.Core.Mission;
+using Hrot.Core.Tkb;
+using Hrot.Map.Common;
+using Hrot.Map.Definitions.Tkb;
+using Hrot.UI.Common.AddEntity;
+using Hrot.UI.Common.Facades;
+using Xunit;
+
+namespace Hrot.Presentation.Tests.AddEntity;
+
+/// <summary>
+/// ⭐ <c>CE-1017</c> S1 — the Add Entity catalog is BUILT FROM THE TKB and grouped by DIS name, and every pick arms
+/// the type's tool. 📄 docs/DESIGN_Add_Entity_Picker.md D2, D4, D6, D7.
+/// </summary>
+public sealed class EntityTypeCatalogTests
+{
+    private static TkbDatabase BuiltIn()
+    {
+        var db = new TkbDatabase();
+        NedTkbCatalog.RegisterAll(db);
+        UrbanCombatTkbCatalog.RegisterAll(db);
+        CivilianTkbCatalog.RegisterAll(db);   // ⭐ CE-3220 — part of the built-in set (HrotEnvironment.RegisterBuiltInTkb)
+        return db;
+    }
+
+    private static DISEntityType Dis(string text) { Assert.True(DISEntityType.TryParse(text, out var t)); return t; }
+
+    private static EntityTypeEntry Of(IReadOnlyList<EntityTypeEntry> c, long tkbType) => Assert.Single(c, e => e.TkbType == tkbType);
+
+    [Fact]
+    public void CE1017_APhysicalType_IsGroupedByItsNamedDisPath_WithItsIcon()
+    {
+        var c = EntityTypeCatalog.Build(BuiltIn());
+
+        var t72 = Of(c, TkbEntityTypes.Tank_T72);
+        Assert.Equal("T-72", t72.Name);
+        Assert.Equal("Platform/Land/Russia/Tank", t72.Category);
+        Assert.Equal("t72", t72.IconName);
+        Assert.Equal(PlacementToolKind.Point, t72.Tool);
+        Assert.True(t72.HasSide);
+        Assert.StartsWith("1.1.222.1.", t72.DisText);
+    }
+
+    [Fact]
+    public void CE1017_ACompositeUnit_IsListedUnderUnits()
+    {
+        var c = EntityTypeCatalog.Build(BuiltIn());
+
+        Assert.Equal("Units/Land/United States/Armor", Of(c, TkbEntityTypes.Unit_TankPlatoon).Category);   // ⭐ CE-2139: the units' DIS path
+        Assert.StartsWith(EntityTypeCatalog.UnitsFolder + "/", Of(c, TkbEntityTypes.Unit_InfantrySquad).Category);   // ExCon's ORBAT keys on it
+        Assert.Equal(EntityTypeCatalog.UnitsFolder, DisNameTable.Default.KindName(UnitDis.Kind));
+    }
+
+    [Fact]
+    public void CE1017_MapGraphics_ComeFromTheRegistry_OnceEach_SideLess_FireLineDisabled()
+    {
+        var c = EntityTypeCatalog.Build(BuiltIn());
+
+        // Area and Route ARE registered as templates (without a master) — still listed exactly once.
+        foreach (var g in PlacementToolRegistry.Graphics)
+        {
+            var e = Of(c, g.TkbType);
+            Assert.Equal(EntityTypeCatalog.MapGraphicsFolder, e.Category);
+            Assert.False(e.HasSide);
+            Assert.Equal(g.Tool, e.Tool);
+        }
+        Assert.False(Of(c, TkbEntityTypes.TacGraphic_FireLine).IsEnabled);
+        Assert.True(Of(c, TkbEntityTypes.TacGraphic_Area).IsEnabled);
+    }
+
+    [Fact]
+    public void CE1017_AHiddenType_AndAMasterlessTemplate_AreNotListed()
+    {
+        var db = new TkbDatabase();
+        var hidden = new TkbTemplate("Sensor Part", 90001);
+        hidden.AddDescriptor(new TkbMasterDto { CustomName = "Sensor Part", HideFromPalette = true });
+        db.Register(hidden);
+        db.Register(new TkbTemplate("No Master", 90002));
+        var shown = new TkbTemplate("Thing", 90003, categoryPath: "Props\\Crates");
+        shown.AddDescriptor(new TkbMasterDto { CustomName = "Crate" });
+        db.Register(shown);
+
+        var c = EntityTypeCatalog.Build(db);
+
+        Assert.DoesNotContain(c, e => (long)e.TkbType is 90001 or 90002);
+        var crate = Of(c, 90003);
+        Assert.Equal("Crate", crate.Name);
+        Assert.Equal("Props/Crates", crate.Category);   // no DIS ⇒ the template's own category path
+        Assert.Equal("entity/_point", EntityTypeCatalog.IconKeyOf(crate));
+    }
+
+    [Fact]
+    public void CE1017_PickerEntries_SplitSideBearingFromMapGraphics()
+    {
+        var c = EntityTypeCatalog.Build(BuiltIn());
+
+        var sided = EntityTypeCatalog.ToPickerEntries(c, sideBearing: true).ToList();
+        var graphics = EntityTypeCatalog.ToPickerEntries(c, sideBearing: false).ToList();
+
+        Assert.Contains(sided, p => p.Name == "T-72" && p.IconKey == "entity/t72" && p.Category == "Platform/Land/Russia/Tank");
+        Assert.DoesNotContain(sided, p => p.Category == EntityTypeCatalog.MapGraphicsFolder);
+        Assert.Equal(PlacementToolRegistry.Graphics.Count, graphics.Count);
+        Assert.All(graphics, p => Assert.IsType<EntityTypeEntry>(p.Tag));
+        Assert.Contains(graphics, p => p.Name == "Fire Line" && !p.IsEnabled && p.Description is { Length: > 0 });
+    }
+
+    // ── ⭐ CE-4142 GL1 — the gallery's groups and chips ──────────────────────────
+
+    /// <summary>The SHIPPED <c>assets/thumbnails</c> of the repository (the folder a dev start seeds the NAS from).</summary>
+    internal static GalleryData ShippedGallery()
+    {
+        string folder = ContentLayout.ThumbnailAssets(ContentLayout.TryFindSourceTree()!);
+        var g = GalleryData.TryLoad(folder, out var error);
+        Assert.True(g is not null, "assets/thumbnails did not load: " + error);
+        return g!;
+    }
+
+    [Fact]
+    public void CE4142_GL1_EveryShippedTkbType_IsInExactlyOneGroup_OrOther()
+    {
+        var gallery = ShippedGallery();
+        var c = EntityTypeCatalog.Build(BuiltIn(), gallery: gallery);
+
+        var listed = gallery.Groups.SidebarOrder.Where(n => n != gallery.Groups.RecentName).ToHashSet();
+        Assert.NotEmpty(c);
+        Assert.All(c, e => Assert.Contains(e.Group, listed));            // one group each, never empty, never the virtual Recent group
+        Assert.Equal(c.Count, c.GroupBy(e => (long)e.TkbType).Count());   // and each type appears once in the catalogue
+        Assert.Equal(c.Count, listed.Sum(n => c.Count(e => e.Group == n)));   // the groups partition the catalogue
+
+        // The shipped groups reach the shipped types — a mask typo would shove a class into Other.
+        Assert.Equal("Soldiers", Of(c, TkbEntityTypes.Infantry_Rifleman).Group);
+        Assert.Equal("Ground vehicles", Of(c, TkbEntityTypes.Tank_T72).Group);
+        Assert.Equal("Aircraft", Of(c, TkbEntityTypes.Heli_UH60).Group);
+        Assert.Equal("Units", Of(c, TkbEntityTypes.Unit_TankPlatoon).Group);
+        Assert.DoesNotContain(c, e => e.Group == GalleryGroups.OtherName && e.HasSide);   // the built-in TKB leaves nothing over
+    }
+
+    [Fact]
+    public void CE4142_GL1_MapGraphics_GoToTheirToolsGroup()
+    {
+        var c = EntityTypeCatalog.Build(BuiltIn(), gallery: ShippedGallery());
+
+        Assert.Equal("Tactical symbols", Of(c, TkbEntityTypes.TacGraphic_FireLine).Group);   // the tool-less graphic
+        foreach (long t in new[] { TkbEntityTypes.TacGraphic_Area, TkbEntityTypes.TacGraphic_Route, TkbEntityTypes.TerrainZone,
+                                   TkbEntityTypes.WeatherRegion, TkbEntityTypes.StoneSource, TkbEntityTypes.SpawnArea })
+            Assert.Equal("Areas & routes", Of(c, t).Group);
+        Assert.Equal("Areas & routes", Of(c, TkbEntityTypes.DeployRole).Group);   // ⭐ U-25 — the point-tool graphics (Deploy Role, the named Point) now have a group: Areas & routes
+        Assert.Equal("Areas & routes", Of(c, TkbEntityTypes.Point).Group);
+        Assert.All(c.Where(e => !e.HasSide), e => Assert.Null(e.Chip));
+    }
+
+    [Fact]
+    public void CE4142_GL1_Chips_AreTheNextDisLevel_NamedByDisNameTable()
+    {
+        var names = DisNameTable.Default;
+        var c = EntityTypeCatalog.Build(BuiltIn(), names, ShippedGallery());
+
+        Assert.Equal(names.CategoryName(1, 1, 1), Of(c, TkbEntityTypes.Tank_T72).Chip);           // "Tank", not a country, not "Land"
+        Assert.Equal("Tank", Of(c, TkbEntityTypes.Tank_T72).Chip);
+        Assert.Equal("Ground vehicles/Tank", Of(c, TkbEntityTypes.Tank_T72).GalleryCategory);
+        Assert.Equal(names.CategoryName(1, 2, 21), Of(c, TkbEntityTypes.Heli_UH60).Chip);   // an aircraft chip is its category
+        Assert.Equal(names.CategoryName(11, 1, 2), Of(c, TkbEntityTypes.Unit_TankPlatoon).Chip);  // a unit chip is its arm ("Armor")
+        Assert.Equal("Soldiers/" + names.CategoryName(3, 1, 1), Of(c, TkbEntityTypes.Infantry_Rifleman).GalleryCategory);
+    }
+
+    [Fact]
+    public void CE4142_GL1_TheMostSpecificMask_WinsAcrossGroups_ATieGoesToTheFirstListed()
+    {
+        var groups = GalleryGroups.Parse("""
+            { "groups": [
+              { "name": "Vehicles", "masks": [ "1.1" ] },
+              { "name": "Weapons",  "masks": [ "1.1.*.50" ] },
+              { "name": "Twin A",   "masks": [ "1.2.*.1" ] },
+              { "name": "Twin B",   "masks": [ "1.2.*.1" ] } ] }
+            """);
+        var names = DisNameTable.Default;
+
+        Assert.Equal("Weapons", groups.Classify(Dis("1.1.225.50.2"), PlacementToolKind.Point, true, names).Group);
+        Assert.Equal("Vehicles", groups.Classify(Dis("1.1.225.1.1"), PlacementToolKind.Point, true, names).Group);
+        Assert.Equal("Twin A", groups.Classify(Dis("1.2.225.1.1"), PlacementToolKind.Point, true, names).Group);
+        Assert.Equal(GalleryGroups.OtherName, groups.Classify(Dis("2.1.225.1"), PlacementToolKind.Point, true, names).Group);
+        Assert.Equal(GalleryGroups.OtherName, groups.Classify(null, PlacementToolKind.Point, true, names).Group);   // no DIS type
+    }
+
+    [Theory]
+    [InlineData("""{ "groups": [ { "name": "A", "masks": [ "x.y" ] } ] }""")]                       // not a mask
+    [InlineData("""{ "groups": [ { "name": "A", "tools": [ "Teleport" ] } ] }""")]                  // not a tool
+    [InlineData("""{ "groups": [ { "name": "A", "masks": [ "1" ] }, { "name": "a", "masks": [ "2" ] } ] }""")]   // twice
+    [InlineData("""{ "groups": [ { "name": "Other", "masks": [ "1" ] } ] }""")]                     // the catch-all is built in
+    [InlineData("""{ "groups": [ { "name": "A" } ] }""")]                                           // takes nothing
+    [InlineData("""{ "nothing": 1 }""")]
+    public void CE4142_GL1_ABrokenGroupsFile_IsRefused_NotHalfRead(string json)
+        => Assert.Throws<FormatException>(() => GalleryGroups.Parse(json));
+
+    [Fact]
+    public void CE4142_GL1_WithoutAGalleryTheCatalogueIsTheOldTree()
+    {
+        var c = EntityTypeCatalog.Build(BuiltIn());
+
+        Assert.All(c, e => { Assert.Equal("", e.Group); Assert.Null(e.Thumbnail); });
+        Assert.Equal(Of(c, TkbEntityTypes.Tank_T72).Category, Of(c, TkbEntityTypes.Tank_T72).GalleryCategory);
+    }
+
+    // ── ⭐ CE-4142 GL2 — which thumbnail (G4 precedence) ─────────────────────────
+
+    private static TkbDatabase OneTank(string? explicitThumb)
+    {
+        var db = new TkbDatabase();
+        var t = new TkbTemplate("Tank X", 90100) { DisType = Dis("1.1.225.1.1.1.0") };
+        t.AddDescriptor(new TkbMasterDto { CustomName = "Tank X", DisType = "1.1.225.1.1.1.0" });
+        t.AddDescriptor(new VisualDefinitionDto { ThumbnailName = explicitThumb });
+        db.Register(t);
+        return db;
+    }
+
+    private static GalleryData Gallery(params string[] existingFiles)
+    {
+        var map = ThumbnailMap.Parse("""
+            { "thumbnails": [ { "mask": "1.1", "file": "land.png" }, { "mask": "1.1.*.1", "file": "tank.png" }, { "mask": "3", "file": "man.png" } ] }
+            """, "/th", p => existingFiles.Contains(Path.GetFileName(p)));
+        return new GalleryData(ShippedGallery().Groups, map);
+    }
+
+    [Fact]
+    public void CE4142_GL2_Precedence_ExplicitName_BeatsTheMask_BeatsTheGlyph()
+    {
+        string P(string f) => Path.Combine("/th", f);
+
+        // ① the explicit name wins over every mask
+        Assert.Equal(P("mine.png"), Of(EntityTypeCatalog.Build(OneTank("mine"), gallery: Gallery("mine.png", "tank.png", "land.png")), 90100).Thumbnail);
+        // ② no explicit name: the MOST SPECIFIC mask (tank beats land, though land is listed first)
+        Assert.Equal(P("tank.png"), Of(EntityTypeCatalog.Build(OneTank(null), gallery: Gallery("tank.png", "land.png")), 90100).Thumbnail);
+        // ② a missing file is skipped: the next mask answers
+        Assert.Equal(P("land.png"), Of(EntityTypeCatalog.Build(OneTank(null), gallery: Gallery("land.png")), 90100).Thumbnail);
+        // an explicit name whose file is missing falls through to the mask, not to a broken tile
+        Assert.Equal(P("tank.png"), Of(EntityTypeCatalog.Build(OneTank("gone"), gallery: Gallery("tank.png")), 90100).Thumbnail);
+        // ③ nothing there ⇒ null (the tile draws the DIS glyph on a dashed tile) and the entry keeps its icon key
+        var none = Of(EntityTypeCatalog.Build(OneTank(null), gallery: Gallery()), 90100);
+        Assert.Null(none.Thumbnail);
+        Assert.StartsWith("entity/", EntityTypeCatalog.IconKeyOf(none));
+    }
+
+    /// <summary>
+    /// ⭐ CE-4268 (§2i) — step ③: <c>generated/&lt;TKB Name&gt;.png</c> fills a gap and only a gap. The template's Name is "Tank X" ⇒ the file <c>Tank_X.png</c> (spaces sanitized, the rule <c>scripts/thumbnails.py</c> shares).
+    /// 🔴 Red-proof (compiles): step ③ returning the generated file BEFORE the masks ⇒ the "mask wins" row goes red.
+    /// </summary>
+    [Fact]
+    public void CE4268_AGeneratedPicture_FillsTheGap_AndNeverBeatsAnExplicitNameOrAMask()
+    {
+        string G(string f) => Path.Combine("/th", "generated", f);
+        // ① and ② miss ⇒ the generated picture
+        Assert.Equal(G("Tank_X.png"), Of(EntityTypeCatalog.Build(OneTank(null), gallery: Gallery("Tank_X.png")), 90100).Thumbnail);
+        // a hand-made ② mask picture wins over it, and so does an explicit ① name
+        Assert.Equal(Path.Combine("/th", "tank.png"), Of(EntityTypeCatalog.Build(OneTank(null), gallery: Gallery("Tank_X.png", "tank.png")), 90100).Thumbnail);
+        Assert.Equal(Path.Combine("/th", "mine.png"), Of(EntityTypeCatalog.Build(OneTank("mine"), gallery: Gallery("Tank_X.png", "mine.png")), 90100).Thumbnail);
+        // no generated file either ⇒ null (the glyph)
+        Assert.Null(Of(EntityTypeCatalog.Build(OneTank(null), gallery: Gallery()), 90100).Thumbnail);
+    }
+
+    /// <summary>⭐ CE-4268 — the type name is untrusted: one holding <c>..</c> is refused, a separator is sanitized away (the picture stays inside <c>generated/</c>).</summary>
+    [Fact]
+    public void CE4268_ATypeNameWithDotDot_IsRefused_AndASeparatorIsSanitized()
+    {
+        var map = new ThumbnailMap("/th", Array.Empty<ThumbnailRule>(), _ => true);   // every file "exists": only the name guard can refuse
+        Assert.Null(map.Resolve(null, null, "../secret"));
+        Assert.Null(map.Resolve(null, null, "a..b"));
+        Assert.Null(map.Resolve(null, null, "  "));
+        Assert.Equal(Path.Combine("/th", "generated", "a_b_c.png"), map.Resolve(null, null, "a/b c"));
+        Assert.Null(ThumbnailMap.GeneratedFileName(null));
+    }
+
+    // ── ⭐ CE-4271 (docs/DESIGN_Add_Entity_Picker.md §2j) — step ④: the EMBEDDED atlas ─────────────────────────────────────────────────────────
+
+    private const string AtlasJson = """{ "version": 1, "cell": [320,180], "page": [2048,2048], "pages": ["entities-0.jpg"], "items": { "Tank_X": [0, 2, 1], "Other": [0, 0, 0] } }""";
+
+    private static ThumbnailAtlas AtlasOf(Func<string, (IntPtr tex, int w, int h)?>? upload = null) => new(AtlasIndex.Parse(AtlasJson), upload ?? (_ => ((IntPtr)5, 2048, 2048)));
+
+    private static GalleryData GalleryWithAtlas(ThumbnailAtlas? atlas, params string[] existingFiles)
+    {
+        var map = ThumbnailMap.Parse("""{ "thumbnails": [ { "mask": "1.1.*.1", "file": "tank.png" } ] }""", "/th", p => existingFiles.Contains(Path.GetFileName(p)), atlas);
+        return new GalleryData(ShippedGallery().Groups, map);
+    }
+
+    /// <summary>④ fills the last gap: with no ① / ② / ③ the type shows <c>atlas:entities/&lt;stem&gt;</c>; ③ (a loose generated file — a fresh capture) wins over ④; ① and ② win over both; a type the atlas lacks, or a map built with no atlas, gives null.
+    /// 🔴 Red-proof (compiles): step ④ answering BEFORE ③ ⇒ the "loose wins" row goes red.</summary>
+    [Fact]
+    public void CE4271_TheAtlas_IsStepFour_AfterTheLooseFile_ThroughTheMask_AndTheExplicitName()
+    {
+        var atlas = AtlasOf();
+        Assert.Equal("atlas:entities/Tank_X", Of(EntityTypeCatalog.Build(OneTank(null), gallery: GalleryWithAtlas(atlas)), 90100).Thumbnail);
+        Assert.Equal(Path.Combine("/th", "generated", "Tank_X.png"), Of(EntityTypeCatalog.Build(OneTank(null), gallery: GalleryWithAtlas(atlas, "Tank_X.png")), 90100).Thumbnail);   // ③ beats ④
+        Assert.Equal(Path.Combine("/th", "tank.png"), Of(EntityTypeCatalog.Build(OneTank(null), gallery: GalleryWithAtlas(atlas, "tank.png")), 90100).Thumbnail);                      // ② beats ④
+        Assert.Equal(Path.Combine("/th", "mine.png"), Of(EntityTypeCatalog.Build(OneTank("mine"), gallery: GalleryWithAtlas(atlas, "mine.png")), 90100).Thumbnail);                     // ① beats ④
+        Assert.Null(Of(EntityTypeCatalog.Build(OneTank(null), gallery: GalleryWithAtlas(null)), 90100).Thumbnail);                                                                       // no atlas passed ⇒ nothing from it
+        Assert.Null(Of(EntityTypeCatalog.Build(OneTank(null), gallery: GalleryWithAtlas(new ThumbnailAtlas(AtlasIndex.Empty, _ => null))), 90100).Thumbnail);                            // not in the atlas ⇒ glyph
+    }
+
+    /// <summary>The atlas's resident image: a page is decoded and uploaded ONCE, on the first ask for any of its pictures; the picture is the page texture with its CELL's UV rectangle (not the whole page); an unknown key and a page
+    /// that will not load answer null (the failure remembered, not retried each frame); after the first upload the lookup allocates nothing (R-2084). 🔴 Red-proof: the whole page's UV (0,0)–(1,1) returned ⇒ the cell row goes red.</summary>
+    [Fact]
+    public void CE4271_ThumbnailAtlas_UploadsAPageOnce_ServesTheCellsUv_AndAllocatesNothingAfterwards()
+    {
+        int uploads = 0;
+        var atlas = AtlasOf(name => { uploads++; return ((IntPtr)5, 2048, 2048); });
+        Assert.Equal(0, uploads);                                         // nothing is uploaded until a picture is asked for
+        Assert.True(atlas.Contains("Tank_X") && !atlas.Contains("Nope"));   // the pure half never touches the GPU
+        Assert.Equal(0, uploads);
+
+        var img = atlas.TryGetImage("atlas:entities/Tank_X")!.Value;      // col 2, row 1 of 320 x 180 cells
+        Assert.Equal(((IntPtr)5, 320, 180), (img.Texture, img.Width, img.Height));
+        Assert.Equal(new System.Numerics.Vector2(640f / 2048f, 180f / 2048f), img.Uv0);
+        Assert.Equal(new System.Numerics.Vector2(960f / 2048f, 360f / 2048f), img.Uv1);
+        Assert.NotNull(atlas.TryGetImage("atlas:entities/Other"));
+        Assert.Equal(1, uploads);                                         // two pictures, one page, one upload
+        Assert.Null(atlas.TryGetImage("atlas:entities/Nope"));
+        Assert.Null(atlas.TryGetImage(Path.Combine("/th", "x.png")));     // a file path is not an atlas key
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 1000; i++) { _ = atlas.TryGetImage("atlas:entities/Tank_X"); _ = atlas.TryGetImage("atlas:entities/Other"); }
+        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);   // the steady frame allocates nothing
+
+        int failed = 0;
+        var broken = AtlasOf(_ => { failed++; return null; });
+        Assert.Null(broken.TryGetImage("atlas:entities/Tank_X"));
+        Assert.Null(broken.TryGetImage("atlas:entities/Other"));
+        Assert.Equal(1, failed);                                          // a page that will not load is remembered, not retried
+    }
+
+    /// <summary>⭐ CE-4271 — round trip over the SHIPPED files (<c>Thumbnails/entities.atlas.json</c> + its pages, embedded in the assembly): the index parses,
+    /// holds the 75 committed pictures sorted by stem with slot == position (6 x 11 cells per page, row-major), every page is an embedded JPEG
+    /// well under 1 MB, and <see cref="ThumbnailAtlas.Shared"/> serves the same set. 🔴 Red-proof: a packer that re-orders slots or drops a page ⇒ red.</summary>
+    [Fact]
+    public void CE4271_TheShippedAtlas_RoundTrips_SortedStems_SlotIsPosition_PagesAreEmbeddedJpegs()
+    {
+        var asm  = typeof(ThumbnailAtlas).Assembly;
+        var json = System.Text.Encoding.UTF8.GetString(EmbeddedAtlasResources.TryRead(asm, ThumbnailAtlas.IndexResourceName) ?? Array.Empty<byte>());
+        var idx  = AtlasIndex.Parse(json);
+        // ⭐ CE-4273 (Next_2 A-10) — the seed's 75 + the Car. ⛔ SUPERSEDED: "slot = position in sorted order" — true of the seed only; §2j says a name
+        //   KEEPS its slot and an addition takes the next free one (the Car sorts among the C's and sits in slot 75). The invariant now: one cell per
+        //   name, on the grid, inside the pages.
+        Assert.Equal(77, idx.Count);   // ⭐ CE-6007 — + the bulldozer (page 1, slot 4/1)
+        Assert.Equal(77, ThumbnailAtlas.Shared.Count);
+        Assert.True(idx.TryGet("Car", out _, out _, out _, out _, out _));
+
+        var names = idx.Names.ToList();
+        Assert.Equal(names.OrderBy(n => n, StringComparer.Ordinal).ToList(), names);   // the INDEX keeps its keys sorted (one line a name)
+        var cells = new HashSet<(int, int, int)>();
+        for (int i = 0; i < names.Count; i++)
+        {
+            Assert.True(idx.TryGet(names[i], out int page, out int x, out int y, out int w, out int h));
+            Assert.InRange(page, 0, idx.Pages.Count - 1);
+            Assert.Equal(0, x % idx.CellW);
+            Assert.Equal(0, y % idx.CellH);
+            Assert.InRange(x / idx.CellW, 0, idx.Columns - 1);
+            Assert.InRange(y / idx.CellH, 0, idx.Rows - 1);
+            Assert.True(cells.Add((page, x, y)), names[i] + " shares a cell");
+            Assert.Equal((idx.CellW, idx.CellH), (w, h));
+            Assert.True(ThumbnailAtlas.Shared.Contains(names[i]));
+        }
+        long total = 0;
+        foreach (var pg in idx.Pages)
+        {
+            var bytes = EmbeddedAtlasResources.TryRead(asm, "Thumbnails/" + pg);
+            Assert.NotNull(bytes);
+            Assert.True(bytes!.Length > 1000 && bytes[0] == 0xFF && bytes[1] == 0xD8, pg + " is not a JPEG");
+            total += bytes.Length;
+        }
+        Assert.True(total < 1_000_000, "the shipped atlas grew to " + total + " bytes");
+    }
+
+    /// <summary>⭐ The silent-default rule — a forwarding rail PER production caller of <see cref="ThumbnailAtlas.Shared"/>, asserted on the CONSTRUCTED object: <c>GalleryData.Shipped</c> (its one build, <c>ShippedOver</c>) hands the shared atlas to the
+    /// thumbnail map it builds, and <c>EntityAuthoring.CreatePickers</c> wires the same atlas as the image cache's RESIDENT lookup. 🔴 Red-proof: either caller dropping the argument ⇒ red.</summary>
+    [Fact]
+    public void CE4271_EveryProductionCaller_PassesTheSharedAtlas()
+    {
+        var shipped = GalleryData.ShippedOver(ContentLayout.ThumbnailAssets(ContentLayout.TryFindSourceTree()!));
+        Assert.NotNull(shipped);
+        Assert.Same(ThumbnailAtlas.Shared, shipped!.Thumbnails.Atlas);
+
+        var pickers = Hrot.UI.Common.AddEntity.EntityAuthoring.CreatePickers(recent: new NodeEditor.UI.Picker.RecentStore());
+        var resident = pickers.Images.Resident;
+        Assert.NotNull(resident);
+        Assert.Same(ThumbnailAtlas.Shared, resident!.Target);             // the delegate IS ThumbnailAtlas.Shared.TryGetImage
+
+        // and the source says so, in the one place each is built (a second `new ThumbnailMap(` / `new PickerImageCache(` in production would be a path round the rail)
+        string pack = File.ReadAllText(Path.Combine(Fdp.Testing.TestRepo.Root, "Hrot/Engine/Hrot.Presentation/AddEntity/ThumbnailMap.cs"));
+        Assert.Contains("TryLoad(folder, out _, ThumbnailAtlas.Shared)", pack);
+    }
+
+    [Fact]
+    public void CE4142_GL2_TheThumbnailPath_IsThePickerEntrysImageKey_OnlyInTheGallery()
+    {
+        var db = OneTank("mine");
+        var g = Gallery("mine.png");
+        var c = EntityTypeCatalog.Build(db, gallery: g);
+
+        Assert.Equal(Path.Combine("/th", "mine.png"), EntityTypeCatalog.ToPickerEntries(c, true, gallery: true).Single().ImageKey);
+        Assert.Null(EntityTypeCatalog.ToPickerEntries(c, true).Single().ImageKey);   // the plain tree row stays as it was
+    }
+
+    [Fact]
+    public void CE4142_GL2_ShippedMapJson_Parses_AndAnExplicitNameSurvivesTheTkbBuilder()
+    {
+        Assert.NotNull(ShippedGallery().Thumbnails);   // map.json shipped (empty until the director-stills run) and valid
+
+        var db = new TkbDatabase();
+        db.Register(new TkbTemplate("Thing", 90101));
+        new NedTkbBuilder(db).WithVisual(90101, v => v.ThumbnailName = "thing");
+        Assert.Equal("thing", db.GetByType(90101).GetDescriptor<VisualDefinitionDto>()!.ThumbnailName);
+    }
+
+    [Theory]
+    [InlineData("""{ "thumbnails": [ { "mask": "q", "file": "a.png" } ] }""")]
+    [InlineData("""{ "thumbnails": [ { "mask": "1.1" } ] }""")]
+    public void CE4142_GL2_ABrokenMapFile_IsRefused(string json)
+        => Assert.Throws<FormatException>(() => ThumbnailMap.Parse(json, "/th"));
+
+    // ── PlacementToolRegistry.Arm ────────────────────────────────────────────
+
+    private sealed class RecordingSpawn : ISpawnController
+    {
+        public readonly List<string> Calls = new();
+        public void StartPlacementMode(long tkbType, string? initialPropertiesJson = null) => Calls.Add($"point {tkbType} {initialPropertiesJson}");
+        public void StartAreaAuthoringMode(string styleOverrideJson = "") => Calls.Add("area");
+        public void StartAreaAuthoringMode(long tkbType, string styleOverrideJson = "") => Calls.Add($"area:{tkbType}");
+        public void StartRouteAuthoringMode() => Calls.Add("route");
+        public void StartZoneAuthoringMode(string styleOverrideJson = "") => Calls.Add("zone");
+    }
+
+    [Fact]
+    public void CE1017_Arm_APhysicalType_ArmsThePointToolWithTheSide()
+    {
+        var spawn = new RecordingSpawn();
+
+        Assert.True(PlacementToolRegistry.Arm(spawn, TkbEntityTypes.Tank_T72, eForceIdentifier.FORCE_OPPOSING));
+
+        Assert.Equal($"point {TkbEntityTypes.Tank_T72} {{\"Affiliation\":\"FORCE_OPPOSING\"}}", Assert.Single(spawn.Calls));
+    }
+
+    /// <summary>⭐ Player Join S2-a — a Deploy Role is a graphic placed with the POINT tool (a role has no outline): arming it starts placement mode for 8815. ✅ Red-proof: its tool registered as an area ⇒ red.</summary>
+    [Fact]
+    public void PlayerJoinS2_ADeployRole_ArmsThePointTool()
+    {
+        var spawn = new RecordingSpawn();
+        Assert.True(PlacementToolRegistry.Arm(spawn, TkbEntityTypes.DeployRole, eForceIdentifier.FORCE_FRIENDLY));
+        Assert.StartsWith($"point {TkbEntityTypes.DeployRole} ", Assert.Single(spawn.Calls));
+        Assert.Equal(PlacementToolKind.Point, PlacementToolRegistry.ToolFor(TkbEntityTypes.DeployRole));
+    }
+
+    [Theory]
+    [InlineData(TkbEntityTypes.TacGraphic_Area, "area")]
+    [InlineData(TkbEntityTypes.TacGraphic_Route, "route")]
+    [InlineData(TkbEntityTypes.TerrainZone, "zone")]
+    [InlineData(TkbEntityTypes.WeatherRegion, "area:8811")]   // ⭐ CE-1161 — an area born as a Weather Region
+    [InlineData(TkbEntityTypes.StoneSource, "area:8812")]     // ⭐ CE-3235 — an area born as a Stone Source
+    [InlineData(TkbEntityTypes.SpawnArea, "area:8814")]       // ⭐ Player Join S2-b — an area born as a Spawn Area
+    public void CE1017_Arm_AGraphic_ArmsItsOwnTool_NoSideAsked(long tkbType, string expected)
+    {
+        var spawn = new RecordingSpawn();
+
+        Assert.True(PlacementToolRegistry.Arm(spawn, tkbType, eForceIdentifier.FORCE_FRIENDLY));
+
+        Assert.Equal(expected, Assert.Single(spawn.Calls));
+    }
+
+    [Fact]
+    public void CE1017_Arm_ATypeWithNoTool_ArmsNothing()
+    {
+        var spawn = new RecordingSpawn();
+
+        Assert.False(PlacementToolRegistry.Arm(spawn, TkbEntityTypes.TacGraphic_FireLine, eForceIdentifier.FORCE_FRIENDLY));
+
+        Assert.Empty(spawn.Calls);
+    }
+    // ── ⭐ CE-4210 MA-7 — Add Entity ▸ Macros ────────────────────────────────────────────────────
+
+    private static readonly string[] SomeMacros = { "test/fire-team", "forces/squad", "solo" };
+
+    [Fact]
+    public void CE4210_MA7_TheBareMacroInstanceType_IsNotAPlaceableProp()
+    {
+        var c = EntityTypeCatalog.Build(BuiltIn(), gallery: ShippedGallery());
+        Assert.DoesNotContain(c, e => e.TkbType == TkbEntityTypes.ScenarioMacro && e.MacroPath is null);   // 8813 (DIS 5.0.0.90) used to land in Props
+        Assert.DoesNotContain(c, e => e.Group == "Props" && e.DisText == "5.0.0.90");
+        Assert.DoesNotContain(EntityTypeCatalog.SpawnerEntries(BuiltIn()), e => (long)e.TkbId == TkbEntityTypes.ScenarioMacro);
+    }
+
+    [Fact]
+    public void CE4210_MA7_TheMacroFiles_AreTheMacrosGroup_EachWithItsPath()
+    {
+        var c = EntityTypeCatalog.Build(BuiltIn(), gallery: ShippedGallery(), macros: SomeMacros);
+
+        var macros = c.Where(e => e.MacroPath is not null).ToList();
+        Assert.Equal(SomeMacros.OrderBy(x => x), macros.Select(e => e.MacroPath!).OrderBy(x => x));
+        Assert.All(macros, e => { Assert.Equal("Macros", e.Group); Assert.True(e.HasSide); Assert.Equal(PlacementToolKind.Point, e.Tool); Assert.Equal(TkbEntityTypes.ScenarioMacro, (long)e.TkbType); });
+        var fire = macros.Single(e => e.MacroPath == "test/fire-team");
+        Assert.Equal("fire-team", fire.Name);
+        Assert.Equal("test", fire.Chip);                       // the folder is the chip
+        Assert.Equal("Macros/test", fire.GalleryCategory);
+        Assert.Equal("Macros", macros.Single(e => e.MacroPath == "solo").GalleryCategory);
+        Assert.Contains("Macros", ShippedGallery().Groups.SidebarOrder);
+        Assert.Equal(EntityTypeCatalog.ToPickerEntries(c, sideBearing: true, gallery: true).Count(p => ((EntityTypeEntry)p.Tag!).MacroPath is not null), 3);
+    }
+
+    [Fact]
+    public void CE4210_MA7_WithNoMacroListing_ThereAreNoMacroEntries()
+        => Assert.DoesNotContain(EntityTypeCatalog.Build(BuiltIn(), gallery: ShippedGallery()), e => e.MacroPath is not null);
+
+    [Fact]
+    public void CE4210_MA7_ArmMacro_ArmsThePointToolOnTheInstanceType_WithThePathInTheJson()
+    {
+        var spawn = new RecordingSpawn();
+        Assert.True(PlacementToolRegistry.ArmMacro(spawn, "test/fire-team", eForceIdentifier.FORCE_FRIENDLY));
+        var call = Assert.Single(spawn.Calls);
+        Assert.StartsWith($"point {TkbEntityTypes.ScenarioMacro} ", call);
+        var (rest, macro) = MacroBirth.Split(call.Substring(call.IndexOf('{')));
+        Assert.Equal("test/fire-team", macro);
+        Assert.Contains("FORCE_FRIENDLY", rest);   // the affiliation stays for the attribute compiler
+        Assert.False(PlacementToolRegistry.ArmMacro(spawn, " ", eForceIdentifier.FORCE_FRIENDLY));
+    }
+
+    [Fact]
+    public void CE4210_MA7_MacroBirth_SplitsThePathOut_AndAddsTheInstanceOnce()
+    {
+        Assert.Equal(("{\"Affiliation\":\"x\"}", null), MacroBirth.Split("{\"Affiliation\":\"x\"}"));
+        Assert.Equal((null, "p"), MacroBirth.Split("{\"$macro\":\"p\"}"));
+        Assert.Equal((null, null), MacroBirth.Split(null));
+
+        var comps = new List<object>();
+        MacroBirth.BornWith(TkbEntityTypes.ScenarioMacro, "p", comps);
+        MacroBirth.BornWith(TkbEntityTypes.ScenarioMacro, "p", comps);                       // never twice
+        var mi = Assert.IsType<Fdp.Toolkit.Scenario.MacroInstance>(Assert.Single(comps));
+        Assert.Equal(("p", "{}"), (mi.Macro, mi.ArgsJson));
+        var other = new List<object>();
+        MacroBirth.BornWith(TkbEntityTypes.Tank_T72, "p", other);                            // only the instance type
+        MacroBirth.BornWith(TkbEntityTypes.ScenarioMacro, null, other);                      // and only with a path
+        Assert.Empty(other);
+    }
+
+    [Fact]
+    public void CE4210_MA7_TheGroupsFile_MayNameAMacrosGroup_ButItTakesNoMasks()
+    {
+        Assert.Equal("Macros", GalleryGroups.Parse("""{ "groups": [ { "name": "Macros", "macros": true } ] }""").MacrosName);
+        Assert.Throws<FormatException>(() => GalleryGroups.Parse("""{ "groups": [ { "name": "M", "macros": true, "masks": [ "1" ] } ] }"""));
+    }
+
+    // ── CE-2138 C2 — the class table must not move a built-in type (handoff Track C §3: a golden taken BEFORE C2) ─────────
+
+    /// <summary>Every built-in type's 3-D family, picker folder and fallback icon, one line each, ordered by type.</summary>
+    internal static string BuiltInSnapshot(ITkbDatabase db)
+    {
+        var lines = new List<string>();
+        foreach (var t in db.GetAll().OrderBy(t => t.TkbType))
+            lines.Add($"{t.TkbType} {t.Name} | dis {(t.DisType.Value != 0 ? t.DisType.ToString() : "-")} | " +
+                      $"family {Hrot.UI.Common.Map3D.VisualFamilies.Of(t)} | folder {EntityTypeCatalog.CategoryOf(t, DisNameTable.Default)} | " +
+                      $"icon {EntityTypeCatalog.FallbackIconName(t) ?? "-"}");
+        return string.Join("\n", lines);
+    }
+
+    /// <summary>Every DIS level the names table names (a number it does not name reads "Category 7" and is left out).</summary>
+    internal static string DisNamesSnapshot(DisNameTable names)
+    {
+        var lines = new List<string>();
+        for (int k = 1; k <= 255; k++)
+        {
+            string kn = names.KindName((byte)k);
+            if (kn != $"Kind {k}") lines.Add($"{k} {kn}");
+            for (int d = 1; d <= 255; d++)
+            {
+                string dn = names.DomainName((byte)k, (byte)d);
+                if (dn != $"Domain {d}") lines.Add($"{k}.{d} {dn}");
+                for (int c = 1; c <= 255; c++)
+                {
+                    string cn = names.CategoryName((byte)k, (byte)d, (byte)c);
+                    if (cn != $"Category {c}") lines.Add($"{k}.{d}.*.{c} {cn}");
+                }
+            }
+        }
+        for (int c = 1; c <= ushort.MaxValue; c++)
+        {
+            string n = names.CountryName((ushort)c);
+            if (n != $"Country {c}") lines.Add($"country {c} {n}");
+        }
+        return string.Join("\n", lines);
+    }
+
+    /// <summary>⭐ The golden, taken on the pre-C2 code (<c>VisualFamilies</c>' switches + <c>DisNames.json</c>). C2 (CE-2138)
+    /// must keep every line; C3 (CE-2139) moves only the three units, on purpose: DIS 1.1.225 → 11.1.225.&lt;arm&gt;.&lt;echelon&gt;.&lt;variant&gt;,
+    /// folder Units/United States → Units/Land/United States/&lt;arm&gt; (family and icon unchanged).</summary>
+    private const string BuiltInGolden = """
+        100 M1 Abrams | dis 1.1.225.1.0.0.0 | family Tank | folder Platform/Land/United States/Tank | icon _tank
+        101 M2 Bradley IFV | dis 1.1.225.2.0.0.0 | family Afv | folder Platform/Land/United States/Armored Fighting Vehicle | icon _afv
+        102 HMMWV (M2, crewed) | dis 1.1.225.6.0.0.0 | family WheeledUtility | folder Platform/Land/United States/Small Wheeled Utility Vehicle | icon _wheeled
+        103 T-72 | dis 1.1.222.1.0.0.0 | family Tank | folder Platform/Land/Russia/Tank | icon _tank
+        104 Technical (HMG) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
+        105 Technical (ATGM) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
+        106 Pickup (Toyota) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
+        107 M109 155 mm self-propelled howitzer | dis 1.1.225.4.1.0.0 | family SpArtillery | folder Platform/Land/United States/Self-Propelled Artillery | icon _tank
+        108 Technical (DShK) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
+        109 Technical (minigun) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
+        110 Technical (ZU-23-2) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
+        111 HMMWV (M2, no crew) | dis 1.1.225.6.0.0.0 | family WheeledUtility | folder Platform/Land/United States/Small Wheeled Utility Vehicle | icon _wheeled
+        112 Bulldozer (D9-class) | dis 1.1.225.9.1.0.0 | family Bulldozer | folder Platform/Land/United States/Large Tracked Utility Vehicle | icon -
+        200 Rifleman | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        201 Officer | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        202 Rifleman (Stinger) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        203 Rifleman (Igla) | dis 3.1.222.1.0.0.0 | family Person | folder Life Form/Land/Russia/Infantry (HROT) | icon _person
+        204 Paratrooper | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        205 SF operator | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        206 Pilot | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        207 Automatic rifleman (M249) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        208 Machine gunner (PKM) | dis 3.1.222.1.0.0.0 | family Person | folder Life Form/Land/Russia/Infantry (HROT) | icon _person
+        209 Sniper (M24) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        210 Marksman (M110) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        211 Marksman (SVD) | dis 3.1.222.1.0.0.0 | family Person | folder Life Form/Land/Russia/Infantry (HROT) | icon _person
+        301 Tank Platoon | dis 11.1.225.2.4.1.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
+        302 Infantry Squad | dis 11.1.225.1.2.1.0 | family Unit | folder Units/Land/United States/Infantry | icon _unit
+        303 Tank Platoon (Auto Spawn) | dis 11.1.225.2.4.2.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
+        304 Artillery Battery | dis 11.1.225.4.5.1.0 | family Unit | folder Units/Land/United States/Artillery | icon _unit
+        305 Infantry Platoon | dis 11.1.225.1.4.1.0 | family Unit | folder Units/Land/United States/Infantry | icon _unit
+        400 UH-60A Black Hawk | dis 1.2.225.21.0.0.0 | family Helicopter | folder Platform/Air/United States/Utility Helicopter | icon -
+        401 F-16C Fighting Falcon | dis 1.2.225.1.0.0.0 | family Jet | folder Platform/Air/United States/Fighter/Air Defense | icon -
+        402 C-130H Hercules | dis 1.2.225.4.0.0.0 | family CargoPlane | folder Platform/Air/United States/Cargo/Tanker | icon -
+        403 FPV drone | dis 1.2.0.50.0.0.0 | family Drone | folder Platform/Air/Unmanned Air Vehicle | icon -
+        404 UH-60A Black Hawk (doors off) | dis 1.2.225.21.0.0.0 | family Helicopter | folder Platform/Air/United States/Utility Helicopter | icon -
+        405 A-10C Thunderbolt II | dis 1.2.225.2.0.0.0 | family AttackJet | folder Platform/Air/United States/Attack/Strike | icon -
+        406 AH-64 Apache (attack helicopter) | dis 1.2.225.20.0.0.0 | family AttackHelicopter | folder Platform/Air/United States/Attack Helicopter | icon -
+        600 M2 HMG | dis 1.1.0.50.1.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        601 DShK HMG | dis 1.1.0.50.1.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        602 M134 minigun | dis 1.1.0.50.2.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        603 Javelin | dis 1.1.0.50.3.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        604 NLAW | dis 1.1.0.50.4.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        605 M72 LAW | dis 1.1.0.50.4.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        606 Kornet (tripod) | dis 1.1.0.50.3.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        607 TOW (tripod) | dis 1.1.0.50.3.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        608 Sentry gun | dis 1.1.0.50.5.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        609 60 mm mortar | dis 1.1.0.10.1.0.0 | family WeaponSystem | folder Platform/Land/Mortar | icon -
+        610 81 mm mortar | dis 1.1.0.10.2.0.0 | family WeaponSystem | folder Platform/Land/Mortar | icon -
+        611 120 mm mortar | dis 1.1.0.10.3.0.0 | family WeaponSystem | folder Platform/Land/Mortar | icon -
+        612 105 mm towed howitzer | dis 1.1.0.5.1.0.0 | family WeaponSystem | folder Platform/Land/Towed Artillery | icon -
+        613 Stinger (MANPADS) | dis 1.1.0.50.6.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        614 Igla (MANPADS) | dis 1.1.0.50.6.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        615 ZU-23-2 | dis 1.1.0.50.7.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        616 Rifle (pick-up) | dis 1.1.0.50.8.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        617 Pistol (pick-up) | dis 1.1.0.50.9.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        618 Explosive charge | dis 1.1.0.50.10.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        1002 CivilianCar | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        1050 Hatchback | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        1051 DeliveryVan | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        1052 CityBus | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        1053 BoxTruck | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        1054 Sedan | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        1055 Estate | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        1056 Suv | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        1101 CivilianAdultMale | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1102 CivilianAdultFemale | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1103 CivilianMinor | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1104 CivilianElderly | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1201 SecurityShield | dis 3.1.0.3.0.0.0 | family Person | folder Life Form/Land/Security Force (HROT) | icon _person
+        1202 SecurityBaton | dis 3.1.0.3.0.0.0 | family Person | folder Life Form/Land/Security Force (HROT) | icon _person
+        1203 SecurityLauncher | dis 3.1.0.3.0.0.0 | family Person | folder Life Form/Land/Security Force (HROT) | icon _person
+        2001 MilitaryAPC | dis 1.1.0.2.0.0.0 | family Afv | folder Platform/Land/Armored Fighting Vehicle | icon _afv
+        2002 InfantrySoldier | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2003 Insurgent | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2004 Grenadier | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2005 MortarTeam | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2006 JavelinTeam | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2007 NlawGunner | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2008 UnarmedFighter | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2009 AssaultRifleman | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        8801 TacGraphic_FireLine | dis - | family Unknown | folder Other | icon -
+        8802 TacGraphic_Route | dis - | family Unknown | folder Other | icon -
+        8803 TacGraphic_Area | dis - | family Unknown | folder Other | icon -
+        8805 Door | dis - | family Unknown | folder Other | icon -
+        8806 Car | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        8807 Sandbag wall | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
+        8808 Concrete block | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
+        8809 Crate | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
+        8810 World Environment | dis - | family Unknown | folder Other | icon -
+        8811 Weather Region | dis - | family Unknown | folder Other | icon -
+        8812 Stone Source | dis - | family Unknown | folder Other | icon -
+        8813 Scenario Macro | dis 5.0.0.90.0.0.0 | family Unknown | folder Cultural Feature/Scenario Macro (HROT) | icon -
+        8814 Spawn Area | dis - | family Unknown | folder Other | icon -
+        8815 Deploy Role | dis - | family Unknown | folder Other | icon -
+        8816 Point | dis - | family Unknown | folder Other | icon -
+        8817 Terrain Block | dis - | family Unknown | folder Other | icon -
+        8818 Terrain Feature | dis - | family Unknown | folder Other | icon -
+        8850 Traffic | dis - | family Unknown | folder Other | icon -
+        8851 SUMO car | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        8860 Objective | dis - | family Unknown | folder Other | icon -
+        8861 Trigger | dis - | family Unknown | folder Other | icon -
+        """;
+
+    /// <summary>⭐ The DIS names as <c>DisNames.json</c> held them — the class table must name exactly these levels; ⭐ C3 adds the
+    /// unit Kind (11) and its arms, nothing else. ⭐ Weapon systems WS-1 adds the land class 1.1.*.50 (DESIGN_Weapon_Systems §5),
+    /// deliberately.</summary>
+    private const string DisNamesGolden = """
+        1 Platform
+        1.1 Land
+        1.1.*.1 Tank
+        1.1.*.2 Armored Fighting Vehicle
+        1.1.*.3 Armored Utility Vehicle
+        1.1.*.4 Self-Propelled Artillery
+        1.1.*.5 Towed Artillery
+        1.1.*.6 Small Wheeled Utility Vehicle
+        1.1.*.7 Large Wheeled Utility Vehicle
+        1.1.*.8 Small Tracked Utility Vehicle
+        1.1.*.9 Large Tracked Utility Vehicle
+        1.1.*.10 Mortar
+        1.1.*.50 Weapon System (HROT)
+        1.1.*.81 Car
+        1.2 Air
+        1.2.*.1 Fighter/Air Defense
+        1.2.*.2 Attack/Strike
+        1.2.*.3 Bomber
+        1.2.*.4 Cargo/Tanker
+        1.2.*.5 ASW/Patrol/Observation
+        1.2.*.6 Electronic Warfare
+        1.2.*.7 Reconnaissance
+        1.2.*.8 Surveillance/C2 (AEW)
+        1.2.*.20 Attack Helicopter
+        1.2.*.21 Utility Helicopter
+        1.2.*.22 ASW/Patrol Helicopter
+        1.2.*.23 Cargo Helicopter
+        1.2.*.24 Observation Helicopter
+        1.2.*.25 Special Operations Helicopter
+        1.2.*.40 Trainer
+        1.2.*.47 Light/Patrol Craft
+        1.2.*.50 Unmanned Air Vehicle
+        1.2.*.57 Non-Combatant Commercial Aircraft
+        1.3 Surface
+        1.4 Subsurface
+        1.5 Space
+        2 Munition
+        3 Life Form
+        3.1 Land
+        3.1.*.1 Infantry (HROT)
+        3.1.*.2 Civilian (HROT)
+        3.1.*.3 Security Force (HROT)
+        3.2 Air
+        3.3 Surface
+        3.4 Subsurface
+        4 Environmental
+        5 Cultural Feature
+        6 Supply
+        7 Radio
+        8 Expendable
+        9 Sensor/Emitter
+        11 Units
+        11.1 Land
+        11.1.*.1 Infantry
+        11.1.*.2 Armor
+        11.1.*.3 Mechanized Infantry
+        11.1.*.4 Artillery
+        11.1.*.5 Reconnaissance
+        country 71 France
+        country 78 Germany
+        country 222 Russia
+        country 224 United Kingdom
+        country 225 United States
+        """;
+
+    [Fact]
+    public void CE2138_EveryBuiltInType_KeepsIts3dFamily_PickerFolder_AndIcon()
+        => Assert.Equal(BuiltInGolden, BuiltInSnapshot(BuiltIn()));
+
+    [Fact]
+    public void CE2138_TheDisNames_AreUnchanged_ByTheMoveIntoCode()
+        => Assert.Equal(DisNamesGolden, DisNamesSnapshot(DisNameTable.Default));
+}

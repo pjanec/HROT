@@ -4,8 +4,9 @@ using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.NED.Common;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Dds;
+using Hrot.Map.Common.Replication.Utils;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
@@ -28,16 +29,14 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// immediately via <see cref="SmartEgressUtil.MarkDirty"/>.</para>
     ///
     /// <para>Currently handles <see cref="EDescriptorType.dtWorldPos"/>:
-    /// converts the geodetic position carried in the request to local Cartesian
-    /// coordinates and writes the result into <see cref="SimTransform"/>.
-    /// The geographic bridge system converts <c>SimTransform</c> to
-    /// <c>GeoTransform</c> on the same tick, so the egress translator picks up
-    /// the updated position immediately.</para>
+    /// copies the local-ENU position carried in the request (AQ107 B) into <see cref="SimTransform"/>, keeping the entity's rotation.
+    /// The egress translator picks up the updated position on the next scan.</para>
     ///
     /// <para>An <see cref="UpdateEntityDescriptorAck"/> is written for every
     /// processed sample regardless of outcome so the sender can correlate replies.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class UpdateEntityDescriptorRequestSystem : IEcsModuleSystem, IDisposable
     {
         private const long GeoSpatialOrdinal        = (long)Hrot.NED.Descriptors.EDescriptorType.dtWorldPos;
@@ -47,17 +46,12 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly IDdsWriter<UpdateEntityDescriptorAck>     _ackWriter;
         private readonly IDisposable?                              _ownedAckWriter;
         private readonly NetworkEntityMap                         _entityMap;
-        private readonly IGeographicTransform                     _geoTransform;
 
         /// <summary>
         /// Creates a new system instance.
         /// </summary>
         /// <param name="participant">DDS participant for topic subscriptions.</param>
         /// <param name="entityMap">Shared net-ID â†’ entity lookup service.</param>
-        /// <param name="geoTransform">
-        /// Geographic transform used to convert incoming geodetic coordinates to
-        /// local Cartesian space (must match the transform used by egress translators).
-        /// </param>
         /// <param name="ackWriter">
         /// Optional ACK writer. When <c>null</c> (default) a live
         /// <see cref="DdsWriterAdapter{T}"/> is created from <paramref name="participant"/>.
@@ -66,22 +60,20 @@ namespace Hrot.Map.Common.Replication.Ingress
         public UpdateEntityDescriptorRequestSystem(
             DdsParticipant       participant,
             NetworkEntityMap     entityMap,
-            IGeographicTransform geoTransform,
             IDdsWriter<UpdateEntityDescriptorAck>? ackWriter = null)
         {
-            _reader    = new DdsReader<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
+            _reader    = new DdsReader<UpdateEntityDescriptorRequest>(participant);
             if (ackWriter != null)
             {
                 _ackWriter      = ackWriter;
             }
             else
             {
-                var owned       = new DdsWriterAdapter<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
+                var owned       = new DdsWriterAdapter<UpdateEntityDescriptorAck>(participant);
                 _ackWriter      = owned;
                 _ownedAckWriter = owned;
             }
             _entityMap    = entityMap     ?? throw new ArgumentNullException(nameof(entityMap));
-            _geoTransform = geoTransform  ?? throw new ArgumentNullException(nameof(geoTransform));
         }
 
         // â”€â”€ ComponentSystem lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -104,7 +96,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         // â”€â”€ Request handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-        private void ProcessRequest(UpdateEntityDescriptorRequest req, ISimulationView view)
+        internal void ProcessRequest(UpdateEntityDescriptorRequest req, ISimulationView view)   // internal: the CE-4284 rail drives one request without DDS
         {
             // 1. Resolve entity from network ID.
             if (!_entityMap.TryGetEntity(req.EntityId, out var entity))
@@ -123,6 +115,14 @@ namespace Hrot.Map.Common.Replication.Ingress
 
                 case EDescriptorType.dtMapVisualOverlay:
                     ProcessMapVisualOverlayUpdate(req, entity, view);
+                    break;
+
+                case EDescriptorType.dtMapRoute:   // ⭐ CE-4284 — a route edited on a non-owner
+                    ProcessMapRouteUpdate(req, entity, view);
+                    break;
+
+                case EDescriptorType.dtWeather:    // ⭐ CE-4346 (X-3) — the weather edited on a non-owner
+                    ProcessWeatherUpdate(req, entity, view);
                     break;
 
                 default:
@@ -147,16 +147,13 @@ namespace Hrot.Map.Common.Replication.Ingress
                 return;
             }
 
-            // 3. Convert geodetic â†’ local Cartesian.
+            // 3. ⭐ AQ107 B — the position is local ENU already: a copy.
             var geo = req.Payload.WorldPos;
-            var cartesian = _geoTransform.ToCartesian(
-                geo.Pos.Latitude,
-                geo.Pos.Longitude,
-                geo.Pos.Altitude);
+            var cartesian = WorldPosCodec.Position(in geo);
 
             // 4. Preserve existing rotation; update position only.
             var currentRot = view.HasComponent<SimTransform>(entity)
-                ? view.GetComponentRO<SimTransform>(entity).Rotation
+                ? (Quaternion)view.GetComponentRO<SimTransform>(entity).Rotation
                 : Quaternion.Identity;
 
             ((EntityRepository)view).SetComponent(entity, new SimTransform
@@ -183,6 +180,51 @@ namespace Hrot.Map.Common.Replication.Ingress
             });
         }
 
+        /// <summary>⭐ CE-4284 — a route edited on a node that does not own it: the owner applies it (the one decoding, <see cref="MapRouteWire"/>);
+        /// its new <see cref="RoutePlan"/> version is then published to every node by <c>MapRouteEgressTranslator</c>.</summary>
+        private void ProcessMapRouteUpdate(UpdateEntityDescriptorRequest req, Entity entity, ISimulationView view)
+        {
+            long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
+            if (!view.HasAuthority(entity, packedKey))
+            {
+                FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
+                    "[UpdDescReq] Not authoritative for MapRoute on Entity {0}. Ignoring.", req.EntityId);
+                return;
+            }
+
+            var repo = (EntityRepository)view;
+            var current = repo.HasManagedComponent<RoutePlan>(entity) ? view.GetManagedComponentRO<RoutePlan>(entity) : new RoutePlan();
+            var route = req.Payload.MapRoute;
+            var plan = MapRouteWire.Apply(current, in route);
+            repo.SetManagedComponent(entity, plan);
+
+            FdpLog<UpdateEntityDescriptorRequestSystem>.Info(
+                "[UpdDescReq] Applied MapRoute update for NetID {0} waypoints={1}.", req.EntityId, plan.Waypoints.Count);
+            WriteAck(req.RequestId, req.EntityId, NedStatusCode.Success);
+        }
+
+        /// <summary>⭐ CE-4346 (X-3) — the weather edited on a node that does not own it: the owner applies it whole (the one decoding,
+        /// <c>EntityWeatherEgressTranslator.FromSample</c>); its <c>EntityWeatherEgressTranslator</c> then publishes the new value to every node.</summary>
+        private void ProcessWeatherUpdate(UpdateEntityDescriptorRequest req, Entity entity, ISimulationView view)
+        {
+            long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
+            if (!view.HasAuthority(entity, packedKey))
+            {
+                FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
+                    "[UpdDescReq] Not authoritative for Weather on Entity {0}. Ignoring.", req.EntityId);
+                return;
+            }
+
+            var repo = (EntityRepository)view;
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Weather.WeatherConditions>()) return;
+            var weather = Hrot.Map.Common.Replication.Egress.EntityWeatherEgressTranslator.FromSample(in req.Payload.Weather);
+            repo.SetComponent(entity, weather);
+
+            FdpLog<UpdateEntityDescriptorRequestSystem>.Info(
+                "[UpdDescReq] Applied Weather update for NetID {0} (wind levels {1}, cloud layers {2}).", req.EntityId, weather.WindCount, weather.CloudCount);
+            WriteAck(req.RequestId, req.EntityId, NedStatusCode.Success);
+        }
+
         private void ProcessMapVisualOverlayUpdate(UpdateEntityDescriptorRequest req, Entity entity, ISimulationView view)
         {
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
@@ -197,23 +239,22 @@ namespace Hrot.Map.Common.Replication.Ingress
 
             var overlay = req.Payload.MapVisualOverlay;
 
-            // Convert RELATIVE geo offsets â†’ relative Cartesian offsets.
-            // relCart = ToCartesian(dLat, dLon, dAlt) - ToCartesian(0, 0, 0).
-            // For a flat-earth linear projection this equals the true Cartesian displacement.
-            Vector3 origin = _geoTransform.ToCartesian(0.0, 0.0, 0.0);
+            // ⭐ AQ107 B — the wire's points are ABSOLUTE local ENU metres; the ECS polyline is relative to the entity's own position.
+            Vector3 anchor = view.HasComponent<SimTransform>(entity)
+                ? view.GetComponentRO<SimTransform>(entity).Position
+                : Fdp.Core.WorldPoint.Zero;
 
-            var polyline = new EditablePolyline();
+            var polylinePoints = new List<Vector2>(overlay.Points?.Count ?? 0);   // CE-4046 — EditablePolyline is an immutable record
             if (overlay.Points != null && overlay.Points.Count > 0)
             {
-                polyline.Points = new List<Vector2>(overlay.Points.Count);
                 for (int i = 0; i < overlay.Points.Count; i++)
                 {
-                    var p       = overlay.Points[i];
-                    var absCart = _geoTransform.ToCartesian(p.Latitude, p.Longitude, p.Altitude);
-                    var relCart = absCart - origin;
-                    polyline.Points.Add(new Vector2((float)relCart.X, (float)relCart.Y));
+                    var abs = EnuWire.FromWire(overlay.Points[i]);
+                    polylinePoints.Add(new Vector2(abs.X - anchor.X, abs.Y - anchor.Y));
                 }
             }
+
+            var polyline = new EditablePolyline { Points = polylinePoints };
 
             ((EntityRepository)view).SetManagedComponent(entity, polyline);
 

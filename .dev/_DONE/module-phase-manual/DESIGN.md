@@ -113,7 +113,7 @@ Note: `AutoCycloneTranslator`, `ManagedAutoCycloneTranslator`, and the NetworkDe
 
 **Solution files to update:**
 - `FDP/FDP.sln` - remove `Fdp.Examples.NetworkDemo` and `Fdp.Examples.NetworkDemo.Tests` project references
-- `IOS-IG-SimHost.sln` - remove `Fdp.Examples.NetworkDemo` and `Fdp.Examples.NetworkDemo.Tests` project references
+- `HROT.sln` - remove `Fdp.Examples.NetworkDemo` and `Fdp.Examples.NetworkDemo.Tests` project references
 
 **Tests to remove:**
 - `FDP/Network/Fdp.Network.Cyclone.Tests/Translators/AutoCycloneTranslatorTests.cs` - tests the deleted class

@@ -34,13 +34,22 @@ namespace Fdp.Toolkit.Replay
         /// <summary>
         /// Exercise or Episode identifier embedded in the recording header metadata.
         /// </summary>
-        public required Guid ExerciseId { get; init; }
+        public required ExerciseId ExerciseId { get; init; }
 
         /// <summary>
         /// Node identifier embedded in the recording metadata.
         /// Identifies which distributed node produced this recording.
         /// </summary>
-        public required int NodeId { get; init; }
+        public required NodeId NodeId { get; init; }
+
+        /// <summary>⭐ CE-4331 ① — the node's name, subsystem and roles, written into the metadata (a branch writes THIS node's, not its parent's).</summary>
+        public string NodeName { get; init; } = "";
+
+        /// <inheritdoc cref="NodeName"/>
+        public string Subsystem { get; init; } = "";
+
+        /// <inheritdoc cref="NodeName"/>
+        public int Roles { get; init; }
 
         /// <summary>
         /// When <c>true</c>, <see cref="RecorderTickSystem"/> calls
@@ -55,5 +64,27 @@ namespace Fdp.Toolkit.Replay
         /// </para>
         /// </summary>
         public bool Blocking { get; init; } = false;
+
+        /// <summary>⭐ Node Features F-15 — the node's AtLoad feature configs, written into <c>RecordingMetadata.FeatureConfigsAtLoad</c>; null = none (a branch inherits its parent's).</summary>
+        public System.Collections.Generic.IReadOnlyDictionary<string, string>? FeatureConfigsAtLoad { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> — when set, this recording is a BRANCH: its first frames are copied from the parent up
+        /// to the branch point, then it records on (null: a recording that starts empty).
+        /// </summary>
+        public Fdp.Core.FlightRecorder.RecordingBranch? Branch { get; init; }
+
+        /// <summary>
+        /// ⭐ CE-3299 D17 (R-3045) — 0: FULL (a keyframe every 60 frames and a delta every other frame). N &gt; 0: CHECKPOINTING — a keyframe every N
+        /// seconds of SIM time (and at every named checkpoint), nothing else: restore points, no smooth replay. A branch records in its
+        /// parent's mode, whatever this says.
+        /// </summary>
+        public double CheckpointingSeconds { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> (restore design §1l) — the kernel's "a slot-paced background run is in flight" (<c>ModuleHostKernel.SlotRunInFlight</c>):
+        /// a checkpoint waits for a step where it is false, so a restore can continue exactly. Null = never in flight (a host with no kernel).
+        /// </summary>
+        public Func<bool>? SlotRunInFlight { get; init; }
     }
 }

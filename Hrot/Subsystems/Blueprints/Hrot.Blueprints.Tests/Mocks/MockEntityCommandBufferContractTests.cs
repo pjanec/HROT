@@ -9,9 +9,9 @@ namespace Hrot.Blueprints.Tests.Mocks;
 /// </summary>
 public sealed class MockEntityCommandBufferContractTests
 {
-    // SC1: CreateEntity -- OpCount increments; entity is alive immediately.
+    // SC1: CreateEntity -- OpCount increments; the handle is a PLACEHOLDER until playback (as in production).
     [Fact]
-    public void CreateEntity_EagerHandle_EntityAliveAndOpRecorded()
+    public void CreateEntity_DeferredHandle_PlaceholderUntilPlayback()
     {
         using var repo = new EntityRepository();
         MockTestComponents.Register(repo);
@@ -20,8 +20,8 @@ public sealed class MockEntityCommandBufferContractTests
         var e = ecb.CreateEntity();
 
         Assert.Equal(1, ecb.OpCount);
-        Assert.True(repo.IsAlive(e));
-        Assert.False(repo.HasComponent<TestComponent>(e));
+        Assert.True(e.Index < 0);
+        Assert.False(repo.IsAlive(e));
     }
 
     // SC2: AddComponent + Playback -- component appears with correct value after playback.
@@ -36,11 +36,12 @@ public sealed class MockEntityCommandBufferContractTests
         ecb.AddComponent(e, new TestComponent { Value = 7 });
 
         Assert.Equal(2, ecb.OpCount);
-        Assert.False(repo.HasComponent<TestComponent>(e));
+        Assert.False(repo.IsAlive(e));
 
         ecb.Playback(repo);
 
         Assert.Equal(0, ecb.OpCount);
+        e = ecb.LastPlayback.Resolve(e);
         Assert.True(repo.HasComponent<TestComponent>(e));
         Assert.Equal(7, repo.GetComponentRO<TestComponent>(e).Value);
     }
@@ -56,6 +57,7 @@ public sealed class MockEntityCommandBufferContractTests
         var e = ecb.CreateEntity();
         ecb.AddEmptyComponent<LargeTestStruct>(e);
         ecb.Playback(repo);
+        e = ecb.LastPlayback.Resolve(e);
 
         Assert.True(repo.HasComponent<LargeTestStruct>(e));
 

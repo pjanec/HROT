@@ -205,10 +205,12 @@ public sealed class DefaultValueAuthoringTests
     {
         return facet => facet switch
         {
-            BTreeActionFacet af    => af.ExpressionTargetField,
-            BTreeConditionFacet cf => cf.ExpressionTargetField,
-            TransitionFacet tf     => tf.ExpressionTargetField,
-            GlobalTransitionFacet gtf => gtf.ExpressionTargetField,
+            // ⭐ CE-417 slice 4b — the same arms as EditorSubsystem.ResolveExpressionTargetField: each binding has its
+            //   own variable; a transition's action variable leads, else its guard's.
+            BTreeActionFacet af    => af.Action.ExpressionTargetField,
+            BTreeConditionFacet cf => cf.Condition.ExpressionTargetField,
+            TransitionFacet tf     => tf.Action.ExpressionTargetField ?? tf.Guard.ExpressionTargetField,
+            GlobalTransitionFacet gtf => gtf.Action.ExpressionTargetField ?? gtf.Guard.ExpressionTargetField,
             _                      => null,
         };
     }
@@ -223,8 +225,7 @@ public sealed class DefaultValueAuthoringTests
         // Set ExpressionTargetField on the action node.
         actionNode.Action!.ExpressionTargetField = "myAutoVar";
 
-        var ctx    = new BTreeFacetFqnContext { CurrentActionFqn = fqn };
-        var mapper = new BTreeFacetMapper(asset, ctx);
+        var mapper = new BTreeFacetMapper(asset);
         var sel    = new BTreeNodeSelection(actionNode.VisualId);
         var facet  = mapper.GetFacet(sel)!;
 
@@ -262,7 +263,8 @@ public sealed class DefaultValueAuthoringTests
         {
             SourceStateName       = "Idle",
             TargetStateName       = "Active",
-            ExpressionTargetField = "hsmAutoVar",
+            Action                = new Hrot.Editor.AiShared.Inspector.ActionBinding.BehaviorActionBindingFacet
+                                        { ExpressionTargetField = "hsmAutoVar" },
             EventId               = 0,
         };
 
@@ -284,7 +286,7 @@ public sealed class DefaultValueAuthoringTests
     // ── CT0: PerspectiveWorkspaceRegistrar forwards the accessor ─────────────
 
     [Fact]
-    public void PerspectiveRegistrar_ForwardsExpressionTargetFieldAccessor_ToInspector()
+    public void PerspectiveRegistrar_ForwardsExpressionTargetFieldAccessor_ToNodeProperties()
     {
         Func<object?, string?> accessor = BuildAccessor();
 
@@ -296,12 +298,14 @@ public sealed class DefaultValueAuthoringTests
             debugRegistry:                 new Hrot.Editor.AiShared.Debug.DebugSessionRegistry(),
             expressionTargetFieldAccessor: accessor);
 
-        reg.Inspector.HasExpressionTargetFieldAccessor.Should().BeTrue(
-            "the expressionTargetFieldAccessor passed to the registrar must reach the Inspector");
+        // ⭐ S2: the forwarding target moved from Inspector to NodeProperties — the B-3 default-value
+        //   arm is part of details.nodeproperties now (BP-431). ⚠ The forwarding claim is unchanged.
+        reg.NodeProperties.HasExpressionTargetFieldAccessor.Should().BeTrue(
+            "the expressionTargetFieldAccessor passed to the registrar must reach the node-properties source");
     }
 
     [Fact]
-    public void PerspectiveRegistrar_WithoutAccessor_InspectorHasNone()
+    public void PerspectiveRegistrar_WithoutAccessor_NodePropertiesHasNone()
     {
         var reg = new PerspectiveWorkspaceRegistrar(
             perspectiveName: "BTree",
@@ -310,8 +314,8 @@ public sealed class DefaultValueAuthoringTests
             refactorService: new _StubRefactor(),
             debugRegistry:   new Hrot.Editor.AiShared.Debug.DebugSessionRegistry());
 
-        reg.Inspector.HasExpressionTargetFieldAccessor.Should().BeFalse(
-            "without an accessor, the Inspector's flag must be false");
+        reg.NodeProperties.HasExpressionTargetFieldAccessor.Should().BeFalse(
+            "without an accessor, the node-properties source's flag must be false");
     }
 
     // ── B-5: static-vs-dynamic tooltip constant ───────────────────────────────

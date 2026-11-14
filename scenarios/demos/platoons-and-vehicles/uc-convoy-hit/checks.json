@@ -1,0 +1,56 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Urban Battle L2: an IED under the convoy APC. Judge (1) the APC drives north (FollowRoute), (2) the charge goes off only with the APC within 15 m, (3)+(4) the carrier halts and its squad is out and fires. ONLY the HALT branch is encoded (the live check's own note: the MilitaryApc loses CanMove on any hit, CE-3092, so its branch is the halt; a push branch is the Bradley variant, uc-convoy-hit-ifv) — if a run pushes through instead, flip to that file's rows. The charge's shooter is the Trigger man (as in the live check). DEMO-with-a-fight (12 units, insurgents): no golden.",
+  "runFor": 60,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the APC drives its route north (FollowRoute)",
+      "on": "task",
+      "who": "Convoy APC",
+      "is": "FollowRoute"
+    },
+    {
+      "name": "the carrier is at the charge",
+      "on": "near",
+      "who": "Convoy APC",
+      "point": [
+        652,
+        200
+      ],
+      "within": 15
+    },
+    {
+      "name": "the charge never goes off before a vehicle is within 15 m",
+      "never": {
+        "on": "blast",
+        "by": "Trigger man"
+      },
+      "before": "the carrier is at the charge"
+    },
+    {
+      "name": "the charge goes off",
+      "on": "blast",
+      "by": "Trigger man"
+    },
+    {
+      "name": "the Leader is out of the halted carrier",
+      "on": "embark",
+      "who": "Convoy Leader",
+      "is": false,
+      "after": "the charge goes off"
+    },
+    {
+      "name": "a rifleman is out of the halted carrier",
+      "on": "embark",
+      "who": "*Convoy Rifleman",
+      "is": false,
+      "after": "the charge goes off"
+    },
+    {
+      "name": "the dismounted squad fires",
+      "on": "shot",
+      "by": "*Convoy Rifleman",
+      "after": "the charge goes off"
+    }
+  ]
+}

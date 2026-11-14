@@ -1,0 +1,58 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 AW-12 the bomber. From the header's Judge (1)-(3): Neutral and no rifleman round until the blast; the Bomber dies; the rifleman (30 m off) is unhurt, someone in the crowd is hurt. NOT expressed: 'the vest is gone' (an entity that vanishes cannot be read by name) and the 3 m / 25 m casualty rings (centred on the burst, which is only known at run time).",
+  "runFor": 45,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the vest bursts",
+      "on": "blast",
+      "n": 1
+    },
+    {
+      "name": "the Bomber stays Neutral until the blast",
+      "never": {
+        "on": "side",
+        "who": "Bomber",
+        "is": "Hostile"
+      },
+      "before": "the vest bursts"
+    },
+    {
+      "name": "the rifleman spends no round until the blast",
+      "never": {
+        "on": "shot",
+        "by": "Rifleman"
+      },
+      "before": "the vest bursts"
+    },
+    {
+      "name": "the Bomber is dead",
+      "on": "field",
+      "who": "Bomber",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "after": "the vest bursts"
+    },
+    {
+      "name": "someone in the crowd is hurt",
+      "on": "field",
+      "who": "*Civilian",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100,
+      "after": "the vest bursts"
+    },
+    {
+      "name": "the rifleman is unhurt",
+      "on": "field",
+      "who": "Rifleman",
+      "path": "Health.Current",
+      "op": ">=",
+      "value": 100,
+      "atEnd": true
+    }
+  ]
+}

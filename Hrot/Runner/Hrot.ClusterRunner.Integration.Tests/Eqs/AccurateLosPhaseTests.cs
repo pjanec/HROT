@@ -30,6 +30,7 @@ public sealed class AccurateLosPhaseTests : IDisposable
     /// Runs in PostSimulation so it sees harvest-phase events one frame after they are published.
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class MockRaycastSolverSystem : IEcsModuleSystem
     {
         public int RaycastsResolvedTotal { get; private set; }
@@ -102,7 +103,7 @@ public sealed class AccurateLosPhaseTests : IDisposable
         unsafe
         {
             mem.Count          = 1;
-            mem.ThreatScores[0] = 100f;
+            mem.Freshness[0] = 100f;
             mem.PositionsX[0]   = 30f;
             mem.PositionsY[0]   = 0f;
         }
@@ -124,7 +125,7 @@ public sealed class AccurateLosPhaseTests : IDisposable
             ThreatThreshold = 0f,
             ContextSlot1    = targetEntity,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9001L + blueprintId });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = (int)(9001 + blueprintId) });
         return observer;
     }
 

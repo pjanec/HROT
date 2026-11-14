@@ -10,8 +10,8 @@ namespace Fdp.Network.Cyclone.Topics
     [DdsStruct]
     public partial struct NetworkAppId : IEquatable<NetworkAppId>
     {
-        [DdsId(0)] public int AppDomainId;
-        [DdsId(1)] public int AppInstanceId;
+        public int AppDomainId;
+        public int AppInstanceId;
 
         public bool Equals(NetworkAppId other) => 
             AppDomainId == other.AppDomainId && AppInstanceId == other.AppInstanceId;

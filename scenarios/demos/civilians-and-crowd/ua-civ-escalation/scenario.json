@@ -1,0 +1,469 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: A police line under a LETHAL ceiling (rifleman with stun grenades, baton man, launcher man) faces an Instigator and three protesters round a stone source, and a Hostile Gunman who draws a hidden rifle, holds it at ease for 6 s, then fires into the air (EL-1..EL-3). Judge: (0) the riot starts (1) drawn and at ease he is WARNED (a policeman shows the Warning cue) and the police rifle stays silent (2) every police rifle round goes at the gunman, and at least one does (3) he is hit (4) the unarmed rioters get non-lethal force only: one stunned, irritated or down, none dies. Fail: a protester is shot, or the gunman is not engaged. Check: python3 scripts/utility-demo-check.py --launch ua-civ-escalation"
+  },
+  "entities": {
+    "c2390005-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          96,
+          197,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1201
+      },
+      "EntityInfo": {
+        "Name": "Police rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "c2390005-0000-4000-8000-000000000002"
+        ],
+        "Seats": [
+          1
+        ]
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Superior",
+        "ForceLevel": "Lethal"
+      },
+      "Behavior": {
+        "Name": "HoldTheLine",
+        "Params": {"Reach":75},
+        "Origin": "Superior"
+      }
+    },
+    "c2390005-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          96,
+          197,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 616
+      },
+      "EntityInfo": {
+        "Name": "Police rifle",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "c2390005-0000-4000-8000-000000000001",
+        "Seat": 1
+      }
+    },
+    "c2390005-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          96,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1202
+      },
+      "EntityInfo": {
+        "Name": "Police baton",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Superior",
+        "ForceLevel": "Lethal"
+      }
+    },
+    "c2390005-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          96,
+          203,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1203
+      },
+      "EntityInfo": {
+        "Name": "Police launcher",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Superior",
+        "ForceLevel": "Lethal"
+      }
+    },
+    "c2390005-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          108,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Instigator",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": {"Protest":true,"ProtestAt":[108,200,0],"Instigator":true},
+        "Origin": "Superior"
+      }
+    },
+    "c2390005-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          110,
+          203,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Protester 1",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": {"Protest":true,"ProtestAt":[110,203,0]},
+        "Origin": "Superior"
+      }
+    },
+    "c2390005-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          110,
+          197,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Protester 2",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": {"Protest":true,"ProtestAt":[110,197,0]},
+        "Origin": "Superior"
+      }
+    },
+    "c2390005-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          112,
+          201,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Protester 3",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": {"Protest":true,"ProtestAt":[112,201,0]},
+        "Origin": "Superior"
+      }
+    },
+    "c2390005-0000-4000-8000-000000000009": {
+      "SimTransform": {
+        "Position": [
+          160,
+          205,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Gunman",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "c2390005-0000-4000-8000-000000000010"
+        ],
+        "Seats": [
+          3
+        ]
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "c2390005-0000-4000-8000-000000000901",
+              "executingEngine": "",
+              "behaviorName": "CivilianHsm",
+              "behaviorParams": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
+              "triggers": [
+                {
+                  "type": "TimerElapsed",
+                  "params": "4"
+                }
+              ]
+            },
+            {
+              "taskId": "c2390005-0000-4000-8000-000000000902",
+              "executingEngine": "",
+              "behaviorName": "StationWeapon",
+              "behaviorParams": {"Station":"Hands","Seconds":1},
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "c2390005-0000-4000-8000-000000000903",
+              "executingEngine": "",
+              "behaviorName": "CivilianHsm",
+              "behaviorParams": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
+              "triggers": [
+                {
+                  "type": "TimerElapsed",
+                  "params": "6"
+                }
+              ]
+            },
+            {
+              "taskId": "c2390005-0000-4000-8000-000000000904",
+              "executingEngine": "",
+              "behaviorName": "FireAtPoint",
+              "behaviorParams": {"x":180,"y":210,"z":25,"mount":0,"rounds":0,"cooldownSeconds":1.5},
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "c2390005-0000-4000-8000-000000000905",
+              "executingEngine": "",
+              "behaviorName": "CivilianHsm",
+              "behaviorParams": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "c2390005-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          160,
+          205,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 616
+      },
+      "EntityInfo": {
+        "Name": "Gunman's rifle",
+        "ForceId": "Hostile"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "c2390005-0000-4000-8000-000000000009",
+        "Seat": 3
+      }
+    },
+    "c2390005-0000-4000-8000-000000000011": {
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": -6,
+            "Y": -6
+          },
+          {
+            "X": -6,
+            "Y": 6
+          },
+          {
+            "X": 6,
+            "Y": 6
+          },
+          {
+            "X": 6,
+            "Y": -6
+          }
+        ],
+        "Version": 0
+      },
+      "SimTransform": {
+        "Position": [
+          109,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8812
+      },
+      "EntityInfo": {
+        "Name": "Stone source",
+        "ForceId": "Neutral"
+      }
+    }
+  }
+}

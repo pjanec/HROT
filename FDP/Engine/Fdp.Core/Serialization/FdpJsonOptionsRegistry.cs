@@ -40,7 +40,8 @@ namespace Fdp.Core.Serialization
         ///         files.</item>
         ///   <item><c>DefaultIgnoreCondition = WhenWritingNull</c> — keeps output concise.</item>
         ///   <item>Custom converters: <see cref="FixedString32Converter"/>,
-        ///         <see cref="FixedString64Converter"/>, <see cref="Vector2ArrayConverter"/>,
+        ///         <see cref="FixedString64Converter"/>, <see cref="FixedString128Converter"/>,
+        ///         <see cref="Vector2ArrayConverter"/>,
         ///         <see cref="Vector3ArrayConverter"/>, <see cref="Vector4ArrayConverter"/>,
         ///         <see cref="QuaternionArrayConverter"/>, <see cref="StrictStringEnumConverter"/>.
         ///         <see cref="StrictStringEnumConverter"/> is used instead of the standard
@@ -56,6 +57,21 @@ namespace Fdp.Core.Serialization
         /// </summary>
         public static readonly JsonSerializerOptions Indented;
 
+        /// <summary>
+        /// ⭐ <c>CE-3187</c> (R-2005) — the one legal way to make a VARIANT: a copy of <see cref="DefaultRelaxed"/> (or
+        /// <see cref="Indented"/>) with a named delta applied, then frozen. Every shared setting (fields, case-insensitive,
+        /// strict string enums, vectors as arrays, fixed strings and lists) carries over, so a variant differs only by what
+        /// its caller says. Cache the result in a static field; the call site states why the delta is needed.
+        /// </summary>
+        public static JsonSerializerOptions Derive(System.Action<JsonSerializerOptions> delta, bool indented = false)
+        {
+            var opts = new JsonSerializerOptions(indented ? Indented : DefaultRelaxed);
+            delta(opts);
+            opts.TypeInfoResolver ??= new DefaultJsonTypeInfoResolver();
+            opts.MakeReadOnly();
+            return opts;
+        }
+
         static FdpJsonOptionsRegistry()
         {
             var relaxed = new JsonSerializerOptions
@@ -68,11 +84,16 @@ namespace Fdp.Core.Serialization
             };
             relaxed.Converters.Add(new FixedString32Converter());
             relaxed.Converters.Add(new FixedString64Converter());
+            relaxed.Converters.Add(new FixedString128Converter());
             relaxed.Converters.Add(new Vector2ArrayConverter());
             relaxed.Converters.Add(new Vector3ArrayConverter());
             relaxed.Converters.Add(new Vector4ArrayConverter());
             relaxed.Converters.Add(new QuaternionArrayConverter());
             relaxed.Converters.Add(new StrictStringEnumConverter());
+            // FC-3b (Q#21-C3/C1): fixed-list wrapper structs author as plain arrays; the
+            // factory recurses per-element through THESE options, so element support tracks
+            // the converter list above automatically.
+            relaxed.Converters.Add(new FixedListJsonConverterFactory());
             // TypeInfoResolver must be set before MakeReadOnly() in .NET 8+.
             relaxed.TypeInfoResolver = new DefaultJsonTypeInfoResolver();
             relaxed.MakeReadOnly();

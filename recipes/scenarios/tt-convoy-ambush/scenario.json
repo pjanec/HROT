@@ -1,0 +1,329 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: On test-town, 'Squad' (Friend, TKB 302, BasicSquadSop, SquadHold) with 'Leader' and 'Rifleman 1-4' rides 'Convoy APC' (TKB 2001) at (300,276); 'Insurgent RPG' (338,306) and 'Insurgent rifleman' (346,300) advance on it (CombatPosture, objective the APC). Shows dismount under fire. Judge: (1) all five start aboard (on CGF and SimHost); (2) the RPG insurgent hits the APC; (3) the squad SOP's first row dismounts it - nobody aboard on either host; (4) the next row reacts to contact (the dismount drill ends, the hold is paused). Fail: the squad stays aboard after the hit, or dismounts with no hit. Check: none (no live check); rail SquadTacticsScenarioTests (CE-1056 I-2d, Hrot.ClusterRunner.Integration.Tests)."
+  },
+  "entities": {
+    "2b105600-0000-4000-8000-0000000000a0": {
+      "SimTransform": {
+        "Position": [
+          300,
+          276,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Convoy APC",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "2b105600-0000-4000-8000-0000000000c0": {
+      "SimTransform": {
+        "Position": [
+          300,
+          276,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "SquadHold",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "2b105600-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          300,
+          276,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "2b105600-0000-4000-8000-0000000000c0",
+        "Designation": "SquadLeader"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "2b105600-0000-4000-8000-0000000000a0"
+      }
+    },
+    "2b105600-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          300,
+          276,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "2b105600-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "2b105600-0000-4000-8000-0000000000a0"
+      }
+    },
+    "2b105600-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          300,
+          276,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "2b105600-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "2b105600-0000-4000-8000-0000000000a0"
+      }
+    },
+    "2b105600-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          300,
+          276,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "2b105600-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "2b105600-0000-4000-8000-0000000000a0"
+      }
+    },
+    "2b105600-0000-4000-8000-000000000015": {
+      "SimTransform": {
+        "Position": [
+          300,
+          276,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "2b105600-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "2b105600-0000-4000-8000-0000000000a0"
+      }
+    },
+    "2b105600-0000-4000-8000-000000000021": {
+      "SimTransform": {
+        "Position": [
+          338,
+          306,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Insurgent RPG",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {"advance":{"Objective":[300,276,0],"Speed":2,"ArrivalRadius":8,"CooldownSeconds":1}},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "2b105600-0000-4000-8000-000000000022": {
+      "SimTransform": {
+        "Position": [
+          346,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Insurgent rifleman",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {"advance":{"Objective":[300,276,0],"Speed":2,"ArrivalRadius":8,"CooldownSeconds":1}},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

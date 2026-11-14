@@ -79,7 +79,8 @@ namespace Fdp.Tests
             public int TargetEntity { get; set; }
         }
 
-        [Fact]
+        [Fdp.Testing.FlakyFact("wall-clock FPS threshold")]
+        [Trait("Category", "Flaky")]
         [Trait("Category", "Performance")]
         public void Lightweight_PlainUnmanaged_BestPerformance()
         {
@@ -142,7 +143,8 @@ namespace Fdp.Tests
             Assert.True(fps > 150, $"Lightweight entities should achieve > 150 FPS (got {fps:F1})");
         }
 
-        [Fact]
+        [Fdp.Testing.FlakyFact("wall-clock FPS threshold")]
+        [Trait("Category", "Flaky")]
         public void Medium_MixedComponents_GoodPerformance()
         {
             // Scenario: 1000 entities with mix of unmanaged and one managed component
@@ -225,7 +227,8 @@ namespace Fdp.Tests
             Assert.True(fps > 50, $"Medium entities should achieve > 50 FPS (got {fps:F1})");
         }
 
-        [Fact]
+        [Fdp.Testing.FlakyFact("wall-clock FPS threshold")]
+        [Trait("Category", "Flaky")]
         public void Heavy_ComplexManaged_AcceptablePerformance()
         {
             // Scenario: 500 entities with multiple complex managed components

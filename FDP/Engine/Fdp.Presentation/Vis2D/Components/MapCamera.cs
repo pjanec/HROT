@@ -1,4 +1,6 @@
+using System;
 using System.Numerics;
+using Fdp.Presentation.WindowManager;
 using Raylib_cs;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Input;
@@ -14,28 +16,152 @@ namespace Fdp.Toolkit.Vis2D.Components
     {
         public Camera2D InnerCamera; // Public field for direct access if needed, or property
         
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE SEAM CANNOT BE POISONED.</b> 📄 Added <c>2026-09-20</c> after a measured operator
+        /// defect: the editor's 2-D map became completely unclickable and the marquee invisible, because
+        /// <c>Raylib.GetScreenToWorld2D</c> — which is <c>(screen − Offset) / Zoom + Target</c> — returned
+        /// <c>NaN</c> for every mouse position.
+        ///
+        /// <para>🔴 <b>Why ONE bad write is permanent.</b> <c>NaN</c> propagates: once it reaches
+        /// <c>Target</c> or <c>Zoom</c>, every later screen↔world conversion is <c>NaN</c>, every hit-test
+        /// comparison is <c>false</c>, and the terminal falls through to the canvas on EVERY click —
+        /// forever, with no error anywhere. 📐 Measured from the product: <c>frame=763 pickable=708</c>
+        /// (the pick boxes were all there) at <c>worldPos=(NaN,NaN)</c>.</para>
+        ///
+        /// <para>⛔ <b>Rejecting is right; repairing silently is not.</b> A dropped write keeps the camera
+        /// usable and REPORTS the caller, so the producer can be found. ⭐ Same shape as
+        /// <c>EmitPickBox</c>'s §6.8 <c>networkId == 0</c> guard: the rule belongs on the seam that owns
+        /// the invariant, so every caller gets it.</para>
+        ///
+        /// <para>⚠ <c>Zoom</c> additionally rejects <c>&lt;= 0</c>: a zero zoom is a division by zero in
+        /// the same conversion, and <c>SetZoom</c> already guarded it — ⛔ but this setter did not, so
+        /// the guard was reachable only through one of the two doors.</para>
+        /// </summary>
         public float Zoom 
         { 
             get => InnerCamera.Zoom; 
-            set => InnerCamera.Zoom = value; 
+            set
+            {
+                if (!float.IsFinite(value) || value <= 0f)
+                {
+                    Fdp.Core.Logging.FdpLog<MapCamera>.Warn(
+                        $"[MapCamera] REJECTED a non-finite or non-positive Zoom ({value}). " +
+                        "Accepting it would make every screen<->world conversion NaN and silently " +
+                        "un-click the whole map. The camera is unchanged; fix the caller.");
+                    return;
+                }
+                InnerCamera.Zoom = value;
+            }
         }
 
         public Vector2 Target
         {
             get => InnerCamera.Target;
-            set => InnerCamera.Target = value;
+            set
+            {
+                if (!IsFinite(value))
+                {
+                    Fdp.Core.Logging.FdpLog<MapCamera>.Warn(
+                        $"[MapCamera] REJECTED a non-finite Target ({value.X},{value.Y}). " +
+                        "Accepting it would make every screen<->world conversion NaN and silently " +
+                        "un-click the whole map. The camera is unchanged; fix the caller.");
+                    return;
+                }
+                InnerCamera.Target = value;
+            }
         }
+
+        /// <summary>⭐ One predicate, so the three seams cannot disagree about what "usable" means.</summary>
+        internal static bool IsFinite(Vector2 v) => float.IsFinite(v.X) && float.IsFinite(v.Y);
         
+        // ── ⭐ CE-4084 (docs/DESIGN_Map_3D_Mode.md §6af) — the centre of the VISIBLE map ─────────────────────────────
+        /// <summary>The screen size when no window is open (tests); the window's size otherwise.</summary>
+        public Vector2 FallbackViewport { get; set; } = new(1280, 720);
+
+        /// <summary>A fixed screen size instead of the window's (tests; a camera drawing into a sub-viewport).</summary>
+        public Vector2? ViewportOverride { get; set; }
+
+        private Vector2? _frameViewport;            // ⭐ CE-1072 — the window size, read once a frame
+        private Vector2? _frameCentre;              // ⭐ CE-4084 — the visible centre, read once a frame
+        private bool _started;                      // ⭐ CE-1441 — the first Update has run (it places a never-placed Offset)
+        private Vector2 _frameCentreFor;            // the viewport it was read for (a film frame has another size)
+        private Func<Vector2, Vector2> _viewCentreSource = OpenMapArea.Centre;
+
+        /// <summary>⭐ CE-1072 — read from the window ONCE a frame (cleared by <see cref="ResetFrameCache"/>): 📐 measured 2026-10-14, asking
+        /// the window per call cost 13 % of a 3-D frame, because <c>MapCamera3D.ZoomAt</c> asks it for every primitive drawn.</summary>
+        public Vector2 Viewport => ViewportOverride ?? (_frameViewport ??= WindowOpen()
+            ? new Vector2(Raylib.GetScreenWidth(), Raylib.GetScreenHeight())
+            : FallbackViewport);
+
+        /// <summary>False in a test process with no window — or no native Raylib at all (the 2-D camera's math is window-free too).</summary>
+        private static bool WindowOpen()
+        {
+            try { return Raylib.IsWindowReady(); }
+            catch (DllNotFoundException) { return false; }
+            catch (EntryPointNotFoundException) { return false; }
+        }
+
+        /// <summary>
+        /// ⭐ CE-4084 — viewport → the screen point the map is centred on (zoom, turn, pick, the 2-D target). Default
+        /// <see cref="OpenMapArea.Centre"/> (the dockspace's open hole, or the window's middle). ⭐ ONE seam: every consumer reads
+        /// <see cref="ViewCentre"/>, never <see cref="OpenMapArea"/>, so a test or a host sets one source per camera.
+        /// </summary>
+        public Func<Vector2, Vector2> ViewCentreSource
+        {
+            get => _viewCentreSource;
+            set { _viewCentreSource = value ?? OpenMapArea.Centre; _frameCentre = null; }
+        }
+
+        /// <summary>⭐ CE-4084 — the centre of the visible map, window pixels; read once a frame (and again when the viewport changes).</summary>
+        public Vector2 ViewCentre
+        {
+            get
+            {
+                var vp = Viewport;
+                if (_frameCentre is not { } c || _frameCentreFor != vp)
+                {
+                    c = _viewCentreSource(vp);
+                    if (!IsFinite(c)) c = vp / 2f;
+                    _frameCentre = c; _frameCentreFor = vp;
+                }
+                return c;
+            }
+        }
+
+        /// <summary>A new frame: the window may have been resized and the visible area moved.</summary>
+        protected void ResetFrameCache() { _frameViewport = null; _frameCentre = null; }
+
+        /// <summary>
+        /// ⭐ CE-4084 — draws the same picture with <see cref="Offset"/> at <paramref name="screen"/>: <see cref="Target"/> (and the glide's target)
+        /// move by <c>flipY((screen − oldOffset) / Zoom)</c>, so EVERY world point keeps its screen position — docking a panel does not make the
+        /// map jump. From then on a zoom / <see cref="FocusOn"/> lands at <paramref name="screen"/>.
+        /// </summary>
+        public void AnchorAt(Vector2 screen)
+        {
+            if (!IsFinite(screen)) return;
+            var old = InnerCamera.Offset;
+            if (old == screen) return;
+            if (!float.IsFinite(InnerCamera.Zoom) || InnerCamera.Zoom <= 0f) { InnerCamera.Offset = screen; return; }
+            var d = FlipY((screen - old) / InnerCamera.Zoom);
+            InnerCamera.Offset = screen;
+            if (IsFinite(InnerCamera.Target)) InnerCamera.Target += d;
+            if (IsFinite(_targetTarget)) _targetTarget += d;
+        }
+
         public Vector2 Offset
         {
             get => InnerCamera.Offset;
-            set => InnerCamera.Offset = value;
+            set { InnerCamera.Offset = value; _started = true; }   // ⭐ CE-1441 — an Offset a host placed itself is never re-seeded
         }
 
         // Configuration
         public float ZoomSpeed { get; set; } = 0.1f;
         public float MinZoom { get; set; } = 0.1f;
-        public float MaxZoom { get; set; } = 10.0f;
+        // ⭐ CE-3150 — 10 → 50 (5×) on the user's ask, `2026-10-09`: "camera zoom-in limit is very low, i need much
+        //   more detailed (zoomed-in) view, 5 times more than now." ⚠ This is the DEFAULT every host but IG inherits
+        //   (MapCanvas, EditorSubsystem, StrideNodeBootstrapper each `new MapCamera()`); IG keeps its own 5.0 in
+        //   IgCameraConstants. ⛔ No test pins this value — IG's assert reads IgCameraConstants.MaxZoom.
+        public float MaxZoom { get; set; } = 100.0f;
         
         // ── NEW: Smoothing Toggle ─────────────────────────────────────────
         public bool EnableSmoothing { get; set; } = false;
@@ -66,11 +192,86 @@ namespace Fdp.Toolkit.Vis2D.Components
             _targetTarget = Vector2.Zero;
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE LAST LINE OF DEFENCE, and the one that matters — this is the ONLY per-frame writer
+        /// of <see cref="InnerCamera"/>.</b> 📄 Added <c>2026-09-20</c> with the property guards; see the
+        /// <c>Zoom</c> setter for the measured defect (the whole 2-D map silently un-clickable).
+        ///
+        /// <para>🔴🔴 <b>TWO HOLES THE PROPERTY GUARDS DO NOT COVER, and both were live:</b>
+        /// <list type="number">
+        /// <item>⛔⛔ <b>The old clamp could not see <c>NaN</c>.</b> <c>if (_targetZoom &lt; MinZoom)</c> and
+        /// <c>if (_targetZoom &gt; MaxZoom)</c> are <b>both false</b> for <c>NaN</c> — every comparison
+        /// against <c>NaN</c> is false — so a <c>NaN</c> target sailed through a block whose entire job was
+        /// validation.</item>
+        /// <item>⛔⛔ <b>These assignments write the FIELD, not the guarded properties</b>, so they bypass
+        /// the checks added beside them.</item>
+        /// </list></para>
+        ///
+        /// <para>🔒 <b>And <c>NaN</c> here is SELF-SUSTAINING:</b> <c>Lerp(NaN, x, t)</c> is <c>NaN</c>, so
+        /// once it lands in <c>InnerCamera</c> the smoothing re-poisons it every frame forever. ⭐ That is
+        /// exactly the observed signature — a valid world position on the first frames, then <c>NaN</c> for
+        /// the rest of the session.</para>
+        ///
+        /// <para>⭐⭐ <b>So this RECOVERS rather than merely refusing.</b> A camera found non-finite is
+        /// snapped back to its (validated) targets, which means an already-poisoned session repairs itself
+        /// on the next frame instead of staying dead until restart. ⛔ It still WARNS every time it has to,
+        /// because a silent repair would hide the producer.</para>
+        /// </summary>
         public virtual void Update(float dt)
         {
-            // Validating targets
-            if (_targetZoom < MinZoom) _targetZoom = MinZoom;
-            if (_targetZoom > MaxZoom) _targetZoom = MaxZoom;
+            // ⚠ dt first: a non-finite or negative dt makes every interpolation below non-finite, and it
+            //   arrives from outside this class. Treat it as "no interpolation this frame".
+            if (!float.IsFinite(dt) || dt < 0f) dt = 0f;
+
+            // ⭐ Validate the TARGETS with finite-aware logic. ⛔ `!(x >= Min)` is NOT the same as
+            //   `x < Min` — it is true for NaN, which is precisely the case the old clamp missed.
+            if (!(_targetZoom >= MinZoom) || !(_targetZoom <= MaxZoom))
+            {
+                if (!float.IsFinite(_targetZoom))
+                {
+                    Fdp.Core.Logging.FdpLog<MapCamera>.Warn(
+                        $"[MapCamera] target zoom was non-finite ({_targetZoom}); reset to 1. " +
+                        "Something wrote a NaN/Inf zoom — fix the caller.");
+                    _targetZoom = 1.0f;
+                }
+                else
+                {
+                    _targetZoom = System.Math.Clamp(_targetZoom, MinZoom, MaxZoom);
+                }
+            }
+
+            if (!IsFinite(_targetTarget))
+            {
+                Fdp.Core.Logging.FdpLog<MapCamera>.Warn(
+                    $"[MapCamera] target position was non-finite ({_targetTarget.X},{_targetTarget.Y}); " +
+                    "reset to origin. Something focused the camera on a NaN position — fix the caller.");
+                _targetTarget = Vector2.Zero;
+            }
+
+            // ⭐⭐⭐ RECOVERY: if the camera is ALREADY poisoned, snapping it to the validated targets is
+            //    the only way out — Lerp would carry the NaN forever.
+            if (!float.IsFinite(InnerCamera.Zoom) || InnerCamera.Zoom <= 0f || !IsFinite(InnerCamera.Target))
+            {
+                Fdp.Core.Logging.FdpLog<MapCamera>.Warn(
+                    $"[MapCamera] RECOVERING a non-finite camera (zoom={InnerCamera.Zoom}, " +
+                    $"target=({InnerCamera.Target.X},{InnerCamera.Target.Y})). Every screen<->world " +
+                    "conversion was NaN, which makes the whole map unclickable.");
+                InnerCamera.Zoom   = _targetZoom;
+                InnerCamera.Target = _targetTarget;
+                return;
+            }
+
+            // ⭐ CE-4084 — the picture's centre follows the visible map (a docked panel moves it); the picture itself does not jump.
+            ResetFrameCache();
+            // ⭐ CE-1441 (audit #18) — THE one place a camera starts centred on the visible map: a host that never placed Offset (still at
+            //   the constructor's (0,0)) gets it at ViewCentre on the FIRST update, with Target untouched — so the world point the host set
+            //   as Target IS the one drawn at the centre. (IG, CGF and SimHost each used to seed `Offset = ViewCentre` themselves.)
+            if (!_started)
+            {
+                _started = true;
+                if (InnerCamera.Offset == Vector2.Zero && IsFinite(ViewCentre)) InnerCamera.Offset = ViewCentre;
+            }
+            AnchorAt(ViewCentre);
 
             if (EnableSmoothing)
             {
@@ -96,11 +297,18 @@ namespace Fdp.Toolkit.Vis2D.Components
             // Gather inputs
             float wheel = input.MouseWheelMove;
             Vector2 mousePos = input.MousePosition;
-            bool isPanDown = input.IsMouseButtonDown(InputMap.PanButton);
+            bool isPanDown = IsPanDown(input, InputMap);
             bool isCaptured = input.IsMouseCaptured;
 
             return ProcessInput(wheel, mousePos, isPanDown, isCaptured);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-1287</c> — a pan is held when EITHER pan button is down: the right one (the 2-D map's original) or the middle one
+        /// (as in the 3-D view, <c>MapCamera3D.HandleInput</c>). ONE predicate, so the camera and its rails cannot disagree.
+        /// </summary>
+        public static bool IsPanDown(IInputProvider input, Vis2DInputMap map)
+            => input.IsMouseButtonDown(map.PanButton) || input.IsMouseButtonDown(map.SecondaryPanButton);
 
         /// <summary>
         /// Update camera targets based on inputs. Public for testing.
@@ -138,7 +346,7 @@ namespace Fdp.Toolkit.Vis2D.Components
                 // mouseWorldBefore = (mousePos - Offset) / TargetZoom + TargetTarget
                 // TargetTarget = mouseWorldBefore - (mousePos - Offset) / TargetZoom
                 
-                _targetTarget = mouseWorldBefore - (mousePos - InnerCamera.Offset) / _targetZoom;
+                _targetTarget = mouseWorldBefore - FlipY((mousePos - InnerCamera.Offset) / _targetZoom);   // ⭐ CE-1040 north-up
             }
 
             // Pan
@@ -164,7 +372,7 @@ namespace Fdp.Toolkit.Vis2D.Components
                     // deltaWorld = deltaScreen / CurrentZoom? Or TargetZoom?
                     // To interact 1:1 with cursor, we must use CurrentZoom.
                     
-                    Vector2 deltaWorld = deltaWrapper / InnerCamera.Zoom;
+                    Vector2 deltaWorld = FlipY(deltaWrapper / InnerCamera.Zoom);   // ⭐ CE-1040 — screen-down is world-SOUTH
                     
                     // We modify the TargetTarget directly to "pull" it.
                     // If Damping is high, InnerCamera.Target follows closely.
@@ -186,10 +394,24 @@ namespace Fdp.Toolkit.Vis2D.Components
             return interacted;
         }
 
-        public void FocusOn(Vector2 position, float zoom = -1f)
+        /// <summary>Centre the view on a ground point (and optionally zoom). ⭐ CE-1134 — virtual: the 3-D camera glides its look-at
+        /// point there instead (<c>MapCamera3D.FocusOn</c>), so every "centre on" caller works in both views.</summary>
+        public virtual void FocusOn(Vector2 position, float zoom = -1f)
         {
+            // ⭐⭐⭐ THE THIRD DOOR, and the one most likely to be handed a bad value: callers focus on an
+            //    ENTITY POSITION, and a component can hold NaN. ⛔ `_targetTarget` is copied into
+            //    InnerCamera.Target every frame by Update(), so poisoning it here is exactly as permanent
+            //    as writing Target directly. 📄 See the Target setter for the measured defect.
+            if (!IsFinite(position))
+            {
+                Fdp.Core.Logging.FdpLog<MapCamera>.Warn(
+                    $"[MapCamera] REJECTED FocusOn a non-finite position ({position.X},{position.Y}) — " +
+                    "this is the write that un-clicks the map. The camera is unchanged; fix the caller.");
+                return;
+            }
+
             _targetTarget = position;
-            if (zoom > 0) _targetZoom = zoom;
+            if (zoom > 0 && float.IsFinite(zoom)) _targetZoom = zoom;
         }
 
         /// <summary>
@@ -202,35 +424,85 @@ namespace Fdp.Toolkit.Vis2D.Components
             InnerCamera.Zoom   = source.InnerCamera.Zoom;
             InnerCamera.Target = source.InnerCamera.Target;
             InnerCamera.Offset = source.InnerCamera.Offset;
+            _started      = true;                  // ⭐ CE-1441 — a full picture, Offset included
             _targetZoom   = source._targetZoom;
             _targetTarget = source._targetTarget;
             _isDragging   = false;
         }
 
 
+        /// <summary>⭐ CE-1033 S1 — true for the map's 3-D camera (<c>MapCamera3D</c>): the canvas then runs the layers' 3-D pass.</summary>
+        public virtual bool Is3D => false;
+
+        /// <summary>
+        /// ⭐ CE-1033 S2 — the world point under a screen pixel WITH ITS HEIGHT (<c>DESIGN_Map_3D_Mode.md</c> §3.8, M19): in 2-D the
+        /// <see cref="ScreenToWorld"/> point at Z = 0, byte-identical to before; the 3-D camera picks the terrain / an entity.
+        /// <paramref name="forDrag"/> (P2): a drag sees only the terrain and the ground, never entities.
+        /// </summary>
+        public virtual Vector3 ScreenToWorld3D(Vector2 screenPos, bool forDrag = false)
+        {
+            var p = ScreenToWorld(screenPos);
+            return new Vector3(p.X, p.Y, 0f);
+        }
+
+        /// <summary>⭐ CE-1033 S2 (P2) — the point a DRAG follows: terrain and ground only (2-D: <see cref="ScreenToWorld"/>).</summary>
+        public virtual Vector2 ScreenToWorldForDrag(Vector2 screenPos)
+        {
+            var p = ScreenToWorld3D(screenPos, forDrag: true);
+            return new Vector2(p.X, p.Y);
+        }
+
+        /// <summary>⭐ CE-1033 S2 — pixels per metre AT a world point (2-D: the zoom everywhere; 3-D: shrinks with distance), so a
+        /// pick box sized in screen pixels is hit-tested at the right size in a tilted view.</summary>
+        public virtual float ZoomAt(Vector3 worldPoint) => InnerCamera.Zoom;
+
+        /// <summary>⭐ CE-1033 S1 — a mouse movement in pixels as a movement on the ground, for drags (2-D: divided by the zoom).</summary>
+        public virtual Vector2 ScreenDeltaToWorld(Vector2 screenDelta) => FlipY(screenDelta / InnerCamera.Zoom);
+
+        /// <summary>
+        /// ⭐⭐ CE-1040 — THE 2-D MAP IS NORTH-UP: world Y (north) goes screen-UP. 📄 docs/DESIGN_Map_North_Up.md.
+        /// <para>🔴 Before, the camera was a plain Raylib <c>Camera2D</c> (world Y screen-DOWN) and HROT's axes are ENU, so the map
+        /// showed north at the BOTTOM — the view from below the ground — and every 2-D ↔ 3-D swap flipped north and south.</para>
+        /// <para>⭐ The flip lives HERE ONLY (N1): <see cref="BeginMode"/>'s matrix and the conversions below. Every producer keeps
+        /// drawing world coordinates. ⚠ <see cref="InnerCamera"/> keeps its fields (Target = the world point at Offset, Zoom), but
+        /// ⛔ never hand it to <c>Raylib.BeginMode2D</c> / <c>GetScreenToWorld2D</c> — those know no flip; use this class.</para>
+        /// </summary>
+        public static bool NorthUp => true;
+
+        /// <summary>Negates Y when the map is north-up — the one place a screen vector becomes a world vector's sign.</summary>
+        protected static Vector2 FlipY(Vector2 v) => NorthUp ? new Vector2(v.X, -v.Y) : v;
+
         public virtual void BeginMode()
         {
-            Raylib.BeginMode2D(InnerCamera);
+            // ⭐ CE-1040 (N1) — Raylib's BeginMode2D with the Y axis mirrored, which a Camera2D cannot express (one scalar zoom):
+            //   vertex' = Offset + Zoom · (x, −y) · (vertex − Target). rlgl applies the LAST call first.
+            Rlgl.DrawRenderBatchActive();
+            Rlgl.LoadIdentity();
+            Rlgl.Translatef(InnerCamera.Offset.X, InnerCamera.Offset.Y, 0f);
+            Rlgl.Scalef(InnerCamera.Zoom, NorthUp ? -InnerCamera.Zoom : InnerCamera.Zoom, 1f);
+            Rlgl.Translatef(-InnerCamera.Target.X, -InnerCamera.Target.Y, 0f);
+            // ⭐ N4 — a one-axis mirror reverses every triangle's winding; with culling on, filled shapes and text would vanish.
+            Rlgl.DisableBackfaceCulling();
         }
 
         public virtual void EndMode()
         {
-            Raylib.EndMode2D();
+            Rlgl.DrawRenderBatchActive();
+            Rlgl.LoadIdentity();
+            Rlgl.EnableBackfaceCulling();
         }
 
         public virtual Vector2 ScreenToWorld(Vector2 screenPos)
         {
-            // Calculate manually to support unit testing (Raylib context might not be available) and ensure consistency
-            // Formula matches Raylib's GetScreenToWorld2D for Rotation=0
-            // World = (Screen - Offset) / Zoom + Target
-            return (screenPos - InnerCamera.Offset) / InnerCamera.Zoom + InnerCamera.Target;
+            // Calculate manually to support unit testing (Raylib context might not be available) and ensure consistency.
+            // ⭐ CE-1040: World = Target + flipY((Screen - Offset) / Zoom) — screen-down is world-south.
+            return InnerCamera.Target + FlipY((screenPos - InnerCamera.Offset) / InnerCamera.Zoom);
         }
 
         public virtual Vector2 WorldToScreen(Vector2 worldPos)
         {
-            // Calculate manually to support unit testing
-            // Screen = (World - Target) * Zoom + Offset
-            return (worldPos - InnerCamera.Target) * InnerCamera.Zoom + InnerCamera.Offset;
+            // ⭐ CE-1040: Screen = Offset + flipY(World - Target) * Zoom.
+            return InnerCamera.Offset + FlipY(worldPos - InnerCamera.Target) * InnerCamera.Zoom;
         }
 
         // ── IMapCameraProvider implementation ─────────────────────────────────
@@ -251,6 +523,7 @@ namespace Fdp.Toolkit.Vis2D.Components
             InnerCamera.Zoom   = view.Zoom;
             InnerCamera.Target = view.Target;
             InnerCamera.Offset = view.Offset;
+            _started      = true;                  // ⭐ CE-1441 — a full picture, Offset included: nothing to seed
             _targetZoom   = view.SmoothZoom;
             _targetTarget = view.SmoothTarget;
             _isDragging   = false;

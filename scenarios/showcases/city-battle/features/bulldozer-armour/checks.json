@@ -1,0 +1,74 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 - CE-6006 bulldozer armour: rifles bounce, the 3rd RPG kills (DESIGN_City_Battle_Showcase V-1a). The same numbers are pinned without a run by Hrot.Core.Tests BulldozerArmourTests.",
+  "runFor": 90,
+  "golden": false,
+  "anchors": {
+    "rpg1": {
+      "on": "shot",
+      "by": "RPG Man",
+      "at": "Dozer RPG",
+      "hit": "Dozer RPG",
+      "n": 1
+    },
+    "rpg2": {
+      "on": "shot",
+      "by": "RPG Man",
+      "at": "Dozer RPG",
+      "hit": "Dozer RPG",
+      "n": 2
+    },
+    "rpg3": {
+      "on": "shot",
+      "by": "RPG Man",
+      "at": "Dozer RPG",
+      "hit": "Dozer RPG",
+      "n": 3
+    }
+  },
+  "expect": [
+    {
+      "name": "the squad hits the rifle dozer (20 rounds)",
+      "on": "shot",
+      "by": "*Rifleman",
+      "at": "Dozer Rifle",
+      "hit": "Dozer Rifle",
+      "n": 20
+    },
+    {
+      "name": "the rifle dozer is not hurt",
+      "on": "field",
+      "who": "Dozer Rifle",
+      "path": "Health.Current",
+      "op": ">=",
+      "value": 1000,
+      "atEnd": true
+    },
+    {
+      "name": "the RPG man hits his dozer three times",
+      "on": "shot",
+      "by": "RPG Man",
+      "at": "Dozer RPG",
+      "hit": "Dozer RPG",
+      "n": 3
+    },
+    {
+      "name": "alive after the 2nd rocket",
+      "on": "field",
+      "who": "Dozer RPG",
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "after": "rpg2+2",
+      "before": "rpg3"
+    },
+    {
+      "name": "dead after the 3rd rocket",
+      "on": "field",
+      "who": "Dozer RPG",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "after": "rpg3+2"
+    }
+  ]
+}

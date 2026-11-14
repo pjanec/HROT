@@ -308,7 +308,7 @@ Practical checklist before placing a new artefact:
 
 ```powershell
 # Build the full solution
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Build just SimHost
 dotnet build Hrot.SimHost\Hrot.SimHost.csproj

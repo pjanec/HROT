@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.Presentation.Abstractions;
@@ -57,20 +58,155 @@ public class LiveBlackboardValueProviderTests
 
     private static FakeAsset MakeAsset(string name = AssetName) => new FakeAsset(name);
 
+    /// <summary>
+    /// ⭐⭐ Builds a BOXED tier component holding a real occurrence store with this behaviour's ROOT
+    /// PARAMS SLOT attached and <paramref name="dto"/> written into it.
+    ///
+    /// <para>⚠ The box is what makes this possible: <c>RootParamsProjection</c> pins the component the
+    /// session hands back, so a fake can supply genuine store bytes without a world. ⛔ The pin is
+    /// released before returning — the DATA lives in the boxed object, not in the handle.</para>
+    /// </summary>
+    private static unsafe object MakeStoreWithRootParams<T>(int behaviourHash, T dto) where T : unmanaged
+    {
+        object boxed = new Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024();
+        var handle = GCHandle.Alloc(boxed, GCHandleType.Pinned);
+        try
+        {
+            byte* mem = (byte*)handle.AddrOfPinnedObject();
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.Initialize(
+                mem,
+                Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024.TotalSize,
+                Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024.MaxSlots);
+
+            int key  = RootParamsAccess.KeyForBehaviour(behaviourHash);
+            int size = sizeof(T);
+            Assert.True(Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryAttach(
+                mem, key, size, unchecked((ulong)size),
+                Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.BTree, out int offset));
+
+            *(T*)(mem + offset) = dto;
+        }
+        finally { handle.Free(); }
+        return boxed;
+    }
+
+    /// <summary>The same store, holding raw <paramref name="bytes"/> in the root params slot (a real definition's parse output).</summary>
+    private static unsafe object MakeStoreWithRootParamsBytes(int behaviourHash, byte[] bytes)
+    {
+        object boxed = new Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024();
+        var handle = GCHandle.Alloc(boxed, GCHandleType.Pinned);
+        try
+        {
+            byte* mem = (byte*)handle.AddrOfPinnedObject();
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.Initialize(
+                mem,
+                Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024.TotalSize,
+                Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024.MaxSlots);
+            int key = RootParamsAccess.KeyForBehaviour(behaviourHash);
+            Assert.True(Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryAttach(
+                mem, key, bytes.Length, unchecked((ulong)bytes.Length),
+                Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.BTree, out int offset));
+            Marshal.Copy(bytes, 0, (IntPtr)(mem + offset), bytes.Length);
+        }
+        finally { handle.Free(); }
+        return boxed;
+    }
+
     // ── Tests ─────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Fake session with a selected entity that has BrainBlackboard + BehaviorState
-    /// where ActiveBehaviorHash matches the registered behavior id.
-    /// Assert that the returned map contains the variable name → correct formatted value.
+    /// ⭐⭐ <c>CE-1412</c> — a SHIPPED C#-built tree (<c>BasicSquadSop</c>, a JSON asset until CE-1410) shows live values: its PRODUCTION
+    /// definition publishes the variables manifest (<c>SharedNodeBinder.VariablesOf</c>), and the provider reads each variable out of the
+    /// root params slot its own parse filled (the bake: the block's constructor). ⛔ Before CE-1412 the manifest was null and the map EMPTY.
+    /// <para>✅ Red-proof: drop the <c>ManagedBlackboardVariables</c> line from <c>CuratedBehaviorGenerator</c> ⇒ "Expected 'UnderFire'".</para>
+    /// </summary>
+    [Fact]
+    public unsafe void CE1412_ARunningShippedCSharpSop_ShowsLiveValues()
+    {
+        var registry = new BehaviorRegistry();
+        Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+        Assert.True(registry.TryGetId("BasicSquadSop", out int id));
+        Assert.True(registry.TryGetDefinition(id, out var def));
+
+        int bytes = RootParamsAccess.RootParamsBytes(def!);
+        var region = new byte[bytes];
+        using (var world = new EntityRepository())
+            fixed (byte* p = region) def!.ParseParams!("{}", p, bytes, world, default);   // what ingress writes at attach
+
+        var entity = new Entity(1, 1);
+        var store = new EditorSelectionStore { SelectedEntity = entity };
+        var provider = new LiveBlackboardValueProvider(
+            sessionFactory:  () => new FakeSession(entity, behaviorHash: id, store: MakeStoreWithRootParamsBytes(id, region)),
+            registryFactory: () => registry,
+            store:           store);
+
+        var values = provider.GetLiveVariableValues(MakeAsset("BasicSquadSop"));
+
+        Assert.Equal(new[] { "UnderFire", "LeaderDown", "Contact", "MemberDown", "AreaAhead" }, values.Keys.ToArray());
+        Assert.Contains("Kind=SquadUnderFire", values["UnderFire"]);
+        Assert.Contains("Seconds=3", values["UnderFire"]);
+        Assert.Contains("Kind=SquadMemberDown", values["MemberDown"]);
+        Assert.Contains("WithinMetres=30", values["AreaAhead"]);
+        Assert.Equal(5, provider.GetLiveBytes(MakeAsset("BasicSquadSop"))!.Count);   // the byte arm (the Details cells) too
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1430</c> — the EDITOR'S OWN asset for a C#-built tree (<c>BTreeAssetContributor</c>'s projection of <c>BasicSquadSop</c>, not
+    /// a fake) draws its Variables rows with LIVE values for a running unit: the Details row source over that asset, wired to the provider's
+    /// byte arm as <c>PerspectiveWorkspaceRegistrar</c> wires it, and each cell rendered by the formatter the control calls.
+    /// ⛔ Before CE-1430 the projected asset had no variables, so there were no rows to show the provider's values in.
+    /// <para>✅ Red-proof: the projector's <c>SetBlackboardVariables</c> call removed ⇒ "Expected: 5, Actual: 0" (no rows).</para>
+    /// </summary>
+    [Fact]
+    public unsafe void CE1430_TheProjectedCodeBuiltSop_ShowsItsLiveValuesInItsRows()
+    {
+        var aiAssembly = typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly;
+        var registry = new BehaviorRegistry();
+        Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+        Assert.True(registry.TryGetId("BasicSquadSop", out int id));
+        Assert.True(registry.TryGetDefinition(id, out var def));
+
+        var contributor = new Hrot.BTree.Editor.Catalog.BTreeAssetContributor();
+        contributor.LoadFrom(aiAssembly);
+        var asset = contributor.Enumerate().OfType<Hrot.BTree.Editor.Model.BehaviorTreeAsset>().Single(a => a.Name == "BasicSquadSop");
+
+        int bytes = RootParamsAccess.RootParamsBytes(def!);
+        var region = new byte[bytes];
+        using (var world = new EntityRepository())
+            fixed (byte* p = region) def!.ParseParams!("{}", p, bytes, world, default);   // what ingress writes at attach
+
+        var entity = new Entity(1, 1);
+        var store = new EditorSelectionStore { SelectedEntity = entity };
+        var provider = new LiveBlackboardValueProvider(
+            sessionFactory:  () => new FakeSession(entity, behaviorHash: id, store: MakeStoreWithRootParamsBytes(id, region)),
+            registryFactory: () => registry,
+            store:           store);
+
+        var rows = new Hrot.Editor.AiShared.Variables.BlackboardSectionRowSource(
+            () => asset, asset.AssetId, Hrot.Editor.AiShared.Variables.BlackboardMyBlueprintModel.SectionInputs, entity,
+            readRaw: name => provider.GetLiveBytes(asset) is { } live && live.TryGetValue(name, out var b) ? b : Array.Empty<byte>())
+            .GetRows();
+        var formatter = new Hrot.Editor.AiShared.Variables.VariableValueFormatter(Hrot.Editor.AiShared.Variables.RawValueDecoder.Instance);
+
+        Assert.Equal(5, rows.Count);
+        Assert.Equal(new[] { "UnderFire", "LeaderDown", "Contact", "MemberDown", "AreaAhead" }, rows.Select(r => r.ShortName).ToArray());
+        Assert.All(rows, r => Assert.True(r.HasEverBeenWritten, $"{r.ShortName} has a live value"));
+        Assert.Contains("SquadUnderFire", formatter.Cell(rows[0], width: 200));
+        Assert.Contains("SquadMemberDown", formatter.Cell(rows[3], width: 200));
+        Assert.Contains("30", formatter.Cell(rows[4], width: 200));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>A POSITIVE rail: known values written into a REAL root params slot read back through
+    /// the provider.</b> ⛔ Not a refusal check — a refusal is satisfied by an empty store, which is
+    /// exactly how this surface stayed green while it was broken (<c>CE-312</c>).
     /// </summary>
     [Fact]
     public unsafe void LiveValues_SelectedEntityRunningAsset_ReturnsFormattedValues()
     {
-        // Arrange: DTO with Counter=7, Threshold=1000 at offset 0.
+        // Arrange: DTO with Counter=7, Threshold=1000 at offset 0 of the ROOT PARAMS SLOT.
         var expected = new CounterParams { Counter = 7, Threshold = 1000 };
-        var bb = new BrainBlackboard();
-        Marshal.StructureToPtr(expected, (IntPtr)bb.BehaviorParameters, false);
+        object paramsStore = MakeStoreWithRootParams(BehaviorId, expected);
 
         var vars = new[]
         {
@@ -82,9 +218,7 @@ public class LiveBlackboardValueProviderTests
         var store   = new EditorSelectionStore();
         store.SelectedEntity = entity;
 
-        var session = new FakeSession(entity,
-            behaviorHash:   BehaviorId,
-            bb:             bb);
+        var session = new FakeSession(entity, behaviorHash: BehaviorId, store: paramsStore);
 
         var provider = new LiveBlackboardValueProvider(
             sessionFactory:  () => session,
@@ -137,9 +271,7 @@ public class LiveBlackboardValueProviderTests
         store.SelectedEntity = entity;
 
         // Entity is running behavior id 99, not 42.
-        var session = new FakeSession(entity,
-            behaviorHash: 99,
-            bb:           new BrainBlackboard());
+        var session = new FakeSession(entity, behaviorHash: 99, store: null);
 
         var provider = new LiveBlackboardValueProvider(
             sessionFactory:  () => session,
@@ -226,19 +358,23 @@ public class LiveBlackboardValueProviderTests
     }
 
     /// <summary>
-    /// Fake IInspectableSession that returns a BehaviorState + BrainBlackboard for one entity.
+    /// Fake IInspectableSession that returns a BehaviorState for one entity.
     /// </summary>
     private sealed class FakeSession : IInspectableSession
     {
-        private readonly Entity?         _entity;
-        private readonly int             _behaviorHash;
-        private readonly BrainBlackboard? _bb;
+        private readonly Entity? _entity;
+        private readonly int     _behaviorHash;
+        private readonly object? _store;
 
-        public FakeSession(Entity? entity, int behaviorHash, BrainBlackboard? bb)
+        // ⭐⭐ P4 (2026-09-22): the `BrainBlackboard? bb` parameter is GONE. 🔴 It had ALREADY stopped
+        //   mattering at P3-C: LiveBlackboardValueProvider reaches the params through
+        //   RootParamsProjection.TryCopyRootParams (the entity's ROOT PARAMS SLOT), and never asks a
+        //   session for that component. ⇒ the fake was feeding a channel nothing read.
+        public FakeSession(Entity? entity, int behaviorHash, object? store = null)
         {
             _entity       = entity;
             _behaviorHash = behaviorHash;
-            _bb           = bb;
+            _store        = store;
         }
 
         public bool IsReadOnly => true;
@@ -252,7 +388,8 @@ public class LiveBlackboardValueProviderTests
         public bool HasComponent(Entity e, Type t)
         {
             if (!IsAlive(e)) return false;
-            return t == typeof(BehaviorState) || t == typeof(BrainBlackboard);
+            if (t == typeof(BehaviorState)) return true;
+            return _store != null && t == _store.GetType();
         }
 
         public object? GetComponent(Entity e, Type t)
@@ -260,8 +397,7 @@ public class LiveBlackboardValueProviderTests
             if (!IsAlive(e)) return null;
             if (t == typeof(BehaviorState))
                 return new BehaviorState { ActiveBehaviorHash = _behaviorHash };
-            if (t == typeof(BrainBlackboard) && _bb.HasValue)
-                return _bb.Value;
+            if (_store != null && t == _store.GetType()) return _store;
             return null;
         }
 
@@ -271,8 +407,8 @@ public class LiveBlackboardValueProviderTests
     }
 
     /// <summary>
-    /// Fake session that returns BehaviorState correctly but throws when GetComponent
-    /// is called for BrainBlackboard, simulating a projection failure.
+    /// Fake session that returns BehaviorState correctly but supplies no params region,
+    /// simulating a projection failure.
     /// </summary>
     private sealed class ThrowingBrainBlackboardSession : IInspectableSession
     {
@@ -290,15 +426,15 @@ public class LiveBlackboardValueProviderTests
         public IEnumerable<Entity> GetEntities() => new[] { _entity };
         public bool IsAlive(Entity e) => e == _entity;
 
-        public bool HasComponent(Entity e, Type t) =>
-            t == typeof(BehaviorState) || t == typeof(BrainBlackboard);
+        public bool HasComponent(Entity e, Type t) => t == typeof(BehaviorState);
 
         public object? GetComponent(Entity e, Type t)
         {
             if (t == typeof(BehaviorState))
                 return new BehaviorState { ActiveBehaviorHash = _behaviorHash };
-            if (t == typeof(BrainBlackboard))
-                throw new InvalidOperationException("Simulated projection failure");
+            // ⚠ P4: the throwing arm keyed on BrainBlackboard is gone with the component. The
+            //   projection-failure path this fake simulates is now reached through the occurrence
+            //   store, so the simulation moved to returning nothing for it.
             return null;
         }
 

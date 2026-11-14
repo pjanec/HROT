@@ -1,0 +1,51 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — S10/S7 (CE-2161): the squad crosses open ground by bounding overwatch. Judge (2) the squad runs the BoundingOverwatch drill (`SquadDrillTrace.Kind == 2`, measured from 0.25 s; the squad's behaviour name is SquadMarch/SquadDangerCrossing, which is what the first draft misread), (5) the march gathers the riflemen near (175,60) (x >= 160 and y <= 75, all, at the end), nobody fires. NOT expressible: (1) the route sensor, (3) one half moving at a time, (4) the last bound's side. Golden: the squad's component dump.",
+  "runFor": 180,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the squad crosses by bounding overwatch (drill BoundingOverwatch)",
+      "on": "field",
+      "who": "Squad",
+      "path": "SquadDrillTrace.Kind",
+      "op": "==",
+      "value": 2
+    },
+    {
+      "name": "nobody fires (riflemen)",
+      "never": {
+        "on": "shot",
+        "by": "*Rifleman"
+      }
+    },
+    {
+      "name": "nobody fires (leader)",
+      "never": {
+        "on": "shot",
+        "by": "Leader"
+      }
+    },
+    {
+      "name": "the squad gathers at the far side (x >= 160)",
+      "on": "field",
+      "who": "*Rifleman",
+      "path": "SimTransform.Position.0",
+      "op": ">=",
+      "value": 160,
+      "quantifier": "all",
+      "atEnd": true
+    },
+    {
+      "name": "the squad gathers at the far side (y <= 75)",
+      "on": "field",
+      "who": "*Rifleman",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 75,
+      "quantifier": "all",
+      "atEnd": true
+    }
+  ]
+}

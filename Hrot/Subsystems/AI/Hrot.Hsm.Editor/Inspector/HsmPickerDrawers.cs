@@ -2,149 +2,67 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Presentation.Editing;
+using Fdp.Presentation.Editing.Types;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Inspector;
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using Hrot.Hsm.Editor.Model;
 using StructEdit.Core;
 
 namespace Hrot.Hsm.Editor.Inspector;
 
 /// <summary>
-/// Mutable context shared between <see cref="HsmFacetMapper"/> (writer) and
-/// <see cref="HsmBlackboardFieldPickerDrawer"/> (reader) so the picker can filter
-/// blackboard variables by the DtoType of the currently-selected transition's action FQN,
-/// and so the Promote gesture can bind the newly-created variable back to the transition.
+/// ⭐⭐⭐ <b><c>CE-417</c> slice 4b — the ONE thing the HSM host supplies to the shared binding drawer: which methods a slot
+/// offers.</b> 📄 <c>DESIGN_Behavior_Action_Binding.md</c> §5.4.
 ///
-/// <para>
-/// Lifecycle: one instance per open HSM asset.  Created alongside
-/// <see cref="HsmPickerDrawerFactory.BuildDrawers"/> and the HSM facet dispatcher.
-/// <see cref="HsmFacetMapper.GetTransitionFacet"/> sets <see cref="CurrentActionFqn"/> and
-/// <see cref="CurrentVisualId"/> before returning; the drawer reads them in the same frame.
-/// </para>
+/// <para>⭐⭐⭐ <b><c>CE-386</c> — the REGISTERED HSM activities / guards, not only the names this asset already mentions.</b>
+/// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.3. 🔴 The list was once built ONLY from the asset's own bindings
+/// ⇒ the FIRST binding was unmakeable from the inspector.</para>
+///
+/// <para>⚠ <b>The asset's own names stay in the union</b>, even with an exporter: an asset may name a method the current
+/// assembly no longer exports, and dropping it from the list would hide a dangling binding instead of showing it. ⭐
+/// <c>HsmActivity</c>, not <c>Hsm</c>, for an action slot: a bare <c>Hsm</c> entry may be a GUARD, and offering a guard as an
+/// activity is the wrong-kind defect <c>CE-396</c> fixed one layer up. ⛔ Was <c>HsmActionPickerDrawer</c> +
+/// <c>HsmGuardPickerDrawer</c>.</para>
 /// </summary>
-public sealed class HsmFacetFqnContext
+public static class HsmBindingMethods
 {
-    /// <summary>
-    /// The method FQN of the transition's action currently selected in the inspector,
-    /// or <see langword="null"/> when no transition with an action is selected.
-    /// </summary>
-    public string? CurrentActionFqn { get; set; }
-
-    /// <summary>
-    /// The VisualId (as a GUID string) of the transition/global-transition currently selected.
-    /// Written alongside <see cref="CurrentActionFqn"/> so
-    /// <see cref="HsmBlackboardFieldPickerDrawer"/> can call
-    /// <see cref="HsmBlackboardFieldPickerDrawer.Promote"/> with the correct identity.
-    /// </summary>
-    public string? CurrentVisualId { get; set; }
-}
-
-/// <summary>
-/// StructEdit <see cref="IImGuiFieldDrawer"/> for fields marked with
-/// <see cref="HsmActionPickerAttribute"/>. Lists action function names from the
-/// active HSM asset's transitions + global transitions.
-/// </summary>
-public sealed class HsmActionPickerDrawer : IImGuiFieldDrawer, IPickerListSource
-{
-    private readonly HsmAsset _asset;
-
-    public HsmActionPickerDrawer(HsmAsset asset)
+    /// <summary>The method names a slot of <paramref name="kind"/> offers (unsorted; the drawer sorts).</summary>
+    public static IEnumerable<string> For(HsmAsset asset, IActionSchemaExporter? schema, BindingSlotKind kind)
     {
-        _asset = asset ?? throw new ArgumentNullException(nameof(asset));
+        if (asset is null) throw new ArgumentNullException(nameof(asset));
+        // ⭐ CE-1167 — the rule is shared with the BTree host (ActionBindingMethods); the HSM supplies its hosting bit and its bindings
+        var hosting = kind == BindingSlotKind.Guard ? ActionHosting.HsmGuard : ActionHosting.HsmActivity;
+        return ActionBindingMethods.For(schema, hosting, condition: null, BindingsOf(asset, kind));
     }
 
-    public Type TargetType => typeof(string);
-
-    /// <summary>Returns all distinct action function names from the asset's transitions.</summary>
-    public IReadOnlyList<string> GetItems()
+    private static IEnumerable<Hrot.Editor.AiShared.BehaviorActionBinding?> BindingsOf(HsmAsset asset, BindingSlotKind kind)
     {
-        var names = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var t in _asset.AllTransitions)
+        if (kind == BindingSlotKind.Guard)
         {
-            if (!string.IsNullOrEmpty(t.ActionFunction)) names.Add(t.ActionFunction!);
-            if (!string.IsNullOrEmpty(t.Source?.OnEntryAction)) names.Add(t.Source.OnEntryAction!);
-            if (!string.IsNullOrEmpty(t.Source?.OnExitAction))  names.Add(t.Source.OnExitAction!);
+            foreach (var t in asset.AllTransitions)       yield return t.Guard;
+            foreach (var g in asset.AllGlobalTransitions) yield return g.Guard;
+            yield break;
         }
-        foreach (var s in _asset.AllStates)
-        {
-            if (!string.IsNullOrEmpty(s.OnEntryAction)) names.Add(s.OnEntryAction!);
-            if (!string.IsNullOrEmpty(s.OnExitAction))  names.Add(s.OnExitAction!);
-            if (!string.IsNullOrEmpty(s.ActivityAction)) names.Add(s.ActivityAction!);
-            if (!string.IsNullOrEmpty(s.TimerAction))   names.Add(s.TimerAction!);
-        }
-        foreach (var g in _asset.AllGlobalTransitions)
-            if (!string.IsNullOrEmpty(g.ActionFunction)) names.Add(g.ActionFunction!);
-        return names.OrderBy(n => n).ToList();
-    }
-
-    /// <inheritdoc/>
-    public bool DrawInput(ref object value, EditNode node)
-    {
-        if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return false;
-        return HsmPickerHelper.RenderCombo(ref value, "##hsmact", GetItems());
+        foreach (var s in asset.AllStates)
+            foreach (var b in s.Bindings) yield return b;
+        foreach (var t in asset.AllTransitions)       yield return t.Action;
+        foreach (var g in asset.AllGlobalTransitions) yield return g.Action;
     }
 }
 
 /// <summary>Internal rendering helpers shared by all HSM picker drawers.</summary>
 internal static class HsmPickerHelper
 {
-    internal static bool RenderCombo(ref object value, string id, IReadOnlyList<string> items)
+    /// <summary>⭐ <c>CE-1008</c> (AI_Editor_Shared_Infrastructure §7.1b) — a string choice through the ONE choice field: the searchable
+    /// picker where the host passed one, else the plain combo ("(none)" clears).</summary>
+    internal static bool Render(ref object value, string id, IReadOnlyList<string> items, PickerField field, EditNode node, string title,
+                                Func<string, string>? label = null)
     {
         var current = value as string ?? string.Empty;
-        bool changed = false;
-        if (ImGuiNET.ImGui.BeginCombo(id, current))
-        {
-            // Allow clearing.
-            if (ImGuiNET.ImGui.Selectable("(none)", string.IsNullOrEmpty(current)) && !string.IsNullOrEmpty(current))
-            {
-                value = string.Empty;
-                changed = true;
-            }
-            foreach (var name in items)
-            {
-                bool sel = name == current;
-                if (ImGuiNET.ImGui.Selectable(name, sel) && !sel)
-                {
-                    value   = name;
-                    changed = true;
-                }
-                if (sel) ImGuiNET.ImGui.SetItemDefaultFocus();
-            }
-            ImGuiNET.ImGui.EndCombo();
-        }
-        return changed;
-    }
-}
-
-/// <summary>
-/// StructEdit <see cref="IImGuiFieldDrawer"/> for fields marked with
-/// <see cref="HsmGuardPickerAttribute"/>. Lists guard function names from transitions.
-/// </summary>
-public sealed class HsmGuardPickerDrawer : IImGuiFieldDrawer, IPickerListSource
-{
-    private readonly HsmAsset _asset;
-
-    public HsmGuardPickerDrawer(HsmAsset asset)
-    {
-        _asset = asset ?? throw new ArgumentNullException(nameof(asset));
-    }
-
-    public Type TargetType => typeof(string);
-
-    public IReadOnlyList<string> GetItems()
-    {
-        var names = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var t in _asset.AllTransitions)
-            if (!string.IsNullOrEmpty(t.GuardFunction)) names.Add(t.GuardFunction!);
-        foreach (var g in _asset.AllGlobalTransitions)
-            if (!string.IsNullOrEmpty(g.GuardFunction)) names.Add(g.GuardFunction!);
-        return names.OrderBy(n => n).ToList();
-    }
-
-    public bool DrawInput(ref object value, EditNode node)
-    {
-        if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return false;
-        return HsmPickerHelper.RenderCombo(ref value, "##hsmguard", GetItems());
+        if (!field.Draw(id, node, current, PickerChoices.Flat(items, label), title, out var picked)) return false;
+        value = picked ?? string.Empty;
+        return true;
     }
 }
 
@@ -155,11 +73,17 @@ public sealed class HsmGuardPickerDrawer : IImGuiFieldDrawer, IPickerListSource
 public sealed class HsmStateSelectorDrawer : IImGuiFieldDrawer, IPickerListSource
 {
     private readonly HsmAsset _asset;
+    private readonly PickerField _field;
 
-    public HsmStateSelectorDrawer(HsmAsset asset)
+    /// <param name="field">⭐ CE-1008 — the searchable choice field; null ⇒ a plain combo.</param>
+    public HsmStateSelectorDrawer(HsmAsset asset, PickerField? field = null)
     {
         _asset = asset ?? throw new ArgumentNullException(nameof(asset));
+        _field = field ?? new PickerField(null);
     }
+
+    /// <summary>⭐ CE-1008 — the choice field (the forwarding rail reads it).</summary>
+    public PickerField Field => _field;
 
     public Type TargetType => typeof(string);
 
@@ -174,7 +98,7 @@ public sealed class HsmStateSelectorDrawer : IImGuiFieldDrawer, IPickerListSourc
     public bool DrawInput(ref object value, EditNode node)
     {
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return false;
-        return HsmPickerHelper.RenderCombo(ref value, "##hsmstate", GetItems());
+        return HsmPickerHelper.Render(ref value, "hsmstate", GetItems(), _field, node, "State");
     }
 }
 
@@ -185,40 +109,48 @@ public sealed class HsmStateSelectorDrawer : IImGuiFieldDrawer, IPickerListSourc
 public sealed class HsmEventPickerDrawer : IImGuiFieldDrawer, IPickerListSource
 {
     private readonly HsmAsset _asset;
+    private readonly PickerField _field;
 
-    public HsmEventPickerDrawer(HsmAsset asset)
+    /// <param name="field">⭐ CE-1008 — the searchable choice field; null ⇒ a plain combo.</param>
+    public HsmEventPickerDrawer(HsmAsset asset, PickerField? field = null)
     {
         _asset = asset ?? throw new ArgumentNullException(nameof(asset));
+        _field = field ?? new PickerField(null);
     }
 
-    public Type TargetType => typeof(string);
+    /// <summary>⭐ CE-1008 — the choice field (the forwarding rail reads it).</summary>
+    public PickerField Field => _field;
+
+    /// <summary>⭐ CE-3398 — the event fields are <c>ushort EventId</c> (the facets); the drawer maps the picked NAME back to its id. It was <c>string</c>, so the rule never matched
+    /// and the <c>ushort</c> sync-group entry drew a transition's event as a sync-group combo.</summary>
+    public Type TargetType => typeof(ushort);
 
     public IReadOnlyList<string> GetItems()
-        => _asset.AllEvents
-                 .Select(e => e.Name)
-                 .OrderBy(n => n)
-                 .ToList();
+        => Choices().Select(c => c.Name).OrderBy(n => n).ToList();
+
+    /// <summary>
+    /// The asset's events, then ⭐ <c>CE-2088</c> the ENGINE-RAISED ones it has not declared yet (<c>Sensor.FirstThreat</c> …):
+    /// picking one declares it (<c>HsmFacetDispatcher</c>), so an author never types a name or an id.
+    /// </summary>
+    internal IReadOnlyList<(string Name, ushort Id)> Choices()
+    {
+        var list = _asset.AllEvents.Select(e => (e.Name, e.EventId)).ToList();
+        foreach (var (name, id) in Hrot.AiEditor.Persistence.Emit.HsmEventIds.BuiltIns)
+            if (_asset.FindEventById(id) == null && list.All(c => c.Name != name)) list.Add((name, id));
+        return list;
+    }
 
     public bool DrawInput(ref object value, EditNode node)
     {
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return false;
-        var current = value is ushort uid ? _asset.AllEvents.FirstOrDefault(e => e.EventId == uid)?.Name ?? string.Empty : string.Empty;
-        bool changed = false;
-        if (ImGuiNET.ImGui.BeginCombo("##hsmev", current))
-        {
-            foreach (var ev in _asset.AllEvents)
-            {
-                bool sel = ev.Name == current;
-                if (ImGuiNET.ImGui.Selectable(ev.Name, sel) && !sel)
-                {
-                    value   = ev.EventId;
-                    changed = true;
-                }
-                if (sel) ImGuiNET.ImGui.SetItemDefaultFocus();
-            }
-            ImGuiNET.ImGui.EndCombo();
-        }
-        return changed;
+        var choices = Choices();
+        var current = value is ushort uid ? choices.FirstOrDefault(c => c.Id == uid).Name ?? string.Empty : string.Empty;
+        // ⭐ CE-1008 — the ONE choice field over the event NAMES; the pick maps back to its id (an event has no "(none)": a pick of it is ignored)
+        if (!_field.Draw("hsmev", node, current, PickerChoices.Flat(choices.Select(c => c.Name)), "Event", out var picked)
+            || string.IsNullOrEmpty(picked)) return false;
+        foreach (var (name, id) in choices)
+            if (name == picked) { value = id; return true; }
+        return false;
     }
 }
 
@@ -281,273 +213,63 @@ public sealed class HsmSyncGroupPickerDrawer : IImGuiFieldDrawer, IPickerListSou
 }
 
 /// <summary>
-/// StructEdit <see cref="IImGuiFieldDrawer"/> for fields marked with
-/// <see cref="HsmBlackboardFieldPickerAttribute"/>. Shows field names from the
-/// active HSM asset's blackboard schema, filtered by the DtoType of the currently-selected
-/// transition's action FQN when an <see cref="IActionSchemaExporter"/> and
-/// <see cref="HsmFacetFqnContext"/> are provided.
-///
-/// <para>Headless-safe: <see cref="GetItems"/> and <see cref="HasNoCompatibleVariables"/>
-/// are usable without an ImGui context.</para>
-///
-/// <para><b>Promote→bind (B-2 / Corrective Task 0):</b> when "Promote to new variable"
-/// is clicked, the drawer creates the <c>_auto_{visualId:N}</c> variable via
-/// <see cref="Promote"/> and immediately sets <paramref name="value"/> to the new name,
-/// returning <c>true</c> so StructEdit's normal write-back flows to
-/// <see cref="HsmFacetDispatcher.ApplyFacet"/> which persists <c>ExpressionTargetField</c>.</para>
-/// </summary>
-public sealed class HsmBlackboardFieldPickerDrawer : IImGuiFieldDrawer, IPickerListSource
-{
-    private readonly HsmAsset               _asset;
-    private readonly IActionSchemaExporter? _exporter;
-    private readonly Func<string?>?         _fqnAccessor;
-    /// <summary>Shared context that also carries the current visual id for Promote.</summary>
-    private readonly HsmFacetFqnContext?    _fqnContext;
-
-    /// <summary>
-    /// Constructs a drawer without type-filtering.  All blackboard variables are shown.
-    /// </summary>
-    public HsmBlackboardFieldPickerDrawer(HsmAsset asset)
-        : this(asset, null, null, null)
-    {
-    }
-
-    /// <summary>
-    /// Constructs a drawer with optional type-filtering.
-    /// When <paramref name="exporter"/> and <paramref name="fqnAccessor"/> are both non-null,
-    /// <see cref="GetItems"/> returns only variables whose type matches the action's DtoType.
-    /// </summary>
-    public HsmBlackboardFieldPickerDrawer(
-        HsmAsset               asset,
-        IActionSchemaExporter? exporter,
-        Func<string?>?         fqnAccessor)
-        : this(asset, exporter, fqnAccessor, null)
-    {
-    }
-
-    /// <summary>
-    /// Full constructor including the optional <paramref name="fqnContext"/> for Promote→bind.
-    /// When <paramref name="fqnContext"/> is supplied the Promote gesture reads
-    /// <see cref="HsmFacetFqnContext.CurrentVisualId"/> to derive the auto-variable name.
-    /// </summary>
-    public HsmBlackboardFieldPickerDrawer(
-        HsmAsset               asset,
-        IActionSchemaExporter? exporter,
-        Func<string?>?         fqnAccessor,
-        HsmFacetFqnContext?    fqnContext)
-    {
-        _asset       = asset       ?? throw new ArgumentNullException(nameof(asset));
-        _exporter    = exporter;
-        _fqnAccessor = fqnAccessor;
-        _fqnContext  = fqnContext;
-    }
-
-    public Type TargetType => typeof(string);
-
-    /// <summary>
-    /// Returns the subset of blackboard variable names compatible with the current action's
-    /// DtoType, or all names when no exporter/accessor is configured.
-    /// </summary>
-    public IReadOnlyList<string> GetItems()
-    {
-        var entries = _asset.BlackboardVariables.ToList();
-        if (_exporter is null || _fqnAccessor is null)
-            return entries.Select(v => v.Name).OrderBy(n => n).ToList();
-
-        var fqn = _fqnAccessor();
-        if (fqn is null)
-            return entries.Select(v => v.Name).OrderBy(n => n).ToList();
-
-        var schemaEntry = _exporter.Lookup(fqn);
-        if (schemaEntry is null)
-            return entries.Select(v => v.Name).OrderBy(n => n).ToList();
-
-        return entries
-            .Where(v => v.FieldType == schemaEntry.DtoType)
-            .Select(v => v.Name)
-            .ToList();
-    }
-
-    /// <summary>
-    /// True when the current action's FQN resolves to a known schema entry but no blackboard
-    /// variable matches its DtoType.  Testable without an ImGui context.
-    /// </summary>
-    public bool HasNoCompatibleVariables
-    {
-        get
-        {
-            if (_exporter is null || _fqnAccessor is null) return false;
-            var fqn = _fqnAccessor();
-            if (fqn is null) return false;
-            if (_exporter.Lookup(fqn) is null) return false;
-            return GetItems().Count == 0;
-        }
-    }
-
-    /// <summary>True when a promote has been requested via <see cref="TriggerPromote"/>.</summary>
-    public bool PromoteRequested { get; private set; }
-
-    /// <summary>Sets <see cref="PromoteRequested"/> to true.</summary>
-    public void TriggerPromote() => PromoteRequested = true;
-
-    /// <summary>Clears <see cref="PromoteRequested"/>.</summary>
-    public void ResetPromoteRequest() => PromoteRequested = false;
-
-    /// <summary>
-    /// Creates a new auto-managed blackboard variable and returns its name, or
-    /// <see langword="null"/> when the FQN cannot be resolved.
-    /// </summary>
-    public string? Promote(string facetVisualId)
-    {
-        if (_exporter is null || _fqnAccessor is null) return null;
-        var fqn = _fqnAccessor();
-        if (fqn is null) return null;
-        var entry = _exporter.Lookup(fqn);
-        if (entry is null) return null;
-
-        if (!Guid.TryParse(facetVisualId, out var visualGuid)) return null;
-        var varName = $"_auto_{visualGuid:N}";
-
-        if (_asset.BlackboardVariables.Any(v => v.Name == varName)) return varName;
-
-        _asset.AddVariable(new BlackboardVariableEntry(
-            Name:          varName,
-            FieldType:     entry.DtoType,
-            Comment:       null,
-            IsAutoManaged: true));
-
-        return varName;
-    }
-
-    /// <inheritdoc/>
-    public bool DrawInput(ref object value, EditNode node)
-    {
-        if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return false;
-
-        var current = value as string ?? string.Empty;
-        var items   = GetItems();
-
-        if (items.Count == 0 && HasNoCompatibleVariables)
-        {
-            ImGuiNET.ImGui.TextDisabled("(no compatible variables)");
-            if (ImGuiNET.ImGui.SmallButton("Promote to new variable"))
-            {
-                // Corrective Task 0 / B-2: create the variable AND bind the field in one gesture.
-                // _fqnContext?.CurrentVisualId gives us the owning transition's VisualId.
-                var visualId = _fqnContext?.CurrentVisualId ?? string.Empty;
-                var newName  = Promote(visualId);
-                if (newName is not null)
-                {
-                    value = newName;
-                    return true;
-                }
-                // Fallback: queue the flag for any external consumer.
-                TriggerPromote();
-            }
-            return false;
-        }
-
-        if (items.Count == 0)
-        {
-            ImGuiNET.ImGui.TextDisabled("(no blackboard fields)");
-            return false;
-        }
-
-        return HsmPickerHelper.RenderCombo(ref value, "##hsmbbpicker", items);
-    }
-}
-
-/// <summary>
-/// Factory: builds the <see cref="IReadOnlyDictionary{Type,IImGuiFieldDrawer}"/> consumed by
-/// <see cref="Hrot.Editor.AiShared.Windows.InspectorWindow.SetFacetEditService"/> for a specific
-/// HSM asset. Called by EditorSubsystem from the <c>ActiveChanged</c> callback whenever the
-/// active HSM document switches (SE2).
+/// ⭐ CE-3378 (N-1) — builds the TYPE CATALOGUE OVERLAY the inspector draws an HSM document's facets with
+/// (<see cref="Hrot.Editor.AiShared.Windows.InspectorWindow.SetFacetEditService"/> / <c>NodePropertiesSource</c>) for a specific HSM asset. Called by the composition root from the
+/// <c>ActiveChanged</c> callback whenever the active HSM document switches (SE2) — ⭐ ONCE per document, the host keeps it; it is never rebuilt per frame.
 /// </summary>
 public static class HsmPickerDrawerFactory
 {
     /// <summary>
-    /// Creates a fresh custom-drawers map for <paramref name="asset"/>.
-    /// The map contains:
+    /// Creates the catalogue overlay for <paramref name="asset"/> on <see cref="TypeCatalogue.Standard"/>:
     /// <list type="bullet">
-    ///   <item>A <see cref="HsmCompositeStringDrawer"/> keyed by <c>typeof(string)</c>, dispatching
-    ///         <see cref="HsmActionPickerAttribute"/>, <see cref="HsmGuardPickerAttribute"/>,
-    ///         <see cref="HsmStateSelectorAttribute"/>, <see cref="HsmEventPickerAttribute"/>,
-    ///         and <see cref="HsmBlackboardFieldPickerAttribute"/>.</item>
-    ///   <item>A <see cref="HsmSyncGroupPickerDrawer"/> keyed by <c>typeof(ushort)</c> for
-    ///         sync-group fields.</item>
+    ///   <item>⭐ <c>CE-417</c> slice 4b — the ONE <see cref="ActionBindingDrawer"/> for every binding (state entry/exit/
+    ///         activity/timer, transition and global-transition guard/action), a TYPE entry on <see cref="BehaviorActionBindingFacet"/>;
+    ///         the HSM host supplies only its method list (<see cref="HsmBindingMethods"/>).</item>
+    ///   <item>FIELD RULES: <see cref="HsmStateSelectorAttribute"/> on <c>string</c>, <see cref="HsmEventPickerAttribute"/> on <c>ushort</c> (CE-3398), the SOP behaviour picker and the asset picker
+    ///         (<see cref="Hrot.Editor.AiShared.Inspector.AiAssetPickerRuleEditor"/>, per KIND — CE-396).</item>
+    ///   <item>a <see cref="HsmSyncGroupPickerDrawer"/> as the TYPE entry for <c>ushort</c> (sync-group fields).</item>
     /// </list>
-    /// When <paramref name="exporter"/> and <paramref name="fqnContext"/> are provided, the
-    /// <see cref="HsmBlackboardFieldPickerDrawer"/> filters variables by the current action's DtoType.
     /// </summary>
-    public static IReadOnlyDictionary<Type, IImGuiFieldDrawer> BuildDrawers(
+    /// <param name="exporter">⭐⭐ <c>CE-386</c> — the registered activities/guards and every binding's parameter type.</param>
+    /// <param name="catalog">
+    /// ⭐⭐ §11.1a — the asset catalogue that feeds the <c>[AiAssetPicker]</c> on <c>StateFacet.SubtreeName</c> and the
+    /// binding drawer's blueprint list. ⚠ Optional so headless fixtures need not supply one; ⛔ a production host HAS one
+    /// and must pass it, or the field silently offers nothing — the silent-default shape this codebase keeps paying for.
+    /// </param>
+    public static TypeCatalogue BuildCatalogue(
         HsmAsset               asset,
-        IActionSchemaExporter? exporter   = null,
-        HsmFacetFqnContext?    fqnContext  = null)
+        IActionSchemaExporter? exporter = null,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null,
+        Func<IEnumerable<string>>? behaviourNames = null,
+        Action<NodeEditor.UI.Picker.PickerRequest, Action<NodeEditor.UI.Picker.PickerResult>>? openPicker = null)
     {
         if (asset is null) throw new ArgumentNullException(nameof(asset));
 
-        Func<string?>? fqnAccessor = fqnContext is not null
-            ? () => fqnContext.CurrentActionFqn
-            : null;
+        // ⭐ CE-1008 (AI_Editor_Shared_Infrastructure §7.1b) — ONE choice field for every picker of this document: the host's searchable
+        //   picker (openPicker = its shell PickerRegistry.OpenPicker), or plain combos where it passes none
+        var field = new PickerField(openPicker);
+        var bindingDrawer = new ActionBindingDrawer(new ActionBindingSources(
+            asset, kind => HsmBindingMethods.For(asset, exporter, kind), exporter, catalog), field);
 
-        var bbDrawer = new HsmBlackboardFieldPickerDrawer(asset, exporter, fqnAccessor, fqnContext);
+        var types = TypeCatalogue.Standard.With(
+            new FieldTypeEditor(typeof(ushort), null, new HsmSyncGroupPickerDrawer(asset)),
+            new FieldTypeEditor(typeof(BehaviorActionBindingFacet), null, bindingDrawer));
+        types.AddRule(typeof(HsmStateSelectorAttribute), new FieldTypeEditor(typeof(string), null, new HsmStateSelectorDrawer(asset, field)));
+        types.AddRule(typeof(HsmEventPickerAttribute), new FieldTypeEditor(typeof(ushort), null, new HsmEventPickerDrawer(asset, field)));   // ⭐ CE-3398 — on the ushort EventId (a rule wins over the ushort sync-group entry)
+        // ⭐ CE-2083 — the SOP order's behaviour picker (the BTree's drawer); only with a registry to list, as the catalogue rule.
+        if (behaviourNames is not null)
+            types.AddRule(typeof(Hrot.Editor.AiShared.Inspector.AiBehaviorPickerAttribute),
+                new FieldTypeEditor(typeof(string), null, new Hrot.Editor.AiShared.Inspector.AiBehaviorPickerDrawer(behaviourNames, field)));
 
-        var composite = new HsmCompositeStringDrawer()
-            .Register<HsmActionPickerAttribute>(new HsmActionPickerDrawer(asset))
-            .Register<HsmGuardPickerAttribute>(new HsmGuardPickerDrawer(asset))
-            .Register<HsmStateSelectorAttribute>(new HsmStateSelectorDrawer(asset))
-            .Register<HsmEventPickerAttribute>(new HsmEventPickerDrawer(asset))
-            .Register<HsmBlackboardFieldPickerAttribute>(bbDrawer);
-
-        return new Dictionary<Type, IImGuiFieldDrawer>
-        {
-            [typeof(string)] = composite,
-            [typeof(ushort)] = new HsmSyncGroupPickerDrawer(asset),
-        };
-    }
-}
-
-/// <summary>
-/// Composite string drawer for HSM: dispatches to attribute-specific sub-drawers
-/// when a recognised HSM picker attribute is present on the <see cref="EditNode"/>'s field.
-/// Falls through to a plain text input when no marker attribute matches.
-/// </summary>
-internal sealed class HsmCompositeStringDrawer : IImGuiFieldDrawer
-{
-    private readonly Dictionary<Type, IImGuiFieldDrawer> _byAttribute = new();
-
-    public Type TargetType => typeof(string);
-
-    public HsmCompositeStringDrawer Register<TAttribute>(IImGuiFieldDrawer drawer) where TAttribute : Attribute
-    {
-        _byAttribute[typeof(TAttribute)] = drawer;
-        return this;
-    }
-
-    public IImGuiFieldDrawer? Resolve(EditNode node)
-    {
-        if (node is null) return null;
-        foreach (var attr in node.Metadata.CustomAttributes)
-        {
-            if (_byAttribute.TryGetValue(attr.GetType(), out var drawer))
-                return drawer;
-        }
-        return null;
-    }
-
-    public bool DrawInput(ref object value, EditNode node)
-    {
-        var sub = Resolve(node);
-        if (sub is not null)
-            return sub.DrawInput(ref value, node);
-
-        if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return false;
-        var s = value as string ?? string.Empty;
-        if (ImGuiNET.ImGui.InputText("##str", ref s, 256))
-        {
-            value = s;
-            return true;
-        }
-        return false;
+        // ⭐⭐ §11.1a — the asset pickers. ⚠ Registered only when a catalogue exists: a drawer over a
+        //    null catalogue could only ever draw an empty list, and an empty dropdown reads as
+        //    "there are no such assets" rather than "this host wired nothing".
+        // ⭐⭐⭐ CE-396 — ONE rule, the drawer PER KIND chosen from the attribute the field carries, so
+        //    `[AiAssetPicker(BTree)]` (StateFacet.SubtreeName) and `[AiAssetPicker(Blueprint)]`
+        //    (CE-385's activity/guard fields) each offer their own kind.
+        if (catalog is not null)
+            types.AddRule(typeof(Hrot.Editor.AiShared.Inspector.AiAssetPickerAttribute),
+                new Hrot.Editor.AiShared.Inspector.AiAssetPickerRuleEditor(catalog, field));
+        return types;
     }
 }

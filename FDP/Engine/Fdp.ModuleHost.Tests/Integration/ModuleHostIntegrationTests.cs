@@ -48,6 +48,7 @@ namespace Fdp.ModuleHost.Tests.Integration
             Assert.Equal(10, testModule.LastSeenX);
         }
 
+        [TickMode(TickPolicy.EveryFrame)]
         private class TestModule : IEcsModule
         {
             public string Name => "Test";

@@ -7,23 +7,7 @@ public static class Sanitizer
     /// E.g. "Move To And Fire" -> "MoveToAndFire"
     /// </summary>
     public static string SanitizeName(string name)
-    {
-        var sb = new System.Text.StringBuilder();
-        bool capitalizeNext = true;
-        foreach (char c in name)
-        {
-            if (char.IsLetterOrDigit(c))
-            {
-                sb.Append(capitalizeNext ? char.ToUpperInvariant(c) : c);
-                capitalizeNext = false;
-            }
-            else
-            {
-                capitalizeNext = true;
-            }
-        }
-        return sb.Length > 0 ? sb.ToString() : "UnknownBlueprint";
-    }
+        => global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.PascalJoin(name, "UnknownBlueprint");
 
     /// <summary>
     /// E.g. "MoveToAndFire" + 0xA1B2C3D4 + false -> "MoveToAndFire_A1B2C3D4_Bp.g.cs"

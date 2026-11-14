@@ -5,6 +5,7 @@ using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Dds;
+using Hrot.Map.Common.Replication.Utils;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -27,14 +28,14 @@ namespace Hrot.Map.Common.Replication.Egress;
 /// has not changed since the last publish, ensuring minimal DDS traffic.
 /// </para>
 /// </summary>
-public class MapRouteEgressTranslator : IDescriptorTranslator
+public class MapRouteEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
 {
-    private const string DdsTopicName = "MapRoute";
     private const long OrdinalValue = (long)EDescriptorType.dtMapRoute;
 
-    private readonly IDdsWriter<MapRoute> _writer;
+    // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the instances it deletes on a destruction, a wipe or (as an
+    //   unregister) a hand-over.
+    private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<MapRoute> _instances;
     private readonly NetworkEntityMap _entityMap;
-    private readonly IGeographicTransform _geoTransform;
 
     /// <summary>
     /// Tracks the last-published <see cref="RoutePlan.Version"/> per entity so
@@ -42,7 +43,7 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
     /// </summary>
     private readonly Dictionary<Entity, int> _publishedVersions = new();
 
-    public string TopicName => DdsTopicName;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MapRoute>();
     public long DescriptorOrdinal => OrdinalValue;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -55,32 +56,47 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
     /// <summary>Production constructor: creates a live DDS writer.</summary>
     public MapRouteEgressTranslator(
         DdsParticipant participant,
-        NetworkEntityMap entityMap,
-        IGeographicTransform geoTransform)
-        : this(new DdsWriterAdapter<MapRoute>(participant, DdsTopicName), entityMap, geoTransform)
+        NetworkEntityMap entityMap)
+        : this(new DdsWriterAdapter<MapRoute>(participant), entityMap)
     {
     }
 
     /// <summary>Testable constructor: accepts an injected writer stub.</summary>
     internal MapRouteEgressTranslator(
         IDdsWriter<MapRoute> writer,
-        NetworkEntityMap entityMap,
-        IGeographicTransform geoTransform)
+        NetworkEntityMap entityMap)
     {
-        _writer       = writer       ?? throw new ArgumentNullException(nameof(writer));
+        if (writer is null) throw new ArgumentNullException(nameof(writer));
+        _instances = new(s => writer.Write(s), s => writer.DisposeInstance(s), s => writer.UnregisterInstance(s),
+            static key => new MapRoute { EntityId = (int)key });
         _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
-        _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
     }
 
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
     public void ScanAndPublish(ISimulationView view)
     {
+        BeginFrame(view);
+        ScanState(view, offFrame: false);
+    }
+
+    /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+    /// destruction bookkeeping (it reads the bus).</summary>
+    public void BeginFrame(ISimulationView view)
+    {
+        if (_instances.OnFrame(view)) _publishedVersions.Clear();   // (CE-4007, §8.3: a wiped world deletes what this writer published) ⭐ R-3039 S3 — a world replacement (a load, a restore): republish every route (R-3041)
+    }
+
+    /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+    /// on the off-frame replica.</summary>
+    public void ScanState(ISimulationView view, bool offFrame)
+    {
         var query = view.Query()
-            .With<NetworkIdentity>()
-            .With<SimTransform>()
+            .DefaultRoutePublishable()
+            // ⭐ CE-2209 — NO SimTransform filter: nothing here reads it. A route authored without one (hand-written scenarios) was
+            //   never published — the Muscle's aircraft sat AwaitingPath with no warning (measured on two nodes: promoted, no plan).
             .WithManaged<RoutePlan>()
-            .WithLifecycle(EntityLifecycle.All)
+            .WithLifecycle(EntityLifecycle.AllButTearDown)
             .Build();
 
         long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
@@ -99,27 +115,7 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
 
             ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 
-            var waypoints = new List<Waypoint>(routePlan.Waypoints.Count);
-            for (int i = 0; i < routePlan.Waypoints.Count; i++)
-            {
-                var wp = routePlan.Waypoints[i];
-                var (lat, lon, alt) = _geoTransform.ToGeodetic(wp.Position);
-                waypoints.Add(new Waypoint
-                {
-                    Position          = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt },
-                    Name              = string.Empty,
-                    SpeedMetersPerSec = wp.TargetSpeed,
-                    ExtensionJson     = wp.ExtensionJson ?? string.Empty,
-                });
-            }
-
-            _writer.Write(new MapRoute
-            {
-                EntityId      = (int)netId.Value,
-                Points        = waypoints,
-                IsLoop        = routePlan.IsLoop,
-                ExtensionJson = string.Empty,
-            });
+            _instances.Write(netId.Value, MapRouteWire.ToSample(netId.Value, routePlan));   // ⭐ CE-4284 — the one encoding
 
             SentSampleCount++;
             _publishedVersions[entity] = routePlan.Version;
@@ -132,11 +128,11 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
 
     public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-    public void Dispose(long networkEntityId)
+    public void Dispose(int networkEntityId)
     {
         if (_entityMap.TryGetEntity(networkEntityId, out var entity))
             _publishedVersions.Remove(entity);
 
-        _writer.DisposeInstance(new MapRoute { EntityId = (int)networkEntityId });
+        _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the one delete path
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using CarKinem.Core;
 using CarKinem.Spatial;
@@ -75,6 +76,135 @@ namespace CarKinem.Tests.Systems
             Assert.Equal(collidable, results[0].foundEntity);
 
             // Cleanup
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ CE-3018 (W9) — the collider grid FOLLOWS the resident terrain. An entity outside today's [-750,750)² is
+        /// invisible to avoidance until a terrain that contains it is resident; a terrain INSIDE the default extent
+        /// changes nothing (same origin, same cell).
+        /// </summary>
+        [Fact]
+        public void ColliderGrid_RebasesToTheResidentTerrain_CE3018()
+        {
+            var repo = new EntityRepository();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SpatialGridData>();
+            repo.RegisterComponent<PhysicsCollider>();
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            var sys = new SpatialHashSystem();
+            var far = repo.CreateEntity();
+            repo.AddComponent(far, new SimTransform { Position = new Vector3(2000f, 100f, 0f), Rotation = Quaternion.Identity });
+            repo.AddComponent(far, new PhysicsCollider { Radius = 1f });
+
+            int Hits()
+            {
+                Span<(Entity entity, Vector2 pos)> hits = stackalloc (Entity, Vector2)[4];
+                return repo.GetSingleton<SpatialGridData>().Grid.QueryNeighbors(new Vector2(2000f, 100f), 1f, hits);
+            }
+
+            sys.Execute(repo, 0.016f);
+            Assert.Equal(0, Hits());                                   // the defect: silently missing
+            var dflt = sys.Geometry;
+
+            repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld
+                { BoundsMin = new Vector2(0f, 0f), BoundsMax = new Vector2(200f, 200f) });
+            sys.Execute(repo, 0.016f);
+            Assert.Equal(dflt, sys.Geometry);                          // fits ⇒ unchanged
+
+            repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld
+                { BoundsMin = new Vector2(0f, 0f), BoundsMax = new Vector2(2500f, 500f) });
+            sys.Execute(repo, 0.016f);
+            Assert.Equal(1, Hits());
+            Assert.Equal(dflt.OriginX, sys.Geometry.OriginX);          // only the side the terrain leaves moved
+            Assert.True(sys.Geometry.CellSize > dflt.CellSize);
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2193</c> (DESIGN_Terrain_World §4.4; behaviors' handoff) — a collider the grid cannot place is SAID, once: at (2 000, 0) on
+        /// the ±750 m default grid it is dropped every frame (<c>Dropped</c> 1) and warned about exactly once over 100 frames; one at (100, 0)
+        /// is never warned about; a terrain re-fit that covers it again stops the drop. 🔴 Red-proof: before CE-2193 <c>Add</c> returned
+        /// nothing and the drop had no count and no word.
+        /// </summary>
+        [Fact]
+        public void CE2193_AColliderOutsideTheGrid_IsWarnedAboutOnce_AndARefitThatCoversItStopsTheDrop()
+        {
+            var repo = new EntityRepository();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SpatialGridData>();
+            repo.RegisterComponent<PhysicsCollider>();
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            var sys = new SpatialHashSystem();
+            foreach (var x in new[] { 2000f, 100f })
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new SimTransform { Position = new Vector3(x, 0f, 0f), Rotation = Quaternion.Identity });
+                repo.AddComponent(e, new PhysicsCollider { Radius = 1f });
+            }
+
+            for (int i = 0; i < 100; i++) sys.Execute(repo, 0.016f);
+            Assert.Equal(1, sys.Dropped);
+            Assert.Equal(1, sys.Warnings);
+
+            repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld
+                { BoundsMin = new Vector2(-100f, -100f), BoundsMax = new Vector2(2500f, 500f) });
+            sys.Execute(repo, 0.016f);
+            Assert.Equal(0, sys.Dropped);
+            Assert.Equal(1, sys.Warnings);
+            repo.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — the collider hash (the door for bullets, near misses, the radius search, network raycasts
+        /// and avoidance) leaves out a passenger inside an ENCLOSED vehicle and keeps one on an OPEN cabin. 📄 DESIGN_Entity_Interactions §7.2a.</summary>
+        [Fact]
+        public void CE3110_I2c_AnEnclosedPassenger_IsNotInTheColliderHash_AnExposedOneIs()
+        {
+            var repo = new EntityRepository();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SpatialGridData>();
+            repo.RegisterComponent<PhysicsCollider>();
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            Entity At(float x) { var e = repo.CreateEntity(); repo.AddComponent(e, new SimTransform { Position = new Vector3(x, 100f, 0f), Rotation = Quaternion.Identity }); repo.AddComponent(e, new PhysicsCollider { Radius = 0.5f }); return e; }
+            var apc = At(100f);
+            var enclosed = At(100.2f);
+            repo.AddComponent(enclosed, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = apc, Exposed = 0 });
+            var exposed = At(100.4f);
+            repo.AddComponent(exposed, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = apc, Exposed = 1 });
+
+            new SpatialHashSystem().Execute(repo, 0.016f);
+
+            Span<(Entity foundEntity, Vector2 pos)> results = stackalloc (Entity, Vector2)[10];
+            int count = repo.GetSingleton<SpatialGridData>().Grid.QueryNeighbors(new Vector2(100f, 100f), 2f, results);
+            var found = results.Slice(0, count).ToArray().Select(r => r.foundEntity).ToList();
+            Assert.Contains(apc, found);
+            Assert.Contains(exposed, found);
+            Assert.DoesNotContain(enclosed, found);
+            repo.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-2163</c> — a ROUND IN FLIGHT is not in the collider hash (<c>PhysicalPresence.IsHidden</c>): it searches the
+        /// hash, it is never found in it. The body it was fired at, standing beside it, is.</summary>
+        [Fact]
+        public void CE2163_ARoundInFlight_IsNotInTheColliderHash()
+        {
+            var repo = new EntityRepository();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SpatialGridData>();
+            repo.RegisterComponent<PhysicsCollider>();
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            Entity At(float x, float r) { var e = repo.CreateEntity(); repo.AddComponent(e, new SimTransform { Position = new Vector3(x, 100f, 0f), Rotation = Quaternion.Identity }); repo.AddComponent(e, new PhysicsCollider { Radius = r }); return e; }
+            var soldier = At(100f, 0.4f);
+            var round = At(101f, 0.05f);
+            repo.AddComponent(round, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = soldier });
+
+            new SpatialHashSystem().Execute(repo, 0.016f);
+
+            Span<(Entity foundEntity, Vector2 pos)> results = stackalloc (Entity, Vector2)[10];
+            int count = repo.GetSingleton<SpatialGridData>().Grid.QueryNeighbors(new Vector2(100f, 100f), 2f, results);
+            var found = results.Slice(0, count).ToArray().Select(r => r.foundEntity).ToList();
+            Assert.Contains(soldier, found);
+            Assert.DoesNotContain(round, found);
             repo.Dispose();
         }
     }

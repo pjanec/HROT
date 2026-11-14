@@ -11,6 +11,7 @@ using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Attributes;
 using Hrot.Common;
 using Hrot.Common.Abstractions;
 using Hrot.Common.Infrastructure;
@@ -27,6 +28,7 @@ using Hrot.SimHost;
 using Fdp.Toolkit.Replication.Abstractions;
 using Hrot.Map.Common.Replication.Egress;
 using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Network.NED.Factory;
 
@@ -45,9 +47,16 @@ public sealed class NedNetworkFactory : INetworkFactory
     // world bus where NetworkSpawningSystem can consume them.  Null when not wired via
     // ConfigureForNode(HrotNodeContext,...); falls back to _eventBus in that case.
     private readonly FdpEventBus?         _worldBus;
-    private readonly int                  _localNodeId;
+    private readonly NodeId                  _localNodeId;
     private readonly NodeRole             _role;
     private readonly ITkbDatabase?        _tkbDb;
+
+    // CE-288 (C2): ONE cluster cache shared between the reliable-init wait-set provider
+    // (CreateCgfEntityLifecycleAdapters) and the gateway's self-heal callback (CreateReplicationModule), so a
+    // peer dropped by the short phase-1 probe is recorded on the SAME cache the next wait-set reads from.
+    private Hrot.Network.Routing.SimpleClusterStateCache? _sharedClusterCache;
+    private Hrot.Network.Routing.SimpleClusterStateCache SharedClusterCache
+        => _sharedClusterCache ??= new Hrot.Network.Routing.SimpleClusterStateCache();
     private readonly EntityLifecycleModule? _lifecycleModule;
     private readonly BehaviorRegistry?    _behaviorRegistry;
 
@@ -61,14 +70,16 @@ public sealed class NedNetworkFactory : INetworkFactory
         ITkbDatabase?         tkbDb            = null,
         EntityLifecycleModule? lifecycleModule  = null,
         BehaviorRegistry?     behaviorRegistry = null,
-        FdpEventBus?          worldBus          = null)
+        FdpEventBus?          worldBus          = null,
+        Hrot.Network.Routing.SimpleClusterStateCache? sharedClusterCache = null)
     {
+        _sharedClusterCache = sharedClusterCache;
         _participant      = participant;
         _entityMap        = entityMap;
         _geoTransform     = geoTransform;
         _eventBus         = eventBus;
         _worldBus         = worldBus;
-        _localNodeId      = localNodeId;
+        _localNodeId      = (Fdp.Core.NodeId)(localNodeId);
         _role             = role;
         _tkbDb            = tkbDb;
         _lifecycleModule  = lifecycleModule;
@@ -79,12 +90,14 @@ public sealed class NedNetworkFactory : INetworkFactory
     public DdsParticipant? Participant => _participant;
 
     /// <inheritdoc/>
+    public IGeographicTransform? GeoTransform => _geoTransform;   // CE-3126 — the node adopts it as its one transform
+
+    /// <inheritdoc/>
     public IReplicationModule CreateReplicationModule()
         => new NedReplicationModule(
                participant:       _participant,
                role:              _role,
                entityMap:         _entityMap,
-               geoTransform:      _geoTransform,
                // Use world bus when available so ingress translators publish ECS commands
                // (DestroyEntityCommand, UpdateEntityCommand) to the same bus that
                // NetworkSpawningSystem reads from.  Falls back to _eventBus in contexts
@@ -94,7 +107,14 @@ public sealed class NedNetworkFactory : INetworkFactory
                domainId:          0,
                tkbDb:             _tkbDb,
                lifecycleModule:   _lifecycleModule,
-               behaviorRegistry:  _behaviorRegistry);
+               behaviorRegistry:  _behaviorRegistry,
+               // CE-288 (C2): the gateway's short phase-1 probe records a non-delivering peer as
+               // !fdp.reliable-init on the SAME cache the wait-set provider reads, so later creates skip it.
+               onPeerUnsupported: nodeId => SharedClusterCache.RecordUnsupported(
+                                      nodeId, Fdp.Toolkit.Replication.CapabilityTokens.ReliableInit),
+               // CE-291: hand the module the SHARED cache so it hosts the cluster-membership ingest + the
+               // wait-set provider for EVERY ECS node (symmetric reliable creators; no CGF-only gating).
+               clusterCache:      SharedClusterCache);
 
     /// <inheritdoc/>
     public ICommandGateway CreateCommandGateway()
@@ -103,12 +123,6 @@ public sealed class NedNetworkFactory : INetworkFactory
         return new Hrot.Map.Common.Commands.NedCommandGateway(_participant, _localNodeId);
     }
 
-    /// <inheritdoc/>
-    public IExConEgressWriters CreateExConEgressWriters()
-    {
-        if (_participant == null) return new NullExConEgressWriters();
-        return new Hrot.Network.NED.ExCon.NedExConEgressWriters(_participant);
-    }
 
     /// <inheritdoc/>
     public ITimeControlGateway CreateTimeControlGateway()
@@ -129,20 +143,23 @@ public sealed class NedNetworkFactory : INetworkFactory
     {
         if (_participant == null) return new NullSimHostAuxiliaryTranslators();
         return new NedSimHostAuxiliaryTranslators(
-            _participant, _entityMap, _eventBus, _localNodeId, _role);
+            _participant, _entityMap, _eventBus, _localNodeId, _role, SharedClusterCache);   // R-179: names each EQS solver (the cache the adapters feed and prune)
     }
 
     /// <inheritdoc/>
     public IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> CreateSimHostAttributeUpdateSystems()
     {
         if (_participant == null) return System.Array.Empty<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>();
-        var jsonAttributeCompiler = Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
         return new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[]
         {
+            // ⭐⭐ AX-014 — the JSON compiler is no longer built here. 📌 It used to be, while the BINARY
+            //    interpreter was not built at all (AX-012) — one factory line supplying one arm and silently
+            //    omitting its sibling. ⇒ the constructor now defaults BOTH (from the WORLD), so this call
+            //    site cannot disable either by omission. ⛔ Do not "helpfully" pass them back in.
             new Hrot.Map.Common.Systems.UpdateEntityAttributeRequestSystem(
-                _participant, _entityMap, _geoTransform, jsonAttributeCompiler),
+                _participant, _entityMap),
             new Hrot.Map.Common.Replication.Ingress.UpdateEntityDescriptorRequestSystem(
-                _participant, _entityMap, _geoTransform),
+                _participant, _entityMap),
         };
     }
 
@@ -161,42 +178,15 @@ public sealed class NedNetworkFactory : INetworkFactory
     }
 
     /// <inheritdoc/>
-    public IIgTranslators CreateIgTranslators()
-        => new Hrot.Network.NED.IG.NedIgTranslators();
+    public IIgTranslators CreatePlayerTranslators()
+        => new Hrot.Network.NED.Player.NedPlayerTranslators();
 
     /// <inheritdoc/>
-    public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, long nodeId = 0)
+    public IIgNetworkAdapter CreatePlayerNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, int nodeId = 0)
         => participant == null
-           ? (IIgNetworkAdapter)Hrot.Core.Network.NullIgNetworkAdapter.Instance
-           : new Hrot.Network.NED.IG.NedIgNetworkAdapter(participant, nodeId);
+           ? (IIgNetworkAdapter)Hrot.Core.Network.NullPlayerNetworkAdapter.Instance
+           : new Hrot.Network.NED.Player.NedPlayerNetworkAdapter(participant, nodeId);
 
-    /// <inheritdoc/>
-    public IEnumerable<IIngressHandler> CreateExConIngressHandlers(
-        DdsParticipant?                   participant,
-        long                              localNodeId,
-        IDerRepo                          repo,
-        Action<MapClickEventDto>          onMapClick,
-        Action<SelectionChangedEventDto>  onSelectionChanged,
-        Action<EntityLifecycleAckDto>     onEntityLifecycleAck,
-        Action<MapCommandAckDto>          onMapCommandAck)
-    {
-        if (participant == null)
-            yield break;
-
-        yield return new NedMapClickIngressHandler(participant, onMapClick, localNodeId: localNodeId);
-        yield return new NedSelectionChangedIngressHandler(participant, onSelectionChanged);
-        yield return new NedEntityLifecycleAckIngressHandler(participant, onEntityLifecycleAck, localNodeId: localNodeId);
-        yield return new NedMapCommandAckIngressHandler(participant, onMapCommandAck, localNodeId: localNodeId);
-        yield return new MasterIngressHandler<EntityMaster>(
-            participant, repo, "EntityMaster",
-            master => master.EntityId, master => master.TkbType, localNodeId: localNodeId);
-        yield return new DescriptorIngressHandler<WorldPos>(participant, repo, "GeoSpatial", d => d.EntityId);
-        yield return new NedEntityInfoBridgingHandler(participant, repo);
-        yield return new DescriptorIngressHandler<EntityDamage>(participant, repo, "EntityDamage", d => d.EntityId);
-        yield return new NedEntityMissionBridgingHandler(participant, repo);
-        yield return new NedMapOverlayBridgingHandler(participant, repo);
-        yield return new DescriptorIngressHandler<MapRoute>(participant, repo, "MapRoute", d => d.EntityId);
-    }
 
     /// <inheritdoc/>
     public INetworkFactory ConfigureForNode(HrotNodeContext context, NodeRole role, BehaviorRegistry? behaviorRegistry = null)
@@ -217,7 +207,10 @@ public sealed class NedNetworkFactory : INetworkFactory
             tkbDb:            context.TkbDb,
             lifecycleModule:  elm,
             behaviorRegistry: behaviorRegistry ?? _behaviorRegistry,
-            worldBus:         context.World.Bus);
+            worldBus:         context.World.Bus,
+            // ⭐ CE-1446 B1 — ONE cluster cache per node: the replication module the node builder made already holds the cache that membership/capability ingest fills; the
+            //   adapters and the self-heal callback this factory makes must read/write THAT one (a second cache stayed empty: no Brain→Muscle delegation, nothing moved).
+            sharedClusterCache: (context.NedReplication as Hrot.Network.Replication.NedReplicationModule)?.ClusterCache);
     }
 
     /// <inheritdoc/>
@@ -236,17 +229,33 @@ public sealed class NedNetworkFactory : INetworkFactory
     }
 
     /// <inheritdoc/>
-    public IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
+    public IReadOnlyList<IDescriptorTranslator> CreatePlayerEgressTranslators(
         DdsParticipant participant,
         FdpEventBus bus,
-        IGeographicTransform geoTransform,
-        long nodeId)
+        int nodeId)
     {
+        // ⛔⛔ SpawnEntityCommandEgressTranslator is NO LONGER REGISTERED (host (f), 2026-09-02).
+        //
+        // 🔴 It subscribed to SpawnEntityCommand — the node-local ORDER — which is one level below the
+        //    cross-node INTENT. Because FdpEventBus is a broadcast and not a work queue, that put it on
+        //    the same non-draining stream as the spawn system, so a host that both materialises and
+        //    forwards produced TWO entities for one gesture; and a request addressed to a remote owner
+        //    published no order at all, so nothing was forwarded. ⇒ neither owner value worked.
+        //
+        // ⭐ Its job is now NedEntityCreationRequestEgress, reached through
+        //    ICgfEntityLifecycleAdapters.RequestEgress and driven by ForwardingEntityCreationRequestSource,
+        //    which sees the request BEFORE the routing decision. The descriptor construction both used is
+        //    shared in CreateEntityRequestDescriptorBuilder, so no encoding capability was lost (R-137).
+        //
+        // ⚠ The CLASS is deliberately still present and still tested: two ClusterRunner integration tests
+        //    use it as a standalone INSTRUMENT (never kernel-registered) to assert the offline editor makes
+        //    no network calls. Deleting it is a separate, mechanical step once host (f) has been seen
+        //    running — "no rush removals". 📄 DESIGN_Entity_Creation_Unification.md §3.4b.
         return new IDescriptorTranslator[]
         {
-            new SpawnEntityCommandEgressTranslator(participant, bus, geoTransform, nodeId),
-            new UpdateEntityCommandEgressTranslator(participant, bus, _entityMap, geoTransform, nodeId),
-            new DestroyEntityCommandEgressTranslator(participant, bus, nodeId),
+            new UpdateEntityCommandEgressTranslator(participant, bus, _entityMap, nodeId),
+            // ⭐ CE-2247 — DestroyEntityCommandEgressTranslator moved to SharedTranslatorPack: every node forwards a destroy it cannot
+            //   dispose (R-3015), not the IG alone.
         };
     }
 
@@ -255,17 +264,25 @@ public sealed class NedNetworkFactory : INetworkFactory
     {
         if (_participant == null) return null;
 
-        var clusterCache    = new SimpleClusterStateCache();
+        var clusterCache    = SharedClusterCache;   // CE-288: shared with the gateway self-heal callback.
         var heartbeatReader = new DdsReader<NodeHeartbeat>(_participant);
+        var capabilitiesReader = new DdsReader<NodeCapabilitiesTopic>(_participant);   // CE-285 (C-cap)
 
         return new NedCgfEntityLifecycleAdapters(
-            requestSource:     new NedEntityCreationRequestSource(_participant, _geoTransform),
-            deleteSource:      new NedEntityDeletionRequestSource(_participant),
-            ackSink:           new NedEntityAckSink(_participant),
-            ownershipStrategy: new BrainMuscleOwnershipStrategy(clusterCache),
-            jsonCompiler:      AttributeCompilerFactory.Build(_geoTransform),
-            clusterCache:      clusterCache,
-            heartbeatReader:   heartbeatReader);
+            requestSource:      new NedEntityCreationRequestSource(_participant),
+            deleteSource:       new NedEntityDeletionRequestSource(_participant),
+            // D1: the forwarding half. Present on every NED host, so a request addressed elsewhere
+            // leaves the node instead of being silently dropped by the Level-1 guard.
+            requestEgress:      new NedEntityCreationRequestEgress(_participant),
+            // ⭐⭐ S3 — push-only: every applicable role group goes to a node serving that role (CE-500).
+            ownershipStrategy:  new RoleGroupOwnershipStrategy(
+                                    clusterCache,
+                                    Hrot.Map.Common.HrotOwnershipGroups.Table,
+                                    Hrot.Network.Replication.NedOwnershipGroupBinding.GroupDescriptors),
+            jsonCompiler:       AttributeCompilerFactory.Build(),
+            clusterCache:       clusterCache,
+            heartbeatReader:    heartbeatReader,
+            capabilitiesReader: capabilitiesReader);
     }
 
     /// <inheritdoc/>
@@ -281,6 +298,10 @@ public sealed class NedNetworkFactory : INetworkFactory
             : new Hrot.Core.Network.NullOrchestrationTranslator();
 
     /// <inheritdoc/>
+    /// <inheritdoc/>
+    public Fdp.Toolkit.Orchestration.Transfer.IFileTransferProvider? CreateFileTransferProvider()
+        => _participant != null ? new Hrot.Network.NED.Transfer.DdsFileTransferProvider(_participant) : null;   // ⭐ P6 part 2
+
     public IDisposable CreateIdAllocatorServer()
         => _participant != null
             ? new HostedIdAllocatorServer(_participant)
@@ -308,23 +329,18 @@ public sealed class NedNetworkFactory : INetworkFactory
             ? new NedSlaveOrchestrationTranslator(_participant, bus, nodeId)
             : new Hrot.Core.Network.NullSlaveOrchestrationTranslator();
 
-    /// <inheritdoc/>
-    public Hrot.Core.Network.IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus bus)
-        => _participant != null
-            ? new NedOrchestrationObserver(_participant, bus)
-            : new Hrot.Core.Network.NullOrchestrationObserver();
 
     /// <inheritdoc/>
     public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(
         FdpEventBus interactionBus,
-        long localNodeId,
+        int localNodeId,
         bool headless)
     {
         var list = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
         if (_participant == null) return list;
 
         if (headless)
-            list.Add(Hrot.Network.NED.Gizmos.GizmoTranslatorPack.CreateIngress(_participant, interactionBus));
+            list.Add(Hrot.Network.NED.Gizmos.GizmoTranslatorPack.CreateIngress(_participant, interactionBus, localNodeId));
         else
             list.Add(Hrot.Network.NED.Gizmos.GizmoTranslatorPack.CreateEgress(_participant, (byte)localNodeId, interactionBus));
 
@@ -334,7 +350,7 @@ public sealed class NedNetworkFactory : INetworkFactory
     /// <inheritdoc/>
     public Fdp.ModuleHost.Abstractions.IEcsModuleSystem? CreateGizmoPublisherSystem(
         Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer,
-        long localNodeId)
+        int localNodeId)
     {
         if (_participant == null) return null;
 
@@ -351,63 +367,95 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
 {
     private readonly SimpleClusterStateCache   _clusterCache;
     private readonly DdsReader<NodeHeartbeat>  _heartbeatReader;
+    // CE-285 (C-cap): the durable NodeCapabilities descriptor + a side-store of the last token set per node,
+    // so PollNetwork can stamp NodeCapability.Capabilities and DERIVE NodeCapability.Role from the fdp.role.*
+    // subset (CE-286) even though the two topics arrive on different reads.
+    private readonly DdsReader<NodeCapabilitiesTopic> _capabilitiesReader;
+    private readonly System.Collections.Generic.Dictionary<int, string[]> _nodeCapabilities = new();
 
     public IEntityCreationRequestSource       RequestSource     { get; }
     public IEntityDeletionRequestSource       DeleteSource      { get; }
-    public IEntityAckSink                     AckSink           { get; }
+    public IEntityCreationRequestEgress?      RequestEgress     { get; }
     public IOwnershipDistributionStrategy?    OwnershipStrategy { get; }
     public JsonAttributeCompiler?             JsonCompiler      { get; }
+    // CE-283 (reliable-init barrier §3a.7): the creator's peer set, backed by the SAME cache
+    // PollNetwork populates — so it sees exactly the present peers the ownership strategy does.
+    public Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? ExpectedPeers { get; }
 
     public NedCgfEntityLifecycleAdapters(
         IEntityCreationRequestSource    requestSource,
         IEntityDeletionRequestSource    deleteSource,
-        IEntityAckSink                  ackSink,
+        IEntityCreationRequestEgress?   requestEgress,
         IOwnershipDistributionStrategy? ownershipStrategy,
         JsonAttributeCompiler?          jsonCompiler,
         SimpleClusterStateCache         clusterCache,
-        DdsReader<NodeHeartbeat>        heartbeatReader)
+        DdsReader<NodeHeartbeat>        heartbeatReader,
+        DdsReader<NodeCapabilitiesTopic> capabilitiesReader)
     {
         RequestSource     = requestSource;
         DeleteSource      = deleteSource;
-        AckSink           = ackSink;
+        RequestEgress     = requestEgress;
         OwnershipStrategy = ownershipStrategy;
         JsonCompiler      = jsonCompiler;
         _clusterCache     = clusterCache;
         _heartbeatReader  = heartbeatReader;
+        _capabilitiesReader = capabilitiesReader;
+        ExpectedPeers     = new Hrot.Network.Routing.ClusterCacheExpectedPeersProvider(clusterCache);
     }
 
     /// <inheritdoc/>
     public void PollNetwork()
     {
+        // CE-285 (C-cap): gather the durable capability tokens FIRST, so the heartbeat build below derives the
+        // role mask from the latest known token set. Retained samples arrive immediately for present + late nodes.
+        using (var capLoan = _capabilitiesReader.Take())
+            foreach (var sample in capLoan)
+            {
+                // ⭐ S7 — a departed node leaves the strategy's cache (the reliable half of the signal, see
+                //   ClusterCapabilityIngestSystem). State first: when a data sample is still unread as the dispose arrives, take reports the not-alive state on that
+                //   data sample and adds no invalid one (see ClusterCapabilityIngestSystem).
+                if (IsNotAlive(sample.Info.InstanceState))
+                {
+                    _clusterCache.RemoveNode(CycloneDDS.Runtime.DdsTypeSupport.FromNative<NodeCapabilitiesTopic>(sample.NativePtr).NodeId);
+                    continue;
+                }
+                if (!sample.IsValid) continue;
+                _nodeCapabilities[sample.Data.NodeId] = DeserializeTokens(sample.Data.CapabilitiesJson);
+            }
+
         using var loan = _heartbeatReader.Take();
         foreach (var sample in loan)
         {
-            if (!sample.IsValid) continue;
-            _clusterCache.UpdateNode(new NodeCapability
+            // ⭐ S7 — a departed node leaves the strategy's cache too, so no grant targets it. (The departure EVENT
+            //   comes from ClusterCapabilityIngestSystem, which every NED host registers; this cache feeds the
+            //   grant strategy only.) State first, as above.
+            if (IsNotAlive(sample.Info.InstanceState))
             {
-                NodeId             = sample.Data.NodeId,
-                Role               = MapSubsystemNameToRole(sample.Data.SubsystemName),
-                CpuUsagePercent    = sample.Data.CpuUsagePercent,
-                RamUsedBytes       = sample.Data.RamUsedBytes,
-                LastSeenUtcSeconds = (double)sample.Data.WallTicksUtc / TimeSpan.TicksPerSecond,
-            });
+                _clusterCache.RemoveNode(CycloneDDS.Runtime.DdsTypeSupport.FromNative<NodeHeartbeat>(sample.NativePtr).NodeId);
+                continue;
+            }
+            if (!sample.IsValid) continue;
+            var tokens = _nodeCapabilities.TryGetValue(sample.Data.NodeId, out var t) ? t : System.Array.Empty<string>();
+            _clusterCache.UpdateNode(Hrot.Network.Routing.NodeCapabilityFromHeartbeat.Map(sample.Data, tokens));
         }
     }
 
-    private static NodeRole MapSubsystemNameToRole(string? name) =>
-        name switch
-        {
-            "SimHost" => NodeRole.MuscleGround,
-            "CGF"     => NodeRole.Brain,
-            "IG"      => NodeRole.ImageGenerator,
-            _         => NodeRole.None,
-        };
+    private static bool IsNotAlive(CycloneDDS.Runtime.DdsInstanceState state)
+        => state == CycloneDDS.Runtime.DdsInstanceState.NotAliveDisposed ||
+           state == CycloneDDS.Runtime.DdsInstanceState.NotAliveNoWriters;
+
+    private static string[] DeserializeTokens(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return System.Array.Empty<string>();
+        try { return System.Text.Json.JsonSerializer.Deserialize<string[]>(json, FdpJsonOptionsRegistry.DefaultRelaxed) ?? System.Array.Empty<string>(); }
+        catch { return System.Array.Empty<string>(); }
+    }
 }
 
 /// <summary>No-op stub for ISimHostMissionSender.</summary>
 internal sealed class NullSimHostMissionSender : ISimHostMissionSender
 {
-    public void SendNavigateToPoint(long id, System.Numerics.Vector2 dest, float speed, float radius) { }
+    public void SendNavigateToPoint(int id, System.Numerics.Vector2 dest, float speed, float radius) { }
     public void Dispose() { }
 }
 
@@ -446,16 +494,6 @@ internal sealed class NullCommandGateway : ICommandGateway
     public void Dispose() { }
 }
 
-/// <summary>No-op stub for IExConEgressWriters until TASK-P4-001 wires the real implementation.</summary>
-internal sealed class NullExConEgressWriters : IExConEgressWriters
-{
-    public void WriteMapConfig(MapConfigDto config) { }
-    public void WriteDeleteEntity(int entityId) { }
-    public void WriteCreateEntity(CreateEntityCommand cmd) { }
-    public void WriteMapCommand(MapCommandDto cmd) { }
-    public void PushContextActions(int mapGroupId, System.Collections.Generic.IReadOnlyList<int>? forSelection, string actionsJson) { }
-    public void Dispose() { }
-}
 
 /// <summary>No-op stub for ITimeControlGateway until TASK-P4-001 wires the real implementation.</summary>
 internal sealed class NullTimeControlGateway : ITimeControlGateway

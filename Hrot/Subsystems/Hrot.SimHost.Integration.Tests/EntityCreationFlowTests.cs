@@ -6,6 +6,7 @@ using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.SimHost.Integration.Tests.Infrastructure;
 using Xunit;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.SimHost.Integration.Tests
 {
@@ -107,7 +108,7 @@ namespace Hrot.SimHost.Integration.Tests
             {
                 RequestId          = requestId,
                 OwnerAppInstanceId = 1,   // must match localNodeId in SimHostInstance so the request is not silently dropped
-                TkbType            = 0,   // missing/invalid TkbType triggers error
+                TkbType            = (Fdp.Core.TkbTypeId)(0),   // missing/invalid TkbType triggers error
                 DisType            = 0,
             };
 
@@ -142,9 +143,9 @@ namespace Hrot.SimHost.Integration.Tests
             _host.RunForTicks(5);
 
             // Assert
-            var igData = _client.ReadIgEntityData(ack.Value.EntityId);
-            Assert.NotNull(igData);
-            Assert.Equal(ForceId.Hostile, igData!.Value.ForceId);
+            var playerData = _client.ReadPlayerEntityData(ack.Value.EntityId);
+            Assert.NotNull(playerData);
+            Assert.Equal(ForceId.Hostile, playerData!.Value.ForceId);
         }
 
         /// <summary>
@@ -164,9 +165,9 @@ namespace Hrot.SimHost.Integration.Tests
             Assert.Equal(0, ack!.Value.StatusCode);
             _host.RunForTicks(5);
 
-            var igData2 = _client.ReadIgEntityData(ack.Value.EntityId);
-            Assert.NotNull(igData2);
-            Assert.Equal(ForceId.Friend, igData2!.Value.ForceId);
+            var playerData2 = _client.ReadPlayerEntityData(ack.Value.EntityId);
+            Assert.NotNull(playerData2);
+            Assert.Equal(ForceId.Friend, playerData2!.Value.ForceId);
         }
 
         /// <summary>
@@ -188,10 +189,10 @@ namespace Hrot.SimHost.Integration.Tests
             Assert.Equal(0, ack!.Value.StatusCode);
             _host.RunForTicks(5);
 
-            var igData3 = _client.ReadIgEntityData(ack.Value.EntityId);
-            Assert.NotNull(igData3);
-            Assert.Equal("Bravo-3",       igData3!.Value.Name.ToString());
-            Assert.Equal(ForceId.Hostile, igData3!.Value.ForceId);
+            var playerData3 = _client.ReadPlayerEntityData(ack.Value.EntityId);
+            Assert.NotNull(playerData3);
+            Assert.Equal("Bravo-3",       playerData3!.Value.Name.ToString());
+            Assert.Equal(ForceId.Hostile, playerData3!.Value.ForceId);
         }
 
         /// <summary>
@@ -199,7 +200,7 @@ namespace Hrot.SimHost.Integration.Tests
         /// leaves IgEntityData in its default-constructed state.
         /// </summary>
         [Fact]
-        public async Task CreateEntity_WithNullJson_DoesNotThrowAndIgDataIsDefault()
+        public async Task CreateEntity_WithNullJson_DoesNotThrowAndPlayerDataIsDefault()
         {
             var reqId   = Guid.NewGuid();
             var request = BuildTankRequestWithJson(reqId, initialAttributesJson: null);
@@ -212,9 +213,61 @@ namespace Hrot.SimHost.Integration.Tests
             _host.RunForTicks(5);
 
             // No IgEntityData patch was applied; the component is either absent or defaulted.
-            var igDataD = _client.ReadIgEntityData(ack.Value.EntityId);
-            if (igDataD.HasValue)
-                Assert.Equal(ForceId.Neutral, igDataD.Value.ForceId);
+            var playerDataD = _client.ReadPlayerEntityData(ack.Value.EntityId);
+            if (playerDataD.HasValue)
+                Assert.Equal(ForceId.Neutral, playerDataD.Value.ForceId);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1017</c> S2 — the birth-height request through the REAL SimHost pipeline (request → <c>CreateEntityRequestSystem</c>
+        /// → <c>SpawnEntityCommand</c> → <c>NetworkSpawningSystem</c>) over a garage deck at Z 3: the SAME sent Z gives a different
+        /// birth level depending only on the request, and the motion model (W8: highest surface ≤ Z + 0.6) then keeps it there.
+        /// <para>📌 A first version placed it inside a SOLID building: level 0 resolved to the ground, then the tank's motion
+        /// model lifted it onto the roof within five ticks — exactly §2c's documented consequence until <c>CE-1031</c>, not a
+        /// resolver defect. A deck is where every level survives the motion model, so each assertion discriminates.</para>
+        /// 📄 docs/DESIGN_Add_Entity_Picker.md §2c, §2e.
+        /// </summary>
+        [Fact]
+        public async Task CE1017_CreateEntity_WithSpawnHeight_IsBornOnTheResolvedLevel_WithoutItKeepsTheSentZ()
+        {
+            _host.World.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("""
+            {
+              "type": "FeatureCollection",
+              "hrot": { "schemaVersion": 1, "bounds": [0, 0, 200, 200], "groundZ": 0 },
+              "features": [
+                { "type": "Feature", "properties": { "kind": "slab", "label": "Deck" },
+                  "geometry": { "type": "Polygon", "coordinates": [[[100,0,3],[140,0,3],[140,40,3],[100,40,3],[100,0,3]]] } }
+              ]
+            }
+            """));
+
+            async Task<float> BornZ(float sentZ, Fdp.Toolkit.NetworkSpawning.SpawnHeight? height)
+            {
+                var reqId = Guid.NewGuid();
+                _client.SendCreateRequest(new EntityCreationRequest
+                {
+                    RequestId          = reqId,
+                    OwnerAppInstanceId = 1,
+                    TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),
+                    InitialComponents  = new List<object>
+                    {
+                        new SimTransform { Position = new System.Numerics.Vector3(120, 20, sentZ), Rotation = System.Numerics.Quaternion.Identity },
+                    },
+                    SpawnHeight        = height,
+                });
+                var ack = await _client.WaitForAckAsync(reqId, timeoutMs: 3000);
+                Assert.NotNull(ack);
+                Assert.Equal(0, ack!.Value.StatusCode);
+                _host.RunForTicks(5);
+                Assert.True(_host.EntityMap.TryGetEntity(ack.Value.EntityId, out var e));
+                return _host.World.GetComponent<SimTransform>(e).Position.Z;
+            }
+
+            var deck = new Fdp.Toolkit.NetworkSpawning.SpawnHeight(Fdp.Toolkit.NetworkSpawning.SpawnHeightMode.OnLevel, 1);
+            Assert.Equal(3f, await BornZ(0f, deck));                                              // sent ground, asked deck ⇒ deck
+            Assert.Equal(0f, await BornZ(0f, null));                                              // no request ⇒ the sent Z
+            Assert.Equal(0f, await BornZ(3f, Fdp.Toolkit.NetworkSpawning.SpawnHeight.OnGround));  // sent deck, asked ground ⇒ ground
+            Assert.Equal(3f, await BornZ(3f, null));
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────────────
@@ -232,7 +285,7 @@ namespace Hrot.SimHost.Integration.Tests
             {
                 RequestId          = requestId,
                 OwnerAppInstanceId = 1,
-                TkbType            = TkbEntityTypes.Tank_M1Abrams,
+                TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),
                 DisType            = 0x0100_0000_0000_0001UL,   // Kind=1, Extra=1
                 InitialAttributesJson = initialAttributesJson,
             };

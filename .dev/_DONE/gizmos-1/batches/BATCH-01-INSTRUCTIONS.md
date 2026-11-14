@@ -258,7 +258,7 @@ This batch is DONE when:
 - [ ] TASK-GZ002 completed: `DebugPrimitive.cs` created, all SC-GZ002-x tests pass
 - [ ] TASK-GZ003 completed: `IDebugDrawBuilder.cs` + `DebugPrimitiveBuffer.cs` created, all SC-GZ003-x tests pass
 - [ ] TASK-GZ019 completed: `StringInternMap.cs` + `StringInternBatch.cs` created, `DrawTextLong` wired, all SC-GZ019-x tests pass
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds with no errors
+- [ ] `dotnet build HROT.sln` succeeds with no errors
 - [ ] `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj` passes with no failures
 - [ ] Report submitted to `.dev/gizmos-1/reports/BATCH-01-REPORT.md`
 

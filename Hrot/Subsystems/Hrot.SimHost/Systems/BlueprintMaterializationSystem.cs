@@ -32,6 +32,7 @@ namespace Hrot.SimHost.Systems
     /// an error and truncates — it never throws.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class BlueprintMaterializationSystem : IEcsModuleSystem
     {
         private readonly BlueprintRegistry _registry;
@@ -43,6 +44,7 @@ namespace Hrot.SimHost.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(BlueprintMaterializationSystem)} requires direct EntityRepository access " +
@@ -73,13 +75,13 @@ namespace Hrot.SimHost.Systems
                     continue;
                 }
 
-                // Step 1: Resolve AssetIds → definitions
-                var resolved = new List<(int BlueprintId, BlueprintDefinition Def)>();
+                // Step 1: Resolve AssetIds → definitions (carry the DTO so persisted params apply below)
+                var resolved = new List<(int BlueprintId, BlueprintDefinition Def, BlueprintAssignmentDto Dto)>();
                 foreach (var dto in intent.Blueprints)
                 {
                     int bpId = BlueprintIdHash.Compute(dto.AssetId);
                     if (_registry.TryGetById(bpId, out var def) && def != null)
-                        resolved.Add((bpId, def));
+                        resolved.Add((bpId, def, dto));
                     else
                         FdpLog<BlueprintMaterializationSystem>.Warn(
                             $"[BlueprintMat] AssetId {dto.AssetId} not registered; skipping.");
@@ -94,11 +96,11 @@ namespace Hrot.SimHost.Systems
                 // Step 2: Compute aggregate → pick tier (Design §5)
                 int totalSlots = resolved.Count;
                 int totalBytes = 0;
-                foreach (var (_, def) in resolved)
+                foreach (var (_, def, _) in resolved)
                     totalBytes += def.StateSize;
 
                 // Ceiling guard (16 slots / 16096 bytes)
-                if (totalSlots > BlueprintBlackboard16384.MaxSlots || totalBytes > BlueprintBlackboard16384.PayloadSize)
+                if (totalSlots > BlueprintTierTable.Largest.MaxSlots || totalBytes > BlueprintTierTable.Largest.PayloadSize)
                 {
                     FdpLog<BlueprintMaterializationSystem>.Error(
                         $"[BlueprintMat] Entity {entity} exceeds absolute ceiling " +
@@ -106,11 +108,11 @@ namespace Hrot.SimHost.Systems
                     // Truncate to ceiling capacity
                     int truncated = 0;
                     int truncatedBytes = 0;
-                    var truncatedList = new List<(int, BlueprintDefinition)>();
+                    var truncatedList = new List<(int, BlueprintDefinition, BlueprintAssignmentDto)>();
                     foreach (var r in resolved)
                     {
-                        if (truncated >= BlueprintBlackboard16384.MaxSlots) break;
-                        if (truncatedBytes + r.Def.StateSize > BlueprintBlackboard16384.PayloadSize) break;
+                        if (truncated >= BlueprintTierTable.Largest.MaxSlots) break;
+                        if (truncatedBytes + r.Def.StateSize > BlueprintTierTable.Largest.PayloadSize) break;
                         truncatedList.Add(r);
                         truncated++;
                         truncatedBytes += r.Def.StateSize;
@@ -120,29 +122,34 @@ namespace Hrot.SimHost.Systems
                     totalBytes = truncatedBytes;
                 }
 
-                BlackboardTier tier = ChooseTierFromAggregate(totalSlots, totalBytes);
-
-                // Step 3: Pre-provision the tier component
-                AddTierComponentIfMissing(repo, entity, tier);
-
-                // Step 4: Attach each blueprint directly into the pre-provisioned tier
-                // Using low-level partition API to respect aggregate tier (not per-blueprint tier).
-                GetTierMemoryAndMeta(repo, entity, tier,
-                    out byte* memory, out int totalSize, out byte maxSlots);
-                BlueprintBlackboardPartitions.Initialize(memory, totalSize, maxSlots);
-
-                foreach (var (bpId, def) in resolved)
+                // ⭐⭐ CE-3137 U-0 (R-236) — 📄 DESIGN_Occurrence_Scoped_Storage.md §34. A unit with no store gets its
+                //   FIRST block sized for this scenario's aggregate; a unit that already carries one (a behaviour's)
+                //   gets a block APPENDED for any shortfall. ⛔ No promotion: no slot already attached moves.
+                if (!OccurrenceStoreAccess.HasStore(repo, entity))
                 {
-                    // Check if already attached (idempotent)
-                    if (BlueprintBlackboardPartitions.TryGetSlotOffset(memory, bpId, out _))
+                    var first = BlueprintTierTable.ByTier(ChooseTierFromAggregate(totalSlots, totalBytes));
+                    if (first.IsRegistered(repo)) OccurrenceStoreAccess.AddBlock(repo, entity, first);
+                }
+                else
+                {
+                    OccurrenceStoreAccess.EnsureRoom(repo, entity, totalBytes, totalSlots);
+                }
+
+                // Step 4: attach each blueprint into any block with room (an appended one on a miss).
+                foreach (var (bpId, def, dto) in resolved)
+                {
+                    // Check if already attached (idempotent) — in any block.
+                    if (OccurrenceStoreAccess.TryFindSlot(repo, entity, bpId, out _, out _, out _))
                         continue;
 
-                    if (!BlueprintBlackboardPartitions.TryAttach(
-                            memory, bpId, def.StateSize, def.StructureHash, out int payloadOffset))
+                    // A3/D1': the occurrence declares its Kind at attach — see BlueprintTickSystem's note.
+                    if (!OccurrenceStoreAccess.TryAttachSlot(
+                            repo, entity, bpId, def.StateSize, def.StructureHash,
+                            OccurrenceKind.Blueprint, out byte* memory, out int payloadOffset))
                     {
                         FdpLog<BlueprintMaterializationSystem>.Error(
-                            $"[BlueprintMat] NoSlotAvailable for bpId 0x{bpId:X8} " +
-                            $"on entity {entity} (tier {tier}). This should not happen after pre-provision.");
+                            $"[BlueprintMat] NoSlotAvailable for bpId 0x{bpId:X8} on entity {entity}: every block is " +
+                            "full and every tier is already carried.");
                         continue;
                     }
 
@@ -151,6 +158,29 @@ namespace Hrot.SimHost.Systems
                         ref byte payloadRef = ref Unsafe.AsRef<byte>(memory + payloadOffset);
                         var initSpan = MemoryMarshal.CreateSpan(ref payloadRef, def.StateSize);
                         def.InitDefault(initSpan);
+                    }
+
+                    // ⭐⭐ CE-3044 (R-191) — the params through the blueprint's OWN ParseParams, AFTER InitDefault, exactly as
+                    //    AttachToEntity does: the declared defaults first, then the saved JSON overlaid by name.
+                    //    ⭐ ALWAYS, even with nothing saved — InitDefault bakes STATE defaults only, so skipping this left
+                    //    a reloaded instance with all-zero params where a fresh attach had the declared defaults.
+                    //    A key the blueprint no longer declares (renamed / removed since the save) loses only itself.
+                    if (def.ParseParams != null && def.ParamsSize > 0)
+                    {
+                        foreach (var key in BlueprintInstanceService.UnknownParamKeys(def, dto.Params))
+                            FdpLog<BlueprintMaterializationSystem>.Warn(
+                                $"[BlueprintMat] Saved param '{key}' of blueprint '{def.Name}' on entity {entity} is not " +
+                                "declared by the blueprint any more (renamed or removed since the save); it is ignored and " +
+                                "the parameter keeps its default.");
+                        string? error = BlueprintInstanceService.ApplyParams(
+                            memory + payloadOffset, def, dto.Params?.ToJsonString(), repo, entity);
+                        if (error != null)
+                        {
+                            BlueprintInstanceService.ApplyParams(memory + payloadOffset, def, null, repo, entity);
+                            FdpLog<BlueprintMaterializationSystem>.Warn(
+                                $"[BlueprintMat] Saved params of blueprint '{def.Name}' on entity {entity} could not be " +
+                                $"parsed; the declared defaults stand. {error}");
+                        }
                     }
                 }
 
@@ -161,72 +191,23 @@ namespace Hrot.SimHost.Systems
 
         // ── Tier selection ─────────────────────────────────────────────────────
 
+        // ═══ O3a / B3 — the three tier helpers are now the one ladder ══════════════════════════
+        //  📄 DESIGN_Occurrence_Scoped_Storage.md §17. ⛔ ChooseTierFromAggregate, GetTierMemoryAndMeta
+        //  and AddTierComponentIfMissing were a select ladder and two switch copies of the same
+        //  three-way dispatch that ~36 sites carried. They now read BlueprintTierTable.
+        //  ⚠ Semantics preserved exactly, including "fall through to the largest tier" and
+        //  AddTierComponentIfMissing's idempotence.
+
         /// <summary>
         /// Choose smallest tier satisfying BOTH slot count and payload bytes.
         /// </summary>
         private static BlackboardTier ChooseTierFromAggregate(int totalSlots, int totalBytes)
-        {
-            if (totalSlots <= BlueprintBlackboard1024.MaxSlots && totalBytes <= BlueprintBlackboard1024.PayloadSize)
-                return BlackboardTier.B1024;
-            if (totalSlots <= BlueprintBlackboard4096.MaxSlots && totalBytes <= BlueprintBlackboard4096.PayloadSize)
-                return BlackboardTier.B4096;
-            return BlackboardTier.B16384;
-        }
+            => BlueprintTierTable.Select(totalBytes, totalSlots).Tier;
 
         // ── Tier memory access ─────────────────────────────────────────────────
 
-        private static unsafe void GetTierMemoryAndMeta(
-            EntityRepository repo, Entity entity, BlackboardTier tier,
-            out byte* memory, out int totalSize, out byte maxSlots)
-        {
-            switch (tier)
-            {
-                case BlackboardTier.B1024:
-                {
-                    ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                    memory    = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
-                    totalSize = BlueprintBlackboard1024.TotalSize;
-                    maxSlots  = BlueprintBlackboard1024.MaxSlots;
-                    return;
-                }
-                case BlackboardTier.B4096:
-                {
-                    ref var bb = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-                    memory    = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb));
-                    totalSize = BlueprintBlackboard4096.TotalSize;
-                    maxSlots  = BlueprintBlackboard4096.MaxSlots;
-                    return;
-                }
-                default:
-                {
-                    ref var bb = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                    memory    = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb));
-                    totalSize = BlueprintBlackboard16384.TotalSize;
-                    maxSlots  = BlueprintBlackboard16384.MaxSlots;
-                    return;
-                }
-            }
-        }
 
         // ── Tier component helper ──────────────────────────────────────────────
 
-        private static void AddTierComponentIfMissing(EntityRepository repo, Entity entity, BlackboardTier tier)
-        {
-            switch (tier)
-            {
-                case BlackboardTier.B1024:
-                    if (!repo.HasComponent<BlueprintBlackboard1024>(entity))
-                        repo.AddComponent(entity, default(BlueprintBlackboard1024));
-                    break;
-                case BlackboardTier.B4096:
-                    if (!repo.HasComponent<BlueprintBlackboard4096>(entity))
-                        repo.AddComponent(entity, default(BlueprintBlackboard4096));
-                    break;
-                case BlackboardTier.B16384:
-                    if (!repo.HasComponent<BlueprintBlackboard16384>(entity))
-                        repo.AddComponent(entity, default(BlueprintBlackboard16384));
-                    break;
-            }
-        }
     }
 }

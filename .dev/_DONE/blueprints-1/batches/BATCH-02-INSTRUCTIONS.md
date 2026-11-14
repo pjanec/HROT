@@ -55,7 +55,7 @@ the original TH-001 version and then correct it.  The patched design is the targ
 
 ```powershell
 # From repo root:
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tests.csproj
 ```
 
@@ -313,5 +313,5 @@ Submit `.dev/blueprints-1/reports/BATCH-02-REPORT.md` with:
 [Anything deferred]
 
 ## Build Verification
-[Last 20 lines of `dotnet build IOS-IG-SimHost.sln` output]
+[Last 20 lines of `dotnet build HROT.sln` output]
 ```

@@ -1,0 +1,315 @@
+using System.Numerics;
+using Fdp.Core;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Terrain;
+using Fdp.Toolkit.Vis3D;
+using Fdp.Toolkit.World;
+using GizmoMap.Network;
+using Hrot.Map.Common;
+using Hrot.UI.Common.Map3D;
+using Xunit;
+
+namespace Hrot.Presentation.Tests.Map3D;
+
+/// <summary>
+/// ⭐ CE-1033 S2 — picking in 3-D (<c>docs/DESIGN_Map_3D_Mode.md</c> §3.8, M17–M20): a click lands on the drawn terrain with its
+/// height, on an entity's drawn box (returning the entity's own position), a drag follows the terrain only, and the height
+/// reaches the gizmo events.
+/// </summary>
+public sealed class Map3DPickingTests
+{
+    private static readonly Vector2 Viewport = new(1280, 720);
+
+    private static (TerrainWorld Terrain, EntityRepository World, IWorldQuery Query) Town()
+    {
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        return (terrain, world, WorldQuery.Of(world)!);
+    }
+
+    /// <summary>⭐ R-1046 — the picker's grid builds on a worker now (a pick never blocks): a rail that wants to HIT waits for it, as the frame loop would.</summary>
+    internal static TerrainPicker Ready(TerrainPicker picker)
+    {
+        var end = System.DateTime.UtcNow.AddSeconds(30);
+        while (!picker.Update())
+        {
+            Assert.True(System.DateTime.UtcNow < end, "the terrain picker's grid was not built in time");
+            System.Threading.Thread.Sleep(2);
+        }
+        return picker;
+    }
+
+    /// <summary>
+    /// ⭐ <c>R-1046</c> — the terrain picker's grid is built on a WORKER, keyed by the geometry's identity: while it is unbuilt a pick returns no hit and never blocks (the first pick returns at once);
+    /// once built the same ray hits; a new geometry identity is a miss again until ITS grid is built (never the old terrain's).
+    /// 🔴 Mutation: the grid built synchronously inside the pick ⇒ the first pick hits, the "no hit while building" cell reds.
+    /// </summary>
+    [Fact]
+    public void R1046_TheTerrainPicker_MissesWhileItsGridBuilds_NeverBlocks_ThenHits()
+    {
+        var (terrain, world, q) = Town();
+        var (roof, roofZ, _, _) = Spots(terrain, q);
+        var ray = (new Vector3(roof, 500f), -Vector3.UnitZ);
+        var picker = new TerrainPicker(() => WorldQuery.RenderGeometryOf(world));
+
+        Assert.False(picker.IsBuilt);
+        Assert.False(picker.TryPick(ray.Item1, ray.Item2, 1000f, out _));      // the first pick starts the build and misses at once
+        Assert.Equal(0, picker.TriangleCount);
+
+        bool hit = false; PickResult result = default;
+        var end = System.DateTime.UtcNow.AddSeconds(30);
+        while (!hit && System.DateTime.UtcNow < end)
+        {
+            hit = picker.TryPick(ray.Item1, ray.Item2, 1000f, out result);
+            if (!hit) System.Threading.Thread.Sleep(2);
+        }
+        Assert.True(hit, "the grid never finished");
+        Assert.True(picker.IsBuilt);
+        Assert.InRange(result.Point.Z, roofZ - 0.05f, roofZ + 0.05f);
+
+        // another terrain (a new geometry identity): a miss until ITS grid is built — never a hit on the old terrain's triangles
+        var other = Map3DTests.WorldWith(Map3DTests.TestTown());
+        var current = world;
+        var swapping = new TerrainPicker(() => WorldQuery.RenderGeometryOf(current));
+        Ready(swapping);
+        Assert.True(swapping.TryPick(ray.Item1, ray.Item2, 1000f, out _));
+        current = other;
+        Assert.False(swapping.IsBuilt);
+        Assert.False(swapping.TryPick(ray.Item1, ray.Item2, 1000f, out _));
+        Ready(swapping);
+        Assert.True(swapping.TryPick(ray.Item1, ray.Item2, 1000f, out _));
+    }
+
+    /// <summary>A point on a roof (a second surface above the ground) and a point of open ground.</summary>
+    private static (Vector2 Roof, float RoofZ, Vector2 Open, float GroundZ) Spots(TerrainWorld terrain, IWorldQuery q)
+    {
+        Vector2? roof = null, open = null; float roofZ = 0, groundZ = 0;
+        for (float x = terrain.BoundsMin.X + 5; x < terrain.BoundsMax.X && (roof == null || open == null); x += 3f)
+            for (float y = terrain.BoundsMin.Y + 5; y < terrain.BoundsMax.Y && (roof == null || open == null); y += 3f)
+            {
+                var s = q.SurfacesAt(x, y, out int g);
+                if (roof == null && s.Count > g + 1 && s[^1] - s[g] > 4f)
+                {
+                    // the roof must also be roof a little around, so a vertical ray is not on an edge
+                    bool solid = true;
+                    foreach (var (dx, dy) in new[] { (1f, 0f), (-1f, 0f), (0f, 1f), (0f, -1f) })
+                        solid &= q.SurfacesAt(x + dx, y + dy, out int g2).Count > g2 + 1;
+                    if (solid) { roof = new Vector2(x, y); roofZ = s[^1]; }
+                }
+                if (open == null && s.Count == g + 1) { open = new Vector2(x, y); groundZ = s[g]; }
+            }
+        Assert.True(roof != null && open != null, "test-town should have a roof and open ground");
+        return (roof!.Value, roofZ, open!.Value, groundZ);
+    }
+
+    [Fact]
+    public void S2_ARayDown_LandsOnTheRoof_OrTheGround_WithItsHeight()
+    {
+        var (terrain, world, q) = Town();
+        var (roof, roofZ, open, groundZ) = Spots(terrain, q);
+        var picker = Ready(new TerrainPicker(() => WorldQuery.RenderGeometryOf(world)));
+
+        Assert.True(picker.TryPick(new Vector3(roof, 500f), -Vector3.UnitZ, 1000f, out var onRoof));
+        Assert.InRange(onRoof.Point.Z, roofZ - 0.05f, roofZ + 0.05f);
+        Assert.Equal(PickKind.Terrain, onRoof.Kind);
+
+        Assert.True(picker.TryPick(new Vector3(open, 500f), -Vector3.UnitZ, 1000f, out var onGround));
+        Assert.InRange(onGround.Point.Z, groundZ - 0.05f, groundZ + 0.05f);
+
+        Assert.Equal(1, Levels.LevelOf(q, onRoof.Point) >= 1 ? 1 : 0);   // the roof is a level above the ground (M20)
+        Assert.Equal(0, Levels.LevelOf(q, onGround.Point));
+    }
+
+    [Fact]
+    public void S2_ASlantedRay_StopsAtTheFirstSurface_NotTheGroundBehindIt()
+    {
+        var (terrain, world, q) = Town();
+        var (roof, roofZ, _, _) = Spots(terrain, q);
+        var picker = Ready(new TerrainPicker(() => WorldQuery.RenderGeometryOf(world)));
+        // from above and to the side, aimed at the roof point: the first thing hit must be at or above the roof's height
+        var from = new Vector3(roof.X - 60f, roof.Y - 60f, roofZ + 60f);
+        var dir = Vector3.Normalize(new Vector3(roof, roofZ) - from);
+        Assert.True(picker.TryPick(from, dir, 1000f, out var hit));
+        Assert.True(hit.Point.Z >= roofZ - 0.1f, $"hit {hit.Point} below the roof {roofZ} — went through the building");
+    }
+
+    private static Entity Tank(EntityRepository world, Vector3 at, int netId)
+    {
+        if (!world.IsComponentTypeRegistered<SimTransform>()) world.RegisterComponent<SimTransform>();
+        if (!world.IsComponentTypeRegistered<TkbIdentity>()) world.RegisterComponent<TkbIdentity>();
+        if (!world.IsComponentTypeRegistered<NetworkIdentity>()) world.RegisterComponent<NetworkIdentity>();
+        var e = world.CreateEntity();
+        world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+        world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
+        world.AddComponent(e, new NetworkIdentity(netId));
+        return e;
+    }
+
+    [Fact]
+    public void S2_AnEntityIsHitByItsDrawnBox_AndAnswersWithItsOwnPosition_NeverBesideIt()
+    {
+        var (_, world, q) = Town();
+        var tkb = Map3DTests.BuiltIn();
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var at = new Vector3(10f, 20f, q.GroundHeightAt(10f, 20f));
+        Tank(world, at, 77);
+        var picker = new EntityBoxPicker(() => world, () => tkb, bodies);
+
+        // Down onto the front of the hull (the M1 is 7.93 m long, facing east): hit, and the answer is the tank's position.
+        Assert.True(picker.TryPick(new Vector3(at.X + 3f, at.Y, at.Z + 50f), -Vector3.UnitZ, 200f, out var hit));
+        Assert.Equal(PickKind.Entity, hit.Kind);
+        Assert.Equal(77, hit.NetworkId);
+        Assert.Equal(at, hit.Point);
+
+        // 2.5 m to the side of a 3.66 m-wide hull: a miss (the sim's bounding circle would have caught it).
+        Assert.False(picker.TryPick(new Vector3(at.X, at.Y + 2.5f, at.Z + 50f), -Vector3.UnitZ, 200f, out _));
+    }
+
+    /// <summary>
+    /// ⭐ CE-4341 — a click or drag on the hilly OUTER band (the apron, CE-4122) lands ON the drawn surface: the picker hits the apron's
+    /// triangles (the same ones the layer draws), the point is the band's ground height there, its level is 0, and the placement's birth height
+    /// (<c>ResolveLevel(x, y, 0)</c>) is that same height. 🔴 Mutation: the pick grid built from <c>Build</c> (the soup alone) ⇒ the ray misses the
+    /// band and the camera falls back to its look-at plane (z = 0, <see cref="PickKind.Ground"/>) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4341_APickOnTheOuterBand_LandsOnTheDrawnGround_AndPlacementResolvesToIt()
+    {
+        var (terrain, world, q) = Town();
+        var (min, max, _) = terrain.GroundRect;
+        // a point 600 m east of the terrain's edge, where the band's hills are fully grown and well off z = 0
+        float x = max.X + 600f, y = (min.Y + max.Y) * 0.5f;
+        for (int i = 0; i < 40 && MathF.Abs(q.GroundHeightAt(x, y)) < 5f; i++) y += 37f;
+        float ground = q.GroundHeightAt(x, y);
+        Assert.True(MathF.Abs(ground) >= 5f, $"the band should be hilly here (ground {ground:0.0} m)");
+
+        var picker = Ready(new TerrainPicker(() => WorldQuery.RenderGeometryOf(world)));
+        Assert.True(picker.TryPick(new Vector3(x, y, 500f), -Vector3.UnitZ, 1000f, out var down), "a ray straight down on the band hits the drawn band");
+        Assert.InRange(down.Point.Z, ground - 2f, ground + 2f);   // the apron's 40 m cells interpolate the hills — within a couple of metres
+
+        // the camera over the band: the click and the drag both land on the band, never on the look-at plane
+        var at = new Vector3(x, y, ground);
+        // ⚠ the look-at height is 0 on purpose: the miss fallback is the plane at that height, so a fallback answer shows as z = 0 and kind Ground
+        var cam = new MapCamera3D { ViewportOverride = Viewport, LookAt = new Vector3(x, y, 0f), Distance = 150f, Pitch = -0.9f, Yaw = 1.0f };
+        cam.Pickers.Add(picker);
+        var px = cam.WorldToScreen(at);
+        var click = cam.Pick(px, PickFilter.All);
+        Assert.Equal(PickKind.Terrain, click.Kind);
+        Assert.InRange(click.Point.Z, ground - 2f, ground + 2f);
+        Assert.True(Vector2.Distance(new Vector2(click.Point.X, click.Point.Y), new Vector2(x, y)) < 10f, "the click lands where the cursor points");
+        Assert.Equal(PickKind.Terrain, cam.Pick(px, PickFilter.Terrain).Kind);   // a drag follows the band too
+
+        // placement: the 3-D click's level is the ground, and the birth height of that level is the band's ground there
+        Assert.Equal(0, Levels.LevelOf(q, click.Point));
+        Assert.Equal(q.GroundHeightAt(click.Point.X, click.Point.Y), q.ResolveLevel(click.Point.X, click.Point.Y, 0), 3);
+    }
+
+    [Fact]
+    public void S2_TheCamera_PicksTheEntity_ButADragFollowsTheTerrain()
+    {
+        var (_, world, q) = Town();
+        var tkb = Map3DTests.BuiltIn();
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var at = new Vector3(10f, 20f, q.GroundHeightAt(10f, 20f));
+        Tank(world, at + new Vector3(0, 0, 0), 5);
+        var cam = new MapCamera3D { ViewportOverride = Viewport, LookAt = at, Distance = 40f, Pitch = -0.9f, Yaw = 1.0f };
+        cam.Pickers.Add(Ready(new TerrainPicker(() => WorldQuery.RenderGeometryOf(world))));
+        cam.Pickers.Add(new EntityBoxPicker(() => world, () => tkb, bodies));
+
+        // The screen centre looks at the tank's footprint centre; aim a little up the hull to be sure to hit its box.
+        var px = cam.WorldToScreen(at + new Vector3(0, 0, 1.2f));
+        var click = cam.ScreenToWorld3D(px);
+        Assert.Equal(PickKind.Entity, cam.LastPick.Kind);
+        Assert.Equal(at, click);
+
+        var drag = cam.ScreenToWorld3D(px, forDrag: true);
+        Assert.NotEqual(PickKind.Entity, cam.Pick(px, PickFilter.Terrain).Kind);
+        Assert.True(Vector2.Distance(new Vector2(drag.X, drag.Y), new Vector2(at.X, at.Y)) > 0.3f,
+            "the drag point is the terrain behind the tank's top, not the tank's own position");
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1080 (docs/DESIGN_Entity_Control.md §8e D-4) — the first-person crosshair sees UNITS (it picked terrain only, so a tank under
+    /// it was aimed at the ground behind), never the operator's OWN body (the eye sits inside its box, and a ray from inside meets the
+    /// box on the way out — nearer than anything), and its aim point is where the ray meets the unit's box, not the unit's feet.
+    /// </summary>
+    [Fact]
+    public void CE1080_TheFirstPersonCrosshair_SeesTheUnit_NeverTheOwnBody_AndAimsAtTheBoxHit()
+    {
+        var (_, world, q) = Town();
+        var tkb = Map3DTests.BuiltIn();
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var at = new Vector3(10f, 20f, q.GroundHeightAt(10f, 20f));
+        Tank(world, at, 77);
+        var cam = new MapCamera3D { ViewportOverride = Viewport, LookAt = at + new Vector3(0f, 0f, 1.2f), Distance = 40f, Pitch = -0.05f, Yaw = 1.0f };
+        cam.Pickers.Add(Ready(new TerrainPicker(() => WorldQuery.RenderGeometryOf(world))));
+        cam.Pickers.Add(new EntityBoxPicker(() => world, () => tkb, bodies));
+        cam.Pickers.Add(new EntityPartPicker(() => world, () => tkb, bodies));   // ⭐ CE-1126 — the crosshair asks for the parts
+        var own = Tank(world, cam.Eye - new Vector3(0f, 0f, 1.5f), 5);   // the operator's tank: the eye is inside its hull box
+
+        bodies.FirstPerson = own;
+        var (point, target) = FpsCameraDriver.Aim(cam);
+        Assert.Equal(77L, target);
+        Assert.True(point.Z > at.Z + 0.3f, $"aimed at {point}: on the hull, not at the feet {at}");
+        Assert.True(Vector3.Distance(point, at) < 5f, $"aimed at {point}, the tank is at {at}");
+
+        bodies.FirstPerson = Entity.Null;                                   // what the skip prevents: the own hull wins the pick
+        cam.Yaw += 1e-4f;                                                   // (a new pose: the pick is cached per pose)
+        Assert.Equal(5L, FpsCameraDriver.Aim(cam).Target);
+    }
+
+    private static Entity Rifleman(EntityRepository world, Vector3 at, int netId)
+    {
+        var e = Tank(world, at, netId);
+        world.SetComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
+        return e;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1126 (docs/DESIGN_Entity_Control.md §8g F-4) — the FPS crosshair meets a man by the PARTS a round meets (BodyPartRay, the
+    /// bullet solver's own test): a ray at his head answers a point ON his head (the round goes there), and a ray past his hip — inside
+    /// the selection box, between his parts — answers nothing, while RTS selection (<see cref="EntityBoxPicker"/>) still takes it.
+    /// 🔒 User, 2026-10-16: <i>"when i aim at character and fire i always hit the belly"</i> · <i>"yes, let's use the body part boxes for the crosshair"</i>.
+    /// </summary>
+    [Fact]
+    public void CE1126_TheCrosshair_MeetsTheMansParts_TheHeadPointIsOnHisHead_AndTheGapPastHisHipIsEmpty()
+    {
+        var (_, world, q) = Town();
+        var tkb = Map3DTests.BuiltIn();
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var at = new Vector3(10f, 20f, q.GroundHeightAt(10f, 20f));
+        Rifleman(world, at, 42);
+        var parts = new EntityPartPicker(() => world, () => tkb, bodies);
+        var boxes = new EntityBoxPicker(() => world, () => tkb, bodies);
+
+        // a level ray from 20 m west at his head (a standing figure of 1.8 m: the head is ~1.6-1.8 m)
+        var eye = new Vector3(at.X - 20f, at.Y, at.Z + 1.68f);
+        Assert.True(parts.TryPick(eye, Vector3.UnitX, 200f, out var head), "the crosshair at his head meets him");
+        Assert.Equal(PickKind.Entity, head.Kind);
+        Assert.Equal(42L, head.NetworkId);
+        Assert.InRange(head.Point.Z, at.Z + 1.55f, at.Z + 1.85f);   // the point is ON the head — not his position, not his belly
+        Assert.InRange(head.Point.X, at.X - 0.4f, at.X + 0.1f);      // and on the near side of him, where the ray enters
+
+        // a level ray 0.33 m beside him at knee height: the selection box (half ≥ 0.4 m) takes it, the parts do not
+        var beside = new Vector3(at.X - 20f, at.Y + 0.33f, at.Z + 0.45f);
+        Assert.True(boxes.TryPick(beside, Vector3.UnitX, 200f, out _), "RTS selection keeps its generous box");
+        Assert.False(parts.TryPick(beside, Vector3.UnitX, 200f, out _), "the crosshair between his parts is on nothing");
+    }
+
+    [Fact]
+    public void S2_TheGizmoProxy_CarriesTheHeight_IntoTheInteractionEvents()
+    {
+        var events = new List<(GizmoInteractionEventKind Kind, Vector3 Pos)>();
+        float z = 12.5f;
+        var tool = new GizmoMap.Presentation.GizmoInteractionProxyTool(
+            default, new Vector2(1, 2), (_, kind, pos, _, _) => events.Add((kind, pos)),
+            initialZ: 3f, height: () => z);
+        tool.HandlePress(new Vector2(1, 2), Raylib_cs.MouseButton.Left);
+        tool.HandleDrag(new Vector2(4, 5), new Vector2(1, 1));
+        z = 14f;
+        tool.HandleClick(new Vector2(6, 7), Raylib_cs.MouseButton.Left);
+
+        Assert.Equal(new Vector3(1, 2, 3), events[0].Pos);                   // Started at the press point's height
+        Assert.Equal(new Vector3(4, 5, 12.5f), events[1].Pos);               // DragUpdate at the terrain under the cursor
+        Assert.Equal(new Vector3(6, 7, 14f), events[2].Pos);                 // Commit
+    }
+}

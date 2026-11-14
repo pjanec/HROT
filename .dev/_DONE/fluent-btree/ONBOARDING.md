@@ -113,7 +113,7 @@ All commands run from the repository root (`d:\Work\IOS-IG-SimHost-FDP-2`).
 
 **Build entire solution:**
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 **Build just FastBTree:**

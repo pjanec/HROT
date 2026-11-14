@@ -6,12 +6,12 @@ namespace Fdp.Examples.DDS
     /// Spawns or destroys a networked entity without an EntityMaster handshake.
     /// Used by the DistributedTank and UrbanCombat (new) scenarios.
     /// </summary>
-    [DdsTopic("FDP.Demo_Spawn")]
+    [DdsTopic]
     public partial struct DemoSpawnMsg
     {
         /// <summary>Unique long-lived network identifier for the entity.</summary>
         [DdsKey]
-        public long NetworkId;
+        public int NetworkId;
 
         /// <summary>TKB template type identifier (e.g. DemoTemplateIds.CommandTank = 100).</summary>
         public long TkbType;

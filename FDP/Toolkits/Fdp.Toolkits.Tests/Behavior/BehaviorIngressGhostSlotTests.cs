@@ -35,9 +35,11 @@ public sealed unsafe class BehaviorIngressGhostSlotTests
     private static EntityRepository CreateWorld()
     {
         var world = TestWorldFactory.Create();
-        world.RegisterComponent<BlueprintBlackboard1024>();
-        world.RegisterComponent<BlueprintBlackboard4096>();
-        world.RegisterComponent<BlueprintBlackboard16384>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+        //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+        //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+        //   O3b added one. Production never had the bug: it registers from the table.
+        BlueprintTierTable.RegisterAll(world);
         return world;
     }
 
@@ -52,7 +54,7 @@ public sealed unsafe class BehaviorIngressGhostSlotTests
 
     private static BehaviorDefinition MakeStatefulDefinition(string name, int id, IReadOnlyList<StatefulSlotInfo> slots)
     {
-        var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var actionReg = new ActionRegistry<byte, BTreeContext>();
         var blob = new BehaviorTreeBlob
         {
             TreeName    = name,
@@ -61,7 +63,7 @@ public sealed unsafe class BehaviorIngressGhostSlotTests
             FloatParams = Array.Empty<float>(),
             IntParams   = Array.Empty<int>(),
         };
-        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, actionReg);
         return new BehaviorDefinition
         {
             Name                 = name,
@@ -113,8 +115,7 @@ public sealed unsafe class BehaviorIngressGhostSlotTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         // Choose distinct slot keys.
         int keyA = 0x1AA01;
@@ -134,25 +135,15 @@ public sealed unsafe class BehaviorIngressGhostSlotTests
         FireAssignEvent(world, sys, entity, BehaviorName);
 
         // Verify both slots attached and write sentinel into keyB's payload.
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
+        // ⭐ B4: was an if/else-if chain over the tier trio — and its final `else` fell through to
+        //   1024 UNCONDITIONALLY, so with a 256 tier it threw "missing BlueprintBlackboard1024".
+        //   OccurrenceStoreAccess resolves whichever tier the ingress actually chose.
         {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = tier.Memory)
-            {
-                Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyA, out _), "V1: keyA must be attached");
-                Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyB, out int offB), "V1: keyB must be attached");
-                *(int*)(mem + offB) = unchecked((int)0xDEADBEEF);
-            }
-        }
-        else if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = tier.Memory)
-            {
-                Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyA, out _), "V1: keyA must be attached");
-                Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyB, out int offB), "V1: keyB must be attached");
-                *(int*)(mem + offB) = unchecked((int)0xDEADBEEF);
-            }
+            byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+            Assert.True(mem != null, "entity must carry a blueprint blackboard tier");
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyA, out _), "V1: keyA must be attached");
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyB, out int offB), "V1: keyB must be attached");
+            *(int*)(mem + offB) = unchecked((int)0xDEADBEEF);
         }
 
         // ── Simulate hard reload: update the manifest in the registry ─────────────
@@ -177,52 +168,25 @@ public sealed unsafe class BehaviorIngressGhostSlotTests
         FireAssignEvent(world, sys, entity, BehaviorName);
 
         // ── Assert ────────────────────────────────────────────────────────────────
-        // Check whichever tier component the entity has after the re-provision.
-        void AssertResults(byte* mem)
+        // ⭐ CE-3137 U-0 (R-236): the store may now span SEVERAL blocks (growth appends, nothing moves), so every
+        //   read goes through the multi-block lookup — never "the" store. Was: one TryGetStore + AssertResults(mem).
         {
             // (a) keyA must now resolve and have the new larger PayloadSize (32, aligned to 32).
-            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyA, out _),
+            Assert.True(OccurrenceStoreAccess.TryFindSlotIndex(world, entity, keyA, out byte* memA, out int idxA),
                 "(a) keyA must still resolve after growth");
-            ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
-            byte* slotTable = mem + Unsafe.SizeOf<BlueprintBlackboardHeader>();
-            ushort keyAPayloadSize = 0;
-            for (int i = 0; i < header.SlotCount; i++)
-            {
-                ref var e = ref Unsafe.AsRef<BlueprintSlotEntry>(
-                    slotTable + i * BlueprintBlackboardPartitions.SlotEntrySize);
-                if (e.BlueprintId == keyA)
-                {
-                    keyAPayloadSize = e.PayloadSize;
-                    break;
-                }
-            }
+            ref var eA = ref Unsafe.AsRef<BlueprintSlotEntry>(
+                memA + Unsafe.SizeOf<BlueprintBlackboardHeader>() + idxA * BlueprintBlackboardPartitions.SlotEntrySize);
             // 32 bytes is already aligned to 8 → stored PayloadSize must be 32.
-            Assert.Equal(32, (int)keyAPayloadSize);
+            Assert.Equal(32, (int)eA.PayloadSize);
 
             // (b) keyB's sentinel must be intact (no overflow from keyA's growth).
-            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyB, out int offB),
+            Assert.True(OccurrenceStoreAccess.TryFindSlot(world, entity, keyB, out byte* memB, out int offB, out _),
                 "(b) keyB must still resolve");
-            int sentinel = *(int*)(mem + offB);
-            Assert.Equal(unchecked((int)0xDEADBEEF), sentinel);
+            Assert.Equal(unchecked((int)0xDEADBEEF), *(int*)(memB + offB));
 
-            // (d) SlotCount == 2 (no leaked slots).
-            Assert.Equal(2, (int)header.SlotCount);
-        }
-
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = tier.Memory) AssertResults(mem);
-        }
-        else if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = tier.Memory) AssertResults(mem);
-        }
-        else
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = tier.Memory) AssertResults(mem);
+            // (d) no leaked slots, summed over every block.
+            // ⭐ O7c-②: +1 — the ROOT STATE slot (CE-319) rides beside the manifest slots now.
+            Assert.Equal(3, OccurrenceStoreAccess.Measure(world, entity).SlotCount);
         }
 
         world.Dispose();
@@ -248,8 +212,7 @@ public sealed unsafe class BehaviorIngressGhostSlotTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         int slotKey = 0x2CC03;
         const uint hashV1 = 0xAAAABBBBu;
@@ -268,42 +231,23 @@ public sealed unsafe class BehaviorIngressGhostSlotTests
         uint initialInstanceVersion = 0;
 
         // We know it'll be a 1024 or 4096 tier; check both.
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
+        // ⭐ B4: was an if/else-if chain over the tier trio — and its final `else` fell through to
+        //   1024 UNCONDITIONALLY, so with a 256 tier it threw "missing BlueprintBlackboard1024".
+        //   OccurrenceStoreAccess resolves whichever tier the ingress actually chose.
         {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = tier.Memory)
-            {
-                Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int off),
-                    "Slot must be attached after first assign");
-                *(int*)(mem + off) = WorkingStateMagic;
+            byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+            Assert.True(mem != null, "entity must carry a blueprint blackboard tier");
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int off),
+                "Slot must be attached after first assign");
+            *(int*)(mem + off) = WorkingStateMagic;
 
-                ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
-                byte* slotTable = mem + Unsafe.SizeOf<BlueprintBlackboardHeader>();
-                for (int i = 0; i < header.SlotCount; i++)
-                {
-                    ref var e = ref Unsafe.AsRef<BlueprintSlotEntry>(
-                        slotTable + i * BlueprintBlackboardPartitions.SlotEntrySize);
-                    if (e.BlueprintId == slotKey) { initialInstanceVersion = e.InstanceVersion; break; }
-                }
-            }
-        }
-        else if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = tier.Memory)
+            ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
+            byte* slotTable = mem + Unsafe.SizeOf<BlueprintBlackboardHeader>();
+            for (int i = 0; i < header.SlotCount; i++)
             {
-                Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int off),
-                    "Slot must be attached after first assign");
-                *(int*)(mem + off) = WorkingStateMagic;
-
-                ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
-                byte* slotTable = mem + Unsafe.SizeOf<BlueprintBlackboardHeader>();
-                for (int i = 0; i < header.SlotCount; i++)
-                {
-                    ref var e = ref Unsafe.AsRef<BlueprintSlotEntry>(
-                        slotTable + i * BlueprintBlackboardPartitions.SlotEntrySize);
-                    if (e.BlueprintId == slotKey) { initialInstanceVersion = e.InstanceVersion; break; }
-                }
+                ref var e = ref Unsafe.AsRef<BlueprintSlotEntry>(
+                    slotTable + i * BlueprintBlackboardPartitions.SlotEntrySize);
+                if (e.BlueprintId == slotKey) { initialInstanceVersion = e.InstanceVersion; break; }
             }
         }
 
@@ -334,20 +278,13 @@ public sealed unsafe class BehaviorIngressGhostSlotTests
             Assert.Equal(initialInstanceVersion, currentVersion);
         }
 
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
+        // ⭐ B4: was an if/else-if chain over the tier trio — and its final `else` fell through to
+        //   1024 UNCONDITIONALLY, so with a 256 tier it threw "missing BlueprintBlackboard1024".
+        //   OccurrenceStoreAccess resolves whichever tier the ingress actually chose.
         {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = tier.Memory) AssertPreserved(mem);
-        }
-        else if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = tier.Memory) AssertPreserved(mem);
-        }
-        else
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = tier.Memory) AssertPreserved(mem);
+            byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+            Assert.True(mem != null, "entity must carry a blueprint blackboard tier");
+            AssertPreserved(mem);
         }
 
         world.Dispose();

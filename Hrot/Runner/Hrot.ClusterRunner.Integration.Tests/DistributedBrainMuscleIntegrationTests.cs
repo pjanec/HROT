@@ -36,7 +36,7 @@ public sealed class DistributedBrainMuscleIntegrationTests
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new GeoPoint { Latitude = 52.52, Longitude = 13.405, Altitude = 0.0 };
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         bool reached = harness.PumpUntil(
             () =>
@@ -61,7 +61,7 @@ public sealed class DistributedBrainMuscleIntegrationTests
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new GeoPoint { Latitude = 52.52, Longitude = 13.405, Altitude = 0.0 };
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         // Wait until entity appears in CGF
         bool appeared = harness.PumpUntil(
@@ -120,21 +120,28 @@ public sealed class DistributedBrainMuscleIntegrationTests
     ///     <c>DamageAssessedEgressTranslator</c> broadcasts <c>EntityHitDamage</c> over DDS.</item>
     ///   <item><c>EntityHitDamageIngressTranslator</c> (Brain) delivers the event to CGF;
     ///     <c>HealthApplicationSystem</c> applies the damage on the authoritative
-    ///     <see cref="Health"/> component and strips <see cref="ActorCapabilities.CanMove"/>.</item>
+    ///     <see cref="Health"/> component (CanMove is kept: the M1 does not opt into a mobility kill — CE-3092).</item>
     /// </list>
     /// </para>
+    /// <para>⭐ <c>CE-523</c> (ownership build S8): run for BOTH creators. When SimHost creates the tank it stays the
+    /// primary owner and its Brain group — <see cref="Health"/> with it — is granted to CGF; the damage must still
+    /// land on CGF, and SimHost's replica must take CGF's health back (it was dropped by an entity-level gate, and
+    /// SimHost kept a stale full health). 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S8.</para>
     /// </summary>
-    [Fact]
-    public void DistributedCombat_HitOnMuscle_AppliesDamageOnBrain()
+    [Theory]
+    [InlineData("cgf")]
+    [InlineData("simhost")]
+    public void DistributedCombat_HitOnMuscle_AppliesDamageOnBrain(string creator)
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
-        var spawnPos = new GeoPoint { Latitude = 52.52, Longitude = 13.405, Altitude = 0.0 };
-
-        // CGF (Brain) spawns entity with split authority: WorldPos delegated to SimHost.
-        long networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
-            TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
+        // CGF (Brain) spawns entity with split authority: WorldPos delegated to SimHost. SimHost creates it through its
+        // pack: push-only grants the Brain group to CGF.
+        int networkId = creator == "cgf"
+            ? harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1)
+            : harness.SimHost.TestHook_SpawnEntity(TkbEntityTypes.Tank_M1Abrams,
+                  new Hrot.Core.Mission.GeoPoint { Latitude = 52.52, Longitude = 13.405, Altitude = 0.0 });
 
         // Wait for entity to appear with Health on both nodes.
         bool entityReady = harness.PumpUntil(() =>
@@ -180,13 +187,36 @@ public sealed class DistributedBrainMuscleIntegrationTests
         Assert.True(brainTookDamage,
             "CGF Brain Health must decrease after DetonationNotification injected on SimHost.");
 
-        // Verify ActorCapabilityState.CanMove was stripped by HealthApplicationSystem.
+        // CE-3092: a non-lethal hit strips CanMove only on a platform whose TKB opts into a mobility kill
+        //   (CombatPlatformDefDto.MobilityKillBelowFraction). The M1 Abrams does not, so it keeps moving.
         if (harness.Cgf.World!.HasComponent<ActorCapabilityState>(cgfEntityHandle))
         {
             var caps = harness.Cgf.World.GetComponent<ActorCapabilityState>(cgfEntityHandle);
-            Assert.False(caps.Capabilities.HasFlag(ActorCapabilities.CanMove),
-                "CanMove must be stripped by HealthApplicationSystem on a non-lethal hit.");
+            Assert.True(caps.Capabilities.HasFlag(ActorCapabilities.CanMove),
+                "CE-3092: a non-lethal hit on a platform with no mobility-kill opt-in must keep CanMove.");
         }
+
+        // ⭐ S8 — the damage is applied ONCE (only the Health claimant applies it), and SimHost's replica follows CGF's
+        //   value through dtEntityDamage (its ingress keys on the descriptor's owner, not on the entity's).
+        float brainHealth = harness.Cgf.World.GetComponent<Health>(cgfEntityHandle).Current;
+        Assert.True(harness.PumpUntil(() => harness.SimHost.World!.HasComponent<Health>(simHostEntity)
+                                         && harness.SimHost.World.GetComponent<Health>(simHostEntity).Current == brainHealth,
+                SpawnPropagationTimeoutMs / 5),
+            $"SimHost's Health must follow the Brain's ({brainHealth}); it is " +
+            (harness.SimHost.World!.HasComponent<Health>(simHostEntity) ? harness.SimHost.World.GetComponent<Health>(simHostEntity).Current.ToString() : "absent") +
+            $". SimHost: {Ownership(harness.SimHost.World, simHostEntity)} · CGF: {Ownership(harness.Cgf.World, cgfEntityHandle)}");
+    }
+
+    private static string Ownership(EntityRepository world, Entity e)
+    {
+        var auth = world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>(e);
+        string record = world.HasManagedComponent<Fdp.Toolkit.Replication.Components.DescriptorOwnership>(e)
+            ? string.Join(",", System.Linq.Enumerable.Select(world.GetComponent<Fdp.Toolkit.Replication.Components.DescriptorOwnership>(e).Map, kv => $"{kv.Key >> 32}:{kv.Value}"))
+            : "none";
+        string pending = world.HasManagedComponent<Fdp.Toolkit.Replication.Components.OutgoingGrantsPending>(e)
+            ? string.Join(",", System.Linq.Enumerable.Select(world.GetComponent<Fdp.Toolkit.Replication.Components.OutgoingGrantsPending>(e).Descriptors, kv => $"{kv.Key}->{kv.Value}"))
+            : "none";
+        return $"primary={auth.PrimaryOwnerId} local={auth.LocalNodeId} record=[{record}] pending=[{pending}] claimsHealth={world.HasAuthority<Health>(e)}";
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────

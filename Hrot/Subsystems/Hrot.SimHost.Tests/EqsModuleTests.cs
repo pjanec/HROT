@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using CarKinem.Spatial;
@@ -7,8 +8,16 @@ using Fdp.Core;
 using Fdp.Core.Collections;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Providers;
+using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Spatial.Eqs;
-using Hrot.IG.Components;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Perception.Sensors;
+using Fdp.Toolkit.Perception.Translators;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Tkb.Domain;
+using Fdp.Interfaces;
+using Hrot.Map.Common.Components;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Systems;
 using Xunit;
@@ -16,10 +25,10 @@ using Xunit;
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
-    /// Unit tests for <see cref="AreaQuerySolverSystem"/> and <see cref="EqsModule"/>
-    /// (TASK-HA002).
+    /// Unit tests for <see cref="EqsModule"/> and the EQS area template (TASK-HA002, re-homed onto EQS when
+    /// the AreaQuery pipeline was retired — EQS design §18).
     /// </summary>
-    public class EqsModuleTests : IDisposable
+    public partial class EqsModuleTests : IDisposable
     {
         private readonly EntityRepository _world;
         private SpatialHashGrid _grid;
@@ -80,130 +89,14 @@ namespace Hrot.SimHost.Tests
             return entity;
         }
 
-        // Runs the full event pipeline: swap (requests now readable) -> solve -> playback
-        // -> swap (results now readable) -> materialize.
-        private void RunSolverPipeline(float dt = 0.016f)
-        {
-            var view = (ISimulationView)_world;
-            _world.Bus.SwapBuffers();
-            var solver = new AreaQuerySolverSystem();
-            solver.Execute(view, dt);
-            var ecb = (EntityCommandBuffer)view.GetCommandBuffer();
-            ecb.Playback(_world);
-            _world.Bus.SwapBuffers();
-            new AreaQueryResultMaterializationSystem().Execute(view, dt);
-        }
 
         private static void DisposeEqsSingletons(EntityRepository world)
         {
-            if (world.HasSingleton<AreaQueryBatchData>())
-            {
-                ref var b = ref world.GetSingleton<AreaQueryBatchData>();
-                if (b.Results.IsCreated)  b.Results.Dispose();
-            }
-            if (world.HasSingleton<EqsTargetPool>())
-            {
-                var p = world.GetSingleton<EqsTargetPool>();
-                if (p.Targets.IsCreated) p.Targets.Dispose();
-            }
             if (world.HasSingleton<EqsResultPool>())
             {
                 var r = world.GetSingleton<EqsResultPool>();
                 if (r.Results.IsCreated) r.Results.Dispose();
             }
-        }
-
-        // â”€â”€ SC-HA002-3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-        /// <summary>
-        /// When no AreaQueryRequestEvent has been published, running the full pipeline
-        /// must leave all result slots in their default (not-ready) state.
-        /// </summary>
-        [Fact]
-        public void Solver_DoesNothing_WhenNoPendingRequests()
-        {
-            // Act â€” pipeline with no events published
-            RunSolverPipeline();
-
-            // Assert â€” no result slot should have IsReady set
-            ref readonly var batch = ref _world.GetSingleton<AreaQueryBatchData>();
-            Assert.False(batch.Results[0].IsReady);
-        }
-
-        // â”€â”€ SC-HA002-1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-        /// <summary>
-        /// When a request targets a polygon with no hostile entities inside, the solver
-        /// must mark the result <c>IsReady == true</c> with <c>TargetCount == 0</c>.
-        /// </summary>
-        [Fact]
-        public void Solver_SetsIsReadyTrue_WhenNoViableTargetsFound()
-        {
-            // Arrange â€” create a small square polygon with no entities inside
-            var polygon = new List<Vector2>
-            {
-                new(10f, 10f), new(20f, 10f), new(20f, 20f), new(10f, 20f),
-            };
-            var areaEntity       = CreateAreaEntity(polygon);
-            var requestingEntity = _world.CreateEntity();
-
-            long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                _world, requestingEntity, areaEntity, ForceId.Hostile);
-            Assert.True(requestId >= 0, "RequestAreaQuery must succeed (returns slot index 0..63, or -1 when full)");
-
-            // Act
-            RunSolverPipeline();
-
-            // Assert
-            var result = AreaQueryBatchHelper.GetAreaQueryResult(_world, requestId);
-            Assert.True(result.IsReady);
-            Assert.Equal(0, result.TargetCount);
-        }
-
-        // â”€â”€ SC-HA002-2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-        /// <summary>
-        /// The solver must include entities within the polygon and exclude entities outside.
-        /// </summary>
-        [Fact]
-        public void Solver_FindsEntitiesInsidePolygon()
-        {
-            // Arrange â€” 30x30 m polygon centred at (50,50)
-            var polygon = new List<Vector2>
-            {
-                new(35f, 35f), new(65f, 35f), new(65f, 65f), new(35f, 65f),
-            };
-            var areaEntity       = CreateAreaEntity(polygon);
-            var requestingEntity = _world.CreateEntity();
-
-            // One hostile INSIDE, one hostile OUTSIDE, one friendly INSIDE
-            var inside1  = CreateEnemyAt(new Vector2(50f, 50f)); // hostile, inside  -> should appear
-            var outside1 = CreateEnemyAt(new Vector2(80f, 80f)); // hostile, outside -> must NOT appear
-
-            var friendlyInside = _world.CreateEntity();
-            _world.AddComponent(friendlyInside, new SimTransform
-            {
-                Position = new Vector3(45f, 45f, 0f),
-                Rotation = Quaternion.Identity,
-            });
-            _world.AddComponent(friendlyInside, new EntityInfo { ForceId = ForceId.Friend });
-            _grid.Add(friendlyInside, new Vector2(45f, 45f));
-            _world.SetSingleton(new SpatialGridData { Grid = _grid });
-
-            long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                _world, requestingEntity, areaEntity, ForceId.Hostile);
-
-            // Act
-            RunSolverPipeline();
-
-            // Assert
-            var result = AreaQueryBatchHelper.GetAreaQueryResult(_world, requestId);
-            Assert.True(result.IsReady, "Result must be marked ready");
-            Assert.Equal(1, result.TargetCount);
-
-            long storedHandle = AreaQueryBatchHelper.GetTargetFromPool(
-                _world, result.TargetGroupHandle, 0);
-            Assert.Equal((long)inside1.PackedValue, storedHandle);
         }
 
         // â”€â”€ SC-HA002-4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -215,306 +108,1527 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void EqsModule_Policy_IsSlowBackground10Hz()
         {
-            var module = new EqsModule();
+            using var module = new EqsModule();   // it owns a perception grid since CE-3038
             var policy = module.Policy;
 
             Assert.Equal(RunMode.Asynchronous, policy.Mode);
             Assert.Equal(10, policy.TargetFrequencyHz);
         }
 
-        // ── SC-HA002-5 ────────────────────────────────────────────────────────────
+        // ── SC-HA002-6 — ⛔ CognitiveSpatialModule_Policy_IsSlowBackground10Hz deleted with the module (CE-3038): vision runs
+        //    in EqsModule, whose policy the test above pins. ──────────────────────────────────────────────────────────
 
-        /// <summary>
-        /// Polygon vertices are stored in local space relative to the area entity's
-        /// <see cref="SimTransform"/>.  An entity inside the world-space polygon
-        /// (local vertex + area origin) must be found; an entity at the raw local
-        /// vertex coordinates (ignoring the origin offset) must be excluded.
-        /// </summary>
         [Fact]
-        public void Solver_RespectsSimTransformOffset_PolygonIsLocalToAreaOrigin()
+        public void EntitiesOfForceInArea_BlueprintId_IsTheCanonicalHashOfItsAssetId()
         {
-            // Area entity at world position (20, 20).
-            // Local polygon: (0,0)-(10,0)-(10,10)-(0,10).
-            // World-space polygon: (20,20)-(30,20)-(30,30)-(20,30).
-            var areaEntity = _world.CreateEntity();
-            _world.AddComponent(areaEntity, new SimTransform
-            {
-                Position = new Vector3(20f, 20f, 0f),
-                Rotation = Quaternion.Identity,
-            });
-            var ecb = (Fdp.Core.EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer();
-            ecb.AddManagedComponent(areaEntity, new EditablePolyline
-            {
-                Points = new List<Vector2>
-                {
-                    new(0f, 0f), new(10f, 0f), new(10f, 10f), new(0f, 10f),
-                },
-                Version = 1,
-            });
-            ecb.Playback(_world);
-
-            var requestingEntity = _world.CreateEntity();
-
-            // Hostile at world (25, 25) = local (5, 5): inside the polygon.
-            var inside = CreateEnemyAt(new Vector2(25f, 25f));
-            // Hostile at world (5, 5) = local (-15, -15): outside (raw local coords, no offset).
-            CreateEnemyAt(new Vector2(5f, 5f));
-
-            long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                _world, requestingEntity, areaEntity, ForceId.Hostile);
-
-            RunSolverPipeline();
-
-            var result = AreaQueryBatchHelper.GetAreaQueryResult(_world, requestId);
-            Assert.True(result.IsReady, "Result must be ready");
-            Assert.Equal(1, result.TargetCount);
-            long stored = AreaQueryBatchHelper.GetTargetFromPool(_world, result.TargetGroupHandle, 0);
-            Assert.Equal((long)inside.PackedValue, stored);
+            Assert.Equal(
+                EqsTemplateRegistry.BlueprintIdOf(new Guid(EntitiesOfForceInArea.AssetId)),
+                EntitiesOfForceInArea.BlueprintId);
         }
 
-        // ── SC-HA002-6 ────────────────────────────────────────────────────────────
-
         /// <summary>
-        /// <see cref="CognitiveSpatialModule.Policy"/> must return
-        /// <see cref="ExecutionPolicy.SlowBackground"/> at 10 Hz.
-        /// Both <c>CognitiveSpatialModule</c> and <c>NavigationSolverModule</c> run
-        /// at 10 Hz SoD and share a <see cref="SharedSnapshotProvider"/>.  Event
-        /// delivery to all convoy members is guaranteed by the provider's
-        /// <c>FlushToReplica</c> call — no frequency offset hack is needed.
+        /// ⭐ CE-2034 — the starter template's id is the canonical hash too (it was a hand-typed constant that matched no
+        /// hash), so a C# caller, a blueprint <c>SpawnEqsSensor</c> and the generated registrar all name one id.
         /// </summary>
         [Fact]
-        public void CognitiveSpatialModule_Policy_IsSlowBackground10Hz()
+        public void CE2034_FindCoverFromTarget_BlueprintId_IsTheCanonicalHashOfItsAssetId()
         {
-            using var module = new CognitiveSpatialModule(new EntityRepository());
-            var policy = module.Policy;
-
-            Assert.Equal(RunMode.Asynchronous, policy.Mode);
-            Assert.Equal(DataStrategy.SoD, policy.Strategy);
-            Assert.Equal(10, policy.TargetFrequencyHz);
+            Assert.Equal(
+                EqsTemplateRegistry.BlueprintIdOf(new Guid(FindCoverFromTarget.AssetId)),
+                FindCoverFromTarget.BlueprintId);
         }
 
-        // ── SC-HA002-7 ────────────────────────────────────────────────────────────
-
         /// <summary>
-        /// <see cref="CognitiveSpatialModule"/> resolves an area query when the
-        /// snapshot passed to its <c>Tick</c> method contains entity positions (via
-        /// <see cref="SimTransform"/>) and the area polygon coordinates (via
-        /// <see cref="EditablePolyline"/> + <see cref="SimTransform"/>).
-        ///
-        /// <para>Verifies the full per-module pipeline: <c>LocalGridBuilderSystem</c>
-        /// rebuilds the private spatial hash grid from entity SimTransforms in the
-        /// snapshot; <see cref="AreaQuerySolverSystem"/> queries that grid against
-        /// the polygon; the result is materialized into
-        /// <see cref="AreaQueryBatchData"/>.</para>
+        /// CE-465 red-proof: the production install finds the [EqsTemplate] classes, so a sensor gets a
+        /// real template instead of the empty-result stub.
         /// </summary>
         [Fact]
-        public void CognitiveSpatialModule_ResolvesAreaQuery_WhenSnapshotHasEntityPositionsAndAreaCoordinates()
+        public void InstallDefault_RegistersTheAreaTemplate_AndKeepsAnExistingRegistry()
         {
-            // Arrange: area polygon at world origin; 30x30 m square.
-            var areaEntity = _world.CreateEntity();
-            _world.AddComponent(areaEntity, new SimTransform
+            var registry = EqsTemplateRegistry.InstallDefault(_world);
+
+            Assert.True(registry.TryGetTemplate(EntitiesOfForceInArea.BlueprintId, out var t));
+            Assert.IsType<EntitiesInAreaGenerator>(t.Generator);
+            Assert.True(registry.TryGetTemplate(FindCoverFromTarget.BlueprintId, out _),
+                "the starter template resolves by its canonical id");
+            Assert.Same(registry, EqsTemplateRegistry.InstallDefault(_world));
+        }
+
+        /// <summary>
+        /// ⭐ The area template on one world: hostile + inside + not wrecked, over a polygon whose origin is
+        /// OFFSET — covers the relative-to-origin polygon, force, wreck and outside cases at once.
+        /// ⚠ Was a parity rail against the old AreaQuery solver (both answered this set) until the pipeline
+        /// was retired — EQS design §18.
+        /// </summary>
+        [Fact]
+        public void AreaTemplate_ReportsTheLiveHostilesInside()
+        {
+            var area = CreateAreaEntity(new List<Vector2>
             {
-                Position = Vector3.Zero,
-                Rotation = Quaternion.Identity,
+                new(-15f, -15f), new(15f, -15f), new(15f, 15f), new(-15f, 15f),
             });
-            var ecb = (Fdp.Core.EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer();
-            ecb.AddManagedComponent(areaEntity, new EditablePolyline
+            _world.GetComponentRW<SimTransform>(area).Position = new Vector3(50f, 50f, 0f); // offset origin
+
+            var inside1  = CreateEnemyAt(new Vector2(50f, 50f));
+            var inside2  = CreateEnemyAt(new Vector2(60f, 40f));
+            CreateEnemyAt(new Vector2(80f, 80f));                       // outside
+            var wreck    = CreateEnemyAt(new Vector2(45f, 55f));
+            _world.AddComponent(wreck, new Health { Current = 0f, Max = 100f });
+            var friendly = CreateEnemyAt(new Vector2(55f, 55f));
+            _world.GetComponentRW<EntityInfo>(friendly).ForceId = ForceId.Friend;
+
+            var sensor = RunEqsAreaSensor(area);
+
+            Assert.Equal(new HashSet<long> { (long)inside1.PackedValue, (long)inside2.PackedValue }, BufferEntities(sensor));
+        }
+
+        /// <summary>
+        /// Re-homed SC-HA002-5: polygon vertices are LOCAL to the area's <see cref="SimTransform"/>. A hostile
+        /// inside the world-space polygon (local vertex + origin) is found; one at the raw local coordinates
+        /// (ignoring the origin) is not.
+        /// </summary>
+        [Fact]
+        public void AreaTemplate_PolygonIsLocalToTheAreaOrigin()
+        {
+            var area = CreateAreaEntity(new List<Vector2>
             {
-                Points = new List<Vector2>
-                {
-                    new(35f, 35f), new(65f, 35f), new(65f, 65f), new(35f, 65f),
-                },
-                Version = 1,
+                new(0f, 0f), new(10f, 0f), new(10f, 10f), new(0f, 10f),
             });
-            ecb.Playback(_world);
+            _world.GetComponentRW<SimTransform>(area).Position = new Vector3(20f, 20f, 0f);
 
-            var inside = CreateEnemyAt(new Vector2(50f, 50f));  // inside polygon
-            CreateEnemyAt(new Vector2(80f, 80f));               // outside polygon
+            var inside = CreateEnemyAt(new Vector2(25f, 25f));   // local (5, 5)
+            CreateEnemyAt(new Vector2(5f, 5f));                   // local (-15, -15)
 
-            var requestingEntity = _world.CreateEntity();
-            long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                _world, requestingEntity, areaEntity, ForceId.Hostile);
+            var sensor = RunEqsAreaSensor(area);
 
-            // Pass _world as liveWorld so the injected AreaQuerySolverSystem can access
-            // EqsTargetPool and write result events via ECB.
-            using var module = new CognitiveSpatialModule(_world);
-            module.RegisterSystems(new CapturingRegistry());
+            Assert.Equal(new HashSet<long> { (long)inside.PackedValue }, BufferEntities(sensor));
+        }
 
-            // Swap so the module Tick can read the queued request event.
+        /// <summary>
+        /// Re-homed SC-HA002-1: an area with a polygon and no hostile inside ⇒ a READY, EMPTY answer —
+        /// "the area is clear" is a real answer once the area exists (contrast <c>AreaTemplate_WithNoArea_PublishesNothing</c>).
+        /// </summary>
+        [Fact]
+        public void AreaTemplate_WithNoTargetInside_PublishesAReadyEmptyAnswer()
+        {
+            var area = CreateAreaEntity(new List<Vector2>
+            {
+                new(10f, 10f), new(20f, 10f), new(20f, 20f), new(10f, 20f),
+            });
+            CreateEnemyAt(new Vector2(50f, 50f));                 // outside
+
+            var sensor = RunEqsAreaSensor(area);
+
+            ref readonly var buffer = ref _world.GetComponentRO<EqsCognitiveBuffer>(sensor);
+            Assert.True(buffer.IsReady);
+            Assert.Equal(0, buffer.Count);
+        }
+
+        /// <summary>
+        /// "No area ⇒ no answer": when the area entity is not (yet) present, the EQS solver publishes
+        /// NOTHING — the buffer stays not-ready — instead of an empty result that reads as "area clear".
+        /// </summary>
+        [Fact]
+        public void AreaTemplate_WithNoArea_PublishesNothing()
+        {
+            CreateEnemyAt(new Vector2(50f, 50f));
+            var sensor = RunEqsAreaSensor(Entity.Null);
+            Assert.False(_world.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady);
+        }
+
+        // ── EqsChildSensor — the ONE Brain-side child-sensor lifecycle (DESIGN_Hill_Attack_Eqs_Migration.md §4 D1–D3) ──
+
+        private Entity BehaviourParent(uint runInstanceId)
+        {
+            // SimHostComponentRegistry registers no BehaviorState (the cognitive registry does) — register it for these rails.
+            if (!_world.TryGetTable(typeof(Fdp.Toolkit.Behavior.Components.BehaviorState), out _))
+                _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+            var parent = _world.CreateEntity();
+            _world.AddComponent(parent, new Fdp.Toolkit.Behavior.Components.BehaviorState { InstanceId = runInstanceId });
+            return parent;
+        }
+
+        private int PartIdOf(Entity child)
+            => _world.GetComponentRO<Fdp.Toolkit.Replication.Components.PartMetadata>(child).InstanceId;
+
+        /// <summary>⭐ CE-485 — on the live world Ensure creates the child AT ONCE (no placeholder), stamped with the owning run
+        /// and its site, with part id 1 (the lowest free) and the run in the epoch's high 16 bits; a second call FINDS it.</summary>
+        [Fact]
+        public void EqsChildSensor_Ensure_CreatesImmediately_Stamped_ThenFinds()
+        {
+            var parent = BehaviourParent(5);
+            var cfg = EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile);
+            var view = (ISimulationView)_world;
+
+            var child = EqsChildSensor.Ensure(view, parent, 7, cfg);
+            Assert.False(child.IsNull);
+            Assert.True(_world.IsAlive(child));
+            Assert.Equal(parent, _world.GetComponentRO<Fdp.Toolkit.Replication.Components.PartMetadata>(child).ParentEntity);
+            Assert.Equal(1, PartIdOf(child));                                         // allocated, not the site id
+            var stamp = _world.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(child);
+            Assert.Equal(5u, stamp.OwnerInstanceId);
+            Assert.Equal(7, stamp.SiteId);
+            Assert.Equal((5u << 16) | (cfg.Epoch & 0xFFFFu), _world.GetComponentRO<EqsSensor>(child).Epoch);
+            Assert.Equal(cfg.BlueprintId, _world.GetComponentRO<EqsSensor>(child).BlueprintId);
+            Assert.False(_world.GetComponentRO<EqsCognitiveBuffer>(child).IsReady);
+
+            Assert.Equal(child, EqsChildSensor.Ensure(view, parent, 7, cfg));      // found — no second sensor
+            Assert.Equal(child, EqsChildSensor.Find(view, parent, 7));
+            Assert.True(EqsChildSensor.Find(view, parent, 8).IsNull);              // another site is another sensor
+        }
+
+        /// <summary>⭐ CE-485 — two creations in ONE frame get DIFFERENT part ids (the second sees the first); a key separates
+        /// two sensors of one site; a freed id is REUSED by the next creation.</summary>
+        [Fact]
+        public void EqsChildSensor_AllocatesLowestFreePartId_SameFrame_Keys_AndReuse()
+        {
+            var parent = BehaviourParent(3);
+            var cfg = EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile);
+            var view = (ISimulationView)_world;
+
+            var a = EqsChildSensor.Ensure(view, parent, 10, cfg);
+            var b = EqsChildSensor.Ensure(view, parent, 20, cfg);
+            var c = EqsChildSensor.Ensure(view, parent, 20, cfg, key: 42);
+            Assert.Equal(new[] { 1, 2, 3 }, new[] { PartIdOf(a), PartIdOf(b), PartIdOf(c) });
+            Assert.NotEqual(b, c);
+
+            _world.DestroyEntity(a);                                                  // part id 1 is free again
+            var d = EqsChildSensor.Ensure(view, parent, 30, cfg);
+            Assert.Equal(1, PartIdOf(d));
+
+            var other = BehaviourParent(3);                                           // ids are per parent
+            Assert.Equal(1, PartIdOf(EqsChildSensor.Ensure(view, other, 10, cfg)));
+        }
+
+        /// <summary>⭐ CE-485 — a sensor of an EARLIER run is never this run's sensor: after the run changes, Find misses it and
+        /// Ensure creates a fresh one (with a fresh owner in the epoch).</summary>
+        [Fact]
+        public void EqsChildSensor_Find_IsScopedToTheCurrentRun()
+        {
+            var parent = BehaviourParent(1);
+            var cfg = EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile);
+            var view = (ISimulationView)_world;
+            var first = EqsChildSensor.Ensure(view, parent, 7, cfg);
+
+            _world.GetComponentRW<Fdp.Toolkit.Behavior.Components.BehaviorState>(parent).InstanceId = 2;
+            Assert.True(EqsChildSensor.Find(view, parent, 7).IsNull);
+            var second = EqsChildSensor.Ensure(view, parent, 7, cfg);
+            Assert.NotEqual(first, second);
+            Assert.Equal(2u, _world.GetComponentRO<EqsSensor>(second).Epoch >> 16);
+        }
+
+        /// <summary>⭐ CE-485 — Release destroys exactly the ending run's parts of that parent: not another run's, not another
+        /// parent's.</summary>
+        [Fact]
+        public void BehaviorOwnedParts_Release_DestroysOnlyTheEndingRunsParts()
+        {
+            var parent = BehaviourParent(4);
+            var cfg = EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile);
+            var view = (ISimulationView)_world;
+            var mine1 = EqsChildSensor.Ensure(view, parent, 1, cfg);
+            var mine2 = EqsChildSensor.Ensure(view, parent, 2, cfg);
+            var otherParent = BehaviourParent(4);
+            var theirs = EqsChildSensor.Ensure(view, otherParent, 1, cfg);
+            _world.GetComponentRW<Fdp.Toolkit.Behavior.Components.BehaviorState>(parent).InstanceId = 5;
+            var nextRun = EqsChildSensor.Ensure(view, parent, 1, cfg);
+
+            Assert.Equal(2, Fdp.Toolkit.Behavior.Components.BehaviorOwnedParts.Release(_world, parent, 4));
+            Assert.False(_world.IsAlive(mine1));
+            Assert.False(_world.IsAlive(mine2));
+            Assert.True(_world.IsAlive(theirs));
+            Assert.True(_world.IsAlive(nextRun));
+            Assert.Equal(0, Fdp.Toolkit.Behavior.Components.BehaviorOwnedParts.Release(_world, parent, 0));   // 0 = unowned
+        }
+
+        /// <summary>⭐ CE-4395 — Release reads the parent's parts from the parts index (no walk over every entity) and destroys them in ENTITY
+        /// order, as the walk did: the free list is LIFO, so the order decides which index the next entity takes. Here the lower index holds the
+        /// higher part id, so the index's own order (by part id) would recycle the other way. 🔴 Red-proof: the sort dropped ⇒ the next entity
+        /// takes the other index.</summary>
+        [Fact]
+        public void BehaviorOwnedParts_Release_DestroysInEntityOrder_SoIndicesRecycleAsTheWalkDid()
+        {
+            var parent = BehaviourParent(4);
+            var cfg = EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile);
+            var view = (ISimulationView)_world;
+            var filler = _world.CreateEntity();
+            var first = EqsChildSensor.Ensure(view, parent, 1, cfg);
+            _world.DestroyEntity(filler);
+            var second = EqsChildSensor.Ensure(view, parent, 2, cfg);            // recycles the filler's lower index, with the higher part id
+            Assert.True(second.Index < first.Index);
+            Assert.True(_world.GetComponentRO<PartMetadata>(second).InstanceId > _world.GetComponentRO<PartMetadata>(first).InstanceId);
+
+            Assert.Equal(2, Fdp.Toolkit.Behavior.Components.BehaviorOwnedParts.Release(_world, parent, 4));
+            Assert.Equal(first.Index, _world.CreateEntity().Index);              // the walk destroyed `second` then `first`: LIFO gives `first`'s back
+            Assert.Equal(second.Index, _world.CreateEntity().Index);
+        }
+
+        /// <summary>⭐ CE-485 — Refresh counts in the epoch's LOW 16 bits only; the owner in the high 16 never changes.</summary>
+        [Fact]
+        public void EqsChildSensor_Refresh_KeepsTheOwnerBits()
+        {
+            var parent = BehaviourParent(9);
+            var view = (ISimulationView)_world;
+            var child = EqsChildSensor.Ensure(view, parent, 1, EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile));
+            uint before = _world.GetComponentRO<EqsSensor>(child).Epoch;
+            Assert.True(EqsChildSensor.Refresh(view, child));
+            uint after = _world.GetComponentRO<EqsSensor>(child).Epoch;
+            Assert.Equal(before >> 16, after >> 16);
+            Assert.Equal((before & 0xFFFFu) + 1u, after & 0xFFFFu);
+        }
+
+        /// <summary>Refresh = a new epoch and a cleared buffer, so the solver's answer for the OLD epoch is dropped and
+        /// IsReady turns true only on an answer computed after the refresh (EqsResultUpdateSystem's epoch filter).</summary>
+        [Fact]
+        public void EqsChildSensor_Refresh_DropsTheOldEpochsAnswer()
+        {
+            EqsTemplateRegistry.InstallDefault(_world);
+            var area = CreateAreaEntity(new List<Vector2> { new(0f, 0f), new(100f, 0f), new(100f, 100f), new(0f, 100f) });
+            CreateEnemyAt(new Vector2(50f, 50f));
+            var sensor = RunEqsAreaSensor(area);
+            Assert.Equal(1, _world.GetComponentRO<EqsCognitiveBuffer>(sensor).Count);
+
+            // the solver answers epoch 1 ...
+            var view = (ISimulationView)_world;
+            new EqsSolverSystem().Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            // ... but the sensor is refreshed before that answer is applied
+            Assert.True(EqsChildSensor.Refresh(view, sensor));
+            Assert.Equal(2u, _world.GetComponentRO<EqsSensor>(sensor).Epoch);
             _world.Bus.SwapBuffers();
+            new EqsResultUpdateSystem().Execute(view, 0.1f);
+            Assert.False(_world.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady);   // the epoch-1 answer did not count
 
-            // Tick: LocalGridBuilderSystem rebuilds the private grid from entity SimTransforms
-            // in the snapshot; AreaQuerySolverSystem queries that grid and publishes results.
-            module.Tick(_world, 0.1f);
-
-            // Playback the ECB to publish result events to the bus write buffer.
-            ((Fdp.Core.EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer())
-                .Playback(_world);
-
-            // Swap so the materialization system can read the result events.
-            _world.Bus.SwapBuffers();
-            new AreaQueryResultMaterializationSystem().Execute(_world, 0.1f);
-
-            var result = AreaQueryBatchHelper.GetAreaQueryResult(_world, requestId);
-            Assert.True(result.IsReady, "EQS result must be ready after CognitiveSpatialModule tick");
-            Assert.Equal(1, result.TargetCount);
-            long stored = AreaQueryBatchHelper.GetTargetFromPool(_world, result.TargetGroupHandle, 0);
-            Assert.Equal((long)inside.PackedValue, stored);
+            Assert.False(EqsChildSensor.Refresh(view, Entity.Null));
         }
 
-        // ── SC-HA002-8 ────────────────────────────────────────────────────────────
+        /// <summary>Destroy removes the sensor; a null or dead handle is a no-op.</summary>
+        [Fact]
+        public void EqsChildSensor_Destroy_RemovesIt_AndIgnoresNull()
+        {
+            var sensor = _world.CreateEntity();
+            _world.AddComponent(sensor, EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile));
+            var view = (ISimulationView)_world;
+            EqsChildSensor.Destroy(view, Entity.Null);
+            EqsChildSensor.Destroy(view, sensor);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            Assert.False(_world.IsAlive(sensor));
+            EqsChildSensor.Destroy(view, sensor);   // dead ⇒ no-op
+        }
+
+        // Spawns a local EQS area sensor, runs the solver once and applies its result (Path B).
+        private Entity RunEqsAreaSensor(Entity area)
+        {
+            EqsTemplateRegistry.InstallDefault(_world);
+            var sensor = _world.CreateEntity();
+            _world.AddComponent(sensor, EntitiesOfForceInArea.SensorFor(area, ForceId.Hostile));
+            _world.AddComponent(sensor, new EqsCognitiveBuffer());
+
+            var view = (ISimulationView)_world;
+            new EqsSolverSystem().Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+            new EqsResultUpdateSystem().Execute(view, 0.1f);
+            return sensor;
+        }
 
         /// <summary>
-        /// Reproduces the real Hill-Attack execution path end-to-end through the
-        /// <see cref="SharedSnapshotProvider"/> convoy.
-        ///
-        /// <para>
-        /// In production, both <c>CognitiveSpatialModule</c> (10 Hz SoD) and
-        /// <c>NavigationSolverModule</c> (10 Hz SoD) are grouped by the kernel into
-        /// a single <see cref="SharedSnapshotProvider"/>.  The first module to call
-        /// <see cref="SharedSnapshotProvider.AcquireView"/> creates the snapshot and
-        /// advances <c>_lastSeenTick</c>; the second reuses the same snapshot.
-        /// Both modules hold the snapshot simultaneously until they both release.
-        /// </para>
-        ///
-        /// <para>
-        /// The previous implementation called <c>Bus.SwapBuffers()</c> after
-        /// <c>FlushToReplica</c>, which moved injected events from the READ buffer to
-        /// the WRITE buffer and immediately cleared them — making the bus appear
-        /// empty to every convoy member.  This test verifies the fix: events flushed
-        /// into the READ buffer survive and are visible to all convoy members.
-        /// </para>
-        ///
-        /// <para>Entity coordinates are exact values from the Hill-Attack scenario:
-        /// area entity at (670, 473.5), two hostile infantry units at (668, 427)
-        /// and (668, 522), both geometrically inside the area polygon.</para>
+        /// ⭐⭐ CE-3056 — two QUERY sensors asking the identical question (same unit, template, area, force) are solved ONCE:
+        /// the second copies the first's answer this tick and both buffers hold it. A sensor over a DIFFERENT area is solved on
+        /// its own. 📄 DESIGN_Sensors_And_Doctrine.md §5.6.
         /// </summary>
         [Fact]
-        public void CognitiveSpatialModule_ResolvesAreaQuery_ThroughSharedSnapshotProvider_ConvoyWithNavigationSolver()
+        public void CE3056_IdenticalQueries_AreSolvedOnce_AndBothOwnersGetTheAnswer()
         {
-            // --- Arrange: exact Hill-Attack scenario coordinates ---
+            EqsTemplateRegistry.InstallDefault(_world);
+            var areaA = CreateAreaEntity(new List<Vector2> { new(-15f, -15f), new(15f, -15f), new(15f, 15f), new(-15f, 15f) });
+            _world.GetComponentRW<SimTransform>(areaA).Position = new Vector3(50f, 50f, 0f);
+            var areaB = CreateAreaEntity(new List<Vector2> { new(-5f, -5f), new(5f, -5f), new(5f, 5f), new(-5f, 5f) });
+            _world.GetComponentRW<SimTransform>(areaB).Position = new Vector3(10f, 10f, 0f);
+            var inside = CreateEnemyAt(new Vector2(50f, 50f));
 
-            // Area entity at world (670, 473.5, 0).
-            var areaEntity = _world.CreateEntity();
-            _world.AddComponent(areaEntity, new SimTransform
+            // The unit the queries are FOR (context slot 0 — a placed self, as a real unit's query sensor has).
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(20f, 20f, 0f), Rotation = Quaternion.Identity });
+
+            Entity Sensor(Entity area)
             {
-                Position = new Vector3(670f, 473.5f, 0f),
-                Rotation = Quaternion.Identity,
-            });
+                var e = _world.CreateEntity();
+                var cfg = EntitiesOfForceInArea.SensorFor(area, ForceId.Hostile);
+                cfg.ContextSlot0 = unit;
+                _world.AddComponent(e, cfg);
+                _world.AddComponent(e, new EqsCognitiveBuffer());
+                return e;
+            }
+            var owner1 = Sensor(areaA);
+            var owner2 = Sensor(areaA);   // the twin
+            var other  = Sensor(areaB);
+
+            var solver = new EqsSolverSystem();
+            var view = (ISimulationView)_world;
+            solver.Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+            new EqsResultUpdateSystem().Execute(view, 0.1f);
+
+            Assert.Equal(1, solver.LastSharedCopies);                       // exactly the twin copied
+            var expected = new HashSet<long> { (long)inside.PackedValue };
+            Assert.Equal(expected, BufferEntities(owner1));
+            Assert.Equal(expected, BufferEntities(owner2));                 // the copy reached its OWN buffer
+            Assert.True(_world.GetComponentRO<EqsCognitiveBuffer>(other).IsReady);
+            Assert.Empty(BufferEntities(other));                            // solved on its own: nothing in area B
+        }
+
+        private HashSet<long> BufferEntities(Entity sensor)
+        {
+            var set = new HashSet<long>();
+            ref readonly var buf = ref _world.GetComponentRO<EqsCognitiveBuffer>(sensor);
+            Assert.True(buf.IsReady, "the EQS buffer must be ready after one solver pass");
+            var span = buf.GetSpanRO();
+            for (int i = 0; i < buf.Count; i++) set.Add(span[i].EntityId);
+            return set;
+        }
+        // ── CE-3036 (S3) — a NEW sensor kind, in tests only (R-185 I ①) ─────────────────────────────────────────────
+
+        private static readonly Guid TestRadarTemplate = new("5e2c0d19-0000-4000-8000-0000000c3036");
+
+        /// <summary>A test-only sensing filter: keeps candidates within the sensor's CAPABILITY range (not its query radius)
+        /// — it proves the per-kind parameters reach the solver on the carrier.</summary>
+        private sealed class CapabilityRangeTest : IEqsTest
+        {
+            public EqsTestPhase Phase => EqsTestPhase.FilterCheap;
+            public void ExecuteBatch(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
             {
-                var ecb = (EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer();
-                ecb.AddManagedComponent(areaEntity, new EditablePolyline
+                float range = view.GetManagedComponentRO<SensorCapability>(observer).Current.Range;
+                EqsContext.SelfPosition(view, observer, sensor, out var self);
+                for (int i = 0; i < candidates.Length; i++)
                 {
-                    Points = new List<Vector2>
-                    {
-                        new(-53f, -88.5f), new(-54f, 90.5f),
-                        new( 51f,  85.5f), new( 56f, -87.5f),
-                    },
-                    Version = 1,
-                });
-                ecb.Playback(_world);
+                    ref var c = ref candidates[i];
+                    if (c.EntityId == -1L) continue;
+                    if (Vector2.Distance(new Vector2(self.X, self.Y), new Vector2(c.PositionX, c.PositionY)) > range) c.EntityId = -1;
+                }
+            }
+        }
+
+        private static SensorEntryDto TestRadar(float range) => new()
+        {
+            Kind = SensorModality.Radar, Template = TestRadarTemplate, SearchRadius = 400f,
+            Radar = new RadarSensorDto { Range = range },
+        };
+
+        private void SolveOnce()
+        {
+            var view = (ISimulationView)_world;
+            new EqsSolverSystem().Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+            new EqsResultUpdateSystem().Execute(view, 0.1f);
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3036 — the whole S3 path on one node, with a sensor kind that exists only in this test: the unit's TKB lists a
+        /// radar → the translator builds its child (part 1000) → the REAL solver runs the template, whose filter reads the
+        /// sensor's capability on the carrier → the answer reaches the buffer <see cref="UnitSensors"/> finds by kind.
+        /// Then an override (a longer range) changes the answer, switching it off stops it, and clearing the override
+        /// restores the TKB default. 📄 docs/DESIGN_Sensors_And_Doctrine.md §5.1, §5.2.
+        /// </summary>
+        [Fact]
+        public void ATkbSensorOfANewKind_IsBuilt_Solved_Read_Overridden_Switched_AndRestored_CE3036()
+        {
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            registry.Register(TestRadarTemplate, new EqsQueryTemplate
+            {
+                BlueprintId   = EqsTemplateRegistry.BlueprintIdOf(TestRadarTemplate),
+                Generator     = new EntitiesInRadiusGenerator(),
+                FilterCheap   = new IEqsTest[] { new CapabilityRangeTest() },
+                ScoreCheap    = new IEqsTest[] { new DistanceScoreTest() },
+                MaxCandidates = 64,
+            }, "TestRadar");
+
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(unit, new NetworkIdentity { Value = 4242 });   // a spawned unit has one — the sensor's wire key
+            _grid.Add(unit, new Vector2(10f, 10f));
+            CreateEnemyAt(new Vector2(60f, 10f));    //  50 m
+            CreateEnemyAt(new Vector2(160f, 10f));   // 150 m
+            CreateEnemyAt(new Vector2(260f, 10f));   // 250 m
+
+            var template = new TkbTemplate("RadarUnit", 77);
+            template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { TestRadar(100f) } });
+            new PerceptionTkbTranslator().Inject(_world, unit, template);
+
+            var sensor = UnitSensors.Of(_world, unit, SensorModality.Radar);
+            Assert.False(sensor.IsNull);
+            Assert.Equal(1000, _world.GetComponentRO<PartMetadata>(sensor).InstanceId);
+
+            SolveOnce();
+            Assert.True(UnitSensors.TryGetResults(_world, unit, SensorModality.Radar, out var r1));
+            Assert.Equal(1, r1.Count);                       // capability range 100 m, query radius 400 m
+
+            UnitSensors.Configure(_world, sensor, TestRadar(200f));
+            SolveOnce();
+            Assert.True(UnitSensors.TryGetResults(_world, unit, SensorModality.Radar, out var r2));
+            Assert.Equal(2, r2.Count);                       // the override's range is the one in force
+
+            UnitSensors.SetEnabled(_world, sensor, false);
+            int before = _world.GetComponentRO<EqsCognitiveBuffer>(sensor).Count;
+            SolveOnce();
+            Assert.True(_world.GetComponentRO<EqsSensor>(sensor).Suspended);   // an off sensor is skipped by the solver
+
+            UnitSensors.ClearOverride(_world, sensor);
+            SolveOnce();
+            Assert.True(UnitSensors.TryGetResults(_world, unit, SensorModality.Radar, out var r3));
+            Assert.Equal(1, r3.Count);                       // back to the TKB default: 100 m, ON
+            _ = before;
+        }
+
+        // ── CE-3037 (S4) — counted-work budget + the memory stage ──────────────────────────────────────────────────────
+
+        /// <summary>Generates <c>n</c> positional candidates — a sensor whose cost is exactly <c>EqsCost.Sensor + n</c> units
+        /// (light = 110, heavy = 1100).</summary>
+        private sealed class FixedCostGenerator : IEqsGenerator
+        {
+            private readonly int _n;
+            public FixedCostGenerator(int n) => _n = n;
+            public int Generate(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
+            {
+                for (int i = 0; i < _n; i++) candidates[i] = new EqsResult { EntityId = 0, PositionX = i, Score = 1f };
+                return _n;
+            }
+        }
+
+        private const uint Light = 0x5401u, Heavy = 0x5402u;
+
+        private static EntityRepository ScheduleWorld()
+        {
+            var w = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(w);
+            var reg = new SimpleTemplates();
+            reg.Add(new EqsQueryTemplate { BlueprintId = Light, Generator = new FixedCostGenerator(10), MaxCandidates = 16 });
+            reg.Add(new EqsQueryTemplate { BlueprintId = Heavy, Generator = new FixedCostGenerator(1000), MaxCandidates = 1024 });
+            w.SetSingletonManaged<IEqsTemplateRegistry>(reg);
+            return w;
+        }
+
+        private sealed class SimpleTemplates : IEqsTemplateRegistry
+        {
+            private readonly Dictionary<uint, EqsQueryTemplate> _t = new();
+            public void Add(EqsQueryTemplate t) => _t[t.BlueprintId] = t;
+            public bool TryGetTemplate(uint id, out EqsQueryTemplate t) => _t.TryGetValue(id, out t!);
+        }
+
+        private static Entity LocalSensor(EntityRepository w, uint template, EqsPriorityBand band = EqsPriorityBand.Normal)
+        {
+            var e = w.CreateEntity();
+            w.AddComponent(e, new EqsSensor { BlueprintId = template, Epoch = 1, SearchRadius = 10f, Priority = (byte)band });
+            w.AddComponent(e, new EqsCognitiveBuffer());
+            return e;
+        }
+
+        // One solver tick on w; returns the run order as entity indices.
+        private static List<int> Tick(EntityRepository w, EqsSolverSystem solver)
+        {
+            var view = (ISimulationView)w;
+            solver.Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(w);
+            w.Bus.SwapBuffers();
+            w.Tick();
+            var order = new List<int>();
+            foreach (var e in solver.LastSchedule) order.Add(e.Index);
+            return order;
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3037 — the schedule is DETERMINISTIC: the same sensors scheduled twice give the same run order, tick by
+        /// tick, and every sensor gets its turn (oldest first). 🔴 Before: wall-clock slicing ran whatever fitted in 4 ms —
+        /// a different set on every run and every machine. 📄 DESIGN_Sensors_And_Doctrine.md §5.3–§5.4.
+        /// </summary>
+        [Fact]
+        public void S4_TheSchedule_IsTheSameOnEveryRun_AndEverySensorGetsItsTurn()
+        {
+            List<List<int>> Run()
+            {
+                var w = ScheduleWorld();
+                try
+                {
+                    for (int i = 0; i < 6; i++) LocalSensor(w, Light);
+                    var solver = new EqsSolverSystem { BudgetUnits = 275 };
+                    var ticks = new List<List<int>>();
+                    for (int t = 0; t < 6; t++) ticks.Add(Tick(w, solver));
+                    return ticks;
+                }
+                finally { DisposeEqsSingletons(w); }
             }
 
-            // Hostile 1: local (-2, -46.5) => inside polygon.
-            var hostile1 = _world.CreateEntity();
-            _world.AddComponent(hostile1, new SimTransform
-            {
-                Position = new Vector3(668f, 427f, 0f),
-                Rotation = Quaternion.Identity,
-            });
-            _world.AddComponent(hostile1, new EntityInfo { ForceId = ForceId.Hostile });
+            var a = Run();
+            var b = Run();
+            Assert.Equal(a.Count, b.Count);
+            for (int t = 0; t < a.Count; t++) Assert.Equal(a[t], b[t]);
 
-            // Hostile 2: local (-2, 48.5) => inside polygon.
-            var hostile2 = _world.CreateEntity();
-            _world.AddComponent(hostile2, new SimTransform
-            {
-                Position = new Vector3(668f, 522f, 0f),
-                Rotation = Quaternion.Identity,
-            });
-            _world.AddComponent(hostile2, new EntityInfo { ForceId = ForceId.Hostile });
-
-            var requester = _world.CreateEntity();
-            long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                _world, requester, areaEntity, ForceId.Hostile);
-
-            // --- Simulate ModuleHostKernel.CaptureFrame ---
-            // Kernel swaps the live bus so published events enter the READ buffer,
-            // then CaptureFrame snapshots that READ buffer into the accumulator.
-            _world.Bus.SwapBuffers();
-            var accumulator = new EventAccumulator();
-            accumulator.CaptureFrame(_world.Bus, _world.GlobalVersion);
-
-            // --- Build SharedSnapshotProvider (mirrors kernel convoy setup) ---
-            // The schema setup pre-registers typed NativeEventStream<T> entries,
-            // exactly as SimHostComponentRegistry.RegisterAll does on every pool repo.
-            // Without pre-registration InjectIntoCurrentBySize falls back to the
-            // UntypedNativeEventStream path whose Swap() is a no-op, masking the bug.
-            Action<EntityRepository> schemaSetup = repo =>
-            {
-                repo.RegisterEvent<AreaQueryRequestEvent>();
-                repo.RegisterEvent<AreaQueryResultEvent>();
-            };
-            var pool = new SnapshotPool(schemaSetup, warmupCount: 0);
-            // Use the full snapshotable mask — same as CalculateUnionMask for the convoy.
-            var unionMask512 = _world.GetSnapshotableMask();
-            var provider = new SharedSnapshotProvider(_world, accumulator, unionMask512, pool);
-
-            // --- Simulate convoy: NavigationSolverModule acquires the view FIRST ---
-            // This is the race the old 11Hz hack worked around.
-            // AcquireView creates the shared snapshot, flushes events, and advances
-            // _lastSeenTick.  With the bug present (SwapBuffers after FlushToReplica)
-            // those events would be cleared before any module can read them.
-            var navView = provider.AcquireView();   // _activeReaders = 1
-
-            // CognitiveSpatialModule acquires the SAME snapshot concurrently.
-            // In production both modules hold views simultaneously on background threads;
-            // in this test we serialize the acquisition for determinism.
-            var cogView = provider.AcquireView();   // _activeReaders = 2, same snapshot
-
-            // Both acquisitions must return the identical EntityRepository.
-            Assert.Same(navView, cogView);
-
-            // NavSolver ticks (no EQS interest — we just verify it doesn't disturb events).
-            // cogView == navView so the snapshot is shared; we tick with the same object.
-            using var module = new CognitiveSpatialModule(_world);
-            module.RegisterSystems(new CapturingRegistry());
-            module.Tick(cogView, 1f / 10f);
-
-            // Simulate ModuleHostKernel.HarvestEntry: play the snapshot ECB back to
-            // the live world so the AreaQueryResultEvent lands in _world's WRITE buffer.
-            ((EntityCommandBuffer)((ISimulationView)cogView).GetCommandBuffer())
-                .Playback(_world);
-
-            // Release both convoy members (order does not matter).
-            provider.ReleaseView(navView);   // _activeReaders = 1
-            provider.ReleaseView(cogView);   // _activeReaders = 0, snapshot returned to pool
-
-            // --- Next kernel frame: swap + materialize ---
-            _world.Bus.SwapBuffers();
-            new AreaQueryResultMaterializationSystem().Execute(_world, 1f / 10f);
-
-            // --- Assert ---
-            var result = AreaQueryBatchHelper.GetAreaQueryResult(_world, requestId);
-            Assert.True(result.IsReady,
-                "EQS result must be ready after CognitiveSpatialModule tick through the " +
-                "SharedSnapshotProvider convoy path (hill-attack scenario coordinates).");
-            Assert.Equal(2, result.TargetCount);
+            var ran = new HashSet<int>();
+            for (int t = 1; t < 4; t++) foreach (int e in a[t]) ran.Add(e);   // after the first tick, within three ticks
+            Assert.Equal(6, ran.Count);
         }
 
-        // ── Helpers ───────────────────────────────────────────────────────────────
+        /// <summary>
+        /// ⭐ CE-3037 — the bands share the budget (Critical 50 %, Normal 35 %, the rest Low, unused slack rolling down): a
+        /// tick runs the oldest of EACH band, so a busy Critical band never starves Low. The first sensor of a band always
+        /// starts.
+        /// </summary>
+        [Fact]
+        public void S4_EveryBand_RunsEveryTick_CriticalFirst_ThenTheOldest()
+        {
+            var w = ScheduleWorld();
+            try
+            {
+                var low1  = LocalSensor(w, Light, EqsPriorityBand.Low);
+                var low2  = LocalSensor(w, Light, EqsPriorityBand.Low);
+                var norm1 = LocalSensor(w, Light);
+                var norm2 = LocalSensor(w, Light);
+                var crit1 = LocalSensor(w, Light, EqsPriorityBand.Critical);
+                var crit2 = LocalSensor(w, Light, EqsPriorityBand.Critical);
+                var solver = new EqsSolverSystem { BudgetUnits = 330 };
+
+                Tick(w, solver);                                   // warm-up: no estimates yet
+                var t2 = Tick(w, solver);
+                var t3 = Tick(w, solver);
+                Assert.Equal(3, t2.Count);
+                Assert.Equal(3, t3.Count);
+                Assert.Equal(new[] { crit1.Index, crit2.Index }, Sorted(t2[0], t3[0]));   // Critical first, alternating
+                Assert.Equal(new[] { norm1.Index, norm2.Index }, Sorted(t2[1], t3[1]));
+                Assert.Equal(new[] { low1.Index, low2.Index }, Sorted(t2[2], t3[2]));     // Low is never starved
+            }
+            finally { DisposeEqsSingletons(w); }
+
+            static int[] Sorted(int a, int b) => a < b ? new[] { a, b } : new[] { b, a };
+        }
 
         /// <summary>
-        /// Minimal <see cref="ISystemRegistry"/> that returns each system unchanged so that
-        /// <see cref="CognitiveSpatialModule.RegisterSystems"/> can initialise its internal
-        /// system references without requiring the full <c>ModuleHostKernel</c>.
+        /// ⭐ CE-3037 — a sensor heavier than what is left waits one tick, is then the oldest, and runs FIRST — alone when it
+        /// costs the whole budget. It is never skipped for good.
         /// </summary>
-        private sealed class CapturingRegistry : ISystemRegistry
+        [Fact]
+        public void S4_AHeavySensor_WaitsATick_ThenRunsAlone()
         {
-            public void RegisterSystem<T>(T system) where T : IEcsModuleSystem { }
-            public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem
-                => system;
+            var w = ScheduleWorld();
+            try
+            {
+                var light1 = LocalSensor(w, Light);
+                var light2 = LocalSensor(w, Light);
+                var heavy  = LocalSensor(w, Heavy);
+                var solver = new EqsSolverSystem { BudgetUnits = 330 };
+
+                Tick(w, solver);                                   // warm-up: everyone runs once, costs are learnt
+                var t2 = Tick(w, solver);
+                Assert.Equal(new[] { light1.Index, light2.Index }, t2);   // the heavy one does not fit after them
+                var t3 = Tick(w, solver);
+                Assert.Equal(new[] { heavy.Index }, t3);                  // oldest ⇒ first ⇒ alone
+                Assert.Equal(1100, solver.LastSpentUnits);
+                Assert.Equal(1100, w.GetComponentRO<SensorEvalState>(heavy).LastCost);
+            }
+            finally { DisposeEqsSingletons(w); }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3037 — the MEMORY STAGE: a perception sensor's sightings become its unit's acquired / lost transitions
+        /// (the same hysteresis as the visual chain), and a unit's track is lost only when NO sensor of the unit still holds
+        /// it. 📄 DESIGN_Sensors_And_Doctrine.md §5.4.
+        /// </summary>
+        [Fact]
+        public void S4_TheMemoryStage_ReportsTheUnitsUnion_AcquiredThenLost()
+        {
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            registry.Register(TestRadarTemplate, new EqsQueryTemplate
+            {
+                BlueprintId   = EqsTemplateRegistry.BlueprintIdOf(TestRadarTemplate),
+                Generator     = new EntitiesInRadiusGenerator(),
+                FilterCheap   = new IEqsTest[] { new CapabilityRangeTest() },
+                MaxCandidates = 64,
+            }, "TestRadar");
+
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(unit, new NetworkIdentity { Value = 4243 });
+            _grid.Add(unit, new Vector2(10f, 10f));
+            var enemy = CreateEnemyAt(new Vector2(60f, 10f));   // 50 m
+
+            var template = new TkbTemplate("TwoRadars", 78);
+            template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { TestRadar(100f), TestRadar(100f) } });
+            new PerceptionTkbTranslator().Inject(_world, unit, template);
+            var near = SensorChildFactory.Find(_world, unit, SensorChildFactory.FirstTkbPartId);
+            var far  = SensorChildFactory.Find(_world, unit, SensorChildFactory.FirstTkbPartId + 1);
+
+            var solver = new EqsSolverSystem();
+            var acquired = new List<SensorTrackStateEvent>();
+            var lost     = new List<SensorTrackStateEvent>();
+            void Step()
+            {
+                var view = (ISimulationView)_world;
+                solver.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                foreach (var e in view.ReadEvents<SensorTrackStateEvent>())
+                    (e.State == Fdp.Toolkit.Perception.Events.SensorTrackStatus.Acquired ? acquired : lost).Add(e);
+                _world.Tick();
+            }
+
+            Step();
+            Assert.Equal(0, solver.LastSharedCopies);                // ⭐ CE-3056: perception sensors never share (own capability)
+            var one = Assert.Single(acquired);                       // two sensors see it ⇒ ONE unit-level Acquired
+            Assert.Equal(unit, one.Observer);
+            Assert.Equal(enemy, one.Target);
+
+            // One sensor loses it (its range shrinks); the other still holds it ⇒ nothing on the wire.
+            UnitSensors.Configure(_world, near, TestRadar(10f));
+            for (int i = 0; i < 30; i++) Step();
+            Assert.Empty(lost);
+
+            // The other loses it too ⇒ ONE Lost, after the hysteresis window.
+            UnitSensors.Configure(_world, far, TestRadar(10f));
+            for (int i = 0; i < (int)Fdp.Toolkit.Perception.Systems.ContactHysteresis.TrackLostThresholdTicks; i++) Step();
+            Assert.Empty(lost);                                      // not before the window
+            for (int i = 0; i < 3; i++) Step();
+            var gone = Assert.Single(lost);
+            Assert.Equal(enemy, gone.Target);
+            Assert.Single(acquired);
+            Assert.Equal(SensorModality.Radar, acquired[0].Modality);   // ⭐ CE-3060 — the kind rides the track
+        }
+
+        private static SensorEntryDto TestThermalKind(float range) => new()
+        {
+            Kind = SensorModality.Thermal, Template = TestRadarTemplate, SearchRadius = 400f,
+            Thermal = new ThermalSensorDto { Range = range },
+        };
+
+        /// <summary>
+        /// ⭐ CE-3060 — the unit's track carries the KINDS of the sensors holding it (OR), and a change of kinds on a target
+        /// still held is re-published as an Acquired (the Brain's track learns it; no Lost). 🔴 Before: no kind on the track,
+        /// and ThreatEvaluationSystem stamped every contact Visual. 📄 DESIGN_Thermal_And_Acoustic_Sensing.md §6 G.
+        /// </summary>
+        [Fact]
+        public void S7_TheTrackCarriesTheKindsHoldingIt_AndAKindChangeIsRepublished_CE3060()
+        {
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            registry.Register(TestRadarTemplate, new EqsQueryTemplate
+            {
+                BlueprintId   = EqsTemplateRegistry.BlueprintIdOf(TestRadarTemplate),
+                Generator     = new EntitiesInRadiusGenerator(),
+                FilterCheap   = new IEqsTest[] { new CapabilityRangeTest() },
+                MaxCandidates = 64,
+            }, "TestRadar");
+
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(unit, new NetworkIdentity { Value = 4244 });
+            _grid.Add(unit, new Vector2(10f, 10f));
+            var enemy = CreateEnemyAt(new Vector2(60f, 10f));   // 50 m
+
+            var template = new TkbTemplate("RadarAndThermal", 79);
+            template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { TestRadar(100f), TestThermalKind(10f) } });
+            new PerceptionTkbTranslator().Inject(_world, unit, template);
+            var radar   = SensorChildFactory.Find(_world, unit, SensorChildFactory.FirstTkbPartId);
+            var thermal = SensorChildFactory.Find(_world, unit, SensorChildFactory.FirstTkbPartId + 1);
+
+            var solver = new EqsSolverSystem();
+            var acquired = new List<SensorTrackStateEvent>();
+            var lost     = new List<SensorTrackStateEvent>();
+            void Step()
+            {
+                var view = (ISimulationView)_world;
+                solver.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                foreach (var e in view.ReadEvents<SensorTrackStateEvent>())
+                    (e.State == Fdp.Toolkit.Perception.Events.SensorTrackStatus.Acquired ? acquired : lost).Add(e);
+                _world.Tick();
+            }
+
+            Step();
+            Assert.Equal(SensorModality.Radar, Assert.Single(acquired).Modality);   // only the radar reaches 50 m
+
+            UnitSensors.Configure(_world, thermal, TestThermalKind(100f));           // now both hold it
+            for (int i = 0; i < 5; i++) Step();
+            Assert.Equal(2, acquired.Count);
+            Assert.Equal(SensorModality.Radar | SensorModality.Thermal, acquired[1].Modality);
+
+            UnitSensors.Configure(_world, radar, TestRadar(10f));                    // the radar drops it; thermal keeps it
+            for (int i = 0; i < (int)Fdp.Toolkit.Perception.Systems.ContactHysteresis.TrackLostThresholdTicks + 3; i++) Step();
+            Assert.Empty(lost);
+            Assert.Equal(3, acquired.Count);
+            Assert.Equal(SensorModality.Thermal, acquired[2].Modality);
+        }
+
+        /// <summary>
+        /// ⭐ CE-3039 (S6) — a perception sensor's best answer changing is ONE <see cref="SensorChangedEvent"/> TopChanged for
+        /// its unit, written by the system that writes the buffer; an unchanged answer is silent, and a query sensor (no
+        /// <see cref="SensorTag"/>) never publishes one. 📄 DESIGN_Sensors_And_Doctrine.md §7.3.
+        /// </summary>
+        [Fact]
+        public void S6_APerceptionSensorsTopChanging_IsOneTopChanged_AQuerySensorIsSilent()
+        {
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            registry.Register(TestRadarTemplate, new EqsQueryTemplate
+            {
+                BlueprintId   = EqsTemplateRegistry.BlueprintIdOf(TestRadarTemplate),
+                Generator     = new EntitiesInRadiusGenerator(),
+                FilterCheap   = new IEqsTest[] { new CapabilityRangeTest() },
+                MaxCandidates = 64,
+            }, "TestRadar");
+
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(unit, new NetworkIdentity { Value = 4244 });
+            _grid.Add(unit, new Vector2(10f, 10f));
+            var enemy = CreateEnemyAt(new Vector2(60f, 10f));   // 50 m
+
+            var template = new TkbTemplate("OneRadar", 79);
+            template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { TestRadar(100f) } });
+            new PerceptionTkbTranslator().Inject(_world, unit, template);
+            var radar = SensorChildFactory.Find(_world, unit, SensorChildFactory.FirstTkbPartId);
+
+            // A query sensor over an area holding the same enemy: its answer changes too, but it is not perception.
+            var area = CreateAreaEntity(new List<Vector2> { new(40f, -10f), new(80f, -10f), new(80f, 30f), new(40f, 30f) });
+            var query = _world.CreateEntity();
+            _world.AddComponent(query, EntitiesOfForceInArea.SensorFor(area, ForceId.Hostile));
+            _world.AddComponent(query, new EqsCognitiveBuffer());
+
+            var solver = new EqsSolverSystem();
+            var update = new EqsResultUpdateSystem();
+            var changes = new List<SensorChangedEvent>();
+            void Step()
+            {
+                var view = (ISimulationView)_world;
+                solver.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                update.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                foreach (var e in view.ReadEvents<SensorChangedEvent>()) changes.Add(e);
+                _world.Tick();
+            }
+
+            Step();
+            Assert.True(_world.GetComponentRO<EqsCognitiveBuffer>(query).IsReady, "the query sensor must have answered");
+            var first = Assert.Single(changes);                      // the radar's first answer — the query sensor is silent
+            Assert.Equal(SensorChange.TopChanged, first.What);
+            Assert.Equal(unit, first.Unit);
+            Assert.Equal(radar, first.Sensor);
+            Assert.Equal(enemy, first.Target);
+
+            changes.Clear();
+            for (int i = 0; i < 10; i++) Step();
+            Assert.Empty(changes);                                   // the same answer ⇒ no edge
+
+            UnitSensors.Configure(_world, radar, TestRadar(10f));    // out of range ⇒ the top is gone
+            for (int i = 0; i < 10 && changes.Count == 0; i++) Step();
+            var gone = Assert.Single(changes);
+            Assert.Equal(radar, gone.Sensor);
+            Assert.True(gone.Target.IsNull);
+        }
+
+        // ── CE-3038 (S5) — vision as a sensor ──────────────────────────────────────────────────────────────────────────
+
+        // A world of units (two forces, varied facing and field of view) and colliders; every unit built through the
+        // TKB translator, so it has BOTH the receptor the old chain reads and the implicit visual sensor.
+        private static (EntityRepository World, List<Entity> Units) VisionWorld(int seed)
+        {
+            var w = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(w);
+            var rnd = new Random(seed);
+            var units = new List<Entity>();
+            var translator = new PerceptionTkbTranslator();
+            for (int i = 0; i < 40; i++)
+            {
+                var e = w.CreateEntity();
+                float yaw = (float)(rnd.NextDouble() * Math.PI * 2);
+                w.AddComponent(e, new SimTransform
+                {
+                    Position = new Vector3((float)rnd.NextDouble() * 300f, (float)rnd.NextDouble() * 300f, 0f),
+                    Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw),
+                });
+                w.AddComponent(e, new EntityInfo { ForceId = i % 2 == 0 ? ForceId.Friend : ForceId.Hostile });
+                w.AddComponent(e, new NetworkIdentity { Value = 9000 + i });
+                var t = new TkbTemplate("Unit" + i, 500 + i);
+                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 80f + (i % 3) * 40f, FieldOfViewDegrees = (i % 3) switch { 0 => 360f, 1 => 120f, _ => 60f } });
+                translator.Inject(w, e, t);
+                units.Add(e);
+            }
+            for (int i = 0; i < 25; i++)   // blockers
+            {
+                var c = w.CreateEntity();
+                w.AddComponent(c, new SimTransform { Position = new Vector3((float)rnd.NextDouble() * 300f, (float)rnd.NextDouble() * 300f, 0f), Rotation = Quaternion.Identity });
+                w.AddComponent(c, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 4f });
+            }
+            return (w, units);
+        }
+
+        private static float ColliderRadius(ISimulationView v, Entity e)
+            => v.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e) ? v.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).Radius : 0f;
+
+        /// <summary>
+        /// ⭐⭐ CE-3038 — the PARITY proof: on one world, the visual sensor (EQS solver + memory stage) sees exactly the
+        /// (observer, target) pairs a BRUTE-FORCE reference does — every pair, other force, within range, inside the cone,
+        /// line of sight clear. ⭐ CE-3052: the reference used to be the old chain (VisionBroadphaseSystem →
+        /// LosRequestBatchingSystem), retired once this proved parity; an all-pairs oracle is independent of the code
+        /// under test. 📄 DESIGN_Sensors_And_Doctrine.md §5.5.
+        /// </summary>
+        [Fact]
+        public void S5_TheVisualSensor_SeesExactlyWhatABruteForceReferenceSees()
+        {
+            var (w, units) = VisionWorld(seed: 3038);
+            using var grid = new Fdp.Toolkit.Perception.Modules.PerceptionGridProvider();
+            try
+            {
+                var view = (ISimulationView)w;
+                var strategy = new Fdp.Toolkit.Perception.LineOfSight.PlanarCircleLosStrategy(ColliderRadius);
+                new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(grid.Grid).Execute(view, 0.1f);
+
+                // ── the reference: all pairs, the rule written out ──
+                strategy.BeginBatch(view);
+                int requests = 0;
+                var chain = new HashSet<(int, long)>();
+                foreach (var o in units)
+                {
+                    ref readonly var r = ref w.GetComponentRO<PerceptionReceptor>(o);
+                    var ot = w.GetComponentRO<SimTransform>(o);
+                    var fwd = Vector3.Transform(Vector3.UnitX, ot.Rotation);
+                    var fwd2 = Vector2.Normalize(new Vector2(fwd.X, fwd.Y));
+                    foreach (var t in units)
+                    {
+                        if (t == o || w.GetComponentRO<EntityInfo>(t).ForceId == w.GetComponentRO<EntityInfo>(o).ForceId) continue;
+                        var d = new Vector2(w.GetComponentRO<SimTransform>(t).Position.X - ot.Position.X,
+                                            w.GetComponentRO<SimTransform>(t).Position.Y - ot.Position.Y);
+                        if (d.LengthSquared() > r.VisionRange * r.VisionRange) continue;
+                        if (d.LengthSquared() > 0f && Vector2.Dot(fwd2, Vector2.Normalize(d)) < r.FieldOfViewCos) continue;
+                        requests++;
+                        if (strategy.IsVisible(view, o, t)) chain.Add((o.Index, (long)t.PackedValue));
+                    }
+                }
+
+                // ── the visual sensor ──
+                var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(w);
+                VisualPerception.Register(registry, grid.Grid, strategy);
+                new EqsSolverSystem { BudgetUnits = int.MaxValue }.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(w);
+                var sensed = new HashSet<(int, long)>();
+                foreach (var u in units)
+                {
+                    var s = UnitSensors.Of(w, u, SensorModality.Visual);
+                    Assert.False(s.IsNull, "every unit that can see gets an implicit visual sensor");
+                    if (!w.HasComponent<SensorContactList>(s)) continue;
+                    var list = w.GetComponentRO<SensorContactList>(s);
+                    unsafe { for (int i = 0; i < list.Count; i++) sensed.Add((u.Index, list.EntityIds[i])); }
+                }
+
+                Assert.True(chain.Count > 20, $"the scene must exercise sight (the reference saw {chain.Count} pairs)");
+                Assert.True(requests > chain.Count, $"the scene must contain BLOCKED lines, or the sight test is not proven ({requests} candidates, {chain.Count} seen)");
+                Assert.Equal(chain.OrderBy(p => p).ToList(), sensed.OrderBy(p => p).ToList());
+            }
+            finally { DisposeEqsSingletons(w); }
+        }
+
+        /// <summary>
+        /// ⭐ CE-3061 — the THERMAL sensor sees a target only when its signature reaches the sensor's MinSignature: a cold
+        /// target at rest is not seen; the same target, heated by running (ThermalHeatSystem), is. 📄
+        /// DESIGN_Thermal_And_Acoustic_Sensing.md §5.2, §6 E–F.
+        /// </summary>
+        [Fact]
+        public void S7_TheThermalSensor_SeesATargetOnlyOnceItIsHotEnough_CE3061()
+        {
+            using var grid = new Fdp.Toolkit.Perception.Modules.PerceptionGridProvider();
+            var view = (ISimulationView)_world;
+            var strategy = new Fdp.Toolkit.Perception.LineOfSight.PlanarCircleLosStrategy(ColliderRadius);
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            ThermalPerception.Register(registry, grid.Grid, strategy);
+
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(unit, new NetworkIdentity { Value = 4245 });   // a sensor child is solved only under a keyed unit
+            var template = new TkbTemplate("ThermalOnly", 80);
+            template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { new()
+            {
+                Kind = SensorModality.Thermal, Template = ThermalPerception.AssetGuid, SearchRadius = 200f,
+                Thermal = new ThermalSensorDto { Range = 100f, FieldOfViewDegrees = 360f, MinSignature = 0.5f },
+            } } });
+            new PerceptionTkbTranslator().Inject(_world, unit, template);
+            var sensor = UnitSensors.Of(_world, unit, SensorModality.Thermal);
+            Assert.False(sensor.IsNull);
+
+            var enemy = CreateEnemyAt(new Vector2(60f, 10f));   // 50 m, in range and in sight
+            _world.AddComponent(enemy, new Fdp.Toolkit.Perception.Signatures.ThermalState
+            {
+                BaseSignature = 0.3f, RunningHeatPerSecond = 0.5f, CooldownPerSecond = 0.05f, ReferenceSpeed = 5f,
+            });
+
+            var solver = new EqsSolverSystem { BudgetUnits = int.MaxValue };
+            var heat   = new Fdp.Toolkit.Perception.Signatures.ThermalHeatSystem();
+            unsafe bool Sensed()
+            {
+                if (!_world.HasComponent<SensorContactList>(sensor)) return false;
+                var list = _world.GetComponentRO<SensorContactList>(sensor);
+                for (int i = 0; i < list.Count; i++) if (list.EntityIds[i] == (long)enemy.PackedValue) return true;
+                return false;
+            }
+            void Solve()
+            {
+                new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(grid.Grid).Execute(view, 0.1f);
+                solver.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                _world.Tick();
+            }
+
+            // ⚠ No finally/DisposeEqsSingletons here: this rail uses the fixture's _world, which Dispose() frees (a second free
+            //   crashed the test host — "double free or corruption").
+            {
+                Solve();
+                Assert.False(Sensed(), "a cold target (signature 0.3 < 0.5) is not seen");
+
+                heat.Execute(view, 0.1f);                                         // first position sample
+                for (int i = 0; i < 10; i++)                                      // 1 s running at 5 m/s, staying in range
+                {
+                    ref var t = ref _world.GetComponentRW<SimTransform>(enemy);
+                    t.Position += new Vector3(0f, (i % 2 == 0) ? 0.5f : -0.5f, 0f);
+                    heat.Execute(view, 0.1f);
+                }
+                Assert.True(_world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.ThermalState>(enemy).Signature >= 0.5f);
+                Solve();
+                Assert.True(Sensed(), $"the running target is hot enough to be seen (signature {_world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.ThermalState>(enemy).Signature}, " +
+                    $"buffer {(_world.HasComponent<EqsCognitiveBuffer>(sensor) ? _world.GetComponentRO<EqsCognitiveBuffer>(sensor).Count : -1)}, " +
+                    $"contacts {(_world.HasComponent<SensorContactList>(sensor) ? _world.GetComponentRO<SensorContactList>(sensor).Count : -1)}, " +
+                    $"suspended {_world.GetComponentRO<EqsSensor>(sensor).Suspended}, last schedule {solver.LastSchedule.Count})");
+            }
+        }
+
+        /// <summary>
+        /// ⭐ CE-3062 — the ACOUSTIC sensor hears an enemy's sounds as ANONYMOUS estimates ("shot from the north", R-205): a
+        /// SoundContactEvent for the unit, inside the uncertainty radius of the truth, of the right kind — and NO track (the
+        /// source's identity never leaves the solver). A sound that does not carry that far is not heard. 📄
+        /// DESIGN_Thermal_And_Acoustic_Sensing.md §5.1, §6 B–D.
+        /// </summary>
+        [Fact]
+        public void S7_TheAcousticSensor_HearsAnonymousEstimates_NotIdentities_CE3062()
+        {
+            using var grid = new Fdp.Toolkit.Perception.Modules.PerceptionGridProvider();
+            var view = (ISimulationView)_world;
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            AcousticPerception.Register(registry, grid.Grid);
+
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(unit, new NetworkIdentity { Value = 4246 });
+            var template = new TkbTemplate("Ears", 81);
+            template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { new()
+            {
+                Kind = SensorModality.Acoustic, Template = AcousticPerception.AssetGuid, SearchRadius = 400f,
+                Acoustic = new AcousticSensorDto { Range = 300f, UncertaintyPerMeter = 0.1f },
+            } } });
+            new PerceptionTkbTranslator().Inject(_world, unit, template);
+            Assert.False(UnitSensors.Of(_world, unit, SensorModality.Acoustic).IsNull);
+
+            var enemy = CreateEnemyAt(new Vector2(10f, 90f));   // 80 m north
+            _world.AddComponent(enemy, new Fdp.Toolkit.Perception.Signatures.AcousticEmitter
+            {
+                MovingAudibleRange = 150f, FiringAudibleRange = 60f,   // movement carries 150 m, its shots only 60 m
+                CurrentMovingRange = 150f, ShotTimeLeft = 0.3f, ShotX = 10f, ShotY = 90f,
+                MovingClass = (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.TrackedEngine,   // CE-3063
+                FiringClass = (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon,
+            });
+
+            var solver = new EqsSolverSystem { BudgetUnits = int.MaxValue };
+            new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(grid.Grid).Execute(view, 0.1f);
+            solver.Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+
+            var heard = view.ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().ToArray();
+            var one = Assert.Single(heard);                                   // the movement — the shot does not carry 80 m
+            Assert.Equal(unit, one.Observer);
+            Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Movement, one.Kind);
+            // ⭐ CE-3063 (R-207) — it sounds like a tracked engine: a class, never an identity.
+            Assert.Equal((byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.TrackedEngine, one.SourceClass);
+            Assert.InRange(one.Radius, 7.9f, 8.1f);                            // 0.1 × ~80 m
+            Assert.True(Vector2.Distance(new Vector2(one.X, one.Y), new Vector2(10f, 90f)) <= one.Radius + 0.01f,
+                "the estimate lies inside the uncertainty radius of the truth");
+            Assert.Empty(view.ReadEvents<Fdp.Toolkit.Perception.Events.SensorTrackStateEvent>().ToArray());   // ⛔ no identity
+
+            // ⭐ CE-3117 (R-226) — the same estimate is kept on the listener as RECORDED state, for the map's hearing layer.
+            Assert.True(_world.HasComponent<HeardTraces>(unit), "the listener carries its heard estimates as a component");
+            var traces = _world.GetComponentRO<HeardTraces>(unit);
+            Assert.Equal(1, traces.Count);
+            var trace = traces.SlotsRO()[0];
+            Assert.Equal(new Vector3(one.X, one.Y, one.Z), trace.At);
+            Assert.Equal(one.Radius, trace.Radius);
+            Assert.Equal(one.SourceClass, trace.SourceClass);
+        }
+
+        /// <summary>
+        /// ⭐ BR-14 (Urban Battle §4 ②; DESIGN_Thermal_And_Acoustic_Sensing §6 B) — an 81 mm tube's LAUNCH is heard, from the TUBE: the real
+        /// catalogue's <c>WeaponSystem_Mortar81</c> carries its own report (a crewed weapon's round names the weapon as its shooter, WS-3), so a
+        /// fired tube is a <c>HeavyWeapon</c> shot at its own position — heard by a listener 1.2 km away, not by one 6 km away (the report's
+        /// 5 km, CE-3284's real carry). The listeners are acoustic posts whose ears reach 8 km; a SOLDIER's 200 m ears are <c>CE3276_…</c>'s (R-3023).
+        /// </summary>
+        [Fact]
+        public void BR14_AnEightyOneMillimetreLaunch_IsHeardFromTheTube_At1200m_NotAt6km()
+        {
+            var big = SpatialHashGrid.Create(400, 400, 20f, 1000, Allocator.Persistent);   // 8 km — the default grid is 1 km (CE-3284: the far post at 6 km is ON it)
+            try
+            {
+                var view = (ISimulationView)_world;
+                var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+                AcousticPerception.Register(registry, big);
+                var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+
+                var tube = _world.CreateEntity();
+                var at = new Vector3(100f, 100f, 0f);
+                _world.AddComponent(tube, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                _world.AddComponent(tube, new EntityInfo { ForceId = ForceId.Hostile });
+                new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator().Inject(_world, tube,
+                    tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81)!);
+                Assert.True(_world.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(tube), "the tube carries its own report");
+
+                Entity Listener(float east, int netId)
+                {
+                    var unit = _world.CreateEntity();
+                    _world.AddComponent(unit, new SimTransform { Position = at + new Vector3(east, 0f, 0f), Rotation = Quaternion.Identity });
+                    _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+                    _world.AddComponent(unit, new NetworkIdentity { Value = netId });
+                    var post = new TkbTemplate("ListeningPost", 1400 + netId);
+                    post.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { new()
+                    {
+                        Kind = SensorModality.Acoustic, Template = AcousticPerception.AssetGuid, SearchRadius = 8000f,
+                        Acoustic = new AcousticSensorDto { Range = 8000f, UncertaintyPerMeter = 0.05f },
+                    } } });
+                    new PerceptionTkbTranslator().Inject(_world, unit, post);
+                    return unit;
+                }
+                var near = Listener(1200f, 4301);
+                var far  = Listener(6000f, 4302);   // ⭐ CE-3284 — past the 81 mm's real 5 km
+
+                _world.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification { Shooter = tube });
+                _world.Bus.SwapBuffers();
+                new Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem().Execute(view, 0.1f);
+                _world.Bus.SwapBuffers();
+
+                var solver = new EqsSolverSystem { BudgetUnits = int.MaxValue };
+                new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(big).Execute(view, 0.1f);
+                solver.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+
+                var heard = view.ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().ToArray();
+                var one = Assert.Single(heard);                                   // the near post only: 6 km is past the report's 5 km
+                Assert.Equal(near, one.Observer);
+                Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Shot, one.Kind);
+                Assert.Equal((byte)SoundSourceClass.HeavyWeapon, one.SourceClass);
+                Assert.True(Vector2.Distance(new Vector2(one.X, one.Y), new Vector2(at.X, at.Y)) <= one.Radius + 0.01f,
+                    "the launch is heard at the TUBE (inside the estimate's radius)");
+                Assert.DoesNotContain(heard, h => h.Observer == far);
+            }
+            finally
+            {
+                big.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3276 (R-3023; DESIGN_Thermal_And_Acoustic_Sensing §8.2) — a LOUD sound carries past the listener's ear range: a man whose
+        /// ears reach 200 m hears the 81 mm tube's launch at 1.2 km (its own 5 km carry, CE-3284), and not at 6 km. A QUIET class keeps both caps: a
+        /// small-arms shot that would carry 1.5 km, from the same spot, is not heard at 1.2 km. His own side's gun is never heard (the
+        /// broadphase's rule). 🔴 Red before: the near man heard nothing.
+        /// </summary>
+        [Fact]
+        public void CE3276_ALoudLaunch_CarriesPastASoldiersEars_AQuietShotDoesNot()
+        {
+            var big = SpatialHashGrid.Create(400, 400, 20f, 1000, Allocator.Persistent);   // 8 km (CE-3284: the far man at 6 km is ON it)
+            try
+            {
+                var view = (ISimulationView)_world;
+                var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+                AcousticPerception.Register(registry, big);
+                var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+                var at = new Vector3(100f, 100f, 0f);
+
+                Entity Source(ForceId force)
+                {
+                    var e = _world.CreateEntity();
+                    _world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                    _world.AddComponent(e, new EntityInfo { ForceId = force });
+                    return e;
+                }
+                var tube = Source(ForceId.Hostile);
+                new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator().Inject(_world, tube,
+                    tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81)!);
+                var rifle = Source(ForceId.Hostile);
+                _world.AddComponent(rifle, new Fdp.Toolkit.Perception.Signatures.AcousticEmitter
+                    { FiringAudibleRange = 1500f, FiringClass = (byte)SoundSourceClass.SmallArms });
+                var ours = Source(ForceId.Friend);
+                _world.AddComponent(ours, new Fdp.Toolkit.Perception.Signatures.AcousticEmitter
+                    { FiringAudibleRange = 3000f, FiringClass = (byte)SoundSourceClass.HeavyWeapon });
+
+                Entity Soldier(float east, int netId)
+                {
+                    var unit = _world.CreateEntity();
+                    _world.AddComponent(unit, new SimTransform { Position = at + new Vector3(east, 0f, 0f), Rotation = Quaternion.Identity });
+                    _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+                    _world.AddComponent(unit, new NetworkIdentity { Value = netId });
+                    var man = new TkbTemplate("Soldier", 1500 + netId);
+                    man.AddDescriptor(new SensorCapabilitiesDto { HearingRange = 200f });   // the urban soldier's ears (implicit sensor, CE-2106)
+                    new PerceptionTkbTranslator().Inject(_world, unit, man);
+                    return unit;
+                }
+                var near = Soldier(1200f, 4311);
+                var far  = Soldier(6000f, 4312);   // ⭐ CE-3284 — past the 81 mm's real 5 km
+
+                foreach (var shooter in new[] { tube, rifle, ours })
+                    _world.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification { Shooter = shooter });
+                _world.Bus.SwapBuffers();
+                new Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem().Execute(view, 0.1f);
+                _world.Bus.SwapBuffers();
+
+                new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(big).Execute(view, 0.1f);
+                new EqsSolverSystem { BudgetUnits = int.MaxValue }.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+
+                var heard = view.ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().ToArray();
+                var one = Assert.Single(heard);                                   // the tube's launch, by the near man only
+                Assert.Equal(near, one.Observer);
+                Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Shot, one.Kind);
+                Assert.Equal((byte)SoundSourceClass.HeavyWeapon, one.SourceClass);   // not the rifle, not his own side's gun
+                Assert.True(Vector2.Distance(new Vector2(one.X, one.Y), new Vector2(at.X, at.Y)) <= one.Radius + 0.01f);
+                Assert.DoesNotContain(heard, h => h.Observer == far);
+            }
+            finally
+            {
+                big.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3278 (behaviors' NOTE_Behaviors_To_Backend_Launch_Not_Heard_Live, measured live on uc-request-chain) — a round from the 81 mm
+        /// tube 1.43 km away BURSTS 35 m from a soldier whose ears reach 200 m, and he HEARS it, at the burst (the burst is stamped on its
+        /// shooter, the tube, whose type now states the burst's carry; class Explosion, a loud one, R-3023). 🔴 Red before: the tube's
+        /// <c>DetonationAudibleRange</c> was 0, so nobody heard it, however near.
+        /// </summary>
+        [Fact]
+        public void CE3278_AShellBurstingBesideASoldier_IsHeard_ThoughItsTubeIsFarAway()
+        {
+            var big = SpatialHashGrid.Create(200, 200, 20f, 1000, Allocator.Persistent);   // 4 km
+            try
+            {
+                var view = (ISimulationView)_world;
+                var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+                AcousticPerception.Register(registry, big);
+                var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+
+                var tube = _world.CreateEntity();
+                _world.AddComponent(tube, new SimTransform { Position = new Vector3(100f, 100f, 0f), Rotation = Quaternion.Identity });
+                _world.AddComponent(tube, new EntityInfo { ForceId = ForceId.Hostile });
+                new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator().Inject(_world, tube,
+                    tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81)!);
+
+                var man = _world.CreateEntity();
+                var at = new Vector3(1530f, 100f, 0f);   // 1430 m from the tube
+                _world.AddComponent(man, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                _world.AddComponent(man, new EntityInfo { ForceId = ForceId.Friend });
+                _world.AddComponent(man, new NetworkIdentity { Value = 4321 });
+                var soldier = new TkbTemplate("Soldier", 1532);
+                soldier.AddDescriptor(new SensorCapabilitiesDto { HearingRange = 200f });
+                new PerceptionTkbTranslator().Inject(_world, man, soldier);
+
+                var burst = at + new Vector3(-35f, 0f, 0f);
+                _world.Bus.Publish(new Fdp.Toolkit.Combat.Contracts.DetonationNotification { Shooter = tube, HitX = burst.X, HitY = burst.Y, HitZ = 0f });
+                _world.Bus.SwapBuffers();
+                new Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem().Execute(view, 0.1f);
+                _world.Bus.SwapBuffers();
+
+                new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(big).Execute(view, 0.1f);
+                new EqsSolverSystem { BudgetUnits = int.MaxValue }.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+
+                var one = Assert.Single(view.ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().ToArray());
+                Assert.Equal(man, one.Observer);
+                Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Detonation, one.Kind);
+                Assert.Equal((byte)SoundSourceClass.Explosion, one.SourceClass);
+                Assert.True(Vector2.Distance(new Vector2(one.X, one.Y), new Vector2(burst.X, burst.Y)) <= one.Radius + 0.01f, "heard at the burst");
+            }
+            finally
+            {
+                big.Dispose();
+            }
+        }
+
+        // ⭐ CE-3282 — the hearing rig: the 81 mm tube (hostile, real TKB) and a soldier with 200 m ears 1430 m away, a 4 km grid.
+        private (SpatialHashGrid Grid, Entity Tube, Entity Man) HearingRig()
+        {
+            var big = SpatialHashGrid.Create(200, 200, 20f, 1000, Allocator.Persistent);
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            AcousticPerception.Register(registry, big);
+            var tube = _world.CreateEntity();
+            _world.AddComponent(tube, new SimTransform { Position = new Vector3(100f, 100f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(tube, new EntityInfo { ForceId = ForceId.Hostile });
+            new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator().Inject(_world, tube,
+                Hrot.Map.Common.HrotEnvironment.CreateTkb().GetByType(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81)!);
+            _world.AddComponent(tube, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81) });
+            var man = _world.CreateEntity();
+            _world.AddComponent(man, new SimTransform { Position = new Vector3(1530f, 100f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(man, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(man, new NetworkIdentity { Value = 4331 });
+            var soldier = new TkbTemplate("Soldier", 1533);
+            soldier.AddDescriptor(new SensorCapabilitiesDto { HearingRange = 200f });
+            new PerceptionTkbTranslator().Inject(_world, man, soldier);
+            return (big, tube, man);
+        }
+
+        // ⭐ CE-3282 — the sound side at sim time t: the clock, then whatever was published this frame, through the emission system
+        private void SoundFrame(double t, params Entity[] shooters)
+        {
+            _world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t, DeltaTime = 0.1f });
+            foreach (var s in shooters) _world.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification { Shooter = s });
+            _world.Bus.SwapBuffers();
+            new Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem().Execute((ISimulationView)_world, 0.1f);
+            _world.Bus.SwapBuffers();
+        }
+
+        // ⭐ CE-3282 — one solve of every sensor; the sounds it heard this run
+        private Fdp.Toolkit.Perception.Events.SoundContactEvent[] Solve(SpatialHashGrid grid)
+        {
+            var view = (ISimulationView)_world;
+            new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(grid).Execute(view, 0.1f);
+            new EqsSolverSystem { BudgetUnits = int.MaxValue }.Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+            return view.ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().ToArray();
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3282 (Q95 C; Sensing §8.3; the handoff's S1) — a short sound is NEVER MISSED: the tube fires once; the hearing sensor is not
+        /// solved for ten seconds (the EQS circuit's skip, CE-3279) — long after the 0.5 s linger ended — and when it runs it hears the launch
+        /// ONCE; the next solve does not hear it again. ✅ Red-proof: hearing from the linger (before) ⇒ nothing heard ⇒ red; the cursor not
+        /// written ⇒ heard again on the next solve ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3282_AShot_IsHeardOnce_ThoughTheSensorWasSkippedForTenSeconds()
+        {
+            var (grid, tube, man) = HearingRig();
+            try
+            {
+                SoundFrame(0d);
+                Assert.Empty(Solve(grid));                                       // the sensor's first solve plants its cursor
+                SoundFrame(0.1d, tube);                                          // the launch
+                for (int i = 2; i <= 101; i++) SoundFrame(i * 0.1d);             // ten seconds, no solve
+                Assert.Equal(0f, _world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(tube).ShotTimeLeft);   // the linger is long gone
+                var heard = Solve(grid);
+                var one = Assert.Single(heard);
+                Assert.Equal(man, one.Observer);
+                Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Shot, one.Kind);
+                Assert.Empty(Solve(grid));                                       // heard once, not again
+            }
+            finally { grid.Dispose(); }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3282 (S1) — two shots of ONE gun inside half a second are heard TWICE (one emitter's linger held one). ✅ Red-proof: the linger
+        /// (before) ⇒ one heard ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3282_TwoShotsOfOneGun_InsideHalfASecond_AreHeardTwice()
+        {
+            var (grid, tube, man) = HearingRig();
+            try
+            {
+                SoundFrame(0d);
+                Assert.Empty(Solve(grid));
+                SoundFrame(0.1d, tube);
+                SoundFrame(0.3d, tube);
+                SoundFrame(0.4d);                                                // ⭐ CE-3293 — a solve hears what came BEFORE its own time
+                var heard = Solve(grid);
+                Assert.Equal(2, heard.Length);
+                Assert.All(heard, h => Assert.Equal(man, h.Observer));
+                Assert.All(heard, h => Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Shot, h.Kind));
+            }
+            finally { grid.Dispose(); }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3283 (Q95 A; Sensing §8.4; the handoff's S3) — what the EAR can tell, by its proficiency: the same 81 mm launch is, to a
+        /// Militia man, a heavy weapon (the class only); to a Regular, a MORTAR (+ the family); to a Veteran, the 81 mm itself (+ the type,
+        /// the weapon's TKB type). The class is the same for all three. ✅ Red-proof: the tier gate removed ⇒ the Militia man hears the type ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(Fdp.Toolkit.Behavior.Components.ProficiencyOf.Militia, (byte)0, false)]
+        [InlineData(Fdp.Toolkit.Behavior.Components.ProficiencyOf.Regular, (byte)Fdp.Toolkit.Tkb.Domain.SoundFamily.Mortar, false)]
+        [InlineData(Fdp.Toolkit.Behavior.Components.ProficiencyOf.Veteran, (byte)Fdp.Toolkit.Tkb.Domain.SoundFamily.Mortar, true)]
+        public void CE3283_TheEar_TellsTheClass_TheFamily_OrTheType_ByItsProficiency(float proficiency, byte family, bool knowsType)
+        {
+            var (grid, tube, man) = HearingRig();
+            try
+            {
+                _world.AddComponent(man, new Fdp.Toolkit.Behavior.Components.CombatProficiency
+                    { Authored = proficiency, Set = Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet });
+                SoundFrame(0d, tube);
+                SoundFrame(0.1d);                                                // ⭐ CE-3293 — heard by the solve after it
+                var one = Assert.Single(Solve(grid));
+                Assert.Equal((byte)SoundSourceClass.HeavyWeapon, one.SourceClass);   // the class, always
+                Assert.Equal(family, one.Family);
+                Assert.Equal(knowsType ? Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81 : 0L, one.Signature);
+            }
+            finally { grid.Dispose(); }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4039</c> — EVERY family is heard by a Regular ear, through the real solver. The family rides in <c>Flags</c> bits 13–15, and
+        /// bit 15 is also the solver's <c>FlagPendingRay</c>: a family of 4 or more (AA gun, launcher, RIFLE) parked the hearing solve as
+        /// "awaiting raycasts" — never observed, never published — so every Regular+ listener went deaf to small arms (the civilians' fear, a
+        /// soldier's heard shot). The rail above used only Mortar (1). ✅ Red-proof: the solver reading bit 15 on every template ⇒ the
+        /// AaGun / Launcher / Rifle rows hear nothing ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.SoundFamily.Mortar)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.SoundFamily.Gun)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.SoundFamily.HeavyMg)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.SoundFamily.AaGun)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.SoundFamily.Launcher)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.SoundFamily.Rifle)]
+        public void CE4039_ARegularEar_HearsEveryFamily_ThroughTheSolver(Fdp.Toolkit.Tkb.Domain.SoundFamily family)
+        {
+            var (grid, _, man) = HearingRig();
+            try
+            {
+                var gun = _world.CreateEntity();
+                _world.AddComponent(gun, new SimTransform { Position = new Vector3(1430f, 100f, 0f), Rotation = Quaternion.Identity });   // 100 m off
+                _world.AddComponent(gun, new EntityInfo { ForceId = ForceId.Hostile });
+                var t = new TkbTemplate("Gun", 1534);
+                t.AddDescriptor(new SignaturesDto { Acoustic = new AcousticSignatureDto
+                    { FiringAudibleRange = 400f, FiringClass = SoundSourceClass.SmallArms, Family = family } });
+                new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator().Inject(_world, gun, t);
+                _world.AddComponent(man, new Fdp.Toolkit.Behavior.Components.CombatProficiency
+                    { Authored = Fdp.Toolkit.Behavior.Components.ProficiencyOf.Regular, Set = Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet });
+                SoundFrame(0d, gun);
+                SoundFrame(0.1d);                                                // heard by the solve after it (CE-3293)
+                var one = Assert.Single(Solve(grid));
+                Assert.Equal((byte)SoundSourceClass.SmallArms, one.SourceClass);
+                Assert.Equal((byte)family, one.Family);
+            }
+            finally { grid.Dispose(); }
+        }
+
+        /// <summary>
+        /// ⭐ CE-3038 — a TKB that lists NO sensors but can see gets one implicit visual sensor (part 1000) that reads the
+        /// unit's live receptor (a Brain retunes it over the wire); a TKB with a list gets only its list; one that cannot
+        /// see gets none. The unit no longer carries a SensorContactList.
+        /// </summary>
+        [Fact]
+        public void S5_TheImplicitVisualSensor_IsBuiltOnlyForASeeingUnitWithNoSensorList()
+        {
+            var seeing = _world.CreateEntity();
+            var t1 = new TkbTemplate("Seeing", 601);
+            t1.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 200f, FieldOfViewDegrees = 90f });
+            new PerceptionTkbTranslator().Inject(_world, seeing, t1);
+            var v = UnitSensors.Of(_world, seeing, SensorModality.Visual);
+            Assert.False(v.IsNull);
+            Assert.Equal(SensorChildFactory.FirstTkbPartId, _world.GetComponentRO<PartMetadata>(v).InstanceId);
+            Assert.Equal(1, _world.GetComponentRO<SensorTag>(v).Implicit);
+            Assert.Equal(VisualPerception.BlueprintId, _world.GetComponentRO<EqsSensor>(v).BlueprintId);
+            Assert.False(_world.HasComponent<SensorContactList>(seeing));
+
+            var listed = _world.CreateEntity();
+            var t2 = new TkbTemplate("Listed", 602);
+            t2.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 200f, Sensors = new List<SensorEntryDto> { TestRadar(100f) } });
+            new PerceptionTkbTranslator().Inject(_world, listed, t2);
+            Assert.True(UnitSensors.Of(_world, listed, SensorModality.Visual).IsNull);
+            Assert.False(UnitSensors.Of(_world, listed, SensorModality.Radar).IsNull);
+
+            var blind = _world.CreateEntity();
+            var t3 = new TkbTemplate("Blind", 603);
+            t3.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 0f });
+            new PerceptionTkbTranslator().Inject(_world, blind, t3);
+            Assert.True(UnitSensors.Of(_world, blind, SensorModality.Visual).IsNull);
+        }
+
+        /// <summary>
+        /// ⭐ CE-2106 — the acoustic twin of the rail above: a TKB that lists NO sensors and can HEAR gets one implicit
+        /// acoustic sensor (part 1001) whose ears reach <c>HearingRange</c>; a unit that only hears still remembers what it
+        /// hears; a TKB with a list, or one that cannot hear, gets none. 📄 DESIGN_Thermal_And_Acoustic_Sensing.md §8.1.
+        /// </summary>
+        [Fact]
+        public void CE2106_TheImplicitAcousticSensor_IsBuiltOnlyForAHearingUnitWithNoSensorList()
+        {
+            var both = _world.CreateEntity();
+            var t1 = new TkbTemplate("SeesAndHears", 611);
+            t1.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 200f, FieldOfViewDegrees = 90f, HearingRange = 150f });
+            new PerceptionTkbTranslator().Inject(_world, both, t1);
+            Assert.False(UnitSensors.Of(_world, both, SensorModality.Visual).IsNull);
+            var ear = UnitSensors.Of(_world, both, SensorModality.Acoustic);
+            Assert.False(ear.IsNull);
+            Assert.Equal(SensorChildFactory.FirstTkbPartId + 1, _world.GetComponentRO<PartMetadata>(ear).InstanceId);
+            Assert.Equal(1, _world.GetComponentRO<SensorTag>(ear).Implicit);
+            Assert.Equal(AcousticPerception.BlueprintId, _world.GetComponentRO<EqsSensor>(ear).BlueprintId);
+            Assert.True(AcousticPerception.Ears(_world, ear, out float range, out _));
+            Assert.Equal(150f, range);
+
+            var deaf = _world.CreateEntity();
+            var t2 = new TkbTemplate("Deaf", 612);
+            t2.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 200f, HearingRange = 0f });
+            new PerceptionTkbTranslator().Inject(_world, deaf, t2);
+            Assert.True(UnitSensors.Of(_world, deaf, SensorModality.Acoustic).IsNull);
+
+            var hearsOnly = _world.CreateEntity();
+            var t3 = new TkbTemplate("HearsOnly", 613);
+            t3.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 0f, HearingRange = 100f });
+            new PerceptionTkbTranslator().Inject(_world, hearsOnly, t3);
+            Assert.True(UnitSensors.Of(_world, hearsOnly, SensorModality.Visual).IsNull);
+            Assert.False(UnitSensors.Of(_world, hearsOnly, SensorModality.Acoustic).IsNull);
+            Assert.True(_world.HasComponent<TargetMemory>(hearsOnly), "a unit that only hears still remembers what it hears");
+
+            var listed = _world.CreateEntity();
+            var t4 = new TkbTemplate("ListedHearing", 614);
+            t4.AddDescriptor(new SensorCapabilitiesDto { HearingRange = 150f, Sensors = new List<SensorEntryDto> { TestRadar(100f) } });
+            new PerceptionTkbTranslator().Inject(_world, listed, t4);
+            Assert.True(UnitSensors.Of(_world, listed, SensorModality.Acoustic).IsNull);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2349</c> — the M1 and the Bradley carry a THERMAL sight, and still see and hear: their TKB lists all three sensors
+        /// (a listed TKB gets no implicit ones), the visual at the vehicle's sensor range, the ears at 1.5 × it, the thermal at its own
+        /// range; the listed eyes still read the live receptor (a scenario's narrower tank stays narrow — DESIGN_Thermal_And_Acoustic_Sensing §8.1's
+        /// rejected alternative). A vehicle with no thermal sight keeps its implicit pair. 📌 Before: no template listed any sensor, so no demo could show a
+        /// thermal sight (G-10). ✅ Red-proof: the builder ignoring ThermalRange ⇒ no thermal sensor ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2349_AVehicleWithAThermalSight_CarriesIt_AndStillSeesAndHears()
+        {
+            // ⭐ the builder path, on test vehicles: the catalogue carries no thermal sight yet (withdrawn — see NedTkbCatalog, M1)
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var builder = new Hrot.Map.Definitions.Tkb.NedTkbBuilder(db);
+            foreach (var (type, vision, thermal) in new[] { (990_001L, 8000f, 3000f), (990_002L, 5000f, 2500f) })
+                builder.DefineVehicle(type, $"thermal test {type}").WithCombat(type, c => { c.SensorRange = vision; c.ThermalRange = thermal; });
+            foreach (var (type, vision, thermal) in new[] { (990_001L, 8000f, 3000f), (990_002L, 5000f, 2500f) })
+            {
+                var unit = _world.CreateEntity();
+                new PerceptionTkbTranslator().Inject(_world, unit, db.GetByType(type));
+                var eye = UnitSensors.Of(_world, unit, SensorModality.Visual);
+                var ear = UnitSensors.Of(_world, unit, SensorModality.Acoustic);
+                var heat = UnitSensors.Of(_world, unit, SensorModality.Thermal);
+                Assert.False(eye.IsNull, $"{type}: still sees");
+                Assert.False(ear.IsNull, $"{type}: still hears");
+                Assert.False(heat.IsNull, $"{type}: carries a thermal sight");
+                Assert.True(AcousticPerception.Ears(_world, ear, out float hearing, out _));
+                Assert.Equal(vision * 1.5f, hearing);
+                Assert.Equal(thermal, ((ISimulationView)_world).GetManagedComponentRO<SensorCapability>(heat).Current.Thermal!.Range);
+                Assert.Equal(vision, ((ISimulationView)_world).GetManagedComponentRO<SensorCapability>(eye).Current.Visual!.Range);
+                // ⭐ the listed eyes still read the live receptor: a scenario that narrows the tank (hill-attack: 100 m, 180°) narrows them
+                Assert.Equal(1, _world.GetComponentRO<SensorTag>(eye).Implicit);
+                Assert.Equal(0, _world.GetComponentRO<SensorTag>(heat).Implicit);
+            }
         }
     }
 }
-
-

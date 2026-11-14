@@ -21,7 +21,7 @@ All four tasks (S301–S304) are correctly implemented:
   defensive-copy trap. Tests verify PhaseCount 3, correct BehaviorId on each phase, and
   zero-task edge case.
 
-- **S303** — `[DataPolicy(DataPolicy.NoSave)]` correctly placed. Old round-trip test
+- **S303** — `[DataPolicy(DataPolicy.NoScenario)]` correctly placed. Old round-trip test
   replaced with DOM-exclusion test; co-present saveable component still appears.
 
 - **S304** — `GetMode()` returns `TimeMode.Deterministic`. Test added and passing.
@@ -44,7 +44,7 @@ S301: Fix ActiveMissionPlan to use SetManagedComponent/null-clear instead of
 S302: Fix InlineArray Span-mutation defensive-copy trap in TryBuildQueue.
       Extract Span<MissionPhase> before the for-loop per C#12 InlineArray rules.
 
-S303: Add [DataPolicy(DataPolicy.NoSave)] to BrainBlackboard struct to exclude
+S303: Add [DataPolicy(DataPolicy.NoScenario)] to BrainBlackboard struct to exclude
       the 128-byte cognitive scratchpad from scenario JSON serialization.
       Replace round-trip test with DOM-exclusion assertion.
 

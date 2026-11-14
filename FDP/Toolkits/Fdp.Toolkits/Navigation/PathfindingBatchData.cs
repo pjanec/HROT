@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Navigation
         /// Propagated from <see cref="PathRequest.SourceNodeId"/> by <c>PathfindingSolverSystem</c>.
         /// Used by the egress translator to route the result back to the originating Brain.
         /// </summary>
-        public int   SourceNodeId;
+        public NodeId   SourceNodeId;
     }
 
     // ── Singleton ECS component ───────────────────────────────────────────────────
@@ -42,6 +42,9 @@ namespace Fdp.Toolkit.Navigation
     /// results are written here by <c>PathfindingResultMaterializationSystem</c> after the solver resolves them.
     /// Indexed by <c>requestId % DefaultCapacity</c> (modulo ring buffer).
     /// </summary>
+    // ⭐ CE-3132 — NoScenario | NoReplay: the NativeArray is this process's memory; recorded, it carried raw pointers into a replay
+    //   (the class ZoneEnvironmentData showed, CE-3118). docs/DESIGN_Geo_Origin.md §5.6.
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
     [ComponentId(GlobalComponentIds.PathfindingBatchData)]
     public struct PathfindingBatchData
     {

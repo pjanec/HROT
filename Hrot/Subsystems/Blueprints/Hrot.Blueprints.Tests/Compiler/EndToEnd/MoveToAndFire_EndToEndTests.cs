@@ -171,7 +171,6 @@ public sealed class MoveToAndFire_InterpreterTick_Tests : IDisposable
 
         var entity = _fixture.CreateEntity();
         _fixture.World.AddComponent(entity, default(LocomotionChannel));
-        _fixture.World.AddComponent(entity, default(Blackboard1024)); // AiPrimitive working-state rail
 
         // The action must resolve in the ActionRegistry — otherwise the interpreter would silently
         // bind the Failure fallback (the pre-I1 behavior).
@@ -179,12 +178,14 @@ public sealed class MoveToAndFire_InterpreterTick_Tests : IDisposable
             $"AiPrimitive action '{ActionKey()}' must be registered into the FastBTree ActionRegistry (I1).");
 
         // A minimal one-node tree whose single action references the blueprint action by key.
-        var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
+        var builder = new BTreeBuilder<byte, BTreeContext>();
         builder.Action(ActionKey());
         var blob = builder.Compile("I1_MoveToAndFire_Smoke");
-        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, _fixture.ActionRegistry);
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, _fixture.ActionRegistry);
 
-        var bb    = default(BrainBlackboard);
+        // ⭐ P4-②: a params region this test owns — the interpreter takes a `ref byte` base.
+        var bbBuf = new byte[64];
+        ref byte bb = ref bbBuf[0];
         var state = default(Fbt.BehaviorTreeState);
         var ctx   = new BTreeContext { Self = entity, World = _fixture.World };
 

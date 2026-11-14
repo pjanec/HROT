@@ -114,6 +114,9 @@ public sealed class AssetPickerSource : IPickerSource<IEditableAsset>
         CancellationToken ct)
         => Task.FromResult(Query(text, context));
 
+    /// <summary>⭐ CE-4397 — the picker folder of a scenario filed at the top level of <c>scenarios/</c> (where Save as puts a new one).</summary>
+    public const string MyScenarios = "My scenarios";
+
     // ── Projection (public seam for T3) ────────────────────────────────
 
     /// <summary>
@@ -140,12 +143,15 @@ public sealed class AssetPickerSource : IPickerSource<IEditableAsset>
         int lastSlash = relPath.LastIndexOf('/');
         if (lastSlash >= 0)
             subfolder = relPath.Substring(0, lastSlash);
+        if (asset is ICategorizedAsset { Category: { Length: > 0 } own }) subfolder = own;   // ⭐ CE-4360 (Q-S1) — a scenario's category is its sub-folder path
 
         string? category;
         if (_isSingleKind)
         {
             // Single-kind: no kind prefix; null when at root level.
-            category = subfolder is { Length: > 0 } ? subfolder : null;
+            category = subfolder is { Length: > 0 } ? subfolder
+                : asset.Kind == AssetKind.Scenario ? MyScenarios   // ⭐ CE-4397 — a top-level scenario is in the folder "My scenarios", not loose at the root
+                : null;
         }
         else
         {
@@ -164,7 +170,10 @@ public sealed class AssetPickerSource : IPickerSource<IEditableAsset>
             Keywords: null,
             IconTextureId: null,
             Tag: asset,
-            IconKey: AssetKindIcons.ResolveIconKey(asset));
+            IconKey: AssetKindIcons.ResolveIconKey(asset),
+            // ⭐ CE-4098 (AQ108 D19) — remembered in the asset KIND's Recent list, shared with the asset browser and the
+            //   scenario/recording pickers; the picker shows these first.
+            RecentContext: AssetRecents.ContextFor(asset.Kind));
     }
 
     /// <summary>
@@ -183,7 +192,7 @@ public sealed class AssetPickerSource : IPickerSource<IEditableAsset>
     // ── Identity / search helpers ──────────────────────────────────────
 
     /// <inheritdoc/>
-    public string GetItemKey(IEditableAsset item) => item.AssetId.ToString();
+    public string GetItemKey(IEditableAsset item) => AssetRecents.ItemKey(item);   // ⭐ CE-4098 — ONE definition of the identity a Recent entry is kept by
 
     /// <inheritdoc/>
     public string GetSearchableText(IEditableAsset item) => item.Name;

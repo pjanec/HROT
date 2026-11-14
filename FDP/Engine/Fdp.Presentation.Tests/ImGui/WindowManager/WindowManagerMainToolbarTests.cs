@@ -18,6 +18,13 @@ public class WindowManagerMainToolbarTests
 
     private WM CreateManager() => new(_atlas);
 
+    /// <summary>A window that claims "Combat", so the manager may switch to it (A0).</summary>
+    private sealed class CombatWindow : ManagedWindow
+    {
+        public CombatWindow() : base("combat-w", "combat-w", "Combat", WindowScope.PerspectiveBound) { }
+        protected override void DrawClientArea() { }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // MTB-P1-T3.C1: MainToolbar property resolves — non-null and stable
     // ═══════════════════════════════════════════════════════════════════════════
@@ -65,6 +72,7 @@ public class WindowManagerMainToolbarTests
     public void Render_InvokesMainToolbar_WithCurrentPerspective()
     {
         var wm = CreateManager();
+        wm.RegisterWindow(new CombatWindow());   // ⭐ CE-3166 — A0 (ec0a2da5f): only a CLAIMED perspective can be switched to
         wm.SwitchPerspective("Combat");
         var callLog = new List<string>();
 

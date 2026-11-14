@@ -1,0 +1,475 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Threading;
+
+namespace Fdp.Toolkit.Terrain
+{
+    /// <summary>
+    /// ⭐⭐ <b>The terrain world as a triangle soup, in ENGINE space (Z-up)</b> — what a navmesh baker voxelises
+    /// (docs/DESIGN_Terrain_World.md §3, §4.1). Pure geometry, no navmesh dependency: the Recast-side geometry
+    /// source swizzles it to Recast's Y-up INSIDE the Recast implementation (W7).
+    /// <list type="bullet">
+    ///   <item><b>Ground</b> — a grid of quads over the world bounds at <see cref="TerrainWorld.GroundZ"/>, minus the
+    ///     cells whose centre lies inside a building/wall footprint or a water area.</item>
+    ///   <item><b>Prisms</b> — the roof (walkable when reachable) and the side walls (vertical, so they block).</item>
+    ///   <item><b>Slabs and ramps</b> — their own triangles at their own Z: garage decks and the ramps between them.</item>
+    /// </list>
+    /// <para>⭐ Every triangle faces UP (+Z normal, counter-clockwise seen from above); side walls face outward.</para>
+    /// </summary>
+    public static partial class TerrainWorldMesh   // ⭐ CE-3423 — partial: the per-chunk builds live in TerrainWorldMesh.Chunks.cs
+    {
+        /// <summary>The ground grid's cell size for a world of the given extent: 2 m, coarser for a large world
+        /// so the soup stays near 256×256 cells.</summary>
+        public static float DefaultCellSize(TerrainWorld world)
+        {
+            var size = world.BoundsMax - world.BoundsMin;
+            return MathF.Max(2f, MathF.Max(size.X, size.Y) / 256f);
+        }
+
+        /// <summary>Builds the soup. <paramref name="verts"/> are engine-space points; <paramref name="indices"/>
+        /// three per triangle.</summary>
+        public static void Build(TerrainWorld world, out Vector3[] verts, out int[] indices, float cellSize = 0f)
+            => Build(world, out verts, out indices, out _, cellSize);
+
+        /// <summary>
+        /// ⭐ CE-1033 S4 (docs/DESIGN_Map_3D_Mode.md §4 — "an OPTIONAL per-triangle tag output … verts and indices unchanged, so the
+        /// navmesh is unaffected") — the same soup, and for each triangle what it IS: <see cref="TerrainTriangleTag"/> (ground, a
+        /// roof, a wall, a floor slab) and its material (a prism's material name; <c>"forest"</c> for ground under a forest surface;
+        /// null for plain ground). The 3-D map colours by it; nothing else reads it.
+        /// </summary>
+        public static void Build(TerrainWorld world, out Vector3[] verts, out int[] indices, out TerrainTriangleTag[] tags, float cellSize = 0f)
+        {
+            // ⭐ CE-1452 — ONE build per terrain world at the default cell size: the 3-D mesh, its tags and the picker's grid all ask
+            //   for the same soup (the build took 45–60 s on demo-city, three times over). The arrays are SHARED — read-only for every
+            //   caller (measured: none mutates them). A non-default cell size builds directly, uncached.
+            if (cellSize <= 0f)
+            {
+                var m = Memo.GetValue(world, w => new Lazy<Result>(() => BuildCore(w, DefaultCellSize(w)), LazyThreadSafetyMode.ExecutionAndPublication)).Value;
+                verts = m.Verts; indices = m.Indices; tags = m.Tags;
+                return;
+            }
+            var r = BuildCore(world, cellSize);
+            verts = r.Verts; indices = r.Indices; tags = r.Tags;
+        }
+
+        private sealed record Result(Vector3[] Verts, int[] Indices, TerrainTriangleTag[] Tags);
+
+        private static readonly ConditionalWeakTable<TerrainWorld, Lazy<Result>> Memo = new();
+        private static readonly ConditionalWeakTable<TerrainWorld, StrongBox<int>> CoreBuilds = new();
+
+        /// <summary>How many times THIS world's soup has really been built (a rail counts it — the memo must make it one per world).</summary>
+        internal static int CoreBuildCount(TerrainWorld world) => CoreBuilds.TryGetValue(world, out var n) ? Volatile.Read(ref n.Value) : 0;
+
+        private static Result BuildCore(TerrainWorld world, float cellSize)
+        {
+            Interlocked.Increment(ref CoreBuilds.GetOrCreateValue(world).Value);
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            var g = new List<TerrainTriangleTag>();
+
+            AddGround(world, cellSize, v, t, g);
+            int built = 0;
+            foreach (var prism in world.Prisms)
+            {
+                if ((++built & 255) == 0) Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
+                if (!IsVolumeEffect(prism)) AddPrism(prism, v, t, g);
+            }
+            foreach (var w in world.Walkables)
+            {
+                Fdp.Core.LoadProgress.Report();
+                AddWalkable(w, v, t, g);
+            }
+
+            return new Result(v.ToArray(), t.ToArray(), g.ToArray());
+        }
+
+        private static void AddWalkable(TerrainWalkable w, List<Vector3> v, List<int> t, List<TerrainTriangleTag>? g)
+        {
+            int b = v.Count;
+            v.AddRange(w.Vertices);
+            for (int i = 0; i + 2 < w.Triangles.Length; i += 3)
+            {
+                AddUp(v, t, b + w.Triangles[i], b + w.Triangles[i + 1], b + w.Triangles[i + 2]);
+                g?.Add(new TerrainTriangleTag(TerrainTriangleKind.Slab, null));
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4366</c> (L-4, docs/DESIGN_Scale_Rig.md §5) — the soup's pieces that can reach the rectangle [<paramref name="min"/>,
+        /// <paramref name="max"/>] (engine x/y): the default-cell ground cells over it, the prisms and walkables whose box overlaps it — each
+        /// piece built by the SAME code as <see cref="Build"/>, appended in the SAME order (ground row by row, prisms, walkables). A superset:
+        /// the caller keeps the triangles its own test admits, and gets exactly the triangles the whole soup would give it. The navmesh bake
+        /// asks per tile, so a 5.5 km terrain at 1 m never builds its 61 M-triangle soup (7 GB peak) on a sim node.
+        /// </summary>
+        public static void BuildRegion(TerrainWorld world, Vector2 min, Vector2 max, List<Vector3> v, List<int> t)
+        {
+            var ix = RegionIndex.For(world);
+            // ground: the cells whose square overlaps the rectangle (one cell of slack: the caller's test decides)
+            var (gmin, gmax, cell, nx, ny) = ix.Layout;
+            int ix0 = Math.Max(0, (int)MathF.Floor((min.X - gmin.X) / cell) - 1), ix1 = Math.Min(nx - 1, (int)MathF.Floor((max.X - gmin.X) / cell) + 1);
+            int iy0 = Math.Max(0, (int)MathF.Floor((min.Y - gmin.Y) / cell) - 1), iy1 = Math.Min(ny - 1, (int)MathF.Floor((max.Y - gmin.Y) / cell) + 1);
+            for (int iy = iy0; iy <= iy1; iy++)
+                for (int jx = ix0; jx <= ix1; jx++)
+                    AddGroundCell(world, gmin, gmax, cell, jx, iy, ix.Bins, v, t, null);
+            foreach (int k in ix.Pieces(ix.Prisms, min, max))
+            {
+                var prism = world.Prisms[k];
+                if (!IsVolumeEffect(prism)) AddPrism(prism, v, t, null);
+            }
+            foreach (int k in ix.Pieces(ix.Walkables, min, max))
+                AddWalkable(world.Walkables[k], v, t, null);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4366 — the x/y extent of the whole soup (the ground layout, every non-volume prism, every walkable) and its height range,
+        /// without building it: the navmesh bake lays its tile grid over this. <paramref name="any"/> false ⇒ nothing to bake.
+        /// </summary>
+        public static (Vector2 Min, Vector2 Max) SoupExtent(TerrainWorld world, out float zLo, out float zHi, out bool any)
+        {
+            var (gmin, gmax, _, _, _) = RegionIndex.For(world).Layout;
+            var min = gmin; var max = gmax;
+            zLo = world.Height?.MinZ ?? world.GroundZ; zHi = world.Height?.MaxZ ?? world.GroundZ;
+            foreach (var p in world.Prisms)
+            {
+                if (IsVolumeEffect(p)) continue;
+                min = Vector2.Min(min, p.Min); max = Vector2.Max(max, p.Max);
+                zLo = MathF.Min(zLo, p.BaseZ); zHi = MathF.Max(zHi, p.TopZ);
+            }
+            foreach (var w in world.Walkables)
+            {
+                min = Vector2.Min(min, w.Min); max = Vector2.Max(max, w.Max);
+                zLo = MathF.Min(zLo, w.MinZ); zHi = MathF.Max(zHi, w.MaxZ);
+            }
+            any = true;
+            return (min, max);
+        }
+
+        /// <summary>A world's ground layout, ground bins and piece bins — built once per world (the regions of one bake share them).</summary>
+        private sealed class RegionIndex
+        {
+            private const float Bin = 24f;
+            private static readonly ConditionalWeakTable<TerrainWorld, RegionIndex> Memo = new();
+            public static RegionIndex For(TerrainWorld world) => Memo.GetValue(world, w => new RegionIndex(w));
+
+            public readonly (Vector2 Min, Vector2 Max, float Cell, int Nx, int Ny) Layout;
+            public readonly GroundBins Bins;
+            public readonly Dictionary<(int, int), List<int>> Prisms = new(), Walkables = new();
+
+            private RegionIndex(TerrainWorld world)
+            {
+                Layout = GroundLayout(world, DefaultCellSize(world));
+                Bins = new GroundBins(world);
+                for (int k = 0; k < world.Prisms.Count; k++) File(Prisms, world.Prisms[k].Min, world.Prisms[k].Max, k);
+                for (int k = 0; k < world.Walkables.Count; k++) File(Walkables, world.Walkables[k].Min, world.Walkables[k].Max, k);
+            }
+
+            private static void File(Dictionary<(int, int), List<int>> bins, Vector2 a, Vector2 b, int k)
+            {
+                for (int y = (int)MathF.Floor(a.Y / Bin); y <= (int)MathF.Floor(b.Y / Bin); y++)
+                    for (int x = (int)MathF.Floor(a.X / Bin); x <= (int)MathF.Floor(b.X / Bin); x++)
+                    {
+                        if (!bins.TryGetValue((x, y), out var l)) bins[(x, y)] = l = new List<int>();
+                        l.Add(k);
+                    }
+            }
+
+            /// <summary>The pieces filed in a bin the rectangle touches, ascending (the soup's order), each once.</summary>
+            public List<int> Pieces(Dictionary<(int, int), List<int>> bins, Vector2 min, Vector2 max)
+            {
+                var set = new SortedSet<int>();
+                for (int y = (int)MathF.Floor(min.Y / Bin) - 1; y <= (int)MathF.Floor(max.Y / Bin) + 1; y++)
+                    for (int x = (int)MathF.Floor(min.X / Bin) - 1; x <= (int)MathF.Floor(max.X / Bin) + 1; x++)
+                        if (bins.TryGetValue((x, y), out var l)) foreach (int k in l) set.Add(k);
+                return new List<int>(set);
+            }
+        }
+
+        /// <summary>The ground grid's layout: its corner, its far corner, its cell and its cell counts — the ONE rule <see cref="AddGround"/> lays the
+        /// ground out by and <see cref="BuildApron"/> meets its edge by (same edge vertices ⇒ no crack between them).</summary>
+        private static (Vector2 Min, Vector2 Max, float Cell, int Nx, int Ny) GroundLayout(TerrainWorld world, float cell)
+        {
+            var min = world.BoundsMin;
+            var max = world.BoundsMax;
+            // ⭐ CE-1034 H1 — with a height grid the cells ARE the grid's cells (origin and size), so the triangles here, the navmesh
+            //   baked from them and TerrainWorld.GroundHeightAt describe one surface; without one, the flat cells as before.
+            if (world.Height is { } grid)
+            {
+                cell = grid.CellSize;
+                min = new Vector2(MathF.Floor((min.X - grid.Origin.X) / cell) * cell + grid.Origin.X,
+                                  MathF.Floor((min.Y - grid.Origin.Y) / cell) * cell + grid.Origin.Y);
+            }
+            int nx = Math.Max(1, (int)MathF.Ceiling((max.X - min.X) / cell));
+            int ny = Math.Max(1, (int)MathF.Ceiling((max.Y - min.Y) / cell));
+            return (min, max, cell, nx, ny);
+        }
+
+        /// <summary>The material tag of the <see cref="BuildApron"/> ground.</summary>
+        public const string ApronMaterial = "apron";
+
+        /// <summary>⭐ CE-4122 (HB3) — the apron's coarse cell (m): SUMO's own lattice size.</summary>
+        public const float ApronCoarseCell = 40f;
+        /// <summary>⭐ CE-4122 (HB3) — how far (m) an apron vertex under the SUMO net's ground is sunk, so SUMO's own mesh wins without a gap.</summary>
+        public const float ApronOverlapDrop = 0.3f;
+
+        /// <summary>
+        /// ⭐ The APRON — fake ground round the terrain, for DRAWING only. 🔒 User, 2026-10-30: <i>"The empty space around our terrain is now shown really
+        /// empty. Which looks extra weird when the cars are placed there and moving there … draw there some fake terrain surface, in some cheap and fast
+        /// way"</i> · <i>"there needs to be some basic texture on it so when we move the camera we see that something is moving"</i> · <i>"could it be made a bit
+        /// hilly? … still smoothly connected to our and SUMO terrain"</i>.
+        /// <para>⭐ CE-4122 (§6ad-2, HB3) — a COARSE grid (<see cref="ApronCoarseCell"/>) out to <paramref name="extent"/> metres, a COLLAR zipping the
+        /// terrain's own fine edge vertices (exactly <see cref="GroundLayout"/>'s — no crack) to the coarse grid's first lines, and every vertex at
+        /// <see cref="TerrainWorld.GroundHeightAt"/> — the height a unit out there stands at ⇒ the cars sit on it by construction. Under the attached SUMO
+        /// field's footprint the cells are skipped but one ring, and those ring vertices are sunk <see cref="ApronOverlapDrop"/> so SUMO's own ground mesh
+        /// (its footprint may be rotated) wins without a gap.
+        /// ⛔ Never in <see cref="Build"/>: the navmesh is baked from that soup, and units must not path onto the apron.</para>
+        /// </summary>
+        public static void BuildApron(TerrainWorld world, out Vector3[] verts, out int[] indices, float cellSize = 0f, float extent = 4000f)
+        {
+            if (cellSize <= 0f) cellSize = DefaultCellSize(world);
+            var (min, max, cell, nx, ny) = GroundLayout(world, cellSize);
+            // the edge's coordinates, exactly AddGround's: min + i·cell, the last one clipped to max
+            float X(int i) => MathF.Min(min.X + i * cell, max.X);
+            float Y(int j) => MathF.Min(min.Y + j * cell, max.Y);
+            const float C = ApronCoarseCell;
+            float x0 = min.X, x1 = max.X, y0 = min.Y, y1 = max.Y;
+            // the collar's outer rectangle: coarse lines 20..60 m clear of the terrain's edge
+            int ci0 = (int)MathF.Floor((x0 - 20f) / C), ci1 = (int)MathF.Ceiling((x1 + 20f) / C);
+            int cj0 = (int)MathF.Floor((y0 - 20f) / C), cj1 = (int)MathF.Ceiling((y1 + 20f) / C);
+            int ring = (int)MathF.Ceiling(extent / C);
+            int gi0 = ci0 - ring, gi1 = ci1 + ring, gj0 = cj0 - ring, gj1 = cj1 + ring;
+            int w = gi1 - gi0 + 1, h = gj1 - gj0 + 1;
+            var beyond = world.Beyond is { HasField: true } bg ? bg : null;
+
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            var latIdx = new int[w * h];
+            Array.Fill(latIdx, -1);
+            var latIn = new bool[w * h];   // inside the SUMO field's footprint
+            if (beyond != null)
+                for (int j = 0; j < h; j++)
+                    for (int i = 0; i < w; i++)
+                        latIn[j * w + i] = beyond.InField((gi0 + i) * C, (gj0 + j) * C);
+            int Lat(int i, int j)   // a coarse-lattice vertex, shared by every cell and the collar
+            {
+                int k = (j - gj0) * w + (i - gi0);
+                if (latIdx[k] >= 0) return latIdx[k];
+                float x = i * C, y = j * C;
+                float z = world.GroundHeightAt(x, y) - (latIn[k] ? ApronOverlapDrop : 0f);
+                v.Add(new Vector3(x, y, z));
+                return latIdx[k] = v.Count - 1;
+            }
+            int Fine(float x, float y) { v.Add(new Vector3(x, y, world.GroundHeightAt(x, y))); return v.Count - 1; }
+            void Tri(int a, int b, int c)   // counter-clockwise seen from above
+            {
+                float area = (v[b].X - v[a].X) * (v[c].Y - v[a].Y) - (v[c].X - v[a].X) * (v[b].Y - v[a].Y);
+                if (MathF.Abs(area) < 1e-6f) return;
+                if (area > 0f) { t.Add(a); t.Add(b); t.Add(c); } else { t.Add(a); t.Add(c); t.Add(b); }
+            }
+
+            // ── the coarse grid: every cell outside the collar's rectangle, minus the SUMO field's interior (all four corners in, and so are the 4 neighbours)
+            bool CellAllIn(int i, int j)
+            {
+                if (i < gi0 || i >= gi1 || j < gj0 || j >= gj1) return false;
+                int k = (j - gj0) * w + (i - gi0);
+                return latIn[k] && latIn[k + 1] && latIn[k + w] && latIn[k + w + 1];
+            }
+            for (int j = gj0; j < gj1; j++)
+                for (int i = gi0; i < gi1; i++)
+                {
+                    if (i >= ci0 && i < ci1 && j >= cj0 && j < cj1) continue;   // under the collar and the terrain
+                    if (beyond != null && CellAllIn(i, j) && CellAllIn(i - 1, j) && CellAllIn(i + 1, j) && CellAllIn(i, j - 1) && CellAllIn(i, j + 1)) continue;
+                    int a = Lat(i, j), b = Lat(i + 1, j), c = Lat(i + 1, j + 1), d = Lat(i, j + 1);
+                    Tri(a, b, c); Tri(a, c, d);
+                }
+
+            // ── the collar: four trapezoids, each zipping the terrain's fine edge vertices to the coarse line opposite
+            void Zip(List<int> inner, List<int> outer, bool alongX)
+            {
+                float T(int vi, int first, int last) => alongX ? (v[vi].X - v[first].X) / (v[last].X - v[first].X) : (v[vi].Y - v[first].Y) / (v[last].Y - v[first].Y);
+                int n = inner.Count, m = outer.Count, p = 0, q = 0;
+                while (p < n - 1 || q < m - 1)
+                {
+                    bool advanceInner = q >= m - 1 || (p < n - 1 && T(inner[p + 1], inner[0], inner[n - 1]) <= T(outer[q + 1], outer[0], outer[m - 1]));
+                    if (advanceInner) { Tri(inner[p], inner[p + 1], outer[q]); p++; }
+                    else { Tri(inner[p], outer[q + 1], outer[q]); q++; }
+                }
+            }
+            var inS = new List<int>(); var inN = new List<int>(); var inW = new List<int>(); var inE = new List<int>();
+            for (int i = 0; i <= nx; i++) { inS.Add(Fine(X(i), y0)); inN.Add(Fine(X(i), y1)); }
+            for (int j = 0; j <= ny; j++) { inW.Add(Fine(x0, Y(j))); inE.Add(Fine(x1, Y(j))); }
+            var outS = new List<int>(); var outN = new List<int>(); var outW = new List<int>(); var outE = new List<int>();
+            for (int i = ci0; i <= ci1; i++) { outS.Add(Lat(i, cj0)); outN.Add(Lat(i, cj1)); }
+            for (int j = cj0; j <= cj1; j++) { outW.Add(Lat(ci0, j)); outE.Add(Lat(ci1, j)); }
+            Zip(inS, outS, true); Zip(inN, outN, true); Zip(inW, outW, false); Zip(inE, outE, false);
+
+            verts = v.ToArray();
+            indices = t.ToArray();
+        }
+
+        private static void AddGround(TerrainWorld world, float cell, List<Vector3> v, List<int> t, List<TerrainTriangleTag> g)
+        {
+            var (min, max, cellSize, nx, ny) = GroundLayout(world, cell);
+            cell = cellSize;
+            // ⭐ CE-4363 — the solids, water and woods binned ONCE: scanning every prism per ground cell never finished on the scale
+            //   terrain (7.5 M cells × 1 650 houses' prisms); the answers are the same predicates on a candidate superset
+            var excl = new GroundBins(world);
+
+            for (int iy = 0; iy < ny; iy++)
+            {
+                Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — one per ground row (docs/DESIGN_Cluster_Load_Phase.md §12)
+                for (int ix = 0; ix < nx; ix++) AddGroundCell(world, min, max, cell, ix, iy, excl, v, t, g);
+            }
+        }
+
+        /// <summary>One ground cell's two triangles (unless a solid or water covers its centre) — the ONE place a ground cell is made.</summary>
+        private static void AddGroundCell(TerrainWorld world, Vector2 min, Vector2 max, float cell, int ix, int iy, GroundBins excl,
+                                          List<Vector3> v, List<int> t, List<TerrainTriangleTag>? g)
+        {
+            float x0 = min.X + (ix * cell), y0 = min.Y + (iy * cell);
+            float x1 = MathF.Min(x0 + cell, max.X), y1 = MathF.Min(y0 + cell, max.Y);
+            if (excl.Excluded(new Vector2((x0 + x1) * 0.5f, (y0 + y1) * 0.5f))) return;
+
+            int b = v.Count;
+            v.Add(new Vector3(x0, y0, world.GroundHeightAt(x0, y0)));
+            v.Add(new Vector3(x1, y0, world.GroundHeightAt(x1, y0)));
+            v.Add(new Vector3(x1, y1, world.GroundHeightAt(x1, y1)));
+            v.Add(new Vector3(x0, y1, world.GroundHeightAt(x0, y1)));
+            t.Add(b); t.Add(b + 1); t.Add(b + 2);
+            t.Add(b); t.Add(b + 2); t.Add(b + 3);
+            if (g == null) return;
+            var tag = new TerrainTriangleTag(TerrainTriangleKind.Ground,
+                excl.InForest(new Vector2((x0 + x1) * 0.5f, (y0 + y1) * 0.5f)) ? ForestMaterial : null);
+            g.Add(tag); g.Add(tag);
+        }
+
+        /// <summary>The material tag of ground under a forest surface.</summary>
+        public const string ForestMaterial = "forest";
+
+        /// <summary>
+        /// ⭐ CE-4363 — what the ground mesh asks per cell, answered from bins: a cell is cut where a SOLID prism (a block building; a wall
+        /// panel never — Buildings 5d) or water covers its centre, and tagged forest under a forest surface. Each polygon is filed in every
+        /// bin its box touches, so a point's bin holds every polygon that can contain it.
+        /// </summary>
+        private sealed class GroundBins
+        {
+            private const float Bin = 32f;
+            private readonly Vector2 _min;
+            private readonly int _nx, _ny;
+            private readonly List<int>?[] _cut, _forest, _water;
+            private readonly List<(Vector2 Min, Vector2 Max, IReadOnlyList<Vector2> Poly)> _cutPolys = new(), _forestPolys = new(), _waterPolys = new();
+
+            public GroundBins(TerrainWorld world)
+            {
+                foreach (var prism in world.Prisms)
+                    if (prism.Panel < 0) _cutPolys.Add((prism.Min, prism.Max, prism.Footprint));
+                foreach (var s in world.Surfaces)
+                {
+                    if (s.Type == TerrainSurfaceType.Water) { _cutPolys.Add((s.Min, s.Max, s.Polygon)); _waterPolys.Add((s.Min, s.Max, s.Polygon)); }
+                    else if (s.Type == TerrainSurfaceType.Forest) _forestPolys.Add((s.Min, s.Max, s.Polygon));
+                }
+                var lo = world.BoundsMin; var hi = world.BoundsMax;
+                foreach (var (a, b, _) in _cutPolys) { lo = Vector2.Min(lo, a); hi = Vector2.Max(hi, b); }
+                foreach (var (a, b, _) in _forestPolys) { lo = Vector2.Min(lo, a); hi = Vector2.Max(hi, b); }
+                _min = lo;
+                _nx = Math.Max(1, (int)MathF.Ceiling((hi.X - lo.X) / Bin) + 1);
+                _ny = Math.Max(1, (int)MathF.Ceiling((hi.Y - lo.Y) / Bin) + 1);
+                _cut = File(_cutPolys);
+                _forest = File(_forestPolys);
+                _water = File(_waterPolys);
+            }
+
+            private List<int>?[] File(List<(Vector2 Min, Vector2 Max, IReadOnlyList<Vector2> Poly)> polys)
+            {
+                var bins = new List<int>?[_nx * _ny];
+                for (int i = 0; i < polys.Count; i++)
+                {
+                    int x0 = Col(polys[i].Min.X), x1 = Col(polys[i].Max.X), y0 = Row(polys[i].Min.Y), y1 = Row(polys[i].Max.Y);
+                    for (int y = y0; y <= y1; y++)
+                        for (int x = x0; x <= x1; x++)
+                            (bins[y * _nx + x] ??= new List<int>()).Add(i);
+                }
+                return bins;
+            }
+
+            private int Col(float x) => Math.Clamp((int)MathF.Floor((x - _min.X) / Bin), 0, _nx - 1);
+            private int Row(float y) => Math.Clamp((int)MathF.Floor((y - _min.Y) / Bin), 0, _ny - 1);
+
+            private static bool Any(List<int>? bin, List<(Vector2 Min, Vector2 Max, IReadOnlyList<Vector2> Poly)> polys, Vector2 p)
+            {
+                if (bin == null) return false;
+                foreach (int i in bin)
+                    if (InBox(p, polys[i].Min, polys[i].Max) && PolygonMath.Contains(polys[i].Poly, p)) return true;
+                return false;
+            }
+
+            public bool Excluded(Vector2 p) => Any(_cut[Row(p.Y) * _nx + Col(p.X)], _cutPolys, p);
+            public bool InForest(Vector2 p) => Any(_forest[Row(p.Y) * _nx + Col(p.X)], _forestPolys, p);
+            /// <summary>⭐ CE-3423 L-3 — under water only (a coarse level cuts nothing else).</summary>
+            public bool InWater(Vector2 p) => Any(_water[Row(p.Y) * _nx + Col(p.X)], _waterPolys, p);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1165</c> (civilian U-4, docs/DESIGN_Civilians_And_Crowd_Control.md §8 U4-b) — a prism of a material that lets sight through
+        /// AND does not block movement (a tear-gas or smoke cloud's obstacle, B1-c) is a VOLUME, not a solid: it is left out of the mesh — so
+        /// it neither renders as a block nor enters the navmesh (it blocks nothing) — and its own layer draws it. Sight still reads the
+        /// prism itself. ⚠ Every built-in see-through material today (glass, hedge, chain-link fence) blocks movement, so none is affected.
+        /// </summary>
+        public static bool IsVolumeEffect(TerrainPrism prism) => prism.Material is { SightTransmittance: > 0f, BlocksMovement: false };
+
+        private static void AddPrism(TerrainPrism prism, List<Vector3> v, List<int> t, List<TerrainTriangleTag>? g)
+        {
+            var fp = prism.Footprint;
+            int n = fp.Length;
+            if (n < 3) return;
+            string material = prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial;
+
+            // Roof.
+            int roof = v.Count;
+            foreach (var p in fp) v.Add(new Vector3(p, prism.TopZ));
+            for (int i = 0; i + 2 < prism.Triangles.Length; i += 3)
+            {
+                AddUp(v, t, roof + prism.Triangles[i], roof + prism.Triangles[i + 1], roof + prism.Triangles[i + 2]);
+                g?.Add(new TerrainTriangleTag(TerrainTriangleKind.Roof, material));
+            }
+
+            // Side walls, one quad per edge, facing outward.
+            bool ccw = PolygonMath.SignedArea2(fp) > 0f;
+            for (int i = 0; i < n; i++)
+            {
+                var a = fp[i];
+                var c = fp[(i + 1) % n];
+                if (!ccw) (a, c) = (c, a);          // walk CCW so the outward side is to the right
+                int b = v.Count;
+                v.Add(new Vector3(a, prism.BaseZ));
+                v.Add(new Vector3(c, prism.BaseZ));
+                v.Add(new Vector3(c, prism.TopZ));
+                v.Add(new Vector3(a, prism.TopZ));
+                t.Add(b); t.Add(b + 1); t.Add(b + 2);
+                t.Add(b); t.Add(b + 2); t.Add(b + 3);
+                if (g == null) continue;
+                var wall = new TerrainTriangleTag(TerrainTriangleKind.Wall, material);
+                g.Add(wall); g.Add(wall);
+            }
+        }
+
+        /// <summary>Adds a triangle wound so its normal points up (+Z).</summary>
+        private static void AddUp(List<Vector3> v, List<int> t, int i0, int i1, int i2)
+        {
+            var n = Vector3.Cross(v[i1] - v[i0], v[i2] - v[i0]);
+            t.Add(i0);
+            if (n.Z >= 0f) { t.Add(i1); t.Add(i2); }
+            else           { t.Add(i2); t.Add(i1); }
+        }
+
+        private static bool InBox(Vector2 p, Vector2 min, Vector2 max)
+            => p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y;
+    }
+
+    /// <summary>⭐ CE-1033 S4 — what a terrain mesh triangle is.</summary>
+    public enum TerrainTriangleKind : byte { Ground = 0, Wall = 1, Roof = 2, Slab = 3 }
+
+    /// <summary>⭐ CE-1033 S4 — a terrain mesh triangle's kind and material name (null = plain ground).</summary>
+    public readonly record struct TerrainTriangleTag(TerrainTriangleKind Kind, string? Material);
+}

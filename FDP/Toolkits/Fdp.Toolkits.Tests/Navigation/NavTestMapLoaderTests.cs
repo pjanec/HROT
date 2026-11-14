@@ -71,7 +71,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             var map = NavTestMapLoader.FromFile(DataPath("flying.json"));
             Assert.Single(map.NoFlyZones);
             Assert.Equal(new Vector3(10f, 0f, 0f), map.NoFlyZones[0].Bounds.Min);
-            Assert.Equal(new Vector3(20f, 5f, 100f), map.NoFlyZones[0].Bounds.Max);
+            Assert.Equal(new Vector3(20f, 100f, 5f), map.NoFlyZones[0].Bounds.Max); // Z-up: Y 0..100 north, altitude Z 0..5
         }
 
         [Fact]

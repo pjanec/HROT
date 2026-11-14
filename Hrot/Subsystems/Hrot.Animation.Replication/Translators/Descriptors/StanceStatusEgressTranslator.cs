@@ -7,6 +7,7 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.MuscleCharacter.Animation.Components;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Animation.Replication.Translators.Descriptors;
 
@@ -17,13 +18,17 @@ namespace Hrot.Animation.Replication.Translators.Descriptors;
 /// </summary>
 internal sealed class StanceStatusEgressTranslator : INetworkTranslator
 {
-    private const string TopicNameConst = "hrot/anim/StanceStatus";
+
+    /// <summary>⭐ <c>CE-2121</c> — NED's <c>dtStanceStatus</c> (105): the MuscleGround group's descriptor for <see cref="StanceStatus"/>
+    /// (<c>NedOwnershipGroupBinding</c>); a rail pins the two equal.</summary>
+    public const long DescriptorOrdinal = 105;
 
     private readonly IAnimDdsWriter<DdsStanceStatus> _writer;
     private readonly NetworkEntityMap _entityMap;
     private readonly Dictionary<Entity, (StanceTransitionPhase, StanceId, uint)> _lastPublished = new();
+    private int _worldEpoch;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DdsStanceStatus>();
     public TranslatorDirection Direction => TranslatorDirection.Egress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -31,7 +36,7 @@ internal sealed class StanceStatusEgressTranslator : INetworkTranslator
 
     internal StanceStatusEgressTranslator(
         DdsParticipant participant, NetworkEntityMap entityMap)
-        : this(new DdsLiveWriter<DdsStanceStatus>(participant, TopicNameConst), entityMap)
+        : this(new DdsLiveWriter<DdsStanceStatus>(participant), entityMap)
     {
     }
 
@@ -46,14 +51,19 @@ internal sealed class StanceStatusEgressTranslator : INetworkTranslator
 
     public void ScanAndPublish(ISimulationView view)
     {
+        // ⭐ R-3039 S3 — a world replacement (a load, a restore): forget what was published, so every owner republishes (R-3041).
+        if (WorldEpoch.Moved(view, ref _worldEpoch)) { _lastPublished.Clear(); }
         var query = view.Query()
             .With<StanceStatus>()
             .With<NetworkIdentity>()
             .Build();
 
+        long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
         foreach (var entity in query)
         {
-            if (!view.HasAuthority(entity)) continue;
+            // ⭐ CE-2121 — the GROUP that owns the report (MuscleGround), not the entity's primary owner (the CGF) — with the primary
+            //   owner the body's stance never left SimHost. ⛔ SUPERSEDED: HasAuthority(entity).
+            if (!view.HasAuthority(entity, packedKey)) continue;
 
             ref readonly var status = ref view.GetComponentRO<StanceStatus>(entity);
 

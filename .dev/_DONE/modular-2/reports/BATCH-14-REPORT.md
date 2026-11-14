@@ -91,7 +91,7 @@ Result: **zero matches** (excluding comments).
 ## Build Result
 
 ```
-dotnet build IOS-IG-SimHost.sln -v quiet
+dotnet build HROT.sln -v quiet
 ```
 **0 errors, 0 warnings** (related to our changes).
 
@@ -100,7 +100,7 @@ dotnet build IOS-IG-SimHost.sln -v quiet
 ## Test Results
 
 ```
-dotnet test IOS-IG-SimHost.sln --filter "FullyQualifiedName!~Integration"
+dotnet test HROT.sln --filter "FullyQualifiedName!~Integration"
 ```
 
 | Assembly | Passed | Failed | Skipped |

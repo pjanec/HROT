@@ -1,0 +1,23 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4035 G-11: a manned M2 engages an intruder. From the header's Judge (1)-(2): the M2 deploys, a round from the M2 or its gunner goes at the intruder.",
+  "runFor": 100,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the M2 is deployed",
+      "on": "field",
+      "who": "M2 HMG",
+      "path": "WeaponSystemState.Deploy",
+      "op": "==",
+      "value": "Deployed"
+    },
+    {
+      "name": "the M2 fires on the intruder",
+      "on": "shot",
+      "by": "*M2",
+      "at": "Intruder"
+    }
+  ]
+}

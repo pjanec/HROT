@@ -1,0 +1,125 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CV-14 (CE-2241 B7): the police provoke a crowd and a fraction riots. From the header's Judge (1), (2), (4); 'police within 30 m' of a protester is read as 40 m of the crowd's point (224,265), a looser (earlier) anchor; (3) 'every Hostile civilian rioted first, the same on every node' is not expressible. A 15-unit crowd scene, so no golden (§5).",
+  "runFor": 170,
+  "golden": false,
+  "anchors": {
+    "police close": {
+      "on": "near",
+      "who": "*Police",
+      "point": [
+        224,
+        265
+      ],
+      "within": 40
+    }
+  },
+  "expect": [
+    {
+      "name": "the police close in on the crowd (40 m of its point)",
+      "on": "near",
+      "who": "*Police",
+      "point": [
+        224,
+        265
+      ],
+      "within": 40
+    },
+    {
+      "name": "nobody riots before the police are close",
+      "never": {
+        "on": "field",
+        "who": "*Protester",
+        "path": "CivilianState.Mode",
+        "op": "==",
+        "value": "Riot"
+      },
+      "before": "police close"
+    },
+    {
+      "name": "the baton charge knocks a protester down",
+      "on": "field",
+      "who": "*Protester",
+      "path": "EffectState.KnockedDownUntil",
+      "op": ">",
+      "value": "$now"
+    },
+    {
+      "name": "a protester riots",
+      "on": "field",
+      "who": "*Protester",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Riot"
+    },
+    {
+      "name": "Protester 2 (attitude -1) never riots",
+      "never": {
+        "on": "field",
+        "who": "Protester 2",
+        "path": "CivilianState.Mode",
+        "op": "==",
+        "value": "Riot"
+      }
+    },
+    {
+      "name": "Protester 5 (attitude -1) never riots",
+      "never": {
+        "on": "field",
+        "who": "Protester 5",
+        "path": "CivilianState.Mode",
+        "op": "==",
+        "value": "Riot"
+      }
+    },
+    {
+      "name": "Protester 7 (attitude -1) never riots",
+      "never": {
+        "on": "field",
+        "who": "Protester 7",
+        "path": "CivilianState.Mode",
+        "op": "==",
+        "value": "Riot"
+      }
+    },
+    {
+      "name": "Protester 10 (attitude -1) never riots",
+      "never": {
+        "on": "field",
+        "who": "Protester 10",
+        "path": "CivilianState.Mode",
+        "op": "==",
+        "value": "Riot"
+      }
+    },
+    {
+      "name": "Police shield reaches his post",
+      "on": "near",
+      "who": "Police shield",
+      "point": [
+        194,
+        259
+      ],
+      "within": 3
+    },
+    {
+      "name": "Police baton 1 reaches his post",
+      "on": "near",
+      "who": "Police baton 1",
+      "point": [
+        194,
+        265
+      ],
+      "within": 3
+    },
+    {
+      "name": "Police baton 2 reaches his post",
+      "on": "near",
+      "who": "Police baton 2",
+      "point": [
+        194,
+        271
+      ],
+      "within": 3
+    }
+  ]
+}

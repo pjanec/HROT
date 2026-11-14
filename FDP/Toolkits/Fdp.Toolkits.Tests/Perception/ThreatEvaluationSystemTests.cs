@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Linq;
 using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Toolkit.Perception.Components;
@@ -19,7 +20,7 @@ namespace Fdp.Toolkit.Perception.Tests
     /// <para>
     /// Since the architectural refactor (CQRS sensor pipeline), <see cref="ThreatEvaluationSystem"/>
     /// reads <see cref="ActiveSensorTracks"/> (Brain cognitive buffer written by
-    /// <c>SensorTrackStateIngressTranslator</c>) instead of <see cref="TargetVisibleEvent"/>.
+    /// <c>SensorTrackStateIngressTranslator</c>) instead of the retired <c>TargetVisibleEvent</c>.
     /// </para>
     /// </summary>
     public class ThreatEvaluationSystemTests
@@ -31,6 +32,36 @@ namespace Fdp.Toolkit.Perception.Tests
             var ecb = (EntityCommandBuffer)view.GetCommandBuffer();
             ecb.Playback(world);
             world.Bus.SwapBuffers();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2429</c> (Next_3 H-2) — on the live world the evaluation writes the memory IN PLACE: a seed a behaviour writes after it (an
+        /// attack order designating its target) survives the frame's playback, and the evaluation's decay is visible at once. 📐 Live
+        /// (ua-technical-scoot): the whole memory copy played back after the brain tick and erased the seed. 🔴 Red-proof: write through the
+        /// command buffer again ⇒ the seed is gone after playback.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2429_ABehavioursSameFrameSeed_SurvivesTheEvaluation()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            var view  = (ISimulationView)world;
+            var sys   = new ThreatEvaluationSystem();
+            var unit = world.CreateEntity();
+            world.AddComponent(unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            var mem = new TargetMemory();
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: Target(world), posX: 10f, posY: 20f, scoreBoost: 100f, tick: 0u);
+            world.AddComponent(unit, mem);
+
+            sys.Execute(view, 1.0f);                                                       // the evaluation (decay ⇒ changed)
+            Assert.Equal(100f * (1f - PerceptionConstants.ThreatScoreDecayPerSecond), world.GetComponent<TargetMemory>(unit).Freshness[0], 3);   // visible at once
+            long seeded = Target(world);
+            ref var live = ref world.GetComponentRW<TargetMemory>(unit);                   // a behaviour seeds its named target, same frame
+            TargetMemory.AddOrUpdateTarget(ref live, entityId: seeded, posX: 50f, posY: 60f, scoreBoost: 80f, tick: 1u);
+            FlushEcbAndSwap(view, world);                                                  // the frame's playback
+
+            var after = world.GetComponent<TargetMemory>(unit);
+            Assert.Equal(2, after.Count);
+            Assert.True(after.EntityIds[0] == seeded || after.EntityIds[1] == seeded, "the same-frame seed survives the playback");
         }
 
         // ── Test 1: decay ─────────────────────────────────────────────────────────────
@@ -53,7 +84,7 @@ namespace Fdp.Toolkit.Perception.Tests
             // Seed TargetMemory with a single entry at score 100.
             var initMem = new TargetMemory();
             TargetMemory.AddOrUpdateTarget(ref initMem,
-                entityId:   42L,
+                entityId:   Target(world),
                 posX:       10f,
                 posY:       20f,
                 scoreBoost: 100f,
@@ -68,7 +99,7 @@ namespace Fdp.Toolkit.Perception.Tests
             const float expected = 100f * (1f - PerceptionConstants.ThreatScoreDecayPerSecond * 1.0f);
             var resultMem = world.GetComponent<TargetMemory>(observer);
             Assert.Equal(1, resultMem.Count);
-            Assert.Equal(expected, resultMem.ThreatScores[0]);
+            Assert.Equal(expected, resultMem.Freshness[0]);
         }
 
         // ── Test 2: ActiveSensorTracks boost ─────────────────────────────────────────
@@ -86,7 +117,7 @@ namespace Fdp.Toolkit.Perception.Tests
             var view  = (ISimulationView)world;
             var sys   = new ThreatEvaluationSystem();
 
-            const long targetEntityId = 12345L;
+            long targetEntityId = Target(world);   // CE-3046 — a live target (a dead one is forgotten)
 
             var observer = world.CreateEntity();
             world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
@@ -108,22 +139,22 @@ namespace Fdp.Toolkit.Perception.Tests
             var resultMem = world.GetComponent<TargetMemory>(observer);
             Assert.Equal(1, resultMem.Count);
             Assert.Equal(targetEntityId, resultMem.EntityIds[0]);
-            Assert.True(resultMem.ThreatScores[0] > 0f,
+            Assert.True(resultMem.Freshness[0] > 0f,
                 "Score must be boosted when ActiveSensorTracks has acquired targets.");
-            Assert.True(resultMem.ThreatScores[0] >= 49f,
+            Assert.True(resultMem.Freshness[0] >= 49f,
                 "Boost rate must be approximately 50 * deltaTime per second.");
         }
 
-        // ── Test 3: zero-score retention policy ──────────────────────────────────────
+        // ── Test 3: CE-3046 — a faded entry no sensor tracks is FORGOTTEN ───────────
 
         /// <summary>
-        /// Phase 2 policy: zero-score entries are retained (not evicted).
-        /// When eviction is added in a future phase, change assertion to Count == 0.
+        /// ⭐ CE-3046 — once a score fades below <see cref="PerceptionConstants.ForgetThreatScore"/> and no sensor tracks the
+        /// target, the entry is removed. 🔴 It used to be retained forever ("Phase 2 policy"), so a long scenario filled the
+        /// table with dead and long-lost targets.
         /// </summary>
         [Fact]
-        public unsafe void ThreatEvaluation_ZeroScoreEntry_IsRetained()
+        public unsafe void ThreatEvaluation_FadedUntrackedEntry_IsForgotten_CE3046()
         {
-            // Arrange
             var world = PerceptionTestWorldFactory.Create();
             var view  = (ISimulationView)world;
             var sys   = new ThreatEvaluationSystem();
@@ -132,7 +163,7 @@ namespace Fdp.Toolkit.Perception.Tests
             world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
 
             var initMem = new TargetMemory();
-            TargetMemory.AddOrUpdateTarget(ref initMem, entityId: 99L, posX: 0f, posY: 0f, scoreBoost: 1.0f, tick: 0u);
+            TargetMemory.AddOrUpdateTarget(ref initMem, entityId: Target(world), posX: 0f, posY: 0f, scoreBoost: 1.0f, tick: 0u);
             world.AddComponent(observer, initMem);
 
             // Apply dt large enough to drive score to 0.
@@ -141,10 +172,328 @@ namespace Fdp.Toolkit.Perception.Tests
             sys.Execute(view, dt);
             FlushEcbAndSwap(view, world);
 
-            var resultMem = world.GetComponent<TargetMemory>(observer);
-            Assert.Equal(1, resultMem.Count);
-            Assert.Equal(0f, resultMem.ThreatScores[0]);
+            Assert.Equal(0, world.GetComponent<TargetMemory>(observer).Count);
         }
+
+        /// <summary>
+        /// ⭐⭐ CE-2371 (AQ104 D, R-2079) — an ALERTED contact (a lease his task renews) is not forgotten while the lease runs: it is held at
+        /// the forget line, still remembered; once the lease lapses the next fade forgets it as before. 🔴 Red-proof: the lease check
+        /// dropped from the forget step ⇒ it is forgotten at once.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2371_AnAlertedContact_IsNotForgotten_WhileTheLeaseRuns()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            if (!world.IsComponentTypeRegistered<Alerted>()) world.RegisterComponent<Alerted>();
+            var view = (ISimulationView)world;
+            var sys  = new ThreatEvaluationSystem();
+            var observer = world.CreateEntity();
+            world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            long id = Target(world);
+            var initMem = new TargetMemory();
+            TargetMemory.AddOrUpdateTarget(ref initMem, entityId: id, posX: 0f, posY: 0f, scoreBoost: 1.0f, tick: 0u);
+            world.AddComponent(observer, initMem);
+            world.SetSingleton(new GlobalTime { TotalTime = 100.0, DeltaTime = 0.1f, TimeScale = 1f, FrameNumber = 1000 });
+            Assert.True(Alerts.Pin(world, observer, id, 100.0));
+
+            sys.Execute(view, 1f / PerceptionConstants.ThreatScoreDecayPerSecond);   // drives the score to 0
+            FlushEcbAndSwap(view, world);
+            var mem = world.GetComponent<TargetMemory>(observer);
+            Assert.Equal(1, mem.Count);
+            Assert.Equal(PerceptionConstants.ForgetThreatScore, mem.Freshness[0]);
+
+            world.SetSingleton(new GlobalTime { TotalTime = 100.0 + Alerts.LeaseSeconds + 0.1, DeltaTime = 0.1f, TimeScale = 1f, FrameNumber = 1030 });
+            sys.Execute(view, 1f / PerceptionConstants.ThreatScoreDecayPerSecond);
+            FlushEcbAndSwap(view, world);
+            Assert.Equal(0, world.GetComponent<TargetMemory>(observer).Count);   // the lease lapsed: forgotten as before
+        }
+
+        /// <summary>⭐ CE-3046 — a target that no longer exists is forgotten at once, whatever its score.</summary>
+        [Fact]
+        public unsafe void ThreatEvaluation_DeadTarget_IsForgotten_CE3046()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            var view  = (ISimulationView)world;
+            var sys   = new ThreatEvaluationSystem();
+
+            var observer = world.CreateEntity();
+            world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            long alive = Target(world);
+            var gone   = world.CreateEntity();
+            var initMem = new TargetMemory();
+            TargetMemory.AddOrUpdateTarget(ref initMem, entityId: alive, posX: 0f, posY: 0f, scoreBoost: 100f, tick: 0u);
+            TargetMemory.AddOrUpdateTarget(ref initMem, entityId: (long)gone.PackedValue, posX: 0f, posY: 0f, scoreBoost: 400f, tick: 0u);
+            world.AddComponent(observer, initMem);
+            world.DestroyEntity(gone);
+
+            sys.Execute(view, 0.1f);
+            FlushEcbAndSwap(view, world);
+
+            var mem = world.GetComponent<TargetMemory>(observer);
+            Assert.Equal(1, mem.Count);
+            Assert.Equal(alive, mem.EntityIds[0]);
+        }
+
+        /// <summary>⭐ CE-3046 — a faded entry a sensor STILL tracks is kept (it is boosted back up).</summary>
+        [Fact]
+        public unsafe void ThreatEvaluation_FadedButTrackedEntry_IsKept_CE3046()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            var view  = (ISimulationView)world;
+            var sys   = new ThreatEvaluationSystem();
+
+            var observer = world.CreateEntity();
+            world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            long id = Target(world);
+            var initMem = new TargetMemory();
+            TargetMemory.AddOrUpdateTarget(ref initMem, entityId: id, posX: 0f, posY: 0f, scoreBoost: 0.01f, tick: 0u);
+            world.AddComponent(observer, initMem);
+            var tracks = new ActiveSensorTracks();
+            tracks.EntityIds[0] = id;
+            tracks.Count = 1;
+            world.AddComponent(observer, tracks);
+
+            sys.Execute(view, 0.001f);   // boost 0.05: still under the forget threshold
+            FlushEcbAndSwap(view, world);
+
+            Assert.Equal(1, world.GetComponent<TargetMemory>(observer).Count);
+        }
+
+        // ── ⭐ CE-3063 — anonymous (heard) contacts (DESIGN_Thermal_And_Acoustic_Sensing §5.1, §6 D′–D″, §6.1a) ──────────
+
+        private static (EntityRepository world, ISimulationView view, ThreatEvaluationSystem sys, Entity unit) HearingWorld()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            if (!world.Bus.IsRegistered<SoundContactEvent>()) world.RegisterEvent<SoundContactEvent>();
+            var unit = world.CreateEntity();
+            world.AddComponent(unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            world.AddComponent(unit, new TargetMemory());
+            return (world, world, new ThreatEvaluationSystem(), unit);
+        }
+
+        private static void Hear(EntityRepository world, Entity unit, float x, float y, float radius, byte cls)
+        {
+            world.Bus.Publish(new SoundContactEvent { Observer = unit, X = x, Y = y, Radius = radius, Kind = 2, SourceClass = cls });
+            world.Bus.SwapBuffers();
+        }
+
+        private const byte Footsteps = 1, TrackedEngine = 3, SmallArms = 4;
+
+        /// <summary>⭐ Acceptance 1 — a shot heard 200 m north is ONE anonymous contact there; repeated shots keep ONE and shrink it.</summary>
+        [Fact]
+        public unsafe void AHeardShot_IsOneAnonymousContact_AndRepeatsShrinkIt_CE3063()
+        {
+            var (world, view, sys, unit) = HearingWorld();
+
+            Hear(world, unit, 3f, 200f, radius: 30f, SmallArms);          // 0.15 × 200 m
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            var mem = world.GetComponent<TargetMemory>(unit);
+            Assert.Equal(1, mem.Count);
+            Assert.True(TargetMemory.IsAnonymous(in mem, 0));
+            Assert.True(mem.EntityIds[0] < 0, "a synthetic negative id, never an entity");
+            Assert.Equal(30f, mem.Radius[0]);
+            Assert.Equal(SmallArms, mem.SourceClass[0]);
+            Assert.Equal((byte)SensorModality.Acoustic, mem.Modalities[0]);
+            long id = mem.EntityIds[0];
+
+            Hear(world, unit, -4f, 196f, radius: 30f, SmallArms);
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            mem = world.GetComponent<TargetMemory>(unit);
+            Assert.Equal(1, mem.Count);
+            Assert.Equal(id, mem.EntityIds[0]);                                // the SAME contact, followable across ticks
+            Assert.True(mem.Radius[0] < 30f, $"fusing two estimates narrows the contact (radius {mem.Radius[0]})");
+        }
+
+        /// <summary>⭐ K3 — the class guards fusing: footsteps never fuse with a tank engine.</summary>
+        [Fact]
+        public void IncompatibleClasses_DoNotFuse_CE3063()
+        {
+            var (world, view, sys, unit) = HearingWorld();
+            Hear(world, unit, 0f, 100f, 20f, Footsteps);
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            Hear(world, unit, 2f, 101f, 20f, TrackedEngine);
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            Assert.Equal(2, world.GetComponent<TargetMemory>(unit).Count);
+        }
+
+        /// <summary>⭐ Acceptance 2 — seeing the shooter inside the circle turns the contact INTO the shooter: no duplicate.</summary>
+        [Fact]
+        public unsafe void ASightingInsideTheCircle_AbsorbsTheHeardContact_CE3063()
+        {
+            var (world, view, sys, unit) = HearingWorld();
+            Hear(world, unit, 0f, 200f, 30f, SmallArms);
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+
+            long shooter = Target(world);
+            var tracks = new ActiveSensorTracks();
+            tracks.EntityIds[0] = shooter; tracks.PositionsX[0] = 10f; tracks.PositionsY[0] = 190f; tracks.Count = 1;
+            world.AddComponent(unit, tracks);
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+
+            var mem = world.GetComponent<TargetMemory>(unit);
+            Assert.Equal(1, mem.Count);
+            Assert.Equal(shooter, mem.EntityIds[0]);
+            Assert.False(TargetMemory.IsAnonymous(in mem, 0));
+            Assert.Equal(SmallArms, mem.SourceClass[0]);                       // what it sounded like is kept
+        }
+
+        /// <summary>⭐ A heard contact is not an entity: it is never forgotten as "dead", only by fading; and the first one
+        /// is the unit's FirstThreat (K2).</summary>
+        [Fact]
+        public void AHeardContact_FadesButIsNotDead_AndIsAFirstThreat_CE3063()
+        {
+            var (world, view, sys, unit) = HearingWorld();
+            Hear(world, unit, 0f, 50f, 8f, SmallArms);
+            sys.Execute(view, 0.1f);
+            var ecb = (EntityCommandBuffer)view.GetCommandBuffer(); ecb.Playback(world);
+            world.Bus.SwapBuffers();
+            Assert.Contains(view.ReadEvents<SensorChangedEvent>().ToArray(), e => e.Unit == unit && e.What == SensorChange.FirstThreat);
+
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            Assert.Equal(1, world.GetComponent<TargetMemory>(unit).Count);    // survives the dead-entity check
+
+            sys.Execute(view, 60f); FlushEcbAndSwap(view, world);             // fades below the forget threshold
+            Assert.Equal(0, world.GetComponent<TargetMemory>(unit).Count);
+        }
+
+        // ── ⭐ CE-2165 V8 — the AIR THREAT edge (DESIGN_Vehicle_Exposure_Cycle §8) ─────────────────────────────────────────
+
+        private const byte Rotor = (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Rotor;
+
+        /// <summary>One tick; true when it raised <see cref="SensorChange.AirThreat"/> on <paramref name="unit"/>.</summary>
+        private static bool TickRaisesAirThreat(EntityRepository world, ISimulationView view, ThreatEvaluationSystem sys, Entity unit)
+        {
+            sys.Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(world);
+            world.Bus.SwapBuffers();
+            return view.ReadEvents<SensorChangedEvent>().ToArray().Any(e => e.Unit == unit && e.What == SensorChange.AirThreat);
+        }
+
+        private static Entity Body(EntityRepository world, Fdp.Toolkit.Tkb.Domain.LocomotionClass cls)
+        {
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>()) world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            var e = world.CreateEntity();
+            world.AddComponent(e, new Fdp.Toolkit.Motion.Locomotion { Class = cls });
+            return e;
+        }
+
+        private static unsafe void See(EntityRepository world, Entity unit, Entity target, float x, float y)
+        {
+            var tracks = new ActiveSensorTracks();
+            tracks.EntityIds[0] = (long)target.PackedValue; tracks.PositionsX[0] = x; tracks.PositionsY[0] = y; tracks.Count = 1;
+            if (world.HasComponent<ActiveSensorTracks>(unit)) world.SetComponent(unit, tracks); else world.AddComponent(unit, tracks);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>V8_AHeardDrone_Raises_AirThreat</c> — rotors heard: <see cref="SensorChange.AirThreat"/>; the same rotors heard again (one
+        /// fused contact) do not raise it again; a SECOND drone heard elsewhere does; a heard rifle never does. 🔴 Red-proof: count new
+        /// slots of any class and the rifle raises it.
+        /// </summary>
+        [Fact]
+        public void V8_AHeardDrone_Raises_AirThreat()
+        {
+            var (world, view, sys, unit) = HearingWorld();
+            Hear(world, unit, 0f, 100f, 15f, Rotor);
+            Assert.True(TickRaisesAirThreat(world, view, sys, unit), "rotors heard: an air threat");
+            Hear(world, unit, 3f, 98f, 15f, Rotor);
+            Assert.False(TickRaisesAirThreat(world, view, sys, unit), "the same drone heard again is the same contact");
+            Hear(world, unit, 300f, 0f, 40f, Rotor);
+            Assert.True(TickRaisesAirThreat(world, view, sys, unit), "a second drone");
+            Hear(world, unit, -200f, 0f, 30f, SmallArms);
+            Assert.False(TickRaisesAirThreat(world, view, sys, unit), "a rifle is not an air threat");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>V8_ASeenFlyer_Raises_AirThreat</c> — a SEEN contact whose body moves in the Air domain (a rotorcraft) raises it, a seen tank
+        /// does not; and a drone first HEARD, then SEEN inside its circle (the sighting absorbs the heard slot) is ONE alarm, not two.
+        /// </summary>
+        [Fact]
+        public void V8_ASeenFlyer_Raises_AirThreat_ATankDoesNot_AndHeardThenSeenIsOneAlarm()
+        {
+            var (world, view, sys, unit) = HearingWorld();
+            See(world, unit, Body(world, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked), 50f, 0f);
+            Assert.False(TickRaisesAirThreat(world, view, sys, unit), "a tank is not an air threat");
+
+            var (w2, v2, s2, u2) = HearingWorld();
+            See(w2, u2, Body(w2, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft), 50f, 0f);
+            Assert.True(TickRaisesAirThreat(w2, v2, s2, u2), "a seen drone is an air threat");
+
+            var (w3, v3, s3, u3) = HearingWorld();
+            Hear(w3, u3, 0f, 200f, 30f, Rotor);
+            Assert.True(TickRaisesAirThreat(w3, v3, s3, u3));
+            See(w3, u3, Body(w3, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft), 10f, 190f);
+            Assert.False(TickRaisesAirThreat(w3, v3, s3, u3), "heard, then seen: still one drone");
+            Assert.Equal(1, w3.GetComponent<TargetMemory>(u3).Count);
+        }
+
+        /// <summary>⭐ K3 — danger of a heard slot is read from its class (there is no entity to read).</summary>
+        [Fact]
+        public void TheDangerOfAHeardSlot_ComesFromItsClass_CE3063()
+        {
+            var (world, view, sys, unit) = HearingWorld();
+            Hear(world, unit, 0f, 50f, 8f, Footsteps);
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            var mem = world.GetComponent<TargetMemory>(unit);
+            Assert.Equal(ThreatDanger.OfClass(Footsteps), ThreatDanger.OfSlot(view, unit, in mem, 0));
+            Assert.True(ThreatDanger.OfClass(Footsteps) < ThreatDanger.OfClass(TrackedEngine));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2326</c> (R-3030; Peek and Fire §11.6a) — a SEEN person's logical stance is remembered with his slot, so a blind
+        /// burst at his spot later is aimed as at that body; a man only HEARD, and a vehicle (it has a hull, no stance), stay unknown.
+        /// 🔴 Red-proof: stamp 0 ⇒ the crouched man reads unknown.
+        /// </summary>
+        [Fact]
+        public void CE2326_ASeenMansStance_IsRemembered_AHeardOneAndAVehiclesAreNot()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            var view = (ISimulationView)world;
+
+            Entity Body(Vector3 at)
+            {
+                var e = world.CreateEntity();
+                world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                return e;
+            }
+            var seen  = Body(new Vector3(30f, 0f, 0f));
+            world.AddComponent(seen, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Crouched });
+            var heard = Body(new Vector3(40f, 0f, 0f));
+            world.AddComponent(heard, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Crouched });
+            var truck = Body(new Vector3(50f, 0f, 0f));
+            world.AddComponent(truck, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 2f, Height = 2.4f });
+
+            var observer = world.CreateEntity();
+            world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            world.AddComponent(observer, new TargetMemory());
+            var tracks = new ActiveSensorTracks();
+            unsafe
+            {
+                tracks.EntityIds[0] = (long)seen.PackedValue;  tracks.Modalities[0] = (byte)SensorModality.Visual;
+                tracks.EntityIds[1] = (long)heard.PackedValue; tracks.Modalities[1] = (byte)SensorModality.Acoustic;
+                tracks.EntityIds[2] = (long)truck.PackedValue; tracks.Modalities[2] = (byte)SensorModality.Visual;
+            }
+            tracks.Count = 3;
+            world.AddComponent(observer, tracks);
+
+            new ThreatEvaluationSystem().Execute(view, 1.0f);
+            FlushEcbAndSwap(view, world);
+
+            var mem = world.GetComponent<TargetMemory>(observer);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, StanceOf(mem, seen));
+            Assert.Null(StanceOf(mem, heard));
+            Assert.Null(StanceOf(mem, truck));
+        }
+
+        private static unsafe Fdp.Toolkit.Tkb.Domain.StanceId? StanceOf(TargetMemory mem, Entity e)
+        {
+            for (int i = 0; i < mem.Count; i++) if (mem.EntityIds[i] == (long)e.PackedValue) return TargetMemory.StanceSeen(in mem, i);
+            Assert.Fail($"{e} not remembered");
+            return null;
+        }
+
+        private static long Target(EntityRepository world) => (long)world.CreateEntity().PackedValue;
 
         // ── Test 4: no crash with no TargetMemory entities ───────────────────────────
 
@@ -181,7 +530,7 @@ namespace Fdp.Toolkit.Perception.Tests
             world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
 
             var initMem = new TargetMemory();
-            TargetMemory.AddOrUpdateTarget(ref initMem, entityId: 7L, posX: 1f, posY: 1f, scoreBoost: 100f, tick: 0u);
+            TargetMemory.AddOrUpdateTarget(ref initMem, entityId: Target(world), posX: 1f, posY: 1f, scoreBoost: 100f, tick: 0u);
             world.AddComponent(observer, initMem);
 
             sys.Execute(view, 1.0f);
@@ -190,7 +539,7 @@ namespace Fdp.Toolkit.Perception.Tests
             const float expected = 100f * (1f - PerceptionConstants.ThreatScoreDecayPerSecond * 1.0f);
             var resultMem = world.GetComponent<TargetMemory>(observer);
             Assert.Equal(1, resultMem.Count);
-            Assert.Equal(expected, resultMem.ThreatScores[0]);
+            Assert.Equal(expected, resultMem.Freshness[0]);
         }
 
         // ── Test 6: decay and boost in one frame ─────────────────────────────────────
@@ -207,7 +556,7 @@ namespace Fdp.Toolkit.Perception.Tests
             var view  = (ISimulationView)world;
             var sys   = new ThreatEvaluationSystem();
 
-            const long targetId = 999L;
+            long targetId = Target(world);
 
             var observer = world.CreateEntity();
             world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
@@ -230,7 +579,7 @@ namespace Fdp.Toolkit.Perception.Tests
             var resultMem = world.GetComponent<TargetMemory>(observer);
             Assert.Equal(1, resultMem.Count);
             Assert.Equal(targetId, resultMem.EntityIds[0]);
-            Assert.True(resultMem.ThreatScores[0] > 90f,
+            Assert.True(resultMem.Freshness[0] > 90f,
                 "Score must exceed the decay-only value (90) when ActiveSensorTracks is present.");
         }
 
@@ -272,64 +621,6 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(12.5f, resultMem.PositionsZ[0]); // authoritative altitude recorded
         }
 
-        // ── Test 7 (VisionBroadphaseSystem carries full Entity handle) ───────────────
-
-        /// <summary>
-        /// Verifies that <see cref="VisionBroadphaseSystem"/> emits a
-        /// <see cref="LosCheckRequestEvent"/> carrying full <see cref="Entity"/> handles
-        /// (Index + Generation), not raw int indices.
-        /// </summary>
-        [Fact]
-        public unsafe void LosCheckRequestEvent_CarriesFullEntityHandle_NotRawIndex()
-        {
-            // Arrange
-            var world  = PerceptionTestWorldFactory.Create();
-            var view   = (ISimulationView)world;
-
-            var grid = SpatialHashGrid.Create(100, 100, 5f, 1000, Allocator.Persistent);
-            var sys  = new VisionBroadphaseSystem(grid);
-
-            var observer = world.CreateEntity();
-            world.AddComponent(observer, new SimTransform
-            {
-                Position = Vector3.Zero,
-                Rotation = Quaternion.Identity,
-            });
-            world.AddComponent(observer, new EntityInfo    { ForceId = ForceId.Friend });
-            world.AddComponent(observer, new PerceptionReceptor
-            {
-                VisionRange    = 200f,
-                HearingRange   = 50f,
-                FieldOfViewCos = MathF.Cos(MathF.PI / 6f),
-            });
-            world.AddComponent(observer, new TargetMemory());
-
-            var target = world.CreateEntity();
-            world.AddComponent(target, new SimTransform
-            {
-                Position = new Vector3(100f, 0f, 0f),
-                Rotation = Quaternion.Identity,
-            });
-            world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
-
-            grid.Clear();
-            grid.Add(target, new Vector2(100f, 0f));
-
-            // Act
-            sys.Execute(view, 0.1f);
-            FlushEcbAndSwap(view, world);
-
-            // Assert
-            var events = world.Bus.Read<LosCheckRequestEvent>();
-            Assert.Equal(1, events.Length);
-            Assert.Equal(observer, events[0].Observer);
-            Assert.Equal(target,   events[0].Target);
-            Assert.NotEqual(0, events[0].Observer.Generation);
-            Assert.NotEqual(0, events[0].Target.Generation);
-
-            grid.Dispose();
-        }
-
         // ── Test 8: multiple active tracks all boost ─────────────────────────────────
 
         /// <summary>
@@ -349,10 +640,10 @@ namespace Fdp.Toolkit.Perception.Tests
 
             // Two active tracks.
             var tracks = new ActiveSensorTracks();
-            tracks.EntityIds[0]  = 111L;
+            tracks.EntityIds[0]  = Target(world);
             tracks.PositionsX[0] = 10f;
             tracks.PositionsY[0] = 0f;
-            tracks.EntityIds[1]  = 222L;
+            tracks.EntityIds[1]  = Target(world);
             tracks.PositionsX[1] = 20f;
             tracks.PositionsY[1] = 0f;
             tracks.Count = 2;
@@ -363,8 +654,8 @@ namespace Fdp.Toolkit.Perception.Tests
 
             var resultMem = world.GetComponent<TargetMemory>(observer);
             Assert.Equal(2, resultMem.Count);
-            Assert.True(resultMem.ThreatScores[0] > 0f, "First track must have positive threat score.");
-            Assert.True(resultMem.ThreatScores[1] > 0f, "Second track must have positive threat score.");
+            Assert.True(resultMem.Freshness[0] > 0f, "First track must have positive threat score.");
+            Assert.True(resultMem.Freshness[1] > 0f, "Second track must have positive threat score.");
         }
     }
 }

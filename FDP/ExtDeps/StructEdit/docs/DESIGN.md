@@ -401,6 +401,11 @@ Algorithm:
 1. Scan all public fields and properties via `FieldInfo` / `PropertyInfo`.
 2. Determine `EditNodeKind` per member.
 3. For native buffers: compute byte offsets using `Marshal.OffsetOf` / `RuntimeHelpers` interop.
+   ⭐ **Properties on a native buffer** *(as-built `2026-10-12`, HROT `CE-1023`)*: an AUTO-property is edited through its
+   compiler-generated backing field (`<Name>k__BackingField` — its offset and a `NativeFieldBinding`), keeping the PROPERTY's
+   name, path and attributes; a COMPUTED property on the ROOT struct is read-modify-written through the root binding
+   (`NestedMemberBinding` over `CreateRootBinding()`); a computed property deeper than the root is not offered. ⛔ Before,
+   properties were skipped on a native buffer, so a blittable struct of auto-properties opened as an EMPTY document.
 4. Construct the appropriate `IValueBinding`.
 5. Recurse into struct/class fields (sub-nodes become children).
 6. Handle `[InlineArray]` structs and `fixed` buffers as array nodes.

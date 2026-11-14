@@ -286,8 +286,8 @@ and boolean latches in deterministic scenario execution.
 
 #### `unsafe struct MockBlackboardState`
 
-Overlay struct representing cognitive blackboard memory state in test scenarios,
-without requiring a full `BrainBlackboard` dependency.
+Overlay struct representing cognitive working-state memory in test scenarios,
+without requiring the full occurrence-slot storage machinery.
 
 | Field | Type | Description |
 |---|---|---|
@@ -342,7 +342,7 @@ flag and by `ScenarioRegistry`.
 | `ComponentDamage` | `"componentdamage"` |
 | `BallisticsAndHit` | `"ballisticsandhit"` |
 | `BehaviorValidation` | `"behaviorvalidation"` |
-| `SensorGrid` | `"sensorgrid"` |
+| ~~`SensorGrid`~~ | ~~`"sensorgrid"`~~ — retired (`CE-3052`) |
 | `MissionCommand` | `"missioncommand"` |
 | `TerrainClamping` | `"terrainclamping"` |
 | `ParallelEpisodes` | `"parallelepisodes"` |

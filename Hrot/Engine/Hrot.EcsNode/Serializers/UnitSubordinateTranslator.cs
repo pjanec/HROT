@@ -1,0 +1,95 @@
+using Fdp.Toolkit.Replication;
+using System;
+using System.Collections.Generic;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
+using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
+using Fdp.Core.Logging;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Scenario;
+using Hrot.Common.Serializers;
+using Fdp.Core.Serialization;
+
+namespace Hrot.SimHost.Serializers
+{
+    /// <summary>
+    /// Custom scenario translator for <see cref="UnitSubordinate"/>.
+    ///
+    /// Serialises the commander entity as a stable GUID reference and the tactical
+    /// designation as a string.  On inject, resolves the GUID to a network ID and
+    /// attaches <see cref="InitialUnitSubordinateIntent"/> for deferred materialisation
+    /// by <c>GenesisMaterializationSystem</c>.
+    /// </summary>
+    public sealed class UnitSubordinateTranslator : IEntityScenarioTranslator
+    {
+        private const string Key = "UnitSubordinate";
+
+        private sealed class UnitSubordinateDto
+        {
+            public string? CommanderGuid { get; set; }
+            public string? Designation { get; set; }
+            /// <summary>⭐ <c>CE-2281</c> / R-3019 — "A" … "D"; absent = no team.</summary>
+            public string? FireTeam { get; set; }
+        }
+
+        private static readonly JsonSerializerOptions s_jsonOptions = FdpJsonOptionsRegistry.DefaultRelaxed;
+
+        // ── IEntityScenarioTranslator ─────────────────────────────────────────
+
+        public BitMask512 GetConsumedComponentsMask()
+        {
+            var mask = new BitMask512();
+            int id = ComponentTypeRegistry.GetId(typeof(UnitSubordinate));
+            if (id >= 0) mask.SetBit(id);
+            return mask;
+        }
+
+        public bool CanTranslate(EntityRepository repo, Entity entity)
+            => repo.HasComponent<UnitSubordinate>(entity)
+            && !repo.GetComponent<UnitSubordinate>(entity).Commander.IsNull;
+
+        public Dictionary<string, object> Extract(
+            EntityRepository repo, Entity entity, IGuidResolver resolver)
+        {
+            var sub = repo.GetComponent<UnitSubordinate>(entity);
+            if (sub.Commander.IsNull)
+                return new Dictionary<string, object>();
+
+            var dto = new UnitSubordinateDto
+            {
+                CommanderGuid = resolver.Resolve(sub.Commander),
+                Designation   = sub.Designation.ToString(),
+                FireTeam      = sub.FireTeam == FireTeam.None ? null : sub.FireTeam.ToString(),
+            };
+
+            return new Dictionary<string, object>
+            {
+                [Key] = JsonSerializer.SerializeToNode(dto, s_jsonOptions)!
+            };
+        }
+
+        public void Inject(
+            EntityRepository repo, Entity entity,
+            Dictionary<string, object> scenarioData, IGuidResolver resolver)
+        {
+            if (!scenarioData.TryGetValue(Key, out var raw) || raw is not JsonObject obj) return;
+
+            var dto = obj.Deserialize<UnitSubordinateDto>(s_jsonOptions);
+            if (dto == null || string.IsNullOrEmpty(dto.CommanderGuid)) return;
+            Enum.TryParse<TacticalDesignation>(dto.Designation, out var designation);
+            Enum.TryParse<FireTeam>(dto.FireTeam, ignoreCase: true, out var team);
+
+            repo.SetManagedComponent(entity, new InitialUnitSubordinateIntent
+            {
+                CommanderNetworkId = FileLinks.FromGuidText(dto.CommanderGuid),
+                Designation        = designation,
+                FireTeam           = team,
+            });
+        }
+
+        public IEnumerable<string> GetOutputDomKeys() => Array.Empty<string>();
+    }
+}
+

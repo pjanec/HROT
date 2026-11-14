@@ -28,6 +28,7 @@ namespace Hrot.SimHost.Systems.Routing;
 /// </para>
 /// </summary>
 [UpdateInPhase(SystemPhase.BeforeSync)]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
 {
     private readonly TrajectoryPoolManager _pool;
@@ -36,8 +37,10 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
     /// Tracks the last-known trajectory ID per route entity so that entries
     /// can be freed when the entity is destroyed between ticks.
     /// Key = entity handle; Value = pool trajectory ID (> 0).
+    /// ⭐ <c>R-3039</c> S2 — derived: at a world replacement it is rebuilt from the routes' restored <see cref="RouteTrajectoryCache"/>.
     /// </summary>
     private readonly Dictionary<Entity, int> _knownTrajectories = new();
+    private int _epoch;   // ⭐ CE-3294 — the world _knownTrajectories describes
 
     /// <summary>
     /// Default speed (m/s) used when a waypoint has <c>TargetSpeed == 0</c>
@@ -57,10 +60,24 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)
     {
+        if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
         if (view is not EntityRepository repo)
             throw new InvalidOperationException(
                 $"{nameof(RouteTrajectorySyncSystem)} requires direct EntityRepository access " +
                 $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+        // ⭐ CE-3294 — a reload ends the world without a DestructionOrder (SoftClear): its routes' entries are freed here, or the next run's
+        //   entity under the same handle would free a trajectory that by then belongs to another route.
+        // ⭐ R-3039 S2 (docs/DESIGN_System_State_Inventory.md §7b) — and a RESTORE puts back routes whose cache already says "compiled":
+        //   the pool is not in the keyframe (a fresh process has none of them; this process just freed them), so every route the restored
+        //   world holds is compiled again, under the id its cache names — the vehicles following it name that id too.
+        bool rederive = false;
+        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch))
+        {
+            foreach (var id in _knownTrajectories.Values) if (id > 0) _pool.RemoveTrajectory(id);
+            _knownTrajectories.Clear();
+            rederive = true;
+        }
 
         // Free trajectory pool entries for entities entering TearDown.
         // Relies on the 1-frame ELM guarantee that the entity is still intact when the order fires.
@@ -80,6 +97,12 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
             .WithManaged<RoutePlan>()
             .Build();
 
+        // ⭐ R-3039 S2 (§7d) — before anything compiles: no new route may take an id a restored route still names.
+        if (rederive)
+            foreach (var entity in query)
+                if (repo.HasComponent<RouteTrajectoryCache>(entity))
+                    _pool.EnsureIdsAbove(repo.GetComponentRO<RouteTrajectoryCache>(entity).TrajectoryId);
+
         foreach (var entity in query)
         {
             var routePlan = view.GetManagedComponentRO<RoutePlan>(entity);
@@ -89,12 +112,13 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
                 ? repo.GetComponent<RouteTrajectoryCache>(entity)
                 : default;
 
-            // Skip if already compiled at this version.
-            if (hasCache && cache.CompiledVersion == routePlan.Version && cache.TrajectoryId > 0)
+            // Skip if already compiled at this version — unless the world was just replaced (the pool entry is not there).
+            bool compiled = hasCache && cache.CompiledVersion == routePlan.Version && cache.TrajectoryId > 0;
+            if (compiled && !rederive)
                 continue;
 
             // Remove stale pool entry if one exists.
-            if (cache.TrajectoryId > 0)
+            if (cache.TrajectoryId > 0 && !compiled)
                 _pool.RemoveTrajectory(cache.TrajectoryId);
 
             int newId = 0;
@@ -106,17 +130,25 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
                 for (int i = 0; i < routePlan.Waypoints.Count; i++)
                 {
                     var wp      = routePlan.Waypoints[i];
-                    // RoutePlan waypoints are Recast (Y-up); map to Sim (Z-up): X=east, Y=north(Z),
-                    // Z=altitude(Y) so the carried altitude survives into the trajectory pool (§0.1, P3D-303).
-                    positions[i] = new Vector3(wp.Position.X, wp.Position.Z, wp.Position.Y);
+                    // RoutePlan waypoints are Sim Z-up (ENU: X=east, Y=north, Z=altitude) — the contract of
+                    // RouteWaypoint and what every producer writes (ToCartesian, ScenarioSpawnAdapter,
+                    // PersonalRouteAuthoringSystem). ⛔ CE-3013: this used to swizzle them as Recast Y-up
+                    // (P3D-303's assumption), driving every route with north = 0. R-182: Z-up everywhere.
+                    positions[i] = wp.Position;
                     speeds[i]    = wp.TargetSpeed > 0f ? wp.TargetSpeed : DefaultSpeed;
                 }
 
-                newId = _pool.RegisterTrajectory(
-                    positions,
-                    speeds,
-                    looped:        routePlan.IsLoop,
-                    interpolation: TrajectoryInterpolation.CatmullRom);
+                if (compiled)
+                {
+                    newId = cache.TrajectoryId;   // re-derived under the id the restored world names
+                    _pool.RegisterTrajectoryAt(newId, positions, speeds, looped: routePlan.IsLoop, interpolation: TrajectoryInterpolation.CatmullRom);
+                }
+                else
+                    newId = _pool.RegisterTrajectory(
+                        positions,
+                        speeds,
+                        looped:        routePlan.IsLoop,
+                        interpolation: TrajectoryInterpolation.CatmullRom);
             }
 
             cache.TrajectoryId     = newId;

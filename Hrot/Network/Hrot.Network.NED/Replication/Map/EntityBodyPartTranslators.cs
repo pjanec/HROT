@@ -1,0 +1,277 @@
+using System;
+using System.Collections.Generic;
+using Hrot.NED.Descriptors;
+using CycloneDDS.Runtime;
+using Fdp.Core;
+using Fdp.Interfaces;
+using Fdp.Toolkit.Physics.BodyParts;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.ModuleHost.Abstractions;
+
+namespace Hrot.Map.Common.Replication.Egress
+{
+    /// <summary>
+    /// ⭐ <c>CE-3210</c> (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-6) — publishes a body's <see cref="PartDamage"/>
+    /// from the node owning its <c>dtPartDamage</c> (the Health owner, Brain group), on change. The <c>EntityWeaponAmmo</c> pattern.
+    /// </summary>
+    public sealed class EntityPartDamageEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
+    {
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityPartDamage> _instances;
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPartDamage>();
+        public long DescriptorOrdinal => (long)EDescriptorType.dtPartDamage;
+        // ⭐ CE-3420 (X-5) — declared: the Damage.* attributes write PartDamage, and the descriptor map must know this topic carries it
+        private static readonly int[] s_targetIds = { Fdp.Core.GlobalComponentIds.PartDamage };
+        public IReadOnlyList<int> TargetComponentIds => s_targetIds;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
+
+        public EntityPartDamageEgressTranslator(DdsParticipant? participant)
+            => _instances = new(participant is not null ? new DdsWriter<EntityPartDamage>(participant) : null, static key => new EntityPartDamage { EntityId = (int)key });
+
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
+
+        public void ScanAndPublish(ISimulationView view)
+        {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+        /// destruction bookkeeping (it reads the bus).</summary>
+        public void BeginFrame(ISimulationView view)
+        {
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+        /// on the off-frame replica.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
+            if (view is EntityRepository r && !r.IsComponentTypeRegistered<PartDamage>()) return;
+            long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            foreach (var e in view.Query().With<PartDamage>().DefaultRoutePublishable().Build())
+            {
+                if (!view.HasAuthority(e, packedKey)) continue;
+                int netId = view.GetComponentRO<NetworkIdentity>(e).Value;
+                var sample = ToSample(netId, view.GetComponentRO<PartDamage>(e));
+                if (_instances.Unchanged(netId, sample)) continue;
+                _instances.Write(netId, sample);
+                SentSampleCount++;
+            }
+        }
+
+        /// <summary>The wire form (the test seam).</summary>
+        internal static unsafe EntityPartDamage ToSample(int netId, in PartDamage d)
+        {
+            var s = new EntityPartDamage { EntityId = netId, Plan = (byte)d.Plan };
+            s.L0 = d.LevelOf(0); s.L1 = d.LevelOf(1); s.L2 = d.LevelOf(2); s.L3 = d.LevelOf(3);
+            s.L4 = d.LevelOf(4); s.L5 = d.LevelOf(5); s.L6 = d.LevelOf(6); s.L7 = d.LevelOf(7);
+            s.L8 = d.LevelOf(8); s.L9 = d.LevelOf(9); s.L10 = d.LevelOf(10); s.L11 = d.LevelOf(11);
+            s.L12 = d.LevelOf(12); s.L13 = d.LevelOf(13); s.L14 = d.LevelOf(14); s.L15 = d.LevelOf(15);
+            return s;
+        }
+
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
+
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3210</c> (HL-8) — publishes a body's <see cref="HitMarks"/> from the node owning its <c>dtHitMarks</c> (the Muscle, which
+    /// resolves the hits), when a mark was added (its <c>NextSeq</c> moved). The marks still in the ring go out with their sequences.
+    /// </summary>
+    public sealed class EntityHitMarksEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
+    {
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityHitMarks> _instances;
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityHitMarks>();
+        public long DescriptorOrdinal => (long)EDescriptorType.dtHitMarks;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
+
+        public EntityHitMarksEgressTranslator(DdsParticipant? participant)
+            => _instances = new(participant is not null ? new DdsWriter<EntityHitMarks>(participant) : null, static key => new EntityHitMarks { EntityId = (int)key });
+
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
+
+        public void ScanAndPublish(ISimulationView view)
+        {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+        /// destruction bookkeeping (it reads the bus).</summary>
+        public void BeginFrame(ISimulationView view)
+        {
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+        /// on the off-frame replica.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
+            if (view is EntityRepository r && !r.IsComponentTypeRegistered<HitMarks>()) return;
+            long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            foreach (var e in view.Query().With<HitMarks>().DefaultRoutePublishable().Build())
+            {
+                if (!view.HasAuthority(e, packedKey)) continue;
+                int netId = view.GetComponentRO<NetworkIdentity>(e).Value;
+                var marks = view.GetComponentRO<HitMarks>(e);
+                if (_instances.TryGetLast(netId, out var prev) && prev.NextSeq == marks.NextSeq) continue;
+                _instances.Write(netId, ToSample(netId, marks));
+                SentSampleCount++;
+            }
+        }
+
+        /// <summary>The wire form (the test seam).</summary>
+        internal static EntityHitMarks ToSample(int netId, in HitMarks m)
+        {
+            var list = new List<DdsHitMark>(m.Count);
+            for (int seq = Math.Max(0, m.NextSeq - HitMarks.Capacity); seq < m.NextSeq; seq++)
+            {
+                if (!m.TryGet(seq, out var part, out var local, out var face, out var kind)) continue;
+                list.Add(new DdsHitMark
+                {
+                    Seq = (ushort)seq, Part = part, X = HitMarks.Quantise(local.X), Y = HitMarks.Quantise(local.Y), Z = HitMarks.Quantise(local.Z),
+                    Face = face, Kind = (byte)kind,
+                });
+            }
+            return new EntityHitMarks { EntityId = netId, NextSeq = m.NextSeq, Marks = list };
+        }
+
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
+
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
+    }
+}
+
+namespace Hrot.Map.Common.Replication.Ingress
+{
+    /// <summary>⭐ <c>CE-3210</c> (HL-6) — applies a body's published <see cref="PartDamage"/> on this node (wounds are derived from it).
+    /// An unknown entity is dropped; the recorded owner never takes its own sample back.</summary>
+    public sealed class EntityPartDamageIngressTranslator : IDescriptorTranslator, IDiscardableIngress
+    {
+        private const long OrdinalValue = (long)EDescriptorType.dtPartDamage;
+        private readonly DdsReader<EntityPartDamage>? _reader;
+        private readonly NetworkEntityMap _entityMap;
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPartDamage>();
+        public long DescriptorOrdinal => OrdinalValue;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
+        public long DroppedSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
+
+        public EntityPartDamageIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
+        {
+            _reader = participant is not null ? new DdsReader<EntityPartDamage>(participant) : null;
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+        }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
+
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (_reader is null) return;
+            using var loan = _reader.Take();
+            foreach (var sample in loan)
+            {
+                if (!sample.IsValid || sample.Info.InstanceState != DdsInstanceState.Alive) continue;
+                ReceivedSampleCount++;
+                Apply(sample.Data, cmd, view);
+            }
+        }
+
+        /// <summary>Applies one sample (the test seam).</summary>
+        internal unsafe void Apply(in EntityPartDamage d, IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (!_entityMap.TryGetEntity(d.EntityId, out var e) || !view.IsAlive(e)) { DroppedSampleCount++; return; }
+            if (view is EntityRepository repo && AuthorityExtensions.IsRecordedOwner(repo, e, OwnershipExtensions.PackKey(OrdinalValue, 0))) return;
+            var p = new PartDamage { Plan = (BodyPlan)d.Plan };
+            p.Levels[0] = d.L0; p.Levels[1] = d.L1; p.Levels[2] = d.L2; p.Levels[3] = d.L3;
+            p.Levels[4] = d.L4; p.Levels[5] = d.L5; p.Levels[6] = d.L6; p.Levels[7] = d.L7;
+            p.Levels[8] = d.L8; p.Levels[9] = d.L9; p.Levels[10] = d.L10; p.Levels[11] = d.L11;
+            p.Levels[12] = d.L12; p.Levels[13] = d.L13; p.Levels[14] = d.L14; p.Levels[15] = d.L15;
+            cmd.AddComponent(e, p);
+        }
+
+        public void ScanAndPublish(ISimulationView view) { }
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
+        public void Dispose(int networkEntityId) { }
+    }
+
+    /// <summary>⭐ <c>CE-3210</c> (HL-8) — applies a body's published <see cref="HitMarks"/> on this node (every renderer draws them).</summary>
+    public sealed class EntityHitMarksIngressTranslator : IDescriptorTranslator, IDiscardableIngress
+    {
+        private const long OrdinalValue = (long)EDescriptorType.dtHitMarks;
+        private readonly DdsReader<EntityHitMarks>? _reader;
+        private readonly NetworkEntityMap _entityMap;
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityHitMarks>();
+        public long DescriptorOrdinal => OrdinalValue;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
+        public long DroppedSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
+
+        public EntityHitMarksIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
+        {
+            _reader = participant is not null ? new DdsReader<EntityHitMarks>(participant) : null;
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+        }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
+
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (_reader is null) return;
+            using var loan = _reader.Take();
+            foreach (var sample in loan)
+            {
+                if (!sample.IsValid || sample.Info.InstanceState != DdsInstanceState.Alive) continue;
+                ReceivedSampleCount++;
+                Apply(sample.Data, cmd, view);
+            }
+        }
+
+        /// <summary>Applies one sample (the test seam): the ring rebuilt from the marks it carries, in sequence order.</summary>
+        internal void Apply(in EntityHitMarks d, IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (!_entityMap.TryGetEntity(d.EntityId, out var e) || !view.IsAlive(e)) { DroppedSampleCount++; return; }
+            if (view is EntityRepository repo && AuthorityExtensions.IsRecordedOwner(repo, e, OwnershipExtensions.PackKey(OrdinalValue, 0))) return;
+            var m = new HitMarks();
+            if (d.Marks != null && d.Marks.Count > 0)
+            {
+                m.NextSeq = (ushort)Math.Max(0, d.NextSeq - d.Marks.Count);
+                foreach (var k in d.Marks)
+                {
+                    m.NextSeq = k.Seq;
+                    m.Add(k.Part, new System.Numerics.Vector3(HitMarks.Unquantise(k.X), HitMarks.Unquantise(k.Y), HitMarks.Unquantise(k.Z)),
+                          k.Face, (HitMarkKind)k.Kind);
+                }
+            }
+            m.NextSeq = d.NextSeq;
+            cmd.AddComponent(e, m);
+        }
+
+        public void ScanAndPublish(ISimulationView view) { }
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
+        public void Dispose(int networkEntityId) { }
+    }
+}

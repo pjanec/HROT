@@ -14,7 +14,8 @@ public sealed class CrossAssetDependencyAttachment : IAttachmentModel
     public AttachmentId Id { get; } = new(Guid.NewGuid());
     public NodeId HostNodeId { get; }
     public AttachmentCategory Category => AttachmentCategory.Custom;
-    public string? Glyph => "🔗";
+    public string? Glyph => NodeEditor.Core.Widgets.Icons.Get("bp/cross-asset").Glyph;   // ⭐ U-3: the ONE icon map (CE-1063: a Font Awesome glyph, merged into the canvas faces)
+    public System.Numerics.Vector4? GlyphColor => NodeEditor.Core.Widgets.Icons.Get("bp/cross-asset").Color;
     public string? Label { get; private set; }
     public string? Tooltip { get; private set; }
     public AttachmentState State => AttachmentState.Normal;

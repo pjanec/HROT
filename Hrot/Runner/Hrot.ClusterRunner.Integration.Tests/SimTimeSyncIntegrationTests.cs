@@ -5,15 +5,14 @@ using Fdp.Toolkit.Time.Controllers;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
-using Hrot.IG;
-using Hrot.ExCon;
+using Hrot.Player;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 
 /// <summary>
-/// Regression suite verifying that all four cluster nodes (Orchestrator, SimHost, IG, ExCon)
+/// Regression suite verifying that all three cluster nodes (Orchestrator, SimHost, IG)
 /// agree on sim time at every point in the continuous → pause → step → resume lifecycle.
 ///
 /// <para>
@@ -47,12 +46,11 @@ public sealed class SimTimeSyncIntegrationTests : IDisposable
     private readonly HrotRunnerHarness         _harness;
     private readonly OrchestratorSubsystem     _orch;
     private readonly SimHostSubsystem          _simHost;
-    private readonly IgSubsystem               _ig;
-    private readonly ExConSubsystem            _exCon;
+    private readonly PlayerSubsystem               _player;
     private readonly ClusterMaster             _master;
     private readonly ITestOutputHelper         _out;
-    // Indirect access: Hrot.IG internals visible to this test assembly (InternalsVisibleTo).
-    private readonly Hrot.IG.IgApplication     _igApp;
+    // Indirect access: Hrot.Player internals visible to this test assembly (InternalsVisibleTo).
+    private readonly Hrot.Player.PlayerApplication     _playerApp;
 
     public SimTimeSyncIntegrationTests(ITestOutputHelper output)
     {
@@ -60,10 +58,9 @@ public sealed class SimTimeSyncIntegrationTests : IDisposable
         _harness = new HrotRunnerHarness();
         _orch    = _harness.OrchestratorSvc;
         _simHost = _harness.SimHost;
-        _ig      = _harness.Ig;
-        _exCon   = _harness.ExCon;
+        _player      = _harness.Player;
         _master  = _orch.TestHook_ClusterMaster!;
-        _igApp   = _ig.App;
+        _playerApp   = _player.App;
 
         // Extra settle: give the initial SwitchTimeModeEvent (TransientLocal) and NTP
         // handshakes time to propagate through CycloneDDS loopback to all slaves.
@@ -81,43 +78,44 @@ public sealed class SimTimeSyncIntegrationTests : IDisposable
         Thread.Sleep(frames * PumpSleepMs);
     }
 
-    private (double orch, double sim, double ig, double excon) AllTimes() =>
+    private (double orch, double sim, double player) AllTimes() =>
     (
         _orch.TestHook_CurrentSimTime,
         _simHost.TestHook_CurrentSimTime,
-        _igApp.TestHook_CurrentSimTime,
-        _exCon.TestHook_SlaveSyncController!.GetCurrentState().TotalTime
+        _playerApp.TestHook_CurrentSimTime
     );
 
     private void LogAllSimTimes(string context)
     {
-        var (o, s, ig, e) = AllTimes();
+        var (o, s, player) = AllTimes();
         _out.WriteLine($"[{context}]");
         _out.WriteLine($"  Orchestrator : {o:F4} s");
         _out.WriteLine($"  SimHost      : {s:F4} s");
-        _out.WriteLine($"  IG           : {ig:F4} s");
-        _out.WriteLine($"  ExCon        : {e:F4} s");
-        double spread = Math.Max(Math.Max(o, s), Math.Max(ig, e))
-                      - Math.Min(Math.Min(o, s), Math.Min(ig, e));
+        _out.WriteLine($"  Player           : {player:F4} s");
+        double spread = Math.Max(Math.Max(o, s), player)
+                      - Math.Min(Math.Min(o, s), player);
         _out.WriteLine($"  spread       : {spread * 1000:F2} ms");
     }
 
     private void AssertAllInSync(string context, double tolerance = MaxDriftSec)
     {
         // Read times once, then log and assert on that snapshot.
-        var (o, s, ig, e) = AllTimes();
+        var (o, s, player) = AllTimes();
+        // ⭐ CE-3352 — CGF (the Brain) is a slave of the same clock: its kernel time must stay in the set too. ⛔ It was never asserted, and ui saw
+        //   CGF's /status.simTime read 0 through a live run.
+        double cgf = _harness.Cgf!.NodeForTest!.Kernel.CurrentTime.TotalTime;
         _out.WriteLine($"[{context}]");
         _out.WriteLine($"  Orchestrator : {o:F4} s");
         _out.WriteLine($"  SimHost      : {s:F4} s");
-        _out.WriteLine($"  IG           : {ig:F4} s");
-        _out.WriteLine($"  ExCon        : {e:F4} s");
-        double max    = Math.Max(Math.Max(o, s), Math.Max(ig, e));
-        double min    = Math.Min(Math.Min(o, s), Math.Min(ig, e));
+        _out.WriteLine($"  Player           : {player:F4} s");
+        _out.WriteLine($"  CGF          : {cgf:F4} s");
+        double max    = Math.Max(Math.Max(Math.Max(o, s), player), cgf);
+        double min    = Math.Min(Math.Min(Math.Min(o, s), player), cgf);
         double spread = max - min;
         _out.WriteLine($"  spread       : {spread * 1000:F2} ms");
         Assert.True(spread <= tolerance,
             $"[{context}] Sim-time spread {spread * 1000:F2} ms exceeds tolerance {tolerance * 1000:F0} ms. " +
-            $"Orch={o:F4} SimHost={s:F4} IG={ig:F4} ExCon={e:F4}");
+            $"Orch={o:F4} SimHost={s:F4} Player={player:F4} CGF={cgf:F4}");
     }
 
 
@@ -255,22 +253,20 @@ public sealed class SimTimeSyncIntegrationTests : IDisposable
     public async Task AllNodes_SimTimeIsNonNegative_AtAllLifecyclePoints()
     {
         Settle(SettleFrames);
-        var (o, s, ig, e) = AllTimes();
-        _out.WriteLine($"[continuous] Orch={o:F4} SimHost={s:F4} IG={ig:F4} ExCon={e:F4}");
+        var (o, s, player) = AllTimes();
+        _out.WriteLine($"[continuous] Orch={o:F4} SimHost={s:F4} Player={player:F4}");
         Assert.True(o  >= 0, $"Orchestrator sim time is negative: {o:F4}");
         Assert.True(s  >= 0, $"SimHost sim time is negative: {s:F4}");
-        Assert.True(ig >= 0, $"IG sim time is negative: {ig:F4}");
-        Assert.True(e  >= 0, $"ExCon sim time is negative: {e:F4}");
+        Assert.True(player >= 0, $"Player sim time is negative: {player:F4}");
 
         await SendTimeOpAsync(ClusterOpType.PauseTime).ConfigureAwait(false);
         _harness.PumpUntil(() => _orch.UiCacheForTest!.IsPaused, 300);
         Settle(SettleFrames);
 
-        var (o2, s2, ig2, e2) = AllTimes();
-        _out.WriteLine($"[paused] Orch={o2:F4} SimHost={s2:F4} IG={ig2:F4} ExCon={e2:F4}");
+        var (o2, s2, player2) = AllTimes();
+        _out.WriteLine($"[paused] Orch={o2:F4} SimHost={s2:F4} Player={player2:F4}");
         Assert.True(o2  >= 0, $"Orchestrator sim time is negative after pause: {o2:F4}");
         Assert.True(s2  >= 0, $"SimHost sim time is negative after pause: {s2:F4}");
-        Assert.True(ig2 >= 0, $"IG sim time is negative after pause: {ig2:F4}");
-        Assert.True(e2  >= 0, $"ExCon sim time is negative after pause: {e2:F4}");
+        Assert.True(player2 >= 0, $"Player sim time is negative after pause: {player2:F4}");
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using CommandLine;
 using Hrot.ClusterRunner.Configuration;
 using Xunit;
 
@@ -21,23 +22,23 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         [Fact]
         public void ParseModeString_Demo_ReturnsDemoFlags()
         {
-            // "demo" is an alias for "all" (orchestrator, simhost, ig, excon, cgf)
+            // "demo" is an alias for "all" (orchestrator, simhost, ig, cgf, traffic)
             var cfg = new HrotRunnerConfiguration { ModeString = "demo", NoWait = true };
             cfg.Validate();
             Assert.True(cfg.RequestedSubsystems.Contains("simhost"));
-            Assert.True(cfg.RequestedSubsystems.Contains("ig"));
-            Assert.True(cfg.RequestedSubsystems.Contains("excon"));
+            Assert.True(cfg.RequestedSubsystems.Contains("player"));
             Assert.True(cfg.RequestedSubsystems.Contains("orchestrator"));
             Assert.True(cfg.RequestedSubsystems.Contains("cgf"));
+            Assert.True(cfg.RequestedSubsystems.Contains("traffic"));
         }
 
         [Fact]
-        public void Validate_EditorCombinedWithIg_ThrowsInvalidOperation()
+        public void Validate_EditorCombinedWithPlayer_ThrowsInvalidOperation()
         {
             // editor,ig -- an invalid combination
             var ex = Assert.Throws<InvalidOperationException>(() =>
             {
-                var cfg = new HrotRunnerConfiguration { ModeString = "editor,ig", NoWait = true };
+                var cfg = new HrotRunnerConfiguration { ModeString = "editor,player", NoWait = true };
                 cfg.Validate();
             });
             Assert.Contains("Editor", ex.Message);
@@ -98,7 +99,7 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         public void Validate_EditorWithSimHost_IsAllowed()
         {
             // editor + simhost: SimHost is NOT in the forbidden distributed flags
-            // (the guard only blocks IG, ExCon, Orchestrator, CGF).
+            // (the guard only blocks IG, Orchestrator, CGF).
             // This test documents the current boundary.
             var cfg = new HrotRunnerConfiguration { ModeString = "editor,simhost", NoWait = true };
             // Should not throw (editor + simhost is not an explicitly forbidden combo)
@@ -111,33 +112,46 @@ namespace Hrot.ClusterRunner.Tests.Configuration
             }
         }
 
-        // ── SM-007: StrideMock wiring ─────────────────────────────────────────
+        // ── ST-015: the retired StrideMock mode ───────────────────────────────
+        //
+        // This block used to be "SM-007: StrideMock wiring" and asserted the mode WORKED. The mock
+        // subsystem is gone, so the two mode tests are INVERTED rather than deleted: the valuable
+        // assertion is no longer "stridemock composes" but "stridemock is refused, and the refusal
+        // does not go on offering it". Two further tests here took `typeof(StrideMockSubsystem)`
+        // directly and could not survive the type's removal at all.
 
         [Fact]
-        public void Validate_StrideMockMode_DoesNotThrow()
+        public void Validate_StrideMockMode_NowThrows()
         {
-            // SC_SM007_1
+            // ST-015 (was SC_SM007_1, inverted): the token is no longer a valid mode.
             var cfg = new HrotRunnerConfiguration { ModeString = "stridemock", NoWait = true };
-            cfg.Validate(); // must not throw
-            Assert.Contains("stridemock", cfg.RequestedSubsystems);
+            var ex = Assert.Throws<InvalidOperationException>(() => cfg.Validate());
+
+            // The message enumerates the valid modes, so that list must not still advertise this one
+            // -- a stale list is a lie the user reads straight off their terminal.
+            //
+            // Assert on the OFFERED LIST, not the whole message: the message quotes the rejected
+            // input back at the user ("Invalid mode: 'stridemock'. Use: ..."), so a naive
+            // DoesNotContain over ex.Message can never pass for this input and would be asserting
+            // the wrong thing.
+            var offered = ex.Message[(ex.Message.IndexOf("Use:", StringComparison.Ordinal) + 4)..];
+            Assert.DoesNotContain("stridemock", offered, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
-        public void Validate_OrchestratorCgfStrideMock_DoesNotThrow()
+        public void Validate_OrchestratorCgfStrideMock_NowThrows()
         {
-            // SC_SM007_2
+            // ST-015 (was SC_SM007_2, inverted): one dead token poisons an otherwise valid combo,
+            // rather than being silently dropped from it.
             var cfg = new HrotRunnerConfiguration { ModeString = "orchestrator,cgf,stridemock", NoWait = true };
-            cfg.Validate(); // must not throw
-            Assert.Contains("stridemock",   cfg.RequestedSubsystems);
-            Assert.Contains("orchestrator", cfg.RequestedSubsystems);
-            Assert.Contains("cgf",          cfg.RequestedSubsystems);
+            Assert.Throws<InvalidOperationException>(() => cfg.Validate());
         }
 
         [Fact]
         public void Validate_ExistingModes_StillParseWithoutError()
         {
             // SC_SM007_3 — no regression for established subsystem names
-            foreach (var mode in new[] { "simhost", "ig", "excon", "orchestrator", "cgf" })
+            foreach (var mode in new[] { "simhost", "player", "orchestrator", "cgf" })
             {
                 var cfg = new HrotRunnerConfiguration { ModeString = mode, NoWait = true };
                 cfg.Validate(); // must not throw
@@ -145,32 +159,230 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         }
 
         [Fact]
-        public void StrideMockSubsystem_ImplementsISubsystem()
+        public void Validate_AllMode_ExpandsToTheFiveSubsystems()
         {
-            // SC_SM007_4: ResolveAppNodeId("StrideMock", 0) == 700 is verified indirectly.
-            // ResolveAppNodeId is private static in Program.cs; the offset is tested in
-            // integration (SC_SM007_6/7). We document the agreed offset here for traceability.
-            // SC_SM007_5: Verify StrideMockSubsystem is discoverable as ISubsystem via reflection.
-            var type = typeof(Hrot.StrideMock.StrideMockSubsystem);
-            Assert.True(typeof(Fdp.Toolkit.Runner.ISubsystem).IsAssignableFrom(type));
-            Assert.False(type.IsAbstract);
-        }
-
-        [Fact]
-        public void StrideMockSubsystem_ImplementsIMapCameraProvider()
-        {
-            // SC_SM007_5 (extended): StrideMock also provides map camera integration
-            var type = typeof(Hrot.StrideMock.StrideMockSubsystem);
-            Assert.True(typeof(Fdp.Toolkit.Runner.IMapCameraProvider).IsAssignableFrom(type));
-        }
-
-        [Fact]
-        public void Validate_AllMode_DoesNotContainStrideMock()
-        {
-            // StrideMock is NOT part of "all" or "demo" expansion — it is a standalone mode.
+            // ST-015: replaces Validate_AllMode_DoesNotContainStrideMock, which asserted that "all"
+            // omits a token that no longer exists anywhere -- trivially true, and it would have read
+            // like a live guard. The invariant worth holding is what "all" DOES expand to: every
+            // fine-grained node in one process, and there is no "--mode cluster".
+            // 2026-10-28: the traffic node joined "all" (user ruling: "all" = orchestrator, simhost,
+            // cgf, traffic, player ... all the fine-grained nodes together).
             var cfg = new HrotRunnerConfiguration { ModeString = "all", NoWait = true };
             cfg.Validate();
-            Assert.False(cfg.RequestedSubsystems.Contains("stridemock"));
+
+            Assert.Equal(
+                new[] { "cgf", "orchestrator", "player", "simhost", "traffic" },
+                cfg.RequestedSubsystems.OrderBy(s => s, StringComparer.Ordinal).ToArray());
+        }
+
+        [Fact]
+        public void Validate_ServerMode_IsTheFusedServer_OrchestratorAndOneCgfNode_AndNeverWaits()
+        {
+            // "server" = the server side of a networked game; players (--mode player) join it later, so it
+            // must start with NEITHER --wait-for NOR --no-wait.
+            // ⭐ CE-4270 B7c (D4, R-3077) — it is the FUSED server: the orchestrator and ONE cgf node booted with the fused role (Program.cs sets it).
+            var cfg = new HrotRunnerConfiguration { ModeString = "server" };
+            cfg.Validate();   // must not throw
+
+            Assert.True(cfg.FusedServer);
+            Assert.Equal(
+                new[] { "cgf", "orchestrator" },
+                cfg.RequestedSubsystems.OrderBy(s => s, StringComparer.Ordinal).ToArray());
+        }
+
+        [Fact]
+        public void Validate_ServerMode_WithServerNodes_IsTheOldFourNodeProcess_AndNeverWaits()
+        {
+            // ⭐ CE-4270 B7c (D4) — the old four-node process stays bootable behind --server-nodes.
+            var cfg = new HrotRunnerConfiguration { ModeString = "server", ServerNodesMode = true };
+            cfg.Validate();   // must not throw
+
+            Assert.False(cfg.FusedServer);
+            Assert.Equal(
+                new[] { "cgf", "orchestrator", "simhost", "traffic" },
+                cfg.RequestedSubsystems.OrderBy(s => s, StringComparer.Ordinal).ToArray());
+        }
+
+        [Fact]
+        public void Validate_AnExplicitOrchestratorCgfRoster_IsNotTheFusedServer()
+        {
+            // ⭐ CE-4270 B7c — only the "server" shorthand fuses; naming the nodes keeps a Brain-only CGF (which must say how it waits).
+            var cfg = new HrotRunnerConfiguration { ModeString = "orchestrator,cgf", NoWait = true };
+            cfg.Validate();
+            Assert.False(cfg.FusedServer);
+        }
+
+        [Fact]
+        public void Validate_AllMode_StartsWithoutWaitFor()
+        {
+            // The generalised isAll exemption: "all" hosts the master, so nobody is waited for.
+            var cfg = new HrotRunnerConfiguration { ModeString = "all" };
+            cfg.Validate();   // must not throw
+        }
+
+        [Fact]
+        public void Validate_PlayerMode_IsThePlayerNode_AndIgIsNoMode()
+        {
+            // ⭐ CE-3371 (user, 2026-11-06: "the IG disappeared and Player appeared") — the node is "player"; ⛔ "ig" is no alias, it is an invalid mode.
+            var cfg = new HrotRunnerConfiguration { ModeString = "player", NoWait = true };
+            cfg.Validate();
+            Assert.Equal(new[] { "player" }, cfg.RequestedSubsystems.ToArray());
+
+            Assert.Throws<InvalidOperationException>(() => new HrotRunnerConfiguration { ModeString = "ig", NoWait = true }.Validate());
+        }
+
+        [Fact]
+        public void Validate_PlayerWithSimHost_IsBothNodes()
+        {
+            var cfg = new HrotRunnerConfiguration { ModeString = "player,simhost", NoWait = true };
+            cfg.Validate();
+
+            Assert.Equal(
+                new[] { "player", "simhost" },
+                cfg.RequestedSubsystems.OrderBy(s => s, StringComparer.Ordinal).ToArray());
+        }
+
+        [Fact]
+        public void Validate_PlayerAlone_StillNeedsWaitForOrNoWait()
+        {
+            // A player is a single-subsystem node: it keeps today's peer-wait rule (the launch scripts pass --no-wait).
+            var cfg = new HrotRunnerConfiguration { ModeString = "player" };
+            var ex = Assert.Throws<InvalidOperationException>(() => cfg.Validate());
+            Assert.Contains("--wait-for required", ex.Message, StringComparison.Ordinal);   // the peer-wait rule, not "Invalid mode"
+        }
+
+        [Fact]
+        public void Validate_InvalidModeMessage_OffersTheNewModes()
+        {
+            var cfg = new HrotRunnerConfiguration { ModeString = "nonsense", NoWait = true };
+            var ex = Assert.Throws<InvalidOperationException>(() => cfg.Validate());
+            var offered = ex.Message[(ex.Message.IndexOf("Use:", StringComparison.Ordinal) + 4)..];
+            Assert.Contains("server", offered, StringComparison.Ordinal);
+            Assert.Contains("player", offered, StringComparison.Ordinal);
+            Assert.Contains("traffic", offered, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3354</c> ② — <c>--node-names IG=film-cam,SimHost=sim-1</c> names each subsystem's node (keys case-insensitive, <c>player</c> = IG); an unnamed one gets null ⇒
+        /// the default; <c>--node-name</c> names a process' single node. 🔴 Mutations (each compiles): the key compare made case-sensitive ⇒ the first cell reds; the map not filled ⇒ all red.
+        /// </summary>
+        [Fact]
+        public void CE3354_NodeNames_ResolvePerSubsystem_AndNodeNameNamesTheOneNode()
+        {
+            var cfg = new HrotRunnerConfiguration { ModeString = "all", NoWait = true, NodeNames = "Player=film-cam,simhost=sim-1" };
+            cfg.Validate();
+            Assert.Equal("film-cam", cfg.NodeNameFor("Player"));
+            Assert.Equal("sim-1", cfg.NodeNameFor("SimHost"));
+            Assert.Null(cfg.NodeNameFor("CGF"));                      // unnamed ⇒ <subsystem>-<nodeId>
+
+            var one = new HrotRunnerConfiguration { ModeString = "editor", NodeName = "my-editor" };
+            one.Validate();
+            Assert.Equal("my-editor", one.NodeNameFor("Editor"));
+        }
+
+        private static HrotRunnerConfiguration Valid(string mode, string? scenario = null, string load = "", bool play = false, string[]? mapInLoad = null)
+        {
+            var cfg = new HrotRunnerConfiguration { ModeString = mode, NoWait = true, ScenarioName = scenario ?? string.Empty, LoadTarget = load, Play = play, MapInLoad = mapInLoad };
+            cfg.Validate();
+            return cfg;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3354</c> ⑥ — the startup load's defaults: <c>-m editor -s X</c> opens for EDIT; <c>-m all|server -s X</c> loads LIVE (paused); <c>--play</c> is live and runs (even in the editor); <c>--load</c> overrides;
+        /// <c>--map-in-load</c> alone is fine on a master host; <c>--mode ci -s X</c> keeps its old meaning (no startup load). 🔴 Mutations (each compiles): the editor test of <c>StartupLoadsLive</c> removed ⇒ the editor cell reds;
+        /// <c>Play</c> not implying live ⇒ the editor-play cell reds; <c>HasStartupLoad</c> ignoring ci ⇒ the ci cell reds.
+        /// </summary>
+        [Fact]
+        public void CE3354_TheStartupLoad_Defaults()
+        {
+            Assert.True(Valid("editor", "X").HasStartupLoad);
+            Assert.False(Valid("editor", "X").StartupLoadsLive);                      // the editor opens for editing
+            Assert.True(Valid("all", "X").StartupLoadsLive);                          // elsewhere: live (paused)
+            Assert.True(Valid("server", "X").StartupLoadsLive);
+            Assert.True(Valid("orchestrator,simhost", "X").StartupLoadsLive);
+            Assert.True(Valid("editor", "X", play: true).StartupLoadsLive);           // --play implies live, even in the editor
+            Assert.False(Valid("all", "X", load: "edit").StartupLoadsLive);           // an explicit target wins
+            Assert.True(Valid("editor", "X", load: "LIVE").StartupLoadsLive);
+            Assert.False(Valid("editor", mapInLoad: Array.Empty<string>()).HasStartupLoad);   // the setting alone
+            Assert.False(Valid("ci", "MinimalCI_01").HasStartupLoad);                 // ci keeps --scenario's old meaning
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3354</c> ⑥ — refused at startup with a clear message: a scenario or map-in-load with no master in the process (<c>player</c>, a lone <c>simhost</c> / <c>cgf</c> / <c>ig</c> / <c>traffic</c>, <c>replaybrowser</c>) ·
+        /// <c>--play</c> with <c>--load edit</c> · <c>--load</c> / <c>--play</c> without <c>--scenario</c> · an unknown <c>--load</c> · the flags with <c>--mode ci</c>. 🔴 Mutation: the master test removed ⇒ the first cells do not throw.
+        /// </summary>
+        [Theory]
+        [InlineData("player", "X", "", false, null, "master")]
+        [InlineData("simhost", "X", "", false, null, "master")]
+        [InlineData("cgf", "X", "", false, null, "master")]
+        [InlineData("player,traffic", "X", "", false, null, "master")]
+        [InlineData("simhost", null, "", false, new string[0], "master")]
+        [InlineData("editor", "X", "edit", true, null, "--play")]
+        [InlineData("editor", null, "live", false, null, "--scenario")]
+        [InlineData("all", null, "", true, null, "--scenario")]
+        [InlineData("all", "X", "sideways", false, null, "edit | live")]
+        [InlineData("ci", "X", "live", false, null, "ci")]
+        public void CE3354_TheStartupLoad_IsRefusedWhereItCannotHold(string mode, string? scenario, string load, bool play, string[]? map, string messagePart)
+        {
+            var ex = Assert.Throws<InvalidOperationException>(() => Valid(mode, scenario, load, play, map));
+            Assert.Contains(messagePart, ex.Message);
+        }
+
+        /// <summary>⭐ <c>CE-3354</c> ⑥ — the real parser: <c>--map-in-load</c> with no name is "given, empty" (this process' own nodes), with names it splits on commas, absent is null; <c>--play</c> and <c>--load</c> parse.</summary>
+        [Fact]
+        public void CE3354_TheParser_ReadsTheStartupFlags()
+        {
+            static HrotRunnerConfiguration Parse(params string[] args)
+            {
+                HrotRunnerConfiguration? got = null;
+                var result = Parser.Default.ParseArguments<HrotRunnerConfiguration>(HrotRunnerConfiguration.NormaliseArgs(args));
+                result.WithParsed(c => got = c);
+                Assert.NotNull(got);
+                got!.ModeString = got.ModeString; got.NoWait = true; got.Validate();
+                return got;
+            }
+            Assert.Null(Parse("-m", "all").MapInLoad);
+            Assert.Empty(Parse("-m", "all", "--map-in-load").MapInLoad!);                                        // bare, last
+            Assert.Empty(Parse("-m", "all", "--map-in-load", "-s", "X").MapInLoad!);                            // bare, before another option
+            Assert.Equal(new[] { "film-cam", "sim-1" }, Parse("-m", "all", "--map-in-load", "film-cam,sim-1").MapInLoad);
+            var c = Parse("-m", "editor", "-s", "X", "--play", "--load", "live");
+            Assert.True(c.Play);
+            Assert.Equal("live", c.LoadTarget);
+        }
+
+        /// <summary>⭐ Node Features S1 (c) — <c>--feature</c> is repeatable, <c>id=on|off</c> is the short form of <c>{"Enabled":…}</c>, <c>id={json}</c> passes the partial object, anything else is refused.</summary>
+        [Fact]
+        public void NodeFeatures_FeatureOption_ParsesRepeatably_IntoTheNodeOverrideLayer()
+        {
+            static HrotRunnerConfiguration Parse(params string[] args)
+            {
+                HrotRunnerConfiguration? got = null;
+                Parser.Default.ParseArguments<HrotRunnerConfiguration>(HrotRunnerConfiguration.NormaliseArgs(args)).WithParsed(c => got = c);
+                Assert.NotNull(got);
+                got!.NoWait = true; got.Validate();
+                return got;
+            }
+            Assert.Empty(Parse("-m", "all").FeatureOverrides);
+            var c = Parse("-m", "all", "--feature", "hud.kill-cam=off", "--feature", "hud.kill-cam={\"Seconds\":3}", "--feature", "map3d.in-load=ON");
+            Assert.Equal(new[] { ("hud.kill-cam", "{\"Enabled\":false}"), ("hud.kill-cam", "{\"Seconds\":3}"), ("map3d.in-load", "{\"Enabled\":true}") }, c.FeatureOverrides);
+            Assert.Throws<InvalidOperationException>(() => Parse("-m", "all", "--feature", "hud.kill-cam"));
+            Assert.Throws<InvalidOperationException>(() => Parse("-m", "all", "--feature", "x=maybe"));
+            Assert.Throws<InvalidOperationException>(() => Parse("-m", "all", "--feature", "x={bad"));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3354</c> ② — refused at startup, clearly: <c>--node-name</c> with several nodes in one process (ambiguous), a <c>--node-names</c> key that is not a node of the process,
+        /// a malformed pair, and one name given to two nodes. 🔴 Mutation: the ambiguity check removed ⇒ the first cell does not throw.
+        /// </summary>
+        [Fact]
+        public void CE3354_NodeName_WithSeveralNodes_IsRefused_AndSoAreBadOrDuplicateNodeNames()
+        {
+            var ambiguous = Assert.Throws<InvalidOperationException>(() =>
+                new HrotRunnerConfiguration { ModeString = "all", NoWait = true, NodeName = "x" }.Validate());
+            Assert.Contains("--node-names", ambiguous.Message);
+            Assert.Throws<InvalidOperationException>(() => new HrotRunnerConfiguration { ModeString = "simhost,cgf", NoWait = true, NodeNames = "Player=a" }.Validate());
+            Assert.Throws<InvalidOperationException>(() => new HrotRunnerConfiguration { ModeString = "simhost,cgf", NoWait = true, NodeNames = "SimHost" }.Validate());
+            Assert.Throws<InvalidOperationException>(() => new HrotRunnerConfiguration { ModeString = "simhost,cgf", NoWait = true, NodeNames = "SimHost=a,CGF=A" }.Validate());
         }
     }
 }

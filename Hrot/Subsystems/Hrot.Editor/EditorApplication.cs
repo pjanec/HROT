@@ -1,3 +1,4 @@
+using Hrot.Common;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -9,9 +10,6 @@ using Fdp.Core.Serialization.Migrations;
 using Fdp.Toolkit.DER;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Common.Events;
-using Hrot.Editor.Commands;
-using Hrot.Editor.Events;
-using Hrot.Editor.Migration;
 using Hrot.Editor.Modules;
 using Hrot.ScenarioEditor.Services;
 using Fdp.ModuleHost;
@@ -31,25 +29,31 @@ namespace Hrot.Editor;
 /// </summary>
 public sealed class EditorApplication : IEditorLogic
 {
-    private readonly ScenarioFileService _fileService;
+    // ⭐⭐⭐ CE-046 (Axis-C E1) — the scenario half of this class now lives in
+    //    Hrot.Editor.AiShared.Scenarios.EditorScenarioSession, which CGF instantiates over its own world.
+    //    📄 docs/DESIGN_Cgf_Scenario_Session_Slice.md §3 ①/②. ⛔ Every scenario member below DELEGATES;
+    //    the behaviour is unchanged by construction because the logic MOVED rather than being rewritten.
+    private readonly Hrot.Editor.AiShared.Scenarios.EditorScenarioSession _session;
     private readonly FdpEventBus         _simBus;
-    private readonly FdpEventBus         _orchestrationBus;
-    private readonly EntityRepository    _world;
-    private readonly DerRepo             _view = new(localNodeId: 0);
 
-    private readonly ModuleHostKernel?          _kernel;
-    private readonly IReadOnlyList<IEcsModule>? _logicPacks;
-    private readonly IReadOnlyList<IEcsModule>? _translatorPacks;
     private readonly HotReloadMessageLogSource? _hotReloadSource;
     private readonly string[]                   _aiProjectPathSegments;
-    private SimHostMode _currentMode = SimHostMode.Internal;
-    private Fdp.Toolkit.Orchestration.ClusterState _currentClusterState = Fdp.Toolkit.Orchestration.ClusterState.Idle;
-    private string? _pendingScenarioLoad;
-    private bool _waitingForIdle;
+
+    /// <summary>The current cluster lifecycle state. Exposed for the AI-debug API (MCP) host.</summary>
+    public Fdp.Toolkit.Orchestration.ClusterState CurrentClusterState => _session.CurrentClusterState;
 
     // ── Scenario tracking ─────────────────────────────────────────────────────
 
-    private string? _loadedScenarioName;    private readonly MigrationAlertManager _alertManager = new();
+    /// <summary>
+    /// ⭐⭐ <b>The shared scenario session this editor drives</b> — handed to
+    /// <see cref="ScenarioMenuCommands"/> so the registrar binds to the host-agnostic seam rather than to
+    /// the editor-only <see cref="IEditorLogic"/>. 📄 design §3 ④.
+    /// </summary>
+    public Hrot.Editor.AiShared.Scenarios.IScenarioSession ScenarioSession => _session;
+
+    /// <summary>⭐ R-5 / V6 — the session's recording-opened event (the ONE branch where a recording opens): the host's review source classifies the exercise there.</summary>
+    public event Action<Guid>? RecordingOpened { add => _session.RecordingOpened += value; remove => _session.RecordingOpened -= value; }
+
     /// <summary>
     /// Optional delegate that returns the available scenario names.
     /// Injected by <see cref="SetAvailableScenariosSource"/> after construction to
@@ -57,11 +61,12 @@ public sealed class EditorApplication : IEditorLogic
     /// </summary>
     private Func<IReadOnlyList<string>>? _availableScenariosSource;
 
-    public IDerRepo View => _view;
-    public SimHostMode CurrentMode => _currentMode;
 
     /// <inheritdoc/>
-    public string? LoadedScenarioName => _loadedScenarioName;
+    public string? LoadedScenarioName => _session.LoadedScenarioName;
+
+    /// <summary>⭐ CE-3391 — the args the resident load applied (which preset the world holds), or null.</summary>
+    public string? LoadedArgsJson => ((Hrot.UI.Common.RunMode.IRunScenarioControl)_session).LoadedArgsJson;
 
     /// <inheritdoc/>
     public IReadOnlyList<string> AvailableScenarios =>
@@ -70,56 +75,36 @@ public sealed class EditorApplication : IEditorLogic
     /// <summary>
     /// Alert manager for migration events (degraded-mode banner, alert modal).
     /// </summary>
-    internal MigrationAlertManager AlertManager => _alertManager;
+    internal Hrot.Editor.AiShared.Scenarios.MigrationAlertManager AlertManager => _session.AlertManager;
 
     /// <inheritdoc/>
-    public void Update()
-    {
-        foreach (var ev in _orchestrationBus.ReadManaged<Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent>())
-            _currentClusterState = ev.CurrentState;
-
-        if (!_waitingForIdle || string.IsNullOrEmpty(_pendingScenarioLoad)) return;
-        if (_currentClusterState != Fdp.Toolkit.Orchestration.ClusterState.Idle) return;
-
-        _waitingForIdle = false;
-        var scenarioName = _pendingScenarioLoad;
-        _pendingScenarioLoad = null;
-
-        // 1. Safely wipe the existing state (fires WorldResetEvent and SoftClears the repo)
-        //    so the new scenario starts on a blank slate.
-        NewScenario();
-
-        // 2. Dispatch a cluster transition intent to route the load through the orchestrator.
-        //    This triggers HrotEditLoadHandler -> StagingEntityExtractor -> NetworkSpawningSystem
-        _orchestrationBus.PublishManaged(new Fdp.Toolkit.Orchestration.TransitionStateIntent
-        {
-            TransactionId = Guid.NewGuid(),
-            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit,
-            ScenarioId    = scenarioName,
-            ExerciseId    = Guid.NewGuid()
-        });
-
-        _loadedScenarioName = scenarioName;
-    }
+    public void Update() => _session.Update();
 
     public EditorApplication(
         ScenarioFileService fileService,
         FdpEventBus simBus,
         FdpEventBus orchestrationBus,
+        Func<Fdp.Toolkit.Orchestration.ClusterView?> clusterView,   // ⭐ CE-1436 — the node's ONE cluster read model
         EntityRepository world,
-        ModuleHostKernel?          kernel          = null,
-        IReadOnlyList<IEcsModule>? logicPacks      = null,
-        IReadOnlyList<IEcsModule>? translatorPacks = null,
         HotReloadMessageLogSource? hotReloadSource = null,
-        string[]? aiProjectPathSegments            = null)
+        string[]? aiProjectPathSegments            = null,
+        Action? leaveRun                           = null)
     {
-        _fileService          = fileService      ?? throw new ArgumentNullException(nameof(fileService));
         _simBus               = simBus           ?? throw new ArgumentNullException(nameof(simBus));
-        _orchestrationBus     = orchestrationBus ?? throw new ArgumentNullException(nameof(orchestrationBus));
-        _world                = world            ?? throw new ArgumentNullException(nameof(world));
-        _kernel               = kernel;
-        _logicPacks           = logicPacks;
-        _translatorPacks      = translatorPacks;
+
+        // ⭐⭐ CE-046 — the scenario half, over THIS host's world. ⭐ `ScenariosRoot` is passed as a
+        //    DELEGATE, not a captured string: it is a computed property over
+        //    ClusterConfiguration.Default.NasBasePath, so snapshotting it here would change when the
+        //    value is read. ⛔ The ctor still validates its own arguments so a wiring bug fails at boot
+        //    with the parameter name, exactly as before.
+        _session = new Hrot.Editor.AiShared.Scenarios.EditorScenarioSession(
+            fileService      ?? throw new ArgumentNullException(nameof(fileService)),
+            orchestrationBus ?? throw new ArgumentNullException(nameof(orchestrationBus)),
+            clusterView      ?? throw new ArgumentNullException(nameof(clusterView)),
+            world            ?? throw new ArgumentNullException(nameof(world)),
+            () => EditorBootstrap.ScenariosRoot,
+            leaveRun: leaveRun);   // ⭐ CE-1025 — the editor's dry run, left without a rewind at each load
+
         _hotReloadSource      = hotReloadSource;
         _aiProjectPathSegments = aiProjectPathSegments
             ?? new[] { "Subsystems", "Hrot.AI.Behaviors", "Hrot.AI.Behaviors.csproj" };
@@ -134,56 +119,41 @@ public sealed class EditorApplication : IEditorLogic
         _availableScenariosSource = source;
     }
 
-    /// <inheritdoc/>
-    public void NewScenario()
-    {
-        _fileService.NewScenario(_world);
-        _loadedScenarioName = null;
-        _alertManager.OnScenarioCleared();
-    }
+    // ── Scenario members — every one DELEGATES to the shared session (CE-046, design §3 ②) ─────
+    // ⚠⚠ `NewScenario` maps to `ClearWorld`, NOT to the cluster-wide leave (`Close`). 📐 Measured: the deferred-load state
+    //    machine calls this as step 1 of its OWN sequence, so pointing it at the cluster-wide leave would
+    //    publish a second Idle intent from inside the handler for the first one. ⭐ `Close` (CE-1443; it replaced New Exercise)
+    //    is the File menu item, which is the operator-facing action.
 
     /// <inheritdoc/>
-    public void SaveScenario(string filePath) => _fileService.SaveScenario(_world, filePath);
+    public void NewScenario() => _session.ClearWorld();
 
     /// <inheritdoc/>
-    public void LoadScenario(string filePath)
-    {
-        _fileService.LoadScenario(_world, filePath);
-        _alertManager.OnScenarioLoaded(_fileService.LastLoadResult);
-    }
+    public void SaveScenario(string filePath) => _session.SaveTo(filePath);
 
     /// <inheritdoc/>
-    public void LoadScenarioByName(string scenarioName)
-    {
-        if (string.IsNullOrWhiteSpace(scenarioName)) return;
-        _pendingScenarioLoad = scenarioName;
-        _waitingForIdle = true;
-
-        _orchestrationBus.PublishManaged(new Fdp.Toolkit.Orchestration.TransitionStateIntent
-        {
-            TransactionId = Guid.NewGuid(),
-            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.Idle
-        });
-    }
+    public void LoadScenarioByName(string scenarioName) => _session.OpenForEdit(scenarioName);
 
     /// <inheritdoc/>
-    public void SaveCurrentScenario()
-    {
-        if (string.IsNullOrEmpty(_loadedScenarioName)) return;
-        var dir = Path.Combine(EditorBootstrap.ScenariosRoot, _loadedScenarioName);
-        Directory.CreateDirectory(dir);
-        _fileService.SaveScenario(_world, Path.Combine(dir, "scenario.json"));
-    }
+    public void LoadScenarioByName(string scenarioName, Action then) => _session.Door.Open(scenarioName, then: then);
 
     /// <inheritdoc/>
-    public void SaveScenarioAs(string scenarioName)
-    {
-        if (string.IsNullOrWhiteSpace(scenarioName)) return;
-        var dir = Path.Combine(EditorBootstrap.ScenariosRoot, scenarioName);
-        Directory.CreateDirectory(dir);
-        _fileService.SaveScenario(_world, Path.Combine(dir, "scenario.json"));
-        _loadedScenarioName = scenarioName;
-    }
+    public void CreateBlankScenario(string scenarioName, string terrainName) => _session.CreateBlank(scenarioName, terrainName);
+
+    /// <inheritdoc/>
+    public Hrot.UI.Common.RunMode.ScenarioDoor Door => _session.Door;
+
+    /// <inheritdoc/>
+    public string? SaveDisabledReason => _session.SaveDisabledReason;   // ⭐ CE-3407 — HTTP reads the same answer as the pen and the menu
+
+    /// <summary>⭐ CE-4101 — the session's RAW verbs, for <c>AttachRunChoice</c> only.</summary>
+    public Hrot.UI.Common.RunMode.IRunScenarioControl RunControl => _session.RunControl;
+
+    /// <inheritdoc/>
+    public void SaveCurrentScenario() => _session.SaveCurrent();
+
+    /// <inheritdoc/>
+    public void SaveScenarioAs(string scenarioName) => _session.SaveAs(scenarioName);
 
     /// <inheritdoc/>
     public void ActivateTool(EditorTool tool)
@@ -194,7 +164,7 @@ public sealed class EditorApplication : IEditorLogic
     }
 
     /// <inheritdoc/>
-    public void CommitPropertyEdit(long networkId, IReadOnlyList<object> updatedComponents)
+    public void CommitPropertyEdit(int networkId, IReadOnlyList<object> updatedComponents)
     {
         if (updatedComponents == null) throw new ArgumentNullException(nameof(updatedComponents));
         _simBus.PublishManaged(new UpdateEntityCommand
@@ -205,128 +175,68 @@ public sealed class EditorApplication : IEditorLogic
     }
 
     /// <inheritdoc/>
-    public async Task SwitchToExternalAsync()
-    {
-        if (_kernel == null || _logicPacks == null) return;
-        if (_currentMode == SimHostMode.External) return;
-
-        await _kernel.UninstallModulesAsync(_logicPacks);
-
-        if (_translatorPacks != null)
-            await _kernel.InstallModulesAsync(_translatorPacks);
-
-        _currentMode = SimHostMode.External;
-    }
-
-    /// <inheritdoc/>
-    public async Task SwitchToInternalAsync()
-    {
-        if (_kernel == null || _logicPacks == null) return;
-        if (_currentMode == SimHostMode.Internal) return;
-
-        if (_translatorPacks != null)
-            await _kernel.UninstallModulesAsync(_translatorPacks);
-
-        await _kernel.InstallModulesAsync(_logicPacks);
-
-        _currentMode = SimHostMode.Internal;
-    }
-
-    /// <inheritdoc/>
-    public void CenterOnEntity(long entityId) =>
+    public void CenterOnEntity(int entityId) =>
         _simBus.Publish(new CenterOnEntityCommand { NetworkId = entityId });
 
     /// <inheritdoc/>
-    public void SelectEntity(long entityId) =>
+    public void SelectEntity(int entityId) =>
         _simBus.Publish(new SelectEntityCommand { NetworkId = entityId });
 
     /// <inheritdoc/>
-    public void OpenRenameDialog(long entityId) =>
+    public void OpenRenameDialog(int entityId) =>
         _simBus.Publish(new OpenRenameDialogCommand { NetworkId = entityId });
 
+    private AiBehaviorsRebuild? _aiRebuild;
+
+    /// <summary>⭐ <c>CE-1321</c> — the rebuild the composition root built (late: it needs the hot-reload coordinator, which subscribes
+    /// the catalog refresh and the document reconcile first).</summary>
+    public void SetAiRebuild(AiBehaviorsRebuild rebuild) => _aiRebuild = rebuild;
+
     /// <inheritdoc/>
-    public void RebuildAndReloadAI()
+    /// <remarks>Fire-and-forget (the 60 Hz UI stays responsive); the result goes to the hot-reload log.</remarks>
+    public void RebuildAndReloadAI() => _ = Task.Run(async () =>
     {
-        // Fire-and-forget background compilation to keep the 60Hz UI responsive.
-        // Once MSBuild overwrites the DLL, the FileSystemWatcher in FbtAssemblyHotReloader
-        // will automatically detect it and swap the BTree interpreters via the ALC.
-        Task.Run(() =>
-        {
-            string? projectPath = ResolveProjectFilePath(_aiProjectPathSegments);
-            if (projectPath == null)
-            {
-                _hotReloadSource?.PushLine(
-                    $"ERROR: AI Behaviors project file not found. Searched parent directories" +
-                    $" from CWD for relative path: {Path.Combine(_aiProjectPathSegments)}");
-                return;
-            }
+        var r = await RebuildAndReloadAIAsync().ConfigureAwait(false);
+        _hotReloadSource?.PushLine(r.Reloaded
+            ? $"Reloaded: {r.Behaviours} behaviours (+{r.Added.Count} −{r.Removed.Count}), {r.DocumentsReconciled} open documents reconciled."
+            : $"{(r.Build == "failed" ? "ERROR: " : "")}Not reloaded ({r.Build}): {r.Note}");
+        foreach (var e in r.Errors) _hotReloadSource?.PushLine($"ERROR: {e}");
+    });
 
-            _hotReloadSource?.PushLine($"Starting dotnet build: {projectPath}");
+    /// <inheritdoc/>
+    public Task<AiReloadResult> RebuildAndReloadAIAsync()
+        => _aiRebuild?.RunAsync()
+           ?? Task.FromResult(AiReloadResult.NotWired("This host wires no C# behaviour hot reload."));
 
-            var psi = new ProcessStartInfo
-            {
-                FileName               = "dotnet",
-                Arguments              = $"build \"{projectPath}\"",
-                CreateNoWindow         = true,
-                UseShellExecute        = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-            };
-
-            using var process = new Process { StartInfo = psi, EnableRaisingEvents = false };
-
-            // Async line-by-line reading avoids the classic OS pipe-buffer deadlock
-            // that occurs when both stdout and stderr fill up while the caller is
-            // blocked on WaitForExit() with synchronous ReadToEnd().
-            process.OutputDataReceived += (_, e) =>
-            {
-                if (e.Data != null) _hotReloadSource?.PushLine(e.Data);
-            };
-            process.ErrorDataReceived += (_, e) =>
-            {
-                if (e.Data != null) _hotReloadSource?.PushLine($"ERROR: {e.Data}");
-            };
-
-            try
-            {
-                process.Start();
-                process.BeginOutputReadLine();
-                process.BeginErrorReadLine();
-                process.WaitForExit();
-                _hotReloadSource?.PushLine($"Build exited with code {process.ExitCode}.");
-            }
-            catch (Exception ex)
-            {
-                _hotReloadSource?.PushLine($"ERROR: Failed to start dotnet process: {ex.Message}");
-            }
-        });
-    }
+    /// <summary>The AI Behaviors project file this editor rebuilds (<see cref="ResolveProjectFilePath"/>).</summary>
+    public string? AiProjectFilePath() => ResolveProjectFilePath(_aiProjectPathSegments);
 
     /// <summary>
-    /// Traverses parent directories upward from <see cref="Environment.CurrentDirectory"/>
-    /// until it finds a file at <paramref name="pathSegments"/> relative to that directory.
-    /// Returns <c>null</c> if the file is not found in any ancestor.
+    /// ⭐⭐⭐ <b><c>CE-018</c> — the FOURTH copy of the <c>.csproj</c> walk-up, routed to the one
+    /// implementation</b> *(<see cref="Hrot.Editor.AiShared.AssetRoots.ResolveProjectDir"/>)*.
+    ///
+    /// <para>⚠ <b>Two behaviour changes, both wanted.</b> ① The copy searched <b>only</b> from
+    /// <c>Environment.CurrentDirectory</c>; the shared one also searches from the output directory, so a
+    /// build launched from a bin folder now finds the project instead of reporting *"not found"*.
+    /// ② A node configured under ruling 67 is honoured — the copy could not see that arm at all.</para>
+    ///
+    /// <para>⚠ Returns the <b>file</b> path, as the caller needs it for <c>dotnet build</c> — the shared
+    /// resolver answers the DIRECTORY, so the leaf segment is re-joined here.</para>
     /// </summary>
     private static string? ResolveProjectFilePath(string[] pathSegments)
     {
-        string relativePath = Path.Combine(pathSegments);
-        string? dir = Environment.CurrentDirectory;
-        while (!string.IsNullOrEmpty(dir))
-        {
-            string candidate = Path.Combine(dir, relativePath);
-            if (File.Exists(candidate))
-                return candidate;
-            dir = Path.GetDirectoryName(dir);
-        }
-        return null;
+        if (pathSegments is null || pathSegments.Length == 0) return null;
+
+        var dir = Hrot.Editor.AiShared.AssetRoots.ResolveProjectDir(pathSegments);
+        return dir == null ? null : Path.Combine(dir, pathSegments[^1]);
     }
 
     /// <inheritdoc/>
-    public bool IsScenarioDegraded => _alertManager.IsDegradedMode;
+    public bool IsScenarioDegraded => _session.IsDegraded;
 
     /// <inheritdoc/>
     public IReadOnlyList<SidecarFileInfo> GetMigrationSidecarsForCurrentScenario()
-        => _fileService.GetSidecarsForLastLoadAsync().GetAwaiter().GetResult();
+        => _session.GetMigrationSidecars();
 
     /// <summary>
     /// Returns an <see cref="EditorSystemsModule"/> initialised against this application's

@@ -2,6 +2,7 @@ using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Debug;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Windows;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Editor.AiShared.Tests.Windows;
 
@@ -10,10 +11,10 @@ public class TraceTimelineWindowTests
     private static TraceTimelineWindow CreateWindow() =>
         new TraceTimelineWindow(new EditorSelectionStore(), new DebugSessionRegistry());
 
-    private sealed class StubProvider : ITraceLaneProvider
+    private sealed class StubProvider : ITimelineLaneProvider
     {
-        public AssetKind Kind => AssetKind.BTree;
-        public IReadOnlyList<TraceLaneDescriptor> Lanes => Array.Empty<TraceLaneDescriptor>();
+        public bool Applies(TimelineLaneContext context) => context.AssetKind == nameof(AssetKind.BTree);
+        public IReadOnlyList<TimelineLaneDescriptor> Lanes => Array.Empty<TimelineLaneDescriptor>();
     }
 
     [Fact]

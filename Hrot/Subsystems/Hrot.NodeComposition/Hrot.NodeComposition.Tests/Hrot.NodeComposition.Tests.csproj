@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);CS0618;CS0649;CS8625;CS8604;xUnit2013</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\..\..\FDP\TestShared\TestRepo.cs" Link="Shared\TestRepo.cs" />   <!-- CE-3343 / CE-1366: the one repo root + the one source scan -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Library under test -->
+    <ProjectReference Include="..\Hrot.NodeComposition.csproj" />
+    <!-- NodeBootstrapper and HrotScenarioSerializerFactory -->
+    <ProjectReference Include="..\..\Hrot.SimHost\Hrot.SimHost.csproj" />
+    <!-- SharedApplicationBootstrapper and HrotNodeBuilder -->
+    <ProjectReference Include="..\..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
+    <!-- NedNetworkFactory for integration tests -->
+    <ProjectReference Include="..\..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
+    <!-- AQ93 N1: the traffic node bootstrapper -->
+    <ProjectReference Include="..\..\Hrot.TrafficNode\Hrot.TrafficNode.csproj" />
+    <!-- OfflineNetworkFactory for headless tests -->
+    <ProjectReference Include="..\..\Hrot.Editor\Hrot.Editor.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- CE-4293: the test-only node extension, built the way a foreign product builds one and staged by path (not referenced) -->
+    <ProjectReference Include="..\..\..\Engine\Hrot.Common.Tests.SampleExtension\SampleNodeExtension.csproj" ReferenceOutputAssembly="false" OutputItemType="SampleExtensionOutput" />
+    <Compile Include="..\..\..\Engine\Hrot.Common.Tests.SampleExtension\Shared\SampleExtensionStaging.cs" Link="Shared\SampleExtensionStaging.cs" />
+  </ItemGroup>
+  <Import Project="..\..\..\Engine\Hrot.Common.Tests.SampleExtension\CopySampleExtension.targets" />
+</Project>

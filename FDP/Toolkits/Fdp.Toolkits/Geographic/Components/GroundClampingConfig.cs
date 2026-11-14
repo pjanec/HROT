@@ -10,6 +10,7 @@ namespace Fdp.Modules.Geographic.Components
     /// terrain query for this entity each frame.
     /// </summary>
     [ComponentId(GeographicComponentIds.GroundClampingConfig)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct GroundClampingConfig
     {
         /// <summary>Network-controlled clamping mode for this entity.</summary>

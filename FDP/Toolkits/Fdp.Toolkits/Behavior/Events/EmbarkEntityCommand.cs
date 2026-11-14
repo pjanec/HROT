@@ -15,5 +15,24 @@ namespace Fdp.Toolkit.Behavior.Events
 
         /// <summary>The vehicle entity that <see cref="Passenger"/> will board.</summary>
         public Entity Vehicle;
+
+        /// <summary>⭐ <c>CE-3110</c> I-2a (R-221) — set by the interaction ingress: this command came off the network (never sent again).</summary>
+        public bool IsRemote;
+
+        /// <summary>⭐ <c>CE-2151</c> B-b (R-2009 B4) — the seat role asked for: <c>Passenger</c> (the default — a plain boarding) or a crew role,
+        /// which only that role's seat takes.</summary>
+        public Fdp.Toolkit.Behavior.Components.SeatRole Role;
+
+        /// <summary>⭐ <c>CE-2152</c> C-a (R-2011 C5) — onto a PERSON carrier: carried or dragged (a seated request is carried). Ignored by a
+        /// vehicle, which always seats.</summary>
+        public Fdp.Toolkit.Behavior.Components.CarryMode Mode;
+
+        /// <summary>⭐ Team carry T-a (R-2017 T1, T4) — onto a PERSON carrier: the second man of a team load (a <c>Stretcher</c> carry, a
+        /// <c>TwoMan</c> weapon). Required for those, refused for any other load. APPENDED.</summary>
+        public Entity Assistant;
+
+        /// <summary>⭐ Edit framework F4 (📄 docs/UX/DESIGN_Edit_Framework.md §3, Q2) — the user's request id (<c>Edits.Submit</c>); the applying node answers with
+        /// <c>EntityEditOutcome</c> under it (accepted or refused + why). <see cref="System.Guid.Empty"/> = nobody asked. APPENDED.</summary>
+        public System.Guid RequestId;
     }
 }

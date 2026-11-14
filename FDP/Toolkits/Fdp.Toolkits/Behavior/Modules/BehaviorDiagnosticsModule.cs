@@ -6,6 +6,7 @@ namespace Fdp.Toolkit.Behavior.Modules
     /// <summary>
     /// Hosts behavior diagnostics systems outside pause-gated logic packs.
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class BehaviorDiagnosticsModule : IEcsModule
     {
         /// <inheritdoc/>

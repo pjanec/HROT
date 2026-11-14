@@ -37,7 +37,6 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
-            repo.RegisterComponent<NetworkOwnership>();
             repo.RegisterComponent<NetworkAuthority>();
             repo.RegisterComponent<TkbIdentity>();
             repo.RegisterComponent<GhostStateTracker>();
@@ -65,7 +64,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             new NetworkSpawningSystem(tkb, elm, networkMap, idAllocator, LocalNodeId);
 
         /// <summary>Creates an entity, registers it in the map, adds a TestPositionComponent.</summary>
-        private static Entity PrepareEntity(EntityRepository repo, NetworkEntityMap map, long netId)
+        private static Entity PrepareEntity(EntityRepository repo, NetworkEntityMap map, int netId)
         {
             var e = repo.CreateEntity();
             repo.AddComponent(e, new TestPositionComponent { X = 0f, Y = 0f });
@@ -95,11 +94,11 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             var idAlloc    = new StubIdAllocator();
             var system     = CreateSystem(tkb, elm, networkMap, idAlloc);
 
-            var entity = PrepareEntity(repo, networkMap, netId: 10L);
+            var entity = PrepareEntity(repo, networkMap, netId: 10);
 
             repo.Bus.PublishManaged(new UpdateEntityCommand
             {
-                NetworkId = 10L,
+                NetworkId = 10,
                 ComponentsToUpdate = new List<object>
                 {
                     new TestPositionComponent { X = 9.0f, Y = 5.5f }
@@ -124,7 +123,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             repo.Bus.PublishManaged(new UpdateEntityCommand
             {
-                NetworkId = 999L,   // not registered
+                NetworkId = 999,   // not registered
                 ComponentsToUpdate = new List<object> { new TestPositionComponent { X = 1f } }
             });
 
@@ -142,11 +141,11 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             var idAlloc    = new StubIdAllocator();
             var system     = CreateSystem(tkb, elm, networkMap, idAlloc);
 
-            PrepareEntity(repo, networkMap, netId: 20L);
+            PrepareEntity(repo, networkMap, netId: 20);
 
             repo.Bus.PublishManaged(new UpdateEntityCommand
             {
-                NetworkId          = 20L,
+                NetworkId          = 20,
                 ComponentsToUpdate = null
             });
 
@@ -168,11 +167,11 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             var idAlloc    = new StubIdAllocator();
             var system     = CreateSystem(tkb, elm, networkMap, idAlloc);
 
-            var entity = PrepareEntity(repo, networkMap, netId: 30L);
+            var entity = PrepareEntity(repo, networkMap, netId: 30);
 
             repo.Bus.PublishManaged(new DestroyEntityCommand
             {
-                NetworkId = 30L,
+                NetworkId = 30,
                 Reason    = "unit test destroy"
             });
             RunExecute(repo, system);
@@ -193,12 +192,42 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             repo.Bus.PublishManaged(new DestroyEntityCommand
             {
-                NetworkId = 888L,   // not registered
+                NetworkId = 888,   // not registered
                 Reason    = "no such entity"
             });
 
             var exception = Record.Exception(() => RunExecute(repo, system));
             Assert.Null(exception);
         }
-    }
+    
+        /// <summary>⭐ CE-4276 (edit framework F2) — a user's delete (<c>Edits.Submit</c>) on a node that does NOT own the entity is asked of the owner with its
+        /// request id and the replica is NOT torn down here; on the owner it is torn down at once and reported Applied.
+        /// ✅ Red-proof: the spawning system's skip removed ⇒ the replica enters TearDown ⇒ red.</summary>
+        [Fact]
+        public void F2_AUsersDeleteOnANonOwner_LeavesTheReplica_TheOwnerTearsItDown()
+        {
+            var repo = CreateWorld();
+            var tkb = CreateTkb();
+            var map = new NetworkEntityMap();
+            var system = CreateSystem(tkb, CreateElm(tkb), map, new StubIdAllocator());
+            var replica = PrepareEntity(repo, map, netId: 40);
+            repo.AddComponent(replica, new NetworkIdentity(40));
+            repo.AddComponent(replica, new NetworkAuthority(primaryOwnerId: 2, localNodeId: LocalNodeId));
+            var owned = PrepareEntity(repo, map, netId: 41);
+            repo.AddComponent(owned, new NetworkIdentity(41));
+            repo.AddComponent(owned, new NetworkAuthority(primaryOwnerId: LocalNodeId, localNodeId: LocalNodeId));
+
+            var asked = Fdp.Toolkit.Replication.Edits.Edits.Submit(repo, Fdp.Toolkit.Replication.Edits.EditOp.Delete(replica, "Delete"));
+            var done = Fdp.Toolkit.Replication.Edits.Edits.Submit(repo, Fdp.Toolkit.Replication.Edits.EditOp.Delete(owned, "Delete"));
+            Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Requested, asked.Route);
+            Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct, done.Route);
+            RunExecute(repo, system);
+
+            Assert.NotEqual(EntityLifecycle.TearDown, repo.GetLifecycleState(replica));
+            Assert.Equal(EntityLifecycle.TearDown, repo.GetLifecycleState(owned));
+            var commands = ((ISimulationView)repo).ReadManagedEvents<DestroyEntityCommand>();
+            Assert.Contains(commands, c => c.NetworkId == 40 && c.RequestId == asked.RequestId);   // the egress carries this id to the owner
+            Assert.True(Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(repo).TryGet(done.RequestId, out var o) && o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Applied);
+        }
+}
 }

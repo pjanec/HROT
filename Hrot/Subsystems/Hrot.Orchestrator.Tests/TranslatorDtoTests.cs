@@ -51,6 +51,105 @@ public sealed class TranslatorDtoTests
         Assert.DoesNotContain("\"TimeMode\"", json);
     }
 
+    /// <summary>⭐ R-3055 — a transition crosses the wire WHOLE: the one encoding and the one decoding keep every field an intent carries.
+    /// 📌 Measured on the five-process cluster: POST /replay {atSeconds:30} sent from CGF entered at 0 — TargetWallTicks was not on the
+    /// wire and three hand-written decoders each dropped some fields (two lost CheckpointingSeconds too).</summary>
+    [Fact]
+    public void ATransition_CrossesTheWireWhole()
+    {
+        var sent = new Fdp.Toolkit.Orchestration.TransitionStateIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay, ScenarioId = "s",
+            ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), TimeMode = "Deterministic", CheckpointingSeconds = 5, TargetWallTicks = TimeSpan.FromSeconds(30).Ticks,
+            TargetSimSeconds = 12.5,   // ⭐ CE-3329 R11
+            ForceRecording = true,     // ⭐ CE-4090 D14 — the verifier's live load records whatever the setting says
+            ScenarioArgsJson = "{\"side\":\"Friend\"}",   // ⭐ macros S3a ⑦ (SR-41)
+        };
+
+        var json = JsonSerializer.Serialize(TransitionPayloadDto.From(sent), Options);
+        var got  = JsonSerializer.Deserialize<TransitionPayloadDto>(json, Options)!.ToIntent(sent.TransactionId);
+
+        Assert.Equal(sent, got);
+    }
+
+    /// <summary>⭐ CE-3329 — a seek crosses the wire whole (its sim target included), and a bare tick count from an older sender still
+    /// decodes; the axis switch round-trips, an unreadable one is Sim (the default).</summary>
+    [Fact]
+    public void A_seek_and_an_axis_switch_cross_the_wire_whole()
+    {
+        var seek = new Fdp.Toolkit.Orchestration.SeekReplayIntent { RequestId = Guid.NewGuid(), TargetWallTicks = 42, TargetSimSeconds = 7.25 };
+        var json = JsonSerializer.Serialize(SeekReplayPayloadDto.From(seek), Options);
+        Assert.Equal(seek, SeekReplayPayloadDto.Decode(seek.RequestId, json));
+        Assert.Equal(99L, SeekReplayPayloadDto.Decode(Guid.Empty, "99").TargetWallTicks);
+
+        var axis = new Fdp.Toolkit.Orchestration.SetReplayAxisIntent { RequestId = Guid.NewGuid(), Axis = Fdp.Toolkit.Orchestration.ReplayAxis.Wall };
+        Assert.Equal(axis, SetReplayAxisPayloadDto.Decode(axis.RequestId, JsonSerializer.Serialize(SetReplayAxisPayloadDto.From(axis), Options)));
+        Assert.Equal(Fdp.Toolkit.Orchestration.ReplayAxis.Sim, SetReplayAxisPayloadDto.Decode(Guid.Empty, "{\"Axis\":\"sideways\"}").Axis);
+    }
+
+    /// <summary>⭐ CE-3329 §12n — a loop request crosses the wire whole in each of its three forms: wall bounds, sim bounds, and the
+    /// clear (all null); an unreadable payload decodes as a clear.</summary>
+    [Fact]
+    public void A_replay_loop_request_crosses_the_wire_in_all_three_forms()
+    {
+        var wall  = new Fdp.Toolkit.Orchestration.SetReplayLoopIntent { RequestId = Guid.NewGuid(), FromSeconds = 2.5, ToSeconds = 5.0 };
+        var sim   = new Fdp.Toolkit.Orchestration.SetReplayLoopIntent { RequestId = Guid.NewGuid(), FromSimSeconds = 1.25, ToSimSeconds = 7.5 };
+        var clear = new Fdp.Toolkit.Orchestration.SetReplayLoopIntent { RequestId = Guid.NewGuid() };
+        foreach (var sent in new[] { wall, sim, clear })
+            Assert.Equal(sent, SetReplayLoopPayloadDto.Decode(sent.RequestId, JsonSerializer.Serialize(SetReplayLoopPayloadDto.From(sent), Options)));
+
+        var got = SetReplayLoopPayloadDto.Decode(Guid.Empty, JsonSerializer.Serialize(SetReplayLoopPayloadDto.From(wall), Options));
+        Assert.Equal(2.5, got.FromSeconds); Assert.Equal(5.0, got.ToSeconds);
+        Assert.Null(got.FromSimSeconds); Assert.Null(got.ToSimSeconds);                       // wall form carries no sim bounds
+        Assert.Equal(clear, SetReplayLoopPayloadDto.Decode(clear.RequestId, "not json"));
+    }
+
+    /// <summary>⭐ CE-4090 (AQ108 D14) + CE-3341 — the run settings cross the wire whole, every combination (a field not sent stays null = "no change");
+    /// an unreadable payload changes nothing.</summary>
+    [Fact]
+    public void The_run_settings_cross_the_wire_whole_and_an_unreadable_one_changes_nothing()
+    {
+        foreach (bool? record in new bool?[] { null, true, false })
+        foreach (Fdp.Toolkit.Orchestration.ClusterArmedMode? armed in new Fdp.Toolkit.Orchestration.ClusterArmedMode?[]
+                     { null, Fdp.Toolkit.Orchestration.ClusterArmedMode.Live, Fdp.Toolkit.Orchestration.ClusterArmedMode.Preview, Fdp.Toolkit.Orchestration.ClusterArmedMode.AAR })
+        {
+            var sent = new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record, Armed = armed };
+            Assert.Equal(sent, SetRunSettingsPayloadDto.Decode(sent.RequestId, JsonSerializer.Serialize(SetRunSettingsPayloadDto.From(sent), Options)));
+        }
+        foreach (var bad in new[] { "not json", null, "{}" })
+        {
+            var got = SetRunSettingsPayloadDto.Decode(Guid.Empty, bad);
+            Assert.Null(got.RecordLiveRuns);
+            Assert.Null(got.Armed);
+        }
+        // an OLD sender's payload (only RecordLiveRuns): the armed mode is absent => no change
+        Assert.Null(SetRunSettingsPayloadDto.Decode(Guid.Empty, "{\"RecordLiveRuns\":false}").Armed);
+
+        // ⭐ CE-4100 (AQ108 D15) — Ask to keep recordings crosses whole (null / true / false), and an older sender's payload (the field absent) leaves it unchanged
+        foreach (bool? ask in new bool?[] { null, true, false })
+        {
+            var sent = new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = Guid.NewGuid(), AskToKeepRecordings = ask };
+            Assert.Equal(sent, SetRunSettingsPayloadDto.Decode(sent.RequestId, JsonSerializer.Serialize(SetRunSettingsPayloadDto.From(sent), Options)));
+        }
+        Assert.Null(SetRunSettingsPayloadDto.Decode(Guid.Empty, "{\"RecordLiveRuns\":false,\"Armed\":1}").AskToKeepRecordings);
+
+        // ⭐ CE-3415 (AQ108 D31) — Start immediately crosses whole too, and an older sender's payload (absent) leaves it unchanged
+        foreach (bool? start in new bool?[] { null, true, false })
+        {
+            var sent = new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = Guid.NewGuid(), StartLiveImmediately = start };
+            Assert.Equal(sent, SetRunSettingsPayloadDto.Decode(sent.RequestId, JsonSerializer.Serialize(SetRunSettingsPayloadDto.From(sent), Options)));
+        }
+        Assert.Null(SetRunSettingsPayloadDto.Decode(Guid.Empty, "{\"RecordLiveRuns\":false,\"AskToKeepRecordings\":true}").StartLiveImmediately);
+
+        // ⭐ CE-4099 phase 2 — Autosave minutes cross whole too (0 = off is a VALUE, absent = no change)
+        foreach (int? minutes in new int?[] { null, 0, 2, 30 })
+        {
+            var sent = new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = Guid.NewGuid(), AutosaveMinutes = minutes };
+            Assert.Equal(sent, SetRunSettingsPayloadDto.Decode(sent.RequestId, JsonSerializer.Serialize(SetRunSettingsPayloadDto.From(sent), Options)));
+        }
+        Assert.Null(SetRunSettingsPayloadDto.Decode(Guid.Empty, "{\"RecordLiveRuns\":false}").AutosaveMinutes);
+    }
+
     // ── Test 4: Unknown enum string should throw ──────────────────────────────
 
     [Fact]
@@ -60,5 +159,78 @@ public sealed class TranslatorDtoTests
 
         Assert.Throws<JsonException>(() =>
             JsonSerializer.Deserialize<TransitionPayloadDto>(json, Options));
+    }
+
+    // ── D2: purpose-built zone / terrain-build payloads ───────────────────────
+
+    /// <summary>
+    /// ⭐ D2 — a zone id is a NAME, not a <see cref="Guid"/>.
+    /// ⛔ The regression this pins: the <c>LoadZone</c> arm used to deserialize
+    /// <c>ArchivePayloadDto</c> and stringify its <c>ExerciseId</c> into the zone id, which silently
+    /// constrained zone ids to GUID shape and named a different domain.
+    /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §9.3.
+    /// </summary>
+    [Fact]
+    public void ZonePayloadDto_RoundTripsANonGuidZoneId()
+    {
+        var json = JsonSerializer.Serialize(new ZonePayloadDto("north-ridge"), Options);
+        Assert.Contains("\"ZoneId\"", json);
+
+        var dto = JsonSerializer.Deserialize<ZonePayloadDto>(json, Options)!;
+        Assert.Equal("north-ridge", dto.ZoneId);
+
+        // ⛔ And the old shape does NOT smuggle a zone id through: an ArchivePayloadDto-shaped
+        //    payload carries no ZoneId at all, which is the point of the split.
+        var fromArchiveShape = JsonSerializer.Deserialize<ZonePayloadDto>(
+            "{\"ExerciseId\":\"3f2504e0-4f89-11d3-9a0c-0305e82c3301\"}", Options)!;
+        Assert.Null(fromArchiveShape.ZoneId);
+    }
+
+    /// <summary>
+    /// ⭐ D2 — the build op carries a KIND list; null means "all" and must survive the trip as null
+    /// rather than becoming an empty array that reads as "nothing to build".
+    /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §3.1.
+    /// </summary>
+    [Fact]
+    public void TerrainAssetBuildPayloadDto_RoundTripsKinds_AndKeepsNullDistinctFromEmpty()
+    {
+        var withKinds = JsonSerializer.Deserialize<TerrainAssetBuildPayloadDto>(
+            JsonSerializer.Serialize(new TerrainAssetBuildPayloadDto(new[] { "roads", "tiles" }), Options),
+            Options)!;
+        Assert.Equal(new[] { "roads", "tiles" }, withKinds.Kinds);
+
+        var allKinds = JsonSerializer.Deserialize<TerrainAssetBuildPayloadDto>("{}", Options)!;
+        Assert.Null(allKinds.Kinds);
+
+        var noKinds = JsonSerializer.Deserialize<TerrainAssetBuildPayloadDto>("{\"Kinds\":[]}", Options)!;
+        Assert.NotNull(noKinds.Kinds);
+        Assert.Empty(noKinds.Kinds!);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4330 — a storage ask crosses the wire WHOLE through the one encoding (<see cref="ArchivePayloadJson"/>): who asked, and a delete's
+    /// "from the archive" — 🔴 measured before: both master-side decoders read only the id, so a delete-from-archive asked on another station
+    /// arrived as a plain discard. The in-process adapter decodes the same; an old sender's payload (the id alone) reads as before.
+    /// 🔴 Mutation: Decode dropping FromArchive ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4330_AStorageAsk_CrossesTheWireWhole_OnEveryPath()
+    {
+        var id = Guid.NewGuid();
+        var sent = new Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent
+        {
+            RequestId = Guid.NewGuid(), Operation = Fdp.Toolkit.Orchestration.StorageOpType.Delete,
+            ExerciseId = (Fdp.Core.ExerciseId)id, AskedBy = "instructor-2", FromArchive = true,
+        };
+        var json = ArchivePayloadJson.Encode(sent);
+
+        var viaDds = ArchivePayloadJson.Decode(sent.RequestId, Fdp.Toolkit.Orchestration.StorageOpType.Delete, json);
+        Assert.Equal((sent.ExerciseId, "instructor-2", true), (viaDds.ExerciseId, viaDds.AskedBy, viaDds.FromArchive));
+
+        var viaAdapter = ClusterOpRequestAdapter.ToExecuteStorageOpIntent(new ClusterOpRequest { RequestId = sent.RequestId, OperationType = ClusterOpType.DeleteExercise, PayloadJson = json });
+        Assert.Equal((sent.ExerciseId, "instructor-2", true), (viaAdapter.ExerciseId, viaAdapter.AskedBy, viaAdapter.FromArchive));
+
+        var old = ArchivePayloadJson.Decode(Guid.NewGuid(), Fdp.Toolkit.Orchestration.StorageOpType.Delete, $"{{\"ExerciseId\":\"{id}\"}}");
+        Assert.Equal(((Fdp.Core.ExerciseId)id, (string?)null, false), (old.ExerciseId, old.AskedBy, old.FromArchive));   // an old sender: a discard, as before
     }
 }

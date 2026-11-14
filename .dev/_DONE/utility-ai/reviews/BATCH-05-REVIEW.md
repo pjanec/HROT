@@ -195,7 +195,7 @@ All production files are correct and complete:
 | `WeaponSelectionDecision.cs` | Correct. `WeaponRangeBandFit` Bell + `WeaponEffectivenessVsTarget` Linear combination works correctly because `TryFindMountChild` short-circuits to self when the candidate IS the mount entity. |
 | `LeaderAssignmentDecision.cs` | Correct for Phase 1. Phase 1 catalog approximations (`HasLineOfSight` + `WeaponEffectivenessVsTarget`) are reasonable substitutes documented in the report. |
 | `UtilityApplicationComponentIds.cs` (D-07) | Correct. ID 151 is the next free slot. |
-| `UtilityResultBuffer.cs` (D-07) | Correct. `[ComponentId]` + `[DataPolicy(NoSave)]` added. |
+| `UtilityResultBuffer.cs` (D-07) | Correct. `[ComponentId]` + `[DataPolicy(NoScenario)]` added. |
 | `UtilityCore.cs` (D-05) | Correct. `Debug.Assert` in `ValidateOptions` / builder path. |
 
 ### Tests delivered — APPROVED
@@ -253,7 +253,7 @@ feat(utility-ai): BATCH-05 fluent authoring, ThreatMatrixAssignmentSystem, start
 - UtilityScorer: instance API (ctor + Evaluate/SelectPosture/EvaluateCandidates)
 - StarterPack: Posture enum, CombatPostureDecision, ThreatRankingDecision,
   WeaponSelectionDecision, LeaderAssignmentDecision
-- Fix D-07: UtilityResultBuffer [ComponentId(151)] + [DataPolicy(NoSave)]
+- Fix D-07: UtilityResultBuffer [ComponentId(151)] + [DataPolicy(NoScenario)]
 - Fix D-04: namespace Fdp.Toolkit.Tests in UtilityScorerTests + UtilityResultBufferTests
 - Fix D-05: Debug.Assert(optionId <= 255) in builder
 - Close D-06: deferred to Phase 2

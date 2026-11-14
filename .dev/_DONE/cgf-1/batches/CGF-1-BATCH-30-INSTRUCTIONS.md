@@ -564,7 +564,7 @@ Run these to validate (in order):
 
 ```powershell
 # 1. Build the whole solution
-dotnet build "D:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln" -c Debug
+dotnet build "D:\Work\IOS-IG-SimHost-FDP-2\HROT.sln" -c Debug
 
 # 2. Run IOS unit tests (baseline: 340; target: ~347+)
 dotnet test "D:\Work\IOS-IG-SimHost-FDP-2\Hrot.ExCon.Tests\Hrot.ExCon.Tests.csproj" -c Debug --no-build --verbosity quiet
@@ -573,7 +573,7 @@ dotnet test "D:\Work\IOS-IG-SimHost-FDP-2\Hrot.ExCon.Tests\Hrot.ExCon.Tests.cspr
 dotnet test "D:\Work\IOS-IG-SimHost-FDP-2\Hrot.ClusterRunner.Tests\Hrot.ClusterRunner.Tests.csproj" -c Debug --no-build --verbosity quiet
 
 # 4. Run full suite
-dotnet test "D:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln" -c Debug --no-build --verbosity quiet
+dotnet test "D:\Work\IOS-IG-SimHost-FDP-2\HROT.sln" -c Debug --no-build --verbosity quiet
 ```
 
 ---

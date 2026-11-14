@@ -19,11 +19,14 @@ public static class HealthRegen_9EC49CD9_Bp
     public const int BlueprintId = unchecked((int)0x9EC49CD9);
     public const ulong StructureHash = 14110396460855306383UL;
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct State
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes
+        [global::System.Runtime.InteropServices.FieldOffset(16)]
         public float CurrentHealth;
+        [global::System.Runtime.InteropServices.FieldOffset(20)]
         public float MaxHealth;
     }
     
@@ -35,13 +38,16 @@ public static class HealthRegen_9EC49CD9_Bp
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
     
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
+    
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
         ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(
             ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(stateBytes));
         s = default;
-        s.CurrentHealth = 100;
-        s.MaxHealth = 100;
+        s.CurrentHealth = 100F;
+        s.MaxHealth = 100F;
     }
     
     public static void Tick(
@@ -86,6 +92,8 @@ public static class BlueprintRegistrar_HealthRegen_9EC49CD9_Bp
             StateClrType = typeof(HealthRegen_9EC49CD9_Bp.State),
             InitDefault = HealthRegen_9EC49CD9_Bp.InitDefault,
             Tick = HealthRegen_9EC49CD9_Bp.TickThunk,
+            ParamsOffset = HealthRegen_9EC49CD9_Bp.ParamsOffset,
+            ParamsSize = HealthRegen_9EC49CD9_Bp.ParamsSize,
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
             {
                 ["CurrentHealth"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("CurrentHealth", typeof(float), 16, 4, ""),

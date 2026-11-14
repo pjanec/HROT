@@ -2,6 +2,8 @@ using System.Text.Json.Nodes;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Core.Compiler.Transform;
+using Ladder = Fdp.Toolkit.Blueprints.Shared.BlueprintTierLadder;
 
 namespace Hrot.Blueprints.Core.Compiler.Stages;
 
@@ -24,6 +26,13 @@ internal static class Stage2_Validate
     {
         new V_AssetStructure(),
         new V_DispatchKindCompatibility(),
+        // ⭐⭐ Q43-C1 places this "beside V_DispatchKindCompatibility", and the ORDER is load-bearing,
+        // not cosmetic: Stage2_Validate.Run RETURNS on the first fatal error, and a resolver that
+        // contains a side-effecting node usually trips that node's OWN rule first (a SetVariable with
+        // no declaration is BP1670, a Delay is a latency error). ⛔ Reported late, BP1675 would be
+        // unreachable for exactly the assets it exists to refuse — and the designer would be told
+        // "that variable does not exist" instead of "a resolver may not write".
+        new V_ResolverPurity(),             // Q43-C1: BP1675/BP1676/BP1677
         new V_NodeStructure(),
         new V_LinkStructure(),
         new V_GraphStructure(),
@@ -33,17 +42,29 @@ internal static class Stage2_Validate
         new V_ChannelCommandReferences(),
         new V_EventGraphReferences(),
         new V_WaitNodeReferences(),
+        new V_ValueNodeReferences(),   // BP-15
+        new V_CustomEventHandlers(),   // BP-12c
+        new V_UnloweredNodeKinds(),    // BP-16
         new V_PeerReferences(),
         new V_TypeReferences(),
         new V_DeterminismOrdering(),
         new V_WhenNodeRules(),
         new V_FlowForEachRules(),
         new V_ReadEqsResultNodeRules(),
+        new V_SensorNodeRules(),
         new V_SpawnEqsSensorNodeRules(),
-        new V_SharedStateRules(),
         new V_ComponentAccessRules(),
+        new V_ListVariableRules(),
         new V_FunctionGraphCallRules(),
+        new V_MacroCallRules(),             // BP-81/BP-82: BP1660/BP1661/BP1662/BP1663
+        new V_LocalVariableRules(),         // BP-57/Q27: BP1664/BP1669
+        new V_VariableReferenceRules(),     // BP-57 §2: BP1670
+        new V_FunctionGraphReturnValue(),   // BP-71 (BP1655) + BP-73 gate (BP1656)
         new V_ExecOutFanOut(),
+        new V_FormatStringRules(),   // BP-108 (BP2072)
+        new V_SopOrderRules(),       // CE-2083 (BP1688)
+        new V_ParamsDtoRules(),      // CE-2133 (BP1689)
+        new V_DeclarationNameUniqueness(),  // U-12: BP1673
     };
 
     public static void Run(BlueprintAsset asset, ValidationContext ctx)
@@ -81,10 +102,8 @@ internal sealed class V_AssetStructure : IValidator
 
 internal sealed class V_DispatchKindCompatibility : IValidator
 {
-    private static readonly AiPrimitiveHosting[] ActionHostings =
-        { AiPrimitiveHosting.BTreeAction, AiPrimitiveHosting.HsmAction };
-    private static readonly AiPrimitiveHosting[] ConditionHostings =
-        { AiPrimitiveHosting.BTreeCondition, AiPrimitiveHosting.HsmGuard };
+    // ⭐ CE-461 — the intent → hosting table lives in AiPrimitiveHostingRules (public), so the editor's
+    //   New Action / New Condition templates read the SAME rule this validator enforces.
 
     public void Validate(BlueprintAsset asset, ValidationContext ctx)
     {
@@ -95,9 +114,25 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1010,
                         "Library asset has 'primitive' block, valid only for AiPrimitive.",
                         asset.AssetId));
-                if (asset.Variables.Count > 0)
+                // U-12 — RESTATED from "must not declare member variables" to "must not declare
+                // anything asset-scope". ⭐ All three of BlueprintAsset's declaration lists are the
+                // `Asset` scope; graph locals live on Graph, a different type. The old wording named
+                // one of the three because the three were separate lists, and a Library carrying
+                // Parameters or WorkingState was quietly legal for no stated reason.
+                // ⚠ Measured over all 58 shipped assets: the 3 Library assets declare NOTHING, so this
+                // widening refuses nothing that ships.
+                // ⭐ CE-428: a BEHAVIOUR RESOLVER asset (ResolverSubject set) declares the behaviour block's
+                //   fields as its Variables — that is its subject, not asset-scope state (Q76 §12.20).
+                //   ⭐ CE-443: and its Parameters declare the AUTHORED shape it converts from (§P.7) — both
+                //   allowed; nothing else is asset-scope on a resolver.
+                if (asset.ResolverSubject is not null)
+                {
+                    // allowed: Parameters (authored input) + Variables (the behaviour's block)
+                }
+                else if (asset.Declarations.Count > 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1011,
-                        "Library asset must not declare member variables.", asset.AssetId));
+                        "Library asset must not declare asset-scope variables "
+                        + "(parameters, working state or variables).", asset.AssetId));
                 if (asset.CustomEvents.Count > 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1012,
                         "Library asset must not declare custom events.", asset.AssetId));
@@ -120,34 +155,112 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                 foreach (var hosting in asset.Primitive.Hostings)
                 {
                     if (asset.Primitive.Intent == AiPrimitiveIntent.Action
-                        && ConditionHostings.Contains(hosting))
+                        && !AiPrimitiveHostingRules.IsCompatible(AiPrimitiveIntent.Action, hosting))
                         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1022,
                             $"Action intent incompatible with condition-shaped hosting '{hosting}'.",
                             asset.AssetId));
                     if (asset.Primitive.Intent == AiPrimitiveIntent.Condition
-                        && ActionHostings.Contains(hosting))
+                        && !AiPrimitiveHostingRules.IsCompatible(AiPrimitiveIntent.Condition, hosting))
                         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1023,
                             $"Condition intent incompatible with action-shaped hosting '{hosting}'.",
                             asset.AssetId));
                 }
-                if (asset.Variables.Count > 0)
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1024,
-                        "AiPrimitive uses 'parameters' and 'workingState', not 'variables'.",
-                        asset.AssetId));
+                // ⛔ BP1024 RETIRED here (U-12). It refused an AiPrimitive that declared a Variable,
+                // on the reasoning that "AiPrimitive uses parameters and workingState". Under the
+                // unified model `Variable` and `WorkingState` are the SAME cell — (State, Asset) — so
+                // the rule was enforcing a spelling, not a semantic. ⭐ What it was ALSO doing, silently,
+                // is handled by BP1673 below: see DiagnosticCodes.BP1673.
                 if (asset.Graphs.Any(g => g.Kind == GraphKind.Event))
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1025,
                         "AiPrimitive does not subscribe to engine events.", asset.AssetId));
+                // ⚠ The latency rail's Condition row is NOT here — it already ships as BP1101 in
+                // V_AiPrimitiveIntent below. See that validator for what Batch 67 widened.
                 break;
 
+            case BlueprintDispatchKind.Behavior:   // CE-446: a behaviour IS an Instance body
             case BlueprintDispatchKind.Instance:
                 if (asset.Primitive is not null)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1030,
                         "Instance asset must not have a 'primitive' block.", asset.AssetId));
-                if (asset.Parameters.Count > 0 || asset.WorkingState.Count > 0)
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1031,
-                        "Instance uses 'variables', not 'parameters'/'workingState'.",
-                        asset.AssetId));
+                // ⛔⛔ BP1031 RETIRED here (Batch 70, the Instance params seam). U-12 had already
+                // dropped its `WorkingState` half as a spelling rule; what survived was the
+                // `Parameter` half, and its message stated its own reason verbatim: "nothing
+                // supplies them at spawn."
+                //
+                // ⭐⭐ That reason is no longer true. DESIGN_Parameter_Model.md §3.3 rules that
+                // "Instances could and should reuse the param parsing and resolving", and the seam
+                // that implements it supplies exactly that: AttachInstanceBlueprintEvent carries the
+                // params JSON, BlueprintDefinition.ParseParams resolves it (the SAME delegate the
+                // behaviour path uses), and BlueprintInstanceService.AttachToEntity parses before it
+                // commits. The payload is [BlueprintLatentCursor 16][Params N][State M].
+                //
+                // ⚠ Leaving the rule standing would have made the whole seam UNREACHABLE — a
+                // producer with no consumer, which is the "inert rule" shape this programme keeps
+                // filing (DEBT-AIB-028, trap #5) rather than shipping.
+                //
+                // ⭐ Kept defined so the number is not reused; listed in the coverage ratchet as
+                // RETIRED, on BP1024's precedent.
                 break;
+        }
+    }
+
+}
+
+// ---------------------------------------------------------------------------
+// V_DeclarationNameUniqueness — U-12 / BP1673
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// ⭐⭐ <b><c>BP1673</c> — two asset-scope declarations must not share a name.</b>
+///
+/// <para>
+/// ⛔ <b>The hole <c>U-12</c> opens.</b> <c>Stage5.FindVariableRef</c> resolves by <b>priority across
+/// kinds</b> — <c>Variables</c> → <c>WorkingState</c> → <c>Parameters</c> — and its <b>name</b>
+/// fallback is the path hand-authored assets take. Two declarations of one name therefore bind to
+/// whichever kind the priority order reaches first, <b>silently</b>. The GUID path is unambiguous;
+/// this rule is about the name path.
+/// </para>
+///
+/// <para>
+/// ⭐ <b>Nothing checked this before, and nothing had to.</b> <c>BP1024</c> kept <c>Variables</c> off
+/// an AiPrimitive and <c>BP1031</c> kept <c>Parameters</c>/<c>WorkingState</c> off an Instance, so at
+/// most one list was ever populated and a cross-kind collision could not be authored.
+/// ⇒ <b>retiring those rules is what makes this one necessary</b>, which is why it lands in the same
+/// batch rather than after one.
+/// </para>
+///
+/// <para>
+/// ⚠ <b><c>OrdinalIgnoreCase</c>, matching <c>U-14</c>'s auto-namer</b>, so the compiler refuses
+/// exactly what the editor refuses to create. ⚠ <b>Same-kind duplicates are covered too</b> — they
+/// were equally undiagnosed, and a designer reading the error does not care which list the twin is in.
+/// </para>
+///
+/// <para>
+/// 📌 <b>Graph locals are deliberately out of scope.</b> A local shadowing an asset declaration is
+/// legal and ruled on (<c>Q27-C1</c>: a local wins inside its own graph), and
+/// <c>CrossKindUniquenessTests</c> asserts that. This rule is asset-scope against asset-scope.
+/// </para>
+/// </summary>
+internal sealed class V_DeclarationNameUniqueness : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        var seen = new Dictionary<string, BlueprintDeclaration>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var decl in asset.Declarations)
+        {
+            var name = decl.Name;
+            if (string.IsNullOrWhiteSpace(name)) continue;   // V_AssetStructure's business, not this rule's
+
+            if (seen.TryGetValue(name, out var first))
+            {
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1673,
+                    $"Declaration '{name}' ({decl.Kind}) collides with '{first.Name}' ({first.Kind}); "
+                    + "a variable reference by name would silently bind to one of them.",
+                    asset.AssetId));
+                continue;   // report each collision once against the first occurrence
+            }
+            seen[name] = decl;
         }
     }
 }
@@ -383,34 +496,69 @@ internal sealed class V_VariablesAndState : IValidator
             case BlueprintDispatchKind.AiPrimitive:
                 if (asset.Primitive is null) return;
 
-                int paramsSize = ComputeStructSize(asset.Parameters.Select(p => p.Type), ctx);
-                if (paramsSize > 100)
+                // ⭐⭐⭐ CE-326 (2026-09-23) — THESE TWO BOUNDS WERE THE GEOMETRY OF DELETED COMPONENTS.
+                //   📐 They read `> 100` and `> 1024 - 8` as LITERALS. 100 was the width of
+                //      BrainBlackboard.BehaviorParameters (a `fixed byte[100]`) and 1016 the payload of
+                //      Blackboard1024 — ⛔ `P4` deleted BOTH components, so the compiler was refusing
+                //      assets on the capacity of storage that no longer exists.
+                //   ⭐ CE-307 repointed the FOUR other sites that enforced 100 (FDP_001, both packers,
+                //      BehaviorRegistry's throw) at the ladder; this stage is the one it missed, and
+                //      the Instance arm below has read the ladder since O3a. ⇒ one set of numbers now.
+                //   ⚠⚠ THIS IS A CEILING, NOT A BUDGET — the same distinction BehaviorConstants
+                //      .MaxRootParamsByteSize carries. Passing it does NOT mean the asset fits: the
+                //      region shares its tier with the behaviour's other slots, and ingress throws
+                //      (naming CE-302) when the store has no room. What this catches is the case that
+                //      is impossible to satisfy at ANY tier, which is worth refusing at build time.
+                //   📄 DESIGN_Occurrence_Scoped_Storage.md §30.15.
+                int paramsSize = ComputeStructSize(
+                    asset.Declarations.Of(DeclarationKind.Parameter).Select(d => d.Type), ctx);
+                if (paramsSize > Ladder.Tier16384PayloadSize)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1200,
-                        $"AiPrimitive Parameters total {paramsSize} bytes; max is 100.",
+                        $"AiPrimitive Parameters total {paramsSize} bytes, which exceeds "
+                        + $"{Ladder.Tier16384PayloadSize} — the payload of the largest occurrence "
+                        + "storage tier. No tier could hold them. Split the parameters, or add a "
+                        + "larger tier to BlueprintTierLadder.",
                         asset.AssetId));
 
-                int workingSize = ComputeStructSize(asset.WorkingState.Select(v => v.Type), ctx);
-                if (workingSize > 1024 - 8)
+                // ⭐ Batch 86 — the AiPrimitive working-state struct is the one state run (R-01).
+                int workingSize = ComputeStructSize(
+                    asset.Declarations.Of(DeclarationKind.Variable).Select(d => d.Type), ctx);
+                if (workingSize > Ladder.Tier16384PayloadSize)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1201,
-                        $"AiPrimitive WorkingState total {workingSize} bytes; max is {1024 - 8}.",
+                        $"AiPrimitive WorkingState total {workingSize} bytes, which exceeds "
+                        + $"{Ladder.Tier16384PayloadSize} — the payload of the largest occurrence "
+                        + "storage tier. No tier could hold it. Split the state, or add a larger "
+                        + "tier to BlueprintTierLadder.",
                         asset.AssetId));
                 break;
 
+            case BlueprintDispatchKind.Behavior:   // CE-446: a behaviour IS an Instance body
             case BlueprintDispatchKind.Instance:
-                int stateSize = ComputeStructSize(asset.Variables.Select(v => v.Type), ctx);
+                int stateSize = ComputeStructSize(
+                    asset.Declarations.Of(DeclarationKind.Variable).Select(d => d.Type), ctx);
+                // ⭐⭐⭐ O3a / B3② — THE BUDGETS COME FROM THE LADDER, NOT FROM LITERALS.
+                //   📐 These were `928 / 3936 / 16096` spelled as integers — a FOURTH copy of the
+                //      tier ladder, here, behind the netstandard2.0 wall that stops this project
+                //      referencing Fdp.Toolkits. ⇒ re-picking MaxSlots silently desynced
+                //      compile-time validation from runtime capacity: this stage would keep
+                //      accepting an asset the runtime can no longer seat, or reject one it could.
+                //   ⭐ BlueprintTierLadder is LINKED in (see the .csproj), so both sides now read
+                //      one set of numbers. 📄 design §17.1 N1, §17.5.
                 int tierBudget = (asset.TierHint, stateSize) switch
                 {
-                    (BlackboardTierHint.Force1024,  _)               => 928,
-                    (BlackboardTierHint.Force4096,  _)               => 3936,
-                    (BlackboardTierHint.Force16384, _)               => 16096,
-                    (BlackboardTierHint.Auto, _) when stateSize <= 928  => 928,
-                    (BlackboardTierHint.Auto, _) when stateSize <= 3936 => 3936,
-                    (BlackboardTierHint.Auto, _) when stateSize <= 16096 => 16096,
+                    (BlackboardTierHint.Force256,   _) => Ladder.Tier256PayloadSize,
+                    (BlackboardTierHint.Force1024,  _) => Ladder.Tier1024PayloadSize,
+                    (BlackboardTierHint.Force4096,  _) => Ladder.Tier4096PayloadSize,
+                    (BlackboardTierHint.Force16384, _) => Ladder.Tier16384PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier256PayloadSize   => Ladder.Tier256PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier1024PayloadSize  => Ladder.Tier1024PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier4096PayloadSize  => Ladder.Tier4096PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier16384PayloadSize => Ladder.Tier16384PayloadSize,
                     _ => 0
                 };
                 if (tierBudget == 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1210,
-                        $"Instance state {stateSize} bytes exceeds largest tier (16384). "
+                        $"Instance state {stateSize} bytes exceeds largest tier ({Ladder.Tier16384TotalSize}). "
                         + "Reduce variable count or split asset.",
                         asset.AssetId));
                 else if (asset.TierHint != BlackboardTierHint.Auto && stateSize > tierBudget)
@@ -422,28 +570,58 @@ internal sealed class V_VariablesAndState : IValidator
         }
     }
 
+    /// <summary>⭐ <c>CE-2027</c> — the record size <c>FieldLayout</c> will lay these types out at (one copy of the math).</summary>
     private static int ComputeStructSize(IEnumerable<BlueprintTypeRef> types, ValidationContext ctx)
-    {
-        int offset = 0;
-        foreach (var typeRef in types)
-        {
-            if (!ctx.TypeRegistry.TryResolve(typeRef, out var resolved))
-                continue;
-            int align = resolved.SizeBytes switch { 1 => 1, 2 => 2, <= 4 => 4, _ => 8 };
-            int sz = resolved.SizeBytes;
-            offset = AlignUp(offset, align);
-            offset += sz;
-        }
-        return AlignUp(offset, 8);
-    }
-
-    private static int AlignUp(int offset, int align) => (offset + align - 1) & ~(align - 1);
+        => Lowering.FieldLayout.RecordSize(
+            types.Select(t => ctx.TypeRegistry.TryResolve(t, out var resolved) ? resolved.SizeBytes : -1).Where(size => size >= 0));
 }
 
 // ---------------------------------------------------------------------------
 // V_AiPrimitiveIntent
 // ---------------------------------------------------------------------------
 
+/// <summary>
+/// ⭐⭐ <b>The latency rail's <c>Condition</c> row — <c>BP1100</c> / <c>BP1101</c>.</b>
+///
+/// <para>
+/// 🔴 <b>What it protects.</b> <c>BTreeEvaluate</c> emits
+/// <c>return TickCore(…) == NodeStatus.Success;</c>, so <b><c>Running</c> maps to <c>false</c></b>. A
+/// latent condition reads <i>false</i> while it waits — indistinguishable from <i>"the condition does
+/// not hold"</i> — then flips true later with <c>__phase</c> left mid-sequence. ⛔ No throw, no
+/// warning; the tree simply takes the wrong branch.
+/// </para>
+///
+/// <para>
+/// ⭐⭐⭐ <b>Batch 67 WIDENED this rule rather than adding a second one.</b> The carried task described
+/// the Condition row as missing; measured, it has shipped as <c>BP1101</c> all along — but matching on
+/// its <b>own</b> inline list of three node types.
+/// </para>
+///
+/// <para>
+/// ⚠ <b>The kind that list did not name: a <c>ChannelCommandNode</c> carrying an <c>ActionFqn</c></b> —
+/// an inline action, which <c>WaitLowering</c> gives the same suspend/resume block split as a
+/// <c>Delay</c>. It is a fourth SHAPE of an already-listed type rather than a fourth type, which is
+/// why a type-match missed it. <c>MacroLatency</c>'s own doc records this kind as <i>"missing for six
+/// batches"</i> from the copy it replaced; ⭐ <b>this inline list was the last surviving copy</b>, and
+/// that doc says plainly <i>"do not write a second latent-detection rule"</i>. ⇒ the validator now
+/// calls the shared predicate.
+/// </para>
+///
+/// <para>
+/// 📌 <b>Latency behind a macro call needs no separate arm</b>, and one was written and then removed:
+/// the loop below scans <b>every</b> graph, macro bodies included, so a latent node in a called macro
+/// is already reported — against the macro that contains it. ⛔ A second, call-following arm produced
+/// only a duplicate diagnostic for one defect.
+/// </para>
+///
+/// <para>
+/// 📌 <b>Only the Condition row ships.</b> The rule is <i>"latency is legal iff the hosting can
+/// RE-ENTER"</i>. <c>BTreeCondition</c>/<c>HsmGuard</c> never can, which makes this row fully
+/// specified today. ⛔ The Action rows (HSM <c>Entry</c>/<c>Exit</c>/<c>Timer</c> cannot re-enter
+/// either) stay unimplemented deliberately — they are speculative until <c>E5</c> defines HSM activity
+/// hosting, and guessing them would refuse assets the design has not ruled on.
+/// </para>
+/// </summary>
 internal sealed class V_AiPrimitiveIntent : IValidator
 {
     public void Validate(BlueprintAsset asset, ValidationContext ctx)
@@ -455,24 +633,17 @@ internal sealed class V_AiPrimitiveIntent : IValidator
         {
             foreach (var node in graph.Nodes)
             {
-                switch (node)
-                {
-                    case ReturnNode rn when rn.Status == NodeStatus.Running:
-                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1100,
-                            "Condition intent: Return Running is forbidden. "
-                            + "Conditions must be instantaneous.",
-                            asset.AssetId, graph.Id, node.Id));
-                        break;
+                if (node is ReturnNode { Status: NodeStatus.Running })
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1100,
+                        "Condition intent: Return Running is forbidden. "
+                        + "Conditions must be instantaneous.",
+                        asset.AssetId, graph.Id, node.Id));
 
-                    case LatentDelayNode:
-                    case WaitForChannelNode:
-                    case WaitForEventNode:
-                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1101,
-                            "Condition intent: latent nodes are forbidden. "
-                            + "Condition graphs must be synchronous.",
-                            asset.AssetId, graph.Id, node.Id));
-                        break;
-                }
+                if (!MacroLatency.IsLatent(node)) continue;
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1101,
+                    "Condition intent: latent nodes are forbidden. "
+                    + "Condition graphs must be synchronous.",
+                    asset.AssetId, graph.Id, node.Id));
             }
         }
     }
@@ -486,19 +657,114 @@ internal sealed class V_LatentRules : IValidator
 {
     public void Validate(BlueprintAsset asset, ValidationContext ctx)
     {
+        // ⭐ S1 / I11 (DESIGN_Unified_Behaviour_Run §2) — a payload has ONE latent cursor, shared by every graph, and an
+        //   Event method has no instanceVersion: a latent node in an Event graph used to fail as a Roslyn CS0103 in
+        //   GENERATED code. ⇒ refused here, naming the node, until fibers (S6a) give each graph its own cursor.
+        //   ⭐ S6a — a BEHAVIOUR's Event graph is now a fiber of its own (Lowering.Fibers), so the rule binds Instances only.
+        var macrosById = asset.Graphs.Where(g => g.Kind == GraphKind.Macro).ToDictionary(g => g.Id);
+        foreach (var graph in asset.Graphs.Where(g => g.Kind == GraphKind.Event
+                                                     && asset.Dispatch != BlueprintDispatchKind.Behavior))
+        {
+            var latent = MacroLatency.FindLatentInNodes(graph.Nodes, macrosById);
+            if (latent is null) continue;
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1658,
+                $"Event graph '{graph.Name}' contains latent node '{FriendlyNodeName(latent)}'. An Event graph cannot " +
+                $"wait in an Instance: an Instance has one latent cursor shared by every graph (a Behaviour's Event graph can). Move the waiting logic into the " +
+                $"Tick graph (for example, set a variable here and react to it there).",
+                asset.AssetId, graph.Id, latent.Id));
+        }
+
+        // ⭐ S6b (U-6) — an Event graph's arrival policy: a fixed layout needs a bounded compile-time N.
+        foreach (var graph in asset.Graphs.Where(g => g.Kind == GraphKind.Event))
+            foreach (var entry in graph.Nodes.OfType<EventEntryNode>())
+            {
+                string? why =
+                    entry.Capacity < 0 || entry.Capacity > Lowering.Fibers.MaxCapacity
+                        ? $"its Capacity is {entry.Capacity}; it must be 1 to {Lowering.Fibers.MaxCapacity}"
+                    : entry.Policy == EventFiberPolicy.Restart && entry.Capacity > 1
+                        ? "Restart runs one handler (the newest event wins), so it takes no Capacity above 1"
+                    : null;
+                if (why is not null)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1681,
+                        $"Event graph '{graph.Name}': {why}.", asset.AssetId, graph.Id, entry.Id));
+            }
+
+        // ⭐ CE-2010 / CE-2013 (DESIGN_Typed_Event_Nodes I1, T-7) — FindEntryNode takes a graph's FIRST event node. An Event
+        //   graph of TYPED event nodes is split into one handler per node (Stage2_6), so any number is legal there; an
+        //   untyped entry (a custom-event body, T-7: exactly one) beside other event nodes would compile to nothing, so it
+        //   is named on every extra node. ⚠ Function / Macro graphs are left as they were (a loose extra entry there is an
+        //   orphan, BP3010) — T-7 keeps their one entry and this batch adds no rule for them.
+        // ⭐ CE-2015 (T-7) — a TYPED event node ("On: X") outside an Event graph subscribes to nothing: only Event graphs
+        //   are split into handlers. Named on the node.
+        foreach (var graph in asset.Graphs.Where(g => g.Kind != GraphKind.Event))
+            foreach (var typed in graph.Nodes.OfType<EventEntryNode>().Where(EventPayload.IsTyped))
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1682,
+                    $"Event node 'On: {typed.EventTypeId}' is in {graph.Kind} graph '{graph.Name}'; event nodes run only in " +
+                    "Event graphs. Move it to an Event graph.", asset.AssetId, graph.Id, typed.Id));
+
+        foreach (var graph in asset.Graphs.Where(g => g.Kind == GraphKind.Event))
+        {
+            var entries = graph.Nodes.OfType<EventEntryNode>().ToList();
+            if (entries.Count < 2 || entries.All(EventPayload.IsTyped)) continue;
+            foreach (var extra in entries.Skip(1))
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1682,
+                    $"Event graph '{graph.Name}' mixes a custom-event entry with other event nodes; a custom event's " +
+                    "body takes exactly one entry. Move the other events to their own Event graph.",
+                    asset.AssetId, graph.Id, extra.Id));
+        }
+
+        // ⭐ S7a (DESIGN_Unified_Behaviour_Run "S7 design" D3/D6/D7) — the Behaviour Task's While Running and Abort pins.
+        foreach (var graph in asset.Graphs)
+            foreach (var task in graph.Nodes.OfType<RunBehaviorNode>())
+                BehaviorTaskRules.Validate(asset, graph, task, ctx);
+
+        // ⭐ S5d — Run Behaviour hosts a behaviour, so only a BEHAVIOUR (which has a brain tier and an occurrence) may use it,
+        //   and it must name the child. (Latent placement — no functions, no Event graphs, no loop bodies — is already refused.)
+        foreach (var graph in asset.Graphs)
+            foreach (var node in graph.Nodes)
+            {
+                if (node is not RunBehaviorNode rb) continue;
+                if (asset.Dispatch != BlueprintDispatchKind.Behavior)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1659,
+                        $"Run Behaviour '{rb.BehaviorName}' is in {asset.Dispatch} asset '{asset.Name}'. Only a behaviour can host a " +
+                        "behaviour: it needs a brain to run the child under. Make this asset a Behavior, or start the child another way.",
+                        asset.AssetId, graph.Id, rb.Id));
+                else if (string.IsNullOrWhiteSpace(rb.BehaviorName))
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1659,
+                        "A Run Behaviour node names no behaviour. Pick the behaviour it should run.",
+                        asset.AssetId, graph.Id, rb.Id));
+            }
+
         if (asset.Dispatch == BlueprintDispatchKind.Library)
         {
             foreach (var graph in asset.Graphs)
             {
                 foreach (var node in graph.Nodes)
                 {
-                    if (node is LatentDelayNode or WaitForChannelNode or WaitForEventNode)
+                    // ⭐ S1 / I13 — the ONE latent detector (an inline action suspends too; a hand-written list missed it).
+                    if (MacroLatency.IsLatent(node))
                         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1101,
-                            $"Library assets must not contain latent nodes (node {node.Id} in '{graph.Name}').",
+                            $"A Function Library cannot contain latent nodes: its graphs compile to plain " +
+                            $"static methods, which have nowhere to suspend. Remove " +
+                            $"'{FriendlyNodeName(node)}' from graph '{graph.Name}', or move this logic into " +
+                            $"an Event graph on an Instance blueprint.",
                             asset.AssetId, graph.Id, node.Id));
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// The node's palette-facing name (its CLR type name without the <c>Node</c> suffix), so the
+    /// diagnostic names what the designer sees on the canvas rather than a raw GUID.
+    /// </summary>
+    private static string FriendlyNodeName(Node node)
+    {
+        var name = node.GetType().Name;
+        // netstandard2.0 is one of this project's targets — no range operator here.
+        return name.EndsWith("Node", StringComparison.Ordinal)
+            ? name.Substring(0, name.Length - 4)
+            : name;
     }
 }
 
@@ -613,12 +879,270 @@ internal sealed class V_WaitNodeReferences : IValidator
     }
 }
 
+// ---------------------------------------------------------------------------
+// V_UnloweredNodeKinds  (BP-16)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// BP-16 — rejects node kinds that reach codegen with no Stage5 lowering.
+///
+/// <para>
+/// <c>ArrayMakeNode</c> and <c>ArrayGetNode</c> have no <c>Stage5_Schedule</c> case. On the exec path
+/// they fall to the generic <c>default:</c> branch, which emits a BP4004 <b>warning</b> and no IR. But
+/// reading their output pin goes through the separate pure-data-value resolver, whose <c>default:</c>
+/// branch emits <c>IrOp_Const("default", pinType)</c> with <b>no diagnostic at all</b> — so the asset
+/// compiles clean and returns wrong data at runtime. <c>NodeCoverageTests</c> documents this asymmetry
+/// verbatim ("worse than the BP4004 case").
+/// </para>
+///
+/// <para>
+/// Erroring here converts silent data corruption into a build failure. Deliberately an <b>error</b>, not
+/// a warning: BP4004's warning still lets the asset "succeed", which is the behaviour that hid the bug.
+/// Fixed-capacity list variables are the supported vehicle for collection storage.
+/// </para>
+/// </summary>
+internal sealed class V_UnloweredNodeKinds : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        {
+            foreach (var node in graph.Nodes)
+            {
+                string? kind = node switch
+                {
+                    ArrayMakeNode => nameof(ArrayMakeNode),
+                    ArrayGetNode  => nameof(ArrayGetNode),
+                    _             => null
+                };
+                if (kind is null) continue;
+
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1420,
+                    $"'{kind}' has no compiler lowering. Its exec path emits no IR, and reading its "
+                    + "output pin silently yields default(T) with no diagnostic — the asset would "
+                    + "compile clean and return wrong data. Remove the node; use a fixed-capacity "
+                    + "list variable for collection storage.",
+                    asset.AssetId, graph.Id, node.Id));
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_ValueNodeReferences  (BP-15)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// BP-15 — reference checks for four node kinds that previously had no validator at all, so a typo or
+/// an unset field passed Stage 2 silently.
+///
+/// <list type="bullet">
+///   <item><c>CallCustomEventNode.EventId</c> — mirrors <see cref="V_EventGraphReferences"/>, which
+///   validates only the <i>subscribe</i> side (<c>EventEntryNode</c>); the <i>call</i> side was
+///   unchecked. Same escape hatches: a custom-event GUID, a catalog match, or a dotted FQN the
+///   compiler cannot verify.</item>
+///   <item><c>ScoreDecisionNode.AssetId</c> — must be a well-formed GUID. No
+///   <c>UtilityDecisionDef</c> catalog exists editor-side (see BP-27), so existence cannot be checked
+///   here; shape is the strongest available guard.</item>
+///   <item><c>ReadRankedResultNode.Rank</c> — documented as a 0-based index, so a negative rank can
+///   never match.</item>
+///   <item><c>CastNode.TargetTypeId</c> — empty only. An <i>unresolvable</i> target is already caught
+///   as BP1500 by <see cref="V_TypeReferences"/>, because <c>BuiltInNodeRegistry</c> projects the
+///   out-pin type from this field. The empty case escapes that check: the registry substitutes
+///   <c>System.Object</c>, which resolves fine and makes the cast a silent no-op.</item>
+/// </list>
+/// </summary>
+internal sealed class V_ValueNodeReferences : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        // ⭐ CE-2031 — an EventId resolves through BlueprintAsset.FindCustomEvent (GUID OR name), the ONE rule Stage 5 uses;
+        //   matching only on Guid here would reject the ordinary authoring shape (CallCustomEvent("OnFire")).
+        var engineEvents     = ctx.EngineEvents.GetEntries();
+
+        foreach (var graph in asset.Graphs)
+        {
+            foreach (var node in graph.Nodes)
+            {
+                switch (node)
+                {
+                    case CallCustomEventNode call:
+                        ValidateCustomEventCall(call, asset, graph, ctx, engineEvents);
+                        break;
+
+                    // Non-empty only. Decision asset ids are NOT parseable Guids by convention -- the
+                    // shipped CombatPostureDecision uses "3c6f9e42-5d10-6f3a-ac23-posture0000001", a
+                    // deliberately human-readable pseudo-GUID. Requiring Guid.TryParse would reject
+                    // real production assets. No UtilityDecisionDef catalog exists editor-side
+                    // (see BP-27), so existence cannot be checked here either.
+                    case ScoreDecisionNode score when string.IsNullOrWhiteSpace(score.AssetId):
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1404,
+                            "ScoreDecision has no target decision asset (AssetId is empty).",
+                            asset.AssetId, graph.Id, node.Id));
+                        break;
+
+                    case ReadRankedResultNode ranked when ranked.Rank < 0:
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1405,
+                            $"ReadRankedResult.Rank is {ranked.Rank}; rank is a 0-based index and "
+                            + "cannot be negative.",
+                            asset.AssetId, graph.Id, node.Id));
+                        break;
+
+                    case CastNode cast when string.IsNullOrWhiteSpace(cast.TargetTypeId):
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1406,
+                            "Cast has no TargetTypeId; the node would silently degrade to a "
+                            + "System.Object no-op cast.",
+                            asset.AssetId, graph.Id, node.Id));
+                        break;
+                }
+            }
+        }
+    }
+
+    private static void ValidateCustomEventCall(
+        CallCustomEventNode call,
+        BlueprintAsset asset,
+        Graph graph,
+        ValidationContext ctx,
+        IReadOnlyList<EngineEventCatalogEntry> engineEvents)
+    {
+        if (string.IsNullOrWhiteSpace(call.EventId))
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1403,
+                "CallCustomEvent has no target event (EventId is empty).",
+                asset.AssetId, graph.Id, call.Id));
+            return;
+        }
+
+        // An asset-authored custom event — ⭐ CE-2031: the one resolution rule.
+        if (asset.FindCustomEvent(call.EventId) != null)
+            return;
+
+        // A dotted identity is a baked [BlueprintEvent] the compiler cannot verify
+        // (netstandard2.0 cannot reflect game assemblies) -- trust it, as V_EventGraphReferences does.
+        if (call.EventId.IndexOf('.') >= 0) return;
+
+        // Empty catalog means none is configured -- skip the unknown-name check (opt-in),
+        // matching V_EventGraphReferences.
+        if (engineEvents.Count == 0) return;
+
+        if (engineEvents.Any(e =>
+                e.EventTypeFqn == call.EventId
+                || Stage2Helpers.LastSegment(e.EventTypeFqn) == call.EventId))
+            return;
+
+        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1403,
+            $"CallCustomEvent references unknown event '{call.EventId}'.",
+            asset.AssetId, graph.Id, call.Id));
+    }
+}
+
 internal static partial class Stage2Helpers
 {
     internal static string LastSegment(string fqn)
     {
         int idx = fqn.LastIndexOf('.');
         return idx < 0 ? fqn : fqn.Substring(idx + 1);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_CustomEventHandlers  (BP-12c)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// BP-12c — a declared custom event is only half a custom event.
+///
+/// <para>
+/// The <i>declaration</i> lives on the asset (<see cref="BlueprintAsset.CustomEvents"/>) and gives
+/// the call node its argument pins. The <i>body</i> is an <see cref="GraphKind.Event"/> graph whose
+/// <c>Name</c> matches: <c>InstanceEmitter.EmitEventMethod</c> emits
+/// <c>Event_{graph.Name}(…)</c> with one C# parameter per <c>graph.Inputs</c> entry, and
+/// <c>StatementEmitter</c> lowers <c>IrOp_RaiseCustomEvent</c> to a direct call to that method with
+/// one argument per <i>declaration</i> parameter.
+/// </para>
+///
+/// <para>
+/// So a call to an event with no matching Event graph — or to one whose graph takes a different
+/// number of inputs — produces generated C# that does not compile. <c>V_ValueNodeReferences</c>
+/// (BP-15) already rejects a call to an event that isn't declared at all; this validator covers the
+/// declared-but-unhandled case, which until now surfaced only as a Roslyn error naming a method the
+/// designer never wrote.
+/// </para>
+///
+/// <para>
+/// <b>Call sites only.</b> Declaring a custom event and never calling it is legal and silent — the
+/// editor's create path (BP-12c) produces exactly that, and there is no way to author the paired
+/// Event graph in the editor yet (BP-24). Erroring on the declaration would make the new create
+/// button emit a broken asset on first use.
+/// </para>
+/// </summary>
+internal sealed class V_CustomEventHandlers : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        if (asset.CustomEvents.Count == 0) return;
+
+        var eventGraphsByName = new Dictionary<string, Graph>(StringComparer.Ordinal);
+        foreach (var g in asset.Graphs)
+        {
+            if (g.Kind != GraphKind.Event) continue;
+            if (string.IsNullOrEmpty(g.Name)) continue;
+            // First wins; a duplicate Event-graph name is V_GraphStructure's business.
+            if (!eventGraphsByName.ContainsKey(g.Name))
+                eventGraphsByName[g.Name] = g;
+        }
+
+        foreach (var graph in asset.Graphs)
+        {
+            foreach (var call in graph.Nodes.OfType<CallCustomEventNode>())
+            {
+                var decl = ResolveDecl(asset, call.EventId);
+
+                // Unresolved ids are BP1403's job (and a dotted FQN is a baked engine event that
+                // never routes through Event_{Name} at all).
+                if (decl is null) continue;
+
+                if (!eventGraphsByName.TryGetValue(decl.Name, out var handler))
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1407,
+                        $"Custom event '{decl.Name}' is declared but has no handler: the call lowers "
+                        + $"to Event_{decl.Name}(...), which is emitted from an Event graph named "
+                        + $"'{decl.Name}'. Add one, or remove the call.",
+                        asset.AssetId, graph.Id, call.Id));
+                    continue;
+                }
+
+                if (handler.Inputs.Count != decl.Parameters.Count)
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1408,
+                        $"Custom event '{decl.Name}' declares {decl.Parameters.Count} parameter(s) "
+                        + $"but its handler graph takes {handler.Inputs.Count} input(s); the emitted "
+                        + "call would not match Event_" + decl.Name + "'s signature.",
+                        asset.AssetId, graph.Id, call.Id));
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Mirrors Stage5's <c>FindCustomEventIndex</c> — a GUID (what the editor writes) or a bare
+    /// Name (hand-authored assets). Anything else is not an asset-scoped custom event.
+    /// </summary>
+    private static CustomEventDecl? ResolveDecl(BlueprintAsset asset, string eventId)
+    {
+        if (string.IsNullOrWhiteSpace(eventId)) return null;
+
+        if (Guid.TryParse(eventId, out var guid))
+        {
+            foreach (var e in asset.CustomEvents)
+                if (e.Id == guid) return e;
+            return null;
+        }
+
+        foreach (var e in asset.CustomEvents)
+            if (string.Equals(e.Name, eventId, StringComparison.Ordinal)) return e;
+        return null;
     }
 }
 
@@ -722,7 +1246,7 @@ internal sealed class V_WhenNodeRules : IValidator
             // A Function graph in an Instance blueprint is "pure" if it contains no
             // EventEntryNode (i.e., it is a user-defined pure helper function).
             // WhenNode is forbidden in pure helper functions.
-            bool graphIsPureFunction = asset.Dispatch == BlueprintDispatchKind.Instance
+            bool graphIsPureFunction = asset.Dispatch is BlueprintDispatchKind.Instance or BlueprintDispatchKind.Behavior
                 && graph.Kind == GraphKind.Function
                 && !graph.Nodes.OfType<EventEntryNode>().Any();
 
@@ -751,6 +1275,7 @@ internal sealed class V_WhenNodeRules : IValidator
                     WhenMode.EventFired   => node.EventFired == null,
                     WhenMode.ConditionMet => node.ConditionMet == null,
                     WhenMode.EqsResult    => node.EqsResult == null,
+                    WhenMode.SensorResult => node.SensorResult == null,   // ⭐ CE-3078 N4
                     _                     => false,
                 };
                 if (missingPayload)
@@ -809,7 +1334,9 @@ internal sealed class V_WhenNodeRules : IValidator
             bool isFloatingPoint = resolvedType == typeof(float)
                 || resolvedType == typeof(double)
                 || resolvedType == typeof(System.Numerics.Vector2)
-                || resolvedType == typeof(System.Numerics.Vector3);
+                || resolvedType == typeof(System.Numerics.Vector3)
+                // ⭐ S0 item 6 — the semantic value types (Fdp.Core is not referenced here, so by NAME): a place / compass bearing is a float aggregate as its storage type is
+                || resolvedType?.FullName is "Fdp.Core.WorldPoint" or "Fdp.Core.Bearing" or "Fdp.Core.WorldRotation";
             if (resolvedType != null && !isFloatingPoint)
                 ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP2014,
                     "WhenNode ValueChanged: Epsilon is non-zero. "
@@ -969,15 +1496,27 @@ internal sealed class V_WhenNodeRules : IValidator
         BlueprintAsset asset, Graph graph, WhenNode node,
         EqsResultPayload er, ValidationContext ctx)
     {
-        // BP2010 -- sensor variable not declared
-        bool sensorDeclared = asset.Variables.Any(v =>
-            v.Name == er.SensorVariableName
-            && v.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
-        if (!sensorDeclared)
-            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2010,
-                $"WhenNode EqsResult: sensor variable '{er.SensorVariableName}' "
-                + "is not declared as EqsSensorHandle.",
-                asset.AssetId, graph.Id, node.Id));
+        // BP2010 -- sensor variable not declared (⭐ CE-3054 D: or, reading the unit's sensor, not a sensor kind)
+        if (er.UnitSensorKind != 0)
+        {
+            if (!V_EqsUnitSensorKind.IsUnitSensorKind(er.UnitSensorKind))
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2010,
+                    $"WhenNode EqsResult: unit sensor kind {er.UnitSensorKind} is not a RANKED sensor kind "
+                    + "(1 Visual, 2 Radar, 4 Thermal, 8 Acoustic) — a sensor of another result family (e.g. 16 DangerArea) "
+                    + "is reacted to with When SensorResult (CE-3078).",
+                    asset.AssetId, graph.Id, node.Id));
+        }
+        else
+        {
+            bool sensorDeclared = asset.Declarations.Of(DeclarationKind.Variable).Any(d =>
+                d.Name == er.SensorVariableName
+                && d.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
+            if (!sensorDeclared)
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2010,
+                    $"WhenNode EqsResult: sensor variable '{er.SensorVariableName}' "
+                    + "is not declared as EqsSensorHandle.",
+                    asset.AssetId, graph.Id, node.Id));
+        }
 
         // BP2011 -- trigger requires threshold/max-age
         if (er.Trigger == EqsTrigger.ScoreCrossed && er.ScoreThreshold == 0)
@@ -1029,7 +1568,7 @@ internal sealed class V_ReadEqsResultNodeRules : IValidator
     {
         foreach (var graph in asset.Graphs)
         {
-            bool isUnsupported = asset.Dispatch != BlueprintDispatchKind.Instance
+            bool isUnsupported = asset.Dispatch is not (BlueprintDispatchKind.Instance or BlueprintDispatchKind.Behavior)
                 || (graph.Kind == GraphKind.Function
                     && !graph.Nodes.OfType<EventEntryNode>().Any());
 
@@ -1041,10 +1580,20 @@ internal sealed class V_ReadEqsResultNodeRules : IValidator
                         $"ReadEqsResultNode is not permitted in dispatch context '{asset.Dispatch}'.",
                         asset.AssetId, graph.Id, node.Id));
 
-                // BP2021 -- sensor variable not declared
-                bool sensorDeclared = asset.Variables.Any(v =>
-                    v.Name == node.SensorVariableName
-                    && v.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
+                // BP2021 -- sensor variable not declared (⭐ CE-3054 D: or, reading the unit's sensor, not a sensor kind)
+                if (node.UnitSensorKind != 0)
+                {
+                    if (!V_EqsUnitSensorKind.IsUnitSensorKind(node.UnitSensorKind))
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2021,
+                            $"ReadEqsResultNode: unit sensor kind {node.UnitSensorKind} is not a RANKED sensor kind "
+                            + "(1 Visual, 2 Radar, 4 Thermal, 8 Acoustic) — a sensor of another result family (e.g. 16 DangerArea) "
+                            + "is read with ReadSensorResult (CE-3078).",
+                            asset.AssetId, graph.Id, node.Id));
+                    continue;
+                }
+                bool sensorDeclared = asset.Declarations.Of(DeclarationKind.Variable).Any(d =>
+                    d.Name == node.SensorVariableName
+                    && d.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
                 if (!sensorDeclared)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2021,
                         $"ReadEqsResultNode: sensor variable '{node.SensorVariableName}' "
@@ -1052,6 +1601,104 @@ internal sealed class V_ReadEqsResultNodeRules : IValidator
                         asset.AssetId, graph.Id, node.Id));
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ⭐ CE-3078 — V_SensorNodeRules (BP2073-BP2074): the per-kind sensor nodes. docs/DESIGN_Sensors_And_Doctrine.md §7.10a.
+// A node with no baked decl is a diagnostic, never a silent no-op (R-133).
+// ---------------------------------------------------------------------------
+
+internal sealed class V_SensorNodeRules : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        {
+            bool isUnsupported = asset.Dispatch is not (BlueprintDispatchKind.Instance or BlueprintDispatchKind.Behavior)
+                || (graph.Kind == GraphKind.Function && !graph.Nodes.OfType<EventEntryNode>().Any());
+
+            foreach (var node in graph.Nodes.OfType<ReadSensorResultNode>())
+            {
+                if (isUnsupported)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2073,
+                        $"ReadSensorResult is not permitted in dispatch context '{asset.Dispatch}'.",
+                        asset.AssetId, graph.Id, node.Id));
+                var d = node.Decl;
+                if (d is null || string.IsNullOrWhiteSpace(d.ResultComponentFqn) || string.IsNullOrWhiteSpace(d.ElementTypeFqn))
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2074,
+                        "ReadSensorResult has no baked sensor kind (pick the kind again in the editor: the node carries "
+                        + "the kind's result component and element type, CE-3078).",
+                        asset.AssetId, graph.Id, node.Id));
+            }
+
+            foreach (var node in graph.Nodes.OfType<WhenNode>())
+            {
+                if (node.Mode != WhenMode.SensorResult || node.SensorResult is not { } sr) continue;   // a missing payload is BP2002
+                var d = sr.Decl;
+                if (d is null || string.IsNullOrWhiteSpace(d.ResultComponentFqn) || string.IsNullOrWhiteSpace(d.ElementTypeFqn))
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2074,
+                        "When SensorResult has no baked sensor kind (pick the kind again in the editor, CE-3078).",
+                        asset.AssetId, graph.Id, node.Id));
+                    continue;
+                }
+                if (WhenSensorResultShape.Resolve(sr, out _, out _, out var why) is false)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2076,
+                        $"When SensorResult({d.KindName}, {sr.Trigger}): {why}", asset.AssetId, graph.Id, node.Id));
+            }
+
+            foreach (var node in graph.Nodes.OfType<SpawnSensorNode>())
+            {
+                if (isUnsupported)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2073,
+                        $"SpawnSensor is not permitted in dispatch context '{asset.Dispatch}'.",
+                        asset.AssetId, graph.Id, node.Id));
+                var d = node.Decl;
+                if (d is null)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2074,
+                        "SpawnSensor has no baked sensor kind (pick the kind again in the editor, CE-3078).",
+                        asset.AssetId, graph.Id, node.Id));
+                else if (string.IsNullOrWhiteSpace(d.EnsureMethodFqn) || string.IsNullOrWhiteSpace(d.SettingsTypeFqn))
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2075,
+                        $"SpawnSensor: sensor kind {d.KindName} ({d.Kind}) is not spawned by a behaviour — it has no Ensure method "
+                        + "(a TKB perception sensor is read, not spawned; an EQS query is spawned with SpawnEqsSensor).",
+                        asset.AssetId, graph.Id, node.Id));
+            }
+        }
+    }
+}
+
+/// <summary>⭐ <c>CE-3078</c> N4 — the ONE resolution of a <c>When SensorResult</c> trigger from its baked decl (Stage2 and Stage5).</summary>
+internal static class WhenSensorResultShape
+{
+    private static readonly HashSet<string> Numbers = new(StringComparer.Ordinal)
+    {
+        "System.Single", "System.Double", "System.Int32", "System.UInt32", "System.Int16", "System.UInt16",
+        "System.Byte", "System.SByte", "System.Int64", "System.UInt64", "float", "double", "int", "uint", "short", "ushort", "byte", "sbyte", "long", "ulong",
+    };
+
+    /// <summary>The trigger's shape ("Header" / "FieldChanged" / "FieldCrossed") and, for a field trigger, the field's pin TypeId.
+    /// False (with the reason) when the trigger is not the kind's or cannot be decided.</summary>
+    public static bool Resolve(SensorResultPayload sr, out string shape, out string? fieldTypeId, out string why)
+    {
+        shape = ""; fieldTypeId = null; why = "";
+        var d = sr.Decl!;
+        var t = d.Triggers?.FirstOrDefault(x => x.Name == sr.Trigger);
+        if (t is null) { why = $"'{sr.Trigger}' is not a trigger of this kind ({string.Join(", ", d.Triggers?.Select(x => x.Name) ?? Array.Empty<string>())})."; return false; }
+        shape = t.Shape;
+        if (shape == "Header")
+        {
+            if (t.Name is not ("FirstReady" or "Changed" or "BecomesStale")) { why = $"unknown header trigger '{t.Name}'."; return false; }
+            if (t.Name == "BecomesStale" && !d.HasAnswerTime) { why = "BecomesStale needs the answer's time, and this kind's result component has no LastUpdateTimeSeconds."; return false; }
+            return true;
+        }
+        if (shape is not ("FieldChanged" or "FieldCrossed")) { why = $"unknown trigger shape '{shape}'."; return false; }
+        var f = d.ElementFields.FirstOrDefault(x => x.Name == t.ElementField);
+        if (f is null) { why = $"the element has no field '{t.ElementField}'."; return false; }
+        fieldTypeId = f.TypeId;
+        if (shape == "FieldCrossed" && !Numbers.Contains(f.TypeId)) { why = $"FieldCrossed needs a number; '{f.Name}' is {f.TypeId}."; return false; }
+        return true;
     }
 }
 
@@ -1066,7 +1713,7 @@ internal sealed class V_SpawnEqsSensorNodeRules : IValidator
         // BP2030 / BP2031 -- per-node checks (per graph)
         foreach (var graph in asset.Graphs)
         {
-            bool isUnsupported = asset.Dispatch != BlueprintDispatchKind.Instance
+            bool isUnsupported = asset.Dispatch is not (BlueprintDispatchKind.Instance or BlueprintDispatchKind.Behavior)
                 || (graph.Kind == GraphKind.Function
                     && !graph.Nodes.OfType<EventEntryNode>().Any());
 
@@ -1124,80 +1771,6 @@ internal sealed class V_SpawnEqsSensorNodeRules : IValidator
 }
 
 // ---------------------------------------------------------------------------
-// V_SharedStateRules (BP2040-BP2042 -- Slice 2a-2 GetShared/SetShared)
-// ---------------------------------------------------------------------------
-
-/// <summary>
-/// Validates <see cref="GetSharedNode"/>/<see cref="SetSharedNode"/> nodes.
-/// <list type="bullet">
-///   <item>BP2040 -- <c>SharedTypeId</c> is empty.</item>
-///   <item>BP2041 -- <c>SharedTypeId</c> does not look like a well-formed dotted CLR type FQN
-///     (e.g. contains whitespace, is a bare/malformed identifier, or has an empty segment).
-///     <para>
-///     NOTE: this is a syntactic check, not full type resolution. The compiler's
-///     <see cref="ITypeRegistry"/> accepts ANY "global::"-prefixed TypeId unconditionally (the AN2
-///     "trust the FQN, let the downstream C# compiler catch a bad reference" strategy -- see
-///     <see cref="StaticTypeRegistry.TryResolve"/>), and reflection-based resolution is unreliable in
-///     the analyzer/generator host (the shared struct commonly lives in the very assembly being
-///     compiled, per the same reasoning documented on <c>FunctionCallNode</c>'s CLR-reflection
-///     fallback in <c>Stage0_Rehydrate</c>). A deterministic, host-independent syntax check is the
-///     only meaningful signal available at this stage; genuine "type does not exist" errors surface
-///     later as ordinary C# compiler errors on the emitted <c>global::{SharedTypeFqn}</c> reference.
-///     </para>
-///   </item>
-///   <item>BP2042 -- node appears in a Library-dispatch asset, which has no <c>self</c> Entity in
-///     scope (the generated call is <c>BlueprintSharedState.TryGetShared/TrySetShared(world, self,
-///     ...)</c> -- <c>self</c> does not exist in a stateless Library function).</item>
-/// </list>
-/// Cross-entity checks are moot for 2a-2 -- there is no target-Entity pin (Slice 2b).
-/// </summary>
-internal sealed class V_SharedStateRules : IValidator
-{
-    // One-or-more dot/plus-separated C# identifier segments, optional "global::" prefix.
-    // Rejects whitespace, empty segments, punctuation other than '.'/'+', etc.
-    private static readonly System.Text.RegularExpressions.Regex FqnPattern = new(
-        @"^(global::)?[A-Za-z_][A-Za-z0-9_]*([.+][A-Za-z_][A-Za-z0-9_]*)*$",
-        System.Text.RegularExpressions.RegexOptions.Compiled);
-
-    public void Validate(BlueprintAsset asset, ValidationContext ctx)
-    {
-        foreach (var graph in asset.Graphs)
-        {
-            foreach (var node in graph.Nodes)
-            {
-                string? sharedTypeId = node switch
-                {
-                    GetSharedNode gsn => gsn.SharedTypeId,
-                    SetSharedNode ssn => ssn.SharedTypeId,
-                    _                 => null,
-                };
-                if (sharedTypeId is null) continue;
-
-                if (asset.Dispatch == BlueprintDispatchKind.Library)
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2042,
-                        $"{node.GetType().Name} is not permitted in a Library-dispatch asset -- " +
-                        "there is no `self` Entity in scope for the shared-state accessor call.",
-                        asset.AssetId, graph.Id, node.Id));
-
-                if (string.IsNullOrEmpty(sharedTypeId))
-                {
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2040,
-                        $"{node.GetType().Name}: SharedTypeId must not be empty.",
-                        asset.AssetId, graph.Id, node.Id));
-                    continue;
-                }
-
-                if (!FqnPattern.IsMatch(sharedTypeId))
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2041,
-                        $"{node.GetType().Name}: SharedTypeId '{sharedTypeId}' does not resolve to a " +
-                        "known unmanaged/blittable struct type (not a well-formed type name).",
-                        asset.AssetId, graph.Id, node.Id));
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
 // V_ComponentAccessRules (BP2060-BP2065 -- CA-03/CA-05/CA-06: SetComponent/GetComponent access)
 // ---------------------------------------------------------------------------
 
@@ -1206,16 +1779,15 @@ internal sealed class V_SharedStateRules : IValidator
 /// <list type="bullet">
 ///   <item>BP2060 -- <see cref="SetComponentNode"/>.<c>ComponentTypeFqn</c> is empty.</item>
 ///   <item>BP2061 -- <see cref="SetComponentNode"/>.<c>ComponentTypeFqn</c> does not look like a
-///     well-formed dotted CLR type FQN (same syntactic-only check as <see cref="V_SharedStateRules"/>'s
-///     BP2041 -- see that validator's doc comment for why a full-resolution check is not meaningful
-///     here).</item>
+///     well-formed dotted CLR type FQN (syntactic only: the compiler runs as a netstandard2.0 analyzer and cannot load the game
+///     assemblies to resolve the type).</item>
 ///   <item>BP2062 -- the node carries a "Target" pin. <see cref="SetComponentNode"/> is SELF-ONLY
 ///     by construction (Q#16) -- <c>Stage0_Rehydrate.EnrichSetComponentPins</c> never projects
 ///     one, so a "Target" pin here can only come from a hand-authored/legacy asset; flagged
 ///     regardless of whether the pin is actually linked.</item>
 ///   <item>BP2063 (CA-05, Slice 1b) -- a <see cref="GetComponentNode"/> with <c>IsManaged == true</c>
 ///     has one of its FIELD out-pins wired directly into a persisting sink (<see cref="SetVariableNode"/>
-///     or <see cref="SetSharedNode"/>). Rule G1 (Q#15): a managed component-read value is
+///     or SetSharedNode (removed, CE-440)). Rule G1 (Q#15): a managed component-read value is
 ///     read-and-pass-to-managed-consumer only -- never persisted. See this rule's own doc comment
 ///     below for what BP1503/BP1501 already cover vs. the gap this closes.</item>
 ///   <item>BP2064 (CA-06, Slice W2, Q#16-C) -- a <see cref="SetComponentNode"/> with
@@ -1242,7 +1814,7 @@ internal sealed class V_SharedStateRules : IValidator
 /// </summary>
 internal sealed class V_ComponentAccessRules : IValidator
 {
-    // Same syntactic FQN check as V_SharedStateRules -- one-or-more dot/plus-separated C#
+    // Syntactic FQN check (the retired V_SharedStateRules used the same) -- one-or-more dot/plus-separated C#
     // identifier segments, optional "global::" prefix.
     private static readonly System.Text.RegularExpressions.Regex FqnPattern = new(
         @"^(global::)?[A-Za-z_][A-Za-z0-9_]*([.+][A-Za-z_][A-Za-z0-9_]*)*$",
@@ -1324,6 +1896,158 @@ internal sealed class V_ComponentAccessRules : IValidator
                 {
                     CheckComponentCollectionConsumer(node, graph, asset, ctx);
                 }
+                else if (node is CollectionWriteNode cwn)
+                {
+                    CheckCollectionWrite(cwn, graph, asset, ctx);
+                }
+            }
+
+            // G3 (Q#20/BP2071): warn on a collection write inside a ForEach body iterating the
+            // SAME collection -- checked per graph, after the per-node loop (needs both endpoints).
+            CheckWriteInsideIteration(graph, asset, ctx);
+        }
+    }
+
+    /// <summary>
+    /// FC-1 (Q#20) -- BP2067/BP2068/BP2069/BP2070. Mirrors <see cref="CheckComponentCollectionConsumer"/>'s
+    /// wired-gating for the bake checks (unwired "Collection" is a legitimate not-used-yet state --
+    /// Stage5 degrades it to Ok=false silently), but the self-only checks (BP2069 "Target" pin,
+    /// BP2068 managed kind) fire regardless of wiring -- they are structural contradictions, not
+    /// incomplete authoring.
+    /// </summary>
+    private static void CheckCollectionWrite(
+        CollectionWriteNode cwn, Graph graph, BlueprintAsset asset, ValidationContext ctx)
+    {
+        // BP2069 -- self-only: no "Target" pin, ever (the CollectionWrite analog of BP2062, which
+        // is pinned to SetComponentNode and deliberately not widened -- see Q#20 review R2a).
+        if (cwn.Pins.Any(p =>
+                !p.IsExec && string.Equals(p.Name, "Target", StringComparison.OrdinalIgnoreCase)))
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2069,
+                $"{nameof(CollectionWriteNode)} is self-only -- a \"Target\" pin/link is not permitted.",
+                asset.AssetId, graph.Id, cwn.Id));
+        }
+
+        // BP2068 -- managed collections are not element-writable (Q#20-C): a ManagedMember bake on
+        // a WRITE node is structurally forbidden whether or not it is wired (Stage5 additionally
+        // degrades it to Ok=false as a backstop).
+        if (cwn.CollectionKind == CollectionKind.ManagedMember)
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2068,
+                $"{nameof(CollectionWriteNode)}: a ManagedMember collection is not element-writable " +
+                "(Q#20-C -- per-field managed mutation corrupts snapshots via reference aliasing); " +
+                "managed collections may only be replaced whole via SetComponent (ECB).",
+                asset.AssetId, graph.Id, cwn.Id));
+        }
+
+        var collectionPin = cwn.Pins.FirstOrDefault(p =>
+            !p.IsExec && p.Direction == "In"
+            && string.Equals(p.Name, "Collection", StringComparison.OrdinalIgnoreCase));
+        if (collectionPin is null) return;
+
+        var collLink = graph.Links.FirstOrDefault(
+            l => l.ToNodeId == cwn.Id && l.ToPinId == collectionPin.Id);
+        if (collLink is null) return;
+
+        // BP2067 -- wired but not baked (the write analog of BP2066), including a malformed FQN
+        // (the write node folds BP2060/BP2061's syntactic checks in here rather than splitting).
+        if (string.IsNullOrEmpty(cwn.ComponentTypeFqn)
+            || !FqnPattern.IsMatch(cwn.ComponentTypeFqn)
+            || string.IsNullOrEmpty(cwn.WriteAccessorFqn)
+            || !FqnPattern.IsMatch(cwn.WriteAccessorFqn))
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2067,
+                $"{nameof(CollectionWriteNode)}: \"Collection\" is wired but the baked " +
+                "ComponentTypeFqn/WriteAccessorFqn are empty or malformed -- the collection was " +
+                "not baked at wire time.",
+                asset.AssetId, graph.Id, cwn.Id));
+        }
+
+        // BP2070 (G4) -- producer must be a SELF read: a GetComponent with "Target" wired resolves
+        // the collection off another entity, and a write consumer inheriting that binding would be
+        // a cross-entity write (forbidden). The emitted write binds `self` regardless (defense in
+        // depth) -- this rule makes the mismatch visible instead of silently writing elsewhere
+        // than the designer wired.
+        var producer = graph.Nodes.FirstOrDefault(n => n.Id == collLink.FromNodeId);
+        if (producer is GetComponentNode producerGcn)
+        {
+            var targetPin = producerGcn.Pins.FirstOrDefault(p =>
+                !p.IsExec && p.Direction == "In"
+                && string.Equals(p.Name, "Target", StringComparison.OrdinalIgnoreCase));
+            bool targetWired = targetPin is not null && graph.Links.Any(
+                l => l.ToNodeId == producerGcn.Id && l.ToPinId == targetPin.Id);
+            if (targetWired)
+            {
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2070,
+                    $"{nameof(CollectionWriteNode)}: the producing GetComponent has \"Target\" " +
+                    "wired -- collection writes are self-only (Q#16/Q#20); the write would bind " +
+                    "self, not the wired entity. Read cross-entity, write self.",
+                    asset.AssetId, graph.Id, cwn.Id));
+            }
+        }
+    }
+
+    /// <summary>
+    /// FC-1 (Q#20 G3) -- BP2071 WARNING: a <see cref="CollectionWriteNode"/> reachable from a
+    /// <see cref="ComponentForEachNode"/>'s "Body" exec chain, mutating the SAME collection that
+    /// ForEach is iterating, has wire-dependent semantics (the loop bound is hoisted once iff the
+    /// "Count" out-pin is wired, else re-evaluated per pass -- see StatementEmitter's IrOp_ForEach
+    /// case), so RemoveAt/Add inside the body silently skips or re-reads elements depending on an
+    /// unrelated wire. Designer rule: a collection is read-only while being iterated. "Same
+    /// collection" = same ComponentTypeFqn + same accessor OWNER CLASS (one curated ops class per
+    /// (component, collection) -- comparing the class avoids needing the collection name, which
+    /// consumers do not bake). The body walk follows exec successors transitively (bounded by a
+    /// visited set) -- a rare rejoining wire can over-approximate, acceptable for a warning.
+    /// </summary>
+    private static void CheckWriteInsideIteration(Graph graph, BlueprintAsset asset, ValidationContext ctx)
+    {
+        static string AccessorOwner(string fqn)
+        {
+            int i = fqn.LastIndexOf('.');
+            return i <= 0 ? "" : fqn.Substring(0, i);
+        }
+
+        foreach (var node in graph.Nodes)
+        {
+            if (node is not ComponentForEachNode cfe) continue;
+            if (string.IsNullOrEmpty(cfe.ComponentTypeFqn)) continue;
+            string iterOwner = AccessorOwner(
+                !string.IsNullOrEmpty(cfe.CountAccessorFqn) ? cfe.CountAccessorFqn : cfe.ItemAccessorFqn);
+            if (string.IsNullOrEmpty(iterOwner)) continue;
+
+            var bodyPin = cfe.Pins.FirstOrDefault(p =>
+                p.IsExec && p.Direction == "Out"
+                && string.Equals(p.Name, "Body", StringComparison.OrdinalIgnoreCase));
+            if (bodyPin is null) continue;
+
+            // BFS over exec successors starting from the Body wire.
+            var visited = new HashSet<Guid>();
+            var queue = new Queue<Guid>();
+            foreach (var l in graph.Links.Where(l => l.FromNodeId == cfe.Id && l.FromPinId == bodyPin.Id))
+                queue.Enqueue(l.ToNodeId);
+            while (queue.Count > 0)
+            {
+                var id = queue.Dequeue();
+                if (!visited.Add(id)) continue;
+                var n = graph.Nodes.FirstOrDefault(x => x.Id == id);
+                if (n is null) continue;
+
+                if (n is CollectionWriteNode w
+                    && string.Equals(w.ComponentTypeFqn, cfe.ComponentTypeFqn, StringComparison.Ordinal)
+                    && !string.IsNullOrEmpty(w.WriteAccessorFqn)
+                    && string.Equals(AccessorOwner(w.WriteAccessorFqn), iterOwner, StringComparison.Ordinal))
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP2071,
+                        $"{nameof(CollectionWriteNode)} mutates the collection a surrounding " +
+                        "ComponentForEach is iterating -- semantics depend on whether the loop's " +
+                        "\"Count\" pin is wired (hoisted vs live bound). A collection is read-only " +
+                        "while being iterated; restructure to collect-then-apply after \"Completed\".",
+                        asset.AssetId, graph.Id, w.Id));
+                }
+
+                foreach (var outPin in n.Pins.Where(p => p.IsExec && p.Direction == "Out"))
+                    foreach (var l in graph.Links.Where(l => l.FromNodeId == n.Id && l.FromPinId == outPin.Id))
+                        queue.Enqueue(l.ToNodeId);
             }
         }
     }
@@ -1365,15 +2089,22 @@ internal sealed class V_ComponentAccessRules : IValidator
         // CA-07d-2: a MANAGED collection (Q#18-C/D) bakes CollectionFieldName for native member access,
         // NOT the curated accessor FQNs (which are legitimately empty) -- so the required-non-empty set
         // is per-KIND: managed needs the field name; curated needs its accessor FQN(s).
-        bool missing = string.IsNullOrEmpty(componentTypeFqn)
-            || (kind == CollectionKind.ManagedMember
+        // FC-2/LV-2: a BlackboardFixedList consumer (Q#19-A) bakes only the VARIABLE name in
+        // CollectionFieldName -- ComponentTypeFqn and the accessor FQNs are legitimately empty
+        // (there is no entity/component; Stage5 binds a ref onto the state field).
+        bool missing = kind == CollectionKind.BlackboardFixedList
+            ? string.IsNullOrEmpty(fieldName)
+            : string.IsNullOrEmpty(componentTypeFqn)
+              || (kind == CollectionKind.ManagedMember
                     ? string.IsNullOrEmpty(fieldName)
                     : ((needsCount && string.IsNullOrEmpty(countFqn))
                        || (needsItem  && string.IsNullOrEmpty(itemFqn))));
 
         if (missing)
         {
-            string what = kind == CollectionKind.ManagedMember
+            string what = kind == CollectionKind.BlackboardFixedList
+                ? "the node's baked list-variable name (CollectionFieldName) is empty"
+                : kind == CollectionKind.ManagedMember
                 ? "the node's baked managed collection field name (CollectionFieldName) is empty"
                 : "the node's baked accessor FQNs are empty";
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2066,
@@ -1394,7 +2125,7 @@ internal sealed class V_ComponentAccessRules : IValidator
     ///     <c>asset.Variables</c>/<c>asset.WorkingState</c> entry whose OWN declared type resolves to
     ///     managed -- independent of wiring. So "managed value -&gt; a Variable declared with that same
     ///     managed type" is already impossible: the Variable itself cannot exist. This does NOT cover
-    ///     <c>SetSharedNode</c> at all (<see cref="V_SharedStateRules"/> only checks <c>SharedTypeId</c>
+    ///     <c>SetSharedNode</c> at all (the retired V_SharedStateRules only checked <c>SharedTypeId</c>
     ///     syntactically, never its managed-ness), and does not stop wiring in general -- only the
     ///     specific case of a type-matched, explicitly-declared managed Variable/WorkingState field.
     ///   </item>
@@ -1405,9 +2136,9 @@ internal sealed class V_ComponentAccessRules : IValidator
     ///     regardless of whether that shared type is managed.
     ///   </item>
     /// </list>
-    /// <b>The gap this closes:</b> <see cref="SetSharedNode"/> has NO managed-ness check anywhere
+    /// <b>The gap this closes:</b> SetSharedNode (removed, CE-440) has NO managed-ness check anywhere
     /// (BP1503 never looks at it), so wiring a managed <see cref="GetComponentNode"/> field straight
-    /// into a <see cref="SetSharedNode"/> field pin of the SAME type name was previously accepted by
+    /// into a SetSharedNode (removed, CE-440) field pin of the SAME type name was previously accepted by
     /// both BP1503 (out of scope) and BP1501 (name matches). This rule closes that gap directly at the
     /// LINK level, and -- for defense in depth / a clearer diagnostic message pointing at the actual
     /// managed-read node -- also flags the <see cref="SetVariableNode"/> case even though BP1503
@@ -1416,7 +2147,7 @@ internal sealed class V_ComponentAccessRules : IValidator
     /// <para>
     /// Deliberately narrow: only flags a link whose SOURCE is one of <paramref name="gcn"/>'s named
     /// FIELD out-pins (excludes "Found", a plain <c>System.Boolean</c> that is never itself a managed
-    /// value) landing on <see cref="SetVariableNode"/>/<see cref="SetSharedNode"/> specifically -- a
+    /// value) landing on <see cref="SetVariableNode"/>/SetSharedNode (removed, CE-440) specifically -- a
     /// link into a <see cref="FunctionCallNode"/> data-in (library/function call parameter) is NOT
     /// touched, so a legitimate managed-&gt;managed pass-through (e.g. a library call taking the managed
     /// type) is never rejected. <see cref="SetComponentNode"/> is also NOT a checked destination here:
@@ -1441,13 +2172,173 @@ internal sealed class V_ComponentAccessRules : IValidator
             if (link.FromNodeId != gcn.Id || !fieldPinIds.Contains(link.FromPinId)) continue;
 
             var sink = graph.Nodes.FirstOrDefault(n => n.Id == link.ToNodeId);
-            if (sink is not (SetVariableNode or SetSharedNode)) continue;
+            if (sink is not SetVariableNode) continue;
 
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2063,
                 $"{nameof(GetComponentNode)}: a managed component-read field value may only feed a " +
                 $"managed consumer (e.g. a library/function call) -- wiring it into {sink!.GetType().Name} " +
                 "would persist it, which Rule G1 (Q#15) forbids.",
                 asset.AssetId, graph.Id, gcn.Id, link.FromPinId));
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_ListVariableRules  (FC-2/LV-3 -- BP1505/BP1506: fixed-list variable rules)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// FC-2/LV-3 -- rules for FIXED-LIST variables (BlueprintTypeRef.Capacity &gt; 0).
+///
+/// BP1505 -- a <see cref="ListWriteNode"/> whose VariableId does not resolve to a declared
+/// fixed-list variable (empty binding is flagged only when the node is exec-wired into a
+/// chain -- an unbound palette drop is legitimate not-used-yet authoring, mirroring the
+/// BP2067 wired-gating philosophy).
+///
+/// BP1506 -- a fixed-list variable's <see cref="GetVariableNode"/> "Value" output wired to a
+/// pin that cannot accept a whole list. The blittable wrapper struct is NOT a general value:
+/// only the collection consumers' "Collection" in-pin reads it (by producer resolution), and
+/// the ONE whole-value exception is <see cref="SetVariableNode"/> targeting an IDENTICAL-shape
+/// fixed-list variable (same element TypeId, same Capacity) -- the whole-list clone, which
+/// lowers to flat struct copies. Everything else (generic math/compare pins, function args,
+/// a component CollectionWriteNode, a shape-mismatched SetVariable) is rejected here rather
+/// than failing obscurely at Stage4/emit.
+/// </summary>
+internal sealed class V_ListVariableRules : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        // FC-3 (umbrella R5, Q#21) -- BP1507: a PARAMETER may not carry a fixed-list type.
+        // Parameters are the exposed-on-spawn surface; the supported list homes are instance
+        // Variables, AiPrimitive WorkingState, and action DTOs. (The Shared home is fenced at
+        // the WIRE level: a list value feeding SetShared/GetShared trips BP1506 -- see
+        // CheckListValueWires' allowlist.)
+        foreach (var p in asset.Declarations.Of(DeclarationKind.Parameter))
+        {
+            if (p.Type is { Capacity: > 0 })
+            {
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1507,
+                    $"Parameter '{p.Name}' declares a fixed-list type (Capacity={p.Type.Capacity}) -- " +
+                    "lists are not supported on Parameters (or Shared slots) in v1; declare the list " +
+                    "as an instance Variable, an AiPrimitive WorkingState field, or an action-DTO field.",
+                    asset.AssetId));
+            }
+        }
+
+        foreach (var graph in asset.Graphs)
+        {
+            foreach (var node in graph.Nodes)
+            {
+                switch (node)
+                {
+                    case ListWriteNode lwn:
+                        CheckListWriteTarget(lwn, graph, asset, ctx);
+                        break;
+                    case GetVariableNode gv when ResolveListDecl(asset, gv.VariableId) is { } listDecl:
+                        CheckListValueWires(gv, listDecl, graph, asset, ctx);
+                        break;
+                }
+            }
+        }
+    }
+
+    /// <summary>Resolves a variableId ("var:"-prefix tolerated) to a FIXED-LIST decl; else null.</summary>
+    private static VariableDecl? ResolveListDecl(BlueprintAsset asset, string? variableId)
+    {
+        var decl = ResolveAnyDecl(asset, variableId);
+        return decl is { Type.Capacity: > 0 } ? decl : null;
+    }
+
+    private static VariableDecl? ResolveAnyDecl(BlueprintAsset asset, string? variableId)
+    {
+        var vid = variableId ?? "";
+        if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
+        if (!Guid.TryParse(vid, out var id)) return null;
+        // ⚠⚠ U-11: Variables and WorkingState ONLY, deliberately — NOT Declarations.ById(), which
+        //    also searches Parameters. Widening the set here would make a parameter id resolve where
+        //    it never did, which is the silent behaviour change a projection makes easy.
+        // ⭐ Batch 86 — ONE state kind (R-01).
+        return asset.Declarations.Of(DeclarationKind.Variable)
+                    .FirstOrDefault(d => d.Id == id)?.AsVariableDecl;
+    }
+
+    private static void CheckListWriteTarget(
+        ListWriteNode lwn, Graph graph, BlueprintAsset asset, ValidationContext ctx)
+    {
+        if (ResolveListDecl(asset, lwn.VariableId) is not null) return;
+
+        bool bound = !string.IsNullOrEmpty(lwn.VariableId);
+        if (!bound)
+        {
+            // Unbound AND out of any exec chain -- a fresh palette drop; stay silent
+            // (Stage5 degrades it to Ok=false).
+            var execIn = lwn.Pins.FirstOrDefault(p => p.IsExec && p.Direction == "In");
+            bool inFlow = execIn is not null && graph.Links.Any(
+                l => l.ToNodeId == lwn.Id && l.ToPinId == execIn.Id);
+            if (!inFlow) return;
+        }
+
+        var scalar = ResolveAnyDecl(asset, lwn.VariableId);
+        string detail = scalar is not null
+            ? $"variable '{scalar.Name}' is not a fixed-list (Capacity == 0)"
+            : bound ? $"VariableId '{lwn.VariableId}' does not resolve to a declared variable"
+                    : "VariableId is empty but the node is wired into an exec chain";
+        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1505,
+            $"{nameof(ListWriteNode)}: write target must be a declared fixed-list variable -- {detail}.",
+            asset.AssetId, graph.Id, lwn.Id));
+    }
+
+    private static void CheckListValueWires(
+        GetVariableNode gv, VariableDecl listDecl, Graph graph, BlueprintAsset asset, ValidationContext ctx)
+    {
+        var outPins = new HashSet<Guid>(
+            gv.Pins.Where(p => !p.IsExec && p.Direction == "Out").Select(p => p.Id));
+
+        foreach (var link in graph.Links)
+        {
+            if (link.FromNodeId != gv.Id || !outPins.Contains(link.FromPinId)) continue;
+
+            var sink = graph.Nodes.FirstOrDefault(n => n.Id == link.ToNodeId);
+            if (sink is null) continue;
+            var toPin = sink.Pins.FirstOrDefault(p => p.Id == link.ToPinId);
+            if (toPin is null || toPin.IsExec) continue;
+
+            // The blessed consumers: the 5 collection readers' "Collection" in-pin.
+            bool isConsumerCollectionPin =
+                sink is ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode
+                        or ComponentContainsNode or ComponentFindNode
+                && string.Equals(toPin.Name, "Collection", StringComparison.OrdinalIgnoreCase);
+            if (isConsumerCollectionPin) continue;
+
+            // The one whole-value exception: SetVariable onto an IDENTICAL-shape list (clone).
+            if (sink is SetVariableNode svn)
+            {
+                var target = ResolveAnyDecl(asset, svn.VariableId);
+                if (target is not null
+                    && target.Type.Capacity == listDecl.Type.Capacity
+                    && string.Equals(target.Type.TypeId, listDecl.Type.TypeId, StringComparison.Ordinal))
+                {
+                    continue;   // whole-list clone -- lowers to flat struct copies
+                }
+                string shape = target is null
+                    ? "an unresolved variable"
+                    : target.Type.Capacity <= 0
+                        ? $"non-list variable '{target.Name}'"
+                        : $"list '{target.Name}' of different shape " +
+                          $"({target.Type.TypeId}[{target.Type.Capacity}] vs {listDecl.Type.TypeId}[{listDecl.Type.Capacity}])";
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1506,
+                    $"fixed-list variable '{listDecl.Name}' may only be SetVariable-cloned onto an " +
+                    $"identical-shape fixed-list (same element type, same capacity) -- target is {shape}.",
+                    asset.AssetId, graph.Id, gv.Id, link.FromPinId));
+                continue;
+            }
+
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1506,
+                $"fixed-list variable '{listDecl.Name}' wired to {sink.GetType().Name}.\"{toPin.Name}\" -- " +
+                "a fixed-list may only feed a collection consumer's \"Collection\" pin or an " +
+                "identical-shape SetVariable whole-list clone; use the collection nodes " +
+                "(ItemGet/Count/Contains/Find/ForEach/ListWrite) to work with elements.",
+                asset.AssetId, graph.Id, gv.Id, link.FromPinId));
         }
     }
 }
@@ -1569,7 +2460,8 @@ internal sealed class V_FunctionGraphCallRules : IValidator
         {
             foreach (var node in targetGraph.Nodes)
             {
-                if (node is LatentDelayNode or WaitForChannelNode or WaitForEventNode)
+                // ⭐ S1 / I13 — the ONE latent detector (an inline action suspends too; a hand-written list missed it).
+                if (MacroLatency.IsLatent(node))
                 {
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1650,
                         $"Function graph '{targetGraph.Name}' (id={targetGraph.Id}) is called via FunctionCallNode " +
@@ -1683,6 +2575,89 @@ internal sealed class V_FunctionGraphCallRules : IValidator
 }
 
 // ---------------------------------------------------------------------------
+// V_FunctionGraphReturnValue  (BP-71 / Q24-C3 + Q24-D)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// BP1655 — a Function graph declares an output, but a <see cref="ReturnNode"/> in it has nothing
+/// wired into its value pin.
+/// BP1656 — a Function graph declares MORE THAN ONE output, which is not supported yet (BP-73).
+///
+/// <para>
+/// <b>Why BP1655 exists (BP-71).</b> Before this, an unwired return produced a BP4001 *warning*
+/// plus a dummy <c>IrValue</c> that was never declared, so the emitter wrote <c>return __t7;</c>
+/// with no <c>var __t7</c> — <b>CS0103 from Roslyn with no BP diagnostic to explain it</b> (the same
+/// unattributable shape as BP-69). Stage 5 now also falls back to a typed <c>default(T)</c> so the
+/// generated C# always compiles; this validator is what tells the *designer* rather than letting a
+/// silently-defaulted return through (the BP-16 lesson: never a silent wrong value).
+/// </para>
+/// <para>
+/// <b>Pin-ful graphs only</b>, like every other structural check here. A JSON-loaded asset carries
+/// <c>"Pins": []</c> and is rehydrated in Stage 0, so its Return node has no value pin to inspect at
+/// Stage 2 — and a graph with no links at all is an unauthored stub, not a designer error
+/// (<c>V_GraphStructure</c> makes the same exemption). Stage 5's <c>default(T)</c> covers
+/// correctness on that path.
+/// </para>
+/// <para>
+/// Accepts a value pin in <b>either</b> direction: the projections now emit <c>"In"</c> (Q24-A1),
+/// but hand-authored JSON may carry the legacy <c>"Out"</c> form, which Stage 5 still honours
+/// (Q24-B1). Flagging the legacy form as "no pin" would turn a working asset into an error.
+/// </para>
+/// </summary>
+internal sealed class V_FunctionGraphReturnValue : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        {
+            // BP-80 / F3: Macro is admitted DELIBERATELY, not by omission. A macro reuses ReturnNode
+            // as its output boundary, so "declares an output but nothing is wired into it" is the
+            // identical defect with the identical consequence -- and Macro_Implementation_Design §3's
+            // splice rule 4 names this rule as the one that already covers an unwired Out′.dataIn[q].
+            // Every Entry/Return rule must decide about Macro explicitly (F3's stated cost); this is
+            // that decision for BP1655.
+            if (graph.Kind != GraphKind.Function && graph.Kind != GraphKind.Macro) continue;
+            if (graph.Outputs.Count == 0) continue;
+
+            // ----- BP1656 RETIRED by BP-73 -----
+            // This used to be an error for Outputs.Count > 1 whose wording said "not supported yet
+            // -- see BP-73". BP-73 shipped: N outputs now compile to a ValueTuple carrier that the
+            // call site fans back out. The code is kept in DiagnosticCodes as a retired entry so the
+            // number is never reused, and there is deliberately no replacement diagnostic -- a
+            // multi-output function graph is now ordinary, valid authoring.
+
+            // ----- BP1655: an authored Return node must have its value wired -----
+            // Unauthored stub (no links at all, pins not yet rehydrated) — nothing to judge.
+            if (graph.Links.Count == 0) continue;
+
+            foreach (var rn in graph.Nodes.OfType<ReturnNode>())
+            {
+                if (rn.Pins.Count == 0) continue; // pin-less: Stage 0 has not projected yet
+
+                var valuePin = rn.Pins.FirstOrDefault(
+                    p => !p.IsExec && (p.Direction == "In" || p.Direction == "Out"));
+                if (valuePin is null) continue; // no value slot projected — not this rule's business
+
+                bool wired = graph.Links.Any(
+                    l => l.ToNodeId == rn.Id && l.ToPinId == valuePin.Id);
+                if (wired) continue;
+
+                bool isMacro = graph.Kind == GraphKind.Macro;
+                var kindWord   = isMacro ? "Macro" : "Function";
+                var yieldsWord = isMacro ? "every call site of this macro yields" : "the function returns";
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1655,
+                    $"{kindWord} graph '{graph.Name}' declares output '{graph.Outputs[0].Name}' " +
+                    $"({graph.Outputs[0].Type?.TypeId}), but the Return node (id={rn.Id}) has " +
+                    $"nothing wired into its '{valuePin.Name}' pin. Wire a value into it, or set " +
+                    $"the pin's inline default. Without this {yieldsWord} " +
+                    $"default({graph.Outputs[0].Type?.TypeId}).",
+                    asset.AssetId, graph.Id, rn.Id));
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // V_ExecOutFanOut  (EXEC1 -- BF-BATCH-EXECFANOUT)
 // ---------------------------------------------------------------------------
 
@@ -1774,7 +2749,8 @@ internal sealed class V_FlowForEachRules : IValidator
                     // P1b: BranchNode is now allowed in the body (lowers to a nested inline if/else).
                     // Latent nodes remain forbidden -- they need a suspend/resume block split the
                     // inline for-body cannot span.
-                    if (n is LatentDelayNode or WaitForChannelNode or WaitForEventNode or WhenNode)
+                    // ⭐ S1 / I13 — the ONE latent detector, plus When (it needs a block split too).
+                    if (MacroLatency.IsLatent(n) || n is WhenNode)
                         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2050,
                             $"{loopKind} body must be latent-free: a latent '{n.GetType().Name}' is reachable from the loop 'Body'.",
                             asset.AssetId, graph.Id, n.Id));
@@ -1795,4 +2771,200 @@ internal sealed class V_FlowForEachRules : IValidator
                 && nodeById.TryGetValue(link.ToNodeId, out var target))
                 yield return target;
     }
+}
+
+// ---------------------------------------------------------------------------
+// V_FormatStringRules (BP-108 -- BP2072)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// BP-108 -- BP2072: a <see cref="PrintStringNode"/> or <see cref="FormatStringNode"/> whose
+/// <c>Format</c> fails <see cref="Hrot.Blueprints.Core.Compiler.Format.BlueprintFormatString.Parse"/>
+/// (unclosed <c>'{'</c>, empty <c>'{}'</c>, invalid placeholder name, or a stray <c>'}'</c>).
+/// <para>
+/// ⚠ <b>Error, not Warning.</b> A malformed format yields NO derived arg pins --
+/// <see cref="Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInNodeRegistry"/>'s <c>AppendArgPins</c>
+/// bails out on <c>!parsed.IsValid</c> -- so the node still "compiles" (exec pins only, or a lone
+/// "Result" pin for Format String) and silently prints/formats the wrong thing at runtime. That is
+/// exactly trap #5's shape: a wrong value is worse than a build failure, so this is an Error.
+/// </para>
+/// <para>
+/// One parser, three consumers (this validator, the registry's pin derivation, and the emitter's
+/// interpolated-body rewrite) -- see <c>BlueprintFormatString</c>'s own doc comment. This validator
+/// never re-implements the grammar; it only reports what <c>Parse</c> already decided.
+/// </para>
+/// </summary>
+/// <summary>
+/// ⭐ <c>CE-2083</c> (<c>DESIGN_Decision_Layer</c> §4.10 D6) — an SOP order names a behaviour and acts on the unit: one with no
+/// behaviour, or in a Library function (no unit in scope), is <c>BP1688</c>. ⚠ A resolver graph is refused by
+/// <see cref="V_ResolverPurity"/> (it is a side effect), not here.
+/// </summary>
+internal sealed class V_SopOrderRules : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        foreach (var node in graph.Nodes.OfType<SopOrderNode>())
+        {
+            if (string.IsNullOrWhiteSpace(node.BehaviorName))
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1688,
+                    $"SOP order node '{node.Id}' names no behaviour — pick one.", asset.AssetId, graph.Id, node.Id));
+            if (asset.Dispatch == BlueprintDispatchKind.Library && graph.Kind != GraphKind.Construction)
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1688,
+                    $"SOP order node '{node.Id}' is in a Library function, which has no unit to give the order to.",
+                    asset.AssetId, graph.Id, node.Id));
+        }
+    }
+}
+
+/// <summary>
+/// ⭐ <c>CE-2135</c> P4 (R-2004 — <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §13.10; was <c>CE-2133</c> §1 P2) — a blueprint
+/// declares no Parameters: it NAMES a params DTO and the DTO's fields are its Parameters (<see cref="ParamsDtoFields"/>). A behaviour, an
+/// AiPrimitive or a resolver (a Library with a <c>ResolverSubject</c>) may name one; an asset that names one AND declares Parameters, or
+/// that has no params JSON (an Instance, a plain Library), is <c>BP1689</c>.
+/// <para>⛔ RETIRED with P4: the CE-2133 B1 shape "one Parameter whose type IS the DTO" (overlaid flat) — the DTO's fields are flat.</para>
+/// </summary>
+internal sealed class V_ParamsDtoRules : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        string? named = asset.ParamsDtoTypeId?.Trim();
+        if (string.IsNullOrEmpty(named)) return;
+        if (!ParamsDtoFields.HasParams(asset))
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1689,
+                $"'{asset.Name}' names params DTO '{named}' but is a {asset.Dispatch}"
+                + (asset.Dispatch == BlueprintDispatchKind.Library ? " with no resolver subject" : "")
+                + " — only a behaviour, an AiPrimitive or a resolver has params.",
+                asset.AssetId, null, null));
+            return;
+        }
+        int declared = asset.ParametersFromParamsDto ? 0 : asset.Declarations.CountIn(DeclarationKind.Parameter);
+        if (declared > 0)
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1689,
+                $"'{asset.Name}' names params DTO '{named}' and also declares {declared} Parameter(s) — a blueprint declares no Parameters; "
+                + "the params DTO's fields ARE its Parameters (R-2004).",
+                asset.AssetId, null, null));
+    }
+}
+
+internal sealed class V_FormatStringRules : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        {
+            foreach (var node in graph.Nodes)
+            {
+                string? format = node switch
+                {
+                    PrintStringNode ps  => ps.Format,
+                    FormatStringNode fs => fs.Format,
+                    _                   => null,
+                };
+                if (format is null) continue;
+
+                var parsed = Hrot.Blueprints.Core.Compiler.Format.BlueprintFormatString.Parse(format);
+                if (!parsed.IsValid)
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2072,
+                        $"{node.GetType().Name}: malformed Format -- {parsed.Error}",
+                        asset.AssetId, graph.Id, node.Id));
+                }
+            }
+        }
+    }
+}
+
+/// <summary>
+/// ⭐ S7a (<c>DESIGN_Unified_Behaviour_Run</c> "S7 design") — the Behaviour Task's own rules: its While Running chain runs
+/// inside one frame of the waiting fiber, so it may hold no latent node (<c>BP1684</c>); in S7a it is also the only place
+/// an Abort may come from (<c>BP1685</c>, D3); and <c>Started</c> (running alongside) arrives with S7b (<c>BP1686</c>, D7).
+/// </summary>
+internal static class BehaviorTaskRules
+{
+    public static void Validate(BlueprintAsset asset, Graph graph, RunBehaviorNode task, ValidationContext ctx)
+    {
+        Pin? Exec(string name, string dir) => task.Pins.FirstOrDefault(p => p.IsExec && p.Direction == dir && p.Name == name);
+        bool Wired(Pin? outPin) => outPin is not null && graph.Links.Any(l => l.FromNodeId == task.Id && l.FromPinId == outPin.Id);
+
+        // ⭐ S7b — Started wired ⇒ the task runs ALONGSIDE (Stage 2.6 lifts it into a task fiber). BP1686 is retired.
+        var startedPin = Exec(RunBehaviorNode.StartedPin, "Out");
+        bool alongside = Wired(startedPin);
+
+        var abort = Exec(RunBehaviorNode.AbortPin, "In");
+        var pinById = new Dictionary<Guid, Pin>();
+        foreach (var n in graph.Nodes) foreach (var p in n.Pins) pinById[p.Id] = p;
+        bool IsExecLink(Link l) => pinById.TryGetValue(l.FromPinId, out var fp) ? fp.IsExec : false;
+
+        // The While Running chain: exec-forward from its pin. ⚠ An exec link into this task's Abort ENDS there — it is
+        //   the abort, not a re-entry of the task.
+        bool IntoAbort(Link l) => abort is not null && l.ToNodeId == task.Id && l.ToPinId == abort.Id;
+        var reach = new HashSet<Guid>();
+        var wr = Exec(RunBehaviorNode.WhileRunningPin, "Out");
+        var work = new Stack<Guid>();
+        if (wr is not null)
+            foreach (var l in graph.Links.Where(l => l.FromNodeId == task.Id && l.FromPinId == wr.Id && !IntoAbort(l)))
+                work.Push(l.ToNodeId);
+        while (work.Count > 0)
+        {
+            var at = work.Pop();
+            if (!reach.Add(at)) continue;
+            foreach (var l in graph.Links.Where(l => l.FromNodeId == at && IsExecLink(l)))
+                if (!IntoAbort(l))
+                    work.Push(l.ToNodeId);
+        }
+        // ⭐ S7b (B3) — a Started task may also be aborted from the chain after Started (the timeout shape), but not from
+        //   its Succeeded / Failed chains (by then the task has ended).
+        HashSet<Guid> Forward(Pin? from)
+        {
+            var seen = new HashSet<Guid>();
+            var todo = new Stack<Guid>();
+            if (from is not null)
+                foreach (var l in graph.Links.Where(l => l.FromNodeId == task.Id && l.FromPinId == from.Id && !IntoAbort(l)))
+                    todo.Push(l.ToNodeId);
+            while (todo.Count > 0)
+            {
+                var at = todo.Pop();
+                if (!seen.Add(at)) continue;
+                foreach (var l in graph.Links.Where(l => l.FromNodeId == at && IsExecLink(l)))
+                    if (!IntoAbort(l)) todo.Push(l.ToNodeId);
+            }
+            return seen;
+        }
+        var startedReach = alongside ? Forward(startedPin) : new HashSet<Guid>();
+        var endedReach = new HashSet<Guid>(Forward(Exec(RunBehaviorNode.SucceededPin, "Out")));
+        endedReach.UnionWith(Forward(task.Pins.FirstOrDefault(p => p.IsExec && p.Direction == "Out" && RunBehaviorNode.IsFailedPin(p.Name))));
+
+        foreach (var latent in graph.Nodes.Where(n => reach.Contains(n.Id) && MacroLatency.IsLatent(n)))
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1684,
+                $"Behaviour Task '{task.BehaviorName}': its While Running chain reaches latent node '{latent.GetType().Name}'. " +
+                "While Running runs inside one frame; set a variable there and wait elsewhere.", asset.AssetId, graph.Id, latent.Id));
+
+        if (abort is null) return;
+        foreach (var l in graph.Links.Where(l => l.ToNodeId == task.Id && l.ToPinId == abort.Id))
+        {
+            bool fromWhileRunning = reach.Contains(l.FromNodeId) || (wr is not null && l.FromNodeId == task.Id && l.FromPinId == wr.Id);
+            bool fromStarted = alongside && !endedReach.Contains(l.FromNodeId)
+                && (startedReach.Contains(l.FromNodeId) || (l.FromNodeId == task.Id && l.FromPinId == startedPin!.Id));
+            if (!fromWhileRunning && !fromStarted)
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1685,
+                    $"Behaviour Task '{task.BehaviorName}' is aborted from outside its own While Running chain" +
+                    (alongside ? " and outside the chain after its Started pin" : "") + ". A task can be aborted only from its " +
+                    "While Running chain, or — when Started is wired — from the chain after Started (an abort from another " +
+                    "chain or graph is not built).", asset.AssetId, graph.Id, task.Id));
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ⭐ CE-3054 D — the one rule for a unit sensor kind on the two EQS-read nodes
+// ---------------------------------------------------------------------------
+
+internal static class V_EqsUnitSensorKind
+{
+    /// <summary>One RANKED <c>SensorModality</c> bit: 1 Visual, 2 Radar, 4 Thermal, 8 Acoustic. ⭐ <c>CE-3078</c> H3 — this is
+    /// also the blueprint half of the §10.4 family guard: a kind of another result family (16 <c>DangerArea</c>) never compiles
+    /// on the ranked nodes, so it can never read <c>IsReady = false</c> for ever at run time.</summary>
+    public static bool IsUnitSensorKind(byte kind) => kind is 1 or 2 or 4 or 8;
 }

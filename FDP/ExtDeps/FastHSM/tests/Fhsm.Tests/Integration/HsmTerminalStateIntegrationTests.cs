@@ -18,7 +18,7 @@ namespace Fhsm.Tests.Integration
     {
         // Guard always returns true; used in D2 to confirm real dispatch after reload.
         [HsmGuard(Name = "ReloadTestGuard")]
-        internal static bool ReloadTestGuard(void* instance, void* context, ushort eventId)
+        internal static bool ReloadTestGuard(void* instance, void* context, ushort eventId, HsmCommandWriter* writer)
         {
             return true;
         }
@@ -53,7 +53,7 @@ namespace Fhsm.Tests.Integration
             HsmActionDispatcher.ClearAll();
 
             // Default for unregistered key is true (no guard = always pass).
-            bool result = HsmActionDispatcher.EvaluateGuard(1234, null, null, 0);
+            bool result = HsmActionDispatcher.EvaluateGuard(1234, null, null, 0, null);
             Assert.True(result);
         }
 
@@ -76,8 +76,8 @@ namespace Fhsm.Tests.Integration
                 ushort id = ComputeHash("ReloadTestGuard");
 
                 // ReloadTestGuard is always-true; confirms it was found and dispatched.
-                Assert.True(HsmActionDispatcher.EvaluateGuard(id, null, null, 0));
-                Assert.True(HsmActionDispatcher.EvaluateGuard(id, null, null, 999));
+                Assert.True(HsmActionDispatcher.EvaluateGuard(id, null, null, 0, null));
+                Assert.True(HsmActionDispatcher.EvaluateGuard(id, null, null, 999, null));
             }
             finally
             {

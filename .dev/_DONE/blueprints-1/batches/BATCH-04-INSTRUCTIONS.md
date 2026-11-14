@@ -68,7 +68,7 @@ Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Debug/CapturingDebugSession.cs
 
 ```powershell
 # From repo root:
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tests.csproj
 ```
 
@@ -881,6 +881,6 @@ Submit `.dev/blueprints-1/reports/BATCH-04-REPORT.md` containing:
 1. **Corrective Task 0:** Confirm NodeEnterRecord Time field added; confirm 2 skip tests added. Test count before/after.
 2. **TASK-TH-003:** List all files created/modified. Which SCs pass, which are skipped. Current total test count.
 3. **TASK-TH-005:** List AlcUnloadTests results. Any surprises with GC behavior.
-4. **Build status:** `dotnet build IOS-IG-SimHost.sln` -- 0 errors, 0 warnings.
+4. **Build status:** `dotnet build HROT.sln` -- 0 errors, 0 warnings.
 5. **Test summary:** Total passed / skipped / failed.
 6. **Any deviations** from the instructions and why.

@@ -12,6 +12,9 @@ namespace Fdp.Presentation.Fonts;
 /// <para>Curated subset for the editor toolbar / menus. FA6 Free Solid has ~1400 glyphs;
 /// the whole PUA range (<see cref="IconMin"/>..<see cref="IconMax"/>) is baked, so any solid
 /// glyph is already available — only the friendly name is missing. Add more as needed.</para>
+///
+/// <para>⭐ CE-1063: the NAMED icons (every constant below) are also merged into the node canvas faces, so a node badge may use
+/// one; an unnamed PUA glyph exists on the UI face only.</para>
 /// </summary>
 public static class IconsFontAwesome6
 {
@@ -33,13 +36,31 @@ public static class IconsFontAwesome6
     // Edit / undo
     public const string Pen                 = "\uf304"; // edit
     public const string Plus                = "\uf067";
+    public const string LocationDot         = "\uf3c5";   // ⭐ U-8 (Condition editor §8.2 ④) — pick a thing on the map
+    public const string Cube                = "\uf1b2";   // ⭐ U-8 — a thing of no named kind
+    public const string TrashCan            = "\uf2ed";   // ⭐ U-7 (Condition editor §8.2 ⑦) — the struct editor's delete
     public const string Xmark               = "\uf00d";
     public const string ArrowRotateLeft     = "\uf0e2"; // undo
     public const string ArrowRotateRight    = "\uf01e"; // redo
     public const string ArrowsRotate        = "\uf021"; // reload / refresh
 
     // Run / transport
+    public const string Flag                = "\uf024"; // a named mark (the timeline's session checkpoints)
+    public const string NoteSticky          = "\uf249"; // CE-4325 — a note at a bare time (the Marks window)
+    public const string Upload              = "\uf093"; // CE-4330 — an archive (to the NAS)
+    public const string HardDrive           = "\uf0a0"; // CE-4330 — a recording on the nodes / cached here
+    public const string Server              = "\uf233"; // CE-4330 — the NAS
+    public const string Robot               = "\uf544"; // ⭐ G-7 S5 follow-up — a CGF node (the Source menu's role icon)
+    public const string Gamepad             = "\uf11b"; // ⭐ G-7 S5 follow-up — a Player node
+    public const string Map                 = "\uf279"; // ⭐ G-7 S5 follow-up — an IG (map) node
+    public const string Download            = "\uf019"; // CE-4330 — an import (from the NAS)
     public const string Play                = "\uf04b";
+    public const string CircleHalfStroke    = "\uf042"; // preview (dry run)
+    public const string Circle              = "\uf111"; // live
+    public const string ClockRotateLeft     = "\uf1da"; // review
+    public const string Repeat              = "\uf363"; // loop
+    public const string Eject               = "\uf052"; // back to live
+    public const string RightFromBracket    = "\uf08b"; // close the session (FA6 arrow-right-from-bracket)
     public const string Pause               = "\uf04c";
     public const string Stop                = "\uf04d";
     public const string ForwardStep         = "\uf051"; // single-step
@@ -55,6 +76,9 @@ public static class IconsFontAwesome6
     public const string CircleInfo          = "\uf05a";
     public const string Eye                 = "\uf06e";
     public const string Bolt                = "\uf0e7"; // action / event
+    public const string SatelliteDish       = "\uf7c0"; // sensor / query (EQS)
+    public const string Link                = "\uf0c1"; // cross-asset dependency
+    public const string ChartBar            = "\uf080"; // result / read-out
 
     // Structure / navigation
     public const string Gear                = "\uf013"; // settings
@@ -63,7 +87,76 @@ public static class IconsFontAwesome6
     public const string CodeBranch          = "\uf126";
     public const string DiagramProject      = "\uf542"; // blueprint graph
     public const string Sitemap             = "\uf0e8"; // behavior tree / hierarchy
+    public const string Crown               = "\uf521"; // ⭐ G-7 S5 — the OWNER of a component in Details ▸ By node
+    public const string Cubes               = "\uf1b3"; // parts / structure (CE-4256)
+    public const string PuzzlePiece         = "\uf12e"; // macro members (CE-4256)
     public const string CircleNodes         = "\ue4e2"; // state machine / graph nodes
     public const string LayerGroup          = "\uf5fd";
+    // ⭐ BP-515 (Details panel) — the float / pin buttons and the tabbed layout
+    public const string Thumbtack           = "\uf08d"; // pin
+    public const string UpRightFromSquare   = "\uf35d"; // float / pop out
+    public const string TableColumns        = "\uf0db"; // tabs
     public const string Bars                = "\uf0c9"; // menu
+    public const string Check               = "\uf00c"; // U-2 colour-icon key glyph
+    public const string HourglassHalf       = "\uf252"; // U-2 colour-icon key glyph
+    public const string Lock                = "\uf023"; // U-2 colour-icon key glyph
+    public const string RotateLeft          = "\uf2ea"; // U-2 colour-icon key glyph
+    public const string Crosshairs          = "\uf05b"; // U-2 colour-icon key glyph
+    public const string User                = "\uf007"; // U-2 colour-icon key glyph
+    public const string VanShuttle          = "\uf5b6"; // U-2 colour-icon key glyph
+    public const string Route               = "\uf4d7"; // U-2 colour-icon key glyph
+    public const string Brain               = "\uf5dc"; // U-2 colour-icon key glyph
+    public const string ScaleBalanced       = "\uf24e"; // U-2 colour-icon key glyph
+    public const string DrawPolygon         = "\uf5ee"; // U-2 colour-icon key glyph
+    public const string EarthEurope         = "\uf7a2"; // U-2 colour-icon key glyph
+    public const string Filter              = "\uf0b0"; // U-2 colour-icon key glyph
+    public const string ListCheck           = "\uf0ae"; // U-7 condition kind: A property
+    public const string Clock               = "\uf017"; // U-7 condition kind: Time
+    public const string Users               = "\uf0c0"; // U-7 condition kind: At least N of
+    public const string FlagCheckered       = "\uf11e"; // U-2 colour-icon key glyph
+    public const string Stethoscope         = "\uf0f1"; // U-5 section-header key glyph
+    public const string Mountain            = "\uf6fc"; // U-5 section-header key glyph
+    public const string BoxesStacked        = "\uf468"; // U-5 section-header key glyph
+    public const string BoxArchive          = "\uf187"; // U-5 section-header key glyph
+    public const string Film                = "\uf008"; // U-5 section-header key glyph
+    public const string Sliders             = "\uf1de"; // U-5 section-header key glyph
+    public const string Memory              = "\uf538"; // U-5 section-header key glyph
+    public const string Image               = "\uf03e"; // U-5 section-header key glyph
+    public const string List                = "\uf03a"; // U-5 section-header key glyph
+    // ⭐ Terrain authoring U-1/U-3 (docs/UX/terrain-authoring-2-blocks.svg) — the coloured icons of the six terrain groups and of a block's menu rows
+    public const string City                = "\uf64f"; // a block (town block)
+    public const string HouseChimney        = "\ue3af"; // buildings
+    public const string Tree                = "\uf1bb"; // vegetation
+    public const string WallBrick           = "\uf7a4"; // walls and fences
+    public const string Dumpster            = "\uf793"; // clutter
+    public const string Water               = "\uf773"; // water and bridges
+    public const string Dice                = "\uf522"; // re-roll
+    public const string Rotate              = "\uf2f1"; // rotate a quarter turn
+    public const string UpDownLeftRight     = "\uf047"; // move
+    public const string BoxOpen             = "\uf49e"; // unpack
+    public const string Star                = "\uf005"; // recent and favourites
+    public const string PersonRifle         = "\ue54e"; // soldiers
+    public const string GroundVehicle       = "\uf5e4"; // ground vehicles
+    public const string Plane               = "\uf072"; // aircraft
+    public const string PenToSquare         = "\uf044"; // edit terrain
+    // ⭐ Terrain authoring follow-up 2 (docs/UX/terrain-authoring-1-wizard.svg, -3-features.svg) — one coloured icon per recipe and per clutter type
+    public const string Tractor             = "\uf722"; // a farmstead
+    public const string Trees               = "\ue4e5"; // a copse
+    public const string Seedling            = "\uf4d8"; // an orchard
+    public const string ShieldHalved        = "\uf3ed"; // a checkpoint
+    public const string Shield              = "\uf132"; // a defensive position
+    public const string RoadBarrier         = "\ue562"; // a roadblock, a jersey barrier
+    public const string Car                 = "\uf1b9"; // a parked car
+    public const string OilCan              = "\uf613"; // a barrel
+    public const string Box                 = "\uf466"; // a crate
+    public const string Bus                 = "\uf207"; // a bus shelter
+    public const string Lightbulb           = "\uf0eb"; // a lamp post
+    public const string Store               = "\uf54e"; // a market stall
+    public const string Fire                = "\uf06d"; // a burnt-out car
+    public const string WheatAwn            = "\ue2cd"; // hay bales, hedgerow fields
+    public const string Mound               = "\ue52d"; // sandbags
+    public const string Road                = "\uf018"; // roads
+    public const string Bridge              = "\ue4c8"; // a bridge
+    public const string ChevronLeft         = "\uf053"; // back
+    public const string ChevronRight        = "\uf054"; // next
 }

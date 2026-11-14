@@ -2,9 +2,9 @@ using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
-using Fdp.Modules.Geographic.Components;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Squad;
@@ -43,6 +43,28 @@ namespace Fdp.Toolkit.Tests.Utility
             uint hash = 2166136261u;
             foreach (char c in name) { hash ^= (byte)c; hash *= 16777619u; }
             return hash;
+        }
+
+        // ── ⭐ CE-2071 — the EQS inputs read through UnitSensors.OfTemplate ─────────────────
+
+        [Fact]
+        public void CE2071_TwoSensorsOnOneTemplate_EqsTopScoreReadsTheCurrentRunsOwn()
+        {
+            var repo = _world.Repo;
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorState>())
+                repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>())
+                repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();
+            const uint template = 0xC0FE2071u;
+            var unit = repo.CreateEntity();
+            repo.AddComponent(unit, new Fdp.Toolkit.Behavior.Components.BehaviorState { InstanceId = 5 });
+            _world.SpawnEqsSensor(unit, template, topScore: 0.2f, count: 1, instanceId: 0);           // another run's, stale
+            var mine = _world.SpawnEqsSensor(unit, template, topScore: 0.9f, count: 1, instanceId: 1);
+            repo.AddComponent(mine, new Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart { OwnerInstanceId = 5 });
+
+            var ctx = MakeCtx(unit, parms: new InputParams { BlueprintId = template });
+            Assert.Equal(0.9f, StandardInputs.EqsTopScore(in ctx), 3);
+            Assert.Equal(1f / 16f, StandardInputs.EqsResultCount(in ctx), 3);
         }
 
         // ── SC-P1-06-1: AmmoFraction ─────────────────────────────────────────────
@@ -125,7 +147,7 @@ namespace Fdp.Toolkit.Tests.Utility
         {
             var self    = _world.SpawnAgent(1f, 1f);
             var contact = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(contact, new Position { Value = Vector3.Zero });
+            _world.Repo.AddComponent(contact, new SimTransform { Position = Vector3.Zero });
             var parms   = new InputParams { MaxRange = 500f };
             float result = StandardInputs.DistanceToContext(MakeCtx(self, contact, parms));
             Assert.Equal(1f, result, precision: 5);
@@ -136,7 +158,7 @@ namespace Fdp.Toolkit.Tests.Utility
         {
             var self    = _world.SpawnAgent(1f, 1f);
             var contact = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(contact, new Position { Value = new Vector3(500f, 0f, 0f) });
+            _world.Repo.AddComponent(contact, new SimTransform { Position = new Vector3(500f, 0f, 0f) });
             var parms   = new InputParams { MaxRange = 500f };
             float result = StandardInputs.DistanceToContext(MakeCtx(self, contact, parms));
             Assert.Equal(0f, result, precision: 5);
@@ -147,7 +169,7 @@ namespace Fdp.Toolkit.Tests.Utility
         {
             var self    = _world.SpawnAgent(1f, 1f);
             var contact = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(contact, new Position { Value = new Vector3(250f, 0f, 0f) });
+            _world.Repo.AddComponent(contact, new SimTransform { Position = new Vector3(250f, 0f, 0f) });
             var parms   = new InputParams { MaxRange = 500f };
             float result = StandardInputs.DistanceToContext(MakeCtx(self, contact, parms));
             Assert.Equal(0.5f, result, precision: 4);
@@ -158,7 +180,7 @@ namespace Fdp.Toolkit.Tests.Utility
         {
             var self    = _world.SpawnAgent(1f, 1f);
             var contact = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(contact, new Position { Value = new Vector3(1000f, 0f, 0f) });
+            _world.Repo.AddComponent(contact, new SimTransform { Position = new Vector3(1000f, 0f, 0f) });
             var parms   = new InputParams { MaxRange = 500f };
             float result = StandardInputs.DistanceToContext(MakeCtx(self, contact, parms));
             Assert.Equal(0f, result);
@@ -174,7 +196,7 @@ namespace Fdp.Toolkit.Tests.Utility
             // With 3D distance the altitude gap = 100 m -> correct score = 1 - 100/200 = 0.5.
             var self    = _world.SpawnAgent(1f, 1f);
             var contact = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(contact, new Position { Value = new Vector3(0f, 0f, 100f) });
+            _world.Repo.AddComponent(contact, new SimTransform { Position = new Vector3(0f, 0f, 100f) });
             var parms   = new InputParams { MaxRange = 200f };
             float result = StandardInputs.DistanceToContext(MakeCtx(self, contact, parms));
             Assert.Equal(0.5f, result, precision: 4);
@@ -190,8 +212,8 @@ namespace Fdp.Toolkit.Tests.Utility
             var self          = _world.SpawnAgent(1f, 1f);
             var streetContact = _world.Repo.CreateEntity();
             var bridgeContact = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(streetContact, new Position { Value = new Vector3(100f, 0f,  0f) });
-            _world.Repo.AddComponent(bridgeContact, new Position { Value = new Vector3(100f, 0f, 40f) });
+            _world.Repo.AddComponent(streetContact, new SimTransform { Position = new Vector3(100f, 0f,  0f) });
+            _world.Repo.AddComponent(bridgeContact, new SimTransform { Position = new Vector3(100f, 0f, 40f) });
             var parms         = new InputParams { MaxRange = 500f };
             float streetScore = StandardInputs.DistanceToContext(MakeCtx(self, streetContact, parms));
             float bridgeScore = StandardInputs.DistanceToContext(MakeCtx(self, bridgeContact, parms));
@@ -275,8 +297,122 @@ namespace Fdp.Toolkit.Tests.Utility
             var self    = _world.SpawnAgent(1f, 1f);
             var contact = _world.Repo.CreateEntity();
             _world.SeedContact(self, contact, 50f, 0.75f, -1f, true);
+            _world.Repo.AddComponent(contact, new WeaponState { Ammo = 30, MaxAmmo = 30 });   // armed ⇒ danger 1
             float result = StandardInputs.ContactThreatLevel(MakeCtx(self, contact));
             Assert.Equal(0.75f, result, precision: 4);
+        }
+
+        // ⭐ CE-3054 C — threat = danger × freshness: an UNARMED contact as fresh reads 0.3 of it.
+        [Fact]
+        public void CE3054_ContactThreatLevel_IsDangerTimesFreshness()
+        {
+            var self    = _world.SpawnAgent(1f, 1f);
+            var contact = _world.Repo.CreateEntity();
+            _world.SeedContact(self, contact, 50f, 0.75f, -1f, true);
+            Assert.Equal(0.3f, StandardInputs.ContactDanger(MakeCtx(self, contact)), precision: 4);
+            Assert.Equal(0.75f, StandardInputs.ContactFreshness(MakeCtx(self, contact)), precision: 4);
+            Assert.Equal(0.225f, StandardInputs.ContactThreatLevel(MakeCtx(self, contact)), precision: 4);
+        }
+
+        // ⭐ CE-3054 B — a contact this node does not hold (destroyed / never replicated) counts as dangerous.
+        [Fact]
+        public void CE3054_ContactDanger_UnknownTarget_IsDangerous()
+        {
+            var self    = _world.SpawnAgent(1f, 1f);
+            var contact = _world.Repo.CreateEntity();
+            _world.Repo.DestroyEntity(contact);
+            Assert.Equal(1f, StandardInputs.ContactDanger(MakeCtx(self, contact)));
+        }
+
+        // ⭐ CE-3080 (R-214) — a KILLED armed contact (entity kept, Health 0, WeaponState still on) is no danger and no
+        //   threat, and adds nothing to the enemy's strength; a wounded one still counts in full.
+        [Fact]
+        public void CE3080_KilledArmedContact_IsNoDanger_NoThreat_NoStrength()
+        {
+            var self    = _world.SpawnAgent(1f, 1f);
+            var contact = _world.Repo.CreateEntity();
+            _world.SeedContact(self, contact, 50f, 0.75f, 0f, true);                       // Health 0 — killed
+            _world.Repo.AddComponent(contact, new WeaponState { Ammo = 30, MaxAmmo = 30 });   // still armed
+            Assert.True(Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(_world.Repo, contact));
+            Assert.Equal(0f, StandardInputs.ContactDanger(MakeCtx(self, contact)));
+            Assert.Equal(0f, StandardInputs.ContactThreatLevel(MakeCtx(self, contact)));
+            Assert.Equal(0f, StandardInputs.EnemyStrengthRatio(MakeCtx(self)));
+
+            _world.Repo.GetComponentRW<Health>(contact).Current = 10f;                        // wounded, alive
+            Assert.Equal(1f, StandardInputs.ContactDanger(MakeCtx(self, contact)));
+            Assert.Equal(0.5f, StandardInputs.EnemyStrengthRatio(MakeCtx(self)), precision: 4);
+        }
+
+        // ⭐ CE-3054 C — HaveLiveTarget: a contact long unseen (faded) is NOT a live target; one a sensor tracks is,
+        //   however new (its score still ramping).
+        [Fact]
+        public unsafe void CE3054_HaveLiveTarget_FadedIsNotLive_TrackedIs()
+        {
+            var self    = _world.SpawnAgent(1f, 1f);
+            var contact = _world.Repo.CreateEntity();
+            _world.SeedContact(self, contact, 50f, 0.1f, -1f, true);   // faded below LiveFreshness (0.25)
+            Assert.Equal(0f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
+
+            if (!_world.Repo.IsComponentTypeRegistered<ActiveSensorTracks>()) _world.Repo.RegisterComponent<ActiveSensorTracks>();
+            var tracks = new ActiveSensorTracks { Count = 1 };
+            tracks.EntityIds[0] = (long)contact.PackedValue;
+            _world.Repo.AddComponent(self, tracks);
+            Assert.Equal(1f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
+        }
+
+        /// <summary>⭐ <c>CE-2233</c> (CIV-0, 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §5b) — the two inputs that gate the FIRING
+        /// postures do not count a NEUTRAL contact: one seen now and remembered is no live target and no threat in sight, until its
+        /// side flips to Hostile.</summary>
+        [Fact]
+        public unsafe void CE2233_ANeutralIsNoLiveTarget_AndNoThreatInSight_UntilItsSideFlips()
+        {
+            var repo = _world.Repo;
+            if (!repo.IsComponentTypeRegistered<EntityInfo>()) repo.RegisterComponent<EntityInfo>();
+            if (!repo.IsComponentTypeRegistered<ActiveSensorTracks>()) repo.RegisterComponent<ActiveSensorTracks>();
+            var self     = _world.SpawnAgent(1f, 1f);
+            var civilian = repo.CreateEntity();
+            _world.SeedContact(self, civilian, 20f, 1f, -1f, true);
+            repo.AddComponent(civilian, new EntityInfo { ForceId = ForceId.Neutral });
+            var tracks = new ActiveSensorTracks { Count = 1 };
+            tracks.EntityIds[0] = (long)civilian.PackedValue;
+            tracks.Modalities[0] = (byte)SensorModality.Visual;
+            repo.AddComponent(self, tracks);
+            Assert.Equal(0f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
+            Assert.Equal(0f, StandardInputs.ThreatInSight(MakeCtx(self)));
+
+            repo.GetComponentRW<EntityInfo>(civilian).ForceId = ForceId.Hostile;   // a hostile act flips the side
+            Assert.Equal(1f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
+            Assert.Equal(1f, StandardInputs.ThreatInSight(MakeCtx(self)));
+        }
+
+        // ⭐ CE-3054 C — EnemyStrengthRatio sums DANGER, not freshness: a hidden enemy does not make the unit braver.
+        [Fact]
+        public void CE3054_EnemyStrengthRatio_DoesNotFadeWithFreshness()
+        {
+            var self  = _world.SpawnAgent(1f, 1f);   // healthy, armed: own strength 1
+            var enemy = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(enemy, new WeaponState { Ammo = 30, MaxAmmo = 30 });
+            _world.SeedContact(self, enemy, 50f, 1f, -1f, true);
+            Assert.Equal(0.5f, StandardInputs.EnemyStrengthRatio(MakeCtx(self)), precision: 4);
+
+            ref var mem = ref _world.Repo.GetComponentRW<TargetMemory>(self);
+            unsafe { mem.Freshness[0] = 1f; }   // nearly forgotten
+            Assert.Equal(0.5f, StandardInputs.EnemyStrengthRatio(MakeCtx(self)), precision: 4);
+        }
+
+        /// <summary>⭐ <c>CE-3063</c> ② — a HEARD contact weighs by its class (a heard tank as much as a seen armed enemy), but it
+        /// is not a live TARGET: <c>HaveLiveTarget</c> gates the firing postures, and a point cannot be shot.</summary>
+        [Fact]
+        public void CE3063_AHeardContact_CountsAsStrength_ButIsNotALiveTarget()
+        {
+            var self = _world.SpawnAgent(1f, 1f);   // healthy, armed: own strength 1
+            _world.SeedHeard(self, 120f, 0f, 25f, (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.TrackedEngine);
+            Assert.Equal(0.5f, StandardInputs.EnemyStrengthRatio(MakeCtx(self)), precision: 4);
+            Assert.Equal(0f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
+
+            var enemy = _world.Repo.CreateEntity();
+            _world.SeedContact(self, enemy, 50f, 1f, -1f, true);
+            Assert.Equal(1f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
         }
 
         [Fact]
@@ -294,7 +430,7 @@ namespace Fdp.Toolkit.Tests.Utility
         public void EqsTopScore_ReturnsTopScore_WhenReady()
         {
             var agent     = _world.SpawnAgent(1f, 1f);
-            uint bpId     = UtilityTestWorld.Fnv1a32("CoverQuery");
+            uint bpId     = global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId;
             _world.SpawnEqsSensor(agent, bpId, topScore: 0.8f, count: 2, instanceId: 0);
             var parms     = new InputParams { BlueprintId = bpId };
             float result  = StandardInputs.EqsTopScore(MakeCtx(agent, default, parms));
@@ -305,7 +441,7 @@ namespace Fdp.Toolkit.Tests.Utility
         public void EqsTopScore_ReturnsZero_WhenNoBlueprintIdMatch()
         {
             var agent    = _world.SpawnAgent(1f, 1f);
-            uint bpId    = UtilityTestWorld.Fnv1a32("CoverQuery");
+            uint bpId    = global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId;
             _world.SpawnEqsSensor(agent, bpId, topScore: 0.8f, count: 2, instanceId: 0);
             var parms    = new InputParams { BlueprintId = 0xDEADBEEFu };
             float result = StandardInputs.EqsTopScore(MakeCtx(agent, default, parms));
@@ -330,6 +466,57 @@ namespace Fdp.Toolkit.Tests.Utility
             Assert.Equal(0f, result);
         }
 
+        // ── CE-2046: the EQS input names its template by AssetId — the id every sensor carries ─────────────
+        //    📄 DESIGN_Unified_Behaviour_Run.md "S8i". It hashed the NAME, which no sensor carries.
+
+        [Fact]
+        public void CE2046_EqsInputs_KeyTheTemplateByTheIdItsSensorsCarry()
+        {
+            uint canonical = global::Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.BlueprintIdOf(
+                new Guid(global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.AssetId));
+
+            Assert.Equal(canonical, In.EqsTopScore(global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.AssetId).Params.BlueprintId);
+            Assert.Equal(canonical, In.EqsResultCount(global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.AssetId).Params.BlueprintId);
+            Assert.Equal(global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId, canonical);
+        }
+
+        [Fact]
+        public void CE2046_EqsTopScore_ThroughTheBuiltInput_ReadsASensorKeyedTheWayProducersKeyIt()
+        {
+            var agent = _world.SpawnAgent(1f, 1f);
+            // a producer (blueprint SpawnEqsSensor, EqsLifecycleNodes, …) keys the sensor by the registry's id
+            uint producerId = global::Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.BlueprintIdOf(
+                new Guid(global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.AssetId));
+            _world.SpawnEqsSensor(agent, producerId, topScore: 0.7f, count: 1, instanceId: 0);
+
+            var input = In.EqsTopScore(global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.AssetId);
+            float result = StandardInputs.EqsTopScore(MakeCtx(agent, default, input.Params));
+
+            Assert.Equal(0.7f, result, precision: 4);
+        }
+
+        [Theory]
+        [InlineData("CoverQuery")]
+        [InlineData("")]
+        public void CE2046_EqsInputs_ANameThatIsNotAnAssetId_FailsAtBuild(string notAnAssetId)
+        {
+            Assert.Throws<ArgumentException>(() => In.EqsTopScore(notAnAssetId));
+            Assert.Throws<ArgumentException>(() => In.EqsResultCount(notAnAssetId));
+        }
+
+        [Fact]
+        public void CE2046_FindSafeRetreatPoint_IsRegistered_WithTheCanonicalId()
+        {
+            var t = typeof(global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint);
+            Assert.Equal(
+                global::Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.BlueprintIdOf(
+                    new Guid(global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.AssetId)),
+                global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId);
+            // ⭐ BUILT by backend's terrain EQS slice (CE-3030, EQS design §19.6), which closed CE-2051: it is discovered.
+            var registry = global::Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.Discover(new[] { t.Assembly });
+            Assert.True(registry.TryGetTemplate(global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, out _));
+        }
+
         // ── SC-P1-06-5: IsAssignedTarget ─────────────────────────────────────────
 
         [Fact]
@@ -340,10 +527,9 @@ namespace Fdp.Toolkit.Tests.Utility
             var target = _world.Repo.CreateEntity();
 
             // Write assignment into leader's blackboard
-            ref var bb    = ref _world.Repo.GetComponentRW<Blackboard1024>(leader);
-            ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
+            ref var state = ref _world.Repo.GetComponentRW<SquadCognitiveState>(leader).Assignment;
             ref var roster = ref _world.Repo.GetComponentRW<UnitRoster>(leader);
-            int idx = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
+            int idx = UnitRoster.IndexOf(ref roster, member);
             state.GetSlot(idx).AssignedTargetHandle = (long)target.PackedValue;
 
             float result = StandardInputs.IsAssignedTarget(MakeCtx(member, target));
@@ -359,10 +545,9 @@ namespace Fdp.Toolkit.Tests.Utility
             var target2 = _world.Repo.CreateEntity();
 
             // Assign target1, query for target2
-            ref var bb    = ref _world.Repo.GetComponentRW<Blackboard1024>(leader);
-            ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
+            ref var state = ref _world.Repo.GetComponentRW<SquadCognitiveState>(leader).Assignment;
             ref var roster = ref _world.Repo.GetComponentRW<UnitRoster>(leader);
-            int idx = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
+            int idx = UnitRoster.IndexOf(ref roster, member);
             state.GetSlot(idx).AssignedTargetHandle = (long)target1.PackedValue;
 
             float result = StandardInputs.IsAssignedTarget(MakeCtx(member, target2));
@@ -399,10 +584,9 @@ namespace Fdp.Toolkit.Tests.Utility
             var member = _world.SpawnSquadMember(leader, 1f, 1f);
             var target = _world.Repo.CreateEntity();
 
-            ref var bb    = ref _world.Repo.GetComponentRW<Blackboard1024>(leader);
-            ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
+            ref var state = ref _world.Repo.GetComponentRW<SquadCognitiveState>(leader).Assignment;
             ref var roster = ref _world.Repo.GetComponentRW<UnitRoster>(leader);
-            int idx = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
+            int idx = UnitRoster.IndexOf(ref roster, member);
             state.GetSlot(idx).AssignedTargetHandle = (long)target.PackedValue;
 
             long result = _world.AssignmentFor(leader, member);
@@ -440,6 +624,192 @@ namespace Fdp.Toolkit.Tests.Utility
             Assert.Equal((ushort)(Fnv1a32("Constant")              & 0xFFFF), StandardInputIds.Constant);
             Assert.Equal((ushort)(Fnv1a32("WeaponRangeBandFit")    & 0xFFFF), StandardInputIds.WeaponRangeBandFit);
             Assert.Equal((ushort)(Fnv1a32("WeaponEffectivenessVsTarget") & 0xFFFF), StandardInputIds.WeaponEffectivenessVsTarget);
+        }
+
+        // ── ⭐ CE-3071 — the weapon inputs read the TKB through ArmorModel (design §9) ────────────
+
+        private (Entity Gun, Entity Tow) BradleyWithMounts()
+        {
+            _world.UseTkb(UtilityTestWorld.BradleyTemplate(), UtilityTestWorld.TankTemplate(), UtilityTestWorld.InfantryTemplate());
+            var bradley = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(bradley, new SimTransform { Position = Vector3.Zero });
+            _world.SetType(bradley, UtilityTestWorld.BradleyType);
+            // ⚠ the mount children carry the LEGACY range (the platform's primary, 2500) — A4 says each mount has its own.
+            var gun = _world.SpawnWeaponMount(bradley, mountIndex: 0, weaponGuid: 1, effRange: 2500f, ammo01: 1f, initialAmmunition: 300);
+            var tow = _world.SpawnWeaponMount(bradley, mountIndex: 1, weaponGuid: 2, effRange: 2500f, ammo01: 1f, initialAmmunition: 7);
+            return (gun, tow);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3071</c> (A1) — effectiveness is the share of a kill one hit does, through the SAME ArmorModel the
+        /// simulation applies: the 25 mm does nothing to a T-72's front, the TOW 2000/2500; on infantry the 25 mm 60/100 and the
+        /// TOW a certain kill. ⛔ Was a copy of the range fit — every mount scored the same against any target at one distance.
+        /// </summary>
+        [Fact]
+        public void CE3071_Effectiveness_IsTheShareOfAKill_ThroughTheArmorModel()
+        {
+            var (gun, tow) = BradleyWithMounts();
+            var tank  = _world.SpawnTypedTarget(UtilityTestWorld.TankType, 1500f, maxHealth: 2500f);
+            var rifle = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, 300f, maxHealth: 100f);
+
+            Assert.Equal(0f,   StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(gun, tank)),  precision: 4);
+            Assert.Equal(0.8f, StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(tow, tank)),  precision: 4);
+            Assert.Equal(0.6f, StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(gun, rifle)), precision: 4);
+            Assert.Equal(1f,   StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(tow, rifle)), precision: 4);
+        }
+
+        /// <summary>
+        /// ⭐ M1 (DESIGN_Armour_Hit_Model §5) — the AI expects the face the SHOT would meet, in 3-D: a Bradley 30 m above a tank
+        /// 10 m away expects its roof (20 mm: the 25 mm defeats it — 60 of 2500), level at 1500 m its front (500 mm: nothing). The
+        /// same ArmorModel the damage step applies (R-212 A1).
+        /// </summary>
+        [Fact]
+        public void M1_Effectiveness_ReadsTheFaceInThreeD_AShooterAboveExpectsTheRoof()
+        {
+            const long RoofTank = 990;
+            var roof = new Fdp.Interfaces.TkbTemplate("roof T-72", RoofTank);
+            roof.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 2500, ArmorFront = 500, ArmorSide = 250, ArmorRear = 150, ArmorTop = 20 });
+            _world.UseTkb(UtilityTestWorld.BradleyTemplate(), roof);
+            var bradley = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(bradley, new SimTransform { Position = new Vector3(0, 0, 30) });
+            _world.SetType(bradley, UtilityTestWorld.BradleyType);
+            var gun = _world.SpawnWeaponMount(bradley, mountIndex: 0, weaponGuid: 1, effRange: 2500f, ammo01: 1f, initialAmmunition: 300);
+
+            var below = _world.SpawnTypedTarget(RoofTank, 10f, maxHealth: 2500f);
+            Assert.Equal(60f / 2500f, StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(gun, below)), precision: 4);
+
+            _world.Repo.GetComponentRW<SimTransform>(bradley).Position = Vector3.Zero;
+            var far = _world.SpawnTypedTarget(RoofTank, 1500f, maxHealth: 2500f);
+            Assert.Equal(0f, StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(gun, far)), precision: 4);
+        }
+
+        /// <summary>
+        /// ⭐⭐ M8 (D-I; DESIGN_Missiles_And_Ammo §2) — the effectiveness of a mount with a LOADOUT is its BEST round for this target,
+        /// through the same rule the weapon brain picks with (AmmoChoice): HE is loaded, yet against a T-72 the mount scores the APFSDS
+        /// it would switch to (1100 / 2500). And the penetration is the RESOLVED one (the round × weapon pair — the mount itself states
+        /// none here): ⛔ it read the mount's own number, so this mount scored as an unknown munition.
+        /// </summary>
+        [Fact]
+        public void M8_Effectiveness_ReadsTheBestRound_AndTheResolvedPenetration()
+        {
+            // the mount's OWN round is HE (its AmmoGuid): scoring it would give 0 against the T-72's front
+            var gun = Fdp.Toolkit.Combat.Tests.M8Rounds.TankGun() with { AmmoGuid = unchecked((ulong)Fdp.Toolkit.Combat.Tests.M8Rounds.He), Loadout = new()
+            {
+                new Fdp.Toolkit.Tkb.Domain.AmmoLoadDto { AmmoGuid = unchecked((ulong)Fdp.Toolkit.Combat.Tests.M8Rounds.He), Rounds = 10 },
+                new Fdp.Toolkit.Tkb.Domain.AmmoLoadDto { AmmoGuid = unchecked((ulong)Fdp.Toolkit.Combat.Tests.M8Rounds.Apfsds), Rounds = 10 },
+            } };
+            var tank = new Fdp.Interfaces.TkbTemplate("Tank", Fdp.Toolkit.Combat.Tests.M8Rounds.TankGunType);
+            tank.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { gun } });
+            var all = new System.Collections.Generic.List<Fdp.Interfaces.TkbTemplate>(Fdp.Toolkit.Combat.Tests.M8Rounds.Templates())
+                { tank, UtilityTestWorld.TankTemplate() };
+            _world.UseTkb(all.ToArray());
+            if (!_world.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.AmmoLoadout>())
+                _world.Repo.RegisterComponent<Fdp.Toolkit.Combat.Components.AmmoLoadout>();
+            var shooter = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(shooter, new SimTransform { Position = Vector3.Zero });
+            _world.SetType(shooter, Fdp.Toolkit.Combat.Tests.M8Rounds.TankGunType);
+            _world.Repo.AddComponent(shooter, Fdp.Toolkit.Combat.Components.AmmoLoadout.From(gun.Loadout));
+
+            var t72 = _world.SpawnTypedTarget(UtilityTestWorld.TankType, 800f, maxHealth: 2500f);   // faces the shooter: the 500 mm front
+            Assert.Equal(1100f / 2500f, StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(shooter, t72)), precision: 4);
+        }
+
+        /// <summary>⭐ <c>CE-3071</c> — the target's OWN maximum counts (scenarios override it): a 50-HP tank dies to one TOW.</summary>
+        [Fact]
+        public void CE3071_Effectiveness_UsesTheTargetsOwnMaximum()
+        {
+            var (_, tow) = BradleyWithMounts();
+            var tank = _world.SpawnTypedTarget(UtilityTestWorld.TankType, 1500f, maxHealth: 50f);
+            Assert.Equal(1f, StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(tow, tank)), precision: 4);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3071</c> (A4) — each mount uses its OWN range: the TOW's 3750 m, not the 2500 m the mount child was stamped with
+        /// (the platform's primary). A target at 3750 m is exactly at the TOW's range (1.0) and beyond the 25 mm's (1.5).
+        /// </summary>
+        [Fact]
+        public void CE3071_RangeBandFit_UsesEachMountsOwnRange()
+        {
+            var (gun, tow) = BradleyWithMounts();
+            var far = _world.SpawnTypedTarget(UtilityTestWorld.TankType, 3750f, maxHealth: 2500f);
+            Assert.Equal(1.0f, StandardInputs.WeaponRangeBandFit(MakeCtx(tow, far)), precision: 4);
+            Assert.Equal(1.5f, StandardInputs.WeaponRangeBandFit(MakeCtx(gun, far)), precision: 4);
+        }
+
+        /// <summary>⭐ <c>CE-3071</c> — rounds left on a log scale: 7 TOW ⇒ ln 8 / ln 301 ≈ 0.364, 300 of 25 mm ⇒ 1, none ⇒ 0.</summary>
+        [Fact]
+        public void CE3071_RoundsLeft_IsALogScale()
+        {
+            var (gun, tow) = BradleyWithMounts();
+            Assert.Equal(MathF.Log(8f) / MathF.Log(301f), StandardInputs.RoundsLeft(MakeCtx(tow)), precision: 4);
+            Assert.Equal(1f, StandardInputs.RoundsLeft(MakeCtx(gun)), precision: 4);
+            _world.Repo.GetComponentRW<WeaponState>(tow).Ammo = 0;
+            Assert.Equal(0f, StandardInputs.RoundsLeft(MakeCtx(tow)));
+            Assert.Equal(0xCAE9, (int)(Fnv1a32("RoundsLeft") & 0xFFFF));
+            Assert.Equal(StandardInputIds.RoundsLeft, (ushort)(Fnv1a32("RoundsLeft") & 0xFFFF));
+        }
+            /// <summary>
+        /// ⭐ <c>CE-3084</c> (§3.3e F1) — <see cref="StandardInputs.ThreatInSight"/>: 1 only for a contact a sensor holds NOW by SIGHT
+        /// that the unit remembers as identified; a heard-only track, a track it does not remember, an anonymous memory slot, or no
+        /// track at all ⇒ 0.
+        /// </summary>
+        [Fact]
+        public unsafe void CE3084_ThreatInSight_IsAVisualTrackOfARememberedIdentifiedContact()
+        {
+            var repo = _world.Repo;
+            if (!repo.IsComponentTypeRegistered<ActiveSensorTracks>()) repo.RegisterComponent<ActiveSensorTracks>();
+            if (!repo.IsComponentTypeRegistered<TargetMemory>()) repo.RegisterComponent<TargetMemory>();
+            var unit = repo.CreateEntity();
+            var enemy = repo.CreateEntity();
+            Assert.Equal(0f, StandardInputs.ThreatInSight(MakeCtx(unit)));                 // no components
+
+            var mem = new TargetMemory { Count = 1 };
+            mem.EntityIds[0] = (long)enemy.PackedValue;
+            mem.Freshness[0] = PerceptionConstants.FreshnessSaturation;
+            repo.AddComponent(unit, mem);
+            var tracks = new ActiveSensorTracks { Count = 1 };
+            tracks.EntityIds[0] = (long)enemy.PackedValue;
+            tracks.Modalities[0] = (byte)SensorModality.Visual;
+            repo.AddComponent(unit, tracks);
+            Assert.Equal(1f, StandardInputs.ThreatInSight(MakeCtx(unit)));                 // seen now, remembered
+
+            repo.GetComponentRW<ActiveSensorTracks>(unit).Modalities[0] = (byte)SensorModality.Acoustic;
+            Assert.Equal(0f, StandardInputs.ThreatInSight(MakeCtx(unit)));                 // heard, not seen
+
+            repo.GetComponentRW<ActiveSensorTracks>(unit).Modalities[0] = (byte)SensorModality.Visual;
+            repo.GetComponentRW<TargetMemory>(unit).Count = 0;
+            Assert.Equal(0f, StandardInputs.ThreatInSight(MakeCtx(unit)));                 // seen, but not a remembered threat
+
+            repo.GetComponentRW<ActiveSensorTracks>(unit).Count = 0;
+            repo.GetComponentRW<TargetMemory>(unit).Count = 1;
+            Assert.Equal(0f, StandardInputs.ThreatInSight(MakeCtx(unit)));                 // remembered, not held by a sensor now
+
+            Assert.Equal(StandardInputIds.ThreatInSight, (ushort)(Fnv1a32("ThreatInSight") & 0xFFFF));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2120</c> (R-214) — a KILLED contact (entity kept, Health 0), remembered fresh and held by sight, is neither a
+        /// live target nor a threat in sight ⇒ the attack approach does not flank a corpse. Alive again ⇒ both read 1.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2120_AKilledContact_IsNoLiveTarget_AndNoThreatInSight()
+        {
+            var repo = _world.Repo;
+            if (!repo.IsComponentTypeRegistered<ActiveSensorTracks>()) repo.RegisterComponent<ActiveSensorTracks>();
+            var self    = _world.SpawnAgent(1f, 1f);
+            var contact = repo.CreateEntity();
+            _world.SeedContact(self, contact, 50f, 1f, 0f, true);                          // fresh, Health 0 — killed
+            var tracks = new ActiveSensorTracks { Count = 1 };
+            tracks.EntityIds[0] = (long)contact.PackedValue;
+            tracks.Modalities[0] = (byte)SensorModality.Visual;
+            repo.AddComponent(self, tracks);
+
+            Assert.Equal(0f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
+            Assert.Equal(0f, StandardInputs.ThreatInSight(MakeCtx(self)));
+
+            repo.GetComponentRW<Health>(contact).Current = 10f;                            // alive
+            Assert.Equal(1f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
+            Assert.Equal(1f, StandardInputs.ThreatInSight(MakeCtx(self)));
         }
     }
 }

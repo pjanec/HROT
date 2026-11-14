@@ -51,7 +51,7 @@ namespace Fdp.Toolkit.Physics.BTreeNodes
                 RayId        = rayId,
                 IgnoreEntity = new Entity(entityIndex, entityGeneration),
                 LayerMask    = ~0,
-                SourceNodeId = sourceNodeId,
+                SourceNodeId = (Fdp.Core.NodeId)(sourceNodeId),
             });
 
             return rayId;

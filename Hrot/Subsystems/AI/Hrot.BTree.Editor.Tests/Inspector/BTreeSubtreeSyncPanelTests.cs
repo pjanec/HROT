@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using Fbt;
 using FluentAssertions;
@@ -53,7 +54,7 @@ public sealed class BTreeSubtreeSyncPanelTests
             VisualId        = Guid.NewGuid(),
             KernelType      = NodeType.Action,
             KernelBlobIndex = -1,
-            Action          = new BTreeActionPayload { MethodFqn = "Ns.C.M" },
+            Action          = new BehaviorActionBinding { MethodFqn = "Ns.C.M" },
         };
 
     // ---- GetSubtreeNodeInfo ----

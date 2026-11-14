@@ -10,8 +10,10 @@ namespace Fdp.Toolkit.Squad.Maneuvers
     /// Configuration and role logic for the suppress-and-maneuver (base-of-fire + assault).
     ///
     /// Phases:
-    ///   0 Suppressing     - BaseOfFire suppresses; Assault flanks (FarSideReached)
-    ///   1 AssaultComplete - Terminal: assault reached flank
+    ///   0 Suppressing     - BaseOfFire suppresses; Assault moves to the flank (FarSideReached)
+    ///   3 Assaulting      - ⭐ CE-2123 — from the flank the Assault element moves onto and through the enemy's position while
+    ///                       the BaseOfFire holds (BoundComplete). docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §3.4 S1-D
+    ///   1 AssaultComplete - Terminal: the position is cleared
     ///   2 Aborted         - Terminal (Abort event)
     ///
     /// Roles:
@@ -32,6 +34,8 @@ namespace Fdp.Toolkit.Squad.Maneuvers
         public const ushort PhaseSuppressing     = 0;
         public const ushort PhaseAssaultComplete = 1;
         public const ushort PhaseAborted         = 2;
+        /// <summary>⭐ <c>CE-2123</c> — the assault through, after the flank (ids are not renumbered: 3 follows the old three).</summary>
+        public const ushort PhaseAssaulting      = 3;
 
         // Role IDs.
         public const byte RoleUnassigned = 0;
@@ -48,8 +52,10 @@ namespace Fdp.Toolkit.Squad.Maneuvers
         public static PhaseTransitionEntry[] BuildTransitionTable() =>
             new PhaseTransitionEntry[]
             {
-                new PhaseTransitionEntry { FromPhaseId = PhaseSuppressing, EventKind = PhaseEventKind.FarSideReached, ToPhaseId = PhaseAssaultComplete },
+                new PhaseTransitionEntry { FromPhaseId = PhaseSuppressing, EventKind = PhaseEventKind.FarSideReached, ToPhaseId = PhaseAssaulting      },
                 new PhaseTransitionEntry { FromPhaseId = PhaseSuppressing, EventKind = PhaseEventKind.Abort,          ToPhaseId = PhaseAborted         },
+                new PhaseTransitionEntry { FromPhaseId = PhaseAssaulting,  EventKind = PhaseEventKind.BoundComplete,  ToPhaseId = PhaseAssaultComplete },
+                new PhaseTransitionEntry { FromPhaseId = PhaseAssaulting,  EventKind = PhaseEventKind.Abort,          ToPhaseId = PhaseAborted         },
             };
 
         // --- Element partition ---

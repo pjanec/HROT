@@ -46,9 +46,12 @@ public sealed class ReplayMasterModule
     /// Saves the current time scale and sets it to <c>0.0f</c> (hard freeze).
     /// Call before fan-out of <c>PrepareLive</c> from <c>RunningReplay</c>.
     /// </summary>
-    public void FreezeTime()
+    /// <param name="resumeAt">⭐ CE-4067 — the scale <see cref="RestoreTime"/> resumes at; null = the clock's current one. A branch from a
+    /// replay passes the OPERATOR's rate: inside a replay the clock runs at operator ÷ the segment's recorded rate (DAR §12t), and
+    /// resuming THAT made every live step after the branch advance 1.39× (a run recorded slower than real time).</param>
+    public void FreezeTime(float? resumeAt = null)
     {
-        _savedScale = _getTimeScale();
+        _savedScale = resumeAt ?? _getTimeScale();
         _setTimeScale(0.0f);
     }
 

@@ -1,0 +1,222 @@
+using System;
+using System.Collections.Generic;
+using System.Text.Json.Nodes;
+using Fdp.Core;
+using Fdp.Toolkit.Replication.Components;
+
+namespace Fdp.Toolkit.Behavior.Diagnostics
+{
+    /// <summary>
+    /// ⭐⭐ <c>CE-1329</c> (docs/DESIGN_Entity_Brain_View.md §12r, BV-65) — THE ONE STORE of every per-unit debug switch, keyed by the unit's
+    /// NETWORK ID: which map-gizmo families are pinned on it, whether its behaviour trace is switched on, and the unit the 3-D camera follows.
+    /// The Brain tab, the map's right-click menu and the HTTP API write it; the map, the behaviour runners and the follow camera act on it.
+    /// <para>⭐ A world SINGLETON, so a preview's rewind does not touch it (<c>WorldKeyframes.EditorDryRun</c> captures no singleton): a tick set
+    /// during a preview survives its Stop. A host persists it per scenario (<see cref="ToJson"/> / <see cref="Load"/>).</para>
+    /// <para>⭐ The behaviour runners still read <see cref="DebugState"/> each tick (the behaviors lane's per-entity read, unchanged): it is a
+    /// COPY of this store, rewritten every frame by <see cref="Apply"/> — nothing else writes the bits the store owns, so the copy cannot drift.
+    /// A unit with no network id (a test world, a local-only entity) keeps the old direct <see cref="PatchDebugStateCommand"/> path.</para>
+    /// <para>Tracing has three requesters, and is on while ANY asks: what someone switched on (<see cref="SetTrace"/>, remembered), a Brain tab
+    /// showing the unit (<see cref="SetViewed"/>, temporary) and an arming by the API or a breakpoint (<see cref="SetArmed"/>, temporary).</para>
+    /// </summary>
+    [ComponentId(GlobalComponentIds.UnitDebugSettings)]
+    [DataPolicy(DataPolicy.Transient)]
+    public sealed class UnitDebugSettings
+    {
+        /// <summary>One unit's REMEMBERED switches.</summary>
+        public readonly record struct Entry(AiOverlayFlags Pins, bool Trace)
+        {
+            public bool IsEmpty => Pins == AiOverlayFlags.None && !Trace;
+        }
+
+        private readonly Dictionary<int, Entry> _remembered = new();
+        private readonly HashSet<int> _viewed = new();
+        private readonly HashSet<int> _armed = new();
+        private readonly HashSet<int> _managed = new();   // every unit whose DebugState bits the store has written (so a reset clears them)
+
+        /// <summary>Bumped on every change to what is REMEMBERED (a host saves when it moves).</summary>
+        public int Version { get; private set; }
+
+        /// <summary>The network id of the unit the 3-D camera follows (remembered), or null.</summary>
+        public int? Followed { get; private set; }
+
+        /// <summary>The store of <paramref name="world"/> (created on first use).</summary>
+        public static UnitDebugSettings Of(EntityRepository world)
+        {
+            if (world.HasSingletonManaged<UnitDebugSettings>() && world.GetSingletonManaged<UnitDebugSettings>() is { } s) return s;
+            var created = new UnitDebugSettings();
+            world.SetSingletonManaged(created);
+            return created;
+        }
+
+        /// <summary>The store of <paramref name="world"/>, or null when nothing was ever set there (a READ never creates it: menus and gizmos may
+        /// read off the main thread).</summary>
+        public static UnitDebugSettings? Peek(EntityRepository world)
+            => world.HasSingletonManaged<UnitDebugSettings>() ? world.GetSingletonManaged<UnitDebugSettings>() : null;
+
+        /// <summary>The unit's network id, or 0 when it has none (then the store cannot hold it).</summary>
+        public static int NetIdOf(EntityRepository world, Entity unit)
+            => unit != Entity.Null && world.IsAlive(unit) && world.IsComponentTypeRegistered<NetworkIdentity>() && world.HasComponent<NetworkIdentity>(unit)
+                ? world.GetComponentRO<NetworkIdentity>(unit).Value : 0;
+
+        public Entry Get(int netId) => _remembered.TryGetValue(netId, out var e) ? e : default;
+        public IReadOnlyDictionary<int, Entry> Remembered => _remembered;
+
+        public bool IsPinned(int netId, AiOverlayFlags family) => (Get(netId).Pins & family) != 0;
+
+        public void SetPin(int netId, AiOverlayFlags family, bool on)
+        {
+            var e = Get(netId);
+            Put(netId, e with { Pins = on ? e.Pins | family : e.Pins & ~family });
+        }
+
+        /// <summary>Whether someone switched the unit's trace on (remembered) — not counting a tab or an arming.</summary>
+        public bool IsTraceSet(int netId) => Get(netId).Trace;
+
+        public void SetTrace(int netId, bool on) => Put(netId, Get(netId) with { Trace = on });
+
+        /// <summary>A Brain tab shows the unit (temporary, never saved).</summary>
+        public void SetViewed(int netId, bool on) => Toggle(_viewed, netId, on);
+
+        /// <summary>The API or a breakpoint armed the unit's trace (temporary, never saved).</summary>
+        public void SetArmed(int netId, bool on) => Toggle(_armed, netId, on);
+
+        public bool IsArmed(int netId) => _armed.Contains(netId);
+
+        /// <summary>Whether the unit's trace runs: switched on, shown by a tab, or armed.</summary>
+        public bool TraceOn(int netId) => Get(netId).Trace || _viewed.Contains(netId) || _armed.Contains(netId);
+
+        public void SetFollowed(int? netId)
+        {
+            if (Followed == netId) return;
+            Followed = netId;
+            Version++;
+        }
+
+        /// <summary>Forgets everything remembered for one unit (the Brain tab's reset).</summary>
+        public void ResetUnit(int netId)
+        {
+            if (_remembered.Remove(netId)) Version++;
+            if (Followed == netId) SetFollowed(null);
+        }
+
+        /// <summary>Forgets everything remembered (the Settings menu's reset). Temporary requests stay.</summary>
+        public void ResetAll()
+        {
+            _remembered.Clear();
+            Followed = null;
+            Version++;
+        }
+
+        /// <summary>
+        /// ⭐ Threaded POC 4 F-2 ② (DESIGN_Threaded_Simulation_Presentation §14.1 "UI-only state written directly in A; what the sim must read
+        /// rides to S each tick") — <paramref name="ui"/>'s requests (the remembered switches, the tabs viewing, the followed unit) copied into this
+        /// (the simulation's own store) at the sync, while no tick runs. This store keeps what is its own: the units it has written
+        /// (<c>_managed</c>, so a reset still clears their bits) and what was armed on the simulation side (a breakpoint) — armed is the UNION.
+        /// 0 B once warm (the collections keep their capacity).
+        /// </summary>
+        public void TakeRequestsFrom(UnitDebugSettings ui)
+        {
+            if (ReferenceEquals(ui, this)) return;
+            if (ui.Version != Version || ui.Followed != Followed || _remembered.Count != ui._remembered.Count)
+            {
+                _remembered.Clear();
+                foreach (var kv in ui._remembered) _remembered[kv.Key] = kv.Value;
+                Followed = ui.Followed;
+                Version = ui.Version;
+            }
+            _viewed.Clear();
+            foreach (var id in ui._viewed) _viewed.Add(id);
+            foreach (var id in ui._armed) _armed.Add(id);
+        }
+
+        private void Put(int netId, Entry e)
+        {
+            if (e.IsEmpty) { if (!_remembered.Remove(netId)) return; }
+            else if (_remembered.TryGetValue(netId, out var old) && old == e) return;
+            else _remembered[netId] = e;
+            Version++;
+        }
+
+        private static void Toggle(HashSet<int> set, int netId, bool on)
+        {
+            if (on) set.Add(netId); else set.Remove(netId);
+        }
+
+        /// <summary>
+        /// Writes the store's bits into every unit's <see cref="DebugState"/>: the pins exactly, and the trace switch
+        /// (<see cref="BehaviorDebugFlags.EnableTraceBuffer"/>) on while any requester asks. Only units the store holds or has held are
+        /// touched; any other bit of <see cref="DebugState"/> is left as it is. Run each frame (by <see cref="DebugStatePatchSystem"/>), so a
+        /// preview's rewind, a respawn or a scenario load is followed on the next frame.
+        /// </summary>
+        public void Apply(EntityRepository world)
+        {
+            if (!world.IsComponentTypeRegistered<NetworkIdentity>() || !world.IsComponentTypeRegistered<DebugState>()) return;
+            if (_remembered.Count == 0 && _viewed.Count == 0 && _armed.Count == 0 && _managed.Count == 0) return;
+            foreach (var e in world.Query().With<NetworkIdentity>().Build())
+            {
+                int id = world.GetComponentRO<NetworkIdentity>(e).Value;
+                bool wanted = _remembered.ContainsKey(id) || _viewed.Contains(id) || _armed.Contains(id);
+                if (!wanted && !_managed.Contains(id)) continue;
+                var pins = Get(id).Pins;
+                bool trace = TraceOn(id);
+                if (!world.HasComponent<DebugState>(e))
+                {
+                    if (!wanted) continue;
+                    // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                    var fresh = new DebugState();
+                    var freshBehavior = trace ? fresh.Behavior | BehaviorDebugFlags.EnableTraceBuffer : fresh.Behavior & ~BehaviorDebugFlags.EnableTraceBuffer;
+                    if (fresh.Ai != pins || fresh.Behavior != freshBehavior) { fresh.Ai = pins; fresh.Behavior = freshBehavior; }
+                    world.AddComponent(e, fresh);
+                    if (wanted) _managed.Add(id); else _managed.Remove(id);
+                    continue;
+                }
+                ref var state = ref world.GetComponentRW<DebugState>(e);
+                var behavior = trace ? state.Behavior | BehaviorDebugFlags.EnableTraceBuffer : state.Behavior & ~BehaviorDebugFlags.EnableTraceBuffer;
+                if (state.Ai != pins || state.Behavior != behavior) { state.Ai = pins; state.Behavior = behavior; }
+                if (wanted) _managed.Add(id); else _managed.Remove(id);   // released: its bits cleared once, then left alone
+            }
+        }
+
+        // ── persistence (per scenario, by the host) ─────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>What is remembered, as JSON: <c>{ "units": { "1004": { "pins": ["Perception"], "trace": true } }, "followed": 1004 }</c>.</summary>
+        public JsonObject ToJson()
+        {
+            var units = new JsonObject();
+            foreach (var (id, e) in _remembered)
+            {
+                var pins = new JsonArray();
+                foreach (AiOverlayFlags f in Enum.GetValues<AiOverlayFlags>())
+                    if (f != AiOverlayFlags.None && (e.Pins & f) == f && IsSingleBit(f)) pins.Add(f.ToString());
+                units[id.ToString()] = new JsonObject { ["pins"] = pins, ["trace"] = e.Trace };
+            }
+            return new JsonObject { ["units"] = units, ["followed"] = Followed };
+        }
+
+        /// <summary>Replaces what is remembered with <paramref name="json"/> (null or bad = nothing); the temporary requests stay.</summary>
+        public void Load(JsonNode? json)
+        {
+            _remembered.Clear();
+            Followed = null;
+            if (json is JsonObject o)
+            {
+                if (o["units"] is JsonObject units)
+                    foreach (var (key, node) in units)
+                    {
+                        if (!int.TryParse(key, out var id) || node is not JsonObject u) continue;
+                        var pins = AiOverlayFlags.None;
+                        if (u["pins"] is JsonArray arr)
+                            foreach (var p in arr)
+                                if (p?.GetValue<string>() is { } name && Enum.TryParse<AiOverlayFlags>(name, out var f)) pins |= f;
+                        bool trace = u["trace"] is JsonValue t && t.TryGetValue<bool>(out var b) && b;
+                        var entry = new Entry(pins, trace);
+                        if (!entry.IsEmpty) _remembered[id] = entry;
+                    }
+                if (o["followed"] is JsonValue fv && fv.TryGetValue<int>(out var followed)) Followed = followed;
+            }
+            Version++;
+        }
+
+        private static bool IsSingleBit(AiOverlayFlags f) => ((ushort)f & ((ushort)f - 1)) == 0;
+    }
+}

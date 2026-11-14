@@ -155,6 +155,23 @@ public abstract record GraphCommand
     public sealed record ChangeParentMultiple(
         IReadOnlyList<ChangeParentMove> Moves) : GraphCommand;
 
+    /// <summary>
+    /// ⭐ CE-1004 — set (or clear, with null) the author-set size of one band of a region container, in graph
+    /// units along the stack axis. The inverse is the same command with the previous value.
+    /// </summary>
+    public sealed record SetRegionPreferredSize(
+        NodeId ContainerId,
+        int RegionIndex,
+        float? Size) : GraphCommand;
+
+    /// <summary>
+    /// ⭐ CE-1004 — set (or clear, with null) a container's author-set OUTER size (its <c>SizeOverride</c>), in graph
+    /// units. The container is never smaller than its content.
+    /// </summary>
+    public sealed record SetContainerSize(
+        NodeId ContainerId,
+        Vector2? Size) : GraphCommand;
+
     /// <summary>Expand or collapse a container node.</summary>
     public sealed record SetContainerCollapsed(
         NodeId ContainerId,

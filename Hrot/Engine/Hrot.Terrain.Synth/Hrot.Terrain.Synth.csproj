@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The terrain SYNTH as a library (docs/DESIGN_Terrain_Authoring.md §18f F-1, CE-4428): the generators (heights, roads, water, woods, scrub, trees, buildings, SUMO net, manifest) MOVED here from
+       Hrot/Tools/Hrot.Tools.TerrainSynth (git mv; the namespace Hrot.Tools.TerrainSynth is kept so nothing is renamed). The CLI is a thin shell over it; the random-terrain pipeline
+       (RandomTerrainPipeline, BlockLayout) lives here too. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Hrot.Tools.TerrainSynth</RootNamespace>
+    <AssemblyName>Hrot.Terrain.Synth</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Hrot.Terrain.InputSet\Hrot.Terrain.InputSet.csproj" />
+  </ItemGroup>
+</Project>

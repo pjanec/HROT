@@ -119,13 +119,13 @@ namespace Fdp.Examples.Scenarios.Network
         public const long TankTurretTkbType = 101L;
 
         /// <summary>DIS network ID assigned to the Brain turret entity.</summary>
-        public const long BrainTurretNetId = 101L;
+        public const int BrainTurretNetId = 101;
 
         /// <summary>Fixed simulation delta shared by both kernels.</summary>
         public const float FixedDelta = 1.0f / 60.0f;
 
         /// <summary>DIS network ID assigned to the Brain hull entity.</summary>
-        public const long BrainHullNetId = 100L;
+        public const int BrainHullNetId = 100;
 
         /// <summary>TKB blueprint type for CommandTank.</summary>
         public const long CommandTankTkbType = 100L;
@@ -317,7 +317,6 @@ namespace Fdp.Examples.Scenarios.Network
             _muscleWorld.RegisterComponent<NetworkIdentity>();
             _muscleWorld.RegisterComponent<GhostStateTracker>();
             _muscleWorld.RegisterComponent<TkbIdentity>();
-            _muscleWorld.RegisterComponent<NetworkOwnership>();
             _muscleWorld.RegisterComponent<PartMetadata>();
             _muscleWorld.RegisterEvent<ConstructionOrder>();
             _muscleWorld.RegisterEvent<ConstructionAck>();
@@ -467,7 +466,7 @@ namespace Fdp.Examples.Scenarios.Network
 
                     // Set TkbIdentity on the ghost so GhostPromotionSystem (runs on next
                     // Muscle kernel Update) can apply the CommandTank blueprint template.
-                    _muscleWorld!.AddComponent(ghost, new TkbIdentity { TkbType = CommandTankTkbType });
+                    _muscleWorld!.AddComponent(ghost, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(CommandTankTkbType) });
 
                     _ghostCreated = true;
                     break;
@@ -692,6 +691,7 @@ namespace Fdp.Examples.Scenarios.Network
         /// on the Muscle <see cref="ModuleHostKernel"/> without depending on
         /// <c>SimulationLogicModule</c>.
         /// </summary>
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class MuscleDirectSystemsModule : IEcsModule
         {
             private readonly IEcsModuleSystem[] _systems;
