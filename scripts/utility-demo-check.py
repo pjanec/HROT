@@ -4337,14 +4337,16 @@ def run_morale_barrage(c, timeout):
         call("POST", f"/entities/{sq[k]}/reports", {"kind": "Progress", "subtype": "Set"})
     wait_for(lambda: False, 3, every=1.0)
     call("POST", f"/entities/{sq[9320]}/reports", {"kind": "Spot", "at": [120, 60, 0], "count": 3, "size": "Team"})   # inside the EA: Engage
-    # the barrage: once the crews man the tubes (ua-indirect-fire's precedent), the battery's Strike on Squad 2 (in the open at (80, 155)) —
-    #   converged, ten bombs a tube, danger close (its own crew ~260 m off); one failing line squad of two is the fall-back (DA-67).
+    # the barrage: once the crews man the tubes (ua-indirect-fire's precedent), the battery's Strike 10 m short of Squad 2 (in the open
+    #   at y ≈ 153) — inside the near miss (11.8 m), outside the injury radius (5.9 m), so it tests NERVE, not wounds — converged, ten bombs a
+    #   tube, danger close (its own crew ~260 m off); one failing line squad of two is the fall-back (DA-67).
+    #   ⚠ measured: ON the squad (≤ 1 m) a man of either variant went down hurt ("collapsed" counts as broken) by ~33 s — both fell back.
     #   ⚠ measured on the way: an open 45 m sheaf across both squads near-missed nobody · Location is LOCAL metres [x, y, z] (CE-2433;
     #   geo_of() is stale here: it landed at (52, 14)) · a Strike on (120.8, 156, 0) — Squad 1, upstairs in OBJ, 199 m off — RAN 60 s
     #   and fired nothing, without a word (CE-7038)
     crews = [ids.get("Mortar Man 1"), ids.get("Mortar Man 2")]
     c.ok(wait_for(lambda: all("IsEmbarkedTag" in comps(m) for m in crews), 90), "the mortar crews man their tubes")
-    c.ok(_if_order(ids.get("Insurgent Mortar"), "Strike", {"Location": [78, 152, 0], "Rounds": 10,
+    c.ok(_if_order(ids.get("Insurgent Mortar"), "Strike", {"Location": [78, 143, 0], "Rounds": 10,
                                                          "Sheaf": "Converged", "DangerClose": True}), "the battery takes the barrage (Strike)")
     t0 = sim_time() or 0.0
     first = {}
