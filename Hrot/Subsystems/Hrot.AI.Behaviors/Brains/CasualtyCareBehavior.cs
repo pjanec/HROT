@@ -288,6 +288,11 @@ namespace Hrot.AI.Behaviors.Brains
                 float d = Vector3.DistanceSquared(ctx.At(m), him);
                 if (d < bestD) { bestD = d; best = i; }
             }
+            // ⭐ CE-4606 — nobody else is live (a two-man squad, one down: the survivor IS the leader): the leader goes — never a livelock
+            //   of Start failing and Rescue re-picked while the casualty bleeds (the FirstLive medic fallback, SquadSensing)
+            if (best < 0)
+                for (int i = 0; i < ctx.Roster.Count; i++)
+                    if (i != casualty && ctx.Live(i, out _)) return i;
             return best;
         }
 
