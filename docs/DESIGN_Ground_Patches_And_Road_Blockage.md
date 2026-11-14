@@ -589,3 +589,38 @@ own steps.
 Rails: `ImporterTests.CE4403_ARoadAcrossASlope_IsLevelAcrossItsWidth_AndTheNetSitsOnTheStore` (level across, the slope past the skirt, every net point on
 the store — §6 item 1's last clause), `CE4403_HousesByTheRoad_AreTolerated_AndThePadsNeverAlterTheRoad` (D-3 reported, never an error; the lock) —
 both red-proved (no corridors ⇒ both red).
+
+### 9.9 As built — P-2: road blockage *(`terrain` lane, `2026-11-14`, CE-4590)*
+
+```mermaid
+graph TD
+  OBS[StaticObstacle - roadblock, wreck] --> BCS[BridgeClosureSystem - THE road-blockage step, every node]
+  BRG[a fallen bridge - collapse table + overlay row] --> BCS
+  CRT[a crater - P-4]:::later -.-> BCS
+  BCS -->|Without base, blocked now| HOLD[RoadNetworkHolder + ZoneEnvironmentData]
+  BCS -->|RequestReplan| VEH[vehicles whose way crosses a new cut]
+  BCS -->|closed edges, in SUMO's own lanes| RT[TrafficRuntime - CloseEdge / OpenEdge]
+  OBS --> FEED[TrafficBodyFeedSystem - bodies at rest]
+  FEED -->|lane obstacles| RT
+  classDef later stroke:#888,color:#888,stroke-dasharray: 5 5
+```
+*What it shows that prose hid: ONE step owns every closure and it is a FUNCTION of the blocker set (the published net is always the base without what is
+blocked now), so re-opening and seeking need no code of their own; partial coverage needs no step at all — SUMO's existing lane-obstacle feed takes the
+obstacle as a body.*
+
+| claim | code — as built | design |
+|---|---|---|
+| one step for every blocker | `BridgeClosureSystem` (name kept: the bridge was its first blocker — a Roslyn rename later is cosmetic) takes fallen bridges AND every active `StaticObstacle` | G-10 |
+| rebuilt from the base; re-opens | the system keeps its own copy of the base (the holder frees retired graphs); `RoadNetworkHolder.Version` tells its own publish from a new base; publishes `Without(base, blocked)` only when the set changes | V-19 |
+| a road is cut only when fully covered | `RoadBlockage.ClosedSegments`: a station where every point across the lanes' width lies in a blocker | G-10, V-20 |
+| SUMO closed in its own lanes | `RoadBlockage.ClosedEdges` over `TrafficNetCache.Model` — every lane covered at the SAME fraction; no road-graph ↔ SUMO id map needed | V-18 (need removed) |
+| partial cover ⇒ lane obstacle | `TrafficBodyFeedSystem.AddObstacles`: each obstacle a chain of squares at rest (any heading), NEGATIVE synthetic ids | G-10, V-24 |
+| a replay | the net follows the replayed blockers; no vehicle is re-planned | — |
+| per mover class (a closing blocker for one class only) | ⛔ not here — our road graph has one class; craters (P-4) bring the class question | V-20 |
+| a crater as a blocker; `RoadHeights` over lowered ground | ⛔ P-4 | V-20 |
+
+⭐ **Lane decisions (for the user's review):** [R-5013](blueprints/RULINGS.md) each net is judged in its own geometry (V-18's edge ids are not written);
+[R-5014](blueprints/RULINGS.md) obstacles go to SUMO as chains of squares at rest with negative ids; a road is cut only where a blocker spans its full width.
+
+Rails: `BridgeClosureTests.CE4590_*` (a barrier cuts a road and its removal re-opens it, red-proved; a half-road car leaves it open; SUMO edges close only
+with every lane covered at one station; obstacles fed as bodies at rest) + the four T-7b rails unchanged, the 0 B steady frame included.

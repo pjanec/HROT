@@ -188,5 +188,107 @@ public sealed class BridgeClosureTests : IDisposable
         }
     }
 
+    // ── CE-4590 (P-2; docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4 G-10, §9.2 V-19, V-20, V-24) — THE road-blockage step ──────────────────
+
+    private static bool Registered(EntityRepository repo)
+    {
+        if (!repo.IsComponentTypeRegistered<StaticObstacle>()) repo.RegisterComponent<StaticObstacle>();
+        if (!repo.IsComponentTypeRegistered<ObstacleShape>()) repo.RegisterComponent<ObstacleShape>();
+        return true;
+    }
+
+    /// <summary>A static obstacle (a concrete barrier, a wreck) at <paramref name="at"/>, <paramref name="length"/> × <paramref name="width"/> m, its length along <paramref name="yaw"/>.</summary>
+    private static Entity Obstacle(World w, Vector2 at, float length, float width, float yaw)
+    {
+        Registered(w.Repo);
+        var e = w.Repo.CreateEntity();
+        w.Repo.AddComponent(e, new SimTransform { Position = new Vector3(at, 0f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
+        w.Repo.AddComponent(e, new StaticObstacle { Material = new FixedString32("concrete") });
+        w.Repo.AddComponent(e, new ObstacleShape { Length = length, Width = width, Height = 1.2f });
+        return e;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4590</c> (G-10, V-19; acceptance §6 item 2) — a BARRIER across the east road (6 m across a 3.5 m road) cuts its segment from the vehicles' net: a
+    /// route from the east bank's start to its end no longer exists, and a vehicle whose way crossed it re-plans; REMOVING the barrier (the charge, CE-6003)
+    /// RE-OPENS the road — the net is rebuilt from the base, all five segments back. 🔴 Red-proof: publish only when segments are ADDED to the cut (the old
+    /// monotonic step) ⇒ the road never re-opens.
+    /// </summary>
+    [Fact]
+    public void CE4590_ABarrierAcrossARoad_CutsIt_AndRemovingItReOpensIt()
+    {
+        using var w = Build();
+        var system = new BridgeClosureSystem(runtime: null, () => w.Pool);
+        var from = new Vector2(245, 200); var to = new Vector2(295, 200);
+        system.Execute(w.Repo, 0.1f);
+        Assert.InRange(RoadMetres(w.Holder, from, to), 40f, 60f);
+        var crossing = Vehicle(w, 7003, new[] { new Vector3(245, 200, 0), new Vector3(270, 200, 0), new Vector3(295, 200, 0) });
+
+        var barrier = Obstacle(w, new Vector2(270, 200), 6f, 1f, MathF.PI / 2f);   // its length across the road
+        system.Execute(w.Repo, 0.1f);
+        Assert.Equal(1, system.Blocked);
+        Assert.Equal(4, w.Holder.Current.Segments.Length);
+        Assert.True(RoadMetres(w.Holder, from, to) > 1000f, "the road is cut: no route along it");
+        Assert.Equal(1, w.Repo.GetComponentRO<NavigationStatus>(crossing).ReplanCount);
+
+        w.Repo.DestroyEntity(barrier);
+        system.Execute(w.Repo, 0.1f);
+        Assert.Equal(0, system.Blocked);
+        Assert.Equal(5, w.Holder.Current.Segments.Length);
+        Assert.InRange(RoadMetres(w.Holder, from, to), 40f, 60f);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4590</c> (G-10) — a car parked on HALF the road (4.5 × 1.8 along it, 1 m off the centre) leaves the road open for our net (only SUMO's lane obstacle
+    /// sees it, through the body feed); a barrier across it closes it. 🔴 Red-proof: cut on any covered point ⇒ the parked car cuts the road.
+    /// </summary>
+    [Fact]
+    public void CE4590_APartlyCoveredRoad_StaysOpen()
+    {
+        using var w = Build();
+        var system = new BridgeClosureSystem(runtime: null, () => w.Pool);
+        Obstacle(w, new Vector2(270, 201f), 4.5f, 1.8f, 0f);
+        system.Execute(w.Repo, 0.1f);
+        Assert.Equal(0, system.Blocked);
+        Assert.Equal(5, w.Holder.Current.Segments.Length);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4590</c> (G-10, V-18) — SUMO's side, in SUMO's OWN lanes (no edge-id mapping): a two-lane edge is CLOSED when a barrier spans both its lanes at one
+    /// station, left open when it covers one lane (a lane obstacle). And the body feed tells each obstacle as a CHAIN of squares at rest with NEGATIVE ids (V-24):
+    /// a 6 × 1 barrier is six 1 m squares along its length. 🔴 Red-proof: require all lanes covered at ANY (not the same) station ⇒ two staggered one-lane cars close it.
+    /// </summary>
+    [Fact]
+    public void CE4590_SumoEdges_CloseOnlyWhenEveryLaneIsCovered_AndObstaclesAreFedAsBodiesAtRest()
+    {
+        var net = Sim.Ingest.NetworkParser.ParseXml("""
+            <net version="1.20"><location netOffset="0.00,0.00" convBoundary="0,0,200,10" origBoundary="0,0,200,10" projParameter="!"/>
+            <edge id="e" from="a" to="b"><lane id="e_0" index="0" speed="13.9" length="200" width="3.2" shape="0,-1.6 200,-1.6"/><lane id="e_1" index="1" speed="13.9" length="200" width="3.2" shape="0,1.6 200,1.6"/></edge>
+            <junction id="a" type="dead_end" x="0" y="0" incLanes="" intLanes="" shape="0,-3.2 0,3.2"/><junction id="b" type="dead_end" x="200" y="0" incLanes="e_0 e_1" intLanes="" shape="200,-3.2 200,3.2"/>
+            </net>
+            """);
+        (double, double) Local(double x, double y) => (x, y);
+        var closed = new List<string>();
+        var across = TerrainObstacles.PrismOf(new Vector3(100, 0, 0), MathF.PI / 2f, new ObstacleShape { Length = 8, Width = 1, Height = 1 }, TerrainMaterialLibrary.Shared.Get("concrete", "t")).Footprint;
+        RoadBlockage.ClosedEdges(net, Local, new[] { across }, closed);
+        Assert.Equal(new[] { "e" }, closed);
+        var oneLane = TerrainObstacles.PrismOf(new Vector3(60, -1.6f, 0), 0f, new ObstacleShape { Length = 4.5f, Width = 3.4f, Height = 1 }, TerrainMaterialLibrary.Shared.Get("concrete", "t")).Footprint;
+        var otherLane = TerrainObstacles.PrismOf(new Vector3(140, 1.6f, 0), 0f, new ObstacleShape { Length = 4.5f, Width = 3.4f, Height = 1 }, TerrainMaterialLibrary.Shared.Get("concrete", "t")).Footprint;
+        RoadBlockage.ClosedEdges(net, Local, new[] { oneLane, otherLane }, closed);
+        Assert.Empty(closed);
+
+        using var repo = new EntityRepository();
+        repo.RegisterComponent<SimTransform>(); repo.RegisterComponent<StaticObstacle>(); repo.RegisterComponent<ObstacleShape>();
+        var e = repo.CreateEntity();
+        repo.AddComponent(e, new SimTransform { Position = new Vector3(100, 0, 0), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });
+        repo.AddComponent(e, new StaticObstacle { Material = new FixedString32("concrete") });
+        repo.AddComponent(e, new ObstacleShape { Length = 6, Width = 1, Height = 1 });
+        var placement = SumoNetPlacement.For(net, new TerrainSumoNet("n.net.xml", 0, 0), null);
+        var bodies = TrafficBodyFeedSystem.Gather(repo, placement);
+        Assert.Equal(6, bodies.Length);
+        Assert.All(bodies, b => { Assert.True(b.NetworkId < 0); Assert.Equal(0, b.Vx); Assert.Equal(TrafficBodyKind.Vehicle, b.Kind); Assert.Equal(1f, b.Width, 3); });
+        Assert.InRange(bodies.Min(b => b.Y), -2.6, -2.4); Assert.InRange(bodies.Max(b => b.Y), 2.4, 2.6);   // along its length, ACROSS the road
+    }
+
     public void Dispose() { try { Directory.Delete(_root, true); } catch { } }
 }

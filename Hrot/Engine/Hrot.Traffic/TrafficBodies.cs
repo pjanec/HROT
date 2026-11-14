@@ -72,7 +72,8 @@ public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
     {
         var into = scratch ?? new List<TrafficBody>();
         into.Clear();
-        if (!world.IsComponentTypeRegistered<SimTransform>() || !world.IsComponentTypeRegistered<PhysicsCollider>()) return Array.Empty<TrafficBody>();
+        if (!world.IsComponentTypeRegistered<SimTransform>()) return Array.Empty<TrafficBody>();
+        if (!world.IsComponentTypeRegistered<PhysicsCollider>()) { AddObstacles(world, placement, into); return into.ToArray(); }
         bool routed = world.IsComponentTypeRegistered<ReplicationRoute>();
         bool velocity = world.IsComponentTypeRegistered<SimVelocity>();
         bool identity = world.IsComponentTypeRegistered<NetworkIdentity>();
@@ -95,7 +96,37 @@ public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
             int id = identity && world.HasComponent<NetworkIdentity>(e) ? world.GetComponentRO<NetworkIdentity>(e).Value : e.Index;
             into.Add(new TrafficBody(id, kind, nx, ny, ax - nx, ay - ny, length, width));
         }
+        AddObstacles(world, placement, into);
         return into.ToArray();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4590</c> (P-2; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4 G-10, §9.2 V-24) — every ACTIVE static obstacle (a roadblock, a wreck, sandbags)
+    /// is told to SUMO as bodies AT REST, so a car stops or swerves at a road it PARTLY covers (a lane obstacle — the H12 feed maps a body to the lanes it
+    /// overlaps); a road it covers fully is CLOSED by the road-blockage step (<see cref="BridgeClosureSystem"/>). A body at rest takes its heading from its lane,
+    /// so the obstacle's box is told as a CHAIN of squares along its long axis (side = its short side) — the same box whatever its heading. ⭐ V-24 — the ids
+    /// are synthetic and NEGATIVE, never a unit's network id.
+    /// </summary>
+    public static void AddObstacles(EntityRepository world, SumoNetPlacement placement, List<TrafficBody> into)
+    {
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.StaticObstacle>() || !world.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.ObstacleShape>()) return;
+        foreach (var e in world.Query().With<Fdp.Toolkit.Terrain.StaticObstacle>().With<Fdp.Toolkit.Terrain.ObstacleShape>().With<SimTransform>().Build())
+        {
+            var t = world.GetComponentRO<SimTransform>(e);
+            var shape = world.GetComponentRO<Fdp.Toolkit.Terrain.ObstacleShape>(e);
+            float yaw = Fdp.Toolkit.Terrain.TerrainObstacles.Yaw(t.Rotation);
+            float len = MathF.Max(shape.Length, 0.1f), wid = MathF.Max(shape.Width, 0.1f);
+            float side = MathF.Min(len, wid), longSide = MathF.Max(len, wid);
+            var axis = len >= wid ? new Vector2(MathF.Cos(yaw), MathF.Sin(yaw)) : new Vector2(-MathF.Sin(yaw), MathF.Cos(yaw));
+            int parts = Math.Max(1, (int)MathF.Ceiling(longSide / side));
+            float step = longSide / parts;
+            for (int k = 0; k < parts; k++)
+            {
+                var c = new Vector2(t.Position.X, t.Position.Y) + axis * (-longSide * 0.5f + step * (k + 0.5f));
+                var (nx, ny) = placement.ToNet(c.X, c.Y);
+                into.Add(new TrafficBody(-(e.Index * 64 + k + 1), TrafficBodyKind.Vehicle, nx, ny, 0, 0, step, side));
+            }
+        }
     }
 
     /// <summary>⭐ AQ93 §14 G6 — a body handed to SUMO: its intent is <c>Traffic</c> (what the serving node sees) or its kinematics are

@@ -28,22 +28,43 @@ namespace Hrot.Traffic;
 [TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class BridgeClosureSystem : IEcsModuleSystem
 {
+    // ⭐⭐ CE-4590 (P-2; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4 G-10, §9.2 V-19, V-20, V-24) — THE ROAD-BLOCKAGE STEP. The name is the
+    //   first blocker it handled (a fallen bridge); it now takes EVERY static blocker: a fallen bridge's segments (by the overlay's row), and every road a
+    //   static obstacle (a roadblock, a wreck) spans across its full width. ⭐ Rebuilt FROM THE BASE whenever the blocked set changes (V-19): a cleared
+    //   roadblock RE-OPENS its road, and a seek, a reload or a bake cannot leave a stale cut — the published net is always Without(base, blocked now).
+    //   SUMO: the edges a blocker closes (in SUMO's own lanes) + a fallen bridge's go into the closed set; a PARTLY covered road is the H12 body feed's
+    //   (TrafficBodyFeedSystem tells SUMO each obstacle as a body at rest — a lane obstacle).
     private readonly TrafficRuntime? _runtime;
     private readonly Func<TrajectoryPoolManager?> _pool;
 
     private TerrainBridges? _bridges;
     private TerrainWorld? _terrain;
     private BuildingDamageTable? _table;
-    private bool _seen;                                         // a table (or the lack of one) has been judged for _bridges / _terrain
+    private bool _seenTable;
+    private ulong _obstacleSig = ulong.MaxValue;
+    private readonly Hrot.Map.Common.Services.ObstacleSignatureProbe _probe = new();
     private readonly HashSet<string> _fallen = new(StringComparer.Ordinal);
-    private readonly List<int> _dropped = new();                // the ORIGINAL indices of the road segments already removed, ascending
+
+    private RoadNetworkBlob _base;          // ⭐ OUR copy of the base graph (the holder frees a retired one)
+    private bool _haveBase;
+    private int _publishedVersion = -1;     // the holder version of our last publish
+    private readonly SortedSet<int> _blocked = new();      // ORIGINAL (base) indices dropped now
+    private readonly HashSet<int> _scratch = new();
+    private readonly List<System.Numerics.Vector2[]> _blockers = new();
+    private readonly List<string> _sumoScratch = new();
     private string[] _closed = Array.Empty<string>();
 
     /// <summary>Bridges this system has treated as fallen (rails / diagnostics).</summary>
     public int Fallen => _fallen.Count;
 
+    /// <summary>⭐ CE-4590 — road segments (base indices) cut right now, by any blocker (rails / diagnostics).</summary>
+    public int Blocked => _blocked.Count;
+
     /// <summary>Vehicles it asked to re-plan (rails / diagnostics).</summary>
     public int Replans { get; private set; }
+
+    /// <summary>⭐ CE-4590 — times the net was republished (rails / diagnostics).</summary>
+    public int Republished { get; private set; }
 
     /// <param name="runtime">Where this node runs SUMO, else null.</param>
     /// <param name="trajectoryPool">The node's trajectory pool (null = no vehicle here to re-plan).</param>
@@ -57,95 +78,107 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
     public void Execute(ISimulationView view, float deltaTime)
     {
         if (view is not EntityRepository repo) return;
-        if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // a replay: the recording owns the world
-        if (!repo.HasSingletonManaged<TerrainDefinition>() || !repo.HasSingletonManaged<TerrainWorld>()) return;
-        var bridges = repo.GetSingletonManaged<TerrainDefinition>()?.ResolvedBridges;
-        if (bridges == null) return;
+        if (!repo.HasSingletonManaged<TerrainWorld>()) return;
         var terrain = repo.GetSingletonManaged<TerrainWorld>()!;
-        if (!ReferenceEquals(bridges, _bridges) || !ReferenceEquals(terrain, _terrain)) Reset(bridges, terrain);
-        if (bridges.Items.Count == 0) return;
+        var bridges = repo.HasSingletonManaged<TerrainDefinition>() ? repo.GetSingletonManaged<TerrainDefinition>()?.ResolvedBridges : null;
+        var holder = repo.HasSingletonManaged<RoadNetworkHolder>() ? repo.GetSingletonManaged<RoadNetworkHolder>() : null;
 
-        var table = BuildingDamageTable.Of(repo, terrain);
-        if (_seen && ReferenceEquals(table, _table)) return;   // steady: the table is the same instance while nothing of it was written
-        _seen = true; _table = table;
-        if (table == null || table.CollapsedCount == 0) return;
-
-        List<OverlayBridge>? fell = null;
-        var collapsed = table.CollapsedBuildings;
-        for (int i = 0; i < collapsed.Count; i++)
+        bool changed = false;
+        if (!ReferenceEquals(bridges, _bridges)) { _bridges = bridges; _fallen.Clear(); _seenTable = false; changed = true; }
+        if (!ReferenceEquals(terrain, _terrain)) { _terrain = terrain; _seenTable = false; }   // a bake's new world: re-judge the collapse table (the fallen set is kept by key)
+        // ⭐ a NEW base: the residency published a graph we did not (a load, a reload) — copy it, judge everything again
+        if (holder != null && holder.Version != _publishedVersion && holder.Current.Segments.IsCreated)
         {
-            int b = collapsed[i];
-            if ((uint)b >= (uint)terrain.Buildings.Count) continue;
-            string label = terrain.Buildings[b].Label;
-            for (int k = 0; k < bridges.Items.Count; k++)
+            if (_haveBase) _base.Dispose();
+            _base = RoadNetworkEdit.Without(holder.Current, static _ => false);
+            _haveBase = true; _blocked.Clear(); _publishedVersion = holder.Version;
+            changed = true;
+        }
+
+        // the fallen bridges (monotonic per terrain definition: a bridge stays fallen)
+        if (bridges != null && bridges.Items.Count > 0)
+        {
+            var table = BuildingDamageTable.Of(repo, terrain);
+            if (!_seenTable || !ReferenceEquals(table, _table))
             {
-                var bridge = bridges.Items[k];
-                if (!string.Equals(bridge.Key, label, StringComparison.Ordinal) || !_fallen.Add(bridge.Key)) continue;
-                (fell ??= new()).Add(bridge);
+                _seenTable = true; _table = table;
+                if (table != null && table.CollapsedCount > 0)
+                {
+                    var collapsed = table.CollapsedBuildings;
+                    for (int i = 0; i < collapsed.Count; i++)
+                    {
+                        int b = collapsed[i];
+                        if ((uint)b >= (uint)terrain.Buildings.Count) continue;
+                        string label = terrain.Buildings[b].Label;
+                        for (int k = 0; k < bridges.Items.Count; k++)
+                            if (string.Equals(bridges.Items[k].Key, label, StringComparison.Ordinal) && _fallen.Add(bridges.Items[k].Key)) changed = true;
+                    }
+                }
             }
         }
-        if (fell == null) return;
-        Fall(repo, fell);
+
+        // the static obstacles (allocation-free hash: the same walk the obstacle bake uses)
+        ulong sig = Hrot.Map.Common.Services.StaticObstacleBakeSystem.SignatureOfWorld(repo, _probe);
+        if (sig != _obstacleSig) { _obstacleSig = sig; changed = true; }
+
+        if (!changed) return;
+        Recompute(repo, holder);
     }
 
-    private void Reset(TerrainBridges bridges, TerrainWorld terrain)
+    private void Recompute(EntityRepository repo, RoadNetworkHolder? holder)
     {
-        _bridges = bridges; _terrain = terrain; _table = null; _seen = false;
-        _fallen.Clear(); _dropped.Clear();
-        if (_closed.Length > 0) { _closed = Array.Empty<string>(); _runtime?.SetClosedEdges(_closed); }
-    }
+        RoadBlockage.Blockers(repo, _blockers);
 
-    private int Current(int original)
-    {
-        int shift = 0;
-        foreach (int d in _dropped) if (d < original) shift++;
-        return original - shift;
-    }
+        // the set of base segments to drop now
+        _scratch.Clear();
+        if (_haveBase)
+        {
+            RoadBlockage.ClosedSegments(in _base, _blockers, _scratch);
+            if (_bridges != null)
+                foreach (var b in _bridges.Items)
+                    if (_fallen.Contains(b.Key)) foreach (int s in b.Segments) if ((uint)s < (uint)_base.Segments.Length) _scratch.Add(s);
+        }
 
-    private void Fall(EntityRepository repo, List<OverlayBridge> fell)
-    {
-        // SUMO — where this node runs it
+        // SUMO — where this node runs it: a fallen bridge's edges + every edge a blocker closes
         if (_runtime != null)
         {
-            var edges = new List<string>(_closed);
-            foreach (var b in fell) foreach (var e in b.SumoEdges) if (!edges.Contains(e)) edges.Add(e);
-            _closed = edges.ToArray();
-            _runtime.SetClosedEdges(_closed);
+            var edges = new List<string>();
+            if (_bridges != null) foreach (var b in _bridges.Items) if (_fallen.Contains(b.Key)) foreach (var e in b.SumoEdges) if (!edges.Contains(e)) edges.Add(e);
+            if (TrafficNetCache.Of(repo) is { } net)
+            {
+                RoadBlockage.ClosedEdges(net.Model, net.Placement.ToLocal, _blockers, _sumoScratch);
+                foreach (var e in _sumoScratch) if (!edges.Contains(e)) edges.Add(e);
+            }
+            edges.Sort(StringComparer.Ordinal);
+            if (!edges.SequenceEqual(_closed)) { _closed = edges.ToArray(); _runtime.SetClosedEdges(_closed); }
         }
 
-        // the vehicles' net
-        if (!repo.HasSingletonManaged<RoadNetworkHolder>()) return;
-        var holder = repo.GetSingletonManaged<RoadNetworkHolder>()!;
-        var blob = holder.Current;
-        if (!blob.Segments.IsCreated || blob.Segments.Length == 0) return;
+        if (!_haveBase || holder == null || _scratch.SetEquals(_blocked)) return;
 
-        var gone = new List<int>();   // in the CURRENT blob
-        var corridors = new List<(Vector2 A, Vector2 B, float Half)>();
-        int firstGone = int.MaxValue;
-        foreach (var b in fell)
-            foreach (int original in b.Segments)
-            {
-                int now = Current(original);
-                if ((uint)now >= (uint)blob.Segments.Length || gone.Contains(now)) continue;
-                gone.Add(now); firstGone = Math.Min(firstGone, now);
-                ref readonly var s = ref blob.Segments[now];
-                corridors.Add((s.P0, s.P1, s.LaneWidth * Math.Max(1, s.LaneCount) * 0.5f + 1.5f));
-                _dropped.Add(original);
-            }
-        if (gone.Count == 0) return;
-        _dropped.Sort();
+        // corridors of the NEWLY dropped segments: vehicles whose way crosses them re-plan (a re-opened one needs nobody to re-plan)
+        var corridors = new List<(System.Numerics.Vector2 A, System.Numerics.Vector2 B, float Half)>();
+        foreach (int s in _scratch)
+        {
+            if (_blocked.Contains(s)) continue;
+            ref readonly var seg = ref _base.Segments[s];
+            corridors.Add((seg.P0, seg.P1, seg.LaneWidth * Math.Max(1, seg.LaneCount) * 0.5f + 1.5f));
+        }
+        _blocked.Clear(); foreach (int s in _scratch) _blocked.Add(s);
 
-        ReplanCrossing(repo, corridors, firstGone);
-
-        var next = RoadNetworkEdit.Without(in blob, i => gone.Contains(i));
+        var next = RoadNetworkEdit.Without(in _base, i => _blocked.Contains(i));
         holder.Publish(next);
+        _publishedVersion = holder.Version;
+        Republished++;
         if (repo.HasSingleton<ZoneEnvironmentData>()) repo.SetSingleton(new ZoneEnvironmentData { RoadNetwork = next });
+
+        // ⛔ never in a replay: the recording owns every vehicle (the net itself follows the replayed blockers)
+        if (!Fdp.Toolkit.Replay.ReplayState.IsActive(repo)) ReplanCrossing(repo, corridors);
     }
 
     /// <summary>The share of a bridge segment at each end that does not count as "on the bridge": the junction where the base road meets it.</summary>
     private const float EndShare = 0.15f;
 
-    private void ReplanCrossing(EntityRepository repo, List<(Vector2 A, Vector2 B, float Half)> corridors, int firstGoneSegment)
+    private void ReplanCrossing(EntityRepository repo, List<(Vector2 A, Vector2 B, float Half)> corridors)
     {
         if (!repo.IsComponentTypeRegistered<NavigationIntent>() || !repo.IsComponentTypeRegistered<NavigationStatus>() || !repo.IsComponentTypeRegistered<NavState>()
             || !repo.IsComponentTypeRegistered<SimTransform>()) return;
@@ -158,8 +191,8 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
             var status = repo.GetComponent<NavigationStatus>(entity);
             if (status.Result != NavigationResult.InProgress) continue;
             var nav = repo.GetComponentRO<NavState>(entity);
-            bool crosses = nav.Mode == KinematicsMode.RoadGraph && nav.CurrentSegmentId >= firstGoneSegment;   // a segment index at or past the first dropped one moves
-            if (!crosses && nav.Mode == KinematicsMode.CustomTrajectory && pool != null && pool.TryGetTrajectory(nav.TrajectoryId, out var path))
+            bool crosses = nav.Mode == KinematicsMode.RoadGraph;   // ⭐ CE-4590 — the net was rebuilt: a road-graph follower's segment indices may have moved
+            if (!crosses && corridors.Count > 0 && nav.Mode == KinematicsMode.CustomTrajectory && pool != null && pool.TryGetTrajectory(nav.TrajectoryId, out var path))
                 crosses = Crosses(in path, nav.ProgressS, corridors);
             if (!crosses) continue;
             var at = repo.GetComponentRO<SimTransform>(entity).Position;
