@@ -44,7 +44,8 @@ namespace Fdp.Toolkit.Squad
         public static UnitStrength Of(ISimulationView view, Entity unit, bool standing = false)
         {
             if (unit.IsNull || !view.IsAlive(unit)) return default;
-            if (!CombatEffective.IsUnit(view, unit))
+            // ⭐ a ROSTER makes it a unit here (as StrengthOf always read it) — a commander entity without UnitEntity still reports its men
+            if (!view.HasComponent<UnitRoster>(unit) && !CombatEffective.IsUnit(view, unit))
             {
                 float men = MenOf(view, unit);
                 bool fights = standing ? CombatEffective.IsStanding(view, unit) : CombatEffective.IsInTheFight(view, unit);
