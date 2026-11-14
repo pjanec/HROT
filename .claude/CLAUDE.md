@@ -362,8 +362,10 @@ pays the ~59 s every time.**
 ⛔ **Behaviour code written where these checks do not exist meets the rule only at merge — the worst moment.** ⭐ The parallel programme is MERGED
 (`exp/threaded-build` → `coordinator` at `e4af862f6`, user `2026-11-14`: *"we are now out of experimental phase … continue developing in usual
 lane-specific branches"*) — the checks exist on every lane once it has merged `coordinator`, so work goes on the lane branches (`coordinator`,
-`behaviors`, `ui`, `backend`). ⛔ `exp/threaded-build` is FROZEN: no new commits there. Threading stays opt-in (`HROT_PARALLEL_SIM`,
-`HROT_THREADED_KERNEL`); the machine checks above are still run on every new behaviour.
+`behaviors`, `ui`, `backend`). ⛔ `exp/threaded-build` is FROZEN: no new commits there. Threading is ON by default in the product (R-4224:
+the threaded node on the editor and the player, the parallel phases on every node, `-m all` serial; `View ▸ Settings ▸ Performance`; an explicit
+`HROT_PARALLEL_SIM` / `HROT_THREADED_KERNEL` / `HROT_SIM_THREADS` overrides — Threaded Presentation §0a.1); the machine checks above are still run
+on every new behaviour.
 
 ## ⭐⭐⭐ NEW COMPONENTS — **UNMANAGED when recorded; a managed one is IMMUTABLE and REPLACED whole** *(user, `2026-11-02`)*
 
