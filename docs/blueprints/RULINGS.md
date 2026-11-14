@@ -1563,6 +1563,6 @@ R-5018 | docs/DESIGN_Ground_Patches_And_Road_Blockage.md | the pad is a FLAG on 
 R-5019 | docs/DESIGN_Ground_Patches_And_Road_Blockage.md | the `craters.json` starting values
 R-5020 | docs/DESIGN_Ground_Patches_And_Road_Blockage.md | the VIEW's table on `DoorStates`
 R-5021 | docs/DESIGN_Ground_Patches_And_Road_Blockage.md | a crater on a crater does not deepen it
-R-5022 | docs/DESIGN_Vehicle_Breaching.md | the `trees.json` starting values
-R-5023 | docs/DESIGN_Vehicle_Breaching.md | felled by a row's `trees` flag
+R-5022 | docs/DESIGN_Vehicle_Breaching.md | `trees.json` starting values
+R-5023 | docs/DESIGN_Vehicle_Breaching.md | a row's `trees` flag fells a trunk
 ```
