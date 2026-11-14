@@ -356,7 +356,7 @@ classDiagram
   }
   class ThreatMatrixAssignmentSystem {
     <<existing, EXTENDED>>
-    Assignment indexed by ELEMENT:
+    Assignment indexed by ELEMENT
     a man, or an arsenal slot
   }
   class UnitCentroidSystem {
@@ -373,7 +373,7 @@ classDiagram
   AggregateStateSystem ..> FusionSoldier : Health, mounts, stress, stance
   AggregateStateSystem ..> AggregateSquad : writes
   AggregateStateSystem ..> SquadArsenal : writes Ammo
-  ThreatMatrixAssignmentSystem ..> SquadArsenal : Fusion: one element per slot
+  ThreatMatrixAssignmentSystem ..> SquadArsenal : Fusion, one element per slot
   StochasticResolver ..> AggregateSquad : later
 ```
 *What it shows that prose hid: the commander keeps EVERYTHING it has today (it still runs the squad brain, reports and takes orders); it only
