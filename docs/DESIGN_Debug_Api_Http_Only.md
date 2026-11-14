@@ -2,7 +2,7 @@
 state: LIVE
 build-state: BUILT — part A (§1–§5, CE-4523…CE-4529, `2026-11-14`); §6 (CE-4586) READY-TO-BUILD
 updated: 2026-11-14 (§6 the environment-variable registry, CE-4586)
-current-answer: §7 the as-built (read first where it differs), then the whole file (§1 the decision, §2 the diagrams, §3 where every piece of information lives, §4 rules, §5 acceptance, §6 the environment variables)
+current-answer: §7 + §8 the as-built (parts A and B) (read first where it differs), then the whole file (§1 the decision, §2 the diagrams, §3 where every piece of information lives, §4 rules, §5 acceptance, §6 the environment variables)
 stale-below: nothing
 known-rot: none
 known-conflict: none — MCP_Integration.md and the other docs that name the removed server carry a HISTORY note (CE-4528)
@@ -261,3 +261,14 @@ reference `Fdp.Core` — and even there the NAME is declared in the table, so `/
 | H-5 skill | `.claude/skills/ai-debug-http/SKILL.md` — start per the runbook, then `GET /help` / `--help-api` | — |
 | H-6 docs | a HISTORY note at the top of the 31 docs that name the server; `MCP_Integration.md`'s HN-030 section retitled HISTORY | ⚠ a note per doc, not section moves — the docs own other content and are not rewritten (the handoff's rule) |
 
+
+## 8. As built — part B *(CE-1474 · CE-1950 · CE-1472 · CE-1464 · CE-4585 · CE-4586, `2026-11-14`, backend)*
+
+| item | built | ⚠ deviation / finding |
+|---|---|---|
+| B-1 CE-1474 the fused server's time | `PerspectiveScopedDispatcher.OrSoleProvider`: no claimed perspective and exactly ONE provider holding a world ⇒ that provider (CGF; its drive is the `ClusterTimeTransportAdapter` every host drives) | 📌 measured: Orchestrator + CGF, headless ⇒ perspective `""`; windowed ⇒ `Start` with nothing remembered — both resolved to none. Two world-holders (`-m all`) still resolve to none. Live `simTime` 0 → 2.04 after play |
+| B-2 CE-1950 a failed replay load | ① `ClusterMaster.IsLoadTrajectory` — `LoadingReplay` is a load (R-3070: fails at once, back to Idle) ② `DebugApiHost.PublishAndAwait` follows the round's outcome (`RoundSettled` over `LoadPhaseOf`) for every publishing route with `waitForReady` — Failed ⇒ 409 with the node's reason | "where it was" = Idle: a replay is entered only from Idle (`HrotStateGraph`), so one rule serves both |
+| B-3 CE-1472 the Player's render telemetry | the Player's canvas updates whenever it owns the map; only its own camera / measure input keeps the `WantCaptureMouse` gate | 📌 the Player HAD the shared `MapStatsOverlay`; a modal froze every layer. Live: 1 frozen frame → 51 frames at 25 fps. No rail (display + server + player) |
+| B-4 CE-1464 HTTP control vs the station | `HttpControlledUnits` (Hrot.Presentation): `POST …/possess` marks the unit, `DELETE` and the station's leave clear it; `PossessionStation.Send` sends nothing for a marked unit | §8d of `DESIGN_Entity_Control.md` kept: the view still FOLLOWS `PossessedBy` (first person); only the frames yield. 📌 measured under Xvfb (~25 fps): HTTP frames sometimes won the seq race (2 rounds per 100–240 frames) — the defect is rate-bound, full on a 60+ fps window |
+| B-5 CE-4585 the performance switches | `PerformanceStatus` (Fdp.Core.Jobs), published by `PerformanceStartup.Apply`; `GET /performance` + `/status.performance`; `settings.performance.*` refused (403, the file untouched); runbook §1.5 | the refusal prefix is `HttpRefusedPrefix` (the perspective switch already owned `RefusedPrefix` ⇒ 409) |
+| B-6 CE-4586 the environment variables | `Fdp.Core.EnvVars` (+ `EnvVars.Declarations.cs`); `/help` §8 and `--help-api` render it; `/performance.environment` lists what this process received; rail `EveryEnvReadIsRegisteredTests` | see the status file for counts and the experiment leftovers listed for the user; `LIVECITY_*` (vendored SumoSharp) is outside the `HROT_*`/`FDP_*` scope |
