@@ -50,6 +50,13 @@ def one_run(a, threads, k):
         if len(men) < 6:
             raise RuntimeError(f"only {len(men)} entities with a network id")
         s.post("/preview/enter", {"startPaused": True}, timeout=300)
+        # ⭐ CE-4570 (X-4) — a paused entry takes ZERO steps: wait a second of real frames, then the world's own clock must still read 0. A slipped
+        #   step is reported HERE, as the entry's (where Windows V-4 measured 121 for 120), never mistaken for a step of the run below.
+        import time as _t
+        _t.sleep(1.0)
+        entry = (data(s.get("/status", timeout=60)) or {}).get("simTime")
+        if entry not in (0, 0.0, None):
+            raise RuntimeError(f"the paused preview entry took steps: simTime {entry} before the first /sim/step (CE-4570)")
         probes = []
 
         def step(n):   # --probe K: the same steps in pieces of K, the world hashed by type after each (where a run first parts)
