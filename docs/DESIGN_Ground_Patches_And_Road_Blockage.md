@@ -809,7 +809,7 @@ and the merge orders it before the pads, so a house placed on a shaped hill gets
 | the order of patches | `Merge`: shapes → pads on the shaped ground; craters at runtime over the result | G-18, G-32 |
 | never a blocker | a shape feeds neither the road blockage nor a navmesh area — the navmesh follows the heights by its slope limit | G-15 |
 | ⭐ SUMO follows (G-16, built) | `OverlayCompiler.Compile(…, reElevateNet)`: when a part changes the ground (a `ground` part, or a house with a `pad`), the base net (or the bridge net already in the slot, V-23) is copied into the overlay and handed to the caller's re-elevator with the MERGED ground (`TerrainWorldMerge` of base + this overlay, sampled in the net's anchor frame); the header names it (`sumoNet`), so the SUMO node loads it instead of the base's. The editor passes the ONE `NetElevation.Apply(force: true)` (`StorageProcessManager`), *Save terrain as* passes its own through (`TerrainBake.SaveAs`). ⭐ The toolkit takes the elevator as a delegate — it cannot reference `Hrot.Terrain` (one implementation, held by the host). Rail `OverlayCompilerTests.CE4592_AShapeOnATerrainWithANet_PutsAReElevatedNetInTheOverlay` (the hook sees the slope + 5 m; a wall-only scenario writes no copy) | G-16, V-23 |
-| ⚠ G-24 waits | R-5028: a shape over a road bends the road with the ground — the merge holds no corridors; the lean is `corridor` parts written by the compile and levelled by the ONE `RoadCorridors.Level` after the user's shapes | G-24 |
+| ⭐ G-24 built | §9.15 — the touched road corridors re-levelled at the merge | G-24 |
 | ⚠ not yet | the UI (Details, the height tint — mockup) | part 2b |
 
 ⭐ **Lane decision (for the user's review):** [R-5026](blueprints/RULINGS.md). Rails: `TerrainWorldMergeTests.CE4592_*` (raise / level / blend, the newest wins, a house is an island, an unknown mode fails) —
@@ -836,7 +836,39 @@ red-proved (no `GroundShapes.Apply` in the merge ⇒ both red).
 | the merged and baked worlds keep the shapes | `TerrainWorldMerge` concatenates base + overlay shapes; `TerrainObstacles.With` carries them | — |
 | the picks | Earthworks: Ditch, Anti-tank ditch (line tools), Foxhole (a point tool with a heading) — live | mockup panel A |
 | ⭐ part 2 — cover | `TerrainCoverProvider.AddGroundCover`: along BOTH banks of a ditch a point every 2.5 m, 0.4 m in from the bank, facing it (a pair, V-30); a foxhole's four ALL-ROUND points at its centre (V-29); the stance by depth (the wall rule) — built with the bake like every terrain cover point | G-27, G-36, V-29, V-30 |
-| ⚠ not yet | a ditch stopping at a road corridor (G-29), the coarse-grid warning (G-37), Details (presets, width, depth, read-outs — mockup D, E), the defending squad's re-plan when the cover set changes (V-29's behaviour half) | — |
+| ⚠ not yet *(G-29 built — §9.15)* | the coarse-grid warning (G-37), Details (presets, width, depth, read-outs — mockup D, E), the defending squad's re-plan when the cover set changes (V-29's behaviour half) | — |
 
 ⭐ **Lane decision (for the user's review):** [R-5027](blueprints/RULINGS.md). Rail: `TerrainWorldMergeTests.CE4593_*` (the floor, the steep bank, the anti-tank depth, the foxhole along its heading, the two
 obstacle areas) and `…CE4593_ADitchGivesCover…` (both banks facing out, the foxhole all-round) — red-proved (a Lower's skirt ⇒ red; no `AddGroundCover` ⇒ red).
+
+### 9.15 As built — G-24 / G-29: a ground change re-levels the road it touches; a ditch stops at a road *(`terrain` lane, `2026-11-14`, CE-4592 / CE-4593)*
+
+```mermaid
+sequenceDiagram
+  participant C as OverlayCompiler (save) / LiveOverlay (editor)
+  participant W as OverlayExpansion.WorldDocument
+  participant R as TerrainRoads (the road graph)
+  participant P as TerrainWorldParser
+  participant M as TerrainWorldMerge
+  C->>W: features + the terrain's roads
+  W->>R: Corridors - each segment's line, lanes/2 + shoulder, bridges skipped
+  W-->>C: the document + a corridor part per road a ground change reaches (12 m)
+  C->>P: parse - TerrainWorld.RoadCorridors
+  C->>M: Merge(base, overlay)
+  M->>M: GroundShapes.OffCorridors - ditch strips cut to 1 m slices, the ones on a road dropped
+  M->>M: GroundShapes.Apply, then the pads
+  M->>M: RoadCorridors.Relevel - the import's profile on the changed ground, level across, skirt back
+```
+*What it shows that prose hid: the corridors ride in the overlay's own document, written by the ONE function both the save and the live overlay call — so the
+saved and the edited ground agree by construction; and the re-level runs LAST, so no later patch (a shape, a pad) can tilt a road (G-24's lock).*
+
+| claim | code — as built | design |
+|---|---|---|
+| the corridors | `TerrainRoads.Corridors`: every road-graph segment's sampled line, half-width = lanes × width / 2 + `RoadCorridors.Shoulder`; a segment with a node above the ground is skipped | G-21, G-22 |
+| only the touched roads | `WorldDocument(…, roads)` adds a `corridor` part for a road whose box (+ half-width + skirt) meets a ground / ditch / padded-house part grown by `CorridorReach` 12 m | G-24 |
+| the re-level | `RoadCorridors.Relevel`: per corridor, the ends at the ground there now (two edges at a junction agree), the import's `Profile` on the changed ground, level across, `Skirt` blend; islands and > `MaxDepth` kept | G-21, G-23, G-24 |
+| a ditch stops at a road | `GroundShapes.OffCorridors`: a ditch / foxhole strip reaching a corridor (half-width + its banks + its half width) is cut into 1 m slices and the reaching slices dropped — its height and its vehicle area both stop | G-29 |
+| one place | the merge on every node; the compile writes, the live overlay writes the same | ruling 9 |
+
+Rails `TerrainWorldMergeTests.CE4592_AHillOverARoad_ReLevelsTheRoadAcrossItsWidth`, `CE4593_ADitchAcrossARoad_StopsAtTheRoad`. ⭐ Lane decision [R-5028](blueprints/RULINGS.md) (R-5028: the road under a ground change is re-levelled from the road graph).
+

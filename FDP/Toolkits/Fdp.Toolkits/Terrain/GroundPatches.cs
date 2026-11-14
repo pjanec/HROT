@@ -246,6 +246,53 @@ namespace Fdp.Toolkit.Terrain
             return locked;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4592</c> (P-5, G-24 / G-29; 📄 §4b G-24, §9.12) — a scenario's ground change RE-LEVELS the road corridors it touched, with the import's profile
+        /// (<see cref="Profile"/>: smoothed along, level across, pinned at both ends to the ground there now — so two edges meeting at a junction agree) on the CHANGED
+        /// ground; the <see cref="Skirt"/> blends back to it; a post inside an island (a house + its margin) or deeper than <see cref="MaxDepth"/> is kept. A ditch
+        /// strip under the corridor is therefore filled back: the ditch stops at the road (G-29). Null / none ⇒ <paramref name="grid"/> itself. + − × ÷ √ only.
+        /// </summary>
+        public static TerrainHeightGrid? Relevel(TerrainHeightGrid? grid, IReadOnlyList<RoadCorridor> corridors, IReadOnlyList<Vector2[]>? islands)
+        {
+            if (grid == null || corridors.Count == 0) return grid;
+            var g = grid;
+            foreach (var c in corridors)
+            {
+                if (c.Line.Length < 2) continue;
+                var cur = g;
+                var road = c with { StartZ = cur.Sample(c.Line[0].X, c.Line[0].Y), EndZ = cur.Sample(c.Line[^1].X, c.Line[^1].Y) };
+                var (sAt, prof) = Profile(road, cur.Sample);
+                var origin = cur.Origin; float cell = cur.CellSize;
+                var (c0, r0, c1, r1) = Box(road.Line, road.HalfWidth + Skirt, cur.Cols, cur.Rows, origin, cell);
+                var lo = new Vector2(origin.X + c0 * cell, origin.Y + r0 * cell) - new Vector2(GroundShapes.IslandMargin);
+                var hi = new Vector2(origin.X + c1 * cell, origin.Y + r1 * cell) + new Vector2(GroundShapes.IslandMargin);
+                List<Vector2[]>? near = null;   // only the houses this corridor's box reaches (a large terrain has thousands)
+                if (islands != null)
+                    foreach (var h in islands)
+                    {
+                        if (h.Length < 3) continue;
+                        var hmin = new Vector2(float.MaxValue); var hmax = new Vector2(float.MinValue);
+                        foreach (var q in h) { hmin = Vector2.Min(hmin, q); hmax = Vector2.Max(hmax, q); }
+                        if (hmax.X >= lo.X && hmin.X <= hi.X && hmax.Y >= lo.Y && hmin.Y <= hi.Y) (near ??= new List<Vector2[]>()).Add(h);
+                    }
+                g = cur.Patched(c0, r0, c1, r1, (col, row, z) =>
+                {
+                    var p = new Vector2(origin.X + col * cell, origin.Y + row * cell);
+                    float d = Nearest(road.Line, p, out float s);
+                    if (d >= road.HalfWidth + Skirt) return z;
+                    if (near != null)
+                        foreach (var h in near)
+                            if (PolygonMath.Contains(h, p) || GroundShapes.DistanceTo(h, p) <= GroundShapes.IslandMargin) return z;
+                    float level = Interp(sAt, prof, s);
+                    if (MathF.Abs(level - z) > MaxDepth) return z;
+                    if (d <= road.HalfWidth) return level;
+                    float t = (d - road.HalfWidth) / Skirt, sm = t * t * (3f - 2f * t);
+                    return level + (z - level) * sm;
+                });
+            }
+            return g;
+        }
+
         /// <summary>The smoothed, end-pinned profile along <paramref name="road"/>'s line, sampled every metre: (arc length, z).</summary>
         internal static (float[] S, float[] Z) Profile(in RoadCorridor road, Func<float, float, float> ground)
         {
@@ -481,6 +528,45 @@ namespace Fdp.Toolkit.Terrain
                 }
                 return h;
             });
+        }
+
+        /// <summary>The distance from <paramref name="p"/> to <paramref name="poly"/>'s edges (0 on an edge).</summary>
+        public static float DistanceTo(Vector2[] poly, Vector2 p) => DistanceToPolygon(poly, p);
+
+        /// <summary>
+        /// ⭐ <c>CE-4593</c> (P-6, G-29) — a ditch NEVER cuts a road corridor: every ditch / foxhole strip that reaches a corridor (its half-width + the ditch's banks) is cut
+        /// into 1 m slices and the slices that reach are dropped — so neither its height nor its vehicle-closing area crosses the road. A strip clear of every
+        /// corridor stays whole; any other shape is returned as it is (the corridor re-level, <see cref="RoadCorridors.Relevel"/>, keeps the road level under it).
+        /// </summary>
+        public static IReadOnlyList<GroundShape> OffCorridors(IReadOnlyList<GroundShape> shapes, IReadOnlyList<RoadCorridor> corridors)
+        {
+            if (corridors.Count == 0 || shapes.Count == 0) return shapes;
+            List<GroundShape>? kept = null;
+            for (int i = 0; i < shapes.Count; i++)
+            {
+                var s = shapes[i];
+                if (s.Mode != GroundShapeMode.Ditch || s.Polygon.Length != 4 || !Reaches(s.Polygon, s, corridors)) { kept?.Add(s); continue; }
+                if (kept == null) { kept = new List<GroundShape>(shapes.Count); for (int k = 0; k < i; k++) kept.Add(shapes[k]); }
+                var q = s.Polygon;
+                float len = Vector2.Distance(q[0], q[3]);
+                int n = Math.Max(1, (int)MathF.Ceiling(len));
+                for (int k = 0; k < n; k++)
+                {
+                    float t0 = k / (float)n, t1 = (k + 1) / (float)n;
+                    var slice = new[] { Vector2.Lerp(q[0], q[3], t0), Vector2.Lerp(q[1], q[2], t0), Vector2.Lerp(q[1], q[2], t1), Vector2.Lerp(q[0], q[3], t1) };
+                    if (!Reaches(slice, s, corridors)) kept.Add(s with { Polygon = slice });
+                }
+            }
+            return (IReadOnlyList<GroundShape>?)kept ?? shapes;
+        }
+
+        private static bool Reaches(Vector2[] quad, in GroundShape s, IReadOnlyList<RoadCorridor> corridors)
+        {
+            float half = 0.5f * MathF.Max(Vector2.Distance(quad[0], quad[1]), Vector2.Distance(quad[0], quad[3])), bank = 0.6f * MathF.Abs(s.Value) + 0.3f;
+            var centre = (quad[0] + quad[2]) * 0.5f;
+            foreach (var c in corridors)
+                if (c.Line.Length >= 2 && RoadCorridors.Nearest(c.Line, centre, out _) < c.HalfWidth + bank + half) return true;
+            return false;
         }
 
         /// <summary>⭐ CE-4592 (G-19) — a road grade above this (a fraction) is warned about: SUMO ignores slope, but our off-road vehicles meet the navmesh's limit.</summary>

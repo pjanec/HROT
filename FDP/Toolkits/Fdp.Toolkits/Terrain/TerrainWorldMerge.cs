@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ CE-4592 (V-28) — every building footprint of both worlds: a ground shape leaves them (and a margin) as islands, never pushing the ground into a house.</summary>
         private static List<Vector2[]>? IslandsOf(TerrainWorld @base, TerrainWorld overlay)
         {
-            if (overlay.GroundShapes.Count == 0) return null;
+            if (overlay.GroundShapes.Count == 0 && overlay.RoadCorridors.Count == 0) return null;
             var list = new List<Vector2[]>(@base.Buildings.Count + overlay.Buildings.Count);
             foreach (var b in @base.Buildings) if (b.Footprint.Length >= 3) list.Add(b.Footprint);
             foreach (var b in overlay.Buildings) if (b.Footprint.Length >= 3) list.Add(b.Footprint);
@@ -120,6 +120,8 @@ namespace Fdp.Toolkit.Terrain
             foreach (var f in overlay.SeedFolders) if (!seeds.Contains(f)) seeds.Add(f);
 
             bool overlayHasParts = prisms.Count > @base.Prisms.Count || walkables.Count > @base.Walkables.Count || surfaces.Count > @base.Surfaces.Count;
+            var shapes = GroundShapes.OffCorridors(overlay.GroundShapes, overlay.RoadCorridors);   // ⭐ CE-4593 (G-29) — a ditch stops at a road
+            var islands = IslandsOf(@base, overlay);
             var merged = new TerrainWorld
             {
                 Name = @base.Name,
@@ -128,12 +130,12 @@ namespace Fdp.Toolkit.Terrain
                 BoundsMin = overlayHasParts ? Vector2.Min(@base.BoundsMin, overlay.BoundsMin) : @base.BoundsMin,
                 BoundsMax = overlayHasParts ? Vector2.Max(@base.BoundsMax, overlay.BoundsMax) : @base.BoundsMax,
                 GroundZ = @base.GroundZ,
-                Height = PadHeights(GroundShapes.Apply(@base.Height, overlay.GroundShapes, IslandsOf(@base, overlay)), overlay),   // ⭐ CE-4592 (G-18) — shapes, then pads on the shaped ground
+                Height = RoadCorridors.Relevel(PadHeights(GroundShapes.Apply(@base.Height, shapes, islands), overlay), overlay.RoadCorridors, islands),   // ⭐ CE-4592 (G-18, G-24) — shapes, pads on the shaped ground, then the touched road corridors re-levelled
                 Warnings = warnings,
                 Prisms = prisms,
                 Walkables = walkables,
                 Surfaces = surfaces,
-                GroundShapes = Concat(@base.GroundShapes, overlay.GroundShapes),   // ⭐ CE-4593 — the ditches' navmesh areas read them
+                GroundShapes = Concat(@base.GroundShapes, shapes),   // ⭐ CE-4593 — the ditches' navmesh areas read them
                 Panels = panels,
                 Buildings = buildings,
                 Doors = doors,

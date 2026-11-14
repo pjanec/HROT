@@ -100,6 +100,7 @@ namespace Fdp.Toolkit.Terrain
             var walkables = sink.Walkables;
             var surfaces = new List<TerrainSurface>();
             var groundShapes = new List<GroundShape>();   // ⭐ CE-4592 (P-5)
+            var roadCorridors = new List<RoadCorridor>();   // ⭐ CE-4592 (G-24)
             // ⭐ O-2 (CE-4416) — "structure": "<key>" groups slab / ramp / polygon-building parts into ONE collapsible TerrainBuilding (no panels)
             var structures = new Dictionary<string, StructureAcc>(StringComparer.Ordinal);
             int StructureOf(JsonObject p, string where, IReadOnlyList<Vector2> plan, float minZ, float maxZ)
@@ -303,6 +304,15 @@ namespace Fdp.Toolkit.Terrain
                             groundShapes.Add(new GroundShape(mode, Flatten(ring), value, order, (string?)props["label"] ?? ""));
                         break;
                     }
+                    case "corridor":
+                    {
+                        // ⭐ CE-4592 (G-24) — a base road corridor the overlay's ground change touches: its line and the half-width it levels
+                        if (geomType != "LineString") throw new ArgumentException($"Terrain world {where}: a corridor is a LineString.");
+                        float half = props["halfWidth"] is JsonNode hw ? ReadFloat(hw, where + ".halfWidth") : throw new ArgumentException($"Terrain world {where}: a corridor needs 'properties.halfWidth'.");
+                        var line = ReadPositions(geometry["coordinates"], where).Select(p => new Vector2(p.X, p.Y)).ToArray();
+                        roadCorridors.Add(new RoadCorridor(line, half, 0f, 0f));
+                        break;
+                    }
                     case "surface":
                     {
                         string surface = (string?)props["surface"]
@@ -386,6 +396,7 @@ namespace Fdp.Toolkit.Terrain
                 Walkables = walkables,
                 Surfaces = surfaces,
                 GroundShapes = groundShapes,   // ⭐ CE-4592 (P-5)
+                RoadCorridors = roadCorridors,   // ⭐ CE-4592 (G-24)
                 Panels = sink.Panels,
                 Buildings = sink.Buildings,
                 Doors = sink.Doors,

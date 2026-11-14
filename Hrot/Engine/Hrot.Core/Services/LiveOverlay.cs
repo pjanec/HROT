@@ -256,7 +256,7 @@ public sealed class LiveOverlay
 
             OverlayExpansion.SortByLabel(features);
             parts.Sort((a, b) => string.CompareOrdinal(a.Key, b.Key));
-            string json = OverlayExpansion.WorldDocument(baseWorld, features).ToJsonString();
+            string json = OverlayExpansion.WorldDocument(baseWorld, features, _roads).ToJsonString();   // ⭐ CE-4592 (G-24) — the same corridors the save writes
             var world = TerrainWorldParser.Parse(json, baseWorld.Name, _assets!.WithInlineTemplates(inline));
             return new LiveOverlayResult(world, parts, baseWorld, baseVersion);
         }

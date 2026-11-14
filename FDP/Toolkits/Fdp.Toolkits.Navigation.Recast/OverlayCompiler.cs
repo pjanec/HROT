@@ -108,7 +108,7 @@ public static class OverlayCompiler
         Directory.CreateDirectory(partDir);
         try
         {
-            var world = OverlayExpansion.WorldDocument(baseWorld, features);
+            var world = OverlayExpansion.WorldDocument(baseWorld, features, roads);   // ⭐ CE-4592 (G-24) — with the touched road corridors
             string worldName = TerrainOverlayHeader.DefaultWorldFileName;
             File.WriteAllText(Path.Combine(partDir, worldName), world.ToJsonString());
             if (generated.Count > 0)

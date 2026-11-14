@@ -507,5 +507,63 @@ namespace Fdp.Toolkit.Terrain.Tests
             }
             finally { roads.Dispose(); }
         }
-    }
+    
+        // ── ⭐ CE-4592 / CE-4593 (G-24, G-29) — a ground change re-levels the road it touches; a ditch stops at a road ─────────────────────────────
+
+        /// <summary>Two straight 2-lane roads (3.5 m lanes ⇒ a 4.5 m half-width with the shoulder): one along y = 0, one along y = 60.</summary>
+        private static TerrainRoads TwoRoads()
+        {
+            static global::CarKinem.Road.Vector2Json V(float x, float y) => new() { X = x, Y = y };
+            var json = new global::CarKinem.Road.RoadNetworkJson
+            {
+                Nodes = new[] { new global::CarKinem.Road.RoadNodeJson { Id = 0, Position = V(-60f, 0f) }, new global::CarKinem.Road.RoadNodeJson { Id = 1, Position = V(60f, 0f) },
+                                new global::CarKinem.Road.RoadNodeJson { Id = 2, Position = V(-60f, 60f) }, new global::CarKinem.Road.RoadNodeJson { Id = 3, Position = V(60f, 60f) } },
+                Segments = new[]
+                {
+                    new global::CarKinem.Road.RoadSegmentJson { Id = 0, StartNodeId = 0, EndNodeId = 1, LaneWidth = 3.5f, LaneCount = 2, ControlPoints = new() { P0 = V(-60f, 0f), T0 = V(120f, 0f), P1 = V(60f, 0f), T1 = V(120f, 0f) } },
+                    new global::CarKinem.Road.RoadSegmentJson { Id = 1, StartNodeId = 2, EndNodeId = 3, LaneWidth = 3.5f, LaneCount = 2, ControlPoints = new() { P0 = V(-60f, 60f), T0 = V(120f, 0f), P1 = V(60f, 60f), T1 = V(120f, 0f) } },
+                },
+            };
+            return TerrainRoads.FromJson(json);
+        }
+
+        private static TerrainWorld WithRoads(params System.Text.Json.Nodes.JsonObject[] features)
+            => TerrainWorldParser.Parse(OverlayExpansion.WorldDocument(FlatBase(), features, TwoRoads()).ToJsonString(), "overlay");
+
+        /// <summary>
+        /// ⭐ G-24 — a 5 m raise whose edge runs along a road's centre: the overlay carries that road's corridor (not the far one), and the merge re-levels it — LEVEL
+        /// ACROSS its width, the uphill half not 5 m above the downhill one. 🔴 Red-proof: the same overlay without its corridors ⇒ the road is tilted ≥ 2 m across.
+        /// </summary>
+        [Fact]
+        public void CE4592_AHillOverARoad_ReLevelsTheRoadAcrossItsWidth()
+        {
+            var hill = Ground("g", "raise", 5f, 1, Square(0f, 10f, 10f));      // y 0…20: its edge on the road's centre line
+            var overlay = WithRoads(hill);
+            Assert.Single(overlay.RoadCorridors);                               // only the road it reaches
+            Assert.Equal(4.5f, overlay.RoadCorridors[0].HalfWidth, 3);
+            var merged = TerrainWorldMerge.Merge(FlatBase(), overlay);
+            Assert.Equal(merged.GroundHeightAt(0f, -3.5f), merged.GroundHeightAt(0f, 3.5f), 2);   // level across
+            Assert.Equal(5f, merged.GroundHeightAt(0f, 15f), 3);                // the hill beyond the road's reach stays
+
+            var bare = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(hill));
+            Assert.True(bare.GroundHeightAt(0f, 3.5f) - bare.GroundHeightAt(0f, -3.5f) > 2f);   // without: tilted
+        }
+
+        /// <summary>
+        /// ⭐ G-29 — a ditch drawn across a road stops at it: the road stays level over the ditch's line and no vehicle-closing area crosses it; the ditch either side is
+        /// whole. 🔴 Red-proof: drop <c>OffCorridors</c> from the merge ⇒ an obstacle slice sits on the road.
+        /// </summary>
+        [Fact]
+        public void CE4593_ADitchAcrossARoad_StopsAtTheRoad()
+        {
+            var ditch = Ditch("d", "ditch", 0f, 1, Vector2.Zero, 0f, new Vector2(0f, -30f), new Vector2(0f, 30f));
+            var merged = TerrainWorldMerge.Merge(FlatBase(), WithRoads(ditch));
+            Assert.Equal(0f, merged.GroundHeightAt(0f, 0f), 2);                 // the road over the ditch's line
+            Assert.Equal(-1f, merged.GroundHeightAt(0f, -20f), 3);              // the ditch south of it
+            Assert.Equal(-1f, merged.GroundHeightAt(0f, 20f), 3);               // and north
+            foreach (var g in merged.GroundShapes.Where(g => g.Obstacle))
+                Assert.True(MathF.Abs((g.Polygon[0].Y + g.Polygon[2].Y) * 0.5f) > 4.5f);   // no slice on the road
+            Assert.NotEmpty(Fdp.Toolkit.Navigation.Recast.NavDoorways.Ditches(merged));
+        }
+}
 }
