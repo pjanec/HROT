@@ -2997,9 +2997,22 @@ namespace Hrot.SimHost.Tests
             {
                 s.Teleport(m, given[m].Objective);
                 s.Repo.AddComponent(m, new BehaviorState { ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.CombatPosture), Origin = BehaviorOrigin.Superior });
+                RunsHisOrder(s, m);
             }
             s.Tick();
             return s.Members.Single(m => given[m].Objective == new Vector3(0, 5, 0));
+        }
+
+        /// <summary>⭐ <c>CE-4612</c> — what the ingress records when a member starts his order (as this fixture fakes the start): the start record
+        /// with the request id his commander sent, so <c>CommandOrders.StillRunning</c> recognises HIS order by id.</summary>
+        private static void RunsHisOrder(Squad s, Entity m)
+        {
+            var entry = SubordinateOrders.Of(s.Repo, s.Commander)!.Orders.Single(e => e.Member.Equals(m));
+            if (!s.Repo.TryGetTable(typeof(BehaviorStartRecord), out _)) s.Repo.RegisterManagedComponent<BehaviorStartRecord>();
+            s.Repo.SetManagedComponent(m, new BehaviorStartRecord
+            {
+                BehaviorName = entry.Behavior, JsonParams = entry.Json, InstanceId = s.Repo.GetComponentRO<BehaviorState>(m).InstanceId, RequestId = entry.RequestId,
+            });
         }
 
         private static void RoundAt(Squad s, Entity m)
@@ -3025,7 +3038,9 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(new[] { first }, s.Orders.Select(o => o.Entity).Distinct().ToArray());
 
             var other = s.Members.First(m => !m.Equals(first));
-            s.Repo.GetComponentRW<BehaviorState>(other).ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.Suppress);   // his own reaction
+            ref var reacting = ref s.Repo.GetComponentRW<BehaviorState>(other);
+            reacting.ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.Suppress);   // his own reaction
+            reacting.Origin = BehaviorOrigin.Reaction;                                     // ⭐ CE-4612 — as the ingress marks one (it was left Superior)
             s.Repo.GetComponentRW<BehaviorState>(first).ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.CombatPosture);
             s.Orders.Clear();
             s.Pause(1.0);   // back from a pause: the runner re-issues every order (S1-G)
