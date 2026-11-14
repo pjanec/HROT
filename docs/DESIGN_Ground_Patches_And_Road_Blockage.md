@@ -579,7 +579,7 @@ SUMO, the drawn road and the ground agree by construction (G-25). `NetElevation`
 | bridges / tunnels skipped | ⭐ built (V-15): netconvert keeps the OSM `bridge` / `tunnel` / `layer` tags as edge params (`--osm.all-attributes true --osm.extra-attributes bridge,tunnel,layer` — names checked against SUMO's netconvert reference); `Corridors.Read` marks such an edge (and any `layer` ≠ 0) off the ground and `Apply` gives it no corridor, reported as information; the 6 m cap stays the guard for a net without the tags (with no bridge / tunnel data the 6 m cap is the bridge guard). Rail `ImporterTests.CE4403_ABridgeOverAValley_LevelsNothingUnderIt` | G-22, V-15 |
 | D-3's straight ramp to a façade | ⚠ approximated: the road's skirt and the pad's skirt meet; no explicit ramp | D-3 |
 | road graph edge ids, both directions | ⛔ not here — P-2's (V-18) | V-18 |
-| a re-import is a new terrain version | ⛔ not here — D-4 is a tooling step on its own; the committed terrains are unchanged until re-imported | D-4 |
+| a re-import is a new terrain version | ⚠ D-4's HOW is a question: nothing resolves a terrain by hash today — [Architect Question 112](blueprints/Architect_Question_112_Terrain_Versions_On_Reimport.md) recommends `versions/<hash>/` inside the terrain + `ResolveDefinition(name, expectedHash)`, awaiting the user | D-4 |
 
 ⭐ **Lane decisions (for the user's review):** [R-5010](blueprints/RULINGS.md) with no bridge / tunnel data the 6 m cap is the bridge guard (amended: the tags are now kept, V-15); [R-5011](blueprints/RULINGS.md) where corridors overlap the nearest road decides, a junction over all;
 [R-5012](blueprints/RULINGS.md) D-3's ramp is the two skirts meeting (no ramp primitive); D-4 (versioned re-import) and V-18 (edge ids) are left to their

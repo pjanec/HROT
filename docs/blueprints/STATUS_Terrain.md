@@ -66,7 +66,7 @@ related-designs:
 | **P-5** CE-4592 part 2a — the Earthworks picks | ✅ built (cross-lane into ui's picker, said) | [Ground §9.13](../DESIGN_Ground_Patches_And_Road_Blockage.md); rail `TerrainAuthoringPickerTests.CE4592_*`; `EntityTypeCatalogTests.CE2138_*` red is pre-existing (the drone-jammer type `e81eaa50`, behaviors) |
 | **P-6** CE-4593 part 1 — ditches and foxholes | 🟡 built: presets, steep banks, obstacle areas, picks, cover along the banks and the foxhole's all-round (G-27/G-36); ⭐ a ditch stops at a road (G-29, §9.15); ⭐ + Details and the coarse-grid warning (G-37, §9.16); ⭐ V-29's behaviour half handed to behaviors (R-5031) | [Ground §9.14](../DESIGN_Ground_Patches_And_Road_Blockage.md); rail `TerrainWorldMergeTests.CE4593_*` (red-proved) |
 | visual pass | ✅ `2026-11-14` — one scene with every change in real 3-D and 2-D frames ([Ground §9.17](../DESIGN_Ground_Patches_And_Road_Blockage.md)); found and fixed: crater soot drawn as grass, no ditches / craters on the 2-D map | rails `TheDynamicTerrainLooksTests`, `TheBuildingDamagePlanTests.TheProductionMap_DrawsADitchAsADugBand_…` |
-| next | the open parts, in order: P-1 D-4 (the batch re-compile on a re-import) · CE-4402 (needs the scale terrains RE-IMPORTED — their input sets are not in this checkout) · B-3 §7.5 item 16 (barrage numbers) | |
+| next | the open parts, in order: P-1 D-4 (AQ112 awaits the user: versions by hash, then the re-compile) · CE-4402 (needs the scale terrains RE-IMPORTED — their input sets are not in this checkout) · B-3 §7.5 item 16 (barrage numbers) | |
 
 ## 3. Gates
 
