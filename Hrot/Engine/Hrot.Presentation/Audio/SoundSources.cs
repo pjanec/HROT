@@ -112,7 +112,7 @@ namespace Hrot.UI.Common.Audio
             _lastBurst.Clear(); _lastPos.Clear(); _passes.Clear();
             _said.Clear(); _saidKnown = false;
             _ownMagazines = -1; _rumble = 0f; _recentNear = 0f;
-            _movers.Clear(); _sinceSearch = float.PositiveInfinity; _moverWorld = null;   // ⭐ CE-4560 — the next frame searches
+            _movers.Clear(); _sinceSearch = float.PositiveInfinity; _moverWorld = null; _typeReach.Clear(); _typeReachAge = 0f;   // ⭐ CE-4560 — the next frame searches
             _doors = null; _doorWorld = null; _aboard.Clear(); _aboardKnown = false; _townWorld = null; _townAt = new(float.NaN); TownLevel = 0f;
         }
 
@@ -209,8 +209,19 @@ namespace Hrot.UI.Common.Audio
         private readonly List<Entity> _goneMovers = new();
         private static readonly Comparison<(Entity E, long Clip, float Gain, Vector3 At, Vector3 Vel, byte Priority)> LouderFirst = (x, y) => y.Gain.CompareTo(x.Gain);
 
-        /// <summary>⭐ CE-4560 — the farthest any moving source can be heard (m): a type's own range when it names one, else the loudest locomotion's (a jet).</summary>
-        private float ReachOf(ITkbDatabase? tkb, long type) => AcousticCached(tkb, type) is { MovingAudibleRange: > 0f } a ? a.MovingAudibleRange : MaxDefaultRange;
+        /// <summary>⭐ CE-4560 — the farthest a body of <paramref name="type"/> can be heard moving (m): the type's own range when it names one; else the widest its
+        /// bodies' LOCOMOTION has given so far (a rifleman's steps: 60 m — measured: with the jet's 4 km for every man, a street ear searched the whole army);
+        /// else, before any body of it was looked at, the loudest locomotion's (a jet).</summary>
+        private float ReachOf(ITkbDatabase? tkb, long type)
+            => AcousticCached(tkb, type) is { MovingAudibleRange: > 0f } a ? a.MovingAudibleRange
+             : _typeReach.TryGetValue(type, out float seen) ? seen : MaxDefaultRange;
+
+        private readonly Dictionary<long, float> _typeReach = new();
+
+        /// <summary>⭐ CE-4560 — how often the per-type reach is forgotten and learned again (s): a type whose bodies change locomotion (a man boarding a
+        /// helicopter is embarked — skipped — but a new kind of body could share a type) is heard by its widest range again within this.</summary>
+        public const float TypeReachSeconds = 10f;
+        private float _typeReachAge;
 
         private const float MaxDefaultRange = 4000f;   // MovingDefault's widest (a fixed wing)
 
@@ -232,6 +243,8 @@ namespace Hrot.UI.Common.Audio
             if (_sinceSearch < 1f / MoverSearchHz && !_followUp && ReferenceEquals(w, _moverWorld)) { HoldMovers(w, own, ear, dt, output); return; }
             _followUp = false;
             float span = float.IsPositiveInfinity(_sinceSearch) ? dt : _sinceSearch;   // the time the positions moved over (the first search: this frame)
+            _typeReachAge += span;
+            if (_typeReachAge > TypeReachSeconds) { _typeReach.Clear(); _typeReachAge = 0f; }   // learned again from the bodies
             _sinceSearch = 0f;
             MoverSearches++;
             _movers.Clear();
@@ -256,6 +269,9 @@ namespace Hrot.UI.Common.Audio
                 if (embarked && w.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e)) continue;   // its vehicle is heard
                 var loco = Fdp.Toolkit.Motion.Locomotions.Of(w, e);
                 var a = AcousticCached(tkb, type) is { MovingAudibleRange: > 0f } own_ ? own_ : MovingDefault(loco);
+                // ⭐ CE-4560 — what this type's bodies are heard at, learned from the bodies themselves (a silent locomotion counts as 0)
+                float heard = a?.MovingAudibleRange ?? 0f;
+                if (!_typeReach.TryGetValue(type, out float known) || heard > known) _typeReach[type] = heard;
                 if (a == null) continue;
                 float d = Vector3.Distance(at, ear.Position);
                 if (d >= a.MovingAudibleRange) continue;
