@@ -1055,6 +1055,7 @@ namespace Hrot.SimHost.Tests
         /// ✅ Red-proof: <c>Firm</c> removed ⇒ the held squad breaks contact too.</summary>
         [Theory]
         [InlineData("SquadHold", "{}", false)]
+        [InlineData("InfantrySquadHold", "{}", false)]   // ⭐ CE-4609 / CE-4612 — Order.Hold's routed behaviour: a Hold by its KIND, not its name
         [InlineData("BoundingOverwatch", "{\"Objective\":[0,100,0],\"BoundMetres\":30}", true)]
         public void CE2351_ReactToContact_ASquadOrderedToHold_DoesNotBreakContact_OnItsOwn(string task, string json, bool breaks)
         {
@@ -1069,6 +1070,41 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(task, BehaviorIngressSystem.PausedTaskOf(s.Repo, s.Commander)!.BehaviorName);
             for (int i = 0; i < 250; i++) s.Tick();   // 4 s: past the return-fire hold, the choice made
             Assert.Equal(breaks, s.Kind == BreakContactManeuver.ManeuverKind);
+        }
+
+        /// <summary>⭐⭐ <c>CE-4612</c> (R-2088…R-2090; DESIGN_Orders_Params_Entity_Classes.md §15) — the squad's ORDER, typed and derived: a
+        /// superior's <c>SquadHold</c> reads as a Hold with a request id; a reaction PAUSES it and the order is the same order (kind, request
+        /// id), marked paused; the SOP's own task is no order. ✅ Red-proofs: the paused arm of <c>CurrentOrders.Of</c> dropped ⇒ None under the
+        /// reaction · <c>PauseRecord</c> not copying the request id ⇒ a different id.</summary>
+        [Fact]
+        public void CE4612_TheSquadsOrder_IsTyped_AndAReactionPausesTheSameOrder_NotAnotherOne()
+        {
+            var s = new Squad(members: 2);
+            s.Order("{}", BehaviorNames.SquadHold);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 6; i++) s.Tick();
+            var held = Hrot.AI.Behaviors.Orders.CurrentOrders.Of(s.Repo, s.Commander);
+            Assert.True(held.Exists);
+            Assert.Equal(Hrot.AI.Behaviors.Orders.OrderKind.Hold, held.Kind);
+            Assert.Equal(BehaviorOrigin.Superior, held.Origin);
+            Assert.NotEqual(System.Guid.Empty, held.RequestId);
+            Assert.False(held.Paused);
+            s.PoolMany(6, new Vector3(0f, 60f, 0f));
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < SopReactionFrames; i++) s.Tick();
+            Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+            var paused = Hrot.AI.Behaviors.Orders.CurrentOrders.Of(s.Repo, s.Commander);
+            Assert.True(paused.Paused);
+            Assert.Equal(Hrot.AI.Behaviors.Orders.OrderKind.Hold, paused.Kind);
+            Assert.Equal(held.RequestId, paused.RequestId);
+            Assert.True(ReactToContactBehavior.HoldsFirm(s.Repo, s.Commander));
+            // the SOP's own choice is no order
+            var idle = new Squad(members: 2);
+            idle.StartSop("BasicSquadSop");
+            for (int i = 0; i < 6; i++) idle.Tick();
+            Assert.False(Hrot.AI.Behaviors.Orders.CurrentOrders.Of(idle.Repo, idle.Commander).Exists);
+            Assert.Equal(Hrot.AI.Behaviors.Orders.OrderKind.Defend, Hrot.AI.Behaviors.Orders.OrderKinds.Of(Fdp.Toolkit.Behavior.BehaviorHash.FromName(BehaviorNames.SquadDefend)));
+            Assert.Equal(Hrot.AI.Behaviors.Orders.OrderKind.Hold, Hrot.AI.Behaviors.Orders.OrderKinds.Of(Fdp.Toolkit.Behavior.BehaviorHash.FromName(BehaviorNames.InfantrySquadHold)));
         }
 
         /// <summary>⭐ <c>CE-2276</c> E-3a (DA-68) — <c>BreakContact {To}</c>: told where to go, the squad asks no terrain and needs no contact;
