@@ -32,7 +32,7 @@ def main():
             if e.get("TkbIdentity", {}).get("TkbType") == 2002:      # the platoon's men
                 e["Proficiency"] = prof
                 e["Temperament"] = {"nerve": nerve}
-        # the mortar section, re-keyed, Blue, moved to cqb-village: the battery at (280, 30), the spotter east of OBJ at (290, 160)
+        # the mortar section, re-keyed, Blue, moved to cqb-village: the battery at (280, 30), the spotter south-east of OBJ at (230, 100)
         remap = {k: guid(9800 + i) for i, k in enumerate(m_ents)}
         for k, src in m_ents.items():
             text = json.dumps(src)
@@ -43,16 +43,18 @@ def main():
             name = e["EntityInfo"]["Name"]
             x, y, z = e["SimTransform"]["Position"]
             if name == "Spotter":
-                e["SimTransform"]["Position"] = [290, 160, 0]
-                e["SimTransform"]["Rotation"] = [0, 0, 1, 0]   # facing WEST, at the line (+X is forward; the source faced him south)
+                # ⚠ measured: at (290, 160) house H3 (165, 160) hid the line (his memory stayed empty) — in the open south-east, ~122 m off,
+                #   facing the line (+X is forward)
+                e["SimTransform"]["Position"] = [230, 100, 0]
+                e["SimTransform"]["Rotation"] = [0, 0, 0.971977, 0.235077]
                 e["Behavior"]["Params"]["Rounds"] = 4
             else:
                 e["SimTransform"]["Position"] = [x - 740 + 280, y - 745 + 30, z]   # the cell keeps its shape, centred at (280, 30)
             doc["entities"][remap[k]] = e
         doc["header"]["description"] = (
             f"What: CE-7015 / CE-4584 (AQ101 §R, R-4227) - on cqb-village, pc-defend-dry's 'Red Platoon' (three squads of four, {prof}, nerve {nerve}) "
-            "defends OBJ at (121,157) facing south; a Blue 81 mm mortar section at (280,30) fires on it, called by a Blue 'Spotter' at (290,160), "
-            "east of the line's arc. The check engages the platoon (the squads' Set and a SPOT inside the engagement area, as pc-defend-dry). "
+            "defends OBJ at (121,157) facing south; a Blue 81 mm mortar section at (280,30) fires on it, called by a Blue 'Spotter' at (230,100), "
+            "south-east of the line. The check engages the platoon (the squads' Set and a SPOT inside the engagement area, as pc-defend-dry). "
             "Judge: the bursts near-miss the line's men (UnderFire, stress rises); "
             + ("a GREEN platoon's men break and it FALLS BACK (BreakContact) while still mostly alive. " if v == "green"
                else "a VETERAN platoon's line HOLDS (no BreakContact) under the same fire. ")
