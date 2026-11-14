@@ -24,6 +24,12 @@ clear idea about the split/use cases, as this might still form the design in som
 The names (R-4247, R-4249): the umbrella is the **aggregate unit**; the **FusionSquad** carries its squad in one fighter
 ([DESIGN_Aggregate_Squad.md](DESIGN_Aggregate_Squad.md)); the **StochasticUnit** (any echelon) has no member and is resolved by probability.
 
+
+⭐ **The FusionSquad is OPTIONAL for this programme** (🔒 user, `2026-11-14`: *"stochastic units with deaggregation into physical units are still very
+interesting though"*; the FusionSquad deferred, R-4253): de-aggregation goes STOCHASTIC → PHYSICAL directly; the fusion level in §13's diagram is
+an optional middle step, never a dependency. Everything this design binds lives on the UNIT (`AggregateUnit`, the per-slot table, the planned posts,
+`CurrentOrder`, `UnitStrength`) — none of it needs a FusionSoldier.
+
 ## 10. The StochasticUnit (was "StochasticSquad", renamed S-6) — scope, use cases, and what binds NOW *(leans; 🔒 user, `2026-11-14`: "can we think a bit more about the stochastic squad version? … that one is likely not compatible with physical individual entities like vehicles. better fitted for higher level constructive simulation where everything is stochastical. i want to have clear idea about the split/use cases, as this might still form the design in some way")*
 
 **The proven solution:** constructive simulators at brigade level and up resolve a unit as a point with state (strength, ammo, posture,
@@ -82,7 +88,8 @@ stateDiagram-v2
   Fusion: FusionSquads - one soldier each, vehicles real
   Physical: real squads - every man
   [*] --> Stochastic
-  Stochastic --> Fusion: a physical entity or a trainee within R, out of contact
+  Stochastic --> Physical: a physical entity or a trainee within R (directly, fusion optional)
+  Stochastic --> Fusion: optional middle step
   Fusion --> Physical: closer still, or a close-combat order
   Physical --> Fusion: no physical entity within R plus margin for T
   Fusion --> Stochastic: no physical entity within R plus margin for T

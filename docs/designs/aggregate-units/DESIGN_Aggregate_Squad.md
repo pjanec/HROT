@@ -26,6 +26,12 @@ related-designs:
 design (one fighter, the `FusionSoldier`, carries the whole squad); **StochasticUnit** = the later one with no member, resolved by probability, at ANY echelon (S-6; a "StochasticSquad" is its squad case).
 In code: `AggregateUnit.Resolution = Fusion | Stochastic`, the member's type `FusionSoldier`.
 
+
+⭐ **Its purpose, stated by the user (`2026-11-14`):** *"fusionsquad was never meant for showing in showcase, only for testing the command chain in
+easy way. turned up to be not easy. stochastic units with deaggregation into physical units are still very interesting though."* ⇒ deferred
+(R-4253); the chain is proved with real squads (CE-4615). What survives on its own: `UnitStrength`, the typed `CurrentOrder` (both built), the
+real-squad fixes, and — if ever built — an OPTIONAL middle resolution for the stochastic programme.
+
 ## 1. The request
 
 🔒 User, `2026-11-14`: *"replace the squads with a puppet squad, meaning just the Squad commander will play for the whole squad … a great base for
