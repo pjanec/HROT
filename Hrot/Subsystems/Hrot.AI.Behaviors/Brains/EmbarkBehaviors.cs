@@ -25,7 +25,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Resolve(in EmbarkParamsJsonDto authored, ref EmbarkBlackboard block, EntityRepository world, Entity self)
             => block.Board = new EmbarkNodeParams { Vehicle = authored.Vehicle.Ref.Resolve(world), Speed = authored.Speed };
 
-        [Behavior(BehaviorNames.Embark, Params = typeof(EmbarkParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent | BehaviorCategory.Civilian, Description = "Gets into a vehicle.")]   // ⭐ CE-2134 (moved off the DTO at the merge)
+        [Behavior(BehaviorNames.Embark, Params = typeof(EmbarkParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.Embark), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent | BehaviorCategory.Civilian, Description = "Gets into a vehicle.")]   // ⭐ CE-2134 (moved off the DTO at the merge)
         [BTreeDefinition(BehaviorNames.Embark, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(EmbarkBlackboard))]
         public static BTreeBuilder<EmbarkBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<EmbarkBlackboard, BTreeContext>()

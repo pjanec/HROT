@@ -570,7 +570,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Plan.CounterBy = -1;
         }
 
-        [Behavior(BehaviorNames.CompanyDefend, Params = typeof(CompanyDefendParamsJsonDto), Categories = BehaviorCategory.Commander)]
+        [Behavior(BehaviorNames.CompanyDefend, Params = typeof(CompanyDefendParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.Defend), Categories = BehaviorCategory.Commander)]
         [HsmDefinition(BehaviorNames.CompanyDefend, Curated = true, Group = "Library/Combat", ParamsType = typeof(CompanyDefendBlackboard))]
         public static StateMachineGraph BuildCompanyDefend()
         {

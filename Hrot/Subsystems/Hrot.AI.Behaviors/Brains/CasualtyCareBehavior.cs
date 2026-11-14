@@ -372,7 +372,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.SquadRecover, Params = typeof(SquadRecoverParamsJsonDto), Categories = BehaviorCategory.Commander)]
+        [Behavior(BehaviorNames.SquadRecover, Params = typeof(SquadRecoverParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.Recover), Categories = BehaviorCategory.Commander)]
         [BTreeDefinition(BehaviorNames.SquadRecover, Curated = true, Group = "Library/Casualties and engineering", ParamsType = typeof(CasualtyCareBehavior.CasualtyCareBlackboard))]
         public static BTreeBuilder<CasualtyCareBehavior.CasualtyCareBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<CasualtyCareBehavior.CasualtyCareBlackboard, BTreeContext>()

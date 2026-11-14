@@ -22,6 +22,9 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<SimTransform>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.BehaviorState>();   // ⭐ every unit writes its own in the phase
+            // ⭐ CE-4612 — a commander asks whether its member still runs ITS order (CurrentOrders.Of: the member's start record / paused task)
+            ParallelReadCheck.DeclareManaged<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>();
+            ParallelReadCheck.DeclareManaged<Fdp.Toolkit.Behavior.Components.PausedTask>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.Roe>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Squad.SquadLeadership>();   // a member's brain asks who leads his squad

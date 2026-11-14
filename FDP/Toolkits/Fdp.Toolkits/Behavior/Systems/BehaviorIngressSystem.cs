@@ -116,7 +116,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // DEBT-006: use stable int ID from registry — no GetHashCode().
                 if (!_registry.TryGetId(evt.BehaviorName, out int behaviorId) || !_registry.TryGetDefinition(behaviorId, out var def))
                 {
-                    InteractionOutcomes.Refused(repo, evt.RequestId, evt.Entity, $"no behaviour named {evt.BehaviorName} on this node");   // ⭐ CE-4306 (F5)
+                    InteractionOutcomes.Refused(repo, ReplyTo(evt), evt.Entity, $"no behaviour named {evt.BehaviorName} on this node");   // ⭐ CE-4306 (F5)
                     continue;
                 }
                 _lastRefusal = BrainRefusal.Unspecified;
@@ -124,13 +124,13 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // ⭐ CE-3034 — THE ONE GATE (R-188): a lower origin cannot replace a higher one.
                 // ⭐ CE-2078 — and a reaction (R-199) pauses the task it replaces.
                 int replaced = repo.GetComponentRO<BehaviorState>(evt.Entity).ActiveBehaviorHash;   // ⭐ CE-1249 — for the journal
-                if (!Admit(repo, evt.Entity, evt.Origin, evt.Urgency, out bool pause, behaviorId)) { InteractionOutcomes.Refused(repo, evt.RequestId, evt.Entity, BrainRefusalText.Of(_lastRefusal)); continue; }
+                if (!Admit(repo, evt.Entity, evt.Origin, evt.Urgency, out bool pause, behaviorId)) { InteractionOutcomes.Refused(repo, ReplyTo(evt), evt.Entity, BrainRefusalText.Of(_lastRefusal)); continue; }
                 var paused = pause ? PauseRecord(repo, evt.Entity, behaviorId, def) : null;
-                if (!Start(repo, evt.Entity, evt.BehaviorName, behaviorId, def, evt.JsonParams, evt.Origin, evt.Urgency, paused)) { InteractionOutcomes.Refused(repo, evt.RequestId, evt.Entity, BrainRefusalText.Of(_lastRefusal)); continue; }
+                if (!Start(repo, evt.Entity, evt.BehaviorName, behaviorId, def, evt.JsonParams, evt.Origin, evt.Urgency, paused, evt.RequestId)) { InteractionOutcomes.Refused(repo, ReplyTo(evt), evt.Entity, BrainRefusalText.Of(_lastRefusal)); continue; }
                 JournalStarted(repo, evt.Entity, behaviorId, replaced, evt.Origin, evt.Urgency, pause, (byte)evt.Cause);
                 AfterAdmitted(repo, evt.Entity, evt.Origin, paused);
                 _startedByNameThisFrame[evt.Entity.Index] = behaviorId;
-                InteractionOutcomes.Applied(repo, evt.RequestId, evt.Entity);   // ⭐ CE-4306 (F5): the order was accepted
+                InteractionOutcomes.Applied(repo, ReplyTo(evt), evt.Entity);   // ⭐ CE-4306 (F5): the order was accepted
             }
 
             // ── ClearBehaviorEvent handler ────────────────────────────────────────────────
@@ -366,6 +366,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 BehaviorName = record.BehaviorName, JsonParams = record.JsonParams, Origin = running.Origin,
                 Hash = running.ActiveBehaviorHash, InstanceId = running.InstanceId, BrainTier = running.BrainTier,
                 HeldKeys = HeldKeysNow(repo, entity, _registry),
+                RequestId = record.RequestId,   // ⭐ CE-4612
             };
             // ⚠ Every stateful slot key folds its owning asset or host (generated: the asset id; curated: AssetIdFromName of the
             //   host; blueprints: the asset id — CE-2129, measured; the unsalted P2 curated key went with S8). ⇒ the reaction
@@ -377,6 +378,20 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
             return paused;
         }
+
+        /// <summary>⭐ <c>CE-4612</c> (R-2090) — the order's request id a start records: none unless it runs as an order (Superior / Operator); the
+        /// issuer's when given; a Self start keeps the running order's; else one minted from the entity and its new run token.</summary>
+        private static Guid RequestIdOf(BehaviorOrigin origin, uint instance, Entity entity, Guid given, Guid previous)
+        {
+            if (origin != BehaviorOrigin.Superior && origin != BehaviorOrigin.Operator) return Guid.Empty;
+            if (given != Guid.Empty) return given;
+            return previous != Guid.Empty ? previous : Fdp.Toolkit.Behavior.RequestIds.ForStart(entity, instance);
+        }
+
+        /// <summary>⭐ <c>CE-4612</c> (R-2090) — whom the edit framework answers (CE-4306 F5): a STATION's request (an Operator's order), not a superior's
+        /// order (its subordinates' reports answer that) nor a resumed task (already answered). <c>Guid.Empty</c> = no reply.</summary>
+        private static Guid ReplyTo(AssignBehaviorEvent evt)
+            => evt.Origin == BehaviorOrigin.Operator && !evt.IsResume ? evt.RequestId : Guid.Empty;
 
         /// <summary>⭐ <c>CE-2081</c> — every slot key in <paramref name="entity"/>'s store, except the SOP slot's.</summary>
         private static unsafe int[] HeldKeysNow(EntityRepository repo, Entity entity, BehaviorRegistry registry)
@@ -526,6 +541,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     repo.SetManagedComponent(entity, new BehaviorStartRecord
                     {
                         BehaviorName = paused.BehaviorName, JsonParams = paused.JsonParams, InstanceId = paused.InstanceId,
+                        RequestId = paused.RequestId,   // ⭐ CE-4612 — the resumed order is the same order
                     });
                 BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskResumed, a: paused.Hash, origin: (byte)paused.Origin);   // ⭐ CE-1249
                 return;
@@ -534,6 +550,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             repo.Bus.PublishManaged(new AssignBehaviorEvent
             {
                 Entity = entity, BehaviorName = paused.BehaviorName, JsonParams = paused.JsonParams, Origin = paused.Origin,
+                RequestId = paused.RequestId, IsResume = true,   // ⭐ CE-4612 — a restarted order keeps its id; answered already
             });
         }
 
@@ -574,7 +591,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <returns><c>false</c> when the parse failed — the entity stays on its previous behaviour entirely.</returns>
         private unsafe bool Start(
             EntityRepository repo, Entity entity, string behaviorName, int behaviorId, BehaviorDefinition def, string json,
-            BehaviorOrigin origin, ReactionUrgency urgency = ReactionUrgency.NotAReaction, PausedTask? pausing = null)
+            BehaviorOrigin origin, ReactionUrgency urgency = ReactionUrgency.NotAReaction, PausedTask? pausing = null, Guid requestId = default)
         {
             // DEBT-035 fix: attempt ParseParams BEFORE writing BehaviorState/BrainBTreeState.
             // Strategy: parse into stack memory and commit only on success, so a ParseParams
@@ -623,6 +640,9 @@ namespace Fdp.Toolkit.Behavior.Systems
             // 1. Update BehaviorState.
             // Read previous behavior hash before overwriting (needed for S2-2 detach).
             int previousBehaviorId = repo.GetComponentRW<BehaviorState>(entity).ActiveBehaviorHash;
+            // ⭐ CE-4612 — a Self start continues the running order: its id carries over
+            Guid previousRequestId = origin == BehaviorOrigin.Self && repo.TryGetTable(typeof(BehaviorStartRecord), out _) && repo.HasManagedComponent<BehaviorStartRecord>(entity)
+                ? ((ISimulationView)repo).GetManagedComponentRO<BehaviorStartRecord>(entity)?.RequestId ?? Guid.Empty : Guid.Empty;
             // ⭐⭐ CE-2081 — a start that PAUSES the running task keeps that task's storage and parts (resume, §4.9a);
             //   ⭐ a start while a task is already paused (a reaction replacing a reaction) must not sweep it either.
             bool keepsTask = pausing is { Restart: false };
@@ -805,11 +825,13 @@ namespace Fdp.Toolkit.Behavior.Systems
                 repo.RegisterManagedComponent<BehaviorStartRecord>();
                 _startRecordRegisteredOn = repo;
             }
+            ref readonly var started = ref repo.GetComponentRO<BehaviorState>(entity);
             repo.SetManagedComponent(entity, new BehaviorStartRecord
             {
                 BehaviorName = behaviorName,
                 JsonParams   = json,
-                InstanceId   = repo.GetComponentRO<BehaviorState>(entity).InstanceId,
+                InstanceId   = started.InstanceId,
+                RequestId    = RequestIdOf(started.Origin, started.InstanceId, entity, requestId, previousRequestId),
             });
             return true;
         }

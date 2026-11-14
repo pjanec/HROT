@@ -38,6 +38,10 @@ namespace Hrot.Map.Definitions.Behavior
         public Type[]? Requires { get; set; }
 
         /// <summary>⭐ <c>CE-4359</c> — one plain sentence for the task picker's preview pane (what the behaviour does, for an instructor); null ⇒ the pane shows none. ONE field, on the behaviour.</summary>
+        /// <summary>⭐ <c>CE-4612</c> (R-2089; DESIGN_Orders_Params_Entity_Classes.md §15) — the ORDER KIND this behaviour fulfils, an
+        /// <c>OrderKind</c> member's name (<c>"Defend"</c>), for a concrete play whose params DTO is not an order (an order DTO's behaviour gets
+        /// its kind from the DTO). Readers ask the unit's <c>CurrentOrder.Kind</c>, never its behaviour name. A name that is no kind fails the load.</summary>
+        public string? Fulfils { get; set; }
         public string? Description { get; set; }
     }
 }

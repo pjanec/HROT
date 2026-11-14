@@ -26,11 +26,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// member's progress on the last one (<see cref="CommandPictureOps.OrderGiven"/>).</summary>
         public static void Order(EntityRepository world, Entity commander, Entity member, string orderName, string json, bool newOrder = false)
         {
-            SubordinateOrders.Record(world, commander, member, string.Empty, BehaviorOrigin.Superior);
+            var id = IdFor(world, commander, member);
+            SubordinateOrders.Record(world, commander, member, string.Empty, BehaviorOrigin.Superior, requestId: id);
             if (newOrder) CommandPictureOps.OrderGiven(world, commander, member);
             world.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
-                Entity = member, IntentId = OrderAttribute.IntentFor(orderName), JsonParams = json, Origin = BehaviorOrigin.Superior,
+                Entity = member, IntentId = OrderAttribute.IntentFor(orderName), JsonParams = json, Origin = BehaviorOrigin.Superior, RequestId = id,
             });
             Journal(world, commander, member, OrderAttribute.IntentFor(orderName));
         }
@@ -79,11 +80,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// names the behaviour.</summary>
         public static void Assign(EntityRepository world, Entity commander, Entity member, string behaviour, string json, bool newOrder = false)
         {
-            SubordinateOrders.Record(world, commander, member, behaviour, BehaviorOrigin.Superior, json);
+            var id = IdFor(world, commander, member);
+            SubordinateOrders.Record(world, commander, member, behaviour, BehaviorOrigin.Superior, json, id);
             if (newOrder) CommandPictureOps.OrderGiven(world, commander, member);
             world.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
-                Entity = member, IntentId = behaviour, JsonParams = json, Origin = BehaviorOrigin.Superior,
+                Entity = member, IntentId = behaviour, JsonParams = json, Origin = BehaviorOrigin.Superior, RequestId = id,
             });
             Journal(world, commander, member, behaviour);
         }
@@ -110,12 +112,17 @@ namespace Hrot.AI.Behaviors.Brains
             uint run = BehaviorOwnedParts.OwnerOf(world, commander);
             var held = SubordinateOrders.Of(world, commander);
             if (run == 0 || held == null || !world.IsAlive(member) || !world.HasComponent<BehaviorState>(member)) return false;
-            ref readonly var bs = ref world.GetComponentRO<BehaviorState>(member);
-            if (bs.Origin != BehaviorOrigin.Superior || bs.ActiveBehaviorHash != BehaviorHash.FromName(behaviour)) return false;
+            // ⭐⭐ CE-4612 (R-D11 ④) — HIS order, by id: he runs (not paused) the very order this run gave him. ⛔ Not his behaviour's name.
+            var current = Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, member);
+            if (!current.Exists || current.Paused || current.Origin != BehaviorOrigin.Superior) return false;
             foreach (var e in held.Orders)
-                if (e.Member.Equals(member)) return e.Run == run && e.Behavior == behaviour && e.Json == json;
+                if (e.Member.Equals(member)) return e.Run == run && e.Behavior == behaviour && e.Json == json && e.RequestId != System.Guid.Empty && current.RequestId == e.RequestId;
             return false;
         }
+
+        /// <summary>⭐ <c>CE-4612</c> (R-2090) — the request id of the order <paramref name="commander"/>'s ticking run gives <paramref name="member"/> now.</summary>
+        internal static System.Guid IdFor(EntityRepository world, Entity commander, Entity member)
+            => RequestIds.For(commander, BehaviorOwnedParts.OwnerOf(world, commander), member, CommandPictureOps.Now(world));
     }
 
     /// <summary>Params of <see cref="CommandNodes.OrderSubordinate"/>.</summary>

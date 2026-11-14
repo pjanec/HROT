@@ -36,5 +36,8 @@ namespace Fdp.Toolkit.Behavior.Components
 
         /// <summary>The <c>BehaviorState.InstanceId</c> of that start — the record is stale for any other.</summary>
         public required uint InstanceId { get; init; }
+        /// <summary>⭐ <c>CE-4612</c> (R-2088 / R-2090) — the order's REQUEST id (CE-4306 F5 — its issuer's, or minted at the start for an order
+        /// origin; R-2090: one id, never a second); Guid.Empty = not an order (SOP, reaction, self). <c>CurrentOrders.Of</c> reads it — the order itself is derived, never stored twice.</summary>
+        public System.Guid RequestId { get; init; }
     }
 }

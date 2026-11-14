@@ -16,6 +16,8 @@ namespace Hrot.Map.Definitions.Behavior
         public IReadOnlyList<Type> Requires { get; init; } = Array.Empty<Type>();
         /// <summary>⭐ <c>CE-4359</c> — the one-sentence description the task picker shows (<see cref="BehaviorAttribute.Description"/>); null when none.</summary>
         public string? Description { get; init; }
+        /// <summary>⭐ <c>CE-4612</c> (R-2089) — the order kind this behaviour fulfils when it is not an order DTO's (<see cref="BehaviorAttribute.Fulfils"/>).</summary>
+        public string? Fulfils { get; init; }
     }
 
     /// <summary>⭐ <c>CE-3185</c> (F9) — what an authored data struct is FOR; one DTO may serve several.</summary>
@@ -107,6 +109,15 @@ namespace Hrot.Map.Definitions.Behavior
 
         public bool TryGetBehavior(string name, out BehaviorDeclaration declaration)
             => _byName.TryGetValue(name, out declaration!);
+
+        /// <summary>⭐ <c>CE-4612</c> (R-2089; DESIGN_Orders_Params_Entity_Classes.md §15) — the ORDER a behaviour fulfils: its declared
+        /// <see cref="BehaviorAttribute.Fulfils"/>, else its params DTO's <c>[Order]</c> name (every <c>&lt;Class&gt;&lt;Order&gt;</c>), else null.</summary>
+        public string? OrderNameOf(string behaviour)
+        {
+            if (!_byName.TryGetValue(behaviour, out var d)) return null;
+            if (!string.IsNullOrEmpty(d.Fulfils)) return d.Fulfils;
+            return _byType.TryGetValue(d.ParamsType, out var dto) ? dto.OrderName : null;
+        }
 
         /// <summary>The behaviour names whose categories include <paramref name="category"/>, by name.</summary>
         public IReadOnlyList<string> NamesWithCategory(BehaviorCategory category)
@@ -216,6 +227,7 @@ namespace Hrot.Map.Definitions.Behavior
                     Classes = a.Classes ?? Array.Empty<string>(),
                     Requires = a.Requires ?? Array.Empty<Type>(),
                     Description = a.Description,
+                    Fulfils = a.Fulfils,
                 };
             }
 

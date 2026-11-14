@@ -218,7 +218,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.FireAndMovement, Params = typeof(FireAndMovementParamsJsonDto), Categories = BehaviorCategory.Commander)]
+        [Behavior(BehaviorNames.FireAndMovement, Params = typeof(FireAndMovementParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.FireAndMovement), Categories = BehaviorCategory.Commander)]
         [BTreeDefinition(BehaviorNames.FireAndMovement, Curated = true, Group = "Library/Combat", ParamsType = typeof(FireAndMovementBlackboard))]
         public static BTreeBuilder<FireAndMovementBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<FireAndMovementBlackboard, BTreeContext>()

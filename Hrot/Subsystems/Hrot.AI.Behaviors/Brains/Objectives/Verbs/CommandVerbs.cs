@@ -53,7 +53,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
     }
 
     /// <summary>⭐ <c>Order</c>'s working state.</summary>
-    public struct OrderState { public byte Began; public Fdp.Core.SimInstant IssuedAt; }
+    public struct OrderState { public byte Began; public Fdp.Core.SimInstant IssuedAt; /** ⭐ CE-4612 — the request id the order was sent with */ public Guid RequestId; }
 
     /// <summary>What <c>MissionCommand</c> asks of the target's mission plan. ⛔ <c>Replace</c> is declared (SR-97 names it) but refused at assignment: a verb carries no plan.</summary>
     public enum MissionCommandKind : byte { Jump = 0, Replace = 1, Abort = 2 }
@@ -119,15 +119,18 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
                     json = items[p.ArgsRef];
                 }
                 if (!world.Bus.IsRegisteredManaged<AssignTacticalIntentEvent>()) world.Bus.RegisterManaged<AssignTacticalIntentEvent>();
+                s.RequestId = Fdp.Toolkit.Behavior.RequestIds.For(self, BehaviorOwnedParts.OwnerOf(world, self), target, now);   // ⭐ CE-4612 (R-2090)
                 world.Bus.PublishManaged(new AssignTacticalIntentEvent
                 {
                     Entity = target, IntentId = name, JsonParams = json,
                     Origin = BehaviorOrigin.Superior,   // as a commander's order (CommanderNodes.cs:80)
+                    RequestId = s.RequestId,
                 });
                 s.Began = 1; s.IssuedAt = (SimInstant)now;
                 return NodeStatus.Running;
             }
-            if (world.GetComponentRO<BehaviorState>(target).ActiveBehaviorHash == BehaviorHash.FromName(runs)) return NodeStatus.Success;
+            // ⭐⭐ CE-4612 (R-D11 ④) — accepted = the target runs THIS order (its id), not merely a behaviour of that name
+            if (Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, target).RequestId == s.RequestId) return NodeStatus.Success;
             if (now - s.IssuedAt >= AcceptTimeoutSeconds - 1e-9) return Fail(world, self, "not accepted");
             return NodeStatus.Running;
         }
