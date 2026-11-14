@@ -24,6 +24,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | 5 | CE-7025 smoke bombs · CE-7003 support calls (fires + smoke) · CE-2278 smoke grenade | ✅ · 🔶 part (bulldozer / drone tasking wait for CE-7026…) · 🔶 kit + break contact (crossing / breach face left) | §6b; Defend & Attack DA-G as built |
 | 6 | CE-7008 suppression wears off · CE-7007 shoot and move · CE-7032 the OP withdraws | ✅ · ✅ · ✅ | `StressModel.QuietSeconds` · `SquadDefend.ShootAndMove` · `PlatoonDefend` OpBack → BreakContact |
 | 7 | CE-7010 the air gate | ⏭ ignored — the user | — |
+| 11 | CE-7016 the landing zone | 🔶 the query (`OpenGroundTest` + `FindLandingZone`); the air assault asking it left | |
 | 10 | CE-7012 `ClearObstacle` (the bulldozer) | ✅ | `Brains/ClearObstacleBehavior.cs`; City Battle §6c |
 | 8 | CE-7014 the jammer · CE-7029 infantry take cover from drones | ✅ · ✅ | `JammerDto` + type 113 `Ew_DroneJammer`; `DroneJamming` (serial pre-pass index) read by the FPV's dive (FPV Drone §5a) · |
 | 8b | CE-7026 the operator launches | ✅ (R-7007: an order to his authored stock; the FPV got feet) | `DroneOperator`; FPV Drone §5b |
@@ -57,6 +58,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | CE-7026: `DroneOperatorBehaviorTests` + `AirAttackNodesTests` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) 24 / 24 · `NedTkbBuilderCombatTests.CE7026_CE7014_*`; clean build: drills + drones + operator 299 / 299 both ways · Fdp Motion 70 / 70 · `Hrot.Core.Tests` 367 / 368 (the pre-existing geo red) | red-proofs: the in-the-air wait dropped ⇒ red · one FPV foot removed ⇒ red |
 | CE-7028: `AirAttackNodesTests` + `DroneOperatorBehaviorTests` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) 26 / 26 · `NedTkbBuilderCombatTests.CE7028_*`; clean build: drills + drones + operator 301 / 301 both ways · `Hrot.Core.Tests` 368 / 369 (the pre-existing geo red) | red-proofs: the orbit steered at the point ⇒ red · the operator's mount test off ⇒ red. ⚠ found on the way: the first cut sent an UNKNOWN-type drone to watch (no template ⇒ "no mount") — narrowed to a known type with no mount |
 | CE-7004: `SquadManeuverTests.CE7004_*` + the company rails `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) 7 / 7; clean build: drills + drones + operator 303 / 303 both ways | red-proof: the counter guard always false ⇒ the strong-reserve case red |
+| CE-7016 (the query): `LandingZoneTests` 3 / 3; clean build: `Fdp.Toolkits.Tests` Eqs + Spatial 174 / 174 | red-proof: the clearance to the box centre ⇒ red |
 | `tracker-counts.py --check` · `rulings-check.py` | OK · 608 / 608 |
 
 ## 3. The morning report

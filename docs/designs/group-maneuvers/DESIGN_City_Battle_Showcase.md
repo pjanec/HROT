@@ -594,7 +594,7 @@ B's CE-7012 (the bulldozer's ClearObstacle) stands on them.
 | S-1 | **CE-2278** *(existing)* | smoke rounds — ⭐ MUST-HAVE on the breach drill's critical path | indirect fire | B |
 | S-1b | **CE-7025** | smoke ROUNDS from the mortars (IF-5) and a FireSupport request that names smoke — ⛔ no smoke round exists today | Indirect Fire IF-5, `SupportCommandBehavior` | B |
 | S-2 | **CE-7015** | unit morale / rout — ⭐ MUST-HAVE; ⛔ waits for the user's AQ101 E-3 / E-4 decision | stress | B |
-| S-3 | **CE-7016** | AI-chosen landing zone for the air assault | `ua-air-assault`, EQS | B |
+| S-3 | **CE-7016** 🔶 the query BUILT `2026-11-14` | AI-chosen landing zone for the air assault. As built: NEW EQS filter `OpenGroundTest` (no solid's box within 25 m, slope < 10° across ±5 m) + NEW template `FindLandingZone` (rings 300–800 m round the objective, open ground only, scored beyond the known threats' reach and near the aircraft) — the handoff's default. ⏳ the air assault ASKING it (its LZ is still authored, `ua-air-assault` `RouteHold` Unload) | `ua-air-assault`, EQS | B |
 | B-1 | **CE-7017** | the full battle on CE-6010's skeleton + the dynamism gate (§12 ⑤) | everything | B |
 | — | **CE-7033** | the dynamism gate as a tool, read from a recording | the recorder | B |
 | — | **CE-7034** | company vs company on a town slice, with deadlines (§12 ④ / ④a) | — | B |
