@@ -132,7 +132,7 @@ dead zone punishes the open. Without a reason to move, base of fire versus a hou
 | **technicals shoot and scoot** | defender vehicle | dash to a firing point, a burst, back into cover, next point (`ua-technical-scoot`, paused CE-2232 — fix first) |
 | **local counterattack** | company commander (defence) | a lost block with a weak attacker in it: the company reserve retakes it (CC-3, promoted to must-have) |
 | **suppression wears off; leaders rally** | squad leader | a pinned squad gets up again: suppression decays, the leader orders the bound; ⚠ a stress model that can pin a squad FOREVER is unmeasured — a rail first |
-| **morale and rout** (AQ101 E-3 / E-4) | platoon / squad | a broken platoon runs back through the streets — the most dynamic picture a battle makes, and how a position ends without everyone dying. ⭐ promoted to MUST-HAVE (the decision still awaits the user in AQ101) |
+| **morale and rout** (AQ101 E-3 / E-4) | platoon / squad | a broken platoon runs back through the streets — the most dynamic picture a battle makes, and how a position ends without everyone dying. ⭐ promoted to MUST-HAVE · ✅ RULED `2026-11-14` (R-4227, [AQ101 §R](../../blueprints/Architect_Question_101_Shelling_Fear_And_Shelled_Areas.md)): stress is morale; a burst is fire (CE-4582); a broken man counts as lost to the platoon's fall-back and abort (CE-7015); the shelled area CE-4583 |
 | **casualty evacuation** | squad | a casualty is dragged / carried back (the carry exists, Map 3-D held figures) — losses become movement |
 | **waves** | battalion script | the 2nd wave (macro) keeps the attack fed |
 | **pressure trigger** | battalion script | a sector quiet for 3 min gets "advance to the next line" (§3) |

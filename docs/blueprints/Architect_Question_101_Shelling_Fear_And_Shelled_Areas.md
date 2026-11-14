@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-14
-current-answer: §R — re-measured 2026-11-14 against the as-built stress model (CE-2270/2272); revised leans, await the user
+current-answer: §R — re-measured 2026-11-14 against the as-built stress model (CE-2270/2272); revised leans ✅ APPROVED 2026-11-14 (R-4227); build: CE-4582 (C), CE-4583 (D), CE-7015 (E)
 stale-below: ⛔ HISTORY (§1–§3, 2026-10-22) — written two days BEFORE the stress model was built; its "soldier fear: none found" and its new `Composure` value are overtaken; do not quote
 known-rot: §1 row "soldier fear, morale, composure, panic — none found" is false since 2026-10-24 (`Stress`, `StressSystem`, `BreakBehavior`)
 related-designs:
@@ -23,7 +23,7 @@ repeated there as that might be blocking them in movements"*
 E-1 (a burst is never an enemy) and E-2 (it alerts the calm) are built in [Sensing §8.6a](../DESIGN_Thermal_And_Acoustic_Sensing.md).
 This question is the two halves that need new machinery.
 
-## §R — re-measured `2026-11-14` (coordinator), revised leans *(current; awaits the user)*
+## §R — re-measured `2026-11-14` (coordinator), revised leans *(current — ✅ APPROVED `2026-11-14`, R-4227: "approved")*
 
 🔒 User, `2026-11-14`: *"agreed with the leans but you need to measure the unknowns first"*.
 
@@ -51,9 +51,9 @@ grep `new Events.NearMissEvent` (1 producer) · grep `Stresses.IsBroken` (3 read
 |---|---|---|---|
 | **A** | ⛔ **no `Composure`** — `Stress` is the soldier's fear | one implementation per concept (ruling 9); it already has the falloff, calm, cover, leader and nerve terms §2 A asked for | none |
 | **B** | ⭐ **already answered by the as-built** — shaken = `StressDamp`, broken = the break (panic = flee, collapse = prone, Resolve decides surrender); no new bands | the design §2 B wanted exists under other names | none |
-| **C** | ⭐ **a burst within its injury radius × 2 publishes `SensorChange.NearMiss` and stamps `UnderFire`**, as a bullet does — one more caller of the same two calls | then stress, suppression, the squad's under-fire sense and civilian fear all follow with no new code | one new publisher beside the area effect; existing readers |
-| **D** | ⭐ unchanged — 3 bursts in 60 s ⇒ a `Shelled` danger area (GasCloud precedent) | — | danger-area sensor + crossing decision |
-| **E (new) — the rout** | ⭐ **the fall-back and abort guards count a broken man as lost**: one helper beside `CombatEffective` (*fighting and not broken*) read by `SlotFailing` and `AssaultLost`'s count; the shared SITREP count stays as it is | the rout machinery exists (DA-66…70, AT-10); it is blind only because the count is casualties. A broken platoon then BreakContacts to its fall-back point — the §3a picture | two guards + one helper; SITREP, centroid, replay search untouched |
+| **C** · `CE-4582` | ⭐ **a burst within its injury radius × 2 publishes `SensorChange.NearMiss` and stamps `UnderFire`**, as a bullet does — one more caller of the same two calls | then stress, suppression, the squad's under-fire sense and civilian fear all follow with no new code | one new publisher beside the area effect; existing readers |
+| **D** · `CE-4583` | ⭐ unchanged — 3 bursts in 60 s ⇒ a `Shelled` danger area (GasCloud precedent) | — | danger-area sensor + crossing decision |
+| **E (new) — the rout** · `CE-7015` | ⭐ **the fall-back and abort guards count a broken man as lost**: one helper beside `CombatEffective` (*fighting and not broken*) read by `SlotFailing` and `AssaultLost`'s count; the shared SITREP count stays as it is | the rout machinery exists (DA-66…70, AT-10); it is blind only because the count is casualties. A broken platoon then BreakContacts to its fall-back point — the §3a picture | two guards + one helper; SITREP, centroid, replay search untouched |
 | **E2** | ⏭ a squad on its own falls back on the same rule — later | the showcase fights in platoons; no squad fall-back exists to extend | — |
 
 Would change the leans: if the SITREP should report broken men as lost too (then E changes `CombatEffective` itself, and the colour, centroid
