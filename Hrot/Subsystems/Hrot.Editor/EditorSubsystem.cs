@@ -3428,7 +3428,10 @@ namespace Hrot.Editor
         public void DrawWorld()
         {
             if (_headless) return;
-            if (_kernelWorker != null) _gizmoBuffer?.LeasePublished();   // ⭐ X-4 — this frame draws the worker's latest finished gizmo frame
+            // ⭐ X-4 — this frame draws the worker's latest finished gizmo frame. ⭐ Keyed on the READER's switch, not on `_kernelWorker`: the shared
+            //   presentation (N-13 / CE-3446, the threaded node) turns ReaderUsesPublished on WITHOUT a kernel worker of its own, and a reader that
+            //   reads the published copy but never leases one reads an EMPTY frame — no unit symbols, no labels, no "Tactical Map Layers…" menu.
+            if (_gizmoBuffer is { ReaderUsesPublished: true } published) published.LeasePublished();
             // ⭐ X-4 (finding X4-1) — a frame WITHOUT the world draws only the layers that read no world: the gizmo primitives, the grid, the 2-D
             //   terrain (its retained geometry). Effects, projectiles, the cursor and the 3-D bodies query World A in Draw ⇒ drawn on world frames only.
             if (_canvas != null) _canvas.DrawFilter = _kernelWorker != null && !Fdp.ModuleHost.ThreadedKernelGate.MainHasWorld ? MapOnlyLayer : null;

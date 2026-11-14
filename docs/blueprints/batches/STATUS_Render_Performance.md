@@ -1,7 +1,8 @@
 <!--STATUS
-state: LIVE — DONE (overnight, autonomous; every item built and gated)
+state: LIVE — built, but ⛔ the frame-time TARGETS ARE NOT MET in real use (correction 2026-11-14, top of the file)
 updated: 2026-11-14
-current-answer: the whole file — DONE / GATES / DECISIONS / BUGS FIXED / OPEN at the top
+current-answer: ⛔ CORRECTION first; then DONE / DECISIONS / BUGS FIXED / OPEN
+known-rot: the GATES' "final measurement" (22 ms / 15.4 ms / 12 ms, targets ✅) — measured with the map's gizmo frame EMPTY (CE-4579) and the street camera under the ground; superseded by the CORRECTION
 related-designs:
   - ../../DESIGN_Map_3D_Mode.md — §6ak the design built here (CE-4554)
   - HANDOFF_Coordinator_To_Windows_Render_Performance.md — the handoff (dispatched c1a645d63, stamped 165e3398f)
@@ -12,6 +13,24 @@ related-designs:
 
 **Branch** `exp/render-perf` from `exp/threaded-build@b89ade339`, merged `coordinator@165e3398f` (the handoff and Map 3D §6ak). **Machine** Ryzen 7 6800H
 (8 c / 16 t), Radeon 680M, Windows 11. Every measurement: Release, hidden window, uncapped (`--target-fps 0`), `scale-rig-scale-1-1000-2s` live and playing.
+
+## ⛔ CORRECTION — 2026-11-14 (the user: "maybe because the most expensive parts are NOT RENDERED AT ALL - there are no soldiers and no labels")
+
+⛔ **Every "after" number below was measured with the map's gizmo frame EMPTY** — no unit symbols, no unit cards, no labels, no "Tactical Map Layers…"
+menu (CE-4579: under the threaded node the drawing thread read the published gizmo frame and never leased one; pre-existing since `d89cf3cf4`, so the
+"before" baseline was empty too). ⛔ And the street pose looked from UNDER the terrain. Re-measured on the fixed build, the same `rp.py`, the scenario live
+and playing, Release, hidden, uncapped:
+
+| pose | reported overnight | ⭐ real use — gizmos drawn (`fixed`, the lease fix) | target |
+|---|---|---|---|
+| whole terrain (centre, 7 500 m, pitch −60) | 22 ms | **39.5 · 41.8 · 39.9 ms** (p95 57) | ≤ 33 ms ❌ |
+| street — a soldier followed, 30 m, pitch −8 (Blue 1-1, #1004) | 15.4 ms — ⛔ the camera was UNDER the ground (`[2750, 2750, 1.7]`, the terrain is ~550 m there) | **31.9 · 32.0 · 34.3 ms** (p95 61) | ≤ 16.7 ms ❌ |
+| 2-D map (the start view) | 12 ms | **23.3 · 21.7 · 20.5 ms** (p95 42) | — |
+
+⇒ ⛔ **neither target is met in real use** — CE-4580. ⭐ What G-1 … G-7 bought still holds against a like-for-like baseline (the base was empty too:
+whole 88–91 → 22 ms with no gizmos); what is left is the gizmo layer's draw (≈ 5 800 primitives, ≈ 960 texts) and the rest of O-4.
+⚠ The 3-D soldiers ARE drawn (full figures near, far boxes beyond ~12 px; a probe at 30 m: 9–18 full, ~100 far) — at a distance they are small
+camouflage-coloured boxes, which is the design (§6ak D-2), and the unit cards are what marks them; those were the gizmos that were missing.
 
 ## DONE
 

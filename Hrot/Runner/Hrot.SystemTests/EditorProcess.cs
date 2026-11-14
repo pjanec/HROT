@@ -82,7 +82,8 @@ public sealed class EditorProcess : IAsyncDisposable
     /// dump would be empty. ⭐ Same reason the editor harness has always run under Xvfb.</para>
     /// </param>
     public static async Task<EditorProcess> StartAsync(
-        string? label = null, TimeSpan? bootTimeout = null, string mode = "editor")
+        string? label = null, TimeSpan? bootTimeout = null, string mode = "editor",
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         var ed = new EditorProcess();
         ed.Mode = mode;
@@ -102,7 +103,7 @@ public sealed class EditorProcess : IAsyncDisposable
         ed.BaseUrl = new Uri($"http://localhost:{port}/");
         ed.Client = new McpClient(ed.BaseUrl) { DiagnoseUnreachable = ed.ExitDiagnostics };
 
-        ed._process = ed.Launch(port, ed.StagingRoot);
+        ed._process = ed.Launch(port, ed.StagingRoot, environment);
         // ⚠ The cluster boots five subsystems and enrols them over DDS, so it needs a wider budget than the
         //   editor's single node. 📐 Measured ~35-50 s to serve /status on this class of machine.
         var budget = bootTimeout
@@ -125,7 +126,7 @@ public sealed class EditorProcess : IAsyncDisposable
         finally { listener.Stop(); }
     }
 
-    private Process Launch(int port, string stagingRoot)
+    private Process Launch(int port, string stagingRoot, IReadOnlyDictionary<string, string>? environment = null)
     {
         var editorDll = SystemTestEnvironment.EditorDll
             ?? throw new InvalidOperationException("Editor dll not resolved.");
@@ -168,6 +169,8 @@ public sealed class EditorProcess : IAsyncDisposable
         // Isolates recordings/staging per process — a shared root would let one editor's recording
         // collide with the other's, which for N1 would look like non-determinism.
         psi.Environment["FDP_STAGING_ROOT"] = stagingRoot;
+        // a rail's own switches (e.g. HROT_THREADED_KERNEL=3, the threaded node) — explicit, so a rail does not depend on the machine's settings file
+        if (environment != null) foreach (var kv in environment) psi.Environment[kv.Key] = kv.Value;
 
         var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
         process.OutputDataReceived += (_, e) => Capture(e.Data);

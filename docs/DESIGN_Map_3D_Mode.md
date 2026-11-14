@@ -7,7 +7,7 @@ updated: 2026-10-23 (§6ac middle-button pan, the 2-D helper grid, the cursor's 
   §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
-current-answer: ⭐ §6ak bodies and doors at scale (instancing, screen-size bands, the pick on input — ✅ BUILT 2026-11-14, as built in §6ak.6) · §6ab filming (CE-3289) · §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
+current-answer: ⭐ §6ak bodies and doors at scale (instancing, screen-size bands, the pick on input — ✅ BUILT 2026-11-14, as built in §6ak.6; ⛔ its targets NOT met with the gizmos drawn — §6ak.6 correction, CE-4580) · §6ab filming (CE-3289) · §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
   with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §6m the carried / dragged, wounded, seated riders, the jump down · §6n weapon systems, gunners, launchers, mortars and guns, trails, the drone, the attack plane, rotors · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists…)"* is overtaken: `PipelineTarget.FlatOnly` now exists (AQ93 §12.4, R-4058) — a primitive carrying it is culled by the 3-D triage whatever else it says; `Map2D` itself still means both modes (§7). · earlier: ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
@@ -3978,6 +3978,18 @@ People Display — applies: the figure's look (parts, faces, camouflage) must su
 | G-3 the bands | Hidden < 1.5 px · Far < 12 px · Full; by the body's LARGEST extent; doors < 2 px (a 3 m pre-test on the door's position before its leaf is looked up); SUMO's ambient bodies too | ⚠ D-2's "a box at the body's size" read thin at the edge → the FIGURE'S OWN part bounds in that stance × 0.5 across, its outfit's colour with the camouflage averaged in (measured at the edge: area 0.94 of the expected, colour 19 levels apart) |
 | G-4 the pick | `BodyPickIndex` (the window frame's boxes, a ground grid built when a pick needs it, walked under the ray); the FREE camera keeps 4 cached picks across frames until its pose changes or a mouse press / release; a DRIVEN camera (first person, follow, film) re-picks every frame | ⚠ D-6 "only on input" holds for the free camera; a station's crosshair must follow what changes ahead of it (CE1158) |
 | the UI thread's other pieces (G-5 … G-7, G-8) | the 2-D plan from a cached render texture; sound sources searched at 20 Hz, distance first, each type's reach learned from its bodies; the message log's rows kept while unchanged | — |
+
+⛔⛔ **CORRECTED 2026-11-14 — the targets are NOT met in real use** (CE-4580). The table after this one was measured with the map's gizmo frame
+EMPTY under the threaded node (CE-4579, the published frame never leased — no unit symbols, cards, labels or layers menu) and with the street camera
+under the terrain. With the gizmos drawn:
+
+| pose | reported overnight | ⭐ real use — gizmos drawn (`fixed`, the lease fix) | target |
+|---|---|---|---|
+| whole terrain (centre, 7 500 m, pitch −60) | 22 ms | **39.5 · 41.8 · 39.9 ms** (p95 57) | ≤ 33 ms ❌ |
+| street — a soldier followed, 30 m, pitch −8 (Blue 1-1, #1004) | 15.4 ms — ⛔ the camera was UNDER the ground (`[2750, 2750, 1.7]`, the terrain is ~550 m there) | **31.9 · 32.0 · 34.3 ms** (p95 61) | ≤ 16.7 ms ❌ |
+| 2-D map (the start view) | 12 ms | **23.3 · 21.7 · 20.5 ms** (p95 42) | — |
+
+⛔ SUPERSEDED — as first reported (keep for the like-for-like comparison only; the baseline lacked the gizmos too):
 
 **Measured** (Windows, Release, `scale-rig-scale-1-1000-2s` live and playing, the editor hidden, uncapped; mean of three 2-s windows):
 
