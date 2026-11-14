@@ -635,6 +635,15 @@ flag checked first keeps serial code near free; to measure before the build. ⭐
 | ⭐⭐ **the permanent rail** — `DrillsUnderTheReadCheckTests` runs `SquadManeuverTests` in a child test run with `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` (the check is fixed per process) and names every undeclared type | red-proved: `DoorState` undeclared ⇒ *"5 drill(s) red … undeclared cross reads of: DoorState"* |
 | ⏭ the target is unchanged: the GENERATOR emits each asset's set (table above); the hand lists stand for it until then | |
 
+#### 18.2b ⭐ As built — a phase's runner is per calling THREAD *(CE-7036, X-2, `2026-11-14`)*
+
+⛔ `ParallelEntities.Run` used ONE runner per job type for the process (`Runner<TJob>.Instance`: the running phase's job, entities, batch
+contexts). Two worlds running the same phase on two threads at once — two test classes, a second in-process node — overwrote each other
+mid-phase: 📐 the drill + SOP suites under `HROT_PARALLEL_SIM=1` in one run, 9–23 rotating reds, each class alone green. ⭐ Now a runner per
+calling thread (`[ThreadStatic]`, 0 B in the steady state; a phase begun inside another of the same type gets a fresh one); the pool already
+served a concurrent caller (its batches run inline). Rail `ParallelEntitiesTests.X2_*` (four threads, the same job type, red-proved: the shared
+runner throws). After: the combined filter 297 / 297 five runs in a row.
+
 ### 18.3 ⭐ As measured — the cost of the per-read cross-entity check *(branch `exp/read-check`, CE-4454; status: [`STATUS_Read_Check.md`](blueprints/batches/STATUS_Read_Check.md); the design is §18.2 above)*
 
 ⭐ **Affordable as designed: the check lives in the repository's own read path; no separate view type is needed for cost.**

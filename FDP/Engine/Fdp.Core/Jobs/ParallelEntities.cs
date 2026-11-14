@@ -288,12 +288,12 @@ namespace Fdp.Core.Jobs
 
         /// <summary>Runs <paramref name="job"/> over <paramref name="entities"/>[0 … <paramref name="count"/>).</summary>
         public static void Run<TJob>(EntityRepository repo, Entity[] entities, int count, in TJob job) where TJob : struct, IEntityBatchJob
-            => Runner<TJob>.Instance.Run(repo, entities, count, job);
+            => Runner<TJob>.Rent().Run(repo, entities, count, job);
 
         /// <summary>Runs <paramref name="job"/> over every entity <paramref name="query"/> matches (collected first, in index order).</summary>
         public static void Run<TJob>(EntityRepository repo, EntityQuery query, in TJob job) where TJob : struct, IEntityBatchJob
         {
-            var r = Runner<TJob>.Instance;
+            var r = Runner<TJob>.Rent();
             int n = 0;
             foreach (var e in query)
             {
@@ -312,7 +312,18 @@ namespace Fdp.Core.Jobs
 
         private sealed class Runner<TJob> : FdpWorkerPool.IBatchWork where TJob : struct, IEntityBatchJob
         {
-            public static readonly Runner<TJob> Instance = new();
+            // ⭐⭐ CE-7036 (X-2) — ONE RUNNER PER CALLING THREAD, never one per process: the runner holds the running phase's job, entities and
+            //   batch contexts, so two threads running the same job type at once (two worlds ticked on two threads — two test classes, a second
+            //   in-process node) overwrote each other mid-phase. 📐 Measured: the drill and SOP suites under HROT_PARALLEL_SIM=1 in one run, 10–23
+            //   rotating reds, each class alone green. The pool already copes with a concurrent caller (it runs that phase's batches inline).
+            //   0 B in the steady state: each thread keeps its runner; a phase started from inside another of the same type gets a fresh one.
+            [ThreadStatic] private static Runner<TJob>? t_instance;
+            private bool _busy;
+            public static Runner<TJob> Rent()
+            {
+                var r = t_instance ??= new Runner<TJob>();
+                return r._busy ? new Runner<TJob>() : r;
+            }
             // ⭐ N-11 — the job type's declared stable reads (null: none), built once
             private static readonly PhaseReadSet? s_stable = BuildStable();
             private static PhaseReadSet? BuildStable()
@@ -334,6 +345,13 @@ namespace Fdp.Core.Jobs
             public void Run(EntityRepository repo, Entity[] entities, int count, in TJob job)
             {
                 if (count <= 0) return;
+                _busy = true;
+                try { RunCore(repo, entities, count, in job); }
+                finally { _busy = false; }
+            }
+
+            private void RunCore(EntityRepository repo, Entity[] entities, int count, in TJob job)
+            {
                 // ⭐ N-15 (CE-4477) — every phase reads other entities' declared types from THIS tick's view: taken here when the kernel has not
                 //   taken it since the world last ticked (a world no kernel captures — the editor's preview copy, a rail); free when it has
                 if (ParallelReadCheck.HasDeclarations) repo.EnsureLastTickView();
