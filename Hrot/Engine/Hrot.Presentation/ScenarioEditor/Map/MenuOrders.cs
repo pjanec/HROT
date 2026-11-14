@@ -197,7 +197,7 @@ namespace Hrot.ScenarioEditor.Map
                 {
                     var at = location.Result;
                     // ⭐ S0 item 5 (SR-135): the place travels as local metres [x, y, z] (a PointLink's JSON) — no geodetic conversion at all.
-                    var point = new JsonArray(at.X, at.Y, at.Z);
+                    var point = Hrot.Common.Orders.OrderPoints.Of(at);
                     if (_designating is DesignationKind kind) SetDesignation(kind, point);
                     else if (_order is { } order && _draft is { } draft)
                         Report(Send(OrderMenu.Draft(order, draft.Units, new OrderContext(null, point), draft.Send, draft.Params, DesignationLookup())));

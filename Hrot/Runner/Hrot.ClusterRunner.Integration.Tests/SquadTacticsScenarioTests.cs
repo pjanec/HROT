@@ -400,7 +400,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
                              + string.Join(" | ", Bodies().Select((p, i) => $"m{i} at={p.ToString("F0", null)} d={Vector2.Distance(new Vector2(p.X, p.Y), objective):F0} runs={Running(Members()[i])}"));
 
             // ① the order, as the map menu sends it, through the one tactical-intent path. ⭐ CE-2433 — since S0 item 5 (489774f21) the order's
-            // Location is a PointLink: local metres [x, y, z] (or "@Key"), no longer a geodetic [lat, lon] — a two-number array is not a point.
+            // Location is a PointLink: local metres [x, y, z] (or "@Key"), no longer a geodetic [lat, lon] (⭐ CE-4575: [x, y] reads too, z = 0).
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             cgf.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent
             {

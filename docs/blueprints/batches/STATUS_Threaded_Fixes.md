@@ -18,6 +18,7 @@ Handoff: `HANDOFF_Coordinator_To_Backend_Threaded_Fixes.md` (coordinator, re-dis
 |---|---|---|---|
 | X-1 declared reads, the drill fixture + squad code | CE-7035 | DONE | 4ffbbcd7c, 7c2e82f4c, 72552251d — 78 → 11 → 2 → 0 reds; drills 244 / 244 with `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1` and 244 / 244 with `HROT_PARALLEL_SIM=0`; `DrillsUnderTheReadCheckTests` red-proved (`DoorState`) |
 | X-2 the parallel suites sharing a run | CE-7036 | DONE | the phase runner was one per job type per PROCESS (`Runner<TJob>.Instance`) ⇒ per calling thread; combined filter 9 red before, 297 / 297 × 5 after; `ParallelEntitiesTests.X2_*` red-proved (the shared runner throws) |
+| X-9 an HTTP move dropped; a malformed one answered ok | CE-4575 | DONE | S0 item 5 made points local metres, but three places still used the geodetic form: `EntityOrders.Move` (HTTP), `RtsCommands.OrderPoint` (RTS click) and the designation overlay's reader. The converter also refused `[x, y]`. Now one form (`OrderPoints`), the converter reads 2 or 3 numbers, and `EntityOrders.Order` refuses what the brain would drop (400). Rails `MenuOrdersTests.X9_*`, `S0TypesTests.PointLink_ReadsTwoOrThreeNumbers_*` (both red-proved), `DebugApiOrdersTests.X9_*`; the stale CE-2176 `[lat, lon]` assertion rewritten. ⚠ `DebugApiOrdersTests.CE1078_*` is red at `25cbd799e` without these changes (not X-9's; traced next) |
 
 ## DECISIONS
 
@@ -29,3 +30,6 @@ Handoff: `HANDOFF_Coordinator_To_Backend_Threaded_Fixes.md` (coordinator, re-dis
 | D-X1d | the permanent rail runs the drill class in a CHILD test run | `ParallelReadCheck.Compiled` is read once per process (the JIT drops the check when off), so no in-process switch exists |
 | D-X2a | the fix is at the SOURCE (a runner per calling thread), not an xUnit collection over the test classes | two worlds ticked on two threads is a real shape (a second in-process node); a collection would only hide it in the tests |
 | D-X0 | `CLAUDE.md`: the coordinator's new line said threading is opt-in; the merged code defaults it ON (R-4224) — corrected (5707845fe, a cross-lane edit) | `PerformanceSettings` defaults, `PerformanceStartup` in `Main` |
+| D-X9a | one point codec (`OrderPoints`) for every sender and the overlay's reader | three copies had drifted from S0 item 5; the shared-and-unified rule |
+| D-X9b | the converter accepts `[x, y]`, z = 0, instead of the senders being made to always write three numbers | the send-time check (`OrderMenu.MalformedIn`) and the route docs already treat `[x, y]` as a point; the mover puts it on the surface |
+| D-X9c | the send path does the receiver's own parse (the DTO with `BehaviorParams.JsonOptions`) before it publishes | a refusal that names the reason beats an ok for an order that is silently dropped; one parse per order, nothing per frame |

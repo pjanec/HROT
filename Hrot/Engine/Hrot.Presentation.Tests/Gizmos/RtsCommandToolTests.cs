@@ -121,7 +121,7 @@ public sealed class RtsCommandToolTests : IDisposable
             Assert.Equal(1, rts.Command(at));
             var move = Assert.Single(Read<AssignTacticalIntentEvent>());
             Assert.Equal("Order.Move", move.IntentId);                            // ⭐ CE-2143 — the GroundClick order
-            Assert.Contains($"\"Location\":[{at.Y},{at.X}]", move.JsonParams);   // no transform: [y, x]
+            Assert.Contains($"\"Location\":[{at.X},{at.Y},0]", move.JsonParams); // ⭐ CE-4575 — local metres [x, y, 0] (S0 item 5); ⛔ was [y, x]
         }
     }
 

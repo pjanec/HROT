@@ -947,6 +947,18 @@ Rejected: **keep the soldier mapping in `EntityOrders`** — R-273 (the sender w
 class covering everything** — not a class in the table (R-279); **label orders from a new display attribute** — the order name
 is the label until someone asks otherwise.
 
+⭐ **As built, CE-4575 (X-9, backend, `2026-11-14`) — ONE form for a point, written and read in one place.** Since S0 item 5 a point in an
+order or a designation is local metres `[x, y, z]` (a `PointLink`). `Hrot.Common.Orders.OrderPoints` is now the only writer
+(`Of(Vector3)`, `Of(Vector2)` → z = 0) and the only reader (`TryRead`, 2 or 3 numbers). The RTS click, the menu pick, the HTTP / MCP `move`
+and the designation overlay all go through it. `PointLinkJsonConverter` reads `[x, y]` as well (z = 0), which is what the send-time check
+`OrderMenu.MalformedIn` already accepted. `EntityOrders.Order` does the receiver's own parse before publishing (the DTO with
+`BehaviorParams.JsonOptions`), so a point the brain would drop gets a 400 with the reason, never an ok. `move {lat, lon}` converts through
+the node's geographic frame and is refused when there is none.
+⛔ SUPERSEDED: `EntityOrders.Move` wrote the retired geodetic `[lat, lon]` (or `[y, x]` with no frame); `RtsCommands.OrderPoint` wrote
+geodetic; `DesignationOverlayGizmo.PointOf` read geodetic. The brain could parse none of these, so every RTS ground move and HTTP move
+was dropped. Rails: `MenuOrdersTests.X9_*`, `S0TypesTests.PointLink_ReadsTwoOrThreeNumbers_*`, `DebugApiOrdersTests.X9_*`,
+`RtsCommandToolTests.CE3171_*`.
+
 ## 10. CE-2145 — FollowRoute converts its route on the RECEIVING side *(build-state: BUILT `2026-10-12`, behaviors — as-built §5a)*
 
 **Why:** R-273 (behaviors) — the receiver converts. Today the authored contract `{routeEntityId, Speed, Loop}`
