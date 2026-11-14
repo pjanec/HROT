@@ -294,6 +294,12 @@ re-cut) already exists for panels; only the building key and one grid filter shu
 | **D-5** ✅ (revised) | forbid breaching per scenario (V-18) | ⛔ **no switch in v1 — the same rules everywhere** | 🔒 user, `2026-11-14`: *"Instructor toggling the breaching per scenario is not necessary. Might come later, but not for now. I think it could be easier if the rules are the same everywhere."* |
 | **D-6** | lone trees (V-22) | ⭐ **trees follow B-D1**: a possessed heavy vehicle fells a lone tree (a tank, an IFV); AI hulls route round; the bulldozer on order — UTM §8 T-4 amended and linked both ways | one rule for "a vehicle breaks what it meets" |
 
+⭐ **Mockup: [UX/vehicle-breaching.svg](UX/vehicle-breaching.svg)** (`2026-11-14`, R-4143) — V-17's contact cue in three states (*BREAKING — hold
+throttle* with the push bar, *TOO STRONG for this vehicle*, *BREACHED*), drawn in the slot under the crosshair where *OUT OF ARC* shows today
+(`PossessionStation.cs:500-526`); the bump's Passage with the tank held outside (V-5); a drive-through gap at its crossing angle on the 2-D map
+and a display node (V-9, V-16); the bulldozer's order form with the new `At` row and the resolver's verdict (§7.6) — the point field reuses the
+existing *Pick Map* drawer (`ReferenceLeafDrawers.cs:497-507`), nothing new to build there.
+
 ### 7.4 Slices — replace §5
 
 | slice | builds |

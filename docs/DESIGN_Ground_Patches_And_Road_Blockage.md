@@ -250,8 +250,11 @@ car-following has no slope term (only z matters) · *Save terrain as* COPIES the
 | **G-19** | **steepness is shown, not enforced**: the tool reports the steepest road grade a shape creates and warns over ~15 % | SUMO ignores slope; our off-road vehicles meet the navmesh slope limit | refusing a shape |
 | **G-20** | ⭐ ***Save terrain as* WRITES the patched height store and re-elevates the net** (pads, shapes) instead of copying the base's — part of P-3 | without it a saved terrain loses every pad (measured: `CopyTree`) | — |
 
-⚠ Open: the elevated net copy's size for the city battle's net (measured in P-5; written only when a shape touches a road). ⚠ The UI (the Ground
-pick, the mode chips, the Details form, the grade warning) needs its MOCKUP before dispatch (R-4143).
+⚠ Open: the elevated net copy's size for the city battle's net (measured in P-5; written only when a shape touches a road). ⭐ **The UI's mockup:
+[UX/ground-shaping-and-ditches.svg](UX/ground-shaping-and-ditches.svg)** (`2026-11-14`, R-4143) — panels A–C and F. It adds three things the
+design did not draw: a 7th Add Entity group **Earthworks** (Level / Raise / Lower / Crater / Ditch / Anti-tank ditch / Foxhole, each tile naming
+its tool and its class, G-31); a **tint of the height CHANGE** on the 2-D map while drawing (the 2-D map draws no heights today — new); and an
+*Effect* read-out in Details (grade, area, what is kept out, newest-wins, the SUMO line). Crater in Details saves a crater RECORD (V-14).
 
 ## 4b. Road corridors at import — the road levelled across, the third shape *(P-1; ✅ R-4231, user `2026-11-14`: "Corridor patch at import, yes, All leans accepted")*
 
@@ -286,6 +289,9 @@ by the ground itself; ⛔ the automatic cover points come only from building / w
 | **G-27** | **a ditch gives COVER POINTS**: `TerrainCoverProvider` gains a second source — ground-cover from Obstacle-class patches: along a ditch's banks a point every `Spacing`, facing out, stance by depth (≥ 1.5 m stand · ≥ 0.9 crouch · ≥ 0.45 prone — the wall rule); a crater's rim the same | the EQS finds it like any wall; the sight blocking is already real (TH-D) | a ditch-only cover search |
 | **G-28** | **a ditch is an OBSTACLE-class patch**: a navmesh area priced per mover by width × depth (the crater rule, `craters.json` beside a ditch table): infantry passes (a small cost); an anti-tank ditch (≥ ~3 m wide, ≥ ~1.5 m deep) closes tracked and wheeled; a shallow one closes wheeled only | it is what a ditch is for | a terrain-class patch (no area — vehicles would drive through an anti-tank ditch) |
 | **G-29** | a ditch NEVER cuts a road corridor (G-24) — it stops at the corridor; a roadside ditch runs beside it | no hidden road closure; a culvert is a later item | — |
+
+⭐ **Mockup: [UX/ground-shaping-and-ditches.svg](UX/ground-shaping-and-ditches.svg)** panels D (the Ditch, its Details: presets, width, depth,
+bank slope, the cover / vehicle read-outs) and E (the Foxhole: a click + heading, four all-round points per V-29, the coarse-grid warning).
 
 ## 4c-1. Crater cover after the gases clear, and foxholes *(user `2026-11-14`)*
 
