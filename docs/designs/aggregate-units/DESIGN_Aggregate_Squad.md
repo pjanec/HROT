@@ -474,3 +474,38 @@ weather / night; glimpses ACCUMULATE into a contact.
 | **N-2** | a detection writes the SAME squad contact pool ⇒ SPOT / CONTACT, the picture and every commander above unchanged | the reports seam |
 | **N-3** | a stochastic observer MAY detect physical entities (one way — it only reads them); physical sensors do not see a stochastic unit (S-4 until de-aggregation) | observing is cheap and safe; being seen needs a body |
 | ⭐ **N-4** | **binds NOW**: the unit's state gains `Activity` (moving / firing — the signature) and the holdings' slots carry SENSOR systems (optics, thermal, radar) beside weapons | the signature and the observer quality are inputs N-1 cannot invent later |
+
+## 16. Placing the men on de-aggregation — a squad holding a building, a battalion holding a village *(leans; 🔒 user, `2026-11-14`: "de-aggregation in case the stochatical to physicsl. imagine squad unit holds a building for example - it wuld need to place the soldies somehow reasonably. imagine a battalion holding a village etc")*
+
+| measured | where |
+|---|---|
+| the squad's defence PLAN needs live men (it starts from the first live man, posts are handed out per man) and runs over SEVERAL ticks (the window survey is an asynchronous world query) | `SquadDefendBehavior.cs:491-520, :577` |
+| ⭐ it takes AUTHORED fighting positions FIRST — and when every live man holds one, the terrain is not asked at all | D-2f / DA-5 / DA-46 (`SquadDefendBehavior.cs:496-503`) |
+| a man reaches Set the moment he is within `PostRadius` of his post | `Manned`, `:868-881` |
+| a unit may START in a saved state (stance, aimed weapon) — "at load it starts IN it" | Initial State S2 (R-4137), `WeaponPosture` |
+| the company's defence hands each platoon a BLOCK; the platoon's hands each squad its positions | City Battle §6a (`CompanyDefend` KPlan), `PlatoonDefend` |
+
+```mermaid
+sequenceDiagram
+  participant SU as StochasticUnit (a squad holding a house)
+  participant SV as World survey (once, when it settles)
+  participant SP as Split (de-aggregation)
+  participant SD as SquadDefend (the re-resolved order, X-2)
+  SU->>SV: settled in the house: ask the window / roof / cover posts ONCE
+  SV-->>SU: posts kept in the unit's state (prepared positions)
+  Note over SU: hours of stochastic simulation - the posts stay valid
+  SP->>SP: create the men (X-3 keys), the men left (X-4)
+  SP->>SD: the order re-resolves, the kept posts handed over as AUTHORED posts
+  SP->>SP: each man created AT his post, in its stance, weapon aimed along its watch
+  SD-->>SD: every man within PostRadius at once - Set, no survey, no walk
+```
+*What it shows: the expensive, asynchronous part (the survey) runs ONCE when the unit settles, not at the split — so the split is instant and the
+men appear where the real squad would have put them, through the planner's EXISTING authored-posts path.*
+
+| # | lean | why |
+|---|---|---|
+| ⭐ **P-1** | **binds NOW**: a stochastic unit that SETTLES on a position (its defend order) asks the posts ONCE through the existing survey and KEEPS them in its state (prepared positions, fixed capacity); the scenario's authored fighting positions fill it too | the planner's authored path is the only instant one — the posts must exist BEFORE the split |
+| **P-2** | on a split each man is created AT his post (the post's stance, the weapon aimed along its watch — the Initial State seam), and the order re-resolves (X-2) with the kept posts as `Authored` ⇒ Set at once | no walk, no survey at the moment it matters |
+| ⭐ **P-3** | **binds NOW — the battalion holding a village**: every stochastic unit above the leaf keeps an ALLOCATION per child slot — the child's area (block / building), its holdings share, its kept posts — even while the children do not exist (it is what the company's KPlan and the platoon's plan would have handed out) | a PARTIAL split (only the company next to the trainees) is then "create THAT child from its row"; the rest of the battalion stays stochastic |
+| **P-4** | the allocation is made by the SAME planners the real units use (company blocks, platoon positions), run when the unit settles, not invented by the stochastic model | one model of where units stand (the shared-and-unified rule) |
+| **P-5** | time in position is state (`Prepared`: hasty → prepared → fortified) — it sets the men's cover and stance on the split | a squad that held the house for an hour is dug in; one that just arrived is not |
