@@ -317,6 +317,8 @@ id would have to exceed **1.1 × 10¹²**, and `ToPickToken` resolves a tool id 
 ⛔ **This is why `S5` deletes `S0`'s generation term rather than keeping it as a belt** — with one id space
 and disjoint allocation, the generation adds nothing and reintroduces the two-domain thinking.
 
+⛔⛔ **2026-11-14 (CE-4581) — the high base needs EVERY carrier of a tool id to be 64-bit, and one was not.** `StructInspectorProjector.EmitAndSync` took an `int`, and `LayerControlGizmo` stamped its panel with `unchecked((int)_anchorId)` — `2^40 + 1` became **1**. The panel sends its edits back to the id it was stamped with, `GlobalGizmoManager` held the layer control under `2^40 + 1` ⇒ every checkbox of the layer panel (and its close [X]) was dropped, from this change (`882d35f68`) until 2026-11-14 — the user's long-standing *"the layer dialog has no effect"*. ⭐ Fixed by widening the projector to `long`; rail `LayerControlGizmoTests.CE4581_AnEditSentToThePanelsOwnId_ReachesTheGizmo_WithARealToolId` (a real `NewId()` id, the id read back off the emitted panel). ⚠ The UI-state channel (`GizmoUiState.GizmoInstanceId`) is still 32-bit — consistently on both ends, so it holds.
+
 ### 6.2 ⭐⭐⭐ AS-BUILT — **three steps deviated. This section OVERRIDES §5's UML and §6's table.**
 
 🔒 **Obligation ⑤** *(`CLAUDE.md`, "THE DESIGN MUST REFLECT THE AS-BUILT")*: a deviation recorded only in
