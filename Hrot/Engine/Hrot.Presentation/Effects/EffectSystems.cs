@@ -107,6 +107,30 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
             Hrot.UI.Common.Map3D.KillFeed.In(world).Record(world, in down, now);
     }
 
+    /// <summary>⭐ CE-4600 — barriers broken / bumped open whose dust was spawned (a rail).</summary>
+    public int ContactBreaks { get; private set; }
+
+    /// <summary>
+    /// ⭐⭐ CE-4600 (B-3b; 📄 docs/DESIGN_Vehicle_Breaching.md §7.2 V-17, §7.15; mockup vehicle-breaching.svg A) — every <see cref="Fdp.Toolkit.Terrain.ContactBreachEvent"/> of this frame: the
+    /// driver's cue remembered (<see cref="ContactCues"/>); a barrier BROKE (dust, large puff) or was BUMPED open (dust, medium puff) at the contact point, and its crash queued for the
+    /// player's audio (the AI's hearing is the sim's own, <c>SoundEmissionSystem.HearBreaks</c>). A push in progress and a wall too strong make no dust.
+    /// </summary>
+    private void TrackContacts(ISimulationView view, EntityRepository world, IEntityCommandBuffer cmd, ITkbDatabase? tkb, double now)
+    {
+        if (!world.Bus.IsRegistered<Fdp.Toolkit.Terrain.ContactBreachEvent>()) return;
+        foreach (ref readonly var b in view.ReadEvents<Fdp.Toolkit.Terrain.ContactBreachEvent>())
+        {
+            var kind = (Fdp.Toolkit.Terrain.ContactBreachKind)b.Kind;
+            ContactCues.In(world).Record(b.Vehicle, kind, b.Progress, now);
+            if (kind is not (Fdp.Toolkit.Terrain.ContactBreachKind.Broke or Fdp.Toolkit.Terrain.ContactBreachKind.Bumped)) continue;
+            bool heavy = kind == Fdp.Toolkit.Terrain.ContactBreachKind.Broke;
+            var at = new Vector3(b.X, b.Y, b.Z);
+            Spawn(cmd, tkb, heavy ? EffectTkbCatalog.ImpactPuffLarge : EffectTkbCatalog.ImpactPuffMedium, at, null, now);
+            Hrot.UI.Common.Audio.SoundEvents.Of(world)?.Add(new Hrot.UI.Common.Audio.SoundEvents.Crash(at, heavy));
+            ContactBreaks++;
+        }
+    }
+
     public void Execute(ISimulationView view, float deltaTime)
     {
         Spawned = 0;
@@ -120,6 +144,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         var cmd = view.GetCommandBuffer();
         Housekeep(world, cmd, tkb);
         MoveDecoys(world, now);   // ⭐ CE-1115
+        TrackContacts(view, world, cmd, tkb, now);   // ⭐ CE-4600 (B-3b, V-17)
 
         if (world.Bus.IsRegistered<WeaponFireNotification>())
         {

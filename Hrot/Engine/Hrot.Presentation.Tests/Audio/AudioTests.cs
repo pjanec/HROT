@@ -760,6 +760,49 @@ public sealed class AudioTests
         return o;
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-4600 (B-3b, V-17; mockup vehicle-breaching.svg A) — a vehicle's contact with a barrier, as the map host's spawner reads it: a BROKEN wall 30 m off is dust (the large puff)
+    /// and a crash the listener hears once its sound arrives; the driver's cue says BREACHED, then goes after 2 s; a wall TOO STRONG makes no dust and no crash, the cue says so; a PUSH in
+    /// progress shows BREAKING with its bar and goes 0.3 s after the pushing stops. 🔴 Red-proof: drop the <c>TrackContacts</c> call ⇒ no puff, no crash, no cue.
+    /// </summary>
+    [Fact]
+    public void CE4600_ABrokenWall_IsDustAndACrash_AndTheDriversCueSaysWhatTheContactDid()
+    {
+        var (world, tkb) = World();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.ContactBreachEvent>();
+        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, Vector3.Zero);
+        var tank = Unit(world, TkbEntityTypes.Infantry_Rifleman, new Vector3(30f, 0f, 0f));
+        var (layer, output) = Listening(world, tkb, me);
+        void Contact(Fdp.Toolkit.Terrain.ContactBreachKind kind, float progress = 0f)
+        {
+            world.Bus.Publish(new Fdp.Toolkit.Terrain.ContactBreachEvent { Vehicle = tank, Kind = (byte)kind, X = 31f, Y = 0f, Z = 0.5f, Progress = progress });
+            world.Bus.SwapBuffers();
+            new EffectSpawnSystem().Execute(world, 0.016f);
+            ((EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetCommandBuffer()).Playback(world);   // the spawned effects land
+        }
+        int Puffs(long type) { int n = 0; foreach (var e in world.Query().With<TkbIdentity>().With<Lifespan>().Build()) if ((long)world.GetComponentRO<TkbIdentity>(e).TkbType == type) n++; return n; }
+
+        Contact(Fdp.Toolkit.Terrain.ContactBreachKind.TooStrong);
+        Assert.Equal(ContactCues.TooStrongText, ContactCues.Of(world)!.For(tank, 10.0)!.Value.Text);
+        Assert.Equal(0, Puffs(EffectTkbCatalog.ImpactPuffLarge));
+
+        Contact(Fdp.Toolkit.Terrain.ContactBreachKind.Broke);
+        Assert.Equal(1, Puffs(EffectTkbCatalog.ImpactPuffLarge));
+        Assert.Equal(ContactCues.BreachedText, ContactCues.Of(world)!.For(tank, 11.9)!.Value.Text);
+        Assert.Null(ContactCues.Of(world)!.For(tank, 12.1));                     // gone after 2 s
+        Assert.Null(ContactCues.Of(world)!.For(me, 10.0));                       // only the hull that met the wall
+        layer.Update(0.016f);
+        layer.Update(0.2f);                                                      // 30 m: ~0.09 s of travel
+        var crash = Assert.Single(output.Played, v => v.Clip == SoundTkbCatalog.Crash);
+        Assert.True(crash.Pan > 0.5f, "30 m to his right");
+
+        Contact(Fdp.Toolkit.Terrain.ContactBreachKind.Pushing, 0.4f);
+        var cue = ContactCues.Of(world)!.For(tank, 10.2)!.Value;
+        Assert.Equal(ContactCues.BreakingText, cue.Text); Assert.Equal(0.4f, cue.Progress);
+        Assert.Null(ContactCues.Of(world)!.For(tank, 10.4));                     // the push stopped
+        Assert.Equal(1, Puffs(EffectTkbCatalog.ImpactPuffLarge));                // a push makes no dust
+    }
+
     private static (EntityRepository World, ITkbDatabase Tkb) World()
     {
         var world = new EntityRepository();

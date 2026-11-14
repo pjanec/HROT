@@ -19,16 +19,21 @@ namespace Hrot.UI.Common.Audio
         /// <summary>A detonation: where, of what, and whether it hit a body (a soft impact) or the world.</summary>
         public readonly record struct Burst(Vector3 At, long Ammo, float Damage, bool HitBody);
 
+        /// <summary>⭐ CE-4600 (B-3b, V-17) — a barrier a vehicle broke (or bumped open, <paramref name="Heavy"/> false): where.</summary>
+        public readonly record struct Crash(Vector3 At, bool Heavy);
+
         /// <summary>The most of each kept between two frames.</summary>
         public const int Cap = 256;
 
         public List<Shot> Shots { get; } = new();
         public List<Burst> Bursts { get; } = new();
+        public List<Crash> Crashes { get; } = new();
 
         public void Add(in Shot s) { if (Shots.Count < Cap) Shots.Add(s); }
         public void Add(in Burst b) { if (Bursts.Count < Cap) Bursts.Add(b); }
+        public void Add(in Crash c) { if (Crashes.Count < Cap) Crashes.Add(c); }
 
-        public void Clear() { Shots.Clear(); Bursts.Clear(); }
+        public void Clear() { Shots.Clear(); Bursts.Clear(); Crashes.Clear(); }
 
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, SoundEvents> ByWorld = new();
 

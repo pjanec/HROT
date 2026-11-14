@@ -663,6 +663,36 @@ Rails: `BreachEntryTests` (a doorless house: no way in; a passage ⇒ a Gap from
 | claim | code — as built | design |
 |---|---|---|
 | AI ears hear a break | `SoundEmissionSystem.HearBreaks`: a `ContactBreachEvent` of kind Broke or Bumped is ONE Movement sound at the contact point, the hull's engine class (tracked / wheeled), carried 300 m — the door's precedent (AQ104 E ③); a "too strong" cue or a push in progress makes none | V-17 |
-| ⚠ not yet | the dust effect and the player's crash sound (the presentation's effect / audio layers) and the HUD contact cue — mockup `UX/vehicle-breaching.svg`: the ui lane's surfaces | V-17 |
+| ⭐ the rest | §7.15 | V-17 |
 
 Rail: `SoundEmissionSystemTests.CE4600_*`.
+
+### 7.15 As built — B-3b, part 2: the player sees and hears the break *(`terrain` lane, `2026-11-14`, CE-4600; cross-lane into the ui lane's HUD and audio — said)*
+
+```mermaid
+sequenceDiagram
+  participant K as CarKinematics (the hull's node)
+  participant B as event bus
+  participant E as EffectSpawnSystem (map host)
+  participant C as ContactCues
+  participant S as SoundEvents / SoundSources
+  participant P as PossessionStation (HUD)
+  K->>B: ContactBreachEvent (Broke / Bumped / TooStrong / Pushing + progress)
+  E->>B: read this frame's
+  E->>C: Record(vehicle, kind, progress, now)
+  E->>E: Broke - large dust puff, Bumped - medium (a push, too strong - none)
+  E->>S: Crash(at, heavy) - played by distance, 300 m
+  P->>C: For(possessed hull, now)
+  P->>P: BREAKING + push bar / TOO STRONG / BREACHED, under the crosshair
+```
+*What it shows that prose hid: one reader turns the event into all three of V-17's outputs, through the memories the HUD and the audio already
+drain (`HitFeedback`'s and `SoundEvents`' pattern) — and the event never leaves the node that decided it (CE-5001).*
+
+| claim | code — as built | design / mockup |
+|---|---|---|
+| the cue | `ContactCues.For`: *BREAKING — hold throttle* while push events keep coming (≤ 0.3 s), with the bar at the push's progress; *TOO STRONG for this vehicle* and *BREACHED — a way in for infantry* for 2 s; drawn in the slot under the crosshair, above *OUT OF ARC*, amber / red / green | mockup A |
+| the dust | Broke ⇒ `ImpactPuffLarge`, Bumped ⇒ `ImpactPuffMedium` at the contact point (dust, not a blast) | V-17 |
+| the crash | `SoundTkbCatalog.Crash` (7355), `SoundSynth.Crash` (a dull blow, then rubble), Impacts, 300 m — the AI's range; a bump open plays it at 0.6 gain | V-17 |
+| ⚠ deviations, said | no glyph before the cue's text (the HUD's raylib font carries no icons); the cue reaches only the node that decided the contact — R-5030: the player's break feedback is read where the contact is decided (CE-5001) | mockup A |
+
+Rail `AudioTests.CE4600_ABrokenWall_IsDustAndACrash_AndTheDriversCueSaysWhatTheContactDid`.
