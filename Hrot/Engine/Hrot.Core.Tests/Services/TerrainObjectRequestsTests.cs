@@ -100,5 +100,28 @@ namespace Hrot.Core.Tests.Services
             Assert.Equal("range/H", Assert.Single(requests).InitialComponents!.OfType<TerrainObjectKey>().Single().Key);
             Assert.Contains("range/Gone", Assert.Single(warnings));
         }
+    
+        /// <summary>
+        /// ⭐ <c>CE-4591</c> (P-4 part 3) — the saved craters become one ground-damage entity per CELL (17 in one cell ⇒ two entities), untargeted (the loader's), transient,
+        /// at the cell's anchor; a world that already holds a ground-damage entity (a re-commit) gets none. 🔴 Red-proof: drop the re-commit guard ⇒ a second batch.
+        /// </summary>
+        [Fact]
+        public void CE4591_SavedCraters_BecomeOneEntityPerCell_AndAReCommitDoublesNothing()
+        {
+            var craters = new List<Crater>();
+            for (int i = 0; i < 17; i++) craters.Add(new Crater(new Vector2(1f + i, 1f), 1f, 0.4f, 0.1f, (SimInstant)i, CraterKind.Small));
+            craters.Add(new Crater(new Vector2(100f, 10f), 3.6f, 1.6f, 0.3f, (SimInstant)20, CraterKind.Large));   // cell (1, 0)
+            using var world = new EntityRepository();
+            world.RegisterComponent<GroundDamage>();
+            var requests = TerrainObjectRequests.ForCraters(world, craters, new Ids());
+            Assert.Equal(3, requests.Count);
+            var cells = requests.Select(r => r.InitialComponents!.OfType<GroundDamage>().Single()).ToList();
+            Assert.Equal(new[] { 16, 1, 1 }, cells.Select(d => (int)d.Count).ToArray());
+            Assert.Equal((1, 0), (cells[2].CellX, cells[2].CellY));
+            Assert.All(requests, r => { Assert.True(r.IsTransient); Assert.Equal(GroundDamages.TkbType, (long)r.TkbType); Assert.Equal(EntityCreationRouting.DefaultEntityCreationRequestProcessor, r.OwnerAppInstanceId); });
+
+            var e = world.CreateEntity(); world.AddComponent(e, cells[0]);
+            Assert.Empty(TerrainObjectRequests.ForCraters(world, craters, new Ids()));
+        }
     }
 }

@@ -102,4 +102,44 @@ public static class TerrainObjectRequests
         }
         return requests;
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4591</c> (P-4 part 3, G-7) — the saved craters as creation requests: one <see cref="GroundDamage"/> entity per ground cell (16 craters each, more ⇒ several), in
+    /// cell order, untargeted (the loading node makes and owns them — the breaches' rule, R-4196: a muscle's NEW crater opens its own entity beside it). ⛔ None when the world
+    /// already holds a ground-damage entity (a re-commit never doubles the craters).
+    /// </summary>
+    public static List<EntityCreationRequest> ForCraters(EntityRepository world, IReadOnlyList<Crater> craters, INetworkIdAllocator idAllocator)
+    {
+        if (idAllocator == null) throw new ArgumentNullException(nameof(idAllocator));
+        var requests = new List<EntityCreationRequest>();
+        if (craters == null || craters.Count == 0) return requests;
+        if (world.IsComponentTypeRegistered<GroundDamage>())
+            foreach (var _ in world.Query().With<GroundDamage>().WithLifecycle(Fdp.Core.EntityLifecycle.All).Build()) return requests;
+        var byCell = new SortedDictionary<(int X, int Y), List<Crater>>();
+        foreach (var c in craters)
+        {
+            var cell = GroundDamages.CellOf(c.Centre);
+            if (!byCell.TryGetValue(cell, out var l)) byCell[cell] = l = new List<Crater>();
+            l.Add(c);
+        }
+        foreach (var ((cx, cy), list) in byCell)
+            for (int start = 0; start < list.Count; start += GroundDamage.Capacity)
+            {
+                var d = new GroundDamage { CellX = cx, CellY = cy };
+                for (int i = start; i < list.Count && i < start + GroundDamage.Capacity; i++) GroundDamages.Add(ref d, list[i], out _);
+                requests.Add(new EntityCreationRequest
+                {
+                    RequestId             = Guid.NewGuid(),
+                    TkbType               = (Fdp.Core.TkbTypeId)GroundDamages.TkbType,
+                    PreAllocatedNetworkId = idAllocator.AllocateId(),
+                    IsTransient           = true,
+                    InitialComponents     = new List<object>
+                    {
+                        new SimTransform { Position = GroundDamages.Anchor(cx, cy, 0f), Rotation = Quaternion.Identity },
+                        d,
+                    },
+                });
+            }
+        return requests;
+    }
 }

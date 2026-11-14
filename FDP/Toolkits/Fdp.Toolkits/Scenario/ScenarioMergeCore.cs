@@ -189,6 +189,13 @@ public static class ScenarioMergeCore
                         mergedTerrainObjects[kv.Key] = Fdp.Toolkit.Terrain.TerrainObjectsSection.MergeBuildingDamage(kv.Key, have, mine);
                         continue;
                     }
+                    // ⭐ CE-4591 (P-4) — the craters entry: each slice saved the craters its node decided; the union
+                    if (mergedTerrainObjects[kv.Key] is JsonObject haveG && kv.Value is JsonObject mineG
+                        && Fdp.Toolkit.Terrain.TerrainObjectsSection.IsCraterEntry(haveG) && Fdp.Toolkit.Terrain.TerrainObjectsSection.IsCraterEntry(mineG))
+                    {
+                        mergedTerrainObjects[kv.Key] = Fdp.Toolkit.Terrain.TerrainObjectsSection.MergeCraters(haveG, mineG);
+                        continue;
+                    }
                     if (mergedTerrainObjects.ContainsKey(kv.Key))
                         throw new InvalidOperationException(
                             $"Terrain object '{kv.Key}' appears in two slices (node {s.OriginNodeId}) — a door's state is saved only by its owner; refusing to pick one.");

@@ -46,14 +46,106 @@ namespace Fdp.Toolkit.Terrain
                     doors[key] = state;
                 }
             var damage = WriteBuildingDamage(repo, terrain);
-            if (doors.Count == 0 && damage.Count == 0) return null;
+            var craters = WriteCraters(repo);
+            if (doors.Count == 0 && damage.Count == 0 && craters.Count == 0) return null;
 
             var section = new JsonObject();
             foreach (var (key, state) in doors)
                 section[key] = new JsonObject { [DoorProperty] = JsonValue.Create(state.ToString()) };
             foreach (var (key, d) in damage)
                 section[key] = BuildingDamageJson.Write(d);
+            if (craters.Count > 0) section[GroundKey] = CratersJson(craters);
             return section;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4591</c> (P-4 part 3, G-7) — the entry that holds the scenario's CRATERS: <c>"#ground": { "craters": [[x, y, radius, depth, rim, bornAt, kind], …] }</c>
+        /// (a '#' no terrain-object key starts with). One entry for the whole terrain: a crater is terrain-local, not an object.
+        /// </summary>
+        public const string GroundKey = "#ground";
+
+        private const string CratersProperty = "craters";
+
+        /// <summary>⭐ CE-4591 — every crater of every <see cref="GroundDamage"/> entity this host OWNS (the breaches' gate: a distributed save writes each once), content-sorted, distinct.</summary>
+        private static List<Crater> WriteCraters(EntityRepository repo)
+        {
+            var list = new List<Crater>();
+            if (!repo.IsComponentTypeRegistered<GroundDamage>()) return list;
+            foreach (var e in repo.Query().With<GroundDamage>().Build())
+            {
+                if (!GroundDamageSystem.OwnsDamage(repo, e)) continue;
+                var d = repo.GetComponentRO<GroundDamage>(e);
+                for (int i = 0; i < d.Count && i < GroundDamage.Capacity; i++) list.Add(d.Get(i));
+            }
+            return SortDistinct(list);
+        }
+
+        private static List<Crater> SortDistinct(List<Crater> list)
+        {
+            list.Sort(static (p, q) =>
+            {
+                int c = p.Centre.X.CompareTo(q.Centre.X); if (c != 0) return c;
+                c = p.Centre.Y.CompareTo(q.Centre.Y); if (c != 0) return c;
+                c = p.Radius.CompareTo(q.Radius); if (c != 0) return c;
+                c = p.Depth.CompareTo(q.Depth); if (c != 0) return c;
+                c = p.Rim.CompareTo(q.Rim); if (c != 0) return c;
+                c = p.BornAt.CompareTo(q.BornAt); if (c != 0) return c;
+                return p.Kind.CompareTo(q.Kind);
+            });
+            for (int i = list.Count - 1; i > 0; i--) if (list[i] == list[i - 1]) list.RemoveAt(i);
+            return list;
+        }
+
+        private static JsonObject CratersJson(List<Crater> craters)
+        {
+            var arr = new JsonArray();
+            foreach (var c in craters)
+                arr.Add(new JsonArray(c.Centre.X, c.Centre.Y, c.Radius, c.Depth, c.Rim, (double)c.BornAt, (int)c.Kind));
+            return new JsonObject { [CratersProperty] = arr };
+        }
+
+        /// <summary>True when <paramref name="entry"/> is the craters entry.</summary>
+        public static bool IsCraterEntry(JsonNode? entry) => entry is JsonObject o && o[CratersProperty] is JsonArray;
+
+        /// <summary>
+        /// ⭐ <c>CE-4591</c> — the craters saved in <paramref name="dom"/> (content-sorted). ⛔ A malformed row fails LOUDLY: a scenario that silently loses its craters
+        /// reloads with the ground the shelling had already changed.
+        /// </summary>
+        public static IReadOnlyList<Crater> ReadCraters(JsonObject dom)
+        {
+            var list = new List<Crater>();
+            if (Of(dom) is not { } section || section[GroundKey] is not JsonObject entry || entry[CratersProperty] is not JsonArray rows) return list;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                if (rows[i] is not JsonArray r || r.Count != 7)
+                    throw new InvalidOperationException($"[Scenario] {Name}['{GroundKey}'].craters[{i}] is not [x, y, radius, depth, rim, bornAt, kind].");
+                try
+                {
+                    var c = new Crater(new System.Numerics.Vector2(r[0]!.GetValue<float>(), r[1]!.GetValue<float>()), r[2]!.GetValue<float>(), r[3]!.GetValue<float>(),
+                        r[4]!.GetValue<float>(), (SimInstant)r[5]!.GetValue<double>(), (CraterKind)r[6]!.GetValue<int>());
+                    if (!(c.Radius > 0f) || c.Kind is not (CraterKind.Small or CraterKind.Large))
+                        throw new InvalidOperationException($"[Scenario] {Name}['{GroundKey}'].craters[{i}]: radius must be > 0 and kind 1 or 2.");
+                    list.Add(c);
+                }
+                catch (Exception e) when (e is FormatException or InvalidCastException or NullReferenceException)
+                {
+                    throw new InvalidOperationException($"[Scenario] {Name}['{GroundKey}'].craters[{i}] is malformed: {e.Message}", e);
+                }
+            }
+            return SortDistinct(list);
+        }
+
+        /// <summary><see cref="ReadCraters(JsonObject)"/> from scenario JSON text.</summary>
+        public static IReadOnlyList<Crater> ReadCraters(string json)
+            => JsonNode.Parse(json) is JsonObject dom ? ReadCraters(dom) : Array.Empty<Crater>();
+
+        /// <summary>⭐ CE-4591 — the merge of two slices' craters entries (two deciding nodes each saved their own): the union, sorted, distinct.</summary>
+        public static JsonObject MergeCraters(JsonObject a, JsonObject b)
+        {
+            var list = new List<Crater>();
+            list.AddRange(ReadCraters(new JsonObject { [Name] = new JsonObject { [GroundKey] = a.DeepClone() } }));
+            list.AddRange(ReadCraters(new JsonObject { [Name] = new JsonObject { [GroundKey] = b.DeepClone() } }));
+            return CratersJson(SortDistinct(list));
         }
 
         /// <summary>

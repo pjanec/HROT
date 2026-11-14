@@ -39,6 +39,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public const short FlagSetBack = 1 << 8;
 
         [ThreadStatic] private static System.Collections.Generic.List<CoverPoint>? _vehicleScratch;
+        [ThreadStatic] private static System.Collections.Generic.List<CoverPoint>? _craterScratch;   // ⭐ CE-4591 (G-35)
 
         /// <inheritdoc/>
         public int Generate(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
@@ -127,6 +128,26 @@ namespace Fdp.Toolkit.Spatial.Eqs
                             Kind      = EqsResult.EncodeKind(CoverKind.Cover),   // ⭐ CE-3158 G1 — a vehicle's side is cover
                         };
                     }
+            }
+
+            // ⭐⭐ CE-4591 (P-4, G-35) — a CRATER's rim is cover once its gases have cleared: read live from this view's craters (D-1 — the same tick on every node,
+            //   never baked), each point available from BornAt + coverAfterSeconds (the sim clock — V-13 without an interface change: the provider stays immutable).
+            if (Kind == CoverKind.Cover && !RoofOnly && !hull && rawCount < candidates.Length
+                && EqsTerrainSight.World(repo) is { } cratered && Fdp.Toolkit.Terrain.DoorStates.Of(repo, cratered).Craters is { } craters)
+            {
+                var rim = _craterScratch ??= new System.Collections.Generic.List<CoverPoint>();   // R-220 — per thread, reused
+                rim.Clear();
+                var now = (Fdp.Core.SimInstant)Fdp.Toolkit.Time.SimClock.Of(repo).TotalTime;
+                Fdp.Toolkit.Terrain.CraterCover.Points(craters, cratered, Fdp.Toolkit.Terrain.CraterRuleTable.Shared, now, center, sensor.SearchRadius, rim);
+                for (int i = 0; i < rim.Count && rawCount < candidates.Length; i++)
+                {
+                    var p = rim[i];
+                    candidates[rawCount++] = new EqsResult
+                    {
+                        EntityId = 0, PositionX = p.PositionX, PositionY = p.PositionY, PositionZ = p.PositionZ, Score = p.Quality,
+                        Stance = EqsResult.EncodeStance(StanceOf(p.StanceHeight)), Kind = EqsResult.EncodeKind(CoverKind.Cover),
+                    };
+                }
             }
 
             return rawCount;

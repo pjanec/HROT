@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Spatial.Eqs;
 
 namespace Fdp.Toolkit.Terrain
 {
@@ -540,5 +541,47 @@ namespace Fdp.Toolkit.Terrain
 
         /// <summary>How many times THIS thread rebuilt the table and found it changed (rails).</summary>
         internal static int TableBuildsOnThisThread => t_builds;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4591</c> (P-4 part 3; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4c-1 G-35) — a crater's RIM as cover: points round the inside of its bowl (at
+    /// <see cref="RingFactor"/> × its radius, every <see cref="SpacingMetres"/> m) facing OUT, at the cratered ground, their stance by the rim's height above them (the wall
+    /// rule: ≥ 1.5 m stand · ≥ 0.9 crouch · ≥ 0.45 prone; less is no cover). ⭐ A crater is cover only from <c>BornAt + coverAfterSeconds</c> (its gases cleared) — a man
+    /// already in it is still hidden by the ground (TH-D). Read live from the view's craters by the EQS cover generator (D-1).
+    /// </summary>
+    public static class CraterCover
+    {
+        public const float RingFactor = 0.85f;
+        public const float SpacingMetres = 2.5f;
+        public const float QualityOf = 0.8f;
+
+        /// <summary>Appends to <paramref name="into"/> the rim points of every crater of <paramref name="craters"/> within <paramref name="radius"/> of <paramref name="center"/> that is cover by <paramref name="now"/>.</summary>
+        public static void Points(CraterTable craters, TerrainWorld world, CraterRuleTable rule, SimInstant now, Vector2 center, float radius, List<CoverPoint> into)
+        {
+            for (int i = 0; i < craters.Count; i++)
+            {
+                var c = craters[i];
+                if (Vector2.Distance(c.Centre, center) > radius + c.Radius) continue;
+                if (now.Seconds < c.BornAt.Seconds + rule.CoverAfterSeconds(c.Kind)) continue;   // the gases have not cleared
+                float r = c.Radius * RingFactor;
+                c.TryOffset(c.Centre.X + r, c.Centre.Y, out float at);
+                float wall = c.Rim - at;                                                           // the rim's top above the point
+                byte stance = wall >= 1.5f ? (byte)2 : wall >= 0.9f ? (byte)1 : wall >= 0.45f ? (byte)0 : byte.MaxValue;
+                if (stance == byte.MaxValue) continue;
+                int n = Math.Max(4, (int)MathF.Ceiling(2f * MathF.PI * r / SpacingMetres));
+                for (int k = 0; k < n; k++)
+                {
+                    float a = 2f * MathF.PI * k / n;
+                    var dir = new Vector2(MathF.Cos(a), MathF.Sin(a));
+                    var p = c.Centre + dir * r;
+                    if (Vector2.Distance(p, center) > radius) continue;
+                    into.Add(new CoverPoint
+                    {
+                        PositionX = p.X, PositionY = p.Y, PositionZ = craters.GroundHeightAt(world, p.X, p.Y),
+                        DirectionX = dir.X, DirectionY = dir.Y, Quality = QualityOf, StanceHeight = stance, Kind = CoverKind.Cover,
+                    });
+                }
+            }
+        }
     }
 }

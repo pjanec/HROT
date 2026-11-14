@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Nodes;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -291,6 +292,65 @@ namespace Fdp.Toolkit.Terrain.Tests
             var second = Assert.Single(chain.Tick());
             chain.Materialise(second);
             Assert.Equal(GroundDamage.Capacity + 1, CraterTable.Of(chain.W)!.Count);
+        }
+    
+        // ── the save (part 3) ───────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ G-7 — the craters this host OWNS are saved in <c>TerrainObjects["#ground"]</c>, read back through TEXT to the same craters (the same table bits), a
+        /// replica's are not written (each slice once), two slices' entries merge to the union, and a malformed row fails loudly.
+        /// 🔴 Red-proof: drop the <c>OwnsDamage</c> gate ⇒ the replica's crater is written too.
+        /// </summary>
+        [Fact]
+        public void TheOwnedCraters_SaveAndReload_ToTheSameGround_TwoSlicesMerge_AndAMalformedRowThrows()
+        {
+            var terrain = Flat();
+            var repo = World(terrain);
+            repo.RegisterComponent<NetworkAuthority>();
+            var a = Big(0f, 0f); var b = Big(10f, 3f) with { Depth = 0.9f };
+            Record(repo, a);
+            var replica = Record(repo, Big(40f, 40f));
+            repo.AddComponent(replica, new NetworkAuthority(primaryOwnerId: 7, localNodeId: 1));   // another node's
+            Record(repo, b);
+
+            var section = TerrainObjectsSection.Write(repo)!;
+            var dom = new JsonObject { [TerrainObjectsSection.Name] = JsonNode.Parse(section.ToJsonString()) };
+            var back = TerrainObjectsSection.ReadCraters(dom);
+            Assert.Equal(new[] { a, b }, back.ToArray());
+            Assert.Empty(TerrainObjectsSection.ReadDoors(dom));
+
+            var merged = TerrainObjectsSection.MergeCraters((JsonObject)section[TerrainObjectsSection.GroundKey]!,
+                new JsonObject { ["craters"] = new JsonArray(new JsonArray(40f, 40f, 3.6f, 1.6f, 0.36f, 10.0, 2), new JsonArray(0f, 0f, 3.6f, 1.6f, 0.36f, 10.0, 2)) });
+            Assert.Equal(3, TerrainObjectsSection.ReadCraters(new JsonObject { [TerrainObjectsSection.Name] = new JsonObject { [TerrainObjectsSection.GroundKey] = merged } }).Count);
+
+            var bad = new JsonObject { [TerrainObjectsSection.Name] = new JsonObject { [TerrainObjectsSection.GroundKey] = new JsonObject { ["craters"] = new JsonArray(new JsonArray(1, 2, 3)) } } };
+            Assert.Contains("#ground", Assert.Throws<InvalidOperationException>(() => TerrainObjectsSection.ReadCraters(bad)).Message);
+        }
+    
+        /// <summary>
+        /// ⭐ G-35 — a large crater born at 10 s is no cover at 30 s (its gases: 60 s) and is from 70 s: points round the inside of the bowl, facing out, prone (its rim
+        /// ≈ 0.54 m above them), at the cratered ground. 🔴 Red-proof: drop the <c>coverAfterSeconds</c> test ⇒ points at 30 s.
+        /// </summary>
+        [Fact]
+        public void ACratersRim_IsCover_OnlyAfterItsGasesClear_ProneAndFacingOut()
+        {
+            var terrain = Flat();
+            var repo = World(terrain);
+            Record(repo, Big());
+            var craters = DoorStates.Of(repo, terrain).Craters!;
+            var pts = new List<Fdp.Toolkit.Spatial.Eqs.CoverPoint>();
+            CraterCover.Points(craters, terrain, CraterRuleTable.Shared, (SimInstant)30.0, Vector2.Zero, 30f, pts);
+            Assert.Empty(pts);
+            CraterCover.Points(craters, terrain, CraterRuleTable.Shared, (SimInstant)70.0, Vector2.Zero, 30f, pts);
+            Assert.True(pts.Count >= 8, $"{pts.Count} rim points");
+            foreach (var p in pts)
+            {
+                var at = new Vector2(p.PositionX, p.PositionY);
+                Assert.Equal(3.6f * CraterCover.RingFactor, at.Length(), 2);
+                Assert.True(Vector2.Dot(Vector2.Normalize(at), new Vector2(p.DirectionX, p.DirectionY)) > 0.99f);   // facing out
+                Assert.Equal((byte)0, p.StanceHeight);
+                Assert.Equal(craters.Offset(p.PositionX, p.PositionY), p.PositionZ, 3);
+            }
         }
     }
 }

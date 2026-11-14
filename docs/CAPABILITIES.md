@@ -155,7 +155,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   moment; vehicles route round it, infantry crosses it, and after the gases clear its rim is cover. (P-4, CE-4591, R-4232, R-4233) — ✅ built:
   the crater record from the warhead's charge, the cratered ground for height, sight and fire the same tick on every node (a standalone brain
   included, over the wire), the navmesh closed to vehicles round it, a crater across a road cuts it (rails `CraterTests`, `CraterBakeTests`,
-  `EntityGroundDamageTranslatorTests`, `BridgeClosureTests.CE4591_*`); 📐 still to come: saving it with the scenario, the rim as cover after the gases clear
+  `EntityGroundDamageTranslatorTests`, `BridgeClosureTests.CE4591_*`); saved with the scenario, and its rim is cover once the gases clear; 📐 still to come: the decal sized by the crater
 - **Blocked roads are blocked for everyone:** a roadblock, a wreck or a crater on a road makes SUMO's cars swerve round it or re-route, and
   our own road-following vehicles re-plan; clearing it re-opens the road. (P-2, CE-4590; rails `BridgeClosureTests.CE4590_*`, `CE4591_*`) ✅
 - **Every wall stops a vehicle:** garden walls, fences and hedges hold every vehicle — AI or a player's — like a building's wall does; a low
