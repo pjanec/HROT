@@ -12,7 +12,7 @@ related-designs:
 # HANDOFF — coordinator → `dynamic-terrain`: build the dynamic terrain programme, autonomously (CE-4604)
 
 **For:** the new `dynamic-terrain` lane (branch `dynamic-terrain`, ids **`CE-5000`…`CE-5999`** and **`R-5000`…`R-5999`**). **From:**
-coordinator. **Dispatched at `<sha>`**; ⛔ scope FROZEN there — later documents are FYI; one that invalidates an item ⇒ STOP that item, do the
+coordinator. **Dispatched at `dffd649db`**; ⛔ scope FROZEN there — later documents are FYI; one that invalidates an item ⇒ STOP that item, do the
 rest (R-106).
 
 🔒 User, `2026-11-14`: *"I would like to dedicate one lane for following this dynamic terrain program. In a way that the lane will be working
