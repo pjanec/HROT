@@ -9,9 +9,9 @@ related-designs:
   - ../../UX/ground-shaping-and-ditches.svg · ../../UX/vehicle-breaching.svg — the mockups (acceptance specs, R-4146)
 -->
 
-# HANDOFF — coordinator → `dynamic-terrain`: build the dynamic terrain programme, autonomously (CE-4604)
+# HANDOFF — coordinator → `terrain`: build the dynamic terrain programme, autonomously (CE-4604)
 
-**For:** the new `dynamic-terrain` lane (branch `dynamic-terrain`, ids **`CE-5000`…`CE-5999`** and **`R-5000`…`R-5999`**). **From:**
+**For:** the new `terrain` lane (branch `terrain`, ids **`CE-5000`…`CE-5999`** and **`R-5000`…`R-5999`**). **From:**
 coordinator. **Dispatched at `dffd649db`**; ⛔ scope FROZEN there — later documents are FYI; one that invalidates an item ⇒ STOP that item, do the
 rest (R-106).
 
@@ -20,11 +20,11 @@ mostly autonomously overnight, doing its own decision based on its best judgment
 
 ## 0. Start — every session of this lane
 
-1. `git fetch origin coordinator dynamic-terrain`; on `dynamic-terrain`, `git merge origin/coordinator`; restore the test projects you will run
+1. `git fetch origin coordinator terrain`; on `terrain`, `git merge origin/coordinator`; restore the test projects you will run
    (the third stale-binary trap); push `chore: started dynamic terrain at <sha>` (rule 1b).
 2. Read [PLAN_Dynamic_Terrain.md](../../PLAN_Dynamic_Terrain.md), then the two designs' review sections (ground §9, breaching §7) in full, then
    the section each task cites. Check every design diagram against the code before building on it (obligation ③).
-3. Keep **[RESUME_Dynamic_Terrain.md](../RESUME_Dynamic_Terrain.md)** (create it on the first run): its `current-answer` is the task in
+3. Keep **[RESUME_Terrain.md](../RESUME_Terrain.md)** (create it on the first run): its `current-answer` is the task in
    flight, the last green sha, the decisions taken and what is next. Update it at every task's end — a later session (or a compaction)
    starts from it.
 
@@ -61,7 +61,7 @@ Browser) · drawing rails under `xvfb-run -a` · mockup fidelity for P-5, P-6, B
 into the design · the row in [CAPABILITIES §2b](../../CAPABILITIES.md) moves from 📐 to ✅ with its scenario. Build the affected project, never
 the solution, inside a fix loop; the full solution once per task at most, in the background.
 
-## 4. The report — `STATUS_Dynamic_Terrain.md`, refreshed at every task's end
+## 4. The report — `STATUS_Terrain.md`, refreshed at every task's end
 
 | # | section |
 |---|---|

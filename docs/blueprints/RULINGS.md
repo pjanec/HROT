@@ -113,7 +113,7 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | `coordinator` *(added `2026-10-15`, user: "give coordinator a range")* | **`R-4000` – `R-4999`** | `R-4244` *(R-4236…R-4243 vehicle breaching — the review's D-1…D-6, the bulldozer's point order, the core rules, `2026-11-14`; R-4232…R-4235 the review's decisions D-1…D-4; R-4231 road corridors; R-4228…R-4230 ground patches and road blockage, `2026-11-14`; R-4227 morale = stress, AQ101 §R, `2026-11-14`)* · was `R-4144` |
 | `showcase-world` *(added `2026-11-13`)* | **`R-6000` – `R-6999`** | `R-6000` |
 | `showcase-brains` *(added `2026-11-13`)* | **`R-7000` – `R-7999`** | `R-7011` *(R-7000 the company's lane defaults, R-7001 the smoke request's flag, R-7002 shoot and move opt-in, R-7003 civilians watch / bold opt-in, R-7004 the dozer clears any obstacle in 10 s, R-7005 a driver abandons his car within 25 m of the fighting, R-7006 a jammer's 400 m bubble downs enemy drones, R-7007 a drone launch is the operator's order to an authored stock, R-7008 a lost block is counterattacked, a failing one reinforced, R-7009 casualty evacuation is opt-in, R-7010 an armed carrier fights over its dismounted squad)* |
-| `dynamic-terrain` *(added `2026-11-14`)* | **`R-5000` – `R-5999`** | `R-5000` |
+| `terrain` *(added `2026-11-14`)* | **`R-5000` – `R-5999`** | `R-5000` |
 | *a new lane* | the next free thousand: the SAME thousand as its `CE-` block in the tracker's "ID blocks" table; **add its row here first** | |
 
 - ⭐ **The same thousands as the tracker's `CE-` blocks**, so a lane's ids are recognisable on sight (`CE-2130`, `R-2001`).

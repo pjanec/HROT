@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DISPATCHED 2026-11-14 to the `dynamic-terrain` lane (ids CE-5000…, R-5000…), autonomous — blueprints/batches/HANDOFF_Coordinator_To_Dynamic_Terrain.md; every task's design is ruled and has its UML and acceptance
+build-state: DISPATCHED 2026-11-14 to the `terrain` lane (ids CE-5000…, R-5000…), autonomous — blueprints/batches/HANDOFF_Coordinator_To_Terrain.md; every task's design is ruled and has its UML and acceptance
 updated: 2026-11-14 (first version — coordinator)
 current-answer: the whole file — §1 the order, §2 the tasks, §3 the gates every task carries, §4 what is NOT in the programme
 stale-below: nothing
