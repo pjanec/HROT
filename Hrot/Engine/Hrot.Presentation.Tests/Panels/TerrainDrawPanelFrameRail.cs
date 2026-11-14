@@ -22,6 +22,7 @@ public sealed class TerrainDrawPanelFrameRail
         public TerrainDrawOptions? Options { get; set; }
         public List<Vector2> PlacedPoints { get; } = new();
         public IReadOnlyList<Vector2> Points => PlacedPoints;
+        public TerrainGhostContext? Context { get; set; }
         public int Finished, Cancelled;
         public void Finish() => Finished++;
         public void Cancel() => Cancelled++;
@@ -123,5 +124,56 @@ public sealed class TerrainDrawPanelFrameRail
         src.Options = TerrainDrawOptions.From("feature:5::Area");   // a wood: drawn, nothing to ask
         for (int i = 0; i < 3; i++) frame.Step(panel.Draw);
         Assert.Empty(panel.Rects);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4592 / CE-4593 (P-5 2b, mockup <c>ground-shaping-and-ditches.svg</c> B, D): drawing a Ground area — <i>Ground — click to add a point</i>, the Mode row Level · Raise · Lower (one row
+    /// of equal buttons), the value under it with the derived skirt, <i>… · Enter ends</i>, and the two hint lines on the merged ground; a click on <i>Lower</i> switches the mode and the label;
+    /// a ditch has the Preset row and <i>Depth</i>. 🔴 Mutation: the Mode row's click not calling <c>SetMode</c> ⇒ the click assertion red.
+    /// </summary>
+    [SkippableFact]
+    public void DrawingAGroundArea_HasTheMockupsRows_AndItsEffectHint_AClickSwitchesTheMode_ADitchItsPreset()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string? shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS");
+        using var frame = UiFrameHarness.Begin(900, 520);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        int n = 201;
+        var flat = new TerrainWorld { Name = "flat", BoundsMin = new Vector2(-100f), BoundsMax = new Vector2(100f), Height = new TerrainHeightGrid(new Vector2(-100f), 1f, n, n, new float[n * n]) };
+        var src = new Source { Options = TerrainDrawOptions.From("feature:13:raise:Area"), Context = new TerrainGhostContext(flat, Path.Combine(Path.GetTempPath(), "no-terrain-" + Guid.NewGuid().ToString("N"))) };
+        src.PlacedPoints.AddRange(new[] { new Vector2(-50, -50), new Vector2(50, -50), new Vector2(50, 50), new Vector2(-50, 50) });
+        var panel = new TerrainDrawPanel(() => src);
+        for (int i = 0; i < 6; i++) frame.Step(panel.Draw);
+        if (shots is { Length: > 0 }) { Directory.CreateDirectory(shots); frame.Screenshot(Path.Combine(shots, "p5-draw-panel-ground.png")); }
+
+        var r = panel.Rects;
+        Assert.Equal("Ground — click to add a point", panel.Lines[0]);
+        Assert.Equal("skirt 4 m", panel.Lines[1]);                                   // a 2 m raise: max(4, 1.5 × 2)
+        Assert.Equal("1.0 ha · Enter ends", panel.Lines[2]);
+        Assert.Equal("no road reached", panel.Lines[3]);
+        Assert.Equal("kept out: 0 houses, 0 road corridors", panel.Lines[4]);
+        Assert.Equal(r["mode:Level"].Min.Y, r["mode:Raise"].Min.Y, 1f); Assert.Equal(r["mode:Raise"].Min.Y, r["mode:Lower"].Min.Y, 1f);
+        Assert.True(r["mode:Level"].Max.X <= r["mode:Raise"].Min.X && r["mode:Raise"].Max.X <= r["mode:Lower"].Min.X, "Level · Raise · Lower in one row, in that order");
+        Assert.Equal(r["mode:Level"].Max.X - r["mode:Level"].Min.X, r["mode:Lower"].Max.X - r["mode:Lower"].Min.X, 1f);
+        Assert.True(r["value"].Min.Y > r["mode:Level"].Max.Y, "the value row is under the Mode row");
+        Assert.Equal(r["value"].Min.X, r["mode:Level"].Min.X, 2f);
+        Assert.Equal(r["value"].Min.Y, r["skirt"].Min.Y, 4f);
+
+        Click(frame, panel, Mid(r["mode:Lower"]));
+        Assert.Equal("lower", src.Options!.Template);
+        Assert.Equal("Lower by", src.Options.ValueLabel);
+
+        src.Options = TerrainDrawOptions.From("feature:13:ditch:Line"); src.PlacedPoints.Clear();
+        src.PlacedPoints.AddRange(new[] { new Vector2(-30, 0), new Vector2(34, 0) });
+        for (int i = 0; i < 4; i++) frame.Step(panel.Draw);
+        if (shots is { Length: > 0 }) frame.Screenshot(Path.Combine(shots, "p6-draw-panel-ditch.png"));
+        r = panel.Rects;
+        Assert.Equal("Ditch — click to add a point", panel.Lines[0]);
+        Assert.Equal("64 m · Enter ends", panel.Lines[1]);
+        Assert.Equal("no road crossed", panel.Lines[2]);
+        Assert.Equal(r["mode:Ditch"].Min.Y, r["mode:Anti-tank ditch"].Min.Y, 1f);
+        Click(frame, panel, Mid(r["mode:Anti-tank ditch"]));
+        Assert.Equal("at-ditch", src.Options!.Template);
+        Assert.Equal(2f, src.Options.GroundValueShown);                               // the anti-tank preset's depth
     }
 }

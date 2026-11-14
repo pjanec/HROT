@@ -157,6 +157,14 @@ public static class Icons
             case "clutter/barrier": icon = new("\ue562", IconPalette.Grey); return true;   // RoadBarrier
             case "clutter/sandbags": icon = new("\ue52d", IconPalette.Amber); return true;   // Mound
             case "clutter/booth": icon = new("\uf54e", IconPalette.Orange); return true;   // Store
+            // ⭐ CE-4592 / CE-4593 (P-5 2b, P-6; docs/UX/ground-shaping-and-ditches.svg C, D) — a ground shape / ditch's Details tab and its Effect rows
+            case "earth/mound": icon = new("\ue52d", IconPalette.Orange); return true;   // Mound — a ground shape
+            case "earth/dig": icon = new("\uf713", IconPalette.Orange); return true;   // Shovel — a ditch
+            case "earth/kept": icon = new("\uf023", IconPalette.Grey); return true;   // Lock — kept out (islands)
+            case "earth/layers": icon = new("\uf5fd", IconPalette.Violet); return true;   // LayerGroup — the draw order (the newest wins)
+            case "earth/cover": icon = new("\uf3ed", IconPalette.Green); return true;   // ShieldHalved — cover points
+            case "earth/vehicle": icon = new("\uf1b9", IconPalette.Red); return true;   // Car — closed to vehicles
+            case "earth/infantry": icon = new("\uf554", IconPalette.Green); return true;   // PersonWalking — infantry passes
             default: icon = Unknown; return false;
         }
     }
@@ -281,6 +289,13 @@ public static class Icons
         "clutter/block",
         "clutter/barrier",
         "clutter/sandbags",
-        "clutter/booth"
+        "clutter/booth",
+        "earth/mound",
+        "earth/dig",
+        "earth/kept",
+        "earth/layers",
+        "earth/cover",
+        "earth/vehicle",
+        "earth/infantry"
     };
 }

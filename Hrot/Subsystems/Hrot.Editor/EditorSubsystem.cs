@@ -212,6 +212,10 @@ namespace Hrot.Editor
         public Hrot.Map.Common.Services.TerrainResidency? TerrainResidency { get; private set; }
 
         /// <summary>⭐ Terrain authoring U-2 — the base terrain and its folder the placing ghost fits a block to (none until a terrain is resident).</summary>
+        /// <summary>⭐ CE-4592 — ONE ghost context (the base world, its roads and assets) for Add Entity's ghost, the drawing panel and the Ground Details tab: built once per base / folder change.</summary>
+        private Hrot.UI.Common.AddEntity.TerrainGhostContextCache GhostContext => _ghostContextCache ??= new Hrot.UI.Common.AddEntity.TerrainGhostContextCache(GhostBase);
+        private Hrot.UI.Common.AddEntity.TerrainGhostContextCache? _ghostContextCache;
+
         private (Fdp.Toolkit.Terrain.TerrainWorld? Base, string? Folder) GhostBase()
         {
             if (TerrainResidency is not { } r) return (null, null);
@@ -2683,7 +2687,7 @@ namespace Hrot.Editor
                         Macros          = Hrot.Editor.AiShared.Browser.MacroPickerEntries.Paths,
                         // ⭐ Terrain authoring U-1 / U-2 — Add Entity's terrain groups (the shipped recipes + building templates) and the ghost's ground (the live base terrain): the editor shows its blocks live (O-7 B), so it is the host that offers them
                         Terrain         = Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped,
-                        TerrainContext  = new Hrot.UI.Common.AddEntity.TerrainGhostContextCache(GhostBase).Get,
+                        TerrainContext  = GhostContext.Get,
                     },
                     // GZH-003: the editor is interactive and always has a window at startup. It is not
                     // under the cluster runner, so PerspectiveCoordinatorSystem never attaches a viewer
@@ -3969,6 +3973,8 @@ namespace Hrot.Editor
             _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.EntityPlayableViewDescriptor.For(() => _world));
             // ⭐ Terrain authoring U-3 — the BLOCK tab of Details for a placed terrain block (recipe, seed, fit to the site, contents)
             _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.TerrainBlockDetailsViewDescriptor.For(() => _world, Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped));
+            // ⭐ CE-4592 / CE-4593 (P-5 2b, P-6) — the GROUND / DITCH tab of Details for a placed ground shape (mode, value, the derived skirt, the Effect read-out)
+            _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.GroundFeatureDetailsViewDescriptor.For(() => _world, GhostContext.Get));
 
             // ⭐⭐ CE-4210 MA-8 (SR-39a) — the MACRO section of Details for a macro instance: status, the macro (the same picker's Macros group), the args form.
             //   ⚠ Its own StructEdit service (the facet service is built later); picks resolved at call time like the AI section's.

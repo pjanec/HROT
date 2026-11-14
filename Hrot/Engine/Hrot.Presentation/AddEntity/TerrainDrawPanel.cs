@@ -42,10 +42,64 @@ public sealed class TerrainDrawOptions
     public bool IsLine => Shape == TerrainShape.Line && Kind is TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge;
     public bool IsBridge => Kind == TerrainFeature.Bridge;
     public bool IsScatter => Kind == TerrainFeature.Scatter;
-    /// <summary>Whether a panel has anything to ask: the line kinds, the bridge, the scatter. A wood, scrub or water area is just drawn.</summary>
-    public bool HasPanel => IsLine || IsBridge || IsScatter;
+    /// <summary>⭐ CE-4592 (P-5 2b, mockup B) — a ground AREA (Level / Raise / Lower).</summary>
+    public bool IsGround => Kind == TerrainFeature.Ground && Shape == TerrainShape.Area;
+    /// <summary>⭐ CE-4593 (P-6, mockup D) — a ditch LINE (Ditch / Anti-tank ditch).</summary>
+    public bool IsDitch => Kind == TerrainFeature.Ground && Shape == TerrainShape.Line;
+    /// <summary>Whether a panel has anything to ask: the line kinds, the bridge, the scatter, a ground area, a ditch. A wood, scrub or water area is just drawn.</summary>
+    public bool HasPanel => IsLine || IsBridge || IsScatter || IsGround || IsDitch;
 
-    public string KindName { get { foreach (var (k, n) in LineKinds) if (k == Kind) return n; return IsBridge ? "Bridge" : IsScatter ? "Scatter" : "Terrain feature"; } }
+    /// <summary>⭐ CE-4592 — the ground area's Mode row (the template), as the mockup's draw panel: Level · Raise · Lower.</summary>
+    public static readonly (string Mode, string Name)[] GroundModes = { ("level", "Level"), ("raise", "Raise"), ("lower", "Lower") };
+    /// <summary>⭐ CE-4593 — the ditch's Preset row: Ditch · Anti-tank ditch (the Foxhole is a click, not a line).</summary>
+    public static readonly (string Mode, string Name)[] DitchModes = { ("ditch", "Ditch"), ("at-ditch", "Anti-tank ditch") };
+
+    /// <summary>⭐ CE-4592 / CE-4593 — the value typed in the panel (a raise / lower dZ, a level Z, a ditch depth); null = the mode's default.</summary>
+    public float? GroundValue { get; set; }
+    /// <summary>The ground at the first drawn point (the host's sampler) — what Level defaults to; null when the host gives none.</summary>
+    public float? LevelDefault { get; set; }
+
+    /// <summary>The value the panel shows and the entity is born with: the typed one, else the mode's default (raise 2 m, lower 1 m, level the ground at the first point, a ditch its preset's depth).</summary>
+    public float GroundValueShown => GroundValue ?? Template switch
+    {
+        "raise" => TerrainBirth.DefaultRaise,
+        "lower" => TerrainBirth.DefaultLower,
+        "level" => LevelDefault ?? 0f,
+        _ => DitchPresets.Of(Template)?.Depth ?? 0f,
+    };
+
+    /// <summary>The value row's label: <c>Raise by</c> · <c>Lower by</c> · <c>Level to</c> · <c>Depth</c>.</summary>
+    public string ValueLabel => Template switch { "raise" => "Raise by", "lower" => "Lower by", "level" => "Level to", _ => "Depth" };
+
+    /// <summary>Switches a ground area's mode / a ditch's preset; the typed value goes back to the new mode's default.</summary>
+    public void SetMode(string mode) { if (mode != Template) { Template = mode; GroundValue = null; } }
+
+    /// <summary>⭐ The effect of the shape being drawn (the hint and the tint read it) — rebuilt only when the mode, the value or the points change (a user action, R-2084).</summary>
+    public GroundEffect EffectOf(IReadOnlyList<Vector2> points, TerrainGhostContext? ctx)
+    {
+        if (ctx is null) return GroundEffect.None;
+        float v = GroundValueShown;
+        ulong key = GroundEffect.KeyOf(Template, v, points);
+        if (key != _effectKey || !ReferenceEquals(ctx, _effectCtx))
+        {
+            _effectKey = key; _effectCtx = ctx;
+            try { _effect = GroundEffect.Of(ctx.Base, ctx.Roads, ctx.Assets, Template, IsDitch && GroundValue is null ? 0f : v, points); }
+            catch (ArgumentException) { _effect = GroundEffect.None; }   // a self-crossing polygon while drawing: no read-out until it is fixed
+        }
+        return _effect;
+    }
+    private ulong _effectKey; private TerrainGhostContext? _effectCtx; private GroundEffect _effect = GroundEffect.None;
+
+    public string KindName
+    {
+        get
+        {
+            foreach (var (k, n) in LineKinds) if (k == Kind) return n;
+            if (IsGround) return "Ground";
+            if (IsDitch) { foreach (var (m, n) in DitchModes) if (m == Template) return n; return "Ditch"; }
+            return IsBridge ? "Bridge" : IsScatter ? "Scatter" : "Terrain feature";
+        }
+    }
 
     public void SetKind(byte kind) { if (kind != Kind) { Kind = kind; Height = 0f; } }
     public void SetTemplate(string template) => Template = template;
@@ -73,8 +127,14 @@ public sealed class TerrainDrawOptions
         int i = comps.FindIndex(c => c is TerrainFeature);
         if (i < 0) return;
         var f = (TerrainFeature)comps[i];
-        f.Kind = Kind; f.Template = new FixedString32(Template); f.Seed = Seed;
-        f.Pad = IsScatter ? ItemsPer100m2 : Height;
+        f.Kind = Kind; f.Template = new FixedString32(Template);
+        if (Kind == TerrainFeature.Ground)
+        {
+            // ⭐ CE-4592 / CE-4593 — the mode and its value; the DRAW ORDER (Seed) stays the birth's (TerrainBirth.DrawOrderNow — the newest wins, V-28).
+            //   ⛔ Was: Pad = the line height (0) and Seed = a random seed, so a drawn Raise rose by nothing and its order was random.
+            f.Pad = IsDitch && GroundValue is null ? 0f : GroundValueShown;   // a ditch with no typed depth keeps 0 = its preset's
+        }
+        else { f.Seed = Seed; f.Pad = IsScatter ? ItemsPer100m2 : Height; }
         comps[i] = f;
         int n = comps.FindIndex(c => c is EntityInfo);
         if (n >= 0) { var info = (EntityInfo)comps[n]; info.Name = new FixedString64(TerrainBirth.FeatureName((Kind, Template, Shape))); comps[n] = info; }
@@ -106,6 +166,8 @@ public interface ITerrainDrawSource
 {
     TerrainDrawOptions? Options { get; }
     IReadOnlyList<Vector2> Points { get; }
+    /// <summary>⭐ CE-4592 — the base world, its roads and assets the ground read-outs measure on (the same context the placing ghost uses); null = no terrain, no read-out.</summary>
+    TerrainGhostContext? Context { get; }
     /// <summary>The panel's <i>Done</i> (Enter on the map).</summary>
     void Finish();
     /// <summary>The panel's <i>Cancel</i> (Esc on the map).</summary>
@@ -148,7 +210,7 @@ public sealed class TerrainDrawPanel
         {
             Rects.Clear(); Glyphs.Clear(); Lines.Clear();
             Rects["panel"] = (ImGui.GetWindowPos(), ImGui.GetWindowPos() + ImGui.GetWindowSize());
-            if (o.IsLine) Line(src, o, s); else if (o.IsBridge) Bridge(src, o, s); else Scatter(src, o, s);
+            if (o.IsLine) Line(src, o, s); else if (o.IsBridge) Bridge(src, o, s); else if (o.IsGround || o.IsDitch) Ground(src, o, s); else Scatter(src, o, s);
         }
         ImGui.End();
         ImGui.PopStyleVar(3); ImGui.PopStyleColor(2);
@@ -200,6 +262,88 @@ public sealed class TerrainDrawPanel
         string tail = (pts.Count > 1 ? Len(pts) + " · " : "") + "Enter ends";
         ImGui.TextColored(NOTE, tail); Lines.Add(tail);
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-4592 / CE-4593 (P-5 2b, P-6; mockup B's draw panel, D's hint) — <i>Ground — click to add a point</i>, the Mode row (Level · Raise · Lower), the value (<i>Raise by</i> …) and the
+    /// skirt it gets, <i>1.2 ha · Enter ends</i>; for a ditch the Preset row (Ditch · Anti-tank ditch), the Depth, <i>64 m · Enter ends</i>; then the two hint lines (the grade, amber over 15 % —
+    /// G-19; what is kept out / that it stops at the road). ⚠ Deviation from the mockup, said: the Skirt is a READ-OUT, not a field — it is derived (≥ 4 m, 1.5 × the change, R-5026: no field
+    /// until the sibling component, V-27).
+    /// </summary>
+    private void Ground(ITerrainDrawSource src, TerrainDrawOptions o, float s)
+    {
+        var pts = src.Points;
+        var ctx = src.Context;
+        if (o.IsGround && o.LevelDefault is null && pts.Count > 0 && ctx?.Base.Height is { } grid) o.LevelDefault = MathF.Round(grid.Sample(pts[0].X, pts[0].Y) * 10f) / 10f;
+        string title = $"{o.KindName} — " + (pts.Count == 0 ? "click to start" : "click to add a point");
+        Title(o.IsDitch ? "earth/dig" : "earth/mound", title);
+        ImGui.Spacing();
+        float x0 = 66f * s;
+        var modes = o.IsDitch ? TerrainDrawOptions.DitchModes : TerrainDrawOptions.GroundModes;
+        ImGui.AlignTextToFramePadding(); ImGui.TextColored(SUB, o.IsDitch ? "Preset" : "Mode");
+        float bw = o.IsDitch ? 100f : 58f;
+        for (int i = 0; i < modes.Length; i++)
+        {
+            ImGui.SameLine(x0 + i * (bw + 4f) * s);
+            var (m, name) = modes[i];
+            bool sel = o.Template == m;
+            ImGui.PushStyleColor(ImGuiCol.Button, sel ? BTNSEL : BTN);
+            if (sel) { ImGui.PushStyleColor(ImGuiCol.Border, ACC); ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 1f); }
+            if (ImGui.Button(name + "##mode_" + m, new Vector2(bw * s, 22f * s))) o.SetMode(m);
+            if (sel) { ImGui.PopStyleVar(); ImGui.PopStyleColor(); }
+            ImGui.PopStyleColor();
+            Rects["mode:" + name] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        }
+        ImGui.AlignTextToFramePadding(); ImGui.TextColored(SUB, o.ValueLabel);
+        ImGui.SameLine(x0); ImGui.SetNextItemWidth(70f * s);
+        float v = o.GroundValueShown;
+        if (ImGui.InputFloat("##value", ref v, 0f, 0f, "%.1f m"))
+        {
+            if (o.Template == "level" || (v > 0f && v < 50f)) o.GroundValue = v;
+        }
+        Rects["value"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        if (o.IsGround)
+        {
+            float change = o.Template == "level" ? 0f : o.GroundValueShown;
+            ImGui.SameLine(x0 + 80f * s); ImGui.AlignTextToFramePadding();
+            if (change != _skirtFor || _skirt.Length == 0) { _skirtFor = change; _skirt = o.Template == "level" ? "skirt ≥ 4 m" : $"skirt {MathF.Max(GroundPatches.MinSkirt, GroundPatches.SkirtPerMetreOfCut * MathF.Abs(change)):0.#} m"; }
+            string skirt = _skirt;
+            ImGui.TextColored(NOTE, skirt); Lines.Add(skirt); Rects["skirt"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        }
+        int tailKey = (o.IsDitch ? (int)Math.Round(TerrainDrawOptions.Length(pts)) : (int)Math.Round(TerrainDrawOptions.Area(pts) / 100f)) * 64 + pts.Count + (o.IsDitch ? 1 << 30 : 0);
+        if (tailKey != _tailKey)
+        {
+            _tailKey = tailKey;
+            _tail = o.IsDitch ? (pts.Count > 1 ? $"{TerrainDrawOptions.Length(pts):0} m · " : "") + "Enter ends"
+                              : (pts.Count > 2 ? Hectares(TerrainDrawOptions.Area(pts)) + " · " : "") + "Enter ends";
+        }
+        string tail = _tail;
+        ImGui.TextColored(NOTE, tail); Lines.Add(tail);
+        // the hint lines — the shape's effect on the merged ground (G-19 shown, never refused; what is kept out)
+        var fx = o.EffectOf(pts, ctx);
+        if (!ReferenceEquals(fx, GroundEffect.None))
+        {
+            if (!ReferenceEquals(fx, _hintFor)) { _hintFor = fx; (_hint1, _hint1Warn, _hint2) = Hints(fx); }
+            ImGui.Spacing();
+            ImGui.TextColored(_hint1Warn ? AMBER : OK, _hint1); Lines.Add(_hint1); Rects["hint1"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+            ImGui.TextColored(OK, _hint2); Lines.Add(_hint2); Rects["hint2"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        }
+    }
+    private float _skirtFor = float.NaN; private string _skirt = "";
+    private int _tailKey = -1; private string _tail = "";
+    private GroundEffect? _hintFor; private string _hint1 = "", _hint2 = ""; private bool _hint1Warn;
+
+    /// <summary>The two hint lines of an effect: the grade (warn over 15 %) — or, for a ditch, where it stops — and what is kept out.</summary>
+    public static (string Line1, bool Warn, string Line2) Hints(GroundEffect fx)
+    {
+        string kept = $"kept out: {Plural(fx.HousesKept, "house")}, {Plural(fx.RoadsKept, "road corridor")}";
+        if (fx.IsDitch) return (fx.RoadsKept > 0 ? "stops at the road — G-29" : "no road crossed", fx.RoadsKept > 0, kept);
+        if (fx.RoadsKept == 0) return ("no road reached", false, kept);
+        string g = $"steepest road grade {fx.RoadGrade * 100f:0} %";
+        return (fx.OverGrade ? g + " (over 15 %) — roads follow; SUMO's net after save" : g + " — roads follow; SUMO's net after save", fx.OverGrade, kept);
+    }
+
+    private static string Plural(int n, string what) => n == 1 ? "1 " + what : $"{n} {what}s";
+    public static string Hectares(float m2) => m2 >= 10000f ? $"{m2 / 10000f:0.0} ha" : $"{m2:0} m²";
 
     private void Bridge(ITerrainDrawSource src, TerrainDrawOptions o, float s)
     {

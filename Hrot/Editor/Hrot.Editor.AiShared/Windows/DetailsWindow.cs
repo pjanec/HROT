@@ -791,6 +791,7 @@ public sealed class DetailsWindow
         "Event"      => NodeEditor.Core.Widgets.Icons.Get("tab/event"),
         "Components" => NodeEditor.Core.Widgets.Icons.Get("tab/components"),
         "Block"      => NodeEditor.Core.Widgets.Icons.Get("terrain/block"),   // ⭐ terrain authoring (mockup 2): the placed block's tab
+        "Ground"     => NodeEditor.Core.Widgets.Icons.Get("earth/mound"),     // ⭐ CE-4592 (mockup ground-shaping C): a ground shape's tab
         _ => null,
     };
 

@@ -48,6 +48,7 @@ namespace Hrot.UI.Common.Adapters
         private Hrot.UI.Common.AddEntity.TerrainDrawOptions? _terrainDraw;
         Hrot.UI.Common.AddEntity.TerrainDrawOptions? Hrot.UI.Common.AddEntity.ITerrainDrawSource.Options => _terrainDraw;
         IReadOnlyList<System.Numerics.Vector2> Hrot.UI.Common.AddEntity.ITerrainDrawSource.Points => (IReadOnlyList<System.Numerics.Vector2>?)_areaArm?.ActiveGizmo?.Session.Points ?? System.Array.Empty<System.Numerics.Vector2>();
+        Hrot.UI.Common.AddEntity.TerrainGhostContext? Hrot.UI.Common.AddEntity.ITerrainDrawSource.Context => TerrainContext?.Invoke();   // ⭐ CE-4592 — the ghost's context: the ground read-outs
         void Hrot.UI.Common.AddEntity.ITerrainDrawSource.Finish() => _areaArm?.ActiveGizmo?.OnKeyEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.Enter, true);
         void Hrot.UI.Common.AddEntity.ITerrainDrawSource.Cancel() => _areaArm?.ActiveGizmo?.OnKeyEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.Escape, true);
         /// <summary>⭐ Terrain authoring follow-up 2 — the scatter recipes the drawing panel offers (the host sets them from the recipes that carry a <c>scatter</c> section); empty ⇒ none.</summary>

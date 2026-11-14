@@ -872,3 +872,75 @@ saved and the edited ground agree by construction; and the re-level runs LAST, s
 
 Rails `TerrainWorldMergeTests.CE4592_AHillOverARoad_ReLevelsTheRoadAcrossItsWidth`, `CE4593_ADitchAcrossARoad_StopsAtTheRoad`. ⭐ Lane decision [R-5028](blueprints/RULINGS.md) (R-5028: the road under a ground change is re-levelled from the road graph).
 
+
+### 9.16 As built — P-5 part 2b / P-6 Details: the draw panel's rows, the Ground tab, the ONE effect read-out *(`terrain` lane, `2026-11-14`, CE-4592 / CE-4593; cross-lane into the ui lane's panels — said)*
+
+```mermaid
+classDiagram
+  class GroundEffect {
+    +Of(base, roads, assets, mode, value, points)$ GroundEffect
+    +KeyOf(mode, value, points)$ ulong
+    +RoadGrade float
+    +Area float
+    +Change float
+    +HousesKept int
+    +RoadsKept int
+    +CellMin Vector2[]
+    +CellDelta float[]
+  }
+  class TerrainDrawOptions {
+    +IsGround bool
+    +IsDitch bool
+    +GroundValue float?
+    +SetMode(mode)
+    +EffectOf(points, ctx) GroundEffect
+    +Born(comps)
+  }
+  class TerrainDrawPanel {
+    +Draw()
+    +Hints(fx)$ (Line1, Warn, Line2)
+  }
+  class ITerrainDrawSource {
+    <<interface>>
+    +Context TerrainGhostContext
+  }
+  class GroundFeatureDetailsView {
+    +Draw(ctx, idScope)
+    +Effect rows
+  }
+  class GroundFeatureOps {
+    +SetMode(world, e, mode, value)$
+    +SetValue(world, e, value)$
+  }
+  class TerrainGhostContextCache {
+    +Get() TerrainGhostContext
+  }
+  class TerrainWorldMerge
+  class OverlayExpansion
+  TerrainDrawPanel --> ITerrainDrawSource : reads
+  ITerrainDrawSource --> TerrainDrawOptions
+  TerrainDrawOptions --> GroundEffect : cached by KeyOf
+  GroundFeatureDetailsView --> GroundEffect : cached by KeyOf
+  GroundFeatureDetailsView --> GroundFeatureOps : one edit step each
+  GroundEffect ..> OverlayExpansion : WorldDocument with roads
+  GroundEffect ..> TerrainWorldMerge : the merge every node runs
+  ITerrainDrawSource ..> TerrainGhostContextCache : the editor's ONE cache
+  GroundFeatureDetailsView ..> TerrainGhostContextCache
+```
+*What it shows that prose hid: the draw panel's hint and the Details Effect section are two READERS of one measurement, and that measurement is the save's own
+merge (the ONE `WorldDocument` + `TerrainWorldMerge`) — so a read-out cannot say something the ground will not do. The editor holds ONE terrain context for the ghost,
+the panel and the tab (it was a cache per caller).*
+
+| claim | code — as built | design / mockup |
+|---|---|---|
+| ⛔ a defect fixed | `TerrainDrawOptions.Born` gave every drawn feature the line height and a random seed — a drawn Raise rose by 0 m with a random draw order (part 2a railed only `BornWith`). Now a ground shape keeps its value and the birth's draw order | G-14, V-28 |
+| the draw panel | Ground: *Ground — click to add a point*, Mode Level · Raise · Lower, *Raise by* (typed or the default), the skirt, *1.2 ha · Enter ends*, then the two hint lines; Ditch: Preset Ditch · Anti-tank ditch, *Depth*, *64 m · Enter ends* | mockup B (draw panel), D |
+| the hints | grade amber over 15 % (G-19 — shown, never refused), what is kept out; a ditch *stops at the road — G-29* | mockup B / D hint lines |
+| the Ground tab | Mode Level to Z · Raise by dZ · Lower by dZ · Crater (greyed, V-14); the value; Skirt; Effect: grade · area + change · kept out · draw order (*drawn over Raise 1 — the newest wins*) · the SUMO line | mockup C |
+| the ditch | Preset Ditch · Anti-tank ditch · Foxhole (a line cannot become a click); Depth; Width, Bank slope; Effect: cover by stance, vehicles closed, infantry passes, the road stop, length | mockup D |
+| no per-frame allocation | the effect, the read-outs, the texts and the points are rebuilt on a key (mode, value, points, polyline version) — a user action | R-2084 |
+| ⚠ deviations from the mockup, said | the Skirt / Width / Bank slope are READ-OUTS (derived, R-5026 — no fields until the sibling component V-27); no Seed row (a shape's seed is its draw order); the hint lines stand in the draw panel until the map tint (below) draws them on the ghost | mockup B, C, D |
+| ⚠ not yet | the 2-D tint of the change while drawing (the effect already carries its cells: `CellMin` / `CellDelta`), the coarse-grid warning (G-37) | mockup B, E |
+
+Rails `GroundEffectTests` (the birth — red-proved on the old `Born`; the effect), `TerrainDrawPanelFrameRail.DrawingAGroundArea_…` and `GroundFeatureDetailsViewTests` (real frames, Xvfb).
+

@@ -606,6 +606,39 @@ namespace Fdp.Toolkit.Terrain
             return steepest;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4592</c> (G-19) — the same read-out over road CORRIDOR lines (<see cref="TerrainRoads.Corridors"/> — what the editor holds while drawing, no road blob):
+        /// the steepest rise ÷ run, every <paramref name="stepMetres"/> m, along every line that passes within the shape's reach, on <paramref name="world"/>'s ground.
+        /// </summary>
+        public static float SteepestRoadGrade(TerrainWorld world, IReadOnlyList<RoadCorridor> roads, in GroundShape shape, float stepMetres = 2f)
+        {
+            if (world.Height == null || roads.Count == 0) return 0f;
+            float skirt = SkirtOf(shape, world.Height);
+            var (min, max) = Box(shape.Polygon);
+            min -= new Vector2(skirt); max += new Vector2(skirt);
+            float steepest = 0f;
+            for (int i = 0; i < roads.Count; i++)
+            {
+                var line = roads[i].Line;
+                for (int j = 0; j + 1 < line.Length; j++)
+                {
+                    var a = line[j]; var b = line[j + 1];
+                    var lo = Vector2.Min(a, b); var hi = Vector2.Max(a, b);
+                    if (hi.X < min.X || lo.X > max.X || hi.Y < min.Y || lo.Y > max.Y) continue;
+                    int n = Math.Max(1, (int)MathF.Ceiling(Vector2.Distance(a, b) / stepMetres));
+                    var prev = a; float prevZ = world.GroundHeightAt(a.X, a.Y);
+                    for (int k = 1; k <= n; k++)
+                    {
+                        var p = Vector2.Lerp(a, b, (float)k / n);
+                        float z = world.GroundHeightAt(p.X, p.Y), run = Vector2.Distance(p, prev);
+                        if (run > 1e-3f && p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y) steepest = MathF.Max(steepest, MathF.Abs(z - prevZ) / run);
+                        prev = p; prevZ = z;
+                    }
+                }
+            }
+            return steepest;
+        }
+
         /// <summary>1 inside the polygon, a smoothstep down to 0 over <paramref name="skirt"/> outside it.</summary>
         private static float Weight(Vector2[] poly, Vector2 p, float skirt)
         {
