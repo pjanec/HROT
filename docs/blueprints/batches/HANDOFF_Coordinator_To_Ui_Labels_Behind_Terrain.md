@@ -1,58 +1,44 @@
 <!--STATUS
-state: ⛔ HELD — do NOT start: the coordinator writes the design first (user, 2026-11-14: "no the design must happen here"); this file will be re-stamped as build-only
+state: LIVE — dispatched, not started (re-stamped as BUILD-ONLY under rule 1a: the design is the coordinator's, Map 3D §6am)
 updated: 2026-11-14
 current-answer: the whole file
 related-designs:
-  - ../../DESIGN_Map_3D_Mode.md — ⭐ OWNS M13 (cards drawn on top — this REVERSES it for the default), §3.4 / §3.6 the card and its rows, §6ak the render bands (D-6 the pick records only drawn boxes, D-7 a selected unit always full)
-  - ../../DESIGN_People_Display.md — §7e U20 / U20a the card's rows (the mind-state bar), §7f the health bar
-  - ../../UX/DESIGN_Colour_Icons.md — the row icons and colours
+  - ../../DESIGN_Map_3D_Mode.md — ⭐ §6am THE design (INVENTORY, classes, one frame, who draws what, D-1…D-10, acceptance) — build it; ⚠ M13 is superseded for the default
+  - ../../DESIGN_People_Display.md — §7e / §7f the card's mind-state and health rows (linked both ways)
+  - ../../UX/labels-behind-terrain.svg — the mockup (scope: the cards, place labels and the Units layer rows; the 3-D scene is context)
 -->
 
-# HANDOFF — coordinator → `ui`: unit labels hidden behind terrain, one card per unit, no free-floating unit text (CE-4582)
+# HANDOFF — coordinator → `ui`: BUILD unit cards hidden behind terrain, one card per unit (CE-4582, Map 3D §6am)
 
-**For:** the `ui` lane. **From:** coordinator. **Dispatched at `c59a92d81`**; ⛔ **scope FROZEN there** — later documents are FYI; one that
-invalidates an item ⇒ STOP that item and report it (R-106). ⭐ Autonomous, no questions: the decisions are the user's (below); what is left open is
-decided the closest way and named in the report.
-🔒 User, `2026-11-14`: *"the ui lane can take the labels hiding behind obstacles"*. The task and every decision are in
-[CE-4582](../Blueprint_Issues_Tracker.md) — ⭐ **read the row end to end; it is the frame.**
+**For:** the `ui` lane. **From:** coordinator. **Dispatched at `<sha>`**; ⛔ **scope FROZEN there** — later documents are FYI; one that
+invalidates an item ⇒ STOP that item and report it (R-106). ⭐ Autonomous, no questions. 🔒 User, `2026-11-14`: *"the ui lane can take the labels
+hiding behind obstacles"* · *"no the design must happen here"* — ⭐ **the design is done: [Map 3D §6am](../../DESIGN_Map_3D_Mode.md). You
+BUILD it; a deviation is folded back into §6am (obligation ⑤), never decided silently.**
 
 ## 0. Start
 
-`git fetch origin ui coordinator` · on `ui`, `git merge origin/coordinator` (it carries the parallel programme, the threaded editor and CE-4582's
-row) · restore the test projects you will run once · push `chore: started labels behind terrain at <sha>`.
+`git fetch origin ui coordinator` · on `ui`, `git merge origin/coordinator` · restore the test projects you will run once · push
+`chore: started labels behind terrain at <sha>`. Read §6am end to end and check its diagrams against the code before building (obligation ③).
 
-## 1. The frame — decided by the user (CE-4582)
+## 1. The items — in this order
 
-| # | decided | from the row |
+| # | §6am | build |
 |---|---|---|
-| F-1 | **(A) depth-tested cards**: after the 3-D pass each card / label is drawn at its anchor's depth, depth TEST on, depth WRITE off, against the scene's depth buffer; a card half behind a ridge is cut at the ridge | ⛔ rejected B (a ray per label — ms per frame at 1 000 labels on the UI thread), C (depth read-back — no GL interop exists) |
-| F-2 | **trees are drawn AFTER the cards** — only ground and buildings hide a card | a unit in a forest keeps its card |
-| F-3 | **the selected unit's card is always visible** | as its body is always Full (§6ak D-7) |
-| F-4 | **a layers-panel toggle**, Units ▸ *Hide labels behind terrain*, ON by default; OFF = today's on-top cards | reverses M13 for the default |
-| F-5 | **one occlusion decision per UNIT, never per piece** — the whole label stack hides together | the stress bar / BROKEN rows included |
-| F-6 | **no orphan card**: an optional row (Mind state, Concealed, …) draws only while its card's Labels layer is on — the row is an optional PART of the label | today Labels off + Mind state on leaves a card holding only the bar |
-| F-7 | **no free-floating per-unit text** — every per-unit text becomes a row of ITS card, keeping its own layer (Actions, Utility, UnitDetails, SquadCommand) and showing only while Labels is on | the row's list: `ActionStatusGizmo:57`, `UtilityDecisionGizmo:30`, `StanceGizmo:30`, `EntityRotationGizmo:60`, `PeekAndFireGizmo:60`, `SquadGizmo:40` (commander) + `:54` (each member's own card), `CommandPictureGizmo:46` (commander) + `:93` (the subordinate's card); `EffectStateGizmo:39`'s free fallback |
-| F-8 | **text at a PLACE stays free but is depth-tested the same way** | the row's list: `PeekAndFireGizmo:54`, `HillAttackGizmo:89`, `CommandPictureGizmo:81/:99`, `MissionPresentationGizmo:63`, `EqsSensorGizmo:127`, `DetonationGizmo:62`, `ProjectilePresentationGizmo:76`, `ChargeMarker:51`, `NamedPointGizmo`, `SectorAreasGizmo`, `DangerAreaGizmo`, `SpatialGridGizmo`, `ShapeDoneMark` |
-| F-9 | **the 3-D bodies honour Units ▸ Entities** — a body hidden by it is not drawn and not pickable | 📐 `EntityBodyLayer3D` reads no layer mask; the Entities row (`LayerControlGizmo.cs:106`) gates only the gizmo symbols |
+| L-1 | D-6 | the no-orphan-card rule in `EntityCards.Card` (`LabelsLayer` defined once in Contracts) |
+| L-2 | D-7 | the 8 free per-unit text sites → card rows on their own layers, the row numbers of §6am's mockup B; a member's line on the member's card |
+| L-3 | D-9 | the 3-D bodies honour Units ▸ Entities (not drawn, not pickable) |
+| L-4 | D-1, D-2, D-4, D-5, D-8 | **step 1**: `CardOcclusion` — cards and place labels depth-tested at their anchor's depth; the selected unit on top; the Units ▸ *Hide labels behind terrain* row, ON by default |
+| L-5 | D-3 | **step 2**: the occluder depth pass (ground + objects, half size, depth only) and the card shader — ⭐ **measured against the budget (≤ 1.0 ms added at §6ak.5's whole-terrain and street views)**; over budget ⇒ keep step 1 and report the numbers for the user. ⚠ Linux under Xvfb is software GL (not representative) — there it is a smoke test only; the budget needs the Windows session, so if it was not measured on Windows, leave step 2 behind a switch, default OFF, and say so |
 
-## 2. Step 1 — the design (yours, before code)
-
-Per CLAUDE.md (UML, diagram first, mockup before a UI build): **re-verify the row's line numbers** (they were measured on `exp/threaded-build`
-today; grep each), then extend **`DESIGN_Map_3D_Mode.md`** with a new section — `INVENTORY` (graph + grep, the queries named), a
-`classDiagram` (the card, its rows, who adds them, the occlusion pass), a `sequenceDiagram` (one frame: 3-D pass → cards depth-tested → trees),
-a module diagram (who draws what, each frame), and **a mockup** over `scripts/mockup_kit.py` (a ridge cutting a card; the selected card on top;
-a member's card with the moved rows; the layers-panel toggle). Mark M13 superseded for the default; link People Display §7e both ways. Set the
-card's row order there (People Display / Map 3D §3.6 carry today's slots). ⛔ Commit the design before the build.
-
-## 3. Step 2 — the build, and its checks
+## 2. Checks
 
 | | |
 |---|---|
-| ⭐ T-1 first | the card / label / layer suites and the 3-D frame rails — `Map3DFrameRail` and every `…FrameRail` the change touches, run under **`xvfb-run -a`** (they skip silently without a display) |
-| ⭐ new rails | a card behind a ridge is cut / hidden and in front is drawn; the selected one always drawn; toggle OFF ⇒ today's on-top cards; Labels off ⇒ no orphan row; a moved row appears on the right card (the member's E/R on the member, not the commander); Entities off ⇒ no body, no pick |
-| ⛔ hot path (R-2084) | the occlusion pass and the card rows allocate nothing per frame — prove it (`GC.GetAllocatedBytesForCurrentThread` across a steady frame) |
-| ⭐ fidelity (R-4146) | render each mockup state, compare, fix until they match; the side-by-side in the report (scratchpad, ⛔ not in git) |
-| ⭐ threaded editor | the cards are drawn from the UI world A (the threaded node is ON by default) — run the rails with it on and off |
-| ⭐ as-built | into Map 3D's new section (obligation ⑤); the row ticked; ids allocated from ui's block |
+| ⭐ T-1 first | the card / label / layer suites; `Map3DFrameRail` and every `…FrameRail` touched, under **`xvfb-run -a`** (they skip silently without a display) |
+| ⭐ §6am acceptance 1–7 | each a rail, each red-proved by one compiling mutation |
+| ⛔ R-2084 | 0 B per steady frame, proved |
+| ⭐ R-4146 fidelity | render the mockup's states A–E, compare, fix until they match; the side-by-side in the report (scratchpad, ⛔ not in git) |
+| ⭐ threaded editor | the rails with the threaded node on and off (it is ON by default) |
+| ⭐ as-built | §6am gets an "as built" sub-section (deviations argued, prior text marked superseded); CE-4582 ticked; ids from ui's block |
 
 Report per the gate-report contract (CLAUDE.md rule 8).
