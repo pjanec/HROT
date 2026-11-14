@@ -653,3 +653,131 @@ pad part in the overlay (G-5 said "a pad part"); the FDP save takes the net re-e
 
 Rails: `TerrainWorldMergeTests.CE4597_*` (a pad house cut into the base, a no-pad house untouched, the base unchanged), `TerrainBakeTests.CE4597_*` (the saved
 store keeps the pad, the net hook called on the saved net) — red-proved (no ④c ⇒ red).
+
+### 9.11 As built — P-4, parts 1 + 2: the crater record, the cratered ground, the bake, the navmesh and the roads *(`terrain` lane, `2026-11-14`, CE-4591)*
+
+```mermaid
+classDiagram
+  direction LR
+  class AreaEffectSystem {
+    <<existing, Muscle, EXTENDED>>
+    + MakeCrater beside BreachWalls
+  }
+  class CraterRule {
+    <<NEW static>>
+    TryDecide(table, world, burst, kg, now) Crater
+  }
+  class CraterRuleTable {
+    <<NEW, craters.json>>
+    minKg · radius / depth / rim per cbrt kg
+    maxBurstHeightPerRadius · largeRadiusM
+    coverAfterSeconds small / large
+  }
+  class CraterEvent {
+    <<NEW local event 5103>>
+  }
+  class GroundDamageSystem {
+    <<NEW, the BuildingDamageSystem shape>>
+    one entity per cell x deciding node
+    pending list · capacity 16 · owner only · no replay
+  }
+  class GroundDamage {
+    <<NEW unmanaged component 493, recorded>>
+    CellX, CellY, Count
+    X Y Radius Depth Rim BornAt Kind [16]
+  }
+  class Crater {
+    <<NEW record struct>>
+    TryOffset(x, y) - bowl, rim, + - x / sqrt only
+  }
+  class CraterTable {
+    <<NEW, the view's table>>
+    Of(view) - content-sorted, cached per thread
+    Offset(x, y) - min over the craters
+    GroundCrosses(world, a, b) - the cratered ground trace
+  }
+  class DoorStates {
+    <<existing, EXTENDED>>
+    + Craters
+  }
+  class TerrainWorld {
+    <<existing, EXTENDED>>
+    + GroundCrosses(a, b, doors)
+    + GroundHeightAt(x, y, doors)
+    HasLiveState = true
+  }
+  class TerrainWorldQuery {
+    <<existing, EXTENDED>>
+    GroundHeightAt / SurfaceZ / HullSurfaceZ / ResolveLevel cratered
+  }
+  AreaEffectSystem ..> CraterRule
+  CraterRule ..> CraterRuleTable
+  AreaEffectSystem --> CraterEvent : publishes
+  GroundDamageSystem ..> CraterEvent : reads
+  GroundDamageSystem --> GroundDamage : writes (owner)
+  CraterTable ..> GroundDamage : unions every entity
+  DoorStates --> CraterTable
+  TerrainWorld ..> DoorStates : sight, fire, ground
+  TerrainWorldQuery --> DoorStates
+  GroundDamage --> Crater
+```
+*What it shows that prose hid: the design's "`CraterIndex` world singleton" is a TABLE ON THE VIEW (`DoorStates.Craters`), beside the breaches — the seam every
+sight / fire / ground caller already passes; nothing new is threaded through the ~30 callers, and a background snapshot sees ITS tick's craters.*
+
+```mermaid
+sequenceDiagram
+  participant AE as AreaEffectSystem (deciding node)
+  participant GS as GroundDamageSystem
+  participant GD as GroundDamage entity
+  participant DS as DoorStates.Of(view)
+  participant Q as sight / fire / mover
+  AE->>AE: CraterRule.TryDecide - kg, burst height, floor, water
+  AE->>GS: CraterEvent (next frame)
+  GS->>GD: write into this node's entity for the cell, else a creation request born holding it
+  Q->>DS: the view's table (rebuilt only when a GroundDamage changed)
+  DS-->>Q: Craters - GroundHeightAt / SurfaceZ / GroundCrosses answer from it, the same tick
+```
+*What it shows: no bake sits between the record and the simulation's answer (D-1) — the bake (part 2) only caches it for the navmesh and the 3-D mesh.*
+
+```mermaid
+graph TD
+  REC[GroundDamage records - replicated] --> DS[DoorStates.Of - the view's CraterTable]
+  DS --> Q[sight / fire / ground answers - the same tick - every node]
+  TICK[every node's tick - serial] --> BK[StaticObstacleBakeSystem - CraterTable.Hash in the signature]
+  BK --> TASK[background bake - TerrainObstacles.With - CraterTable.Bake into Height]
+  TASK --> NAV[RecastNavmeshFactory - NavDoorways.Craters - CraterArea 4]
+  TASK --> MESH[3-D chunks under CraterDirt's rectangles]
+  NAV --> FIL[DoorAwareQueryFilter - no vehicle in a crater]
+  TICK2[node tick - serial] --> RB[BridgeClosureSystem - RoadBlockage.AddCraters]
+  RB --> NET[our road graph without the segment + SUMO CloseEdge]
+  DISP[display node - no navmesh factory] -.heights only.-> TASK
+```
+*What it shows that prose hid: the craters reach the simulation by ONE edge (the view's table) and everything else — navmesh, mesh, roads — by derivations
+that may lag; a display node runs the bake for the HEIGHTS (V-6) and nothing reads a navmesh there.*
+
+| claim | code — as built | design |
+|---|---|---|
+| a crater is decided once, by the deciding node, from the warhead's charge | `AreaEffectSystem.MakeCrater` → `CraterRule.TryDecide` (`craters.json`: cube-root sizes, none below 0.5 kg, none for an air burst higher than half the radius, none on a building's floor or on water); the record is what crosses the wire (V-10: only the decider takes a cube root) | G-7 |
+| one entity per (cell, deciding node), content-sorted union | `GroundDamageSystem` (the `BuildingDamageSystem` shape: pending list, capacity 16 ⇒ a second entity, owner-only, never in a replay); `CraterTable.Of` sorts by content and drops exact duplicates | V-7 |
+| the combine is commutative | the ground offset at a point is the MINIMUM of the offsets of the craters whose disc holds it — two records in either order give the same bits | V-7 |
+| the truth is analytic, the same tick, on every node | `TerrainWorldQuery.GroundHeightAt / SurfaceZ / HullSurfaceZ / ResolveLevel` and the terrain's ground trace (`TerrainWorld.GroundCrosses` — sight, `QuerySight`, `QueryFire`) read `DoorStates.Craters`; with no crater near the line the grid's own walk answers, unchanged | D-1 |
+| the profile is the same on every node | `Crater.TryOffset`: a parabolic bowl from −depth to +rim at the radius, a linear rim to 0 at 1.4 × the radius; + − × ÷ √ only | V-10 |
+| 0 B a steady frame | `CraterTable.Of` hands back the same table while no `GroundDamage` was written or added (the `BuildingDamageTable` stamp) | R-2084, R-220 |
+| ⭐ part 2 — the bake CACHES the craters, on every node | `StaticObstacleBakeSystem` adds the view's `CraterTable.Hash` to its input signature on EVERY node (a display node too — V-6); `TerrainResidency.BakeObstacles(…, craters)` → `TerrainObstacles.With(…, craters)`: the derived world's `Height` = `CraterTable.Bake(bare)` (copy-on-write tiles, every post = bare post + offset — order-free), `BareHeight` = the ground without them, `HeightCraters` = which | D-1, V-6, G-6 |
+| ⭐ never counted twice | the simulation's answers read `BareHeight` (`SimHeight`, `BareGroundHeightAt`) + the VIEW's craters; a reader with no view (the mesh, the navmesh, `CachedGroundHeight`, the woods) reads the cached `Height` — so the truth is immediate and a crater the view no longer holds (a seek back) is gone the same tick, while the cache lags one bake | D-1, G-8 |
+| ⭐ the dirty rectangle is the crater's disc | `TerrainResidency.CraterDirt`: every crater added since the last committed bake, and every one gone, adds its changed disc's box — only those navmesh tiles and 3-D chunks rebuild | V-4 |
+| ⭐ every vehicle keeps out, infantry crosses | `NavDoorways.Craters` — a 12-gon volume round each baked crater's changed disc, area `CraterArea` (4), marked after the woods; `DoorAwareQueryFilter.PassFilter` refuses it to a mover that cannot open doors (every vehicle layer); infantry's cost is plain. The volumes are part of each tile's cache key (as the woods') | D-2 R-4233, G-9 |
+| ⭐ a crater across a road cuts it | `BridgeClosureSystem` re-judges when the view's crater table changes; `RoadBlockage.AddCraters` adds each BOWL (radius, a 16-gon) to the blockers — a bowl spanning every lane closes the segment in our graph and the SUMO edge; a record gone re-opens it | G-10 |
+| ⭐ the record crosses the wire | `dtGroundDamage` (184, no group — the decider keeps it): `EntityGroundDamageEgressTranslator` / `…IngressTranslator` (the breach pair's shape; a crater's centre is terrain-local, nothing to resolve), `EntityGroundDamage { EntityId, CellX, CellY, List<DdsCrater> }` — Reliable, TransientLocal, KeepLast(1): a late joiner gets every crater; the replica's view answers the cratered ground at once | G-7, D-1 |
+| ⚠ said, not built | a crater over PART of a road is no SUMO lane obstacle (V-24 wants a synthetic body id); SUMO cars keep the lane, our vehicles keep out by the navmesh | V-24 |
+
+⭐ **Lane decisions (for the user's review):** [R-5019](blueprints/RULINGS.md) the `craters.json` starting values; [R-5020](blueprints/RULINGS.md) the "index" is
+the VIEW's table on `DoorStates` (R-219: a world singleton is shared by every background snapshot), and `HasLiveState` is now true for every world (a
+crater can land anywhere); [R-5021](blueprints/RULINGS.md) a crater on a crater does not deepen it (the minimum — the commutative combine V-7 asks for).
+
+Rails: `CraterTests` — the rule, the profile and the commutative table, the same-tick ground height, a man in the crater hidden by its rim (sight and fire),
+0 B steady, the burst → record chain and the capacity rule; `CraterBakeTests` — the bake caches the crater (read once, not twice), a vehicle routes round it
+and infantry crosses, a display node bakes it, its disc is the dirty rectangle, a seek back restores the ground; `BridgeClosureTests.CE4591_*` — a crater across a
+road cuts it, a small one beside it does not, a seek back re-opens it; `EntityGroundDamageTranslatorTests` — the ordinal pinned, the sample round-trips byte for
+byte and the replica's view is cratered. Not yet (part 3): the save section, cover after
+`coverAfterSeconds` (G-35 / V-13), the decal (V-11), re-grounding (V-8 / V-12), `RoadHeights` (V-20), the stepped hash.

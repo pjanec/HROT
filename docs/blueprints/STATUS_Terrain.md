@@ -32,6 +32,9 @@ related-designs:
 | [R-5016](RULINGS.md) | push / grace / cue state is per-hull process state, not recorded | a break decided across a save mid-push |
 | [R-5017](RULINGS.md) | V-17 feedback split into B-3b | — |
 | [R-5018](RULINGS.md) | a scenario house's pad is applied at overlay merge (`TerrainWorldMerge.PadHeights`), against the base ground; *Save terrain as* writes the padded store and re-elevates the net | pads wanted only at save, not live ⇒ move it to `SaveAs` |
+| [R-5019](RULINGS.md) | `craters.json` starting values (radius 0.8 / depth 0.35 / rim 0.08 m per ∛kg; none below 0.5 kg or for an air burst; large from 3 m; cover after 30 / 60 s) | a playtest |
+| [R-5020](RULINGS.md) | the crater "index" is the view's table on `DoorStates` (not a world singleton — R-219); every world now has live state | a caller that needs craters without a view |
+| [R-5021](RULINGS.md) | a crater on a crater does not deepen it (overlaps combine by the minimum) | a barrage that must dig deeper |
 | [R-5012](RULINGS.md) | D-3's road-to-façade ramp is the two skirts meeting; D-4 and V-18 left to their own steps | a step between a road and a house on a real town |
 
 ## 2. Tasks
@@ -47,7 +50,8 @@ related-designs:
 | **P-2** CE-4590 — road blockage: SUMO + our road graph | ✅ built | [Ground §9.9](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `BridgeClosureTests.CE4590_*` (red-proved); traffic suite 85/0; scenarios 2/0 |
 | **B-3** CE-4600 — a player's vehicle breaks barriers | 🟡 core built; ⛔ B-3b (dust, crash sound, HUD cue + mockup), barrage numbers (with P-4) | [Breaching §7.10](../DESIGN_Vehicle_Breaching.md); rails `CE4600_*` (red-proved); kinematics 110/0 under the parallel checks |
 | **P-3** CE-4597 — scenario house pads + *Save terrain as* | ✅ built | [Ground §9.10](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `TerrainWorldMergeTests.CE4597_*`, `TerrainBakeTests.CE4597_*` (red-proved) |
-| next | **P-4** CE-4591 — craters | |
+| **P-4** CE-4591 — craters, parts 1–2 + the wire | 🟡 built: the record, the rule, the cratered ground the same tick (D-1), the bake cache on every node (V-6), the dirty discs (V-4), nav areas closed to vehicles (D-2), the road cut (G-10), `dtGroundDamage` 184; ⛔ open: the save section, cover after the gases (G-35/V-13), the decal (V-11), re-grounding (V-8/V-12), `RoadHeights` (V-20), stepped-hash | [Ground §9.11](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `CraterTests`, `CraterBakeTests`, `EntityGroundDamageTranslatorTests`, `BridgeClosureTests.CE4591_*` |
+| next | **P-4** part 3 (save, cover, decal, re-grounding) — then B-6 | |
 
 ## 3. Gates
 
@@ -69,6 +73,11 @@ related-designs:
 | P-3: toolkit suite, full (T1) | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --no-build` | 5039 / 5 failed — the same 5 pre-existing S0 rails |
 | P-3: editor save | `Hrot.Editor.Tests --filter TerrainSave\|BlockOperations` | 3 / 1 — `EditorTerrainSourceServiceTests.E2_…IsGreyedWithItsReason` is pre-existing: the catalogue now falls back to the kept ground (`8ccb92a3`, `TerrainCatalog.KeptGroundOf`), so deleting the base no longer greys the terrain; test not touched by this lane |
 
+| P-4: toolkit suite, full (T1) | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --no-build` | 5045 / 6 failed → after typing `BornAt` as `SimInstant`: the 5 pre-existing S0 rails only (crater + S0 + breach + kinematics filter: 179 / 3, all pre-existing) |
+| P-4: SimHost bake / road / wire | `--filter CraterBakeTests\|BridgeClosureTests\|StaticObstacleBakeTests\|BuildingDamageBakeTests\|LiveOverlayBakeTests\|EntityBuildingDamageTranslatorTests` then `…\|EntityGroundDamageTranslatorTests` | 48 / 0 · 14 / 0 |
+| P-4: parallel checks | `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` on `CraterTests\|CarKinematicsSystemTests\|BuildingDamageSystemTests`; scenarios roadblock-blast + wreck-blocks-street | 128 / 0; scenarios 2 / 0 after declaring `SensorMount` in `BrainReads` (cross-lane, behaviors: an undeclared read in `ThreatDanger` → `EqsTerrainSight.Mount`, not crater code — green without the checks) |
+| P-4: red-proofs | `MakeCrater` dropped · the query's ground back to the cache · `NavDoorways.Craters` dropped · `AddCraters` dropped | each turns its rail red (the navmesh one only on a SHALLOW crater — a deep bowl's walls are already over the vehicle slope) |
+
 ⚠ Not yet run: `stepped-hash.py --threads 1,4,8`, drawing rails under Xvfb (nothing drawn changed), the full solution build.
 
 ## 4. Designs updated · ids
@@ -76,4 +85,5 @@ related-designs:
 - `DESIGN_Vehicle_Breaching.md` §7.8 (B-1 as built, CE-6014) · `DESIGN_Ground_Patches_And_Road_Blockage.md` §9.6 (P-0 as built) · `CAPABILITIES.md` §2b (✅ every wall stops a vehicle)
 - `DESIGN_Vehicle_Breaching.md` §7.9 (B-2 as built) · `CAPABILITIES.md` §2b (✅ blasts breach garden walls)
 - ids: R-5000…R-5008. No new CE rows (B-1, P-0, B-2 and CE-6014 are existing rows).
-- ⚠ cross-lane edits (said): ui's `TerrainPlan2D` / `TerrainLayer2D` (the plan keyed by wall group), the network lane's `EntityBuildingDamageTranslators` (the "terrain resident" gate counts free walls).
+- ⚠ cross-lane edits (said): P-4 — `BrainReads` declares `SensorMount` (behaviors), `EntityBodyLayer3D` skips the ground-damage TKB (ui), `SharedTranslatorPack` / `NedOwnershipGroupBinding` / `AllDescriptors` gain `dtGroundDamage` (network).
+- ⚠ earlier cross-lane edits: ui's `TerrainPlan2D` / `TerrainLayer2D` (the plan keyed by wall group), the network lane's `EntityBuildingDamageTranslators` (the "terrain resident" gate counts free walls).

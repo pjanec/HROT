@@ -111,9 +111,17 @@ namespace Fdp.Toolkit.Terrain
         /// held by an entity, a door key or a breach stays valid. After the bake <c>SurfaceZ</c>, <c>SurfacesAt</c> and <c>InsideFootprint</c> answer for the damaged world: the pieces are not there.
         /// </summary>
         public static TerrainWorld With(TerrainWorld terrain, IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage)
+            => With(terrain, obstacles, damage, null);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4591</c> (P-4 part 2) — and the view's craters laid into the height grid (<see cref="CraterTable.Bake"/>): the derived world's <see cref="TerrainWorld.Height"/> holds them
+        /// (the navmesh, the 3-D mesh and every reader without a view see them), its <see cref="TerrainWorld.BareHeight"/> the ground without them (the simulation's truth adds the
+        /// view's own craters to it — D-1), its <see cref="TerrainWorld.HeightCraters"/> which they are (the navmesh's crater areas).
+        /// </summary>
+        public static TerrainWorld With(TerrainWorld terrain, IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, CraterTable? craters)
         {
             bool overlay = damage != null && damage.NavHash != 0;
-            if (obstacles.Count == 0 && !overlay) return terrain;
+            if (obstacles.Count == 0 && !overlay && craters == null) return terrain;
             var prisms = new List<TerrainPrism>(terrain.Prisms.Count + obstacles.Count);
             var walkables = terrain.Walkables;
             IReadOnlyList<int> bakedCollapse = terrain.BakedCollapsed;
@@ -177,7 +185,9 @@ namespace Fdp.Toolkit.Terrain
                 BoundsMin = min,
                 BoundsMax = max,
                 GroundZ   = terrain.GroundZ,
-                Height    = terrain.Height,   // ⭐ CE-1034 H1
+                Height    = craters != null && terrain.SimHeight is { } bare ? craters.Bake(bare) : terrain.Height,   // ⭐ CE-1034 H1; ⭐ CE-4591 — the craters baked in (a cache)
+                BareHeight = craters != null ? terrain.SimHeight : terrain.BareHeight,
+                HeightCraters = craters,
                 Prisms    = prisms,
                 Walkables = walkables,
                 BakedCollapsed = bakedCollapse,

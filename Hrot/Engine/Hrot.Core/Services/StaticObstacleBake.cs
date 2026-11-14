@@ -156,6 +156,9 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         //   on a node that does world queries ONLY: a display node's terrain is never rewritten by damage.
         var damage = bakery.Residency.BakesDamage ? DamageOf(world) : null;
         ulong navHash = damage?.NavHash ?? 0UL;
+        // ⭐ CE-4591 (P-4 part 2, V-6) — the craters join the input hash on EVERY node: the ground they lower is drawn everywhere
+        var craters = CratersOf(world);
+        if (craters != null) navHash = navHash == 0 ? craters.Hash : (navHash ^ craters.Hash) * 1099511628211UL;
         ulong signature = obstacleSig;
         if (navHash != 0) { signature ^= navHash; signature *= 1099511628211UL; }
         // ⭐ O-7 B — the editor's blocks and features join the input hash (allocation-free: a cached query, no strings)
@@ -179,14 +182,14 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         else if (!overdue && now - _seenAt < DebounceSeconds) return;
 
         _changedSince = double.NaN;
-        StartBake(world, bakery.Residency, damage, signature, hasOverlay);
+        StartBake(world, bakery.Residency, damage, signature, hasOverlay, craters);
     }
 
     /// <summary>
     /// ⭐ ONE bake for everything that has gathered — a whole scenario's obstacles arrive within the quiet period. ⚠ CE-3436: its OWN method on purpose — the task's lambda captures locals, and a lambda in
     /// <c>Execute</c> made the compiler allocate its closure object at the top of EVERY frame (measured: 56 B per steady frame).
     /// </summary>
-    private void StartBake(EntityRepository world, TerrainResidency residency, BuildingDamageTable? damage, ulong signature, bool hasOverlay)
+    private void StartBake(EntityRepository world, TerrainResidency residency, BuildingDamageTable? damage, ulong signature, bool hasOverlay, CraterTable? craters)
     {
         CollectPrisms(world, _prisms);   // ⭐ CE-3436 — only now (a bake is starting), never per frame
         var prisms = new List<TerrainPrism>(_prisms);
@@ -204,7 +207,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
                 var (@base, version, folder) = residency.ExpansionBase();
                 expanded = overlay.Expand(sources, @base, version, folder);
             }
-            return residency.BakeObstacles(prisms, damage, expanded);
+            return residency.BakeObstacles(prisms, damage, expanded, craters);
         });
     }
 
@@ -228,6 +231,11 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
             Ack(world, e);
         }
     }
+
+    /// <summary>⭐ CE-4591 — the craters this node's world holds (the view's <see cref="DoorStates.Craters"/>), or null.</summary>
+    private static CraterTable? CratersOf(EntityRepository world)
+        => world.IsComponentTypeRegistered<GroundDamage>() && world.HasSingletonManaged<TerrainWorld>() && world.GetSingletonManaged<TerrainWorld>() is { } t
+            ? DoorStates.Of(world, t).Craters : null;
 
     /// <summary>The building damage this node's world holds (the view's <see cref="DoorStates.Damage"/>), or null.</summary>
     private static BuildingDamageTable? DamageOf(EntityRepository world)

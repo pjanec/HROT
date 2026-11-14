@@ -144,7 +144,11 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainBlock>();
         world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainFeature>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.BuildingDamageEvent>();
-        world.RegisterEvent<Fdp.Toolkit.Terrain.ContactBreachEvent>();   // ⭐ CE-4600 (B-3) — a vehicle broke a barrier / met one too strong
+        world.RegisterEvent<Fdp.Toolkit.Terrain.ContactBreachEvent>();
+        // ⭐ CE-4591 (P-4, G-7) — the craters of one ground cell (dtGroundDamage): a runtime entity its deciding node owns, replicated, read by every view's
+        //   DoorStates.Craters (the cratered ground, D-1). The event is the local "a burst made this crater" the deciding node's system turns into the component.
+        world.RegisterComponent<Fdp.Toolkit.Terrain.GroundDamage>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.CraterEvent>();   // ⭐ CE-4600 (B-3) — a vehicle broke a barrier / met one too strong
         // ⭐ CE-3136 P-7a — static obstacles (a parked car, a sandbag wall …): terrain every node bakes. Shared: every node derives the
         //   marker from the TKB and receives the box (EntityObstacleShape). 📄 docs/DESIGN_Peek_And_Fire.md §9.
         world.RegisterComponent<Fdp.Toolkit.Terrain.StaticObstacle>();

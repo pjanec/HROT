@@ -276,6 +276,7 @@ namespace Fdp.Toolkit.Combat.Systems
 
             BreachDoors(repo, in evt, w, burst, terrain, doors, record);
             BreachWalls(repo, in evt, w, burst, terrain, doors, record);   // ⭐ CE-4391 S-1 (B-5) — the walls, by the same detonation
+            MakeCrater(repo, in evt, w, burst, terrain, record);           // ⭐ CE-4591 (P-4) — the ground, by the same detonation
             log.Add(record);
         }
 
@@ -427,6 +428,21 @@ namespace Fdp.Toolkit.Combat.Systems
         /// <para>⭐ The deciding point is the detonation: a round that stops at a wall bursts <c>BurstStandOffMetres</c> back along its flight
         /// (<c>BallisticsSystem</c>), so d ≈ 0 against the wall it hit. ⭐ The panels come from <see cref="TerrainWorld.BuildingPanels"/>, never a scan of every panel.</para>
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-4591</c> (P-4; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md G-7) — a burst with explosive in it on (or just above) open ground makes a
+        /// crater (<see cref="CraterRule"/> + <c>craters.json</c>), published as a <see cref="CraterEvent"/> its <see cref="GroundDamageSystem"/> writes into this
+        /// node's record. ⛔ A kinetic round or a non-lethal warhead makes none; ⛔ nor an air burst, a burst on water or on a building's floor.
+        /// </summary>
+        private static void MakeCrater(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst, TerrainWorld? terrain, DetonationRecord record)
+        {
+            if (terrain == null || w.ExplosiveKg <= 0f || NonLethalEffectOf(w.Kind) != HitEffect.Kinetic || !repo.Bus.IsRegistered<CraterEvent>()) return;
+            var now = (SimInstant)Fdp.Toolkit.Time.SimClock.Of(repo).TotalTime;
+            if (!CraterRule.TryDecide(CraterRuleTable.Shared, terrain, burst, w.ExplosiveKg, now, out var crater)) return;
+            repo.Bus.Publish(CraterEvent.Of(in crater, evt.Shooter));
+            record.Crater = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"crater r {crater.Radius:0.##} m, depth {crater.Depth:0.##} m at {crater.Centre.X:0.#}, {crater.Centre.Y:0.#}");
+        }
+
         private void BreachWalls(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst,
             TerrainWorld? terrain, DoorStates? doors, DetonationRecord record)
         {

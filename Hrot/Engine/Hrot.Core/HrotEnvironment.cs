@@ -52,6 +52,7 @@ namespace Hrot.Map.Common
             Hrot.Core.Tkb.VoiceTkbCatalog.RegisterAll(tkb);      // ⭐ CE-2372 — the voice lines (AQ105 F): a clip per utterance kind, a voice per side
             Hrot.Core.Tkb.MapCameraTkb.RegisterAll(tkb);         // ⭐ CE-1033 S5 — the map camera entity's type (R-260)
             Hrot.Core.Tkb.AreaEffectCloudTkb.RegisterAll(tkb);   // ⭐ CE-3219 part 3 — a gas / smoke cloud entity's type
+            Hrot.Core.Tkb.GroundDamageTkb.RegisterAll(tkb);      // ⭐ CE-4591 (P-4) — a ground cell's craters
             Hrot.Core.Tkb.BuildingDamageTkb.RegisterAll(tkb);    // ⭐ CE-4391 S-1 — a building's breaches (the entity a detonation's wall breach is written to)
             RouteTkbExtensions.ApplyRoutePlanToBlueprint(tkb);
             // ⭐ CE-3230 (B-8, H-1; DESIGN_Civilians_And_Crowd_Control §7.9) — every person type ends with its HANDS mount (AW-7)

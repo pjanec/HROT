@@ -32,6 +32,28 @@ public static class RoadBlockage
     }
 
     /// <summary>
+    /// ⭐ <c>CE-4591</c> (P-4, G-10) — appends each crater's BOWL (its radius, as a 16-gon inside the circle) to <paramref name="into"/>: a crater whose bowl spans a road's
+    /// full width closes it like a roadblock (every node judges it from the replicated records). ⚠ A crater covering PART of a road is no SUMO lane obstacle (V-24 wants a
+    /// synthetic body id) — SUMO cars keep the lane; our vehicles keep out of it by the navmesh (D-2).
+    /// </summary>
+    public static void AddCraters(CraterTable? craters, List<Vector2[]> into)
+    {
+        if (craters == null) return;
+        const int sides = 16;
+        for (int i = 0; i < craters.Count; i++)
+        {
+            var c = craters[i];
+            var poly = new Vector2[sides];
+            for (int k = 0; k < sides; k++)
+            {
+                float a = 2f * MathF.PI * k / sides;
+                poly[k] = c.Centre + new Vector2(MathF.Cos(a), MathF.Sin(a)) * c.Radius;
+            }
+            into.Add(poly);
+        }
+    }
+
+    /// <summary>
     /// The road along <paramref name="at"/>(s), s in [0, 1] over <paramref name="length"/> m, <paramref name="width"/> m wide: 2 = closed (a station fully
     /// covered), 1 = partly covered, 0 = clear.
     /// </summary>

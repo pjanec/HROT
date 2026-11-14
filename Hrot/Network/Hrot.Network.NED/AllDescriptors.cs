@@ -189,6 +189,10 @@ namespace Hrot.NED.Descriptors
         //   keeps it) → every node; the receiver's DoorStates.Damage unions every such entity. 183 measured free on backend, ui, behaviors, coordinator 2026-11-10
         //   (the highest in use was 182). ⚠ the toolkit states it too (BuildingDamageSystem.DescriptorOrdinal; a rail pins it).
         dtBuildingDamage              = 183,
+        // ⭐ CE-4591 (P-4; docs/DESIGN_Ground_Patches_And_Road_Blockage.md G-7) — one ground cell's craters, the node that DECIDED them (no group: the entity's creator keeps it)
+        //   → every node; the receiver's DoorStates.Craters unions every such entity. 184 measured free on backend, ui, behaviors, coordinator 2026-11-14 (the highest in use was 183).
+        //   ⚠ the toolkit states it too (GroundDamageSystem.DescriptorOrdinal; a rail pins it).
+        dtGroundDamage                = 184,
         // etc., all known descriptor types here
     }
 

@@ -146,15 +146,18 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - **Roads lie flat across a slope:** at import every road levels the ground across its own width (the grade along it kept, junctions
   levelled, bridges left alone); the SUMO road network is re-elevated to match, so SUMO's cars, the drawn road and our vehicles agree. Houses
   next to a road are tolerated — the ground ramps from the road's edge to the façade. (P-1, R-4231, R-4234) 📐
-- **A house placed while authoring gets its own level pad,** on every node the same, and *Save terrain as* keeps every pad. (P-3, CE-4597) 📐
+- **A house placed while authoring gets its own level pad,** on every node the same, and *Save terrain as* keeps every pad. (P-3, CE-4597; rails `TerrainWorldMergeTests.CE4597_*`, `TerrainBakeTests.CE4597_*`) ✅
 - **Shape the ground while authoring a scenario:** draw an area and level it, raise a hill, lower a hollow or make a crater; roads stay
   level and keep working (SUMO's network follows after saving); a warning when a road gets too steep. (P-5, CE-4592) 📐
 - **Ditches and foxholes:** draw a ditch along a line or click a foxhole into place; a man in it is hidden by the ground, the AI finds it as
   cover and defending squads take their posts in foxholes; an anti-tank ditch stops every vehicle while infantry crosses. (P-6, CE-4593) 📐
 - **Craters:** a bomb or a shell leaves a hole in the ground on every node at once — the ground height, sight and fire change in the same
-  moment; vehicles route round it, infantry crosses it, and after the gases clear its rim is cover. (P-4, CE-4591, R-4232, R-4233) 📐
+  moment; vehicles route round it, infantry crosses it, and after the gases clear its rim is cover. (P-4, CE-4591, R-4232, R-4233) — ✅ built:
+  the crater record from the warhead's charge, the cratered ground for height, sight and fire the same tick on every node (a standalone brain
+  included, over the wire), the navmesh closed to vehicles round it, a crater across a road cuts it (rails `CraterTests`, `CraterBakeTests`,
+  `EntityGroundDamageTranslatorTests`, `BridgeClosureTests.CE4591_*`); 📐 still to come: saving it with the scenario, the rim as cover after the gases clear
 - **Blocked roads are blocked for everyone:** a roadblock, a wreck or a crater on a road makes SUMO's cars swerve round it or re-route, and
-  our own road-following vehicles re-plan; clearing it re-opens the road. (P-2, CE-4590) 📐
+  our own road-following vehicles re-plan; clearing it re-opens the road. (P-2, CE-4590; rails `BridgeClosureTests.CE4590_*`, `CE4591_*`) ✅
 - **Every wall stops a vehicle:** garden walls, fences and hedges hold every vehicle — AI or a player's — like a building's wall does; a low
   wall is met, never climbed onto; and avoiding a man on the road never swerves a vehicle into a wall. (B-1, CE-4598, CE-6014, R-4237,
   R-4239; rails `CarKinematicsSystemTests.CE4598_*`, `CE6014_*`; scenario `roadblock-blast`) ✅

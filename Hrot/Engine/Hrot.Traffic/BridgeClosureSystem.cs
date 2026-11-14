@@ -42,6 +42,7 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
     private BuildingDamageTable? _table;
     private bool _seenTable;
     private ulong _obstacleSig = ulong.MaxValue;
+    private CraterTable? _craters;
     private readonly Hrot.Map.Common.Services.ObstacleSignatureProbe _probe = new();
     private readonly HashSet<string> _fallen = new(StringComparer.Ordinal);
 
@@ -120,6 +121,9 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
         // the static obstacles (allocation-free hash: the same walk the obstacle bake uses)
         ulong sig = Hrot.Map.Common.Services.StaticObstacleBakeSystem.SignatureOfWorld(repo, _probe);
         if (sig != _obstacleSig) { _obstacleSig = sig; changed = true; }
+        // ⭐ CE-4591 (P-4, G-10) — the craters: a crater across a road is a blocker like a roadblock (the view's table: the same instance while unchanged)
+        var craters = repo.IsComponentTypeRegistered<GroundDamage>() ? DoorStates.Of(repo, terrain).Craters : null;
+        if (!ReferenceEquals(craters, _craters)) { _craters = craters; changed = true; }
 
         if (!changed) return;
         Recompute(repo, holder);
@@ -128,6 +132,7 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
     private void Recompute(EntityRepository repo, RoadNetworkHolder? holder)
     {
         RoadBlockage.Blockers(repo, _blockers);
+        RoadBlockage.AddCraters(_craters, _blockers);   // ⭐ CE-4591 — the craters' bowls
 
         // the set of base segments to drop now
         _scratch.Clear();

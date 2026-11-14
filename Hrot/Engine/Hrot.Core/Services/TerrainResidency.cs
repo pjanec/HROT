@@ -537,6 +537,7 @@ public sealed class TerrainResidency
         internal List<TerrainPrism> Prisms = new();
         internal Dictionary<int, ulong> Damage = new();
         internal IReadOnlyList<OverlayPart> Parts = System.Array.Empty<OverlayPart>();
+        internal CraterTable? Craters;   // ⭐ CE-4591 — the craters this bake laid into the ground
         /// <summary>
         /// ⭐ O-7 B (B-5) — where this bake differs from the last one committed on the same base (obstacle prisms, building damage, live-overlay parts): the rectangles a 3-D chunk rebuild must redo.
         /// Null = unknown (the first bake after a base change, or another bake in between) = everything. Set on every bake, whether or not this node bakes a navmesh.
@@ -572,6 +573,14 @@ public sealed class TerrainResidency
     /// that differs by key + geometry (old and new). The overlay is expanded against ONE base: when that is not the current one the bake is made over the base it was expanded for and carries ITS version, so the commit refuses it.
     /// </summary>
     public ObstacleBake BakeObstacles(IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, LiveOverlayResult? overlay)
+        => BakeObstacles(obstacles, damage, overlay, null);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4591</c> (P-4 part 2; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md D-1, V-4, V-6) — and the view's CRATERS laid into the height grid (a cache: the navmesh's
+    /// crater areas and the 3-D mesh follow it; the simulation answers from the records, D-1). ⭐ On EVERY node, a display node included (V-6: its replicated soldiers stand on the
+    /// cratered ground it draws) — unlike building damage, a crater rewrites no piece a query could miss. The dirty region gains every crater added or removed (V-4).
+    /// </summary>
+    public ObstacleBake BakeObstacles(IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, LiveOverlayResult? overlay, CraterTable? craters)
     {
         if (!BakesDamage) damage = null;
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -585,9 +594,10 @@ public sealed class TerrainResidency
         if (overlay != null && damage != null) damage = damage.RemapTo(terrain);
         var damageNow = DamageHashes(terrain, damage);
         var dirty = DirtyRegions(obstacles, damageNow, terrain, baseVersion, parts, out bool diffed);
-        bake.Prisms = new List<TerrainPrism>(obstacles); bake.Damage = damageNow; bake.Parts = parts;
+        if (diffed) CraterDirt(craters, dirty);   // ⭐ CE-4591 (V-4)
+        bake.Prisms = new List<TerrainPrism>(obstacles); bake.Damage = damageNow; bake.Parts = parts; bake.Craters = craters;
         bake.Dirty = diffed ? dirty : null;
-        bake.World = Indexed(TerrainObstacles.With(terrain, obstacles, damage));   // ⭐ CE-3279 (a) — a derived world gets its own index
+        bake.World = Indexed(TerrainObstacles.With(terrain, obstacles, damage, craters));   // ⭐ CE-3279 (a) — a derived world gets its own index
         if (_navmeshFactory is Fdp.Toolkit.Navigation.IIncrementalNavmeshFactory inc)
         {
             // ⭐ CE-4427 R-6 — the factory checks "its last bake is the one I committed" UNDER its own lock and hands back THIS bake's serial
@@ -618,7 +628,7 @@ public sealed class TerrainResidency
     public bool CommitObstacles(EntityRepository world, ObstacleBake bake)
     {
         if (bake.BaseVersion != BaseVersion) return false;
-        lock (_dirtyGate) { _lastPrisms = bake.Prisms; _lastDamage = bake.Damage; _lastParts = bake.Parts; _lastBakeBase = bake.BaseVersion; _committedSerial = bake.Navmesh != null ? bake.BakeSerial : -1; }   // ⭐ O-7 A — the next bake diffs against this one
+        lock (_dirtyGate) { _lastPrisms = bake.Prisms; _lastDamage = bake.Damage; _lastParts = bake.Parts; _lastCraters = bake.Craters; _lastBakeBase = bake.BaseVersion; _committedSerial = bake.Navmesh != null ? bake.BakeSerial : -1; }   // ⭐ O-7 A — the next bake diffs against this one
         world.RegisterManagedComponent<TerrainWorld>();
         // ⭐ CE-4427 R-4 — a world that numbers its buildings / panels differently replaces the old one: every BuildingDamage entity is re-keyed to it BEFORE it is published (main thread, here)
         var replaced = world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>() : null;
@@ -650,6 +660,26 @@ public sealed class TerrainResidency
     private Dictionary<int, ulong> _lastDamage = new();
     private IReadOnlyList<OverlayPart> _lastParts = System.Array.Empty<OverlayPart>();
     private int _lastBakeBase = int.MinValue;
+    private CraterTable? _lastCraters;
+
+    /// <summary>
+    /// ⭐ <c>CE-4591</c> (V-4) — adds to <paramref name="rects"/> the changed disc of every crater in <paramref name="now"/> that the last committed bake did not hold, and of every
+    /// one it held that is gone (a seek back): only the navmesh tiles and 3-D chunks under them rebuild.
+    /// </summary>
+    internal void CraterDirt(CraterTable? now, List<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> rects)
+    {
+        CraterTable? was;
+        lock (_dirtyGate) was = _lastCraters;
+        if (ReferenceEquals(was, now)) return;
+        var before = new HashSet<Crater>();
+        if (was != null) for (int i = 0; i < was.Count; i++) before.Add(was[i]);
+        if (now != null)
+            for (int i = 0; i < now.Count; i++)
+                if (!before.Remove(now[i])) rects.Add(now.Bounds(i));
+        if (was != null)
+            for (int i = 0; i < was.Count; i++)
+                if (before.Contains(was[i])) rects.Add(was.Bounds(i));
+    }
     private long _committedSerial = -1;
 
     /// <summary>A prism's identity for "did it change": its footprint and heights at 1 cm and its material (the quantisation of <see cref="StaticObstacleBakeSystem.SignatureOf"/>).</summary>

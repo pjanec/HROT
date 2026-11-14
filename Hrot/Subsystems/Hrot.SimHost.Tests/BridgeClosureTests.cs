@@ -239,6 +239,41 @@ public sealed class BridgeClosureTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4591</c> (P-4, G-10) — a bomb's CRATER across the east road (its 3.6 m bowl over a 3.5 m road) cuts the road like a barrier: the segment is dropped
+    /// from the vehicles' net the tick its record appears; a small one beside the road (a 1 m bowl at the kerb) leaves it open; the record gone (a seek back) re-opens
+    /// it. 🔴 Red-proof: drop <c>RoadBlockage.AddCraters</c> in <c>Recompute</c> ⇒ the road stays open.
+    /// </summary>
+    [Fact]
+    public void CE4591_ACraterAcrossARoad_CutsIt_ASmallOneBesideItDoesNot_AndASeekBackReOpensIt()
+    {
+        using var w = Build();
+        w.Repo.RegisterComponent<GroundDamage>();
+        var system = new BridgeClosureSystem(runtime: null, () => w.Pool);
+        var from = new Vector2(245, 200); var to = new Vector2(295, 200);
+        system.Execute(w.Repo, 0.1f);
+
+        Entity Crater(Crater c)
+        {
+            var d = new GroundDamage(); (d.CellX, d.CellY) = GroundDamages.CellOf(c.Centre);
+            GroundDamages.Add(ref d, in c, out _);
+            var e = w.Repo.CreateEntity(); w.Repo.AddComponent(e, d); return e;
+        }
+        var small = Crater(new Crater(new Vector2(260, 202.5f), 1f, 0.4f, 0.1f, (SimInstant)1.0, CraterKind.Small));
+        system.Execute(w.Repo, 0.1f);
+        Assert.Equal(0, system.Blocked);
+
+        var big = Crater(new Crater(new Vector2(270, 200), 3.6f, 1.6f, 0.3f, (SimInstant)2.0, CraterKind.Large));
+        system.Execute(w.Repo, 0.1f);
+        Assert.Equal(1, system.Blocked);
+        Assert.True(RoadMetres(w.Holder, from, to) > 1000f, "the crater cuts the road");
+
+        w.Repo.DestroyEntity(big);
+        system.Execute(w.Repo, 0.1f);
+        Assert.Equal(0, system.Blocked);
+        Assert.InRange(RoadMetres(w.Holder, from, to), 40f, 60f);
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-4590</c> (G-10) — a car parked on HALF the road (4.5 × 1.8 along it, 1 m off the centre) leaves the road open for our net (only SUMO's lane obstacle
     /// sees it, through the body feed); a barrier across it closes it. 🔴 Red-proof: cut on any covered point ⇒ the parked car cuts the road.
     /// </summary>

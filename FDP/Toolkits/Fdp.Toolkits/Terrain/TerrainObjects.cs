@@ -68,7 +68,14 @@ namespace Fdp.Toolkit.Terrain
     {
         private readonly byte[] _states;
 
-        private DoorStates(byte[] states, BuildingDamageTable? damage = null) { _states = states; Damage = damage; }
+        private DoorStates(byte[] states, BuildingDamageTable? damage = null, CraterTable? craters = null) { _states = states; Damage = damage; Craters = craters; }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4591</c> (P-4, D-1) — the craters of this view (the union of every <see cref="GroundDamage"/> entity), or null when it holds none: the
+        /// cratered ground every sight / fire / ground-height question of this view answers from, in the same tick. Rides here for the reason
+        /// <see cref="Damage"/> does — every caller already passes ONE <see cref="DoorStates"/>.
+        /// </summary>
+        public CraterTable? Craters { get; }
 
         /// <summary>
         /// ⭐ <c>CE-4391</c> S-1 (UTM §8.2 B-3) — the wall breaches of this view (the union of every <see cref="BuildingDamage"/> entity), or null when
@@ -107,7 +114,8 @@ namespace Fdp.Toolkit.Terrain
             // ⭐ CE-4391 S-1 (B-3) — the breaches of this view ride along. The door table (above) is cached on its own; the damage table has its
             //   own stamp, so a breach written this frame forces a rebuild of IT and of nothing else, and an unchanged frame hands back the same instance.
             var damage = world.Panels.Count > 0 ? BuildingDamageTable.Of(view, world) : null;   // ⭐ CE-4599 — free walls too
-            if (!ReferenceEquals(r.Damage, damage)) r = t_last = new DoorStates(r._states, damage);   // a new instance over the SAME door array
+            var craters = CraterTable.Of(view);   // ⭐ CE-4591 (D-1) — the craters, the same way: their own stamp, the same instance while unchanged
+            if (!ReferenceEquals(r.Damage, damage) || !ReferenceEquals(r.Craters, craters)) r = t_last = new DoorStates(r._states, damage, craters);   // a new instance over the SAME door array
             Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Of, t0);
             return r;
         }
