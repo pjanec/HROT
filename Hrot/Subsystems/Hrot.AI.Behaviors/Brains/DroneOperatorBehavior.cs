@@ -100,9 +100,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>⭐ CE-7028 — a drone whose KNOWN type carries no weapon mount (the recon quadcopter); an unknown type keeps the strike.</summary>
-        private static bool Unarmed(EntityRepository world, Entity drone)
-            => Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(world, drone, out var t)
-               && t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>() is not { Mounts.Count: > 0 };
+        private static bool Unarmed(EntityRepository world, Entity drone) => TemplateArms.KnownUnarmed(world, drone);
 
         private static Entity Stock(in DroneOperatorParams p, int k) => k switch { 0 => p.Drone0, 1 => p.Drone1, 2 => p.Drone2, _ => p.Drone3 };
 

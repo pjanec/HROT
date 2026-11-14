@@ -575,7 +575,7 @@ B's CE-7012 (the bulldozer's ClearObstacle) stands on them.
 | C-2 | **CE-7003** | support calls — fires, smoke, bulldozer / engineers at a roadblock, drone tasking | SupportCommand, the observer chain | B |
 | C-3 | **CE-7004** 🔶 counterattack BUILT `2026-11-14` (§6a) | local counterattack, asking the battalion for more — ⭐ MUST-HAVE (§3a). ⏳ asking the battalion for more is not built (no battalion commander yet) | — | B |
 | C-4 | **CE-7005** | tempo: every company order carries a deadline; escalate at 50 % / 100 % — never "wait" | the HSM's phase timers | B |
-| C-5 | **CE-7006** | the mounted / dismounted handoff | `SquadDismount`, `VehicleFightFromCover` | B |
+| C-5 | **CE-7006** 🔶 BUILT `2026-11-14` (the carriers' half) | the mounted / dismounted handoff. As built: in the convoy's contact (`PlatoonConvoy` CContact) the carrier whose squad got out stays for it — an ARMED one (its known type's weapon suite has a mount, `TemplateArms.KnownArmed`) is assigned `VehicleFightFromCover` there, its gun over the dismounted squad; an unarmed or unknown one holds as before; secure / remount hold all (lane default R-7010). ⏳ Left: stopping SHORT of the objective (the last covered point ≤ 300 m) — today the squads get out where the contact finds them | `SquadDismount`, `VehicleFightFromCover` | B |
 | A-1 | **CE-7007** | active defence: shoot and move between a squad's posts; outposts withdraw | `SquadDefend`, the fall-back | B |
 | A-1b | **CE-7032** | outposts withdraw along a planned route (today: one `Back` point) | `BringOpBack` | B |
 | A-2 | **CE-7008** | suppression wears off, leaders rally — first a rail proving whether a squad can be pinned forever | stress, `SquadRecover` | B |

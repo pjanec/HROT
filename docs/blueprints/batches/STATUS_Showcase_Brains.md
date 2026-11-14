@@ -24,6 +24,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | 5 | CE-7025 smoke bombs · CE-7003 support calls (fires + smoke) · CE-2278 smoke grenade | ✅ · 🔶 part (bulldozer / drone tasking wait for CE-7026…) · 🔶 kit + break contact (crossing / breach face left) | §6b; Defend & Attack DA-G as built |
 | 6 | CE-7008 suppression wears off · CE-7007 shoot and move · CE-7032 the OP withdraws | ✅ · ✅ · ✅ | `StressModel.QuietSeconds` · `SquadDefend.ShootAndMove` · `PlatoonDefend` OpBack → BreakContact |
 | 7 | CE-7010 the air gate | ⏭ ignored — the user | — |
+| 10b | CE-7006 mounted / dismounted | 🔶 the carriers' half: an armed carrier fights from cover over its dismounted squad (R-7010); stopping short of the objective left | `PlatoonConvoy` KeepVehicle; `TemplateArms` |
 | 12 | CE-7009 casualty evacuation | 🔶 built, OPT-IN (`EvacuateMetres`; R-7009) — the showcase's way to set 150 m is for the user | |
 | 11 | CE-7016 the landing zone | 🔶 the query (`OpenGroundTest` + `FindLandingZone`); the air assault asking it left | |
 | 10 | CE-7012 `ClearObstacle` (the bulldozer) | ✅ | `Brains/ClearObstacleBehavior.cs`; City Battle §6c |
@@ -60,6 +61,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | CE-7028: `AirAttackNodesTests` + `DroneOperatorBehaviorTests` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) 26 / 26 · `NedTkbBuilderCombatTests.CE7028_*`; clean build: drills + drones + operator 301 / 301 both ways · `Hrot.Core.Tests` 368 / 369 (the pre-existing geo red) | red-proofs: the orbit steered at the point ⇒ red · the operator's mount test off ⇒ red. ⚠ found on the way: the first cut sent an UNKNOWN-type drone to watch (no template ⇒ "no mount") — narrowed to a known type with no mount |
 | CE-7004: `SquadManeuverTests.CE7004_*` + the company rails `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) 7 / 7; clean build: drills + drones + operator 303 / 303 both ways | red-proof: the counter guard always false ⇒ the strong-reserve case red |
 | CE-7016 (the query): `LandingZoneTests` 3 / 3; clean build: `Fdp.Toolkits.Tests` Eqs + Spatial 174 / 174 | red-proof: the clearance to the box centre ⇒ red |
+| CE-7006: `SquadManeuverTests.CE7006_*` + the convoy, drone-operator and fight-from-cover rails `PAR=1` / `=0` (+ `HROT_WORLD_GUARD=1`) 47 / 47 | red-proof: the armed check dropped ⇒ red |
 | CE-7009: `SquadManeuverTests.CE7009_*` + the four `CE2152_CasualtyCare_*` `PAR=1` / `=0` (+ `HROT_WORLD_GUARD=1`) 5 / 5; ⚠ under `HROT_READ_CHECK=1` all five (the old four too) throw on the squad gates' `WeaponState` read — CE-7035; clean build: drills + drones + operator 304 / 304 both ways | red-proof: the evacuation arm off ⇒ red |
 | `tracker-counts.py --check` · `rulings-check.py` | OK · 609 / 609 |
 

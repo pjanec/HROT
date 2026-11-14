@@ -7735,6 +7735,52 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
+        /// <summary>⭐ <c>CE-7006</c> (R-7010; City Battle §11 C-5) — in contact, the carrier whose squad got out stays for it: an ARMED one
+        /// (its known type carries a weapon mount) fights from cover there, an unarmed one holds; quiet ⇒ both hold for the secure.
+        /// ✅ Red-proof: the armed check dropped (always Hold) ⇒ the IFV is never ordered to fight.</summary>
+        [Fact]
+        public void CE7006_PlatoonConvoy_InContact_AnArmedCarrierFightsFromCoverOverItsDismountedSquad_AnUnarmedOneHolds()
+        {
+            const int Truck = 9701, Ifv = 9702;
+            var p = new Platoon();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            db.Register(new Fdp.Interfaces.TkbTemplate("truck", Truck));
+            var armed = new Fdp.Interfaces.TkbTemplate("ifv", Ifv);
+            armed.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { InitialAmmunition = 100 } } });
+            db.Register(armed);
+            p.S.Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            if (!p.S.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) p.S.Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var truck = ConvoyVehicle(p.S, new Vector3(0f, 40f, 0f), 9001, 0, p.Alpha);
+            var ifv = ConvoyVehicle(p.S, new Vector3(0f, 15f, 0f), 9002, 0, p.Bravo);
+            p.S.Repo.AddComponent(truck, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)Truck });
+            p.S.Repo.AddComponent(ifv, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)Ifv });
+            ConvoyRoute(p.S, 9811, new Vector3(0f, 30f, 0f), new Vector3(0f, 380f, 0f));
+            p.S.StartSop("BasicPlatoonSop");
+            Convoy(p);
+            p.Ticks(6);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
+            Assert.Equal((1, 1), (p.OrdersTo(truck, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));
+
+            p.ReportSpot(p.Bravo, new Vector3(30f, 150f, 0f), 3);
+            p.Ticks(SopReactionFrames);
+            Embarkation.Disembark(p.S.Repo, p.Alpha);
+            Embarkation.Disembark(p.S.Repo, p.Bravo);
+            Reacting(p.S, p.Alpha, BehaviorNames.ReactToContact);
+            Reacting(p.S, p.Bravo, BehaviorNames.ReactToContact);
+            p.Ticks(3);
+            p.S.Pause(PlatoonConvoyBehavior.DefaultClearSeconds + 1);
+            p.Ticks(15);
+            Assert.Equal(BehaviorNames.PlatoonConvoy, p.S.TaskName);
+            Assert.Equal((0, 1), (p.OrdersTo(truck, BehaviorNames.VehicleFightFromCover), p.OrdersTo(ifv, BehaviorNames.VehicleFightFromCover)));
+            Assert.Equal((1, 0), (p.OrdersTo(truck, "Order.Hold"), p.OrdersTo(ifv, "Order.Hold")));
+            p.Ticks(10);
+            Assert.Equal(1, p.OrdersTo(ifv, BehaviorNames.VehicleFightFromCover));                                         // it stands: not re-sent
+
+            Reacting(p.S, p.Alpha, null);
+            Reacting(p.S, p.Bravo, null);
+            p.Ticks(3);
+            Assert.Equal((1, 1), (p.OrdersTo(truck, "Order.Hold"), p.OrdersTo(ifv, "Order.Hold")));                         // secure: both hold
+        }
+
         /// <summary>⭐ <c>CE-2354</c> (DA-102 / DA-103) — nobody aboard after <see cref="PlatoonConvoyBehavior.RemountTimeoutSeconds"/>: the
         /// squads follow on foot AND the vehicles that can move carry on along the route. 📌 Live on <c>uc-urban-battle</c> both squads went
         /// on foot and the APC and IFV stood on Hold for good — a vehicle was ordered only through a slot still riding it. ✅ Red-proof: the
