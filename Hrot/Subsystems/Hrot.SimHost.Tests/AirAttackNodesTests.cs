@@ -256,6 +256,56 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Success, status);                                                   // flown out
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-7027</c> (City Battle §11 R-1b) — HoverDrop: a bomber quadcopter (a rotorcraft whose only weapon is a drop rack) lifts off
+        /// beside its operator, flies to hover 30 m over the point, drops ONE round once it stands over it (the real executor and the hover release
+        /// cue — within 2 m), then flies back home and the strike succeeds. The rotorcraft is a stand-in that flies straight at its MoveTo and stops
+        /// on the arrival radius. ✅ Red-proof: the hover release branch dropped ⇒ no drop ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE7027_ABomberQuadcopter_HoversOverThePoint_DropsOne_AndFliesBack()
+        {
+            var home = new Vector3(-120f, 30f, 0f);
+            var drone = SpawnPlane(home, Plane, 2, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+            var target = new Vector3(0f, 0f, 0f);
+            var p = new AirAttackParams { Point = target };
+            var ws = default(AirAttackState);
+            var executor = new FireAtPointExecutor();
+            uint entered = 0;
+            var shots = new System.Collections.Generic.List<(int Mount, float Distance)>();
+            Vector3 dropAt = default;
+            NodeStatus status = NodeStatus.Running;
+            for (int frame = 0; frame < 60 * 60 && status == NodeStatus.Running; frame++)
+            {
+                int before = shots.Count;
+                status = Step(ref p, ref ws, drone, executor, ref entered, shots);
+                if (shots.Count > before && before == 0) dropAt = _w.GetComponentRO<SimTransform>(drone).Position;
+                // the stand-in rotorcraft: straight at the MoveTo at 15 m/s, climbing at up to 10 m/s, stopped (a hover) on its arrival radius
+                var move = MoveOf(drone);
+                ref var tr = ref _w.GetComponentRW<SimTransform>(drone);
+                var to = move.Destination - tr.Position;
+                var flat = new Vector2(to.X, to.Y);
+                Vector3 v = Vector3.Zero;
+                if (flat.Length() > MathF.Max(move.ArrivalRadius, 0.25f))
+                {
+                    v = new Vector3(Vector2.Normalize(flat) * MathF.Min(15f, flat.Length() / Dt), 0f);
+                    _w.GetComponentRW<LocomotionChannel>(drone).Status = NodeStatus.Running;
+                }
+                else _w.GetComponentRW<LocomotionChannel>(drone).Status = NodeStatus.Success;
+                if (MathF.Abs(to.Z) > 0.05f) v.Z = MathF.Sign(to.Z) * MathF.Min(MathF.Abs(to.Z) / Dt, 10f);
+                _w.GetComponentRW<SimVelocity>(drone).Linear = v;
+                tr.Position += v * Dt;
+            }
+
+            Assert.Single(shots);
+            Assert.Equal(1, _w.GetComponentRO<WeaponState>(drone).Ammo);                                   // one of its two left
+            Assert.True(new Vector2(dropAt.X - target.X, dropAt.Y - target.Y).Length() <= BombBallistics.HoverToleranceM, $"dropped at {dropAt}");
+            Assert.InRange(dropAt.Z, AirAttackNodes.DefaultDropHeightAgl - 3f, AirAttackNodes.DefaultDropHeightAgl + 3f);
+            Assert.Equal(NodeStatus.Success, status);                                                      // flown back
+            var end = _w.GetComponentRO<SimTransform>(drone).Position;
+            Assert.True(new Vector2(end.X - home.X, end.Y - home.Y).Length() <= AirOrderNodes.DefaultArrivalRadius + 1f, $"ended at {end}");
+        }
+
         /// <summary>⭐ The profile (Air Operations §7's table): a plane with a bomb ⇒ LevelBomb (that mount); a plane with a rocket pod ⇒
         /// RocketRun; a helicopter with rockets and a gun ⇒ RunningFire (the pod and the gun). A helicopter with only a bomb, or a plane with
         /// only a gun (GunRun, not built), has no profile ⇒ the attack fails at once (loudly) instead of flying somewhere and doing nothing;
@@ -267,11 +317,13 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(AirAttackProfile.LevelBomb, AirAttackProfiles.Pick(_w, plane, out byte mount));
             Assert.Equal(0, mount);
 
+            // ⭐ CE-7027 — SUPERSEDES "a helicopter with only a bomb has no profile": a rotorcraft with only a drop rack (the bomber
+            //   quadcopter) hovers over the point and drops (HoverDrop)
             var bombHeli = SpawnPlane(Vector3.Zero, locomotion: Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
-            Assert.Null(AirAttackProfiles.Pick(_w, bombHeli, out _));
-            var p = new AirAttackParams { Point = new Vector3(1000f, 0f, 0f) };
-            var ws = default(AirAttackState);
-            Assert.Equal(NodeStatus.Failure, AirAttackNodes.Run(ref p, ref ws, bombHeli, _w));
+            Assert.Equal(AirAttackProfile.HoverDrop, AirAttackProfiles.Pick(_w, bombHeli, out mount));
+            Assert.Equal(0, mount);
+            AirAttackParams p;
+            AirAttackState ws;
 
             var heli = SpawnHeli(Vector3.Zero, out _);
             Assert.Equal(AirAttackProfile.RunningFire, AirAttackProfiles.Pick(_w, heli, out mount, out byte gun));

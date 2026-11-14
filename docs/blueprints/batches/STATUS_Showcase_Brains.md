@@ -30,6 +30,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | 10 | CE-7012 `ClearObstacle` (the bulldozer) | ✅ | `Brains/ClearObstacleBehavior.cs`; City Battle §6c |
 | 8 | CE-7014 the jammer · CE-7029 infantry take cover from drones | ✅ · ✅ | `JammerDto` + type 113 `Ew_DroneJammer`; `DroneJamming` (serial pre-pass index) read by the FPV's dive (FPV Drone §5a) · |
 | 8b | CE-7026 the operator launches | ✅ (R-7007: an order to his authored stock; the FPV got feet) | `DroneOperator`; FPV Drone §5b |
+| 8e | CE-7027 the bomber quadcopter | ✅ | type 408 `Drone_Bomber`; `AirAttackProfile.HoverDrop` + the hover release cue; the operator re-sends it; FPV Drone §5d |
 | 8c | CE-7028 the recon drone joins the observer chain | ✅ | type 407 `Drone_Recon`, `DroneRecon` orbit; the chain by squad membership (no new code); FPV Drone §5c |
 | 8d | CE-7029 infantry take cover from drones | ✅ | `SquadSensing.AirThreat` → `BasicSquadSop` drone row → `SquadShelterFromAir`; a lone man's `BasicInfantrySop` row |
 | 9 | CE-7030 Watch · CE-7031 boldness · CE-7011 | ✅ · ✅ · ✅ (the noise-panicked driver: `TrafficPanicSystem.Deafened`, R-7005) | `CivilianBehavior` Watch state; civilians design §5f CIV-3 marked BUILT |

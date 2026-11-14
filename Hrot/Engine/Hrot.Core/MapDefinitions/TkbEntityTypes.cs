@@ -197,6 +197,9 @@ namespace Hrot.Map.Common
         /// <summary>⭐ <c>CE-7028</c> (City Battle §11 R-1c) — a RECON quadcopter: the FPV's airframe with no warhead, a 30-minute battery and its
         /// camera; it orbits an area (<c>DroneRecon</c>) and, as a member of its team's squad, its sightings reach the observer chain. ⛔ A permanent wire value.</summary>
         public const long Drone_Recon = 407;
+        /// <summary>⭐ <c>CE-7027</c> (City Battle §11 R-1b) — a BOMBER quadcopter: the quadcopter airframe with a drop rack of two M67s; it hovers
+        /// over a point, drops one and flies back (<c>AirAttackProfile.HoverDrop</c>). ⛔ A permanent wire value.</summary>
+        public const long Drone_Bomber = 408;
 
         // Composite Units
         public const long Unit_TankPlatoon = 301;

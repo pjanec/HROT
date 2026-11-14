@@ -1123,6 +1123,7 @@ namespace Hrot.Map.Definitions.Tkb
                 });
             DefineFpvDrone(builder);   // ⭐ M7
             DefineReconDrone(builder);   // ⭐ CE-7028
+            DefineBomberDrone(builder);  // ⭐ CE-7027
             DefineAttackPlane(builder);   // ⭐ Air Ops slice 4
             DefineAttackHelicopter(builder);   // ⭐ Air Ops slice 6a
             // ⭐⭐ CE-3281 (Sensing §8.6) — the aircraft are HEARD: rotors 3 km, jets 15 km (⚠ a fixed-wing engine is class Rotor — "an aircraft
@@ -1308,18 +1309,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFlight(type, LocomotionClass.Rotorcraft, flight)
                 // ⭐ CE-7026 (City Battle R-1a) — its four feet: a drone LANDED beside its operator (Airborne 0) can take off on its strike order
                 //   (RotorcraftModel takes off only a body with ground contacts; without them a landed drone stayed down for good)
-                .WithBodyGeometry(type, new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
-                {
-                    ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
-                    Length = 0.35f, Width = 0.35f, Height = 0.15f, BodyCentreZ = 0f,
-                    GroundContacts =
-                    {
-                        Wheel("foot front left",   0.12f,  0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
-                        Wheel("foot front right",  0.12f, -0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
-                        Wheel("foot rear left",   -0.12f,  0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
-                        Wheel("foot rear right",  -0.12f, -0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
-                    },
-                })
+                .WithBodyGeometry(type, QuadcopterBody())
                 .WithCombat(type, c =>
                 {
                     c.MaxHealth = 10;
@@ -1349,18 +1339,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .DefineVehicle(type, "Recon drone")
                 .WithVisual(type, v => { v.SymbolCode = "SFAPMFQR------"; v.ColorHex = "#4A4A4A"; v.Scale = 0.3f; v.ShowLabel = true; })
                 .WithFlight(type, LocomotionClass.Rotorcraft, flight)
-                .WithBodyGeometry(type, new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
-                {
-                    ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
-                    Length = 0.35f, Width = 0.35f, Height = 0.15f, BodyCentreZ = 0f,
-                    GroundContacts =
-                    {
-                        Wheel("foot front left",   0.12f,  0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
-                        Wheel("foot front right",  0.12f, -0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
-                        Wheel("foot rear left",   -0.12f,  0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
-                        Wheel("foot rear right",  -0.12f, -0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
-                    },
-                })
+                .WithBodyGeometry(type, QuadcopterBody())
                 .WithCombat(type, c =>
                 {
                     c.MaxHealth = 10;
@@ -1372,6 +1351,51 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(type, 1)
                 .WithBehavior(type)
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 2, Category = 50, Subcategory = 2 });   // unmanned, 2 = recon (HROT-local)
+        }
+
+        /// <summary>⭐ <c>CE-7026</c> / <c>CE-7027</c> / <c>CE-7028</c> — the quadcopters' one airframe body: 0.35 m square, four fixed feet (a
+        /// drone landed beside its operator can take off; <c>RotorcraftModel</c> takes off only a body with ground contacts).</summary>
+        private static Fdp.Toolkit.Tkb.Domain.BodyGeometryDto QuadcopterBody() => new()
+        {
+            ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
+            Length = 0.35f, Width = 0.35f, Height = 0.15f, BodyCentreZ = 0f,
+            GroundContacts =
+            {
+                Wheel("foot front left",   0.12f,  0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
+                Wheel("foot front right",  0.12f, -0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
+                Wheel("foot rear left",   -0.12f,  0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
+                Wheel("foot rear right",  -0.12f, -0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
+            },
+        };
+
+        /// <summary>
+        /// ⭐ <c>CE-7027</c> (City Battle §11 R-1b) — the BOMBER quadcopter: the quadcopter airframe (30 m/s, nimble, four feet) with a DROP RACK of
+        /// two M67 grenades (a Bomb mount — the hover drop, <c>AirAttackProfile.HoverDrop</c>: it hovers 30 m over the point, drops one, flies back;
+        /// the operator sends it again while it has a grenade left), a 20-minute battery, a 1 500 m camera; it does not burst on impact. Hostile.
+        /// </summary>
+        private static void DefineBomberDrone(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Drone_Bomber;
+            var flight = new FlightParamsDto { AccelMps2 = 15f, DetonatesOnImpact = false, EnduranceSeconds = 1200f };
+            builder
+                .DefineVehicle(type, "Bomber drone")
+                .WithVisual(type, v => { v.SymbolCode = "SHAPMFQ-------"; v.ColorHex = "#4A4A4A"; v.Scale = 0.3f; v.ShowLabel = true; })
+                .WithFlight(type, LocomotionClass.Rotorcraft, flight)
+                .WithBodyGeometry(type, QuadcopterBody())
+                .WithCombat(type, c =>
+                {
+                    c.MaxHealth = 10;
+                    c.BlastSusceptibility = 1f;
+                    c.EyeHeight = 0.1f;
+                    c.SensorRange = 1500;
+                    c.Weapons.Add(new WeaponMount { WeaponType = "Grenade drop rack", Ammunition = 2, Range = 200f,
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbM67Grenade), Category = WeaponCategory.Bomb });
+                })
+                .WithSignatures(type, new SignaturesDto { Acoustic = new AcousticSignatureDto   // its grenades heard where they burst (CE-3281)
+                    { MovingAudibleRange = 300f, MovingClass = SoundSourceClass.Rotor, DetonationAudibleRange = 800f, DetonationClass = SoundSourceClass.Explosion } })
+                .WithFaction(type, 2)
+                .WithBehavior(type)
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 2, Category = 50, Subcategory = 3 });   // unmanned, 3 = bomber (HROT-local)
         }
 
         /// <summary>

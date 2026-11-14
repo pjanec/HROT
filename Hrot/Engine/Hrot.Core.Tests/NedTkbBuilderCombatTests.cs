@@ -754,6 +754,23 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal(4, recon.GetDescriptor<Fdp.Toolkit.Tkb.Domain.BodyGeometryDto>()!.GroundContacts.Count);
         }
 
+        /// <summary>⭐ <c>CE-7027</c> — the BOMBER drone: a rotorcraft with feet and a drop rack (a Bomb mount) of two M67s, a 20-minute battery,
+        /// and it does not burst on impact (it drops and comes back).</summary>
+        [Fact]
+        public void CE7027_TheBomberDrone_CarriesADropRackOfTwoGrenades_AndFeet()
+        {
+            var db = BuildDatabase();
+            var bomber = db.GetByType(TkbEntityTypes.Drone_Bomber)!;
+            var mount = Assert.Single(bomber.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>()!.Mounts);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb, mount.Category);
+            Assert.Equal(2, mount.InitialAmmunition);
+            Assert.Equal(Hrot.Core.Tkb.MunitionTkbCatalog.TkbM67Grenade, (long)mount.AmmoGuid);
+            var flight = bomber.GetDescriptor<Fdp.Toolkit.Tkb.Domain.FlightParamsDto>()!;
+            Assert.False(flight.DetonatesOnImpact);
+            Assert.Equal(1200f, flight.EnduranceSeconds);
+            Assert.Equal(4, bomber.GetDescriptor<Fdp.Toolkit.Tkb.Domain.BodyGeometryDto>()!.GroundContacts.Count);
+        }
+
         /// <summary>⭐ <c>CE-7026</c> / <c>CE-7014</c> (City Battle R-1a, R-2) — the FPV drone has FEET (four ground contacts: a drone landed beside its
         /// operator can take off on its strike order); the jammer type 113 is the crewed HMMWV carrying a 400 m <c>JammerDto</c>, its DIS told apart
         /// from the HMMWV's by its subcategory.</summary>

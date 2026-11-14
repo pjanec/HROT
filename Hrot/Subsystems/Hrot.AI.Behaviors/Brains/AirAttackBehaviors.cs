@@ -36,6 +36,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ Slice 6e (B5, §9i) — the FPV drone: (a point) search the area, pick the best target, then pursue it at the cruise
         /// height and dive on it from above; the drone IS its warhead — the Muscle's impact ends the flight.</summary>
         Dive = 6,
+        /// <summary>⭐ <c>CE-7027</c> (City Battle §11 R-1b) — the BOMBER quadcopter: a rotorcraft whose only weapon is a drop rack flies to
+        /// hover over the point, drops one round when it stands over it (the hover release cue, <c>BombBallistics.ReleaseNow</c>), and flies
+        /// back to where it started — it lives to drop again.</summary>
+        HoverDrop = 7,
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 5 — what an air attack is told: the point and the numbers of the pass (0 = automatic).</summary>
@@ -115,6 +119,8 @@ namespace Hrot.AI.Behaviors.Brains
         public SimInstant StartedAt;
         /// <summary>⭐ Slice 6e — 1 once the battery ran out: the dive is straight down.</summary>
         public byte BatteryOut;
+        /// <summary>⭐ <c>CE-7027</c> — where a hover drop started: the bomber flies back here once it dropped.</summary>
+        public Vector3 Home;
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 5 (B4) / slice 6 / slice 6c (B12, W1) — which profile an aircraft flies (Air Operations §7, §9e):
@@ -163,6 +169,8 @@ namespace Hrot.AI.Behaviors.Brains
                 picked = AirAttackProfile.RunningFire;
             else if (locomotion == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft && !heavy && DoorGuns(world, aircraft, stackalloc byte[MaxDoorGuns]) > 0)
                 picked = AirAttackProfile.DoorGunOrbit;   // ⭐ slice 6d — its only guns are in its doors
+            else if (locomotion == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft && bomb != None)
+                picked = AirAttackProfile.HoverDrop;      // ⭐ CE-7027 — a rotorcraft with only a drop rack (the bomber quadcopter) hovers and drops
             mount = gun = None;
             if (picked is { } p) MountsFor(bomb, rockets, firstGun, p, out mount, out gun);
             return picked;
@@ -205,6 +213,7 @@ namespace Hrot.AI.Behaviors.Brains
             switch (profile)
             {
                 case AirAttackProfile.LevelBomb: mount = bomb; return bomb != None;
+                case AirAttackProfile.HoverDrop: mount = bomb; return bomb != None;
                 case AirAttackProfile.RocketRun: mount = rockets; return rockets != None;
                 case AirAttackProfile.RunningFire: mount = rockets; gun = firstGun; return rockets != None || firstGun != None;
                 case AirAttackProfile.GunRun: gun = firstGun; return firstGun != None;
@@ -341,7 +350,11 @@ namespace Hrot.AI.Behaviors.Brains
         public const byte BatteryOutJammed = 2;
 
         private const byte StageStart = 0, StageToRunIn = 1, StageRunIn = 2, StageOut = 3, StageOrbit = 4, StageEvade = 5;
-        private const byte StageSearch = 6, StagePursue = 7, StageDive = 8;
+        private const byte StageSearch = 6, StagePursue = 7, StageDive = 8, StageHover = 9;
+        /// <summary>⭐ <c>CE-7027</c> — a bomber quadcopter drops from this high over the point (m).</summary>
+        public const float DefaultDropHeightAgl = 30f;
+        /// <summary>⭐ <c>CE-7027</c> — the hover's arrival radius (m): tighter than the hover release's own tolerance.</summary>
+        public const float HoverArrivalM = 1f;
         private const byte WeaponRockets = 0, WeaponGun = 1, WeaponDone = 2;
 
         /// <summary>⭐ Slice 6c (B12–B14) — the air attack on an ENTITY: fails (logged) when the order named none; else <see cref="Run"/>.</summary>
@@ -379,6 +392,14 @@ namespace Hrot.AI.Behaviors.Brains
                     ws.StartedAt = (SimInstant)now;
                     ws.NextSteer = 0;
                 }
+                else if (ws.Profile == AirAttackProfile.HoverDrop)
+                {
+                    // ⭐ CE-7027 — no run-in: straight to the hover over the point; it comes back here afterwards
+                    ws.Home = at;
+                    ws.Stage = StageHover;
+                    if (!HoverOver(world, self, target, in p)) return NodeStatus.Failure;
+                    ws.NextSteer = now + SteerPeriod;
+                }
                 else if (ws.Profile == AirAttackProfile.DoorGunOrbit)
                 {
                     // ⭐ slice 6d — no run-in: it flies onto the circle from wherever it is
@@ -406,6 +427,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             if (ws.Profile == AirAttackProfile.Dive) return Dive(ref p, ref ws, self, world, at, now);
+            if (ws.Profile == AirAttackProfile.HoverDrop) return HoverDrop(ref p, ref ws, self, world, at, target, now);
 
             // ⭐ CE-2191 (§7e) — a missile warning interrupts any stage: decoys, a break onto the missile's beam, then the attack comes round
             if (NewWarning(world, self, ref ws, now)) BeginEvade(ref p, ref ws, self, world, at);
@@ -843,7 +865,7 @@ namespace Hrot.AI.Behaviors.Brains
                     endangering != 0 ? "AirAttack: every weapon left would hurt friends or neutrals near the point (order it danger close to fire)."
                     : ws.Spent != 0 ? "AirAttack: no weapon left for this target."
                     : p.Profile == AirAttackProfile.Auto
-                        ? "AirAttack: no attack profile for this aircraft and its weapons (a plane needs a bomb, a rocket pod or a gun; a helicopter rockets or a gun)."
+                        ? "AirAttack: no attack profile for this aircraft and its weapons (a plane needs a bomb, a rocket pod or a gun; a helicopter or drone rockets, a gun or a drop rack)."
                         : $"AirAttack: this aircraft has no weapon for a {p.Profile}.");
                 return false;
             }
@@ -976,6 +998,32 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>A MoveTo to (x, y) at the pass height above the ground at the TARGET (the run is flown level).</summary>
+        /// <summary>⭐ <c>CE-7027</c> — HoverDrop: fly to hover over the point (an entity's point refreshed every <see cref="SteerPeriod"/>);
+        /// standing over it, the weapon brain drops one round on the hover cue; then fly back home — Success on arrival there.</summary>
+        private static NodeStatus HoverDrop(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world, Vector3 at, Vector3 target, double now)
+        {
+            if (ws.Stage != StageHover) return LocomotionMoveTo.Status(world, self);   // home: done on arrival
+            if (!p.Target.IsNull && now >= ws.NextSteer)
+            {
+                if (!HoverOver(world, self, target, in p)) return NodeStatus.Failure;
+                ws.NextSteer = now + SteerPeriod;
+            }
+            if (new Vector2(target.X - at.X, target.Y - at.Y).Length() > BombBallistics.HoverToleranceM) return NodeStatus.Running;
+            var fire = new FireAtPointNodeParams { Point = target, Rounds = 1, Mount = ws.Mount, Started = ws.Fire.Started };
+            var dropped = FireAtPointNodes.FireAtPoint(ref fire, self, world);
+            ws.Fire = fire;
+            if (dropped != NodeStatus.Success) return dropped;   // Running: waiting for the hover cue · Failure: nothing left to drop
+            ws.Fired = 1;
+            ws.Stage = StageOut;
+            return Fly(world, self, ws.Home, in p, ws.Profile) ? NodeStatus.Running : NodeStatus.Failure;
+        }
+
+        private static bool HoverOver(EntityRepository world, Entity self, Vector3 target, in AirAttackParams p)
+        {
+            float height = p.AttackHeightAgl > 0f ? p.AttackHeightAgl : DefaultDropHeightAgl;
+            return LocomotionMoveTo.Issue(world, self, new Vector3(target.X, target.Y, p.Point.Z + height), p.Speed, HoverArrivalM, source: MoveSource.Attack);
+        }
+
         private static bool Fly(EntityRepository world, Entity self, Vector3 to, in AirAttackParams p, AirAttackProfile profile)
         {
             float height = p.AttackHeightAgl > 0f ? p.AttackHeightAgl : profile switch
@@ -984,6 +1032,7 @@ namespace Hrot.AI.Behaviors.Brains
                 AirAttackProfile.RunningFire => DefaultRunningFireHeightAgl,
                 AirAttackProfile.GunRun => DefaultGunRunHeightAgl,
                 AirAttackProfile.DoorGunOrbit => DefaultOrbitHeightAgl,
+                AirAttackProfile.HoverDrop => DefaultDropHeightAgl,
                 _ => DefaultAttackHeightAgl,
             };
             return LocomotionMoveTo.Issue(world, self, new Vector3(to.X, to.Y, p.Point.Z + height), p.Speed, AirOrderNodes.DefaultArrivalRadius, source: MoveSource.Attack);

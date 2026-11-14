@@ -97,6 +97,45 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, _orders.Count(o => o.IntentId == BehaviorNames.AirPlatformStrike));   // the lost one never ordered
         }
     
+        /// <summary>⭐ <c>CE-7027</c> — a drone that ENDS its order alive (the bomber back from its drop) is done; one whose known type has rounds
+        /// left for another sortie is sent AGAIN — the bomber with two grenades flies two sorties, then the next drone goes. Until the order
+        /// reached the drone (never seen running it) nothing is decided. ✅ Red-proof: the re-send dropped ⇒ the bomber flies once ⇒ red.</summary>
+        [Fact]
+        public void CE7027_ABomberBackFromItsDrop_IsSentAgainWhileItHasRoundsLeft()
+        {
+            const long Bomber = 9503;
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var bomber = new Fdp.Interfaces.TkbTemplate("bomber", Bomber);
+            bomber.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb, InitialAmmunition = 2 } } });
+            db.Register(bomber);
+            _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) _w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            _w.AddComponent(_drones[0], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)Bomber });
+            _w.GetComponentRW<BehaviorState>(_op).InstanceId = 7;   // the operator's run: the one his orders are recorded under
+            var p = new DroneOperatorParams
+            {
+                Drone0 = _drones[0], Drone1 = _drones[1], Drone2 = Entity.Null, Drone3 = Entity.Null,
+                Point = new Vector3(300f, 200f, 0f), IntervalSeconds = 2f, Current = DroneOperatorBehavior.None,
+            };
+            void Runs(bool running)
+            {
+                var bs = new BehaviorState { Origin = BehaviorOrigin.Superior, ActiveBehaviorHash = running ? BehaviorHash.FromName(BehaviorNames.AirPlatformStrike) : BehaviorIds.None };
+                if (_w.HasComponent<BehaviorState>(_drones[0])) _w.SetComponent(_drones[0], bs); else _w.AddComponent(_drones[0], bs);
+            }
+
+            Step(ref p);
+            Assert.Equal(1, Launched(_drones[0]));
+            for (int i = 0; i < 10; i++) Step(ref p);                       // the order not yet running there: nothing decided
+            Assert.Equal((1, 0), (Launched(_drones[0]), Launched(_drones[1])));
+            Runs(true); for (int i = 0; i < 4; i++) Step(ref p);          // the sortie
+            Runs(false); for (int i = 0; i < 6; i++) Step(ref p);         // back home, its order ended: after the interval, again
+            Assert.Equal((2, 0), (Launched(_drones[0]), Launched(_drones[1])));
+            Runs(true); for (int i = 0; i < 4; i++) Step(ref p);
+            Runs(false); for (int i = 0; i < 6; i++) Step(ref p);         // its second grenade gone: the next drone
+            Assert.Equal((2, 1), (Launched(_drones[0]), Launched(_drones[1])));
+        }
+
         /// <summary>⭐ <c>CE-7028</c> — an UNARMED stock drone (the recon quadcopter: no mount) is sent to WATCH the area (<c>DroneRecon</c>), an armed one
         /// to strike it. ✅ Red-proof: the mount test dropped ⇒ the recon drone gets a strike ⇒ red.</summary>
         [Fact]

@@ -13,6 +13,16 @@ namespace Hrot.AI.Behaviors.Brains
             => Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(world, unit, out var t)
                && t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>() is { Mounts.Count: > 0 };
 
+        /// <summary>⭐ <c>CE-7027</c> — the rounds the unit's known type carries on all its mounts together (0 = unknown, or none).</summary>
+        public static int Rounds(EntityRepository world, Entity unit)
+        {
+            if (!Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(world, unit, out var t)
+                || t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>() is not { } suite) return 0;
+            int n = 0;
+            for (int i = 0; i < suite.Mounts.Count; i++) n += suite.Mounts[i].InitialAmmunition;
+            return n;
+        }
+
         /// <summary>The unit's known type carries no weapon mount (the recon quadcopter, a truck).</summary>
         public static bool KnownUnarmed(EntityRepository world, Entity unit)
             => Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(world, unit, out var t)

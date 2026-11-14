@@ -220,6 +220,18 @@ circle) at 80 m; its battery's end or an enemy jammer (§5a) ⇒ down where it i
 of its team's squad, its memory merges into the squad pool, which the staff SPOTs up (`StaffComposerSystem`). `DroneOperator` (§5b) sends an
 unarmed stock drone to watch, an armed one to strike.
 
+## 5d. The bomber drone — as built `2026-11-14` (showcase-brains, CE-7027 — obligation ⑤)
+
+⭐ Type 408 `Drone_Bomber`: the quadcopter airframe (the ONE `QuadcopterBody()` the FPV, recon and bomber share) with a DROP RACK — a
+`WeaponCategory.Bomb` mount of two M67s — a 20-minute battery, no burst on impact. ⭐ `AirAttackProfile.HoverDrop` (7): `AirAttackProfiles.Pick` gives
+it to a rotorcraft whose only weapon is a drop rack (before it such an aircraft had NO profile and the strike failed). `AirAttackNodes.HoverDrop`:
+straight to hover `DefaultDropHeightAgl` 30 m over the point (arrival radius 1 m); standing within 2 m of it, the one `FireAtPoint` (Rounds 1) — the
+weapon brain holds the round for the release cue, which now has a HOVER branch (`BombBallistics.ReleaseNow`: under `HoverMps` 1.5 m/s there is no
+pass to time, so it drops when the round would land within `HoverToleranceM` 2 m); dropped ⇒ fly back to where the strike began (`AirAttackState.Home`)
+⇒ Success. ⭐ `DroneOperator` (§5b) now also counts a drone that ENDS its order alive as done (once it was seen running it), and sends it again while its
+known type's rounds (`TemplateArms.Rounds`) exceed its sorties — two grenades, two sorties. ⚠ The munition is the M67 (a time-fuzed hand grenade; the
+ballistics burst it on the ground) — an impact-fuzed VOG-class round is not built. ⚠ It does not land: it hovers at home until sent again.
+
 ## 6. As-built `2026-10-14` (backend, handoff B11 — the Muscle half)
 
 The design carries **15 classes** (§2) and **1 sequence** (§3); the Muscle half is built, the Brain half (`FpvAttackNodes`, `FpvAttackParams`,
