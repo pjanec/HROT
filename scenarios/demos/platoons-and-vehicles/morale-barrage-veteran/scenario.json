@@ -777,7 +777,8 @@
     "Name": "SpotForFire",
     "Params": {
      "Battery": "c7015000-0000-4000-8000-000000009800",
-     "Rounds": 4
+     "Rounds": 4,
+     "Locating": "Laser"
     },
     "Origin": "Superior"
    },

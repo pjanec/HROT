@@ -4339,6 +4339,9 @@ def run_morale_barrage(c, timeout):
     call("POST", f"/entities/{sq[9320]}/reports", {"kind": "Spot", "at": [120, 60, 0], "count": 3, "size": "Team"})   # inside the EA: Engage
     t0 = sim_time() or 0.0
     first = {}
+    shooters = {ids.get("Mortar Man 1"), ids.get("Mortar Man 2"), ids.get("Mortar Tube 1"), ids.get("Mortar Tube 2")}
+    near_m = 2 * 5.898   # CE-4584: 2 × the 81 mm HE's injury radius (its warhead source line)
+    seen = set()
     window = max(timeout, 240.0)
     end = time.time() + window
     while time.time() < end:
@@ -4346,8 +4349,19 @@ def run_morale_barrage(c, timeout):
         stress = [_comp(m, "Stress") or {} for m in line]
         broken = sum(1 for s in stress if s.get("Broken"))
         down = sum(1 for m in line if ((_comp(m, "Health") or {}).get("Current") or 1) <= 0)
-        under = sum(1 for m in line if _comp(m, "UnderFire"))
-        if under and "underFire" not in first: first["underFire"] = (round(t, 1), under)
+        # ⚠ UnderFire is not on the editor's Scenario view (measured): the near miss is judged from the bursts themselves — a battery
+        #   burst within 2 × the injury radius of a line man — and its effect from the men's Stress (which is)
+        pos = [position(m) for m in line]
+        for d in _detonations():
+            b = d.get("burst")
+            if d.get("shooter") not in shooters or not b or d.get("seq") in seen:
+                continue
+            seen.add(d.get("seq"))
+            under = sum(1 for p in pos if p and math.hypot(b[0] - p[0], b[1] - p[1]) <= near_m)
+            if under and "underFire" not in first:
+                first["underFire"] = (round(t, 1), under, round(max((s.get("Level") or 0) for s in stress), 2))
+        first["bursts"] = len(seen)
+        first["maxStress"] = max(first.get("maxStress", 0), round(max((s.get("Level") or 0) for s in stress), 2))
         if broken and "broken" not in first: first["broken"] = (round(t, 1), broken, down)
         fell = [k for k in (9310, 9320) if task_name(sq[k]) == "BreakContact"]
         if fell and "fallBack" not in first:
@@ -4355,8 +4369,9 @@ def run_morale_barrage(c, timeout):
             if green: break
         time.sleep(2.0)
     print(f"   sim since engaged: {round((sim_time() or 0.0) - t0, 1)} s · first near miss (t, men under fire) {first.get('underFire')} · "
-          f"first broken (t, broken, down) {first.get('broken')} · fall-back (t, broken, down) {first.get('fallBack')}")
-    c.ok("underFire" in first, "the bursts near-miss the line's men (UnderFire)")
+          f"first broken (t, broken, down) {first.get('broken')} · fall-back (t, broken, down) {first.get('fallBack')} · "
+          f"battery bursts {first.get('bursts')} · peak line stress {first.get('maxStress')}")
+    c.ok("underFire" in first, f"the bursts near-miss the line's men (a battery burst within {near_m:.1f} m: {first.get('underFire')})")
     if green:
         c.ok("fallBack" in first and first["fallBack"][2] < 4, f"the GREEN platoon falls back while most of its line is alive ({first.get('fallBack')})")
     else:

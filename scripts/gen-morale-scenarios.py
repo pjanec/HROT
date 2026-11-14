@@ -48,6 +48,9 @@ def main():
                 e["SimTransform"]["Position"] = [230, 100, 0]
                 e["SimTransform"]["Rotation"] = [0, 0, 0.971977, 0.235077]
                 e["Behavior"]["Params"]["Rounds"] = 4
+                # ⚠ measured: by map / eye (±150 m) his adjustment ended ~47 m short of the line (bursts at (105, 110)) — "effect" is a
+                #   50 m bracket; a near miss is 2 × the 81 mm's 5.9 m injury radius. A laser (±10 m) puts the bursts on the line.
+                e["Behavior"]["Params"]["Locating"] = "Laser"
             else:
                 e["SimTransform"]["Position"] = [x - 740 + 280, y - 745 + 30, z]   # the cell keeps its shape, centred at (280, 30)
             doc["entities"][remap[k]] = e
