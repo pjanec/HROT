@@ -543,3 +543,62 @@ splits; only the Handover is a single step, and a deadline bounds the whole proc
 | **D-P6** | the HANDOVER is one tick per unit, serial (the parallel rule: creation and the state mapping as follow-ups): the stochastic resolution stops, the children start, the order re-resolves (X-2) | no tick in which both resolutions fight |
 | **D-P7** | a deep split (battalion straight to men in one house) runs the SAME cascade, level by level, quickly — no special path; re-aggregation is the reverse and simpler (sum, then remove) | one mechanism |
 | ⏳ to measure when built | the platoon / company planners' inputs (D-P3); the process time per echelon (D-P1); how created-but-held entities are kept out of the world until the handover (the entity lifecycle's Constructing state is the candidate) | — |
+
+## 16b. Who decides the resolution, when, to what level — and when it is worth it *(leans, NOT accepted; 🔒 user, `2026-11-14`: "how the de-aggregation would be realized (would it be an action called by SOP or something?) and how triggered (on user request, on contact, or other trigger - who defines and parametrizes). when to re-aggregate, under what condition, is that something automatable? to what aggregation level? in what situation it could make sense? let's think through those before any acceptance")*
+
+**The proven solution:** resolution is a FIDELITY decision of the simulation (level of detail), not a tactical decision of the unit: a
+manager compares each unit against a policy — where the FOCUS is (the trainees, the physical forces, the camera), which AREAS must be detailed,
+the PERFORMANCE budget — and requests splits and merges; operators can override. Units do not "choose" to become men, and their tactics must not
+depend on it.
+
+```mermaid
+graph TD
+  POL[ResolutionPolicy - World Environment singleton] --> MGR[ResolutionManager - serial, every 1-2 s]
+  SET[scenario author: a trigger verb SetResolutionPolicy, time 0 or later] --> POL
+  INS[instructor: pin / force a unit, live] --> PIN[ResolutionPin on the unit]
+  PIN --> MGR
+  FOC[focus: possessed units, physical forces of the other side, optional camera] --> MGR
+  MGR -->|request Split or Merge| PROC[the process, section 16a]
+  PROC --> UNIT[the unit: Resolution field, Splitting stage]
+  BRAIN[the unit's brain and SOP]:::no -.never decides.-> UNIT
+  classDef no stroke:#c33,color:#c33,stroke-dasharray: 5 5
+```
+*What it shows: ONE manager owns every resolution change; authors set its policy through the same trigger-verb path the lethality settings
+use (`SetSkillAmplifier` → the World Environment, City Battle §4b), instructors pin units, and the unit's brain never takes part — so a split is
+invisible to its tactics and its commanders.*
+
+**How it is realised and triggered**
+
+| | lean | why |
+|---|---|---|
+| **who executes** | a `ResolutionManager` system (serial pass, every 1–2 s of sim time) — ⛔ NOT an SOP row or an action of the unit | a fidelity choice is the simulation's; an SOP would make tactics depend on resolution and give every unit a vote |
+| **the policy (data)** | a `ResolutionPolicy` in the World Environment: distance BANDS per resolution (e.g. physical < 400 m from focus, fusion < 1.5 km, stochastic beyond), the predictive lead time (D-P1), the merge margin and quiet time, detail AREAS (a village the exercise is about: always physical), a performance budget | one place, saved with the scenario |
+| **who sets it** | the scenario author: a trigger verb `SetResolutionPolicy` (time 0, or later — e.g. "phase 2: the town becomes a detail area") — the same path as `SetSkillAmplifier`; engine defaults otherwise | the existing authoring pattern |
+| **live override** | the instructor: pin a unit (never merge / always physical) or force a split / merge — a `ResolutionPin` on the unit, through the command path the editor and the HTTP API already use | a trainer's need: "make that company real now" |
+| **focus** | possessed units (`PossessedBy`), physical forces of another side, optionally the active camera / film director (interest score, CE-7018) | where detail is SEEN or FOUGHT |
+
+**When to re-aggregate (automatable — yes)**
+
+| condition (ALL must hold) | why |
+|---|---|
+| no focus entity inside the band + a margin, for T (e.g. 60 s) | hysteresis — no flip-flop |
+| out of contact for T (no shot, no near miss, no detection of a physical enemy) | never merge mid-fight (X-5) |
+| ⭐ UNOBSERVED: no physical sensor currently sees any of its members | men never vanish in front of a trainee or a camera |
+| not in a detail area, not pinned | the author's and the instructor's word win |
+| not mid-play where the state cannot be summed (clearing a building, embarking, a casualty being carried) | the mapping back must be honest |
+
+| **to what level** | lean |
+|---|---|
+| merge BOTTOM-UP, one level at a time: men → FusionSquad → the StochasticUnit of the lowest echelon whose children are ALL mergeable | a company with one platoon still near the trainees stays split at that platoon |
+| the TARGET level comes from the band the unit is in (near → physical, middle → fusion, far → stochastic) | the same bands as the split — symmetric |
+
+**When it makes sense — and when not**
+
+| situation | use |
+|---|---|
+| ⭐ a large exercise with few trainees: the brigade around them stochastic, the company they fight physical | the main case — detail where it is seen and fought |
+| course-of-action analysis, faster than real time: everything stochastic; an analyst splits ONE engagement to inspect it | detail on demand |
+| a showcase or a film: the camera's interest drives the detail | the director decides where the men exist |
+| a performance governor: merge the quietest units when the frame budget is exceeded | keeps the run real-time |
+| ⛔ a small close-combat exercise (a platoon in a village) | everything physical — the policy simply never aggregates |
+| ⛔ replay | it shows what was RECORDED; resolution is not changed in replay |
