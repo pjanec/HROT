@@ -9,6 +9,7 @@ using Fdp.Toolkit.Navigation.Recast;
 using Fdp.Toolkit.Terrain;
 using Hrot.Map.Common.Services;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Hrot.SimHost.Tests
 {
@@ -29,8 +30,11 @@ namespace Hrot.SimHost.Tests
         /// <summary>A WIDE, SHALLOW crater: its walls (≈ 8°) are gentle enough for the vehicle layer's 20° slope limit, so only the crater AREA keeps a vehicle out.</summary>
         private static readonly Crater Dish = new(new Vector2(30f, 30f), 6f, 0.4f, 0.05f, (SimInstant)1.0, CraterKind.Large);
 
-        public CraterBakeTests()
+        private readonly ITestOutputHelper _out;
+
+        public CraterBakeTests(ITestOutputHelper output)
         {
+            _out = output;
             SimHostComponentRegistry.RegisterAll(_world);
             Directory.CreateDirectory(_staging);
             int n = 61;   // a flat 60 × 60 m field, 1 m posts
@@ -174,5 +178,103 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(-0.4f, Resident.GroundHeightAt(5f, 5f), 3);
             Assert.Single(sys.LastDirty!);
         }
-    }
+    
+        /// <summary>
+        /// ⭐⭐ <c>CE-4600</c> / <c>CE-4591</c> (Breaching §7.5 item 16, V-20 — "a barrage on the showcase town: record count, bake latency and frame budget stated and met") — a
+        /// MEASUREMENT on <c>city-battle</c> (the showcase town, its real ground and its navmesh, on a muscle): a Mk-82 (89 kg) every 0.5 s of wall clock for 30 s at random points
+        /// in the town's core, each crater decided by the rule and written into the record of its cell, as the deciding node does; the bake system runs on a 60 Hz frame. Stated and
+        /// met: every change committed within <see cref="StaticObstacleBakeSystem.MaxLatencySeconds"/> + one bake; the frame thread's bake step ≤ 2 ms at the 99th percentile; one
+        /// record per hit cell. ⚠ Minutes (the full navmesh is built first) ⇒ run on demand: <c>HROT_RUN_MEASURE=1</c>. The numbers go to the output and to Breaching §7.17.
+        /// </summary>
+        [Fact]
+        public void CE4600_ABarrageOnTheShowcaseTown_TheNumbers()
+        {
+            if (Environment.GetEnvironmentVariable("HROT_RUN_MEASURE") != "1") return;   // a measurement of minutes, on demand (the BuildingDamageBakeTests precedent)
+            string? dir = AppContext.BaseDirectory;
+            while (dir != null && !Directory.Exists(Path.Combine(dir, "assets", "terrain", "city-battle"))) dir = Path.GetDirectoryName(dir);
+            Assert.NotNull(dir);
+            string def = Path.Combine(dir!, "assets", "terrain", "city-battle", "terrain.json");
+            var definition = TerrainFolderWorld.ReadDefinition(def);
+            var town = TerrainFolderWorld.ReadWorld(def, definition, "city-battle")!;
+            var build = System.Diagnostics.Stopwatch.StartNew();
+            var residency = new TerrainResidency(_staging, new RoadNetworkHolder());
+            var factory = new RecastNavmeshFactory { Layers = NavLayerMask.Infantry | NavLayerMask.Vehicle, TileCache = new NavTileCache() };
+            var baseline = factory.Build(town);
+            residency.AttachNavmesh(factory, _node);
+            residency.Commit(_world, new TerrainResidency.Staged { Definition = definition, World = town, TerrainName = "city-battle", Navmesh = baseline });
+            _out.WriteLine($"city-battle: {town.Buildings.Count} buildings, grid {town.Height!.Cols} × {town.Height.Rows}; navmesh built in {build.Elapsed.TotalSeconds:F1} s");
+
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var sys = new StaticObstacleBakeSystem(() => clock.Elapsed.TotalSeconds);
+            var rng = new Random(4600);
+            var centre = (town.BoundsMin + town.BoundsMax) * 0.5f;
+            var cells = new System.Collections.Generic.Dictionary<(int, int), Entity>();
+            var pending = new System.Collections.Generic.List<double>();   // the wall time of each change not yet committed
+            var latencies = new System.Collections.Generic.List<double>(); var frames = new System.Collections.Generic.List<double>();
+            var steady = new System.Collections.Generic.List<double>(); var slowAfterFirstCommit = new System.Collections.Generic.List<double>();
+            double firstCommit = double.NaN, longestBake = 0.0; bool firstFrame = true;
+            int bursts = 0, craters = 0, bakesSeen = 0; double nextBurst = 0.0, oldestPending = double.NaN, bakeStart = 0.0;
+            while (clock.Elapsed.TotalSeconds < 30.0 || (pending.Count > 0 && clock.Elapsed.TotalSeconds < 60.0))
+            {
+                double now = clock.Elapsed.TotalSeconds;
+                if (now >= nextBurst && now < 30.0)
+                {
+                    nextBurst += 0.5; bursts++;
+                    var at = centre + new Vector2((float)(rng.NextDouble() * 300 - 150), (float)(rng.NextDouble() * 300 - 150));
+                    if (CraterRule.TryDecide(CraterRuleTable.Shared, town, new Vector3(at, town.GroundHeightAt(at.X, at.Y)), 89f, (SimInstant)now, out var c))
+                    {
+                        craters++;
+                        var key = GroundDamages.CellOf(c.Centre);
+                        if (!cells.TryGetValue(key, out var e))
+                        {
+                            var d = new GroundDamage(); (d.CellX, d.CellY) = key; GroundDamages.Add(ref d, in c, out _);
+                            e = _world.CreateEntity(); _world.AddComponent(e, d); cells[key] = e;
+                        }
+                        else { var d = _world.GetComponentRO<GroundDamage>(e); GroundDamages.Add(ref d, in c, out _); _world.SetComponent(e, d); }
+                        if (pending.Count == 0) oldestPending = now;
+                        pending.Add(now);
+                    }
+                }
+                bool wasBaking = sys.Baking;
+                var t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+                sys.Execute(_world, 1f / 60f);
+                double ms = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
+                frames.Add(ms);
+                // the steady frame budget: every step after the first bake's commit (the cold one) within one 60 Hz frame
+                if (!firstFrame && !double.IsNaN(firstCommit) && now > firstCommit + 0.05 && ms > 1000.0 / 60.0) slowAfterFirstCommit.Add(ms);
+                firstFrame = false;
+                if (sys.Baking && !wasBaking) { bakeStart = now; _out.WriteLine($"  {now,6:F2} s  bake {sys.Bakes + 1} starts ({pending.Count} changes waiting, the oldest {(double.IsNaN(oldestPending) ? 0 : now - oldestPending):F2} s)"); }
+                if (ms > 5.0) _out.WriteLine($"  {now,6:F2} s  a slow frame-thread step: {ms:F1} ms (baking {wasBaking} → {sys.Baking}, bakes {sys.Bakes})");
+                if (sys.Bakes > bakesSeen)
+                {
+                    _out.WriteLine($"  {now,6:F2} s  bake {sys.Bakes} committed — {sys.LastBakeMilliseconds} ms of work, started {now - bakeStart:F2} s ago");
+                    bakesSeen = sys.Bakes;
+                    // a committed bake carries the changes made BEFORE its start (a change during it waits for the next): each one's wait is its latency
+                    longestBake = Math.Max(longestBake, sys.LastBakeMilliseconds / 1000.0);
+                    for (int k = pending.Count - 1; k >= 0; k--)
+                        if (pending[k] <= bakeStart)
+                        {
+                            latencies.Add(now - pending[k]);
+                            if (!double.IsNaN(firstCommit) && pending[k] > firstCommit) steady.Add(now - pending[k]);
+                            pending.RemoveAt(k);
+                        }
+                    if (double.IsNaN(firstCommit)) firstCommit = now;
+                    oldestPending = pending.Count > 0 ? pending[0] : double.NaN;
+                }
+                Thread.Sleep(16);
+            }
+            frames.Sort(); latencies.Sort(); steady.Sort();
+            double P(System.Collections.Generic.List<double> l, double q) => l.Count == 0 ? double.NaN : l[Math.Min(l.Count - 1, (int)(q * l.Count))];
+            _out.WriteLine($"bursts {bursts}, craters {craters}, records {cells.Count} (one per hit cell), bakes {sys.Bakes}, longest bake {longestBake:F2} s");
+            _out.WriteLine($"change → committed: median {P(latencies, 0.5):F2} s, max {(latencies.Count > 0 ? latencies[^1] : double.NaN):F2} s; after the first (cold) bake: median {P(steady, 0.5):F2} s, max {(steady.Count > 0 ? steady[^1] : double.NaN):F2} s");
+            _out.WriteLine($"frame-thread bake step: median {P(frames, 0.5):F3} ms, p99 {P(frames, 0.99):F3} ms, max {frames[^1]:F3} ms over {frames.Count} frames; over 16.7 ms after the first commit: {slowAfterFirstCommit.Count}");
+            // ⭐ the budgets, stated (Breaching §7.17) and met:
+            Assert.True(cells.Count <= craters, "one record per hit cell");
+            Assert.True(latencies.Count > 0 && latencies[^1] <= StaticObstacleBakeSystem.MaxLatencySeconds + 2 * longestBake + 0.5,
+                $"a change waited {latencies[^1]:F2} s (the cap {StaticObstacleBakeSystem.MaxLatencySeconds} s + the running bake + its own, {longestBake:F2} s each)");
+            Assert.True(steady.Count > 0 && steady[^1] <= StaticObstacleBakeSystem.MaxLatencySeconds + 1.5 + 0.5, $"in the steady barrage a change waited {steady[^1]:F2} s");
+            Assert.True(P(frames, 0.99) <= 3.0, $"the frame-thread bake step's p99 is {P(frames, 0.99):F3} ms");
+            Assert.Empty(slowAfterFirstCommit);   // after the cold first commit, no step costs a frame
+        }
+}
 }

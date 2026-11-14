@@ -148,26 +148,19 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
 
         if (_running != null)
         {
-            if (!_running.IsCompleted) return;
+            if (!_running.IsCompleted)
+            {
+                // ⭐ CE-4600 (Breaching §7.5 item 16, MEASURED on city-battle: a change waited 7.5 s) — a change made WHILE a bake runs starts its latency clock NOW;
+                //   ⛔ was: the clock started only after the commit, so it waited the rest of the running bake + the whole cap + its own bake
+                if (double.IsNaN(_changedSince) && SignatureNow(world, bakery, obstacleSig, out _, out _, out _, out _) != _runningSignature) _changedSince = _wallSeconds();
+                return;
+            }
             Finish(world);
         }
 
-        // ⭐ CE-4391 S-3 (B-10, B-12) — the building damage the navmesh must follow (passages and collapses; a hole moves nothing) joins the input hash,
-        //   on a node that does world queries ONLY: a display node's terrain is never rewritten by damage.
-        var damage = bakery.Residency.BakesDamage ? DamageOf(world) : null;
-        ulong navHash = damage?.NavHash ?? 0UL;
-        // ⭐ CE-4591 (P-4 part 2, V-6) — the craters join the input hash on EVERY node: the ground they lower is drawn everywhere
-        var craters = CratersOf(world);
-        if (craters != null) navHash = navHash == 0 ? craters.Hash : (navHash ^ craters.Hash) * 1099511628211UL;
-        var trees = TreesOf(world);   // ⭐ CE-4603 (B-6) — the felled trunks, on every node (the drawing hides them everywhere)
-        if (trees != null) navHash = navHash == 0 ? trees.Hash : (navHash ^ trees.Hash) * 1099511628211UL;
-        ulong signature = obstacleSig;
-        if (navHash != 0) { signature ^= navHash; signature *= 1099511628211UL; }
-        // ⭐ O-7 B — the editor's blocks and features join the input hash (allocation-free: a cached query, no strings)
         _liveOverlay?.PollFiles(_wallSeconds());   // ⭐ CE-4427 R-7 — a recipe / template edit (a stat per file, once a second)
-        ulong overlayHash = _liveOverlay?.SignatureOfWorld(world) ?? LiveOverlay.EmptySignature;
-        bool hasOverlay = overlayHash != LiveOverlay.EmptySignature;
-        if (hasOverlay) { signature ^= overlayHash; signature *= 1099511628211UL; }
+        ulong signature = SignatureNow(world, bakery, obstacleSig, out var damage, out var craters, out var trees, out bool hasOverlay);
+        ulong navHash = (damage?.NavHash ?? 0UL) | (craters != null ? 1UL : 0UL) | (trees != null ? 1UL : 0UL);
         bool changed = signature != _bakedSignature || ((hasObstacles || navHash != 0 || hasOverlay) && bakery.BaseVersion != _bakedBase);
         if (!changed)
         {
@@ -185,6 +178,31 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
 
         _changedSince = double.NaN;
         StartBake(world, bakery.Residency, damage, signature, hasOverlay, craters, trees);
+    }
+
+    /// <summary>
+    /// The signature of everything the bake reads, NOW: the obstacles' (<paramref name="obstacleSig"/>), the building damage the navmesh follows (a node that bakes damage), the
+    /// craters and felled trunks (every node), the editor's blocks and features. ONE place for the idle path and the running-bake check (CE-4600). Allocation-free: the view
+    /// tables are cached (<c>ViewTableCache</c>), the overlay signature a cached query.
+    /// </summary>
+    private ulong SignatureNow(EntityRepository world, StaticObstacleBakery bakery, ulong obstacleSig, out BuildingDamageTable? damage, out CraterTable? craters, out FelledTrees? trees, out bool hasOverlay)
+    {
+        // ⭐ CE-4391 S-3 (B-10, B-12) — the building damage the navmesh must follow (passages and collapses; a hole moves nothing) joins the input hash,
+        //   on a node that does world queries ONLY: a display node's terrain is never rewritten by damage.
+        damage = bakery.Residency.BakesDamage ? DamageOf(world) : null;
+        ulong navHash = damage?.NavHash ?? 0UL;
+        // ⭐ CE-4591 (P-4 part 2, V-6) — the craters join the input hash on EVERY node: the ground they lower is drawn everywhere
+        craters = CratersOf(world);
+        if (craters != null) navHash = navHash == 0 ? craters.Hash : (navHash ^ craters.Hash) * 1099511628211UL;
+        trees = TreesOf(world);   // ⭐ CE-4603 (B-6) — the felled trunks, on every node (the drawing hides them everywhere)
+        if (trees != null) navHash = navHash == 0 ? trees.Hash : (navHash ^ trees.Hash) * 1099511628211UL;
+        ulong signature = obstacleSig;
+        if (navHash != 0) { signature ^= navHash; signature *= 1099511628211UL; }
+        // ⭐ O-7 B — the editor's blocks and features join the input hash (allocation-free: a cached query, no strings)
+        ulong overlayHash = _liveOverlay?.SignatureOfWorld(world) ?? LiveOverlay.EmptySignature;
+        hasOverlay = overlayHash != LiveOverlay.EmptySignature;
+        if (hasOverlay) { signature ^= overlayHash; signature *= 1099511628211UL; }
+        return signature;
     }
 
     /// <summary>

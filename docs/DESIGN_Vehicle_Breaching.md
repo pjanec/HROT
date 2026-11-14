@@ -572,7 +572,7 @@ event in a follow-up, so a player's break, a blast and (B-4) the bulldozer reach
 | the write | a follow-up (`ParallelReadCheck.CurrentBatch.Later`) when in the per-entity phase, else at once | V-15, B-D10 |
 | no cost | `costHealth` 0, not applied | B-D12 |
 | feedback: dust, crash sound heard by the AI, the driver's HUD cue | ⛔ **B-3b** — the `ContactBreachEvent` (Broke / Bumped / TooStrong / Pushing + bar) is published; its consumers are not built | V-17, mockup |
-| a barrage's numbers | ⛔ measured with P-4 (the bake cap is P-0's) | §7.5 item 16 |
+| a barrage's numbers | ⭐ measured and met on city-battle — §7.17 (and a latency defect fixed) | §7.5 item 16 |
 
 ⭐ **Lane decisions (for the user's review):** [R-5015](blueprints/RULINGS.md) the starting values in `contact-breach.json` (strength thresholds 2000 /
 150, ram 1.5 m/s, push 2.5 s, kept 0.6, cut ≥ 4.2 m, bump 1.2 × 2.2 m); [R-5016](blueprints/RULINGS.md) a hull's push / grace / last-cue state is
@@ -722,3 +722,24 @@ the remote flag decides, at the one place each reads it.*
 | a join | a one-shot world event: `TranslatorClass.WorldEvent` + `DiscardIngress` (R-4007) — the classified set now six | R-4007 |
 
 Rail `ContactBreachWireTests` (the throttle, no echo, own / unknown dropped, remote republished).
+
+### 7.17 As built — §7.5 item 16: a barrage's numbers, stated and met *(`terrain` lane, `2026-11-14`, CE-4600 / CE-4591, V-20)*
+
+📐 **Measured on `city-battle`** (the showcase town: 474 buildings, a 1501 × 1501 m grid, its infantry + vehicle navmesh on a muscle): a Mk-82 (89 kg) every 0.5 s of wall clock
+for 30 s at random points in the town's core, each crater decided by the rule and written into its cell's record, the bake system on a 60 Hz frame. The run is a rail on demand
+(`CraterBakeTests.CE4600_ABarrageOnTheShowcaseTown_TheNumbers`, `HROT_RUN_MEASURE=1`, ≈ 90 s).
+
+| number | measured | stated budget |
+|---|---|---|
+| bursts → craters → records | 60 → 47 (13 on a floor or water: none, G-7) → **23 records** | one record per hit cell (V-7) ✅ |
+| a change → committed, steady barrage | median **2.00 s**, max **3.19 s** | ≤ the cap (2 s) + one bake + 0.5 s ✅ |
+| a change → committed, with the first (cold, 4.7 s) bake | max 7.43 s | ≤ the cap + the running bake + its own ✅ |
+| the frame thread's bake step | median 0.07 ms, p99 **1.6 ms** | p99 ≤ 3 ms ✅ |
+| steps over one 60 Hz frame after the first commit | **0** (a steady commit ≈ 5–8 ms) | 0 ✅ |
+
+⛔ **Found by measuring, and FIXED:** a change made WHILE a bake ran started its latency clock only after that bake's commit — it waited the rest of the running bake, the
+whole 2 s cap and its own bake (7.5 s measured; a bake every 3 s however busy the barrage). `StaticObstacleBakeSystem.Execute` now checks the signature while a bake runs
+(`SignatureNow`, the ONE signature for both paths) and starts the clock at the change.
+
+⚠ **Found, filed — [CE-5002](blueprints/Blueprint_Issues_Tracker.md):** the town's FIRST frame on a node (the view tables built, ≈ 20 ms) and the FIRST bake's commit (≈ 22 ms,
+cold) each cost one dropped frame; every later commit stays under a frame.
