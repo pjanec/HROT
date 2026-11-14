@@ -271,7 +271,7 @@ together that requires really two targets at the same time."*
 |---|---|---|
 | **A-0** | the real-squad defects CE-4605…CE-4609 (they make every squad better, and the aggregate rests on the same plays) | — |
 | **A-1** | D-1 staged: order-aware bookkeeping + the three hash readers; then `Order.Defend`, … one order at a time | A-0 (CE-4609) |
-| **A-2** | the type (TKB 307 + the representative type), `AggregateSquad` on the unit, `SquadMen` and its readers (D-2), seats (D-8), role (D-9) | — |
+| **A-2** | the type (TKB 307 `FusionInfantrySquad` + `FusionSoldier`), `AggregateSquad` + `SquadArsenal` on the unit and `AggregateStateSystem` (§11, S-1), `SquadMen` and its readers (D-2), seats (D-8), role (D-9) | — |
 | **A-3** | the combat model: the weapon rotation (D-4′ R-1…R-3) with a target per weapon and the view / body as data (D-4″ F-1…F-4), damage cap and burst frontage (D-6), squad nerve (D-7), the MG post (D-3), fire and movement / break contact with one man (D-5) | A-2 |
 | **A-4** | the aggregate plays: assault, ClearBuilding | A-1, A-2 |
 | **A-5** | the command-hierarchy scenario on aggregates (battalion → squads, ~80 entities; vehicles, mortars, drones real) + `Strength` / `QuietArea` objective kinds + the battalion reserve (CE-4589) + live checks and the dynamism measure (CE-7033) | A-3, A-4 |
@@ -320,3 +320,72 @@ the navmesh by posture and terrain. No rounds, no bodies — thousands of units,
 | **S-3** | stochastic dice are deterministic — seeded per unit per step, a fixed resolution step, each unit writes only itself | the parallel rule; equal at 1 / 4 / 8 threads |
 | **S-4** | the first StochasticSquad meets only stochastic units and point-fire assets; direct fire with physical entities waits for the disaggregation boundary | the multi-resolution problem is the expensive one |
 | **S-5** | ONE calibration: the FusionSquad's live exchanges and the measured drill times (§6 of the measurements) set the stochastic tables | the two resolutions agree, so a switch does not jump |
+
+## 11. The squad's commander entity — what changes *(lean; 🔒 user, `2026-11-14`: "what would it mean for the virtual squad commander entity? new components, changes in behaviors, ...")*
+
+```mermaid
+classDiagram
+  direction LR
+  class SquadUnit {
+    <<existing: the virtual commander, hidden>>
+    UnitEntity · UnitRoster · UnitSubordinate
+    BehaviorState + slots (the squad brain)
+    ReportOutbox · CommandReportHistory · CommandOrderHistory
+    SquadCognitiveState: contacts, elements, Assignment, phase
+    SquadDrillState · SquadLeadership
+    SimTransform (centroid of the men)
+  }
+  class AggregateSquad {
+    <<NEW, unmanaged, recorded, replicated>>
+    Resolution : Fusion / Stochastic
+    Represents · Men · Suppression
+    Posture · Frontage
+  }
+  class SquadArsenal {
+    <<NEW, unmanaged, fixed 6 slots>>
+    per weapon type: Count · MinCrew · Ammo
+  }
+  class FusionSoldier {
+    <<NEW TKB type, the one member>>
+    mounts = the arsenal's weapons
+    a target and an aim per weapon (F-1)
+  }
+  class AggregateStateSystem {
+    <<NEW, per unit, parallel phase>>
+    reads its soldier (declared), writes ITSELF
+  }
+  class ThreatMatrixAssignmentSystem {
+    <<existing, EXTENDED>>
+    Assignment indexed by ELEMENT:
+    a man, or an arsenal slot
+  }
+  class UnitCentroidSystem {
+    <<existing, EXTENDED>>
+    skips a Stochastic unit
+  }
+  class StochasticResolver {
+    <<later>>
+    writes AggregateSquad, SquadArsenal, SimTransform
+  }
+  SquadUnit *-- AggregateSquad
+  SquadUnit *-- SquadArsenal
+  SquadUnit o-- "1" FusionSoldier : roster
+  AggregateStateSystem ..> FusionSoldier : Health, mounts, stress, stance
+  AggregateStateSystem ..> AggregateSquad : writes
+  AggregateStateSystem ..> SquadArsenal : writes Ammo
+  ThreatMatrixAssignmentSystem ..> SquadArsenal : Fusion: one element per slot
+  StochasticResolver ..> AggregateSquad : later
+```
+*What it shows that prose hid: the commander keeps EVERYTHING it has today (it still runs the squad brain, reports and takes orders); it only
+GAINS two state components (S-1) and one system that copies the running resolution into them — and the existing `Assignment` table, indexed by
+"element" instead of "man", is the F-4 fire-element model with no new table.*
+
+| area | change | why / basis |
+|---|---|---|
+| **new components** | `AggregateSquad { Resolution, Represents, Men, Suppression, Posture, Frontage }` · `SquadArsenal` (6 fixed slots: weapon type, count, minimum crew, ammo) — unmanaged, `DataPolicy.Default` (recorded, saved, seek-safe); replicated so display nodes and the Player show strength (W-10) | S-1, D-2; CLAUDE.md "new components": unmanaged when recorded |
+| **authored where** | the squad's TKB type `FusionInfantrySquad` (307, a variant of 302): `Represents` and the arsenal from its composite (1 leader + 9 riflemen ⇒ rifles 7, LMG 1, RPG 1, grenades); one `FusionSoldier` slot | measured precedent: `AsLandUnit(…, variant)` (`NedTkbCatalog.cs:1055`) |
+| **new system** | `AggregateStateSystem` — per unit in the parallel phase: reads ITS soldier (a declared read), writes ITSELF: `Men = Represents × Health / Max`, ammo per slot from the soldier's mounts, `Suppression` from the soldier's stress, posture from its stance | the parallel rule (write your own entity, declare the read) |
+| **existing systems** | `ThreatMatrixAssignmentSystem`: `Assignment` indexed by element — a man (real squad) or an arsenal slot (FusionSquad) · `UnitCentroidSystem`: unchanged for Fusion (the centroid IS the soldier), skips a Stochastic unit · `CombatEffective` / `StrengthOf` / census / ratio / threat read `SquadMen` (D-2) | F-4, D-2 |
+| **behaviours (the squad brain on this entity)** | the SOP and the reports unchanged · the plays: the D-5 one-man fixes (generic, every squad) · the two aggregate plays as `FusionInfantrySquad<Order>` (assault, ClearBuilding) through the class routing (D-1) — every other order falls back to `InfantrySquad<Order>` | D-1, D-5 |
+| **ownership** | the unit stays on CGF (brain); the soldier's `Health` is in the brain group (`HrotOwnershipGroups.cs:53, :171-175`) ⇒ the copy is brain-local | measured |
+| **StochasticSquad, later** | the SAME components; no soldier; a `StochasticResolver` writes them and moves the unit's `SimTransform` itself | S-1…S-4 |
