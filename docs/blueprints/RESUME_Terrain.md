@@ -19,9 +19,9 @@ related-designs:
 |---|---|
 | branch | `terrain` (pushed also to the session branch) — started at `8e3a8000` (coordinator merged) |
 | order | B-1 → P-0 → B-2 → P-1 → P-2 → B-3 → P-3 → P-4 → B-6 → B-4 → B-5 → P-5 → P-6 ([handoff §2](batches/HANDOFF_Coordinator_To_Terrain.md)) |
-| done | **B-1** (CE-4598), **CE-6014** (found by B-1), **P-0** (CE-4596), **B-2** (CE-4599), **P-1** (CE-4403, 🟡), **P-2** (CE-4590), **B-3 core** (CE-4600), **P-3** (CE-4597), **P-4** (CE-4591, 🟡 decal/V-12/hash open), **B-6** (CE-4603), **B-4** (CE-4601), **B-5** (CE-4602), **P-5 part 1** (CE-4592, 🟡) |
+| done | **B-1** (CE-4598), **CE-6014** (found by B-1), **P-0** (CE-4596), **B-2** (CE-4599), **P-1** (CE-4403, 🟡), **P-2** (CE-4590), **B-3 core** (CE-4600), **P-3** (CE-4597), **P-4** (CE-4591, 🟡 decal/V-12/hash open), **B-6** (CE-4603), **B-4** (CE-4601), **B-5** (CE-4602), **P-5 parts 1 + 2a** (CE-4592, 🟡 2b open) |
 | last green | this commit (see STATUS §3) |
-| next | **P-5 part 2** (CE-4592 — the UI: Earthworks picks in `TerrainPicks`, Details, grade read-out, to `UX/ground-shaping-and-ditches.svg`); then **P-6** (CE-4593) |
+| next | **P-6** (CE-4593 — ditches and foxholes); P-5 part 2b (Details Effect, grade G-19, 2-D tint, mockup fidelity) open |
 | open | B-3b (V-17 feedback consumers), P-1's V-15/D-4/CE-4402 |
 | open from P-1 | V-15, D-4, CE-4402 (re-import) — see STATUS |
 | open from P-0 | stepped-hash 1/4/8 not run; no per-host rail (one system, no host gate left) |

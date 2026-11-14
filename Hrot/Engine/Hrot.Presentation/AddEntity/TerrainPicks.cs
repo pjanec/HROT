@@ -37,6 +37,7 @@ public sealed record TerrainPick(TerrainPickKind Kind, string Id, string Name, s
         Fdp.Toolkit.Terrain.TerrainFeature.Water => "terrain/water",
         Fdp.Toolkit.Terrain.TerrainFeature.Bridge => "terrain/bridge",
         Fdp.Toolkit.Terrain.TerrainFeature.Scatter => "terrain/clutter",
+        Fdp.Toolkit.Terrain.TerrainFeature.Ground => "terrain/source",   // ⭐ CE-4592 (P-5) — the earthworks: the mountain glyph
         _ => null,
     };
 
@@ -59,8 +60,11 @@ public static class TerrainPickCatalog
 {
     public const string Blocks = "Blocks", Buildings = "Buildings", Vegetation = "Vegetation", Walls = "Walls & fences", Clutter = "Clutter", Water = "Water & bridges";
 
-    /// <summary>The six terrain groups, in sidebar order (B-5).</summary>
-    public static readonly IReadOnlyList<string> Groups = new[] { Blocks, Buildings, Vegetation, Walls, Clutter, Water };
+    /// <summary>⭐ CE-4592 (P-5; mockup <c>docs/UX/ground-shaping-and-ditches.svg</c> panel A) — the 7th group: ground shapes and ditches.</summary>
+    public const string Earthworks = "Earthworks";
+
+    /// <summary>The seven terrain groups, in sidebar order (B-5; ⭐ P-5 adds Earthworks last).</summary>
+    public static readonly IReadOnlyList<string> Groups = new[] { Blocks, Buildings, Vegetation, Walls, Clutter, Water, Earthworks };
 
     /// <summary>The chips of the Blocks group, in the mockup's order.</summary>
     public static readonly IReadOnlyList<string> BlockChips = new[] { "Rural", "Urban", "Military", "Nature" };
@@ -89,6 +93,14 @@ public static class TerrainPickCatalog
             F(Water, TerrainFeature.Water, "Water", "", TerrainShape.Area, "a lake or pond; impassable"),
             F(Water, TerrainFeature.Bridge, "Bridge", "", TerrainShape.Line, "a deck over the river between two points, joins the banks"),
             F(Clutter, TerrainFeature.Scatter, "Street clutter", "", TerrainShape.Area, "cars, barrels and crates scattered in an area", "No scatter recipe is shipped yet (backend's T-3)."),
+            // ⭐ CE-4592 (P-5, G-14; mockup panel A) — ground shapes: an area levelled, raised or lowered; the newest drawn wins where they overlap
+            F(Earthworks, TerrainFeature.Ground, "Level", "level", TerrainShape.Area, "flatten an area at one height (cut and fill)"),
+            F(Earthworks, TerrainFeature.Ground, "Raise", "raise", TerrainShape.Area, "raise an area — a hill, a bank"),
+            F(Earthworks, TerrainFeature.Ground, "Lower", "lower", TerrainShape.Area, "lower an area — a hollow"),
+            F(Earthworks, TerrainFeature.Ground, "Crater", "crater", TerrainShape.Point, "a crater left by a blast", "A pre-shelled crater is a saved crater record (V-14) — not yet."),
+            F(Earthworks, TerrainFeature.Ground, "Ditch", "ditch", TerrainShape.Line, "a lowered line: cover and an obstacle", "Ditches come with P-6 (CE-4593)."),
+            F(Earthworks, TerrainFeature.Ground, "Anti-tank ditch", "at-ditch", TerrainShape.Line, "a wide, deep ditch: stops every vehicle", "Ditches come with P-6 (CE-4593)."),
+            F(Earthworks, TerrainFeature.Ground, "Foxhole", "foxhole", TerrainShape.Point, "a one-man hole: all-round cover", "Foxholes come with P-6 (CE-4593)."),
         };
         foreach (var t in Fdp.Toolkit.Terrain.ClutterTypes.All)
             l.Add(F(Clutter, TerrainFeature.Clutter, t.Name, t.Id, TerrainShape.Point, $"{t.Length:0.#} × {t.Width:0.#} m, {t.Material}"));

@@ -66,11 +66,31 @@ public static class TerrainBirth
         => f.Kind == TerrainFeature.Clutter && f.Template.Length > 0 ? TerrainPickCatalog.Title(f.Template) : f.Kind switch
         {
             TerrainFeature.Wall => "Wall", TerrainFeature.Fence => "Fence", TerrainFeature.Hedge => "Hedge", TerrainFeature.Wood => "Wood", TerrainFeature.Tree => "Tree",
-            TerrainFeature.Scrub => "Scrub", TerrainFeature.Water => "Water", TerrainFeature.Bridge => "Bridge", TerrainFeature.Scatter => "Scatter", _ => "Terrain feature",
+            TerrainFeature.Scrub => "Scrub", TerrainFeature.Water => "Water", TerrainFeature.Bridge => "Bridge", TerrainFeature.Scatter => "Scatter",
+            TerrainFeature.Ground => f.Template switch { "level" => "Level ground", "lower" => "Lowered ground", _ => "Raised ground" },   // ⭐ CE-4592
+            _ => "Terrain feature",
         };
 
     /// <summary>A fresh seed for a placed block — four digits, as the mockup's "seed 4471". ⭐ A user action, so <see cref="Random.Shared"/> is fine (the block's layout is a function of the seed ever after).</summary>
     public static uint NewSeed() => (uint)Random.Shared.Next(1000, 10000);
+
+    /// <summary>⭐ CE-4592 (P-5) — a raise is 2 m, a lower 1 m, a level the ground where it was clicked (the placed transform's Z) — edited in Details after.</summary>
+    public const float DefaultRaise = 2f, DefaultLower = 1f;
+
+    /// <summary>
+    /// ⭐ CE-4592 (P-5, G-14, V-28) — a new ground shape: its mode, its default value, and its DRAW ORDER (<see cref="TerrainFeature.Seed"/>) = the authoring moment in seconds since 2026,
+    /// so the shape drawn last is the newest and wins where shapes overlap (an authoring clock — never the simulation's).
+    /// </summary>
+    public static TerrainFeature GroundShape(string mode, List<object> components)
+    {
+        float z = 0f;
+        foreach (var c in components) if (c is SimTransform t) { z = t.Position.Z; break; }
+        float value = mode switch { "raise" => DefaultRaise, "lower" => DefaultLower, _ => z };
+        return new TerrainFeature { Kind = TerrainFeature.Ground, Template = new FixedString32(mode), Pad = value, Seed = DrawOrderNow() };
+    }
+
+    /// <summary>The draw order of a shape drawn now: seconds since 2026-01-01 (monotonic across sessions; a later shape is a higher number).</summary>
+    public static uint DrawOrderNow() => (uint)Math.Max(1.0, (DateTime.UtcNow - new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds);
 
     /// <summary>
     /// Adds the <see cref="TerrainBlock"/> (<paramref name="tkbType"/> 8817) or <see cref="TerrainFeature"/> (8818) for <paramref name="spec"/> to <paramref name="components"/>, heading from
@@ -83,6 +103,8 @@ public static class TerrainBirth
             components.Add(new TerrainBlock { Recipe = new FixedString32(p.Id), Seed = seed ?? NewSeed(), HeadingDeg = (HeadingOf(rotation) + extraHeadingDeg) % 360f, Fit = TerrainBlock.FitAll });
         else if (p.Kind == TerrainPickKind.House && tkbType == TkbEntityTypes.TerrainFeature && !components.Exists(c => c is TerrainFeature))
             components.Add(new TerrainFeature { Kind = TerrainFeature.House, Template = new FixedString32(p.Id), HeadingDeg = (HeadingOf(rotation) + extraHeadingDeg) % 360f });
+        else if (p.Kind == TerrainPickKind.Feature && tkbType == TkbEntityTypes.TerrainFeature && FeatureOf(spec) is { } g && g.Kind == TerrainFeature.Ground && !components.Exists(c => c is TerrainFeature))
+            components.Add(GroundShape(g.Template, components));   // ⭐ CE-4592 (P-5) — its value and its draw order
         else if (p.Kind == TerrainPickKind.Feature && tkbType == TkbEntityTypes.TerrainFeature && FeatureOf(spec) is { } f && !components.Exists(c => c is TerrainFeature))
             components.Add(new TerrainFeature { Kind = f.Kind, Template = new FixedString32(f.Template), HeadingDeg = f.Shape == TerrainShape.Point ? (HeadingOf(rotation) + extraHeadingDeg) % 360f : 0f, Seed = seed ?? NewSeed() });
         else return;

@@ -60,7 +60,8 @@ related-designs:
 | **B-4** CE-4601 — the bulldozer clears at a point | ✅ built (cross-lane into behaviors' `ClearObstacleBehavior`, said) | [Breaching §7.12](../DESIGN_Vehicle_Breaching.md); rails `ClearObstacleBehaviorTests.CE4601_*` (red-proved), `BladeCutWireTests`; SimHost 42 / 0 under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` |
 | **B-5** CE-4602 — every breach is a way in for the AI | ✅ built | [Breaching §7.13](../DESIGN_Vehicle_Breaching.md); rail `BreachEntryTests` (red-proved) |
 | **P-5** CE-4592 part 1 — ground shapes, the data path | 🟡 built: kind Ground, compile, parse, `GroundShapes.Apply` at merge (islands, newest wins); ⛔ open: corridors (G-24), the overlay SUMO net (G-16), grade read-out (G-19), the UI + mockup | [Ground §9.12](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `TerrainWorldMergeTests.CE4592_*` (red-proved) |
-| next | **P-5 part 2** — the UI (Earthworks picks, Details, grade) to the mockup; then **P-6** | |
+| **P-5** CE-4592 part 2a — the Earthworks picks | ✅ built (cross-lane into ui's picker, said) | [Ground §9.13](../DESIGN_Ground_Patches_And_Road_Blockage.md); rail `TerrainAuthoringPickerTests.CE4592_*`; `EntityTypeCatalogTests.CE2138_*` red is pre-existing (the drone-jammer type `e81eaa50`, behaviors) |
+| next | **P-6** CE-4593 — ditches and foxholes (P-5 part 2b — Details, grade, tint, fidelity — stays open) | |
 
 ## 3. Gates
 
@@ -90,6 +91,7 @@ related-designs:
 | P-4 re-ground + roads | `--filter TerrainHeightTests\|CraterTests\|RoutePlanner` | 46 / 0 |
 | B-6 | toolkit `--filter TreeFellingTests\|CraterTests\|TerrainChunkTrees\|Woods\|CarKinematicsSystemTests\|ContactBreach` · SimHost `TreeFellingBakeTests\|CraterBakeTests\|StaticObstacleBakeTests\|BuildingDamageBakeTests\|EntityGroundDamage\|BridgeClosure` | 139 / 0 · 36 / 0 |
 | B-5 | toolkit `--filter WorldSurvey\|BuildingLayout\|SoundPath\|Building` · SimHost `BreachEntryTests\|ClearBuilding\|RoomOrder` | 138 / 0 · 3 / 0 |
+| P-5 part 2a | `Hrot.Presentation.Tests --filter TerrainAuthoringPickerTests\|TerrainBirth\|AddEntity` | 96 / 1 — the 1 is pre-existing (`CE2138_*`, a TKB type from behaviors' CE-7014) |
 
 ⚠ Not yet run: `stepped-hash.py --threads 1,4,8`, drawing rails under Xvfb (nothing drawn changed), the full solution build.
 

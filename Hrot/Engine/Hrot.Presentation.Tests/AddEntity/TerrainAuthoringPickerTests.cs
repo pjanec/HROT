@@ -82,7 +82,7 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
         var order = r.GroupSidebar!.Order.ToList();
         int first = order.IndexOf(TerrainPickCatalog.Blocks);
         Assert.True(first > 0);
-        Assert.Equal(TerrainPickCatalog.Groups, order.Skip(first).Take(6).ToArray());
+        Assert.Equal(TerrainPickCatalog.Groups, order.Skip(first).Take(TerrainPickCatalog.Groups.Count).ToArray());   // ⭐ CE-4592 — seven since Earthworks
         Assert.Equal(GalleryGroups.OtherName, order[^1]);
 
         var rows = r.ItemsProvider().ToList();
@@ -330,7 +330,7 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
         Assert.All(picks.Where(p => p.FeatureKind == TerrainFeature.Clutter), p => Assert.Equal(TerrainShape.Point, p.Shape));
         var scatter = picks.Single(p => p.FeatureKind == TerrainFeature.Scatter);
         Assert.Contains("T-3", scatter.Disabled);
-        Assert.All(picks.Where(p => p.FeatureKind != TerrainFeature.Scatter), p => Assert.Null(p.Disabled));
+        Assert.All(picks.Where(p => p.FeatureKind != TerrainFeature.Scatter && p.FeatureKind != TerrainFeature.Ground), p => Assert.Null(p.Disabled));   // ⭐ CE-4592 — the earthworks have their own rail
         // every group of the six now lists something
         var all = Shipped();
         foreach (var g in TerrainPickCatalog.Groups) Assert.Contains(all, p => p.Group == g);
@@ -443,5 +443,33 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
         Assert.Equal("feature:11:street-clutter:Area", scatter.Spec);
         Assert.Equal(("street-clutter", 3f), (TerrainPickCatalog.ScatterRecipes(new[] { _tmp }).Single().Id, TerrainPickCatalog.ScatterRecipes(new[] { _tmp }).Single().Density));
         Assert.Empty(TerrainPickCatalog.ScatterRecipes(new[] { ContentLayout.TerrainRecipeAssets(_src) }));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4592</c> (P-5; mockup <c>docs/UX/ground-shaping-and-ditches.svg</c> panel A) — the 7th group, EARTHWORKS: Level / Raise / Lower are area tools that place a
+    /// <c>TerrainFeature</c> of kind Ground (mode in its template); Crater, the ditches and the foxhole are listed greyed with the item that brings them. Born: a raise 2 m, a
+    /// lower 1 m, a level at the clicked ground; a later shape has a higher draw order (the newest wins). 🔴 Red-proof: born with <c>NewSeed()</c> ⇒ the order is random.
+    /// </summary>
+    [Fact]
+    public void CE4592_Earthworks_LevelRaiseLower_AreAreaTools_TheRestGreyed_AndAShapeIsBornWithItsValueAndANewerOrder()
+    {
+        Assert.Equal(TerrainPickCatalog.Earthworks, TerrainPickCatalog.Groups[^1]);
+        var earth = TerrainPickCatalog.FeaturePicks().Where(p => p.Group == TerrainPickCatalog.Earthworks).ToList();
+        Assert.Equal(new[] { "Level", "Raise", "Lower", "Crater", "Ditch", "Anti-tank ditch", "Foxhole" }, earth.Select(p => p.Name).ToArray());
+        Assert.All(earth.Take(3), p => { Assert.Null(p.Disabled); Assert.Equal(TerrainShape.Area, p.Shape); Assert.Equal(TerrainFeature.Ground, p.FeatureKind); Assert.Equal("terrain/source", p.GlyphKey); });
+        Assert.All(earth.Skip(3), p => Assert.NotNull(p.Disabled));
+        Assert.Contains("P-6", earth.Single(p => p.Name == "Ditch").Disabled);
+
+        var raise = new List<object> { new Fdp.Core.SimTransform { Position = new System.Numerics.Vector3(1f, 2f, 7.5f) } };
+        TerrainBirth.BornWith(Hrot.Map.Common.TkbEntityTypes.TerrainFeature, earth.Single(p => p.Name == "Raise").Spec, System.Numerics.Quaternion.Identity, raise);
+        var r = raise.OfType<TerrainFeature>().Single();
+        Assert.Equal(TerrainFeature.Ground, r.Kind); Assert.Equal("raise", r.Template.ToString()); Assert.Equal(TerrainBirth.DefaultRaise, r.Pad);
+        var level = new List<object> { new Fdp.Core.SimTransform { Position = new System.Numerics.Vector3(1f, 2f, 7.5f) } };
+        System.Threading.Thread.Sleep(1100);
+        TerrainBirth.BornWith(Hrot.Map.Common.TkbEntityTypes.TerrainFeature, earth.Single(p => p.Name == "Level").Spec, System.Numerics.Quaternion.Identity, level);
+        var l = level.OfType<TerrainFeature>().Single();
+        Assert.Equal(7.5f, l.Pad);
+        Assert.True(l.Seed > r.Seed, "the shape drawn later has the higher draw order");
+        Assert.Equal("Level ground", level.OfType<EntityInfo>().Single().Name.ToString());
     }
 }

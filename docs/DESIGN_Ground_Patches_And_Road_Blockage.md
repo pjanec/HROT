@@ -811,3 +811,12 @@ and the merge orders it before the pads, so a house placed on a shaped hill gets
 
 ⭐ **Lane decision (for the user's review):** [R-5026](blueprints/RULINGS.md). Rails: `TerrainWorldMergeTests.CE4592_*` (raise / level / blend, the newest wins, a house is an island, an unknown mode fails) —
 red-proved (no `GroundShapes.Apply` in the merge ⇒ both red).
+
+### 9.13 As built — P-5, part 2a: the Earthworks picks *(`terrain` lane, `2026-11-14`, CE-4592; cross-lane into the ui lane's picker — said)*
+
+| claim | code — as built | design / mockup |
+|---|---|---|
+| the 7th group | `TerrainPickCatalog.Earthworks` last in `Groups`; Level / Raise / Lower are AREA tools (the existing drawing tool) placing a `TerrainFeature` of kind Ground; the mountain glyph (`terrain/source`) | mockup panel A |
+| the rest listed, greyed with the item that brings them | Crater (V-14, a saved crater record), Ditch, Anti-tank ditch, Foxhole (P-6) | mockup panel A |
+| born | `TerrainBirth.GroundShape`: a raise 2 m, a lower 1 m, a level at the clicked ground (the placed transform's Z); the draw order = the authoring moment in seconds since 2026 (the newest wins) | G-14, V-28 |
+| ⚠ not yet (part 2b) | the Details *Effect* read-out (grade, area, kept out, the SUMO line), the grade warning over 15 % (G-19), the 2-D tint of the height change while drawing, and the frame-vs-mockup fidelity rails | mockup panels B, C, F |
