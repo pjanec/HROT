@@ -626,6 +626,15 @@ asset, which component types it reads and whether the entity is the unit itself 
 ⚠ Not yet measured: the per-read cost of that check on the hot path (the tracer counted ~10⁹ accesses per run) — a static "parallel phase active"
 flag checked first keeps serial code near free; to measure before the build. ⭐ **Measured (CE-4454): §18.3** — flag off no measurable cost; own +1.5–2.7 ns; another entity cheaper than today.
 
+#### 18.2a ⭐ As built — who declares, and the rail that keeps it true *(CE-7035, X-1, `2026-11-14`)*
+
+| | |
+|---|---|
+| ⭐⭐ **the phase that READS declares** — the brains' phase through `BrainPhase.Contribute(key, …, declareReads)`: the toolkit's `BrainReads` (library behaviours, helpers, generated code) and the AI assembly's `AiBrainReads` (types above the toolkit: `RoutePlan`), contributed by `CgfBehaviorSetup.LoadFromAiAssembly` — the one loader every host and test goes through | ⛔ never relying on another phase's declaration: 📐 `WeaponState` was declared only by the weapon dispatcher's phase, so the brains read it undeclared wherever that phase did not run (the drills: 78 / 244 red under the check) |
+| ⭐ a cross read is a TICK-START read unless nothing in the phase writes the type (then a job's stable read, `IStableReads`) | the 17 squad-play reads added are tick-start reads: `WeaponState` is written in the phase (`AimAndFireExecutor`), and a stable read is correct only for a type proven unwritten |
+| ⭐⭐ **the permanent rail** — `DrillsUnderTheReadCheckTests` runs `SquadManeuverTests` in a child test run with `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` (the check is fixed per process) and names every undeclared type | red-proved: `DoorState` undeclared ⇒ *"5 drill(s) red … undeclared cross reads of: DoorState"* |
+| ⏭ the target is unchanged: the GENERATOR emits each asset's set (table above); the hand lists stand for it until then | |
+
 ### 18.3 ⭐ As measured — the cost of the per-read cross-entity check *(branch `exp/read-check`, CE-4454; status: [`STATUS_Read_Check.md`](blueprints/batches/STATUS_Read_Check.md); the design is §18.2 above)*
 
 ⭐ **Affordable as designed: the check lives in the repository's own read path; no separate view type is needed for cost.**
