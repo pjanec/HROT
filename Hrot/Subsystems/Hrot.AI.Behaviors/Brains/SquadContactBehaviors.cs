@@ -360,6 +360,7 @@ namespace Hrot.AI.Behaviors.Brains
                 HoldOn     = new SquadHoldParams { Speed = speed, EndWhenClear = 1 },
                 Care       = CasualtyCareBehavior.Defaults(speed),
             };
+            block.Order.Care.EvacuateMetres = Math.Max(0f, authored.EvacuateMetres);   // ⭐ CE-7009
             block.State = default;
         }
 [Behavior(BehaviorNames.ReactToContact, Params = typeof(global::Hrot.Map.Definitions.Behavior.ReactToContactParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
@@ -563,6 +564,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             p.Care.Casualty = Entity.Null; p.Care.Medic = Entity.Null; p.Care.MedicFrom = default;
             p.Care.CasualtySlot = 0; p.Care.MedicSlot = 0;
+            if (p.Care.EvacuateMetres > 0f) p.Care.HasDestination = 0;   // ⭐ CE-7009 — each casualty's own collection point
         }
 
         /// <summary>Leaving the node: whichever query the current play owns goes.</summary>

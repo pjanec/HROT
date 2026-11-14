@@ -579,7 +579,7 @@ B's CE-7012 (the bulldozer's ClearObstacle) stands on them.
 | A-1 | **CE-7007** | active defence: shoot and move between a squad's posts; outposts withdraw | `SquadDefend`, the fall-back | B |
 | A-1b | **CE-7032** | outposts withdraw along a planned route (today: one `Back` point) | `BringOpBack` | B |
 | A-2 | **CE-7008** | suppression wears off, leaders rally — first a rail proving whether a squad can be pinned forever | stress, `SquadRecover` | B |
-| A-3 | **CE-7009** | casualty evacuation | `CasualtyCare`, the held-figure carry | B |
+| A-3 | **CE-7009** 🔶 BUILT `2026-11-14` (opt-in) | casualty evacuation. As built: `EvacuateMetres` on `CasualtyCare` / `ReactToContact` (0 = off): the medic carries the man that far straight back, AWAY from the squad's top contact, instead of to the nearest cover (`SquadRecover`'s destination path; each casualty his own point). ⚠ Lane default R-7009: OPT-IN, so every existing drill stays cover-first — and the squad SOP's reaction passes no params, so the showcase needs a way to set 150 (⏳ for the user: a squad-level default, or the SOP reaction's params) | `CasualtyCare`, the held-figure carry | B |
 | G-A | **CE-7010** | the air gate in `SupportCommand` (§3b) | `SupportCommandBehavior`, air defence | B |
 | CV-1 | **CE-7011** ✅ BUILT `2026-11-13` (Watch, boldness, the noise-panicked driver) | civilians (§3c): Watch (CE-7030), boldness (CE-7031), and a driver who panics from noise, not only when hit (`TrafficPanic.cs:187-200` covers a hit car). ⭐ CIV-3 fear-spreads is ALREADY BUILT (`CrowdSystem.cs:400-421`, measured 2026-11-13) | `CivilianHsm`, the phone held item | B |
 | CV-1a | **CE-7030** | `CivilianMode.Watch`: curious at a distance, some film | `CivilianBehavior`, the phone | B |
