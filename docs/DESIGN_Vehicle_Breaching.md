@@ -296,12 +296,12 @@ sequenceDiagram
   participant B as ClearObstacle (dozer brain)
   participant M as Muscle contact rule (B-3)
   participant D as damage table (every node)
-  I->>B: ClearObstacle { Obstacle } or { At }
+  I->>B: ClearObstacle(Obstacle) or ClearObstacle(At)
   B->>B: Resolve: Obstacle set => today's path. Else an obstacle within 3 m of At => that obstacle. Else the panels within 3 m => a wall cut at At
-  B->>B: wall cut: drive to the stand-off on the dozer's side, blade on the wall, sets Cutting { At } on itself (replicated)
+  B->>B: wall cut: drive to the stand-off on the dozer's side, blade on the wall, sets the Cutting marker at At on itself (replicated)
   M->>M: dozer in contact with a panel within a blade's width of At, Cutting set, pushed PushSeconds => a blade-wide full-height Passage
   M->>D: the breach (the same record and follow-up as a player's break)
-  B->>D: done when a Passage covers At; fail when no barrier is there or past a timeout
+  B->>D: done when a Passage covers At, fails when no barrier is there or past a timeout
 ```
 *What it shows: the brain only drives and sets a marker; the Muscle cuts with the same contact rule a player's tank uses, so there is one breach
 writer. A point that lands on an obstacle becomes today's entity order, so one click "clear here" works for both.*
