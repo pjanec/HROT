@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using CarKinem.Core;
 using CarKinem.Road;
@@ -2524,6 +2526,206 @@ namespace CarKinem.Tests.Systems
             if (swerves) Assert.True(most > 0.3f, $"it ran straight past the man (most {most:F2} m off the line)");
             else Assert.True(most < 0.1f, $"it swerved {most:F2} m for a man down clear of its way");
             pool.Dispose();
+            repo.Dispose();
+        }
+
+        // ── CE-4600 (B-3; docs/DESIGN_Vehicle_Breaching.md §3.2, §6, §7.5, D-3, V-3, V-9) — a player's vehicle breaks weak barriers ──
+
+        /// <summary>
+        /// A possessed vehicle (Manual, held by a live Fps station) of <paramref name="cls"/> and <paramref name="massKg"/> at (0, 0) facing +X, a world with
+        /// <paramref name="geojsonFeatures"/>, the breach and cue events registered. The TKB template carries the mass.
+        /// </summary>
+        private static (EntityRepository Repo, Entity E) Possessed(VehicleClass cls, float massKg, float throttle, string geojsonFeatures)
+        {
+            CarKinem.Controllers.ContactBreach.Reset();
+            var (repo, e) = ManualWorld(cls, new Fdp.Toolkit.Navigation.ManualDrive { Forward = throttle });
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
+            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)9001 });
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("breaker", 9001);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.VehicleParametersDto { Mass = massKg });
+            db.Register(t);
+            repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            repo.RegisterEvent<Fdp.Toolkit.Terrain.BuildingDamageEvent>();
+            repo.RegisterEvent<Fdp.Toolkit.Terrain.ContactBreachEvent>();
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" + geojsonFeatures + "]}"));
+            return (repo, e);
+        }
+
+        private const string BrickGardenWallAtX15 = "{\"type\":\"Feature\",\"properties\":{\"kind\":\"wall\",\"label\":\"garden\",\"height\":1.0,\"thickness\":0.3,\"material\":\"brick\"},\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[15,-20],[15,20]]}}";
+
+        /// <summary>Runs <paramref name="seconds"/>, collecting every breach and cue event; returns the farthest the nose reached (x) and the lowest speed after it first moved.</summary>
+        private static (float Nose, List<Fdp.Toolkit.Terrain.BuildingDamageEvent> Breaches, List<Fdp.Toolkit.Terrain.ContactBreachEvent> Cues) DriveInto(EntityRepository repo, Entity e, float seconds)
+        {
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            var p = repo.GetComponent<VehicleParams>(e);
+            float nose = float.MinValue;
+            var breaches = new List<Fdp.Toolkit.Terrain.BuildingDamageEvent>(); var cues = new List<Fdp.Toolkit.Terrain.ContactBreachEvent>();
+            for (int i = 0; i < (int)(seconds * 60); i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                repo.Bus.SwapBuffers();
+                breaches.AddRange(repo.Bus.Read<Fdp.Toolkit.Terrain.BuildingDamageEvent>().ToArray());
+                cues.AddRange(repo.Bus.Read<Fdp.Toolkit.Terrain.ContactBreachEvent>().ToArray());
+                nose = MathF.Max(nose, repo.GetComponent<SimTransform>(e).Position.X + p.Length * 0.5f);
+            }
+            return (nose, breaches, cues);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4600</c> (acceptance §6 item 2, §7.5 item 12) — a possessed 60 t TANK at full throttle into a 1 m brick garden wall BREAKS it and drives on THROUGH:
+        /// one breach on the wall, a Passage from its base to its top, at least the drive-through width (V-9), and the nose well past the wall; the break costs speed
+        /// but never zeroes it. 🔴 Red-proof: return false from <c>ContactBreach.OnContact</c> ⇒ held at the wall, no breach.
+        /// </summary>
+        [Fact]
+        public void CE4600_APossessedTank_BreaksAGardenWall_AndDrivesThrough()
+        {
+            var (repo, e) = Possessed(VehicleClass.Tank, 60000f, 1f, BrickGardenWallAtX15);
+            var (nose, breaches, cues) = DriveInto(repo, e, 8f);
+            var b = Assert.Single(breaches);
+            Assert.Equal((byte)Fdp.Toolkit.Terrain.BreachKind.Passage, b.Kind);
+            Assert.True(b.To - b.From >= 4.2f - 1e-3f, $"the cut is {b.To - b.From:F2} m — narrower than a vehicle drives through");
+            Assert.Equal(0f, b.Bottom, 3); Assert.Equal(1f, b.Top, 3);
+            Assert.True(nose > 15f + 3f, $"the tank stopped at the wall: nose x={nose:F2}");
+            Assert.Contains(cues, c => c.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Broke);
+            Assert.Equal(e, b.Shooter);
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4600</c> (acceptance §6 item 2's slow half, item 3) — the same tank CREEPING (0.9 m/s, a light throttle — no ram, no push) stops at the wall and breaks
+        /// nothing; a possessed CAR at full throttle stops too and is told the wall is TOO STRONG. 🔴 Red-proof: drop the minimum ram speed ⇒ the creeping tank breaks it.
+        /// </summary>
+        [Fact]
+        public void CE4600_ACreepingTank_AndAPossessedCar_StopAtTheWall()
+        {
+            var (repo, e) = Possessed(VehicleClass.Tank, 60000f, 0.06f, BrickGardenWallAtX15);
+            var (nose, breaches, _) = DriveInto(repo, e, 12f);
+            Assert.Empty(breaches);
+            Assert.True(nose <= 15f - 0.15f + 0.05f, $"the creeping tank went through: nose x={nose:F2}");
+            repo.Dispose();
+
+            var (car, c) = Possessed(VehicleClass.PersonalCar, 1500f, 1f, BrickGardenWallAtX15);
+            var (carNose, carBreaches, cues) = DriveInto(car, c, 8f);
+            Assert.Empty(carBreaches);
+            Assert.True(carNose <= 15f - 0.15f + 0.05f, $"the car went through: nose x={carNose:F2}");
+            Assert.Single(cues, q => q.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.TooStrong);   // once, not every tick of contact
+            car.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4600</c> (D-3, V-8; acceptance §7.5 item 12) — a tank RESTING against the wall (0.1 m off its face) at full throttle never reaches a ram speed, but
+        /// the PUSH breaks it: the push cue's bar first, then the break after the row's push seconds, then it drives through. 🔴 Red-proof: drop the push branch ⇒ held for good.
+        /// </summary>
+        [Fact]
+        public void CE4600_ATankRestingAgainstAWall_BreaksItByPush()
+        {
+            var (repo, e) = Possessed(VehicleClass.Tank, 60000f, 1f, BrickGardenWallAtX15);
+            var tf = repo.GetComponent<SimTransform>(e);
+            float half = repo.GetComponent<VehicleParams>(e).Length * 0.5f;
+            tf.Position = new Vector3(15f - 0.15f - 0.1f - half, 0f, 0f);
+            repo.SetComponent(e, tf);
+            var (nose, breaches, cues) = DriveInto(repo, e, 8f);
+            Assert.Contains(cues, c => c.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Pushing);
+            Assert.Single(breaches);
+            Assert.True(nose > 15f + 2f, $"pushed but not through: nose x={nose:F2}");
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4600</c> (B-D4, V-5; acceptance §6 item 4) — a possessed tank at speed into a BUILDING wall opens a door-sized Passage (1.2 m wide, 2.2 m high, from the
+        /// floor) and is held OUTSIDE — it never enters; an IFV (25 t) is told the building is too strong. 🔴 Red-proof: treat a building panel like a small barrier
+        /// ⇒ the tank drives into the house.
+        /// </summary>
+        [Fact]
+        public void CE4600_ATankBumpsABuildingWallOpen_ButNeverEnters()
+        {
+            const string House = "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"label\":\"H\",\"building\":{\"footprint\":[[0,0],[10,0],[10,10],[0,10]]," +
+                "\"storeys\":[{\"height\":3,\"walls\":[{\"from\":[0,0],\"to\":[10,0],\"thickness\":0.3,\"material\":\"brick\"},{\"from\":[10,0],\"to\":[10,10],\"thickness\":0.3,\"material\":\"brick\"}," +
+                "{\"from\":[10,10],\"to\":[0,10],\"thickness\":0.3,\"material\":\"brick\"},{\"from\":[0,10],\"to\":[0,0],\"thickness\":0.3,\"material\":\"brick\"}]}]}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[15,-5]}}";
+            var (repo, e) = Possessed(VehicleClass.Tank, 60000f, 1f, House);
+            var (nose, breaches, cues) = DriveInto(repo, e, 8f);
+            var b = Assert.Single(breaches);
+            Assert.Equal((byte)Fdp.Toolkit.Terrain.BreachKind.Passage, b.Kind);
+            Assert.Equal(1.2f, b.To - b.From, 2);
+            Assert.Equal(2.2f, b.Top - b.Bottom, 2);
+            Assert.True(nose <= 15f - 0.15f + 0.05f, $"the tank entered the house: nose x={nose:F2}");
+            Assert.Contains(cues, c => c.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Bumped);
+            repo.Dispose();
+
+            var (ifv, i) = Possessed(VehicleClass.Tank, 25000f, 1f, House);
+            var (_, ifvBreaches, ifvCues) = DriveInto(ifv, i, 6f);
+            Assert.Empty(ifvBreaches);
+            Assert.Contains(ifvCues, c => c.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.TooStrong);
+            ifv.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4600</c> (B-D3) — an IFV (25 t) breaks a hedge and a wooden fence but a brick garden wall is too strong for it (strength = resistance × thickness × height).
+        /// </summary>
+        [Theory]
+        [InlineData("hedge", 0.6f, 1.5f, true)]
+        [InlineData("fence-wood", 0.05f, 1.6f, true)]
+        [InlineData("brick", 0.3f, 1.0f, false)]
+        public void CE4600_AnIfv_BreaksHedgesAndFences_NotABrickWall(string material, float thickness, float height, bool breaks)
+        {
+            string wall = "{\"type\":\"Feature\",\"properties\":{\"kind\":\"wall\",\"label\":\"w\",\"height\":" + height.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                ",\"thickness\":" + thickness.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",\"material\":\"" + material + "\"},\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[15,-20],[15,20]]}}";
+            var (repo, e) = Possessed(VehicleClass.Tank, 25000f, 1f, wall);
+            var (_, breaches, _) = DriveInto(repo, e, 8f);
+            Assert.Equal(breaks, breaches.Count > 0);
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4600</c> (B-D3; acceptance §6 item 3) — a possessed IFV (25 t) into a SANDBAG wall (a static obstacle, baked into the terrain as its box) crushes it:
+        /// ONE damage of the obstacle's whole Health through the ONE obstacle-damage path (its owner removes it), and the IFV drives on over the ground — not onto the
+        /// bags' top. 🔴 Red-proof: name no obstacle in <c>ContactBreach.Identify</c> ⇒ held, no damage.
+        /// </summary>
+        [Fact]
+        public void CE4600_AnIfv_CrushesASandbagWall_ThroughTheObstacleDamagePath()
+        {
+            var (repo, e) = Possessed(VehicleClass.Tank, 25000f, 1f, "");
+            repo.RegisterComponent<Fdp.Toolkit.Terrain.StaticObstacle>();
+            repo.RegisterComponent<Fdp.Toolkit.Terrain.ObstacleShape>();
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            repo.RegisterEvent<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();
+            var bags = repo.CreateEntity();
+            var shape = new Fdp.Toolkit.Terrain.ObstacleShape { Length = 8f, Width = 1f, Height = 1f };
+            repo.AddComponent(bags, new SimTransform { Position = new Vector3(15f, 0f, 0f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });
+            repo.AddComponent(bags, new Fdp.Toolkit.Terrain.StaticObstacle { Material = new FixedString32("sandbags") });
+            repo.AddComponent(bags, shape);
+            repo.AddComponent(bags, new Fdp.Toolkit.Combat.Components.Health { Current = 300f, Max = 300f });
+            var world = repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()!;
+            var prism = Fdp.Toolkit.Terrain.TerrainObstacles.PrismOf(new Vector3(15f, 0f, 0f), MathF.PI / 2f, shape,
+                Fdp.Toolkit.Terrain.TerrainMaterialLibrary.Shared.Get("sandbags", "t"), Fdp.Toolkit.Terrain.TerrainObstacles.LabelPrefix + bags.Index);
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainObstacles.With(world, new[] { prism }));
+
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            var damage = new List<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();
+            float nose = float.MinValue, topZ = 0f;
+            var p = repo.GetComponent<VehicleParams>(e);
+            for (int i = 0; i < 8 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                repo.Bus.SwapBuffers();
+                damage.AddRange(repo.Bus.Read<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>().ToArray());
+                var at = repo.GetComponent<SimTransform>(e).Position;
+                nose = MathF.Max(nose, at.X + p.Length * 0.5f); topZ = MathF.Max(topZ, at.Z);
+            }
+            var d = Assert.Single(damage);
+            Assert.Equal(bags, d.HitEntity);
+            Assert.True(d.TotalDamage >= 300f);
+            Assert.True(nose > 15f + 2f, $"held at the bags: nose x={nose:F2}");
+            Assert.True(topZ < 0.05f, $"the IFV climbed onto the bags: z={topZ:F2}");
             repo.Dispose();
         }
 

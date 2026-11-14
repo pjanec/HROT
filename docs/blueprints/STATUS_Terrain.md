@@ -28,6 +28,9 @@ related-designs:
 | [R-5011](RULINGS.md) | overlapping corridors: the nearest road decides, a junction over all | seams between parallel carriageways |
 | [R-5013](RULINGS.md) | road blockage judged in each net's own geometry (no SUMO edge ids in `roads.json`) | a UI naming one road in both nets |
 | [R-5014](RULINGS.md) | a road is cut only where a blocker spans its full width; obstacles go to SUMO as square chains at rest, negative ids | SUMO cars squeezing past a barrier |
+| [R-5015](RULINGS.md) | `contact-breach.json` starting values (tank ≤ 2000 + building bump, IFV ≤ 150, ram 1.5 m/s, push 2.5 s, cut ≥ 4.2 m) | a playtest |
+| [R-5016](RULINGS.md) | push / grace / cue state is per-hull process state, not recorded | a break decided across a save mid-push |
+| [R-5017](RULINGS.md) | V-17 feedback split into B-3b | — |
 | [R-5012](RULINGS.md) | D-3's road-to-façade ramp is the two skirts meeting; D-4 and V-18 left to their own steps | a step between a road and a house on a real town |
 
 ## 2. Tasks
@@ -41,7 +44,8 @@ related-designs:
 | **P-1** CE-4403 part 1 — house pads at import | ✅ built | [Ground §9.7](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `ImporterTests.CE4403_*` (red-proved), `HeightStoreTests.CE4403_*`; importer suite 50/0 |
 | **P-1** CE-4403 part 2 — road corridors at import + the net re-elevated | 🟡 built; ⛔ open before DONE: V-15 (bridge data), D-4 (versioned re-import), CE-4402 (needs the scale terrains re-imported) | [Ground §9.8](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `ImporterTests.CE4403_*` (red-proved); importer suite 52/0; InputSet suite 6/0 |
 | **P-2** CE-4590 — road blockage: SUMO + our road graph | ✅ built | [Ground §9.9](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `BridgeClosureTests.CE4590_*` (red-proved); traffic suite 85/0; scenarios 2/0 |
-| next | **B-3** CE-4600 — a player's vehicle breaks barriers | |
+| **B-3** CE-4600 — a player's vehicle breaks barriers | 🟡 core built; ⛔ B-3b (dust, crash sound, HUD cue + mockup), barrage numbers (with P-4) | [Breaching §7.10](../DESIGN_Vehicle_Breaching.md); rails `CE4600_*` (red-proved); kinematics 110/0 under the parallel checks |
+| next | **P-3** CE-4597 — scenario house pads + *Save terrain as* | |
 
 ## 3. Gates
 

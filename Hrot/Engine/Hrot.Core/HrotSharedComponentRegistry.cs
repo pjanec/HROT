@@ -144,6 +144,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainBlock>();
         world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainFeature>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.BuildingDamageEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.ContactBreachEvent>();   // ⭐ CE-4600 (B-3) — a vehicle broke a barrier / met one too strong
         // ⭐ CE-3136 P-7a — static obstacles (a parked car, a sandbag wall …): terrain every node bakes. Shared: every node derives the
         //   marker from the TKB and receives the box (EntityObstacleShape). 📄 docs/DESIGN_Peek_And_Fire.md §9.
         world.RegisterComponent<Fdp.Toolkit.Terrain.StaticObstacle>();

@@ -21,7 +21,8 @@ related-designs:
 | order | B-1 → P-0 → B-2 → P-1 → P-2 → B-3 → P-3 → P-4 → B-6 → B-4 → B-5 → P-5 → P-6 ([handoff §2](batches/HANDOFF_Coordinator_To_Terrain.md)) |
 | done | **B-1** (CE-4598), **CE-6014** (found by B-1), **P-0** (CE-4596), **B-2** (CE-4599) |
 | last green | this commit (see STATUS §3) |
-| next | **B-3** (CE-4600 — the contact rule: at the guard's refusal for a `HullBreakGate` hull, `BarrierHit` → `ContactBreachRule` (contact-breach.json, ram / push) → a follow-up via `ParallelReadCheck.CurrentBatch.Later` publishing `BuildingDamageEvent` (the one writer) / `ObstacleDamage.Damage`; feedback event, HUD cue) |
+| next | **P-3** (CE-4597 — a scenario house's pad compiled into the overlay via `GroundPatches.Apply` in `TerrainWorldMerge`; *Save terrain as* writes the patched store + re-elevates the net) |
+| open | B-3b (V-17 feedback consumers), P-1's V-15/D-4/CE-4402 |
 | open from P-1 | V-15, D-4, CE-4402 (re-import) — see STATUS |
 | open from P-0 | stepped-hash 1/4/8 not run; no per-host rail (one system, no host gate left) |
 

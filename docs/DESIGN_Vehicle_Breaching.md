@@ -530,3 +530,56 @@ once), `BuildingBreachTests.CE4599_*` (keys and ranks, remap and load across ren
 `BuildingDamageBakeTests.CE4599_AGardenWallAndAHedgeGap_AreWalkable_AfterTheBake` (§7.5 item 14), `EntityBuildingDamageTranslatorTests.CE4599_*` (the
 wire), `TheBuildingDamagePlanTests.CE4599_*` (the 2-D drawing). ⚠ Save → reload of a free-wall breach is covered at the load's resolve and the save's
 group filter, not by a scenario file round-trip; the 3-D chunk redraw has no new frame rail.
+
+### 7.10 As built — B-3 core: the contact rule *(`terrain` lane, `2026-11-14`, CE-4600)*
+
+```mermaid
+sequenceDiagram
+  participant K as CarKinematicsSystem.FinishMove (per-entity phase)
+  participant H as HullClearance.StepBarrier
+  participant G as HullBreakGate
+  participant C as ContactBreach (+ contact-breach.json)
+  participant F as follow-up (BatchContext.Later)
+  participant W as BuildingDamageSystem / ObstacleDamage
+  K->>H: the step - held? BarrierHit (piece, point, normal)
+  K->>G: MayBreak - Manual, live Fps possession, no replay
+  K->>C: OnContact(hit, step velocity, throttle)
+  C->>C: Identify - a wall panel, or the solid piece risen into (an obstacle box) - strength = resistance x thickness x height
+  alt small barrier, ram or push
+    C->>F: the cut (hull at its crossing angle, every panel it overlaps) / the obstacle crushed + Broke cue
+    C-->>K: pass, speed x speedKept (never zero), a grace while the record is on its way
+  else building wall, a tank's ram
+    C->>F: a door-sized Passage + Bumped cue
+    C-->>K: held - it never enters
+  else too strong / no row / no ram yet
+    C->>F: TooStrong or Pushing cue
+    C-->>K: held
+  end
+  F->>W: BuildingDamageEvent (the ONE breach writer) / ObstacleDamage.Damage
+```
+*What it shows that prose hid: the contact rule writes NOTHING itself — it hands the existing breach writer and the existing obstacle-damage path an
+event in a follow-up, so a player's break, a blast and (B-4) the bulldozer reach one record by one path; the AI path never reaches `OnContact`.*
+
+| claim | code — as built | design |
+|---|---|---|
+| the hull says what held it | `HullClearance.StepBarrier` → `BarrierHit`; `TraceCrossing.Piece` (opaque, the terrain's index); `TerrainWorld.SolidUnder` for a rise | §3.1 BarrierHit |
+| who breaks what | `contact-breach.json` rows (tracked + mass): tank 40 t+ small ≤ 2000 + building bump; IFV 15 t+ small ≤ 150; wheeled none | B-D3, R-4243 |
+| ram or push | ram = the step's speed INTO the barrier ≥ 1.5 m/s; push = |throttle| ≥ 0.9 in contact for 2.5 s | D-3, B-D2, V-8 |
+| the cut | the hull's extent along the wall at its crossing angle + 0.5 m each side, ≥ 4.2 m, base to top (a Passage), on every free panel it overlaps | V-9, V-12, V-6 |
+| no speed zero; the record's lag | speed × 0.6 on a break; a 3 s grace lets the hull pass the barrier it broke until the record lands; a stub of it breaks at any speed | V-3, V-21 |
+| a building | a tank's ram only: a 1.2 × 2.2 m Passage from the floor; held (one bump per wall while it stays) | B-D4, V-5 |
+| obstacles | crushed: one `ObstacleDamage.Damage` of its whole Health; the hull stays on the ground through the dying box | B-D3 |
+| the write | a follow-up (`ParallelReadCheck.CurrentBatch.Later`) when in the per-entity phase, else at once | V-15, B-D10 |
+| no cost | `costHealth` 0, not applied | B-D12 |
+| feedback: dust, crash sound heard by the AI, the driver's HUD cue | ⛔ **B-3b** — the `ContactBreachEvent` (Broke / Bumped / TooStrong / Pushing + bar) is published; its consumers are not built | V-17, mockup |
+| a barrage's numbers | ⛔ measured with P-4 (the bake cap is P-0's) | §7.5 item 16 |
+
+⭐ **Lane decisions (for the user's review):** [R-5015](blueprints/RULINGS.md) the starting values in `contact-breach.json` (strength thresholds 2000 /
+150, ram 1.5 m/s, push 2.5 s, kept 0.6, cut ≥ 4.2 m, bump 1.2 × 2.2 m); [R-5016](blueprints/RULINGS.md) a hull's push / grace / last-cue state is
+per-hull process state, not a recorded component (a replay never decides a break, so nothing to restore); [R-5017](blueprints/RULINGS.md) V-17's
+consumers are split into B-3b.
+
+Rails: `CarKinematicsSystemTests.CE4600_*` — a possessed tank breaks a brick garden wall and drives through (a ≥ 4.2 m base-to-top Passage, never a
+zero); a creeping tank and a possessed car stop (the car told *too strong* once); a tank resting at the wall breaks it by push; a tank bumps a
+building open and stays out, an IFV is told *too strong*; an IFV breaks a hedge and a fence, not a brick wall; an IFV crushes sandbags through the
+obstacle-damage path — red-proved (the hook off ⇒ 7 of 8 red). The kinematics suite is 110 / 0 under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1`.

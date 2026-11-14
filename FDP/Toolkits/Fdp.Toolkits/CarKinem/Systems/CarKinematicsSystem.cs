@@ -69,6 +69,8 @@ namespace CarKinem.Systems
             _terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);   // ⭐ CE-1035 Q2 — the movement model asks the world query
             // ⭐ CE-4369 (L-7, R-4190 Q-T2) — the woods grid, read once per tick (immutable; the parallel update only reads it)
             _woods = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() && repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() is { } woodsWorld ? woodsWorld.Woods : null;
+            // ⭐ CE-4600 (B-3) — the terrain the contact rule names barriers in (read once per tick; the parallel update only reads it)
+            _terrainWorld = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null;
             // ⭐ CE-1034 H1 (R-249) — an entity's runtime ground-clamping flag decides whether the movement model holds it to the
             //   surface; no flag = clamped, as before. Read once per tick: the parallel update only reads it.
             _clampFlags = repo.IsComponentTypeRegistered<Fdp.Modules.Geographic.Components.GroundClampingConfig>();
@@ -158,6 +160,7 @@ namespace CarKinem.Systems
         /// <summary>The terrain world for this tick (W8), or null on a flat / terrain-less world.</summary>
         private Fdp.Toolkit.World.IWorldQuery? _terrain;
         private Fdp.Toolkit.Terrain.TerrainWoods? _woods;
+        private Fdp.Toolkit.Terrain.TerrainWorld? _terrainWorld;
         private bool _clampFlags;
         private bool _recovery;
         private bool _health;
@@ -752,6 +755,8 @@ namespace CarKinem.Systems
                 float rise = z - tf.Position.Z;
                 bool wall = !person && rise > VehicleMaxStepM && rise > VehicleMaxClimbSlope * Vector2.Distance(here, pos2D);
                 Vector2 hereFwd = fwd2D;
+                var barrier = wall && Vector2.DistanceSquared(here, pos2D) > 1e-8f
+                    ? new CarKinem.Controllers.BarrierHit(true, -1, pos2D, Vector2.Normalize(here - pos2D)) : default;   // ⭐ CE-4600 — the centre rose into a solid piece
                 if (!wall && person && Vector2.DistanceSquared(here, pos2D) > 1e-8f)
                 {
                     var crossings = t_crossings ??= new System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>();
@@ -763,8 +768,24 @@ namespace CarKinem.Systems
                 {
                     hereFwd = FacingOf(tf.Rotation);
                     bool sized = HullClearance.HasHull(in hull);
-                    wall = HullClearance.StepBlocked(_terrain, here, hereFwd, tf.Position.Z, pos2D, fwd2D, z,
-                                                     sized ? hull.Length : 0f, sized ? hull.Width : 0f);
+                    wall = HullClearance.StepBarrier(_terrain, here, hereFwd, tf.Position.Z, pos2D, fwd2D, z,
+                                                     sized ? hull.Length : 0f, sized ? hull.Width : 0f, out barrier);
+                }
+                // ⭐⭐ CE-4600 (B-3; 📄 docs/DESIGN_Vehicle_Breaching.md §3.2) — a hull a PLAYER drives (the B-1 gate: the Manual branch, a live possession, no replay)
+                //   meets a barrier: the contact rule decides — a small one broken lets the step go on at a speed loss; a building's bump or a too strong one holds it
+                if (wall && !person && _terrainWorld != null && HullClearance.HasHull(in hull) && HullBreakGate.MayBreak(repo, entity, in nav))
+                {
+                    float throttle = repo.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.ManualDrive>() && repo.HasComponent<Fdp.Toolkit.Navigation.ManualDrive>(entity)
+                        ? repo.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(entity).Forward : 0f;
+                    var stepVelocity = dt > 0f ? (pos2D - here) / dt : planar;
+                    if (ContactBreach.OnContact(repo, entity, _terrainWorld, in hull, in barrier, here, FacingOf(tf.Rotation), tf.Position.Z, stepVelocity, throttle, dt, out float kept))
+                    {
+                        wall = false;
+                        state.Speed *= kept;
+                        planar *= kept;
+                        // a crushed obstacle's box stays in the world until it is removed and rebaked: its top is not the hull's ground
+                        if (barrier.Rise) z = MathF.Min(z, _terrain.GroundHeightAt(pos2D.X, pos2D.Y));
+                    }
                 }
                 if (wall)
                 {

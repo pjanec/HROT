@@ -317,6 +317,28 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public float HullSurfaceZ(float x, float y, float zHint) => SurfaceZCore(x, y, zHint, hull: true);
 
+        /// <summary>
+        /// ⭐ <c>CE-4600</c> (B-3; 📄 docs/DESIGN_Vehicle_Breaching.md §3.1 <c>BarrierHit</c>) — the SOLID piece (not a wall panel) that stands over (<paramref name="x"/>,
+        /// <paramref name="y"/>) and rises above <paramref name="zHint"/> + a few cm from no higher than a step above it: what a hull's step that "rose like a wall"
+        /// met (an obstacle's box, a trunk, a solid building); the tallest such, −1 for none. Allocation-free.
+        /// </summary>
+        public int SolidUnder(float x, float y, float zHint)
+        {
+            var p = new Vector2(x, y);
+            int best = -1; float top = float.NegativeInfinity;
+            using var cand = PointCandidates(x, y);
+            for (int k = 0; k < cand.PieceCount; k++)
+            {
+                int i = cand.Piece(k);
+                if (i >= Prisms.Count) continue;
+                var prism = Prisms[i];
+                if (prism.Panel >= 0 || prism.BaseZ > zHint + StepHeight || prism.TopZ <= zHint + 0.05f) continue;
+                if (!InBox(p, prism.Min, prism.Max) || !PolygonMath.Contains(prism.Footprint, p)) continue;
+                if (prism.TopZ > top) { top = prism.TopZ; best = i; }
+            }
+            return best;
+        }
+
         private float SurfaceZCore(float x, float y, float zHint, bool hull)
         {
             var p = new Vector2(x, y);
@@ -845,6 +867,10 @@ namespace Fdp.Toolkit.Terrain
 
             /// <summary>⭐ <c>CE-1128</c> — the outward normal of the face the line LEAVES through; zero = unknown (it does not leave the ground).</summary>
             public Vector3 ExitNormal { get; init; }
+
+            /// <summary>⭐ <c>CE-4600</c> (B-3) — the piece crossed: an index into <see cref="Prisms"/>, or <c>Prisms.Count + i</c> for door leaf i; −1 for the
+            /// ground, a slab, a rubble mound.</summary>
+            public int Piece { get; init; } = -1;
         }
 
         /// <summary>
@@ -959,7 +985,7 @@ namespace Fdp.Toolkit.Terrain
                     var exitN = hi < t1 - 1e-6f ? new Vector3(0f, 0f, dz > 0f ? 1f : -1f) : SideNormal(prism.Footprint, a + (b - a) * hi, dir, entering: false);
                     into.Add(new FireCrossing(lo, path, perMetre * path, pi >= Prisms.Count ? "door" : panel != null ? "panel" : "prism", prism.Label,
                         prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial, building, panel?.Storey ?? -1)
-                        { TopZ = prism.TopZ, EntryNormal = entryN, ExitNormal = exitN });
+                        { TopZ = prism.TopZ, EntryNormal = entryN, ExitNormal = exitN, Piece = pi });
                 }
             }
 

@@ -109,6 +109,8 @@ namespace Fdp.Toolkit.Terrain
         public const int DoorCommand = 5100;
         /// <summary>⭐ CE-4391 S-1 — <see cref="BuildingDamageEvent"/>: a detonation breached a wall (5101 free by a census of every event id, <c>2026-11-10</c>).</summary>
         public const int BuildingDamage = 5101;
+        /// <summary>⭐ CE-4600 (B-3) — <c>ContactBreachEvent</c>: a vehicle broke a barrier, or met one too strong for it (5102 free by a census, <c>2026-11-14</c>).</summary>
+        public const int ContactBreach = 5102;
     }
 
     /// <summary>

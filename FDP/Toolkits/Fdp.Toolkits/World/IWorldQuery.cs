@@ -60,6 +60,10 @@ namespace Fdp.Toolkit.World
         /// <summary>⭐ <c>CE-4369</c> (S4, R-4190 T-6) — the fraction of rounds this crossing stops REGARDLESS of their penetration (a wood's
         /// trunks: <see cref="Loss"/> is 0, most rounds pass); 0 = none. A round's damage is scaled by <c>1 − Stop</c> (the expected value).</summary>
         public float Stop { get; init; }
+        /// <summary>⭐ <c>CE-4600</c> (B-3; 📄 docs/DESIGN_Vehicle_Breaching.md §3.1 <c>BarrierHit</c>) — an OPAQUE id of the piece crossed, the implementation's own
+        /// (the stand-in: its prism / door-leaf index); −1 = unknown. Only the implementation that made it may interpret it (the contact rule hands it back to the
+        /// terrain); ⛔ no caller branches on its value.</summary>
+        public int Piece { get; init; } = -1;
     }
 
     /// <summary>
