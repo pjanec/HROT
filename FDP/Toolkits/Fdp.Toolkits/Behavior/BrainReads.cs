@@ -52,6 +52,7 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Motion.Descent>();                         // SquadFastRopePlay — a member on the rope
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.TurretPose>();           // BatteryFireMissionPlay.Plan — a gun's pose
             ParallelReadCheck.DeclareUnmanaged<SimVelocity>();                                        // SquadAirborneExitBehavior.Plan — the carrier's velocity
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.CarrierSeats>();       // an HSM action on the carrier's seats (embark / dismount)
         }
     }
 }
