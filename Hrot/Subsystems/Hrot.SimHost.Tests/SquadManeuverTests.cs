@@ -3036,6 +3036,7 @@ namespace Hrot.SimHost.Tests
             RoundAt(s, first); RoundAt(s, first); RoundAt(s, first);
             Assert.Equal(new Vector3(0, 9, 0), s.LastOrders()[first].Objective);
             Assert.Equal(new[] { first }, s.Orders.Select(o => o.Entity).Distinct().ToArray());
+            RunsHisOrder(s, first);   // ⭐ CE-4612 — he started the new order (the ingress would record its request id)
 
             var other = s.Members.First(m => !m.Equals(first));
             ref var reacting = ref s.Repo.GetComponentRW<BehaviorState>(other);
@@ -3791,13 +3792,16 @@ namespace Hrot.SimHost.Tests
             p.Ticks(4);
             Assert.Equal(1, p.OrdersTo(p.Bravo, BehaviorNames.SquadDefend));
             p.S.Repo.AddComponent(p.Bravo, new BehaviorState { ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.SquadDefend), Origin = BehaviorOrigin.Superior });
+            RunsHisOrder(p.S, p.Bravo);   // ⭐ CE-4612 — as the ingress records his start
 
             p.ReportSet(p.Bravo);
             p.Ticks(4);
             Assert.True(p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch) > 0, "the approach began");
             Assert.Equal(1, p.OrdersTo(p.Bravo, BehaviorNames.SquadDefend));
 
-            p.S.Repo.GetComponentRW<BehaviorState>(p.Bravo).ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.ReactToContact);
+            ref var reacting = ref p.S.Repo.GetComponentRW<BehaviorState>(p.Bravo);
+            reacting.ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.ReactToContact);
+            reacting.Origin = BehaviorOrigin.Reaction;   // ⭐ CE-4612 — a reaction, as the ingress marks one (it was left Superior)
             p.ReportSet(p.Alpha);   // the assault phase re-dirties again
             p.Ticks(4);
             Assert.Equal(2, p.OrdersTo(p.Bravo, BehaviorNames.SquadDefend));
