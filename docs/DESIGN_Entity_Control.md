@@ -2717,7 +2717,7 @@ fires one round once it bears; per-shot one round at the unit; a round switch ho
 LOADING) · `PossessionStationTests.CE1078_*` + `CE1079_*` ×2 (counters, lock, RMB, F, 1-4; the HUD line; the HUD's place) ·
 `Map3DPickingTests.CE1080_*` (the crosshair sees the unit, never the own hull, aims at the box hit) · `InteractionTransportTests.CE3172_*` and
 `PossessionReplicationTests.CE3174_*` extended (the new frame and ammo fields cross) · `DebugApiOrdersTests.CE1078_*` ×2 (through the real
-possession: one press one round, a press during a reload waits, RMB drops it; a grenade ignores a held trigger).
+possession: one press one round, ~~a press during a reload waits, RMB drops it~~ ⭐ a press during a reload is DROPPED (CE-4344, user `2026-11-08`: *"a shot that cannot fire NOW must be dropped"*; the rail re-pointed by CE-3447 `2026-11-14`) and only a press once ready fires; a grenade ignores a held trigger).
 
 #### 13.7a CORRECTION — a locked shot goes to the crosshair point ON the unit, not his middle (`CE-1125`, `2026-10-16`, ui)
 
