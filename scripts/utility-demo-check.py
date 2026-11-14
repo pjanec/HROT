@@ -4340,10 +4340,10 @@ def run_morale_barrage(c, timeout):
     # the barrage: once the crews man the tubes (ua-indirect-fire's precedent), the battery's Strike on Squad 1 (x 121) — converged, ten
     #   bombs a tube, danger close (its own crew ~260 m off). ⚠ measured: an open 45 m sheaf across both squads put 20 bursts near
     #   neither (none within 11.8 m; Green peak stress 0.73, one man broken) — the fall-back needs ONE of the two line squads failing.
-    #   ⚠ measured: here a geo_of() Location lands at (lat, lon) read as LOCAL metres (bursts at (52.3, 14.0)) — the order takes local x, y
+    #   ⚠ measured: here a geo_of() Location lands at (lat, lon) read as LOCAL metres (bursts at (52.3, 14.0)) — the order takes a local [x, y]; a three-element one fired nothing
     crews = [ids.get("Mortar Man 1"), ids.get("Mortar Man 2")]
     c.ok(wait_for(lambda: all("IsEmbarkedTag" in comps(m) for m in crews), 90), "the mortar crews man their tubes")
-    c.ok(_if_order(ids.get("Insurgent Mortar"), "Strike", {"Location": [120.8, 156, 0], "Rounds": 10,
+    c.ok(_if_order(ids.get("Insurgent Mortar"), "Strike", {"Location": [120.8, 156], "Rounds": 10,
                                                          "Sheaf": "Converged", "DangerClose": True}), "the battery takes the barrage (Strike)")
     t0 = sim_time() or 0.0
     first = {}
