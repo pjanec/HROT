@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: §8.1's NavRebuildRequester and P3-c / P3-d are superseded by §8.2 B-10 (the existing P-7a obstacle bake does both); §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
 known-conflict: none
 related-designs:
+  - DESIGN_Vehicle_Breaching.md — OWNS the free-standing wall's damage record (`WallDamage`, the `BuildingDamage` sibling) and blasts breaching garden walls / fences; a player's vehicle breaching panels through the existing record
   - DESIGN_Ground_Patches_And_Road_Blockage.md — OWNS the pads applied by the importer (P-1, CE-4403) and the crater as a third runtime record beside breaches and collapses (P-4)
   - PLAN_Large_Terrain.md — ORDERS this importer's stages beside the scale work (load, measure, optimise) so both lanes start at once
   - DESIGN_Terrain_Synth.md — OWNS hrot-terrain-synth, the deterministic SYNTHETIC input set: the importer's development and test terrain (§10.9)

@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none yet
 known-conflict: none
 related-designs:
+  - DESIGN_Vehicle_Breaching.md — reads §3's material resistance for a vehicle's break-through and for blasts breaching free walls
   - DESIGN_Director_Timeline_Editor.md — its View track switches these layers through the film's transient override (R-4060)
   - DESIGN_Entity_Brain_View.md — the Brain tab's "Show on map" pins the §5b gizmo families on one unit
   - docs/DESIGN_Film_Director.md — §4b: takes turn these layers on and off as a TRANSIENT override (never saved), and GET/POST /map/layers sets them like a click (R-4060)
