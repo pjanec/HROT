@@ -131,11 +131,17 @@ name, a unit — and the instant / duration pair has the arithmetic built in (an
 | | `SimInstant` | `SimDuration` |
 |---|---|---|
 | type | `Fdp.Core/World/SimTime.cs` — over `double`, 8 B, seconds of sim time | same file — over `float`, 4 B, seconds |
-| JSON · schema | a plain number · `{type: number, format: simInstant}` | a plain number · `{type: number, format: simDuration}` |
+| JSON · schema | a plain number · `{type: number, format: simInstant}`; ⭐ a NON-FINITE value as a marker string `"-inf"` / `"+inf"` / `"nan"` (CE-3441) | same (CE-3441) |
 | conversions | implicit OUT to `double`; **explicit IN** from `double` (a raw number becomes an instant only on purpose) | implicit both ways with `float` |
 | arithmetic | `instant − instant = SimDuration`; `instant ± SimDuration = SimInstant`; ⛔ `instant + instant` is declared **`[Obsolete(error)]`** | `±`, unary `−` stay a `SimDuration` |
 | seams | `SemanticValueTypes` (storage `double` / `float`), `DtoJsonSchemaExtractor`, `StaticTypeRegistry` (unmanaged 8 B / 4 B), `RingEntryScanner.CompileKey` (a key field of a semantic type keys as its storage number — found by the replay-browser rails) | same |
 | rail | `S0IdTypesRailTests.S0_EveryAtSinceUntilMember_IsNotABareFloat` (a bare `float` whose last word is `At` / `Since` / `Until`, outside the wire types; allow-list `NotAnInstant` with a reason each) + `SimInstant_AndSimDuration_AreTheirPrimitivesMemoryAndJson_WithTheRightArithmetic` | same |
+
+⭐ **Non-finite values (CE-3441, `2026-11-14`).** "Never" is written as `(SimInstant)double.NegativeInfinity` (`SquadUnitSense.AskedAt`) — JSON has no
+number for it, so every golden snapshot and `GET /entities` (CE-1471) failed on such a row. Both converters now write `"-inf"` / `"+inf"` / `"nan"`
+(raw bytes: the default encoder escapes `+`) and read them back; a finite value stays a plain number, so no file moves. ⛔ A `double`/`float`
+field with a non-finite value is still the dump options' own converters' job, not this one's. Rails: `SimTimeJsonTests` (round-trip, red-proved),
+`DebugApiNonFiniteTimeTests`.
 
 ⚠ **Why `instant + instant` needed the `[Obsolete(error)]` operator:** with the implicit conversion to `double`, `a + b` quietly binds to the predefined `double + double`. A declared `+(SimInstant, SimInstant)` wins overload resolution and is an error; making the conversion TO `SimInstant` explicit alone would not have stopped it.
 
