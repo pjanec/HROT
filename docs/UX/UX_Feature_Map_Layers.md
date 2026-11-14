@@ -111,6 +111,8 @@ can only make it more defined. ⚠ **Verify the pick box still beats the symbol 
 
 ### 2.5 The control panel — 🔒 fully compatible, and here is why
 
+⛔⛔ **2026-11-14 (CE-4581) — why the panel's checkboxes did nothing for two months.** `StructInspectorProjector.EmitAndSync` took an `int`, and `LayerControlGizmo` stamped its panel with `unchecked((int)_anchorId)` — `2^40 + 1` became **1**. The panel sends its edits back to the id it was stamped with, `GlobalGizmoManager` held the layer control under `2^40 + 1` ⇒ every checkbox of the layer panel (and its close [X]) was dropped, from this change (`882d35f68`) until 2026-11-14 — the user's long-standing *"the layer dialog has no effect"*. ⭐ Fixed by widening the projector to `long`; rail `LayerControlGizmoTests.CE4581_AnEditSentToThePanelsOwnId_ReachesTheGizmo_WithARealToolId` (a real `NewId()` id, the id read back off the emitted panel). ⚠ The UI-state channel (`GizmoUiState.GizmoInstanceId`) is still 32-bit — consistently on both ends, so it holds. 📄 Root in [`DESIGN_Gizmo_Anchor_Identity.md`](../DESIGN_Gizmo_Anchor_Identity.md) §6.1.
+
 > **User:** *"There was a gizmo able to show layer checkboxes, never worked end to end — not sure how
 > compatible with the idea of a calculated `DebugLayer` byte."*
 

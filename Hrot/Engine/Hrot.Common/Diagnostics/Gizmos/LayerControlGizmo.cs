@@ -536,7 +536,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
             // Emit StructInspector panel when editing is active.
             if (_isEditing)
-                _projector.EmitAndSync(draw, unchecked((int)_anchorId), SchemaHash, Current, ScreenAnchor.Center, SizeMode.ScreenPercent);
+                _projector.EmitAndSync(draw, _anchorId, SchemaHash, Current, ScreenAnchor.Center, SizeMode.ScreenPercent);
         }
 
         // Called by GlobalGizmoManager when a GizmoStructUpdateEvent arrives for _anchorId.

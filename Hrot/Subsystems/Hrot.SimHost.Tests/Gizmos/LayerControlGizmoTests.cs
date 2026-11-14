@@ -561,6 +561,46 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.False(emitted.IsSet(DebugTraceLayers.Doors));
             Assert.True(emitted.IsSet(DebugTraceLayers.Paths));
         }
+
+        // ⭐ CE-4581 — the PANEL'S OWN ID round-trips: a checkbox's edit goes back to the id stamped on the panel primitive the gizmo emitted, and must
+        // reach the gizmo. 🔒 User, 2026-11-14: "In the layers dialog i can check/uncheck whatever but it has absolutely no effect" (and: "this layer
+        // panel bug is there for very long time and several tried failed to find the reason"). 📐 Measured live (a click simulated in the real
+        // panel): the panel sent anchor 1, the manager held the layer control under (1 << 40) + 1 — `EmitAndSync(int)` and the gizmo's
+        // `unchecked((int)_anchorId)` cut the tool id to 32 bits ⇒ "found False", every edit dropped. ⛔ CE3149 above published the FULL id itself and
+        // every other rail here uses a small hand-picked id (1, 7, 9) that survives the cast — so none could see it. 🔴 Red-proof: the cast restored ⇒ red.
+        [Fact]
+        public void CE4581_AnEditSentToThePanelsOwnId_ReachesTheGizmo_WithARealToolId()
+        {
+            var bus = new FdpEventBus();
+            Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(bus);
+            var edit = MakeEditService();
+            var buffer = new DebugPrimitiveBuffer();
+            var manager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(buffer, bus);
+            long id = Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager.NewId();
+            Assert.True(id > int.MaxValue, "the premise: a real tool id does not fit an int");
+            manager.Register(id, new LayerControlGizmo(id, bus, edit));
+            var repo = new EntityRepository();
+
+            bus.Publish(new OpenLayerEditorEvent());   // View ▸ Tactical Map Layers…
+            bus.SwapBuffers();
+            buffer.Clear();
+            manager.Execute(repo, 0f);
+            var panel = Assert.Single(buffer.GetFrame().ToArray(), p => p.Shape == DebugPrimitiveShape.StructInspector);
+
+            string json;
+            using (var s = edit.Open(new LayerControlDto { Units = { Labels = false } }, typeof(LayerControlDto)))
+                json = StructEdit.Json.EditSessionJsonExtensions.ToJson(s);
+            // what DebugGizmoLayer.DrawStructInspector publishes for a click: the id the panel primitive carries
+            bus.PublishManaged(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoStructUpdateEvent { AnchorId = panel.StructNetworkId, PayloadJson = json });
+            bus.SwapBuffers();
+            buffer.Clear();
+            manager.Execute(repo, 0f);   // routes the edit
+            buffer.Clear();
+            manager.Execute(repo, 0f);   // emits the mask it produced
+
+            var mask = Assert.Single(buffer.GetFrame().ToArray(), p => p.Shape == DebugPrimitiveShape.LayerControlMask).ActiveLayers;
+            Assert.False(mask.IsSet(DebugTraceLayers.Labels), $"Labels was unchecked in the panel (anchor {panel.StructNetworkId}, gizmo {id}) and is still on");
+        }
     }
 
     public class CE1065_LayerPanelStaysOpen_Tests
