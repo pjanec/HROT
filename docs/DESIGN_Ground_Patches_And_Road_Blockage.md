@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD P-1…P-4 — ✅ APPROVED 2026-11-14 (R-4228 G-1…G-3, R-4229 G-7…G-10, R-4230 G-12, R-4231 road corridors G-21…G-25); P-5 the ground-shaping tool and P-6 ditches ✅ approved in principle, ⚠ their UI mockup before dispatch; §4d binds the later terrain-editor design
+build-state: ⛔ REVISION NEEDED — the critical review §9 (2026-11-14) found ~30 gaps (verified); P-1…P-6 are NOT dispatchable until §9's decisions are ruled and folded in. Was: READY-TO-BUILD P-1…P-4 — ✅ APPROVED 2026-11-14 (R-4228 G-1…G-3, R-4229 G-7…G-10, R-4230 G-12, R-4231 road corridors G-21…G-25); P-5 the ground-shaping tool and P-6 ditches ✅ approved in principle, ⚠ their UI mockup before dispatch; §4d binds the later terrain-editor design
 updated: 2026-11-14
-current-answer: the whole file — §1 the request, §2 INVENTORY, §3 the diagrams, §4 decisions, §4a the ground-shaping tool (P-5), §4b road corridors at import (P-1), §4c ditches (P-6), §4c-1 crater cover and foxholes, §4d ready for the terrain editor, §5 slices, §6 acceptance
+current-answer: ⭐ §9 the critical review (read FIRST — it overrides the rows it names) · the whole file — §1 the request, §2 INVENTORY, §3 the diagrams, §4 decisions, §4a the ground-shaping tool (P-5), §4b road corridors at import (P-1), §4c ditches (P-6), §4c-1 crater cover and foxholes, §4d ready for the terrain editor, §5 slices, §6 acceptance
 stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_Terrain_Height.md TH-C ("a building stands on the LOWEST ground under its footprint") — overturned for a building that carries a pad, once G-2 is ruled
@@ -352,3 +352,68 @@ Terrain Height TH-C — applies, overturned for pads (G-2) · Terrain Authoring 
 (breaches) / §11 (importer) — applies, P-4's path and P-1's place · Navigation v2 R-218 / §14 P3 — applies, copy-on-write + re-plan · Peek and
 Fire §9 P-7a — applies, the bake · Terrain World §11 (woods area) — applies, G-9's precedent · AQ93 §15 (SUMO bodies) — applies, G-10's feed ·
 Visual Effects CH-1 — applies, the decal stays · Structure Damage S4 (a cratered runway is unusable) — does not apply yet: no runway consumer in v1.
+
+## 9. ⛔ The critical review — `2026-11-14` *(three independent reviewers + the coordinator; the surprising claims re-verified by the coordinator)*
+
+🔒 User, `2026-11-14`: *"take a fresh view on the whole design from different perspectives and try to find gaps and flaws"*. Perspectives: distributed
+correctness (determinism, replication, replay, threads) · the terrain pipeline and every height consumer · the author, the AI, the viewer, performance.
+✔ = re-verified by the coordinator in code; ✓ = verified by a reviewer; ? = reasoned, not verified.
+
+### 9.1 The runtime crater path (P-4) — the deepest problems
+
+| # | finding | evidence | consequence | lean |
+|---|---|---|---|---|
+| V-1 ✔ | **a barrage STARVES the bake**: every signature change resets the 0.5 s quiet timer | `StaticObstacleBake.cs:166-167` | impacts < 0.5 s apart postpone every crater until the shelling stops; gaps of 0.5–5 s run back-to-back 4–5 s bakes on every query node | a maximum latency (bake after ≤ N s however busy) |
+| V-2 ✓ | **the crater's effect lands at a WALL-CLOCK tick**: R-244 allows the debounce only because it "decides nothing the simulation computes"; a crater changes sight (TH-D), the navmesh, cover and re-grounding | `StaticObstacleBake.cs` `Execute` / `Finish`; R-243, R-244 | the 1 / 4 / 8-thread stepped hash cannot be equal (P-4's own acceptance) | ⭐ **D-1 below**: the simulation's TRUTH is analytic over the record; the bake is only a cache |
+| V-3 ✔ | **only the editor publishes dirty rectangles** | `StaticObstacleBake.cs:250-254`, set in `EditorNodeBootstrapper.cs:386` | on the player and every non-editor host each crater rebuilds the WHOLE 3-D terrain (a pop) | publish on every host |
+| V-4 ✓ | craters are not in `DirtyRegions` (prisms, building damage, overlay parts only) | `TerrainResidency.cs` `DirtyRegions` | the incremental navmesh reuses the crater's tiles unchanged | add `GroundDamage` to it |
+| V-5 ✔ | **copy-on-write tiles are not possible as stored**: ONE contiguous `float[]` + a slot map | `TerrainHeightTiles.cs:20-21` | "copy ~1 MB" is really ~121 MB per bake per node; also the grid's block maxima (the sight skip) and MinZ / MaxZ (the woods' nav volumes, part of every woods tile's cache key) must be recomputed | per-tile arrays (or base + an overflow array) on the hot indexer, a 0 B rail; recompute the touched blocks only |
+| V-6 ✓ | **display nodes, the Replay Browser and a player never get crater heights** (the B-12 gate: only a node with a navmesh factory bakes damage) | `TerrainResidency.cs:562` | replicated soldiers (Muscle z) draw sunk below flat ground; "draws the crater from the record" has no mechanism | split the gate: heights on every terrain-holding node, nav and cover on the Muscle / editor |
+| V-7 ✓ | `GroundDamage` has no KEY, OWNER, MERGE, ORDER, SAVE SECTION or past-16 rule | `BuildingDamage` precedent: one entity per (building, node), content-sorted union | two Muscles' overlapping craters combine order-dependently; a barrage needs hundreds | one entity per (deciding node, grid cell), content-sorted, a commutative combine (`min` of the profiles), a save section + scenario merge rule |
+| V-8 ✓ | re-grounding (G-11) writes entities the node may not own (loaded obstacles are owned by the loader, R-4196), moving an obstacle re-triggers its own bake, and fights replay | `SignatureOfWorld` hashes position | one crater ⇒ two bakes; replay writes | re-ground only OWNED non-obstacle entities, in a sim system, never in replay; bake obstacle prisms on the patched ground instead |
+| V-9 ✓ | a crater loaded from a save is not lifecycle-gated (R-243) | UTM §8.6 ⚠(b) | a saved scenario starts ~4 s crater-less, by machine speed | Constructing until the terrain module acks |
+| V-10 ? | the crater profile's float maths could differ by an ulp across OS / processes | — | nodes disagree on heights | + − × ÷ √ only; a cross-platform golden rail |
+| V-11 ✓ | the crater DECAL is fixed 4.5 m and lives 300 s (the 81 mm mortar too) | `EffectTkbCatalog.cs:130, :169` | a bare dip after 5 min; the decal at the old height floats / z-fights | size it from the record, keep it while the crater exists, on the patched ground |
+| V-12 ? | a vehicle at rest re-grounded INTO a closed crater area is stranded (its start polygon filtered out) | `DoorAwareQueryFilter` | a stuck vehicle, failing path requests | an immobilised-or-recover rule |
+| V-13 ✓ | the cover query has no clock (`ICoverProvider.GetCoverPointsInRadius`), `CoverPoint` is 28 B with 2 spare | EQS | G-35's delay cannot be applied | an interface change, named in P-4 |
+| V-14 ✓ | an AUTHORED crater (G-14 mode) contradicts G-15 / G-31 | §4a vs §4d | a pre-shelled field is decoration | an authored crater = a saved `GroundDamage` record (obstacle class) |
+
+### 9.2 Roads and SUMO (P-1, P-2)
+
+| # | finding | evidence | consequence | lean |
+|---|---|---|---|---|
+| V-15 ✔ | **no bridge / tunnel data**: netconvert runs without `--osm.all-attributes` / layer; `NetRoadNetwork.Read` filters only internal edges; the only "bridge" in the city-battle net is OUR placed bridge (`bridge-<guid>`) | `NetconvertRoadBuilder.cs:33-42`; `city-battle-ground.net.xml` | G-22 cannot skip a real bridge: a corridor fills the valley under it, carves a tunnel's line, two corridors fight at an overpass | keep `bridge` / `tunnel` / `layer` (netconvert option or the input set) + a precedence rule for crossing corridors |
+| V-16 ✓ | **corridor banks become WALLS**: a smoothstep's steepest slope is 1.5 × depth ÷ width; 6 m over 3 m ≈ 72° (infantry 60°, vehicles 20°) | `RecastNavmeshBaker.cs:68-87` | roads split the navmesh; uphill doors unreachable (CE-4402 again) | the skirt WIDTH from the depth (≤ ~45°) |
+| V-17 ✓ | **corridor vs house at import is undefined**: a house's `baseZ` is set on the UNLEVELLED ground (`BuildingRules.Finish`); a corridor's fill buries a roadside house, its cut leaves it floating; houses may sit on a corridor (placement avoids only a block's own lanes) | `BuildingRules.cs:525-528`, `FeatureExpander.cs:144-146` | buried / floating houses beside roads | ⭐ **D-3 below** |
+| V-18 ✔ | **the road graph has no SUMO edge id, one direction, one lane** | `NetRoadNetwork.cs:28-60` | "every lane of a segment covered" and "close the SUMO edge" cannot be evaluated for imported roads | the importer writes edge ids + both directions' lanes into `roads.json` |
+| V-19 ✓ | **closure is one-way**: `BridgeClosureSystem` is monotonic, resets on every `TerrainWorld` swap ✔ (`:65`), returns early in replay, removes segments with nothing to add back | `BridgeClosureSystem.cs:15, 60, 65, 90-100` | a barrage flaps SUMO closures and storms re-plans; a cleared roadblock never re-opens our road graph; after a seek closures are stale | rebuild the published road network from the base whenever the blocker SET changes; key by blocker content, not world identity |
+| V-20 ✓ | **road-graph routes ignore a partly covered road** (`TileSequenceAtPlan = 0`), and `RoadHeights.Nominal` takes the HIGHER of the node line and the ground — it keeps the road over a crater like a valley under a bridge | `PathfindingSolverSystem.cs:241-246`, `RoadHeights.cs:27-34` | a truck drives into a crater; §4a's "the road graph follows by itself" is false for LOWERED ground | a closing crater on a road cuts the segment for that mover class; `RoadHeights` takes the patched surface where a ground patch lies |
+| V-21 ✓ | `NetElevation` keeps existing z (junctions too) and assumes the grid's origin; the importer places the net by an anchor | `NetElevation.cs:50, 94-103`; `TerrainImporter.cs:76` | re-elevation silently does nothing, or offsets | a force option + the anchor |
+| V-22 ? | a 30 m-smoothed profile meets a flat junction with a step | — | a lip at every junction | pin the profiles' ends to the junction's z |
+| V-23 ✓ | the overlay's single net slot already holds the bridge net | `OverlayCompiler.cs:122-150` | G-16's elevated copy must build on it | build on the bridge net |
+| V-24 ✓ | SUMO re-routes round ANY obstacle on a car's route ahead | `Engine.cs:4948-4975` | a "partial" blocker diverts routed traffic anyway | accept (only un-routed / local cars swerve); a crater body needs a synthetic id that never collides |
+| V-25 ✓ | live editing: the SUMO net cache is loaded once with the terrain | `SumoNetTerrainLoader.cs:17-57` | while editing, cars and the road ribbon stay at the old z until save + reload | accept and SAY it, or reload the net cache on a live bake that touched a road |
+
+### 9.3 Migration, authoring, AI
+
+| # | finding | evidence | consequence | lean |
+|---|---|---|---|---|
+| V-26 ✓ | **re-importing a terrain changes its content hash**: an overlay refuses a base whose hash differs | `TerrainResidency.cs:240-245` (C-5) | every scenario saved on that terrain stops loading until re-saved; recordings need the old terrain kept; corridors also move road / ground z | ⭐ **D-4 below** |
+| V-27 ✓ | `TerrainFeature` has 4 value fields; adding fields broke old recordings once (`Seed`) | `TerrainBlock.cs:35-58` | Ground / Ditch / Foxhole cannot carry width, depth, skirt, mode, heading | a sibling unmanaged `GroundFeature` component |
+| V-28 ✓ | **overlap order is invisible to the author** ("canonical key order"); Level / Lower over a road undefined; raising a hill under a town leaves each house in a pit and each road as a trench | G-3, G-18, G-24 | unpredictable results, no warning | draw order (newest wins) + the live preview shows house / road islands + Level / Lower re-level the corridors like Raise |
+| V-29 ✓ | **soldiers would not use foxholes as G-36 claims**: `SquadDefend` asks for cover posts only with an engagement area; `CoverTowardTest` drops a one-direction foxhole for a threat from elsewhere; posts are planned ONCE (a crater's later cover is never picked up) | `SquadDefendBehavior.cs:505-554` | foxholes and craters ignored by most defences | all-round foxhole points; a cover stage for the all-round defence; re-plan when the cover set changes |
+| V-30 ✓ | a ditch's cover points by "the wall rule" stand 0.75 m OUTSIDE the outline, facing the hole | `TerrainCoverProvider.cs:77-115` | the man is on the lip, uncovered | points on the floor, a pair facing each bank, stance from floor-to-lip |
+| V-31 ✓ | **tracked and wheeled share ONE vehicle navmesh** baked at 20° / 0.3 m / 1.8 m; area ids are fixed classes | `RecastNavmeshBaker.cs:77-87`, `NavDoorways.cs:145-211` | G-9's "tracked through a small crater" is unachievable (a > 20° crater wall is already a hole for both); "priced by width × depth" is a few quantised ids at most | ⭐ **D-2 below** |
+| V-32 ✓ | the bake rebuilds the WHOLE cover provider and Bepu index each time | `TerrainResidency.cs:596-600` | a barrage costs every query node seconds of a core per bake | dirty-rectangle cover / index (and D-1 removes most bakes) |
+
+### 9.4 The decisions the review raises — leans for the user
+
+| # | decision | ⭐ lean | why | rejected |
+|---|---|---|---|---|
+| **D-1** | **where the simulation's truth about a crater lives** | ⭐ **ANALYTIC over the record**: `GroundHeightAt`, the sight / fire ground trace and the cover answer add the craters of the replicated `GroundDamage` records (a cell grid of discs, a pure deterministic function) — immediate, the same at any thread count, on every node incl. the Brain and display nodes (heights for drawing); the BAKE becomes a cache for the navmesh and the 3-D mesh only | removes V-2 (wall-clock truth), most of V-1 / V-32 (no bake needed for sim truth), V-6 (every node computes it), V-9; the proven pattern (dynamic decals / deformation as data over a static base) | the bake as truth (non-deterministic timing; a barrage starves it) |
+| **D-2** | **tracked vs wheeled over craters** | ⭐ **all vehicles avoid crater and ditch areas** (one Vehicle layer as baked); infantry crosses; a TRACKED layer is a later item if the user wants it (it doubles the vehicle bake) | the measured layer cannot express it; quantised areas are enough for "vehicles no, infantry yes" | a tracked layer now (cost before need) |
+| **D-3** | **a road corridor next to / under a house at import** | ⭐ **corridors YIELD to buildings**: the cut / fill stops at the footprint + 1 m; the house keeps its `baseZ` (R-4228 "nothing moves"); a house standing ON a road's width is a data error reported by the importer, the road levelled around it | houses never buried / floating; roads still level across their own width | re-basing houses after the corridors (interiors move) |
+| **D-4** | **migration of re-imported terrains** | ⭐ **a re-import is a NEW terrain version**: the old one is kept by hash (recordings replay on it, as kept grounds already are); a batch step re-compiles every scenario on that terrain (open + save = re-compile the overlay) and reports the ones it could not | C-5's hash check stays a guard, never a surprise | silently re-basing old overlays |
+
+⚠ Coverage: the reviewers' absence claims rest on grep (the graph CLI has no coverage check); the coordinator re-verified V-1, V-3, V-5, V-15, V-18, V-19's reset.
+
