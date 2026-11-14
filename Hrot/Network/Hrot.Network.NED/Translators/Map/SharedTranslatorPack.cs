@@ -142,6 +142,9 @@ namespace Hrot.Map.Common.Translators
             yield return new Hrot.Network.NED.SimHost.MunitionDetonationIngressTranslator(participant, entityMap, localNodeId);
             yield return new Hrot.Network.NED.SimHost.RoundImpactEgressTranslator(participant, entityMap, localNodeId);
             yield return new Hrot.Network.NED.SimHost.RoundImpactIngressTranslator(participant, entityMap, localNodeId);
+            // ⭐ CE-5001 (§7.16) — a vehicle's contact with a barrier: the deciding node → every node (the driver's cue, the dust, the crash on any station)
+            yield return new Hrot.Network.NED.SimHost.ContactBreachEgressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.SimHost.ContactBreachIngressTranslator(participant, entityMap, localNodeId);
             // ⭐ CE-3224 (civilians B-6) — a person's gesture (Brain → every node).
             yield return new EntityGestureEgressTranslator(participant);
             yield return new EntityGestureIngressTranslator(participant, entityMap);

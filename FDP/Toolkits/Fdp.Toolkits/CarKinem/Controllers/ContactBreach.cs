@@ -36,6 +36,8 @@ namespace Fdp.Toolkit.Terrain
         public byte Kind;
         public float X, Y, Z;
         public float Progress;
+        /// <summary>⭐ CE-5001 — it came off the wire (another node decided it): drawn and played here, never sent again, never heard again by AI ears.</summary>
+        public bool IsRemote;
     }
 
     /// <summary>⭐ <c>CE-4600</c> — <c>contact-breach.json</c> (the file's own comment is the reference): who breaks what by contact.</summary>

@@ -173,6 +173,7 @@ namespace Fdp.Toolkit.Perception.Signatures
             if (!repo.Bus.IsRegistered<Fdp.Toolkit.Terrain.ContactBreachEvent>()) return;
             foreach (ref readonly var b in repo.ReadEvents<Fdp.Toolkit.Terrain.ContactBreachEvent>())
             {
+                if (b.IsRemote) continue;   // ⭐ CE-5001 — heard where it was decided; a copy off the wire is for the HUD, not the ears (once, not twice)
                 if (b.Kind != (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Broke && b.Kind != (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Bumped) continue;
                 if (!repo.IsAlive(b.Vehicle)) continue;
                 byte cls = Fdp.Toolkit.Motion.Locomotions.Of(repo, b.Vehicle) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked

@@ -693,6 +693,32 @@ drain (`HitFeedback`'s and `SoundEvents`' pattern) — and the event never leave
 | the cue | `ContactCues.For`: *BREAKING — hold throttle* while push events keep coming (≤ 0.3 s), with the bar at the push's progress; *TOO STRONG for this vehicle* and *BREACHED — a way in for infantry* for 2 s; drawn in the slot under the crosshair, above *OUT OF ARC*, amber / red / green | mockup A |
 | the dust | Broke ⇒ `ImpactPuffLarge`, Bumped ⇒ `ImpactPuffMedium` at the contact point (dust, not a blast) | V-17 |
 | the crash | `SoundTkbCatalog.Crash` (7355), `SoundSynth.Crash` (a dull blow, then rubble), Impacts, 300 m — the AI's range; a bump open plays it at 0.6 gain | V-17 |
-| ⚠ deviations, said | no glyph before the cue's text (the HUD's raylib font carries no icons); the cue reaches only the node that decided the contact — R-5030: the player's break feedback is read where the contact is decided (CE-5001) | mockup A |
+| ⚠ deviations, said | no glyph before the cue's text (the HUD's raylib font carries no icons); R-5030: the player's break feedback is read where the contact is decided — and it reaches every node since CE-5001 (§7.16) | mockup A |
 
 Rail `AudioTests.CE4600_ABrokenWall_IsDustAndACrash_AndTheDriversCueSaysWhatTheContactDid`.
+
+### 7.16 As built — CE-5001: the contact reaches every node *(`terrain` lane, `2026-11-14`; cross-lane into the network lane's NED — said)*
+
+📐 Measured first: the hull's body (`CarKinematicsSystem`) runs on its MUSCLE and possession never moves ownership to the station (Entity Control M-6, AQ91 L-rows) ⇒ on a
+cluster with a Player node the contact is decided where no driver looks, and §7.15's cue, dust and crash reached only the all-in-one editor.
+
+```mermaid
+graph TD
+  K[the hull's muscle - CarKinematics publishes ContactBreachEvent] --> EG[ContactBreachEgressTranslator - local only, a break always, a push / too strong at most every 0.2 s per hull, SourceNodeId]
+  EG --> T[(ContactBreach topic dt 187 - Reliable, KeepLast 64)]
+  T --> IN[ContactBreachIngressTranslator on every node - drops its own, an unknown hull; WorldEvent, discarded while joining]
+  IN --> EV[ContactBreachEvent IsRemote]
+  EV --> FX[EffectSpawnSystem - the cue, the dust, the crash]
+  EV -.-> HB[SoundEmissionSystem.HearBreaks - skips a remote copy: heard once, where decided]
+```
+*What it shows that prose hid: the event now has TWO readers on a receiving node — the presentation, which wants it, and the AI ears, which must NOT hear it twice — so
+the remote flag decides, at the one place each reads it.*
+
+| claim | code — as built | design |
+|---|---|---|
+| the topic | `ContactBreach` (vehicle id, kind, contact point, progress, source node), `EDescriptorType.dtContactBreach` = 187 | V-17 |
+| the throttle | `ContactBreachEgressTranslator.RepeatSeconds` 0.2: the cue holds a push 0.3 s and a "too strong" 2 s, so five a second keeps it lit; a break is never held back | V-17 |
+| no echo, no double hearing | the ingress publishes `IsRemote`; the egress never sends a remote copy; `HearBreaks` skips one | — |
+| a join | a one-shot world event: `TranslatorClass.WorldEvent` + `DiscardIngress` (R-4007) — the classified set now six | R-4007 |
+
+Rail `ContactBreachWireTests` (the throttle, no echo, own / unknown dropped, remote republished).

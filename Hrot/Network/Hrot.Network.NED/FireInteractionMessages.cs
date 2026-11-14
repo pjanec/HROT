@@ -234,6 +234,27 @@ namespace Hrot.NED.Messages
     // ⛔ CE-2188's DispenseCountermeasure (dt 134) was RETIRED by BS-1-DESIGN §5.4c: a release is an ordinary WeaponFireRequest on the
     //   dispenser mount, and the SimHost reports it as a WeaponFire.
 
+    /// <summary>
+    /// ⭐ CE-5001 (docs/DESIGN_Vehicle_Breaching.md §7.16) — a vehicle's contact with a barrier, published by the node that decided it (the hull's muscle) to every node: what the
+    /// contact did (<c>ContactBreachKind</c>: 0 broke, 1 bumped open, 2 too strong, 3 pushing), where, and a push's progress — for the driver's HUD cue, the dust and the crash
+    /// on a station that is not the muscle (possession never moves the hull's ownership, Entity Control M-6). A push is sent at most 5 times a second per hull.
+    /// </summary>
+    [DdsTopic]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 64)]
+    public partial struct ContactBreach
+    {
+        /// <summary>Network entity ID of the vehicle.</summary>
+        public int VehicleEntityId;
+        public byte Kind;
+        public float X;
+        public float Y;
+        public float Z;
+        /// <summary>A push's progress, 0…1 (only for kind 3).</summary>
+        public float Progress;
+        /// <summary>Node that wrote this sample: every node reads the topic and drops its own.</summary>
+        public int SourceNodeId;
+    }
+
     // ── Detonation / Damage Pipeline (POC simplified) ─────────────────────────
 
     /// <summary>

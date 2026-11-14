@@ -199,6 +199,9 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-4601 (B-4; docs/DESIGN_Vehicle_Breaching.md §7.6) — a bulldozer's blade-cut marker, Brain group → the Muscle that cuts. 186 measured free on every lane
         //   2026-11-14. ⚠ BladeCutTranslators state it; a rail pins it.
         dtBladeCut                    = 186,
+        // ⭐ CE-5001 (B-3b, V-17; docs/DESIGN_Vehicle_Breaching.md §7.16) — a vehicle's contact with a barrier, the deciding node → every node (the driver's HUD cue, the dust,
+        //   the crash). A one-shot world event, not a descriptor. 187 measured free on every lane 2026-11-14.
+        dtContactBreach               = 187,
         // etc., all known descriptor types here
     }
 
