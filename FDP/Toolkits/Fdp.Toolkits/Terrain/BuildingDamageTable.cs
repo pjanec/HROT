@@ -244,29 +244,20 @@ namespace Fdp.Toolkit.Terrain
             }
             if (!repo.IsComponentTypeRegistered<BuildingDamage>()) return null;
 
-            if (ReferenceEquals(repo, t_repo) && ReferenceEquals(world, t_world) && t_stamp.HoldsSinceTaken(repo, typeof(BuildingDamage))
-                && repo.ComponentsAddedOf(ComponentType<BuildingDamage>.ID) == t_added)
-            {
-                if (repo.StructuralChanges == t_structural) return t_last;
-                if (StillAlive(repo)) { t_structural = repo.StructuralChanges; return t_last; }
-            }
+            // ⭐ CE-5000 (ruling 9) — THE stamp cache (ViewTableCache, shared with CraterTable / FelledTrees); this table also depends on the WORLD (a breach is kept
+            //   only on a panel this terrain has), so a different world rebuilds too
+            if (ReferenceEquals(world, t_world) && ViewTableCache<BuildingDamage>.Holds(repo)) return t_last;
 
             var list = t_scratch ??= new List<WallBreach>(32);
             var colls = t_collScratch ??= new List<int>(8);
             list.Clear(); colls.Clear();
-            t_entityCount = 0;
-            var query = ReferenceEquals(repo, t_queryRepo) ? t_query!
-                : (t_query = repo.Query().With<BuildingDamage>().WithLifecycle(EntityLifecycle.All).Build());
-            t_queryRepo = repo;
-            foreach (var e in query)
+            foreach (var e in ViewTableCache<BuildingDamage>.Begin(repo))
             {
                 Collect(repo.GetComponentRO<BuildingDamage>(e), world, list, colls);
-                var ents = t_entities ??= new Entity[8];
-                if (t_entityCount == ents.Length) Array.Resize(ref t_entities, ents.Length * 2);
-                t_entities![t_entityCount++] = e;
+                ViewTableCache<BuildingDamage>.Read(e);
             }
-            t_stamp.Take(repo); t_repo = repo; t_world = world; t_structural = repo.StructuralChanges;
-            t_added = repo.ComponentsAddedOf(ComponentType<BuildingDamage>.ID);
+            ViewTableCache<BuildingDamage>.Taken(repo);
+            t_world = world;
 
             list.Sort(Order);
             colls.Sort();
@@ -304,26 +295,11 @@ namespace Fdp.Toolkit.Terrain
             return new BuildingDamageTable(sorted.ToArray(), collapsed.ToArray(), world);
         }
 
-        private static bool StillAlive(EntityRepository repo)
-        {
-            for (int k = 0; k < t_entityCount; k++)
-                if (!repo.IsAlive(t_entities![k]) || !repo.HasComponent<BuildingDamage>(t_entities[k])) return false;
-            return true;
-        }
-
-        [ThreadStatic] private static Fdp.Toolkit.Replication.Utilities.FrameStamp t_stamp;
-        [ThreadStatic] private static EntityRepository? t_repo;
         [ThreadStatic] private static TerrainWorld? t_world;
         [ThreadStatic] private static BuildingDamageTable? t_last;
         [ThreadStatic] private static List<WallBreach>? t_scratch;
         [ThreadStatic] private static List<int>? t_collScratch;
-        [ThreadStatic] private static Entity[]? t_entities;
-        [ThreadStatic] private static int t_entityCount;
-        [ThreadStatic] private static long t_structural;
-        [ThreadStatic] private static long t_added;
         [ThreadStatic] private static int t_builds;
-        [ThreadStatic] private static EntityRepository? t_queryRepo;
-        [ThreadStatic] private static EntityQuery? t_query;
 
         /// <summary>How many times THIS thread rebuilt the table from the damage entities and found it changed (rails).</summary>
         internal static int TableBuildsOnThisThread => t_builds;
