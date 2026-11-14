@@ -81,7 +81,7 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
     {
         if (view is not EntityRepository world) return;
         // ⭐ R-3039 S3 — a world replacement (a load, a restore): a hit held for a civilian SUMO is converting is in flight with SUMO, which restarts (R-3041).
-        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _held.Clear();
+        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _held.Clear(); _abandoned.Clear(); }
         var net = TrafficNetCache.Of(world);
         if (net is null || !TryDemand(world, out var demand)) return;
 
@@ -99,6 +99,7 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
             foreach (var i in _frame) _runtime.ReportIncident(i);
             if (world.Bus.IsRegistered<DamageAssessedEvent>() && world.IsComponentTypeRegistered<TrafficCar>())
                 foreach (var hit in world.ReadEvents<DamageAssessedEvent>()) Hit(world, hit, now);
+            if (_frame.Count > 0) Deafened(world);
         }
         Deliver(world, now);
 
@@ -121,6 +122,45 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
         _runtime.ReportHit(new TrafficHit(id.ToString(CultureInfo.InvariantCulture), car, from));
         Fdp.Core.Logging.FdpLog<TrafficPanicSystem>.Info("[Traffic] hit on SUMO {0} {1} ({2:0} damage): giving it up", car ? "car" : "pedestrian", id, hit.TotalDamage);
         _held[id] = (hit, now + HoldSeconds);
+    }
+
+    /// <summary>⭐ <c>CE-7011</c> (City Battle §3c CV-1; lane default R-7005) — a shot or a burst this close to a SUMO car makes its driver
+    /// abandon it: the car is given up exactly as a HIT car is (K7 / §8.7 G4 — our stopped car, its driver out in panic), with no damage.
+    /// ⭐ Closer than the walkers' radius: a driver in a running car hears less.</summary>
+    public const float DriverPanicMetres = 25f;
+
+    /// <summary>⭐ <c>CE-7011</c> — at most this many cars are given up by noise in one frame (a firefight beside a jam is a few drivers a
+    /// frame, never the whole street at once).</summary>
+    public const int MaxDriversPerFrame = 2;
+
+    private readonly HashSet<int> _abandoned = new();
+    private EntityQuery? _cars;
+
+    // ⭐ CE-7011 — the cars near this frame's incidents: their drivers abandon them (each car once; ⛔ main thread, before the stepping tick).
+    private void Deafened(EntityRepository world)
+    {
+        if (!world.IsComponentTypeRegistered<TrafficCar>() || !world.IsComponentTypeRegistered<NetworkIdentity>()) return;
+        _cars ??= world.Query().With<TrafficCar>().With<NetworkIdentity>().With<SimTransform>().Build();
+        int given = 0;
+        foreach (var e in _cars)
+        {
+            if (given >= MaxDriversPerFrame) return;
+            if (world.GetComponentRO<TrafficCar>(e).Kind != TrafficCar.KindCar) continue;
+            int id = world.GetComponentRO<NetworkIdentity>(e).Value;
+            if (id <= 0 || _held.ContainsKey(id) || _abandoned.Contains(id)) continue;
+            var at = world.GetComponentRO<SimTransform>(e).Position;
+            for (int k = 0; k < _frame.Count; k++)
+            {
+                var i = _frame[k];
+                if (Vector2.Distance(new(i.At.X, i.At.Y), new(at.X, at.Y)) > MathF.Min(DriverPanicMetres, (float)i.Radius)) continue;
+                _runtime.ReportHit(new TrafficHit(id.ToString(CultureInfo.InvariantCulture), true, i.At));
+                Fdp.Core.Logging.FdpLog<TrafficPanicSystem>.Info("[Traffic] fighting {0:0} m from SUMO car {1}: its driver abandons it",
+                                                               Vector2.Distance(new(i.At.X, i.At.Y), new(at.X, at.Y)), id);
+                _abandoned.Add(id);
+                given++;
+                break;
+            }
+        }
     }
 
     // The held hits whose civilian exists now: re-published to him, as a hit of THIS node, so the egress carries it to his brain owner.

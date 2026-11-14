@@ -79,6 +79,7 @@ public sealed record HrotNodeContext : IDisposable
         _disposed = true;
 
         _recordingTimeline?.Dispose();   // ⭐ CE-3330 E6 — cancels a running index build over the replay recording
+        Presentation?.Dispose();   // ⭐ CE-3446 — its own worker stopped before the kernel and S go; A is its own
         Kernel.Dispose();
         World.Dispose();
     }
@@ -88,6 +89,15 @@ public sealed record HrotNodeContext : IDisposable
 
     /// <summary>The ECS world (entity repository).</summary>
     public required EntityRepository World { get; init; }
+
+    /// <summary>⭐⭐ CE-3446 — the threaded node's presentation side (World A, the staging, the job queue); null when the node is not staged.</summary>
+    public StagedPresentation? Presentation { get; init; }
+
+    /// <summary>⭐ CE-3446 — the world the UI draws and reads: A when staged, else <see cref="World"/>.</summary>
+    public EntityRepository PresentationWorld => Presentation?.World ?? World;
+
+    /// <summary>⭐ CE-3446 — the orchestration bus as the UI reads it: the staging's mirror when staged, else <see cref="EventBus"/>.</summary>
+    public FdpEventBus PresentationEventBus => Presentation?.UiEventBus ?? EventBus;
 
     /// <summary>The module-host kernel.</summary>
     public required ModuleHostKernel Kernel { get; init; }

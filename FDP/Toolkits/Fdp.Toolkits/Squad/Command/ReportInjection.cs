@@ -94,8 +94,16 @@ namespace Fdp.Toolkit.Squad.Command
         {
             if (!world.IsAlive(unit)) return "the unit does not exist";
             if (!world.IsComponentTypeRegistered<ReportOutbox>()) return "this node keeps no outboxes (not a brain node)";
-            if (!world.HasComponent<ReportOutbox>(unit)) world.AddComponent(unit, new ReportOutbox());
-            world.GetComponentRW<ReportOutbox>(unit).MutedUntil = seconds > 0f ? CommandPictureOps.Now(world) + seconds : SimInstant.Zero;
+            var mutedUntil = seconds > 0f ? CommandPictureOps.Now(world) + seconds : SimInstant.Zero;
+            if (!world.HasComponent<ReportOutbox>(unit))
+            {
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                var fresh = new ReportOutbox();
+                fresh.MutedUntil = mutedUntil;
+                world.AddComponent(unit, fresh);
+                return null;
+            }
+            world.GetComponentRW<ReportOutbox>(unit).MutedUntil = mutedUntil;
             return null;
         }
     }

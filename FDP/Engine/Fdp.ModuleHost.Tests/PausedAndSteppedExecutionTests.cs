@@ -34,7 +34,8 @@ namespace Fdp.ModuleHost.Tests
             }
             public void SetTimeScale(float scale) { }
             public float GetTimeScale() => 1f;
-            public TimeMode GetMode() => TimeMode.Deterministic;
+            public TimeMode Mode = TimeMode.Deterministic;   // ⭐ R-4218 rails switch it
+            public TimeMode GetMode() => Mode;
             public GlobalTime GetCurrentState() => new() { TotalTime = Total, FrameNumber = Frame };
             public void SeedState(GlobalTime state) { Total = state.TotalTime; Frame = state.FrameNumber; }
             public long TimelineEpoch => Epoch;
@@ -236,6 +237,144 @@ namespace Fdp.ModuleHost.Tests
             Assert.Equal(120, Volatile.Read(ref module.Seen) - before);
             Assert.Equal(0, history.Overflow);
             kernel.Dispose(); world.Dispose();
+        }
+
+        /// <summary>A background module slower than its own timeout: each run waits, then creates one entity through its command buffer.</summary>
+        [TickMode(TickPolicy.WhenTimeAdvances)]
+        private sealed class SlowerThanItsTimeout : IEcsModule
+        {
+            public int Runs;
+            public string Name => nameof(SlowerThanItsTimeout);
+            public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(10).WithTimeout(20);
+            public void Tick(ISimulationView view, float deltaTime)
+            {
+                Thread.Sleep(150);                                  // past its 20 ms budget, as a loaded machine makes any module
+                view.GetCommandBuffer().CreateEntity();
+                Interlocked.Increment(ref Runs);
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ F-3 (CE-4503) — a STEP never discards a run on the wall clock: a background module slower than its timeout, stepped, has
+        /// every run's output played back, and no timeout reaches its circuit breaker. 📌 Measured: a stepped 1 000-man run at 8 threads
+        /// logged "NavigationSolver timed out after 100ms. Task abandoned" and its world differed from the 1-thread run's.
+        /// 🔴 Red-proof: dispatch with <c>deterministic: false</c> — the runs time out, their entities never arrive.
+        /// </summary>
+        [Fact]
+        public void F3_ASteppedRun_IsNeverAbandonedOnTheWallClock_ItsOutputArrives()
+        {
+            var world = new EntityRepository();
+            world.RegisterComponent<GlobalTime>();
+            world.SetSingletonUnmanaged(new GlobalTime());
+            var kernel = new ModuleHostKernel(world, new EventAccumulator());
+            var clock = new ScriptedClock();                       // Deterministic: every frame is a step
+            kernel.SetTimeController(clock);
+            var module = new SlowerThanItsTimeout();
+            kernel.RegisterModule(module);
+            kernel.InitializeForTest();
+            int before = world.EntityCount;
+
+            for (int i = 0; i < 4; i++) Frame(kernel, clock, 0.1f);   // four steps, each a new 10 Hz slot: four runs
+            Frame(kernel, clock, 0.1f);                                // harvest the last
+
+            Assert.True(Volatile.Read(ref module.Runs) >= 4, $"runs {module.Runs}");
+            Assert.Equal(Volatile.Read(ref module.Runs), world.EntityCount - before);   // every run's entity, none discarded
+            var stats = kernel.GetExecutionStats().Single(m => m.ModuleName == nameof(SlowerThanItsTimeout));
+            Assert.Equal(0, stats.FailureCount);                                         // the breaker saw no timeout
+            kernel.Dispose(); world.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ R-4218 (CE-4481; implements R-4207, R-4215) — THE SIMULATION MODE IS SET BY WHAT IS RUNNING: a kernel whose clock is stepped (stepping,
+    /// Run-to, filming, the regression all step it) runs its phases in Deterministic; continuous play in Throughput; ONE value for the process —
+    /// any kernel's Deterministic vote or a harness's pin wins; set at the kernel's tick boundary, before its phases run. 🔴 Red-proof: drop the
+    /// kernel's <c>Vote</c> ⇒ the mode never follows the clock ⇒ red.
+    /// </summary>
+    [CollectionDefinition(Name, DisableParallelization = true)]
+    public sealed class SimulationModeCollection { public const string Name = "SimulationMode"; }
+
+    [Collection(SimulationModeCollection.Name)]
+    public class SimulationModeFromWhatRunsTests
+    {
+        [UpdateInPhase(SystemPhase.PostSimulation)]   // a global system's phase — the kernel votes before its first phase
+        [TickMode(TickPolicy.EveryFrame)]
+        private sealed class ModeProbe : IEcsModuleSystem
+        {
+            public readonly List<Fdp.Core.Jobs.SimulationMode> Seen = new();
+            public void Execute(ISimulationView view, float deltaTime) => Seen.Add(Fdp.Core.Jobs.ParallelEntities.Mode);
+        }
+
+        private sealed class Clock : ITimeController
+        {
+            public TimeMode Mode = TimeMode.Continuous;
+            public double Total; public long Frame;
+            public GlobalTime Update() { Total += 0.016; Frame++; return new GlobalTime { DeltaTime = 0.016f, TotalTime = Total, FrameNumber = Frame, TimeScale = 1f }; }
+            public void SetTimeScale(float scale) { }
+            public float GetTimeScale() => 1f;
+            public TimeMode GetMode() => Mode;
+            public GlobalTime GetCurrentState() => new() { TotalTime = Total, FrameNumber = Frame };
+            public void SeedState(GlobalTime state) { Total = state.TotalTime; Frame = state.FrameNumber; }
+            public long TimelineEpoch => 0;
+            public void Dispose() { }
+        }
+
+        private static (ModuleHostKernel Kernel, Clock Clock, ModeProbe Probe) Kernel()
+        {
+            var world = new EntityRepository();
+            world.RegisterComponent<GlobalTime>();
+            world.SetSingletonUnmanaged(new GlobalTime());
+            var kernel = new ModuleHostKernel(world, new EventAccumulator());
+            var clock = new Clock();
+            kernel.SetTimeController(clock);
+            var probe = new ModeProbe();
+            kernel.RegisterGlobalSystem(probe);
+            kernel.InitializeForTest();
+            return (kernel, clock, probe);
+        }
+
+        [Fact]
+        public void R4218_TheClocksModeSetsTheSimulationMode_BeforeTheTicksPhases()
+        {
+            Fdp.Core.Jobs.SimulationModeSelector.ResetForTest();
+            var (kernel, clock, probe) = Kernel();
+            using (kernel)
+            {
+                kernel.Update();                                                   // continuous play
+                Assert.Equal(Fdp.Core.Jobs.SimulationMode.Throughput, probe.Seen[^1]);
+                clock.Mode = TimeMode.Deterministic;                               // the clock is stepped (a pause, a step, Run-to, a take)
+                kernel.Update();
+                Assert.Equal(Fdp.Core.Jobs.SimulationMode.Deterministic, probe.Seen[^1]);   // already in THIS tick's phases
+                clock.Mode = TimeMode.Continuous;
+                kernel.Update();
+                Assert.Equal(Fdp.Core.Jobs.SimulationMode.Throughput, probe.Seen[^1]);
+            }
+            Fdp.Core.Jobs.SimulationModeSelector.ResetForTest();
+        }
+
+        [Fact]
+        public void R4218_OneValueForTheProcess_AnyKernelStepped_OrAPinnedHarness_IsDeterministic()
+        {
+            Fdp.Core.Jobs.SimulationModeSelector.ResetForTest();
+            var (a, clockA, probeA) = Kernel();
+            var (b, clockB, probeB) = Kernel();
+            using (a) using (b)
+            {
+                clockA.Mode = TimeMode.Deterministic;                              // --mode all: one kernel stepped, one not (yet)
+                a.Update(); b.Update();
+                Assert.Equal(Fdp.Core.Jobs.SimulationMode.Deterministic, probeB.Seen[^1]);   // the continuous kernel runs Deterministic too
+                clockA.Mode = TimeMode.Continuous;
+                a.Update(); b.Update();
+                Assert.Equal(Fdp.Core.Jobs.SimulationMode.Throughput, probeB.Seen[^1]);
+                using (Fdp.Core.Jobs.SimulationModeSelector.RequireDeterministic())   // a harness that needs repeatability
+                {
+                    a.Update();
+                    Assert.Equal(Fdp.Core.Jobs.SimulationMode.Deterministic, probeA.Seen[^1]);
+                }
+                a.Update();
+                Assert.Equal(Fdp.Core.Jobs.SimulationMode.Throughput, probeA.Seen[^1]);
+            }
+            Fdp.Core.Jobs.SimulationModeSelector.ResetForTest();
         }
     }
 }

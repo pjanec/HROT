@@ -125,6 +125,44 @@ namespace Fdp.Toolkit.Replication.Tests
             Assert.Contains((w.SimulationTick, u[11].Index, 4f), t.Published);
         }
 
+        /// <summary>
+        /// ⭐ CE-4519 — a MANAGED input is compared by REFERENCE (an immutable record, replaced whole): a neighbour's new payload in the same
+        /// chunk does not visit this entity; the same object set again does not; a new object does; removing it does (the structural clock).
+        /// 📐 The chunk alone (16 384 entities) made 2.08 M of the CGF's 4.15 M non-full visits. 🔴 Red-proof: the compare dropped
+        /// (managed ⇒ always visit, the old rule) ⇒ the neighbour and same-object assertions fail.
+        /// </summary>
+        [Fact]
+        public void AManagedInput_IsComparedByReference_ANeighboursNewPayloadDoesNotVisit_ANewOneDoes()
+        {
+            EgressVisitGate.SweepPeriod = 100_000;
+            var (w, u) = World(50);
+            w.RegisterManagedComponent<Fdp.Toolkit.Perception.Components.SensorConfigPayload>();
+            var payloads = new Fdp.Toolkit.Perception.Components.SensorConfigPayload[u.Count];
+            for (int i = 0; i < u.Count; i++)
+            {
+                payloads[i] = new Fdp.Toolkit.Perception.Components.SensorConfigPayload { Kind = "k", Json = i.ToString() };
+                w.SetManagedComponent(u[i], payloads[i]);
+            }
+            var gate = new EgressVisitGate(typeof(Fdp.Toolkit.Perception.Components.SensorConfigPayload));
+            var visited = new HashSet<int>();
+            void Scan() { visited.Clear(); gate.Begin(w); foreach (var e in w.Query().With<NetworkIdentity>().Build()) if (gate.Visit(e)) visited.Add(e.Index); }
+            w.Tick(); Scan(); w.Tick(); Scan();
+            Assert.Empty(visited);
+
+            w.SetManagedComponent(u[3], payloads[3] with { Json = "changed" });   // a new object for ONE entity (same chunk as all of them)
+            w.Tick(); Scan();
+            Assert.Equal(new HashSet<int> { u[3].Index }, visited);
+
+            w.SetManagedComponent(u[4], payloads[4]);                             // the same object set again: the chunk moves, nothing changed
+            w.Tick(); Scan();
+            Assert.Empty(visited);
+
+            w.RemoveComponent<Fdp.Toolkit.Perception.Components.SensorConfigPayload>(u[5]);
+            w.Tick(); Scan();
+            Assert.Contains(u[5].Index, visited);                                 // removal: structural
+            Assert.DoesNotContain(u[6].Index, visited);
+        }
+
         [Fact]
         public void H8_MarkDirty_IsVisitedNextFrame()
         {
@@ -138,21 +176,106 @@ namespace Fdp.Toolkit.Replication.Tests
             Assert.Contains(u[7].Index, t.Visited);
         }
 
+        private static Entity Part(EntityRepository w, Entity root, int instance, int netId)
+        {
+            var part = w.CreateEntity();
+            w.AddComponent(part, new NetworkIdentity(netId));
+            w.AddComponent(part, new Health { Current = 10, Max = 10 });
+            w.AddComponent(part, new PartMetadata { ParentEntity = root, InstanceId = instance });
+            return part;
+        }
+
+        /// <summary>
+        /// ⭐ CE-4519 (X-4) — H1 is PER ENTITY: authority arriving for one entity visits that entity and the parts whose ROOT it is (their
+        /// <c>HasAuthority</c> reads the root's NetworkAuthority and record), and nothing else — ⛔ no full scan. A same-bytes rewrite visits nothing.
+        /// ⛔ SUPERSEDED: <c>H1_AuthorityArriving_AnywhereIncludingAPartsRoot_MakesAFullScan</c> — 📐 on the 1 000-man CGF every gated translator
+        /// fully scanned on 5 205 of 5 281 frames and skipped nothing. 🔴 Red-proof: the mark compare off (AuthorityMoved ⇒ false) ⇒ this rail and
+        /// the authority equivalence rail fail.
+        /// </summary>
         [Fact]
-        public void H1_AuthorityArriving_AnywhereIncludingAPartsRoot_MakesAFullScan()
+        public void H1_AuthorityArriving_VisitsThatEntityAndItsParts_NotAFullScan()
         {
             EgressVisitGate.SweepPeriod = 100_000;
-            var (w, u) = World(40); var t = new Translator(); Settle(w, t);
+            var (w, u) = World(40);
+            var part = Part(w, u[3], 2, 5000);
+            var t = new Translator(); Settle(w, t);
             long full = t.Gate.FullScans;
-            w.SetComponent(u[0], new NetworkAuthority(2, 2));                        // a grant to this node of ONE entity
+
+            w.SetComponent(u[0], new NetworkAuthority(2, 1));                        // the primary owner of ONE entity moved
             Frame(w, t);
-            Assert.Equal(full + 1, t.Gate.FullScans);
-            Assert.Equal(40, t.Visited.Count);                                       // every entity: a part of that root may be in the list
+            Assert.Equal(full, t.Gate.FullScans);
+            Assert.Equal(new HashSet<int> { u[0].Index }, t.Visited);
+
+            w.SetManagedComponent(u[3], new DescriptorOwnership().WithOwner(Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(7, 2), 2));
+            Frame(w, t);                                                             // the root's record: the root and its part
+            Assert.Equal(new HashSet<int> { u[3].Index, part.Index }, t.Visited);
+
+            w.SetComponent(u[3], new NetworkAuthority(1, 1));                        // the same bytes, rewritten
             Frame(w, t);
-            Assert.Equal(full + 1, t.Gate.FullScans);                                // and only that frame
-            w.SetManagedComponent(u[3], new DescriptorOwnership());                  // a descriptor record
+            Assert.Empty(t.Visited);
+
+            w.SetComponent(u[3], new NetworkAuthority(2, 1));                        // the root's primary owner: the part follows it
             Frame(w, t);
-            Assert.Equal(full + 2, t.Gate.FullScans);
+            Assert.Equal(new HashSet<int> { u[3].Index, part.Index }, t.Visited);
+            Assert.Equal(full, t.Gate.FullScans);
+        }
+
+        /// <summary>The fake translator with the authority test every real one has: it publishes (value, authority) when either changes.</summary>
+        private sealed class AuthTranslator
+        {
+            public readonly EgressVisitGate Gate = new(typeof(Health));
+            public readonly Dictionary<int, (float, bool)> Last = new();
+            public readonly List<(uint Frame, int Entity, float Value, bool Auth)> Published = new();
+            public bool Gated = true;
+            public void Scan(EntityRepository w)
+            {
+                if (Gated) Gate.Begin(w);
+                foreach (var e in w.Query().With<NetworkIdentity>().With<Health>().Build())
+                {
+                    if (Gated && !Gate.Visit(e)) continue;
+                    int instance = w.HasComponent<PartMetadata>(e) ? w.GetComponentRO<PartMetadata>(e).InstanceId : 0;
+                    bool auth = Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(w, e,
+                        Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(7, instance));
+                    var now = (w.GetComponentRO<Health>(e).Current, auth);
+                    if (Last.TryGetValue(e.Index, out var prev) && prev == now) continue;
+                    Last[e.Index] = now;
+                    Published.Add((w.SimulationTick, e.Index, now.Item1, now.Item2));
+                }
+            }
+        }
+
+        /// <summary>⭐ CE-4519 — the EQUIVALENCE rail with authority: 300 frames of random value writes, primary-owner moves and record moves on
+        /// roots that own parts — the gated translator publishes exactly what the ungated one does, and skips most visits.</summary>
+        [Fact]
+        public void Equivalence_WithAuthorityMoving_OnRootsAndTheirParts_TheGatedTranslatorPublishesExactlyWhatTheUngatedOneDoes()
+        {
+            EgressVisitGate.SweepPeriod = 100_000;   // ⭐ no sweep: an authority move the marks missed would show
+            var (w, u) = World(200);
+            var parts = new List<Entity>();
+            for (int i = 0; i < 60; i++) parts.Add(Part(w, u[i % 20], 1 + i / 20, 6000 + i));
+            var gated = new AuthTranslator(); var reference = new AuthTranslator { Gated = false };
+            var rng = new Random(4519);
+            int moves = 0;
+            for (int f = 0; f < 300; f++)
+            {
+                w.Tick();
+                for (int k = rng.Next(0, 4); k > 0; k--) w.GetComponentRW<Health>(u[rng.Next(u.Count)]).Current = rng.Next(0, 5);
+                for (int k = rng.Next(0, 3); k > 0; k--) w.GetComponentRW<Health>(parts[rng.Next(parts.Count)]).Current = rng.Next(0, 5);
+                if (rng.Next(3) == 0) { w.SetComponent(u[rng.Next(40)], new NetworkAuthority(1 + rng.Next(2), 1)); moves++; }
+                if (rng.Next(3) == 0)
+                {
+                    var root = u[rng.Next(20)];
+                    var was = w.HasManagedComponent<DescriptorOwnership>(root) ? w.GetComponent<DescriptorOwnership>(root) : new DescriptorOwnership();
+                    w.SetManagedComponent(root, was.WithOwner(Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(7, 1 + rng.Next(3)), 1 + rng.Next(2)));
+                    moves++;
+                }
+                gated.Scan(w); reference.Scan(w);
+            }
+            Assert.True(moves > 100, $"{moves} authority moves");
+            Assert.Contains(reference.Published, p => !p.Auth);
+            Assert.Contains(reference.Published, p => p.Auth && p.Frame > 1);
+            Assert.Equal(reference.Published, gated.Published);
+            Assert.True(gated.Gate.Skipped > gated.Gate.Visited * 5, $"visited {gated.Gate.Visited}, skipped {gated.Gate.Skipped}");
         }
 
         [Fact]

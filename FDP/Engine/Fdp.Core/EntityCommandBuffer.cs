@@ -308,6 +308,18 @@ namespace Fdp.Core
             WriteInt(objectIndex);
         }
         
+        /// <summary>⭐ N-10 / F-2 — a managed event whose bus id the caller already has (a publish deferred from <see cref="FdpEventBus.PublishManaged{T}"/>).</summary>
+        internal void PublishManagedEventRaw(int typeId, object evt)
+        {
+            if (evt == null) throw new ArgumentNullException(nameof(evt));
+            int objectIndex = _managedObjects.Count;
+            _managedObjects.Add(evt);
+            EnsureCapacity(1 + 4 + 4);
+            _buffer[_position++] = (byte)OpCode.PublishManagedEvent;
+            WriteInt(typeId);
+            WriteInt(objectIndex);
+        }
+
         /// <summary>
         /// Records a SetLifecycleState command.
         /// </summary>
@@ -333,10 +345,13 @@ namespace Fdp.Core
             if (repo == null)
                 throw new ArgumentNullException(nameof(repo));
             
+            if (_position == 0) { Clear(); return; }   // ⭐ P-0 (parallel sim): an empty buffer plays back with no work and no allocation
             int readPos = 0;
             
             // Map placeholder entities (negative indices) to real entities
-            var entityRemap = new System.Collections.Generic.Dictionary<int, Entity>();
+            // ⭐ P-0 (DESIGN_Parallel_Simulation §7.1): one map per buffer, reused — a playback per batch per tick must allocate nothing (R-2084)
+            var entityRemap = _entityRemap ??= new System.Collections.Generic.Dictionary<int, Entity>();
+            entityRemap.Clear();
             
             while (readPos < _position)
             {
@@ -542,6 +557,8 @@ namespace Fdp.Core
         /// <summary>
         /// Clears all recorded commands without executing them.
         /// </summary>
+        private System.Collections.Generic.Dictionary<int, Entity>? _entityRemap;
+
         public void Clear()
         {
             _position = 0;

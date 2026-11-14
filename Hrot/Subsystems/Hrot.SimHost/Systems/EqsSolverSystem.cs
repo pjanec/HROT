@@ -230,9 +230,12 @@ namespace Hrot.SimHost.Systems
         /// </summary>
         public int Workers { get; set; } = DefaultWorkers;
 
-        /// <summary>The default <see cref="Workers"/>.</summary>
-        public static int DefaultWorkers { get; } =
-            int.TryParse(Environment.GetEnvironmentVariable("HROT_EQS_WORKERS"), out int w) && w > 0 ? w : Math.Max(1, Environment.ProcessorCount / 4);
+        /// <summary>The default <see cref="Workers"/>: <c>HROT_EQS_WORKERS</c>, else ⭐ N-16 the ONE pool's budget (<c>FdpWorkerPool.Shared.Threads</c> —
+        /// the process budget <c>HROT_SIM_THREADS</c> sets): the solves run on that pool, so its size is the window's. ⛔ SUPERSEDED: a quarter of the
+        /// logical CPUs, a second budget beside the pool's (1 on a 4-core machine: the heaviest system, ~700 ms at 1 000 men, ran on one thread
+        /// whatever the sim threads were). 📐 Measured result-neutral: the stepped 1 000-man run gives the same world with 1 and 4 EQS workers.</summary>
+        public static int DefaultWorkers =>
+            int.TryParse(Environment.GetEnvironmentVariable("HROT_EQS_WORKERS"), out int w) && w > 0 ? w : Math.Max(1, Fdp.Core.Jobs.FdpWorkerPool.Shared.Threads);
 
         /// <summary>⭐ CE-3427 P-1 — sensors solved on the window (any thread) and committed last tick (diagnostics / rails).</summary>
         public int LastParallelSolves { get; private set; }
@@ -247,7 +250,7 @@ namespace Hrot.SimHost.Systems
         private readonly HashSet<QueryShareKey> _windowKeys = new();
         private Action<int>? _solveAt;
 
-        private Fdp.ModuleHost.Threading.WorkerPool? PoolFor(int workers)
+        private Fdp.Core.Jobs.FdpWorkerPool? PoolFor(int workers)
         {
             if (workers <= 1) return null;
             _solveAt ??= k => Solve(_slots[k]);
@@ -258,13 +261,13 @@ namespace Hrot.SimHost.Systems
                 for (int i = 0; i < places; i++) slots[i] = i < _slots.Length ? _slots[i] : new SolveSlot();
                 _slots = slots;
             }
-            return Fdp.ModuleHost.Threading.WorkerPool.Shared(workers);
+            return Fdp.Core.Jobs.FdpWorkerPool.Shared;   // ⭐ POC 4 J-1 — the ONE pool (background lane); its size is the process budget
         }
 
         // Predicts, from place `from`, which places the start rule would admit if every sensor cost its estimate; prepares those, solves
         // the PURE ones in parallel into the window's slots, and returns the end of the window. Everything here is side-effect free: the
         // commit loop decides with the actual costs.
-        private int SolveWindow(Fdp.ModuleHost.Threading.WorkerPool pool, IReadOnlyList<(int Rank, uint LastSolved, int Index, Entity Sensor, int Estimate)> ordered,
+        private int SolveWindow(Fdp.Core.Jobs.FdpWorkerPool pool, IReadOnlyList<(int Rank, uint LastSolved, int Index, Entity Sensor, int Estimate)> ordered,
                                 int from, int spent, int bandSpent, int bandBudget, int rank)
         {
             int used = 0, j = from;

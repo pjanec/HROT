@@ -1,0 +1,44 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 - CE-6001: the city-battle terrain loads and a scenario runs on it (the terrain's geometry is held by TownPlanRails).",
+  "runFor": 20,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the west bank man stands",
+      "on": "field",
+      "who": "West Bank",
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "the east bank man stands",
+      "on": "field",
+      "who": "East Bank",
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "the square man stands",
+      "on": "field",
+      "who": "Square",
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "the square man is on the square (x 870..970)",
+      "on": "near",
+      "who": "Square",
+      "point": [
+        920,
+        756
+      ],
+      "within": 60
+    }
+  ]
+}

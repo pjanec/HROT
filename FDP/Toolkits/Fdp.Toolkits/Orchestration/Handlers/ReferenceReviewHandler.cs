@@ -101,7 +101,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             var exercise = recording.ExerciseId;
 
             // F5 — capture on the PAUSED step: the master's barrier pause lands here within its look-ahead
-            await WaitUntil(() => _world.HasSingletonUnmanaged<GlobalTime>() && _world.GetSingletonUnmanaged<GlobalTime>().IsHalted, "the pause", ct)
+            await WaitUntil(() => _world.HasSingletonUnmanaged<GlobalTime>() && _world.GetSingletonUnmanagedRO<GlobalTime>().IsHalted, "the pause", ct)
                 .ConfigureAwait(false);
 
             // ⭐⭐ F6 (DESIGN_Replay_Time_Axis_And_Review §12u) — the QUIESCE: a few paused frames before anything is captured, so what was
@@ -114,14 +114,14 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             LastReviewLabel = $"review-{++_reviews}";
             recording.RequestCheckpoint(LastReviewLabel, atWallTicks: 0);
             await WaitUntil(() => recording.PendingCheckpoints == 0, $"keyframe {LastReviewLabel}", ct).ConfigureAwait(false);
-            double liveSim = _world.GetSingletonUnmanaged<GlobalTime>().TotalTime;
+            double liveSim = _world.GetSingletonUnmanagedRO<GlobalTime>().TotalTime;
             recording.SuspendForReview(LastReviewLabel, liveSim);   // R8 — nothing written while the world is the replayed one; noted in Reviews[]
             foreach (var episode in _episodeRecorders?.Invoke() ?? Array.Empty<Fdp.Toolkit.Replay.IReviewSuspendable>())
                 episode.SuspendForReview(LastReviewLabel, liveSim);   // ⭐ row 44 — nor into an episode's
 
             // F1 / D-B — the FULL checkpoint: every recorded type and the singletons (⛔ not the dry run's NodeDryRun)
             _livePoint = WorldKeyframes.Capture(_world, CaptureOptions.Recording);
-            _liveSimSeconds = _world.GetSingletonUnmanaged<GlobalTime>().TotalTime;
+            _liveSimSeconds = _world.GetSingletonUnmanagedRO<GlobalTime>().TotalTime;
 
             EgressHold.Hold(_world, "review entry");   // W2 — published again after the master's commit
             _awaitingCommit = true;

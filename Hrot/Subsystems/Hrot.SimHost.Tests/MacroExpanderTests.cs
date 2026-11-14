@@ -325,6 +325,31 @@ namespace Hrot.SimHost.Tests
             return (repo, sys, inst, men);
         }
 
+        /// <summary>⭐ N-9 (CE-4471) — the placement answer moves the children by building NEW requests: the published children stand where the
+        /// solver put them, and the PARKED requests (held by the managed <c>MacroExpansionIntent</c>, which snapshots and the presentation world
+        /// share by reference) are left exactly as they were. 🔴 Red-proof: write the placed position into the parked request's own list ⇒ the
+        /// parked position moves too ⇒ red.</summary>
+        [Fact]
+        public void N9_ThePlacementAnswer_BuildsNewRequests_TheParkedOnesAreNeverChanged()
+        {
+            var (repo, sys, inst, map) = ExpandingWorldWithMap(FireTeam, null);
+            var ask = Assert.Single(Frame<Fdp.Toolkit.Navigation.PlacementRequestBatch>(repo, sys));
+            var parked = ((ISimulationView)repo).GetManagedComponentRO<MacroExpansionIntent>(inst).Parked!;
+            var before = parked.Select(r => r.InitialComponents!.OfType<SimTransform>().Single().Position.X).ToArray();
+            repo.Bus.PublishManaged(AnswerAll(ask, new System.Numerics.Vector3(10f, 0f, 0f)));
+            repo.Bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var published = ((ISimulationView)repo).ReadManagedEvents<EntityCreationRequest>().ToArray();
+            Assert.Equal(parked.Count, published.Length);
+            Assert.Equal(before, parked.Select(r => r.InitialComponents!.OfType<SimTransform>().Single().Position.X).ToArray());   // untouched
+            for (int i = 0; i < published.Length; i++)
+            {
+                Assert.NotSame(parked[i].InitialComponents, published[i].InitialComponents);
+                Assert.Equal(before[i] + 10f, published[i].InitialComponents!.OfType<SimTransform>().Single().Position.X, precision: 3);   // moved
+            }
+        }
+
         /// <summary>⭐ Macros debt A6 (SR-180: "the layer comes from the child's template mobility") — a child whose FILE carries no DIS type
         /// (0 ⇒ it used to be guessed infantry) is placed on the layer its TKB TEMPLATE states: a wheeled template ⇒ the vehicle layer, its
         /// radius half the larger footprint side; a pedestrian one ⇒ infantry; no template ⇒ the DIS guess. 🔴 Red-proof: ignore the template ⇒

@@ -47,6 +47,36 @@ namespace Fdp.Toolkit.Vis3D
             return true;
         }
 
+        /// <summary>⭐ CE-4557 (docs/DESIGN_Map_3D_Mode.md §6ak D-1) — the pass's screen scale: how many PIXELS a length of metres covers at a point (perspective
+        /// or orthographic) — from the projection's vertical scale, the framebuffer's height and the point's clip w. Built once per frame; 0 B.</summary>
+        public readonly struct ScreenScale
+        {
+            private readonly Vector4 _w;          // the row of projection × view that gives a (raylib) point's clip w
+            private readonly float _pixelsPerUnit;  // |P.M22| · height / 2: pixels of one unit of ndc-scaled length at w = 1
+
+            public ScreenScale(Vector4 wRow, float pixelsPerUnit) { _w = wRow; _pixelsPerUnit = pixelsPerUnit; }
+
+            /// <summary>False before a pass set it (every size then reads as huge).</summary>
+            public bool IsSet => _pixelsPerUnit > 0f;
+
+            /// <summary>The pixels <paramref name="metres"/> cover at HROT point <paramref name="hrot"/> (+∞ at or behind the eye; +∞ when unset).</summary>
+            public float PixelsOf(Vector3 hrot, float metres)
+            {
+                float w = (_w.X * hrot.X) + (_w.Y * hrot.Z) - (_w.Z * hrot.Y) + _w.W;   // raylib (x, z, −y)
+                return _pixelsPerUnit <= 0f || w <= 1e-4f ? float.PositiveInfinity : metres * _pixelsPerUnit / w;
+            }
+        }
+
+        /// <summary>⭐ CE-4557 — the screen scale of <paramref name="view"/> × <paramref name="proj"/> on a framebuffer <paramref name="heightPx"/> tall.</summary>
+        public static ScreenScale ScaleOf(Matrix4x4 view, Matrix4x4 proj, int heightPx)
+        {
+            var m = Matrix4x4.Multiply(proj, view);
+            return new ScreenScale(new Vector4(m.M41, m.M42, m.M43, m.M44), MathF.Abs(proj.M22) * heightPx * 0.5f);
+        }
+
+        /// <summary>⭐ CE-4557 — the screen scale of the pass being drawn now (rlgl's current matrices and framebuffer — the window's or a film's).</summary>
+        public static ScreenScale CurrentScale() => ScaleOf(Rlgl.GetMatrixModelview(), Rlgl.GetMatrixProjection(), Rlgl.GetFramebufferHeight());
+
         /// <summary>A cube of half-size <paramref name="radius"/> round a HROT-space point is in view.</summary>
         public static bool AroundInside(Vector4[] planes, Vector3 hrot, float radius)
         {

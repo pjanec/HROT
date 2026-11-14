@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: ⛔ 2026-10-27 (CE-1410, R-1042): the shipped trees named here as `*.btree.json` (Library/Sop · Library/Tactics · Demos/HillAttack) are C#-built since — `Hrot.AI.Behaviors/Brains/{BasicInfantrySop,BasicSquadSop,BasicPlatoonSop,BasicVehicleSop,CivilianInertPilotSops,LibraryTactics,DangerCrossing,HillAttackTrees}.cs`, same names, ids and AssetIds (blueprints/DESIGN_Behavior_Self_Registration.md §10d); `.btree.json` is what the EDITOR saves. Read those file paths as history. · ✅ RESOLVED 2026-10-19 — ROE crosses nodes by backend's BR-13 (CE-3251, wire kind 2) and the reporting requirements by CE-2299 (wire kind 3, §8a); ⚠ CC-11's Initiative must join RoeDirectiveJson when it joins Roe. WAS: ⛔ 2026-10-18 (measured in the hand-off audit) — CC-2 and CC-11 copy the ROE pattern, and the ROE pattern is LOCAL ONLY: `SetRoeEvent` is a local bus event applied by `RoeSystem` on the node that raised it, and nothing forwards it to the node that owns the subordinate's brain (an order does cross: `TacticalIntentEgressTranslator` forwards an `AssignTacticalIntentEvent` whose target's brain is not here as a `TacticalIntentRequest`). ⇒ a superior whose brain runs on another node than its subordinate's sets ROE, `Initiative` and reporting requirements with no effect. CB-42 (requirements inside the order) had that property and CC-2 lost it. Fix asked of backend as BR-13 (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md §4, `CE-2299`); the two INVENTORY rows below now say so.
 known-conflict: CC-12's "the raw report stream is GET /events" is revised by docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md PC-11 (lean: Building Clearing §5a's SquadReportLog, since the /events ring holds 500 events of every type) · docs/designs/group-maneuvers/DESIGN_Building_Clearing.md CB-33 (reported contacts into the commander's TargetMemory) and CB-42 (requirements inside the order, stamped by the ingress) are revised by CC-1 and CC-2
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: adds the COMPANY echelon (CompanyCommander) on this chain's pattern
   - docs/DESIGN_Scenario_Rules.md — the scenario's brain (World Environment entity) is the top of this chain: its director orders down it and its measures read the reports coming up (SR-17…SR-19)
   - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — OPEN: the heard launch HQ-1 composes — per-weapon signature and the 1 km rule it would retire (A), off-terrain guns heard (B)
   - docs/designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md — the recorded idea that needs REQUEST answered by a headquarters owning support assets (§4 ①)
@@ -542,7 +543,7 @@ offset 0 — each reddens its rail.
 ## 8b. The picture and the log on every node *(✅ approved 2026-10-19, `CE-2301` — ① BUILT 2026-10-19, ② backend's; ui's D4)*
 
 🔒 User, `2026-10-19`: *"Have the report inbox fill the log on every node. Accepted."* · *"Replicate the commander's picture read-only. Accepted."* — ui's two leans
-([DESIGN_Command_Display §6 D4](../../DESIGN_Command_Display.md), [the ui note](../../blueprints/batches/NOTE_Ui_To_Behaviors_Command_Display_Data.md)).
+([DESIGN_Command_Display §6 D4](../../DESIGN_Command_Display.md), the ui note).
 
 ```mermaid
 graph TD
@@ -564,7 +565,7 @@ the commander picture as well."* (measured: it does — `EntityInfo.CommanderId`
 | part | who | how |
 |---|---|---|
 | ① the log on every node | behaviors | measured: the inbox is built only by `CgfLogicPack` (`:247`), so it runs on the plans with a Brain capability (editor ×2, CGF) and NOWHERE on SimHost or IG. ⇒ a cross-role capability `CoreInfrastructureCapabilities.ReportInbox` declared in the plans WITHOUT a brain (SimHost, IG — ExCon keeps no world): one inbox per node, never two. ⛔ Not the `CE-221` move (the pack's inbox out to the tail of every plan): the pack places it BEFORE the brain tick on purpose (*"this frame's guards see it"*, `CgfLogicPack.cs:244`) — at the tail the brain would read every report a frame late. The inbox LOGS every `SquadReportNotification` before its `CommandPicture` guard, and FOLDS only where `CommandPicture` is registered and the commander's `BehaviorState` is owned here (the capability always gates on authority — a replica never folds) |
-| ② the picture replicated | ⭐ **backend** ([note](../../blueprints/batches/NOTE_Behaviors_To_Backend_CommandPicture_Replication.md)) | the Brain-group road `EngagementArea` took (`CE-3261`): descriptor, translator, ownership binding |
+| ② the picture replicated | ⭐ **backend** (note) | the Brain-group road `EngagementArea` took (`CE-3261`): descriptor, translator, ownership binding |
 | the gizmo with no copy | ui | "not on this node yet" while the node has no `CommandPicture` for the selected commander |
 
 ```mermaid

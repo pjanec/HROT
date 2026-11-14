@@ -4,6 +4,7 @@ build-state: BUILT (L-2, CE-4364) — baselines below; L-4 adds its findings to 
 updated: 2026-11-10 (§7.8 N-2 budget kept, egress by translator, replica probe · §7.7 P-1 parallel EQS built, the worker sweep · §7.6 C-1 + G-1 built and re-measured · §7 many-core Windows measurements · §6 world-query timings, recording off by default — backend) · 2026-11-09 (backend — first version)
 current-answer: §1 decisions · §3 how to run · §4 baselines · §5 findings (L-4) · §6 the world-query timings (CE-3427, the terrain's own cost) · ⭐ §7 on a physical many-core machine (2026-11-10, LATEST: the EQS cadence, the GC-bound bake, the frame split; §7.6 C-1 + G-1 built; §7.7 P-1 built)
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: the showcase scenario sized to this rig's budget (R-4192), measured with it
   - DESIGN_Egress_Change_Detection.md — §7 OWNS the off-the-main-thread state egress designed from §7.8's measurements
   - PLAN_Large_Terrain.md — P-0 is this rig; §8 the budgets (R-4192)
   - DESIGN_Evaluation_Cost_And_Cadence.md §11 — perf-stress.py, whose cluster machinery the rig imports; §0e the garbage tables

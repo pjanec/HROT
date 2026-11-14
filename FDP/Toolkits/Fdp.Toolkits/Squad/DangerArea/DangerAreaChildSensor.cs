@@ -33,19 +33,42 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public static Entity Ensure(EntityRepository world, Entity owner, int siteId, in DangerAreaSettings settings, long key = 0)
         {
             var existing = EqsChildSensor.Find(world, owner, siteId, key);
-            if (!existing.IsNull) return existing;
-
-            var child = EqsChildSensor.Ensure<DangerAreaCognitiveBuffer>(world, owner, siteId, Transport(settings), key);
-            if (child.IsNull) return child;
-            world.AddComponent(child, new SensorTag { Kind = SensorModality.DangerArea });
-            world.AddComponent(child, new DangerAreaSensor
+            if (!existing.IsNull)
             {
-                BlueprintId = TemplateId,
-                RefreshIntervalSeconds = settings.RefreshSeconds,
-                Settings = settings,
-            });
+                // ⭐⭐ E-3 (CE-4509) — a child created inside a per-entity phase lands BARE (EqsChildSensor.Ensure defers the creation and returns
+                //   Null): it is dressed by the first Ensure that finds it. ⛔ Was: returned "as it is" — never configured, never solved.
+                if (!world.IsComponentTypeRegistered<DangerAreaSensor>() || !world.HasComponent<DangerAreaSensor>(existing)) Dress(world, existing, in settings);
+                return existing;
+            }
+
+            var child = EqsChildSensor.Ensure<DangerAreaCognitiveBuffer>(world, owner, siteId, Transport(settings), out var pending, key);
+            if (child.IsNull)
+            {
+                // ⭐⭐ E-3 (CE-4509) — created inside a per-entity phase: dressed in the SAME buffer, so it lands complete at the merge
+                if (pending != default)   // ⚠ a buffer entity has a NEGATIVE index: IsNull reads true for it
+                {
+                    var cmd = ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetCommandBuffer();
+                    cmd.AddComponent(pending, new SensorTag { Kind = SensorModality.DangerArea });
+                    cmd.AddComponent(pending, Sensor(in settings));
+                }
+                return child;
+            }
+            Dress(world, child, in settings);
             return child;
         }
+
+        private static void Dress(EntityRepository world, Entity child, in DangerAreaSettings settings)
+        {
+            world.AddComponent(child, new SensorTag { Kind = SensorModality.DangerArea });
+            world.AddComponent(child, Sensor(in settings));
+        }
+
+        private static DangerAreaSensor Sensor(in DangerAreaSettings settings) => new()
+        {
+            BlueprintId = TemplateId,
+            RefreshIntervalSeconds = settings.RefreshSeconds,
+            Settings = settings,
+        };
 
         /// <summary>Re-point <paramref name="child"/> with new settings: a new epoch, and its answer cleared (an older answer is
         /// for the old route). False when it is not a live danger-area sensor.</summary>

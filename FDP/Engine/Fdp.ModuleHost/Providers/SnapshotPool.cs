@@ -80,7 +80,8 @@ namespace Fdp.ModuleHost.Providers
             // If it doesn't exist, we might need to use Clear() or implement it.
             // The instructions say "SoftClear()", so I will use that.
             // If compilation fails, I'll check EntityRepository.
-            repo.SoftClear();
+            // ⭐ M-4 (CE-4483) — the memory is kept; the next Get is always followed by a SyncFrom, which copies it whole
+            repo.RecycleForSync();
             
             _pool.Push(repo);
         }

@@ -74,11 +74,14 @@ public sealed class TrafficRoadPlan
     public bool HasPolylines => EdgeLevels.Length > 0;
 
     /// <summary>The coarsest edge level whose tolerance is at most <paramref name="toleranceMetres"/>.</summary>
-    public TrafficPolylineSet EdgeLevelFor(float toleranceMetres)
+    public TrafficPolylineSet EdgeLevelFor(float toleranceMetres) => EdgeLevels[EdgeLevelIndexFor(toleranceMetres)];
+
+    /// <summary>⭐ CE-6020 — the index in <see cref="EdgeLevels"/> of <see cref="EdgeLevelFor"/>'s level (the map steps COARSER from it when the view does not fit the budget).</summary>
+    public int EdgeLevelIndexFor(float toleranceMetres)
     {
         int best = 0;
         for (int i = 0; i < EdgeTolerances.Length && i < EdgeLevels.Length; i++) if (EdgeTolerances[i] <= toleranceMetres) best = i;
-        return EdgeLevels[best];
+        return best;
     }
 
     /// <summary>The centrelines to draw (empty when <see cref="Detail"/> is <see cref="TrafficPlanDetail.None"/>).</summary>
@@ -115,10 +118,19 @@ public sealed class TrafficRoadPlan
         return a;
     }
 
-    /// <summary>The edge centrelines as polylines (the same choice of midline as <see cref="EdgeCentrelines"/>).</summary>
+    /// <summary>
+    /// The edge centrelines as polylines (the same choice of midline as <see cref="EdgeCentrelines"/>), ⭐ CE-6020 — ONE per street and the faster roads FIRST:
+    /// <list type="bullet">
+    ///   <item>a two-way street is two edges (one per direction, between the same two junctions) — it is drawn ONCE, on the midline between them;</item>
+    ///   <item>the polylines are ordered by their fastest lane (then length), so when even the coarsest level does not fit the map's budget, what is left out is the
+    ///   tracks and paths, never the town's streets.</item>
+    /// </list>
+    /// 📐 Measured on an OSM import of Týn nad Vltavou (4 × 3.5 km): the whole-terrain view needed 2 801 segments of the 2 048 the layer may draw, in the net's
+    /// edge order, so 27 % of the roads — whole streets of the town — were not drawn while field tracks were.
+    /// </summary>
     private static List<Vector2[]> EdgePolylines(NetworkModel net, SumoNetPlacement placement)
     {
-        var polys = new List<Vector2[]>();
+        var mids = new List<(Edge Edge, (double X, double Y)[] Mid, double Speed, double Length)>();
         foreach (var edge in net.Edges)
         {
             if (edge.Id.StartsWith(':')) continue;
@@ -126,15 +138,49 @@ public sealed class TrafficRoadPlan
             if (vehicle.Count == 0) continue;
             var first = vehicle[0].Shape;
             var last = vehicle[^1].Shape;
+            (double X, double Y)[] mid;
             if (first.Count == last.Count)
             {
-                var mid = new (double X, double Y)[first.Count];
+                mid = new (double X, double Y)[first.Count];
                 for (int i = 0; i < mid.Length; i++) mid[i] = ((first[i].X + last[i].X) / 2, (first[i].Y + last[i].Y) / 2);
-                polys.Add(Points(mid, placement));
             }
-            else polys.Add(Points(vehicle[vehicle.Count / 2].Shape, placement));
+            else mid = vehicle[vehicle.Count / 2].Shape.ToArray();
+            mids.Add((edge, mid, vehicle.Max(l => l.Speed), vehicle[0].Length));
         }
-        return polys;
+        // the two directions of one street: from → to and to → from
+        var byEnds = new Dictionary<(string, string), int>();
+        for (int i = 0; i < mids.Count; i++) byEnds.TryAdd((mids[i].Edge.From, mids[i].Edge.To), i);
+        var taken = new bool[mids.Count];
+        var streets = new List<((double X, double Y)[] Line, double Speed, double Length)>();
+        for (int i = 0; i < mids.Count; i++)
+        {
+            if (taken[i]) continue;
+            taken[i] = true;
+            var (edge, mid, speed, length) = mids[i];
+            if (edge.From != edge.To && byEnds.TryGetValue((edge.To, edge.From), out int j) && !taken[j])
+            {
+                taken[j] = true;
+                var back = mids[j].Mid;
+                if (back.Length == mid.Length)
+                {
+                    var both = new (double X, double Y)[mid.Length];
+                    for (int k = 0; k < mid.Length; k++) both[k] = ((mid[k].X + back[mid.Length - 1 - k].X) / 2, (mid[k].Y + back[mid.Length - 1 - k].Y) / 2);
+                    mid = both;
+                }
+                speed = Math.Max(speed, mids[j].Speed);
+            }
+            streets.Add((mid, speed, length));
+        }
+        return streets.OrderByDescending(s => s.Speed).ThenByDescending(s => s.Length).Select(s => Points(s.Line, placement)).ToList();
+    }
+
+    /// <summary>⭐ CE-6020 — the segments of <paramref name="set"/> whose polylines overlap the map's view (no allocation: the gizmo asks every frame).</summary>
+    public static int SegmentsInView(TrafficPolylineSet set, Fdp.Toolkit.Diagnostics.Gizmos.IGizmoViewFilter view)
+    {
+        int n = 0;
+        var lines = set.Lines;
+        for (int i = 0; i < lines.Length; i++) if (view.Overlaps(lines[i].Min, lines[i].Max)) n += lines[i].Count - 1;
+        return n;
     }
 
     private static TrafficPolylineSet Set(List<Vector2[]> polys)

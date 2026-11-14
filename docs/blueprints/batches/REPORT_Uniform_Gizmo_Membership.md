@@ -8,7 +8,7 @@ known-conflict: none.
 -->
 # REPORT — uniform gizmo membership *(PARTIAL — item ② blocked)*
 
-> 📌 **Dispatch:** [`HANDOFF_Uniform_Gizmo_Membership.md`](HANDOFF_Uniform_Gizmo_Membership.md), frozen at
+> 📌 **Dispatch:** `HANDOFF_Uniform_Gizmo_Membership.md`, frozen at
 > **`ba472e0ce`**. Branch `claude/blueprint-macro-feature-sdmspn` (BACKEND lane).
 > **ids allocated: `ST-027`, `ST-028`, `ST-029`, `ST-030`** *(rule 5)*.
 

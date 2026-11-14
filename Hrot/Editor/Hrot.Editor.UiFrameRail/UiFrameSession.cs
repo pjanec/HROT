@@ -31,7 +31,7 @@ public sealed class UiFrameSession : IDisposable
         // ⭐ CE-1039: the process's one window, bound on this thread (opened the first time).
         UiFrameHarness.OpenOrBind(width, height);
 
-        rlImGui.Setup(true);
+        Fdp.Presentation.Raylib.ImGuiRenderer.Setup(true);
     }
 
     /// <summary>
@@ -55,7 +55,7 @@ public sealed class UiFrameSession : IDisposable
         Raylib.ClearBackground(Color.DarkGray);
         rlImGui.Begin();
         try     { draw(); }
-        finally { rlImGui.End(); Fdp.Presentation.Raylib.HiddenWindow.EndFrame(); Raylib.EndDrawing(); Fdp.Presentation.Raylib.HiddenWindow.AfterFrame(); FramesRendered++; }
+        finally { UiFrameAbCompare.EndImGui(); Fdp.Presentation.Raylib.HiddenWindow.EndFrame(); Raylib.EndDrawing(); Fdp.Presentation.Raylib.HiddenWindow.AfterFrame(); FramesRendered++; }
     }
 
     /// <summary>

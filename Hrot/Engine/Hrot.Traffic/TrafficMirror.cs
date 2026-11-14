@@ -23,7 +23,7 @@ public readonly record struct TrafficCarPose(int Owner, VehicleHandle Handle, st
 /// <para>⭐ The recipe is <c>Sim.IgBridge.IgBridgeSession.EmitVehicles</c>'s (SumoSharp): resolve at an instant held a PLAYOUT DELAY behind
 /// the newest sample so the bracket interpolates, feed the reconstructor the real elapsed time per car, skip a car whose resolve is
 /// unavailable this frame. ⭐ The wire is stamped in cluster time (N3), so every node resolves the SAME instant.</para>
-/// <para>⭐ Heights are SUMO's (R-4025, E2): a lane's own Z. ⛔ Main thread only.</para>
+/// <para>⭐ Heights are SUMO's (R-4025, E2): a lane's own Z — ⭐ plus our ground on a FLAT net (R-4030, E2b). ⛔ Main thread only.</para>
 /// </remarks>
 public sealed class TrafficMirror
 {
@@ -44,8 +44,9 @@ public sealed class TrafficMirror
     public int Owner => _owner;
 
     /// <summary>Resolves every live car on <paramref name="source"/> at cluster time <paramref name="time"/> and APPENDS it to
-    /// <paramref name="into"/>.</summary>
-    public void Resolve(IReplicationSource source, ILaneShapeSource lanes, double time, List<TrafficCarPose> into)
+    /// <paramref name="into"/>. <paramref name="drape"/> (R-4030): a FLAT net's ground, added to the car's z.</summary>
+    public void Resolve(IReplicationSource source, ILaneShapeSource lanes, double time, List<TrafficCarPose> into,
+                        Func<float, float, float>? drape = null)
     {
         foreach (var kv in source.History)
         {
@@ -71,7 +72,7 @@ public sealed class TrafficMirror
             int netId = int.TryParse(id, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : 0;
             source.Tags.TryGetValue(handle, out var tag);
             into.Add(new TrafficCarPose(_owner, handle, id, netId, (Fdp.Core.TkbTypeId)(tag.ExternalType), tag.Color != 0 ? tag.Color : TrafficPaint.Of(id, tag.ExternalType),   // ⭐ CE-1457 (TC4)
-                (float)x, (float)y, (float)r.Z, yaw, dims.Length, dims.Width));
+                (float)x, (float)y, (float)r.Z + (drape?.Invoke((float)x, (float)y) ?? 0f), yaw, dims.Length, dims.Width));
         }
 
         // Forget cars SUMO no longer announces, so a recycled slot starts its own smoothing.

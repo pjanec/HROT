@@ -549,7 +549,7 @@ public class PlayerApplication : IDisposable
         // ensuring it is consumed by the active layer and does not bubble to the main loop.
         Raylib.SetExitKey(KeyboardKey.Null);
 
-        rlImGui.Setup(darkTheme: true);
+        Fdp.Presentation.Raylib.ImGuiRenderer.Setup(darkTheme: true);
 
         // Load Roboto TTF into Raylib and register it for gizmo text rendering.
         // Must be called after InitWindow (GL context must exist).
@@ -670,6 +670,7 @@ public class PlayerApplication : IDisposable
         }
         // ⭐ CE-4013 D13 — the one node config: IG now stages per node like every host (it took the BARE staging root)
         var igConfig = HrotNodeConfig.ForNode(_domainOverride ?? PlayerNetworkConstants.DdsDomain, _effectiveInstanceId, "PlayerApplication", shellParticipant, nodeName: NodeName);
+        igConfig.HasPresentation = !_headless;   // ⭐ CE-3446 — a window draws this node: staged when the threaded node is on (§15)
         igConfig.SkipAllocatorRouting = true;   // IG creates its own DdsIdAllocator in InitializeNetwork; skip the builder's routing wait
 
         // Create objects that do NOT need a world (so the ApplicationSystemsRegistrar lambda can capture them).
@@ -739,7 +740,7 @@ public class PlayerApplication : IDisposable
             var igMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
-                    World = ctx.World,
+                    World = ctx.PresentationWorld,   // ⭐ CE-3446 — the UI's world (A when staged)
                     FeatureGate = () => _context?.Features,   // ⭐ CE-4148 — the hud.* features
                     Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                     // ⭐ CE-3123 — constructor services for reflected projectors. IG holds no BehaviorRegistry: its labels
@@ -793,8 +794,8 @@ public class PlayerApplication : IDisposable
                     //   the retired IgEntityCreationRequests.FromSpawnCommand wrote (deleted by CE-259ax; the adapter now calls RequestEntityCreation). (R-3067 / AQ109 X3: the MapCommandController that serviced ExCon's
                     //   remote CMD_PLACE_ENTITY / CMD_START_AUTHORING is retired.)
                     EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
-                        Tkb:          () => ctx.World.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
-                                            ? ctx.World.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null,
+                        Tkb:          () => ctx.PresentationWorld.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
+                                            ? ctx.PresentationWorld.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null,
                         Creation:     () => EntityCreation),   // ⭐ CE-259ax — the pack itself: authors call its RequestEntityCreation
                 });
             _playerMapInteraction = igMapInteraction;
@@ -819,8 +820,13 @@ public class PlayerApplication : IDisposable
             _selectionSystem = igMapInteraction.SelectionInteraction;
 
             // ⭐ UXI-11 S-4 — the adapter moved to Hrot.Presentation so CGF can use it too.
-            ctx.Kernel.RegisterGlobalSystem(
-                new Hrot.ScenarioEditor.Systems.SelectionInteractionSystemAdapter(_selectionSystem));
+            // ⭐ CE-3446 — staged: the map pack's threaded split (shared); the selection, the gizmo network and the canvas menu run on the UI over A
+            var staged = ctx.Presentation;
+            if (staged != null)
+                _mapStep = new Hrot.ScenarioEditor.Map.MapPresentationStep(igMapInteraction, staged, gizmoFeedAddress: null) { Selection = () => _playerSelectionState };
+            var selectionAdapter = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystemAdapter(_selectionSystem);
+            if (_mapStep != null) _mapStep.AddHostUiSystem(selectionAdapter);
+            else ctx.Kernel.RegisterGlobalSystem(selectionAdapter);
 
             // ⭐⭐⭐ UXI-11 S-2 — IG becomes a REQUESTER, so it needs the system that serves requests.
             // 📐 MEASURED 2026-09-20: ScenarioEditorModule (which registers the shared viewport systems)
@@ -833,11 +839,12 @@ public class PlayerApplication : IDisposable
             // ⭐⭐⭐ UXI-11 S-3 — IG's inspector is a requester too, now that this host serves requests.
             _fdpEntityInspector.Selection = _playerSelectionState;
             _fdpEntityInspector.RequestSelectionChange =
-                req => ctx.World.Bus.PublishManaged(req);
+                req => ctx.PresentationWorld.Bus.PublishManaged(req);
             // ⭐⭐⭐ UXI-11 — SCHEDULE what the pack built, in the order it hands back. 🔒 "The pack
             //    CONSTRUCTS; the host SCHEDULES" — untouched; what moved is the construction.
             foreach (var selectionSystem in igMapInteraction.SelectionSystemsInOrder)
-                ctx.Kernel.RegisterGlobalSystem(selectionSystem);
+                if (_mapStep != null) _mapStep.AddHostUiSystem(selectionSystem);
+                else ctx.Kernel.RegisterGlobalSystem(selectionSystem);
 
             // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (picker, measure).
             _globalGizmoManager = igMapInteraction.GlobalManager;
@@ -886,13 +893,23 @@ public class PlayerApplication : IDisposable
                     gizmoEgress = new CycloneEgressSystem(egressList.ToArray());
                 var publisherSystem = _networkFactory.CreateGizmoPublisherSystem(_gizmoBuffer!, _effectiveInstanceId);
                 if (publisherSystem != null)
-                    ctx.Kernel.RegisterGlobalSystem(publisherSystem);
+                {
+                    if (_mapStep != null) _mapStep.AddHostUiSystem(publisherSystem);   // it reads the gizmo buffer: the UI's
+                    else ctx.Kernel.RegisterGlobalSystem(publisherSystem);
+                }
             }
             // UXI-23 S2b: the group, its three members and the gate come from the pack.
             _gizmoController = igMapInteraction.Gate;
             // ⭐⭐ UXI-23 S3: report anything constructed but not scheduled (§3.2e).
             foreach (string problem in igMapInteraction.Unserviceable(igMapInteraction.InteractionSystems))
                 Fdp.Core.Logging.FdpLog<PlayerApplication>.Info("[Map] {0}", problem);
+            if (_mapStep != null)
+            {   // ⭐ CE-3446 — the tick keeps the world writers; the gizmo network ingress runs before the pack's UI systems, its egress after
+                if (gizmoIngress != null) _mapStep.AddHostUiSystemFirst(gizmoIngress);
+                if (gizmoEgress != null) _mapStep.AddHostUiSystem(gizmoEgress);
+                ctx.Kernel.RegisterModule(_mapStep.NodeModule());
+            }
+            else
             ctx.Kernel.RegisterModule(new GizmoInteractionModule(
                 _interactionBus!,
                 // ⭐ CE-3169 — the map's own menu clicks arrive as GizmoMenuActionEvent; without the ingress none of them ever became
@@ -907,7 +924,7 @@ public class PlayerApplication : IDisposable
                 new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _interactionBus!));
             // Register canvas menu update so CanvasContextMenuGizmo has state to project.
             // ⭐ CE-1017 — the pack's canvas menu (with Add Entity on a windowed IG).
-            ctx.Kernel.RegisterGlobalSystem(igMapInteraction.CanvasMenu);
+            if (_mapStep == null) ctx.Kernel.RegisterGlobalSystem(igMapInteraction.CanvasMenu);   // ⭐ CE-3446 — staged: MapPresentationStep.RunEveryFrame
         };
 
         _context = _playerBootstrapper.BootstrapNode(igConfig, NodeRole.Map2D, _networkFactory);
@@ -915,8 +932,9 @@ public class PlayerApplication : IDisposable
         //   ⭐ SuppressTimeControl is the role's EXPLICIT suppression: the IG issues no ticks (Q54/D4), so the composer registers no toolbar time control over it.
         RunControls = Hrot.UI.Common.RunMode.NodeRunControls.For(_context, RunProfile);
 
-        _world     = _context.World;
-        _entityMap = _context.EntityMap;
+        _world     = _context.PresentationWorld;   // ⭐ CE-3446 — the UI's world: A when staged
+        if (_context.Presentation is { } stagedPresentation) BindStagedPresentation(stagedPresentation);
+        _entityMap = _context.Presentation?.Map ?? _context.EntityMap;   // the UI's entity map (A's own when staged)
         // ⭐ CE-3169 — the map's menu orders read the node's entity map from the world singleton. ⭐ CE-4013 D5 — HrotNodeBuilder publishes the node's entity map, geo transform and TKB on every world; not repeated here.
         _kernel    = _context.Kernel;
         _geoTransform = _context.GeoTransform;
@@ -1006,7 +1024,7 @@ public class PlayerApplication : IDisposable
         // Clear the primitive buffer before backend ECS systems populate it.
         // Must be called after canvas input (which emits tool primitives) and before
         // kernel.Update() (which runs StatelessGizmoSystem in PostSimulation).
-        _gizmoBuffer?.EndFrame(dt);
+        if (_mapStep == null) _gizmoBuffer?.EndFrame(dt);   // ⭐ CE-3446 — staged: the map step ends the gizmo frame once per pulled tick
 
     }
 
@@ -1024,6 +1042,21 @@ public class PlayerApplication : IDisposable
     {
 
         _frameDt = dt;
+        if (_context?.Presentation is { } staged && _clusterSlave is not null)
+        {   // ⭐⭐ CE-3446 (§15) — the threaded node: the node frame runs on the sim worker (through the shared step); this is the UI's frame over
+            //   A — the pull, the run choice over the mirror, input, the canvas menu
+            staged.UiFrame(dt);
+            RunControls?.Update();
+            FrameInput(dt);
+            _mapStep?.RunEveryFrame(dt);
+            _fdpFrameCount++;
+            if (!_headless)
+            {
+                _debugPanelState.CurrentSimTime = _world.HasSingletonUnmanaged<GlobalTime>() ? _world.GetSingletonUnmanaged<GlobalTime>().TotalTime : 0.0;   // A's clock
+                _performanceMetrics.Snapshot(_world, Raylib.GetFPS(), Raylib.GetFrameTime() * 1000f);
+            }
+            return;
+        }
         // ⭐⭐ CMC-S016 / CE-164: translator tick BEFORE clusterSlave so DDS→bus ingress is processed
         //    first — verbatim the SimHostApp:560-561 order, on the node's ONE orchestration bus.
         // ⛔ The `SwapBuffers()` that stood on the first line is GONE: it swapped IG's second bus, and
@@ -1241,7 +1274,7 @@ public class PlayerApplication : IDisposable
 
             DrawUI();
 
-            rlImGui.End();
+            Fdp.Presentation.Raylib.ImGuiRenderer.End();
 
 
 
@@ -1569,6 +1602,25 @@ public class PlayerApplication : IDisposable
 
     /// <summary>⭐ The node's context — what the ONE ECS-node debug surface (<c>EcsNodeDebugProvider</c>) derives from.</summary>
     internal Hrot.Common.Infrastructure.HrotNodeContext? NodeContext => _context;
+
+    /// <summary>⭐ CE-3446 — the threaded node's presentation side (null when not staged).</summary>
+    internal Hrot.Common.Infrastructure.StagedPresentation? Presentation => _context?.Presentation;
+
+    /// <summary>⭐ CE-3446 — the shared map step on a threaded node (null otherwise).</summary>
+    private Hrot.ScenarioEditor.Map.MapPresentationStep? _mapStep;
+
+    /// <summary>⭐ CE-3446 — the threaded node's hooks: the node frame on the sim thread (no UI work in it), the map step and the gizmo undo reset
+    /// after each pull on the UI thread.</summary>
+    private void BindStagedPresentation(Hrot.Common.Infrastructure.StagedPresentation staged)
+    {
+        staged.NodeFrame = _ => _context!.Tick();
+        staged.UiAfterPull = pulledDt =>
+        {
+            _mapStep?.RunPerPulledTick(pulledDt);
+            foreach (ref readonly var _ in _world.ReadEvents<WorldResetEvent>())   // A carries the tick's events
+                _gizmoUndoStack?.Clear();
+        };
+    }
 
     /// <summary>Current kernel sim time in seconds ? available in both headless and normal mode.</summary>
     internal double TestHook_CurrentSimTime => _kernel.CurrentTime.TotalTime;

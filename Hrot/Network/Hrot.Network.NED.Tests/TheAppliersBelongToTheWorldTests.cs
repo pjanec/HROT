@@ -104,6 +104,39 @@ public class TheAppliersBelongToTheWorldTests
     }
 
     /// <summary>
+    /// ⭐⭐ N-6 (CE-4468, U-3) — <b>a THREADED node's presentation world writes on the sim thread.</b> The router handed out for a world that
+    /// carries a <c>SimLink</c> posts the write as a sim job; it answers <c>Requested</c>, the simulation world is untouched until the sim
+    /// thread drains its queue, and then the write lands on S through S's OWN router — the gizmo commit path the threaded editor's drag uses.
+    /// 🔴 Red-proof (run): <c>For</c> without the SimLink branch ⇒ the write lands on A at once (Direct) and S never changes.
+    /// </summary>
+    [Fact]
+    public void AThreadedPresentationWorld_WritesThroughTheSimJobQueue_OntoTheSimulationWorld()
+    {
+        using var sim = WorldWithGeo();
+        using var ui = new EntityRepository();
+        var jobs = new Fdp.Core.Threading.SimJobQueue();
+        ui.SetSingletonManaged(new Fdp.Core.Threading.SimLink(jobs, sim));
+        var e = sim.CreateEntity();
+        sim.AddComponent(e, new SimTransform { Position = new System.Numerics.Vector3(1f, 2f, 3f), Rotation = System.Numerics.Quaternion.Identity });
+        sim.SetAuthority<SimTransform>(e, true);   // the simulation world OWNS it (the editor's node is the master)
+
+        var route = EntityWriteRouter.For(ui).Write(e, new[]
+        {
+            EntityAttributeChange.Double(AttributeIds.PositionX, 50.0),
+            EntityAttributeChange.Double(AttributeIds.PositionY, 60.0),
+        });
+
+        Assert.Equal(EntityWriteRoute.Requested, route);
+        Assert.Equal(1f, sim.GetComponentRO<SimTransform>(e).Position.X);   // nothing written before the sim thread drains
+        Assert.Equal(1, jobs.Pending);
+        jobs.Drain(sim);
+        var p = sim.GetComponentRO<SimTransform>(e).Position;
+        Assert.Equal(50f, p.X);
+        Assert.Equal(60f, p.Y);
+        Assert.Equal(3f, p.Z);                                               // Z not sent ⇒ kept
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b>The write router SHARES the world's instance — it does not build its own.</b>
     /// ⭐ Asserted on the CONSTRUCTED OBJECT, which is the control that caught <c>AX-012</c>.
     /// </summary>

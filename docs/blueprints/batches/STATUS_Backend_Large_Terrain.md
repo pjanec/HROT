@@ -1,4 +1,4 @@
-# STATUS — backend: the large terrain ([handoff](HANDOFF_Coordinator_To_Backend_Large_Terrain.md), started at `171e46e0c`)
+# STATUS — backend: the large terrain (handoff, started at `171e46e0c`)
 
 Machine for every number below: this cloud VM (4 cores, 15 GB), Debug build unless marked Release.
 

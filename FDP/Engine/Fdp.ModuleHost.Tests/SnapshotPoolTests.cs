@@ -28,8 +28,11 @@ namespace Fdp.ModuleHost.Tests
             Assert.Same(repo1, repo2);
         }
 
+        /// <summary>⭐ M-4 (CE-4483) — a returned snapshot is RECYCLED (its memory kept, <see cref="EntityRepository.RecycleForSync"/>): what it held
+        /// before is gone once the sync that always follows <see cref="SnapshotPool.Get"/> has run — it shows the source's world, nothing left over.
+        /// (Was "Return calls SoftClear": the pool emptied the world, decommitting every chunk, and the next sync committed them again.)</summary>
         [Fact]
-        public void SnapshotPool_Return_CallsSoftClear()
+        public void SnapshotPool_Return_RecyclesForTheNextSync()
         {
             var pool = new SnapshotPool(null);
             var repo = pool.Get();
@@ -41,9 +44,13 @@ namespace Fdp.ModuleHost.Tests
             // Return to pool
             pool.Return(repo);
             
-            // Get again - should be cleared
+            // Get again and sync from an empty source — the leftover entity is gone
+            using var source = new EntityRepository();
             var repo2 = pool.Get();
+            Assert.Same(repo, repo2);
+            repo2.SyncFrom(source);
             Assert.Equal(0, repo2.EntityCount);
+            Assert.False(repo2.IsAlive(e1));
         }
 
         [ComponentId(88)]

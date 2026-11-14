@@ -258,6 +258,8 @@ namespace Fdp.ModuleHost.Scheduling
             long started = Stopwatch.GetTimestamp();   // ⭐ CE-3293 — no Stopwatch object per system per frame
             long allocated = GC.GetAllocatedBytesForCurrentThread();   // ⭐ CE-4364 — the garbage per system (a counter read, no allocation)
 
+            using var traceScope = Fdp.Core.AccessTrace.On ? Fdp.Core.AccessTrace.Scope("system:" + GetSystemProfileName(system), Fdp.Core.TraceContext.Tick) : default;   // ⭐ A-1 — the access tracer's reader for this system
+            if (Fdp.Core.EntityCensus.On) Fdp.Core.EntityCensus.ResetThread();   // ⭐ N-1 — a system starts with no entity walk open
             Fdp.Core.EntityRepository? live = null;
             EventReader? reader = null;
             int previousWindow = -1;
@@ -274,7 +276,12 @@ namespace Fdp.ModuleHost.Scheduling
                 if (system is ISystemGroup group)
                     ExecuteGroup(group, view, deltaTime, advancing, moduleGoverns);
                 else
+                {
+                    if (Fdp.Core.ManagedMutationCheck.On || Fdp.Core.StampTrace.On) Fdp.Core.ManagedMutationCheck.CurrentReader = system.GetType().Name;   // ⭐ CE-4445 M-2
                     system.Execute(view, deltaTime);
+                    if (Fdp.Core.ManagedMutationCheck.On || Fdp.Core.StampTrace.On) Fdp.Core.ManagedMutationCheck.CurrentReader = null;
+                    if (Diagnostics.NonFiniteTransformCheck.On) Diagnostics.NonFiniteTransformCheck.AfterSystem(view, GetSystemProfileName(system));   // ⭐ an instrument (HROT_NAN_CHECK=1)
+                }
             }
             finally
             {

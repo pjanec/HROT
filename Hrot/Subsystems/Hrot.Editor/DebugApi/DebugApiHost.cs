@@ -188,6 +188,9 @@ namespace Hrot.Editor.DebugApi
                    && Enum.TryParse<Fdp.Toolkit.Orchestration.ClusterState>(body?["target"]?.ToString(), ignoreCase: true, out var target)
                    && target == Fdp.Toolkit.Orchestration.ClusterState.Idle);
 
+        /// <summary>⭐ N-8 — every registered route's (method, template), for the side rail.</summary>
+        internal IEnumerable<(string Method, string Template)> RouteTemplates() { foreach (var r in _routes) yield return (r.Method, r.Template); }
+
         private sealed record RouteEntry(
             string Method,
             string Template,
@@ -441,6 +444,9 @@ namespace Hrot.Editor.DebugApi
         {
             // Group A — status
             _routes.Add(new("GET", "/status", _ => RunMain(s => s.GetStatus())));
+            // ⭐ N-15 ② / P-6 (CE-4477) — the world's content hash (every live entity and every unmanaged component's bytes): two runs that took
+            //   the same steps with the same edits agree on it exactly when their state is identical (the threads-independence gate)
+            _routes.Add(new("GET", "/world/hash", ctx => RunMain(s => s.GetWorldHash(ctx.Query("byType") is "1" or "true", ctx.Query("rows"), ctx.Query("bytes") is "1" or "true"))));
             // ⭐ CE-1145 — the map view's frame rate and camera (a process-wide snapshot, no main-thread hop)
             _routes.Add(new("GET", "/diagnostics/render", _ => Task.FromResult(Ok(Hrot.UI.Common.Map3D.RenderTelemetry.ToJson()))));
             // ⭐ CE-3289 (docs/DESIGN_Map_3D_Mode.md §6ab) — filming: hold the map's camera on a shot, capture the scene alone as a PNG.
@@ -1983,8 +1989,12 @@ namespace Hrot.Editor.DebugApi
             // ⭐⭐ MD-002 — diagnostics live on the SHARED service so a cluster-limited node (a SimHost
             //    node) answers for its OWN kernel. 📄 DESIGN_Mcp_Diagnostics_Federation §1/§2.2.
             // ⭐ CE-3427 — what each world query costs in this PROCESS (terrain traces, navmesh, EQS templates and tests, cover, door scans)
+            //   ⭐ R-4213 — the timer is OFF by default: ?enable=true|false switches it at runtime (the answer's "enabled" says which)
             _routes.Add(new("GET", "/diagnostics/queries", ctx => RunMainResult(s =>
-                Ok(s.GetQueryTimings(string.Equals(ctx.Query("reset"), "true", StringComparison.OrdinalIgnoreCase))))));
+            {
+                if (ctx.Query("enable") is { Length: > 0 } en && bool.TryParse(en, out bool on)) Fdp.Toolkit.Diagnostics.QueryTimings.Enabled = on;
+                return Ok(s.GetQueryTimings(string.Equals(ctx.Query("reset"), "true", StringComparison.OrdinalIgnoreCase)));
+            })));
 
             // ⭐ CE-3427 N-1 — the off-frame state egress: its state, and the runtime switch (DESIGN_Egress_Change_Detection §7, O-F)
             _routes.Add(new("GET", "/diagnostics/egress", ctx => RunMainResult(s => ResultOf(s.EgressPipelines(null, post: false), unavailable: 400))));
@@ -2161,7 +2171,7 @@ namespace Hrot.Editor.DebugApi
             //    types since Group F and `send_entity_command` depends on it. See the service's remarks.
             _routes.Add(new("GET", "/editor/commands", ctx => RunMainResult(s =>
             {
-                var (result, error, hintCategory) = s.ListEditorCommands(ctx.Query("category"));
+                var (result, error, hintCategory) = s.ListEditorCommands(ctx.Query("category"), ctx.Query("scope"));   // N-15 — ?scope=shell
                 return error != null ? Fail(503, error, hintCategory) : Ok(result);
             })));
 
@@ -2176,7 +2186,7 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("POST", "/editor/commands/{commandId}/invoke", ctx => RunMainResult(s =>
             {
                 var (result, error, hintCategory) =
-                    s.InvokeEditorCommand(ctx.RouteValue("commandId"), ctx.Body);
+                    s.InvokeEditorCommand(ctx.RouteValue("commandId"), ctx.Body, ctx.Query("scope"));   // N-15 — ?scope=shell
                 if (error == null) return Ok(result);
                 if (error.StartsWith("No editor-command dispatcher", StringComparison.Ordinal))
                     return Fail(503, error, hintCategory);
@@ -2797,6 +2807,8 @@ namespace Hrot.Editor.DebugApi
                     await WriteResponseAsync(ctx, 404, new ApiResponse(false, Error: "Not found")).ConfigureAwait(false);
                     return;
                 }
+
+                MainThreadJobQueue.CurrentRequestIsUiSide = DebugApiRouteSides.IsUiSide(entry.Template);   // ⭐ N-8 (CE-4470)
 
                 if (_service is null && entry.NeedsService)
                 {

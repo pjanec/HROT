@@ -1469,6 +1469,41 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(threat, PeekAndFireNodes.PostedAim(d.Repo, d.Self, in d.P, in threat));
         }
 
+        /// <summary>
+        /// ⭐⭐ F-9 (CE-4474; §10.7 "who wins a tie") — with the brains a parallel phase two squad-mates can commit to ONE point in the same tick
+        /// (each sees the other's claim a tick late). The rule: the OLDER claim keeps the point, equal age ⇒ the LOWER entity index. The loser
+        /// gives it up (<c>LostTie</c>) and the winner's picks ignore the loser's claim (<c>ClaimedByAFriend</c>) — so exactly one leaves.
+        /// 🔴 Red-proofs: the age / index test removed from either ⇒ red.
+        /// </summary>
+        [Fact]
+        public void F9_TwoClaimsOnOnePoint_TheOlderKeepsIt_EqualAgeTheLowerIndex_ExactlyOneYields()
+        {
+            var d = new Duel(Rifleman());
+            var point = new Vector3(4f, 1f, 0f);
+            var a = d.Self;                                   // the man under test
+            var b = FriendClaims(d, point, until: 1e9);       // a squad-mate with a claim on the same point
+            const double now = 100.0;
+            d.Repo.AddComponent(a, new Fdp.Toolkit.Combat.Components.CoverClaim { Hide = point, Peek = point, Until = (SimInstant)1e9, Since = (SimInstant)50.0 });
+            var ws = new PeekAndFireState { Phase = PeekPhase.MoveToHide, HidePoint = point };
+            ref var bc = ref d.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.CoverClaim>(b);
+
+            bc.Since = (SimInstant)60.0;   // his is YOUNGER: I keep it, and his claim blocks nothing of mine
+            Assert.False(PeekAndFireNodes.LostTie(in ws, a, d.Repo, now));
+            Assert.False(PeekAndFireNodes.ClaimedByAFriend(d.Repo, a, point, now));
+
+            d.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.CoverClaim>(b).Since = (SimInstant)40.0;   // his is OLDER: I yield; the point is his
+            Assert.True(PeekAndFireNodes.LostTie(in ws, a, d.Repo, now));
+            Assert.True(PeekAndFireNodes.ClaimedByAFriend(d.Repo, a, point, now));
+
+            d.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.CoverClaim>(b).Since = (SimInstant)50.0;   // EQUAL: the lower index keeps it
+            bool iAmLower = a.Index < b.Index;
+            Assert.Equal(!iAmLower, PeekAndFireNodes.LostTie(in ws, a, d.Repo, now));
+            Assert.Equal(!iAmLower, PeekAndFireNodes.ClaimedByAFriend(d.Repo, a, point, now));
+            // ⭐ and from HIS side: exactly one of the two yields, whichever index each has
+            Assert.NotEqual(PeekAndFireNodes.LostTie(in ws, a, d.Repo, now), PeekAndFireNodes.LostTie(in ws, b, d.Repo, now));
+            Assert.NotEqual(PeekAndFireNodes.ClaimedByAFriend(d.Repo, a, point, now), PeekAndFireNodes.ClaimedByAFriend(d.Repo, b, point, now));
+        }
+
         /// <summary>⭐⭐ <c>G5_R2</c> — a claim that LAPSED (its brain stopped refreshing it) frees the point: no cleanup system needed.</summary>
         [Fact]
         public void G5_R2_AnExpiredClaim_FreesThePoint()

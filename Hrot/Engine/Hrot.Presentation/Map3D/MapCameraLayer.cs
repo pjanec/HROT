@@ -221,8 +221,13 @@ public sealed class MapCameraLayer : IMapLayer
         var tf = MapCameraPose.ToTransform(pose);
         if (_camera is { } cam)
         {
-            if (!w.HasComponent<SimTransform>(cam) || !w.HasAuthority(cam)) return;   // not ours to move (CE-1047)
-            w.GetComponentRW<SimTransform>(cam) = tf;
+            // ⭐ N-6 (CE-4468) — the settled pose is a WRITE to the simulation: in a threaded node a sim job (the checks on the world it writes),
+            //   on a single-world host at once — the same code either way
+            Fdp.Core.Threading.SimJobs.Run(w, s =>
+            {
+                if (!s.IsAlive(cam) || !s.HasComponent<SimTransform>(cam) || !s.HasAuthority(cam)) return;   // not ours to move (CE-1047)
+                s.GetComponentRW<SimTransform>(cam) = tf;
+            }, "map camera: settled pose");
             return;
         }
         if (_requestedFor >= 0f && _requestedFor < RequestRetrySeconds) return;      // asked already; wait for it

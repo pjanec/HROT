@@ -67,11 +67,13 @@ namespace Fdp.Core
         [Obsolete("Use foreach loop for zero allocation. query.ForEach allocates closures.")]
         public void ForEach(Action<Entity> action)
         {
+            if (AccessTrace.On) TraceRun();
             if (action == null)
                 throw new ArgumentNullException(nameof(action));
             
-            var entityIndex = _repository.GetEntityIndex();
+            var entityIndex = _repository.EntityIndexUntraced;
             int maxIndex = entityIndex.MaxIssuedIndex;
+            int slot = EntityCensus.On ? EntityCensus.Push() : -1;   // ⭐ N-1
             
             for (int i = 0; i <= maxIndex; i++)
             {
@@ -85,9 +87,18 @@ namespace Fdp.Core
                 if (!meta.IsActive) continue;
                 if (Matches(in compMask, in meta))
                 {
+                    if (slot >= 0) EntityCensus.Set(slot, i);   // ⭐ N-1
                     action(new Entity(i, meta.Generation));
                 }
             }
+            if (slot >= 0) EntityCensus.Pop(slot);
+        }
+
+        /// <summary>⭐ A-1 — one trace record per component type the query includes / excludes (a walk reads those columns of the mask).</summary>
+        internal void TraceRun()
+        {
+            AccessTrace.RecordMask(TraceKind.QueryInclude, _includeMask, _repository.TraceId);
+            AccessTrace.RecordMask(TraceKind.QueryExclude, _excludeMask, _repository.TraceId);
         }
 
         /// <summary>
@@ -128,6 +139,7 @@ namespace Fdp.Core
             
             private int _currentIndex;
             private readonly int _maxIndex;
+            private readonly int _censusSlot;   // ⭐ N-1 — this walk's slot on the thread's entity stack (EntityCensus), −1 when the census is off
             // ⭐ CE-2418 — inside an EntityRepository.QueryIndexScope: walk these candidates (the rarest included type's entities) instead of 0..max
             private readonly int[]? _candidates;
             private readonly int _candidateEnd;
@@ -135,6 +147,7 @@ namespace Fdp.Core
 
             internal EntityEnumerator(EntityQuery query)
             {
+                if (AccessTrace.On) query.TraceRun();
                 _includeMask = query._includeMask;
                 _excludeMask = query._excludeMask;
                 _authorityIncludeMask = query._authorityIncludeMask;
@@ -145,10 +158,11 @@ namespace Fdp.Core
                 _lifecycleFilter = query._lifecycleFilter;
                 
                 // Direct access to index for maximum speed
-                _entityIndex = query._repository.GetEntityIndex();
+                _entityIndex = query._repository.EntityIndexUntraced;
                 _maxIndex = _entityIndex.MaxIssuedIndex;
                 _currentIndex = -1; 
                 _candidates = null; _candidateEnd = 0; _candidateAt = 0;
+                _censusSlot = EntityCensus.On ? EntityCensus.Push() : -1;
                 if (query._repository.TryQueryCandidates(in query._includeMask, out var cands, out int from, out int count))
                 {
                     _candidates = cands; _candidateAt = from; _candidateEnd = from + count;
@@ -203,11 +217,16 @@ namespace Fdp.Core
                             continue;
                     }
 
+                    if (_censusSlot >= 0) EntityCensus.Set(_censusSlot, _currentIndex);   // ⭐ N-1 — the entity this walk now yields
                     return true;
                 }
 
                 return false;
             }
+
+            /// <summary>⭐ N-1 — the walk ended (a <c>foreach</c> calls a ref struct's <c>Dispose</c> by pattern): its census slot is popped.
+            /// A no-op with the census off.</summary>
+            public void Dispose() { if (_censusSlot >= 0) EntityCensus.Pop(_censusSlot); }
         }
         
         /// <summary>
@@ -216,7 +235,8 @@ namespace Fdp.Core
         /// </summary>
         public int Count()
         {
-            var entityIndex = _repository.GetEntityIndex();
+            if (AccessTrace.On) TraceRun();
+            var entityIndex = _repository.EntityIndexUntraced;
             int maxIndex = entityIndex.MaxIssuedIndex;
             int count = 0;
             
@@ -242,7 +262,8 @@ namespace Fdp.Core
         /// </summary>
         public bool Any()
         {
-            var entityIndex = _repository.GetEntityIndex();
+            if (AccessTrace.On) TraceRun();
+            var entityIndex = _repository.EntityIndexUntraced;
             int maxIndex = entityIndex.MaxIssuedIndex;
             
             for (int i = 0; i <= maxIndex; i++)
@@ -267,7 +288,8 @@ namespace Fdp.Core
         /// </summary>
         public Entity FirstOrNull()
         {
-            var entityIndex = _repository.GetEntityIndex();
+            if (AccessTrace.On) TraceRun();
+            var entityIndex = _repository.EntityIndexUntraced;
             int maxIndex = entityIndex.MaxIssuedIndex;
             
             for (int i = 0; i <= maxIndex; i++)
@@ -330,10 +352,11 @@ namespace Fdp.Core
         /// </summary>
         public void ForEachChunked(Action<Entity> action)
         {
+            if (AccessTrace.On) TraceRun();
             if (action == null)
                 throw new ArgumentNullException(nameof(action));
             
-            var entityIndex = _repository.GetEntityIndex();
+            var entityIndex = _repository.EntityIndexUntraced;
             int totalChunks = entityIndex.GetTotalChunks();
             int chunkCapacity = entityIndex.GetChunkCapacity();
             
@@ -376,10 +399,11 @@ namespace Fdp.Core
         /// <param name="hint">Workload hint for batch size optimization</param>
         public void ForEachParallel(Action<Entity> action, ParallelHint hint = ParallelHint.Light)
         {
+            if (AccessTrace.On) TraceRun();
             if (action == null)
                 throw new ArgumentNullException(nameof(action));
             
-            var entityIndex = _repository.GetEntityIndex();
+            var entityIndex = _repository.EntityIndexUntraced;
             int maxIndex = entityIndex.MaxIssuedIndex;
             int activeCount = entityIndex.ActiveCount;
             
@@ -410,9 +434,7 @@ namespace Fdp.Core
             // to avoid excessive synchronization overhead.
             if (hint == ParallelHint.Light)
             {
-                int coreCount = FdpConfig.MaxDegreeOfParallelism > 0 
-                    ? FdpConfig.MaxDegreeOfParallelism 
-                    : Environment.ProcessorCount;
+                int coreCount = Jobs.FdpWorkerPool.Shared.Threads;   // ⭐ J-2 — the pool's own budget
                 
                 // Target ~2x batches per core.
                 // 4x adds too much synchronization overhead for light work.
@@ -440,24 +462,13 @@ namespace Fdp.Core
                 ValidateBatches(workBatches, maxIndex);
 #endif
                 
-                // 6. Execute Parallel Loop
-                Parallel.ForEach(workBatches, FdpConfig.ParallelOptions, range =>
-                {
-                    // Tight hot-first inner loop
-                    for (int i = range.Item1; i < range.Item2; i++)
-                    {
-                        ref var compMask = ref entityIndex.GetComponentMaskUnsafe(i);
-                        if (!BitMask512.HasAll(compMask, _includeMask)) continue;
-                        if (BitMask512.HasAny(compMask, _excludeMask))  continue;
-
-                        ref readonly var meta = ref entityIndex.GetMetadataUnsafe(i);
-                        if (!meta.IsActive) continue;
-                        if (Matches(in compMask, in meta))
-                        {
-                            action(new Entity(i, meta.Generation));
-                        }
-                    }
-                });
+                // 6. Execute on THE worker pool (POC 4 J-2, docs/DESIGN_Parallel_Simulation.md §13) — ⛔ was Parallel.ForEach: a closure, the
+                //    TPL's partitioner and its tasks every call, on a second set of threads beside the pool's. ⭐ A pooled work object instead ⇒
+                //    0 B per call once warm, one budget. Batches are the same ranges; their RUN order was never deterministic.
+                var work = RangeWork.Rent();
+                work.Set(this, entityIndex, action, workBatches);
+                try { Jobs.FdpWorkerPool.Shared.Run(work, workBatches.Count); }
+                finally { work.Return(); }
             }
             finally
             {
@@ -532,6 +543,45 @@ namespace Fdp.Core
             }
         }
         
+        /// <summary>⭐ POC 4 J-2 — one <see cref="ForEachParallel"/> call's work: batch i = the i-th entity range. Kept per thread and reused
+        /// (a nested / concurrent call on the same thread takes a fresh one) ⇒ no allocation per call.</summary>
+        private sealed class RangeWork : Jobs.FdpWorkerPool.IBatchWork
+        {
+            [ThreadStatic] private static RangeWork? t_free;
+            private EntityQuery? _query;
+            private EntityIndex? _index;
+            private Action<Entity>? _action;
+            private System.Collections.Generic.List<(int Start, int End)>? _ranges;
+
+            public static RangeWork Rent() { var w = t_free ?? new RangeWork(); t_free = null; return w; }
+            public void Set(EntityQuery q, EntityIndex index, Action<Entity> action, System.Collections.Generic.List<(int Start, int End)> ranges)
+            { _query = q; _index = index; _action = action; _ranges = ranges; }
+            public void Return() { _query = null; _index = null; _action = null; _ranges = null; t_free = this; }   // never root the caller
+
+            public void RunBatch(int batch)
+            {
+                var q = _query!; var index = _index!; var action = _action!;
+                var range = _ranges![batch];
+                int slot = EntityCensus.On ? EntityCensus.Push() : -1;   // ⭐ N-1 — run the census with HROT_SIM_THREADS=1 (every batch on the system's thread)
+                for (int i = range.Start; i < range.End; i++)
+                {
+                    ref var compMask = ref index.GetComponentMaskUnsafe(i);
+                    if (!BitMask512.HasAll(compMask, q._includeMask)) continue;
+                    if (BitMask512.HasAny(compMask, q._excludeMask))  continue;
+                    ref readonly var meta = ref index.GetMetadataUnsafe(i);
+                    if (!meta.IsActive) continue;
+                    if (q.Matches(in compMask, in meta))
+                    {
+                        if (slot >= 0) EntityCensus.Set(slot, i);
+                        if (ParallelReadCheck.Compiled) ParallelReadCheck.Current = i;   // ⭐ N-2 (CE-4464, F-1) — the one per-thread current entity
+                        action(new Entity(i, meta.Generation));
+                    }
+                }
+                if (ParallelReadCheck.Compiled) ParallelReadCheck.Current = -1;
+                if (slot >= 0) EntityCensus.Pop(slot);
+            }
+        }
+
         /// <summary>
         /// Gets the include mask (for advanced usage).
         /// </summary>

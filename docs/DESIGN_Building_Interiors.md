@@ -442,7 +442,7 @@ code change, and the ground inside an enterable building is a floor by construct
 | rails | `TerrainWorldTests.Stage1_*` (10, incl. *test-town unchanged* and *bt-range loads*) · `TerrainReportTests` (4) |
 | ✅ **Stage 2 (B-1 walk inside) — needed NO code** | measured `2026-10-07`: because doorways are already gaps between panel pieces and floors/stairs are ordinary walkables, the existing `TerrainWorldMesh` + Recast bake gives walkable ground inside the house, carves the doorway, and a path from outside **enters by the door, climbs the stair ramp and ends on storey 2** (Z ≈ 3). Rail: `RecastNavmeshFactoryTests.Stage2_*` (asserts no waypoint between floors off the stairs and none crossing the wall outside the door). ⚠ needs the upper floor split around the stairwell (headroom). ⏭ moved to Stage 5: the doorway **convex volumes** (their only purpose is the door flags) and `GET /navigation/path` |
 
-### 3g.1 Shared templates and the roof storey — as built *(ui, `2026-10-18`; UI-9 of [the quarters hand-off](blueprints/batches/HANDOFF_Behaviors_To_Ui_Demo_City_Quarters.md); UI-1 / UI-2 of [HANDOFF_Behaviors_To_Ui_Platoon_Demos](blueprints/batches/HANDOFF_Behaviors_To_Ui_Platoon_Demos.md); `CE-1181`, `CE-1182`; the roof is Defend §16 DA-22, R-2036)*
+### 3g.1 Shared templates and the roof storey — as built *(ui, `2026-10-18`; UI-9 of the quarters hand-off; UI-1 / UI-2 of HANDOFF_Behaviors_To_Ui_Platoon_Demos; `CE-1181`, `CE-1182`; the roof is Defend §16 DA-22, R-2036)*
 
 | item | as built — and the deviations, argued |
 |---|---|
@@ -1456,7 +1456,7 @@ generating, every round would be hand-set.
 
 ## 3l. Stage 7a — cover per storey, window firing positions *(backend, `2026-10-09`; ✅ C1–C9 APPROVED by the user `2026-10-09` — *"Look ok."* … *"Approved."* (R-232); build-state: BUILT — `CE-3134`, §3l.7)*
 
-> 🔒 **User, `2026-10-09`:** *"Yes 7a first."* · Scope from the approved plan ([`HANDOFF_Buildings_Combat_Programme.md`](blueprints/batches/HANDOFF_Buildings_Combat_Programme.md)
+> 🔒 **User, `2026-10-09`:** *"Yes 7a first."* · Scope from the approved plan (`HANDOFF_Buildings_Combat_Programme.md`
 > §4 Stage 7) and §4 above (approved set): *"cover points per storey along panels (inner side too); window firing positions
 > (inside, facing out); stance from the opening's sill, not the building height"*. The HOW below is new — leans.
 

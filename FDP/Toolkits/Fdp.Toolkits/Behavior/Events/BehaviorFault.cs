@@ -91,6 +91,12 @@ namespace Fdp.Toolkit.Behavior.Events
     /// </summary>
     public static class BehaviorFault
     {
+        /// <summary>⭐ N-11 — the latch's table, before a per-entity phase (<see cref="BrainPhase"/>); <see cref="Raise"/> registers it lazily otherwise.</summary>
+        public static void RegisterTypes(EntityRepository repo)
+        {
+            if (!repo.TryGetTable(typeof(BehaviorFaultLatch), out _)) repo.RegisterComponent<BehaviorFaultLatch>();
+        }
+
         /// <summary>Raise a fault for <paramref name="entity"/>'s current behaviour run. The FIRST fault of a run wins. No-op
         /// when the entity runs no behaviour. Returns true when this call latched the fault.</summary>
         public static bool Raise(ISimulationView view, Entity entity, BehaviorFaultCode code, string message)

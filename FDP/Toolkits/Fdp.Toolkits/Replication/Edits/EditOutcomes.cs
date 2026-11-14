@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Replication.Edits
             if (requestId == Guid.Empty) return null;
 
             int node = respondingNode is >= 0 ? respondingNode.Value : (repo.HasSingletonManaged<INetworkTopology>() ? (int)(repo.GetSingletonManaged<INetworkTopology>()?.LocalNodeId ?? default) : 0);
-            double at = repo.HasSingletonUnmanaged<GlobalTime>() ? repo.GetSingletonUnmanaged<GlobalTime>().TotalTime : 0d;
+            double at = repo.HasSingletonUnmanaged<GlobalTime>() ? repo.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : 0d;
             var outcome = EditOutcome.Create(requestId, networkId, status, reason, node, at, fromNetwork: false);
 
             EditOutcomeLog.Of(repo).Add(outcome);

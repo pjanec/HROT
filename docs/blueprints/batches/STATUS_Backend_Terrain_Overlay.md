@@ -7,7 +7,7 @@ related-designs:
   - ../../DESIGN_Terrain_Authoring.md — §18 the owning design (as-built folds there)
 -->
 
-# STATUS — backend: the terrain overlay, compiled at save ([handoff](HANDOFF_Coordinator_To_Backend_Terrain_Overlay.md))
+# STATUS — backend: the terrain overlay, compiled at save (handoff)
 
 Started at `074859439` (merged `coordinator@67b5fcb8d`, which contains `backend@0db463a60`). The brain-cost batch (CE-4395) is done but for its
 Windows measurement (needs the user's machine) — see `STATUS_Backend_Brain_Cost_1000.md`.

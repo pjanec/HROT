@@ -38,6 +38,18 @@ public sealed class TestRoads : IRoadBuilder
     }
 }
 
+/// <summary>A road builder that writes a FLAT (2-D) net with one 50 m lane, as netconvert does.</summary>
+public sealed class FlatNetRoads : IRoadBuilder
+{
+    public Task BuildAsync(string osmFile, UtmFrame frame, string roadsFolder, CancellationToken cancellation)
+    {
+        Directory.CreateDirectory(roadsFolder);
+        File.WriteAllText(Path.Combine(roadsFolder, "roads.net.xml"),
+            "<net version=\"1.20\">\n    <edge id=\"e\" from=\"a\" to=\"b\">\n        <lane id=\"e_0\" index=\"0\" speed=\"13.89\" length=\"50.00\" shape=\"10.00,10.00 60.00,10.00\"/>\n    </edge>\n</net>\n");
+        return Task.CompletedTask;
+    }
+}
+
 public sealed class CountingSource : IOsmSource
 {
     private readonly IOsmSource _inner;

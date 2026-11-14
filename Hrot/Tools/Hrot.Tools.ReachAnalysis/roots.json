@@ -1,0 +1,147 @@
+{
+  "roots": [
+    {
+      "side": "sim",
+      "type": "Fdp.ModuleHost.Abstractions.IEcsModuleSystem",
+      "methods": [
+        "Execute"
+      ]
+    },
+    {
+      "side": "sim",
+      "type": "Fdp.ModuleHost.Abstractions.IEcsModule",
+      "methods": [
+        "Tick"
+      ]
+    },
+    {
+      "side": "sim",
+      "type": "Fdp.ModuleHost.Abstractions.ISystemGroup",
+      "methods": [
+        "*"
+      ]
+    },
+    {
+      "side": "sim",
+      "type": "Hrot.Map.Common.ClusterLoad.ILoadPartProvider",
+      "methods": [
+        "*"
+      ]
+    },
+    {
+      "side": "sim",
+      "type": "Hrot.Orchestrator.OrchestratorCore",
+      "methods": [
+        "Tick",
+        "TickUi"
+      ]
+    },
+    {
+      "side": "ui",
+      "type": "Fdp.Presentation.WindowManager.ManagedWindow",
+      "methods": [
+        "DrawClientArea",
+        "Render",
+        "BeforeBegin",
+        "DrawLocalMenuBar"
+      ]
+    },
+    {
+      "side": "ui",
+      "type": "Fdp.Toolkit.Vis2D.Abstractions.IMapLayer",
+      "methods": [
+        "Update",
+        "Draw",
+        "HandleInput",
+        "HandleHover",
+        "Draw3D",
+        "DrawOverlay"
+      ]
+    },
+    {
+      "side": "ui",
+      "type": "Fdp.Toolkit.Vis3D.IMeshLayer3D",
+      "methods": [
+        "*"
+      ]
+    },
+    {
+      "side": "ui",
+      "type": "Fdp.Diagnostics.Contracts.Panels.IPanelViewModel",
+      "methods": [
+        "*"
+      ]
+    },
+    {
+      "side": "sim",
+      "type": "Hrot.Editor.AiHotReloadCoordinator",
+      "methods": [
+        "DrainPendingCallbacks"
+      ]
+    },
+    {
+      "side": "sim",
+      "type": "Hrot.Common.Infrastructure.HrotNodeContext",
+      "methods": [
+        "StepTimeline"
+      ]
+    },
+    {
+      "side": "ui",
+      "type": "Hrot.Common.Diagnostics.Gizmos.BrainObservation",
+      "methods": [
+        "Tick"
+      ]
+    },
+    {
+      "side": "ui",
+      "type": "Hrot.ScenarioEditor.Map.UnitDebugSettingsMemory",
+      "methods": [
+        "Tick"
+      ]
+    },
+    {
+      "side": "ui",
+      "type": "Hrot.Editor.AiShared.Emit.RegenerationScheduler",
+      "methods": [
+        "Tick"
+      ]
+    }
+  ],
+  "worldNamespaces": [
+    "Fdp.Core",
+    "Fdp.Kernel"
+  ],
+  "skipProjectsContaining": [
+    "Test",
+    "Benchmark",
+    "Example",
+    "Sample",
+    "Demo"
+  ],
+  "presentationInTick": [
+    "Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup",
+    "Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem",
+    "Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem",
+    "Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager",
+    "Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem",
+    "Fdp.Toolkit.Time.LifespanSystem",
+    "Hrot.Common.Systems.ContextActionIngressSystem",
+    "Hrot.Common.Systems.GlobalActionDispatchSystem",
+    "Hrot.ScenarioEditor.Map.HatArbiter",
+    "Hrot.ScenarioEditor.Map.MapSelfCheckSystem",
+    "Hrot.ScenarioEditor.Map.MenuOrders",
+    "Hrot.ScenarioEditor.Map.MenuShortcuts",
+    "Hrot.ScenarioEditor.Systems.CenterOnEntitySystem",
+    "Hrot.ScenarioEditor.Systems.SelectionNotificationSystem",
+    "Hrot.ScenarioEditor.Systems.SelectionRequestSystem",
+    "Hrot.ScenarioEditor.Systems.ToolActivationDrainSystem",
+    "Hrot.UI.Common.Effects.EffectSpawnSystem",
+    "Hrot.UI.Common.Effects.WreckSpawnSystem",
+    "Hrot.ScenarioEditor.Systems.SelectionInteractionSystemAdapter"
+  ],
+  "noDispatch": [
+    "M:Fdp.ModuleHost.Abstractions.IEcsModuleSystem.Execute(Fdp.ModuleHost.Abstractions.ISimulationView,System.Single)",
+    "M:Fdp.ModuleHost.Abstractions.IEcsModule.Tick(Fdp.ModuleHost.Abstractions.ISimulationView,System.Single)"
+  ]
+}

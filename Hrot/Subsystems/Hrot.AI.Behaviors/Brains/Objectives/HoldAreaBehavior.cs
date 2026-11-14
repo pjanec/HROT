@@ -135,7 +135,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             s.AreaCenter = center; s.AreaRadius = radius;
         }
 
-        private static readonly System.Collections.Generic.List<Entity> s_inside = new();
+        [System.ThreadStatic] private static System.Collections.Generic.List<Entity>? t_inside;
+        private static System.Collections.Generic.List<Entity> s_inside => t_inside ??= new();   // ⭐ N-11 (CE-4473) — per THREAD: the brains tick in parallel; scratch is never shared
 
         /// <summary>⭐ S7 P-4 (§00.13) — the point changed hands to <paramref name="side"/>: raise <see cref="ObjectiveCapturedEvent"/> naming that side's men inside now (≤ 16; the census test, once).</summary>
         private static void PublishCaptured(EntityRepository world, Entity self, ForceId side, in AreaLink area)

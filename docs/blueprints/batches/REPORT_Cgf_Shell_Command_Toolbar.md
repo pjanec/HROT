@@ -9,7 +9,7 @@ known-conflict: none.
 # REPORT — **CGF shell-command + main-toolbar adoption** *(`CE-037`…`CE-040`)*
 
 > 📌 **Dispatched at `cc738017b`** · **started-marker `2fc7de02a`** *(rule 1b, pushed before any code)*.
-> 📄 Handoff: [`HANDOFF_Cgf_Shell_Command_Toolbar.md`](HANDOFF_Cgf_Shell_Command_Toolbar.md) ·
+> 📄 Handoff: `HANDOFF_Cgf_Shell_Command_Toolbar.md` ·
 > design: [`DESIGN_Cgf_Shell_Command_Toolbar_Slice.md`](../../DESIGN_Cgf_Shell_Command_Toolbar_Slice.md).
 > ⭐ **All four items DONE.** ⚠ Item ④ shipped **half-done first** and the full T3 caught it — §3.
 

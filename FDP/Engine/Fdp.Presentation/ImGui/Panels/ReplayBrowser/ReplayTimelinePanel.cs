@@ -49,16 +49,19 @@ public sealed record RecordingInfo(Guid? ExerciseId, IReadOnlyList<RecordingFile
 /// </summary>
 public sealed class ReplayTimelinePanel : IReplayTransport
 {
-    private FederatedReplayManager? _manager;
+    // ⭐ CE-4496 R-2 (docs/DESIGN_Threaded_Review_Source.md §2) — reads the review's published model and navigates through its commands; ⛔ no federation manager here.
+    private IReviewChannel? _review;
     private readonly Func<int> _getSelectedNodeId;
     private readonly IRecordingExportService _exportService;
     private readonly IFileDialogService _fileDialogService;
     private readonly PlaybackHistoryTracker _playbackHistory;
     private readonly InspectorState _inspectorState;
 
-    /// <summary>Returns the active context for the currently selected node, or null if not available.</summary>
-    private ReplayBrowserContext? ActiveContext =>
-        _manager != null && _manager.Contexts.TryGetValue(_getSelectedNodeId(), out var ctx) ? ctx : null;
+    /// <summary>The model now, or null when no review is bound.</summary>
+    private ReviewReadModel? Model => _review?.Model;
+
+    /// <summary>The selected node's participant row, or null when it has no recording here.</summary>
+    private ReviewParticipant? Active => _review?.Model.Participant(_getSelectedNodeId()) is { TotalFrames: > 0 } p ? p : null;
 
     private JsonExportOptions _options = new();
     private bool _isExporting;
@@ -94,14 +97,14 @@ public sealed class ReplayTimelinePanel : IReplayTransport
     public Func<bool>? HasSimAxis { get; set; }
 
     public ReplayTimelinePanel(
-        FederatedReplayManager? manager,
+        IReviewChannel? review,
         Func<int> getSelectedNodeId,
         IRecordingExportService exportService,
         IFileDialogService fileDialogService,
         PlaybackHistoryTracker playbackHistory,
         InspectorState inspectorState)
     {
-        _manager = manager;
+        _review = review;
         _getSelectedNodeId = getSelectedNodeId;
         _exportService = exportService;
         _fileDialogService = fileDialogService;
@@ -110,8 +113,8 @@ public sealed class ReplayTimelinePanel : IReplayTransport
         _drawer = new ReplayTransportDrawer(this);   // ⭐ V3 — the ONE drawer, the Replay Browser's profile (everything)
     }
 
-    /// <summary>Binds a new manager after a successful group load; <see langword="null"/> when the replay is closed (RB-1, <c>POST /replay/stop</c>).</summary>
-    public void SetManager(FederatedReplayManager? manager) { _manager = manager; }
+    /// <summary>Binds the review after a successful group load; <see langword="null"/> when the replay is closed (RB-1, <c>POST /replay/stop</c>).</summary>
+    public void SetReview(IReviewChannel? review) { _review = review; }
 
     // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
     /// <summary>⭐⭐⭐ BUILD — a pure projection of frame/timing state. No ImGui. ⭐ Reuses the SAME
@@ -119,16 +122,17 @@ public sealed class ReplayTimelinePanel : IReplayTransport
     /// apply, by hand.</summary>
     public ReplayTimelinePanelViewModel BuildViewModel(string panelId, string panelKind)
     {
-        bool hasRecording = ActiveContext?.Playback != null;
-        int currentFrame = (ActiveContext?.CurrentFrame ?? -1) < 0 ? 0 : ActiveContext!.CurrentFrame;
-        int totalFrames = ActiveContext?.Playback?.TotalFrames ?? 1;
+        var active = Active;
+        bool hasRecording = active != null;
+        int currentFrame = (active?.CurrentFrame ?? -1) < 0 ? 0 : active!.CurrentFrame;
+        int totalFrames = active?.TotalFrames ?? 1;
 
         FrameTimes(out long wallClockTicks, out double relativeWallSec, out double simTimeSec);
 
         return new ReplayTimelinePanelViewModel(
             panelId, panelKind, hasRecording, currentFrame, totalFrames, wallClockTicks,
             relativeWallSec, simTimeSec, IsPlaying, PlaybackRate,
-            ActiveContext?.CurrentFdpPath ?? "(none)", LoadGroupRejectionReason);
+            active?.Path ?? "(none)", LoadGroupRejectionReason);
     }
 
     /// <summary>
@@ -138,32 +142,25 @@ public sealed class ReplayTimelinePanel : IReplayTransport
     public void FrameTimes(out long wallClockTicks, out double relativeWallSeconds, out double simSeconds)
     {
         wallClockTicks = 0; relativeWallSeconds = 0d; simSeconds = 0d;
-        if (ActiveContext?.Playback == null || (ActiveContext?.CurrentFrame ?? -1) < 0) return;
-        var meta = ActiveContext!.Playback!.GetFrameMetadata(ActiveContext.CurrentFrame);
-        long firstFrameWallTicks = ActiveContext.Playback.GetFrameMetadata(0).WallClockTicks;
-        wallClockTicks = meta.WallClockTicks;
-        relativeWallSeconds = (meta.WallClockTicks - firstFrameWallTicks) / (double)TimeSpan.TicksPerSecond;
-        if (ActiveContext?.SandboxRepo?.HasSingletonUnmanaged<GlobalTime>() ?? false)
-            simSeconds = ActiveContext.SandboxRepo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
+        var model = Model;
+        if (model is null || Active is not { CurrentFrame: >= 0 } active) return;
+        wallClockTicks = model.WallTicksAt(active.CurrentFrame);   // the timeline's axis: the primary's frame index (the selected node is the primary in both hosts)
+        relativeWallSeconds = (wallClockTicks - model.WallTicksAt(0)) / (double)TimeSpan.TicksPerSecond;
+        simSeconds = model.PrimarySimSeconds;
     }
 
     /// <summary>A recording is loaded on the selected node.</summary>
-    public bool HasRecording => ActiveContext?.Playback != null;
+    public bool HasRecording => Active != null;
 
     /// <summary>⭐ B-7 part 3 — what <i>File ▸ Recording info</i> lists: the exercise, and per node its file and length.</summary>
     public RecordingInfo DescribeRecording()
     {
-        if (_manager == null || _manager.Contexts.Count == 0) return new RecordingInfo(null, Array.Empty<RecordingFileInfo>());
-        var files = new List<RecordingFileInfo>();
-        foreach (var (node, ctx) in _manager.Contexts.OrderBy(kv => kv.Key))
-        {
-            int frames = ctx.Playback?.TotalFrames ?? 0;
-            double seconds = 0d;
-            if (frames > 1)
-                seconds = (ctx.Playback!.GetFrameMetadata(frames - 1).WallClockTicks - ctx.Playback.GetFrameMetadata(0).WallClockTicks) / (double)TimeSpan.TicksPerSecond;
-            files.Add(new RecordingFileInfo(node, ctx.CurrentFdpPath ?? "(none)", frames, seconds));
-        }
-        return new RecordingInfo(_manager.ExerciseId.Value, files);
+        var model = Model;
+        if (model is null || model.Participants.Count == 0) return new RecordingInfo(null, Array.Empty<RecordingFileInfo>());
+        var files = new List<RecordingFileInfo>(model.Participants.Count);
+        foreach (var p in model.Participants)   // ascending node id (the model's order)
+            files.Add(new RecordingFileInfo(p.Node, p.Path ?? "(none)", p.TotalFrames, p.DurationSeconds));
+        return new RecordingInfo(model.Facts.ExerciseId, files);
     }
 
     // ── Public draw entry point ───────────────────────────────────────────
@@ -217,10 +214,10 @@ public sealed class ReplayTimelinePanel : IReplayTransport
     /// <summary>The seconds of <paramref name="frame"/> on the active axis.</summary>
     public double SecondsOf(int frame)
     {
-        var pb = ActiveContext?.Playback;
-        if (pb == null || pb.TotalFrames <= 0) return 0d;
-        frame = Math.Clamp(frame, 0, pb.TotalFrames - 1);
-        long wall = pb.GetFrameMetadata(frame).WallClockTicks, first = pb.GetFrameMetadata(0).WallClockTicks;
+        var model = Model;
+        if (model is null || Active is not { } active) return 0d;
+        frame = Math.Clamp(frame, 0, active.TotalFrames - 1);
+        long wall = model.WallTicksAt(frame), first = model.WallTicksAt(0);
         if (SimAxisActive) return SimAtWall!(wall) - SimAtWall!(first);
         return (wall - first) / (double)TimeSpan.TicksPerSecond;
     }
@@ -231,8 +228,8 @@ public sealed class ReplayTimelinePanel : IReplayTransport
     private bool SimAxisActive => SimAtWall != null && (AxisIsSim?.Invoke() ?? false) && (HasSimAxis?.Invoke() ?? true);
 
     // ── ⭐ V3 — the Replay Browser's IReplayTransport: over its federated manager, today's behaviour unchanged ──
-    int IReplayTransport.CurrentFrame => ActiveContext?.CurrentFrame ?? -1;
-    int IReplayTransport.TotalFrames => ActiveContext?.Playback?.TotalFrames ?? 0;
+    int IReplayTransport.CurrentFrame => Active?.CurrentFrame ?? -1;
+    int IReplayTransport.TotalFrames => Active?.TotalFrames ?? 0;
     void IReplayTransport.Seek(int frame) => SeekToFrame(frame);
     void IReplayTransport.Step(int delta) { if (delta > 0) StepForward(); else if (delta < 0) StepBackward(); }
     bool IReplayTransport.IsPlaying => IsPlaying;
@@ -378,7 +375,7 @@ public sealed class ReplayTimelinePanel : IReplayTransport
 
     private void DrawSaveButton()
     {
-        bool canSave = !_isExporting && ActiveContext?.CurrentFdpPath != null;
+        bool canSave = !_isExporting && Active?.Path != null;
         if (!canSave) Gui.BeginDisabled();
         if (Gui.Button("Save to JSON..."))
         {
@@ -391,7 +388,7 @@ public sealed class ReplayTimelinePanel : IReplayTransport
             }
 
             var snapshot = CloneOptions(_options);
-            _ = SaveAsync(snapshot, ActiveContext?.CurrentFdpPath);
+            _ = SaveAsync(snapshot, Active?.Path);
         }
         if (!canSave) Gui.EndDisabled();
 
@@ -441,35 +438,31 @@ public sealed class ReplayTimelinePanel : IReplayTransport
 
     private void SeekToFirst()
     {
-        if (ActiveContext?.Playback != null)
+        if (Active != null)
             SeekToFrame(0);
     }
 
-    // ── Manager-driven navigation ─────────────────────────────────────────
+    // ── Navigation: the review's commands (applied by the source — at once inline, as a sim job in mode 3) ──
 
     private void SeekToFrame(int frame)
     {
-        if (_manager == null || ActiveContext?.Playback == null) return;
-        long wallTicks = ActiveContext.Playback.GetFrameMetadata(frame).WallClockTicks;
-        _manager.SetBaseWallTicks(wallTicks);
+        var model = Model;
+        if (_review == null || model == null || Active is not { } active) return;
+        _review.SetBaseWallTicks(model.WallTicksAt(Math.Clamp(frame, 0, active.TotalFrames - 1)));
     }
 
     private void StepForward()
     {
-        var ctx = ActiveContext;
-        if (ctx == null || ctx.Playback == null || _manager == null) return;
-        int nextFrame = ctx.CurrentFrame + 1;
-        if (nextFrame >= ctx.Playback.TotalFrames) return;
-        _manager.StepForwardAll();
+        if (_review == null || Active is not { } active) return;
+        if (active.CurrentFrame + 1 >= active.TotalFrames) return;
+        _review.StepFrame(+1);
     }
 
     private void StepBackward()
     {
-        var ctx = ActiveContext;
-        if (ctx == null || ctx.Playback == null || _manager == null) return;
-        int prevFrame = ctx.CurrentFrame - 1;
-        if (prevFrame < 0) return;
-        _manager.StepBackwardAll();
+        if (_review == null || Active is not { } active) return;
+        if (active.CurrentFrame - 1 < 0) return;
+        _review.StepFrame(-1);
     }
 
     // ── Test seams ────────────────────────────────────────────────────────

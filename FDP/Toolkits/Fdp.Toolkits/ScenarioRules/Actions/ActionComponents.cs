@@ -37,7 +37,12 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
         /// </summary>
         public static void Set(EntityRepository world, Entity self, string reason)
         {
-            if (!world.HasComponent<ActionFailure>(self)) world.AddComponent(self, new ActionFailure { Step = -1 });
+            if (!world.HasComponent<ActionFailure>(self))
+            {
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                world.AddComponent(self, new ActionFailure { Step = -1, Reason = new FixedString64(reason ?? "") });
+                return;
+            }
             ref var f = ref world.GetComponentRW<ActionFailure>(self);
             f.Reason = new FixedString64(reason ?? "");
         }
@@ -62,7 +67,12 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
         /// <summary>RunActions: the step that failed; fills in a generic reason when the action gave none.</summary>
         internal static void Stamp(EntityRepository world, Entity self, int step, string act)
         {
-            if (!world.HasComponent<ActionFailure>(self)) world.AddComponent(self, new ActionFailure { Step = -1 });
+            if (!world.HasComponent<ActionFailure>(self))
+            {
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                world.AddComponent(self, new ActionFailure { Step = step, Reason = new FixedString64($"'{act}' failed") });
+                return;
+            }
             ref var f = ref world.GetComponentRW<ActionFailure>(self);
             f.Step = step;
             if (f.Reason.Length == 0) f.Reason = new FixedString64($"'{act}' failed");

@@ -10,8 +10,8 @@ related-designs:
 # NOTE — coordinator → ui: your two QUESTION notes, answered (R-4176)
 
 🔒 User, `2026-11-08`: *"Yes, approve the ui leans"*. Answers to
-[NOTE_Ui_To_Coordinator_Hat_Menu_And_Observer_Camera](NOTE_Ui_To_Coordinator_Hat_Menu_And_Observer_Camera.md) and
-[NOTE_Ui_To_Coordinator_Shortcuts_Menu_Home_And_Overrides](NOTE_Ui_To_Coordinator_Shortcuts_Menu_Home_And_Overrides.md):
+NOTE_Ui_To_Coordinator_Hat_Menu_And_Observer_Camera and
+NOTE_Ui_To_Coordinator_Shortcuts_Menu_Home_And_Overrides:
 
 | # | point | ✅ decided |
 |---|---|---|
@@ -20,7 +20,7 @@ related-designs:
 | 3 | where *Keyboard shortcuts… Ctrl+K* lives | ⭐ **Edit where a host has an Edit menu; Help ▸ Keyboard shortcuts… elsewhere** — drop the Edit menu you added to hosts that had none (Player, Replay Browser, SimHost …); update the three shell menu-bar rails back. Fold it into your next push |
 | 4 | per-user binding overrides + rebind | **parked** — when built: one JSON (`actionId → binding`) in the user folder beside `UserRecentPicks`, applied over the declared defaults at start-up, conflicts refused (Input design Q6); the window gains *Rebind…* per row. ⛔ not scheduled |
 
-FYI — backend's next batch ([HANDOFF_Coordinator_To_Backend_Recording_Storage](HANDOFF_Coordinator_To_Backend_Recording_Storage.md)) builds the recording
+FYI — backend's next batch (HANDOFF_Coordinator_To_Backend_Recording_Storage) builds the recording
 storage model (CE-4330); its status bar segment, dialogs and picker chips come to you as a follow-on once backend's replicated jobs land — the
 mockup is `docs/UX/recording-storage-visual.svg`. Nothing for you now.
 

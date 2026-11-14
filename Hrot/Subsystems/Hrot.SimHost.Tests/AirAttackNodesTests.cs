@@ -256,6 +256,56 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Success, status);                                                   // flown out
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-7027</c> (City Battle §11 R-1b) — HoverDrop: a bomber quadcopter (a rotorcraft whose only weapon is a drop rack) lifts off
+        /// beside its operator, flies to hover 30 m over the point, drops ONE round once it stands over it (the real executor and the hover release
+        /// cue — within 2 m), then flies back home and the strike succeeds. The rotorcraft is a stand-in that flies straight at its MoveTo and stops
+        /// on the arrival radius. ✅ Red-proof: the hover release branch dropped ⇒ no drop ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE7027_ABomberQuadcopter_HoversOverThePoint_DropsOne_AndFliesBack()
+        {
+            var home = new Vector3(-120f, 30f, 0f);
+            var drone = SpawnPlane(home, Plane, 2, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+            var target = new Vector3(0f, 0f, 0f);
+            var p = new AirAttackParams { Point = target };
+            var ws = default(AirAttackState);
+            var executor = new FireAtPointExecutor();
+            uint entered = 0;
+            var shots = new System.Collections.Generic.List<(int Mount, float Distance)>();
+            Vector3 dropAt = default;
+            NodeStatus status = NodeStatus.Running;
+            for (int frame = 0; frame < 60 * 60 && status == NodeStatus.Running; frame++)
+            {
+                int before = shots.Count;
+                status = Step(ref p, ref ws, drone, executor, ref entered, shots);
+                if (shots.Count > before && before == 0) dropAt = _w.GetComponentRO<SimTransform>(drone).Position;
+                // the stand-in rotorcraft: straight at the MoveTo at 15 m/s, climbing at up to 10 m/s, stopped (a hover) on its arrival radius
+                var move = MoveOf(drone);
+                ref var tr = ref _w.GetComponentRW<SimTransform>(drone);
+                var to = move.Destination - tr.Position;
+                var flat = new Vector2(to.X, to.Y);
+                Vector3 v = Vector3.Zero;
+                if (flat.Length() > MathF.Max(move.ArrivalRadius, 0.25f))
+                {
+                    v = new Vector3(Vector2.Normalize(flat) * MathF.Min(15f, flat.Length() / Dt), 0f);
+                    _w.GetComponentRW<LocomotionChannel>(drone).Status = NodeStatus.Running;
+                }
+                else _w.GetComponentRW<LocomotionChannel>(drone).Status = NodeStatus.Success;
+                if (MathF.Abs(to.Z) > 0.05f) v.Z = MathF.Sign(to.Z) * MathF.Min(MathF.Abs(to.Z) / Dt, 10f);
+                _w.GetComponentRW<SimVelocity>(drone).Linear = v;
+                tr.Position += v * Dt;
+            }
+
+            Assert.Single(shots);
+            Assert.Equal(1, _w.GetComponentRO<WeaponState>(drone).Ammo);                                   // one of its two left
+            Assert.True(new Vector2(dropAt.X - target.X, dropAt.Y - target.Y).Length() <= BombBallistics.HoverToleranceM, $"dropped at {dropAt}");
+            Assert.InRange(dropAt.Z, AirAttackNodes.DefaultDropHeightAgl - 3f, AirAttackNodes.DefaultDropHeightAgl + 3f);
+            Assert.Equal(NodeStatus.Success, status);                                                      // flown back
+            var end = _w.GetComponentRO<SimTransform>(drone).Position;
+            Assert.True(new Vector2(end.X - home.X, end.Y - home.Y).Length() <= AirOrderNodes.DefaultArrivalRadius + 1f, $"ended at {end}");
+        }
+
         /// <summary>⭐ The profile (Air Operations §7's table): a plane with a bomb ⇒ LevelBomb (that mount); a plane with a rocket pod ⇒
         /// RocketRun; a helicopter with rockets and a gun ⇒ RunningFire (the pod and the gun). A helicopter with only a bomb, or a plane with
         /// only a gun (GunRun, not built), has no profile ⇒ the attack fails at once (loudly) instead of flying somewhere and doing nothing;
@@ -267,11 +317,13 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(AirAttackProfile.LevelBomb, AirAttackProfiles.Pick(_w, plane, out byte mount));
             Assert.Equal(0, mount);
 
+            // ⭐ CE-7027 — SUPERSEDES "a helicopter with only a bomb has no profile": a rotorcraft with only a drop rack (the bomber
+            //   quadcopter) hovers over the point and drops (HoverDrop)
             var bombHeli = SpawnPlane(Vector3.Zero, locomotion: Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
-            Assert.Null(AirAttackProfiles.Pick(_w, bombHeli, out _));
-            var p = new AirAttackParams { Point = new Vector3(1000f, 0f, 0f) };
-            var ws = default(AirAttackState);
-            Assert.Equal(NodeStatus.Failure, AirAttackNodes.Run(ref p, ref ws, bombHeli, _w));
+            Assert.Equal(AirAttackProfile.HoverDrop, AirAttackProfiles.Pick(_w, bombHeli, out mount));
+            Assert.Equal(0, mount);
+            AirAttackParams p;
+            AirAttackState ws;
 
             var heli = SpawnHeli(Vector3.Zero, out _);
             Assert.Equal(AirAttackProfile.RunningFire, AirAttackProfiles.Pick(_w, heli, out mount, out byte gun));
@@ -1282,6 +1334,117 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, ws.BatteryOut);
             Assert.True(new Vector2(dest.X - here.X, dest.Y - here.Y).Length() < 30f * 0.25f && dest.Z <= 0.01f,
                 $"straight down: dest {dest}, at {here}");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-7028</c> (City Battle R-1c) — the RECON drone circles the area at its height (150 m round the point, it does not hover on it,
+        /// it never dives), and at its battery's end comes down where it is. ✅ Red-proof: the orbit steered at the point ⇒ it hovers on it ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE7028_AReconDrone_CirclesTheArea_ThenItsBatteryBringsItDown()
+        {
+            var drone = SpawnDrone(new Vector3(-600f, 0f, 60f), enduranceSeconds: 60f);
+            var p = new DroneReconParams { Point = Vector3.Zero, RadiusM = 150f, HeightAgl = 80f };
+            float minR = float.MaxValue, maxR = 0f, swept = 0f, last = float.NaN, maxZ = 0f;
+            int frame = 0;
+            for (; frame < 60 * 59; frame++)
+            {
+                _w.SetSingleton(new GlobalTime { TotalTime = frame * Dt });
+                DroneReconBehavior.Recon(ref p, drone, _w);
+                FlyDrone(drone);
+                var at = _w.GetComponentRO<SimTransform>(drone).Position;
+                if (frame > 60 * 30)
+                {
+                    float r = new Vector2(at.X, at.Y).Length();
+                    minR = MathF.Min(minR, r); maxR = MathF.Max(maxR, r); maxZ = MathF.Max(maxZ, at.Z);
+                    float b = MathF.Atan2(at.Y, at.X);
+                    if (!float.IsNaN(last)) { float d = b - last; if (d > MathF.PI) d -= 2f * MathF.PI; if (d < -MathF.PI) d += 2f * MathF.PI; swept += d; }
+                    last = b;
+                }
+            }
+            Assert.InRange(minR, 100f, 200f);
+            Assert.InRange(maxR, 100f, 200f);
+            Assert.True(MathF.Abs(swept) > MathF.PI / 2f, $"it went round: {swept:F2} rad");
+            Assert.True(maxZ > 60f, $"at its height: {maxZ:F0} m");
+            Assert.Equal(0, p.Down);
+            for (; frame < 60 * 62; frame++) { _w.SetSingleton(new GlobalTime { TotalTime = frame * Dt }); DroneReconBehavior.Recon(ref p, drone, _w); FlyDrone(drone); }
+            Assert.Equal(1, p.Down);
+            var here = _w.GetComponentRO<SimTransform>(drone).Position;
+            var dest = MoveOf(drone).Destination;
+            Assert.True(new Vector2(dest.X - here.X, dest.Y - here.Y).Length() < 1f && dest.Z <= 0.01f, $"straight down: dest {dest}, at {here}");
+        }
+
+        /// <summary>⭐ <c>CE-7026</c> (City Battle R-1a) — a LANDED drone (its feet on the ground, <c>Airborne</c> 0) given a strike on a point takes off
+        /// and flies to search it — the operator's launch. ✅ Red-proof: the drone type without ground contacts ⇒ it stays down ⇒ red.</summary>
+        [Fact]
+        public void CE7026_ALandedDrone_TakesOffOnItsStrikeOrder()
+        {
+            var drone = SpawnDrone(new Vector3(0f, 0f, 0f));
+            var db = (Fdp.Toolkit.Tkb.TkbDatabase)_w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            db.TryGetByType(Drone, out var t);
+            t!.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
+            {
+                ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity, Length = 0.35f, Width = 0.35f, Height = 0.15f,
+                GroundContacts = { new() { Name = "foot", X = 0.12f, Z = -0.075f, WheelRadius = 0.01f, StrutLength = 0.02f } },
+            });
+            _w.GetComponentRW<Fdp.Toolkit.Motion.FlightState>(drone).Airborne = 0;
+            var p = new AirAttackParams { Point = new Vector3(400f, 0f, 0f) };
+            var ws = default(AirAttackState);
+            for (int frame = 0; frame < 60 * 8; frame++) DroneStep(ref p, ref ws, drone, frame);
+            var at = _w.GetComponentRO<SimTransform>(drone).Position;
+            Assert.Equal(1, _w.GetComponentRO<Fdp.Toolkit.Motion.FlightState>(drone).Airborne);
+            Assert.True(at.Z > 10f, $"it took off: z {at.Z:F1}");
+            Assert.True(at.X > 20f, $"and flies to the point: x {at.X:F1}");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-7014</c> (City Battle R-2) — a JAMMER: an FPV pursuing a tank flies into the 200 m bubble of an ENEMY jammer (its TKB type carries
+        /// <c>JammerDto</c>) and loses its link — it comes down WHERE IT IS (<c>BatteryOut</c> = jammed), never reaching the tank; outside the bubble it
+        /// pursued as before; a jammer of its OWN side spares it. The bubbles are the serial pre-pass's index (<c>DroneJamming.PrepareFrame</c>, called
+        /// here as <c>BrainPhase</c> does). ✅ Red-proof: the jammed check dropped ⇒ it pursues on ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void CE7014_ADroneInAnEnemyJammersBubble_LosesItsLink_AndComesDownWhereItIs(bool ownSide)
+        {
+            const long JammerType = 9413;
+            var drone = SpawnDrone(new Vector3(-600f, 0f, 60f));
+            var tank = SpawnGround(Vector3.Zero, 2500f, vehicle: true, ForceId.Friend);
+            Remember(drone, tank);
+            var db = (Fdp.Toolkit.Tkb.TkbDatabase)_w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            var jt = new Fdp.Interfaces.TkbTemplate("test jammer", JammerType);
+            jt.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.JammerDto { RadiusM = 200f });
+            db.Register(jt);
+            var jammer = _w.CreateEntity();
+            _w.AddComponent(jammer, new SimTransform { Position = new Vector3(-250f, 0f, 0f), Rotation = Quaternion.Identity });
+            _w.AddComponent(jammer, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)JammerType });
+            _w.AddComponent(jammer, new EntityInfo { ForceId = ownSide ? ForceId.Hostile : ForceId.Friend });
+
+            var p = new AirAttackParams { Target = tank, Point = Vector3.Zero };
+            var ws = default(AirAttackState);
+            float closest = float.MaxValue;
+            int frame = 0;
+            for (; frame < 60 * 30 && ws.BatteryOut == 0; frame++)
+            {
+                Fdp.Toolkit.Motion.DroneJamming.PrepareFrame(_w);
+                DroneStep(ref p, ref ws, drone, frame);
+                closest = MathF.Min(closest, new Vector2(_w.GetComponentRO<SimTransform>(drone).Position.X, _w.GetComponentRO<SimTransform>(drone).Position.Y).Length());
+            }
+            if (ownSide)
+            {
+                Assert.Equal(0, ws.BatteryOut);                          // its own side's jammer spares it: it reached the tank
+                Assert.True(closest < 20f, $"it pursued to the tank: closest {closest:F0} m");
+                return;
+            }
+            Assert.Equal(AirAttackNodes.BatteryOutJammed, ws.BatteryOut);
+            var here = _w.GetComponentRO<SimTransform>(drone).Position;
+            Assert.InRange(Vector3.Distance(here, new Vector3(-250f, 0f, here.Z)), 0f, 201f);   // lost inside the bubble
+            for (int k = 0; k < 30; k++, frame++) { Fdp.Toolkit.Motion.DroneJamming.PrepareFrame(_w); DroneStep(ref p, ref ws, drone, frame); }
+            var dest = MoveOf(drone).Destination;
+            var at = _w.GetComponentRO<SimTransform>(drone).Position;
+            Assert.True(new Vector2(dest.X - at.X, dest.Y - at.Y).Length() < 30f * 0.25f && dest.Z <= 0.01f, $"straight down: dest {dest}, at {at}");
+            Assert.True(new Vector2(at.X, at.Y).Length() > 40f, "it never reached the tank");
         }
 
         /// <summary>

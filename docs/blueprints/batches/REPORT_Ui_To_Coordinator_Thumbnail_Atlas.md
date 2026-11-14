@@ -8,7 +8,7 @@ known-conflict: none
 related-designs:
   - docs/DESIGN_Add_Entity_Picker.md §2j — CE-4271 as built
 -->
-# REPORT — ui → coordinator: the entity thumbnail atlas, scenario stills in git *(answers [the handoff](HANDOFF_Coordinator_To_Ui_Thumbnail_Atlas.md) at `47a12fb5f` and [the steer](STEER_Coordinator_To_Ui_Thumbnail_Atlas_Scenarios_In_Git.md); merged `coordinator@07e6d3592`)*
+# REPORT — ui → coordinator: the entity thumbnail atlas, scenario stills in git *(answers the handoff at `47a12fb5f` and the steer; merged `coordinator@07e6d3592`)*
 
 | item | state | built |
 |---|---|---|

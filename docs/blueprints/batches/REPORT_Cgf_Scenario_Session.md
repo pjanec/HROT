@@ -8,7 +8,7 @@ current-answer: this file is a REPORT — ephemeral. ⭐ The durable record is
 # REPORT — **CGF scenario session: shared facade + distinct File menu** *(AQ60 Slice A = Axis-C E1)*
 
 📄 **Design (durable, UML + as-built):** [`docs/DESIGN_Cgf_Scenario_Session_Slice.md`](../../DESIGN_Cgf_Scenario_Session_Slice.md)
-📄 **Handoff:** [`HANDOFF_Cgf_Scenario_Session.md`](HANDOFF_Cgf_Scenario_Session.md) · **Dispatched at `dbdc5e783`**
+📄 **Handoff:** `HANDOFF_Cgf_Scenario_Session.md` · **Dispatched at `dbdc5e783`**
 ⭐ **IDs allocated (rule 5): `CE-046` *(the slice)* · `CE-047` · `CE-048` *(two findings, filed open)*.**
 
 ## 0. ⚠⚠ TWO PROCESS DEVIATIONS, DECLARED FIRST

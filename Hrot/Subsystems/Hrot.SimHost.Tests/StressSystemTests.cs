@@ -23,6 +23,7 @@ namespace Hrot.SimHost.Tests
     /// ⭐⭐ <c>CE-2270</c> TS-B (R-2034 TS-4) — a combatant's stress: each stimulus, the nerve scaling, the calming by time, by cover and by
     /// his leader; and who has none (TS-7). 📄 docs/DESIGN_Temperament_And_Stress.md §4.
     /// </summary>
+    [Collection(ParallelSwitchMutatorCollection.Name)]   // ⭐ CE-4518 — they flip the process-wide parallel switch
     public sealed class StressSystemTests : IDisposable
     {
         private readonly EntityRepository _w = new();
@@ -115,6 +116,154 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0.13f, Level(near), 3);         // 5 m from the fallen
             Assert.Equal(0f, Level(far), 3);             // 25 m: too far to feel it
             Assert.Equal(0f, Level(down), 3);            // not himself
+        }
+
+        /// <summary>
+        /// ⭐ The parallel-simulation experiment, E-3 (P-1, <c>DESIGN_Parallel_Simulation</c> §5) — <see cref="StressSystem"/> run on the worker
+        /// pool gives the SAME world and the SAME edges, in the same order, as the serial loop, at 1 / 2 / 4 / 8 threads: 400 men at seeded
+        /// levels (some past their break, some broken and calm), near misses each frame, five frames. 🔴 Red-proof: the deferred edges played
+        /// back in completion order instead of batch order ⇒ the edge string differs.
+        /// </summary>
+        [Fact]
+        public void P1_TheParallelStressStep_MatchesTheSerialStep_AtEveryThreadCount()
+        {
+            bool was = Fdp.Core.Jobs.ParallelEntities.Enabled;
+            try
+            {
+                string serial = RunStressWorld(parallel: false, threads: 1);
+                Assert.Contains("StressBreak", serial);
+                foreach (int t in new[] { 1, 2, 4, 8 })
+                    Assert.Equal(serial, RunStressWorld(parallel: true, threads: t));
+            }
+            finally
+            {
+                Fdp.Core.Jobs.ParallelEntities.Enabled = was;
+                Fdp.Core.Jobs.FdpWorkerPool.Resize(Fdp.Core.Jobs.FdpWorkerPool.Budget());
+            }
+        }
+
+        /// <summary>
+        /// ⭐ P-5 (the parallel experiment, E-4) — the step INTERLEAVED at 0.2 s (each man stepped on his phase) ends within 0.005 of the
+        /// every-frame result after 6 s at 60 frames, and breaks the same men: the step integrates the time since his last step, so a slower
+        /// step loses no time. 🔴 Red-proof: one frame's dt integrated instead of the elapsed time ⇒ the levels drift far apart.
+        /// </summary>
+        [Fact]
+        public void P5_TheInterleavedStressStep_StaysWithinItsError_OfTheEveryFrameStep()
+        {
+            bool was = Fdp.Core.Jobs.ParallelEntities.Enabled;
+            try
+            {
+                var every = RunInterleaved(0.0);
+                var slow = RunInterleaved(0.2);
+                for (int i = 0; i < every.Length; i++)
+                {
+                    Assert.True(System.Math.Abs(every[i].Level - slow[i].Level) <= 0.005f, $"man {i}: {every[i].Level} vs {slow[i].Level}");
+                    Assert.Equal(every[i].Broken, slow[i].Broken);
+                }
+            }
+            finally { Fdp.Core.Jobs.ParallelEntities.Enabled = was; }
+        }
+
+        private static Stress[] RunInterleaved(double period)
+        {
+            Fdp.Core.Jobs.ParallelEntities.Enabled = false;
+            using var w = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(w);
+            CognitiveComponentRegistry.RegisterAll(w);
+            var rng = new Random(3);
+            var men = new Entity[200];
+            for (int i = 0; i < men.Length; i++)
+            {
+                var e = w.CreateEntity();
+                w.AddComponent(e, new BehaviorState());
+                w.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+                w.AddComponent(e, new StanceIntent());
+                w.AddComponent(e, new SimTransform { Position = new Vector3(rng.Next(0, 300), rng.Next(0, 300), 0f), Rotation = Quaternion.Identity });
+                w.AddComponent(e, new EntityInfo { ForceId = ForceId.Friend });
+                w.AddComponent(e, new Stress { Level = (float)rng.NextDouble() * 0.6f, LastStepAt = (SimInstant)1.0 });
+                men[i] = e;
+            }
+            var sys = new StressSystem { StepPeriod = period };
+            for (int f = 1; f <= 360; f++)
+            {
+                w.SetSingleton(new GlobalTime { TotalTime = 1.0 + f / 60.0, DeltaTime = 1f / 60f, TimeScale = 1f });
+                sys.Execute(w, 1f / 60f);
+            }
+            // one last pass at a common time, so both runs are compared AFTER the same elapsed time
+            w.SetSingleton(new GlobalTime { TotalTime = 1.0 + 361 / 60.0, DeltaTime = 1f / 60f, TimeScale = 1f });
+            new StressSystem().Execute(w, 1f / 60f);
+            var r = new Stress[men.Length];
+            for (int i = 0; i < men.Length; i++) r[i] = w.GetComponentRO<Stress>(men[i]);
+            return r;
+        }
+
+        private static string RunStressWorld(bool parallel, int threads)
+        {
+            Fdp.Core.Jobs.ParallelEntities.Enabled = parallel;
+            Fdp.Core.Jobs.FdpWorkerPool.Resize(threads);
+            using var w = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(w);
+            CognitiveComponentRegistry.RegisterAll(w);
+            var rng = new Random(42);
+            var men = new Entity[400];
+            for (int i = 0; i < men.Length; i++)
+            {
+                var e = w.CreateEntity();
+                w.AddComponent(e, new BehaviorState());
+                w.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+                w.AddComponent(e, new StanceIntent());
+                w.AddComponent(e, new SimTransform { Position = new Vector3(rng.Next(0, 400), rng.Next(0, 400), 0f), Rotation = Quaternion.Identity });
+                w.AddComponent(e, new EntityInfo { ForceId = ForceId.Friend });
+                var t = new CombatTemperament { Nerve = (float)rng.NextDouble(), Set = CombatTemperament.NerveSet };
+                w.AddComponent(e, t);
+                if (i % 3 != 0)   // a third start with no Stress: the serial pre-pass adds it
+                    w.AddComponent(e, new Stress { Level = (float)rng.NextDouble(), Broken = (byte)(i % 7 == 0 ? 1 : 0), LastStepAt = (SimInstant)0.5 });
+                men[i] = e;
+            }
+            var sys = new StressSystem();
+            var log = new System.Text.StringBuilder();
+            for (int f = 0; f < 5; f++)
+            {
+                for (int k = 0; k < 40; k++)
+                    w.Bus.Publish(new SensorChangedEvent { Unit = men[rng.Next(men.Length)], What = k % 4 == 0 ? SensorChange.Hit : SensorChange.NearMiss });
+                w.Bus.SwapBuffers();
+                foreach (var ev in w.ReadEvents<SensorChangedEvent>())
+                    if (ev.What is SensorChange.StressBreak or SensorChange.StressRecovered) log.Append(ev.Unit.Index).Append(':').Append(ev.What).Append(' ');
+                w.SetSingleton(new GlobalTime { TotalTime = 1.0 + f * 3.0, DeltaTime = 0.016f, TimeScale = 1f });
+                sys.Execute(w, 0.016f);
+            }
+            w.Bus.SwapBuffers();
+            foreach (var ev in w.ReadEvents<SensorChangedEvent>())
+                if (ev.What is SensorChange.StressBreak or SensorChange.StressRecovered) log.Append(ev.Unit.Index).Append(':').Append(ev.What).Append(' ');
+            log.Append('|');
+            foreach (var e in men)
+            {
+                if (!w.HasComponent<Stress>(e)) { log.Append("- "); continue; }
+                var s = w.GetComponentRO<Stress>(e);
+                var b = w.GetComponentRO<BehaviorState>(e);
+                log.Append(s.Level.ToString("R")).Append(',').Append(s.Broken).Append(',').Append((double)s.CalmSince).Append(',')
+                   .Append((double)s.LastStepAt).Append(',').Append(b.ActiveBehaviorHash).Append(' ');
+            }
+            return log.ToString();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-7008</c> (City Battle §3a) — CAN A SQUAD BE PINNED FOR EVER? A man with NO nerve, alone and outnumbered, stressed to 0.9 by
+        /// fire that then stops: the first 30 s nothing changes (+0.03 / s against −0.03 / s — still under fire as far as he knows), then the
+        /// quiet doubles his calm and he comes down — below 0.3 within two minutes. ✅ Red-proof: the quiet term dropped ⇒ he stays at 0.9.
+        /// </summary>
+        [Fact]
+        public void CE7008_AManPinnedWithNoNerve_ComesDownOnceTheFireStops()
+        {
+            var e = Man(0f, nerve: 0f, obedience: 0f);
+            for (int i = 0; i < 3; i++) Contact(e, armed: true);
+            Assert.Equal(1f, StressModel.Reach(_w, e), 3);
+            SetLevel(e, 0.9f, 0.0);
+            _w.GetComponentRW<Stress>(e).LastStimulusAt = (Fdp.Core.SimInstant)0.0;
+            for (int t = 1; t <= 30; t++) StressModel.Step(_w, e, t);
+            Assert.InRange(Level(e), 0.85f, 0.95f);                 // the first half-minute: no change
+            for (int t = 31; t <= 150; t++) StressModel.Step(_w, e, t);
+            Assert.True(Level(e) < 0.3f, $"level {Level(e)} after two quiet minutes");
         }
 
         /// <summary>TS-4 — time calms him 0.03 / s; ⭐ cover doubles it and his leader within 20 m doubles it again.</summary>

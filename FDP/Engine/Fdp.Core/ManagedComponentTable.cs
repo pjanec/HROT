@@ -15,7 +15,7 @@ namespace Fdp.Core
     /// Tier 2 storage for "cold" data that doesn't need the performance of native memory.
     /// Uses standard .NET arrays, so GC manages all memory.
     /// </summary>
-    public sealed class ManagedComponentTable<T> : IComponentTable, IManagedChunkedTable where T : class
+    public sealed class ManagedComponentTable<T> : IComponentTable, IManagedChunkedTable, IMemorySized where T : class
     {
         private T?[][] _chunks;
         private readonly int _chunkSize;
@@ -26,6 +26,19 @@ namespace Fdp.Core
         //   and re-synced on the next acquire, and a replay keyframe clears the world, so each re-allocated a T[16384] (128 KB, large-object
         //   heap) per managed chunk. 📐 ≈ 300 KB of garbage per frame on Crossfire (the navigation + EQS snapshots). Never escapes the table.
         private T?[][] _spare = Array.Empty<T?[]>();
+
+        // ⭐ CE-4456 N-1 — the memory census: the reference arrays (8 bytes a slot + the array header), not the objects
+        long IMemorySized.NativeBytes => 0;
+        long IMemorySized.ManagedSlotBytes
+        {
+            get
+            {
+                long n = 0; var chunks = _chunks; var spare = _spare;
+                for (int i = 0; i < chunks.Length; i++) if (chunks[i] != null) n += 24 + 8L * chunks[i]!.Length;
+                for (int i = 0; i < spare.Length; i++) if (spare[i] != null) n += 24 + 8L * spare[i].Length;
+                return n + 24 + 8L * chunks.Length;
+            }
+        }
         private int _spareCount;
 
         private T?[] NewChunk()
@@ -191,10 +204,27 @@ namespace Fdp.Core
             
             // Update version
             _chunkVersions[chunkIndex] = version;
+            if (StampTrace.On) StampTrace.Note(typeof(T));   // ⭐ CE-4445 M-4 — who stamps (opt-in)
             
             return ref _chunks[chunkIndex][localIndex];
         }
         
+        // POC 2 / P-1 - the slot a pure read of an unallocated chunk points at. Never written (callers hold a ref readonly).
+        private static T? _nullSlot;
+
+        /// <summary>
+        /// POC 2 / P-1 - a read-only REFERENCE to the slot: stamps NO chunk version and allocates NO chunk
+        /// (an unallocated chunk yields a ref to a shared null slot).
+        /// </summary>
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public ref readonly T? GetRefRO(int entityIndex)
+        {
+            int chunkIndex = entityIndex / _chunkSize;
+            var chunk = _chunks[chunkIndex];
+            if (chunk == null) return ref _nullSlot;
+            return ref chunk[entityIndex % _chunkSize];
+        }
+
         /// <summary>
         /// Gets value for read-only access. Does NOT allocate.
         /// Returns null if chunk not allocated.
@@ -214,6 +244,28 @@ namespace Fdp.Core
         /// <summary>
         /// Sets component value with version tracking.
         /// </summary>
+        /// <inheritdoc/>
+        public void CopyRowFrom(IComponentTable source, int entityIndex, uint version)
+        {
+            var value = ((ManagedComponentTable<T>)source).GetRO(entityIndex);
+            // ⭐ N-9 (CE-4471) — a value-copied type is copied INTO this table's own instance (allocated once), never shared across worlds
+            if (value is IValueCopy<T> && ComponentTypeRegistry.NeedsClone(ManagedComponentType<T>.ID)) value = CopyValue(value, GetRO(entityIndex));
+            Set(entityIndex, value, version);
+        }
+
+        /// <summary>⭐ N-9 — <paramref name="source"/> copied into <paramref name="mine"/> when that is this table's own distinct instance of the same
+        /// type (no allocation), else a fresh clone (the first copy).</summary>
+        private static T CopyValue(T source, T? mine)
+        {
+            var copy = (IValueCopy<T>)source;
+            if (mine is not null && !ReferenceEquals(mine, source) && mine.GetType() == source.GetType())
+            {
+                ((IValueCopy<T>)mine).CopyFrom(source);
+                return mine;
+            }
+            return copy.CloneValue();
+        }
+
         public void Set(int entityIndex, T? value, uint version)
         {
             int chunkIndex = entityIndex / _chunkSize;
@@ -229,6 +281,7 @@ namespace Fdp.Core
             if (version != 0)
             {
                 _chunkVersions[chunkIndex] = version;
+                if (StampTrace.On) StampTrace.Note(typeof(T));   // ⭐ CE-4445 M-4 — who stamps (opt-in)
             }
         }
 
@@ -331,7 +384,7 @@ namespace Fdp.Core
         /// Uses shallow copy (Array.Copy) for normal components.
         /// Uses deep clone for components marked with DataPolicy.SnapshotViaClone.
         /// </summary>
-        public void SyncDirtyChunks(ManagedComponentTable<T> source)
+        public void SyncDirtyChunks(ManagedComponentTable<T> source, bool force = false)
         {
             // Check if this type requires cloning
             // ⭐ CE-2394 — the per-T cached id (CE-2389, lock-free, re-resolved after a registry Clear); it asked the registry under its lock
@@ -344,7 +397,7 @@ namespace Fdp.Core
             {
                 // Optimization: Version Check
                 uint srcVer = source.GetChunkVersion(i);
-                if (_chunkVersions[i] == srcVer)
+                if (!force && _chunkVersions[i] == srcVer)
                     continue;
 
                 // Liveness check: Does source have data?
@@ -377,7 +430,11 @@ namespace Fdp.Core
                     for (int k = 0; k < _chunkSize; k++)
                     {
                         var srcVal = srcChunk[k];
-                        if (srcVal != null)
+                        if (srcVal is IValueCopy<T>)
+                        {
+                            _chunks[i][k] = CopyValue(srcVal, _chunks[i][k]);   // ⭐ N-9 — into this table's own instance, no allocation once warm
+                        }
+                        else if (srcVal != null)
                         {
                             _chunks[i][k] = FdpAutoSerializer.DeepClone(srcVal);
                         }
@@ -413,11 +470,20 @@ namespace Fdp.Core
             throw new NotSupportedException("Cannot get raw pointer for managed component");
         }
 
-        public void SyncFrom(IComponentTable source)
+        public void SyncFrom(IComponentTable source) => SyncFrom(source, force: false);
+
+        /// <summary>⭐ M-4 (CE-4483) — see <see cref="IComponentTable.InvalidateChunksStampedSince"/>.</summary>
+        public void InvalidateChunksStampedSince(uint version)
+        {
+            for (int i = 0; i < _chunkVersions.Length; i++)
+                if (_chunkVersions[i] >= version) _chunkVersions[i] = NativeChunkTable<byte>.NeverSyncedVersion;
+        }
+
+        public void SyncFrom(IComponentTable source, bool force)
         {
              if (source is ManagedComponentTable<T> typedSource)
              {
-                 this.SyncDirtyChunks(typedSource);
+                 this.SyncDirtyChunks(typedSource, force);
              }
              #if FDP_PARANOID_MODE
              else

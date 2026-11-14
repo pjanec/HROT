@@ -19,16 +19,16 @@ public sealed class DeployScreen
 {
     public const string SectionId = "deploy_screen";
 
-    private readonly Func<DeployFlowSystem?> _flow;
+    private readonly Func<IDeployFlow?> _flow;
     private readonly Func<bool> _loadingVisible;
     private bool _keepObserving;
     private readonly Func<DeployAreaChoice?>? _choiceOf;
     private readonly DeployAreaChoice _orphan = new();   // the choice of a screen with no flow (nothing is deployed from it; rails read it)
 
-    /// <param name="flow">The node's flow (<c>DeployFlowSystem.Of(world)</c>); null ⇒ nothing to show.</param>
+    /// <param name="flow">The node's flow (<c>DeployFlows.Of(world)</c>: the flow, or its view on a threaded node — CE-3446); null ⇒ nothing to show.</param>
     /// <param name="loadingVisible">Whether the loading screen is up — this screen yields to it.</param>
     /// <param name="choice">⭐ CE-3370 — where the chosen side and spawn area live; default: the flow's own <see cref="DeployAreaChoice"/> (the one the Player's map reads too).</param>
-    public DeployScreen(Func<DeployFlowSystem?> flow, Func<bool> loadingVisible, Func<DeployAreaChoice?>? choice = null)
+    public DeployScreen(Func<IDeployFlow?> flow, Func<bool> loadingVisible, Func<DeployAreaChoice?>? choice = null)
     {
         _flow = flow ?? throw new ArgumentNullException(nameof(flow));
         _loadingVisible = loadingVisible ?? throw new ArgumentNullException(nameof(loadingVisible));
@@ -39,7 +39,7 @@ public sealed class DeployScreen
     public DeployAreaChoice Choice => _choiceOf?.Invoke() ?? (_flow() is { } f ? DeployAreaChoice.Of(f) : _orphan);
 
     /// <summary>Registers it on <paramref name="bar"/>.</summary>
-    public static DeployScreen Register(StatusBarManager bar, Func<DeployFlowSystem?> flow, Func<bool> loadingVisible)
+    public static DeployScreen Register(StatusBarManager bar, Func<IDeployFlow?> flow, Func<bool> loadingVisible)
     {
         var screen = new DeployScreen(flow, loadingVisible);
         bar.RegisterSection(SectionId, 2, screen.Render);
@@ -137,7 +137,7 @@ public sealed class DeployScreen
     /// ⭐ CE-3370 — what a row click sends: <paramref name="offer"/> on <paramref name="side"/> (kit <paramref name="kit"/>), with the CHOSEN spawn area for a role or a kit row (a placed unit has no spawn area).
     /// The one place the choice becomes a request, so a click on the map and one in the list reach the server alike.
     /// </summary>
-    public bool Deploy(DeployFlowSystem flow, ForceId side, DeployOffer offer, byte kit = 0)
+    public bool Deploy(IDeployFlow flow, ForceId side, DeployOffer offer, byte kit = 0)
         => flow.Request(side, offer.UnitNetId, kit, offer.IsRole || kit != 0 ? Choice.AreaNetId : 0);
 
     /// <summary>One offer's row text: a placed unit by its name; a role with its live count — <i>Rifleman  2 / 4</i> (<i>2</i> when unlimited).</summary>
@@ -197,7 +197,7 @@ public sealed class DeployScreen
         ObserveEntryRect = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
     }
 
-    private void DrawChoosing(DeployFlowSystem f)
+    private void DrawChoosing(IDeployFlow f)
     {
         var offers = f.Offers;
         var sides = SidesOf(offers);

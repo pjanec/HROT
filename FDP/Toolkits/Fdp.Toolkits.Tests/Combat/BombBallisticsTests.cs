@@ -187,5 +187,19 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(framesLate * Dt, shot.CaughtUpSeconds, 3);
             Assert.Equal(RaiseTick * (double)Dt, shot.RaisedAt, 6);
         }
+
+        /// <summary>⭐ <c>CE-7027</c> (City Battle R-1b) — a HOVERING carrier (a bomber quadcopter, under <see cref="Fdp.Toolkit.Combat.BombBallistics.HoverMps"/>)
+        /// has no pass to time: it drops when the round would land within <see cref="Fdp.Toolkit.Combat.BombBallistics.HoverToleranceM"/> of the target,
+        /// and not when it stands 5 m off; a slow drift does the same. ✅ Red-proof: the hover branch dropped ⇒ a hover never releases (the cue's
+        /// seconds are infinite) ⇒ red.</summary>
+        [Fact]
+        public void CE7027_AHoveringCarrier_DropsWhenItStandsOverTheTarget()
+        {
+            var target = new Vector3(10f, 20f, 0f);
+            Assert.True(Fdp.Toolkit.Combat.BombBallistics.ReleaseNow(new Vector3(10.5f, 19.5f, 30f), Vector3.Zero, target, null));
+            Assert.True(Fdp.Toolkit.Combat.BombBallistics.ReleaseNow(new Vector3(10f, 20f, 30f), new Vector3(0.4f, 0f, 0f), target, null));
+            Assert.False(Fdp.Toolkit.Combat.BombBallistics.ReleaseNow(new Vector3(15f, 20f, 30f), Vector3.Zero, target, null));
+            Assert.False(Fdp.Toolkit.Combat.BombBallistics.ReleaseNow(new Vector3(-200f, 20f, 300f), new Vector3(150f, 0f, 0f), target, null));   // a pass far short: not now
+        }
     }
 }

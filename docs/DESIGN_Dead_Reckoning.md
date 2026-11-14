@@ -298,7 +298,7 @@ sequenceDiagram
 level ⇒ equal to `HeadingDegToRotation`).
 
 **Row 7 of the ui steer (`2026-10-15`,
-[STEER_Backend_P3_Every_Ingress_Restores_Attitude](blueprints/batches/STEER_Backend_P3_Every_Ingress_Restores_Attitude.md))** — a
+STEER_Backend_P3_Every_Ingress_Restores_Attitude)** — a
 HEADING-ONLY patch keeps the body's pitch and roll: `SimTransformBridgeSystem.WithHeadingDeg(current, h)` (the current attitude read with
 `RotationToPitchRollDeg`, rebuilt with `EulerDegToRotation`; a never-set rotation counts as level), called by `SimTransformHeadingInstaller`
 (binary) and `AttributeCompilerFactory`'s `"Heading"` (JSON). Rails: `SimTransformBridgeSystemTests.P3_…` (125-case round trip to ±80° /

@@ -22,7 +22,7 @@ related-designs:
 
 ## ⭐⭐⭐⭐ TERRAIN AUTHORING 2 (`2026-11-11`, LATEST) — start here
 
-📄 [handoff](batches/HANDOFF_Coordinator_To_Backend_Terrain_Authoring_2.md) (frozen at `21392507c`) · ⭐ per-item record + gates:
+📄 handoff (frozen at `21392507c`) · ⭐ per-item record + gates:
 [`batches/STATUS_Backend_Terrain_Authoring_2.md`](batches/STATUS_Backend_Terrain_Authoring_2.md) · design + as-built: [`DESIGN_Terrain_Authoring.md`](../DESIGN_Terrain_Authoring.md)
 §18f (generator library) · §18g (kinds + scatter) · §18h (block ops, AlignRoad) · §18i (recipes) · §18j (missions check) · §18k (bridges in the road nets).
 
@@ -49,7 +49,7 @@ from other lanes — capture (`HROT_COMPOSITION_CAPTURE=1`) and diff the system 
 
 ## ⭐⭐⭐⭐ TERRAIN OVERLAY — compiled at save (`2026-11-11`, LATEST) — start here
 
-📄 [handoff](batches/HANDOFF_Coordinator_To_Backend_Terrain_Overlay.md) (frozen at `01a3c26cb`) · ⭐ per-item record + gates: [`batches/STATUS_Backend_Terrain_Overlay.md`](batches/STATUS_Backend_Terrain_Overlay.md) ·
+📄 handoff (frozen at `01a3c26cb`) · ⭐ per-item record + gates: [`batches/STATUS_Backend_Terrain_Overlay.md`](batches/STATUS_Backend_Terrain_Overlay.md) ·
 design + as-built: [`DESIGN_Terrain_Authoring.md`](../DESIGN_Terrain_Authoring.md) §18a (format, classes, load, module diagram) · §18a-2 merge · §18a-3 keys · §18a-4 distribution ·
 §18b numbers · §18c / §18c-1 / §18c-2 compile (+ the data the mockups need) · §18c-3 the visual check.
 
@@ -106,14 +106,14 @@ merged at `c1f07f50f`; `behaviors` NOT merged into backend this session).
 
 | handoff | item | state | sha | what |
 |---|---|---|---|---|
-| [Recording_Storage](batches/HANDOFF_Coordinator_To_Backend_Recording_Storage.md) | W-1 CE-4332 | ✅ | `680c3b30c` | the Player's node-id offset arm |
+| Recording_Storage | W-1 CE-4332 | ✅ | `680c3b30c` | the Player's node-id offset arm |
 | | W-2 CE-4099 | ✅ (earlier) | `aecbad03e` | autosave |
 | | W-3 CE-4330 ①–④ ⑥–⑩ | ✅ | `0ac09947f` … `d688c6cc2` | manifest-last + `.part`; `StorageJobQueue` (one job / exercise, one transfer at a time); facts on every `ClusterView`; heartbeat `LocalRecordings`; the local cache rule; resume; `POST /session/close`; quit guard; HTTP routes |
 | | W-3 ⑤ | ⚠ **OPEN — lab cluster** | — | the 20 MB/s give-way is built + rail-proven; the ACCEPTANCE (frame time + DDS latency equal with/without a transfer) cannot be measured on one cloud VM — the recipe is in the status file. The import's push is not throttled yet |
 | | W-4 CE-4331 | ✅ | `fb1901bf4` … `eb42baeb6` | AAR on a different cluster: recording metadata (name/kind/roles), node ids by kind (`NodeIdRanges`, `NodeIdMemory`), `RecordingPlacement` (name → kind → never across kinds → listeners; nothing placed ⇒ refused), Go Live needs the same cluster |
-| [After_Recording_Storage](batches/HANDOFF_Coordinator_To_Backend_After_Recording_Storage.md) | V-1 CE-4341 | ✅ | `e541630f1` | the 3-D picker read `Build` (no apron) while the layer draws `BuildTagged` ⇒ a pick on the hilly band fell to the look-at plane (z≈0). Now `BuildTagged`. `DESIGN_Map_3D_Mode.md` §6ad-1 |
+| After_Recording_Storage | V-1 CE-4341 | ✅ | `e541630f1` | the 3-D picker read `Build` (no apron) while the layer draws `BuildTagged` ⇒ a pick on the hilly band fell to the look-at plane (z≈0). Now `BuildTagged`. `DESIGN_Map_3D_Mode.md` §6ad-1 |
 | | V-2 CE-4284 | ✅ | `e541630f1` | a non-owner's route edit → `UpdateEntityDescriptorRequest(dtMapRoute)` → owner applies + acks + publishes; one encoding `MapRouteWire`. `UX/DESIGN_Details_Forms.md` §1 |
-| [Queue_After_V](batches/HANDOFF_Coordinator_To_Backend_Queue_After_V.md) | X-1 CE-4345 | ✅ | `a0d50cc04` | one steer limit (`BicycleModel.SteerLimit`, radius ≥ v²/`MaxLatAccel`) in the ONE integrator; `ManualMotion.Vehicle` now goes through `BicycleModel.Integrate`. Motion Domains §5i |
+| Queue_After_V | X-1 CE-4345 | ✅ | `a0d50cc04` | one steer limit (`BicycleModel.SteerLimit`, radius ≥ v²/`MaxLatAccel`) in the ONE integrator; `ManualMotion.Vehicle` now goes through `BicycleModel.Integrate`. Motion Domains §5i |
 | | X-2 CE-4344 | 📨 filed on behaviors | `a0d50cc04` | the latch is `OperatorControlBehavior.OperateWeapon:265-283` (behaviors' file); patch proposed in `NOTE_Backend_To_Behaviors_Possessed_Shot_Through_Reload.md` |
 | | **X-3 CE-4346** | ⏭ **NEXT** | — | empty-map Scenario form: why scenario time is greyed (make editable in Edit) · global weather cloud + wind LAYERS as attributes · what `ClockOffset` means (propose a name in the row) · NOTE to ui when the attributes land |
 | | X-4 CE-2153 | ⏭ | — | the harness can path (solver + flat navmesh in `SimHostInstance`, or a Direct move) ⇒ `EntityMission_MovesEntity` green |
@@ -148,7 +148,7 @@ file, ⚠ not base-checked).
 |---|---|
 | **built** | N-0 kit · N-1 one type catalogue · N-2 list forms + table keys · N-3/N-4 typed cells, defaults, read-only · N-5 one entity chip · N-6 the Define table (`FieldTable`) · N-7 presets: data + HTTP, load-dialog combo, split ▶, preset editor (CE-3374/75/88–94) · N-8 one value form + one table chrome + macro-arg undo · N-9 lists onto the kit + condition picks · N-10 entity forms + inspector (undo in Edit mode) · N-11 form rows / error lines |
 | **fixed on the way** | CE-3398 (HSM event picker) · `header.Features` dropped on save · three hosts built a drawer per frame (2016 B) · action list serialised Args per frame · the adapter-wide undo bracket (param rename recorded extra steps) · `HatArbiter` no `[TickMode]` (every headless editor boot threw) · `VariantForms` unregistered on the live world · `/scenario/save` 501 on a world-less host · the Start wallpaper crashed the Fdp.Presentation test host (782 tests now run) |
-| **waits on the user** | the yellow-pen vs AQ108 D1 QUESTION — [`NOTE_Backend_To_Coordinator_Edit_Pen_Vs_Armed_Indicator.md`](batches/NOTE_Backend_To_Coordinator_Edit_Pen_Vs_Armed_Indicator.md) (lean: the pen) |
+| **waits on the user** | the yellow-pen vs AQ108 D1 QUESTION — `NOTE_Backend_To_Coordinator_Edit_Pen_Vs_Armed_Indicator.md` (lean: the pen) |
 | **follow-ups (not filed as rows yet)** | `[MapPickableEntity]` narrows only the map pick (index the TKB type in `LiveRefScope`) · `DeferredEventIds` list elements draw the sync-group combo (CE-3398 tail) · blackboards / Blueprint variables still on `VariablesPanelControl` (step ③) · `ParametersDrawer` passes no pick context · the inspector and the Orders tab have no frame harness (0 B unmeasured) · `ConditionEditor` 64 B/frame for the fact "strength" |
 
 
@@ -175,7 +175,7 @@ file, ⚠ not base-checked).
 
 ## ⭐⭐⭐ LIFECYCLE FIXES (`2026-11-07`) — user: *"The handoff: HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md. Merge coordinator first, then follow the handoff."*
 
-📄 [handoff](batches/HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md) (frozen at `f523103e`) · [status rows](batches/STATUS_Editing_UX_Build_Backend.md) (§Lifecycle fixes) · [design](../UX/DESIGN_Scenario_Lifecycle_Review.md) §2.7 + the LC-2 note
+📄 handoff (frozen at `f523103e`) · [status rows](batches/STATUS_Editing_UX_Build_Backend.md) (§Lifecycle fixes) · [design](../UX/DESIGN_Scenario_Lifecycle_Review.md) §2.7 + the LC-2 note
 
 | item | sha | what |
 |---|---|---|
@@ -183,7 +183,7 @@ file, ⚠ not base-checked).
 | L-9 CE-4323 | `37076d028` | Replay Browser `File ▸ Open Exercise Recording…` = the editor's `RecordingPickerLauncher` over its disk inventory, its one opener |
 | L-6 CE-4318 | `683149039` | `ScenarioProblems.Collect` (5 kinds); the WINDOW + toolbar count are ui's (unclaimed) |
 | L-4 CE-4312 | `b728fb8ac` | `EntityNames.Next` — placed units numbered by type, unique in the scenario |
-| L-7 CE-4316 | `2462e37c9` | ⏭ SKIPPED — [QUESTION](batches/NOTE_Backend_To_Coordinator_Run_To_Question.md): how fast *Run to* goes is a clock decision on every node; lean A (ACK-gated stepped run + frame cap lifted) |
+| L-7 CE-4316 | `2462e37c9` | ⏭ SKIPPED — QUESTION: how fast *Run to* goes is a clock decision on every node; lean A (ACK-gated stepped run + frame cap lifted) |
 
 ⏭ **Next:** the user's answer on L-7 → build it (+ a cluster rail, row 8). L-3 / L-5 are unclaimed but are behaviors' (rules / run modes) — left for that lane.
 ⚠ **Not merged:** `origin/behaviors` conflicts with `ui` in `TheRulesBundleTests.cs` (theirs, not mine) — only ui + coordinator merged.
@@ -191,7 +191,7 @@ file, ⚠ not base-checked).
 
 ## ⭐⭐⭐ MISSION PLAN (`2026-11-07`, later) — user: *"Merge coordinator and follow HANDOFF_Coordinator_To_Lanes_Mission_Plan.md"*
 
-📄 [handoff](batches/HANDOFF_Coordinator_To_Lanes_Mission_Plan.md) (frozen at `9f2cd761`) · [status rows P-1…P-6](batches/STATUS_Editing_UX_Build_Backend.md) · design [§5.10 as-built](../UX/DESIGN_Mission_Plan_Editor.md) · [readable JSON §4](../DESIGN_Readable_Scenario_Json.md)
+📄 handoff (frozen at `9f2cd761`) · [status rows P-1…P-6](batches/STATUS_Editing_UX_Build_Backend.md) · design [§5.10 as-built](../UX/DESIGN_Mission_Plan_Editor.md) · [readable JSON §4](../DESIGN_Readable_Scenario_Json.md)
 
 | item | sha | what |
 |---|---|---|
@@ -208,7 +208,7 @@ file, ⚠ not base-checked).
 
 ## ⭐⭐ EDITING-UX BUILD (`2026-11-07`) — user: *"Merge coordinator. Follow its handoff Editing_UX_Build. Work autonomously overnight, use warm sonnet where suitable."* · then *"Once you finish a task, pls stop and write a resumption document."*
 
-📄 The work: [`batches/HANDOFF_Coordinator_To_Backend_Editing_UX_Build.md`](batches/HANDOFF_Coordinator_To_Backend_Editing_UX_Build.md) (B-1…B-18, scope frozen at `9c50cec00`) ·
+📄 The work: `batches/HANDOFF_Coordinator_To_Backend_Editing_UX_Build.md` (B-1…B-18, scope frozen at `9c50cec00`) ·
 the rules: [`batches/PROTOCOL_Two_Lanes_Self_Coordinating.md`](batches/PROTOCOL_Two_Lanes_Self_Coordinating.md) (after every item: commit + push, update the status file, `git fetch origin ui backend coordinator`, merge `ui`, answer notes; a user decision ⇒ a QUESTION note + skip) ·
 ⭐ the LIVE per-item table: [`batches/STATUS_Editing_UX_Build_Backend.md`](batches/STATUS_Editing_UX_Build_Backend.md) — **read it first; it says what each item gives the ui lane.**
 Branch `backend` at `0603f5300` (+ this doc), clean, pushed; `ui` merged at `91195cb0f`.
@@ -232,7 +232,7 @@ Branch `backend` at `0603f5300` (+ this doc), clean, pushed; `ui` merged at `911
 | B-18 SV-6 ExerciseId/EpisodeId, SV-4 Angle, SV-1 first slice SimInstant/SimDuration (worker) | PART | `2bc68e4be` `beeab0049` `93a0610df` |
 
 ### ⭐ Continued `2026-11-07` (later session) — user: *"update from your branch, read the resumption doc and continue"*
-- merged `ui@e9c5f7524` (its REQUEST [`NOTE_Ui_To_Backend_Carry_Mode_And_Damage.md`](batches/NOTE_Ui_To_Backend_Carry_Mode_And_Damage.md)); ① the carry-mode change ✅ `78d312871` (the same embark re-carries, `Embarkation.Recarry`); ② Damage attributes 85 `Damage.Part` / 86 `Damage.MobilityKill` — worker; then **B-9 N3** (Replace? in the one Save-As, recipe save stops forking) — worker. A fresh Sonnet worker this session (the earlier id is gone).
+- merged `ui@e9c5f7524` (its REQUEST `NOTE_Ui_To_Backend_Carry_Mode_And_Damage.md`); ① the carry-mode change ✅ `78d312871` (the same embark re-carries, `Embarkation.Recarry`); ② Damage attributes 85 `Damage.Part` / 86 `Damage.MobilityKill` — worker; then **B-9 N3** (Replace? in the one Save-As, recipe save stops forking) — worker. A fresh Sonnet worker this session (the earlier id is gone).
 
 - ✅ since: ui ② Damage attributes 85/86 (`7932cb5d4`, `d6a1dbda1`) · B-9 N3 (`834b4be2a`, `306fd31d1`) · B-9 N4 (`0832bb0c6`, `5be727225`) · B-9 pane + N6 terrain stills (`e89cfa62b`, `ad14b407b`) — **B-9 DONE** · B-12 Messages history (`9fbcb9f40`) · **B-18 SV-1 DONE** (`569867345` S-a inventory · `c435f7cbb` S-b 163 instants · `61a10cf59` S-c 110 durations · `a6738c634` S-d DTOs left primitive · `0f98c2a64` review fix: EvadeGrenadeState order) · note to behaviors on the 4 blueprint float instants. Coordinator moved B-10/11/14/16/17 to ui. ⏳ only blocked items left: B-12 Reload/Overwrite (MissionPanel's private conflict state), SV-5 `StationId` (SR-76a `PhysicalStation` not built). Pre-existing reds at HEAD: `CE1150_TheBundle…` (AiShared), `TriggerAdvertisesItsAuthoredKeys`, `NoNewInlineNetworkIdLookupAppears`, `TheRunSetupDrawsTests` ×2 (Editor). Worker: Sonnet, fresh this session, idle.
 
@@ -245,8 +245,8 @@ Branch `backend` at `0603f5300` (+ this doc), clean, pushed; `ui` merged at `911
 5. **B-18** SV-1's remainder (~270 double instants / durations, CE-4201), SV-5 (waits on SR-76a).
 
 ### Open questions / notes sent
-- ⚠ QUESTION [`NOTE_Backend_To_Coordinator_Knows_About_Read.md`](batches/NOTE_Backend_To_Coordinator_Knows_About_Read.md) — where a non-brain station reads *Knows about* (lean: on demand from the brain's node). Unanswered.
-- FYI [`NOTE_Backend_To_Ui_Two_Presentation_Reds.md`](batches/NOTE_Backend_To_Ui_Two_Presentation_Reds.md) — `LabelFirstFormsFrameRail` + `EditorFontCoverage CE1063` reds are ui's (green at batch start `6754d2ecc`).
+- ⚠ QUESTION `NOTE_Backend_To_Coordinator_Knows_About_Read.md` — where a non-brain station reads *Knows about* (lean: on demand from the brain's node). Unanswered.
+- FYI `NOTE_Backend_To_Ui_Two_Presentation_Reds.md` — `LabelFirstFormsFrameRail` + `EditorFontCoverage CE1063` reds are ui's (green at batch start `6754d2ecc`).
 - Pre-existing reds (red at `6754d2ecc`): `NoNewInlineNetworkIdLookupAppears` (EventDetailsView), `TriggerAdvertisesItsAuthoredKeys`, `CE1150_TheBundle…`, CE2171 FollowRoute split cluster (CE-3369). ⚠ `Hrot.SystemTests` `The_registered_window_set_is_unchanged` is STALE in all 3 modes at base (its golden lists 10 windows vs 17 actual) — only `rb_timeline`→`rb_recording_info` was renamed in it; re-capture it deliberately. Also seen, not compared to a base: `EntityTypeCatalogTests.CE2138_EveryBuiltInType_KeepsIts3dFamily…`, and the Presentation AddEntity classes are not yet re-run after S4's `Point` type (they did not compile at the time).
 
 ### The worker (Sonnet, `a6d1b9ce3d2323faa`) and the traps
@@ -321,9 +321,9 @@ The standing Sonnet worker of this session: agent `a56894bb34feba069` (S6 G-1…
 
 ## 0000000000000. NOW (`2026-10-26`) — the Replay Browser over the AI debug HTTP API (CE-3327) BUILT *(🔒 user: "Look for coordinator handoff regarding the http debug api and implement it")*
 
-- ⭐ [HANDOFF_Coordinator_To_Backend_Replay_Browser_Http](batches/HANDOFF_Coordinator_To_Backend_Replay_Browser_Http.md) steps 1–4 built: `aa3325af2`, `e945c7427`, `ceb3ef8e5`, `f3401aee1`; as-built + the live check in [DESIGN_Replay_Browser_Debug_Http](../DESIGN_Replay_Browser_Debug_Http.md) §7.
+- ⭐ HANDOFF_Coordinator_To_Backend_Replay_Browser_Http steps 1–4 built: `aa3325af2`, `e945c7427`, `ceb3ef8e5`, `f3401aee1`; as-built + the live check in [DESIGN_Replay_Browser_Debug_Http](../DESIGN_Replay_Browser_Debug_Http.md) §7.
 - ⭐ The live check found five runner / host defects (all fixed, §7.4) — notably every headless non-editor node's debug API never drained its main-thread jobs.
-- ⏭ NEXT: [NOTE_Coordinator_To_Backend_Replay_Step0_Findings](batches/NOTE_Coordinator_To_Backend_Replay_Step0_Findings.md) — CE-4053 (the replay time axis) goes to the user with a claim table and lean (keep wall time; add a sim-time seek form; skip unchanged paused frames), then CE-4051 (`/sim/step` in a replay), CE-4054 (`/exercises` empty while recording), CE-4052.
+- ⏭ NEXT: NOTE_Coordinator_To_Backend_Replay_Step0_Findings — CE-4053 (the replay time axis) goes to the user with a claim table and lean (keep wall time; add a sim-time seek form; skip unchanged paused frames), then CE-4051 (`/sim/step` in a replay), CE-4054 (`/exercises` empty while recording), CE-4052.
 - ⏳ Still open from the determinism work: ua-tank-ammo (now CE-4055, behaviors'), the moved goldens' story diff, ua-casualty-care-heavy's golden, CE-2349.
 
 ## 000000000000. ⛔ DONE — history (`2026-10-22`) — the CHECKPOINT programme: R-3039 S1–S4 built; ⭐ B3, B4, D1, D7, D17 and B5 were ALL built later the same day (the design's STATUS block and §1h–§1m are the as-built) — the "B3 next" below is stale *(🔒 user: "Yes" to starting B3)*
@@ -343,7 +343,7 @@ owned by [**DESIGN_System_State_Inventory.md**](https://github.com/pjanec/HROT/b
 |---|---|---|
 | **B2** — the dry run in ONE handler (D14) | earlier, see the design | Checkpoint design §8 |
 | **R-3039 S4** — every field a system / module / translator carries between frames is classified (K/A/B/C/S/X); rail `EverySystemStateFieldIsClassifiedTests` (C/X may only shrink — ratchet `PendingMoves` = 7, all SUMO X rows) | `d9e91cbe1` | Inventory §1–§5 |
-| **R-3039 S1** — per-entity memory moved onto the entity: squad sense (`SquadMemberSense` 445 / `SquadUnitSense` 446), danger-area edges, the five dispatchers' `DispatchedAction`, `PersonalRouteRef.FollowPending`, animation registration (`ClassOf`), `TrafficShadowFollow` 447 — each with a *restore into a fresh system* rail | `c57376c39` | Inventory §6; [lanes note](https://github.com/pjanec/HROT/blob/backend/docs/blueprints/batches/NOTE_Backend_To_Lanes_R3039_System_Memory_Frames.md) |
+| **R-3039 S1** — per-entity memory moved onto the entity: squad sense (`SquadMemberSense` 445 / `SquadUnitSense` 446), danger-area edges, the five dispatchers' `DispatchedAction`, `PersonalRouteRef.FollowPending`, animation registration (`ClassOf`), `TrafficShadowFollow` 447 — each with a *restore into a fresh system* rail | `c57376c39` | Inventory §6; lanes note |
 | **R-3039 S3** — ONE restore signal: `AfterRestore.Run` → `WorldEpoch.Restored()`; every class-B cache clears on `WorldEpoch.Moved` (8 animation egress translators, mission/route/overlay translators, entity-request systems, `TrafficPanicSystem`); `LifecycleSystem` re-arms the ELM on a RESTORE (not a load); new class **S** (session state a restore leaves); rail `EveryProtocolField_IsReDerivedAtAWorldReplacement` | `f368a55cf` | Inventory §8; lanes note addendum |
 | **R-3039 S2 routes** — `RouteTrajectorySyncSystem` re-compiles every restored route under its cached id (`TrajectoryPoolManager.RegisterTrajectoryAt` / `EnsureIdsAbove`) | `f368a55cf` | Inventory §7b |
 | **R-3039 S2 solved paths** — `PathTrace` carries `Exact` + `Interpolation` (in the padding); new `TrajectoryRestoreSystem` (first Simulation system of `GroundKinematicsModule`) re-registers each mover's path from its exact trace under its handle, re-plans a thinned one, lifts `NavigationHandleAllocator.EnsureAbove`. 📐 measured: max path 12 points over 4 scenarios, so nearly every path is exact | `086be0890` (measure), `31f690dac` (build) | Inventory §7c / §7c-bis |
@@ -382,11 +382,11 @@ owned by [**DESIGN_System_State_Inventory.md**](https://github.com/pjanec/HROT/b
 |---|---|
 | **`CE-2185`** aircraft armour faces — UH-60 8/6/4/4, A-10 25/25/10/10, AH-64 20/15/8/8 (R-3028) | [Air Ops §7c-i](../designs/air-attack/DESIGN_Air_Operations.md) |
 | **`CE-3222`** the civilian ceiling ≤ 100 ms per node at 300 (R-3029): `perf-civilians.py --gate` **PASS** (CGF 51.2 · SimHost 40.3 · IG 12.8) — closed | [Civilians §7.4a](../DESIGN_Civilians_And_Crowd_Control.md) |
-| **`CE-2326`** backend half (R-3030): `TargetMemory.SeenStance`, `BodyStance` on the fire request, the muscle's `AimPoint.ForBodyAt`; backend's own AQ89 A blind round uses it. ⏭ behaviors switches `PeekAndFireNodes` | [Peek and Fire §11.6a/b](../DESIGN_Peek_And_Fire.md); [note](batches/NOTE_Backend_To_Behaviors_Blind_Burst_Body.md) |
-| **`CE-3177`** approved (R-3031) — behaviors' posture tree | [AQ89](Architect_Question_89_Suppress_And_Close.md); [note](batches/NOTE_Backend_To_Behaviors_Approvals_2026_10_21.md) |
+| **`CE-2326`** backend half (R-3030): `TargetMemory.SeenStance`, `BodyStance` on the fire request, the muscle's `AimPoint.ForBodyAt`; backend's own AQ89 A blind round uses it. ⏭ behaviors switches `PeekAndFireNodes` | [Peek and Fire §11.6a/b](../DESIGN_Peek_And_Fire.md); note |
+| **`CE-3177`** approved (R-3031) — behaviors' posture tree | [AQ89](Architect_Question_89_Suppress_And_Close.md); note |
 
 | **`CE-3289`** FILMING the 3-D map — a director camera + a scene-only capture (R-3032); ⭐ `--mode editor` preferred (frame-exact stepped cuts, ~0.8 s/frame) | [**RUNBOOK_Filming.md**](../RUNBOOK_Filming.md); design [Map 3D Mode §6ab](../DESIGN_Map_3D_Mode.md) |
-| behaviors' clearing notes: A/C reviewed + kept; **`CE-2335`** measured — one writer, no split, the re-send lean withdrawn | [note](batches/NOTE_Backend_To_Behaviors_Clearing_Notes_Taken.md); [Building Interiors §3j](../DESIGN_Building_Interiors.md) |
+| behaviors' clearing notes: A/C reviewed + kept; **`CE-2335`** measured — one writer, no split, the re-send lean withdrawn | note; [Building Interiors §3j](../DESIGN_Building_Interiors.md) |
 
 ⏭ **Next:** the audit's PARTLY rows (§0000000000's table, item 2). ⏳ Waiting on the user: watching the editor film (CE-3289 stays open until then).
 
@@ -440,14 +440,14 @@ owned by [**DESIGN_System_State_Inventory.md**](https://github.com/pjanec/HROT/b
 | **S2 / `CE-3279`** — the EQS timeouts, measured live then fixed (user: *"Yes a b and c"*): (a) the Bepu terrain index attached in `TerrainResidency` and asked by the point queries; (b) one navmesh search per sensor (`INavmeshProvider.PathCosts`); (c) path and exposure COUNT their work (`IEqsCountedWork`). A solve 1.8–2.4 s → ~320 ms | `6cab61d7b` `11e6ce9b5` `e0cf95cf1` | [Sensors §5.3 + O5](../DESIGN_Sensors_And_Doctrine.md), [World Query Seam §5a](../DESIGN_World_Query_Seam.md) |
 | the EQS breaker **400 ms → 2 s** (`EqsModule.MaxRunMs`, user: *"make it 2 s"*): a timed-out run is not stopped (a zombie blocks the next, CE-3066), so the cap only threw away late answers and opened the circuit | this commit | Sensors O5 |
 | **`CE-3286`** recorded (user report): a tank / technical peeking round a building corner drives into it and stays — NOT measured | `5f5081f78` | the tracker row |
-| notes to behaviors: [signatures built](batches/NOTE_Backend_To_Behaviors_Sound_Signatures_Built.md) (their readers — E1 — are theirs now) · [EQS timeouts fixed](batches/NOTE_Backend_To_Behaviors_Eqs_Timeouts_Fixed.md) (path costs can shift slightly; their golden red) | | |
+| notes to behaviors: signatures built (their readers — E1 — are theirs now) · EQS timeouts fixed (path costs can shift slightly; their golden red) | | |
 
 ### ⏭ The queue, in order
 
 | # | item | how to start | ⚠ watch |
 |---|---|---|---|
 | **1** | **merge `behaviors`** | `git fetch origin behaviors && git merge origin/behaviors` | — |
-| **2** | ⭐ **the scenario DESCRIPTION** — behaviors' FRAME [`HANDOFF_Behaviors_To_Backend_Scenario_Description.md`](batches/HANDOFF_Behaviors_To_Backend_Scenario_Description.md) (on `behaviors` until merged): every scenario header carries `description` ("What: … · Judge: …") that survives editor load → save → cluster merge. Backend designs the details first (UML into [Distributed Scenario Persistence §4](../DESIGN_Distributed_Scenario_Persistence.md)), then builds | the traps the handoff measured: both save sites build a FRESH header (`HrotScenarioSaveHandler.cs:98`, `ScenarioFileService.cs:104`) and the merge rebuilds it (`ScenarioMergeCore.cs:160-162`); the terrain name survives only because the loader stamps it resident (`TerrainResidency.cs:300`) — the description needs the same, NOT tied to the terrain (a scenario may have none); leans D1–D6 in the handoff; the 88 texts are behaviors' (D5) |
+| **2** | ⭐ **the scenario DESCRIPTION** — behaviors' FRAME `HANDOFF_Behaviors_To_Backend_Scenario_Description.md` (on `behaviors` until merged): every scenario header carries `description` ("What: … · Judge: …") that survives editor load → save → cluster merge. Backend designs the details first (UML into [Distributed Scenario Persistence §4](../DESIGN_Distributed_Scenario_Persistence.md)), then builds | the traps the handoff measured: both save sites build a FRESH header (`HrotScenarioSaveHandler.cs:98`, `ScenarioFileService.cs:104`) and the merge rebuilds it (`ScenarioMergeCore.cs:160-162`); the terrain name survives only because the loader stamps it resident (`TerrainResidency.cs:300`) — the description needs the same, NOT tied to the terrain (a scenario may have none); leans D1–D6 in the handoff; the 88 texts are behaviors' (D5) |
 | **3** | **`CE-3286`** — vehicles stuck in a building corner (shoot-and-scoot) | measure first, on behaviors' shoot-and-scoot scenarios (`ua-technical-scoot`, `ua-tank-corner` family — find them under `scenarios/`): is it the route (navmesh clearance for a hull) or the chosen hide / firing point (`FindVehicleHide` / `FindVehicleFiringPoint` too near a wall)? Lead: `CE-2198` ([Motion Domains §5b](../designs/motion-models/DESIGN_Motion_Domains.md)) stops the step into a wall and nothing backs off | 🔒 user's order: ① never drive into the building (preferred) ② reverse a little and re-plan (V5 reverse exists, [Exposure Cycle §5](../designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md)) |
 
 ### ⏳ Waiting on the user
@@ -492,12 +492,12 @@ MUSCLE; the brain only asks; the muscle fires or REFUSES; the brain's ammo follo
 | A-1 the carrier — `RequestId` on intent / request, `RequestId` + `Refusal` + `Fired` on the notification, both DDS topics appended | `2c8c18370` | size rails 70 / 81 B |
 | A-2 the muscle answers every request (`CannotFire`), echoes the id | `0d83a5ff3` | |
 | A-3/A-4 `Combat/ShotLedger.cs` — ask reserves, the fired answer spends, a refusal holds 1 s with its reason, 2 s timeout; the muscle refuses a MASKED direct round (unit or point); the brain's two `MuzzleMasked` calls gone | `05a12d58f` | tracker [`CE-3269`](Blueprint_Issues_Tracker.md) (Q94 A); design [Q94 §4.1](Architect_Question_94_Brain_Geometry_Sites.md) + [BS-1 §5.4c](../designs/brain-split/BS-1-DESIGN.md) note |
-| behaviors told the one timing change (`Masked` arrives a frame or two after the ask) | `cacf88953` | [note](batches/NOTE_Backend_To_Behaviors_Fire_Refusal.md) |
+| behaviors told the one timing change (`Masked` arrives a frame or two after the ask) | `cacf88953` | note |
 | earlier today: S2 weather in perception (R-3017, `CE-3216`), FireTeam byte (R-3019), `CE-3220` part 2, sectors / Hold-stay rulings recorded (R-3020 = R-2054, R-3021 = R-2055) | — | |
 
 ### ⏭ The queue, in order
 
-⭐ **REORDERED `2026-10-19` (R-3022):** 🔒 user *"yes, postpone them and start CE-2304 and the points C,B,D, leaving A-5…A-7 deferred until destruction is designed or until suitable opportunity comes"*. ⇒ the order is now **CE-2304** (behaviors' [interior move stall note](batches/NOTE_Behaviors_To_Backend_Interior_Move_Stall.md)) → **C** → **D** → **B** (design first). Rows 1–4 below (A-5…A-7) are ⏸ DEFERRED — kept for when they resume ([Q94 §4.1](Architect_Question_94_Brain_Geometry_Sites.md) names the trigger).
+⭐ **REORDERED `2026-10-19` (R-3022):** 🔒 user *"yes, postpone them and start CE-2304 and the points C,B,D, leaving A-5…A-7 deferred until destruction is designed or until suitable opportunity comes"*. ⇒ the order is now **CE-2304** (behaviors' interior move stall note) → **C** → **D** → **B** (design first). Rows 1–4 below (A-5…A-7) are ⏸ DEFERRED — kept for when they resume ([Q94 §4.1](Architect_Question_94_Brain_Geometry_Sites.md) names the trigger).
 
 | # | item | how to start | ⚠ watch |
 |---|---|---|---|
@@ -525,12 +525,12 @@ MUSCLE; the brain only asks; the muscle fires or REFUSES; the brain's ammo follo
 
 ## 0000000. NOW (`2026-10-18`) — the platoon programme *(🔒 user: "Merge behaviours branch, find the new handoff for you and start working on it autonomously overnight")*
 
-⭐ **The queue is behaviors' [`NOTE_Behaviors_To_Backend_Platoon_Programme.md`](batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md) §1**
+⭐ **The queue is behaviors' `NOTE_Behaviors_To_Backend_Platoon_Programme.md` §1**
 (order: BR-12 → BR-3 → BR-13 → LD-1/LD-2 → BR-8 → BR-6/BR-7 → BR-9 → BR-2 / BR-4 / BR-5 → CE-2287). Built today:
 [`CE-3251`](Blueprint_Issues_Tracker.md) BR-13 (ROE to the brain's node + the replica's ROE follows — Entity Control §2.3a) ·
 [`CE-3249`](Blueprint_Issues_Tracker.md) BR-12 WorldSurvey ([design + as-built](../DESIGN_World_Survey_Sensor.md)) ·
 [`CE-3250`](Blueprint_Issues_Tracker.md) BR-3 SquadReport (Building Clearing §5d "BR-3 as built"). Answer to behaviors:
-[`NOTE_Backend_To_Behaviors_Platoon_Programme_Built.md`](batches/NOTE_Backend_To_Behaviors_Platoon_Programme_Built.md).
+`NOTE_Backend_To_Behaviors_Platoon_Programme_Built.md`.
 ⭐ **Built `2026-10-19`: [`CE-3252`](Blueprint_Issues_Tracker.md) LD-1/LD-2** — as-built
 [Look Direction §3.2b](../designs/look-direction/DESIGN_Look_Direction_And_FOV.md) (G1–G6 closed + G7 found: the look-at egress sent a raw
 entity index). ⭐ **At the behaviors merges:** BR-3 rebased onto their `CommandReport` (`SquadReportNotification`, one vocabulary); the
@@ -547,10 +547,10 @@ never drifted under a scenario wind — fixed). ⭐ **BR-6 [`CE-3259`](Blueprint
 `CombatProficiency` replicated, `dtCombatProficiency` 150) and **BR-7 [`CE-3260`](Blueprint_Issues_Tracker.md)** (acquisition time by
 exposure — [Sensors §5.7](../DESIGN_Sensors_And_Doctrine.md)) built once behaviors' `CE-2273` landed. ⚠ Component ids collided three times with
 behaviors (CONVERGED after a ping-pong: Lean **416**, EngagementArea 417 — both lanes) — [NOTE](batches/NOTE_Backend_To_All_Lanes_Component_Id_Space.md) proposes per-lane component-id
-blocks (the mask is 512 bits; ~85 ids left), ⏳ the user decides. ⭐ **The platoon queue is DONE** except Q94's A–D/F. ⭐ Since: [`CE-3261`](Blueprint_Issues_Tracker.md) (Sectors ①② — kind 4 `SetEngagementArea` forwarding + `EngagementArea` replicated, dt 151) · [`CE-3262`](Blueprint_Issues_Tracker.md) (near-miss carries the shooter's origin) · [`CE-3263`](Blueprint_Issues_Tracker.md) (formation slots updated in place; succession re-publishes) · ⭐ ui's people display G1–G3: [`CE-3264`](Blueprint_Issues_Tracker.md) `Utterance` (434, dt 152) · [`CE-3265`](Blueprint_Issues_Tracker.md) `Demeanour` (435, dt 153) · [`CE-3266`](Blueprint_Issues_Tracker.md) `StrikeNotification` + `MeleeStrike` (dt 154) — [Civilians §7.18](../DESIGN_Civilians_And_Crowd_Control.md); ⭐ [`CE-3246`](Blueprint_Issues_Tracker.md) — a hit reaches the `Health` owner from ANY node (the `EntityHitDamage` pair in the shared pack, `SourceNodeId` appended — [BS-1 §6.4a](../designs/brain-split/BS-1-DESIGN.md)). ⭐ [`CE-3248`](Blueprint_Issues_Tracker.md) — a hand throw is no gunshot (`PersonHands.Threw`, five readers). ⭐ [`CE-3267`](Blueprint_Issues_Tracker.md) — a module snapshot carries the frame's clock (BR-7's dwell never passed beyond 100 m on SimHost; found live by behaviors). ⭐ [`CE-3268`](Blueprint_Issues_Tracker.md) — `EngagementArea` registered on every node (SimHost crashed on the first sector order). ✅ Verified LIVE: behaviors' `ld-sentry-surprise` with A at 113 m passes every step. ⭐ [`CE-3247`](Blueprint_Issues_Tracker.md) — thrown blades (hatchet / spear / star, 6044–6046; shapes Axe/Spear/Star — ui told they draw nothing yet). ⭐ [`CE-2244`](Blueprint_Issues_Tracker.md) — no sight while this node's terrain is still loading (`TerrainWorldSource.MarkPending` from the load step's `BeforePrepare` to commit/abort; the LOS strategy judges nothing visible — [Cluster Load Phase](../DESIGN_Cluster_Load_Phase.md)). ⭐ [`CE-3220`](Blueprint_Issues_Tracker.md) part 2 — 1001/1003 retired, 5 shipped scenarios migrated (neutral civilians ⇒ 1101 + `Idle`; unarmed hostiles/decoy ⇒ new 2008 UnarmedFighter, since AW-21 makes a civilian of any side no target) (behaviors told: [note](batches/NOTE_Backend_To_Behaviors_Civilian_Types_Retired.md); [Civilians §7.2b](../DESIGN_Civilians_And_Crowd_Control.md)). ⭐ [`CE-3216`](Blueprint_Issues_Tracker.md) S2 (weather + night in perception) BUILT (R-3017, [Weather §8.5](../designs/weather/DESIGN_Weather_And_Time.md)). ⭐ R-3019 the FireTeam byte BUILT. ⭐ R-3018 Q94 A-1…A-4 BUILT as [`CE-3269`](Blueprint_Issues_Tracker.md) (the muscle refuses a masked / unfireable round; the brain's `ShotLedger` spends only what the muscle says flew — [Q94 §4.1](Architect_Question_94_Brain_Geometry_Sites.md)); ⏳ A-5 indirect, A-6 bomb, A-7 battery plan next. ⏳ R-3018 (Q94 C–D): C needs a carrier (the channel params and the intent flags are full), D needs the level to reach the muscle; B not started. ⏳ Open backend rows: CE-3222 (other session's), Q94 A–D/F and Sectors ④ wait on the user; LD-4 waits on behaviors' LD-3 rest + LD-5. ⏳ Sectors ④ (the fire-team byte) waits on the user. ⚠ The other armed-people
+blocks (the mask is 512 bits; ~85 ids left), ⏳ the user decides. ⭐ **The platoon queue is DONE** except Q94's A–D/F. ⭐ Since: [`CE-3261`](Blueprint_Issues_Tracker.md) (Sectors ①② — kind 4 `SetEngagementArea` forwarding + `EngagementArea` replicated, dt 151) · [`CE-3262`](Blueprint_Issues_Tracker.md) (near-miss carries the shooter's origin) · [`CE-3263`](Blueprint_Issues_Tracker.md) (formation slots updated in place; succession re-publishes) · ⭐ ui's people display G1–G3: [`CE-3264`](Blueprint_Issues_Tracker.md) `Utterance` (434, dt 152) · [`CE-3265`](Blueprint_Issues_Tracker.md) `Demeanour` (435, dt 153) · [`CE-3266`](Blueprint_Issues_Tracker.md) `StrikeNotification` + `MeleeStrike` (dt 154) — [Civilians §7.18](../DESIGN_Civilians_And_Crowd_Control.md); ⭐ [`CE-3246`](Blueprint_Issues_Tracker.md) — a hit reaches the `Health` owner from ANY node (the `EntityHitDamage` pair in the shared pack, `SourceNodeId` appended — [BS-1 §6.4a](../designs/brain-split/BS-1-DESIGN.md)). ⭐ [`CE-3248`](Blueprint_Issues_Tracker.md) — a hand throw is no gunshot (`PersonHands.Threw`, five readers). ⭐ [`CE-3267`](Blueprint_Issues_Tracker.md) — a module snapshot carries the frame's clock (BR-7's dwell never passed beyond 100 m on SimHost; found live by behaviors). ⭐ [`CE-3268`](Blueprint_Issues_Tracker.md) — `EngagementArea` registered on every node (SimHost crashed on the first sector order). ✅ Verified LIVE: behaviors' `ld-sentry-surprise` with A at 113 m passes every step. ⭐ [`CE-3247`](Blueprint_Issues_Tracker.md) — thrown blades (hatchet / spear / star, 6044–6046; shapes Axe/Spear/Star — ui told they draw nothing yet). ⭐ [`CE-2244`](Blueprint_Issues_Tracker.md) — no sight while this node's terrain is still loading (`TerrainWorldSource.MarkPending` from the load step's `BeforePrepare` to commit/abort; the LOS strategy judges nothing visible — [Cluster Load Phase](../DESIGN_Cluster_Load_Phase.md)). ⭐ [`CE-3220`](Blueprint_Issues_Tracker.md) part 2 — 1001/1003 retired, 5 shipped scenarios migrated (neutral civilians ⇒ 1101 + `Idle`; unarmed hostiles/decoy ⇒ new 2008 UnarmedFighter, since AW-21 makes a civilian of any side no target) (behaviors told: note; [Civilians §7.2b](../DESIGN_Civilians_And_Crowd_Control.md)). ⭐ [`CE-3216`](Blueprint_Issues_Tracker.md) S2 (weather + night in perception) BUILT (R-3017, [Weather §8.5](../designs/weather/DESIGN_Weather_And_Time.md)). ⭐ R-3019 the FireTeam byte BUILT. ⭐ R-3018 Q94 A-1…A-4 BUILT as [`CE-3269`](Blueprint_Issues_Tracker.md) (the muscle refuses a masked / unfireable round; the brain's `ShotLedger` spends only what the muscle says flew — [Q94 §4.1](Architect_Question_94_Brain_Geometry_Sites.md)); ⏳ A-5 indirect, A-6 bomb, A-7 battery plan next. ⏳ R-3018 (Q94 C–D): C needs a carrier (the channel params and the intent flags are full), D needs the level to reach the muscle; B not started. ⏳ Open backend rows: CE-3222 (other session's), Q94 A–D/F and Sectors ④ wait on the user; LD-4 waits on behaviors' LD-3 rest + LD-5. ⏳ Sectors ④ (the fire-team byte) waits on the user. ⚠ The other armed-people
 backend session finished CE-3229…CE-3248 on 2026-10-17/18; its open rows were CE-3246, CE-3247, CE-3248, CE-2244 — all FIXED 2026-10-19; CE-3222 remains.
 
-## 000000. NOW (`2026-10-17`, later) — the queue is [`batches/HANDOFF_Backend_Continuation_2026_10_17.md`](batches/HANDOFF_Backend_Continuation_2026_10_17.md) *(🔒 user: "write a handoff for your future self to continue in what you are doing as well as the new armed civilian stuff")*
+## 000000. NOW (`2026-10-17`, later) — the queue is `batches/HANDOFF_Backend_Continuation_2026_10_17.md` *(🔒 user: "write a handoff for your future self to continue in what you are doing as well as the new armed civilian stuff")*
 
 ⭐ **Next:** behaviors' ARMED PEOPLE (Civilians §5h, R-2025…R-2029) — B-7 `Armament` first (status for combatants, then per-observer
 identification; the counter rail), then B-8, B-13, B-10, B-9, B-11, B-12, B-14, B-15, B-16 — filed as **CE-3229…CE-3238**. Then CE-3227,
@@ -564,14 +564,14 @@ FDP bus (`EntityCreationRequest` moved to `Fdp.Toolkit.NetworkSpawning.Events`; 
 [Entity Creation §3.4d](../DESIGN_Entity_Creation_Unification.md) (as-built at its end) · [`CE-3219`](Blueprint_Issues_Tracker.md) part 3 —
 the gas / smoke cloud (component **401**, `dtAreaEffectCloud` 144, TKB 7202), asked for with that request, owned by the default processor —
 design [Civilians §7.3b/§7.3c](../DESIGN_Civilians_And_Crowd_Control.md). Sent: behaviors the
-[gas reactions frame](batches/HANDOFF_Backend_To_Behaviors_Gas_Reactions.md), ui the [cloud note](batches/NOTE_Backend_To_Ui_AreaEffectCloud.md).
+gas reactions frame, ui the cloud note.
 **Next:** [`CE-3227`](Blueprint_Issues_Tracker.md) (gas as a danger area) · [`CE-3222`](Blueprint_Issues_Tracker.md) B-4 the civilian
 perf gate (unblocked: behaviors' `CivilianHsm` landed) · `CE-3220` part 2 · the live `ua-civ-neutral-gate` re-check (CE-2242 + CE-3225) ·
 CE-3216 S2 (from §0000).
 
 ## 0000. NOW (`2026-10-16`) — a new backend session holds the lane *(🔒 user: "pls write handoff to another session (also backend) so i can continue there")*
 
-⭐ **The queue is [`batches/HANDOFF_Backend_Continuation_2026_10_16.md`](batches/HANDOFF_Backend_Continuation_2026_10_16.md)** — ① CE-3216
+⭐ **The queue is `batches/HANDOFF_Backend_Continuation_2026_10_16.md`** — ① CE-3216
 S1-0 (the weather programme's first slice: a positionless World Environment entity with the scenario clock, two-node rail FIRST),
 ② CE-3216 S1, ③ CE-3217 for ui. Built `2026-10-16`: CE-2210 (the ejected pilot flies) · CE-2217 (a vehicle part's face is the armour arc) ·
 CE-2218 (the muzzle-line hold, `Masked`) · CE-2209 (routes without a transform) · CE-2222 (missile turn rate as data; the Javelin
@@ -579,7 +579,7 @@ top-attacks from 150 m). Designed: [Weather and Time](../designs/weather/DESIGN_
 ⭐ **Progress (`2026-10-16`, this session):** ① **CE-3216 S1-0 ✅** and ② **S1 ✅** (backend half) — the World Environment (8810) with
 the scenario clock and the global weather, Weather Regions (8811), `WeatherField`, the `Wind` singleton retired; as built in the design §6,
 report [REPORT_Backend_Weather_And_Time_S1](batches/REPORT_Backend_Weather_And_Time_S1.md). ③ the editor half + CE-3217 → ui:
-[HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time](batches/HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time.md). **Next:** S2 (perception:
+HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time. **Next:** S2 (perception:
 vision by visibility and light, thermal crossover, hearing by wind) — not started; a runtime weather edit from a non-owning host.
 ④ **`coordinator@0eb432b0f` merged** (`5252dab54`, the Player-node programme, Q91 / CE-4000…4011) with three merge fixes: CE-4007's
 delete-on-wipe on the clock/weather egress, route docs + MCP tools for `/cluster/roster|transition|cancel`, and the shared-JSON-options
@@ -587,13 +587,13 @@ rail (coordinator's transfer code + backend's `AudioSettings`). ⑤ **TM-023 fix
 
 ## 000. NOW (`2026-10-15`) — a new backend session holds the lane *(🔒 user: the CE-3203 session is ON HOLD until it finishes)*
 
-⭐ **The queue is [`batches/HANDOFF_Backend_Continuation_2026_10_15.md`](batches/HANDOFF_Backend_Continuation_2026_10_15.md)** — ① CE-2180
+⭐ **The queue is `batches/HANDOFF_Backend_Continuation_2026_10_15.md`** — ① CE-2180
 (the bomb lands 20–27 m long: release latency between the brain and the SimHost), ② CE-3203 C4 (is a carried weapon struck?), ③ the CE-3203
 leans waiting on the user. Last built: CE-3203 (one fragment law for people, hulls and weapons; weapons break per type) at `84c27344e`;
 CE-1110 answered (already built in `c313ba0d7`). ⚠ §00 below is the 2026-10-10 programme — history for the current work.
 ⭐ **Progress (continuation session, `2026-10-15`):** ① **CE-2180 ✅ BUILT** — the release time crosses (`RaisedAt`), the SimHost steps the
 carrier back and flies the bomb forward in cue steps; live `ua-air-strike` burst **3.9 m** (was 20–27 m), all five checks PASS (Air Ops §8b).
-② **CE-3203 C4 ✅ measured** — a carried Javelin IS struck (Weapon Systems §5b). ③ C1–C5 APPROVED (R-3008). ④ **CE-3183 ✅ FIXED** (`bcf073b2e`): the SimHost suite's rotating OOMs were the kernel's mapping cap — undisposed test worlds rooted by `EntityRepository`'s strong self-handle; the handle is weak now ⇒ SimHost.Tests 1406/1 (the 1 = behaviors' CE2079 rail). ⑤ **Autonomous rows (user: "go ahead autonomously")** — CE-3148 ✅ (static obstacles carry DIS kind 5 / the car kind 1, drawn as a cultural-feature box, not magenta) · CE-3189 ✅ (already fixed `8ee002bcb`) · CE-3166 ✅ (Presentation reds re-pointed) · CE-3165 ✅ (closed) · CE-3114 ✅ (nav tile cache prunes) · CE-3008 ✅ (capability loss aborts the montage in the Muscle's state, R-180) · CE-3138 ✅ (the cross-host danger-area rail: its Abrams read a head-on T-72 at 0.50 since CE-2165 V1 — unit now a rifleman). ⑦ **Behaviors handoffs (merged `behaviors@351697b62`):** [Air targets](batches/HANDOFF_Behaviors_To_Backend_Air_Targets.md) AT1–AT4 ✅ (`e59408ee5`, `c99d22e44` — rounds on their own bit; weapon systems skipped; a killed flyer in a landing meets the ground; UH-60s get health + a brain; the lead on the firing node) · [Munition cost](batches/HANDOFF_Behaviors_To_Backend_Munition_Cost.md) MC1 ✅ (`c99d22e44`). Proposals to the user: armour faces for A-10 / AH-64 / UH-60 ([Air Ops §7c-i](../designs/air-attack/DESIGN_Air_Operations.md)); a real collider for a deployed weapon system. CE-3198 gate LIFTED by the user — next. ⑥ **CE-3180 → [Architect Question 92](Architect_Question_92_Per_World_Component_Registry.md)** (one component table per world, a frozen production catalogue, a duplicate-id rail; slice S1 can land first) — WAITING on the user's answers; findings filed CE-3204/3205/3206. ⛔ **CE-3198 (NLAW overfly) is PARKED** — the user's gate: queue it after the drone attack (behaviors appends the go). Not started: CE-3180 (fixture component ids — a cross-lane sweep), CE-3200 (deferred by its row). ⚠ The full ClusterRunner integration suite never finished in one run (killed at 30 min); the EQS subset is 30/30 after CE-3138. Found: the far
+② **CE-3203 C4 ✅ measured** — a carried Javelin IS struck (Weapon Systems §5b). ③ C1–C5 APPROVED (R-3008). ④ **CE-3183 ✅ FIXED** (`bcf073b2e`): the SimHost suite's rotating OOMs were the kernel's mapping cap — undisposed test worlds rooted by `EntityRepository`'s strong self-handle; the handle is weak now ⇒ SimHost.Tests 1406/1 (the 1 = behaviors' CE2079 rail). ⑤ **Autonomous rows (user: "go ahead autonomously")** — CE-3148 ✅ (static obstacles carry DIS kind 5 / the car kind 1, drawn as a cultural-feature box, not magenta) · CE-3189 ✅ (already fixed `8ee002bcb`) · CE-3166 ✅ (Presentation reds re-pointed) · CE-3165 ✅ (closed) · CE-3114 ✅ (nav tile cache prunes) · CE-3008 ✅ (capability loss aborts the montage in the Muscle's state, R-180) · CE-3138 ✅ (the cross-host danger-area rail: its Abrams read a head-on T-72 at 0.50 since CE-2165 V1 — unit now a rifleman). ⑦ **Behaviors handoffs (merged `behaviors@351697b62`):** Air targets AT1–AT4 ✅ (`e59408ee5`, `c99d22e44` — rounds on their own bit; weapon systems skipped; a killed flyer in a landing meets the ground; UH-60s get health + a brain; the lead on the firing node) · Munition cost MC1 ✅ (`c99d22e44`). Proposals to the user: armour faces for A-10 / AH-64 / UH-60 ([Air Ops §7c-i](../designs/air-attack/DESIGN_Air_Operations.md)); a real collider for a deployed weapon system. CE-3198 gate LIFTED by the user — next. ⑥ **CE-3180 → [Architect Question 92](Architect_Question_92_Per_World_Component_Registry.md)** (one component table per world, a frozen production catalogue, a duplicate-id rail; slice S1 can land first) — WAITING on the user's answers; findings filed CE-3204/3205/3206. ⛔ **CE-3198 (NLAW overfly) is PARKED** — the user's gate: queue it after the drone attack (behaviors appends the go). Not started: CE-3180 (fixture component ids — a cross-lane sweep), CE-3200 (deferred by its row). ⚠ The full ClusterRunner integration suite never finished in one run (killed at 30 min); the EQS subset is 30/30 after CE-3138. Found: the far
 technical's ④ fails 3 of 4 live runs (AE5 holes a 100-health technical into a mobility kill at ~125 m) — reported, not changed; the whole
 SimHost suite is red at base too (CE-3183 broadened).
 
@@ -630,7 +630,7 @@ SimHost suite is red at base too (CE-3183 broadened).
   `CE-3087`, G7 `CE-3089` (code + rails; U6 `ua-fire-distribution` / U5 `ua-weapon-choice` scenarios + checks — see the tracker rows
   for the live result).
 - **Behaviors lane (P2):** G4 `CE-3082`, G5 `CE-3083`, G6 `CE-3084` dispatched in
-  [`HANDOFF_Utility_Demo_P2_Behaviors.md`](batches/HANDOFF_Utility_Demo_P2_Behaviors.md) — ⭐ its §6 SYNC is the channel; read the
+  `HANDOFF_Utility_Demo_P2_Behaviors.md` — ⭐ its §6 SYNC is the channel; read the
   newest entries first. The backend then builds U3 `ua-three-hosts` / U4 `ua-attack-approach` against their assets.
 - **Next on backend:** G10 `CE-3086` (desert ridge + wadi — only U7 needs it) · U7 waits on CE-507 D2/D3 (user decisions) ·
   CE-3081 (more danger kinds, not approved) · open reds CE-3076 / CE-3077.
@@ -645,7 +645,7 @@ SimHost suite is red at base too (CE-3183 broadened).
 
 ### ⛔ HISTORY — `2026-10-02`
 
-- Branch **`backend`**. Last batch: [`HANDOFF_Ownership_Remaining_Work.md`](batches/HANDOFF_Ownership_Remaining_Work.md) → report [`REPORT_Ownership_Remaining_Work.md`](batches/REPORT_Ownership_Remaining_Work.md).
+- Branch **`backend`**. Last batch: `HANDOFF_Ownership_Remaining_Work.md` → report [`REPORT_Ownership_Remaining_Work.md`](batches/REPORT_Ownership_Remaining_Work.md).
 - Ownership programme: S1–S8 built; live matrix §5.7.1 **E1–E8 all ✅** (E8 = the multi-process crash reclaim, +10.2 s, no message).
 - Done this batch: `CE-3003` (debug writes ask the owner), `CE-3004` (CGF polls mission acks), `CE-516` (editor uses the injected offline factory), `CE-518`'s 11 unit reds (all stale tests).
 - Backend id block `CE-3000`–`CE-3999`, **next free `CE-3029`**. Every `behaviors` merge conflicts on the id-block table: keep their behaviors row and our backend row.

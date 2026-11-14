@@ -253,6 +253,20 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2277</c> DA-F (Defend &amp; Attack §8f) — the platoon attacks an AREA: base of fire, approach, assault, objective by
         /// objective, then consolidates.</summary>
         public const string PlatoonAttack = "PlatoonAttack";
+        /// <summary>⭐ <c>CE-7023</c> (City Battle §6, §11 C-1b) — the company attacks through its objectives (phase lines) in order: a base of
+        /// fire platoon, an assault platoon, a reserve that relieves a failing assault.</summary>
+        public const string CompanyAttack = "CompanyAttack";
+        /// <summary>⭐ <c>CE-7024</c> (City Battle §6, §11 C-1c) — the company defends a line: a block per platoon facing the threat, a reserve
+        /// behind that reinforces a failing block, the whole company falls back to the next line when half its blocks fail.</summary>
+        public const string CompanyDefend = "CompanyDefend";
+        /// <summary>⭐ <c>CE-7012</c> (City Battle §11 V-2) — the bulldozer drives to an obstacle and pushes it away (CE-6003's damage seam).</summary>
+        public const string ClearObstacle = "ClearObstacle";
+        /// <summary>⭐ <c>CE-7029</c> (City Battle §11 R-1d) — every man of the squad takes overhead cover from a drone (the squad SOP's air row).</summary>
+        public const string SquadShelterFromAir = "SquadShelterFromAir";
+        /// <summary>⭐ <c>CE-7026</c> (City Battle §11 R-1a) — a drone operator launches his stock's drones one at a time at an area.</summary>
+        public const string DroneOperator = "DroneOperator";
+        /// <summary>⭐ <c>CE-7028</c> (City Battle §11 R-1c) — a recon drone circles an area and watches it.</summary>
+        public const string DroneRecon = "DroneRecon";
         /// <summary>⭐ <c>CE-2347</c> (R-2069, Defend &amp; Attack §11a) — the platoon rides a route: the squads in their vehicles, a halt on
         /// contact, secure when it is quiet, remount and carry on.</summary>
         public const string PlatoonConvoy = "PlatoonConvoy";

@@ -84,7 +84,14 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 if (items.Count <= TriggerBehavior.WhenItem) continue;
                 var plan = TriggerLeaves.Get(items[TriggerBehavior.WhenItem]);
                 if (plan is null) continue;
-                if (!repo.HasComponent<RuleLeaves>(e)) repo.AddComponent(e, new RuleLeaves());
+                if (!repo.HasComponent<RuleLeaves>(e))
+                {
+                    // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                    var fresh = new RuleLeaves();
+                    plan.Sample(repo, e, ref fresh);
+                    repo.AddComponent(e, fresh);
+                    continue;
+                }
                 plan.Sample(repo, e, ref repo.GetComponentRW<RuleLeaves>(e));
             }
         }

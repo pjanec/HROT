@@ -83,6 +83,10 @@ assets/terrain/*
 !assets/terrain/highway-rest/
 !assets/terrain/indirect-fire-range/
 !assets/terrain/test-town/
+# CE-6003 — a hand-authored FEATURE terrain (showcases/city-battle/features/roadblock-blast: a wall with one 6 m gate), committed on purpose
+!assets/terrain/roadblock-street/
+# CE-6001 — the hand-planned CITY-BATTLE terrain (assets/terrain-plans/city-battle.plan.json, regenerate with HROT_GEN_CITY_BATTLE=1): committed on purpose, WITHOUT its kept source/ (ignored below)
+!assets/terrain/city-battle/
 # the authoring source kept inside a terrain (R-4201 — the source scenario + the ground base) and a scenario's compiled overlay (§18 C-1)
 assets/terrain/*/source/
 # the content-hash cache TerrainContentHash writes beside terrain.json (per machine, by length + mtime) — never in git, demos included

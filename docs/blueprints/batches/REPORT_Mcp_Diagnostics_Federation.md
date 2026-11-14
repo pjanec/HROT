@@ -9,7 +9,7 @@ known-conflict: none.
 # REPORT — **MCP diagnostics + the per-node federation** *(`MD-001`…`MD-005`)*
 
 > 📌 **Dispatched at `0ee5305a8`** · **started-marker `98a31b364`** *(rule 1b, pushed before any code)*.
-> 📄 Handoff: [`HANDOFF_Mcp_Diagnostics_Federation.md`](HANDOFF_Mcp_Diagnostics_Federation.md) ·
+> 📄 Handoff: `HANDOFF_Mcp_Diagnostics_Federation.md` ·
 > design: [`DESIGN_Mcp_Diagnostics_Federation.md`](../../DESIGN_Mcp_Diagnostics_Federation.md).
 > ⭐ **Items ① and ② DONE and probed.** ⛔ **Items ③ and ④ STOPPED**, each with a measured blocker — §3.
 

@@ -36,7 +36,7 @@ public interface IProvidesRunControls
     RunModeChoice? RunChoice { get; }
 
     /// <summary>⭐ W-4 (LC-10) — the host's <i>Run to …</i> (the editor's; null on a host with none): the composer hands it to the ONE toolbar time control.</summary>
-    RunToController? RunTo => null;
+    IRunTo? RunTo => null;
 
     /// <summary>
     /// ⭐⭐ <c>CE-1439</c> (AQ108 §2.12) — called by the composer on the PICKED owner only (after <c>ComposeRunControls</c> registered its toolbar): a host that does NOT register

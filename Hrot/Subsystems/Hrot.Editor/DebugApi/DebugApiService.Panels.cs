@@ -133,7 +133,7 @@ namespace Hrot.Editor.DebugApi
                 //    the subsystem contributed no provider. The explainer distinguishes the two causes.
                 return (null, "No gizmo feed: " + GizmoFeedAbsenceReason(), DebugApiHints.Panel);
 
-            var frame = buffer.GetFrame();
+            var frame = buffer.ReaderFrame();   // ⭐ POC 2 P-6 — the published frame when the kernel ticks on a worker
             var items = new JsonArray();
 
             int emitted = Math.Min(frame.Length, Math.Max(1, max));

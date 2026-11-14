@@ -1,5 +1,5 @@
 <!--STATUS state: LIVE · updated: 2026-11-06 · current-answer: the table -->
-# STATUS — backend, editing-UX build ([handoff](HANDOFF_Coordinator_To_Backend_Editing_UX_Build.md), dispatched `9c50cec00`, started at `6754d2ecc`)
+# STATUS — backend, editing-UX build (handoff, dispatched `9c50cec00`, started at `6754d2ecc`)
 
 | item | state | sha | what the other lane can now use / notes |
 |---|---|---|---|
@@ -20,7 +20,7 @@
 
 ⚠ **Pre-existing red, measured `2026-11-07`:** `Hrot.Editor.Tests` `TheRunSetupDrawsTests` (2 of 2: `CE4258_ResetOnAnOverriddenRow_…`, `TheOpenExpander_ShowsTheVariantAndTheParams_…`) fail under `LIBGL_DEBUG=verbose xvfb-run -a` at `9fbcb9f40` (before B-9's pane commits) exactly as at `ad14b407b` — not caused by B-9. The Run setup expander (AQ108 D24) is not this batch's; unowned, not chased.
 
-## Mission plan ([handoff](HANDOFF_Coordinator_To_Lanes_Mission_Plan.md), dispatched `9f2cd761`, started at `e160c6d25`)
+## Mission plan (handoff, dispatched `9f2cd761`, started at `e160c6d25`)
 
 | item | state | sha | what the other lane can now use / notes |
 |---|---|---|---|
@@ -31,7 +31,7 @@
 | P-5 | ✅ DONE | (this commit) | ⭐ **for P-8 / the picker:** `TaskFinishedPredicateDto { Unit, Task }` (built in P-2) is the *when <unit> finishes task N* leaf; a `Then` / `GiveUp` condition's `@Key` / GUID references are resolved on load (`ScenarioBehaviorRemapper.ResolveConditionJson`, called by `StagingEntityExtractor`; a key naming nothing fails the load). ⚠ **Found and fixed:** the one reference walker (`EntityRefRemap.WalkJson`) never dispatched a POLYMORPHIC ROOT by its runtime type — a top-level condition was planned as the abstract base and walked nothing (members were fine, SR-164). Rails `S0WalkerTests.CE4301_*`, `PredicateCompilerLevelTests.D6_TaskFinished_*` (another unit's task 3; 0 B per call; red-proven). ⚠ Also fixed a red my B-5 (`80ccf0396`) left: `WeaponPosture.Point` is now a `WorldPoint` (a saved component may not carry a bare `Vector3`, `S0ComponentTypesRailTests`) |
 | P-6 | ✅ DONE | (this commit) | ⭐ **for P-8 (Phases group, the picker):** `"common": { "phase": n }` on a trigger (0 = not a phase) → `ObjectiveCommonBlock.Phase` → `ObjectiveStatus.Phase`, REPLICATED (`EntityObjectiveStatus.Phase`, a display field: goes at once) — group / sort the rules by it. *Begin now* = the existing `RuleCommands.Control(world, trigger, RuleRequest.Fire, RuleOrigin.Instructor, …)` (as *End exercise*). *when Phase N begins* = `PlanConditionCache.PhaseBegins(link to that trigger)` (`OnEntity · ObjectiveStatus.FireCount > 0`, no new leaf, D5/D6). Rail `MissionAdapterSystemTests.CE4302_APhaseBegun_ReleasesTwoUnitsWaitingTasks` (red-proven). ✅ **Backend's share of the mission plan handoff is complete (P-1…P-6); P-7 / P-8 are ui's.** |
 
-## Lifecycle fixes ([handoff](HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md), dispatched `f523103e`, started at `c23d3b6a4`)
+## Lifecycle fixes (handoff, dispatched `f523103e`, started at `c23d3b6a4`)
 
 | item | state | sha | what the other lane can now use / notes |
 |---|---|---|---|

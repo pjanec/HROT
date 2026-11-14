@@ -31,7 +31,7 @@ public sealed class TrafficPedMirror
     }
 
     /// <summary>Resolves every live pedestrian of <paramref name="peds"/> at cluster time <paramref name="time"/> and APPENDS it.</summary>
-    public void Resolve(PedRemoteReconstructor peds, double time, List<TrafficPedPose> into)
+    public void Resolve(PedRemoteReconstructor peds, double time, List<TrafficPedPose> into, Func<float, float, float>? drape = null)
     {
         peds.CopyLivePeds(time, _scratch);
         _live.Clear();
@@ -49,7 +49,7 @@ public sealed class TrafficPedMirror
             }
             _last[p.Id] = (at, yaw);
             int netId = int.TryParse(p.Name, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : 0;
-            into.Add(new TrafficPedPose(_owner, netId, p.Name, at.X, at.Y, (float)p.Z, yaw));
+            into.Add(new TrafficPedPose(_owner, netId, p.Name, at.X, at.Y, (float)p.Z + (drape?.Invoke(at.X, at.Y) ?? 0f), yaw));
         }
         _gone.Clear();
         foreach (var id in _last.Keys) if (!_live.Contains(id)) _gone.Add(id);

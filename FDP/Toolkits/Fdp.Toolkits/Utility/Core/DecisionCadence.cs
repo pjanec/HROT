@@ -34,7 +34,9 @@ namespace Fdp.Toolkit.Utility
         }
 
         private static readonly ConditionalWeakTable<EntityRepository, DecisionCadence> s_of = new();
-        private readonly Dictionary<long, Entry> _entries = new();
+        // ⭐ N-11 (CE-4473) — concurrent: parallel brains store results for DIFFERENT units at once; each key (unit, decision) is touched only
+        //   by its unit's own thread, so what it holds stays deterministic
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<long, Entry> _entries = new();
         private int[] _wokenAt = System.Array.Empty<int>();   // [entity index] = the wake build (stamp) it was woken in
         private uint _wakeBuiltAt;
         private double _wakeBuiltNow;
@@ -42,9 +44,10 @@ namespace Fdp.Toolkit.Utility
         private bool _wakeBuilt;
 
         /// <summary>How many scorings the cadence let through, and how many it answered from the store (a rail reads them).</summary>
-        public long Scored { get; private set; }
+        public long Scored => System.Threading.Interlocked.Read(ref _scored);
         /// <summary>See <see cref="Scored"/>.</summary>
-        public long Reused { get; private set; }
+        public long Reused => System.Threading.Interlocked.Read(ref _reused);
+        private long _scored, _reused;
 
         /// <summary>The cadence state of <paramref name="world"/>.</summary>
         public static DecisionCadence Of(EntityRepository world) => s_of.GetValue(world, static _ => new DecisionCadence());
@@ -68,10 +71,10 @@ namespace Fdp.Toolkit.Utility
         internal void Store(Entity self, UtilityDecisionDef def, int decisionId, double now, byte winner, bool hasTop, Entity top, float topScore,
                             in UtilityResultBuffer output)
         {
-            Scored++;
+            System.Threading.Interlocked.Increment(ref _scored);
             if (double.IsNaN(now)) return;
             long key = Key(self, decisionId);
-            if (!_entries.TryGetValue(key, out var e)) _entries[key] = e = new Entry();   // allocation once per unit and decision
+            if (!_entries.TryGetValue(key, out var e)) _entries[key] = e = new Entry();   // allocation once per unit and decision (only its own thread adds it)
             e.Generation = self.Generation;
             e.ComputedAt = now;
             e.NextDue = CadenceGate.NextOnGrid(now, def.CadenceSeconds, self.Index);
@@ -80,7 +83,15 @@ namespace Fdp.Toolkit.Utility
             e.Output = output;
         }
 
-        internal void CountReuse() => Reused++;
+        internal void CountReuse() => System.Threading.Interlocked.Increment(ref _reused);
+
+        /// <summary>⭐ N-11 — builds this frame's wake table from the frame's events, SERIALLY, before the brains' per-entity phase (inside the
+        /// phase it is only read). The serial walk builds it on its first call, as before.</summary>
+        public void PrepareFrame(EntityRepository world)
+        {
+            if (!world.HasSingleton<GlobalTime>()) return;
+            BuildWake(world, world.GetSingleton<GlobalTime>().TotalTime);
+        }
 
         private static readonly int[] s_wakeSlots = new int[256];
         private static int WakeSlot(SensorChange what)
@@ -94,6 +105,12 @@ namespace Fdp.Toolkit.Utility
 
         /// <summary>Did <paramref name="self"/>'s senses change this frame? Built once per frame from the bus (no allocation once grown).</summary>
         private bool Woken(EntityRepository world, Entity self, double now)
+        {
+            if (!ParallelReadCheck.Defers(world)) BuildWake(world, now);   // in a phase: built by PrepareFrame, read only
+            return self.Index < _wokenAt.Length && _wokenAt[self.Index] == _wakeStamp;
+        }
+
+        private void BuildWake(EntityRepository world, double now)
         {
             uint v = world.GlobalVersion;   // a frame = the version AND the sim clock (a host that never ticks the repository still advances time)
             if (!_wakeBuilt || _wakeBuiltAt != v || _wakeBuiltNow != now)
@@ -109,7 +126,6 @@ namespace Fdp.Toolkit.Utility
                         _wokenAt[i] = _wakeStamp;
                     }
             }
-            return self.Index < _wokenAt.Length && _wokenAt[self.Index] == _wakeStamp;
         }
     }
 }

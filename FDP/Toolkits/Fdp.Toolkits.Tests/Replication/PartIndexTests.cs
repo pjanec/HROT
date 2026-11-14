@@ -197,5 +197,54 @@ namespace Fdp.Toolkits.Tests.Replication
             Assert.Equal(Scan(parent), Index(parent));
             Assert.Contains(third, Index(parent));
         }
+
+        /// <summary>
+        /// ⭐ CE-4517 (X-2) — once the frame's index is prepared (<see cref="PartIndex.PrepareFrame"/>), reads take no lock: eight threads reading
+        /// every parent at once answer exactly as the scan, with no build, and a steady read allocates nothing. A part added after that still
+        /// shows (the locked path takes it in).
+        /// 🔴 Red-proof: the freshness stamps published BEFORE the build (as before) is a race only a stress run shows; this rail pins the answers,
+        /// the build count and the late part.
+        /// </summary>
+        [Fact]
+        public void CE4517_APreparedIndex_IsReadFromManyThreadsAtOnce_AsTheScan_WithoutABuild()
+        {
+            var parents = new List<Entity>();
+            for (int p = 0; p < 120; p++)
+            {
+                var parent = _w.CreateEntity();
+                parents.Add(parent);
+                for (int k = 0; k < 1 + p % 7; k++) Part(parent, 7 - k);
+            }
+            _w.Tick();
+            PartIndex.PrepareFrame(_w);
+            int builds = PartIndex.Of(_w).Builds;
+            var expect = new List<Entity>[parents.Count];
+            for (int p = 0; p < parents.Count; p++) expect[p] = Scan(parents[p]);
+
+            int wrong = 0;
+            System.Threading.Tasks.Parallel.For(0, 8, new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = 8 }, _ =>
+            {
+                var buf = new Entity[16];
+                for (int round = 0; round < 50; round++)
+                    for (int p = 0; p < parents.Count; p++)
+                    {
+                        int n = PartIndex.PartsOf(_w, parents[p], buf);
+                        bool same = n == expect[p].Count;
+                        for (int k = 0; same && k < n; k++) same = buf[k].Equals(expect[p][k]);
+                        if (!same) System.Threading.Interlocked.Increment(ref wrong);
+                    }
+            });
+            Assert.Equal(0, wrong);
+            Assert.Equal(builds, PartIndex.Of(_w).Builds);                 // fresh: nobody built
+
+            Span<Entity> one = stackalloc Entity[16];
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int p = 0; p < parents.Count; p++) PartIndex.PartsOf(_w, parents[p], one);
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+
+            var late = Part(parents[5], 0);                                // added within the frame: the locked path takes it in
+            Assert.Equal(Scan(parents[5]), Index(parents[5]));
+            Assert.Contains(late, Index(parents[5]));
+        }
     }
 }

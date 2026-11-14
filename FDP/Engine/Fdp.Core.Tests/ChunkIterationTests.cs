@@ -339,5 +339,33 @@ namespace Fdp.Tests
             
             Assert.Equal(50, count);
         }
+
+        /// <summary>⭐ POC 4 J-2 — <see cref="EntityQuery.ForEachParallel"/> runs on THE worker pool (FdpWorkerPool): every entity once, on worker
+        /// threads, and 0 B per call once warm (the action is the caller's cached delegate). 🔴 Red-proof: the work object not reused
+        /// (<c>Rent</c> always allocates) ⇒ the call allocates.</summary>
+        [Fact]
+        public void J2_ForEachParallel_RunsOnThePool_EveryEntityOnce_AndAllocatesNothingWhenWarm()
+        {
+            Fdp.Core.Jobs.FdpWorkerPool.Resize(4);
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<Position>();
+            for (int i = 0; i < 20000; i++) { var e = repo.CreateEntity(); repo.AddComponent(e, new Position { X = i }); }
+            var query = repo.Query().With<Position>().Build();
+
+            var seen = new int[20000];
+            long workersBefore = Fdp.Core.Jobs.FdpWorkerPool.Shared.FrameBatchesOnWorkers;
+            Action<Entity> mark = e => System.Threading.Interlocked.Increment(ref seen[e.Index]);
+            query.ForEachParallel(mark);
+            Assert.All(seen, n => Assert.Equal(1, n));
+            Assert.True(Fdp.Core.Jobs.FdpWorkerPool.Shared.FrameBatchesOnWorkers > workersBefore, "no batch ran on a pool worker");
+
+            long sum = 0;
+            Action<Entity> add = e => System.Threading.Interlocked.Add(ref sum, 1);
+            for (int w = 0; w < 30; w++) query.ForEachParallel(add);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int r = 0; r < 20; r++) query.ForEachParallel(add);
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.Equal(50L * 20000, System.Threading.Interlocked.Read(ref sum));
+        }
     }
 }

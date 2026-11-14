@@ -25,5 +25,9 @@ namespace Fdp.Toolkit.Combat.Components
         public Vector3 Peek;
         /// <summary>Sim time the claim lapses unless refreshed; 0 = released.</summary>
         public SimInstant Until;
+        /// <summary>⭐ F-9 (CE-4474; DESIGN_Peek_And_Fire §10.7 "who wins a tie") — sim time the unit first claimed THIS hide point. With the brains a
+        /// parallel phase two squad-mates can commit to one point in the same tick (each sees the other's claim a tick late, R-4212 ①): the
+        /// OLDER claim keeps it (equal ⇒ the lower entity index), the younger re-picks — deterministic at any thread count.</summary>
+        public SimInstant Since;
     }
 }

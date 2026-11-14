@@ -21,6 +21,13 @@ namespace Fdp.Toolkit.Blueprints.Systems;
 public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 {
     private readonly BlueprintRegistry _registry;
+
+    /// <summary>⭐ Q-1 (POC 2 of the parallel simulation; DESIGN_Parallel_Simulation §10.2) — stamp a blueprint blackboard's chunk only when a slot's
+    /// bytes changed, not whenever a slot ran. Opt-in: <c>HROT_BP_STAMP_ON_CHANGE=1</c>; settable for tests.</summary>
+    public static bool StampOnChange { get; set; } = Environment.GetEnvironmentVariable("HROT_BP_STAMP_ON_CHANGE") == "1";
+    /// <summary>A larger payload is stamped as before (the compare would cost more than the false change it saves).</summary>
+    private const int MaxComparedPayload = 16 * 1024;
+    private byte[] _before = new byte[256];   // ⭐ reused, grown, never shrunk — 0 B per steady tick
     private readonly IReloadLogSink    _logSink;
 
     // ⭐ O3a / B3: one query per tier, built FROM the ladder, index-aligned with
@@ -98,7 +105,12 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
     {
         foreach (var entity in query)
         {
-            byte* memory = spec.Memory(repo, entity);
+            // ⭐ E-4 (DESIGN_Parallel_Simulation §8.2, check-before-write; M-1 measured): resolved READ-ONLY — the storage is native, so the
+            //   address is the same — and stamped writable (chunk version) only right before a blueprint slot runs. 📐 M-1: the 4096 tier stamped
+            //   149 of 167 chunks dirty per frame at 1 000 men, 53 % holding the same bytes — most units here host only BTree / HSM
+            //   occurrences, which the walk below skips; the occurrence store already stamps on first write (OccurrenceStoreAccess.ViewBlockRW).
+            byte* memory = spec.MemoryReadOnly(repo, entity);
+            bool stamped = false;
 
             ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
             if (header.MagicAndVersion != BlueprintBlackboardHeader.MagicValue) continue;
@@ -124,9 +136,15 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                 //   miss means the definition is absent from this host's registry, which is a real
                 //   condition (an asset this node did not compile) rather than "not ours".
                 if (!_registry.TryGetById(slot.BlueprintId, out var def)) continue;
+                // ⭐ E-4 — a blueprint slot runs: this chunk is written. ⭐ Q-1 (POC 2, opt-in HROT_BP_STAMP_ON_CHANGE=1): stamped only when the
+                //   slot's bytes CHANGED — the generated tick rewrites its state and edge memory with the same values every pass (Parallel
+                //   Simulation §10.2 ① ②), so "it ran" is not "it wrote". The payload is compared against a copy taken before the tick.
+                bool compare = StampOnChange && !stamped && slot.PayloadSize <= MaxComparedPayload;
+                if (!stamped && !compare) { spec.Memory(repo, entity); stamped = true; }
 
                 if (slot.StructureHash != (uint)def!.StructureHash) // DEBT-014 truncation
                 {
+                    if (!stamped) { spec.Memory(repo, entity); stamped = true; compare = false; }   // the header is rewritten
                     ulong oldHash = slot.StructureHash;
                     BlueprintBlackboardPartitions.ResetSlot(memory, i, def.StructureHash);
                     if (def.InitDefault is not null)
@@ -136,6 +154,12 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                         def.InitDefault(initSpan);
                     }
                     _logSink.OnHardReset(slot.BlueprintId, entity, oldHash, (ulong)def!.StructureHash);
+                }
+
+                if (compare)
+                {
+                    if (_before.Length < slot.PayloadSize) Array.Resize(ref _before, Math.Max(slot.PayloadSize, _before.Length * 2));
+                    new ReadOnlySpan<byte>(memory + slot.PayloadOffset, slot.PayloadSize).CopyTo(_before);
                 }
 
                 // Q#14: dispatch any custom events this instance subscribes to (before Tick, so the tick
@@ -161,6 +185,13 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                     // ⛔ AFTER def.Tick, not before: the counter means "a tick HAS RUN", and the
                     //   monitor diffs the value the tick produced.
                     BlueprintAssetTick.Bump(slot.BlueprintId, entity);
+                }
+
+                if (compare && !new ReadOnlySpan<byte>(memory + slot.PayloadOffset, slot.PayloadSize).SequenceEqual(
+                        new ReadOnlySpan<byte>(_before, 0, slot.PayloadSize)))
+                {
+                    spec.Memory(repo, entity);   // ⭐ Q-1 — the bytes changed: stamp the chunk now (same frame, after the write)
+                    stamped = true;
                 }
             }
         }

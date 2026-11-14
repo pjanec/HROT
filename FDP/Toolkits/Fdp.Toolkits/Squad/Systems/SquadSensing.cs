@@ -61,6 +61,31 @@ namespace Fdp.Toolkit.Squad.Systems
             }
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-7029</c> (City Battle §11 R-1d) — a MEMBER's <c>AirThreat</c> edge of last frame is his squad's too: re-published on his commander
+        /// (the same kind — the commander has no body to sense a drone itself), once per commander per frame, so the squad's standing orders shelter
+        /// the men (a man under command does not shelter on his own, R-2062). A member aboard a vehicle is skipped: the vehicle shelters.
+        /// <paramref name="gateOnAuthority"/> as <see cref="UnderFire"/>. No allocation (a stack list of the told commanders).
+        /// </summary>
+        public static void AirThreat(EntityRepository repo, bool gateOnAuthority)
+        {
+            System.Span<Entity> told = stackalloc Entity[16];
+            int n = 0;
+            foreach (var evt in repo.ReadEvents<SensorChangedEvent>())
+            {
+                if (evt.What != SensorChange.AirThreat || !repo.IsAlive(evt.Unit) || !repo.HasComponent<UnitSubordinate>(evt.Unit)) continue;
+                if (repo.IsComponentTypeRegistered<IsEmbarkedTag>() && repo.HasComponent<IsEmbarkedTag>(evt.Unit)) continue;
+                var commander = repo.GetComponentRO<UnitSubordinate>(evt.Unit).Commander;
+                if (commander.IsNull || !repo.IsAlive(commander) || !IsCommander(repo, commander)) continue;
+                if (gateOnAuthority && (!repo.HasComponent<BehaviorState>(commander) || !repo.HasAuthority<BehaviorState>(commander))) continue;
+                bool already = false;
+                for (int k = 0; k < n; k++) if (told[k] == commander) { already = true; break; }
+                if (already) continue;
+                if (n < told.Length) told[n++] = commander;
+                Publish(repo, commander, SensorChange.AirThreat);
+            }
+        }
+
         /// <summary>⭐ <c>CE-1056</c> — <see cref="SensorChange.SquadUnderFire"/> once on the commander of each member <paramref name="carrier"/>
         /// carries (a squad riding in it is under fire with it).</summary>
         private static void CarriedUnderFire(EntityRepository repo, Entity carrier, bool gateOnAuthority)

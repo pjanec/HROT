@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: §2/§4 ② said a mortar launch has no sound — half true: the crewed tubes and guns have none, the MortarTeam person type has (500 m, since 97b751b3a); re-measured 2026-10-19, BR-14 filed.
 known-conflict: none.
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: reuses this ladder's platoon / squad plays unchanged under a NEW company commander
   - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — OPEN: what L7 needs from hearing — signatures, distance-bounded hearing, lossless short sounds; E3 recasts L7 with off-terrain guns
   - docs/DESIGN_Building_Interiors.md — OWNS the building templates the quarters place (§3g.1: the shared Recipes/Buildings folder, the roof storey)
   - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — OWNS the request / report machinery route B escalates through (CC-A…CC-E)
@@ -96,13 +97,13 @@ only because a report arrived. The insurgents' side is the only scripted part, a
 | # | item | lane | home |
 |---|---|---|---|
 | ① | **REQUEST reports + a headquarters play**: a body-less company HQ that owns support assets and answers FireSupport / Reinforce / Casevac by what fits, what is free and what threatens it | behaviors | the Command Chain programme (`CE-2291`…`CE-2295`) + a new play (not filed) |
-| ② | **finding a mortar**: a firing sound on mortar tubes and guns (📐 2026-10-19: the crewed tubes and guns have none; the `MortarTeam` person type has, 500 m) → a heard launch becomes a SPOT; counter-battery later | backend (data — **BR-14 ✅ built `CE-3273`**, [note](../../blueprints/batches/NOTE_Backend_To_Behaviors_Urban_Battle_Data.md); ✅ a soldier hears it past his ear range, `CE-3276` / R-3023) · behaviors | Indirect Fire IF-6 (designed) |
+| ② | **finding a mortar**: a firing sound on mortar tubes and guns (📐 2026-10-19: the crewed tubes and guns have none; the `MortarTeam` person type has, 500 m) → a heard launch becomes a SPOT; counter-battery later | backend (data — **BR-14 ✅ built `CE-3273`**, note; ✅ a soldier hears it past his ear range, `CE-3276` / R-3023) · behaviors | Indirect Fire IF-6 (designed) |
 | ③ | **armed search for aircraft**: attack an AREA — search it and pick targets, as the FPV drone already does (`DroneTargets.Pick`) | behaviors | Air Operations (new) |
 | ④ | **an IED trigger man and an ambush**: a behaviour that sets off another entity's charge when a vehicle enters a kill zone; insurgents that hold an ambush position and fire (an un-ordered insurgent only hides today) — 📐 2026-10-19: the engine half is built (a placed charge set off by its trigger holder, by phone: `Charges.Ask`, `CE-3233`/`CE-3234`) | behaviors | Civilians AW-12 · Defend positions |
 | ⑤ | **a convoy halt drill**: vehicles stop or push through on contact; dismount at a halt | behaviors | Squad Tactics (new) |
 | ⑥ | **an insurgent mortar cell**: a spotter calls his mortar on enemies he sees (the observer adjust loop, started by the spotter himself) | behaviors | Indirect Fire (new) |
-| ⑦ | ⭐ **demo-city gets QUARTERS** (§4a): residential, business and commercial, plus one battle street — multi-storey buildings with upper windows and reachable roofs, a walled compound, a landing square — ✅ **BUILT** (`CE-1183`…`CE-1187`, §4b) | ui | [hand-off UI-8…UI-12](../../blueprints/batches/HANDOFF_Behaviors_To_Ui_Demo_City_Quarters.md) |
-| ⑧ | data fixes: the Humvee type has no health block; our generic APC is unarmed (the Bradley is fine) — both re-measured 2026-10-19 | backend | **BR-15 ✅ `CE-3274`, BR-16 ✅ `CE-3275`** ([note](../../blueprints/batches/NOTE_Backend_To_Behaviors_Urban_Battle_Data.md)) |
+| ⑦ | ⭐ **demo-city gets QUARTERS** (§4a): residential, business and commercial, plus one battle street — multi-storey buildings with upper windows and reachable roofs, a walled compound, a landing square — ✅ **BUILT** (`CE-1183`…`CE-1187`, §4b) | ui | hand-off UI-8…UI-12 |
+| ⑧ | data fixes: the Humvee type has no health block; our generic APC is unarmed (the Bradley is fine) — both re-measured 2026-10-19 | backend | **BR-15 ✅ `CE-3274`, BR-16 ✅ `CE-3275`** (note) |
 | ⑨ | *(later)* FPV launch by an operator; aircraft evading outside an attack | behaviors | FPV R-263 · Air Operations |
 
 ## 4a. The stage — demo-city with quarters *(user, 2026-10-18)*
@@ -117,7 +118,7 @@ only because a report arrived. The insurgents' side is the only scripted part, a
 | what | residential (2–3 storey houses, walled courtyard houses, alleys), business (office blocks, 3–4 storeys, stairs, windows on every storey, flat roofs), commercial (shops with flat roofs, a market square), and **one battle street** through them | — |
 | street cover | ⭐ **in the scenario**, not the terrain: the existing static obstacles (cars, sandbags, concrete blocks, crates) | baked into the terrain: every demo on demo-city would inherit them |
 
-### 4b. The quarter plan *(UI-8 — ui, `2026-10-18`; [hand-off](../../blueprints/batches/HANDOFF_Behaviors_To_Ui_Demo_City_Quarters.md); built by `scripts/demo-city-quarters.py`)*
+### 4b. The quarter plan *(UI-8 — ui, `2026-10-18`; hand-off; built by `scripts/demo-city-quarters.py`)*
 
 ![demo-city with its quarters](img/demo-city-quarters.svg)
 

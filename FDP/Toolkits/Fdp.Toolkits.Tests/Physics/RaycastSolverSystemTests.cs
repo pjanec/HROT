@@ -724,6 +724,54 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(0, FromLeft(8f, 3.7f).HasHit);   // the blades' height, away from the mast
             Assert.Equal((byte)0, FromLeft(10f, 1.8f, new RaycastSolverSystem { VehicleParts = false }).HasBodyPart);   // the parts off: one body
         }
-}
-}
 
+        // ── POC 4 J-2 ────────────────────────────────────────────────────────────
+
+        /// <summary>⭐ POC 4 J-2 (docs/DESIGN_Parallel_Simulation.md §13) — the casts run one per batch on THE worker pool (FdpWorkerPool), no
+        /// longer on Parallel.For: the same hits on 1 thread as on 4, and batches ran on pool workers. 🔴 Red-proof: a cast reading the
+        /// request of another index ⇒ the hits differ from the serial run.</summary>
+        [Fact]
+        public void J2_TheCasts_RunOnThePool_AndHitTheSameAsOneThread()
+        {
+            for (int k = 0; k < 64; k++) SpawnCollider(new Vector2(k * 3f, (k % 7) - 3f), radius: 1f, layer: 1);
+            const int Rays = 200;
+            RaycastHit[] Solve(int threads, int idBase, out long onWorkers)
+            {
+                Fdp.Core.Jobs.FdpWorkerPool.Resize(threads);
+                long w0 = Fdp.Core.Jobs.FdpWorkerPool.Shared.FrameBatchesOnWorkers;
+                var view = (ISimulationView)_world;
+                for (int r = 0; r < Rays; r++)
+                    _world.Bus.Publish(new RaycastRequestEvent
+                    {
+                        Start = new Vector3(-10f, (r % 9) - 4f, 0f), End = new Vector3(200f, ((r * 5) % 9) - 4f, 0f),
+                        RayId = PhysicsConstants.PackBulletRayId(idBase + r), LayerMask = 1,
+                    });
+                _world.Bus.SwapBuffers();
+                new RaycastSolverSystem().Execute(view, 0.016f);
+                onWorkers = Fdp.Core.Jobs.FdpWorkerPool.Shared.FrameBatchesOnWorkers - w0;
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                new RaycastResultMaterializationSystem().Execute(view, 0.016f);
+                var hits = new RaycastHit[Rays];
+                var ring = _world.GetSingleton<RaycastBatchData>().Hits;
+                for (int r = 0; r < Rays; r++) { hits[r] = ring[(int)((uint)PhysicsConstants.PackBulletRayId(idBase + r) % (uint)PhysicsConstants.RaycastBatchCapacity)];
+                      Assert.Equal(PhysicsConstants.PackBulletRayId(idBase + r), hits[r].RayId); }   // ⭐ every cast answered its OWN request (a slot left stale fails here)
+                return hits;
+            }
+            try
+            {
+                var serial = Solve(1, 1, out _);
+                var parallel = Solve(4, 1001, out long onWorkers);
+                Assert.True(onWorkers > 0, "no cast ran on a pool worker");
+                Assert.Contains(serial, h => h.HasHit == 1);
+                for (int r = 0; r < Rays; r++)
+                {
+                    Assert.Equal(serial[r].HasHit, parallel[r].HasHit);
+                    Assert.Equal(serial[r].HitEntity, parallel[r].HitEntity);
+                    Assert.Equal(serial[r].T, parallel[r].T);
+                }
+            }
+            finally { Fdp.Core.Jobs.FdpWorkerPool.Resize(Fdp.Core.Jobs.FdpWorkerPool.Budget()); }
+        }
+}
+}

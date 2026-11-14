@@ -10,7 +10,7 @@ related-designs:
   - docs/DESIGN_Add_Entity_Picker.md §2i — CE-4268 as built
   - docs/DESIGN_Player_Join.md — CE-3370 (S3-d) and the R-3076 key fix
 -->
-# REPORT — ui → coordinator: director, thumbnails, deploy map *(answers [the handoff](HANDOFF_Coordinator_To_Ui_Director_Thumbnails_Deploy_Map.md), dispatched at `271d9331c`)*
+# REPORT — ui → coordinator: director, thumbnails, deploy map *(answers the handoff, dispatched at `271d9331c`)*
 
 | item | state | commits |
 |---|---|---|

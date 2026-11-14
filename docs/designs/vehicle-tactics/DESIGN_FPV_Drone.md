@@ -197,6 +197,41 @@ graph TD
 | a TKB rail for type 403 | `NedTkbBuilderCombatTests` |
 | demo `ua-drone-shelter` | `scripts/utility-demo-check.py` |
 
+## 5a. Jamming — as built `2026-11-13` (showcase-brains, CE-7014 — obligation ⑤)
+
+⭐ §1's *"jamming … later"* is built: a type whose TKB template carries `JammerDto { RadiusM }` jams the link of every drone of ANOTHER force inside
+its bubble. `DroneJamming` (Fdp.Toolkits/Motion) rebuilds the live jammers' positions, radii and forces once a frame in the brains' serial pre-pass
+(`BrainPhase.PrepareToolkitFrame`, beside `PartIndex`); the Dive profile reads it (`AirAttackNodes`, R-4212: no index built mid-phase) and, jammed,
+takes the battery's path — straight down where it is (`AirAttackState.BatteryOut` = `BatteryOutJammed` 2). A dead jammer jams nothing; its own
+side's drones fly through. The type: 113 `Ew_DroneJammer`, the crewed HMMWV with a 400 m bubble (lane default R-7006).
+
+## 5b. The operator's launch — as built `2026-11-13` (showcase-brains, CE-7026 — obligation ⑤)
+
+⭐ §1's *"launch from an operator … later"*: `DroneOperator` (Brains/DroneOperatorBehavior.cs) — his stock is up to four AUTHORED drones landed beside
+him; he launches one at a time by ORDERING it (`AirPlatformStrike` on the area, `CommandOrders.Assign`), the next `IntervalSeconds` (20) after the last
+is gone. ⚠ The FPV type now carries a `BodyGeometryDto` with four feet: `RotorcraftModel` takes off only a body with ground contacts, so before this a
+landed FPV stayed down for good. ⛔ No runtime creation (lane default R-7007).
+
+## 5c. The recon drone — as built `2026-11-13` (showcase-brains, CE-7028 — obligation ⑤)
+
+⭐ §1's *"reconnaissance drones … later"*: type 407 `Drone_Recon` (this airframe with no warhead, `DetonatesOnImpact` false, a 30-minute battery, a
+1 500 m camera, the same feet) and `DroneRecon` (Brains/DroneReconBehavior.cs): to the point, then the search orbit (the point 30° ahead on a 150 m
+circle) at 80 m; its battery's end or an enemy jammer (§5a) ⇒ down where it is. ⭐ It joins the OBSERVER CHAIN by membership, not by code: a member
+of its team's squad, its memory merges into the squad pool, which the staff SPOTs up (`StaffComposerSystem`). `DroneOperator` (§5b) sends an
+unarmed stock drone to watch, an armed one to strike.
+
+## 5d. The bomber drone — as built `2026-11-14` (showcase-brains, CE-7027 — obligation ⑤)
+
+⭐ Type 408 `Drone_Bomber`: the quadcopter airframe (the ONE `QuadcopterBody()` the FPV, recon and bomber share) with a DROP RACK — a
+`WeaponCategory.Bomb` mount of two M67s — a 20-minute battery, no burst on impact. ⭐ `AirAttackProfile.HoverDrop` (7): `AirAttackProfiles.Pick` gives
+it to a rotorcraft whose only weapon is a drop rack (before it such an aircraft had NO profile and the strike failed). `AirAttackNodes.HoverDrop`:
+straight to hover `DefaultDropHeightAgl` 30 m over the point (arrival radius 1 m); standing within 2 m of it, the one `FireAtPoint` (Rounds 1) — the
+weapon brain holds the round for the release cue, which now has a HOVER branch (`BombBallistics.ReleaseNow`: under `HoverMps` 1.5 m/s there is no
+pass to time, so it drops when the round would land within `HoverToleranceM` 2 m); dropped ⇒ fly back to where the strike began (`AirAttackState.Home`)
+⇒ Success. ⭐ `DroneOperator` (§5b) now also counts a drone that ENDS its order alive as done (once it was seen running it), and sends it again while its
+known type's rounds (`TemplateArms.Rounds`) exceed its sorties — two grenades, two sorties. ⚠ The munition is the M67 (a time-fuzed hand grenade; the
+ballistics burst it on the ground) — an impact-fuzed VOG-class round is not built. ⚠ It does not land: it hovers at home until sent again.
+
 ## 6. As-built `2026-10-14` (backend, handoff B11 — the Muscle half)
 
 The design carries **15 classes** (§2) and **1 sequence** (§3); the Muscle half is built, the Brain half (`FpvAttackNodes`, `FpvAttackParams`,

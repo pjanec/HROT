@@ -12,7 +12,10 @@ namespace Fdp.Toolkit.Diagnostics
     /// separates the terrain's cost from the logic's.
     /// <para>⭐ Allocation-free and contention-free on the hot path (R-2084): each thread accumulates into its OWN buffer (registered once
     /// per thread); <see cref="Snapshot"/> sums them. A slot is named once (<see cref="Slot"/>, cached by the caller) — the per-call cost is
-    /// two <see cref="Stopwatch.GetTimestamp"/> reads. Off with <c>HROT_QUERY_TIMINGS=0</c>. Process-wide: one node per process.</para>
+    /// two <see cref="Stopwatch.GetTimestamp"/> reads. Process-wide: one node per process.</para>
+    /// <para>⭐⭐ R-4213 (CE-4450 K-4) — OFF BY DEFAULT in every host: the census measured the sampled timer at 11.9 % of BrainTick. On with
+    /// <c>HROT_QUERY_TIMINGS=1</c> (the scale rig and the measurement scripts set it) or at runtime (<c>GET /diagnostics/queries?enable=true</c>);
+    /// the R-4209 sampling applies while it is on.</para>
     /// </summary>
     public static class QueryTimings
     {
@@ -20,7 +23,7 @@ namespace Fdp.Toolkit.Diagnostics
         public const int MaxSlots = 512;
 
         /// <summary>False ⇒ <see cref="Begin"/> returns 0 and <see cref="End"/> records nothing.</summary>
-        public static bool Enabled { get; set; } = Environment.GetEnvironmentVariable("HROT_QUERY_TIMINGS") != "0";
+        public static bool Enabled { get; set; } = Environment.GetEnvironmentVariable("HROT_QUERY_TIMINGS") == "1";   // ⭐ R-4213 — off unless asked
 
         private static readonly object Gate = new();
         private static readonly Dictionary<string, int> ByName = new(StringComparer.Ordinal);
@@ -73,30 +76,56 @@ namespace Fdp.Toolkit.Diagnostics
             return ById.GetOrAdd((family, id), s);
         }
 
-        /// <summary>The start of a timed call (0 when disabled). Pair with <see cref="End"/>.</summary>
-        public static long Begin() => Enabled ? Stopwatch.GetTimestamp() : 0L;
+        /// <summary>
+        /// ⭐ R-4209 (DESIGN_Parallel_Simulation §12; POC 3 T-1) — the timer is SAMPLED: one call in <see cref="SampleOneIn"/> is timed and its time
+        /// (and garbage) scaled up by the same factor; the CALL COUNTS stay exact. 📐 POC 2 D-1: always-timed it cost ~13 ms of the brain at
+        /// 1 000 men (37 000 timed calls / frame). The choice is a per-thread xorshift draw — a fixed every-n-th counter would alias with a loop
+        /// that times n calls in a fixed order. 1 = time every call (a rail compares the two). Max is the max of the SAMPLED calls.
+        /// </summary>
+        public static int SampleOneIn { get; set; } = int.TryParse(Environment.GetEnvironmentVariable("HROT_QUERY_SAMPLE"), out int n) && n >= 1 ? n : 16;   // the measurement knob: 1 = time every call
+        [ThreadStatic] private static uint t_rng;
+        private const long CountOnly = -1L;
+
+        /// <summary>The start of a timed call (0 when disabled; a count-only marker when this call is not sampled). Pair with <see cref="End"/>.</summary>
+        public static long Begin()
+        {
+            if (!Enabled) return 0L;
+            int n = SampleOneIn;
+            if (n > 1)
+            {
+                uint x = t_rng;
+                if (x == 0) x = (uint)Environment.CurrentManagedThreadId * 2654435761u | 1u;
+                x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+                t_rng = x;
+                if (x % (uint)n != 0) return CountOnly;
+            }
+            return Stopwatch.GetTimestamp();
+        }
 
         /// <summary>Records one call of <paramref name="slot"/> that began at <paramref name="start"/>.</summary>
         public static void End(int slot, long start)
         {
             if (start == 0L) return;
-            long dt = Stopwatch.GetTimestamp() - start;
             var b = t_buffer ?? Register();
             b.Calls[slot]++;
-            b.Ticks[slot] += dt;
+            if (start == CountOnly) return;   // ⭐ R-4209 — counted, not timed
+            long dt = Stopwatch.GetTimestamp() - start;
+            b.Ticks[slot] += dt * Math.Max(1, SampleOneIn);
             if (dt > b.Max[slot]) b.Max[slot] = dt;
         }
 
-        /// <summary>⭐ The thread's allocated bytes now (0 when disabled) — pass it to <see cref="End(int, long, long)"/> to count a call's garbage.</summary>
+        /// <summary>⭐ The thread's allocated bytes now (0 when disabled) — pass it to <see cref="End(int, long, long)"/> to count a call's garbage
+        /// (scaled like the time: only a sampled call's garbage is measured).</summary>
         public static long Bytes() => Enabled ? GC.GetAllocatedBytesForCurrentThread() : 0L;
 
         /// <summary>As <see cref="End(int, long)"/>, and the bytes this thread allocated since <paramref name="bytesAtStart"/> (<see cref="Bytes"/>).</summary>
         public static void End(int slot, long start, long bytesAtStart)
         {
             if (start == 0L) return;
+            if (start == CountOnly) { End(slot, start); return; }   // ⭐ R-4209 — counted, not timed
             long allocated = GC.GetAllocatedBytesForCurrentThread() - bytesAtStart;
             End(slot, start);
-            t_buffer!.Bytes[slot] += allocated;
+            t_buffer!.Bytes[slot] += allocated * Math.Max(1, SampleOneIn);
         }
 
         /// <summary>Adds <paramref name="count"/> to <paramref name="slot"/>'s calls without a time — a counter (cells walked, entries

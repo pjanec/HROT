@@ -56,5 +56,7 @@ public sealed class GameplayClientPack : INodeCapability
             ServerExists:  () => election?.AnyServer() ?? false,
             Possess:       unit => { var r = orders.Possess(unit); return (r.Accepted, r.Detail); });
         Compose(context.Participant, context.World, context.EntityMap, context.NodeId.Value, env, input);
+        // ⭐ CE-3446 — a threaded node: the UI reads the flow's readout on its presentation world and posts its verbs as jobs (every staged host)
+        if (context.Presentation is { } presentation) DeployFlows.Stage(Flow!, presentation);
     }
 }

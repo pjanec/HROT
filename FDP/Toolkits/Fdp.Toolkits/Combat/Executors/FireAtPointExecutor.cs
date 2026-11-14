@@ -28,6 +28,11 @@ namespace Fdp.Toolkit.Combat.Executors
         /// (<c>StanceId + 1</c>): the muscle aims as at that body (<c>AimPoint.ForBodyAt</c>). <b>0 = a plain point</b>, as before. In the
         /// padding before <see cref="FireAt"/> — the params stay 32 bytes.</summary>
         public byte BodyStance;
+        /// <summary>⭐ <c>CE-7025</c> (IF-5) — which round an INDIRECT mount with a loadout loads first: <see cref="RoundDefault"/> its first
+        /// (the HE a plain mission fires), <see cref="RoundSmoke"/> its smoke. A change of round costs one reload (the weapon brain's switch).
+        /// In the last padding byte before <see cref="FireAt"/> — the params stay 32 bytes.</summary>
+        public byte Round;
+        public const byte RoundDefault = 0, RoundSmoke = 1;
         /// <summary>⭐ IF-1 (I6, FM-4) — hold until this sim time (seconds; 0 = fire now): time on target fires each gun at T − its flight.</summary>
         public SimInstant FireAt;
     }
@@ -66,6 +71,11 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐⭐ Indirect fire IF-1 (I6; WS-3's rule, as AimAndFireExecutor has it) — a CONTROLLED weapon system (the ground mortar its
             //   gunner mans) fires AS ITSELF: its own WeaponState, its own mount 0; this unit keeps the decision, the ROE and the status.
             //   Mount 0 on a unit with no weapon of its own is its primary (a gunner's tube). ⛔ Before, MountEntity fell back to the owner.
+            // ⭐ CE-2278 (DA-12) — a SMOKE order to a man throws from whichever of his own mounts carries smoke (the grenade mount's second
+            //   loadout entry): the squad that orders it does not read his mounts.
+            if (p.Round == FireAtPointParams.RoundSmoke && !WeaponSystems.IsControlledIndex(p.Mount)
+                && AmmoChoice.MountIndexWithKind(world, entity, Fdp.Toolkit.Tkb.Domain.WarheadKind.Smoke) is var smokeMount && smokeMount > 0)
+                p.Mount = (byte)smokeMount;
             Entity shooter = entity;
             int fireIndex = p.Mount;
             Entity mountEntity;
@@ -109,6 +119,19 @@ namespace Fdp.Toolkit.Combat.Executors
             if (weapon.Ammo == 0) { channel.Status = fired > 0 ? NodeStatus.Success : NodeStatus.Failure; Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfAmmo); return; }
             var mountDto = CombatTkb.MountOf(world, shooter, fireIndex);
             bool bomb = mountDto?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb;
+            // ⭐ CE-7025 (IF-5) — an indirect mount with a loadout loads the round the mission asked for (its first, or its smoke): a change
+            //   holds one reload, as the weapon brain's switch does; no smoke left ⇒ the action fails, out of ammunition.
+            if (mountDto != null && (mountDto.Arc != Fdp.Toolkit.Tkb.Domain.IndirectArc.Unset || Thrown(mountDto)) && !PersonHands.IsHands(mountDto))   // ⭐ CE-2278 — a grenade mount too
+            {
+                int want = p.Round == FireAtPointParams.RoundSmoke ? AmmoChoice.IndexOfKind(world, mountEntity, Fdp.Toolkit.Tkb.Domain.WarheadKind.Smoke) : 0;
+                if (want < 0) { channel.Status = NodeStatus.Failure; Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfAmmo); return; }
+                if (AmmoChoice.LoadIndex(world, mountEntity, want, mountDto.ReloadSeconds))
+                {
+                    channel.Status = NodeStatus.Running;
+                    Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Reloading);
+                    return;
+                }
+            }
             // ⭐⭐ CE-3230 (H-5; Civilians §7.9) — the LOADED round is the one that flies, is spent and decides "arc or straight". A hand has
             //   no breech: a spent kind gives way to the next one at once. (Before, a loadout thrown at a point flew its mount's default.)
             long loadedAmmo = PersonHands.IsHands(mountDto) ? PersonHands.ReadyNext(world, mountEntity) : AmmoChoice.LoadedAmmo(world, mountEntity);
@@ -198,6 +221,9 @@ namespace Fdp.Toolkit.Combat.Executors
             if (PersonHands.IsHands(mountDto)) RoundPickUp.Thrown(world, entity, loadedAmmo);   // ⭐ CE-3235 (PU-6) — the live round left his hand
             fixed (byte* st = channel.State) *(int*)st = fired + 1;
             channel.Status = p.Rounds > 0 && fired + 1 >= p.Rounds ? NodeStatus.Success : NodeStatus.Running;
+            // ⭐ CE-2278 — the last smoke grenade of the order gone, the M67 goes back in his hand (entry 0) for the weapon brain's own throws
+            if (channel.Status == NodeStatus.Success && p.Round == FireAtPointParams.RoundSmoke && Thrown(mountDto))
+                AmmoChoice.LoadIndex(world, mountEntity, 0, mountDto!.ReloadSeconds);
             Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing, fired + 1, p.Rounds);   // ⭐ CE-3136 — blind fire: no aim, no sight gate
         }
 
@@ -341,6 +367,9 @@ namespace Fdp.Toolkit.Combat.Executors
         /// <summary>The entity holding mount <paramref name="index"/>'s <see cref="WeaponState"/>: the owner for mount 0, the mount
         /// child otherwise (<see cref="WeaponMountQuery"/>, as <see cref="AimAndFireExecutor"/> finds it).</summary>
         private static Entity MountEntity(EntityRepository world, Entity owner, int index) => WeaponMountQuery.MountEntity(world, owner, index);
+
+        /// <summary>⭐ <c>CE-2278</c> — a mount thrown by hand (a grenade): it switches rounds as an indirect mount does.</summary>
+        private static bool Thrown(Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount) => mount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade;
     }
 }
 
@@ -363,6 +392,9 @@ namespace Fdp.Toolkit.Combat
         public ArcPreference Arc;
         /// <summary>⭐ Indirect fire IF-2 (FM-4) — sim time (s) before which nothing leaves (time on target); 0 = now.</summary>
         public SimInstant FireAt;
+        /// <summary>⭐ <c>CE-7025</c> — the round an indirect mount loads (<see cref="Executors.FireAtPointParams.RoundDefault"/> /
+        /// <see cref="Executors.FireAtPointParams.RoundSmoke"/>).</summary>
+        public byte Round;
     }
 
     /// <summary>
@@ -396,6 +428,7 @@ namespace Fdp.Toolkit.Combat
                 Point = p.Point, CooldownSeconds = p.CooldownSeconds, Rounds = p.Rounds, Mount = p.Mount,
                 Arc = p.Arc, FireAt = p.FireAt,   // ⭐ IF-2 (FM-2, FM-4)
                 BodyStance = p.BodyStance,        // ⭐ CE-2326
+                Round = p.Round,                  // ⭐ CE-7025
             };
             p.Started = channel.ActionInstanceId;
             return NodeStatus.Running;

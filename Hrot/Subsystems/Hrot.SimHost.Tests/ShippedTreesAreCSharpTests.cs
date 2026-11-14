@@ -36,6 +36,8 @@ namespace Hrot.SimHost.Tests
             var t = ShippedTrees.All.Single(x => x.Name == name);
             string expected = File.ReadAllText(ShippedTreeDump.SnapshotPath(name)).Replace("\r\n", "\n");
             string actual = ShippedTreeDump.Of(Registry.Value, name, CSharpAssetId(name), t.Probes);
+            // ⭐ CE-7029 — a DELIBERATE tree change (a new SOP row, a re-filed group) re-records its snapshot: HROT_UPDATE_SHIPPED_TREES=1, then read the diff
+            if (Environment.GetEnvironmentVariable("HROT_UPDATE_SHIPPED_TREES") == "1") { File.WriteAllText(ShippedTreeDump.SnapshotPath(name), actual); return; }
             Assert.Equal(expected, actual);
         }
 
@@ -72,7 +74,7 @@ namespace Hrot.SimHost.Tests
                                            ("holdFire", typeof(SopRoeParams)), ("airDefence", typeof(Hrot.AI.Behaviors.Brains.EngageAircraftParams)),
                                            ("nearMissSense", typeof(SopSenseParams)) },
             ["BasicSquadSop"] = new[] { ("underFire", typeof(SopSenseParams)), ("leaderDown", typeof(SopSenseParams)), ("contact", typeof(SopSenseParams)),
-                                        ("memberDown", typeof(SopSenseParams)), ("areaAhead", typeof(SopAreaParams)) },
+                                        ("memberDown", typeof(SopSenseParams)), ("areaAhead", typeof(SopAreaParams)), ("airSense", typeof(SopSenseParams)) },
             ["BasicPlatoonSop"] = new[] { ("reportReceived", typeof(SopSenseParams)), ("enemyNear", typeof(Fdp.Toolkit.Squad.Command.ElementReportedParams)) },
             ["BasicVehicleSop"] = new[] { ("airSense", typeof(SopSenseParams)), ("hitSense", typeof(SopSenseParams)), ("threatSense", typeof(SopSenseParams)),
                                           ("airDefence", typeof(Hrot.AI.Behaviors.Brains.EngageAircraftParams)) },

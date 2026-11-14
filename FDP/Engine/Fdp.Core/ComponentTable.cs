@@ -7,9 +7,12 @@ namespace Fdp.Core
     /// Stores components of type T using NativeChunkTable.
     /// Provides O(1) access to components by entity index.
     /// </summary>
-    public sealed class ComponentTable<T> : IComponentTable, FlightRecorder.IUnmanagedComponentTable where T : unmanaged
+    public sealed class ComponentTable<T> : IComponentTable, FlightRecorder.IUnmanagedComponentTable, Diagnostics.TableWriteStats.ISampled, IMemorySized where T : unmanaged
     {
         private readonly NativeChunkTable<T> _data;
+
+        Diagnostics.TableWriteStats.Sample Diagnostics.TableWriteStats.ISampled.SampleWrites(uint frameVersion) => _data.SampleWrites(frameVersion);   // ⭐ M-1
+        int Diagnostics.TableWriteStats.ISampled.CommitByContent(uint frameVersion) => _data.CommitByContent(frameVersion);   // ⭐ D-5
         private readonly int _componentTypeId;
         
         public ComponentTable()
@@ -17,6 +20,10 @@ namespace Fdp.Core
             _data = new NativeChunkTable<T>();
             _componentTypeId = ComponentType<T>.ID;
         }
+
+        // ⭐ CE-4456 N-1 — the memory census
+        long IMemorySized.NativeBytes => _data.GetMemoryStats().CommittedBytes;
+        long IMemorySized.ManagedSlotBytes => 0;
         
         public int ComponentTypeId => _componentTypeId;
         public Type ComponentType => typeof(T);
@@ -100,6 +107,10 @@ namespace Fdp.Core
         /// Sets component value for entity at given index.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <inheritdoc/>
+        public void CopyRowFrom(IComponentTable source, int entityIndex, uint version)
+            => _data.GetRefRW(entityIndex, version) = ((ComponentTable<T>)source)._data.GetRefRO(entityIndex);
+
         public void Set(int entityIndex, in T component, uint version)
         {
             _data.GetRefRW(entityIndex, version) = component;
@@ -211,11 +222,19 @@ namespace Fdp.Core
             _data?.Dispose();
         }
 
-        public void SyncFrom(IComponentTable source)
+        /// <summary>⭐ EXPERIMENT (threaded kernel X-1) — the chunks a sync from <paramref name="source"/> would copy now, and this table's committed bytes.</summary>
+        internal (int DirtyChunks, long CommittedBytes) ProbeStats(IComponentTable source)
+            => (source is ComponentTable<T> s ? _data.CountDirtyChunks(s._data) : 0, _data.GetMemoryStats().CommittedBytes);
+
+        public void SyncFrom(IComponentTable source) => SyncFrom(source, force: false);
+
+        public void InvalidateChunksStampedSince(uint version) => _data.InvalidateChunksStampedSince(version);
+
+        public void SyncFrom(IComponentTable source, bool force)
         {
             if (source is ComponentTable<T> typedSource)
             {
-                _data.SyncDirtyChunks(typedSource._data);
+                _data.SyncDirtyChunks(typedSource._data, force);
             }
             #if FDP_PARANOID_MODE
             else

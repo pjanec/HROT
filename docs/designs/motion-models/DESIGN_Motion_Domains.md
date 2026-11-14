@@ -241,7 +241,7 @@ the surface sampler keeps its "a unit spawned inside a footprint stands on the r
 
 ## 5c. The ground model: a point inside the turning circle is REACHED, never orbited — `CE-2206` (`2026-10-16`, backend)
 
-📐 Measured live (`ua-javelin-lock`, behaviors' [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Vehicle_Orbit.md)): an M1 sent
+📐 Measured live (`ua-javelin-lock`, behaviors' handoff): an M1 sent
 2.3 m to a cover point drove a ~5 m circle round it for 60 s; the move never ended.
 
 ```mermaid

@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -214,6 +215,12 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
     /// ⭐ The raw leave to Idle the door calls once it has decided: leaves the host's dry run, sends the ONE Idle intent (<see cref="ScenarioLoadSequence.Unload"/>), abandons a queued load (the operator just asked
     /// for a fresh exercise — honouring it afterwards would undo the request) and, reaches the other nodes (⛔ not <see cref="ClearWorld"/>, which is local; the unload to Idle clears the world on every node, CE-2101).
     /// </summary>
+    /// <summary>⭐ N-6 — the raw leave, for a threaded node's UI door (its decision made on the UI thread; this runs on the sim thread).</summary>
+    public void LeaveRaw(LeaveReason reason) => RawLeave(reason);
+
+    /// <summary>⭐ N-6 — the autosave reader (a file read), for a threaded node's UI door.</summary>
+    public Fdp.Toolkit.Orchestration.AutosaveFiles.Status AutosaveOf(string scenarioName) => AutosaveOfScenario(scenarioName);
+
     private void RawLeave(LeaveReason reason)
     {
         if (reason is LeaveReason.Exit or LeaveReason.Close && CurrentClusterState == ClusterState.Idle) return;   // ⭐ CE-4101 follow-up / CE-1443 — exiting or closing a cluster at rest: nothing to stop, no Idle intent to send
@@ -239,7 +246,7 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
     void IRunScenarioControl.OpenForEdit(string scenarioName) => ((IRunScenarioControl)this).OpenForEdit(scenarioName, null);
 
     /// <summary>⭐ CE-3393 — the args the resident load applied (which preset the world holds).</summary>
-    string? IRunScenarioControl.LoadedArgsJson => _world is null ? null : Fdp.Toolkit.Scenario.ScenarioDescription.ArgsOf(_world);
+    string? IRunScenarioControl.LoadedArgsJson => _world is null ? null : ReadsOnSimThread ? Volatile.Read(ref _loadedArgsJson) : Fdp.Toolkit.Scenario.ScenarioDescription.ArgsOf(_world);
 
     /// <summary>⭐ CE-3375 — the edit open with a preset's args (null ⇒ the plain open, exactly as before).</summary>
     void IRunScenarioControl.OpenForEdit(string scenarioName, string? argsJson) => ((IRunScenarioControl)this).OpenForEdit(scenarioName, argsJson, recoverAutosave: false);
@@ -329,14 +336,33 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
         get
         {
             if (_world is null) return null;
-            uint v = _world.GlobalVersion;
-            if (v != _gateVersion || !_gateRead) { _gateVersion = v; _gateRead = true; _gateReason = Fdp.Toolkit.Scenario.ScenarioSaveGate.CanSave(_world); }
+            if (ReadsOnSimThread) return Volatile.Read(ref _gateReason);   // ⭐ N-6 — the threaded node: computed on the sim thread (RefreshOnSim)
+            RefreshGate();
             return _gateReason;
         }
+    }
+    private void RefreshGate()
+    {
+        uint v = _world!.GlobalVersion;
+        if (v != _gateVersion || !_gateRead) { _gateVersion = v; _gateRead = true; Volatile.Write(ref _gateReason, Fdp.Toolkit.Scenario.ScenarioSaveGate.CanSave(_world)); }
     }
     private uint _gateVersion;
     private bool _gateRead;
     private string? _gateReason;
+
+    /// <summary>⭐ N-6 (CE-4468) — set by a THREADED node, whose world is the simulation's: every read of the world the UI's surfaces make (the save
+    /// gate, the loaded args) is answered from values the SIM thread computes after each tick (<see cref="RefreshOnSim"/>) — ⛔ never a walk of
+    /// the world from the UI thread while the sim writes it (measured: a query's candidate index rebuilt under it — IndexOutOfRange).</summary>
+    public bool ReadsOnSimThread { get; set; }
+
+    /// <summary>⭐ N-6 — the sim thread, after each tick: refreshes the values <see cref="ReadsOnSimThread"/> serves.</summary>
+    public void RefreshOnSim()
+    {
+        if (_world is null) return;
+        RefreshGate();
+        Volatile.Write(ref _loadedArgsJson, Fdp.Toolkit.Scenario.ScenarioDescription.ArgsOf(_world));
+    }
+    private string? _loadedArgsJson;
 
     /// <inheritdoc/>
     public void SaveAs(string scenarioName)

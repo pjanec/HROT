@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Replay
         {
             if (world is null) throw new ArgumentNullException(nameof(world));
             if (string.IsNullOrWhiteSpace(label)) throw new ArgumentException("a checkpoint is named", nameof(label));
-            var time = world.GetSingletonUnmanaged<GlobalTime>();
+            var time = world.GetSingletonUnmanagedRO<GlobalTime>();
             long wall = time.TotalWallTicks != 0 ? time.TotalWallTicks : DateTime.UtcNow.Ticks;
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
             using var recorder = new AsyncRecorder(path, new RecordingMetadata(), appendAfterFrames: 0);

@@ -1,5 +1,5 @@
 <!--STATUS state: LIVE · updated: 2026-11-08 · current-answer: the table -->
-# STATUS — backend, run controls ([HANDOFF](HANDOFF_Coordinator_To_Ui_And_Backend_Run_Controls.md), dispatched at `dd9eb622`)
+# STATUS — backend, run controls (HANDOFF, dispatched at `dd9eb622`)
 
 | item | id | state | sha | what ui can now use / notes |
 |---|---|---|---|---|
@@ -8,5 +8,5 @@
 | B-3 | CE-3415 | DONE | `dfdc52985` | `ClusterView.StartLiveImmediately` / `RunModeChoice.StartImmediatelySetting`; `SendRunSettings(…, startLiveImmediately)`; Orchestrator panel checkbox; `/run-settings {startLiveImmediately}` |
 | B-4 | CE-3414 | DONE | `1894b560e` | Start screen Recent rows |
 | B-5 | CE-3411 | DONE | (log) | `/run-mode` switches with HTTP's refusing asker (ui's `Choose` overload); `/status.canSave` + the save 409 read the one reason; MCP catalog regenerated |
-| B-6 | — | SKIPPED — needs user | — | QUESTION [NOTE_Backend_To_Coordinator_Preview_Run_Setup_Question](NOTE_Backend_To_Coordinator_Preview_Run_Setup_Question.md): the setup is applied only by a load (DOM-level); lean (B) preview the saved scenario with the setup. ui's L-10 stays ⏳ |
-| ui REQUEST | — | DONE | `09eae2dba` | [live checkpoint labels](NOTE_Ui_To_Backend_Live_Checkpoint_Labels.md): the master keeps the marks of the exercise now recording and publishes them on the replay-session topic in Live; ANSWER note when built |
+| B-6 | — | SKIPPED — needs user | — | QUESTION NOTE_Backend_To_Coordinator_Preview_Run_Setup_Question: the setup is applied only by a load (DOM-level); lean (B) preview the saved scenario with the setup. ui's L-10 stays ⏳ |
+| ui REQUEST | — | DONE | `09eae2dba` | live checkpoint labels: the master keeps the marks of the exercise now recording and publishes them on the replay-session topic in Live; ANSWER note when built |

@@ -11,7 +11,7 @@ design-basis: DESIGN_Details_Panel_View_Switching.md §6 L3/L4.4 · §2/§2b · 
 -->
 # ⭐⭐⭐ REPORT — **the visual-check findings** *(Details views, float/pin, menus)*
 
-> **Handoff:** 📄 [`HANDOFF_VisualCheck_Details_And_Menus.md`](HANDOFF_VisualCheck_Details_And_Menus.md)
+> **Handoff:** 📄 `HANDOFF_VisualCheck_Details_And_Menus.md`
 > **dispatched at** `4e346705e` · **started at** `6749c26d` *(marker `14661b3a`)* ·
 > **branch** `claude/hrot-implementation-j1jvin`
 

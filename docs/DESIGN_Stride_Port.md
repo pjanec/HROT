@@ -137,7 +137,7 @@ crowd a stub-replacement — with no live functionality on the coordinator that 
 
 ## 6. ⭐⭐⭐ AS-BUILT — **what the port measured, including two premises of this map that were FALSE**
 
-> 📄 Batch: [`blueprints/batches/BATCH_ST101_The_Stride_Port.md`](blueprints/batches/BATCH_ST101_The_Stride_Port.md) ·
+> 📄 Batch: `blueprints/batches/BATCH_ST101_The_Stride_Port.md` ·
 > ids **`ST-001`…`ST-009`**, tracker **Area I**.
 
 ### ⭐⭐ 6.1 The headline held — **and is now proven, not asserted**
@@ -244,7 +244,7 @@ command and what a human should see.
 
 ## ⭐⭐⭐ 7. AS-BUILT — **the StrideMock removal, and where `StrideNodeBootstrapper` lives now**
 
-> 📄 Dispatch: [`blueprints/batches/HANDOFF_Stride_Cleanup.md`](blueprints/batches/HANDOFF_Stride_Cleanup.md).
+> 📄 Dispatch: `blueprints/batches/HANDOFF_Stride_Cleanup.md`.
 > ids `ST-014`…`ST-018`, tracker Area I. 🔒 **User, `2026-08-23`:** *"StrideMock is not needed anymore, it
 > was just a temporary submodule used in place of the real stride. we can remove whole subsystem (unless
 > you find something great it provides we should keep)."*

@@ -12,7 +12,7 @@ design-basis: DESIGN_Staged_Live_Write.md §3 (classDiagram) · §4 fork A · §
 
 > **Design:** 📄 [`DESIGN_Staged_Live_Write.md`](../DESIGN_Staged_Live_Write.md) — §3's `classDiagram`,
 > §4 **fork A**, §5 (the seam), §7 (both surfaces agree)
-> **Handoff:** 📄 [`HANDOFF_UI_W3_W4_W5_The_Staged_Write.md`](HANDOFF_UI_W3_W4_W5_The_Staged_Write.md) §1
+> **Handoff:** 📄 `HANDOFF_UI_W3_W4_W5_The_Staged_Write.md` §1
 > **started at** `71b30c3d` *(marker `67149883`)* · **branch** `claude/hrot-implementation-j1jvin`
 > ⭐ IDs allocated: **`BP-406`** *(built)* · **`BP-407`** *(a stated limit, open)*
 > ⛔ **No diagram in this report** — 📌 the `2026-08-21` rule: diagrams live in the DESIGN. §3's

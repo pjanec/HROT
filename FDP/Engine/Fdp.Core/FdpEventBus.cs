@@ -79,6 +79,9 @@ namespace Fdp.Core
 
         private bool _disposed;
 
+        /// <summary>⭐ A-1 — this bus's id in the access trace (0 when the switch is off).</summary>
+        internal readonly int TraceId = AccessTrace.On ? AccessTrace.NextBusId() : 0;
+
         /// <summary>
         /// Publishes an unmanaged event to the bus.
         /// Thread-safe: multiple threads can publish concurrently.
@@ -89,6 +92,17 @@ namespace Fdp.Core
         public void Publish<T>(T evt) where T : unmanaged
         {
             int typeId = EventType<T>.Id;
+            // ⭐ M-7 (CE-4486) — ONE rule for a direct and a deferred publish: strict mode demands the registration, otherwise the stream is made
+            //   at the publish. 📐 Measured: a squad phase's publish of an event its world never registered threw at the batch's playback (the
+            //   playback finds the stream by id) where the serial publish made the stream. Stream creation is thread-safe (concurrent dictionary).
+            if (ParallelReadCheck.DefersBus(this))
+            {
+                if (!(FdpConfig.EnforceExplicitEventRegistration && !_nativeStreams.ContainsKey(typeId))) GetOrCreateNativeStream<T>();
+                else ThrowUnregisteredNative<T>(typeId);
+                ParallelReadCheck.CurrentBatch!.Commands.PublishEvent(in evt);   // ⭐ N-10 / F-2 — a publish in a phase rides the batch, in batch order
+                return;
+            }
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.BusPublish, TraceId);
             if (FdpConfig.EnforceExplicitEventRegistration && !_nativeStreams.ContainsKey(typeId))
             {
                 throw new InvalidOperationException(
@@ -100,6 +114,12 @@ namespace Fdp.Core
             var stream = GetOrCreateNativeStream<T>();
             stream.Write(evt);
         }
+
+        private static void ThrowUnregisteredNative<T>(int typeId)
+            => throw new InvalidOperationException(
+                $"Strict Mode Violation: Unmanaged event type '{typeof(T).Name}' (ID: {typeId}) " +
+                "was published without being explicitly registered. " +
+                $"You must call world.RegisterEvent<{typeof(T).Name}>() during bootstrap.");
 
         /// <summary>
         /// Pre-registers a native event type so that events of this type injected during
@@ -123,6 +143,14 @@ namespace Fdp.Core
         /// <param name="evt">Event to publish</param>
         public void PublishManaged<T>(T evt) // No class constraint — allows managed structs
         {
+            if (ParallelReadCheck.DefersBus(this) && !typeof(T).IsValueType && evt is object boxed)
+            {   // ⭐ N-10 / F-2 — a publish in a phase rides the batch, in batch order (a managed STRUCT event has no buffer op: published at once, locked)
+                //   ⭐ M-7 — the stream made now when strict mode allows it (the same rule as a direct publish; its playback finds it by id)
+                if (!(FdpConfig.EnforceExplicitEventRegistration && !_managedStreams.ContainsKey(GetManagedTypeId<T>()))) GetOrCreateManagedStream<T>();
+                ParallelReadCheck.CurrentBatch!.Commands.PublishManagedEventRaw(GetManagedTypeId<T>(), boxed);
+                return;
+            }
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.BusPublish, TraceId);
             int typeId = GetManagedTypeId<T>();
             if (FdpConfig.EnforceExplicitEventRegistration && !_managedStreams.ContainsKey(typeId))
             {
@@ -141,6 +169,7 @@ namespace Fdp.Core
         /// </summary>
         public bool HasEvent<T>() where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.BusRead, TraceId);
             return _activeEventIds.Contains(EventType<T>.Id);
         }
 
@@ -159,6 +188,7 @@ namespace Fdp.Core
         /// </summary>
         public bool HasManagedEvent<T>() // No class constraint — aligns with PublishManaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.BusRead, TraceId);
             return _activeEventIds.Contains(GetManagedTypeId<T>());
         }
 
@@ -167,7 +197,11 @@ namespace Fdp.Core
         /// <summary>
         /// Checks if an event of the specified type exists in the current frame.
         /// </summary>
-        public bool HasEvent(Type type) => TryGetTypeId(type, out int id, out _) && _activeEventIds.Contains(id);
+        public bool HasEvent(Type type)
+        {
+            if (AccessTrace.On) AccessTrace.RecordType(TraceKind.BusRead, type, TraceId);
+            return TryGetTypeId(type, out int id, out _) && _activeEventIds.Contains(id);
+        }
 
 
         /// <summary>
@@ -213,6 +247,7 @@ namespace Fdp.Core
         /// </summary>
         public unsafe void PublishRaw(int typeId, void* data)
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.BusPublish, "(event id " + typeId + ")", TraceId);
             if (_nativeStreams.TryGetValue(typeId, out var stream))
             {
                 stream.WriteRaw(data);
@@ -229,6 +264,7 @@ namespace Fdp.Core
         /// </summary>
         public void PublishManagedRaw(int typeId, object evt)
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.BusPublish, "(managed event id " + typeId + ")", TraceId);
             if (_managedStreams.TryGetValue(typeId, out var stream))
             {
                 if (stream is IManagedEventStream managedStream)
@@ -258,6 +294,7 @@ namespace Fdp.Core
         /// <returns>Read-only span of events from previous frame</returns>
         public unsafe ReadOnlySpan<T> Read<T>() where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.BusRead, TraceId);
             if (_nativeStreams.TryGetValue(EventType<T>.Id, out var stream))
             {
                 // Check if it's a typed stream (normal case)
@@ -287,6 +324,7 @@ namespace Fdp.Core
         /// </summary>
         public ReadOnlySpan<byte> ReadRawByTypeId(int typeId, out int elementSize)
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.BusRead, "(event id " + typeId + ")", TraceId);
             if (_nativeStreams.TryGetValue(typeId, out var stream))
             {
                 elementSize = stream.ElementSize;
@@ -297,7 +335,11 @@ namespace Fdp.Core
         }
 
         /// <summary>True when a native event of the given <paramref name="typeId"/> is present this frame.</summary>
-        public bool HasEvent(int typeId) => _activeEventIds.Contains(typeId);
+        public bool HasEvent(int typeId)
+        {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.BusRead, "(event id " + typeId + ")", TraceId);
+            return _activeEventIds.Contains(typeId);
+        }
 
         /// <summary>
         /// Consumes all managed events of type T from the previous frame.
@@ -307,6 +349,7 @@ namespace Fdp.Core
         /// <returns>Read-only list of events from previous frame</returns>
         public IReadOnlyList<T> ReadManaged<T>() // No class constraint — allows managed structs
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.BusRead, TraceId);
             if (_managedStreams.TryGetValue(GetManagedTypeId<T>(), out var stream))
             {
                 return ((ManagedEventStream<T>)stream).Read();
@@ -335,7 +378,9 @@ namespace Fdp.Core
         /// <param name="addMissingStreams">⭐ CE-4062 — when true, a native type this bus has no stream for gets one shaped like the
         /// source's (typed when the source's is typed), so nothing is skipped: the Replay Browser hands a stepped frame's recorded
         /// events to the world it draws, whose bus registered only the presentation's own events.</param>
-        public unsafe void PublishCurrentOf(FdpEventBus source, bool addMissingStreams = false)
+        /// <param name="addMissingManagedStreams">⭐ N-3 / D-9 — the same for a MANAGED type: a stream of the source's shape is added (the staging's mirror
+        /// buses must carry a managed event type the sim side registered after the mirror was built — never drop it silently).</param>
+        public unsafe void PublishCurrentOf(FdpEventBus source, bool addMissingStreams = false, bool addMissingManagedStreams = false)
         {
             if (source is null) throw new ArgumentNullException(nameof(source));
             var natives = Volatile.Read(ref source._nativeList);
@@ -361,13 +406,57 @@ namespace Fdp.Core
             for (int i = 0; i < managedCount; i++)
             {
                 if (manageds[i] is not IManagedEventStreamInfo info || info.CurrentEvents.Count == 0) continue;
-                if (!_managedStreams.TryGetValue(info.TypeId, out var target) || target is not IManagedEventStream to) continue;
+                if (!_managedStreams.TryGetValue(info.TypeId, out var target) && addMissingManagedStreams)
+                {
+                    var created = Activator.CreateInstance(manageds[i].GetType())!;
+                    lock (_streamListLock)
+                    {
+                        if (!_managedStreams.TryGetValue(info.TypeId, out target))
+                        {
+                            _managedStreams[info.TypeId] = created;
+                            AppendManaged((IManagedEventStream)created);
+                            target = created;
+                        }
+                    }
+                }
+                if (target is not IManagedEventStream to) continue;
                 foreach (var evt in info.CurrentEvents) if (evt != null) to.WriteRaw(evt);
+            }
+        }
+
+        /// <summary>⭐ EXPERIMENT — POC 2 (CE-4439): registers on THIS bus every stream <paramref name="source"/> has (same shape, empty), so World S
+        /// can publish and read every event type World A's bus was given (explicit registration is enforced in the editor).</summary>
+        public void CopyRegistrationsFrom(FdpEventBus source)
+        {
+            var natives = Volatile.Read(ref source._nativeList);
+            int nativeCount = Volatile.Read(ref source._nativeCount);
+            for (int i = 0; i < nativeCount; i++)
+            {
+                var from = natives[i];
+                if (_nativeStreams.ContainsKey(from.EventTypeId)) continue;
+                AddNativeStream(from.EventTypeId, from is UntypedNativeEventStream
+                    ? new UntypedNativeEventStream(from.EventTypeId, from.ElementSize)
+                    : (INativeEventStream)Activator.CreateInstance(from.GetType(), 1024)!);
+            }
+            var manageds = Volatile.Read(ref source._managedList);
+            int managedCount = Volatile.Read(ref source._managedCount);
+            for (int i = 0; i < managedCount; i++)
+            {
+                var from = manageds[i];
+                if (from is not IManagedEventStreamInfo info || _managedStreams.ContainsKey(info.TypeId)) continue;
+                var created = Activator.CreateInstance(from.GetType())!;
+                lock (_streamListLock)
+                {
+                    if (_managedStreams.ContainsKey(info.TypeId)) continue;
+                    _managedStreams[info.TypeId] = created;
+                    AppendManaged((IManagedEventStream)created);
+                }
             }
         }
 
         public void SwapBuffers()
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.BusSwap, "(swap buffers)", TraceId);
             _activeEventIds.Clear();
 
             // ⭐ CE-3293 S4 — by index, not ConcurrentDictionary.Values (which allocates every call)

@@ -53,6 +53,7 @@ namespace Hrot.SimHost
             world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>();   // ⭐ CE-1249 — the brain journal (BV-9)
             world.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandReportHistory>();   // ⭐ CE-1319 — a commander's report history (BV-57)
             world.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandOrderHistory>();    // ⭐ CE-1319 — a commander's order history (BV-58)
+            world.RegisterManagedComponent<Fdp.Toolkit.Squad.SquadDrillTrace>();   // ⭐ N-11 — registered with its headline (was lazy, mid-tick), so a commander is PROVISIONED with it (SquadStateProvisioning)
             world.RegisterComponent<Fdp.Toolkit.Squad.SquadDrillState>();               // ⭐ CE-4047 — a commander's squad-drill headline, recorded (the Brain tab's Squad section in replay)
             world.RegisterComponent<InteractionChannel>();
             // ⭐ MOVED 2026-09-12 to CombatComponentRegistry (CE-259bf slice 2): ActorCapabilityState

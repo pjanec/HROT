@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.Replication.Systems
         {
             var repo = (EntityRepository)view;
             if (!repo.HasSingletonUnmanaged<GlobalTime>()) return;
-            var globalTime = repo.GetSingletonUnmanaged<GlobalTime>();
+            var globalTime = repo.GetSingletonUnmanagedRO<GlobalTime>();
             uint currentFrame = (uint)globalTime.FrameNumber;
 
             var query = repo.Query()

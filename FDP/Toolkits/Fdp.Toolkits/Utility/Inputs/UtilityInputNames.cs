@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Reflection;
 
 namespace Fdp.Toolkit.Utility
@@ -9,20 +11,30 @@ namespace Fdp.Toolkit.Utility
     /// </summary>
     public static class UtilityInputNames
     {
-        private static Dictionary<ushort, string>? _names;
+        // ⭐ POC 2 / P-2 (A-2 finding) — built exactly once, thread-safe: the old check-then-build let two threads each scan the id tables.
+        // (Not readonly: the race rail resets it by reflection. Production never reassigns it.)
+        private static Lazy<Dictionary<ushort, string>> _names = NewTable();
+
+        /// <summary>A fresh, thread-safe lazy table (the rail resets <c>_names</c> with one).</summary>
+        internal static Lazy<Dictionary<ushort, string>> NewTable() => new(Build, LazyThreadSafetyMode.ExecutionAndPublication);
+
+        /// <summary>How many times the id tables were scanned — a rail asserts one per reset, whatever the thread count.</summary>
+        internal static int BuildCount;
+
+        private static Dictionary<ushort, string> Build()
+        {
+            Interlocked.Increment(ref BuildCount);
+            var names = new Dictionary<ushort, string>();
+            foreach (var t in new[] { typeof(StandardInputIds), typeof(SquadInputIds) })
+                foreach (var f in t.GetFields(BindingFlags.Public | BindingFlags.Static))
+                    if (f.IsLiteral && f.FieldType == typeof(ushort))
+                        names.TryAdd((ushort)f.GetRawConstantValue()!, f.Name);
+            return names;
+        }
 
         public static string Of(ushort inputId)
         {
-            if (_names is null)
-            {
-                var names = new Dictionary<ushort, string>();
-                foreach (var t in new[] { typeof(StandardInputIds), typeof(SquadInputIds) })
-                    foreach (var f in t.GetFields(BindingFlags.Public | BindingFlags.Static))
-                        if (f.IsLiteral && f.FieldType == typeof(ushort))
-                            names.TryAdd((ushort)f.GetRawConstantValue()!, f.Name);
-                _names = names;
-            }
-            return _names.TryGetValue(inputId, out var n) ? n : $"0x{inputId:X4}";
+            return _names.Value.TryGetValue(inputId, out var n) ? n : $"0x{inputId:X4}";
         }
     }
 }

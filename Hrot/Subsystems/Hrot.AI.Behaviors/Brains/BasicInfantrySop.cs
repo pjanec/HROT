@@ -70,6 +70,14 @@ namespace Hrot.AI.Behaviors.Brains
                     .Label("Aircraft + an air-defence weapon → engage")
                     .Comment("CE-2191 (Air Ops §7f): a unit that carries or controls an air-defence weapon (a SAM launcher, a gun elevating ≥ 80°) stands and fires at the aircraft; every other unit falls through to its old rows.")
                 .Sequence(row => row
+                    .Condition(bb => bb.AirSense, SopConditions.SensedFresh, Id("c7029000-0000-0000-0000-000000000021"))
+                        .Label("Air threat (fresh, 3 s)")
+                    .React(BehaviorNames.ShelterFromAir, ReactionUrgency.UnderFire, Id("c7029000-0000-0000-0000-000000000022"))
+                        .Label("React: ShelterFromAir"),
+                    Id("c7029000-0000-0000-0000-000000000020"))
+                    .Label("Drone → take cover")
+                    .Comment("CE-7029 (City Battle R-1d): a LONE man under a drone takes overhead cover (else keeps moving) — the vehicle's own reaction (BasicVehicleSop's row). A man under command never gets here: his squad's SOP shelters him (SquadShelterFromAir).")
+                .Sequence(row => row
                     .Condition(bb => bb.HitSense, SopConditions.SensedFresh, Id("c2080000-0000-0000-0000-000000000011"))
                         .Label("Hit (fresh, 3 s)")
                     .React(BehaviorNames.FightFromCover, ReactionUrgency.Hit, Id("c2080000-0000-0000-0000-000000000012"))

@@ -73,7 +73,9 @@ namespace Fdp.Toolkit.Combat
             if (!repo.HasComponent<EffectState>(e))
             {
                 if (!on) return true;
-                repo.AddComponent(e, default(EffectState));
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                repo.AddComponent(e, new EffectState { Cowering = 1 });
+                return true;
             }
             repo.GetComponentRW<EffectState>(e).Cowering = on ? (byte)1 : (byte)0;
             return true;

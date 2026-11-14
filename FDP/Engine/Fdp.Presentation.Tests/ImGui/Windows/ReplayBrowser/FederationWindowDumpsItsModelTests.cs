@@ -68,7 +68,7 @@ public sealed class FederationWindowDumpsItsModelTests : IDisposable
         Assert.DoesNotContain("rb_federation_test", PanelSnapshot.RegisteredPanels);   // ⛔ anti-vacuity
 
         using var manager = MakeTwoNodeManager();
-        var panel = new FederationPanel(manager);
+        var panel = new FederationPanel(InlineReviewChannel.OverManager(manager));
         var window = new FederationWindow("rb_federation_test", "Federation", "test-perspective", panel, new Vector4(1, 1, 1, 1));
 
         Assert.Contains("rb_federation_test", PanelSnapshot.RegisteredPanels);
@@ -84,7 +84,7 @@ public sealed class FederationWindowDumpsItsModelTests : IDisposable
     {
         PanelSnapshot.CaptureEnabled = true;
         using var manager = MakeTwoNodeManager();
-        var panel = new FederationPanel(manager);
+        var panel = new FederationPanel(InlineReviewChannel.OverManager(manager));
         panel.SetNodeOffset(2, 500L);
         var window = new FederationWindow("rb_federation_test", "Federation", "test-perspective", panel, new Vector4(1, 1, 1, 1));
 
@@ -106,7 +106,7 @@ public sealed class FederationWindowDumpsItsModelTests : IDisposable
     public void WithCaptureOff_TheProductionPathPublishesNothing()
     {
         using var manager = MakeTwoNodeManager();
-        var window = new FederationWindow("rb_federation_test", "Federation", "test-perspective", new FederationPanel(manager), new Vector4(1, 1, 1, 1));
+        var window = new FederationWindow("rb_federation_test", "Federation", "test-perspective", new FederationPanel(InlineReviewChannel.OverManager(manager)), new Vector4(1, 1, 1, 1));
 
         var vm = window.SimulateDrawClientArea();
 

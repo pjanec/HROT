@@ -10,7 +10,7 @@ related-designs:
 
 # Report — backend → coordinator: Scenario Macros S3a
 
-Dispatch: [`HANDOFF_Coordinator_To_Backend_Scenario_Macros_S3a.md`](HANDOFF_Coordinator_To_Backend_Scenario_Macros_S3a.md), scope frozen at
+Dispatch: `HANDOFF_Coordinator_To_Backend_Scenario_Macros_S3a.md`, scope frozen at
 `d358a8728`. Branch `backend`. Every item's as-built is folded into [`DESIGN_Scenario_Macros.md`](../../DESIGN_Scenario_Macros.md) (§5.1.3 · §15.1 ·
 §15.2 · §15.3); this report only points there.
 

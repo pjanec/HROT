@@ -5,23 +5,23 @@ using Fdp.Toolkit.ReplayBrowser;
 namespace Hrot.Editor.Review;
 
 /// <summary>
-/// ⭐ R-5 / V6 — the editor's ONE AAR transport as the drawer sees it: <b>the source decides what it drives</b>. While a participant group is open (<see cref="ReviewSource.IsOpen"/>) every call goes
+/// ⭐ R-5 / V6 — the editor's ONE AAR transport as the drawer sees it: <b>the source decides what it drives</b>. While a participant group is open (the review model's <c>IsOpen</c>) every call goes
 /// to the source's transport (the manager's merge, a part's playback); otherwise to the own-part transport (<see cref="OwnPartReplayTransport"/> — a cluster seek). ONE drawer, ONE segment, two
 /// implementations of the seam, chosen by the files that were opened (D6) — never by the layout.
 /// </summary>
 public sealed class ReplayTransportSelector : IReplayTransport
 {
     private readonly IReplayTransport _ownPart;
-    private readonly ReviewSource _source;
+    private readonly ReviewUi _review;
 
-    public ReplayTransportSelector(IReplayTransport ownPart, ReviewSource source)
+    public ReplayTransportSelector(IReplayTransport ownPart, ReviewUi review)
     {
         _ownPart = ownPart ?? throw new ArgumentNullException(nameof(ownPart));
-        _source = source ?? throw new ArgumentNullException(nameof(source));
+        _review = review ?? throw new ArgumentNullException(nameof(review));
     }
 
-    /// <summary>The transport in charge now.</summary>
-    public IReplayTransport Active => _source.IsOpen ? _source.Transport : _ownPart;
+    /// <summary>The transport in charge now (⭐ CE-4498: decided by the review's model, on the UI thread).</summary>
+    public IReplayTransport Active => _review.Model.IsOpen ? _review.Transport : _ownPart;
 
     public bool HasRecording => Active.HasRecording;
     public int CurrentFrame => Active.CurrentFrame;

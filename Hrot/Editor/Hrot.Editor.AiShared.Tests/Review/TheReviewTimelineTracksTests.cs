@@ -318,7 +318,7 @@ public sealed class TheReviewTimelineTracksTests : IDisposable
         using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
         manager.SetBaseWallTicks(Zero);
         FederatedReplayManager? merged = manager; int? selected = 100;
-        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), Watch(), () => merged, () => selected, n => "Bravo 2-3");
+        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), Watch(), Fdp.Toolkit.ReplayBrowser.Federation.InlineReviewChannel.OverManager(() => merged), () => selected, n => "Bravo 2-3");
         var f = new Fixture(_reader, p1);
         var tracks = new ReviewTimelineTracks(() => f.Source, f.Review.SearchPanel, f.Stops, () => f.Transport, f.Selects.Add, replica: lane);
 
@@ -352,7 +352,7 @@ public sealed class TheReviewTimelineTracksTests : IDisposable
         using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
         manager.SetBaseWallTicks(Zero);
         var watch = new ReplicaWatchList();
-        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), watch, () => manager, () => 100, n => "Bravo 2-3");
+        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), watch, Fdp.Toolkit.ReplayBrowser.Federation.InlineReviewChannel.OverManager(() => manager), () => 100, n => "Bravo 2-3");
         var f = new Fixture(_reader, p1);
         var tracks = new ReviewTimelineTracks(() => f.Source, f.Review.SearchPanel, f.Stops, () => f.Transport, f.Selects.Add, replica: lane);
 
@@ -396,7 +396,7 @@ public sealed class TheReviewTimelineTracksTests : IDisposable
         var watch = new ReplicaWatchList();
         watch.Add(100, "ReplicaProbe.X", 0, expert: true, label: "Probe");   // gives the lane a span (and so its row)
         FederatedReplayManager? shown = manager;
-        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), watch, () => shown, () => 100, n => "Bravo 2-3");
+        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), watch, Fdp.Toolkit.ReplayBrowser.Federation.InlineReviewChannel.OverManager(() => shown), () => 100, n => "Bravo 2-3");
         var f = new Fixture(_reader, p1);
         var tracks = new ReviewTimelineTracks(() => f.Source, f.Review.SearchPanel, f.Stops, () => f.Transport, f.Selects.Add, replica: lane);
         var kit = new ReplicaWatchKit(lane, () => null);
@@ -444,7 +444,7 @@ public sealed class TheReviewTimelineTracksTests : IDisposable
         manager.SetBaseWallTicks(Zero);
         var watch = new ReplicaWatchList();
         watch.Add(100, "Health.Current", 0, label: "Strength");
-        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), watch, () => manager, () => 100, n => "Bravo 2-3");
+        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), watch, Fdp.Toolkit.ReplayBrowser.Federation.InlineReviewChannel.OverManager(() => manager), () => 100, n => "Bravo 2-3");
         var kit = new ReplicaWatchKit(lane, () => null);
         string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-review-rail");
         Directory.CreateDirectory(dir);
@@ -487,7 +487,7 @@ public sealed class TheReviewTimelineTracksTests : IDisposable
         var (p1, p2) = RecordReplicaPair();
         using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
         manager.SetBaseWallTicks(Zero);
-        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), Watch(), () => manager, () => 100, n => "Bravo 2-3");
+        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), Watch(), Fdp.Toolkit.ReplayBrowser.Federation.InlineReviewChannel.OverManager(() => manager), () => 100, n => "Bravo 2-3");
         var f = new Fixture(_reader, p1);
         var tracks = new ReviewTimelineTracks(() => f.Source, f.Review.SearchPanel, f.Stops, () => f.Transport, f.Selects.Add, replica: lane);
         for (int i = 0; i < 400 && tracks.ReplicaItems.Count == 0; i++) { tracks.Tracks(); System.Threading.Thread.Sleep(25); }

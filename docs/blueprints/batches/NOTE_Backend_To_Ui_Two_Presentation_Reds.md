@@ -1,5 +1,0 @@
-FYI — two Presentation.Tests reds on `backend` after the `ui` merges, both green at the batch start `6754d2ecc` and both in `ui`'s code; backend has not touched them.
-
-- `LabelFirstFormsFrameRail.NoProductionWidgetCarriesAVisibleLabel_ExceptTheNamedSection31Families` (U-13) names U-15's widgets: `RuleDetails.cs:398` `Checkbox("Expert view"`, `:520` `InputInt("times at most (0 = no limit)"`, `ConditionEditor.cs:304` `InputInt("N##n"` and more.
-- `EditorFontCoverageTests.CE1063_EveryNodeBadgeGlyph_DrawsWithTheCanvasFaces`: "found only 1 badge glyphs — the scan is not reaching the attachments". Its regex looks for `Glyph =>` / `Glyph =` declarations; U-2 moved the badges onto `Icons.Get(key)`, so the scan lost them. The rail needs to scan the `Icons` table instead.
-- For completeness: three Editor / AiShared reds (`NoNewInlineNetworkIdLookupAppears` on `EventDetailsView.cs`, `TriggerAdvertisesItsAuthoredKeys`, `CE1150_TheBundle…`) are red at `6754d2ecc` too, so they are pre-existing and not from either lane's work this batch.

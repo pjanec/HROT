@@ -127,12 +127,113 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         var damage = terrain.Buildings.Count > 0 ? BuildingDamageTable.Of(repo!, terrain) : null;
         if (!ReferenceEquals(damage, _drawnDamage)) ApplyDamage(terrain, damage);
 
+        var camera = _camera();
+        // ⭐ CE-4559 (render-perf G-5) — the window's plan is drawn from a CACHE: rendered into a texture when the view, the plan or the damage changed, else one
+        //   quad. A film's pass draws into its own target already: it draws the plan directly, as before.
+        if (UseCache && !ctx.Film && camera != null && CacheTarget(out int fw, out int fh))
+        {
+            var key = new CacheKey(camera.Offset, camera.Target, camera.Zoom, fw, fh, ctx.TargetSize, _plan, _overlay, _overlayStrokes, _drawnDamage, _anyHidden);
+            if (!_hasCache || key != _cacheKey) { RenderCache(ctx, camera, fw, fh); _cacheKey = key; CacheRenders++; }
+            DrawCache(fw, fh);
+            return;
+        }
+        DrawPlan(ctx, camera);
+    }
+
+    /// <summary>⭐ CE-4559 (render-perf G-5) — draw the window's plan from a cached texture (the rail turns it off to compare the two pictures).</summary>
+    public bool UseCache { get; set; } = true;
+
+    /// <summary>⭐ CE-4559 — how many times the cache was rendered (a rail: a still view renders it once).</summary>
+    public int CacheRenders { get; private set; }
+
+    /// <summary>⭐ CE-4559 — the cache's size over the screen's. ⚠ 1, measured: at 2 (a supersample standing in for the window's 4× MSAA, which a render texture
+    /// does not get) the plan's 1-px outlines — GL lines, one texel wide whatever the scale — came out at half strength; so the cache is the screen's size, its
+    /// thin lines exact, and only a fill's edge lacks the MSAA smoothing (the rail compares within one pixel).</summary>
+    public const int CacheSupersample = 1;
+
+    private readonly record struct CacheKey(Vector2 Offset, Vector2 Target, float Zoom, int Width, int Height, Vector2 TargetSize, Plan Plan, Plan Overlay,
+                                            DebugPrimitive[] OverlayStrokes, object? Damage, bool AnyHidden);
+
+    private CacheKey _cacheKey;
+    private RenderTexture2D _cache;
+    private bool _hasCache;
+    private int _cacheW, _cacheH;
+    private nint _cacheWindow;
+
+    private const int GlSrcAlpha = 0x0302, GlOneMinusSrcAlpha = 0x0303, GlOne = 1, GlFuncAdd = 0x8006;
+
+    /// <summary>The framebuffer being drawn (the window's); false when there is none to cache for.</summary>
+    private static bool CacheTarget(out int width, out int height)
+    {
+        width = Rlgl.GetFramebufferWidth(); height = Rlgl.GetFramebufferHeight();
+        return width > 0 && height > 0;
+    }
+
+    private unsafe void RenderCache(RenderContext ctx, MapCamera camera, int fw, int fh)
+    {
+        int w = fw * CacheSupersample, h = fh * CacheSupersample;
+        nint window = (nint)Raylib.GetWindowHandle();
+        if (_hasCache && (w != _cacheW || h != _cacheH || window != _cacheWindow))
+        {
+            if (window == _cacheWindow) Raylib.UnloadRenderTexture(_cache);   // a texture of a closed window died with it
+            _hasCache = false;
+        }
+        if (!_hasCache)
+        {
+            _cache = Raylib.LoadRenderTexture(w, h);
+            Raylib.SetTextureFilter(_cache.Texture, TextureFilter.Bilinear);
+            _cacheW = w; _cacheH = h; _cacheWindow = window; _hasCache = true;
+        }
+        Rlgl.DrawRenderBatchActive();
+        var view = Rlgl.GetMatrixModelview();
+        var projection = Rlgl.GetMatrixProjection();
+        Raylib.BeginTextureMode(_cache);
+        Raylib.ClearBackground(new Color(0, 0, 0, 0));
+        // the camera's own transform (MapCamera.BeginMode, north-up mirror included), then scaled to the supersampled texture
+        SetModelview(Raymath.MatrixMultiply(view, Raymath.MatrixScale(CacheSupersample, CacheSupersample, 1f)));
+        Rlgl.DisableBackfaceCulling();
+        // colour blended as on screen, alpha accumulated as coverage: the texture holds premultiplied colour, so a translucent fill is blended ONCE when composited
+        Rlgl.SetBlendFactorsSeparate(GlSrcAlpha, GlOneMinusSrcAlpha, GlOne, GlOneMinusSrcAlpha, GlFuncAdd, GlFuncAdd);
+        Raylib.BeginBlendMode(BlendMode.CustomSeparate);
+        DrawPlan(ctx, camera);
+        Raylib.EndBlendMode();
+        Raylib.EndTextureMode();
+        Rlgl.SetMatrixProjection(projection);
+        SetModelview(view);
+        Rlgl.DisableBackfaceCulling();
+    }
+
+    /// <summary>rlgl's modelview set to <paramref name="m"/> (Raylib-cs binds no <c>rlSetMatrixModelview</c>: identity, then multiplied by it).</summary>
+    private static void SetModelview(Matrix4x4 m)
+    {
+        Rlgl.MatrixMode(MatrixMode.ModelView);
+        Rlgl.LoadIdentity();
+        Rlgl.MultMatrixf(m);
+    }
+
+    private void DrawCache(int fw, int fh)
+    {
+        Rlgl.DrawRenderBatchActive();
+        var view = Rlgl.GetMatrixModelview();
+        var projection = Rlgl.GetMatrixProjection();
+        // the screen rectangle the projection spans (an orthographic one: 2 / width, −2 / height)
+        float sw = projection.M11 != 0f ? 2f / MathF.Abs(projection.M11) : fw, sh = projection.M22 != 0f ? 2f / MathF.Abs(projection.M22) : fh;
+        Rlgl.LoadIdentity();
+        Raylib.BeginBlendMode(BlendMode.AlphaPremultiply);
+        Raylib.DrawTexturePro(_cache.Texture, new Rectangle(0f, 0f, _cacheW, -_cacheH), new Rectangle(0f, 0f, sw, sh), Vector2.Zero, 0f, Color.White);
+        Raylib.EndBlendMode();
+        Rlgl.DrawRenderBatchActive();
+        SetModelview(view);
+    }
+
+    /// <summary>The plan as it is drawn: the fills, the damage overlay's fills, the strokes and labels in view, the house tops far out, the overlay's strokes.</summary>
+    private void DrawPlan(RenderContext ctx, MapCamera? camera)
+    {
         long tf = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4389 — the 2-D plan by stage (HROT_FRAME_STATS; no-op when off)
         if (_plan.FillTriangles > 0) DrawFills();
         Fdp.Presentation.WindowManager.WindowTimings.Record("plan2D fills", tf);
         if (_overlay.FillTriangles > 0) DrawOverlayFills();
 
-        var camera = _camera();
         long tc = Fdp.Presentation.WindowManager.WindowTimings.Start();
         int n = camera != null ? Cull(_plan, ViewOf(camera, ctx.TargetSize), camera.Zoom, _inView, _anyHidden ? _hidden : null) : CopyAll(_plan, _inView, _anyHidden ? _hidden : null);
         Fdp.Presentation.WindowManager.WindowTimings.Record("plan2D cull", tc);
@@ -254,6 +355,7 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         ReleaseMesh();
         if (_hasOverlayMesh) { Raylib.UnloadMesh(_overlayMesh); _hasOverlayMesh = false; }
         if (_hasMaterial) { Raylib.UnloadMaterial(_material); _hasMaterial = false; }
+        if (_hasCache) { Raylib.UnloadRenderTexture(_cache); _hasCache = false; }   // ⭐ CE-4559
     }
 
     private static TerrainWorld? TerrainOf(EntityRepository? world) =>

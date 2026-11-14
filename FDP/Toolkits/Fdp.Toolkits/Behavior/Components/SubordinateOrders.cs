@@ -50,6 +50,12 @@ namespace Fdp.Toolkit.Behavior.Components
 
         /// <summary>The commander's run that is ticking now gave <paramref name="member"/> <paramref name="behavior"/> with
         /// <paramref name="json"/> (replaces that member's previous record — a member runs one task).</summary>
+        /// <summary>⭐ N-11 — the table, before a per-entity phase (<see cref="Fdp.Toolkit.Behavior.BrainPhase"/>).</summary>
+        public static void RegisterTypes(EntityRepository repo)
+        {
+            if (!repo.TryGetTable(typeof(SubordinateOrders), out _)) repo.RegisterManagedComponent<SubordinateOrders>();
+        }
+
         public static void Record(EntityRepository repo, Entity commander, Entity member, string behavior, BehaviorOrigin origin, string json = "")
         {
             uint run = BehaviorOwnedParts.OwnerOf(repo, commander);

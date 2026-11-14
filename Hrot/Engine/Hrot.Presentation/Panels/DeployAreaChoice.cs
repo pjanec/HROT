@@ -12,10 +12,10 @@ namespace Hrot.UI.Common.Panels;
 /// </summary>
 public sealed class DeployAreaChoice
 {
-    private static readonly ConditionalWeakTable<DeployFlowSystem, DeployAreaChoice> PerFlow = new();
+    private static readonly ConditionalWeakTable<IDeployFlow, DeployAreaChoice> PerFlow = new();
 
     /// <summary>The choice of <paramref name="flow"/> (made on first use).</summary>
-    public static DeployAreaChoice Of(DeployFlowSystem flow) => PerFlow.GetValue(flow, _ => new DeployAreaChoice());
+    public static DeployAreaChoice Of(IDeployFlow flow) => PerFlow.GetValue(flow, _ => new DeployAreaChoice());
 
     /// <summary>The side whose offers and areas are shown (null until the screen or a rail picks; <see cref="EffectiveSide"/> then falls back to the first side offered).</summary>
     public ForceId? Side { get; set; }

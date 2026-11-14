@@ -93,6 +93,59 @@ namespace Hrot.Editor.DebugApi
         private IEntityStateExtractionService? _clusterExtraction;
         private EntityRepository? _clusterExtractionFor;
 
+        /// <summary>⭐ N-15 ② (CE-4477) — <c>GET /world/hash</c>: <see cref="EntityRepository.ContentHash()"/> of this service's world (the
+        /// simulation's, S, in a threaded node — the route runs on the sim thread), with the clock and the entity count it was taken at.</summary>
+        /// <summary>⭐ M-7 (CE-4486) — one row's raw bytes in hex (its managed size, padding included): two runs' rows compared byte by byte say
+        /// whether a FIELD differs or only padding (history, not state).</summary>
+        private static unsafe string RowHex(EntityRepository world, Entity e, int typeId)
+        {
+            var type = ComponentTypeRegistry.GetType(typeId);
+            if (type == null || !type.IsValueType) return "";
+            int size = (int)typeof(System.Runtime.CompilerServices.Unsafe).GetMethod(nameof(System.Runtime.CompilerServices.Unsafe.SizeOf))!
+                .MakeGenericMethod(type).Invoke(null, null)!;
+            byte* p = (byte*)world.GetComponentPointer(e, typeId);
+            return Convert.ToHexString(new ReadOnlySpan<byte>(p, size));
+        }
+
+        public JsonObject GetWorldHash(bool byType = false, string? rowsOf = null, bool rowBytes = false)
+        {
+            var o = new JsonObject
+            {
+                ["hash"] = _world.ContentHash().ToString("X16"),
+                ["simTime"] = (double)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).Time,
+                ["tick"] = (long)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).Tick,
+                ["entities"] = _world.EntityCount,
+            };
+            if (rowsOf != null)
+            {
+                // ⭐ N-15 ② — WHICH entities differ in one type: entity index → row hash (+ its network id, to look it up)
+                var rows = new JsonObject();
+                var world = _world;
+                _world.ContentHash((entity, typeId, h) =>
+                {
+                    if (typeId < 0 || ComponentTypeRegistry.GetType(typeId)?.Name != rowsOf) return;
+                    var e = new Entity(entity, world.GetMetadata(entity).Generation);
+                    int net = world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) ? (int)world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value : 0;
+                    string row = h.ToString("X16") + "@" + net.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    if (rowBytes) row += "@" + RowHex(world, e, typeId);   // ⭐ M-7 — which bytes differ between two runs: a field, or padding
+                    rows[entity.ToString(System.Globalization.CultureInfo.InvariantCulture)] = row;
+                });
+                o["rows"] = rows;
+            }
+            if (!byType) return o;
+            // ⭐ N-15 ② — which TYPE differs between two runs: every row's hash folded per component type (order-free), plus the entity rows
+            var perType = new System.Collections.Generic.SortedDictionary<string, ulong>(StringComparer.Ordinal);
+            _world.ContentHash((entity, typeId, h) =>
+            {
+                string name = typeId < 0 ? "(entity)" : ComponentTypeRegistry.GetType(typeId)?.Name ?? typeId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                perType[name] = unchecked((perType.TryGetValue(name, out var acc) ? acc : 0UL) + h * 0x9E3779B97F4A7C15UL);
+            });
+            var types = new JsonObject();
+            foreach (var kv in perType) types[kv.Key] = kv.Value.ToString("X16");
+            o["types"] = types;
+            return o;
+        }
+
         private EntityRepository _world
             => _editorWorld ?? _dispatcher?.World
                ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead);
@@ -1105,6 +1158,13 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>⭐ CE-4316 — the host's Run to … (the editor passes its own; null on a host without one).</summary>
         internal Hrot.UI.Common.RunMode.RunToController? RunToControl { get; set; }
+
+        /// <summary>⭐ N-8 / R-4211 — the world the UI SHOWS (and its entity map), for the UI-side routes (the selection, the view): a threaded node's
+        /// presentation world, whose selection the UI's systems own. Null ⇒ the service's world (every single-world host).</summary>
+        internal EntityRepository? PresentationWorld { get; set; }
+        internal Fdp.Toolkit.Replication.Services.NetworkEntityMap? PresentationMap { get; set; }
+        private EntityRepository ShownWorld => PresentationWorld ?? _world;
+        private Fdp.Toolkit.Replication.Services.NetworkEntityMap ShownMap => PresentationMap ?? _entityMap;
 
         /// <summary>
         /// ⭐⭐ CE-4316 — <c>POST /sim/run-to {seconds?, condition?, cancel?}</c> (main thread): starts the ACK-gated stepped run to sim time
@@ -3300,15 +3360,19 @@ namespace Hrot.Editor.DebugApi
                 return (null, $"Commit failed: {ex.Message}");
             }
 
-            // Write the committed value back to ECS via reflection.
+            // Write the committed value back to ECS via reflection — ⭐ N-15 (CE-4477) as ONE step of the editor's history, the inspector's own rule
+            //   (RepositoryAdapter.SetComponentAsUserStep, CE-3386): Edit mode records it (Edit ▸ Undo reaches it), Live / Preview record nothing.
+            Fdp.Toolkit.Replication.Edits.EditSteps.Begin(_world, "Edit " + clrType.Name);
             try
             {
                 SetBoxedComponent(_world, entity, clrType, committed);
             }
             catch (Exception ex)
             {
+                Fdp.Toolkit.Replication.Edits.EditSteps.Cancel(_world);
                 return (null, $"Could not write component '{componentType}' back to ECS: {ex.Message}");
             }
+            Fdp.Toolkit.Replication.Edits.EditSteps.End(_world);
 
             // Return the updated entity dump.
             var node = DumpEntity(networkId);

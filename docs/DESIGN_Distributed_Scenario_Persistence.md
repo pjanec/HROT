@@ -604,7 +604,7 @@ its `$meta.docType`, exactly today's `Deserialize` graceful-skip (§6b), and pro
 
 ---
 
-### 4d. ⭐ THE SCENARIO'S DESCRIPTION — a header field that survives load → save → merge *(`CE-3288`, backend, `2026-10-20`; frame: behaviors' [handoff](blueprints/batches/HANDOFF_Behaviors_To_Backend_Scenario_Description.md))*
+### 4d. ⭐ THE SCENARIO'S DESCRIPTION — a header field that survives load → save → merge *(`CE-3288`, backend, `2026-10-20`; frame: behaviors' handoff)*
 
 > 🔒 User, `2026-10-20`: *"each scenario needs a string description what it is all about and how to judge if successfull, in a header
 > (description field)"*

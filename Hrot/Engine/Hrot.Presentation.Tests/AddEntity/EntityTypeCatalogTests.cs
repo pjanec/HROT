@@ -344,8 +344,8 @@ public sealed class EntityTypeCatalogTests
         // ⭐ CE-4273 (Next_2 A-10) — the seed's 75 + the Car. ⛔ SUPERSEDED: "slot = position in sorted order" — true of the seed only; §2j says a name
         //   KEEPS its slot and an addition takes the next free one (the Car sorts among the C's and sits in slot 75). The invariant now: one cell per
         //   name, on the grid, inside the pages.
-        Assert.Equal(76, idx.Count);
-        Assert.Equal(76, ThumbnailAtlas.Shared.Count);
+        Assert.Equal(77, idx.Count);   // ⭐ CE-6007 — + the bulldozer (page 1, slot 4/1)
+        Assert.Equal(77, ThumbnailAtlas.Shared.Count);
         Assert.True(idx.TryGet("Car", out _, out _, out _, out _, out _));
 
         var names = idx.Names.ToList();
@@ -606,6 +606,7 @@ public sealed class EntityTypeCatalogTests
         109 Technical (minigun) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
         110 Technical (ZU-23-2) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
         111 HMMWV (M2, no crew) | dis 1.1.225.6.0.0.0 | family WheeledUtility | folder Platform/Land/United States/Small Wheeled Utility Vehicle | icon _wheeled
+        112 Bulldozer (D9-class) | dis 1.1.225.9.1.0.0 | family Bulldozer | folder Platform/Land/United States/Large Tracked Utility Vehicle | icon -
         200 Rifleman | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         201 Officer | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         202 Rifleman (Stinger) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person

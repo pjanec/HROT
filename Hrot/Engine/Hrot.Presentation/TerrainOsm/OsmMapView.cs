@@ -53,12 +53,65 @@ public sealed class OsmMapView
 
     // the preview, projected once
     private OsmPreview? _projectedFor;
-    private readonly List<(double[] LatLon, int[] Tris, PreviewBuilding B)> _buildings = new();
-    private readonly List<(double[] LatLon, int[] Tris, string Kind)> _areas = new();
-    private readonly List<(double[] LatLon, string Kind)> _lines = new();
-    private readonly List<(double[] LatLon, string Cls)> _roads = new();
-    private double[] _trees = Array.Empty<double>();   // ⭐ CE-4382 — every tree point, lat/lon pairs
+    // ⭐ CE-1495 — every point is stored as its web-Mercator UNIT-square position (x, y in 0..1, the zoom-independent half of WebMercator.ToPixel), so a frame costs a multiply per point, not a sin / log / pow;
+    //   and every feature carries its unit-square bounds, for the off-canvas cull and the "smaller than 2 px" level of detail.
+    private readonly List<(double[] Unit, int[] Tris, PreviewBuilding B, Bb Box)> _buildings = new();
+    private readonly List<(double[] Unit, int[] Tris, string Kind, Bb Box)> _areas = new();
+    private readonly List<(double[] Unit, string Kind, Bb Box)> _lines = new();
+    private readonly List<(double[] Unit, string Cls, Bb Box)> _roads = new();
+    private double[] _trees = Array.Empty<double>();   // ⭐ CE-4382 — every tree point, unit-square pairs
     private Vector2[] _buf = new Vector2[256];
+
+    /// <summary>A feature's bounds in the unit square (x grows east, y grows SOUTH — as the screen does).</summary>
+    private readonly struct Bb
+    {
+        public readonly double X0, Y0, X1, Y1;
+        public Bb(double x0, double y0, double x1, double y1) { X0 = x0; Y0 = y0; X1 = x1; Y1 = y1; }
+    }
+
+    // ⭐ CE-1495 — the per-frame budget of the preview's vertices in the window's ONE draw list (CE-4223's lesson, 65 536 per list). The cumulative caps, in the draw order: a layer that is over its cap is skipped
+    //   (counted in <see cref="DroppedForBudget"/>), so the heaviest layers (the buildings, drawn last) degrade to one rectangle each, then to nothing, instead of filling the list.
+    public const int AreaCap = 8_000, RoadCap = 12_000, LineCap = 14_000, TreeCap = 18_000, BuildingCap = 32_000, RectCap = 46_000;
+    /// <summary>Below this on-screen size (px, the longer side of the bounds) a building or area is ONE filled rectangle (4 vertices) instead of triangles plus an outline.</summary>
+    public const float TinyPx = 2f;
+
+    /// <summary>⭐ CE-1495 (rails): the preview's features skipped because they were entirely off the visible part, drawn as one rectangle (below <see cref="TinyPx"/> or over the cap), or dropped over the last cap — last frame.</summary>
+    public int CulledOffCanvas { get; private set; }
+    public int DrawnAsRectangles { get; private set; }
+    public int DroppedForBudget { get; private set; }
+    /// <summary>⭐ CE-1495 (rails): the vertices the preview added to the window's draw list last frame.</summary>
+    public int PreviewVertices { get; private set; }
+    /// <summary>⭐ CE-1495 (rails): the cumulative preview vertices after each layer — areas, roads, walls, trees, buildings.</summary>
+    public readonly int[] VerticesAfterLayer = new int[5];
+
+    // the frame's projection, cached (valid while Lat / Lon / Zoom / the canvas are the same)
+    private double _fLat = double.NaN, _fLon, _fZoom, _fScale, _fCx, _fCy;
+    private Vector2 _fMinC, _fMaxC, _fMid;
+    private Vector2 _clipMin, _clipMax;
+    private int _vtx0;
+
+    private void EnsureFrame()
+    {
+        if (Lat == _fLat && Lon == _fLon && Zoom == _fZoom && CanvasMin == _fMinC && CanvasMax == _fMaxC) return;
+        _fLat = Lat; _fLon = Lon; _fZoom = Zoom; _fMinC = CanvasMin; _fMaxC = CanvasMax;
+        _fScale = WebMercator.TileSize * Math.Pow(2, Zoom);
+        (_fCx, _fCy) = WebMercator.ToPixel(Lat, Lon, Zoom);
+        _fMid = (CanvasMin + CanvasMax) * 0.5f;
+    }
+
+    /// <summary>The same as <see cref="ToScreen"/> from a unit-square position (identical arithmetic, no transcendental calls).</summary>
+    private Vector2 Scr(double ux, double uy) => new((float)(_fMid.X + (ux * _fScale - _fCx)), (float)(_fMid.Y + (uy * _fScale - _fCy)));
+
+    /// <summary>A feature's bounds on the screen.</summary>
+    private void ScreenBox(in Bb b, out Vector2 min, out Vector2 max) { min = Scr(b.X0, b.Y0); max = Scr(b.X1, b.Y1); }
+
+    private bool OffCanvas(in Bb b, float margin)
+    {
+        ScreenBox(b, out var lo, out var hi);
+        return hi.X < _clipMin.X - margin || lo.X > _clipMax.X + margin || hi.Y < _clipMin.Y - margin || lo.Y > _clipMax.Y + margin;
+    }
+
+    private bool Over(ImDrawListPtr dl, int cap) => dl.VtxBuffer.Size - _vtx0 > cap;
 
     // ── the maths ──────────────────────────────────────────────────────────────────────────
 
@@ -120,7 +173,7 @@ public sealed class OsmMapView
             {
                 dl.AddRectFilled(a, b, ImGui.GetColorU32(new Vector4(0.06f, 0.06f, 0.06f, 0.35f)));
                 DrawPreview(dl, preview, a, b, s);
-                DashedRect(dl, a, b, ImGui.GetColorU32(ACC), 1.5f * s, 5 * s, 4 * s);
+                DashedRect(dl, a, b, ImGui.GetColorU32(ACC), 1.5f * s, 5 * s, 4 * s, CanvasMin, CanvasMax);
             }
             else
             {
@@ -159,7 +212,6 @@ public sealed class OsmMapView
 
         // the zoom buttons + Fit, top-left (C-5)
         var save = ImGui.GetCursorScreenPos();
-        string[] glyphs = { PLUS, MINUS, CROSSHAIRS };
         for (int i = 0; i < 3; i++)
         {
             var bmin = CanvasMin + new Vector2(10 * s, (10 + i * 28) * s);
@@ -169,7 +221,7 @@ public sealed class OsmMapView
             ImGui.PushStyleColor(ImGuiCol.Text, SUB);
             ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 3 * s);
             ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 1f);
-            bool clicked = ImGui.Button(glyphs[i] + "##osm_zoom" + i, new Vector2(24 * s, 24 * s));
+            bool clicked = ImGui.Button(ZoomLabels[i], new Vector2(24 * s, 24 * s));
             ImGui.PopStyleVar(2); ImGui.PopStyleColor(3);
             ZoomButtons[i] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
             if (clicked)
@@ -298,98 +350,203 @@ public sealed class OsmMapView
         if (ReferenceEquals(p, _projectedFor)) return;
         _projectedFor = p;
         _buildings.Clear(); _areas.Clear(); _lines.Clear(); _roads.Clear();
-        foreach (var b in p.Buildings) _buildings.Add((LatLon(p.Frame, b.Footprint), Tris(b.Footprint), b));
-        foreach (var a in p.Areas) _areas.Add((LatLon(p.Frame, a.Ring), Tris(a.Ring), a.Kind));
-        foreach (var l in p.Lines) _lines.Add((LatLon(p.Frame, l.Points), l.Kind));
-        foreach (var r in p.Roads) _roads.Add((LatLon(p.Frame, r.Points), r.Class));
-        _trees = p.Trees.Count > 0 ? LatLon(p.Frame, System.Linq.Enumerable.ToArray(p.Trees)) : Array.Empty<double>();
+        foreach (var b in p.Buildings) { var u = Unit(p.Frame, b.Footprint); _buildings.Add((u, Tris(b.Footprint), b, BoundsOf(u))); }
+        foreach (var a in p.Areas) { var u = Unit(p.Frame, a.Ring); _areas.Add((u, Tris(a.Ring), a.Kind, BoundsOf(u))); }
+        foreach (var l in p.Lines) { var u = Unit(p.Frame, l.Points); _lines.Add((u, l.Kind, BoundsOf(u))); }
+        foreach (var r in p.Roads) { var u = Unit(p.Frame, r.Points); _roads.Add((u, r.Class, BoundsOf(u))); }
+        _trees = p.Trees.Count > 0 ? Unit(p.Frame, System.Linq.Enumerable.ToArray(p.Trees)) : Array.Empty<double>();
     }
 
-    private static double[] LatLon(UtmFrame f, Vector2[] pts)
+    /// <summary>Local metres → UTM → lat/lon → the web-Mercator unit square, ONCE per preview (R-2084).</summary>
+    private static double[] Unit(UtmFrame f, Vector2[] pts)
     {
         var o = new double[pts.Length * 2];
         for (int i = 0; i < pts.Length; i++)
         {
             var (lat, lon) = Fdp.Modules.Geographic.Transforms.Utm.ToGeodetic(f.E0 + pts[i].X, f.N0 + pts[i].Y, f.Zone, f.South);
-            o[i * 2] = lat; o[i * 2 + 1] = lon;
+            (o[i * 2], o[i * 2 + 1]) = WebMercator.ToUnit(lat, lon);
         }
         return o;
     }
 
+    private static Bb BoundsOf(double[] u)
+    {
+        if (u.Length < 2) return new Bb(0, 0, 0, 0);
+        double x0 = u[0], x1 = u[0], y0 = u[1], y1 = u[1];
+        for (int i = 2; i + 1 < u.Length; i += 2)
+        {
+            if (u[i] < x0) x0 = u[i]; else if (u[i] > x1) x1 = u[i];
+            if (u[i + 1] < y0) y0 = u[i + 1]; else if (u[i + 1] > y1) y1 = u[i + 1];
+        }
+        return new Bb(x0, y0, x1, y1);
+    }
+
     private static int[] Tris(Vector2[] pts) => PolygonMath.Triangulate(pts);
 
-    private int ToBuffer(double[] ll)
+    private int ToBuffer(double[] unit)
     {
-        int n = ll.Length / 2;
+        EnsureFrame();
+        int n = unit.Length / 2;
         if (_buf.Length < n) _buf = new Vector2[Math.Max(n, _buf.Length * 2)];
-        for (int i = 0; i < n; i++) _buf[i] = ToScreen(ll[i * 2], ll[i * 2 + 1]);
+        for (int i = 0; i < n; i++) _buf[i] = Scr(unit[i * 2], unit[i * 2 + 1]);
         return n;
     }
 
-    private void Fill(ImDrawListPtr dl, double[] ll, int[] tris, uint fill, uint outline, float width)
+    /// <summary>⭐ CE-1495 — a feature smaller than <see cref="TinyPx"/> on the screen: its bounds as ONE rectangle (at least 1 px), or false when it is bigger.</summary>
+    private bool Tiny(in Bb b, out Vector2 min, out Vector2 max)
     {
-        int n = ToBuffer(ll);
+        ScreenBox(b, out min, out max);
+        float w = max.X - min.X, h = max.Y - min.Y;
+        if (Math.Max(w, h) >= TinyPx) return false;
+        if (w < 1f) { float c = (min.X + max.X) * 0.5f; min.X = c - 0.5f; max.X = c + 0.5f; }
+        if (h < 1f) { float c = (min.Y + max.Y) * 0.5f; min.Y = c - 0.5f; max.Y = c + 0.5f; }
+        return true;
+    }
+
+    private void Fill(ImDrawListPtr dl, double[] unit, int[] tris, in Bb box, uint fill, uint outline, float width, int fullCap, bool rectWhenOver)
+    {
+        if (OffCanvas(box, 2f)) { CulledOffCanvas++; return; }
+        bool tiny = Tiny(box, out var rmin, out var rmax);
+        if (!tiny && !rectWhenOver && Over(dl, fullCap)) { DroppedForBudget++; return; }   // an area over its cap is dropped — as its bounds it would be a lie
+        if (tiny || Over(dl, fullCap))
+        {
+            if (Over(dl, RectCap)) { DroppedForBudget++; return; }
+            dl.AddRectFilled(rmin, rmax, fill); DrawnAsRectangles++;   // ⭐ CE-1495 — one rectangle, not triangles plus an outline
+            return;
+        }
+        int n = ToBuffer(unit);
         for (int t = 0; t + 2 < tris.Length; t += 3) dl.AddTriangleFilled(_buf[tris[t]], _buf[tris[t + 1]], _buf[tris[t + 2]], fill);
         if (width > 0) for (int i = 0; i < n; i++) dl.AddLine(_buf[i], _buf[(i + 1) % n], outline, width);
     }
 
-    private void Polyline(ImDrawListPtr dl, double[] ll, uint col, float width, float dash = 0, float gap = 0)
+    private void Polyline(ImDrawListPtr dl, double[] unit, in Bb box, int cap, uint col, float width, float dash = 0, float gap = 0)
     {
-        int n = ToBuffer(ll);
-        for (int i = 0; i + 1 < n; i++)
+        if (OffCanvas(box, width + 1f)) { CulledOffCanvas++; return; }
+        if (Over(dl, cap)) { DroppedForBudget++; return; }
+        if (Tiny(box, out var rmin, out var rmax)) { dl.AddRectFilled(rmin, rmax, col); DrawnAsRectangles++; return; }   // ⭐ a street or wall under 2 px in all: a dot
+        int n = ToBuffer(unit);
+        int prev = 0;
+        for (int i = 1; i < n; i++)
         {
-            if (dash <= 0) { dl.AddLine(_buf[i], _buf[i + 1], col, width); continue; }
-            var a = _buf[i]; var d = _buf[i + 1] - a; float len = d.Length(); if (len < 0.01f) continue; var u = d / len;
-            for (float t = 0; t < len; t += dash + gap) dl.AddLine(a + u * t, a + u * Math.Min(t + dash, len), col, width);
+            // ⭐ CE-1495 — a point within 1 px of the last drawn one adds nothing but vertices (an overview zoom folds a whole street into a few pixels); the last point is always kept
+            if (i < n - 1 && Vector2.DistanceSquared(_buf[prev], _buf[i]) < 1f) continue;
+            if (dash <= 0) dl.AddLine(_buf[prev], _buf[i], col, width);
+            else DashLine(dl, _buf[prev], _buf[i], col, width, dash, gap, _clipMin, _clipMax);
+            prev = i;
         }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1495 (the CE-4223 TimelinePanel approach, allocation-free) — a dashed line from <paramref name="p"/> to <paramref name="q"/>, generated only for the part inside the clip rectangle and on a budget: at most
+    /// <see cref="MaxDashesPerSegment"/> dashes however long the segment, the pitch widening to fit. The phase is from <paramref name="p"/>, as before, so a segment that fits is dashed exactly as it was.
+    /// </summary>
+    public static void DashLine(ImDrawListPtr dl, Vector2 p, Vector2 q, uint col, float width, float dash, float gap, Vector2 clipMin, Vector2 clipMax)
+    {
+        var d = q - p; float len = d.Length(); if (len < 0.01f) return;
+        // Liang–Barsky: the parameter range [t0, t1] (in px along the segment) inside the clip rectangle
+        float t0 = 0, t1 = len;
+        if (!ClipAxis(p.X, d.X, clipMin.X, clipMax.X, len, ref t0, ref t1) || !ClipAxis(p.Y, d.Y, clipMin.Y, clipMax.Y, len, ref t0, ref t1)) return;
+        var u = d / len;
+        float pitch = dash + gap;
+        float vis = t1 - t0;
+        if (vis / pitch > MaxDashesPerSegment) { float k = vis / MaxDashesPerSegment / pitch; dash *= k; pitch *= k; }
+        for (float t = (float)(Math.Floor(t0 / pitch) * pitch); t < t1; t += pitch)
+        {
+            float a = Math.Max(t, t0), b = Math.Min(Math.Min(t + dash, len), t1);
+            if (b > a) dl.AddLine(p + u * a, p + u * b, col, width);
+        }
+    }
+
+    public const int MaxDashesPerSegment = 64;
+
+    private static bool ClipAxis(float p, float d, float lo, float hi, float len, ref float t0, ref float t1)
+    {
+        if (Math.Abs(d) < 1e-6f) return p >= lo && p <= hi;
+        float inv = len / d;   // d is the segment's extent on this axis, len its length: t (px) = (bound - p) * len / d
+        float a = (lo - p) * inv, b = (hi - p) * inv;
+        if (a > b) (a, b) = (b, a);
+        if (a > t0) t0 = a;
+        if (b < t1) t1 = b;
+        return t0 <= t1;
     }
 
     public static OsmLayer LayerOf(PreviewBuilding b) => !b.Enterable ? OsmLayer.Solid : b.Storeys <= 1 ? OsmLayer.Houses1 : b.Storeys <= 4 ? OsmLayer.Houses2to4 : OsmLayer.Houses5to9;
 
+    /// <summary>A tree dot: a circle with a rim, or — over the tree cap's detail allowance, or when there are very many — one small square (4 vertices instead of ~70).</summary>
+    private void TreeDot(ImDrawListPtr dl, Vector2 c, float s, uint fill, uint rim, bool simple)
+    {
+        if (simple) dl.AddRectFilled(c - new Vector2(1.5f * s), c + new Vector2(1.5f * s), fill);
+        else { dl.AddCircleFilled(c, 2.6f * s, fill); dl.AddCircle(c, 2.6f * s, rim, 0, 0.6f); }
+    }
+
     private void DrawPreview(ImDrawListPtr dl, OsmPreview p, Vector2 a, Vector2 b, float s)
     {
         Project(p);
-        dl.PushClipRect(Vector2.Max(a, CanvasMin), Vector2.Min(b, CanvasMax), true);   // only inside the box (C-10)
-        foreach (var (ll, tris, kind) in _areas)
+        EnsureFrame();
+        _clipMin = Vector2.Max(a, CanvasMin); _clipMax = Vector2.Min(b, CanvasMax);
+        dl.PushClipRect(_clipMin, _clipMax, true);   // only inside the box (C-10)
+        _vtx0 = dl.VtxBuffer.Size; CulledOffCanvas = 0; DrawnAsRectangles = 0; DroppedForBudget = 0;
+        for (int k = 0; k < _areas.Count; k++)
         {
+            var (ll, tris, kind, box) = _areas[k];
             var layer = kind == "water" ? OsmLayer.Water : kind == "scrub" ? OsmLayer.Scrub : OsmLayer.Woods;
             if (!Layers[(int)layer]) continue;
             var col = layer == OsmLayer.Water ? Water : layer == OsmLayer.Scrub ? Scrub with { W = 0.45f } : Forest;
-            Fill(dl, ll, tris, ImGui.GetColorU32(col), 0, 0);
+            Fill(dl, ll, tris, box, ImGui.GetColorU32(col), 0, 0, AreaCap, false);
         }
+        VerticesAfterLayer[0] = dl.VtxBuffer.Size - _vtx0;
         if (Layers[(int)OsmLayer.Roads])
-            foreach (var (ll, cls) in _roads)
+            for (int k = 0; k < _roads.Count; k++)
             {
+                var (ll, cls, box) = _roads[k];
                 var (col, w) = Road(cls);
-                Polyline(dl, ll, ImGui.GetColorU32(col), w * s, cls == "rail" ? 6 * s : 0, cls == "rail" ? 4 * s : 0);
+                Polyline(dl, ll, box, RoadCap, ImGui.GetColorU32(col), w * s, cls == "rail" ? 6 * s : 0, cls == "rail" ? 4 * s : 0);
             }
-        foreach (var (ll, kind) in _lines)
+        VerticesAfterLayer[1] = dl.VtxBuffer.Size - _vtx0;
+        uint wallCol = ImGui.GetColorU32(Wall);
+        uint treeFill = ImGui.GetColorU32(Forest with { W = 1 }), treeRim = ImGui.GetColorU32(new Vector4(0.5f, 0.82f, 0.54f, 1));
+        for (int k = 0; k < _lines.Count; k++)
         {
+            var (ll, kind, box) = _lines[k];
             if (kind == "tree_row")
             {
                 if (!Layers[(int)OsmLayer.Trees] || _trees.Length > 0) continue;   // the row's trees are in the preview's Trees (drawn below)
+                if (OffCanvas(box, 4f)) { CulledOffCanvas++; continue; }
                 int n = ToBuffer(ll);
-                for (int i = 0; i < n; i++) { dl.AddCircleFilled(_buf[i], 2.6f * s, ImGui.GetColorU32(Forest with { W = 1 })); dl.AddCircle(_buf[i], 2.6f * s, ImGui.GetColorU32(new Vector4(0.5f, 0.82f, 0.54f, 1)), 0, 0.6f); }
+                for (int i = 0; i < n; i++) { if (Over(dl, TreeCap)) { DroppedForBudget++; break; } TreeDot(dl, _buf[i], s, treeFill, treeRim, false); }
                 continue;
             }
             if (!Layers[(int)OsmLayer.Walls]) continue;
-            Polyline(dl, ll, ImGui.GetColorU32(Wall), 1.6f * s);
+            Polyline(dl, ll, box, LineCap, wallCol, 1.6f * s);
         }
+        VerticesAfterLayer[2] = dl.VtxBuffer.Size - _vtx0;
         TreesDrawn = 0;
         if (Layers[(int)OsmLayer.Trees] && _trees.Length > 0)   // ⭐ CE-4382 — lone trees and the rows' trees, one dot each (the mockup's dots)
         {
-            uint fill = ImGui.GetColorU32(Forest with { W = 1 }), rim = ImGui.GetColorU32(new Vector4(0.5f, 0.82f, 0.54f, 1));
             int n = ToBuffer(_trees);
-            for (int i = 0; i < n; i++) { dl.AddCircleFilled(_buf[i], 2.6f * s, fill); dl.AddCircle(_buf[i], 2.6f * s, rim, 0, 0.6f); }
-            TreesDrawn = n;
+            float m = 4f * s;
+            int visible = 0;   // ⭐ CE-1495 — the dots inside the visible part only; many of them are drawn as squares
+            for (int i = 0; i < n; i++) if (_buf[i].X >= _clipMin.X - m && _buf[i].X <= _clipMax.X + m && _buf[i].Y >= _clipMin.Y - m && _buf[i].Y <= _clipMax.Y + m) visible++;
+            bool simple = visible > 300;
+            for (int i = 0; i < n; i++)
+            {
+                var c = _buf[i];
+                if (c.X < _clipMin.X - m || c.X > _clipMax.X + m || c.Y < _clipMin.Y - m || c.Y > _clipMax.Y + m) continue;
+                if (Over(dl, TreeCap)) { DroppedForBudget++; continue; }
+                TreeDot(dl, c, s, treeFill, treeRim, simple);
+                TreesDrawn++;
+            }
         }
+        VerticesAfterLayer[3] = dl.VtxBuffer.Size - _vtx0;
         uint outline = ImGui.GetColorU32(Outline);
-        foreach (var (ll, tris, bld) in _buildings)
+        for (int k = 0; k < _buildings.Count; k++)
         {
+            var (ll, tris, bld, box) = _buildings[k];
             var layer = LayerOf(bld);
             if (!Layers[(int)layer]) continue;
-            Fill(dl, ll, tris, ImGui.GetColorU32(layer == OsmLayer.Solid ? Solid with { W = 0.9f } : Building(bld.Storeys)), outline, 0.8f);
+            Fill(dl, ll, tris, box, ImGui.GetColorU32(layer == OsmLayer.Solid ? Solid with { W = 0.9f } : Building(bld.Storeys)), outline, 0.8f, BuildingCap, true);
         }
+        PreviewVertices = VerticesAfterLayer[4] = dl.VtxBuffer.Size - _vtx0;
         dl.PopClipRect();
     }
 
@@ -411,6 +568,9 @@ public sealed class OsmMapView
     /// <summary>The swatch rectangles drawn last frame, per layer (a rail).</summary>
     public readonly (Vector2 Min, Vector2 Max)[] SwatchRects = new (Vector2, Vector2)[10];
 
+    private static readonly string[] LayerIds = { "##osm_layer0", "##osm_layer1", "##osm_layer2", "##osm_layer3", "##osm_layer4", "##osm_layer5", "##osm_layer6", "##osm_layer7", "##osm_layer8", "##osm_layer9" };
+    private static readonly string[] ZoomLabels = { PLUS + "##osm_zoom0", MINUS + "##osm_zoom1", CROSSHAIRS + "##osm_zoom2" };
+
     private void DrawLayersPanel(ImDrawListPtr dl, float s)
     {
         var min = new Vector2(CanvasMax.X - 214 * s, CanvasMin.Y + 10 * s);
@@ -427,7 +587,7 @@ public sealed class OsmMapView
             var rowMin = min + new Vector2(8 * s, (28 + i * 20.5f) * s - 3 * s);
             ImGui.SetCursorScreenPos(rowMin);
             ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(2 * s, 1 * s));
-            ImGui.Checkbox("##osm_layer" + i, ref Layers[(int)layer]);
+            ImGui.Checkbox(LayerIds[i], ref Layers[(int)layer]);
             ImGui.PopStyleVar();
             var cb = ImGui.GetItemRectMax();
             var sw0 = new Vector2(cb.X + 6 * s, rowMin.Y + 4 * s);
@@ -453,7 +613,7 @@ public sealed class OsmMapView
         if (BoxRect is { } br && (m.X < br.Min.X || m.Y < br.Min.Y || m.X > br.Max.X || m.Y > br.Max.Y)) return;
         for (int k = _buildings.Count - 1; k >= 0; k--)
         {
-            var (ll, _, bld) = _buildings[k];
+            var (ll, _, bld, _) = _buildings[k];
             if (!Layers[(int)LayerOf(bld)]) continue;
             int n = ToBuffer(ll);
             if (!Inside(_buf, n, m)) continue;
@@ -518,13 +678,10 @@ public sealed class OsmMapView
         return c;
     }
 
-    private static void DashedRect(ImDrawListPtr dl, Vector2 a, Vector2 b, uint col, float w, float dash, float gap)
+    /// <summary>The box's dashed outline — ⭐ CE-1495: through <see cref="DashLine"/>, so only the part inside the canvas is dashed (a box far larger than the canvas, zoomed in, was dashed over its whole length).</summary>
+    private static void DashedRect(ImDrawListPtr dl, Vector2 a, Vector2 b, uint col, float w, float dash, float gap, Vector2 clipMin, Vector2 clipMax)
     {
-        void Seg(Vector2 p, Vector2 q)
-        {
-            var d = q - p; float len = d.Length(); if (len < 0.01f) return; var u = d / len;
-            for (float t = 0; t < len; t += dash + gap) dl.AddLine(p + u * t, p + u * Math.Min(t + dash, len), col, w);
-        }
-        Seg(a, new Vector2(b.X, a.Y)); Seg(new Vector2(b.X, a.Y), b); Seg(b, new Vector2(a.X, b.Y)); Seg(new Vector2(a.X, b.Y), a);
+        DashLine(dl, a, new Vector2(b.X, a.Y), col, w, dash, gap, clipMin, clipMax); DashLine(dl, new Vector2(b.X, a.Y), b, col, w, dash, gap, clipMin, clipMax);
+        DashLine(dl, b, new Vector2(a.X, b.Y), col, w, dash, gap, clipMin, clipMax); DashLine(dl, new Vector2(a.X, b.Y), a, col, w, dash, gap, clipMin, clipMax);
     }
 }

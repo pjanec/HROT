@@ -57,6 +57,15 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     private BinaryMerger? _merger;                       // ⭐ G-7 S1 — the ONE merge, paired with _transientMaster (the persistent merged repository)
     private FederationPanel? _federationPanel;
 
+    // ⭐ CE-4496 R-2 (docs/DESIGN_Threaded_Review_Source.md §1.1, §3 ③) — the review channel this host's panels read and command through: INLINE (no kernel here) over the live manager,
+    //   the SAME model and builder the editor's review uses. ⛔ The panels hold no manager; this host keeps it (merge, play clock, debug surface).
+    private InlineReviewChannel? _review;
+    internal InlineReviewChannel Review => _review ??= new InlineReviewChannel(
+        new ManagerReviewHost(() => _manager, () => _viewMode == ViewMode.Merged ? ReviewKind.Merged : ReviewKind.Part, Hrot.Orchestrator.NodeIdRanges.NameOf,
+            selectMerged: () => { if (_federationPanel != null) _federationPanel.SetMode(ViewMode.Merged); else SetViewMode(ViewMode.Merged); },
+            selectPart: n => { try { _manager?.SetLocalEntitiesProvider(n); } catch (ArgumentOutOfRangeException) { } if (_federationPanel != null) _federationPanel.SetMode(ViewMode.SingleNode); else SetViewMode(ViewMode.SingleNode); }),
+        new ReviewModelBuilder(_replicaViews));
+
     /// <summary>⭐⭐⭐ U-obs-5 follow-up — kept so <c>OnLoadGroup</c> can RE-REGISTER
     /// <see cref="Fdp.Presentation.Windows.ReplayBrowser.FederationWindow"/> under the same id every
     /// time <see cref="_federationPanel"/> is replaced by a fresh group load; <c>RegisterWindows</c> is
@@ -398,6 +407,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
 
     public void Update(float deltaTime)
     {
+        _review?.EndFrame();   // ⭐ CE-4496 R-2 — last frame's panel asks (By node, the watch) become the review's request, when they changed (0 B otherwise)
         // ⭐ CE-3327 RB-1 — a headless orchestrator hands a non-deterministic host NO time (SubsystemOrchestrator.GetDeltaTime: 0); a kernel
         //   host keeps its own clock, and so must this one or POST /sim/play never moves (🔴 measured live: frame 0 after 1 s of play).
         if (_headless && deltaTime <= 0f)
@@ -689,7 +699,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     {
         if (_federationPanel != null)
             _federationPanel.OnViewModeChanged -= SetViewMode;
-        _federationPanel = new FederationPanel(_manager!) { NodeName = Hrot.Orchestrator.NodeIdRanges.NameOf };   // ⭐ CE-4289 Q-B6 — the offsets rows named by the node role (the id's range, as the editor's Review source), not "Node N"
+        _federationPanel = new FederationPanel(Review) { NodeName = Hrot.Orchestrator.NodeIdRanges.NameOf };   // ⭐ CE-4289 Q-B6 — the offsets rows named by the node role (the id's range, as the editor's Review source), not "Node N"
         _federationPanel.OnViewModeChanged += SetViewMode;
 
         if (_windowManager != null)
@@ -1032,7 +1042,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         windowManager.MainToolbar.RegisterEntry(TransportEntryId, sortOrder: 0, declaredHeight: MainToolbarManager.DefaultEntryHeight,
             () => timelinePanel.DrawTransport(), perspective);
 
-        var cursor = new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
+        var cursor = new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager != null ? Review : null, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
                 isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),   // ⭐ CE-3330 — Space, "Play from here"
                 timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim,   // ⭐ CE-3330 T13 — the viewer's axis
                 checkpoints: () => RecordingCheckpoints, notes: () => RulerNotes);   // ⭐ CE-1467 (a) — the recording's ⚑ and its notes (read beside the files)
@@ -1057,7 +1067,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         if (ReviewTracks == null)
         {
             if (_replicaViews != null)   // wired with the delegates; a rail that registers the windows alone has no lens (and no lane)
-                _replicaLane = new Hrot.Editor.AiShared.Review.ReplicaWatchLane(_replicaViews, ReplicaWatch, () => _viewMode == ViewMode.Merged ? _manager : null,
+                _replicaLane = new Hrot.Editor.AiShared.Review.ReplicaWatchLane(_replicaViews, ReplicaWatch, Review,
                     () => { int n = Hrot.Presentation.Orders.TasksTimelineTracks.NetIdOf(_activeRepo, _inspectorState?.SelectedEntity); return n > 0 ? n : null; },
                     n => null);
             if (_replicaLane != null) _watchKit = new Hrot.Editor.AiShared.Review.ReplicaWatchKit(_replicaLane, () => _activeRepo, () => _byNodeSection);
@@ -1072,7 +1082,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         var rules = new Hrot.Editor.AiShared.Rules.RulesBundle(new Hrot.Editor.AiShared.Rules.RulesHostServices(
             World:          () => _activeRepo,
             TimelineSource: () => _timelineSource,
-            Cursor:         () => new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
+            Cursor:         () => new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager != null ? Review : null, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
                                 isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),
                                 timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim),
             IdPrefix:       "rb_", Perspective: perspective, Colour: color,
@@ -1215,7 +1225,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         // ⭐ G-7 S5 (I6) — the Merged view searches EVERY participant file (owned components only, unioned by network id) instead of being disabled; a federated hit seeks the primary node's frame and selects the unit by network id
         _searchPanel.Federated = new FederatedSearchSource(
             new FederatedSearch(searchSvc, predicateCompiler, new OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap)),
-            () => _viewMode == ViewMode.Merged ? _manager : null);
+            () => _manager != null ? Review.Model : null);
         _searchPanel.FederatedMatchSelected = (frame, net) =>
         {
             _playbackHistory.PushWaypoint(PrimaryNodeCurrentFrame(), _inspectorState?.SelectedEntity ?? Entity.Null);
@@ -1225,7 +1235,8 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         };
         // ⭐ G-7 S5 (I5, I7) — the merged view's lens in THIS host: Details ▸ a component ▸ By node, the "local to <node>" tag and (below, with the review rows) the Replica differs lane
         _replicaViews = new ReplicaViews(new OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap), _scenarioSerializer);
-        _byNodeSection = new ByNodeSection(_replicaViews, () => _viewMode == ViewMode.Merged ? _manager : null,
+        _review = null;   // the channel's builder takes the lens: (re)built on its next use, with it
+        _byNodeSection = new ByNodeSection(Review,
             e => _activeRepo is { } r && r.IsAlive(e) && r.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) ? r.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value : 0,
             n => _federationPanel?.NameOf(n) ?? "Node " + n);
         _byNodeSection.Watch = ReplicaWatch;   // ⭐ RW-6 — the header eye and the attribute view share the session's watch

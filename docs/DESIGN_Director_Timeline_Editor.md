@@ -97,7 +97,7 @@ to author; the **program camera** is the one the film shows.
 | ⭐ TE-19 *(⛔ its "editor and live cluster: `CanSeek = false`" SUPERSEDED `2026-10-26` by R-3060 — a live host seeks by entering a review, [DESIGN_Replay_Time_Axis_And_Review §9](DESIGN_Replay_Time_Axis_And_Review.md))* | **One transport for every host:** `ITimeTransportFacade` gains `CanSeek` + `Seek(t)`. Replay Browser: a new adapter over `ReplayBrowserContext`; cluster replay: the existing `ClusterOpType.ReplaySeek` round; editor and live cluster: `CanSeek = false` (R-3034: never rewind) — the past is a history to read | rejected: the timeline calling each host's seek itself |
 | ⭐ TE-20 | **The event list reads the same index.** The shared Event Browser (`EventBrowserPanel`) shows the index around the playhead in a recording, so the list and the timeline cannot disagree | rejected: a second scan for the list |
 | ✅ TE-21 — **R-4075** | **The Trace Timeline IS this timeline.** `AI_Editor_Shared_Infrastructure.md` §15 designed a shared, swim-lane timeline for the selected unit (lanes registered by `ITraceLaneProvider`, scrub in replay, click jumps, hover tooltip, right-click *Set Breakpoint Here*, a search box that dims); it is built only as a shell (`TraceTimelineWindow`, 50 lines, *"No trace data."*), and its first lane was deferred (BV-30). ⇒ **ONE panel:** `TimelinePanel` is §15 grown — the exercise lanes from the index, plus a pinned unit's swimlane whose rows are its trace lanes; **the row seam is the existing `ITraceLaneProvider`, generalised** (the director's tracks and search hits register through it); the `ITimelineTrackProvider` of the second pass is WITHDRAWN. `TraceTimelineWindow` becomes a host of the shared panel in the AI perspectives | rejected: two timelines (an exercise one and a trace one) — the same time axis, scrub and seek twice |
-| ✅ TE-22 — **R-4076** | **The Behaviour lane group reads the brain's recorded histories** (🔒 user, `2026-10-25`: *"approve all 5"*; asked by ui, [handoff](blueprints/batches/HANDOFF_Ui_To_Coordinator_Timeline_Behaviour_History.md), BV-59). ① **four lanes**, one per source — **Changes** (`BrainJournal`, the entry's kind as glyph), **Orders** (`CommandOrderHistory`, sent and received, the why in the hover), **Reports** (`CommandReportHistory`, in and out, with fate), **Decisions** (a `UtilityDecisionLog` winner switch) · ② the index **diffs each ring frame to frame and emits only NEW entries**, keyed by the entry's own counter (`BrainJournal.Seq`; a history entry's time + counterpart), so a ring's eviction never loses an event the index took · ③ a Brain-tab row's *Seek here* calls the timeline's `Seek(time, unit)` (TE-19's transport); absent live · ④ the four lanes live on the **pinned unit's swimlane** (TE-21); Orders / Reports only on a commander · ⑤ *"where he changes his mind"* is the existing `BrainJournalBreak.Condition` in the ONE condition editor (R-4072), its hits on the Behaviour lanes. ⭐ The exercise-level group formerly called **Orders** (a unit's `MissionPlan` task states) is renamed **Tasks** — 🔒 user: *"Missions"* clashes with the mission-plan concept; two "Orders" would clash with ①. Built by ui with R1 (CE-1302) | rejected: one mixed Behaviour lane (a commander's traffic drowns his own changes) · re-reading every ring every frame (one entry emitted 32 times) · the tab driving `PlaybackController` (a second seek path) · every unit's lanes at once · a timeline-only filter |
+| ✅ TE-22 — **R-4076** | **The Behaviour lane group reads the brain's recorded histories** (🔒 user, `2026-10-25`: *"approve all 5"*; asked by ui, handoff, BV-59). ① **four lanes**, one per source — **Changes** (`BrainJournal`, the entry's kind as glyph), **Orders** (`CommandOrderHistory`, sent and received, the why in the hover), **Reports** (`CommandReportHistory`, in and out, with fate), **Decisions** (a `UtilityDecisionLog` winner switch) · ② the index **diffs each ring frame to frame and emits only NEW entries**, keyed by the entry's own counter (`BrainJournal.Seq`; a history entry's time + counterpart), so a ring's eviction never loses an event the index took · ③ a Brain-tab row's *Seek here* calls the timeline's `Seek(time, unit)` (TE-19's transport); absent live · ④ the four lanes live on the **pinned unit's swimlane** (TE-21); Orders / Reports only on a commander · ⑤ *"where he changes his mind"* is the existing `BrainJournalBreak.Condition` in the ONE condition editor (R-4072), its hits on the Behaviour lanes. ⭐ The exercise-level group formerly called **Orders** (a unit's `MissionPlan` task states) is renamed **Tasks** — 🔒 user: *"Missions"* clashes with the mission-plan concept; two "Orders" would clash with ①. Built by ui with R1 (CE-1302) | rejected: one mixed Behaviour lane (a commander's traffic drowns his own changes) · re-reading every ring every frame (one entry emitted 32 times) · the tab driving `PlaybackController` (a second seek path) · every unit's lanes at once · a timeline-only filter |
 | ⭐ TE-16 | **Reels are unchanged**; an item may name `{recording, take}`. The reel composer is the bin plus a sequence row in the same panel (reorder, trim, transition per item) | — |
 
 ## 1. The picture — who calls what each frame
@@ -264,8 +264,8 @@ the first scan's rate is measured in R0 ⑧ — it bounds how soon the first ope
 click)"*. ⭐ **The input map is [DAR §10c](DESIGN_Replay_Time_Axis_And_Review.md)** (wheel, drags, double-click, right-click; zoom limits;
 the ruler) and DAR §10b (follow, fit, range, hover, snapping, zoom history) — for EVERY host, the Replay Browser included (only its
 toolbar is its own, R-3060). This section owns only what this design adds to it. Dispatched to ui:
-[NOTE_Coordinator_To_Ui_Review_Timeline_Addendum](blueprints/batches/NOTE_Coordinator_To_Ui_Review_Timeline_Addendum.md) beside backend's
-[NOTE_Backend_To_Ui_Review_Timeline](blueprints/batches/NOTE_Backend_To_Ui_Review_Timeline.md).
+NOTE_Coordinator_To_Ui_Review_Timeline_Addendum beside backend's
+NOTE_Backend_To_Ui_Review_Timeline.
 
 | # | rule | supersedes |
 |---|---|---|
@@ -1071,7 +1071,7 @@ both are registered the same way §15.2 already registers the trace lanes. Nothi
 ⛔ **Superseded by this section:** TL-3 (`ITimelineRowProvider` + an adapter); TL-5's lane list as code; `TimelineLane` /
 `TimelineLaneGroup` (29 production references) and the three extractors as the index's source of events.
 
-### 9d. §9c as built *(ui, `2026-10-26` — steer [STEER_Coordinator_To_Ui_Timeline_Lanes_Unified](blueprints/batches/STEER_Coordinator_To_Ui_Timeline_Lanes_Unified.md))*
+### 9d. §9c as built *(ui, `2026-10-26` — steer STEER_Coordinator_To_Ui_Timeline_Lanes_Unified)*
 
 **INVENTORY** *(run before building)*:
 ```
@@ -1141,7 +1141,7 @@ predicate editor will call.*
 | **the extractors' knowledge** | `TimelineExtractors.cs` deleted; every rule it held is now asserted against the DEFINITIONS (`TimelineIndexTests`): a refused shot is not a shot, two orders in a frame are two events, a repeat is one more, the pre-recording order is a baseline, a death keeps its last position | — |
 | **⑤ user lanes** | `TimelineLaneCatalog.Register(IndexedLaneDefinition)` + per-lane hashing ⇒ a user lane indexes like a shipped one, incrementally (rail: "who was hit") | ⏳ no editor UI to author one yet (dead edge above) |
 
-### 9e. ✅ BUILT — STATE lanes: a value-change lane kind for the director's state cues *(CE-4117 backend half, backend, `2026-10-30`; asked by [NOTE_Ui_To_Backend_State_Cue_Index_Lanes](blueprints/batches/NOTE_Ui_To_Backend_State_Cue_Index_Lanes.md))*
+### 9e. ✅ BUILT — STATE lanes: a value-change lane kind for the director's state cues *(CE-4117 backend half, backend, `2026-10-30`; asked by NOTE_Ui_To_Backend_State_Cue_Index_Lanes)*
 
 ```mermaid
 classDiagram
@@ -1184,7 +1184,7 @@ classDiagram
 Rails: `TimelineIndexTests.CE4117_EachStateLane_HoldsExactlyItsChanges_AtTheirFrames_WithTheirValues_AndFrameZero` (red without a lane, red
 without the first-frame entry) · `CE4117_TheStateLanes_LiveEqualRebuilt`.
 
-## 10. R2-T — the director's tracks on the panel: the build plan *(ui, `2026-10-26`; build-state: T1 · T2 · T3 · T4 BUILT — dispatched by [NOTE_Coordinator_To_Ui_After_Review_Timeline](blueprints/batches/NOTE_Coordinator_To_Ui_After_Review_Timeline.md) item A1)*
+## 10. R2-T — the director's tracks on the panel: the build plan *(ui, `2026-10-26`; build-state: T1 · T2 · T3 · T4 BUILT — dispatched by NOTE_Coordinator_To_Ui_After_Review_Timeline item A1)*
 
 **Scope** — the part of R2 (§6) that puts a take on the timeline: format v2 `keys[]` / `segments[]` (§5), the **Time** and **Camera**
 tracks drawn and edited on the ONE panel (§2c rows 2, 3, 10), **K** / **J** / **L**, undo (TE-14). ⛔ Not here: TE-5 (the runner's move)
@@ -1921,8 +1921,8 @@ the reel format, capture and the sound track. *Grown:* `Take`, `AnchorSpec`, `An
 
 ### 11j. P1 detail — one director, the move *(ui, `2026-10-27`, CE-1303; build-state: ✅ BUILT `2026-10-27` — as built below)*
 
-⭐ Frame: [NOTE_Coordinator_To_Ui_Films_From_Recordings](blueprints/batches/NOTE_Coordinator_To_Ui_Films_From_Recordings.md) P1 +
-[NOTE_…_Verifier_Split_Landed](blueprints/batches/NOTE_Coordinator_To_Ui_Verifier_Split_Landed.md) (what moves / what stays). INVENTORY
+⭐ Frame: NOTE_Coordinator_To_Ui_Films_From_Recordings P1 +
+NOTE_…_Verifier_Split_Landed (what moves / what stays). INVENTORY
 (grep + graph, `2026-10-27`): `Hrot/Subsystems/Hrot.Editor/Director/` — 15 files, 3 701 lines; the editor wires the director in ONE block
 (`EditorSubsystem.cs` §8a, `:2461-2520`) + three call sites (`_director?.Tick()` `:2919`, `_debugApiHost.AttachDirector` `:2636`, the
 window `:5309`); every type the moving files use is already reachable from `Hrot.Presentation` (`Map3D/Director` holds `Take`, `TakeStore`,
@@ -2068,7 +2068,7 @@ Production §6, `ua-tank-ammo`). 📐 My own attempt on demo-city was inconclusi
 
 ### 11m. P2a detail — the director in the Replay Browser *(ui, `2026-10-27`, CE-1303 P2a; build-state: ✅ BUILT `2026-10-27` — as built at the end; §11j's red P2 edge is the green RB box here)*
 
-⭐ Frame: [NOTE_Coordinator_To_Ui_Films_From_Recordings](blueprints/batches/NOTE_Coordinator_To_Ui_Films_From_Recordings.md) (P2 row),
+⭐ Frame: NOTE_Coordinator_To_Ui_Films_From_Recordings (P2 row),
 [Film Production](DESIGN_Film_Production.md) (R-4091), §11e CR-2 / CR-3 / CR-4 / CR-6. 🔒 *"in the replay browser I can simply seek to any time and
 start the replay of the take from whatever time. So it's easy to iterate the change and see and change and see."* Scope: the recording host,
 the pack in the RB, the in-memory take, play-from, loop a shot. ⏭ P2b: CR-7 segments, CR-11 subtitles, "update key from view", CR-5.
@@ -2306,7 +2306,7 @@ existing shot / hit drafts are unchanged (their current rails stay green).
 
 ### 11o. P2b detail — segments, subtitles, update key from view *(ui, `2026-10-27`, CE-1303 P2b; build-state: ✅ BUILT `2026-10-27` — as built at the end)*
 
-⭐ Frame: [NOTE_Coordinator_To_Ui_Films_From_Recordings](blueprints/batches/NOTE_Coordinator_To_Ui_Films_From_Recordings.md) (P2 row), §11e CR-7 / CR-11,
+⭐ Frame: NOTE_Coordinator_To_Ui_Films_From_Recordings (P2 row), §11e CR-7 / CR-11,
 §10 (the Time track; TE-7), §5 (the format's `subtitles[]`), §11m (P2a). 🔒 *"adjust the camera timing, camera cuts, position and viewing angles,
 subtitles and their timing … save that as takes and reels for the recording"*. Scope: CR-7 the Time track PLAYS (rate, skip, replay) on both hosts ·
 CR-11 a Subtitles track · *update key from view* + a pilot ⇄ program toggle · the takes of a KEPT exercise live in the kept folder (TE-1).
@@ -2539,7 +2539,7 @@ was right, the bodies were models.
 
 ### 11q. P3 wiring + keys per segment *(ui, `2026-10-27`, CE-4059 P3 (ui half) + CE-1303 CR-7 input; build-state: ✅ BUILT `2026-10-27` — as built at the end)*
 
-⭐ Frame: [NOTE_Coordinator_To_Ui_Drafter_Core_Ready](blueprints/batches/NOTE_Coordinator_To_Ui_Drafter_Core_Ready.md) — two items: **A.** a key belongs
+⭐ Frame: NOTE_Coordinator_To_Ui_Drafter_Core_Ready — two items: **A.** a key belongs
 to a SEGMENT (the CR-7 input: §11n's replay key had to be parked at ④'s end because a key placed by source time alone would cut the main pass) and
 **B.** the drafter wired (P3, the non-RB-HTTP part): *"Draft a shot sequence here"* on an event, the draft opened in the take session, `DraftOptions.Kind`
 from the world, `GET /director/moments` + `POST /director/draft` on the editor's routes. ⛔ Fence: no route on the Replay Browser's HTTP (backend's lane).
@@ -2739,7 +2739,7 @@ key's new scope and time are asserted by the new `CE4059_CR7_*` rail beside it.
 >   draws through `HudText` — the ONE raylib text path, already the HUD's (CE-1140) — now with size overloads, a 64 px bake and Latin-1 +
 >   dashes/quotes. 🔒 User: *"the font used for subtitles looks terrible, it is the default ugly raylib font. pls use same font as imgui is using"*.
 
-⭐ Frame: [NOTE_Coordinator_To_Ui_RB_Director_Routes_Done](blueprints/batches/NOTE_Coordinator_To_Ui_RB_Director_Routes_Done.md) "Still yours" — `recording=`
+⭐ Frame: NOTE_Coordinator_To_Ui_RB_Director_Routes_Done "Still yours" — `recording=`
 (TE-15), `/director/stills`, MP4 in the RB, the MCP catalog. Basis: CR-10 (stills + contact sheet, the night's documentation), CR-12 (rendering is the
 RB's), [Film Production](DESIGN_Film_Production.md) §3 ④ *"a still is one seek and one frame"*, §4a (the documentation take's still keys render through
 this route), [Replay Browser Debug HTTP](DESIGN_Replay_Browser_Debug_Http.md) (the RB answers the SAME routes; RB-only routes only for RB-only meaning).
@@ -3056,7 +3056,7 @@ passes it: a cut placed BEFORE a state cue still needs a bake (as live).
 
 ⭐ Supersedes known edge (5) above for `near`. The pilot cut 22 of 54 takes on a state cue. On a recording, a state cue was only observed as the
 playhead passed it, so a cut placed BEFORE it had no time. 🔒 User, `2026-10-30`: *"Decision 1 lean approved, seek"*. The other five state cues
-(`task` `side` `health` `embark` `gesture`) need index lanes, which [backend is building](blueprints/batches/NOTE_Ui_To_Backend_State_Cue_Index_Lanes.md).
+(`task` `side` `health` `embark` `gesture`) need index lanes, which backend is building.
 Until those land, those five are observed during play as before, and the report says so ("awaits play").
 
 **INVENTORY** *(graph + grep; ⚠ `check_index_coverage` is not available through the CLI)*
@@ -3638,7 +3638,7 @@ by the take), a cluster node (no director at all).
 designed path is `/director/stills {recording, take:"_doc"}` — ONE recording per call, refused while a job runs. ⭐ The queue takes the whole night in
 one call: `POST /director/renders {renders:[{recording:<run 1>, kind:"stills", take:"_doc", dir:<report>/<scenario>}, …]}` — each recording opened at its
 turn, a failure named per job without stopping the rest, `GET /director/renders` the morning's list (each `output` = a contact sheet). ⛔ Their code is
-not changed here; [NOTE_Ui_To_Coordinator_Render_Queue](blueprints/batches/NOTE_Ui_To_Coordinator_Render_Queue.md) says so.
+not changed here; NOTE_Ui_To_Coordinator_Render_Queue says so.
 
 **✅ As built `2026-10-27`** — the diagrams above are true. Files: `Hrot.Presentation/Map3D/Director/ReelComposer.cs` (new) · `DirectorRenders.cs` (new:
 `RenderKind`, `RenderState`, `RenderRequest`, `RenderJob`, `DirectorRenders`) · `DirectorStills.cs` (`StillsRequest`, `StillsPrepared`, `Prepare`, `Start(prepared)`,
@@ -3972,7 +3972,7 @@ director. Templates and stills exist on every host the pack attaches to; a templ
 | **T2** | **a template frames the event K would hang the key on** (`EventAnchor` now carries its `Lane` / `EventIndex`; `Drafter.MomentAt` on it) and the key is hung on it the K way (`AddKeyAt`, shared with K) — one undo step; offered on the Camera row's empty-space menu (`"Add key: …"`, disabled with no event before the click) and the Director window (*template* + *Add key from template* at the playhead) | the selected unit as the subject — no line (actor → subject) and no kind ⇒ none of the grammar's rules apply · a "template" key kind stored in the take — the format stays cameras (the template is HOW the camera was made, not what it is) |
 | **S1** | ⭐ **"still keys captured by Verify" = a verify run's RECORDING renders the still keys of a take (the `_doc` take CE-4060 drafts, or a scenario take that names stills) through the render queue** (CR-10, CR-12; §11u's seam) — ui's piece is that the stills PLAN resolves keys through the runner's ONE resolver (`DirectorRunner.AnchorTimesOf` → `AnchorBook`: a fresh bake, the index leading on a recording) so each still lands on THIS run's event | the editor's Verify run capturing PNGs live (TE-10's first wording) — CR-12 / §11r R3 refuse it (each still re-runs the scenario) · planning by the take's bake — a promoted take's bake is another run's or dropped (§11s D6) ⇒ "needs an anchor that is not baked" on every verify recording |
 | **S2** | **a stills render job waits for its recording's index** after the open (≤ `MaxIndexWaitFrames`); the direct route says why when an anchor is missing while the index is still read | planning on the partial index — anchors past the scanned frames go missing at random |
-| **S3** | **the night run itself is the coordinator's** (CE-4060): which takes to enqueue, the report folder, the contact sheet beside the verdicts — [NOTE_Ui_To_Coordinator_Verify_Stills](blueprints/batches/NOTE_Ui_To_Coordinator_Verify_Stills.md) | editing `DocumentationTakes` / the verify runner here — their files, their lane |
+| **S3** | **the night run itself is the coordinator's** (CE-4060): which takes to enqueue, the report folder, the contact sheet beside the verdicts — NOTE_Ui_To_Coordinator_Verify_Stills | editing `DocumentationTakes` / the verify runner here — their files, their lane |
 
 **✅ As built `2026-10-27`** — the diagrams above are true. Files: `Hrot.Presentation/Audio/SoundAtRate.cs` (new) · `SoundMixer.cs` (`Rate`, `RateGain`) ·
 `SoundSources.cs` (`Volume` × `RateGain`; engine velocity per sim second) · `AudioLayer.cs` (`Mixer.Rate`, the track's `CategoryOf`) · `SoundTrack.cs`
