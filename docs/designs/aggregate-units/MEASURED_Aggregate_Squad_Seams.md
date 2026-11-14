@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE — MEASUREMENTS, not a design (user, 2026-11-14: "No hurry in handoffs and design. Let's measure first. Let's make sure that we understand all the weak points.")
 updated: 2026-11-14
-current-answer: ⭐ §4 the second sweep — the REPRESENTATIVE-MEMBER shape, which retires most of §1 · §5 the assets (vehicles, fires, air, drones, AT) · §6 calibration numbers · §7 still unknown; §1–§3 the first sweep (a squad with NO members)
-stale-below: §1's W-1, W-2, W-4, W-6, W-7 assume a squad with NO members — the §4 shape removes them (kept as the record of why)
+current-answer: ⭐⭐ §8 THE DECISION (one member, R-4244) · ⭐ §4 the second sweep — the REPRESENTATIVE-MEMBER shape, which retires most of §1 · §5 the assets (vehicles, fires, air, drones, AT) · §6 calibration numbers · §7 still unknown; §1–§3 the first sweep (a squad with NO members)
+stale-below: §4's "TWO members = the two fire teams" lean — SUPERSEDED by §8 (one member); §1's W-1, W-2, W-4, W-6, W-7 assume a squad with NO members — the §4 shape removes them (kept as the record of why)
 known-rot: none
 related-designs:
   - ../group-maneuvers/DESIGN_City_Battle_Showcase.md — §12 the test ladder this would add a rung to (between ② the puppet bench and ③ the dry twins)
@@ -120,3 +120,19 @@ drill rails on a two-man squad · whether a reaction failing at Start reports `T
 or the Player) · the producer gaps confirmed: no production sender of PROGRESS FallingBack / PhaseLine / ObjectiveSecure / FireLifted, LACE or
 the ammo colour (the designs name senders: `DESIGN_Platoon_Attack_Defend_Clear.md:163, :199, :203`; FallingBack superseded by Set,
 `DESIGN_Defend_And_Attack_Position.md:1334-1335`) — `CompanyBehaviors.cs:804` reads a report nobody sends.
+
+## 8. ✅ DECIDED — ONE representative member per squad *(user, `2026-11-14`, R-4244)*
+
+🔒 User, `2026-11-14`: *"record the decision to have just one member. In addition to the virtual commander, which we already have. And Keep in
+mind that we can always replace any behavior with an aggregated squad version, because these should come as orders, and the orders will be
+translated to whatever the unit can do. So we do not necessarily need to hack the two half behaviors into a single member behaviors, because that
+will for sure come with some issues. And either let's design these behaviors to work even with a single member squad, which is likely a realistic
+situation when the squad loses most of their men and only one man standing lasts, or to replace with specific aggregated squad behaviors."*
+
+| | the decision |
+|---|---|
+| ⭐ **the shape** | an aggregate squad = the existing hidden squad UNIT (the virtual commander: command link, reports, orders) + **ONE representative member** that stands for all its men: location, sensors, weapons, damage, suppression — and the squad reports through the unit as today |
+| ⭐ **no hacks into the half-based plays** | the §8-earlier idea (a one-member squad counts its member in every half, inside `SquadGates.Element` / `Centre`) is **REJECTED** |
+| ⭐ **per behaviour, one of two** | **(a) ROBUST TO ONE MAN** — the play is fixed to work when one man is left, because a REAL squad reaches that state (measured: `FireAndMovementBehavior.cs:100-104` fails the moment a half is empty, so a real squad down to its last man fails bounding / fire and movement / break contact today — a realism defect in its own right) · **(b) AN AGGREGATE VERSION** — a behaviour of the aggregate squad's class, chosen by the order routing (CE-2142 / R-273: `Order.<name>` → `<Class><Order>`) where the aggregate meaning differs (e.g. clearing a building, A-6) |
+| ⚠ **the prerequisite of (b)** | measured: platoons order squads by CONCRETE behaviour name (`CommandOrders.Assign`, `CommandNodes.cs:80-86`), not by `Order.<name>` — the class routing is not on that path yet (§1 W-3). ⇒ the platoons' squad orders move to `CommandOrders.Order` first |
+| ⏳ **to decide in the design** | which plays take (a) and which (b) — a table over the squad order set (§1 W-4 / the order sweep) |
