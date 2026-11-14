@@ -375,6 +375,10 @@ public sealed class TerrainResidency
         world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(
             staged.Cover ?? Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(new TerrainWorld()));
 
+        // ⭐ CE-5002 (measured on city-battle: the first frame on a town paid ≈ 12 ms building the view's tables — doors, damage, craters, trunks — for 474
+        //   buildings) — built HERE, inside the load's own pause, so the first simulation frame does not drop. Per thread like every view table: this warms the
+        //   frame thread, which is the one that commits.
+        if (staged.World != null && world.HasSingletonManaged<TerrainWorld>() && world.GetSingletonManaged<TerrainWorld>() is { } loaded) DoorStates.Of(world, loaded);
         PublishHolder(world);   // ⭐ CE-3128 — background readers lease the graph through the world (RoadNetworkSource)
         if (staged.HasRoadNetwork)
         {

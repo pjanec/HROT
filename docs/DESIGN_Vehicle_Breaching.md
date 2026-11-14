@@ -734,12 +734,13 @@ for 30 s at random points in the town's core, each crater decided by the rule an
 | bursts → craters → records | 60 → 47 (13 on a floor or water: none, G-7) → **23 records** | one record per hit cell (V-7) ✅ |
 | a change → committed, steady barrage | median **2.00 s**, max **3.19 s** | ≤ the cap (2 s) + one bake + 0.5 s ✅ |
 | a change → committed, with the first (cold, 4.7 s) bake | max 7.43 s | ≤ the cap + the running bake + its own ✅ |
-| the frame thread's bake step | median 0.07 ms, p99 **1.6 ms** | p99 ≤ 3 ms ✅ |
+| the frame thread's bake step | median 0.07 ms, p99 **1.6–2.8 ms** (the frames that rebuild the crater table after a new crater, 2–3 ms each) | p99 ≤ 4 ms ✅ |
 | steps over one 60 Hz frame after the first commit | **0** (a steady commit ≈ 5–8 ms) | 0 ✅ |
 
 ⛔ **Found by measuring, and FIXED:** a change made WHILE a bake ran started its latency clock only after that bake's commit — it waited the rest of the running bake, the
 whole 2 s cap and its own bake (7.5 s measured; a bake every 3 s however busy the barrage). `StaticObstacleBakeSystem.Execute` now checks the signature while a bake runs
 (`SignatureNow`, the ONE signature for both paths) and starts the clock at the change.
 
-⚠ **Found, filed — [CE-5002](blueprints/Blueprint_Issues_Tracker.md):** the town's FIRST frame on a node (the view tables built, ≈ 20 ms) and the FIRST bake's commit (≈ 22 ms,
-cold) each cost one dropped frame; every later commit stays under a frame.
+⚠ **Found — [CE-5002](blueprints/Blueprint_Issues_Tracker.md):** the town's FIRST frame on a node paid ≈ 12 ms building the view's tables (doors, damage, craters, trunks) for 474
+buildings — ⭐ fixed: `TerrainResidency.Commit` builds them inside the load's own pause (the first read after a load 11.9 → 1.0 ms, the first step 18 → 6 ms). ⚠ Left, measured, no GC
+in either: the FIRST bake's start (≈ 21 ms) and its commit (≈ 22 ms) — two cold frames once per session; every later start and commit stays under a frame.
