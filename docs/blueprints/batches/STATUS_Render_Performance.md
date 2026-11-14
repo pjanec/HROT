@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — in progress (overnight, autonomous)
+state: LIVE — DONE (overnight, autonomous; every item built and gated)
 updated: 2026-11-14
 current-answer: the whole file — DONE / GATES / DECISIONS / BUGS FIXED / OPEN at the top
 related-designs:
@@ -24,7 +24,7 @@ related-designs:
 | G-5 · CE-4559 | the 2-D terrain layer from a cache | ✅ `dd2a90ee2` |
 | G-6 · CE-4560 | sound sources within hearing | ✅ `6aaf70d30` |
 | G-7 · CE-4561 | the message log's visible rows | ✅ `6aaf70d30` |
-| G-8 · CE-4562 | the proof on this machine | ⬜ |
+| G-8 · CE-4562 | the proof on this machine | ✅ `fefaabc37` + this commit — both targets met (GATES), the guarded session 0 hits |
 | G-9 · CE-4562 | the as-built into Map 3D §6ak | ✅ (this commit) — §6ak BUILT, §6ak.1 as built, §6ak.6 the deviations and the measured result; People Display §7g |
 
 ## GATES
@@ -55,7 +55,7 @@ The UI thread at the whole-terrain pose (10 s sampled): `EntityBodyLayer3D.Draw3
 | `Fdp.Presentation.Tests` whole | 5 failed / 836 — the same 5 at the base |
 | `Map3DFrameRail` + `BodyScaleFrameRail` (frame rails, real GL) | 52 / 54 + 7 / 7 — the 2 reds are the base's (`CE4388_TheCachedWireSphere…`, `CE1227_V_DemoCity…`, no bodies drawn in either) |
 | 0 B per steady frame (body layer + batch) | ✅ the rail; ⚠ once, in one whole-suite run, one frame of the 20 allocated 6 KB (passed in the next whole-suite run and every class run) — OPEN |
-| the threaded 1 000-man session, `HROT_WORLD_GUARD=1` | see G-8 below |
+| the threaded 1 000-man session once, `HROT_WORLD_GUARD=1` (the defaults: threaded node + parallel sim), hidden, uncapped — `rp/session.py`: load live · play · select · the 3-D view (whole terrain, street, following the selected man) · pause · step ×5 · play · a move and a hold order · delete a unit · a mid-run reload · play 30 s | ✅ every step ok; **guard 0 hits**; faults: the move order's params dropped by `BehaviorIngress` (O-6) and the shutdown crash (O-1) — neither in the render path |
 | `tracker-counts.py --check` | ✅ |
 
 ## GATES — after G-1 … G-4 (before G-5 … G-7; `rp.py`, the same poses)
@@ -107,4 +107,6 @@ after this run, A-9), sound 12 % (G-6), effects 11 %, ImGui 9 %, the message log
 | O-2 | the steady-frame allocation rail allocated once (6 KB in one of 20 frames) in one whole-suite run | passed in the next whole-suite run and in every class run | a one-time growth inside `DrawParts` when other suites ran first — watch; not reproduced |
 | O-3 | the Mermaid blocks of Map 3D §6ak.1 were not run through `scripts/mermaid-check.mjs` | no Node on this machine | the coordinator's VM, before merge |
 | O-4 | what is left of the frame is spread thin | whole terrain: the staged pull (the gizmo system 8–14 %), the effects' sphere draws (`EffectLayer.Draw3D` 11–17 %, mostly native: a blend-mode flush per flash), ImGui ≈ 10 % | the next round, if the targets tighten |
+| O-6 | `POST /entities/{id}/order {kind:'move', x, y}` — the route's own documented form — is dropped by `BehaviorIngress`: *"dropped 'PersonMove' … its params did not parse - JsonException: … System.Numerics.Vector3"* | the guarded session's log, `02:04:39` | an order-route / ingress defect (behaviors or backend), not render — a tracker row needs an id |
+| O-7 | `GET /entities` (the whole list) fails on a ±∞ field — CE-1471, already open | the session (the driver reads single entities instead) | — |
 | O-5 | a door hidden for its size (< 2 px) is not pickable (A-9) | — | nobody aims at a 2-px door; the free camera re-picks when it moves closer |
