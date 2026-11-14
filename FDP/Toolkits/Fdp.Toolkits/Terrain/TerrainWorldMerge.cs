@@ -41,6 +41,13 @@ namespace Fdp.Toolkit.Terrain
             return list;
         }
 
+        private static IReadOnlyList<GroundShape> Concat(IReadOnlyList<GroundShape> a, IReadOnlyList<GroundShape> b)
+        {
+            if (b.Count == 0) return a;
+            if (a.Count == 0) return b;
+            var l = new List<GroundShape>(a.Count + b.Count); l.AddRange(a); l.AddRange(b); return l;
+        }
+
         public static TerrainWorld Merge(TerrainWorld @base, TerrainWorld overlay)
         {
             if (@base == null) throw new ArgumentNullException(nameof(@base));
@@ -126,6 +133,7 @@ namespace Fdp.Toolkit.Terrain
                 Prisms = prisms,
                 Walkables = walkables,
                 Surfaces = surfaces,
+                GroundShapes = Concat(@base.GroundShapes, overlay.GroundShapes),   // ⭐ CE-4593 — the ditches' navmesh areas read them
                 Panels = panels,
                 Buildings = buildings,
                 Doors = doors,

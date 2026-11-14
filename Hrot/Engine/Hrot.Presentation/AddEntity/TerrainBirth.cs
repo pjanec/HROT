@@ -67,7 +67,7 @@ public static class TerrainBirth
         {
             TerrainFeature.Wall => "Wall", TerrainFeature.Fence => "Fence", TerrainFeature.Hedge => "Hedge", TerrainFeature.Wood => "Wood", TerrainFeature.Tree => "Tree",
             TerrainFeature.Scrub => "Scrub", TerrainFeature.Water => "Water", TerrainFeature.Bridge => "Bridge", TerrainFeature.Scatter => "Scatter",
-            TerrainFeature.Ground => f.Template switch { "level" => "Level ground", "lower" => "Lowered ground", _ => "Raised ground" },   // ⭐ CE-4592
+            TerrainFeature.Ground => f.Template switch { "level" => "Level ground", "lower" => "Lowered ground", "ditch" => "Ditch", "at-ditch" => "Anti-tank ditch", "foxhole" => "Foxhole", _ => "Raised ground" },   // ⭐ CE-4592
             _ => "Terrain feature",
         };
 
@@ -85,7 +85,7 @@ public static class TerrainBirth
     {
         float z = 0f;
         foreach (var c in components) if (c is SimTransform t) { z = t.Position.Z; break; }
-        float value = mode switch { "raise" => DefaultRaise, "lower" => DefaultLower, _ => z };
+        float value = mode switch { "raise" => DefaultRaise, "lower" => DefaultLower, "level" => z, _ => 0f };   // ⭐ CE-4593 — a ditch / foxhole: 0 = its preset's depth
         return new TerrainFeature { Kind = TerrainFeature.Ground, Template = new FixedString32(mode), Pad = value, Seed = DrawOrderNow() };
     }
 
@@ -104,7 +104,7 @@ public static class TerrainBirth
         else if (p.Kind == TerrainPickKind.House && tkbType == TkbEntityTypes.TerrainFeature && !components.Exists(c => c is TerrainFeature))
             components.Add(new TerrainFeature { Kind = TerrainFeature.House, Template = new FixedString32(p.Id), HeadingDeg = (HeadingOf(rotation) + extraHeadingDeg) % 360f });
         else if (p.Kind == TerrainPickKind.Feature && tkbType == TkbEntityTypes.TerrainFeature && FeatureOf(spec) is { } g && g.Kind == TerrainFeature.Ground && !components.Exists(c => c is TerrainFeature))
-            components.Add(GroundShape(g.Template, components));   // ⭐ CE-4592 (P-5) — its value and its draw order
+            components.Add(GroundShape(g.Template, components) with { HeadingDeg = g.Shape == TerrainShape.Point ? (HeadingOf(rotation) + extraHeadingDeg) % 360f : 0f });   // ⭐ CE-4592 (P-5) — its value and its draw order; a foxhole its heading
         else if (p.Kind == TerrainPickKind.Feature && tkbType == TkbEntityTypes.TerrainFeature && FeatureOf(spec) is { } f && !components.Exists(c => c is TerrainFeature))
             components.Add(new TerrainFeature { Kind = f.Kind, Template = new FixedString32(f.Template), HeadingDeg = f.Shape == TerrainShape.Point ? (HeadingOf(rotation) + extraHeadingDeg) % 360f : 0f, Seed = seed ?? NewSeed() });
         else return;

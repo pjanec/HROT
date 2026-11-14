@@ -51,6 +51,8 @@ namespace Fdp.Toolkit.Terrain
                     return Bridge(key, points, pad > 0 ? pad : DefaultBridgeWidth, where);
                 case TerrainFeature.Scatter:
                     return Scatter(key, TerrainRecipe.Find(template, recipeRoots), seed, pad, points, baseWorld, where);
+                case TerrainFeature.Ground when DitchPresets.Of(template) is { } preset:
+                    return new[] { Ditch(key + "/0", template, pad > 0f ? pad : preset.Depth, preset.Width, seed, at, headingDeg, points, where) };   // ⭐ CE-4593 (P-6)
                 case TerrainFeature.Ground:
                     return new[] { Ground(key + "/0", template, pad, seed, points, where) };
                 default:
@@ -89,6 +91,23 @@ namespace Fdp.Toolkit.Terrain
             GroundShapes.ModeOf(mode, where);   // an unknown mode fails here, at the compile, naming the feature
             var props = new JsonObject { ["kind"] = "ground", ["mode"] = mode.Length == 0 ? "raise" : mode, ["value"] = Round(value), ["order"] = order, ["label"] = label };
             return Feature(props, new JsonObject { ["type"] = "Polygon", ["coordinates"] = new JsonArray(Ring(points)) });
+        }
+
+        /// <summary>⭐ CE-4593 (P-6, G-26, G-36) — a ditch's part: its line (a ditch) or a foxhole's rectangle at its click and heading, with its depth and width.</summary>
+        private static JsonObject Ditch(string label, string mode, float depth, float width, uint order, Vector2 at, float headingDeg, IReadOnlyList<Vector2> points, string where)
+        {
+            var props = new JsonObject { ["kind"] = "ground", ["mode"] = mode, ["value"] = Round(depth), ["width"] = Round(width), ["order"] = order, ["label"] = label };
+            if (mode == "foxhole")
+            {
+                float a = headingDeg * MathF.PI / 180f;
+                var d = new Vector2(MathF.Sin(a), MathF.Cos(a)) * (DitchPresets.FoxholeLength * 0.5f);   // heading 0 = north
+                var line = new[] { at - d, at + d };
+                var coords = new JsonArray(); foreach (var p in line) coords.Add(new JsonArray(Round(p.X), Round(p.Y)));
+                return Feature(props, new JsonObject { ["type"] = "LineString", ["coordinates"] = coords });
+            }
+            if (points.Count < 2) throw new ArgumentException($"[Terrain] {where}: a ditch needs at least two points (got {points.Count}).");
+            var c2 = new JsonArray(); foreach (var p in points) c2.Add(new JsonArray(Round(p.X), Round(p.Y)));
+            return Feature(props, new JsonObject { ["type"] = "LineString", ["coordinates"] = c2 });
         }
 
         private static JsonObject Area(string surface, string label, IReadOnlyList<Vector2> points, float? density, string where)

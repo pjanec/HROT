@@ -457,8 +457,12 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
         var earth = TerrainPickCatalog.FeaturePicks().Where(p => p.Group == TerrainPickCatalog.Earthworks).ToList();
         Assert.Equal(new[] { "Level", "Raise", "Lower", "Crater", "Ditch", "Anti-tank ditch", "Foxhole" }, earth.Select(p => p.Name).ToArray());
         Assert.All(earth.Take(3), p => { Assert.Null(p.Disabled); Assert.Equal(TerrainShape.Area, p.Shape); Assert.Equal(TerrainFeature.Ground, p.FeatureKind); Assert.Equal("terrain/source", p.GlyphKey); });
-        Assert.All(earth.Skip(3), p => Assert.NotNull(p.Disabled));
-        Assert.Contains("P-6", earth.Single(p => p.Name == "Ditch").Disabled);
+        Assert.Contains("V-14", earth.Single(p => p.Name == "Crater").Disabled);
+        // ⭐ CE-4593 (P-6) — the ditches are line tools, the foxhole a point tool
+        Assert.Equal(TerrainShape.Line, earth.Single(p => p.Name == "Ditch").Shape);
+        Assert.Equal(TerrainShape.Line, earth.Single(p => p.Name == "Anti-tank ditch").Shape);
+        Assert.Equal(TerrainShape.Point, earth.Single(p => p.Name == "Foxhole").Shape);
+        Assert.All(earth.Where(p => p.Name != "Crater"), p => Assert.Null(p.Disabled));
 
         var raise = new List<object> { new Fdp.Core.SimTransform { Position = new System.Numerics.Vector3(1f, 2f, 7.5f) } };
         TerrainBirth.BornWith(Hrot.Map.Common.TkbEntityTypes.TerrainFeature, earth.Single(p => p.Name == "Raise").Spec, System.Numerics.Quaternion.Identity, raise);

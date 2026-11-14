@@ -820,3 +820,18 @@ red-proved (no `GroundShapes.Apply` in the merge ⇒ both red).
 | the rest listed, greyed with the item that brings them | Crater (V-14, a saved crater record), Ditch, Anti-tank ditch, Foxhole (P-6) | mockup panel A |
 | born | `TerrainBirth.GroundShape`: a raise 2 m, a lower 1 m, a level at the clicked ground (the placed transform's Z); the draw order = the authoring moment in seconds since 2026 (the newest wins) | G-14, V-28 |
 | ⚠ not yet (part 2b) | the Details *Effect* read-out (grade, area, kept out, the SUMO line), the grade warning over 15 % (G-19), the 2-D tint of the height change while drawing, and the frame-vs-mockup fidelity rails | mockup panels B, C, F |
+
+### 9.14 As built — P-6, part 1: ditches and foxholes *(`terrain` lane, `2026-11-14`, CE-4593)*
+
+| claim | code — as built | design |
+|---|---|---|
+| one path with the shapes | a ditch / anti-tank ditch / foxhole is a `TerrainFeature.Ground` with mode `ditch` / `at-ditch` / `foxhole` (the template), its depth in `Pad` (0 = the preset's); compiled as a `ground` LINE part with its width; the parser widens the line into one quad per segment (`DitchPresets.Strip`) | G-26, G-36 |
+| presets | ditch 2 m × 1 m · anti-tank ditch 4 m × 2 m · foxhole 2 m long × 1.5 m wide × 1 m deep along its heading (a click — the point tool) | G-26, G-36 (R-5027) |
+| steep banks | `GroundShapeMode.Ditch`: the natural ground − depth with a skirt of 0.6 × depth + 0.3 m (≈ infantry's 60°) — vs a Lower's gentle 1.5 × | G-38 |
+| an obstacle, priced per mover | a ditch (not a foxhole) is `Obstacle`; `NavDoorways.Ditches` marks its quad (+ banks) `CraterArea` — every vehicle keeps out, infantry crosses (D-2: one vehicle layer) | G-28, D-2 |
+| the merged and baked worlds keep the shapes | `TerrainWorldMerge` concatenates base + overlay shapes; `TerrainObstacles.With` carries them | — |
+| the picks | Earthworks: Ditch, Anti-tank ditch (line tools), Foxhole (a point tool with a heading) — live | mockup panel A |
+| ⚠ not yet (part 2) | cover points along the banks and the foxhole's (G-27, G-36, V-29/V-30), a ditch stopping at a road corridor (G-29), the coarse-grid warning (G-37), Details (presets, width, depth, read-outs — mockup D, E) | part 2 |
+
+⭐ **Lane decision (for the user's review):** [R-5027](blueprints/RULINGS.md). Rail: `TerrainWorldMergeTests.CE4593_*` (the floor, the steep bank, the anti-tank depth, the foxhole along its heading, the two
+obstacle areas) — red-proved (a Lower's skirt ⇒ red).

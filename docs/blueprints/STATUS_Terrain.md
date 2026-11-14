@@ -40,6 +40,7 @@ related-designs:
 | [R-5024](RULINGS.md) | the dozer's cut is a Muscle system reading its marker and blade position, not the hull guard's contact | a dozer that must break what it drives into |
 | [R-5025](RULINGS.md) | a zero `At` is "no point" (the DTO's zero-default rule) | a flag field instead |
 | [R-5026](RULINGS.md) | a ground shape uses G-14's field mapping (mode / value / draw order in `Seed`, skirt derived); no sibling component until P-6 | a shape needing its own skirt or heading |
+| [R-5027](RULINGS.md) | ditches are presets on the ground shape (ditch 2×1, AT 4×2, foxhole 2×1.5×1); width the preset's; every ditch an obstacle area | a ditch width the presets lack |
 | [R-5012](RULINGS.md) | D-3's road-to-façade ramp is the two skirts meeting; D-4 and V-18 left to their own steps | a step between a road and a house on a real town |
 
 ## 2. Tasks
@@ -61,7 +62,8 @@ related-designs:
 | **B-5** CE-4602 — every breach is a way in for the AI | ✅ built | [Breaching §7.13](../DESIGN_Vehicle_Breaching.md); rail `BreachEntryTests` (red-proved) |
 | **P-5** CE-4592 part 1 — ground shapes, the data path | 🟡 built: kind Ground, compile, parse, `GroundShapes.Apply` at merge (islands, newest wins); ⛔ open: corridors (G-24), the overlay SUMO net (G-16), grade read-out (G-19), the UI + mockup | [Ground §9.12](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `TerrainWorldMergeTests.CE4592_*` (red-proved) |
 | **P-5** CE-4592 part 2a — the Earthworks picks | ✅ built (cross-lane into ui's picker, said) | [Ground §9.13](../DESIGN_Ground_Patches_And_Road_Blockage.md); rail `TerrainAuthoringPickerTests.CE4592_*`; `EntityTypeCatalogTests.CE2138_*` red is pre-existing (the drone-jammer type `e81eaa50`, behaviors) |
-| next | **P-6** CE-4593 — ditches and foxholes (P-5 part 2b — Details, grade, tint, fidelity — stays open) | |
+| **P-6** CE-4593 part 1 — ditches and foxholes | 🟡 built: presets, steep banks, obstacle areas, picks; ⛔ open: cover points (G-27/G-36), road corridors (G-29), coarse-grid warning, Details | [Ground §9.14](../DESIGN_Ground_Patches_And_Road_Blockage.md); rail `TerrainWorldMergeTests.CE4593_*` (red-proved) |
+| next | the open parts, in order: P-6 cover points · P-5 part 2b (Details, grade, tint, fidelity) · P-4 decal (ui) · P-1 V-15/D-4/CE-4402 · B-3b · stepped-hash · CE-5000 | |
 
 ## 3. Gates
 

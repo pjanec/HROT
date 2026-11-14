@@ -289,6 +289,16 @@ namespace Fdp.Toolkit.Terrain
                         var mode = GroundShapes.ModeOf((string?)props["mode"] ?? "raise", where);
                         float value = props["value"] is JsonNode vn ? ReadFloat(vn, where + ".value") : 0f;
                         uint order = props["order"] is JsonNode on ? on.GetValue<uint>() : 0u;
+                        string modeText = (string?)props["mode"] ?? "raise";
+                        if (geomType == "LineString" && DitchPresets.Of(modeText) is { } preset)
+                        {
+                            // ⭐ CE-4593 (P-6) — a ditch / foxhole: its line widened into quads
+                            float width = props["width"] is JsonNode wn ? ReadFloat(wn, where + ".width") : preset.Width;
+                            var line = ReadPositions(geometry["coordinates"], where).Select(p => new Vector2(p.X, p.Y)).ToList();
+                            foreach (var quad in DitchPresets.Strip(line, width))
+                                groundShapes.Add(new GroundShape(mode, quad, value, order, (string?)props["label"] ?? "") { Obstacle = preset.Obstacle });
+                            break;
+                        }
                         foreach (var ring in OuterRings(geometry, geomType, where))
                             groundShapes.Add(new GroundShape(mode, Flatten(ring), value, order, (string?)props["label"] ?? ""));
                         break;

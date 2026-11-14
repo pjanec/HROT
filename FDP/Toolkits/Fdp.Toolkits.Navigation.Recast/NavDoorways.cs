@@ -100,6 +100,28 @@ public static class NavDoorways
         return list;
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-4593</c> (P-6, G-28, D-2) — every OBSTACLE-class ground shape (a ditch, an anti-tank ditch) as a convex volume of <see cref="CraterArea"/> (the area every
+    /// vehicle keeps out of, infantry crosses): its quad grown by its banks, spanning below its floor to above the ground.
+    /// </summary>
+    public static IReadOnlyList<Volume> Ditches(TerrainWorld world)
+    {
+        List<Volume>? list = null;
+        foreach (var s in world.GroundShapes)
+        {
+            if (!s.Obstacle || s.Polygon.Length != 4) continue;
+            var c = (s.Polygon[0] + s.Polygon[2]) * 0.5f;
+            float ground = world.BareGroundHeightAt(c.X, c.Y);
+            float lo = ground - MathF.Abs(s.Value) - 2f, hi = ground + 2f;
+            float grow = 0.6f * MathF.Abs(s.Value) + 0.3f;
+            var q = new Vector2[4];
+            for (int k = 0; k < 4; k++) { var v = s.Polygon[k] - c; q[k] = s.Polygon[k] + (v.LengthSquared() > 1e-9f ? Vector2.Normalize(v) * grow : Vector2.Zero); }
+            foreach (var (a, b, d) in new[] { (q[0], q[1], q[2]), (q[0], q[2], q[3]) })
+                (list ??= new List<Volume>()).Add(new Volume(-1, new float[] { a.X, lo, a.Y, b.X, lo, b.Y, d.X, lo, d.Y }, lo, hi) { Area = CraterArea });
+        }
+        return (IReadOnlyList<Volume>?)list ?? Array.Empty<Volume>();
+    }
+
     /// <summary>The doorway boxes of <paramref name="world"/>, in RECAST coordinates (x east, y up, z north).</summary>
     public static IReadOnlyList<Volume> For(TerrainWorld world)
     {

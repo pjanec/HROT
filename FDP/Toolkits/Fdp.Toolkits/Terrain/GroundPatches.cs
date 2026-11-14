@@ -352,10 +352,53 @@ namespace Fdp.Toolkit.Terrain
         Raise = 1,
         /// <summary>The natural ground − <see cref="GroundShape.Value"/>.</summary>
         Lower = 2,
+        /// <summary>⭐ CE-4593 (P-6, G-26) — a DITCH / foxhole strip: the natural ground − <see cref="GroundShape.Value"/> with STEEP banks (a skirt of 0.6 × the depth + 0.3 m — infantry's 60° walls, G-38).</summary>
+        Ditch = 3,
     }
 
     /// <summary>⭐ <c>CE-4592</c> — one authored ground shape: its mode, polygon (terrain-local), value and DRAW ORDER (the newest wins where shapes overlap, V-28).</summary>
-    public readonly record struct GroundShape(GroundShapeMode Mode, Vector2[] Polygon, float Value, uint Order, string Label);
+    public readonly record struct GroundShape(GroundShapeMode Mode, Vector2[] Polygon, float Value, uint Order, string Label)
+    {
+        /// <summary>⭐ CE-4593 (G-28, D-2) — an OBSTACLE-class shape (a ditch): a navmesh area every vehicle keeps out of.</summary>
+        public bool Obstacle { get; init; }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4593</c> (P-6; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4c G-26…G-28, §4c-1 G-36…G-38) — the ditch PRESETS: a ditch 2 m wide × 1 m deep, an anti-tank
+    /// ditch 4 m × 2 m, a foxhole 2 m long × 1.5 m wide × 1 m deep (a click and a heading). A shape's own depth (its <c>Pad</c>) overrides the preset's; the width is the
+    /// preset's (R-5027: no width field until the sibling component).
+    /// </summary>
+    public static class DitchPresets
+    {
+        public static (float Width, float Depth, bool Obstacle)? Of(string mode) => mode switch
+        {
+            "ditch" => (2f, 1f, true),
+            "at-ditch" => (4f, 2f, true),
+            "foxhole" => (1.5f, 1f, false),
+            _ => null,
+        };
+
+        /// <summary>The foxhole's length along its heading (m).</summary>
+        public const float FoxholeLength = 2f;
+
+        /// <summary>The quads of a ditch <paramref name="width"/> wide along <paramref name="line"/> (one per segment, squared ends a half width past each joint so they overlap).</summary>
+        public static List<Vector2[]> Strip(IReadOnlyList<Vector2> line, float width)
+        {
+            var quads = new List<Vector2[]>();
+            float h = width * 0.5f;
+            for (int i = 0; i + 1 < line.Count; i++)
+            {
+                var a = line[i]; var b = line[i + 1];
+                var d = b - a; float len = d.Length();
+                if (len < 1e-3f) continue;
+                d /= len;
+                var n = new Vector2(-d.Y, d.X) * h;
+                var a2 = i > 0 ? a - d * h : a; var b2 = i + 2 < line.Count ? b + d * h : b;
+                quads.Add(new[] { a2 + n, a2 - n, b2 - n, b2 + n });
+            }
+            return quads;
+        }
+    }
 
     /// <summary>
     /// ⭐⭐ <c>CE-4592</c> (P-5; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4a G-14, G-18, §9.3 V-28) — THE ground-shape rule, beside the pads' (<see cref="GroundPatches"/>,
@@ -374,7 +417,8 @@ namespace Fdp.Toolkit.Terrain
             "level" => GroundShapeMode.Level,
             "raise" or "" => GroundShapeMode.Raise,
             "lower" => GroundShapeMode.Lower,
-            _ => throw new ArgumentException($"[Terrain] {where}: unknown ground mode '{mode}' (level, raise, lower)."),
+            "ditch" or "at-ditch" or "foxhole" => GroundShapeMode.Ditch,   // ⭐ CE-4593 (P-6)
+            _ => throw new ArgumentException($"[Terrain] {where}: unknown ground mode '{mode}' (level, raise, lower, ditch, at-ditch, foxhole)."),
         };
 
         /// <summary>The target height a shape gives a post whose natural ground is <paramref name="natural"/>.</summary>
@@ -382,12 +426,13 @@ namespace Fdp.Toolkit.Terrain
         {
             GroundShapeMode.Level => s.Value,
             GroundShapeMode.Raise => natural + s.Value,
-            _ => natural - s.Value,
+            _ => natural - s.Value,   // lower, ditch
         };
 
         /// <summary>The shape's skirt over <paramref name="grid"/>: ≥ 4 m and 1.5 × the largest change inside it.</summary>
         public static float SkirtOf(in GroundShape s, TerrainHeightGrid grid)
         {
+            if (s.Mode == GroundShapeMode.Ditch) return 0.6f * MathF.Abs(s.Value) + 0.3f;   // ⭐ CE-4593 — steep banks
             if (s.Mode != GroundShapeMode.Level) return MathF.Max(GroundPatches.MinSkirt, GroundPatches.SkirtPerMetreOfCut * MathF.Abs(s.Value));
             var (min, max) = Box(s.Polygon);
             float change = 0f;

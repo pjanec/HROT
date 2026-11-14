@@ -98,9 +98,9 @@ public static class TerrainPickCatalog
             F(Earthworks, TerrainFeature.Ground, "Raise", "raise", TerrainShape.Area, "raise an area — a hill, a bank"),
             F(Earthworks, TerrainFeature.Ground, "Lower", "lower", TerrainShape.Area, "lower an area — a hollow"),
             F(Earthworks, TerrainFeature.Ground, "Crater", "crater", TerrainShape.Point, "a crater left by a blast", "A pre-shelled crater is a saved crater record (V-14) — not yet."),
-            F(Earthworks, TerrainFeature.Ground, "Ditch", "ditch", TerrainShape.Line, "a lowered line: cover and an obstacle", "Ditches come with P-6 (CE-4593)."),
-            F(Earthworks, TerrainFeature.Ground, "Anti-tank ditch", "at-ditch", TerrainShape.Line, "a wide, deep ditch: stops every vehicle", "Ditches come with P-6 (CE-4593)."),
-            F(Earthworks, TerrainFeature.Ground, "Foxhole", "foxhole", TerrainShape.Point, "a one-man hole: all-round cover", "Foxholes come with P-6 (CE-4593)."),
+            F(Earthworks, TerrainFeature.Ground, "Ditch", "ditch", TerrainShape.Line, "a lowered line 2 × 1 m: cover, and no vehicle crosses it"),
+            F(Earthworks, TerrainFeature.Ground, "Anti-tank ditch", "at-ditch", TerrainShape.Line, "a ditch 4 m wide, 2 m deep: stops every vehicle"),
+            F(Earthworks, TerrainFeature.Ground, "Foxhole", "foxhole", TerrainShape.Point, "a fighting hole 2 × 1.5 × 1 m along its heading"),
         };
         foreach (var t in Fdp.Toolkit.Terrain.ClutterTypes.All)
             l.Add(F(Clutter, TerrainFeature.Clutter, t.Name, t.Id, TerrainShape.Point, $"{t.Length:0.#} × {t.Width:0.#} m, {t.Material}"));

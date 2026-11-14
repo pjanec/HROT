@@ -198,6 +198,7 @@ namespace Fdp.Toolkit.Terrain
                 BakedCollapsed = bakedCollapse,
                 BakedPassages = bakedPassages,
                 Surfaces  = terrain.Surfaces,
+                GroundShapes = terrain.GroundShapes,   // ⭐ CE-4593
                 Panels    = terrain.Panels,
                 Buildings = terrain.Buildings,
                 Doors     = terrain.Doors,

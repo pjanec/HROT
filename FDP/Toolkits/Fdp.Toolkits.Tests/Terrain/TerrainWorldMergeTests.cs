@@ -432,5 +432,34 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(4f, merged.GroundHeightAt(10f, 10f), 3);   // the hill round it
             Assert.Throws<ArgumentException>(() => Ground("bad", "dig", 1f, 1, Square(0f, 0f, 2f)));
         }
+    
+        // ── ⭐ CE-4593 (P-6; §4c G-26…G-28, §4c-1 G-36) — ditches and foxholes ─────────────────────────────
+
+        private static System.Text.Json.Nodes.JsonObject Ditch(string key, string mode, float depth, uint order, Vector2 at, float heading, params Vector2[] line)
+            => FeatureExpander.OfKind(TerrainFeature.Ground, key, mode, heading, depth, order, at, line, FlatBase(), new TerrainAssets(), Array.Empty<string?>())[0];
+
+        /// <summary>
+        /// ⭐ G-26 / G-28 — a ditch drawn along a line is 2 m wide × 1 m deep with steep banks, an obstacle area (every vehicle keeps out, D-2); an anti-tank ditch 4 × 2 m;
+        /// a foxhole at a click and a heading a 2 m dip, no obstacle. 🔴 Red-proof: a ditch's skirt the Lower's (1.5 × depth) ⇒ the bank point 1.5 m out is too deep.
+        /// </summary>
+        [Fact]
+        public void CE4593_ADitch_IsASteepBankedStrip_AndAnObstacle_AFoxholeADip()
+        {
+            var merged = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(
+                Ditch("d", "ditch", 0f, 1, Vector2.Zero, 0f, new Vector2(-20f, 0f), new Vector2(20f, 0f)),
+                Ditch("a", "at-ditch", 0f, 2, Vector2.Zero, 0f, new Vector2(-20f, 30f), new Vector2(20f, 30f)),
+                Ditch("f", "foxhole", 0f, 3, new Vector2(0f, -40f), 90f)));
+            Assert.Equal(-1f, merged.GroundHeightAt(0f, 0f), 3);          // the floor
+            Assert.Equal(-1f, merged.GroundHeightAt(5f, 0.9f), 2);        // still the floor at the edge of its 2 m
+            Assert.Equal(0f, merged.GroundHeightAt(0f, 2.0f), 3);          // past the 0.9 m bank: untouched
+            Assert.Equal(-2f, merged.GroundHeightAt(0f, 30f), 3);          // the anti-tank ditch
+            Assert.Equal(-1f, merged.GroundHeightAt(0f, -40f), 3);         // the foxhole
+            Assert.Equal(-1f, merged.GroundHeightAt(0.9f, -40f), 2);       // along its heading (east)
+            Assert.Equal(0f, merged.GroundHeightAt(0f, -42.5f), 3);        // across it, past its bank
+            var obstacles = merged.GroundShapes.Where(g => g.Obstacle).ToList();
+            Assert.Equal(2, obstacles.Count);                              // the two ditches, not the foxhole
+            Assert.Equal(4, Fdp.Toolkit.Navigation.Recast.NavDoorways.Ditches(merged).Count);   // two triangles each
+            Assert.All(Fdp.Toolkit.Navigation.Recast.NavDoorways.Ditches(merged), v => Assert.Equal(Fdp.Toolkit.Navigation.Recast.NavDoorways.CraterArea, v.Area));
+        }
     }
 }

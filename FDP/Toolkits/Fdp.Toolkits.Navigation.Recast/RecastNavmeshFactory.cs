@@ -186,6 +186,8 @@ public sealed class RecastNavmeshFactory : IIncrementalNavmeshFactory
         // ⭐ CE-4369 (L-7) — the woods first, the doorways after (a doorway's area wins where both overlap); the provider gets the doorways only
         var woods = NavDoorways.Woods(world);
         var craters = NavDoorways.Craters(world);   // ⭐ CE-4591 (D-2) — after the woods (a crater in a wood is a crater), before the doorways
+        var ditches = NavDoorways.Ditches(world);   // ⭐ CE-4593 (G-28) — a ditch is the same area
+        if (ditches.Count > 0) { var both = new List<NavDoorways.Volume>(craters.Count + ditches.Count); both.AddRange(craters); both.AddRange(ditches); craters = both; }
         IReadOnlyList<NavDoorways.Volume> volumes = doorways;
         if (woods.Count > 0 || craters.Count > 0)
         {
