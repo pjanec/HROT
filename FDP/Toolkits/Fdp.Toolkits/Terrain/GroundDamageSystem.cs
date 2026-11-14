@@ -88,6 +88,9 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>Entities moved (rails, diagnostics).</summary>
         public long Regrounded { get; private set; }
 
+        /// <summary>⭐ V-12 — owned vehicles left in a new crater's bowl, their <c>CanMove</c> stripped (rails, diagnostics).</summary>
+        public long Stranded { get; private set; }
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;
@@ -115,12 +118,28 @@ namespace Fdp.Toolkit.Terrain
                 if (!inside) continue;
                 if (!Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(repo, e)) continue;   // a replica: its owner re-grounds it
                 if (MathF.Abs(t.Position.Z - terrain.BareGroundHeightAt(p.X, p.Y) - (was?.Offset(p.X, p.Y) ?? 0f)) > OnGroundMetres) continue;   // off the ground
+                // ⭐ V-12 (R-5029) — a vehicle the new bowl opened under is STRANDED: its area is closed to every vehicle (D-2), so no plan could leave it;
+                //   it loses CanMove like a mobility kill (the one capability bit every mover and brain already reads), and keeps fighting where it stands
+                Strand(repo, e, p);
                 float z = craters.GroundHeightAt(terrain, p.X, p.Y);
                 if (z == t.Position.Z) continue;
                 t.Position = new Vector3(t.Position.X, t.Position.Y, z);
                 repo.SetComponent(e, t);
                 Regrounded++;
             }
+        }
+
+        private void Strand(EntityRepository repo, Entity e, Vector2 p)
+        {
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>() || !repo.HasComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(e)) return;
+            if (!Fdp.Toolkit.Motion.Locomotions.IsVehicle(repo, e)) return;
+            bool inBowl = false;
+            for (int k = 0; k < _added.Count && !inBowl; k++) inBowl = Vector2.DistanceSquared(p, _added[k].Centre) < _added[k].Radius * _added[k].Radius;
+            if (!inBowl) return;
+            ref var caps = ref repo.GetComponentRW<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(e);
+            if ((caps.Capabilities & Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanMove) == 0) return;
+            caps.Capabilities &= ~Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanMove;
+            Stranded++;
         }
     }
 }

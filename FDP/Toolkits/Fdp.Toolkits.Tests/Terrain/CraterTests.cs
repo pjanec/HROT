@@ -384,6 +384,40 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
     
         /// <summary>
+        /// ⭐ V-12 (R-5029) — a crater opening under a vehicle this node owns STRANDS it: <c>CanMove</c> stripped (its area is closed to every vehicle); a vehicle on the
+        /// rim (outside the bowl) and a man in the bowl keep moving; a steady frame strands nobody twice. 🔴 Red-proof: drop the <c>Strand</c> call ⇒ the vehicle keeps CanMove.
+        /// </summary>
+        [Fact]
+        public void ACraterUnderAnOwnedVehicle_StrandsIt_NotOneOnTheRim_NorAMan()
+        {
+            var repo = World(Flat());
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<NetworkAuthority>();
+            repo.RegisterComponent<global::CarKinem.Core.VehicleState>();
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
+            const Fdp.Toolkit.Behavior.Components.ActorCapabilities both = Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanMove | Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanShoot;
+            Entity At(float x, bool vehicle)
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new SimTransform { Position = new Vector3(x, 0f, 0f) });
+                repo.AddComponent(e, new Fdp.Toolkit.Behavior.Components.ActorCapabilityState { Capabilities = both });
+                if (vehicle) repo.AddComponent(e, new global::CarKinem.Core.VehicleState());
+                return e;
+            }
+            var tank = At(1f, true); var rim = At(4.5f, true); var man = At(-1f, false);
+            var sys = new CraterRegroundSystem();
+            sys.Execute(repo, 0.016f);
+            Record(repo, Big());
+            sys.Execute(repo, 0.016f);
+            Fdp.Toolkit.Behavior.Components.ActorCapabilities Caps(Entity e) => repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(e).Capabilities;
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanShoot, Caps(tank));   // stranded, still fights
+            Assert.Equal(both, Caps(rim));
+            Assert.Equal(both, Caps(man));
+            sys.Execute(repo, 0.016f);
+            Assert.Equal(1, sys.Stranded);
+        }
+
+        /// <summary>
         /// ⭐ V-11 — a baked crater is drawn: its chunk's objects carry a dark disc and a lighter ring of Ground-kind scorch, draped 2 cm over the cratered bowl, the same bytes
         /// every rebuild; a world without the crater draws none. 🔴 Red-proof: drop the <c>AddCraterScorch</c> call ⇒ no scorch.
         /// </summary>
