@@ -57,6 +57,7 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Physics.Components.PhysicsCollider>();     // Embarkation.HullRadius — the vehicle's hull (nobody writes it in the phase)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Gesture>();                         // ThreatDanger.ShowsHandsUp — another man's gesture: written in the
                                                                                                        //   phase by CivilianBehavior (own) and AimAndFireExecutor's warning
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.Stress>();             // ⭐ CE-7015 — a platoon asks whether its men are broken (CombatEffective.IsStanding; the stress job writes it in its own phase)
         }
     }
 }

@@ -89,3 +89,30 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | CE-7009 casevac on | the squad SOP's reaction passes no params, so how should the showcase turn on 150 m evacuation — a squad-level default, or params on the SOP's reaction? (built opt-in, R-7009) |
 | CE-7036 | under `HROT_PARALLEL_SIM=1` the SOP suites and the drill suite cannot share a run (rotating reds; pre-existing) — gate them separately until the collection fix |
 | CE-2278 kit | the Grenadier and the AssaultRifleman now carry 2 smoke grenades beside their M67s: their grenade mount's ammo total is 6 / 4 (was 4 / 2) — a scenario hash that counts rounds moves |
+
+## 4. Morale — `HANDOFF_Coordinator_To_Showcase_Brains_Morale.md` (dispatched at `d9353eb5d`)
+
+| row | state | where | design folded |
+|---|---|---|---|
+| CE-4584 a burst within 2 × injury radius is a near miss | ✅ | ONE helper `HitModel.NearMiss` (event + UnderFire stamp) — bullets (`BallisticsSystem`) and bursts (`AreaEffectSystem`, people only) both call it | Temperament & Stress §7.6 |
+| CE-7015 the rout | ✅ | `CombatEffective.IsStanding` / `StandingMembers` (fighting AND not broken) — `PlatoonDefend.SlotFailing` both arms + baseline, `PlatoonAttack.AssaultBlack` (relieve AT-9 and abort AT-10); `CombatEffective` itself unchanged; `BrainReads` declares `Stress` | Defend & Attack DA-67 / AT-10; AQ101 §R |
+| CE-4583 the Shelled danger area | ✅ | `ShelledAreas` (3 bursts in 60 s within 15 m ⇒ a 25 m area, cools after 120 s) fed by `ShelledAreaSystem` (after `AreaEffectSystem`); a `GasFootprint` of `Kind = Shelled` ⇒ the route classifier and the danger sensor need no new path; `DangerAreaKinds.Shelled` is bit 0 (the DDS IDL byte is signed); `SquadMarch` avoids it | Squad Tactics §7.7 |
+
+| gate | result |
+|---|---|
+| T-1 feature suites: `Fdp.Toolkits.Tests` AreaEffect + DangerAlongRoute + HitModel · SimHost `SquadManeuverTests|StressSystemTests` · `SimHostCoreLogicPackTests` | 144 / 0 · 273 / 0 · 5 / 0 |
+| new rails, `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1`: SimHost drills + stress · `Fdp.Toolkits.Tests` danger / area | 272 / 1 · 94 / 0 — the 1 is `StressSystemTests.CE2272_…` (`SimTransform` read undeclared), PRE-EXISTING at `0a4a4d364` (clean worktree) |
+| full `Fdp.Toolkits.Tests` | 5003 / 5 — the five S0 rails (`S0IdTypesRailTests` ×3, `S0WalkerTests`, `S0ComponentTypesRailTests`), PRE-EXISTING at `0a4a4d364` |
+| full `Hrot.SimHost.Tests` | 2747 / 7 — `OneBootstrap…`, `CE1431_…`, `CE4208_…`, `UtmEverywhere…`, `CE3345_…` (order-dependent) PRE-EXISTING at `0a4a4d364`; `DemoMissionPlan_…` flaky (green alone); `SimHostCoreLogicPack_EmptyWorld_…` green alone |
+| red-proofs (compiling mutants, restored and touched) | the burst near-miss call removed ⇒ CE4584 red · `SlotFailing` on the fighting count ⇒ CE7015 defend red · `AssaultBlack` on the colour alone ⇒ CE7015 attack red · the 60 s window dropped ⇒ CE4583 red · the classifier ignoring the kind ⇒ CE4583 red |
+| stepped hash `HROT_PARALLEL_SIM=1 python3 scripts/stepped-hash.py --threads 1,4,8 --dll <Debug runner>` | `morale-barrage-green` (105 entities, simTime 2): **STATE EQUAL** — 0 types, 0 `SimTransform` rows differ at 4 and 8 threads (⚠ the 120 steps end before any barrage; the new systems are covered at 1 / 4 / 8 only by their own rails under `HROT_PARALLEL_SIM=1`). `city-battle` (6628 entities): ⛔ **not compared** — the runs ended at simTime 7.917 / 7.817 / 7.733 for the same 120 steps ⇒ **CE-7037**, not run on the base |
+| live, T3: `python3 scripts/utility-demo-check.py --launch morale-barrage-green` / `-veteran` | ✅ both PASS. GREEN (Militia, nerve 0.15): first near miss 27.1 s, first man broken 46.9 s, **falls back 46.9 s** (1 broken, 0 down, 16 bursts, closest 6.8 m, peak line stress 0.66; sim to 53.8 s). VETERAN (Veteran, nerve 0.9): first near miss 26.9 s, one man broken at 58.0 s, **holds for 241 s** (0 down, 20 bursts, closest 8.5 m, peak stress 0.76). Times are sim seconds after the line was engaged; frame counts were not read |
+| ids | CE-4584, CE-4583, CE-7015 (handoff's); CE-7037, CE-7038 (findings); no new ruling |
+
+| the live demo — what it took (all in `scripts/gen-morale-scenarios.py` / `run_morale_barrage`) | |
+|---|---|
+| the spotter (`SpotForFire`) | ⛔ dropped: at (290,160) house H3 hid the line; in the open he saw it but the ENGAGED line shot him (hit 31 s, broke, dead ~130 s) and the fire stopped with him (one round in 240 s) |
+| the battery's strike authored at t = 0 | ⛔ refused — "gun 0 has no indirect weapon … no gun reaches the point" (the crews have not manned the tubes). The check orders the `Strike` once they have (`ua-indirect-fire`'s precedent) |
+| the `Location` | local metres `[x, y, z]` (CE-2433) — the check's `geo_of()` is stale (landed at (52.3, 14.0)); a strike on (120.8, 156, 0), Squad 1 upstairs in OBJ, ran 60 s and fired nothing ⇒ **CE-7038** |
+| the aim point | 10 m short of Squad 2 (open ground): inside the 11.8 m near miss, outside the 5.9 m injury radius — ON the squad, a man of EITHER variant went down hurt (collapsed counts as broken) by ~33 s and both fell back |
+| `UnderFire` | not on the editor's Scenario view ⇒ the check judges the near miss from the bursts and reads `Stress` |

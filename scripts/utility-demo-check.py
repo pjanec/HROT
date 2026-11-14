@@ -54,8 +54,20 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RUNNER = os.path.join(REPO, "Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0/Hrot.ClusterRunner.dll")
 
 
+def scenario_path(name):
+    """The scenario's file: scenarios/<name>/scenario.json, or — since the scenarios moved into demos/ and showcases/ folders — the one
+    folder of that name anywhere under scenarios/ (the server loads by name the same way)."""
+    flat = os.path.join(REPO, "scenarios", name, "scenario.json")
+    if os.path.exists(flat):
+        return flat
+    for root, dirs, files in os.walk(os.path.join(REPO, "scenarios")):
+        if os.path.basename(root) == name and "scenario.json" in files:
+            return os.path.join(root, "scenario.json")
+    return flat
+
+
 def scenario_names(name):
-    with open(os.path.join(REPO, "scenarios", name, "scenario.json")) as fh:
+    with open(scenario_path(name)) as fh:
         doc = json.load(fh)
     return sorted(e.get("EntityInfo", {}).get("Name") for e in doc["entities"].values() if e.get("EntityInfo", {}).get("Name"))
 
@@ -2563,7 +2575,7 @@ def _if_shots_since(shooters, seq):
 def _geo_origin(scenario):
     """The (lat, lon, alt) origin of the scenario's terrain (its terrain.json), or None."""
     try:
-        with open(os.path.join(REPO, "scenarios", scenario, "scenario.json")) as f:
+        with open(scenario_path(scenario)) as f:
             terrain = json.load(f)["header"].get("terrainName")
         with open(os.path.join(REPO, "assets/terrain", terrain, "terrain.json")) as f:
             o = json.load(f).get("origin")
@@ -4301,6 +4313,84 @@ def _roe(nid):
     return ((data(call("GET", f"/entities/{nid}/state")) or {}).get("roeEffective") or {}).get("fire")
 
 
+def _comp(nid, name):
+    d = data(call("GET", f"/entities/{nid}")) or {}
+    return (d.get("Components") or d.get("components") or {}).get(name)
+
+
+def run_morale_barrage(c, timeout):
+    """⭐ CE-7015 / CE-4584 (AQ101 §R C + E, R-4227) — morale-barrage-green / -veteran: pc-defend-dry's platoon under a mortar barrage.
+    Engaged as pc-defend-dry is (the squads' Set + a SPOT inside the EA); then the Blue spotter's missions land on the line. Reports the
+    sim times of the first near miss (UnderFire), the first broken man, and the fall-back (a line squad ordered BreakContact), and how many
+    of the line's eight men were broken / down then. Judge: GREEN falls back while most men are alive; VETERAN holds for the window."""
+    green = any("morale-barrage-green" in x for x in sys.argv)
+    ids = ids_by_name()
+    pl = ids.get("Red Platoon")
+    names = {9310: "Red Squad 1", 9320: "Red Squad 2", 9330: "Red Reserve"}
+    sq = {k: ids.get(n) for k, n in names.items()}
+    line = [ids.get(f"{n} {r}") for n in (names[9310], names[9320]) for r in ("Leader", "Rifleman 1", "Rifleman 2", "Rifleman 3")]
+    if not c.ok(pl and None not in sq.values() and None not in line, f"the platoon, its squads and its eight line men are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: all(task_name(s) == "SquadDefend" for s in sq.values()), 30), "every squad SquadDefends its point")
+    for k in (9310, 9320):
+        call("POST", f"/entities/{sq[k]}/reports", {"kind": "Progress", "subtype": "Set"})
+    wait_for(lambda: False, 3, every=1.0)
+    call("POST", f"/entities/{sq[9320]}/reports", {"kind": "Spot", "at": [120, 60, 0], "count": 3, "size": "Team"})   # inside the EA: Engage
+    # the barrage: once the crews man the tubes (ua-indirect-fire's precedent), the battery's Strike 10 m short of Squad 2 (in the open
+    #   at y ≈ 153) — inside the near miss (11.8 m), outside the injury radius (5.9 m), so it tests NERVE, not wounds — converged, ten bombs a
+    #   tube, danger close (its own crew ~260 m off); one failing line squad of two is the fall-back (DA-67).
+    #   ⚠ measured: ON the squad (≤ 1 m) a man of either variant went down hurt ("collapsed" counts as broken) by ~33 s — both fell back.
+    #   ⚠ measured on the way: an open 45 m sheaf across both squads near-missed nobody · Location is LOCAL metres [x, y, z] (CE-2433;
+    #   geo_of() is stale here: it landed at (52, 14)) · a Strike on (120.8, 156, 0) — Squad 1, upstairs in OBJ, 199 m off — RAN 60 s
+    #   and fired nothing, without a word (CE-7038)
+    crews = [ids.get("Mortar Man 1"), ids.get("Mortar Man 2")]
+    c.ok(wait_for(lambda: all("IsEmbarkedTag" in comps(m) for m in crews), 90), "the mortar crews man their tubes")
+    c.ok(_if_order(ids.get("Insurgent Mortar"), "Strike", {"Location": [78, 143, 0], "Rounds": 10,
+                                                         "Sheaf": "Converged", "DangerClose": True}), "the battery takes the barrage (Strike)")
+    t0 = sim_time() or 0.0
+    first = {}
+    shooters = {ids.get("Mortar Man 1"), ids.get("Mortar Man 2"), ids.get("Mortar Tube 1"), ids.get("Mortar Tube 2")}
+    near_m = 2 * 5.898   # CE-4584: 2 × the 81 mm HE's injury radius (its warhead source line)
+    seen = set()
+    window = max(timeout, 240.0)
+    end = time.time() + window
+    while time.time() < end:
+        t = (sim_time() or 0.0) - t0
+        stress = [_comp(m, "Stress") or {} for m in line]
+        broken = sum(1 for s in stress if s.get("Broken"))
+        down = sum(1 for m in line if ((_comp(m, "Health") or {}).get("Current") or 1) <= 0)
+        # ⚠ UnderFire is not on the editor's Scenario view (measured): the near miss is judged from the bursts themselves — a battery
+        #   burst within 2 × the injury radius of a line man — and its effect from the men's Stress (which is)
+        pos = [position(m) for m in line]
+        for d in _detonations():
+            b = d.get("burst")
+            if d.get("shooter") not in shooters or not b or d.get("seq") in seen:
+                continue
+            seen.add(d.get("seq"))
+            dists = [math.hypot(b[0] - p[0], b[1] - p[1]) for p in pos if p]
+            first["closest"] = round(min([first.get("closest", 1e9)] + dists), 1)
+            under = sum(1 for x in dists if x <= near_m)
+            if under and "underFire" not in first:
+                first["underFire"] = (round(t, 1), under, round(max((s.get("Level") or 0) for s in stress), 2))
+        first["bursts"] = len(seen)
+        first["maxStress"] = max(first.get("maxStress", 0), round(max((s.get("Level") or 0) for s in stress), 2))
+        if broken and "broken" not in first: first["broken"] = (round(t, 1), broken, down)
+        fell = [k for k in (9310, 9320) if task_name(sq[k]) == "BreakContact"]
+        if fell and "fallBack" not in first:
+            first["fallBack"] = (round(t, 1), broken, down)
+            if green: break
+        time.sleep(2.0)
+    print(f"   sim since engaged: {round((sim_time() or 0.0) - t0, 1)} s · first near miss (t, men under fire) {first.get('underFire')} · "
+          f"first broken (t, broken, down) {first.get('broken')} · fall-back (t, broken, down) {first.get('fallBack')} · "
+          f"battery bursts {first.get('bursts')} (closest to a line man {first.get('closest')} m) · peak line stress {first.get('maxStress')}")
+    c.ok("underFire" in first, f"the bursts near-miss the line's men (a battery burst within {near_m:.1f} m: {first.get('underFire')})")
+    if green:
+        c.ok("fallBack" in first and first["fallBack"][2] < 4, f"the GREEN platoon falls back while most of its line is alive ({first.get('fallBack')})")
+    else:
+        c.ok("fallBack" not in first, f"the VETERAN platoon holds under the same fire ({first.get('fallBack')})")
+
+
 def run_pc_defend_dry(c, timeout):
     """⭐ CE-2276 E-1 — pc-defend-dry (DESIGN_Platoon_Attack_Defend_Clear §12.2 A; DESIGN_Defend_And_Attack_Position §8d)."""
     ids = ids_by_name()
@@ -5657,7 +5747,7 @@ SCENARIOS = {"ua-posture": run_posture, "il-idle-life": run_il_idle_life, "ts-fi
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "uc-urban-battle": run_uc_urban_battle, "ua-eject": run_eject, "ua-car-bomb": run_car_bomb, "ua-m2-engage": run_m2_engage, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "uc-urban-battle": run_uc_urban_battle, "ua-eject": run_eject, "ua-car-bomb": run_car_bomb, "ua-m2-engage": run_m2_engage, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter, "morale-barrage-green": run_morale_barrage, "morale-barrage-veteran": run_morale_barrage}
 
 
 def main():
@@ -5682,7 +5772,7 @@ def main():
         print(f"== {a.scenario}")
         # the scenario's own statement of what it shows and how to judge it (header.description — the backend handoff of 2026-10-20)
         try:
-            with open(os.path.join(REPO, "scenarios", a.scenario, "scenario.json")) as fh:
+            with open(scenario_path(a.scenario)) as fh:
                 desc = (json.load(fh).get("header") or {}).get("description")
             if desc: print(f"   {desc}")
         except (OSError, ValueError):

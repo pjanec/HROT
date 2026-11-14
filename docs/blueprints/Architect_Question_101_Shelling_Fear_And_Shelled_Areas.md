@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-14
-current-answer: §R — re-measured 2026-11-14 against the as-built stress model (CE-2270/2272); revised leans ✅ APPROVED 2026-11-14 (R-4227); build: CE-4584 (C), CE-4583 (D), CE-7015 (E)
+current-answer: §R — re-measured 2026-11-14 against the as-built stress model (CE-2270/2272); revised leans ✅ APPROVED 2026-11-14 (R-4227); ✅ BUILT 2026-11-14: CE-4584 (C), CE-4583 (D — node-level, see §R as built), CE-7015 (E)
 stale-below: ⛔ HISTORY (§1–§3, 2026-10-22) — written two days BEFORE the stress model was built; its "soldier fear: none found" and its new `Composure` value are overtaken; do not quote
 known-rot: §1 row "soldier fear, morale, composure, panic — none found" is false since 2026-10-24 (`Stress`, `StressSystem`, `BreakBehavior`)
 related-designs:
@@ -55,6 +55,14 @@ grep `new Events.NearMissEvent` (1 producer) · grep `Stresses.IsBroken` (3 read
 | **D** · `CE-4583` | ⭐ unchanged — 3 bursts in 60 s ⇒ a `Shelled` danger area (GasCloud precedent) | — | danger-area sensor + crossing decision |
 | **E (new) — the rout** · `CE-7015` | ⭐ **the fall-back and abort guards count a broken man as lost**: one helper beside `CombatEffective` (*fighting and not broken*) read by `SlotFailing` and `AssaultLost`'s count; the shared SITREP count stays as it is | the rout machinery exists (DA-66…70, AT-10); it is blind only because the count is casualties. A broken platoon then BreakContacts to its fall-back point — the §3a picture | two guards + one helper; SITREP, centroid, replay search untouched |
 | **E2** | ⏭ a squad on its own falls back on the same rule — later | the showcase fights in platoons; no squad fall-back exists to extend | — |
+
+**As built `2026-11-14` (showcase-brains):** C = `CE-4584` — `HitModel.NearMiss`, the one near miss both callers use; the ring is 2 × the
+blast INJURY radius (the field of that name, ~10–15 m for a mortar bomb), every person in it, not the struck man
+([Temperament §7.6](../DESIGN_Temperament_And_Stress.md)). E = `CE-7015` — `CombatEffective.IsStanding` / `StandingMembers`; `SlotFailing`
+(both arms + the baseline) and `AssaultBlack` (⚠ shared by AT-9 and AT-10 — one predicate for both, else a broken assault with a free reserve
+is neither relieved nor aborted); `Stress` declared in `BrainReads` ([Defend & Attack DA-67, AT-10](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md)).
+D = `CE-4583` — ⚠ **deviates**: the heat is node-level on the solving node (the Muscle), not in the brain's squad pool — the solve runs where the
+navmesh is; the gas precedent is node-level ([Squad Tactics §7.7](../designs/group-maneuvers/DESIGN_Squad_Tactics.md)).
 
 Would change the leans: if the SITREP should report broken men as lost too (then E changes `CombatEffective` itself, and the colour, centroid
 and replay search move with it); if a near burst should frighten but not spoil aim (then C publishes only the sense).

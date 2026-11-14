@@ -318,7 +318,7 @@ namespace Hrot.AI.Behaviors.Brains
                     WorldSurveyRequest.OfArea(new Vector2(p.Position.X, p.Position.Y), BuildingAskMetres));
             for (int slot = 0; slot < n && slot < PlatoonDefencePlan.Capacity; slot++)   // ⭐ CE-3361 ② — the line's strength as the defence begins
                 if (p.Role[slot] == PlatoonDefencePlan.Line && CommandPictureOps.Subordinate(world, self, slot) is { IsNull: false } unit && world.IsAlive(unit))
-                    p.Baseline[slot] = (byte)Math.Min(Fdp.Toolkit.Squad.CombatEffective.FightingMembers(world, unit), byte.MaxValue);
+                    p.Baseline[slot] = (byte)Math.Min(Fdp.Toolkit.Squad.CombatEffective.StandingMembers(world, unit), byte.MaxValue);   // ⭐ CE-7015 — like for like with SlotFailing
             p.Made = 1;
             return NodeStatus.Running;
         }
@@ -612,8 +612,10 @@ namespace Hrot.AI.Behaviors.Brains
             if (baseline > 0)
             {
                 var unit = CommandPictureOps.Subordinate(world, self, s);
-                if (!Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(world, unit)) return true;
-                return Fdp.Toolkit.Squad.CombatEffective.FightingMembers(world, unit) / (float)baseline < Fdp.Toolkit.Squad.Command.StaffComposerSystem.AmberFraction;
+                // ⭐⭐ CE-7015 (AQ101 §R E — the rout) — a BROKEN man (fled, surrendered, collapsed) is lost to the line as a casualty is: the
+                //   STANDING count, both arms. ⛔ The shared fighting count (SITREP, centroid) is not changed.
+                if (!Fdp.Toolkit.Squad.CombatEffective.IsStanding(world, unit)) return true;
+                return Fdp.Toolkit.Squad.CombatEffective.StandingMembers(world, unit) / (float)baseline < Fdp.Toolkit.Squad.Command.StaffComposerSystem.AmberFraction;
             }
             var colour = new SubordinateColourParams { Slot = s, AtLeast = StatusColour.Red };
             return PictureConditions.SubordinateColour(ref colour, self, world);

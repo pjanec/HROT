@@ -18,6 +18,9 @@ namespace Fdp.Toolkit.Squad.DangerArea
         /// <summary>⭐ <c>CE-3227</c> (docs/DESIGN_Civilians_And_Crowd_Control.md §7.3d-B G-1) — tear gas on or near the route: where the cloud
         /// is and where the wind takes it. An area NOT to enter (the handles are the detour points), never one to cross.</summary>
         GasCloud      = 6,
+        /// <summary>⭐ <c>CE-4583</c> (AQ101 §R D, R-2071 E-4) — where bursts keep landing (3 within 60 s, cooling 2 min after the last):
+        /// <see cref="ShelledAreas"/>. A threatened area — the crossing decision holds or crosses (rated 1, as gas).</summary>
+        Shelled       = 7,
     }
 
     /// <summary>

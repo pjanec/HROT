@@ -297,6 +297,17 @@ sequenceDiagram
 | **DF-1** | **heard close, unseen** (AQ104 F): a memory slot heard (Acoustic) in the last **3 s** within **10 m**, anonymous or not in sight now, not neutral ⇒ **+0.03 / s × (1 − effective Nerve), and NO calming while he is heard** ⚠ *(the calming clause is a build deviation: the approved rise alone never beats the 0.03 / s calm — measured on the rail — so it would only slow the calming)* | a separate fear model: Stress is the one model (R-2034) |
 | **DF-2** | ⭐ **measured re-tune — a near miss IN COVER counts half** (TS-4's 0.08 → 0.04 there): with cover's doubled calming a regular behind a wall under two rifles holds (≈ 0.06 / s in, 0.06 / s out) instead of breaking in ~10 s; in the open he still breaks | leaving TS-4 as is: every defender in a house breaks under any sustained fire (the live probe) · capping stress per second: hides how many rounds came |
 
+### 7.6 A shell burst is a stress input *(`CE-4584`, showcase-brains, built 2026-11-14 — AQ101 §R C, R-4227)*
+
+⭐ **A burst is FIRE to every person within 2 × its warhead's blast injury radius** (`AreaEffectSystem`, before the damage reach): the SAME
+near miss a passing round gives — `HitModel.NearMiss`, the ONE helper both callers use (a `NearMissEvent` the brain's
+`NearMissSensingSystem` turns into `SensorChange.NearMiss`, here or over DDS on a split cluster, and the `UnderFire` stamp that spoils his
+aim). ⇒ the stress model's existing near-miss input (TS-4, 0.08 × (1 − 0.5 × Nerve)) takes it with no new code, as do suppression, the
+squad's under-fire sense and a civilian's fear. ⚠ One edge per BURST per person (a round gives one per round). ⛔ The fragment radius is
+NOT the ring: 2 × that reaches 40–70 m for a mortar bomb; 2 × the blast injury radius (`Z_injury · W^⅓`) is ~10–15 m. Every person in
+the ring, either side (fire is fire); not the man the round struck (that is a hit), not a hull or equipment. Rail
+`AreaEffectSystemTests.CE4584_ABurst_IsANearMiss_Within2xItsInjuryRadius_AndFrightensACivilianTheSameWay`.
+
 ## ⛔ HISTORY
 
 - **2026-10-18, first draft (SUPERSEDED the same day):** proposed a NEW `Temperament` component with `Nerve · Aggression (−1…+1) ·

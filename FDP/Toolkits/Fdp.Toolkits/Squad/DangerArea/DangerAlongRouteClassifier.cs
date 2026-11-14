@@ -85,6 +85,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
             bool inGas = false;
             float gasStart = 0f;
             long gasCloud = 0;
+            var gasKind = DangerAreaKind.GasCloud;   // ⭐ CE-4583 — the footprint's kind: a cloud or a shelled area
             for (float d = 0f; ; d += Step)
             {
                 bool last = d >= total;
@@ -94,13 +95,13 @@ namespace Fdp.Toolkit.Squad.DangerArea
 
                 // ⭐ CE-3227 (G-3) — a run inside any gas footprint: one GasCloud area, its handles the detour points either side
                 int cloud = GasAt(gas, here);
-                if (cloud >= 0 && !inGas) { inGas = true; gasStart = at; gasCloud = gas[cloud].CloudId; }
+                if (cloud >= 0 && !inGas) { inGas = true; gasStart = at; gasCloud = gas[cloud].CloudId; gasKind = gas[cloud].Kind; }
                 if (inGas && (cloud < 0 || last))
                 {
                     float gasEnd = cloud >= 0 ? at : at - Step * 0.5f;
                     if (gasEnd < gasStart) gasEnd = gasStart;
-                    var area = Describe(route, cumulative, total, terrain, gasStart, gasEnd, 0ul, corridorHalfWidth, DangerAreaKind.GasCloud);
-                    area.FeatureId = GasFeatureId(gasCloud);
+                    var area = Describe(route, cumulative, total, terrain, gasStart, gasEnd, 0ul, corridorHalfWidth, gasKind);
+                    area.FeatureId = GasFeatureId(gasKind == DangerAreaKind.GasCloud ? gasCloud : gasCloud ^ ((long)gasKind << 56));   // kinds never share an id
                     areas[written++] = area;
                     if (written == areas.Length) return written;
                     inGas = false;

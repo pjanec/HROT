@@ -29,22 +29,35 @@ namespace Fdp.Toolkit.Squad
             => Math.Max(1, Math.Min(DefaultMinEffective, (rosterCount + 1) / 2));
 
         /// <summary>Is <paramref name="member"/> in the fight — a soldier by his injury state, a unit by its members.</summary>
-        public static bool IsInTheFight(ISimulationView view, Entity member) => IsInTheFight(view, member, 0);
+        public static bool IsInTheFight(ISimulationView view, Entity member) => IsInTheFight(view, member, 0, standing: false);
 
         /// <summary>How many of <paramref name="unit"/>'s roster members are in the fight (a soldier unit: 0).</summary>
-        public static int FightingMembers(ISimulationView view, Entity unit) => Fighting(view, unit, 0, out _);
+        public static int FightingMembers(ISimulationView view, Entity unit) => Fighting(view, unit, 0, standing: false, out _);
 
-        private static bool IsInTheFight(ISimulationView view, Entity member, int depth)
+        /// <summary>
+        /// ⭐⭐ <c>CE-7015</c> (AQ101 §R E, R-4227 — the rout) — is <paramref name="member"/> STILL STANDING: in the fight (<see cref="IsInTheFight(ISimulationView, Entity)"/>)
+        /// AND not broken (<see cref="Behavior.Components.Stresses.IsBroken"/> — fled, surrendered or collapsed); a unit by the same rule over its members. Read ONLY
+        /// by the guards that decide a platoon has lost — the defence's fall-back (DA-67 <c>SlotFailing</c>) and the attack's lost assault (AT-9 / AT-10).
+        /// ⛔ <see cref="IsInTheFight(ISimulationView, Entity)"/> / <see cref="FightingMembers"/> stay casualties only: the SITREP colour (CB-37), the
+        /// centroid, the replay search read them.
+        /// </summary>
+        public static bool IsStanding(ISimulationView view, Entity member) => IsInTheFight(view, member, 0, standing: true);
+
+        /// <summary>⭐ <c>CE-7015</c> — how many of <paramref name="unit"/>'s roster members are still standing (<see cref="IsStanding"/>).</summary>
+        public static int StandingMembers(ISimulationView view, Entity unit) => Fighting(view, unit, 0, standing: true, out _);
+
+        private static bool IsInTheFight(ISimulationView view, Entity member, int depth, bool standing)
         {
             if (member.IsNull || !view.IsAlive(member)) return false;
-            if (!IsUnit(view, member)) return Injury.IsInTheFight(view, member);
+            if (!IsUnit(view, member))
+                return Injury.IsInTheFight(view, member) && !(standing && Behavior.Components.Stresses.IsBroken(view, member));
             if (depth >= MaxDepth) return false;
             if (!view.HasComponent<UnitRoster>(member)) return true;   // composition unknown (no roster yet): as before SL-0
-            int fighting = Fighting(view, member, depth, out int count);
+            int fighting = Fighting(view, member, depth, standing, out int count);
             return count > 0 && fighting >= MinEffective(count);       // an EMPTIED roster (its men destroyed) is out of the fight
         }
 
-        private static int Fighting(ISimulationView view, Entity unit, int depth, out int count)
+        private static int Fighting(ISimulationView view, Entity unit, int depth, bool standing, out int count)
         {
             count = 0;
             if (!view.HasComponent<UnitRoster>(unit)) return 0;
@@ -52,7 +65,7 @@ namespace Fdp.Toolkit.Squad
             count = roster.Count;
             int fighting = 0;
             for (int i = 0; i < roster.Count; i++)
-                if (IsInTheFight(view, roster.SubordinateEntities[i], depth + 1)) fighting++;
+                if (IsInTheFight(view, roster.SubordinateEntities[i], depth + 1, standing)) fighting++;
             return fighting;
         }
 

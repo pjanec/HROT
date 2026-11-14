@@ -236,5 +236,48 @@ namespace Fdp.Toolkit.Tests.Squad
             Assert.False(DangerAreaKindsOf.Wants(DangerAreaKinds.Crossings, DangerAreaKind.GasCloud));          // never in the v1 default
             Assert.True(DangerAreaKindsOf.Wants(DangerAreaKinds.GasCloud, DangerAreaKind.GasCloud));
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4583</c> (AQ101 §R D, R-2071 E-4, R-4227) — <b>the shelled area</b>: three bursts within 60 s and 15 m ⇒ ONE shelled point, and a route
+        /// through it gets one <see cref="DangerAreaKind.Shelled"/> area (through the gas seam: one footprint, one run detection); two bursts ⇒ none;
+        /// three spread over more than 60 s ⇒ none; a burst 40 m off is a point of its own; two minutes with no burst ⇒ gone. The kind is wanted only when
+        /// asked (never in the v1 default). 🔴 Red-proofs: the 60 s window not applied ⇒ the slow three shell · the footprint's kind ignored by the
+        /// classifier ⇒ a GasCloud area.
+        /// </summary>
+        [Fact]
+        public void CE4583_ThreeBurstsInAMinute_MakeOneShelledArea_TwoDoNot_AndItCoolsAfterTwoMinutes()
+        {
+            using var world = new Fdp.Core.EntityRepository();
+            var heat = ShelledAreas.For(world);
+            var into = new GasFootprint[8];
+            heat.AddBurst(new Vector3(50, 0, 0), 10);
+            heat.AddBurst(new Vector3(58, 4, 0), 30);
+            Assert.Equal(0, ShelledAreas.Footprints(world, into));                     // two bursts: not shelled
+            heat.AddBurst(new Vector3(90, 0, 0), 35);                                  // 40 m off: a point of its own
+            Assert.Equal(2, heat.Points.Length);
+            heat.AddBurst(new Vector3(46, -3, 0), 55);                                 // the third within 60 s and 15 m ⇒ shelled
+            Assert.Equal(1, ShelledAreas.Footprints(world, into));
+            Assert.Equal(DangerAreaKind.Shelled, into[0].Kind);
+
+            var areas = new DangerAreaDescriptor[8];
+            var none = default(global::CarKinem.Road.RoadNetworkBlob);
+            var route = new[] { new Vector3(0, 0, 0), new Vector3(150, 0, 0) };
+            Assert.Equal(1, DangerAlongRouteClassifier.Classify(route, in none, null, null, 10f, areas, into.AsSpan(0, 1)));
+            Assert.Equal(DangerAreaKind.Shelled, areas[0].Kind);
+            Assert.NotEqual(DangerAlongRouteClassifier.GasFeatureId(into[0].CloudId), areas[0].FeatureId);   // never a gas cloud's id
+            Assert.True(DangerAreaKindsOf.Wants(DangerAreaKinds.Shelled, DangerAreaKind.Shelled));
+            Assert.False(DangerAreaKindsOf.Wants(DangerAreaKinds.Crossings, DangerAreaKind.Shelled));
+
+            heat.Cool(55 + 119);
+            Assert.Equal(1, ShelledAreas.Footprints(world, into));                     // still cooling
+            heat.Cool(55 + 121);
+            Assert.Equal(0, ShelledAreas.Footprints(world, into));                     // two minutes with no burst: gone
+            Assert.Equal(0, heat.Points.Length);
+
+            heat.AddBurst(new Vector3(0, 200, 0), 300);
+            heat.AddBurst(new Vector3(2, 200, 0), 340);
+            heat.AddBurst(new Vector3(4, 200, 0), 370);                                // three, but over 70 s
+            Assert.Equal(0, ShelledAreas.Footprints(world, into));
+        }
     }
 }
