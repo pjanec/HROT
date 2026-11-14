@@ -644,6 +644,17 @@ calling thread (`[ThreadStatic]`, 0 B in the steady state; a phase begun inside 
 served a concurrent caller (its batches run inline). Rail `ParallelEntitiesTests.X2_*` (four threads, the same job type, red-proved: the shared
 runner throws). After: the combined filter 297 / 297 five runs in a row.
 
+#### 18.2c ⭐ As built — an authority bit on a component added in the phase rides the batch *(CE-4568, X-6, `2026-11-14`)*
+
+⛔ `SetAuthority` on a component the job had just added threw "component is not present": the add was deferred into the batch's buffer,
+the authority write was not. 📐 `ObjectiveHost.Enter` (every rule's first tick) adds its control components and takes their authority. A rule
+spawned at run time, such as the instructor's End (a one-shot `EndExercise` trigger) or a game-master rule, therefore faulted every tick and
+never ran: *"End exercise does nothing"* on the threaded editor (its step faults are caught). The serial editor, with the parallel phases on,
+died on the unhandled exception. ⭐ Now an authority change on a component that is absent during a phase is recorded in the same buffer
+(`EntityCommandBuffer.SetAuthority`) and played right after the add. Outside a phase a missing component is still an error. Rail
+`PerEntityRuleTests.X6_*`, red-proved. Live: a one-shot End trigger ends the exercise (*"exercise closing (Ended by the instructor)"*) with
+the threaded editor and with it off.
+
 ### 18.3 ⭐ As measured — the cost of the per-read cross-entity check *(branch `exp/read-check`, CE-4454; status: [`STATUS_Read_Check.md`](blueprints/batches/STATUS_Read_Check.md); the design is §18.2 above)*
 
 ⭐ **Affordable as designed: the check lives in the repository's own read path; no separate view type is needed for cost.**

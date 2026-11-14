@@ -1409,6 +1409,7 @@ namespace Fdp.Core
             ref var compMask = ref _entityIndex.GetComponentMask(entity.Index);
             ref var metaS    = ref _entityIndex.GetMetadata(entity.Index);
 
+            if (!compMask.IsSet(typeId) && DeferAuthority(entity, typeId, hasAuthority)) return;
             if (!compMask.IsSet(typeId))
                 throw new InvalidOperationException(
                     $"Cannot set authority for component ID {typeId}: component is not present on entity {entity}.");
@@ -1435,6 +1436,7 @@ namespace Fdp.Core
             ref var metaG     = ref _entityIndex.GetMetadata(entity.Index);
             int typeId = ComponentType<T>.ID;
             
+            if (!compMaskG.IsSet(typeId) && DeferAuthority(entity, typeId, hasAuthority)) return;
             if (!compMaskG.IsSet(typeId))
                  throw new InvalidOperationException($"Cannot set authority for {typeof(T).Name}: Entity does not have component.");
 
@@ -1454,6 +1456,18 @@ namespace Fdp.Core
         /// world's SHAPE, and the per-frame indices keyed on it need not rebuild.
         /// </summary>
         private void StampAuthorityChange(ref EntityMetadataCold meta) => meta.LastChangeTick = _globalVersion;
+
+        /// <summary>
+        /// ⭐ CE-4568 (X-6; the per-entity rule, CLAUDE.md "add a component, then write it") — in a per-entity phase a component this job adds is
+        /// deferred into the batch's buffer, so it is not present yet: the authority change on it rides the same buffer, right after the add. ⛔ Outside a
+        /// phase (or with nothing to follow) a missing component stays an error.
+        /// </summary>
+        private bool DeferAuthority(Entity entity, int typeId, bool hasAuthority)
+        {
+            if (!ParallelReadCheck.Defers(this) || ParallelReadCheck.CurrentBatch is not { } batch) return false;
+            batch.Commands.SetAuthority(entity, typeId, hasAuthority);
+            return true;
+        }
         
         /// <summary>
         /// Checks if this peer has authority over the specified component.
