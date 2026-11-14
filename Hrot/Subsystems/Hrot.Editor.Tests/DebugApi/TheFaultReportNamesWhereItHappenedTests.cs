@@ -40,8 +40,7 @@ public sealed class TheFaultReportNamesWhereItHappenedTests
     // ── ① the one-line string, which is all some callers ever see ─────────────
 
     /// <summary>
-    /// <c>ai-debug-mcp/src/index.mjs:215</c> does <c>const msg = envelope?.error</c> and that string becomes
-    /// the <c>McpToolError</c> message. ⇒ it must carry the type and the location on its own; the bare
+    /// A caller that reads only the envelope's <c>error</c> string sees nothing else. ⇒ it must carry the type and the location on its own; the bare
     /// <c>ex.Message</c> it replaced named none of the three.
     /// </summary>
     [Fact]

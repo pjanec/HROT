@@ -15,10 +15,10 @@ namespace Fdp.Core
     /// </summary>
     public static class StampTrace
     {
-        private static readonly HashSet<string> s_types = Parse(Environment.GetEnvironmentVariable("HROT_STAMP_TRACE"));
+        private static readonly HashSet<string> s_types = Parse(EnvVars.Read(EnvVars.HrotStampTrace));
         public static readonly bool On = s_types.Count > 0;
         private static readonly string OutPath = Path.Combine(
-            Environment.GetEnvironmentVariable("HROT_MANAGED_MUTATION_OUT") is { Length: > 0 } o ? o : Path.GetTempPath(),
+            EnvVars.Read(EnvVars.HrotManagedMutationOut) is { Length: > 0 } o ? o : Path.GetTempPath(),
             $"stamp-trace-{Environment.ProcessId}.txt");
         private static readonly object s_lock = new();
         private static readonly Dictionary<string, long> s_counts = new();

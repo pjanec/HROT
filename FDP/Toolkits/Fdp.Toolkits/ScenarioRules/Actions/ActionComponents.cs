@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Fdp.Core;
@@ -39,7 +40,14 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
         {
             if (!world.HasComponent<ActionFailure>(self))
             {
-                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                if (Fdp.Core.ParallelReadCheck.Defers(world))
+                {
+                    // ⭐ CE-3448 — inside a parallel phase the add is DEFERRED (it lands after the phase), so the rule that ran the verb could not read
+                    //   the reason in this tick and the journal said "an action failed". The reason waits in this thread's slot (the verb, its Stamp
+                    //   and the trigger's read run in ONE entity's job, on one thread); Stamp makes the one add with the final value.
+                    Pending.Hold(self, -1, new FixedString64(reason ?? ""));
+                    return;
+                }
                 world.AddComponent(self, new ActionFailure { Step = -1, Reason = new FixedString64(reason ?? "") });
                 return;
             }
@@ -47,9 +55,29 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
             f.Reason = new FixedString64(reason ?? "");
         }
 
+        /// <summary>⭐ CE-3448 — the failure recorded inside a parallel phase before its deferred add lands: per THREAD, keyed by the entity.</summary>
+        private static class Pending
+        {
+            [ThreadStatic] private static bool t_held;
+            [ThreadStatic] private static Entity t_for;
+            [ThreadStatic] private static int t_step;
+            [ThreadStatic] private static FixedString64 t_reason;
+
+            public static void Hold(Entity e, int step, FixedString64 reason) { t_held = true; t_for = e; t_step = step; t_reason = reason; }
+            public static bool For(Entity e, out ActionFailure f)
+            {
+                f = default;
+                if (!t_held || !t_for.Equals(e)) return false;
+                f = new ActionFailure { Step = t_step, Reason = t_reason };
+                return true;
+            }
+            public static void Drop(Entity e) { if (t_held && t_for.Equals(e)) t_held = false; }
+        }
+
         /// <summary>Forgets the last failure (a step starts: a stale reason must never be read as this step's). No-op when none was ever set.</summary>
         public static void Clear(EntityRepository world, Entity self)
         {
+            Pending.Drop(self);   // CE-3448 — a held reason is this entity's last failure too
             if (!world.IsComponentTypeRegistered<ActionFailure>() || !world.HasComponent<ActionFailure>(self)) return;
             ref var f = ref world.GetComponentRW<ActionFailure>(self);
             f.Step = -1;
@@ -60,6 +88,7 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
         public static bool TryGet(EntityRepository world, Entity self, out ActionFailure failure)
         {
             if (world.IsComponentTypeRegistered<ActionFailure>() && world.HasComponent<ActionFailure>(self)) { failure = world.GetComponentRO<ActionFailure>(self); return failure.Step >= 0 || failure.Reason.Length > 0; }
+            if (Pending.For(self, out failure)) return failure.Step >= 0 || failure.Reason.Length > 0;   // CE-3448 — recorded this tick, its add deferred
             failure = default;
             return false;
         }
@@ -69,8 +98,13 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
         {
             if (!world.HasComponent<ActionFailure>(self))
             {
-                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
-                world.AddComponent(self, new ActionFailure { Step = step, Reason = new FixedString64($"'{act}' failed") });
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred.
+                // ⭐ CE-3448 — the ONE add carries the verb's own reason when Set held one (it did not add — two deferred adds would let the generic
+                //   text overwrite it), and the record stays readable this tick from the slot until the add lands.
+                var reason = Pending.For(self, out var held) && held.Reason.Length > 0 ? held.Reason : new FixedString64($"'{act}' failed");
+                world.AddComponent(self, new ActionFailure { Step = step, Reason = reason });
+                if (Fdp.Core.ParallelReadCheck.Defers(world)) Pending.Hold(self, step, reason);
+                else Pending.Drop(self);
                 return;
             }
             ref var f = ref world.GetComponentRW<ActionFailure>(self);

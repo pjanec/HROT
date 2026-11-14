@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -25,7 +26,7 @@ internal sealed class FrameStats
 
     public static FrameStats? FromEnvironment()
     {
-        if (Environment.GetEnvironmentVariable("HROT_FRAME_STATS") != "1") return null;
+        if (EnvVars.Read(EnvVars.HrotFrameStats) != "1") return null;
         Fdp.Presentation.WindowManager.WindowTimings.Enabled = true;   // ⭐ W-P1 — and the per-window CPU timing
         Fdp.Toolkit.Diagnostics.Gizmos.GizmoRuleTimings.Enabled = true;   // ⭐ CE-4385 — and the per-gizmo-rule timing
         Fdp.ModuleHost.KernelFrameTimings.Enabled = true;   // ⭐ CE-4433 — and the kernel's frame by part

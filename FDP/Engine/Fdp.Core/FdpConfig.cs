@@ -140,7 +140,7 @@ namespace Fdp.Core
         /// The environment variable <c>FDP_TICKMODE_GATE=0</c> turns it off for a whole process (an editor or a node).
         /// </summary>
         public static bool TickModeGate { get; set; } =
-            Environment.GetEnvironmentVariable("FDP_TICKMODE_GATE") != "0";   // ⭐ FDP_TICKMODE_GATE=0 bisects a LIVE run too
+            EnvVars.Read(EnvVars.FdpTickmodeGate) != "0";   // ⭐ FDP_TICKMODE_GATE=0 bisects a LIVE run too
 
         /// <summary>
         /// When <c>true</c>, the module host RETHROWS any exception a module or system raises during a
@@ -172,7 +172,7 @@ namespace Fdp.Core
         /// times is hidden just as effectively as one that was never printed.</para>
         /// </remarks>
         public static bool FailFastOnModuleException { get; set; } =
-            Environment.GetEnvironmentVariable("FDP_FAIL_FAST") is not ("0" or "false" or "FALSE" or "off" or "OFF");
+            EnvVars.Read(EnvVars.FdpFailFast) is not ("0" or "false" or "FALSE" or "off" or "OFF");
 
         /// <summary>
         /// ⭐ CE-3427 C-1 (user, <c>2026-11-10</c>) — in live play a slow module (below 60 Hz) runs every <c>1/Hz</c> s of WALL CLOCK

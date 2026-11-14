@@ -45,6 +45,9 @@ known-conflict: none. Where this file and RESUME_UI_Lane.md's STATUS block overl
   block is the longer log, this file is the ordered continuation point.
 -->
 
+> ⛔ **HISTORY note (R-4223, CE-4528, `2026-11-14`)** — the Node MCP server (`tools/ai-debug-mcp`: its tool catalog, generated `SKILL.md`, skill parts and generators) named in this document is **removed**. The debug API is plain HTTP and describes itself: `GET /help` (or `Hrot.ClusterRunner --help-api` before anything is started) and `GET /capabilities` — [`DESIGN_Debug_Api_Http_Only.md`](../DESIGN_Debug_Api_Http_Only.md). Every mention of the server, its tools or its generated files below is HISTORY; tool names map to routes in `GET /help`.
+
+
 # ⭐⭐⭐ BOOTSTRAP — entity-creation unification, UI lane
 
 > 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · head **`e762fe988`** *(`2026-09-03`)* · ids **`CE-`** *(next free **`CE-166`** — `CE-165` is the last allocated)*.

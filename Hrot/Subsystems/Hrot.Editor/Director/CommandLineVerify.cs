@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.IO;
 using System.Linq;
@@ -53,25 +54,25 @@ namespace Hrot.Editor.Director
 
         /// <summary>⭐ B5 — the R1 half this child runs, from <see cref="RestoreCheckVariable"/>; null when it is a plain verify.</summary>
         public static RestoreCheck? RestoreCheckFromEnvironment()
-            => Environment.GetEnvironmentVariable(RestoreCheckVariable) is { Length: > 0 } json
+            => EnvVars.Read(EnvVars.HrotVerifyR1) is { Length: > 0 } json
                 ? JsonSerializer.Deserialize<RestoreCheck>(json, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)
                 : null;
 
         /// <summary>⭐ H5 — the review half this child runs, from <see cref="ReviewVariable"/>; null when it is not one.</summary>
         public static ReviewCheck? ReviewCheckFromEnvironment()
-            => Environment.GetEnvironmentVariable(ReviewVariable) is { Length: > 0 } json
+            => EnvVars.Read(EnvVars.HrotVerifyReview) is { Length: > 0 } json
                 ? JsonSerializer.Deserialize<ReviewCheck>(json, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)
                 : null;
 
         /// <summary>The request the runner left in the environment; null when this is not a verify run.</summary>
         public static CommandLineVerify? FromEnvironment()
         {
-            var s = Environment.GetEnvironmentVariable(ScenariosVariable);
+            var s = EnvVars.Read(EnvVars.HrotVerify);
             if (string.IsNullOrWhiteSpace(s)) return null;
             return new CommandLineVerify(s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-                Environment.GetEnvironmentVariable(CaptureVariable) == "1", Environment.GetEnvironmentVariable(ReportVariable),
-                RestoreCheckFromEnvironment(), Environment.GetEnvironmentVariable(ReplayVariable) == "1", ReviewCheckFromEnvironment(),
-                double.TryParse(Environment.GetEnvironmentVariable(BranchAtVariable), System.Globalization.NumberStyles.Float,
+                EnvVars.Read(EnvVars.HrotVerifyCapture) == "1", EnvVars.Read(EnvVars.HrotVerifyReport),
+                RestoreCheckFromEnvironment(), EnvVars.Read(EnvVars.HrotVerifyReplay) == "1", ReviewCheckFromEnvironment(),
+                double.TryParse(EnvVars.Read(EnvVars.HrotVerifyBranchAt), System.Globalization.NumberStyles.Float,
                                 System.Globalization.CultureInfo.InvariantCulture, out var b) && b > 0 ? b : null);
         }
 

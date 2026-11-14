@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -49,9 +50,9 @@ internal static class VerifyCommand
         Environment.SetEnvironmentVariable(CommandLineVerify.ScenariosVariable, scenario);
         Environment.SetEnvironmentVariable(CommandLineVerify.CaptureVariable, capture ? "1" : null);
         Environment.SetEnvironmentVariable(CommandLineVerify.ReportVariable, string.IsNullOrWhiteSpace(report) ? null : Path.GetFullPath(report));
-        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT")))
+        if (string.IsNullOrWhiteSpace(EnvVars.Read(EnvVars.HrotDebugApiPort)))
             Environment.SetEnvironmentVariable("HROT_DEBUG_API_PORT", FreePort().ToString(System.Globalization.CultureInfo.InvariantCulture));
-        Console.WriteLine($"[Verify] {scenario}{(capture ? " (capturing the golden)" : "")}{(replay ? " (live, against its own recording)" : "")}{(branchAt > 0 ? $" (branched live at {branchAt} s)" : "")} — the debug API on port {Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT")}");
+        Console.WriteLine($"[Verify] {scenario}{(capture ? " (capturing the golden)" : "")}{(replay ? " (live, against its own recording)" : "")}{(branchAt > 0 ? $" (branched live at {branchAt} s)" : "")} — the debug API on port {EnvVars.Read(EnvVars.HrotDebugApiPort)}");
     }
 
     /// <param name="outDir">⭐ the nightly's folder (<c>--verify-out</c>): a log and a report per scenario, <c>summary.json</c>, <c>junit.xml</c>;

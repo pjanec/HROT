@@ -105,7 +105,7 @@ namespace Fdp.Toolkit.Squad.Systems
         /// <summary>⭐ F-11 — the squads run as per-level parallel phases: the switch the brains follow (<c>HROT_PARALLEL_SIM=1</c> or the
         /// threaded node, <c>HROT_THREADED_KERNEL=3</c>). Off by default; tests set it.</summary>
         public static bool Parallel = (Fdp.Core.Jobs.ParallelEntities.Enabled || Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds)
-            && Environment.GetEnvironmentVariable("HROT_SERIAL_SQUADS") != "1";   // ⭐ N-15 — the measuring switch: this phase alone serial
+            && EnvVars.Read(EnvVars.HrotSerialSquads) != "1";   // ⭐ N-15 — the measuring switch: this phase alone serial
 
         private const int MaxDepth = 16;   // a command chain deeper than this is a cycle (a stale roster), not a hierarchy
         private Entity[] _all = new Entity[32];

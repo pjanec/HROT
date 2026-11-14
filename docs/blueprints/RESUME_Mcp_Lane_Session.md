@@ -7,6 +7,9 @@ current-answer: the whole file. Written for a FRESH session after compaction; as
 superseded: RESUME_Time_Stride_Session.md — kept for the PARKED Stride branch's gate baselines only.
 known-conflict: none.
 -->
+
+> ⛔ **HISTORY note (R-4223, CE-4528, `2026-11-14`)** — the Node MCP server (`tools/ai-debug-mcp`: its tool catalog, generated `SKILL.md`, skill parts and generators) named in this document is **removed**. The debug API is plain HTTP and describes itself: `GET /help` (or `Hrot.ClusterRunner --help-api` before anything is started) and `GET /capabilities` — [`DESIGN_Debug_Api_Http_Only.md`](../DESIGN_Debug_Api_Http_Only.md). Every mention of the server, its tools or its generated files below is HISTORY; tool names map to routes in `GET /help`.
+
 # RESUME — the **MCP / headless-testability** lane
 
 > ⛔ **Self-contained. Assumes no prior conversation.** ⭐ You are an **implementation** session. A

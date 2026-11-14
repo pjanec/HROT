@@ -18,18 +18,13 @@ namespace Hrot.Editor.DebugApi
     /// an object."</i> — no type, no method, no file, no line. The agent on the other end of MCP then has a
     /// failure it cannot locate, and the next move is a manual bisect of the whole route.</para>
     ///
-    /// <para>⭐⭐ <b>Two outputs, because two consumers read two different things</b> — measured, not
-    /// assumed, in <c>tools/ai-debug-mcp/src/index.mjs</c>:</para>
+    /// <para>⭐⭐ <b>Two outputs, because two consumers read two different things:</b></para>
     /// <list type="number">
-    ///   <item><b><see cref="OneLine"/> → the envelope's <c>error</c> string.</b> <c>:215</c> does
-    ///   <c>const msg = envelope?.error</c> and that string becomes the <c>McpToolError</c> message — for
-    ///   some callers it is ALL they ever see. ⇒ it must carry the type and the throw site inline, not just
-    ///   the message.</item>
-    ///   <item><b><see cref="Describe"/> → the envelope's <c>fault</c> object.</b> <c>:296</c> spreads the
-    ///   whole server envelope into the MCP error payload (<c>...(envelope || {})</c>), so a new field
-    ///   arrives verbatim with <b>no node-side change</b>. That is where the full frame list and the inner
-    ///   chain go.</item>
+    ///   <item><b><see cref="OneLine"/> → the envelope's <c>error</c> string</b> — for some callers it is ALL they ever see. ⇒ it must carry
+    ///   the type and the throw site inline, not just the message.</item>
+    ///   <item><b><see cref="Describe"/> → the envelope's <c>fault</c> object</b>: the full frame list and the inner chain.</item>
     /// </list>
+    /// <para>⛔ HISTORY: measured first against the retired MCP server (CE-4526), which surfaced only <c>error</c> as its tool error.</para>
     ///
     /// <para>⚠ <b>File and line depend on PDBs being next to the assembly.</b> A dev build has them and the
     /// site reads <c>DebugApiService.cs:1234</c>; without them it degrades to

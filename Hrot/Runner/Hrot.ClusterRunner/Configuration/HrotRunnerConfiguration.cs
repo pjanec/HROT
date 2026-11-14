@@ -437,8 +437,7 @@ namespace Hrot.ClusterRunner.Configuration
                 // ST-015: "stridemock" is gone with the mock subsystem. Dropping it from this set is
                 // what makes `--mode stridemock` throw again instead of composing a subsystem that no
                 // longer exists.
-                // ⭐ HN-030: "dump-api" prints the debug-API manifest and exits — the artefact
-                //   tools/ai-debug-mcp generates its tool catalog from. It composes NO subsystem (see
+                // ⭐ HN-030: "dump-api" prints the debug-API manifest (route table + docs, JSON) and exits. It composes NO subsystem (see
                 //   Program.cs), which is why it sits beside "ci" and "migrate" rather than in the roster.
                 var validNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                     { "simhost", "player", "orchestrator", "cgf", "ci", "editor",

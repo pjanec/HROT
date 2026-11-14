@@ -27,6 +27,9 @@ known-conflict: ⚠ shares the DebugApi surface with the CE-* editing slices —
 related-designs:
   - DESIGN_Debug_Api_Http_Only.md — the AI debug API goes HTTP-ONLY: the MCP server removed, `GET /help` (the guide) rendered from the one route-doc source (R-4223)
 -->
+
+> ⛔ **HISTORY note (R-4223, CE-4528, `2026-11-14`)** — the Node MCP server (`tools/ai-debug-mcp`: its tool catalog, generated `SKILL.md`, skill parts and generators) named in this document is **removed**. The debug API is plain HTTP and describes itself: `GET /help` (or `Hrot.ClusterRunner --help-api` before anything is started) and `GET /capabilities` — [`DESIGN_Debug_Api_Http_Only.md`](DESIGN_Debug_Api_Http_Only.md). Every mention of the server, its tools or its generated files below is HISTORY; tool names map to routes in `GET /help`.
+
 # DESIGN — **the MCP authoring surface** *(AI-asset editing + scenario authoring + UI-command actions)*
 
 > 🎯 Turn the MCP server from **read/drive** *(open, inspect, switch tabs, save/reload — CE-009/011)* into

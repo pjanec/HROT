@@ -20,13 +20,13 @@ namespace Fdp.Core
     /// </summary>
     public static class WorldGuard
     {
-        private static readonly string? Mode = Environment.GetEnvironmentVariable("HROT_WORLD_GUARD");
+        private static readonly string? Mode = EnvVars.Read(EnvVars.HrotWorldGuard);
 
         /// <summary>The switch. Read once.</summary>
         public static readonly bool On = Mode == "1" || Mode == "throw";
         private static readonly bool Throw = Mode == "throw";
         // ⭐ CE-3446 — "{pid}" in the path is this process's id, so several processes (a server and its players) keep one report each
-        private static readonly string OutPath = (Environment.GetEnvironmentVariable("HROT_WORLD_GUARD_OUT") is { Length: > 0 } o
+        private static readonly string OutPath = (EnvVars.Read(EnvVars.HrotWorldGuardOut) is { Length: > 0 } o
             ? o : Path.Combine(Path.GetTempPath(), "hrot-world-guard.txt")).Replace("{pid}", Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         private static volatile int s_simRepo, s_presRepo, s_simThread;

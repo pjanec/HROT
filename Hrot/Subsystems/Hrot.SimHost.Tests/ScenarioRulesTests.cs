@@ -202,7 +202,9 @@ namespace Hrot.SimHost.Tests
                 Time += step;
                 Repo.SetSingleton(new GlobalTime { TotalTime = Time, DeltaTime = (float)step, TimeScale = 1f, FrameNumber = (long)(Time / step) });
                 Repo.SetSimulationTime((float)Time);
-                if (History != null) Repo.Tick();                                        // ⭐ CE-2383 — the kernel's order: version, swap, capture (ModuleHostKernel.cs:554, 660, 665)
+                // ⭐ CE-2383 — the kernel's order: version, swap, capture (ModuleHostKernel.cs:554, 660, 665). ⭐ CE-3448 — EVERY tick, as the kernel
+                //   does (was: only WithHistory): the last-tick view is copied by CHANGED chunk, so a world whose version never moves never re-copies
+                if (History != null || Fdp.Core.ParallelReadCheck.HasDeclarations) Repo.Tick();
                 Repo.Bus.SwapBuffers();
                 History?.CaptureFrame(Repo.Bus, Repo.GlobalVersion);
                 if (Repo.Bus.IsRegistered<ExerciseEndedEvent>()) Ended += Repo.ReadEvents<ExerciseEndedEvent>().Length;
@@ -222,6 +224,10 @@ namespace Hrot.SimHost.Tests
                         }
                     }
                 if (Repo.Bus.IsRegisteredManaged<Fdp.Toolkit.Time.Domain.PauseTimeIntent>()) Pauses += ((Fdp.ModuleHost.Abstractions.ISimulationView)Repo).ReadManagedEvents<Fdp.Toolkit.Time.Domain.PauseTimeIntent>().Count;
+                // ⭐ CE-3448 — the kernel's last-tick view, taken serially before the Simulation phase (ModuleHostKernel.cs:808). ⛔ Without it the
+                //   view was taken once (Repo.Tick() runs only WithHistory, so it never went stale) ⇒ under HROT_PARALLEL_SIM=1 every cross-entity
+                //   read of a declared type saw the FIRST tick's world: no deaths, no men moved in, no member added later.
+                if (Fdp.Core.ParallelReadCheck.HasDeclarations) Repo.CaptureLastTick();
                 if (ResolveIntents) _intents.Execute(Repo, (float)step);
                 _ingress.Execute(Repo, (float)step);
                 _wake.Execute(Repo, (float)step);

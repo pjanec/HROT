@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Runtime.InteropServices;
 
@@ -77,7 +78,7 @@ public sealed class Win32ClickLatch : IClickLatch
         _proc = WndProc;
 
         if (!OperatingSystem.IsWindows()) return;
-        if (Environment.GetEnvironmentVariable("HROT_DISABLE_CLICK_LATCH") == "1") return;
+        if (EnvVars.Read(EnvVars.HrotDisableClickLatch) == "1") return;
 
         if (windowHandle == IntPtr.Zero)
         {

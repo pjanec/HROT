@@ -37,6 +37,9 @@ related-designs:
   - DESIGN_Ai_Action_Status_Gizmo.md — OWNS the per-unit action status (why a unit is not firing) drawn by the Channels gizmo family (proposed; departs from §5a's armed-only precedent, argued there)
 -->
 
+> ⛔ **HISTORY note (R-4223, CE-4528, `2026-11-14`)** — the Node MCP server (`tools/ai-debug-mcp`: its tool catalog, generated `SKILL.md`, skill parts and generators) named in this document is **removed**. The debug API is plain HTTP and describes itself: `GET /help` (or `Hrot.ClusterRunner --help-api` before anything is started) and `GET /capabilities` — [`DESIGN_Debug_Api_Http_Only.md`](DESIGN_Debug_Api_Http_Only.md). Every mention of the server, its tools or its generated files below is HISTORY; tool names map to routes in `GET /help`.
+
+
 # Terrain & combat tuning — defaults, tests, diagnostics *(buildings, fences, penetration, blast, doors)*
 
 > 🔒 **User, `2026-10-07`:** *"all parameters must use sensible defaults if concrete TKB data not provided — defaults are

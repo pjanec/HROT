@@ -9,6 +9,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- ⭐ CE-4524 — the agent guide's prose (moved from tools/ai-debug-mcp/skill-parts), rendered by GET /help and the help-api flag -->
+    <EmbeddedResource Include="DebugApi\Guide\*.md" LogicalName="Hrot.Editor.Guide.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Hrot.Editor.Tests" />
     <InternalsVisibleTo Include="Hrot.ClusterRunner.Integration.Tests" />
     <!-- Expose coordinator internals to the Blueprint test harness -->

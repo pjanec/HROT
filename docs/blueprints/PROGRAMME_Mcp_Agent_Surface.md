@@ -12,6 +12,9 @@ design-basis: MCP_Integration.md §Group P + §UML (mission editing, MX4b) · DE
 known-conflict: none. Sequences BEHIND HANDOFF_Test_Suite_Reliability.md (the E2E harness must be
   trustworthy before the battle-test is codified).
 -->
+
+> ⛔ **HISTORY note (R-4223, CE-4528, `2026-11-14`)** — the Node MCP server (`tools/ai-debug-mcp`: its tool catalog, generated `SKILL.md`, skill parts and generators) named in this document is **removed**. The debug API is plain HTTP and describes itself: `GET /help` (or `Hrot.ClusterRunner --help-api` before anything is started) and `GET /capabilities` — [`DESIGN_Debug_Api_Http_Only.md`](../DESIGN_Debug_Api_Http_Only.md). Every mention of the server, its tools or its generated files below is HISTORY; tool names map to routes in `GET /help`.
+
 # PROGRAMME — **MCP as a first-class agent surface** *(BACKEND lane)*
 
 > 🎯 Make the ai-debug MCP server a surface an AI agent can drive **by heart**: the missing authoring

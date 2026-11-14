@@ -232,6 +232,9 @@ related-designs:
   - docs/DESIGN_Node_Roles_And_Policies.md §3.1–§3.2 — OWNS what a role means and loads; a role never denies a capability
 -->
 
+> ⛔ **HISTORY note (R-4223, CE-4528, `2026-11-14`)** — the Node MCP server (`tools/ai-debug-mcp`: its tool catalog, generated `SKILL.md`, skill parts and generators) named in this document is **removed**. The debug API is plain HTTP and describes itself: `GET /help` (or `Hrot.ClusterRunner --help-api` before anything is started) and `GET /capabilities` — [`DESIGN_Debug_Api_Http_Only.md`](DESIGN_Debug_Api_Http_Only.md). Every mention of the server, its tools or its generated files below is HISTORY; tool names map to routes in `GET /help`.
+
+
 > ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** `BdcNetworkFactory` (named as a network-factory implementation) was removed with the BDC stack; `NedNetworkFactory` and the offline factory remain. The reasoning below is kept as the record of that stack; do not read it as a live host.
 
 # ⭐⭐⭐ DESIGN — **Subsystem composition unification**

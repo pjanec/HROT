@@ -34,7 +34,7 @@ namespace Fdp.Network.Cyclone.Egress
 
         /// <summary>The switch's environment default: <c>FDP_EGRESS_OFFFRAME=1</c> ⇒ <see cref="EgressMode.OffFrame"/>.</summary>
         public static EgressMode DefaultMode
-            => Environment.GetEnvironmentVariable("FDP_EGRESS_OFFFRAME") == "1" ? EgressMode.OffFrame : EgressMode.OnFrame;
+            => EnvVars.Read(EnvVars.FdpEgressOffframe) == "1" ? EgressMode.OffFrame : EgressMode.OnFrame;
 
         /// <summary>The pipeline of <paramref name="view"/>'s world, or none.</summary>
         public static bool TryGet(ISimulationView view, out EgressPipeline pipeline)
@@ -97,7 +97,7 @@ namespace Fdp.Network.Cyclone.Egress
 
         private static int DefaultWorkers()
         {
-            var env = Environment.GetEnvironmentVariable("FDP_EGRESS_WORKERS");
+            var env = EnvVars.Read(EnvVars.FdpEgressWorkers);
             if (int.TryParse(env, out int n) && n > 0) return n;
             return Math.Max(1, Math.Min(4, Environment.ProcessorCount / 4));
         }

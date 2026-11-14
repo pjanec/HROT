@@ -2,31 +2,31 @@
 
 ## 5. Gotchas (the things that actually trip agents up)
 
-1. **Time is frozen in Edit state.** `step`/commands do nothing visible until `enter_preview` + `play`.
-   Check `get_sim_state.inPreview`.
+1. **Time is frozen in Edit state.** `POST /sim/step`/commands do nothing visible until `POST /preview/enter` + `POST /sim/play`.
+   Check `GET /sim/state.inPreview`.
 1b. **A 501 `NOT_SUPPORTED_HERE` is an answer, not a fault.** It names the missing capability
    (`time.drive`, `world.read`, `scenario.load`, …) and means *the active perspective cannot serve this*.
-   Call `get_capabilities`, then `switch_perspective` to one whose matrix row has that capability — do not
+   Call `GET /capabilities`, then `POST /perspective` to one whose matrix row has that capability — do not
    retry the same call.
-1c. **Pick the load mode deliberately.** `load_scenario_edit` = authoring, time frozen.
-   `load_scenario_live` = a real run on every node. CGF gained the shared edit-load handler in `CE-102`
+1c. **Pick the load mode deliberately.** `POST /scenario/load/edit` = authoring, time frozen.
+   `POST /scenario/load/live` = a real run on every node. CGF gained the shared edit-load handler in `CE-102`
    (`2026-08-28`), so an edit load is no longer partial on that node — still prefer **live** when you want a
    real run, and verify either load by reading state rather than trusting the envelope (§5b).
-2. **Arm traces first.** `get_entity_trace` is empty unless you `observe_trace{on:true}` and then step.
-3. **`awaited:false, reason:"sim not running"` is not an error** — it means time wasn't advancing; pause-step
+2. **Arm traces first.** `GET /entities/{networkId}/trace` is empty unless you `POST /trace/observe {on:true}` and then POST /sim/step.
+3. **`awaited:false, reason:"sim not running"` is not an error** — it means time wasn't advancing; POST /sim/pause-POST /sim/step
    to observe results instead of waiting.
-4. **A checkpoint needs a live run, a restore needs its label.** `checkpoint` answers the label it used; pass it
-   to `restore_checkpoint`. A preview is not a checkpoint and is never recorded.
-5. **A replay is the cluster's.** `enter_replay` puts every node into its recording; read it with the ordinary
-   readers (`list_entities`, `get_entity_brain`). The routes PUBLISH — pass `waitForReady:true` or poll
-   `get_replay_status` before reading.
-6. **`patch_attribute` keys must be registered** (see `get_attributes_schema`); unregistered keys are silently
-   ignored. For arbitrary fields use `edit_component`.
+4. **A POST /checkpoint needs a live run, a restore needs its label.** `POST /checkpoint` answers the label it used; pass it
+   to `POST /checkpoint/restore`. A preview is not a POST /checkpoint and is never recorded.
+5. **A replay is the cluster's.** `POST /replay` puts every node into its recording; read it with the ordinary
+   readers (`GET /entities`, `GET /entities/{networkId}/brain`). The routes PUBLISH — pass `waitForReady:true` or poll
+   `GET /replay/status` before reading.
+6. **`POST /entities/{networkId}/attribute` keys must be registered** (see `GET /attributes/schema`); unregistered keys are silently
+   ignored. For arbitrary fields use `POST /entities/{networkId}/component`.
 7. **Non-finite floats** appear as the strings `"NaN"`/`"Infinity"`/`"-Infinity"` in dumps — that's valid
    JSON and tells you a field is non-finite (often a real sim signal), not a serialization bug.
-8. **Spawns/commands while paused are queued** — they take effect on the next `step`/`play`.
+8. **Spawns/commands while paused are queued** — they take effect on the next `POST /sim/step`/`POST /sim/play`.
 9. **`live` recording is unavailable** in editor mode; use `mode:"preview"`.
-10. **Always `stop_simulation`** when finished so no runner process is left behind.
+10. **Always `POST /shutdown`** when finished so no runner process is left behind.
 
 ---
 
@@ -38,17 +38,17 @@ answered `ok:true` having done nothing, or a fraction, of what was asked:
 
 | call | said | actually did |
 |---|---|---|
-| `load_scenario_edit` | `ok:true` | loaded **nothing** on that node — `scenario:null`, `entityCount:0`, empty `list_entities` |
-| `step{count:120}` | `ok:true` | advanced `simTime` by **0.0167 s** — one frame; and before the cluster booted paused, **every step was refused** and still acked |
-| `pause` | `ok:true` | `isPaused` was still `false` on the next read; it flipped a step later |
+| `POST /scenario/load/edit` | `ok:true` | loaded **nothing** on that node — `scenario:null`, `entityCount:0`, empty `GET /entities` |
+| `POST /sim/POST /sim/step {count:120}` | `ok:true` | advanced `simTime` by **0.0167 s** — one frame; and before the cluster booted paused, **every POST /sim/step was refused** and still acked |
+| `POST /sim/pause` | `ok:true` | `isPaused` was still `false` on the next read; it flipped a POST /sim/step later |
 
-**Two of those three are now GATED** — `step` honours `count` and returns when the last tick is acknowledged
-(`CE-105`), and `pause` returns only once `isPaused` is actually true (`CE-104`). ⛔ **The load is not**:
-`load_scenario_edit` still answers `ok:true` having loaded nothing on a cluster node. ⭐ And a **success**
+**Two of those three are now GATED** — `POST /sim/step` honours `count` and returns when the last tick is acknowledged
+(`CE-105`), and `POST /sim/pause` returns only once `isPaused` is actually true (`CE-104`). ⛔ **The load is not**:
+`POST /scenario/load/edit` still answers `ok:true` having loaded nothing on a cluster node. ⭐ And a **success**
 envelope can now carry `hint.why` (see the `/logs` notes) — so **read `hint` on success**, not only on failure.
 
-**So: for every state-changing call, name the read that proves it.** `simTime` for a step,
-`get_status.isPaused` for a pause, `entityCount` + `list_entities` for a load. It is one extra call and it
+**So: for every state-changing call, name the read that proves it.** `simTime` for a POST /sim/step,
+`GET /status.isPaused` for a POST /sim/pause, `entityCount` + `GET /entities` for a load. It is one extra call and it
 is the difference between a diagnosis and a guess.
 
 > **What it costs to skip.** Two root causes in this repo were wrong because of this. A *"the entities never
@@ -58,17 +58,17 @@ is the difference between a diagnosis and a guess.
 
 ## 5c. ⭐ Prove your instrument once, at the start of a session
 
-Before diagnosing anything on a cluster, spend four calls establishing that the tools work:
+Before diagnosing anything on a cluster, spend four calls establishing that the routes work:
 
-1. `get_status` → note `isPaused`, `simTime`, `clusterState`, `perspective`.
-2. `pause`, then poll `get_status` until `isPaused:true` — now you know pause lands.
-3. `step{count:1}`, and check `simTime` **moved** — now you know steps are not being refused.
-4. `get_logs({level:"Info", max:40})` — now you know the log is readable (see the `/logs` notes: an
+1. `GET /status` → note `isPaused`, `simTime`, `clusterState`, `perspective`.
+2. `POST /sim/pause`, then poll `GET /status` until `isPaused:true` — now you know POST /sim/pause lands.
+3. `POST /sim/POST /sim/step {count:1}`, and check `simTime` **moved** — now you know steps are not being refused.
+4. `GET /logs {level:"Info", max:40}` — now you know the log is readable (see the `/logs` notes: an
    unfiltered cluster read is ~90% time-sync `Trace` chatter, and an unknown filter is *silently ignored*,
    so a typo returns the whole ring and looks like an answer).
 
 **A cluster boots PAUSED** (that is deliberate), so *"nothing is happening"* is the expected state until you
-`play`. Check `isPaused` before believing anything is stuck.
+`POST /sim/play`. Check `isPaused` before believing anything is stuck.
 
 ### 5c.1 ⭐⭐⭐ The one test that has caught every instrument fault so far
 
@@ -174,13 +174,13 @@ today.
 
 The same three reads, run on both hosts, turn a vague UI report into a located defect:
 
-- **`get_status.entityCount`** — does this node hold the world at all?
-- **`list_entities`** — and can it enumerate it?
-- **`get_gizmo_frame`, counted by `shape` ignoring `Line`** — is it *drawing* it? (An empty world still emits
-  ~600 grid `Line`s, so a non-zero `count` proves nothing — see that tool's notes.)
+- **`GET /status.entityCount`** — does this node hold the world at all?
+- **`GET /entities`** — and can it enumerate it?
+- **`GET /panels/_gizmo`, counted by `shape` ignoring `Line`** — is it *drawing* it? (An empty world still emits
+  ~600 grid `Line`s, so a non-zero `count` proves nothing — see that route's notes.)
 
 Then, for *"the order is ignored"*, compare an **intent** component against its **status** component on the
-entity (`get_entity` notes spell out the three-way split). Populated intent + absent status + zero velocity
+entity (`GET /entities/{networkId}` notes spell out the three-way split). Populated intent + absent status + zero velocity
 are three different bugs that look identical on screen.
 
 ⭐⭐ **And on a cluster, add a fourth read: THE SAME ENTITY ON BOTH NODES** (`POST /perspective` between
@@ -190,10 +190,9 @@ wire hop**, so the Brain computed a valid path (which rendered) while the Muscle
 could not accelerate. **On screen that is indistinguishable from a broken navigator.** A one-node read —
 either node — would have confirmed the wrong theory.
 
-## 5e. ⛔⛔ DRIVING IT OVER PLAIN HTTP (when the MCP server is down)
+## 5e. ⛔⛔ DRIVING IT WITH `curl`
 
-The MCP server does drop. When it does, **the whole surface is still reachable with `curl`** — every tool
-in this document is an HTTP route on the same host. Do not downgrade to reading engine source.
+Every route in this document is plain HTTP on the same host. Do not downgrade to reading engine source.
 
 ```bash
 curl -s --noproxy '*' -m 15 http://localhost:8099/status
@@ -203,12 +202,11 @@ curl -s --noproxy '*' -m 90 -X POST http://localhost:8099/scenario/load/live \
 
 `--noproxy '*'` matters: an agent sandbox usually exports `HTTPS_PROXY`, and localhost must bypass it.
 
-### 5e.1 🔴🔴🔴 THE ROUTE NAMES ARE NOT THE TOOL NAMES — and a wrong path returns an EMPTY DATASET
+### 5e.1 🔴🔴🔴 A WRONG PATH RETURNS AN EMPTY DATASET
 
-**This cost a whole false finding, `2026-08-28.`** The tool is `get_gizmo_frame`; the route is
-**`GET /panels/_gizmo`**. There is no `/gizmo/frame`. The mapping is *not* mechanical — do not derive a
-path from a tool name. **`Hrot/Subsystems/Hrot.Editor/DebugApi/DebugApiRouteDocs.cs` is the authoritative
-route list** (`grep -oE '"/[a-zA-Z0-9/_{}-]+"'` over it prints every one).
+**This cost a whole false finding, `2026-08-28.`** The gizmo frame is **`GET /panels/_gizmo`**; there is no
+`/gizmo/frame`. Never guess a path — **the command reference below (and `GET /capabilities`) is the authoritative
+route list**.
 
 ⛔⛔ **And here is the trap that turns a typo into a bug report:** a path that does not exist answers
 

@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -53,7 +54,7 @@ namespace Fdp.Core.FlightRecorder
         
         // Stats
         public int DroppedFrames { get; private set; }
-        private static readonly bool StatsOn = Environment.GetEnvironmentVariable("HROT_REPLAY_STATS") == "1";
+        private static readonly bool StatsOn = EnvVars.Read(EnvVars.HrotReplayStats) == "1";
         public int RecordedFrames { get; private set; }
         
         // Error propagation for tests

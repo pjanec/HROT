@@ -790,6 +790,10 @@ namespace Hrot.Editor.DebugApi
                 //   ⭐ CE-4090 (AQ108 D14, D22) — and for the run the CLUSTER shows: `recording` is false when the master loaded the live run with
                 //   "Record live runs" off (the same fact the 409 gates answer), whatever this node's recorder holds; unknown ⇒ the node's own.
                 ["recording"]    = RunIsRecorded(),
+                // ⭐ CE-4585 (B-5) — what this process runs with (the threaded node, the parallel phases, the threads); GET /performance has where each came from
+                ["performance"]  = Fdp.Core.Jobs.PerformanceStatus.Running is { } perf
+                    ? new JsonObject { ["threadedNode"] = perf.ThreadedKernelMode == 3, ["parallelSimulation"] = perf.ParallelSimulation, ["workerThreads"] = perf.WorkerThreads, ["source"] = perf.Source }
+                    : null,
                 // ⭐ Which context these numbers describe — ⛔ without it, a cluster status is ambiguous
                 //   about WHOSE world it counted.
                 ["perspective"]  = _dispatcher?.CurrentPerspective ?? _perspectives?.CurrentPerspective,

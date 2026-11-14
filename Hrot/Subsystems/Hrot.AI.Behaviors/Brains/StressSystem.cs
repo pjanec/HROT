@@ -352,7 +352,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// seconds on his phase (<see cref="CadenceGate.DueOnGrid"/>); 0 = every frame (the default). Stimuli still land at once. ✅ The step
         /// already integrates the time since his last step (<c>Stress.LastStepAt</c>), so a slower step loses no time. Experiment knob:
         /// <c>HROT_STRESS_PERIOD</c>.</summary>
-        public double StepPeriod { get; set; } = double.TryParse(Environment.GetEnvironmentVariable("HROT_STRESS_PERIOD"),
+        public double StepPeriod { get; set; } = double.TryParse(EnvVars.Read(EnvVars.HrotStressPeriod),
             System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) ? p : 0.0;
         private double _prevNow = double.NegativeInfinity;
 

@@ -143,7 +143,7 @@ public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
     {
         _navmeshFallback = navmeshFallback;
         _useNavmesh = string.Equals(
-            Environment.GetEnvironmentVariable("STRIDE_VEHICLE_NAVMESH"), "1",
+            EnvVars.Read(EnvVars.StrideVehicleNavmesh), "1",
             StringComparison.Ordinal);
         _controller = new VehicleWaypointController(
             cruiseSpeed:      cruiseSpeed,

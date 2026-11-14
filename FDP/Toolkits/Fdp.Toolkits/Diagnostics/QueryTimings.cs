@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -23,7 +24,7 @@ namespace Fdp.Toolkit.Diagnostics
         public const int MaxSlots = 512;
 
         /// <summary>False ⇒ <see cref="Begin"/> returns 0 and <see cref="End"/> records nothing.</summary>
-        public static bool Enabled { get; set; } = Environment.GetEnvironmentVariable("HROT_QUERY_TIMINGS") == "1";   // ⭐ R-4213 — off unless asked
+        public static bool Enabled { get; set; } = EnvVars.Read(EnvVars.HrotQueryTimings) == "1";   // ⭐ R-4213 — off unless asked
 
         private static readonly object Gate = new();
         private static readonly Dictionary<string, int> ByName = new(StringComparer.Ordinal);
@@ -82,7 +83,7 @@ namespace Fdp.Toolkit.Diagnostics
         /// 1 000 men (37 000 timed calls / frame). The choice is a per-thread xorshift draw — a fixed every-n-th counter would alias with a loop
         /// that times n calls in a fixed order. 1 = time every call (a rail compares the two). Max is the max of the SAMPLED calls.
         /// </summary>
-        public static int SampleOneIn { get; set; } = int.TryParse(Environment.GetEnvironmentVariable("HROT_QUERY_SAMPLE"), out int n) && n >= 1 ? n : 16;   // the measurement knob: 1 = time every call
+        public static int SampleOneIn { get; set; } = int.TryParse(EnvVars.Read(EnvVars.HrotQuerySample), out int n) && n >= 1 ? n : 16;   // the measurement knob: 1 = time every call
         [ThreadStatic] private static uint t_rng;
         private const long CountOnly = -1L;
 

@@ -104,8 +104,8 @@ public sealed class StagedPresentation : IDisposable
         Map.RebuildFromWorld(a);
         a.SetSingletonManaged(Map);
         // a measurement may name fewer tables (HROT_TWO_WORLDS_MASKS + HROT_TWO_WORLDS_MASK); the product copies every snapshotable one
-        string? maskPath = Environment.GetEnvironmentVariable("HROT_TWO_WORLDS_MASKS");
-        string maskName = Environment.GetEnvironmentVariable("HROT_TWO_WORLDS_MASK") is { Length: > 0 } mn ? mn : "ui-no-inspector";
+        string? maskPath = EnvVars.Read(EnvVars.HrotTwoWorldsMasks);
+        string maskName = EnvVars.Read(EnvVars.HrotTwoWorldsMask) is { Length: > 0 } mn ? mn : "ui-no-inspector";
         var loaded = maskPath != null ? Fdp.ModuleHost.PublishProbe.LoadMask(maskPath, maskName) : null;
         MaskAll = loaded == null;
         var keep = TableMask;   // the tables a host already declared the UI's own (cleared below)

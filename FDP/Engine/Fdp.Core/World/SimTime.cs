@@ -116,15 +116,46 @@ namespace Fdp.Core
     /// <summary><see cref="SimInstant"/> exactly as a <see cref="double"/>: a plain JSON number (seconds).</summary>
     public sealed class SimInstantJsonConverter : JsonConverter<SimInstant>
     {
-        public override SimInstant Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => new(reader.GetDouble());
-        public override void Write(Utf8JsonWriter writer, SimInstant value, JsonSerializerOptions options) => writer.WriteNumberValue(value.Seconds);
+        // ⭐ CE-3441 — "never" is a real value (SquadUnitSense.AskedAt = -∞), but JSON has no infinity: System.Text.Json REFUSES it and every scenario
+        //   golden snapshot threw on its first frame. A non-finite value goes out as a marker string and comes back from it — ONE place for every
+        //   SimInstant field, and a finite value stays a plain number (golden files unchanged).
+        public override SimInstant Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            => reader.TokenType == JsonTokenType.String ? new(NonFinite.Parse(reader.GetString())) : new(reader.GetDouble());
+        public override void Write(Utf8JsonWriter writer, SimInstant value, JsonSerializerOptions options)
+        {
+            if (double.IsFinite(value.Seconds)) writer.WriteNumberValue(value.Seconds);
+            else NonFinite.Write(writer, value.Seconds);
+        }
+    }
+
+    /// <summary>⭐ CE-3441 — the markers a non-finite time is written as (JSON has no infinity): <c>"-inf"</c>, <c>"+inf"</c>, <c>"nan"</c>.</summary>
+    internal static class NonFinite
+    {
+        public const string MinusInf = "-inf", PlusInf = "+inf", NaN = "nan";
+        public static string Marker(double v) => double.IsNaN(v) ? NaN : v < 0 ? MinusInf : PlusInf;
+        // written RAW: the default encoder escapes '+' ("\u002Binf") — legal, but not what a golden file or a reader should see
+        private static readonly byte[] s_minus = "\"-inf\""u8.ToArray(), s_plus = "\"+inf\""u8.ToArray(), s_nan = "\"nan\""u8.ToArray();
+        public static void Write(Utf8JsonWriter writer, double v)
+            => writer.WriteRawValue(double.IsNaN(v) ? s_nan : v < 0 ? s_minus : s_plus, skipInputValidation: true);
+        public static double Parse(string? s) => s switch
+        {
+            MinusInf => double.NegativeInfinity,
+            PlusInf => double.PositiveInfinity,
+            NaN => double.NaN,
+            _ => double.Parse(s ?? throw new JsonException("a time is null"), NumberStyles.Float, CultureInfo.InvariantCulture),
+        };
     }
 
     /// <summary><see cref="SimDuration"/> exactly as a <see cref="float"/>: a plain JSON number (seconds).</summary>
     public sealed class SimDurationJsonConverter : JsonConverter<SimDuration>
     {
-        public override SimDuration Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => new(reader.GetSingle());
-        public override void Write(Utf8JsonWriter writer, SimDuration value, JsonSerializerOptions options) => writer.WriteNumberValue(value.Seconds);
+        public override SimDuration Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            => reader.TokenType == JsonTokenType.String ? new((float)NonFinite.Parse(reader.GetString())) : new(reader.GetSingle());
+        public override void Write(Utf8JsonWriter writer, SimDuration value, JsonSerializerOptions options)
+        {
+            if (float.IsFinite(value.Seconds)) writer.WriteNumberValue(value.Seconds);
+            else NonFinite.Write(writer, value.Seconds);   // ⭐ CE-3441 — as SimInstant: "forever" survives JSON
+        }
     }
 
     /// <summary>⭐ <see cref="SimInstant"/> from / to a string or a <see cref="double"/> (seconds) — what the configuration binder uses.</summary>

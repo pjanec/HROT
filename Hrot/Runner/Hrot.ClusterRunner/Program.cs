@@ -47,6 +47,13 @@ class Program
 {
     static async Task<int> Main(string[] args)
     {
+        // ⭐ CE-4525 (H-3) — the agent guide with no world started: the same text GET /help serves, minus what a host can do now
+        if (Array.IndexOf(args, "--help-api") >= 0)
+        {
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+            Console.Out.Write(Hrot.Editor.DebugApi.DebugApiHost.HelpText(available: null));
+            return 0;
+        }
         // ⭐ N-14 (CE-4476, §19) — every HROT process opts out of Windows' power throttling (a windowless node ran at ~half speed, CE-4453) and
         //   turns console QuickEdit off (a click froze every write); a no-op off Windows; HROT_ECOQOS=1 keeps Windows' default.
         bool optedOut = Fdp.Core.Threading.WindowsScheduling.OptOutProcess();
@@ -56,7 +63,7 @@ class Program
         FdpConfig.EnforceExplicitComponentIds = true;
         FdpConfig.EnforceExplicitEventRegistration = true;
         // ⭐ CE-3427 C-1 — live play paces slow modules by wall clock (FdpConfig.SlowModulesByWallClock); FDP_SLOW_WALLCLOCK=0 bisects
-        FdpConfig.SlowModulesByWallClock = Environment.GetEnvironmentVariable("FDP_SLOW_WALLCLOCK") != "0";
+        FdpConfig.SlowModulesByWallClock = EnvVars.Read(EnvVars.FdpSlowWallclock) != "0";
 
         // Enable NLog Console Output globally for FdpLog<T>.
         // Also register the UI target so the Message Log window captures all output.
@@ -114,12 +121,11 @@ class Program
 
         // ── Dump-api mode: print the debug-API manifest and exit ────────────────────────────────
         //
-        // ⭐⭐⭐ HN-030: this is what `tools/ai-debug-mcp` generates its tool catalog from, so the catalog
-        //    stops being a hand-maintained mirror of these routes. 📄 MCP_Integration.md § Follow-up.
+        // ⭐ HN-030: the route table + docs as JSON, offline (the same as GET /capabilities' description half). For people and agents,
+        //   --help-api prints the guide (CE-4525).
         //
         // ⭐ Boots NOTHING — no DDS, no window, no world. DebugApiHost.EnumerateRouteTemplates only builds
-        //   closures, so the whole API can describe itself in-process in milliseconds. ⇒ `npm run gen:skill`
-        //   can regenerate from source without an editor running.
+        //   closures, so the whole API can describe itself in-process in milliseconds.
         // ⛔ Ask a LIVE GET /capabilities for what a given host can DO; a dump answers only what the API IS.
         if (config.RequestedSubsystems.Contains("dump-api"))
         {
@@ -470,7 +476,7 @@ class Program
             //    ② the EDITOR SUBSYSTEM MUST BE ABSENT — it wires its own host on the same port, so doing
             //       it here too would fight for the listener. ⭐ `--mode editor` keeps its existing path
             //       untouched; this is the CLUSTER path only.
-            var clusterApiPort = Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT");
+            var clusterApiPort = EnvVars.Read(EnvVars.HrotDebugApiPort);
             bool hasEditorSubsystem = subsystems.OfType<Hrot.Editor.EditorSubsystem>().Any();
 
             if (!string.IsNullOrWhiteSpace(clusterApiPort)
@@ -480,7 +486,7 @@ class Program
                 // ① Capture must be ON before any panel draws, or every dump is empty.
                 // ⭐ CE-4432 — HROT_PANEL_CAPTURE=0 keeps the API but not the per-frame panel models: a measuring run then pays what a user's run pays
                 //   (every panel building + registering its snapshot model each frame was part of every frame measured over the API before).
-                Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = System.Environment.GetEnvironmentVariable("HROT_PANEL_CAPTURE") != "0";
+                Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = EnvVars.Read(EnvVars.HrotPanelCapture) != "0";
 
                 // ⭐⭐ The providers (Q54-2) and the cluster-wide ack-gate (HN-028), composed ONCE — the rails that boot a
                 //    real cluster use the same composition. ⚠ After orchestrator.Initialize(): a provider carries its

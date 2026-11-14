@@ -86,7 +86,7 @@ namespace Fdp.Presentation.Editing
                     continue;
                 }
                 var scan = new Scan(name, null);
-                EntityRefRemap.WalkObject(Clone(value), scan);
+                EntityRefRemap.WalkObject(value, scan);   // a count writes nothing: no copy needed
                 if (scan.Hits > 0) { count += scan.Hits; if (where.Count < max) where.Add($"{t.Name} on [{e.Index}]" + (scan.Hits > 1 ? $" ×{scan.Hits}" : "")); }
             }
             return (count, where);
@@ -118,7 +118,17 @@ namespace Fdp.Presentation.Editing
             return written;
         }
 
-        // Structs come back boxed (a copy). A managed component is the stored reference — a BindableNode tree is mutable DTO state by design (SR-160), so rewriting it in place IS the edit; SetComponent then re-stores it.
-        private static object? Clone(object? v) => v;
+        // ⭐ CE-3443 — a managed component is IMMUTABLE and replaced WHOLE (CLAUDE.md "NEW COMPONENTS"): the walk rewrites a DEEP COPY and the copy
+        //   is set. ⛔ SUPERSEDED: `Clone(v) => v` rewrote the stored object in place and re-set the same reference — every earlier snapshot holding
+        //   that object (managed chunks are copied shallowly) and an undo capture saw the renamed value. ⚠ FdpAutoSerializer.DeepClone copies
+        //   records by reference, so it is not a deep copy here. ⭐ The copy is the component's own JSON form (by its runtime type, the shared options
+        //   with fields): the form scenarios save and the walker's plan is built from ([JsonDerivedType]), so a polymorphic tree comes back whole.
+        //   A struct comes back boxed — already a copy. Rare (a user's rename), so a round trip per component is fine.
+        private static object? Clone(object? v)
+        {
+            if (v is null || v.GetType().IsValueType) return v;
+            var t = v.GetType();
+            return System.Text.Json.JsonSerializer.Deserialize(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(v, t, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed), t, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+        }
     }
 }

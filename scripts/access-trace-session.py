@@ -300,8 +300,8 @@ def run_stages(s, a, stages):
                 pos = [float(pos[0]) + 10.0] + list(pos[1:])
             return s.post(f"/entities/{ids[0]}/component", {"componentType": "SimTransform", "patch": {"Position": pos}}, timeout=60)
         s.step("edit (Edit state): move a soldier 10 m (edit_component SimTransform)", move, wait=3)
-        s.step("edit (Edit state): undo (Edit ▸ Undo)", lambda: s.post("/editor/commands/edit.undo/invoke?scope=shell", {}), wait=4)
-        s.step("edit (Edit state): redo (Edit ▸ Redo)", lambda: s.post("/editor/commands/edit.redo/invoke?scope=shell", {}), wait=4)
+        s.step("edit (Edit state): undo (Edit ▸ Undo)", lambda: s.post("/editor/commands/edit.undo/invoke", {"scope": "shell"}), wait=4)
+        s.step("edit (Edit state): redo (Edit ▸ Redo)", lambda: s.post("/editor/commands/edit.redo/invoke", {"scope": "shell"}), wait=4)
         s.step("edit (Edit state): check unsaved", lambda: s.post("/scenario/check-unsaved", {}, timeout=120), wait=2)
     if "n15" in stages and len(ids) >= 8:
         # ⭐ N-15 ① (CE-4477) — WHILE PLAYING: "drags" (a position patch through the attribute route — the drag gizmo's own write rule,
@@ -338,8 +338,8 @@ def run_stages(s, a, stages):
         if ids2:
             ensure_edit("n15 (Edit)")
             s.step("n15 (Edit): drag a unit", lambda: drag(ids2[0], 7.0), wait=3)
-            s.step("n15 (Edit): undo (Edit ▸ Undo)", lambda: s.post("/editor/commands/edit.undo/invoke?scope=shell", {}), wait=3)
-            s.step("n15 (Edit): redo (Edit ▸ Redo)", lambda: s.post("/editor/commands/edit.redo/invoke?scope=shell", {}), wait=3)
+            s.step("n15 (Edit): undo (Edit ▸ Undo)", lambda: s.post("/editor/commands/edit.undo/invoke", {"scope": "shell"}), wait=3)
+            s.step("n15 (Edit): redo (Edit ▸ Redo)", lambda: s.post("/editor/commands/edit.redo/invoke", {"scope": "shell"}), wait=3)
             s.step("n15 (Edit): play after the load", lambda: s.post("/sim/play", {}, timeout=180), wait=15)
             s.step("n15: pause", lambda: s.post("/sim/pause", {}, timeout=60), wait=3)
     if "save" in stages:

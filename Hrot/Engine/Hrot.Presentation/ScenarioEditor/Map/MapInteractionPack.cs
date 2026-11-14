@@ -193,7 +193,7 @@ namespace Hrot.ScenarioEditor.Map
             var stateless = new StatelessGizmoSystem(statelessRegistry, buffer) { FreshEntitiesPerFrame = 256, MaxHeldFrames = 3 };
             // ⭐ CE-4388 (D-1, D-7) — the map's view filter, every map host by construction (a host with no map never writes it ⇒ everything in view)
             //   HROT_VIEW_FILTER=0 turns it off — a measuring switch (A/B in one build, the same world), never for operating
-            if (Environment.GetEnvironmentVariable("HROT_VIEW_FILTER") != "0") stateless.ViewFilter = ViewOf(buffer);
+            if (EnvVars.Read(EnvVars.HrotViewFilter) != "0") stateless.ViewFilter = ViewOf(buffer);
 
             // Group member order follows the four hosts that agree (global manager, drag handles, map);
             // the editor listed the first two the other way round, which nothing depended on.

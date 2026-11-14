@@ -23,6 +23,9 @@ related-designs:
   - Hrot/Engine/Hrot.Traffic/TrafficPack.cs — the PRECEDENT for an optional feature as packs (Serving on one node, Mirroring on the others)
 -->
 
+> ⛔ **HISTORY note (R-4223, CE-4528, `2026-11-14`)** — the Node MCP server (`tools/ai-debug-mcp`: its tool catalog, generated `SKILL.md`, skill parts and generators) named in this document is **removed**. The debug API is plain HTTP and describes itself: `GET /help` (or `Hrot.ClusterRunner --help-api` before anything is started) and `GET /capabilities` — [`DESIGN_Debug_Api_Http_Only.md`](DESIGN_Debug_Api_Http_Only.md). Every mention of the server, its tools or its generated files below is HISTORY; tool names map to routes in `GET /help`.
+
+
 # DESIGN — **a player deploys into the game** *(side → placed unit or role → spawn → possess, or observe)*
 
 > 🔒 **User, `2026-10-31`:** *"a player that is joining a game will somehow need to choose the side. And once that is done, you will also need

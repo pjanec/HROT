@@ -138,7 +138,11 @@ namespace Fdp.Toolkit.Squad.Command
             public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads
                 .Unmanaged<global::CarKinem.Core.VehicleParams>()
                 .Unmanaged<Fdp.Toolkit.Behavior.Components.PassengerBuffer>()
-                .Unmanaged<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+                .Unmanaged<Fdp.Toolkit.Behavior.Components.CarrierStations>()
+                // ⭐ CE-3450 (D-5) — a CASEVAC compose asks whether a member is still in the fight (Injury.IsInTheFight): his Health and
+                //   InjuryThresholds, written by the damage systems, never in this phase. 📐 The survey on city-battle named both
+                .Unmanaged<Fdp.Toolkit.Combat.Components.Health>()
+                .Unmanaged<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
             /// <summary>⭐ CE-4517 — a job is a whole commander's compose: 4 a batch (~100 commanders ⇒ ~25 batches, not 4).</summary>
             public int BatchSize => 4;
             public StaffComposerSystem System;

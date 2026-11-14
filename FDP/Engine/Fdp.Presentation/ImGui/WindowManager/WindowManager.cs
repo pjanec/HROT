@@ -203,8 +203,8 @@ public class WindowManager
         //    needs. ⛔ What did NOT change: `TryGet` still returns null for a window that publishes no
         //    model (exactly as for an un-instrumented panel), and `captured[]`/`kinds{}` are untouched
         //    because they derive from what actually drew.
-        // 📌 `tools/ai-debug-mcp`'s `list_panels` doc still says "instrumented at all" — that text lives
-        //    in the MCP lane's `skill-parts/` (⛔ never the generated SKILL.md) and is filed as CE-085.
+        // 📌 the panels route's doc still said "instrumented at all" (CE-085) — the guide's prose now lives in
+        //    Hrot.Editor/DebugApi/Guide/ (GET /help, CE-4524).
         // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.4e.
         Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.DeclareInstrumented(window.Id);
     }

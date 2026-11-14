@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Runtime.ExceptionServices;
 using System.Threading;
@@ -30,7 +31,7 @@ namespace Fdp.Core.Jobs
         /// when positive, else cores − 2 (at least 1).</summary>
         public static int Budget()
         {
-            if (int.TryParse(Environment.GetEnvironmentVariable("HROT_SIM_THREADS"), out int env) && env > 0) return env;
+            if (int.TryParse(EnvVars.Read(EnvVars.HrotSimThreads), out int env) && env > 0) return env;
             return FdpConfig.MaxDegreeOfParallelism > 0 ? FdpConfig.MaxDegreeOfParallelism : Math.Max(1, Environment.ProcessorCount - 2);
         }
 

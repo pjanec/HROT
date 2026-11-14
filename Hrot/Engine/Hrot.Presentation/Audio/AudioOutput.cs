@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -183,7 +184,7 @@ namespace Hrot.UI.Common.Audio
     public sealed unsafe class RaylibAudioOutput : IAudioOutput
     {
         /// <summary>raudio 5.x mixes the LEFT channel at the buffer's pan (raudio.c, MixAudioFrames) ⇒ pan 1 is full left.</summary>
-        public static readonly bool PanOneIsLeft = Environment.GetEnvironmentVariable("HROT_AUDIO_PAN_FLIP") != "1";
+        public static readonly bool PanOneIsLeft = EnvVars.Read(EnvVars.HrotAudioPanFlip) != "1";
 
         private readonly Dictionary<long, Sound> _sounds = new();
         private readonly Dictionary<long, (IntPtr Data, int Size)> _wav = new();

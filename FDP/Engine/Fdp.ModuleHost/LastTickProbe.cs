@@ -13,7 +13,7 @@ namespace Fdp.ModuleHost
     /// </summary>
     public static class LastTickProbe
     {
-        private static readonly string? Spec = Environment.GetEnvironmentVariable("HROT_LASTTICK_TYPES");
+        private static readonly string? Spec = EnvVars.Read(EnvVars.HrotLasttickTypes);
         public static readonly bool On = !string.IsNullOrEmpty(Spec);
 
         private static EntityRepository? _masked, _full;

@@ -1119,7 +1119,7 @@ public sealed class StrideHrotGame : Game
         // ⭐⭐ CE-245 — the node's own debug/MCP surface, on the SAME environment variable every other
         //    host uses (the editor's and ClusterRunner's gate alike), so no tool needs a special case
         //    for a Stride node. Absent variable ⇒ not started, costing nothing in a normal run.
-        _nodeShell.StartDebugApi(Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT"));
+        _nodeShell.StartDebugApi(EnvVars.Read(EnvVars.HrotDebugApiPort));
 
         // ⭐⭐⭐ CE-214 / S6 — THE OPERATOR WINDOW, unconditionally.
         //    🔒 R-S16: "window is not optional, sames as in stride editor." ⛔ So there is no flag here,
@@ -1204,7 +1204,7 @@ public sealed class StrideHrotGame : Game
         //   this collapse: "STRIDE_HOST_REAL_EDITOR disappears (hosted becomes the only editor
         //   path), STRIDE_EDITOR_WINDOW stays (it is a window toggle), STRIDE_SELFTEST stays".
         bool selfTestEnabled = string.Equals(
-            System.Environment.GetEnvironmentVariable("STRIDE_SELFTEST"),
+            EnvVars.Read(EnvVars.StrideSelftest),
             "1",
             StringComparison.Ordinal);
         if (selfTestEnabled)

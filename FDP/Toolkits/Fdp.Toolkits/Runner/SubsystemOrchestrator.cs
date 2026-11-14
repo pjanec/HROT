@@ -126,7 +126,7 @@ namespace Fdp.Toolkit.Runner
             // ⭐ CE-4366 (L-4, docs/DESIGN_Scale_Rig.md §5) — a headless node's loop never waited: one core at 100 % while idle, per node (the
             //   scale rig's three nodes on a 4-core VM starved the terrain load). HROT_HEADLESS_MAX_HZ caps the loop (opt-in; unset = as before).
             long minFrameTicks = 0;
-            if (_headless && int.TryParse(Environment.GetEnvironmentVariable(HeadlessMaxHzVariable), out int maxHz) && maxHz > 0)
+            if (_headless && int.TryParse(EnvVars.Read(EnvVars.HrotHeadlessMaxHz), out int maxHz) && maxHz > 0)
                 minFrameTicks = Stopwatch.Frequency / maxHz;
             while (_running)
             {

@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -105,7 +106,7 @@ namespace Fdp.Core.FlightRecorder
         public const int BlockSize = 64;
 
         /// <summary>⭐ CE-1478 P6 (format v8) — write a delta's unmanaged chunk as the 64-byte blocks that moved (default), not the chunk's whole used prefix. Off ⇒ the v7 body (an equivalence rail records both).</summary>
-        public bool BlockDeltas { get; set; } = Environment.GetEnvironmentVariable("HROT_RECORD_BLOCK_DELTAS") != "0";   // the env switch is for measuring (MEASURE §9)
+        public bool BlockDeltas { get; set; } = EnvVars.Read(EnvVars.HrotRecordBlockDeltas) != "0";   // the env switch is for measuring (MEASURE §9)
 
         private readonly byte[] _blockBuf = new byte[FdpConfig.CHUNK_SIZE_BYTES * 2 + 64];
 
