@@ -35,10 +35,10 @@ public static class StrideInspectorWindowConfig
     public static bool IsEnabled =>
         ForceEnabled ??
         string.Equals(
-            Environment.GetEnvironmentVariable("STRIDE_EDITOR_WINDOW") ?? string.Empty,
+            EnvVars.Read(EnvVars.StrideEditorWindow) ?? string.Empty,
             "1", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(
-            Environment.GetEnvironmentVariable("STRIDE_EDITOR_WINDOW") ?? string.Empty,
+            EnvVars.Read(EnvVars.StrideEditorWindow) ?? string.Empty,
             "true", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>

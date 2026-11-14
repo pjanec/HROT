@@ -15,7 +15,7 @@ namespace Fdp.ModuleHost.Diagnostics
     public static class NonFiniteTransformCheck
     {
         /// <summary>The switch, read once.</summary>
-        public static readonly bool On = Environment.GetEnvironmentVariable("HROT_NAN_CHECK") == "1";
+        public static readonly bool On = EnvVars.Read(EnvVars.HrotNanCheck) == "1";
 
         private static readonly HashSet<long> s_reported = new();
         private static readonly Dictionary<EntityRepository, EntityQuery> s_queries = new(ReferenceEqualityComparer.Instance);

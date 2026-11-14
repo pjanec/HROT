@@ -154,11 +154,19 @@ namespace Hrot.Editor.DebugApi
         /// <summary><c>POST /entities/{networkId}/possess</c> — this node, as a station, possesses the unit (FPS): its task pauses
         /// and <c>POST …/control</c> frames drive it until <c>DELETE …/possess</c>.</summary>
         public (JsonNode? result, int status, string? error, string? hint) PostPossess(int networkId)
-            => Answer(networkId, Orders().Possess(networkId));
+        {
+            var r = Orders().Possess(networkId);
+            // ⭐ CE-1464 — HTTP drives it: this node's own station follows the possession (first person) but sends no frames that would outrun ours
+            if (r.Accepted) Hrot.UI.Common.Map3D.HttpControlledUnits.Mark(networkId);
+            return Answer(networkId, r);
+        }
 
         /// <summary><c>DELETE /entities/{networkId}/possess</c> — let the unit go; the task it was doing resumes.</summary>
         public (JsonNode? result, int status, string? error, string? hint) DeletePossess(int networkId)
-            => Answer(networkId, Orders().Unpossess(networkId));
+        {
+            Hrot.UI.Common.Map3D.HttpControlledUnits.Clear(networkId);   // ⭐ CE-1464
+            return Answer(networkId, Orders().Unpossess(networkId));
+        }
 
         /// <summary><c>POST /entities/{networkId}/control</c> — one control frame for the possessed unit:
         /// <c>{seq, forward, lateral, steer, yaw, gait, trigger, aim:[x,y,z], stance, shot, cancel, ammo, shotTarget}</c> (all optional

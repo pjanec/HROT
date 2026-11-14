@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.IO;
 using System.Threading;
@@ -15,7 +16,7 @@ namespace Hrot.Editor.UiFrameRail;
 /// </summary>
 public static class UiFrameAbCompare
 {
-    private static readonly string? Dir = Environment.GetEnvironmentVariable("HROT_IMGUI_AB") is { Length: > 0 } d ? d : null;
+    private static readonly string? Dir = EnvVars.Read(EnvVars.HrotImguiAb) is { Length: > 0 } d ? d : null;
     private static int _frame, _differing;
     private static readonly object Gate = new();
 

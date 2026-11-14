@@ -32,11 +32,11 @@ namespace Fdp.Core
     public static class EntityCensus
     {
         /// <summary>The switch: <c>HROT_ENTITY_CENSUS=1</c>. Read once.</summary>
-        public static readonly bool On = Environment.GetEnvironmentVariable("HROT_ENTITY_CENSUS") == "1";
+        public static readonly bool On = EnvVars.Read(EnvVars.HrotEntityCensus) == "1";
 
         /// <summary>Where the JSON goes: <c>HROT_ENTITY_CENSUS_OUT</c> (default the temp folder) + <c>.&lt;pid&gt;.json</c> — one file per node process (a rig
         /// runs several nodes with one environment).</summary>
-        public static readonly string OutputPath = (Environment.GetEnvironmentVariable("HROT_ENTITY_CENSUS_OUT") is { Length: > 0 } o
+        public static readonly string OutputPath = (EnvVars.Read(EnvVars.HrotEntityCensusOut) is { Length: > 0 } o
             ? o : Path.Combine(Path.GetTempPath(), "hrot-entity-census")) + "." + Environment.ProcessId + ".json";
         private static readonly string OutPath = OutputPath;
 

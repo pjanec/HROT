@@ -421,6 +421,7 @@ namespace Hrot.UI.Common.Map3D
         /// <param name="restore">False during a hand-over: the view stays in first person while possession moves to the other unit.</param>
         private void Leave(bool restore = true)
         {
+            if (_driver != null) HttpControlledUnits.Clear(_driver.NetId);   // ⭐ CE-1464 — a unit left is no longer HTTP's: the operator's own possess drives it again
             MapPeek = false;                // ⭐ CE-1218 — a peek ends with the possession
             _view.Camera3D.Driver = null;   // Detached unlocks the cursor
             _driver = null;
@@ -440,6 +441,7 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>One control frame for the held unit (through <see cref="EntityOrders"/>, the one operator path — R-270).</summary>
         internal void Send(int netId, OperatorControlFrameEvent frame)
         {
+            if (HttpControlledUnits.IsMarked(netId)) return;   // ⭐ CE-1464 — possessed over HTTP: the HTTP client sends the frames (its seq would lose to ours)
             if (Orders() is { } orders && orders.Control(netId, frame).Accepted) FramesSent++;
         }
 
@@ -1224,6 +1226,8 @@ namespace Hrot.UI.Common.Map3D
         private readonly PossessionStation _station;
         private readonly Func<EntityRepository?> _world;
         private readonly int _netId;
+        /// <summary>⭐ CE-1464 — the held unit's network id.</summary>
+        internal int NetId => _netId;
         private IInputProvider? _locked;
         // ⭐ B-10 K4 (§6g) — the Embodied hat's rows of the one keymap, read through a reader over the locked provider
         private readonly Fdp.Toolkit.Input.KeymapReader _keys;

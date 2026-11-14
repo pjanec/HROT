@@ -303,7 +303,7 @@ public static unsafe class OccurrenceStoreAccess
         }
 
         // ⭐ POC 3 T-4 — HROT_WRITE_STATS=1 + HROT_WRITE_STATS_NOTES=1: name the slot (kind, key) and the offset of a tick's first changed byte
-        private static readonly bool s_noteWrites = Environment.GetEnvironmentVariable("HROT_WRITE_STATS_NOTES") == "1";
+        private static readonly bool s_noteWrites = EnvVars.Read(EnvVars.HrotWriteStatsNotes) == "1";
         private static void NoteWhere(byte* memory, int offset)
         {
             ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);

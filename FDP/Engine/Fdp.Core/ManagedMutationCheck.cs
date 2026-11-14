@@ -20,10 +20,10 @@ namespace Fdp.Core
     /// </summary>
     public static class ManagedMutationCheck
     {
-        public static readonly bool On = Environment.GetEnvironmentVariable("HROT_MANAGED_MUTATION_CHECK") == "1";
+        public static readonly bool On = EnvVars.Read(EnvVars.HrotManagedMutationCheck) == "1";
         // one file per PROCESS (a cluster runs a process per node): <HROT_MANAGED_MUTATION_OUT or temp>/managed-mutations-<pid>.txt
         private static readonly string OutPath = Path.Combine(
-            Environment.GetEnvironmentVariable("HROT_MANAGED_MUTATION_OUT") is { Length: > 0 } o ? o : Path.GetTempPath(),
+            EnvVars.Read(EnvVars.HrotManagedMutationOut) is { Length: > 0 } o ? o : Path.GetTempPath(),
             $"managed-mutations-{Environment.ProcessId}.txt");
 
         /// <summary>The system the kernel is executing now (set by the scheduler while the check is on), for the report.</summary>

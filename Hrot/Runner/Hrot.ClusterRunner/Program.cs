@@ -63,7 +63,7 @@ class Program
         FdpConfig.EnforceExplicitComponentIds = true;
         FdpConfig.EnforceExplicitEventRegistration = true;
         // ⭐ CE-3427 C-1 — live play paces slow modules by wall clock (FdpConfig.SlowModulesByWallClock); FDP_SLOW_WALLCLOCK=0 bisects
-        FdpConfig.SlowModulesByWallClock = Environment.GetEnvironmentVariable("FDP_SLOW_WALLCLOCK") != "0";
+        FdpConfig.SlowModulesByWallClock = EnvVars.Read(EnvVars.FdpSlowWallclock) != "0";
 
         // Enable NLog Console Output globally for FdpLog<T>.
         // Also register the UI target so the Message Log window captures all output.
@@ -476,7 +476,7 @@ class Program
             //    ② the EDITOR SUBSYSTEM MUST BE ABSENT — it wires its own host on the same port, so doing
             //       it here too would fight for the listener. ⭐ `--mode editor` keeps its existing path
             //       untouched; this is the CLUSTER path only.
-            var clusterApiPort = Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT");
+            var clusterApiPort = EnvVars.Read(EnvVars.HrotDebugApiPort);
             bool hasEditorSubsystem = subsystems.OfType<Hrot.Editor.EditorSubsystem>().Any();
 
             if (!string.IsNullOrWhiteSpace(clusterApiPort)
@@ -486,7 +486,7 @@ class Program
                 // ① Capture must be ON before any panel draws, or every dump is empty.
                 // ⭐ CE-4432 — HROT_PANEL_CAPTURE=0 keeps the API but not the per-frame panel models: a measuring run then pays what a user's run pays
                 //   (every panel building + registering its snapshot model each frame was part of every frame measured over the API before).
-                Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = System.Environment.GetEnvironmentVariable("HROT_PANEL_CAPTURE") != "0";
+                Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = EnvVars.Read(EnvVars.HrotPanelCapture) != "0";
 
                 // ⭐⭐ The providers (Q54-2) and the cluster-wide ack-gate (HN-028), composed ONCE — the rails that boot a
                 //    real cluster use the same composition. ⚠ After orchestrator.Initialize(): a provider carries its

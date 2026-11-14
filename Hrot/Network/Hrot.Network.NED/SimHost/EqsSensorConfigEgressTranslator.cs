@@ -56,7 +56,7 @@ namespace Hrot.Network.NED.SimHost
         //   sensor nothing touched — its own inputs declared; authority / ownership / parts writes, seek / restore / wipe (H3) and a structural
         //   change force a visit; the sweep visits every sensor at least once per SweepPeriod frames (the bound for the inputs no signal names:
         //   a solver re-pick from the cluster cache). A sensor HELD for a context slot's network id is visited every frame until it publishes.
-        internal static bool GateOn { get; set; } = Environment.GetEnvironmentVariable("HROT_EQS_CONFIG_GATE") == "1";
+        internal static bool GateOn { get; set; } = EnvVars.Read(EnvVars.HrotEqsConfigGate) == "1";
         private readonly EgressVisitGate _gate = new(typeof(EqsSensor), typeof(SensorConfigPayload), typeof(EqsContextPoints), typeof(PartMetadata));
         private readonly HashSet<Entity> _held = new();
         private IReadOnlyList<int>? _knownThisScan;

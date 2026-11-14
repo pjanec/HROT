@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -164,7 +165,7 @@ public sealed class AiHotReloadCoordinator : IDisposable
     /// <summary>
     /// Dequeues one pending reload and applies it. Call once per frame on the main thread.
     /// </summary>
-    private static readonly bool ReloadTimingLog = Environment.GetEnvironmentVariable("HROT_INSYNC_LOG") == "1";
+    private static readonly bool ReloadTimingLog = EnvVars.Read(EnvVars.HrotInsyncLog) == "1";
 
     public void DrainPendingCallbacks()
     {

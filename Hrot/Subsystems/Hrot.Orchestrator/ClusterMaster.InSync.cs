@@ -31,7 +31,7 @@ public sealed partial class ClusterMaster
     private readonly HashSet<int> _inSync = new();
 
     // ⭐ K-3 (CE-4450) — every change of the in-sync set with its cause (HROT_INSYNC_LOG=1): the hot-reload desync's root cause is one of these
-    private static readonly bool InSyncLog = Environment.GetEnvironmentVariable("HROT_INSYNC_LOG") == "1";
+    private static readonly bool InSyncLog = EnvVars.Read(EnvVars.HrotInsyncLog) == "1";
     private void NoteInSync(string what) { if (InSyncLog) Console.WriteLine($"[K-3] {DateTime.Now:HH:mm:ss.fff} in-sync {what} · now [{string.Join(",", _inSync.OrderBy(i => i))}] · state {_currentDsmState}"); }
 
     /// <summary>The nodes in sync with the cluster — the targets of every operator round.</summary>

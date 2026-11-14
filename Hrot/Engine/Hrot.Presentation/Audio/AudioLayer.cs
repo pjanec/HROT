@@ -111,7 +111,7 @@ namespace Hrot.UI.Common.Audio
         }
 
         private static IAudioOutput DefaultOutput()
-            => Environment.GetEnvironmentVariable("HROT_AUDIO") != "0" && Raylib.IsWindowReady()
+            => EnvVars.Read(EnvVars.HrotAudio) != "0" && Raylib.IsWindowReady()
                 ? new RaylibAudioOutput()
                 : new NullAudioOutput { Opens = false };
 

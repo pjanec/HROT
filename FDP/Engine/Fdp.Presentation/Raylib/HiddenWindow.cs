@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Runtime.InteropServices;
 using Raylib_cs;
@@ -20,7 +21,7 @@ public static class HiddenWindow
     private static bool _hasTarget, _inFrame;
 
     /// <summary>True when the switch asks for a hidden window (read once per call; set it before the window is created).</summary>
-    public static bool Requested => Environment.GetEnvironmentVariable(EnvVar) == "1";
+    public static bool Requested => EnvVars.Read(EnvVars.HrotHiddenWindow) == "1";
 
     /// <summary>True once a hidden window was created through <see cref="ApplyBeforeInit"/> — the frame redirection is on.</summary>
     public static bool Active { get; private set; }

@@ -282,7 +282,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// The default makes a missing setting cost staleness, never unpublished work.
     /// </summary>
     public Hrot.Map.Common.ClusterLoad.AssetAuthoring AssetAuthoring { get; set; } =
-        Hrot.Map.Common.ClusterLoad.AssetAuthoring.Parse(Environment.GetEnvironmentVariable("HROT_ASSET_AUTHORING"));
+        Hrot.Map.Common.ClusterLoad.AssetAuthoring.Parse(EnvVars.Read(EnvVars.HrotAssetAuthoring));
 
     // ⭐⭐⭐ CGF'S COPIES OF THE TWO RESOLVERS ARE GONE (2026-09-26, §32.17).
     //    🔴 CE-338 gave CGF these rules by COPYING EditorSubsystem's two private methods verbatim

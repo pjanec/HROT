@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -1196,7 +1197,7 @@ namespace Hrot.UI.Common.Map3D.Director
         }
 
         private static string BuildSha() =>
-            Environment.GetEnvironmentVariable("HROT_BUILD_SHA")
+            EnvVars.Read(EnvVars.HrotBuildSha)
             ?? typeof(DirectorRunner).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
                    .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion ?? "";
 

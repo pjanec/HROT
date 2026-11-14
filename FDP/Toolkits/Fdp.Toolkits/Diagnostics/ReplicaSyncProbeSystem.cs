@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Diagnostics
     public sealed class ReplicaSyncProbeSystem : IEcsModuleSystem
     {
         /// <summary>The switch: <c>HROT_REPLICA_PROBE=1</c>.</summary>
-        public static bool Requested => System.Environment.GetEnvironmentVariable("HROT_REPLICA_PROBE") == "1";
+        public static bool Requested => EnvVars.Read(EnvVars.HrotReplicaProbe) == "1";
 
         private static readonly int S_Sync = QueryTimings.Slot("probe.replica.sync (full)");
         private DoubleBufferProvider? _replica;

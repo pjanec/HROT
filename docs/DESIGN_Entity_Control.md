@@ -689,6 +689,8 @@ attach — so there is no host on which FPS could be silently missing.
 - *A separate `PossessionTool` (exclusive gizmo)* — the camera already takes input before every layer (`MapCanvas.cs:253`); a second
   focus owner would duplicate what consuming in the driver does.
 - *The station entering FPS from the menu click* — then HTTP possession and take-overs would not show; following `PossessedBy` covers all.
+
+⭐ **As built `2026-11-14` (CE-1464, backend):** following stays, but a unit possessed over HTTP (`POST /entities/{id}/possess`) is marked (`HttpControlledUnits`) and the station SENDS NO frames for it — both senders count their own `seq` and the brain keeps the newest (M-6), so a station sending a frame per rendered frame outran every HTTP frame. The mark clears on `DELETE …/possess` and when the station leaves the unit. Rail `PossessionStationTests.CE1464_…`.
 - *A second camera class* — M-9: gizmos, labels and pickers draw only for `MapCamera3D`.
 - *Ammo read from the brain's `WeaponState` over HTTP* — a station on another node has no `WeaponState` (C-7).
 

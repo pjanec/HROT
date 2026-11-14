@@ -48,18 +48,18 @@ namespace Fdp.Core
     public static class AccessTrace
     {
         /// <summary>The switch: <c>HROT_ACCESS_TRACE=1</c>. Read once.</summary>
-        public static readonly bool On = Environment.GetEnvironmentVariable("HROT_ACCESS_TRACE") == "1" || WorldGuard.On || EntityCensus.On;   // ⭐ POC 2 (the world guard) + N-1 (the census needs the readers)
+        public static readonly bool On = EnvVars.Read(EnvVars.HrotAccessTrace) == "1" || WorldGuard.On || EntityCensus.On;   // ⭐ POC 2 (the world guard) + N-1 (the census needs the readers)
 
         /// <summary>⭐ POC 2 (CE-4439) — the counting itself; OFF when only the world guard or the census turned the hooks on.</summary>
-        internal static readonly bool Aggregate = Environment.GetEnvironmentVariable("HROT_ACCESS_TRACE") == "1";
+        internal static readonly bool Aggregate = EnvVars.Read(EnvVars.HrotAccessTrace) == "1";
 
         internal static int CurrentReaderId => CurrentReader();
         internal static bool CurrentContextIsTick => CurrentContext == TraceContext.Tick;
         internal static bool CurrentContextIsPresentation => CurrentContext == TraceContext.Presentation;
 
-        private static readonly string OutPath = Environment.GetEnvironmentVariable("HROT_ACCESS_TRACE_OUT") is { Length: > 0 } o
+        private static readonly string OutPath = EnvVars.Read(EnvVars.HrotAccessTraceOut) is { Length: > 0 } o
             ? o : Path.Combine(Path.GetTempPath(), "hrot-access-trace.json");
-        private static readonly string CtlPath = Environment.GetEnvironmentVariable("HROT_ACCESS_TRACE_CTL") is { Length: > 0 } c ? c : OutPath + ".ctl";
+        private static readonly string CtlPath = EnvVars.Read(EnvVars.HrotAccessTraceCtl) is { Length: > 0 } c ? c : OutPath + ".ctl";
 
         // ── the key: meta = ctx(2) | kind(6) | reader(20) | repo(12) | phase(12) ──
         private const int ReaderBits = 20, RepoBits = 12, PhaseBits = 12;

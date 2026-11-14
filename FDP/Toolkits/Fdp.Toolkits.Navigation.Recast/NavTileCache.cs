@@ -1,4 +1,5 @@
 #nullable enable
+using Fdp.Core;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -113,7 +114,7 @@ public sealed class NavTileCache
 
     private static string? DefaultFolder()
     {
-        var env = Environment.GetEnvironmentVariable(FolderVariable);
+        var env = EnvVars.Read(EnvVars.HrotNavtileCache);
         if (!string.IsNullOrWhiteSpace(env)) return string.Equals(env, "off", StringComparison.OrdinalIgnoreCase) ? null : env;
         var root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify);
         if (string.IsNullOrEmpty(root)) root = Path.GetTempPath();

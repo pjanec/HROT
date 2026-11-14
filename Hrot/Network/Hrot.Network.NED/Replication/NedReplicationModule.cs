@@ -607,7 +607,7 @@ public sealed class NedReplicationModule : INedReplicationModule
     // ≤0 / unset / unparseable ⇒ 0 ⇒ the fake participant is not registered (production timing intact).
     private static int ParseFakeInitFrames()
     {
-        var raw = System.Environment.GetEnvironmentVariable("FDP_FAKE_INIT_FRAMES");
+        var raw = EnvVars.Read(EnvVars.FdpFakeInitFrames);
         return int.TryParse(raw, out var n) && n > 0 ? n : 0;
     }
 
