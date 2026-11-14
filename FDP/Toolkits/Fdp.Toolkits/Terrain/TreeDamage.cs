@@ -18,8 +18,15 @@ namespace Fdp.Toolkit.Terrain
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.TreeDamage)]
     [DataPolicy(DataPolicy.NoScenario)]
-    public unsafe struct TreeDamage
+    public unsafe struct TreeDamage : ICellRecord<(int X, int Y)>
     {
+        int ICellRecord<(int X, int Y)>.CellX { get => CellX; set => CellX = value; }
+        int ICellRecord<(int X, int Y)>.CellY { get => CellY; set => CellY = value; }
+        readonly int ICellRecord<(int X, int Y)>.ItemCount => Count;
+        readonly bool ICellRecord<(int X, int Y)>.IsFull => Count >= Capacity;
+        readonly (int X, int Y) ICellRecord<(int X, int Y)>.Item(int i) => Get(i);
+        bool ICellRecord<(int X, int Y)>.TryAdd(in (int X, int Y) item, out bool full) => TreeDamages.Add(ref this, item, out full);
+
         public const int Capacity = 16;
         public int CellX;
         public int CellY;
@@ -178,107 +185,29 @@ namespace Fdp.Toolkit.Terrain
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-4603</c> (B-6) — turns <see cref="TreeFellEvent"/>s into <see cref="TreeDamage"/> entities: ONE per (cell, deciding node), owned by it; past capacity a second
-    /// entity; a trunk for a cell whose request is in flight waits. ⚠ The <see cref="GroundDamageSystem"/> / <see cref="BuildingDamageSystem"/> machinery a third time —
-    /// filed for unification (CE-5000). ⛔ Never in a replay; writes only entities this node owns.
+    /// ⭐⭐ <c>CE-4603</c> (B-6) — turns <see cref="TreeFellEvent"/>s into <see cref="TreeDamage"/> entities: THE cell-record writer (<see cref="CellRecordSystem{TRecord, TItem}"/>,
+    /// CE-5000) with the felling event and a trunk's cell. ⛔ Never in a replay; writes only entities this node owns.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
-    public sealed class TreeDamageSystem : IEcsModuleSystem
+    public sealed class TreeDamageSystem : CellRecordSystem<TreeDamage, (int X, int Y)>
     {
         /// <summary>The wire ordinal of <c>EDescriptorType.dtTreeDamage</c> (NED). ⚠ A rail pins the two equal.</summary>
         public const long DescriptorOrdinal = 185;
-        public static readonly long DescriptorKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
-        public const int PendingTimeoutTicks = 3600;
+        public static readonly long OwnershipKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
-        public long Applied { get; private set; }
-        public long Requested { get; private set; }
+        protected override long DescriptorKey => OwnershipKey;
+        protected override long TkbType => TreeDamages.TkbType;
+        protected override (int X, int Y) CellOf(in (int X, int Y) item) => TreeDamages.CellOf(item);
 
-        private sealed class Pending { public int CellX, CellY, Age; public readonly List<(int, int)> Later = new(); }
-        private readonly Dictionary<long, Pending> _pending = new();
-        private readonly List<long> _done = new();
-        private EntityQuery? _query;
-        private EntityRepository? _queryRepo;
-
-        private static long Key(int x, int y) => ((long)x << 32) | (uint)y;
-
-        public void Execute(ISimulationView view, float deltaTime)
+        protected override void ReadItems(EntityRepository repo, List<(int X, int Y)> into)
         {
-            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;
-            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<TreeDamage>()) return;
-            if (_pending.Count > 0) DrainPending(repo);
             if (!repo.Bus.IsRegistered<TreeFellEvent>()) return;
             var events = repo.ReadEvents<TreeFellEvent>();
-            for (int i = 0; i < events.Length; i++) Apply(repo, (events[i].X, events[i].Y));
+            for (int i = 0; i < events.Length; i++) into.Add((events[i].X, events[i].Y));
         }
 
-        private void Apply(EntityRepository repo, (int X, int Y) trunk)
-        {
-            var (cx, cy) = TreeDamages.CellOf(trunk);
-            if (_pending.TryGetValue(Key(cx, cy), out var waiting)) { waiting.Later.Add(trunk); return; }
-            Entity space = Entity.Null;
-            foreach (var e in Query(repo))
-            {
-                if (!OwnsDamage(repo, e)) continue;
-                var d = repo.GetComponentRO<TreeDamage>(e);
-                if (d.CellX != cx || d.CellY != cy) continue;
-                for (int k = 0; k < d.Count; k++) if (d.Get(k) == trunk) return;
-                if (space.IsNull && d.Count < TreeDamage.Capacity) space = e;
-            }
-            if (!space.IsNull)
-            {
-                var d = repo.GetComponentRO<TreeDamage>(space);
-                if (TreeDamages.Add(ref d, trunk, out _)) { repo.SetComponent(space, d); Applied++; }
-                return;
-            }
-            var born = new TreeDamage { CellX = cx, CellY = cy };
-            TreeDamages.Add(ref born, trunk, out _);
-            int node = repo.HasSingletonManaged<INetworkTopology>() ? (int)(repo.GetSingletonManaged<INetworkTopology>()?.LocalNodeId ?? default) : 0;
-            repo.Bus.PublishManaged(new EntityCreationRequest
-            {
-                RequestId = Guid.NewGuid(), OwnerAppInstanceId = node, TkbType = (Fdp.Core.TkbTypeId)TreeDamages.TkbType,
-                InitType = ReliableInitType.None, IsTransient = true,
-                InitialComponents = new List<object> { new SimTransform { Position = GroundDamages.Anchor(cx, cy, 0f), Rotation = Quaternion.Identity }, born },
-            });
-            _pending[Key(cx, cy)] = new Pending { CellX = cx, CellY = cy };
-            Requested++;
-        }
-
-        private void DrainPending(EntityRepository repo)
-        {
-            _done.Clear();
-            foreach (var (key, p) in _pending)
-            {
-                bool here = false;
-                foreach (var e in Query(repo))
-                {
-                    if (!OwnsDamage(repo, e)) continue;
-                    var d = repo.GetComponentRO<TreeDamage>(e);
-                    if (d.CellX == p.CellX && d.CellY == p.CellY) { here = true; break; }
-                }
-                if (here || ++p.Age > PendingTimeoutTicks) _done.Add(key);
-            }
-            foreach (var key in _done)
-            {
-                var p = _pending[key];
-                _pending.Remove(key);
-                for (int i = 0; i < p.Later.Count; i++) Apply(repo, p.Later[i]);
-            }
-        }
-
-        public static bool OwnsDamage(EntityRepository repo, Entity e)
-        {
-            if (!repo.IsAlive(e) || !repo.HasComponent<TreeDamage>(e)) return false;
-            if (!(repo.IsComponentTypeRegistered<NetworkAuthority>() && repo.HasComponent<NetworkAuthority>(e))
-                && repo.GetLifecycleState(e) == EntityLifecycle.Ghost) return false;
-            return Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(repo, e, DescriptorKey);
-        }
-
-        private EntityQuery Query(EntityRepository repo)
-        {
-            if (!ReferenceEquals(repo, _queryRepo)) { _query = repo.Query().With<TreeDamage>().WithLifecycle(EntityLifecycle.AllButTearDown).Build(); _queryRepo = repo; }
-            return _query!;
-        }
+        public static bool OwnsDamage(EntityRepository repo, Entity e) => OwnsRecord(repo, e, OwnershipKey);
     }
 
     /// <summary>⭐ <c>CE-4603</c> — <c>trees.json</c>: which lone trunks a blast fells.</summary>

@@ -59,8 +59,15 @@ namespace Fdp.Toolkit.Terrain
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.GroundDamage)]
     [DataPolicy(DataPolicy.NoScenario)]
-    public unsafe struct GroundDamage
+    public unsafe struct GroundDamage : ICellRecord<Crater>
     {
+        int ICellRecord<Crater>.CellX { get => CellX; set => CellX = value; }
+        int ICellRecord<Crater>.CellY { get => CellY; set => CellY = value; }
+        readonly int ICellRecord<Crater>.ItemCount => Count;
+        readonly bool ICellRecord<Crater>.IsFull => Count >= Capacity;
+        readonly Crater ICellRecord<Crater>.Item(int i) => Get(i);
+        bool ICellRecord<Crater>.TryAdd(in Crater item, out bool full) => GroundDamages.Add(ref this, in item, out full);
+
         /// <summary>How many craters one entity holds.</summary>
         public const int Capacity = 16;
 

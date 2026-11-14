@@ -607,7 +607,7 @@ cache — so the only NEW decisions are who fells (the fellers on the left) and 
 | a player's hull | `ContactBreach`: `Identify` names a `Tree` piece; a row with `"trees": true` (tank, IFV) fells it by ram or push; the follow-up publishes `TreeFellEvent`; ⛔ an AI hull never reaches the rule (B-D1) | D-6 |
 | the bake, every node | `StaticObstacleBakeSystem` adds `FelledTrees.Hash`; `TerrainObstacles.With(…, trees)` drops the trunks (navmesh obstacle and the drawing's tree go with it); `TerrainResidency.TreeDirt` dirties a 4 m box per trunk felled or standing again | §7.7 |
 | wire, save, seek | `dtTreeDamage` (185) egress / ingress; `TerrainObjects["#trees"] = { "felled": [[xCm, yCm], …] }` (merge = union, load = one entity per cell, the loader's); a seek restores the records and the bake follows | §7.7 |
-| ⚠ debt | the record writer and the view-table cache are a third copy of `BuildingDamage`'s / `GroundDamage`'s — filed as [CE-5000](blueprints/Blueprint_Issues_Tracker.md) | ruling 9 |
+| ⭐ one writer (CE-5000 part 1) | `TreeDamageSystem` and `GroundDamageSystem` are ONE writer, `CellRecordSystem<TRecord, TItem>`, with their event and cell rule; the view-table cache is still repeated — the rest of [CE-5000](blueprints/Blueprint_Issues_Tracker.md) | ruling 9 |
 
 ⭐ **Lane decisions (for the user's review):** [R-5022](blueprints/RULINGS.md) `trees.json` starting values; [R-5023](blueprints/RULINGS.md) a row's `trees` flag fells a trunk (not its wood
 strength). Rails: `TreeFellingTests` (the same-tick skip, a bomb's radius, the contact rule's rows, the save) and `TreeFellingBakeTests` (the bake drops the trunk, its box is dirty, a seek

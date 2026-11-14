@@ -63,7 +63,7 @@ related-designs:
 | **P-5** CE-4592 part 1 — ground shapes, the data path | 🟡 built: kind Ground, compile, parse, `GroundShapes.Apply` at merge (islands, newest wins); ⛔ open: corridors (G-24), the overlay SUMO net (G-16), grade read-out (G-19), the UI + mockup | [Ground §9.12](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `TerrainWorldMergeTests.CE4592_*` (red-proved) |
 | **P-5** CE-4592 part 2a — the Earthworks picks | ✅ built (cross-lane into ui's picker, said) | [Ground §9.13](../DESIGN_Ground_Patches_And_Road_Blockage.md); rail `TerrainAuthoringPickerTests.CE4592_*`; `EntityTypeCatalogTests.CE2138_*` red is pre-existing (the drone-jammer type `e81eaa50`, behaviors) |
 | **P-6** CE-4593 part 1 — ditches and foxholes | 🟡 built: presets, steep banks, obstacle areas, picks, cover along the banks and the foxhole's all-round (G-27/G-36); ⛔ open: road corridors (G-29), coarse-grid warning, Details, the squad's re-plan (V-29) | [Ground §9.14](../DESIGN_Ground_Patches_And_Road_Blockage.md); rail `TerrainWorldMergeTests.CE4593_*` (red-proved) |
-| next | the open parts, in order: P-6 cover points · P-5 part 2b (Details, grade, tint, fidelity) · P-1 V-15/D-4/CE-4402 · B-3b (dust, the player's sound, the HUD cue — ui) · CE-5000 | |
+| next | the open parts, in order: P-6 cover points · P-5 part 2b (Details, grade, tint, fidelity) · P-1 V-15/D-4/CE-4402 · B-3b (dust, the player's sound, the HUD cue — ui) · CE-5000 (the view-table caches; the writer is unified) | |
 
 ## 3. Gates
 
