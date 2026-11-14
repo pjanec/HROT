@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Collections.Generic;
 
@@ -101,7 +102,7 @@ namespace Fdp.Core.Diagnostics
     public static class ContentVersioning
     {
         /// <summary>Read when a table is CREATED (it then keeps a pre-stamp array); set it before building the world.</summary>
-        public static bool On { get; set; } = Environment.GetEnvironmentVariable("HROT_CONTENT_VERSION") == "1";
+        public static bool On { get; set; } = EnvVars.Read(EnvVars.HrotContentVersion) == "1";
 
         /// <summary>The chunks reverted at the last frame's end, all tables.</summary>
         public static int LastReverted { get; private set; }

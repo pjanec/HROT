@@ -26,7 +26,7 @@ namespace Fdp.Core
         /// the tables are independent, the registration of a missing table stays serial. The same bytes, sooner. Opt-in:
         /// <c>HROT_PARALLEL_SYNC=1</c> (settable for tests). ⭐ 0 B per steady sync.
         /// </summary>
-        public static bool ParallelSync { get; set; } = Environment.GetEnvironmentVariable("HROT_PARALLEL_SYNC") == "1";
+        public static bool ParallelSync { get; set; } = EnvVars.Read(EnvVars.HrotParallelSync) == "1";
         private readonly SyncPairs _syncPairs = new();
 
         private sealed class SyncPairs : Jobs.FdpWorkerPool.IBatchWork

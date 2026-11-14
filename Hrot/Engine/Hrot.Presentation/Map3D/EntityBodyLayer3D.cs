@@ -80,6 +80,14 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     public string Name => "Entities (3-D)";
     public int LayerBitIndex => -1;
+
+    /// <summary>⭐ <c>CE-4582</c> (docs/DESIGN_Map_3D_Mode.md §6am D-9) — the layer panel's Units ▸ Entities row: the gizmo buffer's bit 0, the mask
+    /// <c>LayerControlGizmo</c> hands it (as <c>TerrainLayer2D</c> reads Terrain2D). False ⇒ no body is drawn in the window's pass and none is
+    /// pickable (the pick index is emptied). Null = always shown. ⚠ Not the canvas's <c>VisibleLayersMask</c> — that is the older per-kind mask.</summary>
+    public Func<bool>? Visible { get; set; }
+
+    /// <summary>⭐ CE-4582 — true when the last window pass drew nothing because Units ▸ Entities is off.</summary>
+    public bool Hidden { get; private set; }
     public bool Has3D => true;
 
     /// <summary>Bodies drawn in the last 3-D frame, and parts — the frame-cost counters (§7).</summary>
@@ -155,6 +163,15 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     {
         if (e == FirstPerson || IsSelected(world, e, hasSelection)) return ScreenBand.Full;   // D-7
         return BandFor(_scale, world.GetComponentRO<SimTransform>(e).Position, size);
+    }
+
+    /// <summary>⭐ <c>CE-4582</c> (§6am D-4) — whether the entity with network id <paramref name="networkId"/> is selected (its card is never hidden):
+    /// the same <c>SelectionState</c> that keeps its body Full (§6ak D-7).</summary>
+    public static bool IsSelectedNet(EntityRepository? world, long networkId)
+    {
+        if (world == null || networkId <= 0 || networkId > int.MaxValue || !world.IsComponentTypeRegistered<Hrot.Map.Common.Components.SelectionState>()) return false;
+        var e = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, (int)networkId);
+        return !e.IsNull && IsSelected(world, e, true);
     }
 
     private static bool IsSelected(EntityRepository world, Entity e, bool hasSelection)
@@ -242,6 +259,11 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         _figureFrames.Clear();
         var world = _world();
         if (world == null || !world.IsComponentTypeRegistered<TkbIdentity>() || !world.IsComponentTypeRegistered<SimTransform>()) return;
+        // ⭐ CE-4582 (§6am D-9) — Units ▸ Entities off: no body drawn, and (the window's pass) an EMPTY pick index so none is pickable. A film draws
+        //   its layer set INTERSECTED with the screen's (DebugGizmoLayer.FilmLayers), and Entities is one of its rows ⇒ hidden there too.
+        bool hidden = Visible != null && !Visible();
+        if (!ctx.Film) Hidden = hidden;
+        if (hidden) { if (!ctx.Film) { _pick.Begin(); _pick.End(); BodyDrawStats.Record(0, 0, 0, 0); BodyDrawStats.RecordBands(0, 0, 0, 0); } return; }
         if (!ReferenceEquals(world, _queryWorld))
         {
             _queryWorld = world;

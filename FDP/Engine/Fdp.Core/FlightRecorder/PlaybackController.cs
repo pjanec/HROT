@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -79,7 +80,7 @@ namespace Fdp.Core.FlightRecorder
         {
             _filePath = filePath;
             // ⭐ CE-1478 — measuring switches (docs/blueprints/batches/MEASURE_Ui_Replay_Frame_Cost.md §8): HROT_REPLAY_PREFETCH=<depth> (0 = inline), HROT_REPLAY_FULL_REPAIR=1
-            if (int.TryParse(Environment.GetEnvironmentVariable("HROT_REPLAY_PREFETCH"), out int envDepth)) prefetchDepth = envDepth;
+            if (int.TryParse(EnvVars.Read(EnvVars.HrotReplayPrefetch), out int envDepth)) prefetchDepth = envDepth;
             _prefetchDepth = Math.Max(0, prefetchDepth);
             // Step 1: Load and validate the schema manifest BEFORE opening the binary stream.
             // This prevents silent memory corruption when struct layouts have changed since recording.
@@ -97,7 +98,7 @@ namespace Fdp.Core.FlightRecorder
             _fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             _reader = new BinaryReader(_fileStream);
             _playback = new PlaybackSystem();
-            if (Environment.GetEnvironmentVariable("HROT_REPLAY_FULL_REPAIR") == "1") _playback.ForceFullRepair = true;
+            if (EnvVars.Read(EnvVars.HrotReplayFullRepair) == "1") _playback.ForceFullRepair = true;
 
             // Pre-size the frame index based on the file length to avoid repeated List growth
             // on large recordings. Capacity is clamped to at least 128 slots.
@@ -426,7 +427,7 @@ namespace Fdp.Core.FlightRecorder
         /// <summary>Test hook: the worker, for reading its decoded frames.</summary>
         internal FramePrefetcher? Prefetcher => _prefetcher;
 
-        private static readonly bool StatsOn = Environment.GetEnvironmentVariable("HROT_REPLAY_STATS") == "1";
+        private static readonly bool StatsOn = EnvVars.Read(EnvVars.HrotReplayStats) == "1";
 
         private void ApplyFrame(EntityRepository repo, int frameIndex)
         {

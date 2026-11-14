@@ -101,4 +101,22 @@ public sealed class ParamUsageTests
         ParamUsage.Rename(s, "force", "side");
         Assert.Equal(4, ParamUsage.Find(s, "side").Count);
     }
+
+    /// <summary>⭐ CE-3443 — a rename builds a NEW managed instance and sets it: the object held before the rename (as a snapshot or an undo capture
+    /// holds it — managed chunks are copied shallowly) keeps the OLD name, the stored one carries the new. 🔴 Red-proof: <c>Clone(v) => v</c> (the old
+    /// in-place rewrite) ⇒ the held object reads "force" and the same-reference assertion fails.</summary>
+    [Fact]
+    public void CE3443_ARename_SetsANewInstance_AnObjectHeldBeforeKeepsTheOldName()
+    {
+        var (repo, s, e) = World(); using var _ = repo; Seed(s, e);
+        var held = (NodeComp)s.GetComponent(e, typeof(NodeComp))!;
+        Assert.Equal("side", held.Bind!["Min"]);
+
+        ParamUsage.Rename(s, "side", "force");
+
+        var now = (NodeComp)s.GetComponent(e, typeof(NodeComp))!;
+        Assert.NotSame(held, now);
+        Assert.Equal("force", now.Bind!["Min"]);
+        Assert.Equal("side", held.Bind!["Min"]);   // the earlier snapshot's object is untouched
+    }
 }

@@ -23,7 +23,7 @@ absent from /panels until that perspective has been visited. A capture that does
 switch to every perspective first UNDER-REPORTS, and then a genuinely lost panel looks
 identical to a panel that was simply never woken. So this walks every perspective.
 
-📄 tools/ai-debug-mcp/SKILL.md, Group T.
+📄 GET /help (or Hrot.ClusterRunner --help-api), Group T.
 """
 import argparse
 import json

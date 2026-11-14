@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Threading;
 
@@ -13,24 +14,24 @@ namespace Fdp.ModuleHost
     /// </summary>
     public static class ThreadedKernelGate
     {
-        public static bool Enabled { get; private set; } = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") is "1" or "2" or "3";
+        public static bool Enabled { get; private set; } = EnvVars.Read(EnvVars.HrotThreadedKernel) is "1" or "2" or "3";
 
         /// <summary>⭐ POC 3 (CE-4442) — <c>HROT_THREADED_KERNEL=3</c>: the NODE is COMPOSED over World S (its own repository, built by the bootstrapper)
         /// and the PRESENTATION over World A from the start; A takes S after each node frame. <c>HROT_THREADED_SINGLE=1</c>: the node frame stays on the
         /// main thread (the composition proven before the threading).</summary>
-        public static bool ComposedWorlds { get; private set; } = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") == "3";
-        public static readonly bool ComposedSingleThread = Environment.GetEnvironmentVariable("HROT_THREADED_SINGLE") == "1";
+        public static bool ComposedWorlds { get; private set; } = EnvVars.Read(EnvVars.HrotThreadedKernel) == "3";
+        public static readonly bool ComposedSingleThread = EnvVars.Read(EnvVars.HrotThreadedSingle) == "1";
 
         /// <summary>⭐ POC 2 (CE-4439) — <c>HROT_THREADED_KERNEL=2</c>: TWO worlds — the simulation ticks World S on the worker, the presentation keeps
         /// World A, synced S→A after each tick (📄 DESIGN_Threaded_Simulation_Presentation.md §14). The worker runs only while <see cref="Engaged"/>.</summary>
-        public static bool TwoWorlds { get; private set; } = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") == "2";
+        public static bool TwoWorlds { get; private set; } = EnvVars.Read(EnvVars.HrotThreadedKernel) == "2";
 
         /// <summary>⭐ POC 2 — the worker HOLDS the lock for its whole tick as well as the sync (<c>HROT_TWO_WORLDS_LOCK_TICK=1</c>): the safe
         /// variant while systems still capture A. OFF: the lock is taken for the S→A sync only, and the tick runs beside the drawing thread.</summary>
-        public static readonly bool LockWholeTick = Environment.GetEnvironmentVariable("HROT_TWO_WORLDS_LOCK_TICK") == "1";
+        public static readonly bool LockWholeTick = EnvVars.Read(EnvVars.HrotTwoWorldsLockTick) == "1";
 
         /// <summary>Whether a worker is running (mode 1: always; mode 2: set by the host while S is engaged).</summary>
-        public static volatile bool Engaged = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") == "1";
+        public static volatile bool Engaged = EnvVars.Read(EnvVars.HrotThreadedKernel) == "1";
 
         /// <summary>
         /// ⭐ U-2 (CE-4531, R-4224) — the mode the PRODUCT resolved at start (<c>PerformanceSettings.Resolve</c>: an explicit
@@ -119,7 +120,7 @@ namespace Fdp.ModuleHost
         // ⭐ K-1 (CE-4450) — the hand-over measured: the worker's want, the main thread's exits while it waits, and the FAIR hand-over prototype
         /// <summary><c>HROT_FAIR_HANDOVER=1</c>: while the worker waits for the world to sync, the drawing thread waits ≤ 2 ms for that sync before it
         /// takes the lock again (otherwise it re-enters at once and the unfair monitor starves the worker).</summary>
-        public static readonly bool FairHandover = Environment.GetEnvironmentVariable("HROT_FAIR_HANDOVER") == "1";
+        public static readonly bool FairHandover = EnvVars.Read(EnvVars.HrotFairHandover) == "1";
         private static volatile bool _workerWants;
         private static readonly AutoResetEvent WorkerSyncDone = new(false);
         public static long MainExitsWhileWorkerWaits, MainHandoverWaits;

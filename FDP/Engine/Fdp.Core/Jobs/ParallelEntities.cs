@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Collections.Generic;
 
@@ -270,7 +271,7 @@ namespace Fdp.Core.Jobs
     {
         /// <summary>⭐ The experiment's switch (branch exp/parallel-sim): converted systems take their parallel path only when ON —
         /// <c>HROT_PARALLEL_SIM=1</c>, read once; tests set it. Off ⇒ every converted system runs its serial path, so before / after is one binary.</summary>
-        public static bool Enabled { get; set; } = Environment.GetEnvironmentVariable("HROT_PARALLEL_SIM") == "1";
+        public static bool Enabled { get; set; } = EnvVars.Read(EnvVars.HrotParallelSim) == "1";
 
         /// <summary>
         /// ⭐ R-4218 (CE-4481) — the mode the loops run in: ONE value for the process, set by every kernel at its tick boundary from what is running

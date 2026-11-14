@@ -137,7 +137,7 @@ namespace Fdp.Core
         // ── QA-004: opt-in leak tracker ───────────────────────────────────────────────────────────
         // OFF unless FDP_TRACK_REPO_LEAKS=1, so the normal path pays one already-cached bool read.
         private static readonly bool _trackLeaks =
-            Environment.GetEnvironmentVariable("FDP_TRACK_REPO_LEAKS") == "1";
+            EnvVars.Read(EnvVars.FdpTrackRepoLeaks) == "1";
 
         // EntityRepository does not override Equals/GetHashCode, so the default comparer IS reference
         // identity — which is what a per-instance origin table needs.

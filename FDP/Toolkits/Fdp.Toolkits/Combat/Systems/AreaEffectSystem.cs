@@ -78,7 +78,7 @@ namespace Fdp.Toolkit.Combat.Systems
                         bullets ? static (v, e) => !v.HasComponent<BallisticProjectile>(e) : null);   // a round in flight is not cover
                     built = true;
                 }
-                Assess(repo, in evt, warhead, source, world, terrain, doors);
+                Assess(repo, view.GetCommandBuffer(), in evt, warhead, source, world, terrain, doors);
                 Assessed++;
             }
         }
@@ -144,12 +144,22 @@ namespace Fdp.Toolkit.Combat.Systems
             return a + ab * t;
         }
 
-        private void Assess(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, string source,
+        private void Assess(EntityRepository repo, IEntityCommandBuffer cmd, in DetonationNotification evt, Tkb.Domain.WarheadDto w, string source,
             IWorldQuery? world, TerrainWorld? terrain, DoorStates? doors)
         {
             var burst = new Vector3(evt.HitX, evt.HitY, evt.HitZ);
             var struck = evt.Target.IsNull ? ColliderOcclusion.Nobody : evt.Target;   // ⚠ never skip "index 0" for a terrain burst
             float reach = MathF.Max(w.FragmentRadiusM, w.BlastInjuryRadiusM);
+            // ⭐⭐ CE-4584 (AQ101 §R C, R-4227) — a burst is FIRE to every person within 2 × its blast INJURY radius (the field of that name: a few
+            //   metres for a mortar bomb, so ~10–15 m): the ONE near miss a passing round gives (HitModel.NearMiss — the event the brain senses,
+            //   and the under-fire stamp). ⛔ Not the fragment radius (2 × that reaches 40–70 m: a man that far is not shot at). Every person,
+            //   either side and civilians (fire is fire); not the entity the round struck (that is a hit), not a hull or a piece of equipment.
+            float nearMiss = 2f * w.BlastInjuryRadiusM;
+            Vector3? origin = null;
+            if (nearMiss > 0f && !evt.Round.IsNull && repo.IsAlive(evt.Round) && repo.IsComponentTypeRegistered<BallisticProjectile>()
+                && repo.HasComponent<BallisticProjectile>(evt.Round) && (Vector3)repo.GetComponentRO<BallisticProjectile>(evt.Round).Muzzle is var muzzle
+                && muzzle != Vector3.Zero)
+                origin = muzzle;   // where it was fired from (CE-3262) — the mortar's tube, as a rifle's muzzle
             var log = DetonationLog.For(repo);
             var record = new DetonationRecord
             {
@@ -165,6 +175,8 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(repo, e)) continue;   // ⭐ CE-3110 I-2c (R-271) — inside an enclosed hull
                 if (repo.GetComponentRO<Health>(e).Current <= 0f) continue;
                 var tf = repo.GetComponentRO<SimTransform>(e);
+                if (nearMiss > 0f && e != evt.Target && Vector3.Distance(burst, tf.Position) <= nearMiss && IsPerson(repo, e))
+                    HitModel.NearMiss(repo, cmd, e, burst, origin);   // ⭐ CE-4584 — before the damage reach: the near-miss ring may be the wider one
                 if (Vector2.Distance(new Vector2(burst.X, burst.Y), new Vector2(tf.Position.X, tf.Position.Y)) > reach + 2f) continue;
                 // ⭐⭐ CE-6003 (city battle O-1, Peek and Fire §9.9) — a destructible OBSTACLE is terrain: blast by charge and closeness, never the
                 //   person / hull law below (its own prism would shield its body points, and that law's blast is the same for every warhead)
@@ -526,6 +538,13 @@ namespace Fdp.Toolkit.Combat.Systems
             }
             return (AreaEffect.FragmentTarget.Person, AreaEffect.PersonArea(stance), distance);
         }
+
+        /// <summary>⭐ <c>CE-4584</c> — a person in the sense <see cref="FragmentTargetOf"/> uses: no stated presented area (equipment) and no hull,
+        /// and not a destructible obstacle.</summary>
+        internal static bool IsPerson(EntityRepository repo, Entity e)
+            => !TerrainObstacles.IsObstacle(repo, e)
+               && PhysicsColliderReaders.HullHeight(repo, e) <= 0f
+               && CombatTkb.PlatformOf(repo, e) is not { PresentedAreaM2: > 0f };
 
         /// <summary>The height above its sill a door is tested at (the middle of a standard leaf).</summary>
         private const float DoorMidHeight = 1.0f;

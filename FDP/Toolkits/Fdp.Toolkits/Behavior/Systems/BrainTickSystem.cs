@@ -118,7 +118,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// dt-integrating timer inside a brain runs slow — measured, not fixed (docs/DESIGN_Evaluation_Cost_And_Cadence.md §3 D6). 0 = off.
         /// </summary>
         public static float ExperimentalSoldierCadence =
-            float.TryParse(Environment.GetEnvironmentVariable("HROT_SOLDIER_CADENCE"), System.Globalization.NumberStyles.Float,
+            float.TryParse(EnvVars.Read(EnvVars.HrotSoldierCadence), System.Globalization.NumberStyles.Float,
                            System.Globalization.CultureInfo.InvariantCulture, out var cadenceSeconds) && cadenceSeconds > 0f ? cadenceSeconds : 0f;
 
         public BrainTickSystem(BehaviorRegistry registry, bool gateOnAuthority = false,
@@ -288,7 +288,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <see cref="ParallelEntities.Enabled"/> — the switch every converted per-entity system follows) or the threaded node
         /// (<c>HROT_THREADED_KERNEL=3</c>). Off by default; tests set it.</summary>
         public static bool Parallel = (ParallelEntities.Enabled || Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds)
-            && Environment.GetEnvironmentVariable("HROT_SERIAL_BRAINS") != "1";   // ⭐ N-15 — the measuring switch: this phase alone serial
+            && EnvVars.Read(EnvVars.HrotSerialBrains) != "1";   // ⭐ N-15 — the measuring switch: this phase alone serial
 
         private struct Due
         {

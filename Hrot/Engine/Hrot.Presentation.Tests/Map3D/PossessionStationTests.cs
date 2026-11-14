@@ -209,6 +209,40 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
+    /// ⭐⭐ CE-1464 (§8d) — a unit possessed over HTTP: the station still FOLLOWS it (first person) but sends NO control frame — the HTTP client drives
+    /// it, and our per-rendered-frame seq would outrun every HTTP frame (newest seq wins). When the station leaves the unit the mark is gone, so the
+    /// operator's own possess drives it again. 🔴 Mutation: the <c>IsMarked</c> gate in <c>PossessionStation.Send</c> removed ⇒ a frame is sent ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1464_AUnitPossessedOverHttp_IsFollowed_ButTheStationSendsNoFrames_UntilItLeavesHim()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);   // followed: first person
+            HttpControlledUnits.Mark(driver.NetId);
+            try
+            {
+                var input = new Input { LeftDown = true };
+                input.Keys.Add((int)Raylib_cs.KeyboardKey.W);
+                sw.Camera3D.HandleInput(input);
+                w.Bus.SwapBuffers();
+                Assert.Empty(w.Bus.Read<OperatorControlFrameEvent>().ToArray());
+                Assert.Equal(0L, station.FramesSent);
+
+                w.RemoveComponent<PossessedBy>(unit);   // released ⇒ the station leaves him ⇒ the unit is the operator's again
+                station.Update(0.016f);
+                Assert.False(HttpControlledUnits.IsMarked(driver.NetId));
+            }
+            finally { HttpControlledUnits.Clear(driver.NetId); }
+        }
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-1073 (docs/DESIGN_Map_3D_Mode.md §6l) — the eye is the DRAWN head's, on the unit's current position and heading, and the held
     /// unit's head is not drawn. 🔒 User, 2026-10-14: "When moving forward the character leans a bit forward basically putting his head
     /// in front of the FPS camera so i see nothing — the camera should rather be bound to character's head/eyes". A look moved by the

@@ -27,10 +27,10 @@ namespace Fdp.Toolkit.Diagnostics
     /// </summary>
     public static class ContactCoverProbe
     {
-        public static readonly bool On = Environment.GetEnvironmentVariable("HROT_CONTACT_PROBE") == "1";
+        public static readonly bool On = EnvVars.Read(EnvVars.HrotContactProbe) == "1";
         /// <summary><c>HROT_CONTACT_PROBE_DETAIL=1</c> — a last column naming each commit: <c>entity:x,z</c> then <c>+</c> (newly live) or
         /// <c>~d</c> (moved d m), then <c>@</c> the claim's remaining life (s).</summary>
-        public static readonly bool Detail = Environment.GetEnvironmentVariable("HROT_CONTACT_PROBE_DETAIL") == "1";
+        public static readonly bool Detail = EnvVars.Read(EnvVars.HrotContactProbeDetail) == "1";
         private static readonly System.Text.StringBuilder s_detail = new();
 
         private const float SameRadius = 1.5f, MovedM = 0.5f;
@@ -115,7 +115,7 @@ namespace Fdp.Toolkit.Diagnostics
 
             if (s_out == null)
             {
-                var path = (Environment.GetEnvironmentVariable("HROT_CONTACT_PROBE_OUT") is { Length: > 0 } o ? o : Path.Combine(Path.GetTempPath(), "hrot-contact-probe"))
+                var path = (EnvVars.Read(EnvVars.HrotContactProbeOut) is { Length: > 0 } o ? o : Path.Combine(Path.GetTempPath(), "hrot-contact-probe"))
                            + "." + Environment.ProcessId + ".tsv";
                 s_out = new StreamWriter(path, append: false) { AutoFlush = false };
                 s_out.WriteLine("tick\tsimTime\tcommits\tsamePair\tonLive\tunitsNewContact\tnewContacts");

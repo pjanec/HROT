@@ -95,11 +95,20 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             var target = p.Target.Ref.Resolve(world);
             if (target.IsNull || !world.IsAlive(target)) return Fail(world, self, "target not found");
             if (!world.IsComponentTypeRegistered<ObjectiveStatus>() || !world.HasComponent<ObjectiveStatus>(target)) return Fail(world, self, "target has no objective status");
-            ref var st = ref world.GetComponentRW<ObjectiveStatus>(target);
-            var refusal = ObjectiveRules.SetActive(ref st, p.Active, p.Reset, ObjectiveHost.Now(world));
+            // ⭐ CE-3448 — the verdict from the tick-start view (a copy); the switch itself on the LIVE status, serially (RuleAfterPhase)
+            var probe = world.GetComponentRO<ObjectiveStatus>(target);
+            double now = ObjectiveHost.Now(world);
+            var refusal = ObjectiveRules.SetActive(ref probe, p.Active, p.Reset, now);
             if (refusal != null) return Fail(world, self, refusal);
-            RuleCadence.Wake(world, target);   // ⭐ CE-2383 — the target may be asleep (final, waiting): it takes the switch at the next frame
-            Fdp.Core.Logging.FdpLog<Log>.Info($"objective '{st.Title}': {(p.Reset ? "reset, " : "")}{(p.Active ? "on" : "off")} (asked by {self})");
+            bool active = p.Active, reset = p.Reset;
+            RuleAfterPhase.Run(world, self, w =>
+            {
+                if (!w.IsAlive(target) || !w.HasComponent<ObjectiveStatus>(target)) return;
+                ref var st = ref w.GetComponentRW<ObjectiveStatus>(target);
+                if (ObjectiveRules.SetActive(ref st, active, reset, now) is { } late) { Fdp.Core.Logging.FdpLog<Log>.Warn($"objective '{st.Title}': {late} (asked by {self})"); return; }
+                RuleCadence.Wake(w, target);   // ⭐ CE-2383 — the target may be asleep (final, waiting): it takes the switch at the next frame
+                Fdp.Core.Logging.FdpLog<Log>.Info($"objective '{st.Title}': {(reset ? "reset, " : "")}{(active ? "on" : "off")} (asked by {self})");
+            });
             return NodeStatus.Success;
         }
 
@@ -117,10 +126,15 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             if (!world.IsComponentTypeRegistered<ObjectiveStatus>() || !world.HasComponent<ObjectiveStatus>(target)) return Fail(world, self, "target has no objective status");
             ref readonly var st = ref world.GetComponentRO<ObjectiveStatus>(target);
             if (st.Role != ObjectiveRole.Trigger || st.Phase == 0) return Fail(world, self, "the target is not a phase (a trigger with common.phase)");
-            int seq = 0;
-            RuleCommands.Control(world, target, RuleRequest.Fire, RuleOrigin.Rule, ref seq, out _);
-            RuleCadence.Wake(world, target);
-            Fdp.Core.Logging.FdpLog<Log>.Info($"phase {st.Phase} '{st.Title}': begun (asked by {self})");
+            string title = st.Title.ToString(); int phase = st.Phase;
+            RuleAfterPhase.Run(world, self, w =>   // ⭐ CE-3448 — the control write lands on ANOTHER rule: serially
+            {
+                if (!w.IsAlive(target)) return;
+                int seq = 0;
+                RuleCommands.Control(w, target, RuleRequest.Fire, RuleOrigin.Rule, ref seq, out _);
+                RuleCadence.Wake(w, target);
+                Fdp.Core.Logging.FdpLog<Log>.Info($"phase {phase} '{title}': begun (asked by {self})");
+            });
             return NodeStatus.Success;
         }
 
@@ -134,11 +148,17 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             var target = p.Target.Ref.Resolve(world);
             if (target.IsNull || !world.IsAlive(target)) return Fail(world, self, "target not found");
             if (!world.IsComponentTypeRegistered<ObjectiveStatus>() || !world.HasComponent<ObjectiveStatus>(target)) return Fail(world, self, "target has no objective status");
-            ref var st = ref world.GetComponentRW<ObjectiveStatus>(target);
-            if (st.Kind.ToString() != CounterBehavior.Kind) return Fail(world, self, "target is not a Counter");
-            if (st.Closed != 0) return Fail(world, self, "the counter is closed");
-            st.Value += p.Amount;
-            Fdp.Core.Logging.FdpLog<Log>.Info($"counter '{st.Title}': {p.Amount:+0.##;-0.##} → {st.Value:0.##} (asked by {self})");
+            ref readonly var probe = ref world.GetComponentRO<ObjectiveStatus>(target);
+            if (probe.Kind.ToString() != CounterBehavior.Kind) return Fail(world, self, "target is not a Counter");
+            if (probe.Closed != 0) return Fail(world, self, "the counter is closed");
+            float amount = p.Amount;
+            RuleAfterPhase.Run(world, self, w =>   // ⭐ CE-3448 — on the LIVE value, serially: two rules adding in one tick both land
+            {
+                if (!w.IsAlive(target) || !w.HasComponent<ObjectiveStatus>(target)) return;
+                ref var st = ref w.GetComponentRW<ObjectiveStatus>(target);
+                st.Value += amount;
+                Fdp.Core.Logging.FdpLog<Log>.Info($"counter '{st.Title}': {amount:+0.##;-0.##} → {st.Value:0.##} (asked by {self})");
+            });
             return NodeStatus.Success;
         }
 
@@ -162,35 +182,46 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             if (env.IsNull) return Fail(world, self, "no World Environment");
             if (s.Began == 0)
             {
-                if (!world.HasComponent<ExerciseResult>(env))
+                if (world.HasComponent<ExerciseResult>(env) && world.GetComponentRO<ExerciseResult>(env).Phase == ExercisePhase.Ended)
+                    return Fail(world, self, "the exercise already ended");
+                var reason = p.Reason;
+                // ⭐ CE-3448 — the World Environment is ANOTHER entity: Closing is written serially (RuleAfterPhase); the objectives close at their next tick
+                RuleAfterPhase.Run(world, self, w =>
                 {
-                    // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
-                    var fresh = new ExerciseResult();
-                    if (fresh.Phase == ExercisePhase.Ended) return Fail(world, self, "the exercise already ended");
-                    fresh.Phase = ExercisePhase.Closing; fresh.Reason = p.Reason;
-                    world.AddComponent(env, fresh);
-                    s.Began = 1; s.StartedAt = (SimInstant)now;
-                    Fdp.Core.Logging.FdpLog<Log>.Info($"exercise closing ({p.Reason}) at {now:0.###} s");
-                    return NodeStatus.Running;   // the objectives close at their next tick
-                }
-                ref var r0 = ref world.GetComponentRW<ExerciseResult>(env);
-                if (r0.Phase == ExercisePhase.Ended) return Fail(world, self, "the exercise already ended");
-                r0.Phase = ExercisePhase.Closing; r0.Reason = p.Reason;
+                    if (!w.IsAlive(env)) return;
+                    if (!w.HasComponent<ExerciseResult>(env))
+                    {
+                        var fresh = new ExerciseResult { Phase = ExercisePhase.Closing, Reason = reason };   // N-11 — added with its final value
+                        w.AddComponent(env, fresh);
+                    }
+                    else
+                    {
+                        ref var r0 = ref w.GetComponentRW<ExerciseResult>(env);
+                        if (r0.Phase == ExercisePhase.Ended) return;
+                        r0.Phase = ExercisePhase.Closing; r0.Reason = reason;
+                    }
+                    Fdp.Core.Logging.FdpLog<Log>.Info($"exercise closing ({reason}) at {now:0.###} s");
+                });
                 s.Began = 1; s.StartedAt = (SimInstant)now;
-                Fdp.Core.Logging.FdpLog<Log>.Info($"exercise closing ({p.Reason}) at {now:0.###} s");
-                return NodeStatus.Running;   // the objectives close at their next tick
+                return NodeStatus.Running;
             }
             var open = Stragglers(world, out int total);
             if (open.Count > 0 && now - s.StartedAt < CloseTimeoutSeconds - 1e-9) return NodeStatus.Running;
             if (open.Count > 0)
                 Fdp.Core.Logging.FdpLog<Log>.Warn($"exercise end: {open.Count} of {total} objectives did not close within {CloseTimeoutSeconds} s: {string.Join(", ", open)}");
-            ref var r = ref world.GetComponentRW<ExerciseResult>(env);
-            Outcomes(world, ref r);
-            NameTheWinner(ref r, p.Winner.ToString());
-            r.Phase = ExercisePhase.Ended; r.EndedAt = (SimInstant)now;
-            if (!world.Bus.IsRegistered<ExerciseEndedEvent>()) world.Bus.Register<ExerciseEndedEvent>();
-            world.Bus.Publish(new ExerciseEndedEvent { EndedAt = (SimInstant)now });
-            Fdp.Core.Logging.FdpLog<Log>.Info($"exercise ended at {now:0.###} s: Friend {r.Friend.Outcome} {r.Friend.Score:0.00}, Hostile {r.Hostile.Outcome} {r.Hostile.Score:0.00}");
+            string winner = p.Winner.ToString();
+            RuleAfterPhase.Run(world, self, w =>   // ⭐ CE-3448 — the outcomes and Ended on the World Environment, serially
+            {
+                if (!w.IsAlive(env) || !w.HasComponent<ExerciseResult>(env)) return;
+                ref var r = ref w.GetComponentRW<ExerciseResult>(env);
+                if (r.Phase == ExercisePhase.Ended) return;   // a second End in the same tick: the first one ends it
+                Outcomes(w, ref r);
+                NameTheWinner(ref r, winner);
+                r.Phase = ExercisePhase.Ended; r.EndedAt = (SimInstant)now;
+                if (!w.Bus.IsRegistered<ExerciseEndedEvent>()) w.Bus.Register<ExerciseEndedEvent>();
+                w.Bus.Publish(new ExerciseEndedEvent { EndedAt = (SimInstant)now });
+                Fdp.Core.Logging.FdpLog<Log>.Info($"exercise ended at {now:0.###} s: Friend {r.Friend.Outcome} {r.Friend.Score:0.00}, Hostile {r.Hostile.Outcome} {r.Hostile.Score:0.00}");
+            });
             return NodeStatus.Success;
         }
 
@@ -275,19 +306,9 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             // ⭐ N-15 (CE-4477; status §5) — the message is NUMBERED where the order is fixed: inside a per-entity phase it is sent by the phase's
             //   serial follow-up (batch order), so two rules' messages of one tick get the same ids at any thread count (receivers de-dup on
             //   (MessageId, origin)); a ticket into a small pending table carries it there (a follow-up carries only an entity and two numbers)
-            if (Fdp.Core.ParallelReadCheck.Defers(world))
-            {
-                long ticket = System.Threading.Interlocked.Increment(ref s_ticket);
-                s_pending[ticket] = message;
-                Fdp.Core.ParallelReadCheck.CurrentBatch!.Later(SendAfterPhase.Instance, self, 0, ticket);
-                return NodeStatus.Success;
-            }
-            Send(world, message);
+            RuleAfterPhase.Run(world, self, w => Send(w, message));   // ⭐ CE-3448 — the one serial path every rule verb's outside effect takes
             return NodeStatus.Success;
         }
-
-        private static long s_ticket;
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<long, PlayerMessageEvent> s_pending = new();
 
         /// <summary>Numbers <paramref name="message"/> and publishes it — serially (the walk, or a phase's follow-up in batch order).</summary>
         private static void Send(EntityRepository world, PlayerMessageEvent message)
@@ -297,14 +318,6 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             world.Bus.PublishManaged(message);
         }
 
-        private sealed class SendAfterPhase : Fdp.Core.Jobs.IPhaseFollowUp
-        {
-            public static readonly SendAfterPhase Instance = new();
-            public void Apply(EntityRepository repo, Entity e, int code, long arg)
-            {
-                if (s_pending.TryRemove(arg, out var message)) Send(repo, message);
-            }
-        }
 
         /// <summary>⭐ S7 P-8d — <c>{subject}</c> in a message is the name of the sending trigger's subject (<c>ObjectiveLinks.Subject</c>; <c>EntityInfo.Name</c>, else "#netid"): one macro serves every man.</summary>
         internal static string WithSubject(EntityRepository world, Entity self, string text)

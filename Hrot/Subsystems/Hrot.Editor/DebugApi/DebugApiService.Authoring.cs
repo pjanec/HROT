@@ -1278,10 +1278,20 @@ namespace Hrot.Editor.DebugApi
         public (JsonNode? Result, string? Error, string? HintCategory) InvokeEditorCommand(
             string? id, JsonNode? body) => InvokeEditorCommand(id, body, scope: null);
 
+        /// <summary>⭐ CE-4585 — the start of a refusal's error text (the route answers it 403).</summary>
+        public const string HttpRefusedPrefix = "Refused over HTTP: ";
+
+        /// <summary>⭐ CE-4585 — the commands an HTTP client may not invoke: the menu's performance toggles (they save the user's file).</summary>
+        public static bool RefusedOverHttp(string? id) => id != null && id.StartsWith("settings.performance.", StringComparison.Ordinal);
+
         /// <summary><see cref="InvokeEditorCommand(string?, JsonNode?)"/> over the set <paramref name="scope"/> names (<c>shell</c>, else the document's).</summary>
         public (JsonNode? Result, string? Error, string? HintCategory) InvokeEditorCommand(
             string? id, JsonNode? body, string? scope)
         {
+            // ⭐ CE-4585 (B-5) — the menu's performance toggles SAVE the user's own settings file (every later process on the machine starts with
+            //   it): an HTTP client may not rewrite it. A test chooses the switches by STARTING the process with them; GET /performance confirms.
+            if (RefusedOverHttp(id)) return (null, HttpRefusedPrefix + $"'{id}' writes the user's saved performance settings and is not invoked over HTTP. "
+                + "Start the process with HROT_PARALLEL_SIM=0|1, HROT_THREADED_KERNEL=0|3, HROT_SIM_THREADS=n instead; GET /performance shows what it runs with.", DebugApiHints.Panel);
             var commands = ResolveCommands(scope);
             if (commands == null) return (null, NoEditorCommands, DebugApiHints.Panel);
 

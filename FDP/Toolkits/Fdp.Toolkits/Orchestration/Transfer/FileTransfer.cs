@@ -122,7 +122,7 @@ namespace Fdp.Toolkit.Orchestration.Transfer
         /// </summary>
         public static string? ForThisProcess(string nodeStagingRoot)
         {
-            var configured = System.Environment.GetEnvironmentVariable(ShareEnvironmentVariable);
+            var configured = EnvVars.Read(EnvVars.HrotTransferShare);
             if (string.Equals(configured, "none", System.StringComparison.OrdinalIgnoreCase)) return null;
             return Share(string.IsNullOrWhiteSpace(configured) ? nodeStagingRoot : configured!);
         }

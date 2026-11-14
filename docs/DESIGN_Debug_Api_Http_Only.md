@@ -1,11 +1,11 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD
-updated: 2026-11-13
-current-answer: the whole file (§1 the decision, §2 the diagrams, §3 where every piece of information lives, §4 rules, §5 acceptance)
+build-state: BUILT — part A (§1–§5, CE-4523…CE-4529, `2026-11-14`); §6 (CE-4586) READY-TO-BUILD
+updated: 2026-11-14 (§6 the environment-variable registry, CE-4586)
+current-answer: §7 + §8 the as-built (parts A and B) (read first where it differs), then the whole file (§1 the decision, §2 the diagrams, §3 where every piece of information lives, §4 rules, §5 acceptance, §6 the environment variables)
 stale-below: nothing
 known-rot: none
-known-conflict: MCP_Integration.md and tools/ai-debug-mcp/README.md describe the MCP server as live — superseded by this design once built (R-4223)
+known-conflict: none — MCP_Integration.md and the other docs that name the removed server carry a HISTORY note (CE-4528)
 related-designs:
   - designs/ai-debug-api/DESIGN.md — OWNS the WHY of the AI debug HTTP API and its endpoint groups A–N (historical, as designed); this file retires only its "companion MCP server" half
   - MCP_Integration.md — OWNS the API's as-built record on trunk; its MCP-server sections become HISTORY here, its endpoint record stays
@@ -162,7 +162,7 @@ removed — a second copy of the docs in another language, its server, and the c
 | | |
 |---|---|
 | ⭐⭐⭐ **a fact about the API is written ONCE** — the route doc, or the guide prose | ⛔ no generated copy committed anywhere; generation happens at request time from the one source |
-| ⭐⭐ **param location is derived, never authored**: a `{name}` in the template ⇒ path; otherwise GET / DELETE ⇒ query, POST / PUT / PATCH ⇒ body | ⭐ a rail calls every route with its documented example args through a recording `RouteContext` and fails when a handler reads a key from a place the derivation does not say (or reads an undocumented key) |
+| ⭐⭐ **param location is derived, never authored**: a `{name}` in the template ⇒ path; otherwise GET / DELETE ⇒ query, POST / PUT / PATCH ⇒ body | ⭐ a rail fails when a handler reads a key from a place the derivation does not say (or reads an undocumented key) — ⚠ as built a SOURCE scan, not a recording `RouteContext` (§7) |
 | ⭐⭐ **`EveryRouteIsDocumentedTests` stays**, and gains: the `/help` text names every documented route | ⭐ that is R-1030's intent ("regenerating the docs must be part of every change") made true by construction — nothing left to regenerate |
 | ⭐ **`/help` is language-neutral** (R-4221: invariant formatting); it is a user action, so the 0 B steady-frame rule does not apply | — |
 | ⭐ **no-tool routes keep their docs** | `RouteDoc.NotATool` becomes meaningless (there are no tools) — rename to `Internal` only if a route must stay out of `/help`; otherwise drop the flag |
@@ -176,3 +176,99 @@ removed — a second copy of the docs in another language, its server, and the c
    R-1030.
 4. The skill is a pointer; following it from a fresh VM (build, start per the runbook, `GET /help`, one call) works.
 5. The system-test harness (`DESIGN_MCP_System_Test_Harness.md`) is unchanged and green.
+
+## 6. The environment variables — one registry, read by `/help` *(CE-4586, `2026-11-14`)*
+
+🔒 User, `2026-11-14`: *"how the ai aget knows what all environemtn variables are available? it needs to know them if the performanceseeting cant be
+changed at runtime"* · *"agreed yes add the central registry"*.
+
+**INVENTORY** *(2026-11-14)*: grep `"(HROT|FDP)_[A-Z0-9_]+"` over `*.cs` — 141 `HROT_*` + 12 `FDP_*` names (tests included); 96 production
+`GetEnvironmentVariable("HROT_…" | "FDP_…")` sites; 40 FDP files read `HROT_*`, 3 Hrot files read `FDP_*` ⇒ the registry sits BELOW both, in
+`Fdp.Core`. Readers outside `Fdp.Core`'s reach: `FDP/ExtDeps/GizmoMap` (2 files), `Hrot/Tools/*`. `scripts/cbm.sh search_graph
+'{"name_pattern":".*(EnvVar|EnvSwitch|Environment(Variable|Switch)).*","label":"Class"}'` — no registry class exists (`HrotEnvironment` builds
+the TKB, unrelated). The documents name them scattered (the tracker 35, Parallel Simulation 14, the runbook 2). ⚠ Graph coverage not checkable.
+
+```mermaid
+classDiagram
+  class EnvVars {
+    <<NEW — Fdp.Core, the one table>>
+    All : EnvVar[]
+    Read(EnvVar) string
+    Flag(EnvVar) bool
+    Int(EnvVar, int) int
+  }
+  class EnvVar {
+    <<NEW record>>
+    Name : string
+    Category : EnvCategory
+    Type / Default
+    Purpose : one line
+    Design : doc section
+  }
+  class EnvCategory {
+    <<enum>>
+    Switch
+    Diagnostic
+    Test
+    Tool
+  }
+  class AgentGuide {
+    <<§2.1 — GET /help, --help-api>>
+  }
+  class PerformanceRoute {
+    <<CE-4585 — GET /performance>>
+  }
+  class EveryEnvReadIsRegisteredTests {
+    <<NEW rail>>
+  }
+  EnvVars "1" o-- "*" EnvVar
+  EnvVar --> EnvCategory
+  AgentGuide ..> EnvVars : renders by category
+  PerformanceRoute ..> EnvVars : what this process received
+  EveryEnvReadIsRegisteredTests ..> EnvVars : no raw read outside it
+```
+*What it shows that prose hid: the guide and `/performance` add no facts of their own — both RENDER the one table, and the rail is what keeps
+the table complete; without it the table rots exactly as the scattered mentions did.*
+
+```mermaid
+graph TD
+  CORE[Fdp.Core - EnvVars, every declaration] --> FDPR[FDP toolkits - read through EnvVars]
+  CORE --> HR[Hrot engine / subsystems / runner - read through EnvVars]
+  CORE --> HELP[GET /help + --help-api - the list by category]
+  CORE --> PERF[GET /performance - the received values]
+  EXT[ExtDeps GizmoMap, Hrot/Tools - raw reads]:::edge -.declared in the table, read raw, on the rail's allow-list.-> CORE
+  classDef edge stroke:#c80,color:#c80,stroke-dasharray: 5 5
+```
+*What it shows: everything the agent can read comes from the one table; the dashed box is the only place a raw read stays — projects that do not
+reference `Fdp.Core` — and even there the NAME is declared in the table, so `/help` lists it.*
+
+| rule | |
+|---|---|
+| ⭐⭐⭐ **every variable is declared once in `EnvVars`** — name, category, type, default, one line of purpose, its design section | ⛔ no second list in a doc: the runbook and CLAUDE.md point at `/help` (or `--help-api`) |
+| ⭐⭐ **every read goes through it**; a rail scans the sources and fails on a raw `GetEnvironmentVariable("HROT_…"/"FDP_…")` outside `EnvVars` and the allow-list (the projects that cannot reference `Fdp.Core`), and on a name used but not declared | the rail is the completeness guarantee — R-1030's intent, by construction |
+| ⭐ **`/help` lists them by category** with *"read once, at process start — set them when you start the process"*; `GET /performance` (CE-4585) lists which were set for this process | language-neutral (R-4221) |
+| ⭐ **a read is cheap and allocation-free** where it sits on a hot path (cache the parsed value, as today's static switches do) | R-2084 |
+| ⚠ **experiment leftovers are LISTED, not deleted** (category `Diagnostic`, purpose says so) | the user decides retirement from the report — "no rush removals" |
+
+## 7. As built — part A *(CE-4523…CE-4529, `2026-11-14`, backend)*
+
+| item | built | ⚠ deviation from §2–§5, and why |
+|---|---|---|
+| H-1 param locations | `ParamLocations` (the ONE derivation, rendered by `/help`) · rail `EveryRouteReadsItsParamsWhereDerivedTests` | ⭐ a **source scan** of every handler in `DebugApiHost*.cs` (224 routes), not a recording `RouteContext`: it sees every branch without a world; a recorded call sees one branch and stops at the first throw. Reach: the handler's own `ctx.Query` / `ctx.Body[…]` / `ctx.RouteValue`; a key read deeper (the body handed to a service) is not checked. Found and fixed: invoke's `scope` read from the query (→ body; `scripts/access-trace-session.py` ×4), 12 undocumented keys, and 5 `owner…` params documented on the GET variable route whose handler never reads them (→ the POST) |
+| H-2 prose | `Hrot.Editor/DebugApi/Guide/*.md`, embedded (`Hrot.Editor.Guide.*`) | moved, tool names mechanically turned into `METHOD /path` (the route docs' own map); the lifecycle part now points to the runbook for starting (no `start_simulation` exists); the "when the MCP server drops" gotcha became "driving it with curl" |
+| H-3 `/help`, `--help-api` | `AgentGuide.Render` · `DebugApiHost.HelpText` · `GET /help` (classified `host`) · `Program.cs` `--help-api` (before argument parsing) | ⭐ `/help` answers **`text/markdown`**, not the JSON envelope (`RouteResult.Text`) — it is read, not parsed. Availability: a route whose capability the current perspective (the editor: its cells) cannot serve is marked `⛔ not here: <cap>`. Rails `AgentGuideTests` (every documented route named; `--help-api` = `/help` minus availability; `cs-CZ` identical; prose HTTP-worded), red-proved. Live: the editor's `/help` 2 637 lines, `--help-api` 2 636 |
+| H-4 removal | `tools/ai-debug-mcp/` and the `.mcp.json` entry deleted; the catalog rail removed | ⭐ `RouteDoc.NotATool` **dropped** (its one route, `POST /breakpoints/step`, documented like any other); ⚠ `RouteDoc.Tool` **kept** as each route's short unique id — hints and rails name routes by it, and removing it touches 224 entries for nothing. `--mode dump-api` kept (the route table as JSON, offline) |
+| H-5 skill | `.claude/skills/ai-debug-http/SKILL.md` — start per the runbook, then `GET /help` / `--help-api` | — |
+| H-6 docs | a HISTORY note at the top of the 31 docs that name the server; `MCP_Integration.md`'s HN-030 section retitled HISTORY | ⚠ a note per doc, not section moves — the docs own other content and are not rewritten (the handoff's rule) |
+
+
+## 8. As built — part B *(CE-1474 · CE-1950 · CE-1472 · CE-1464 · CE-4585 · CE-4586, `2026-11-14`, backend)*
+
+| item | built | ⚠ deviation / finding |
+|---|---|---|
+| B-1 CE-1474 the fused server's time | `PerspectiveScopedDispatcher.OrSoleProvider`: no claimed perspective and exactly ONE provider holding a world ⇒ that provider (CGF; its drive is the `ClusterTimeTransportAdapter` every host drives) | 📌 measured: Orchestrator + CGF, headless ⇒ perspective `""`; windowed ⇒ `Start` with nothing remembered — both resolved to none. Two world-holders (`-m all`) still resolve to none. Live `simTime` 0 → 2.04 after play |
+| B-2 CE-1950 a failed replay load | ① `ClusterMaster.IsLoadTrajectory` — `LoadingReplay` is a load (R-3070: fails at once, back to Idle) ② `DebugApiHost.PublishAndAwait` follows the round's outcome (`RoundSettled` over `LoadPhaseOf`) for every publishing route with `waitForReady` — Failed ⇒ 409 with the node's reason | "where it was" = Idle: a replay is entered only from Idle (`HrotStateGraph`), so one rule serves both |
+| B-3 CE-1472 the Player's render telemetry | the Player's canvas updates whenever it owns the map; only its own camera / measure input keeps the `WantCaptureMouse` gate | 📌 the Player HAD the shared `MapStatsOverlay`; a modal froze every layer. Live: 1 frozen frame → 51 frames at 25 fps. No rail (display + server + player) |
+| B-4 CE-1464 HTTP control vs the station | `HttpControlledUnits` (Hrot.Presentation): `POST …/possess` marks the unit, `DELETE` and the station's leave clear it; `PossessionStation.Send` sends nothing for a marked unit | §8d of `DESIGN_Entity_Control.md` kept: the view still FOLLOWS `PossessedBy` (first person); only the frames yield. 📌 measured under Xvfb (~25 fps): HTTP frames sometimes won the seq race (2 rounds per 100–240 frames) — the defect is rate-bound, full on a 60+ fps window |
+| B-5 CE-4585 the performance switches | `PerformanceStatus` (Fdp.Core.Jobs), published by `PerformanceStartup.Apply`; `GET /performance` + `/status.performance`; `settings.performance.*` refused (403, the file untouched); runbook §1.5 | the refusal prefix is `HttpRefusedPrefix` (the perspective switch already owned `RefusedPrefix` ⇒ 409) |
+| B-6 CE-4586 the environment variables | `Fdp.Core.EnvVars` (+ `EnvVars.Declarations.cs`); `/help` §8 and `--help-api` render it; `/performance.environment` lists what this process received; rail `EveryEnvReadIsRegisteredTests` | see the status file for counts and the experiment leftovers listed for the user; `LIVECITY_*` (vendored SumoSharp) is outside the `HROT_*`/`FDP_*` scope |

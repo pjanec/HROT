@@ -15,6 +15,9 @@ design-basis: DESIGN_Cgf_Editor_Sharing_Slice3_Editing_HotReload.md §8 (the par
 known-conflict: ⚠ shares the DebugApi surface with CE-011 — the collision plan is in the slice-3 design §8
   and restated in §7 here.
 -->
+
+> ⛔ **HISTORY note (R-4223, CE-4528, `2026-11-14`)** — the Node MCP server (`tools/ai-debug-mcp`: its tool catalog, generated `SKILL.md`, skill parts and generators) named in this document is **removed**. The debug API is plain HTTP and describes itself: `GET /help` (or `Hrot.ClusterRunner --help-api` before anything is started) and `GET /capabilities` — [`DESIGN_Debug_Api_Http_Only.md`](../DESIGN_Debug_Api_Http_Only.md). Every mention of the server, its tools or its generated files below is HISTORY; tool names map to routes in `GET /help`.
+
 # Architect Question 56 — **the MCP authoring surface** *(scenario + AI-asset authoring over MCP)*
 
 > 🎯 **User, `2026-08-25`:** *"keep extending the MCP server by the scenario authoring capabilities

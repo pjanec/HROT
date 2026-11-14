@@ -34,6 +34,10 @@ namespace Fdp.Toolkit.Squad.DangerArea
         Intersection   = 1 << (int)DangerAreaKind.Intersection,
         /// <summary>⭐ <c>CE-3227</c> (§7.3d-B G-1) — tear gas; never in the v1 default (a squad that never asked has no reaction for it).</summary>
         GasCloud       = 1 << (int)DangerAreaKind.GasCloud,
+        /// <summary>⭐ <c>CE-4583</c> — a shelled area; never in the v1 default. ⚠ Bit 0 (the <see cref="DangerAreaKind.Unknown"/> kind's, which
+        /// nobody asks for), NOT <c>1 &lt;&lt; 7</c>: this enum crosses the DDS wire as a byte and the IDL compiler reads it SIGNED (−128..127).
+        /// <see cref="DangerAreaKindsOf.BitOf"/> is the one place the mapping lives.</summary>
+        Shelled        = 1 << 0,
     }
 
     /// <summary>⭐ <c>CE-3081</c> — whether a sensor asking for <see cref="DangerAreaKinds"/> keeps an area of a kind.</summary>
@@ -42,7 +46,15 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public static bool Wants(DangerAreaKinds wanted, DangerAreaKind kind)
         {
             if (wanted == DangerAreaKinds.Crossings) wanted = DangerAreaKinds.StreetCrossing | DangerAreaKinds.Intersection;
-            return kind <= DangerAreaKind.GasCloud && ((int)wanted & (1 << (int)kind)) != 0;
+            return kind <= DangerAreaKind.Shelled && ((int)wanted & BitOf(kind)) != 0;   // ⭐ CE-4583 — the bound takes the new kind
+        }
+
+        /// <summary>⭐ <c>CE-4583</c> — the <see cref="DangerAreaKinds"/> bit of <paramref name="kind"/>: <c>1 &lt;&lt; kind</c>, except
+        /// <see cref="DangerAreaKind.Shelled"/> on bit 0 (the wire's signed byte has no bit 7).</summary>
+        public static int BitOf(DangerAreaKind kind)
+        {
+            return kind == DangerAreaKind.Shelled ? (int)DangerAreaKinds.Shelled
+                 : kind == DangerAreaKind.Unknown ? 0 : 1 << (int)kind;
         }
     }
 

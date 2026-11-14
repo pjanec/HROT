@@ -3441,6 +3441,36 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((1, 1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact), p.OrdersTo(p.Charlie, BehaviorNames.BreakContact)));
         }
 
+        private static void Break(Platoon p, Entity[] men, int count)
+        {
+            if (!p.S.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.Stress>()) p.S.Repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.Stress>();
+            for (int i = 0; i < count; i++) p.S.Repo.AddComponent(men[i], new Fdp.Toolkit.Behavior.Components.Stress { Level = 1f, Broken = 1 });
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-7015</c> (AQ101 §R E, R-4227 — the rout) — a defending platoon whose line squads are all ALIVE but half their men BROKEN falls back as if
+        /// they were casualties: Alpha and Bravo each keep 4 of 8 standing (50 % of what they had — below the 70 % line), so half the line fails ⇒
+        /// <c>HalfTheLineFailing</c> ⇒ <c>FallBackOrders</c>. The same men unbroken ⇒ nothing. ⛔ The shared fighting count the SITREP colour reads
+        /// (<c>CombatEffective.FightingMembers</c>, CB-37) is unchanged: 8 of 8. 🔴 Red-proof: <c>SlotFailing</c> back on the fighting count ⇒ no fall-back.
+        /// </summary>
+        [Fact]
+        public void CE7015_PlatoonDefend_HalfTheLineBroken_FallsBack_TheSitrepCountUnchanged()
+        {
+            var p = new Platoon(squads: 4);
+            var men = FourSquadsOf(p, 8);
+            EngagedThreeLines(p);
+            p.Ticks(12);
+            Assert.Equal((0, 0, 0), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact), p.OrdersTo(p.Charlie, BehaviorNames.BreakContact)));
+
+            Break(p, men[0], 4);                                              // Alpha: 4 of 8 broken — alive, out of the fight in spirit
+            Break(p, men[1], 4);                                              // Bravo too ⇒ 2 of 3 line squads failing
+            Assert.Equal(8, Fdp.Toolkit.Squad.CombatEffective.FightingMembers(p.S.Repo, p.Alpha));   // ⛔ the SITREP's count: unchanged
+            Assert.True(Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(p.S.Repo, p.Alpha));
+            Assert.Equal(4, Fdp.Toolkit.Squad.CombatEffective.StandingMembers(p.S.Repo, p.Alpha));
+            p.Ticks(12);
+            Assert.Equal((1, 1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact), p.OrdersTo(p.Charlie, BehaviorNames.BreakContact)));
+        }
+
         /// <summary>CE-3361 ② — a line squad that LOSES ITS COMBAT EFFECTIVENESS (Black: fewer than min(4, ⌈n/2⌉) men fight) fails whatever its baseline; and a slot with no
         /// baseline (a squad with no roster of men — the older rails' fixture) keeps today's colour rule: <c>CE2276_E3a_HalfTheLineRed_…</c> above.</summary>
         [Fact]
@@ -3799,6 +3829,26 @@ namespace Hrot.SimHost.Tests
             Fbt.NodeStatus? result = null;
             for (int i = 0; i < 8 && result == null; i++) { p.Tick(); if (p.S.Finished(out var r)) result = r; }
             Assert.Equal(Fbt.NodeStatus.Failure, result);
+        }
+
+        /// <summary>⭐⭐ <c>CE-7015</c> (AQ101 §R E — the rout; AT-9 / AT-10) — the assault squad's men BREAK (3 of 4: fewer than the 2 a squad of 4 needs
+        /// still stand) while its SITREP is never Black: with no reserve the platoon breaks the attack off, as for a Black assault. Unbroken, it does
+        /// not. 🔴 Red-proof: <c>AssaultBlack</c> back on the colour alone ⇒ no break contact.</summary>
+        [Fact]
+        public void CE7015_ABrokenAssaultWithNoReserve_BreaksTheAttackOff()
+        {
+            var p = new Platoon(squads: 2);
+            var alpha = MakeSquad(p.S, 0, 4, 100f);
+            var o = new Vector3(0f, 200f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3); p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5); p.Ticks(4);
+            p.ReportSet(p.Bravo); p.Ticks(6);
+            Assert.Equal((0, 0), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact)));   // all standing: attack on
+            Break(p, alpha, 3);
+            p.Ticks(6);
+            Assert.Equal((1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact)));
         }
 
         /// <summary>⭐⭐ <c>CE-2277</c> AT-13 (as DA-55) — an attacking platoon WITH its SOP (<c>BasicPlatoonSop</c>): an enemy reported in
@@ -6851,7 +6901,11 @@ namespace Hrot.SimHost.Tests
                 Assert.False(sensor.IsNull);
                 return w.Repo.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>(sensor).Settings.Kinds;
             }
-            Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Crossings, KindsOf("{\"Objective\":[0,100,0],\"DangerAreas\":true}"));
+            // ⭐ CE-4583 — without OpenGround the march asks for the crossings (named, not the zero default) AND a shelled area; never open ground
+            var plain = KindsOf("{\"Objective\":[0,100,0],\"DangerAreas\":true}");
+            Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.StreetCrossing | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Intersection
+                         | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Shelled, plain);
+            Assert.False(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(plain, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.OpenGround));
             var open = KindsOf("{\"Objective\":[0,100,0],\"DangerAreas\":true,\"OpenGround\":true}");
             Assert.True(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(open, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.OpenGround));
             Assert.True(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(open, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.StreetCrossing));

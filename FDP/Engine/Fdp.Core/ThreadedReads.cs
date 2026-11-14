@@ -15,6 +15,6 @@ namespace Fdp.Core
     /// </summary>
     public static class ThreadedReads
     {
-        public static readonly bool PureReads = Environment.GetEnvironmentVariable("HROT_MANAGED_READ_STAMP") != "1";
+        public static readonly bool PureReads = EnvVars.Read(EnvVars.HrotManagedReadStamp) != "1";
     }
 }

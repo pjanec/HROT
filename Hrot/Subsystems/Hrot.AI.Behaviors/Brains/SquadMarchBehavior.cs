@@ -214,11 +214,12 @@ namespace Hrot.AI.Behaviors.Brains
         private static void WatchRoute(in SquadMarchParams p, in SquadPlayState ws, in SquadPlayContext ctx)
         {
             var settings = Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.ToPoint(p.Objective);
-            // ⭐ CE-2161 — open ground too, when the order asks (the crossings alone otherwise: CE-3081 A5)
-            if (p.OpenGround != 0)
-                settings.Kinds = Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.OpenGround
-                               | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.StreetCrossing
-                               | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Intersection;
+            // ⭐ CE-2161 — open ground too, when the order asks (the crossings alone otherwise: CE-3081 A5);
+            // ⭐ CE-4583 (AQ101 §R D) — and always a shelled area: a march holds or crosses where the shells keep landing
+            settings.Kinds = Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.StreetCrossing
+                           | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Intersection
+                           | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Shelled
+                           | (p.OpenGround != 0 ? Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.OpenGround : 0);
             var sensor = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(ctx.World, ctx.Commander, DangerSensorSite);
             if (sensor.IsNull) Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure(ctx.World, ctx.Commander, DangerSensorSite, in settings);
             else if (ws.Reissue != 0) Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Configure(ctx.World, sensor, in settings);

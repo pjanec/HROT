@@ -22,9 +22,9 @@ namespace Fdp.Core
     public static class MemoryCensus
     {
         /// <summary>The switch: <c>HROT_MEMORY_CENSUS=1</c>. Read once.</summary>
-        public static readonly bool On = Environment.GetEnvironmentVariable("HROT_MEMORY_CENSUS") == "1";
+        public static readonly bool On = EnvVars.Read(EnvVars.HrotMemoryCensus) == "1";
 
-        private static readonly string OutPath = (Environment.GetEnvironmentVariable("HROT_MEMORY_CENSUS_OUT") is { Length: > 0 } o
+        private static readonly string OutPath = (EnvVars.Read(EnvVars.HrotMemoryCensusOut) is { Length: > 0 } o
             ? o : Path.Combine(Path.GetTempPath(), "hrot-memory-census")) + "." + Environment.ProcessId + ".json";
 
         private static readonly object s_lock = new();

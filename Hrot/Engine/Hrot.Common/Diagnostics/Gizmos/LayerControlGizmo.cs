@@ -66,7 +66,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public MapLayerGroup Map { get; set; } = new();
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 29;   // ⭐ CE-1288 — 27 → 28: the Grid row took bit 27 · ⭐ CE-1309 — 28 → 29: the Mind state row took bit 28
+        public const int FirstUntoggledLayer = 30;   // ⭐ CE-1288 — 27 → 28: the Grid row took bit 27 · ⭐ CE-1309 — 28 → 29: the Mind state row took bit 28 · ⭐ CE-4582 — 29 → 30: Hide labels behind terrain took bit 29
 
         /// <summary>⭐ <c>CE-3120</c> — reads the families' scopes from <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
         public void ReadScopes(GizmoSettingsRegistry settings)
@@ -109,6 +109,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Units.Rounds) mask.SetBit(DebugTraceLayers.Rounds);
             if (Units.Concealed) mask.SetBit(DebugTraceLayers.Concealed);
             if (Units.MindState) mask.SetBit(DebugTraceLayers.MindState);
+            if (Units.HideLabelsBehindTerrain) mask.SetBit(DebugTraceLayers.HideLabelsBehindTerrain);
             if (Command.SquadCommand) mask.SetBit(DebugTraceLayers.SquadCommand);
             if (Command.Sectors) mask.SetBit(DebugTraceLayers.Sectors);
             if (Command.Paths) mask.SetBit(DebugTraceLayers.Paths);
@@ -150,6 +151,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool Entities { get; set; } = true;
         [EditDisplayName("Labels"), EditDoc("The unit cards: frame, name, health bar (CE-1033).")]
         public bool Labels { get; set; } = true;
+        [EditDisplayName("Hide labels behind terrain"), EditDoc("3-D: a unit's card, and text at a place, is hidden where the ground or a building stands in front of it (trees do not hide it); the selected unit's card always shows. Off: cards are drawn on top of everything. On by default (CE-4582).")]
+        public bool HideLabelsBehindTerrain { get; set; } = true;
         [EditDisplayName("Unit details"), EditDoc("Heading arrows with their degrees and stance labels on every unit (CE-1065).")]
         public bool UnitDetails { get; set; }
         [EditDisplayName("Rounds"), EditDoc("Rounds and grenades in flight or lying on the ground.")]

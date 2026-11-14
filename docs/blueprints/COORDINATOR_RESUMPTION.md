@@ -20,6 +20,9 @@ current-answer: the whole file — read it, then re-derive the live state with t
   The current reliable-init barrier work stays on H - ui through piece-C completion (backend edits there were
   user-authorized, e.g. CE-292 cross-lane) — the split applies to the next programme's lane assignment.
 -->
+
+> ⛔ **HISTORY note (R-4223, CE-4528, `2026-11-14`)** — the Node MCP server (`tools/ai-debug-mcp`: its tool catalog, generated `SKILL.md`, skill parts and generators) named in this document is **removed**. The debug API is plain HTTP and describes itself: `GET /help` (or `Hrot.ClusterRunner --help-api` before anything is started) and `GET /capabilities` — [`DESIGN_Debug_Api_Http_Only.md`](../DESIGN_Debug_Api_Http_Only.md). Every mention of the server, its tools or its generated files below is HISTORY; tool names map to routes in `GET /help`.
+
 # COORDINATOR RESUMPTION — `2026-09-15`
 
 RELEARN

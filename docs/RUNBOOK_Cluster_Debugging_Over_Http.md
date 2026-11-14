@@ -14,6 +14,9 @@ related-designs:
   - docs/DESIGN_Agent_Shared_View.md — OWNS the routes for what the operator sees (/view, /selection, /marks) and for debugging one unit live and over a recording; a line goes here when they are built
 -->
 
+> ⛔ **HISTORY note (R-4223, CE-4528, `2026-11-14`)** — the Node MCP server (`tools/ai-debug-mcp`: its tool catalog, generated `SKILL.md`, skill parts and generators) named in this document is **removed**. The debug API is plain HTTP and describes itself: `GET /help` (or `Hrot.ClusterRunner --help-api` before anything is started) and `GET /capabilities` — [`DESIGN_Debug_Api_Http_Only.md`](DESIGN_Debug_Api_Http_Only.md). Every mention of the server, its tools or its generated files below is HISTORY; tool names map to routes in `GET /help`.
+
+
 # RUNBOOK — debugging a running HROT cluster over plain HTTP
 
 > 🔒 **User, `2026-09-04`, on why this exists:** *"i would like you to start writing a runbook … giving
@@ -124,6 +127,19 @@ A healthy line names the port, the mode and the providers:
   providers=[Orchestrator, SimHost, IG, ExCon, CGF, Traffic], perspectives=[ExCon, IG, Orchestrator, Scenario, SimHost, Traffic].
 ```
 *(Measured `2026-10-28`. `perspectives=` here is the providers' routable names; `GET /perspectives` lists only the window-claimed ones, so `POST /perspective {"name":"Traffic"}` is refused.)*
+
+### 1.5 ⭐ The performance switches — chosen at START, confirmed over HTTP *(CE-4585, `2026-11-14`)*
+
+The threaded node, the parallel simulation and the worker count are read **once, at process start**. ⇒ choose them on the command line, then confirm:
+
+```bash
+HROT_PARALLEL_SIM=0 HROT_THREADED_KERNEL=0 HROT_SIM_THREADS=1 HROT_DEBUG_API_PORT=8111 dotnet …/Hrot.ClusterRunner.dll --mode all
+curl -s localhost:8111/performance      # running + where each switch came from (environment / -m all / file / default), and every HROT_*/FDP_* it received
+```
+
+⛔ The menu's toggles (`settings.performance.*`) are **refused over HTTP** (403): they rewrite the user's own settings file, which every later
+process on the machine starts with. Every environment variable, with its purpose, is in `GET /help` §8 (or `--help-api`) — generated from
+`Fdp.Core.EnvVars` (CE-4586); this runbook does not keep a second list.
 
 ---
 

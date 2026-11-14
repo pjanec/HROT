@@ -135,6 +135,53 @@ namespace Fdp.Toolkit.Combat.Tests
         /// ⭐ <c>CE-3237</c> (civilians B-15, DS-1) — every damage event a burst makes names who FIRED it (the notification's shooter);
         /// a burst with no shooter says unknown. ✅ Red-proof: the whole-body publish without <c>Source</c> ⇒ Null ⇒ red.
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-4584</c> (AQ101 §R C, R-4227) — <b>a shell burst is fire</b>: a calm man 6 m from an 81 mm burst gets ONE near miss (the
+        /// <see cref="NearMissEvent"/> the brain senses) and is stamped <see cref="UnderFire"/>, as a passing round does; 40 m off (outside 2 × the
+        /// blast injury radius) nothing; the man the round STRUCK is hit, not near-missed. A civilian in range takes the same edge into
+        /// <c>CivilianFearSystem</c> through <c>NearMissSensingSystem</c> — no civilian code of its own. 🔴 Red-proof: the near-miss call in
+        /// <c>Assess</c> removed ⇒ no event, no stamp.
+        /// </summary>
+        [Fact]
+        public void CE4584_ABurst_IsANearMiss_Within2xItsInjuryRadius_AndFrightensACivilianTheSameWay()
+        {
+            _w.RegisterEvent<NearMissEvent>();
+            _w.RegisterComponent<UnderFire>();
+            _w.RegisterEvent<Fdp.Toolkit.Perception.Events.SensorChangedEvent>();
+            _w.RegisterEvent<Fdp.Toolkit.Perception.Events.SoundContactEvent>();
+            _w.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();
+            _w.RegisterComponent<EffectState>();
+            var radius = 2f * Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(_w.GetSingletonManaged<ITkbDatabase>(), Mortar).Warhead!.BlastInjuryRadiusM;
+            Assert.InRange(radius, 6.5f, 39f);   // the rail's two distances sit either side of it
+
+            var near = Soldier(6, 0);
+            var far = Soldier(40, 0);
+            var struck = Soldier(0.5f, 0);
+            var civilian = Soldier(-6, 0);
+            _w.AddComponent(civilian, new Fdp.Toolkit.Civilians.CivilianState());
+
+            _w.Bus.Publish(new DetonationNotification { Target = struck, HitX = 0f, HitY = 0f, HitZ = 0.1f, Ammo = Mortar });
+            _w.Bus.SwapBuffers();
+            _sys.Execute(_w, 0.016f);
+            ((EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_w).GetCommandBuffer()).Playback(_w);
+            _w.Bus.SwapBuffers();
+            var misses = _w.Bus.Read<NearMissEvent>().ToArray();
+
+            Assert.Single(misses, m => m.Unit == near);
+            Assert.True(_w.HasComponent<UnderFire>(near), "a burst 6 m off spoils his aim");
+            Assert.DoesNotContain(misses, m => m.Unit == far);
+            Assert.False(_w.HasComponent<UnderFire>(far), $"40 m is outside 2 × the injury radius ({radius:0.0} m)");
+            Assert.DoesNotContain(misses, m => m.Unit == struck);   // a hit, not a near miss
+            Assert.Single(misses, m => m.Unit == civilian);
+
+            new Fdp.Toolkit.Perception.Systems.NearMissSensingSystem().Execute(_w, 0.016f);   // the brain's sense, as for a bullet
+            ((EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_w).GetCommandBuffer()).Playback(_w);
+            _w.SetSimulationTime(_w.SimulationTime + 0.1f);
+            _w.Bus.SwapBuffers();
+            new Fdp.Toolkit.Civilians.CivilianFearSystem().Execute(_w, 0.1f);
+            Assert.True(_w.GetComponentRO<Fdp.Toolkit.Civilians.CivilianState>(civilian).Fear > 0f, "the civilian is frightened by the same edge");
+        }
+
         [Fact]
         public void CE3237_ABurst_NamesWhoFiredIt()
         {

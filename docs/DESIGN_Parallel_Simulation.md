@@ -660,6 +660,19 @@ the threaded editor and with it off.
 `HROT_PARALLEL_SIM=1`: 121 / 190 red at the base (every runtime-created rule faulted) → 26 red; with the phase off, 190 / 190 before and after.
 The 26 left are timing and refusal-text differences of the rules under the phase (CE-3448).
 
+⭐ **As built — the 26 (CE-3448, `2026-11-14`).** None was a designed one-tick lag; all were defects, in three groups:
+
+| group | cause | fix |
+|---|---|---|
+| ② the refusal reason lost (9) | a verb's `ActionFailure.Set` inside the phase deferred the add, and the trigger read the reason in the same step ⇒ *"an action failed"* | `ActionFailure` keeps a per-thread pending reason for its own rule: `TryGet` serves it until the add lands (`ActionComponents.cs`). One path for every verb |
+| ① the rails' harness (17) | `ScenarioRulesTests.ObjWorld` advanced the world version only `WithHistory`, so the last-tick view (copied by **changed** chunk) never re-copied ⇒ cross reads saw the first tick's world | the harness ticks the version and takes the view each tick, as the kernel does (`ModuleHostKernel.cs:808`) |
+| found by the survey (`HROT_READ_CHECK=2`) | rules read other rules (`ObjectiveStatus`, `ObjectiveLinks` …) undeclared; five verbs WROTE another entity in place (`AddToCounter`, `SetObjectiveActive`, `BeginPhase`, `EndExercise`, `SetSkillAmplifier`) | ⭐ the reads are declared (`AiBrainReads`, nine types). ⭐ Every verb's effect on another entity goes through **`RuleAfterPhase.Run`**: at once outside a phase, else a follow-up in batch order that re-reads the LIVE state (two rules adding to one counter in a tick both land). The verdict (Success / the refusal) is decided at once from the tick-start view. `Message` uses the same path |
+
+⭐ **The one-tick rule for rules:** a rule sees another rule's status, and the effect of another rule's verb, from the next tick. That is the designed
+lag; the rails assert the same outcome serial and parallel. And the rules' tree is prepared before the phase by `AiBrainReads.Contribute`
+(the loader every host goes through), no longer only by `CgfLogicPack`. 📐 Rule suites (190): serial 190/190, `HROT_PARALLEL_SIM=1` 190/190,
+`+ HROT_READ_CHECK=1` 190/190. Permanent rail: `DrillsUnderTheReadCheckTests.TheRules_AsTheParallelPhase_MakeNoUndeclaredCrossReadOrWrite`.
+
 ### 18.3 ⭐ As measured — the cost of the per-read cross-entity check *(branch `exp/read-check`, CE-4454; status: [`STATUS_Read_Check.md`](blueprints/batches/STATUS_Read_Check.md); the design is §18.2 above)*
 
 ⭐ **Affordable as designed: the check lives in the repository's own read path; no separate view type is needed for cost.**

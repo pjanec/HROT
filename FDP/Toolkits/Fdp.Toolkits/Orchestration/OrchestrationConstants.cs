@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.IO;
 
@@ -18,7 +19,7 @@ namespace Fdp.Toolkit.Orchestration
         /// (<c>%LOCALAPPDATA%\HROT\data</c>, <c>~/.local/share/HROT/data</c>) on an install. Every node and tool reads it through this ONE call.</para>
         /// </summary>
         public static string ResolveStagingRoot() =>
-            Environment.GetEnvironmentVariable("FDP_STAGING_ROOT") ?? DefaultDataRoot.Value;
+            EnvVars.Read(EnvVars.FdpStagingRoot) ?? DefaultDataRoot.Value;
 
         /// <summary>⭐ <c>CE-4324</c> — the default data folder's name (<c>data/</c> beside <c>scenarios/</c>; git-ignored in the repository).</summary>
         public const string DataDirectoryName = "data";

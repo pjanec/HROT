@@ -80,7 +80,7 @@ namespace Hrot.SimHost.Systems
         /// <summary>⭐ CE-3427 N-2 — the budget a new solver takes: <c>HROT_EQS_BUDGET</c> (a measured tuning knob, like <c>HROT_EQS_WORKERS</c>),
         /// else <see cref="DefaultBudgetUnits"/>.</summary>
         public static int ConfiguredBudgetUnits { get; } =
-            int.TryParse(Environment.GetEnvironmentVariable("HROT_EQS_BUDGET"), out int b) && b > 0 ? b : DefaultBudgetUnits;
+            int.TryParse(EnvVars.Read(EnvVars.HrotEqsBudget), out int b) && b > 0 ? b : DefaultBudgetUnits;
 
         /// <summary>The sensors that ran last tick, in run order (diagnostics / the determinism rail).</summary>
         public IReadOnlyList<Entity> LastSchedule => _lastSchedule;
@@ -235,7 +235,7 @@ namespace Hrot.SimHost.Systems
         /// logical CPUs, a second budget beside the pool's (1 on a 4-core machine: the heaviest system, ~700 ms at 1 000 men, ran on one thread
         /// whatever the sim threads were). 📐 Measured result-neutral: the stepped 1 000-man run gives the same world with 1 and 4 EQS workers.</summary>
         public static int DefaultWorkers =>
-            int.TryParse(Environment.GetEnvironmentVariable("HROT_EQS_WORKERS"), out int w) && w > 0 ? w : Math.Max(1, Fdp.Core.Jobs.FdpWorkerPool.Shared.Threads);
+            int.TryParse(EnvVars.Read(EnvVars.HrotEqsWorkers), out int w) && w > 0 ? w : Math.Max(1, Fdp.Core.Jobs.FdpWorkerPool.Shared.Threads);
 
         /// <summary>⭐ CE-3427 P-1 — sensors solved on the window (any thread) and committed last tick (diagnostics / rails).</summary>
         public int LastParallelSolves { get; private set; }

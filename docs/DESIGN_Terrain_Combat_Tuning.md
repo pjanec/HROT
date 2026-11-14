@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none yet
 known-conflict: none
 related-designs:
+  - DESIGN_Vehicle_Breaching.md — reads §3's material resistance for a vehicle's break-through and for blasts breaching free walls (garden walls are panels, breached through the one `BuildingDamage` record)
   - DESIGN_Director_Timeline_Editor.md — its View track switches these layers through the film's transient override (R-4060)
   - DESIGN_Entity_Brain_View.md — the Brain tab's "Show on map" pins the §5b gizmo families on one unit
   - docs/DESIGN_Film_Director.md — §4b: takes turn these layers on and off as a TRANSIENT override (never saved), and GET/POST /map/layers sets them like a click (R-4060)
@@ -35,6 +36,9 @@ related-designs:
   - designs/gizmos-1/DESIGN.md §11.8 — the struct inspector's state machine; §5d D adds "an edit commits at once"
   - DESIGN_Ai_Action_Status_Gizmo.md — OWNS the per-unit action status (why a unit is not firing) drawn by the Channels gizmo family (proposed; departs from §5a's armed-only precedent, argued there)
 -->
+
+> ⛔ **HISTORY note (R-4223, CE-4528, `2026-11-14`)** — the Node MCP server (`tools/ai-debug-mcp`: its tool catalog, generated `SKILL.md`, skill parts and generators) named in this document is **removed**. The debug API is plain HTTP and describes itself: `GET /help` (or `Hrot.ClusterRunner --help-api` before anything is started) and `GET /capabilities` — [`DESIGN_Debug_Api_Http_Only.md`](DESIGN_Debug_Api_Http_Only.md). Every mention of the server, its tools or its generated files below is HISTORY; tool names map to routes in `GET /help`.
+
 
 # Terrain & combat tuning — defaults, tests, diagnostics *(buildings, fences, penetration, blast, doors)*
 

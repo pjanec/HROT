@@ -62,7 +62,7 @@ public sealed partial class ClusterMaster : IDisposable
         public OrchestrationStatusCode FailureCode;
         /// <summary>⭐ <c>CE-3345</c> (R-3070) — the REASON the first failing node's ack carried (<i>"cancelled by the user on node 2"</i>); reaches the requester through the op status.</summary>
         public string? FailureReason;
-        /// <summary>⭐ <c>CE-3345</c> (R-3070, AQ91 §4-H) — this round is a scenario LOAD (it enters <c>LoadingLive</c> / <c>LoadingEdit</c>): a failure fails it AT ONCE and sends the cluster back to Idle.</summary>
+        /// <summary>⭐ <c>CE-3345</c> (R-3070, AQ91 §4-H) — this round is a LOAD (<see cref="IsLoadTrajectory"/>: <c>LoadingLive</c> / <c>LoadingEdit</c> / <c>LoadingReplay</c>): a failure fails it AT ONCE and sends the cluster back to Idle.</summary>
         public bool IsLoadRound;
         /// <summary>⭐⭐ <c>CE-3354</c> (R-3075, DESIGN_Cluster_Load_Phase §11.10) — LOAD AND RUN: when this round succeeds on EVERY node, the clock runs
         /// (<see cref="Fdp.Toolkit.Time.Domain.ResumeTimeIntent"/>, the ▶ path). Set from the request's <c>TimeMode</c> (<see cref="RunsWhenLoaded"/>).</summary>
@@ -1779,7 +1779,7 @@ public sealed partial class ClusterMaster : IDisposable
                     BroadcastClusterStateOnComplete = true,
                     Targets                      = activeNodeIds,
                     ResyncsOnSuccess             = throughIdle,   // ⭐ C3
-                    IsLoadRound                  = trajectory.OfType<TransitionStep>().Any(t => t.TargetState is ClusterState.LoadingLive or ClusterState.LoadingEdit),   // ⭐ CE-3345
+                    IsLoadRound                  = IsLoadTrajectory(trajectory),   // ⭐ CE-3345 · CE-1950 (a replay load too)
                     RunOnSuccess                 = RunsWhenLoaded(intent, trajectory, resolvedTarget, StartLiveImmediately),   // ⭐ CE-3354
                 };
             }
@@ -2536,6 +2536,19 @@ public sealed partial class ClusterMaster : IDisposable
             if (tracker.Received >= tracker.Expected)
                 CompleteRound(ev.TransactionId, tracker);
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3345</c> (R-3070) · <c>CE-1950</c> — a round is a LOAD when it enters <c>LoadingLive</c>, <c>LoadingEdit</c> or <c>LoadingReplay</c>: a failure
+    /// fails it at once and the cluster returns to Idle (the state every load starts from — a replay is entered only from Idle, HrotStateGraph). 📌 CE-1950:
+    /// <c>LoadingReplay</c> was missing, so a recording that failed to open on a node (an old schema) left the master in <c>OperatingReplay</c>, the state it
+    /// advances to at the round's start, and <c>POST /replay {waitForReady}</c> answered ok.
+    /// </summary>
+    internal static bool IsLoadTrajectory(IEnumerable<ISysOpStep> trajectory)
+    {
+        foreach (var step in trajectory)
+            if (step is TransitionStep { TargetState: ClusterState.LoadingLive or ClusterState.LoadingEdit or ClusterState.LoadingReplay }) return true;
+        return false;
     }
 
     /// <summary>

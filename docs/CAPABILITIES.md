@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
+updated: 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
 current-answer: the whole file — WHAT THE ENGINE CAN DO, by chapter, each with the ONE scenario that shows it best
 stale-below: none
 known-rot: the ✅/⚠ marks are a 2026-10-21 snapshot of the live checks; the owning design's demo table wins
@@ -12,6 +12,7 @@ related-designs:
   - DESIGN_Replay_Time_Axis_And_Review.md — OWNS the reviews (DAR, AAR) and the sim time axis behind §1a
   - blueprints/Architect_Question_108_Run_Mode_Picker.md — OWNS the run modes and the armed mode (§1a)
   - UX/DESIGN_Editing_UX.md — OWNS the editing UX (inventory behind §14, the target design, the Details-tab review)
+  - PLAN_Dynamic_Terrain.md — OWNS §2b's programme: the tasks (CE-4596…CE-4604), their order and gates; the designs DESIGN_Ground_Patches_And_Road_Blockage.md and DESIGN_Vehicle_Breaching.md
   - USAGES.md — OWNS what PEOPLE use the engine for and what it saves them (demo films, QA bug illustration, reviews, scenarios as tests …)
   - ../README.md — OWNS the engine architecture (ECS, cluster, replication, replay, tools)
 -->
@@ -22,7 +23,8 @@ A short tour of the simulation's capabilities, one chapter per area. Each bullet
 it best (`scenarios/<category>/<name>/scenario.json` — showcases, demos by area, tests; a plain name finds it, R-4185). Every scenario carries a `description` saying what happens and how to judge it, and most have
 a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 
-- **Marks:** ✅ the live check passes · ⚠ passes with a caveat · ⏸ parked, varies run to run · ⏳ not built.
+- **Marks:** ✅ the live check passes · ⚠ passes with a caveat · ⏸ parked, varies run to run · ⏳ not built · 📐 **designed and planned** — the
+  design is ruled and its tasks are filed, the build has not started (it will come soon).
 - **Deeper:** the rules behind each bullet, with code and design links, are in [OVERVIEW_Rules_And_Demos.md](OVERVIEW_Rules_And_Demos.md).
   The machinery is in [OVERVIEW_Behaviour_Building_Blocks.md](OVERVIEW_Behaviour_Building_Blocks.md). The engine architecture is in the
   [README](../README.md).
@@ -127,11 +129,42 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
   tangent plane retired ([Geo Origin §6](DESIGN_Geo_Origin.md), R-4197; CE-4396) ⏳ building
 - **Trees and woods:** a wood hides what is inside it (sight lost per metre among the trees, from the air too), forbids wheeled vehicles
   and slows tracked ones, and stops some rounds; a lone tree is a trunk that blocks. Drawn as trees near and a canopy far. (R-4190; CE-4369,
-  CE-4377) ✅ — felling a tree ⏳ (CE-3426)
+  CE-4377) ✅ — felling a lone tree 📐 (§2b)
 - **Destructible buildings:** a blast or a penetrating hit breaches a wall — a hole to see and shoot through, or a passage to walk through;
   a heavy bomb close by collapses the whole building into rubble and kills the people inside. The navmesh follows in the background and
   only the paths through the changed tiles replan; breaches are saved, replicated and drawn on every host. (R-4188; CE-4391, CE-4392)
   ▶ `bd-destruction`
+
+## 2b. Dynamic terrain — the ground and the walls change while the simulation runs *(📐 designed and planned, `2026-11-14`; the programme: [PLAN_Dynamic_Terrain](PLAN_Dynamic_Terrain.md), CE-4604)*
+
+Everything in this chapter is **📐 designed and planned**: the designs are ruled, the tasks are filed, the build starts with the programme.
+Designs: [Ground patches and road blockage](DESIGN_Ground_Patches_And_Road_Blockage.md) · [Vehicle breaching](DESIGN_Vehicle_Breaching.md).
+Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [vehicle breaching](UX/vehicle-breaching.svg).
+
+- **Houses stand level on hills:** the importer levels the ground under every house at the house's lowest corner, cutting the uphill side
+  with a gentle skirt, so no house is half buried and every door opens onto the ground. (P-1, CE-4403, R-4228) 📐
+- **Roads lie flat across a slope:** at import every road levels the ground across its own width (the grade along it kept, junctions
+  levelled, bridges left alone); the SUMO road network is re-elevated to match, so SUMO's cars, the drawn road and our vehicles agree. Houses
+  next to a road are tolerated — the ground ramps from the road's edge to the façade. (P-1, R-4231, R-4234) 📐
+- **A house placed while authoring gets its own level pad,** on every node the same, and *Save terrain as* keeps every pad. (P-3, CE-4597) 📐
+- **Shape the ground while authoring a scenario:** draw an area and level it, raise a hill, lower a hollow or make a crater; roads stay
+  level and keep working (SUMO's network follows after saving); a warning when a road gets too steep. (P-5, CE-4592) 📐
+- **Ditches and foxholes:** draw a ditch along a line or click a foxhole into place; a man in it is hidden by the ground, the AI finds it as
+  cover and defending squads take their posts in foxholes; an anti-tank ditch stops every vehicle while infantry crosses. (P-6, CE-4593) 📐
+- **Craters:** a bomb or a shell leaves a hole in the ground on every node at once — the ground height, sight and fire change in the same
+  moment; vehicles route round it, infantry crosses it, and after the gases clear its rim is cover. (P-4, CE-4591, R-4232, R-4233) 📐
+- **Blocked roads are blocked for everyone:** a roadblock, a wreck or a crater on a road makes SUMO's cars swerve round it or re-route, and
+  our own road-following vehicles re-plan; clearing it re-opens the road. (P-2, CE-4590) 📐
+- **A player's tank breaks through weak barriers:** a player driving a tank goes through fences, hedges, garden walls and sandbags (an IFV
+  through the lighter ones; wheeled vehicles stop); a tank bumps a building wall open for the infantry without driving in; the driver sees
+  and hears the break, or a "too strong" cue. The AI never breaks a wall by accident. (B-1…B-3, CE-4598…CE-4600, R-4236…R-4240, R-4243) 📐
+- **Blasts breach garden walls too,** and every breach — by a blast, a tank or the bulldozer — is a gap infantry walks through and the AI uses
+  as a way into a building. (B-2, B-5, CE-4599, CE-4602) 📐
+- **The bulldozer clears on order:** point at a roadblock, a wall or a lone tree and the bulldozer pushes it away, cuts a gap or fells it.
+  (B-4, CE-4601, R-4242) 📐
+- **Lone trees are felled** by a player's tank, a blast or the bulldozer; AI vehicles drive round them. (B-6, CE-4603, R-4241) 📐
+- **Everything is recorded:** every change is replicated to every node, saved with the scenario, restored on seek and replay, the same at
+  any thread count. 📐
 
 ## 3. Civilians and crowds
 
@@ -310,6 +343,7 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 | | what |
 |---|---|
 | **built, no demo** | weather and night in perception · a thermal sensor (no unit type carries one) · our vehicles driven by SUMO · ownership transfer · a pilot ejecting from a plane that was shot down · decoy flares you can see · the Stride host (Windows only) |
+| **designed, not built** | 📐 dynamic terrain, §2b — house pads and level roads at import, ground shaping, ditches and foxholes, craters, blocked roads for SUMO, a player's tank breaking weak barriers, the bulldozer's cut, felling lone trees |
 | **not built** | bridge damage (walls and whole-building collapse are built, §2a) · temperament and stress breaks · knife attacks and closing fast · player fratricide · a toy-gun item (blocks `ua-armed-identify`) · team stretcher carry · a medic who stabilises · helicopter battle positions and pop-up attacks · radar SAMs · smoke · counter-battery fire · rappel · wind drift on rounds |
 | **known wrong** | see [OVERVIEW_Rules_And_Demos.md §11](OVERVIEW_Rules_And_Demos.md#11-not-built-open-or-known-wrong) and [PLAN_Feature_Films.md §4](PLAN_Feature_Films.md) |
 
@@ -379,6 +413,8 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
 | Global weather; regional weather drawn as an area | ● | ● | ○ | 🟡 raw fields |
 | Terrain zones, obstacles (car, sandbag wall, concrete block, crate), door states | ● | – | – | ✅ / 🟡 doors raw |
 | Buildings and interiors | – | – | – | ⚙ terrain files |
+| A house's level pad on a slope; ground shapes (level, raise, lower, crater an area); ditches and foxholes | ● | – | – | 📐 designed (§2b; P-3, P-5, P-6) |
+| Order the bulldozer to clear a roadblock, a wall or a tree at a point | ● | ● | – | 📐 designed (§2b; B-4) |
 | Traffic and pedestrians (density, seed, panic) | – | – | – | ⚙ scenario file only |
 | Civilians, protesters and police (placed, given orders and attitude) | ● | ● | – | 🟡 no crowd-level settings |
 | Gameplay for players: playable units, deploy roles and kits, spawn areas, respawn delay | ● | – | – | 🟡 kits and spawn facing in raw fields |

@@ -33,7 +33,7 @@ namespace Fdp.Toolkit.Replication.Utilities
     public sealed unsafe class EgressVisitGate
     {
         /// <summary>Off ⇒ every translator scans everything (today's behaviour): the A/B switch and the kill switch.</summary>
-        public static bool Enabled { get; set; } = Environment.GetEnvironmentVariable("HROT_EGRESS_GATE") != "0";   // HROT_EGRESS_GATE=0 ⇒ off (A/B)
+        public static bool Enabled { get; set; } = EnvVars.Read(EnvVars.HrotEgressGate) != "0";   // HROT_EGRESS_GATE=0 ⇒ off (A/B)
 
         /// <summary>The longest an untouched entity goes unvisited, in frames.</summary>
         public static int SweepPeriod { get; set; } = 8;
@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.Replication.Utilities
         private int _frame;
 
         // ⭐ diagnostics: process-wide totals, printed every ~10 s when HROT_EGRESS_GATE_STATS=1 (why a full scan happened, how much was skipped)
-        private static readonly bool s_stats = Environment.GetEnvironmentVariable("HROT_EGRESS_GATE_STATS") == "1";
+        private static readonly bool s_stats = EnvVars.Read(EnvVars.HrotEgressGateStats) == "1";
         private static long s_begins, s_full, s_visited, s_skipped, s_fullAuth, s_fullDirty, s_fullClock, s_fullNetAuth, s_fullOwn, s_fullParts;
         // ⭐ CE-4519 — WHY a non-full visit happened (stats only): the structural clock, a MarkDirty, the sweep, a managed input's chunk, an unmanaged input's bytes
         private static long s_whyStruct, s_whyDirty, s_whySweep, s_whyManaged, s_whyBytes, s_whyAuth, s_authMoved;

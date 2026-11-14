@@ -170,6 +170,35 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
         Assert.True(without.Count == 0, "hosts whose map buffer is not the one MapInteractionPack.Build made: " + string.Join(", ", without));
     }
 
+    /// <summary>⭐ <c>CE-4582</c> (docs/DESIGN_Map_3D_Mode.md §6am D-4, D-5, D-9) — the shared attach hands every map host the three switches, read from
+    /// the map's own buffer (the mask the layer panel gives it): the 3-D bodies follow Units ▸ Entities, the cards' occlusion follows Units ▸ Hide labels
+    /// behind terrain, and the selected unit's card is always shown. ⛔ The silent default: each is optional on its class, so a host that forgot it would
+    /// draw bodies and cards as before with no error. 🔴 Red-proof: drop <c>bodies.Visible = …</c> in <c>AttachMapLayers</c> ⇒ the first assertion.</summary>
+    [Fact]
+    public void CE4582_TheSharedAttach_WiresTheEntitiesRow_TheOcclusionSwitch_AndTheSelection()
+    {
+        var world = new Fdp.Core.EntityRepository();
+        var mi = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext { World = world, LayerSettingsPath = "" });
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null) { Camera = new Fdp.Toolkit.Vis2D.Components.MapCamera() };
+        var layers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(canvas, mi.Buffer, mi.InteractionBus, () => world);
+        Assert.NotNull(layers.Bodies.Visible);
+        Assert.NotNull(layers.GizmoLayer.Occlusion3D.Enabled);
+        Assert.NotNull(layers.GizmoLayer.Cards.AlwaysOnTop);
+
+        var all = new Fdp.Toolkit.Diagnostics.Gizmos.LayerMask256();
+        for (int i = 0; i < 256; i++) all.SetBit(i);
+        mi.Buffer.SetActiveLayers(all);
+        Assert.True(layers.Bodies.Visible!());
+        Assert.True(layers.GizmoLayer.Occlusion3D.Enabled!());
+
+        var some = new Fdp.Toolkit.Diagnostics.Gizmos.LayerMask256();
+        for (int i = 0; i < 256; i++) if (i != 0 && i != Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.HideLabelsBehindTerrain) some.SetBit(i);
+        mi.Buffer.SetActiveLayers(some);
+        Assert.False(layers.Bodies.Visible!());                       // Units ▸ Entities off ⇒ no bodies
+        Assert.False(layers.GizmoLayer.Occlusion3D.Enabled!());       // Hide labels behind terrain off ⇒ cards on top
+        Assert.False(layers.GizmoLayer.Cards.AlwaysOnTop!(4242));     // nobody selected
+    }
+
     /// <summary>⭐ CE-1234 — the layer panel works in 3-D on every map host: the gizmo's state reaches the map's own panel (the local
     /// transport the shared attach hands the render layer), so in 3-D the panel shows the 3-D set and a click on it changes the 3-D mask.
     /// 🔒 User, 2026-10-20: <i>"map layer controls (checkbox) does not seem to work in 3d (nothing chages on chekcbox click in 3d) - only in

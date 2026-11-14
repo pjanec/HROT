@@ -48,8 +48,16 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
 
             var amp = world.HasComponent<SkillAmplifier>(env) ? world.GetComponentRO<SkillAmplifier>(env) : default;
             if (!amp.Set(p.Side, p.Tiers)) return Fail(world, self, $"side '{p.Side}' has no amplifier");
-            if (world.HasComponent<SkillAmplifier>(env)) world.SetComponent(env, amp); else world.AddComponent(env, amp);
-            Fdp.Core.Logging.FdpLog<Log>.Info($"skill amplifier: {p.Side} {amp.TiersOf(p.Side):+0;-0;0} tier(s) (asked by {self})");
+            var side = p.Side; var tiers = p.Tiers;
+            // ⭐ CE-3448 — the World Environment is ANOTHER entity: the set lands serially, on the LIVE amplifier (two sides set in one tick both land)
+            Hrot.AI.Behaviors.Brains.Objectives.RuleAfterPhase.Run(world, self, w =>
+            {
+                if (!w.IsAlive(env)) return;
+                var live = w.HasComponent<SkillAmplifier>(env) ? w.GetComponentRO<SkillAmplifier>(env) : default;
+                if (!live.Set(side, tiers)) return;
+                if (w.HasComponent<SkillAmplifier>(env)) w.SetComponent(env, live); else w.AddComponent(env, live);
+                Fdp.Core.Logging.FdpLog<Log>.Info($"skill amplifier: {side} {live.TiersOf(side):+0;-0;0} tier(s) (asked by {self})");
+            });
             return NodeStatus.Success;
         }
 

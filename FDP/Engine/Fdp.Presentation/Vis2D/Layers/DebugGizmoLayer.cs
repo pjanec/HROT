@@ -219,12 +219,17 @@ namespace Fdp.Toolkit.Vis2D.Layers
             var live = CurrentCamera?.Invoke() ?? _mapCamera;
             if (live is Fdp.Toolkit.Vis3D.MapCamera3D camera)
             {
+                // ⭐ CE-4582 (§6am D-1, D-8) — one scope for the place labels and the cards: each drawn at its anchor's depth (the toggle off ⇒ on top)
+                Occlusion3D.AnchorOf ??= CardAnchorWorld3D;
+                Occlusion3D.Begin(camera);
+                Cards.Occlusion = Occlusion3D;
                 long t3 = Fdp.Presentation.WindowManager.WindowTimings.Start();
-                LabelsDrawn3D = Fdp.Toolkit.Vis3D.LabelOverlay3D.Draw(Renderer3D.Labels, camera, LabelLift);
+                LabelsDrawn3D = Fdp.Toolkit.Vis3D.LabelOverlay3D.Draw(Renderer3D.Labels, camera, LabelLift, Occlusion3D);
                 Fdp.Presentation.WindowManager.WindowTimings.Record("gizmo3D labels", t3);
                 LastLabels3D = Renderer3D.Labels.Count; LastLabelsDrawn3D = LabelsDrawn3D;   // ⭐ CE-4388
                 long tc = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4388 — the cards alone (does decluttering pay?)
                 Cards.Draw(Renderer3D.Cards, CardAnchor3D(camera));
+                Occlusion3D.End();   // the renderer ends it before the selected cards; idempotent
                 Fdp.Presentation.WindowManager.WindowTimings.Record("cards", tc);
                 LastCardsDrawn = Cards.CardsDrawn;
             }
@@ -236,6 +241,20 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 LastCardsDrawn = Cards.CardsDrawn;
             }
         }
+
+        /// <summary>⭐ <c>CE-4582</c> (docs/DESIGN_Map_3D_Mode.md §6am) — hides the 3-D cards and place labels behind the terrain. The host sets its
+        /// switch (<see cref="Fdp.Toolkit.Vis3D.CardOcclusion.Enabled"/>) and the cards that always show (<c>Cards.AlwaysOnTop</c>).</summary>
+        public Fdp.Toolkit.Vis3D.CardOcclusion Occlusion3D { get; } = new();
+
+        private Func<long, Vector3?>? _cardAnchorWorld3D;
+
+        /// <summary>⭐ CE-4582 — an entity's card anchor in the WORLD: its anchor lifted to the top of its drawn body (the point <see cref="CardAnchor3D"/> projects).</summary>
+        private Func<long, Vector3?> CardAnchorWorld3D => _cardAnchorWorld3D ??= id =>
+        {
+            if (!_triage3D.TryGetAnchor(id, out var at)) return null;
+            at.Z += LabelLift?.Invoke(id) ?? Fdp.Toolkit.Vis3D.LabelOverlay3D.DefaultLift;
+            return at;
+        };
 
         /// <summary>⭐ S5b — an entity's card anchor in 3-D: its anchor, lifted to the top of its drawn body, projected.</summary>
         public Func<long, Vector2?> CardAnchor3D(Fdp.Toolkit.Vis3D.MapCamera3D camera)

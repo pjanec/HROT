@@ -36,6 +36,10 @@ namespace Hrot.ClusterRunner.Configuration
             SerialMode = serial;
             UiHost = ui;
             ApplyResolved(resolved, env);
+            // ⭐ CE-4585 (B-5) — published once for GET /performance and /status (the one source; what runs and where each switch came from)
+            string? path = UserPath;
+            PerformanceStatus.Publish(resolved, PerformanceStatus.SourcesOf(env, serial, ui, !string.IsNullOrEmpty(path) && System.IO.File.Exists(path)),
+                path, SavedForNextStart);
             return PerformanceSettings.Describe(in resolved);
         }
 

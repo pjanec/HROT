@@ -169,6 +169,22 @@ public sealed class TheClusterMembershipRoutesTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-1950</c> — every publishing route's <c>waitForReady</c> (<c>POST /replay</c>, preview, review, their exits) follows the same answer: a FAILED round
+    /// is an error with the node's reason even while the announced state reads the target (📌 a replay whose recording failed to open read OperatingReplay
+    /// 1 s later and answered ok); the target state is "done" only once the master said Success; with no cluster view the state alone.
+    /// 🔴 Mutation: <c>RoundSettled</c> ignoring the phase (done = reached) ⇒ the first two cells red.
+    /// </summary>
+    [Fact]
+    public void CE1950_APublishingRoutesWait_FailsOnAFailedRound_AndIsDoneOnlyOnTheMastersSuccess()
+    {
+        Assert.Equal((false, "old schema"), DebugApiHost.RoundSettled(reached: true, ("Failed", "old schema")));
+        Assert.Equal((false, (string?)null), DebugApiHost.RoundSettled(reached: true, ("Loading", null)));
+        Assert.Equal((true, (string?)null), DebugApiHost.RoundSettled(reached: true, ("Loaded", null)));
+        Assert.Equal((false, (string?)null), DebugApiHost.RoundSettled(reached: false, ("Loaded", null)));
+        Assert.Equal((true, (string?)null), DebugApiHost.RoundSettled(reached: true, null));   // no cluster view: the state alone
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-3354</c> ⑦ — <c>GET /status.load</c> follows the load the MASTER broadcasts, not only the ones this API sent: a load sent from elsewhere (the command line, the operator panel, another node) shows its request id, scenario and
     /// phase (Loading until the master answers it, then Loaded); a load this API sent is the fallback while the view knows none. 🔴 Mutations (each compiles): <c>CurrentLoad</c> reading only <c>_lastLoad</c> ⇒ the first cells red;
     /// the phase read off the wrong id ⇒ the phase cells red.

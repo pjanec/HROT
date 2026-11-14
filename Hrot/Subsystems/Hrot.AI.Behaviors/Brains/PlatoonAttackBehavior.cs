@@ -705,6 +705,10 @@ namespace Hrot.AI.Behaviors.Brains
             int a = p.SlotOf(PlatoonAttackPlan.Assault, Math.Min(RosterCount(world, self), PlatoonAttackPlan.Capacity));
             if (a < 0) return false;
             if (!Alive(world, self, a)) return true;
+            // ⭐⭐ CE-7015 (AQ101 §R E — the rout) — the assault is lost when it reports Black OR too few of its men still STAND (casualties and
+            //   the broken alike). One predicate for both guards: AT-9 relieves a broken assault with a free reserve, AT-10 aborts when none is left.
+            var unit = CommandPictureOps.Subordinate(world, self, a);
+            if (!unit.IsNull && !Fdp.Toolkit.Squad.CombatEffective.IsStanding(world, unit)) return true;
             var colour = new SubordinateColourParams { Slot = a, AtLeast = StatusColour.Black };
             return PictureConditions.SubordinateColour(ref colour, self, world);
         }

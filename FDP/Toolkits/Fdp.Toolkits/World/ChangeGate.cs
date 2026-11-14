@@ -74,7 +74,7 @@ namespace Fdp.Toolkit.World
     public sealed class ChangeGate
     {
         /// <summary><c>HROT_CHANGE_GATE=0</c> ⇒ off (A/B, bisect); read once.</summary>
-        public static bool Enabled { get; set; } = Environment.GetEnvironmentVariable("HROT_CHANGE_GATE") != "0";
+        public static bool Enabled { get; set; } = EnvVars.Read(EnvVars.HrotChangeGate) != "0";
 
         private Type[] _types = Array.Empty<Type>();
         private Func<long>[] _externals = Array.Empty<Func<long>>();

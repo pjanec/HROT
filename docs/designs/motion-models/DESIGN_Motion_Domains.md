@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: §4 MD-B's "one ownership role per domain" is SUPERSEDED by R-3005 (one Muscle role) — the module-per-domain half stands.
 known-conflict: docs/designs/navig-2/Navigation_Design_v2_0.md §7.1 routes Naval / Flying as extra KinematicsMode values INSIDE CarKinematics ("impl TBD", never built); this proposal gives each domain its own module instead (MD-B) — reconcile on approval.
 related-designs:
+  - ../../DESIGN_Vehicle_Breaching.md — OWNS what happens at the hull guard's refusal for a PLAYER's heavy vehicle (break through weak barriers) and §7 V-1 (R-4237): the guard is blind to free walls / fences / hedges today (a panel with no building is not a closed barrier) — a HULL trace purpose makes every panel block a hull, AI included; a panel top is never a hull surface (R-4239); building breaches never open for a hull (R-3025 kept)
   - docs/blueprints/Architect_Question_99_Clearing_Demos_Person_Spacing_And_Losses.md — (behaviors) RULES §5h.1 (C: step over a man down where there is no way round) and a person's avoidance radius per type (A) — R-2065
   - docs/designs/airborne/DESIGN_Airborne_Insertion.md — OWNS two new air classes (Rope, Parachute), their models (RopeSlideModel, ParachuteModel) and the replicated Descent component that makes a Pedestrian TYPE an air body for a descent (D-1…D-3)
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the aircraft route follower (AirRoute / AirPath), FixedWingModel (this file's MD-H row, now designed) and RotorcraftModel's route, tilt, take-off and landing (R-2015)

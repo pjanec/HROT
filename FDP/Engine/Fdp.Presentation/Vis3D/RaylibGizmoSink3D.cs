@@ -166,14 +166,22 @@ namespace Fdp.Toolkit.Vis3D
             return s.X < -1e5f ? null : s;
         }
 
-        /// <summary>Draws <paramref name="labels"/> (outside the 3-D camera pass).</summary>
-        public static int Draw(IReadOnlyList<GizmoLabel3D> labels, MapCamera3D camera, System.Func<long, float?>? liftOf)
+        /// <summary>Draws <paramref name="labels"/> (outside the 3-D camera pass). ⭐ <c>CE-4582</c> (§6am D-8) — with an open
+        /// <paramref name="occlusion"/> scope each is drawn at its anchor's depth, hidden behind what stands in front of it.</summary>
+        public static int Draw(IReadOnlyList<GizmoLabel3D> labels, MapCamera3D camera, System.Func<long, float?>? liftOf, CardOcclusion? occlusion = null)
         {
             int drawn = 0;
+            bool tested = occlusion is { Active: true };
             for (int i = 0; i < labels.Count; i++)
             {
                 var label = labels[i];
                 if (ScreenOf(in label, camera, liftOf) is not { } s) continue;
+                if (tested)
+                {
+                    var world = label.World;
+                    if (label.AnchorId != 0) world.Z += liftOf?.Invoke(label.AnchorId) ?? DefaultLift;
+                    occlusion!.Push(world);
+                }
                 var p = label.Primitive;
                 var colour = new Color(p.Color.R, p.Color.G, p.Color.B, p.Color.A);
                 switch (p.Shape)
@@ -191,6 +199,7 @@ namespace Fdp.Toolkit.Vis3D
                         Raylib.DrawCircleV(s, 4f, Color.Yellow);   // the 2-D renderer's Icon fallback
                         break;
                 }
+                if (tested) occlusion!.Pop();
                 drawn++;
             }
             return drawn;

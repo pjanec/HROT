@@ -19,6 +19,9 @@ related-designs:
   - DESIGN_Condition_Editor.md — §8: the Replay Search's condition tree is the struct editor CE-4288 fixes
 -->
 
+> ⛔ **HISTORY note (R-4223, CE-4528, `2026-11-14`)** — the Node MCP server (`tools/ai-debug-mcp`: its tool catalog, generated `SKILL.md`, skill parts and generators) named in this document is **removed**. The debug API is plain HTTP and describes itself: `GET /help` (or `Hrot.ClusterRunner --help-api` before anything is started) and `GET /capabilities` — [`DESIGN_Debug_Api_Http_Only.md`](../DESIGN_Debug_Api_Http_Only.md). Every mention of the server, its tools or its generated files below is HISTORY; tool names map to routes in `GET /help`.
+
+
 # DESIGN — the Replay Browser: one seek bar on the main bar, a usable default layout
 
 ![the Replay Browser redesigned](replay-browser-visual.svg)

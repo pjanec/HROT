@@ -16,9 +16,9 @@ namespace Fdp.ModuleHost
     /// </summary>
     public static class PublishProbe
     {
-        private static readonly bool On = Environment.GetEnvironmentVariable("HROT_PUBLISH_PROBE") == "1";
-        private static readonly int Every = int.TryParse(Environment.GetEnvironmentVariable("HROT_PUBLISH_PROBE_EVERY"), out var e) && e > 0 ? e : 30;
-        private static readonly string Out = Environment.GetEnvironmentVariable("HROT_PUBLISH_PROBE_OUT") is { Length: > 0 } o
+        private static readonly bool On = EnvVars.Read(EnvVars.HrotPublishProbe) == "1";
+        private static readonly int Every = int.TryParse(EnvVars.Read(EnvVars.HrotPublishProbeEvery), out var e) && e > 0 ? e : 30;
+        private static readonly string Out = EnvVars.Read(EnvVars.HrotPublishProbeOut) is { Length: > 0 } o
             ? o : Path.Combine(Path.GetTempPath(), "hrot-publish-probe.jsonl");
         private static EntityRepository? _bgWarm, _bgCold, _allWarm, _allCold, _prod;
         private static long _frame;
@@ -29,7 +29,7 @@ namespace Fdp.ModuleHost
         /// <summary>⭐ A-3 (threaded-analysis instruments) — named masks to copy as well, read from <c>HROT_PUBLISH_PROBE_MASKS</c>: a JSON object
         /// <c>{"name": ["Full.Type.Name", …]}</c> (made from the A-1 access trace: what the presentation actually reads). Each mask is copied WARM and COLD
         /// like the built-in two; a type the process does not know or has not registered is counted, not fatal.</summary>
-        private static readonly string? MasksPath = Environment.GetEnvironmentVariable("HROT_PUBLISH_PROBE_MASKS") is { Length: > 0 } m ? m : null;
+        private static readonly string? MasksPath = EnvVars.Read(EnvVars.HrotPublishProbeMasks) is { Length: > 0 } m ? m : null;
         private static List<(string Name, BitMask512 Mask, int Types, int Missing, EntityRepository Warm, EntityRepository Cold)>? _masks;
 
         /// <summary>⭐ A-3 — other treatments a host wants costed at the probe frame: each gets the LIVE world and the warm ALL-types copy and returns an item

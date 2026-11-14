@@ -21,12 +21,12 @@ namespace Fdp.Core
     public static class ParallelReadCheck
     {
         /// <summary>The switch: <c>HROT_READ_CHECK=1</c>. Read once — off, the JIT removes every hook.</summary>
-        public static readonly bool Compiled = Environment.GetEnvironmentVariable("HROT_READ_CHECK") is "1" or "2";
+        public static readonly bool Compiled = EnvVars.Read(EnvVars.HrotReadCheck) is "1" or "2";
 
         /// <summary>⭐ N-11 — <c>HROT_READ_CHECK=2</c>: the SURVEY — every check RECORDS its finding (kind, type, first call site) instead of throwing,
         /// and the access proceeds as with the checks off; <see cref="SurveyReport"/> lists them. One run names every undeclared read and every
         /// direct cross write of a content set, where the throwing mode stops at the first.</summary>
-        public static readonly bool Survey = Environment.GetEnvironmentVariable("HROT_READ_CHECK") == "2";
+        public static readonly bool Survey = EnvVars.Read(EnvVars.HrotReadCheck) == "2";
 
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> s_survey = new();
 
@@ -40,7 +40,7 @@ namespace Fdp.Core
             lock (s_survey) System.IO.File.AppendAllText(s_surveyOut, "SURVEY " + key + "\n" + site + "\n");   // a headless node: one line per new finding
         }
 
-        private static readonly string? s_surveyOut = Environment.GetEnvironmentVariable("HROT_READ_CHECK_OUT");
+        private static readonly string? s_surveyOut = EnvVars.Read(EnvVars.HrotReadCheckOut);
 
         /// <summary>Every finding so far, "kind type" → first call site (survey mode).</summary>
         public static System.Collections.Generic.IReadOnlyDictionary<string, string> SurveyReport() => s_survey;

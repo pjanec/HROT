@@ -204,7 +204,7 @@ namespace Hrot.Editor.DebugApi
         /// <see cref="Error"/> string.
         /// </param>
         private readonly record struct RouteResult(
-            int Status, JsonNode? Data, string? Error, JsonNode? Hint = null, JsonNode? Fault = null);
+            int Status, JsonNode? Data, string? Error, JsonNode? Hint = null, JsonNode? Fault = null, string? Text = null);
 
         private static RouteResult Ok(JsonNode? data) => new(200, data, null);
 
@@ -404,7 +404,7 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>
         /// ⭐⭐⭐ <b>The manifest as a JSON string, for <c>--mode dump-api</c></b> — the artefact
-        /// <c>tools/ai-debug-mcp</c> generates its catalog from.
+        /// what the route table IS, with no world started (GET /help's text is <see cref="HelpText"/>).
         ///
         /// <para>⭐ The DESCRIPTION half *(endpoints + their <see cref="RouteDoc"/>s)* is all the generator
         /// reads, and it is host-independent. ⚠ The AVAILABILITY half is deliberately reported as
@@ -438,6 +438,39 @@ namespace Hrot.Editor.DebugApi
             //   JsonSerializer attaches it. 📌 Which is why the HTTP path, which serializes the same nodes
             //   through JsonSerializer, never hit this.
             return JsonSerializer.Serialize(manifest, FdpJsonOptionsRegistry.Indented);
+        }
+
+        /// <summary>⭐ CE-4525 — the agent guide (<see cref="AgentGuide"/>) over the full route table; <paramref name="available"/> marks what a
+        /// host cannot serve now (null: <c>--help-api</c>, no host).</summary>
+        public static string HelpText(Func<string, bool?>? available) => AgentGuide.Render(EnumerateRouteTemplates(), available, HelpAppendix());
+
+        /// <summary>Sections other owners render into the guide: ⭐ CE-4586 — the environment variables, from the one table (<c>Fdp.Core.EnvVars</c>).</summary>
+        internal static IEnumerable<string> HelpAppendix() => new[] { Fdp.Core.EnvVars.RenderHelp() };
+
+        /// <summary>⭐ The editor's capability cells: one node, every editor capability wired (the same set <c>GET /capabilities</c> reports).</summary>
+        private static Dictionary<string, bool> EditorCapabilities() => new(StringComparer.Ordinal)
+        {
+            [Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead]        = true,
+            [Hrot.Presentation.DebugApi.DebugCapabilities.EntityMap]        = true,
+            [Hrot.Presentation.DebugApi.DebugCapabilities.TimeDrive]        = true,
+            [Hrot.Presentation.DebugApi.DebugCapabilities.Panels]           = true,
+            [Hrot.Presentation.DebugApi.DebugCapabilities.GizmoFrame]       = true,
+            [Hrot.Presentation.DebugApi.DebugCapabilities.Preview]          = true,
+            [Hrot.Presentation.DebugApi.DebugCapabilities.EditorAuthoring]  = true,
+            // ⭐ HN-029: the editor is a ONE-NODE cluster and its own ClusterMaster reads the bus the composition root hands over
+            [Hrot.Presentation.DebugApi.DebugCapabilities.ScenarioLoad]     = true,
+            // ⭐ CE-4002: the editor runs the ONE OrchestratorCore in-process (R-215) — the master's roster and the cancel bus
+            [Hrot.Presentation.DebugApi.DebugCapabilities.ClusterRoster]    = true,
+            [Hrot.Presentation.DebugApi.DebugCapabilities.ClusterCancel]    = true,
+        };
+
+        /// <summary>⭐ CE-4525 — can THIS host serve <paramref name="capability"/> now: the current perspective's measured cell on a cluster, the
+        /// editor's cells otherwise; null when the key is not measured (unmarked in the guide).</summary>
+        private bool? Available(string capability)
+        {
+            if (_dispatcher is { } d)
+                return d.CurrentPerspective is { } p && d.Matrix().TryGetValue(p, out var row) && row.TryGetValue(capability, out var on) ? on : null;
+            return EditorCapabilities().TryGetValue(capability, out var e) ? e : null;
         }
 
         private void BuildRoutes()
@@ -483,25 +516,14 @@ namespace Hrot.Editor.DebugApi
                     _dispatcher,
                     // ⭐ Editor mode: one context, and every cell is measured from the service being
                     //   constructible with those deps at all.
-                    _dispatcher is null
-                        ? new Dictionary<string, bool>(StringComparer.Ordinal)
-                          {
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead]        = true,
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.EntityMap]        = true,
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.TimeDrive]        = true,
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.Panels]           = true,
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.GizmoFrame]       = true,
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.Preview]          = true,
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.EditorAuthoring]  = true,
-                              // ⭐ HN-029: the editor is a ONE-NODE cluster and its own ClusterMaster reads
-                              //   the bus the composition root hands over ⇒ it can request a transition.
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.ScenarioLoad]     = true,
-                              // ⭐ CE-4002: the editor runs the ONE OrchestratorCore in-process (R-215), so it holds
-                              //   the master's roster and the bus a cancel travels on.
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.ClusterRoster]    = true,
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.ClusterCancel]    = true,
-                          }
-                        : null)))));
+                    _dispatcher is null ? EditorCapabilities() : null)))));
+
+            // ⭐ CE-4585 (B-5) — what this process runs with and where each switch came from (PerformanceStatus — the one source)
+            _routes.Add(new("GET", "/performance", _ => Task.FromResult(Ok(Fdp.Core.Jobs.PerformanceStatus.Report())), NeedsService: false));
+
+            // ⭐⭐ CE-4525 (H-3) — GET /help: the agent guide, prose + every route rendered from the route docs, each marked when THIS host
+            //   cannot serve it now. Plain text (markdown), not the JSON envelope: it is read, not parsed.
+            _routes.Add(new("GET", "/help", _ => Task.FromResult(new RouteResult(200, null, null, Text: HelpText(Available))), NeedsService: false));
 
             // Group B — entities (with optional ?component= and ?near= filters)
             _routes.Add(new("GET", "/entities", ctx =>
@@ -2186,8 +2208,9 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("POST", "/editor/commands/{commandId}/invoke", ctx => RunMainResult(s =>
             {
                 var (result, error, hintCategory) =
-                    s.InvokeEditorCommand(ctx.RouteValue("commandId"), ctx.Body, ctx.Query("scope"));   // N-15 — ?scope=shell
+                    s.InvokeEditorCommand(ctx.RouteValue("commandId"), ctx.Body, ctx.Body?["scope"]?.GetValue<string>());   // N-15 — {"scope":"shell"}; ⭐ CE-4523 a POST reads its body (was ?scope=)
                 if (error == null) return Ok(result);
+                if (error.StartsWith(DebugApiService.HttpRefusedPrefix, StringComparison.Ordinal)) return Fail(403, error, hintCategory);   // ⭐ CE-4585
                 if (error.StartsWith("No editor-command dispatcher", StringComparison.Ordinal))
                     return Fail(503, error, hintCategory);
                 if (error.StartsWith("No editor command", StringComparison.Ordinal))
@@ -2562,10 +2585,20 @@ namespace Hrot.Editor.DebugApi
             bool wait = ctx.Body?["waitForReady"]?.GetValue<bool>() ?? false;
             if (!wait || r.Result?["published"]?.GetValue<bool>() != true) return Ok(r.Result);
 
+            // ⭐⭐ CE-1950 — and the ROUND's outcome, as the scenario loads follow theirs (CE-3354 ④, the same LoadPhaseOf): the master advances the
+            //   state at the round's START, so the state alone is not "done" — a replay that failed to open on a node read OperatingReplay 1 s later
+            //   and answered ok. ⭐ Failed ⇒ 409 with the node's reason at once; reached is ok only once the master said Success (a host with no
+            //   cluster view keeps the state-only rule).
+            Guid? round = Guid.TryParse(r.Result?["transactionId"]?.GetValue<string>(), out var tx) ? tx : null;
             var sw = Stopwatch.StartNew();
             while (sw.Elapsed.TotalSeconds < ScenarioReadyTimeoutSeconds)
             {
-                if (await _jobQueue.RunOnMainThread(() => Service().PollClusterStateIs(waitFor.Value)).ConfigureAwait(false))
+                var (reached, phase) = await _jobQueue.RunOnMainThread(() =>
+                    (Service().PollClusterStateIs(waitFor.Value), round is { } id ? Service().LoadPhaseOf(id) : null)).ConfigureAwait(false);
+                var (done, failure) = RoundSettled(reached, phase);
+                if (failure != null)
+                    return Fail(409, $"The cluster did not reach {waitFor.Value}: {failure}", DebugApiHints.Scenario);
+                if (done)
                 {
                     if (r.Result is JsonObject o) { o["awaited"] = true; o["reached"] = waitFor.Value.ToString(); }
                     return Ok(r.Result);
@@ -2574,6 +2607,14 @@ namespace Hrot.Editor.DebugApi
             }
             return Fail(504, $"The cluster did not reach {waitFor.Value} within {ScenarioReadyTimeoutSeconds}s.");
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-1950</c> — one poll of a publishing route's wait: the round FAILED (⇒ its reason), or it is done (the state reached AND the master answered
+        /// Success; with no cluster view the state alone), or not yet. The ONE rule <see cref="PublishAndAwait"/> applies — <c>TheClusterMembershipRoutesTests</c> rails it.
+        /// </summary>
+        internal static (bool Done, string? Failure) RoundSettled(bool reached, (string Phase, string? Reason)? phase)
+            => phase is { Phase: "Failed" } f ? (false, f.Reason ?? "the round failed")
+             : (reached && (phase is null || phase.Value.Phase == "Loaded"), null);
 
         /// <summary>⭐ How long the ack-gate waits before calling the cluster stuck. Generous: a lockstep tick
         /// over DDS is milliseconds, so anything near this is a real stall, not slowness.</summary>
@@ -2936,6 +2977,17 @@ namespace Hrot.Editor.DebugApi
                 //    endpoint could not advise a caller that had been served but had asked the wrong
                 //    question — the envelope was structurally incapable of saying "ok, but…". 📐 That is why
                 //    `/logs?limit=400` could return the whole unfiltered ring in silence.
+                if (result.Text is { } text && result.Error is null)
+                {
+                    // ⭐ CE-4525 — a READ for people and agents (GET /help): plain UTF-8 markdown, not a JSON string in the envelope
+                    var raw = Encoding.UTF8.GetBytes(text);
+                    ctx.Response.StatusCode = result.Status;
+                    ctx.Response.ContentType = "text/markdown; charset=utf-8";
+                    ctx.Response.ContentLength64 = raw.Length;
+                    await ctx.Response.OutputStream.WriteAsync(raw, 0, raw.Length).ConfigureAwait(false);
+                    ctx.Response.Close();
+                    return;
+                }
                 var envelope = result.Error is null
                     ? new ApiResponse(true, Data: result.Data, Hint: result.Hint)
                     : new ApiResponse(false, Error: result.Error, Hint: result.Hint, Fault: result.Fault);
@@ -3069,8 +3121,8 @@ namespace Hrot.Editor.DebugApi
     /// <param name="Fault">
     /// ⭐⭐⭐ <c>CE-190</c> — the throw site, frames and inner chain of an unhandled exception, so an MCP
     /// caller can locate a 500 instead of only reading its message. Null on every non-500 response.
-    /// ⭐ It reaches the agent with no client change: <c>ai-debug-mcp/src/index.mjs:296</c> spreads the
-    /// whole envelope into the tool's error payload.
+    /// ⭐ It reaches the agent with no client change: the envelope carries it (⛔ HISTORY: the retired MCP server spread the
+    /// whole envelope into its tool error payload).
     /// </param>
     public record ApiResponse(bool Ok, JsonNode? Data = null, string? Error = null, bool? Awaited = null, JsonNode? Hint = null, JsonNode? Fault = null);
 }

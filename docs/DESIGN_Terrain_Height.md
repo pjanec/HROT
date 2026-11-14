@@ -7,9 +7,10 @@ updated: 2026-10-10 (rev 5 — §5b H2 + H3 as built. Rev 4 — §5a H1 as built
 current-answer: §8 (lean, 2026-10-17) the AMBIENT GROUND outside the terrain, from a SUMO net · §1 why · §2 INVENTORY · §3 the diagrams · §4 decisions with leans · §5 slices · §6 not verified.
 stale-below: nothing.
 known-rot: §7's rev-1 lean (Jolt; TerrainWorld's methods as the seam; Bepu rejected) — corrected by R-250/R-251, see its banner.
-known-conflict: none. (Resolved 2026-10-15: CE-3086 built basic-desert's ridge and wadi as TH-G's grid, §5d — the Utility demo
+known-conflict: none. (Resolved 2026-10-15: CE-3086 built basic-desert's ridge and wadi as TH-G's grid, §5d — the Utility demo · DESIGN_Ground_Patches_And_Road_Blockage.md G-2 (a house with a pad stands ON it, not on the lowest ground — TH-C narrowed, once ruled)
   design's ramp plan is superseded there.)
 related-designs:
+  - DESIGN_Ground_Patches_And_Road_Blockage.md — OWNS the house pad and the crater as patches of this grid's tiles (copy-on-write); G-2 overturns TH-C for a house that carries a pad (once ruled)
   - DESIGN_Terrain_Import_UTM.md — importing a 6 × 6 km UTM terrain: this design's TerrainHeightGrid gains a tiled binary store
   - DESIGN_Body_Geometry_And_Ground_Contact.md — the gear height and resting pose (pitch/roll on a slope) of a CG-referenced
     body; the motion model that grounds an aircraft (§4a, R-249) uses it.

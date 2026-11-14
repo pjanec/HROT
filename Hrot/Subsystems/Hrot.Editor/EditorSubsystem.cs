@@ -558,8 +558,7 @@ namespace Hrot.Editor
 
         // ── AI-debug API (MCP) host — ported from feat/ai-debug-api. Enabled by setting the
         //    HROT_DEBUG_API_PORT environment variable to a port number; off otherwise, so it costs
-        //    nothing in normal runs. The MCP server (tools/ai-debug-mcp) is an out-of-process client
-        //    of this loopback HttpListener. See docs/MCP_Integration.md.
+        //    nothing in normal runs. Agents drive it over plain HTTP (GET /help, CE-4525). See docs/MCP_Integration.md.
         private Hrot.Editor.DebugApi.MainThreadJobQueue? _debugApiJobQueue;
 
         // ⭐ CE-4038 (docs/DESIGN_Film_Director.md) — the film director: one runner, two remotes (the /director/* routes, the Director panel)
@@ -1824,12 +1823,11 @@ namespace Hrot.Editor
             }
 
             // ── 8b. AI-debug API (MCP) host — ported from feat/ai-debug-api. Works headless. Enabled only
-            //    when HROT_DEBUG_API_PORT names a port, so it costs nothing in normal runs; the MCP server
-            //    (tools/ai-debug-mcp) is an out-of-process client of this loopback HttpListener.
+            //    when HROT_DEBUG_API_PORT names a port, so it costs nothing in normal runs; agents drive it over plain HTTP (GET /help).
             //    Full surface: the behavior-trace tracer and the record/replay controller are wired below
             //    (own instances, dedicated to the API). See docs/MCP_Integration.md.
             {
-                var portEnv = System.Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT");
+                var portEnv = EnvVars.Read(EnvVars.HrotDebugApiPort);
                 if (!string.IsNullOrWhiteSpace(portEnv) && int.TryParse(portEnv, out var debugApiPort) && debugApiPort > 0)
                 {
                     // MX9-cap — panels publish their view-models only while this is on, and the UI lane
@@ -1839,7 +1837,7 @@ namespace Hrot.Editor
                     // one branch per panel per frame.
                     // ⭐ CE-4432 — HROT_PANEL_CAPTURE=0 keeps the API but not the per-frame panel models: a measuring run then pays what a user's run pays
                     //   (every panel building + registering its snapshot model each frame was part of every frame measured over the API before).
-                    Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = System.Environment.GetEnvironmentVariable("HROT_PANEL_CAPTURE") != "0";
+                    Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = EnvVars.Read(EnvVars.HrotPanelCapture) != "0";
 
                     _debugApiJobQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
                     if (Staged) _debugApiJobQueue.UiQueue = _debugApiUiJobQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();   // ⭐ N-8
@@ -2937,7 +2935,7 @@ namespace Hrot.Editor
         /// canvas, the panels / windows / layers / views held by the editor) may reach S. <c>HROT_POC3_WALK=1</c> logs, <c>=exit</c> logs and exits.</summary>
         private void WalkComposition()
         {
-            var mode = Environment.GetEnvironmentVariable("HROT_POC3_WALK");
+            var mode = EnvVars.Read(EnvVars.HrotPoc3Walk);
             if (mode is not ("1" or "exit") || _presWorld == null || _nodeWorld == null) return;
             var sw = System.Diagnostics.Stopwatch.StartNew();
             var stop = new object[] { this, _bootstrapper! };   // the composition roots: they hold both worlds by design (⛔ not the node context: a presentation object holding it reads S)
@@ -2956,7 +2954,7 @@ namespace Hrot.Editor
             var report = Fdp.Core.WorldReferenceWalker.Report("[POC3-WALK] NODE objects reaching A", nodeHits)
                        + Fdp.Core.WorldReferenceWalker.Report("[POC3-WALK] PRESENTATION objects reaching S", presHits);
             Console.WriteLine(report + $"[POC3-WALK] walked in {sw.Elapsed.TotalSeconds:F1} s");
-            var outPath = Environment.GetEnvironmentVariable("HROT_POC3_WALK_OUT");
+            var outPath = EnvVars.Read(EnvVars.HrotPoc3WalkOut);
             if (!string.IsNullOrEmpty(outPath)) System.IO.File.WriteAllText(outPath, report);
             if (mode == "exit") Environment.Exit(0);
         }
@@ -2983,8 +2981,8 @@ namespace Hrot.Editor
             _twPresMap.RebuildFromWorld(a);
             a.SetSingletonManaged(_twPresMap);
             // the TABLE mask: a named mask of the A-1 masks file, or every type
-            string? maskPath = Environment.GetEnvironmentVariable("HROT_TWO_WORLDS_MASKS");
-            string maskName = Environment.GetEnvironmentVariable("HROT_TWO_WORLDS_MASK") is { Length: > 0 } mn ? mn : "ui-no-inspector";
+            string? maskPath = EnvVars.Read(EnvVars.HrotTwoWorldsMasks);
+            string maskName = EnvVars.Read(EnvVars.HrotTwoWorldsMask) is { Length: > 0 } mn ? mn : "ui-no-inspector";
             var loaded = maskPath != null ? Fdp.ModuleHost.PublishProbe.LoadMask(maskPath, maskName) : null;
             _twMaskAll = loaded == null;
             _twTableMask = loaded?.Mask ?? a.GetSnapshotableMask(true);
@@ -3369,7 +3367,7 @@ namespace Hrot.Editor
         /// bus swap), then the cluster orchestrator and the transport's read-back. <see cref="Update"/> runs it once per frame; Run to …'s turbo loop
         /// (<see cref="TurboStep"/>) runs it once per step — the SAME frame, never a second copy of it.
         /// </summary>
-        private static readonly bool K3Log = Environment.GetEnvironmentVariable("HROT_INSYNC_LOG") == "1";   // ⭐ K-3 (CE-4450)
+        private static readonly bool K3Log = EnvVars.Read(EnvVars.HrotInsyncLog) == "1";   // ⭐ K-3 (CE-4450)
         private void TickNodeFrame(float deltaTime)
         {
             using var traceNode = Fdp.Core.AccessTrace.Scope("node: shared frame (slave, bus swap, timeline)", Fdp.Core.TraceContext.Tick);   // ⭐ A-1 — the whole node frame is the TICK context
@@ -4231,7 +4229,7 @@ namespace Hrot.Editor
             var osmServices = new Hrot.UI.Common.TerrainOsm.OsmWizardServices(
                 Pipeline: Hrot.Terrain.Osm.OsmPipelines.Online(osmCache, osmHttp),
                 Tiles: new Hrot.Terrain.Osm.OsmTileSource(osmHttp, System.IO.Path.Combine(osmCache, "map-tiles"),
-                                                          System.Environment.GetEnvironmentVariable("HROT_OSM_TILE_URL") ?? Hrot.Terrain.Osm.OsmTileSource.DefaultUrl),
+                                                          EnvVars.Read(EnvVars.HrotOsmTileUrl) ?? Hrot.Terrain.Osm.OsmTileSource.DefaultUrl),
                 Search: new Hrot.Terrain.Osm.NominatimPlaceSearch(osmHttp),
                 // ⭐ CE-4393 (UTM §12.1) — the wizard's import bakes the navmesh into the terrain folder too: its first open bakes nothing
                 Importer: new Hrot.Terrain.Import.TerrainImporter(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas), Fdp.Toolkit.Orchestration.ContentLayout.Scenarios(nas))

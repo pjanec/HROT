@@ -25,10 +25,10 @@ namespace Hrot.MuscleCharacter.Animation.Stance
             ref readonly var status = ref view.GetComponentRO<StanceStatus>(entity);
             string? text = Text(view, entity, in status);
             if (text == null) return;
-            ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
             // ⭐ CE-1065 — on the UnitDetails layer (off by default): in 3-D the figure already shows the stance
-            draw.DrawText(tf.Position.X, tf.Position.Y, new FixedString32(text), Color, fontSizePx: 12f, lineOffsetPx: 14f,
-                          layer: DebugTraceLayers.UnitDetails);
+            // ⭐ CE-4582 (§6am D-7) — a row of HIS card, never free text at his feet
+            int net = EntityCardRows.CardIdOf(view, entity);
+            if (net != 0) draw.Card(net, DebugTraceLayers.UnitDetails).Row(EntityCardRows.Stance).Text(text, Color, 12f);
         }
 
         /// <summary>The line shown, or null for none. Public for the rail.</summary>

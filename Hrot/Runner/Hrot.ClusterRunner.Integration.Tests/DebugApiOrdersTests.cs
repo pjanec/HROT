@@ -528,9 +528,12 @@ public sealed class DebugApiOrdersTests
 
     /// <summary>
     /// ⭐⭐ CE-1078 (docs/DESIGN_Entity_Control.md §8e D-1) — through the real possession and operator behaviour: a trigger PRESS (the
-    /// frame's shot counter moving) fires exactly ONE round with no trigger held, and a counter that stays put fires nothing more; a press
-    /// made while the weapon reloads is NOT lost — it fires when the weapon is ready; RMB (the cancel counter) drops a waiting shot.
-    /// 🔒 User, 2026-10-14: "when i press fire trigger the tank tries aiming to the clicked target and fire once the barrel is aimed".
+    /// frame's shot counter moving) fires exactly ONE round with no trigger held, and a counter that stays put fires nothing more; ⭐ a press
+    /// made while the weapon reloads is DROPPED (CE-4344) — only a press once it is ready fires; a press during the next reload followed by RMB
+    /// fires nothing either. 🔒 User, 2026-10-14: "when i press fire trigger the tank tries aiming to the clicked target and fire once the barrel
+    /// is aimed". ⭐ CE-3447 (`2026-11-14`) — SUPERSEDED here: the earlier "a press during the reload is NOT lost, it fires when ready" — the
+    /// user's CE-4344 report (`2026-11-08`): "a shot that cannot fire NOW must be dropped". (The method keeps its historical name; RMB dropping
+    /// a waiting LOCK is <c>EmbarkNodesTests</c>' rail.)
     /// </summary>
     [Fact]
     public void CE1078_APress_FiresOneRound_APressDuringAReloadWaitsForIt_AndRmbDropsAWaitingShot()
@@ -556,12 +559,16 @@ public sealed class DebugApiOrdersTests
         Send(60, shot: 1);
         Assert.Equal(29, r.GetComponentRO<WeaponState>(unit).Ammo);    // one press, one round — the counter staying at 1 fires no more
         Assert.True(r.GetComponentRO<WeaponState>(unit).ReloadSecondsRemaining > 0f, "the one-round magazine is reloading");
-        for (int i = 0; i < 300 && r.GetComponentRO<WeaponState>(unit).Ammo > 28; i++) Send(1, shot: 2);   // pressed DURING the reload
-        Assert.Equal(28, r.GetComponentRO<WeaponState>(unit).Ammo);    // it waited for the reload and fired
+        for (int i = 0; i < 300 && r.GetComponentRO<WeaponState>(unit).ReloadSecondsRemaining > 0f; i++) Send(1, shot: 2);   // pressed DURING the reload
+        Assert.Equal(0f, r.GetComponentRO<WeaponState>(unit).ReloadSecondsRemaining);   // the reload ended …
+        Send(20, shot: 2);
+        Assert.Equal(29, r.GetComponentRO<WeaponState>(unit).Ammo);    // … and that press was dropped, never fired when ready (CE-4344)
+        Send(60, shot: 3);                                               // a press once the weapon is ready
+        Assert.Equal(28, r.GetComponentRO<WeaponState>(unit).Ammo);    // fires
         Assert.True(r.GetComponentRO<WeaponState>(unit).ReloadSecondsRemaining > 0f, "reloading again after that round");
-        Send(1, shot: 3);                                                // pressed during this reload …
-        Send(300, shot: 3, cancel: 1);                                   // … and RMB before it is done
-        Assert.Equal(28, r.GetComponentRO<WeaponState>(unit).Ammo);    // the waiting shot was dropped
+        Send(1, shot: 4);                                                // pressed during this reload …
+        Send(300, shot: 4, cancel: 1);                                   // … and RMB before it is done
+        Assert.Equal(28, r.GetComponentRO<WeaponState>(unit).Ammo);    // nothing fired
     }
 
     /// <summary>

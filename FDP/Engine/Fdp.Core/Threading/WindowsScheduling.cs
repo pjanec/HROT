@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -32,7 +33,7 @@ namespace Fdp.Core.Threading
         }
 
         /// <summary>Windows' default kept (<c>HROT_ECOQOS=1</c>): nothing is opted out — the comparison run.</summary>
-        public static bool KeepWindowsDefault { get; set; } = Environment.GetEnvironmentVariable("HROT_ECOQOS") == "1";
+        public static bool KeepWindowsDefault { get; set; } = EnvVars.Read(EnvVars.HrotEcoqos) == "1";
 
         /// <summary>The API in use: Win32 on Windows, a no-op elsewhere. Tests replace it.</summary>
         public static IApi Api { get; set; } = OperatingSystem.IsWindows() ? new Win32Api() : new NoOpApi();
