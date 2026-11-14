@@ -16,6 +16,7 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Terrain;
 using Fdp.Toolkit.Tkb;
 using Fdp.Toolkit.Tkb.Domain;
+using Fdp.Toolkit.World;
 using Hrot.MuscleCharacter.Animation.Components;
 using Xunit;
 
@@ -380,6 +381,37 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(300f, repo.GetComponentRO<SimTransform>(plane).Position.Z);
             sys.Execute(repo, 0.016f);
             Assert.Equal(1, sys.Regrounded);
+        }
+    
+        /// <summary>
+        /// ⭐ V-11 — a baked crater is drawn: its chunk's objects carry a dark disc and a lighter ring of Ground-kind scorch, draped 2 cm over the cratered bowl, the same bytes
+        /// every rebuild; a world without the crater draws none. 🔴 Red-proof: drop the <c>AddCraterScorch</c> call ⇒ no scorch.
+        /// </summary>
+        [Fact]
+        public void ABakedCrater_IsDrawnWithItsScorch_DrapedOnTheBowl_TheSameEveryRebuild()
+        {
+            var bare = Flat();
+            var repo = World(bare);
+            Record(repo, Big(20f, 20f));
+            var baked = TerrainObstacles.With(bare, Array.Empty<TerrainPrism>(), null, CraterTable.Of(repo));
+            var layout = TerrainWorldMesh.ChunkLayout(baked);
+            int cx = (int)MathF.Floor((20f - layout.Origin.X) / layout.ChunkSize), cy = (int)MathF.Floor((20f - layout.Origin.Y) / layout.ChunkSize);
+            List<(Vector3[] V, TerrainTriangleTag[] G)> runs = new();
+            for (int r = 0; r < 2; r++)
+            {
+                var v = new List<Vector3>(); var t = new List<int>(); var g = new List<TerrainTriangleTag>();
+                TerrainWorldMesh.BuildChunkObjects(baked, cx, cy, v, t, g, out _);
+                runs.Add((v.ToArray(), g.ToArray()));
+            }
+            Assert.Contains(runs[0].G, x => x.Material == TerrainWorldMesh.ScorchMaterial && x.Kind == TerrainTriangleKind.Ground);
+            Assert.Contains(runs[0].G, x => x.Material == TerrainWorldMesh.ScorchLightMaterial);
+            Assert.Equal(runs[0].V, runs[1].V);
+            var bottom = runs[0].V.Single(p => MathF.Abs(p.X - 20f) < 1e-3f && MathF.Abs(p.Y - 20f) < 1e-3f);
+            Assert.Equal(-1.6f + 0.02f, bottom.Z, 3);
+
+            var v2 = new List<Vector3>(); var t2 = new List<int>(); var g2 = new List<TerrainTriangleTag>();
+            TerrainWorldMesh.BuildChunkObjects(bare, cx, cy, v2, t2, g2, out _);
+            Assert.DoesNotContain(g2, x => x.Material == TerrainWorldMesh.ScorchMaterial);
         }
     }
 }

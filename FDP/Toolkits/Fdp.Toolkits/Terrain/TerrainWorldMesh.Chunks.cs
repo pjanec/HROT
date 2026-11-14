@@ -151,6 +151,10 @@ namespace Fdp.Toolkit.Terrain
                         if (ch.ChunkOf(rubble.Min, rubble.Max) == k) AddHeap(rubble, v, t, g);
                 }
             }
+            // ⭐ CE-4591 (P-4, V-11) — a crater's soot, drawn while its record exists (the baked world carries the craters it laid in), in the chunk of its centre
+            if (world.HeightCraters is { } craters)
+                for (int i = 0; i < craters.Count; i++)
+                    if (ch.ChunkOf(craters[i].Centre, craters[i].Centre) == k) AddCraterScorch(world, craters[i], v, t, g);
             foreach (int w in ch.Walkables[k])
                 if (damage == null || DamagedBuildings.Keeps(world.Walkables[w], damage)) AddWalkable(world.Walkables[w], v, t, g);
             int before = t.Count;

@@ -141,5 +141,48 @@ namespace Fdp.Toolkit.Terrain
                 if (R() > 0.33f) Stub(b.To - (maxDepth * (0.2f + (0.8f * R()))), b.To, z, zt);
             }
         }
+    
+        /// <summary>
+        /// ⭐ <c>CE-4591</c> (P-4; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md §9.1 V-11) — a CRATER's mark, SIZED by its record and KEPT while the record exists: a dark
+        /// disc over the bowl and a ragged lighter ring of blast streaks out past the rim, draped 2 cm over the cratered ground (the baked world's grid). Placed by a hash of the
+        /// crater, so every node and every rebuild draws the same. Presentation only.
+        /// </summary>
+        public static void AddCraterScorch(TerrainWorld world, in Crater c, List<Vector3> v, List<int> t, List<TerrainTriangleTag> g)
+        {
+            if (c.Radius <= 0f) return;
+            const int K = 24;
+            uint seed = (uint)(MathF.Round(c.Centre.X * 100f) * 73856093) ^ (uint)(MathF.Round(c.Centre.Y * 100f) * 19349663) ^ 0x9E3779B9u;
+            float R() { seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5; return (seed & 0xFFFFFF) / (float)0x1000000; }
+            const float Lift = 0.02f;
+            Vector3 At(Vector2 p) => new(p, world.GroundHeightAt(p.X, p.Y) + Lift);
+            var dark = new TerrainTriangleTag(TerrainTriangleKind.Ground, ScorchMaterial);
+            var light = new TerrainTriangleTag(TerrainTriangleKind.Ground, ScorchLightMaterial);
+            int centre = v.Count;
+            v.Add(At(c.Centre));
+            int ring0 = v.Count;
+            for (int k = 0; k < K; k++)
+            {
+                float a = 2f * MathF.PI * k / K;
+                v.Add(At(c.Centre + new Vector2(MathF.Cos(a), MathF.Sin(a)) * (c.Radius * (0.95f + 0.15f * R()))));
+            }
+            for (int k = 0; k < K; k++)
+            {
+                t.Add(centre); t.Add(ring0 + k); t.Add(ring0 + (k + 1) % K);
+                g?.Add(dark);
+            }
+            int ring1 = v.Count;
+            for (int k = 0; k < K; k++)
+            {
+                float a = 2f * MathF.PI * k / K;
+                float reach = c.OuterRadius * ((k % 2 == 0 ? 1.15f : 0.95f) + 0.35f * R());   // every other point a streak
+                v.Add(At(c.Centre + new Vector2(MathF.Cos(a), MathF.Sin(a)) * reach));
+            }
+            for (int k = 0; k < K; k++)
+            {
+                int a0 = ring0 + k, a1 = ring0 + (k + 1) % K, b0 = ring1 + k, b1 = ring1 + (k + 1) % K;
+                t.Add(a0); t.Add(b0); t.Add(b1); g?.Add(light);
+                t.Add(a0); t.Add(b1); t.Add(a1); g?.Add(light);
+            }
+        }
     }
 }
