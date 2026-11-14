@@ -418,7 +418,7 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         /// <summary>
-        /// ⭐ V-11 — a baked crater is drawn: its chunk's objects carry a dark disc and a lighter ring of Ground-kind scorch, draped 2 cm over the cratered bowl, the same bytes
+        /// ⭐ V-11 — a baked crater is drawn: its chunk's objects carry a dark disc and a lighter ring of Ground-kind scorch, draped 6 cm over the cratered bowl, the same bytes
         /// every rebuild; a world without the crater draws none. 🔴 Red-proof: drop the <c>AddCraterScorch</c> call ⇒ no scorch.
         /// </summary>
         [Fact]
@@ -441,7 +441,7 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Contains(runs[0].G, x => x.Material == TerrainWorldMesh.ScorchLightMaterial);
             Assert.Equal(runs[0].V, runs[1].V);
             var bottom = runs[0].V.Single(p => MathF.Abs(p.X - 20f) < 1e-3f && MathF.Abs(p.Y - 20f) < 1e-3f);
-            Assert.Equal(-1.6f + 0.02f, bottom.Z, 3);
+            Assert.Equal(-1.6f + 0.06f, bottom.Z, 3);
 
             var v2 = new List<Vector3>(); var t2 = new List<int>(); var g2 = new List<TerrainTriangleTag>();
             TerrainWorldMesh.BuildChunkObjects(bare, cx, cy, v2, t2, g2, out _);

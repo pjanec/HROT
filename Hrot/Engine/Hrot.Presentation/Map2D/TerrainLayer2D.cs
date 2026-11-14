@@ -68,6 +68,12 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     private bool _anyHidden;
     private Plan _overlay = Plan.Empty;
     private DebugPrimitive[] _overlayStrokes = Array.Empty<DebugPrimitive>();
+    // ⭐ CE-4591 (V-11, mockup F) — the view's craters on the plan: rebuilt when the crater table changes (a new instance), drawn over the fills
+    private object? _drawnCraters;
+    private DebugPrimitive[] _craterPrims = Array.Empty<DebugPrimitive>();
+
+    /// <summary>⭐ CE-4591 — the crater primitives the plan draws (a rail's read).</summary>
+    public int CraterPrimitives => _craterPrims.Length;
     private bool _overlayDirty;
     private Mesh _overlayMesh;
     private bool _hasOverlayMesh;
@@ -126,13 +132,15 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         // ⭐ CE-4392 — the replicated damage of this view (R-4196: drawn, the terrain never changed); the same instance while nothing changed ⇒ nothing done
         var damage = terrain.Panels.Count > 0 ? BuildingDamageTable.Of(repo!, terrain) : null;   // ⭐ CE-4599 (V-16) — a free wall's breach draws too
         if (!ReferenceEquals(damage, _drawnDamage)) ApplyDamage(terrain, damage);
+        var craters = Fdp.Toolkit.Terrain.CraterTable.Of(repo!);
+        if (!ReferenceEquals(craters, _drawnCraters)) ApplyCraters(craters);
 
         var camera = _camera();
         // ⭐ CE-4559 (render-perf G-5) — the window's plan is drawn from a CACHE: rendered into a texture when the view, the plan or the damage changed, else one
         //   quad. A film's pass draws into its own target already: it draws the plan directly, as before.
         if (UseCache && !ctx.Film && camera != null && CacheTarget(out int fw, out int fh))
         {
-            var key = new CacheKey(camera.Offset, camera.Target, camera.Zoom, fw, fh, ctx.TargetSize, _plan, _overlay, _overlayStrokes, _drawnDamage, _anyHidden);
+            var key = new CacheKey(camera.Offset, camera.Target, camera.Zoom, fw, fh, ctx.TargetSize, _plan, _overlay, _overlayStrokes, _drawnDamage, _anyHidden, _drawnCraters);
             if (!_hasCache || key != _cacheKey) { RenderCache(ctx, camera, fw, fh); _cacheKey = key; CacheRenders++; }
             DrawCache(fw, fh);
             return;
@@ -152,7 +160,7 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     public const int CacheSupersample = 1;
 
     private readonly record struct CacheKey(Vector2 Offset, Vector2 Target, float Zoom, int Width, int Height, Vector2 TargetSize, Plan Plan, Plan Overlay,
-                                            DebugPrimitive[] OverlayStrokes, object? Damage, bool AnyHidden);
+                                            DebugPrimitive[] OverlayStrokes, object? Damage, bool AnyHidden, object? Craters);
 
     private CacheKey _cacheKey;
     private RenderTexture2D _cache;
@@ -233,6 +241,7 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         if (_plan.FillTriangles > 0) DrawFills();
         Fdp.Presentation.WindowManager.WindowTimings.Record("plan2D fills", tf);
         if (_overlay.FillTriangles > 0) DrawOverlayFills();
+        if (_craterPrims.Length > 0) { _renderer.Camera = camera; _renderer.Render(_craterPrims, ctx); }   // ⭐ CE-4591 — the craters, over the ground's fills
 
         long tc = Fdp.Presentation.WindowManager.WindowTimings.Start();
         int n = camera != null ? Cull(_plan, ViewOf(camera, ctx.TargetSize), camera.Zoom, _inView, _anyHidden ? _hidden : null) : CopyAll(_plan, _inView, _anyHidden ? _hidden : null);
@@ -259,6 +268,18 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     /// ⭐ CE-4392 X-5 — on a change of the damage: the damaged buildings' fills and strokes hidden in the plan (a flag per building; the fill colours re-uploaded once), and the
     /// buildings emitted again as <paramref name="damage"/> leaves them into the overlay plan — never the whole plan rebuilt.
     /// </summary>
+    /// <summary>⭐ CE-4591 (V-11) — on a change of the view's craters: their discs emitted once (<see cref="TerrainPlan2D.EmitCraters"/>), never per frame.</summary>
+    private void ApplyCraters(Fdp.Toolkit.Terrain.CraterTable? craters)
+    {
+        _drawnCraters = craters;
+        if (craters == null || craters.Count == 0) { _craterPrims = Array.Empty<DebugPrimitive>(); return; }
+        var buffer = new DebugPrimitiveBuffer(craters.Count * 48 + 16);
+        TerrainPlan2D.EmitCraters(craters, buffer);
+        var list = new List<DebugPrimitive>(buffer.Count);
+        foreach (ref readonly var p in buffer.GetFrame()) list.Add(p);
+        _craterPrims = list.ToArray();
+    }
+
     private void ApplyDamage(TerrainWorld terrain, BuildingDamageTable? damage)
     {
         _drawnDamage = damage;

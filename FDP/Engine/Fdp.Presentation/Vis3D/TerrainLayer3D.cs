@@ -213,7 +213,9 @@ namespace Fdp.Toolkit.Vis3D
             // ⭐ CE-4392 X-8 — a material burnt by a blast: its own colour, darkened
             if (Burnt(material, out var unburnt, out float shade)) return Shade(ColourOf(kind, unburnt), shade);
             if (kind == TerrainSurfaceKind.Water) return WaterColor;
-            if (kind == TerrainSurfaceKind.Ground) return material switch { "forest" => ForestColor, "apron" => ApronColor, _ => GroundColor };
+            // ⭐ CE-4591 (V-11) — a crater's soot is GROUND (draped on the bowl) in its own colour: ⛔ was GroundColor, so the soot drew as grass (found by the visual pass,
+            //   TheDynamicTerrainLooksTests — the V-11 rail checked the tags, not the frame)
+            if (kind == TerrainSurfaceKind.Ground) return material switch { "forest" => ForestColor, "apron" => ApronColor, "scorch" => new Color(24, 21, 19, 255), "scorch-light" => new Color(70, 58, 50, 255), _ => GroundColor };
             Color? own = material switch
             {
                 "brick" => new Color(172, 96, 72, 255),
@@ -261,7 +263,7 @@ namespace Fdp.Toolkit.Vis3D
         private static byte CodeFor(TerrainSurfaceKind kind, string? material) => kind switch
         {
             TerrainSurfaceKind.Water => 255,
-            TerrainSurfaceKind.Ground => material == "forest" ? (byte)249 : (byte)250,
+            TerrainSurfaceKind.Ground => material switch { "forest" => (byte)249, "scorch" or "scorch-light" => (byte)243, _ => (byte)250 },   // ⭐ CE-4591 (V-11) — soot: the mottled earth
             TerrainSurfaceKind.Roof => material == "brick" ? (byte)241 : material == "roof-pitched" ? (byte)240 : material is null or "concrete" ? (byte)245 : CodeOf(material),
             _ => CodeOf(material),
         };

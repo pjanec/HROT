@@ -945,3 +945,27 @@ the panel and the tab (it was a cache per caller).*
 
 Rails `GroundEffectTests` (the birth — red-proved on the old `Born`; the effect), `TerrainDrawPanelFrameRail.DrawingAGroundArea_…` and `GroundFeatureDetailsViewTests` (real frames, Xvfb).
 
+
+### 9.17 As built — the VISUAL pass: every change seen in a real frame, two defects found *(`terrain` lane, `2026-11-14`, CE-4604; 🔒 user: "Check the ui result visually (terrain flattening, wall breaches, craters, ditches, foxholes…)")*
+
+⭐ One scene with every change — a raised mound, a levelled pad on a slope, a ditch and an anti-tank ditch, a foxhole, two craters, a breached wall — built the way the save and every
+node build it (a base grid MERGED with compiled feature parts; craters baked as every node bakes them; the breach a received record), rendered through the REAL 3-D terrain layer
+and the production 2-D map. Each view must change ≥ 1 % of the frame against the untouched base, and the crater must show soot.
+
+| found by LOOKING (no rail had rendered it) | fix |
+|---|---|
+| ⛔ **a crater's soot drew as GRASS** — V-11's scorch is tagged kind Ground, and the 3-D layer's colour and pattern for Ground looked only at `forest` / `apron` (V-11's rail checked the tags, never a frame) | `TerrainLayer3D.ColourOf` / `CodeFor`: Ground `scorch` / `scorch-light` take their own colours and the earth pattern (cross-lane, FDP presentation) |
+| ⚠ the ground's 1 m facets showed through the rim ring | the soot lifted 6 cm (was 2 cm) and the light ring laid in three steps outward, so it follows the rim's crest (a straight chord from inside the crest passed under it); ⚠ a few flecks of grass remain at the far crest — cosmetic, accepted |
+| ⛔ **the 2-D map drew neither ditches nor craters** — mockups D and F draw both | `TerrainPlan2D`: a ditch / foxhole strip as a dug band (banks, a dark floor) in the static plan; `EmitCraters` + `TerrainLayer2D.ApplyCraters`: each crater a disc of thrown earth, the bowl, a dark centre — rebuilt when the crater table changes, never per frame, the plan not rebuilt |
+
+| what the frames show (eye check, `HROT_RAIL_SHOTS`) | |
+|---|---|
+| mound | a plateau with blended slopes |
+| level pad | a flat cut into the slope, banked |
+| ditches | two trenches; the anti-tank ditch's 53° end bank draws as exposed earth/rock (the shader's slope rule) |
+| foxhole | a coarse square dip (G-37's honest limit at 1 m posts) |
+| craters | a dark scorched bowl with thrown-earth streaks |
+| breach | the wall opened, charred edges, the room behind |
+
+Rails `TheDynamicTerrainLooksTests.EveryDynamicTerrainChange_ReachesTheFrame` (3-D), `TheBuildingDamagePlanTests.TheProductionMap_DrawsADitchAsADugBand_AndACraterAsAnEarthDisc` (2-D) — both real frames under Xvfb.
+

@@ -64,6 +64,40 @@ public sealed class TerrainPlan2D
     /// <summary>⭐ T-3 — low scrub: a darker olive than the forest.</summary>
     public static readonly Rgba32 ScrubFill = new(112, 140, 78, 220);
 
+    /// <summary>⭐ CE-4593 (mockup D) — a ditch on the plan: its banks dug earth, its floor dark.</summary>
+    public static readonly Rgba32 DitchBank = new(74, 60, 38, 235), DitchFloor = new(30, 24, 16, 240);
+
+    /// <summary>⭐ CE-4591 (P-4, V-11; mockup F) — a crater on the plan: the rim's thrown earth, the bowl, its darkest centre.</summary>
+    public static readonly Rgba32 CraterRim = new(90, 74, 48, 180), CraterBowl = new(58, 46, 30, 235), CraterCentre = new(34, 26, 16, 245);
+
+    /// <summary>
+    /// ⭐⭐ CE-4591 (P-4, V-11; mockup <c>ground-shaping-and-ditches.svg</c> F) — the view's craters on the plan: each a disc of thrown earth to its outer radius, the bowl, a darker centre
+    /// (a 16-sided fan each). Emitted only when the crater table changed (the layer keys it by instance), never per frame.
+    /// </summary>
+    public static void EmitCraters(Fdp.Toolkit.Terrain.CraterTable craters, IDebugDrawBuilder draw)
+    {
+        for (int i = 0; i < craters.Count; i++)
+        {
+            var c = craters[i];
+            Disc(draw, c.Centre, c.OuterRadius, CraterRim);
+            Disc(draw, c.Centre, c.Radius, CraterBowl);
+            Disc(draw, c.Centre, c.Radius * 0.5f, CraterCentre);
+        }
+    }
+
+    private static void Disc(IDebugDrawBuilder draw, Vector2 centre, float r, Rgba32 fill)
+    {
+        const int K = 16;
+        var prev = centre + new Vector2(r, 0f);
+        for (int k = 1; k <= K; k++)
+        {
+            float a = 2f * MathF.PI * k / K;
+            var next = centre + new Vector2(MathF.Cos(a), MathF.Sin(a)) * r;
+            draw.DrawFilledTriangle(centre, prev, next, fill, TerrainLayer);
+            prev = next;
+        }
+    }
+
     /// <summary>⭐ CE-4392 X-2 — a collapsed building's rubble on the plan: a dusty grey-brown fill, a dashed outline.</summary>
     public static readonly Rgba32 RubbleFill = new(128, 118, 104, 235);
     private static readonly Rgba32 RubbleOutline = new(90, 82, 70, 230);
@@ -90,6 +124,16 @@ public sealed class TerrainPlan2D
                     _                         => WaterFill,
                 };
                 FillPolygon(draw, s.Polygon, s.Triangles, fill);
+            }
+            // ⭐ CE-4593 (P-6; mockup ground-shaping-and-ditches.svg D — "the ditch drawn as a dug band") — every ditch / anti-tank ditch / foxhole strip: its banks, then its floor darker
+            foreach (var g in world.GroundShapes)
+            {
+                if (g.Mode != Fdp.Toolkit.Terrain.GroundShapeMode.Ditch || g.Polygon.Length != 4) continue;
+                var q = g.Polygon;
+                draw.DrawFilledTriangle(q[0], q[1], q[2], DitchBank, TerrainLayer); draw.DrawFilledTriangle(q[0], q[2], q[3], DitchBank, TerrainLayer);
+                // the floor: the middle half across the strip (q[0]→q[1] and q[3]→q[2] run across it)
+                var a = Vector2.Lerp(q[0], q[1], 0.25f); var b = Vector2.Lerp(q[0], q[1], 0.75f); var c = Vector2.Lerp(q[3], q[2], 0.75f); var d = Vector2.Lerp(q[3], q[2], 0.25f);
+                draw.DrawFilledTriangle(a, b, c, DitchFloor, TerrainLayer); draw.DrawFilledTriangle(a, c, d, DitchFloor, TerrainLayer);
             }
         }
 

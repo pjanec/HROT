@@ -153,7 +153,7 @@ namespace Fdp.Toolkit.Terrain
             const int K = 24;
             uint seed = (uint)(MathF.Round(c.Centre.X * 100f) * 73856093) ^ (uint)(MathF.Round(c.Centre.Y * 100f) * 19349663) ^ 0x9E3779B9u;
             float R() { seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5; return (seed & 0xFFFFFF) / (float)0x1000000; }
-            const float Lift = 0.02f;
+            const float Lift = 0.06f;   // ⭐ 6 cm: at 2 cm the ground's 1 m facets showed through the rim ring (the visual pass, TheDynamicTerrainLooksTests)
             Vector3 At(Vector2 p) => new(p, world.GroundHeightAt(p.X, p.Y) + Lift);
             var dark = new TerrainTriangleTag(TerrainTriangleKind.Ground, ScorchMaterial);
             var light = new TerrainTriangleTag(TerrainTriangleKind.Ground, ScorchLightMaterial);
@@ -170,18 +170,28 @@ namespace Fdp.Toolkit.Terrain
                 t.Add(centre); t.Add(ring0 + k); t.Add(ring0 + (k + 1) % K);
                 g?.Add(dark);
             }
-            int ring1 = v.Count;
-            for (int k = 0; k < K; k++)
+            // the light ring, in THREE steps outward so it follows the rim's crest (a straight chord from inside the crest to the outer edge passes UNDER it —
+            //   the visual pass saw the grass through it): the inner ring's points, then a third and two thirds of the way to each streak's reach
+            var reach = new float[K];
+            for (int k = 0; k < K; k++) reach[k] = c.OuterRadius * ((k % 2 == 0 ? 1.15f : 0.95f) + 0.35f * R());   // every other point a streak
+            int inner = ring0;
+            for (int step = 1; step <= 3; step++)
             {
-                float a = 2f * MathF.PI * k / K;
-                float reach = c.OuterRadius * ((k % 2 == 0 ? 1.15f : 0.95f) + 0.35f * R());   // every other point a streak
-                v.Add(At(c.Centre + new Vector2(MathF.Cos(a), MathF.Sin(a)) * reach));
-            }
-            for (int k = 0; k < K; k++)
-            {
-                int a0 = ring0 + k, a1 = ring0 + (k + 1) % K, b0 = ring1 + k, b1 = ring1 + (k + 1) % K;
-                t.Add(a0); t.Add(b0); t.Add(b1); g?.Add(light);
-                t.Add(a0); t.Add(b1); t.Add(a1); g?.Add(light);
+                int ring = v.Count;
+                for (int k = 0; k < K; k++)
+                {
+                    float a = 2f * MathF.PI * k / K;
+                    var dir = new Vector2(MathF.Cos(a), MathF.Sin(a));
+                    float from = Vector2.Distance(new Vector2(v[ring0 + k].X, v[ring0 + k].Y), c.Centre);
+                    v.Add(At(c.Centre + dir * (from + (reach[k] - from) * step / 3f)));
+                }
+                for (int k = 0; k < K; k++)
+                {
+                    int a0 = inner + k, a1 = inner + (k + 1) % K, b0 = ring + k, b1 = ring + (k + 1) % K;
+                    t.Add(a0); t.Add(b0); t.Add(b1); g?.Add(light);
+                    t.Add(a0); t.Add(b1); t.Add(a1); g?.Add(light);
+                }
+                inner = ring;
             }
         }
     }

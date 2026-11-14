@@ -231,4 +231,56 @@ public sealed class TheBuildingDamagePlanTests
         Assert.True(cr.R > cr.G && cr.G > cr.B, "the rubble's warm grey");
         Assert.Same(w, repo.GetSingletonManaged<TerrainWorld>());   // R-4196: the display node's terrain is not changed
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-4591 / CE-4593 (V-11; mockup <c>ground-shaping-and-ditches.svg</c> D, F) — the PRODUCTION 2-D map draws a ditch as a dug band (its floor dark) and a crater as a disc of thrown
+    /// earth round a dark bowl; a crater arriving later redraws only the crater overlay (the plan is not rebuilt). Frames under <c>HROT_RAIL_SHOTS</c>. 🔴 Red-proof: drop the
+    /// <c>ApplyCraters</c> call in <c>TerrainLayer2D.Draw</c> ⇒ the crater's pixel stays the grass.
+    /// </summary>
+    [SkippableFact]
+    public void TheProductionMap_DrawsADitchAsADugBand_AndACraterAsAnEarthDisc()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-frames");
+        Directory.CreateDirectory(shots);
+        int n = 121;
+        var flat = new TerrainWorld { Name = "flat", BoundsMin = new Vector2(-60f), BoundsMax = new Vector2(60f), Height = new TerrainHeightGrid(new Vector2(-60f), 1f, n, n, new float[n * n]) };
+        var ditch = FeatureExpander.OfKind(TerrainFeature.Ground, "d", "ditch", 0f, 0f, 1, Vector2.Zero, new[] { new Vector2(-20f, 0f), new Vector2(20f, 0f) }, flat, new TerrainAssets(), Array.Empty<string?>());
+        var w = TerrainWorldMerge.Merge(flat, TerrainWorldParser.Parse(OverlayExpansion.WorldDocument(flat, ditch).ToJsonString(), "flat/overlay"));
+        var repo = new EntityRepository();
+        repo.RegisterComponent<BuildingDamage>(); repo.RegisterComponent<GroundDamage>(); repo.RegisterManagedComponent<TerrainObjectKey>();
+        repo.SetSingletonManaged(w);
+        using var frame = UiFrameHarness.Begin(800, 500);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var cam = new MapCamera();
+        canvas.Camera = cam;
+        float zoom = 12f;
+        var target = new Vector2(0f, 5f) + new Vector2(-800f / 2f / zoom, 500f / 2f / zoom);
+        cam.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        var buffer = new DebugPrimitiveBuffer(Hrot.ScenarioEditor.Map.MapInteractionContext.DefaultBufferCapacity);
+        buffer.SetActiveLayers(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Map = { Grid = false } }.ToMask());
+        var layers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(canvas, buffer, new FdpEventBus(), () => repo);
+        var terrain = layers.Terrain2D!;
+        string Shot(string name) { frame.StepN(3, canvas.Draw); var p = Path.Combine(shots, name); frame.Screenshot(p); return p; }
+
+        var bare = Shot("earth2d-1-ditch.png");
+        var floor = cam.WorldToScreen(new Vector2(0f, 0f));
+        var craterAt = cam.WorldToScreen(new Vector2(8f, 14f));
+        var f = At(bare, floor);
+        _out.WriteLine($"ditch floor pixel {f.R},{f.G},{f.B}");
+        Assert.True(Math.Abs(f.R - TerrainPlan2D.DitchFloor.R) + Math.Abs(f.G - TerrainPlan2D.DitchFloor.G) + Math.Abs(f.B - TerrainPlan2D.DitchFloor.B) < 40, "the ditch's floor is drawn dark");
+        var grass = At(bare, craterAt);
+        int builds = terrain.Builds;
+
+        var dmg = new GroundDamage { CellX = 0, CellY = 0 };
+        GroundDamages.Add(ref dmg, new Crater(new Vector2(8f, 14f), 3.6f, 1.6f, 0.36f, (SimInstant)10.0, CraterKind.Large), out _);
+        var e = repo.CreateEntity(); repo.AddComponent(e, dmg);
+        var cratered = Shot("earth2d-2-crater.png");
+        var c = At(cratered, craterAt);
+        _out.WriteLine($"crater centre pixel {c.R},{c.G},{c.B} (was {grass.R},{grass.G},{grass.B})");
+        Assert.True(terrain.CraterPrimitives > 0);
+        Assert.True(Math.Abs(c.R - TerrainPlan2D.CraterCentre.R) + Math.Abs(c.G - TerrainPlan2D.CraterCentre.G) + Math.Abs(c.B - TerrainPlan2D.CraterCentre.B) < 40, "the crater's centre is drawn dark");
+        Assert.Equal(builds, terrain.Builds);   // the plan was not rebuilt — only the craters
+    }
 }
