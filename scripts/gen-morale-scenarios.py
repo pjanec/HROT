@@ -3,9 +3,9 @@
 scenarios/demos/platoons-and-vehicles/morale-barrage-{green,veteran}/scenario.json.
 
 pc-defend-dry's Red platoon (three squads of four, OBJ at (121,157) on cqb-village, facing south) + a Blue 81 mm mortar section
-(uc-request-chain's battery: two tubes and their crews, ManWeapon) ~200 m south-east and a Blue spotter (SpotForFire) east of
-the position, outside the line's arc. The check (utility-demo-check.py --launch morale-barrage-<x>) engages the platoon the way
-pc-defend-dry's does (the squads' Set + a SPOT inside the engagement area), and the spotter's missions do the rest.
+(uc-request-chain's battery: two tubes and their crews, ManWeapon) ~200 m south-east, firing a planned barrage on the line
+(ArtilleryUnitStrike). The check (utility-demo-check.py --launch morale-barrage-<x>) engages the platoon the way pc-defend-dry's
+does (the squads' Set + a SPOT inside the engagement area); the barrage does the rest.
 Green = Militia, nerve 0.15 · Veteran = Veteran, nerve 0.9. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md DA-67 (CE-7015).
 """
 import copy, json, os
@@ -32,7 +32,7 @@ def main():
             if e.get("TkbIdentity", {}).get("TkbType") == 2002:      # the platoon's men
                 e["Proficiency"] = prof
                 e["Temperament"] = {"nerve": nerve}
-        # the mortar section, re-keyed, Blue, moved to cqb-village: the battery at (280, 30), the spotter south-east of OBJ at (230, 100)
+        # the mortar section, re-keyed, Blue, moved to cqb-village: the battery at (280, 30), the battery firing a planned barrage on the line
         remap = {k: guid(9800 + i) for i, k in enumerate(m_ents)}
         for k, src in m_ents.items():
             text = json.dumps(src)
@@ -43,21 +43,21 @@ def main():
             name = e["EntityInfo"]["Name"]
             x, y, z = e["SimTransform"]["Position"]
             if name == "Spotter":
-                # ⚠ measured: at (290, 160) house H3 (165, 160) hid the line (his memory stayed empty) — in the open south-east, ~122 m off,
-                #   facing the line (+X is forward)
-                e["SimTransform"]["Position"] = [230, 100, 0]
-                e["SimTransform"]["Rotation"] = [0, 0, 0.971977, 0.235077]
-                e["Behavior"]["Params"]["Rounds"] = 4
-                # ⚠ measured: by map / eye (±150 m) his adjustment ended ~47 m short of the line (bursts at (105, 110)) — "effect" is a
-                #   50 m bracket; a near miss is 2 × the 81 mm's 5.9 m injury radius. A laser (±10 m) puts the bursts on the line.
-                e["Behavior"]["Params"]["Locating"] = "Laser"
+                continue   # ⚠ measured: an observer the line can see is shot once it engages (hit at 31 s, broke, killed by ~130 s) and the
+                #   fire stops with him (one round in 240 s). The barrage is the BATTERY'S planned strike instead (below).
             else:
                 e["SimTransform"]["Position"] = [x - 740 + 280, y - 745 + 30, z]   # the cell keeps its shape, centred at (280, 30)
+            if name == "Insurgent Mortar":
+                # the barrage: the battery's planned strike (ArtilleryUnitStrike, IF-2) on the line — an open sheaf across both line
+                #   squads (Squad 1 at x 121, Squad 2 at x 80), all ten bombs per tube, danger close (its own crew is ~260 m off)
+                e["Behavior"] = {"Name": "ArtilleryUnitStrike", "Origin": "Superior",
+                                 "Params": {"Location": [100, 156, 0], "Rounds": 10, "Sheaf": "Open", "SheafWidthM": 45,
+                                            "Control": "WhenReady", "DangerClose": True}}
             doc["entities"][remap[k]] = e
         doc["header"]["description"] = (
             f"What: CE-7015 / CE-4584 (AQ101 §R, R-4227) - on cqb-village, pc-defend-dry's 'Red Platoon' (three squads of four, {prof}, nerve {nerve}) "
-            "defends OBJ at (121,157) facing south; a Blue 81 mm mortar section at (280,30) fires on it, called by a Blue 'Spotter' at (230,100), "
-            "south-east of the line. The check engages the platoon (the squads' Set and a SPOT inside the engagement area, as pc-defend-dry). "
+            "defends OBJ at (121,157) facing south; a Blue 81 mm mortar section at (280,30) fires on it, a planned barrage "
+            "(ArtilleryUnitStrike, open sheaf across both line squads, 10 bombs a tube). The check engages the platoon (the squads' Set and a SPOT inside the engagement area, as pc-defend-dry). "
             "Judge: the bursts near-miss the line's men (UnderFire, stress rises); "
             + ("a GREEN platoon's men break and it FALLS BACK (BreakContact) while still mostly alive. " if v == "green"
                else "a VETERAN platoon's line HOLDS (no BreakContact) under the same fire. ")
