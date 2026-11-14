@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD
-updated: 2026-11-13
-current-answer: the whole file (§1 the decision, §2 the diagrams, §3 where every piece of information lives, §4 rules, §5 acceptance)
+updated: 2026-11-14 (§6 the environment-variable registry, CE-4586)
+current-answer: the whole file (§1 the decision, §2 the diagrams, §3 where every piece of information lives, §4 rules, §5 acceptance, §6 the environment variables)
 stale-below: nothing
 known-rot: none
 known-conflict: MCP_Integration.md and tools/ai-debug-mcp/README.md describe the MCP server as live — superseded by this design once built (R-4223)
@@ -176,3 +176,77 @@ removed — a second copy of the docs in another language, its server, and the c
    R-1030.
 4. The skill is a pointer; following it from a fresh VM (build, start per the runbook, `GET /help`, one call) works.
 5. The system-test harness (`DESIGN_MCP_System_Test_Harness.md`) is unchanged and green.
+
+## 6. The environment variables — one registry, read by `/help` *(CE-4586, `2026-11-14`)*
+
+🔒 User, `2026-11-14`: *"how the ai aget knows what all environemtn variables are available? it needs to know them if the performanceseeting cant be
+changed at runtime"* · *"agreed yes add the central registry"*.
+
+**INVENTORY** *(2026-11-14)*: grep `"(HROT|FDP)_[A-Z0-9_]+"` over `*.cs` — 141 `HROT_*` + 12 `FDP_*` names (tests included); 96 production
+`GetEnvironmentVariable("HROT_…" | "FDP_…")` sites; 40 FDP files read `HROT_*`, 3 Hrot files read `FDP_*` ⇒ the registry sits BELOW both, in
+`Fdp.Core`. Readers outside `Fdp.Core`'s reach: `FDP/ExtDeps/GizmoMap` (2 files), `Hrot/Tools/*`. `scripts/cbm.sh search_graph
+'{"name_pattern":".*(EnvVar|EnvSwitch|Environment(Variable|Switch)).*","label":"Class"}'` — no registry class exists (`HrotEnvironment` builds
+the TKB, unrelated). The documents name them scattered (the tracker 35, Parallel Simulation 14, the runbook 2). ⚠ Graph coverage not checkable.
+
+```mermaid
+classDiagram
+  class EnvVars {
+    <<NEW — Fdp.Core, the one table>>
+    All : EnvVar[]
+    Read(EnvVar) string
+    Flag(EnvVar) bool
+    Int(EnvVar, int) int
+  }
+  class EnvVar {
+    <<NEW record>>
+    Name : string
+    Category : EnvCategory
+    Type / Default
+    Purpose : one line
+    Design : doc section
+  }
+  class EnvCategory {
+    <<enum>>
+    Switch
+    Diagnostic
+    Test
+    Tool
+  }
+  class AgentGuide {
+    <<§2.1 — GET /help, --help-api>>
+  }
+  class PerformanceRoute {
+    <<CE-4585 — GET /performance>>
+  }
+  class EveryEnvReadIsRegisteredTests {
+    <<NEW rail>>
+  }
+  EnvVars "1" o-- "*" EnvVar
+  EnvVar --> EnvCategory
+  AgentGuide ..> EnvVars : renders by category
+  PerformanceRoute ..> EnvVars : what this process received
+  EveryEnvReadIsRegisteredTests ..> EnvVars : no raw read outside it
+```
+*What it shows that prose hid: the guide and `/performance` add no facts of their own — both RENDER the one table, and the rail is what keeps
+the table complete; without it the table rots exactly as the scattered mentions did.*
+
+```mermaid
+graph TD
+  CORE[Fdp.Core - EnvVars, every declaration] --> FDPR[FDP toolkits - read through EnvVars]
+  CORE --> HR[Hrot engine / subsystems / runner - read through EnvVars]
+  CORE --> HELP[GET /help + --help-api - the list by category]
+  CORE --> PERF[GET /performance - the received values]
+  EXT[ExtDeps GizmoMap, Hrot/Tools - raw reads]:::edge -.declared in the table, read raw, on the rail's allow-list.-> CORE
+  classDef edge stroke:#c80,color:#c80,stroke-dasharray: 5 5
+```
+*What it shows: everything the agent can read comes from the one table; the dashed box is the only place a raw read stays — projects that do not
+reference `Fdp.Core` — and even there the NAME is declared in the table, so `/help` lists it.*
+
+| rule | |
+|---|---|
+| ⭐⭐⭐ **every variable is declared once in `EnvVars`** — name, category, type, default, one line of purpose, its design section | ⛔ no second list in a doc: the runbook and CLAUDE.md point at `/help` (or `--help-api`) |
+| ⭐⭐ **every read goes through it**; a rail scans the sources and fails on a raw `GetEnvironmentVariable("HROT_…"/"FDP_…")` outside `EnvVars` and the allow-list (the projects that cannot reference `Fdp.Core`), and on a name used but not declared | the rail is the completeness guarantee — R-1030's intent, by construction |
+| ⭐ **`/help` lists them by category** with *"read once, at process start — set them when you start the process"*; `GET /performance` (CE-4585) lists which were set for this process | language-neutral (R-4221) |
+| ⭐ **a read is cheap and allocation-free** where it sits on a hot path (cache the parsed value, as today's static switches do) | R-2084 |
+| ⚠ **experiment leftovers are LISTED, not deleted** (category `Diagnostic`, purpose says so) | the user decides retirement from the report — "no rush removals" |
+

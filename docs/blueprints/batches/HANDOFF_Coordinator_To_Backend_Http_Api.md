@@ -14,7 +14,7 @@ related-designs:
 
 **For:** the `backend` lane, **after** the determinism residue batch. **From:** coordinator. **Dispatched at `1e98d9bb1`**; ⛔ **scope FROZEN
 there** — later documents are FYI; one that invalidates an item ⇒ STOP that item and report it (R-106). ⭐ Autonomous, no questions.
-🔒 User, `2026-11-14`: *"yes write it"* · *"how the hhtp api allows running the simulation with those settings changed? (it needs to for various
+🔒 User, `2026-11-14`: *"yes write it"* · *"agreed yes add the central registry and ammend the handoff"* (B-6) · *"how the hhtp api allows running the simulation with those settings changed? (it needs to for various
 tests)"*. ⭐ The ui-filed rows CE-1464 / CE-1472 / CE-1474 / CE-1950 are taken by backend here — **cross-lane, said**.
 
 ## 0. Start
@@ -37,6 +37,7 @@ is met (`e4af862f6`, and `exp/next-conversions` is an ancestor of `coordinator`)
 | **B-3** | **CE-1472** | the Player's `GET /diagnostics/render` is stale | ⭐ the Player's map feeds the SAME `RenderTelemetry` the editor's overlay feeds (shared, not a copy) |
 | **B-4** | **CE-1464** | an HTTP-possessed unit never fires on a WINDOWED editor: the editor's own station sends a frame per rendered frame with a higher `seq`, and "newest seq wins" drops the HTTP frames | ⭐ **measure first**, then the row's lean: a station sends nothing for a unit it did not possess through its own UI. If the fix lands in ui's station code, build it and say so; ⛔ do not widen to the sight path (`lookFrom` / `lookDir`, CE-4143) |
 | **B-5** | **CE-4585** *(new, replaces L-5)* | **the performance switches over HTTP** — see §C | ⭐ §C's three parts |
+| **B-6** | **CE-4586** *(new, amended in `2026-11-14`, rule 1a)* | **an agent cannot learn which environment variables exist** — 141 `HROT_*` + 12 `FDP_*`, read raw at 96 production sites, listed nowhere | ⭐ build [`DESIGN_Debug_Api_Http_Only.md` §6](../../DESIGN_Debug_Api_Http_Only.md): ONE `EnvVars` table in `Fdp.Core` (name, category Switch / Diagnostic / Test / Tool, type, default, purpose, design section); every read goes through it (mechanical, no behaviour change); the rail `EveryEnvReadIsRegisteredTests` (raw read or undeclared name ⇒ red; allow-list = projects that cannot reference `Fdp.Core`); `/help` + `--help-api` render it by category; `/performance` shows what this process received. ⚠ Do B-6 AFTER A's H-3 (`/help` exists) and with B-5. Experiment leftovers: declared, and LISTED in the report for the user — ⛔ not deleted |
 
 ## C. The performance switches and HTTP — measured `2026-11-14`, the decision for B-5
 
@@ -66,5 +67,5 @@ the file is untouched (a temp `PathOverride`).
 
 T-1 first: the route docs' rail (`EveryRouteIsDocumentedTests`), `DebugApiOrdersTests`, the replay route suite, `PerformanceStartupTests`, the
 system-test harness (`DESIGN_MCP_System_Test_Harness.md`, unchanged and green — A's acceptance 5). New rails red-proved; R-4221 (invariant
-output) on `/help` and `/performance`. As-built into `DESIGN_Debug_Api_Http_Only.md` (A, B-5) and the runbook (B-5 ②). Gate-report contract
+output) on `/help` and `/performance`. As-built into `DESIGN_Debug_Api_Http_Only.md` (A, B-5, B-6 §6) and the runbook (B-5 ②). Gate-report contract
 (CLAUDE.md rule 8); ids used.
