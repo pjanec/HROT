@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → `behaviors`: the command chain, developed and proved — AUTONOMOUS, OVERNIGHT
 
-**For:** the `behaviors` lane (ids `CE-2000`…, `R-2000`…). **From:** coordinator. **Dispatched at `<sha>`**; ⛔ scope FROZEN there — later
+**For:** the `behaviors` lane (ids `CE-2000`…, `R-2000`…). **From:** coordinator. **Dispatched at `d6a58138a`**; ⛔ scope FROZEN there — later
 documents are FYI; one that invalidates an item ⇒ STOP that item, do the rest (R-106).
 
 🔒 User, `2026-11-14`: *"do you have enough to write an autonomous overnight batch for the commander chain development and testing, specified
