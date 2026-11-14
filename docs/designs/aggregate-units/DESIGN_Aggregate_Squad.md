@@ -21,7 +21,7 @@ related-designs:
 # DESIGN — the aggregate squad: a squad unit with ONE representative member *(R-4244)*
 
 ⭐ **Names (✅ user, `2026-11-14`: "perfect, fusion & stochastic" — R-4247):** *aggregate squad* = the umbrella; **FusionSquad** = this
-design (one fighter, the `FusionSoldier`, carries the whole squad); **StochasticSquad** = the later one with no member, resolved by probability.
+design (one fighter, the `FusionSoldier`, carries the whole squad); **StochasticUnit** = the later one with no member, resolved by probability, at ANY echelon (S-6; a "StochasticSquad" is its squad case).
 In code: `AggregateSquad.Resolution = Fusion | Stochastic`, the member's type `FusionSoldier`.
 
 ## 1. The request
@@ -292,7 +292,7 @@ Params and Entity Classes §5a, §7.4, §8, R-273, R-277, R-278 — applies (D-1
 one channel; self-controlled weapons) · Temperament and Stress TS-4 / TS-7 — applies (D-7) · City Battle §12 — applies (the test ladder) ·
 Command Chain §8e — applies (A-5's reserve) · ⛔ no aggregate / constructive design existed (searched `docs/` and `.dev/`).
 
-## 10. The StochasticSquad — scope, use cases, and what binds NOW *(leans; 🔒 user, `2026-11-14`: "can we think a bit more about the stochastic squad version? … that one is likely not compatible with physical individual entities like vehicles. better fitted for higher level constructive simulation where everything is stochastical. i want to have clear idea about the split/use cases, as this might still form the design in some way")*
+## 10. The StochasticUnit (was "StochasticSquad", renamed S-6) — scope, use cases, and what binds NOW *(leans; 🔒 user, `2026-11-14`: "can we think a bit more about the stochastic squad version? … that one is likely not compatible with physical individual entities like vehicles. better fitted for higher level constructive simulation where everything is stochastical. i want to have clear idea about the split/use cases, as this might still form the design in some way")*
 
 **The proven solution:** constructive simulators at brigade level and up resolve a unit as a point with state (strength, ammo, posture,
 suppression, readiness) at a fixed step: DETECTION as a probability (range, terrain / line of sight, posture, the target's size and activity),
@@ -390,7 +390,7 @@ GAINS two state components (S-1) and one system that copies the running resoluti
 | **ownership** | the unit stays on CGF (brain); the soldier's `Health` is in the brain group (`HrotOwnershipGroups.cs:53, :171-175`) ⇒ the copy is brain-local | measured |
 | **StochasticSquad, later** | the SAME components; no soldier; a `StochasticResolver` writes them and moves the unit's `SimTransform` itself | S-1…S-4 |
 
-## 12. Vehicles in the stochastic mode — combined-arms units, not single vehicles *(leans; 🔒 user, `2026-11-14`: "in the stochastic mode, how would we handle the vehicles? no individual vehicles, but stochastic higher level constructs (an aggregated stochastic unit representing some stochastic squad AND vehicles?)")*
+## 12. Vehicles in the stochastic mode — combined-arms units, not single vehicles *(✅ S-6…S-9 APPROVED, user `2026-11-14`: "approved!" — R-4249; 🔒 user, `2026-11-14`: "in the stochastic mode, how would we handle the vehicles? no individual vehicles, but stochastic higher level constructs (an aggregated stochastic unit representing some stochastic squad AND vehicles?)")*
 
 **The proven solution:** a constructive unit is a HOLDING of men and systems by type (a mechanised platoon ≈ 30 men + 4 IFVs as ONE unit);
 attrition is resolved per PAIRING of firing system type × target type (a killer–victim table: rifles → men, an ATGM → IFVs, a 25 mm → both);
@@ -403,3 +403,42 @@ usually the platoon or the company, because the vehicles belong there.
 | **S-7** | ⭐ **binds NOW**: the unit's state is a `UnitHoldings` table — men + SYSTEM TYPES (rifles, MGs, ATGMs, IFVs, tanks, mortars), each with count, readiness and ammo — instead of a squad-only `UnitHoldings`; the FusionSquad v1 fills only its infantry weapons | renaming before it is built and replicated costs nothing; after, a migration |
 | **S-8** | the killer–victim factors are DERIVED from the same TKB weapon data the fusion and real resolutions use (penetration vs armour through `ArmorModel`, dispersion, rate of fire) — an ATGM's chance against an IFV is ONE number in every resolution | S-5's single calibration, extended to vehicles |
 | **S-9** | mounted / dismounted is the unit's POSTURE (speed, exposure, which systems fire) | the mounted infantry fight's essence, without seats |
+
+## 13. De-aggregation — a StochasticUnit becomes physical units for precise combat *(analysis + leans; 🔒 user, `2026-11-14`: "let's think about the de-aggregation of stochastical unit into physical units for more precise combat simulation. is that something we could achive? maybe it would further form our existing design which is cheap now")*
+
+**The proven solution** (multi-resolution modelling — aggregate / entity federations): a unit is DISAGGREGATED when a trigger fires (a physical
+entity or a trainee comes within range, or an engagement with one is imminent) and RE-AGGREGATED when it is out of contact for a while. The known
+problems and their standard answers: **state mapping** (instantiate the entities from the unit's state; sum them back) · **thrashing** (hysteresis:
+a wider radius and a minimum time to re-aggregate) · **discontinuity** (switch BEFORE contact, never mid-engagement; one calibration so the
+expected losses agree) · **chain** (one level at a time) · **identity** (the same unit and the same children every time, so reports, recordings
+and the after-action review stay continuous).
+
+```mermaid
+stateDiagram-v2
+  Stochastic: StochasticUnit - no bodies
+  Fusion: FusionSquads - one soldier each, vehicles real
+  Physical: real squads - every man
+  [*] --> Stochastic
+  Stochastic --> Fusion: a physical entity or a trainee within R, out of contact
+  Fusion --> Physical: closer still, or a close-combat order
+  Physical --> Fusion: no physical entity within R plus margin for T
+  Fusion --> Stochastic: no physical entity within R plus margin for T
+```
+*What it shows: the switch is ONE level at a time, and FusionSquad is the natural middle step — a stochastic platoon becomes three FusionSquads
+and its REAL vehicles, long before every man is created.*
+
+| measured / designed | basis |
+|---|---|
+| the order resolver keys ONLY on the entity's DIS type | `OrderResolver.Resolve(table, dis, order, …)` (`Hrot/Engine/Hrot.Core/Tkb/OrderResolver.cs:33`) ⇒ a resolution baked into the TYPE (D-1's TKB 307) cannot change at run time without changing the entity's type |
+| a unit's children are described by its TKB composite (slots), created explicitly today | `NedTkbCatalog.cs:973-992` (`AutoCreateChildren = false`), macros write each man (`city_battle_macros.py:24-38`) |
+| entities can be created and destroyed mid-run (macro insertion, creation requests); recordings and seek carry them | `MacroInsertion.cs:23-45`, `CreateEntityRequestSystem.cs:475-480` |
+| S-1 / S-7 put the unit's whole state on the unit | §10, §12 |
+
+| # | binds NOW — cheap (lean) | why |
+|---|---|---|
+| ⭐ **X-1** | **the UNIT entity persists across every resolution; its resolution is a run-time FIELD (`AggregateSquad.Resolution`), and the order routing tries `<Resolution><Class><Order>` first** (`FusionInfantrySquadAttack`, then `InfantrySquadAttack`) — the TKB type only gives the DEFAULT resolution. ⚠ **This adjusts approved D-1**: its class `AggregateInfantrySquad` / TKB 307 becomes a preset, not the routing key | a resolution in the TYPE cannot switch without replacing the entity, which would break its identity, its subordinate links and its reports |
+| ⭐ **X-2** | **the unit keeps its CURRENT ORDER (name + params)**, not only the behaviour it resolved to — on a switch it RE-RESOLVES the same order under the new resolution (a stochastic platoon's attack becomes the real `PlatoonAttack` ordering its new squads) | D-1's order-aware bookkeeping already records the order on the commander's side; the receiver keeping its own is the same field |
+| ⭐ **X-3** | **children come from the TKB composite with STABLE keys `<unit>/<slot>`** — the same unit disaggregated twice gives the same children | identity continuity for reports, recordings, replay and the after-action review |
+| **X-4** | the mapping rules, written once: men left ⇒ which slots live (deterministic order: the MG crew and the leader last), health / ammo split by slot, positions inside the frontage by the existing formation / post planners, stress from suppression; back: sums and the centroid | consistent both ways; S-5 keeps the expected losses equal |
+| **X-5** | switch one level at a time, before contact, with hysteresis; never while engaged | the standard answers to thrashing and discontinuity |
+| ⏳ not now | building the switch, the triggers, the cost per switch (a platoon is ~30 creations — measure when built) | — |
