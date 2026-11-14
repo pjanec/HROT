@@ -31,6 +31,8 @@ namespace Hrot.AI.Behaviors.Brains
             public SopSenseParams MemberDown;
             /// <summary>How near along the squad's route a danger area must be for the crossing drill (CE-2159).</summary>
             public SopAreaParams AreaAhead;
+            /// <summary>⭐ CE-7029 — a member sensed a drone (his <c>AirThreat</c>, re-raised on the commander by <c>SquadSensing.AirThreat</c>).</summary>
+            public SopSenseParams AirSense;
 
             public Blackboard()
             {
@@ -39,6 +41,7 @@ namespace Hrot.AI.Behaviors.Brains
                 Contact    = new SopSenseParams { Kind = SensorChange.SquadContact,    Seconds = 3f };
                 MemberDown = new SopSenseParams { Kind = SensorChange.SquadMemberDown, Seconds = 3f };
                 AreaAhead  = new SopAreaParams { WithinMetres = 30f };
+                AirSense   = new SopSenseParams { Kind = SensorChange.AirThreat,       Seconds = 3f };
             }
         }
 
@@ -111,6 +114,14 @@ namespace Hrot.AI.Behaviors.Brains
                     Id("c2123000-0000-0000-0000-000000000080"))
                     .Label("Squad riding → ride")
                     .Comment("CE-2173 slice 3 (Air Operations §9b): every live member is aboard a vehicle — nothing to do but ride; the task waits. Above the contact rows: a squad shot at in the air rides on (the dismount row above only fires on the ground).")
+                .Sequence(row => row
+                    .Condition(bb => bb.AirSense, SopConditions.SensedFresh, Id("c7029000-0000-0000-0000-000000000011"))
+                        .Label("A drone over the squad (fresh, 3 s)")
+                    .React(BehaviorNames.SquadShelterFromAir, ReactionUrgency.UnderFire, Id("c7029000-0000-0000-0000-000000000012"))
+                        .Label("React: SquadShelterFromAir"),
+                    Id("c7029000-0000-0000-0000-000000000010"))
+                    .Label("Drone → every man takes cover")
+                    .Comment("CE-7029 (City Battle R-1d): a man senses a drone ⇒ the squad does (SquadSensing.AirThreat); every live man is sent ShelterFromAir (overhead cover, else keep moving; fire at it while seen) until the sky has been clear 10 s. Above 'under a platoon': a drone is the squad's own immediate threat, as the carrier rows are its own.")
                 .Condition(SopConditions.UnderCommand, Id("c2123000-0000-0000-0000-0000000000c1"))
                     .Label("Under a platoon → the platoon reacts for the squad")
                     .Comment("CE-2358 (AQ102 G, R-2072): true = the row wins and nothing is ordered — a squad under a live platoon gets its fight from its platoon's play (AQ97 A at the squad level); the carrier rows above stay the squad's own (mount, dismount, ride). Every squad type now carries this SOP by default.")

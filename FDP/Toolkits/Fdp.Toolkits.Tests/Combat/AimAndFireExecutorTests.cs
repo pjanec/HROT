@@ -2458,6 +2458,59 @@ namespace Fdp.Toolkit.Combat.Tests
             _ = target;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2278</c> (DA-12) — THE SMOKE GRENADE rides the grenade mount's second loadout entry (M67 first): a <c>FireAtPoint</c> with round
+        /// Smoke, given mount 0, throws from the mount that CARRIES smoke — it loads the smoke (one switch: held, nothing thrown), throws ONE smoke
+        /// grenade at the point, and puts the M67 back. While the smoke is in his hand the weapon brain's own hidden-target throw holds (never a
+        /// smoke grenade at an enemy). 🔴 Red-proof: the executor not re-mounting a smoke order ⇒ mount 0 (the rifle) fires, not mount 1.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2278_ASmokeOrder_ThrowsTheGrenadeMountsSmoke_ThenTheM67GoesBack()
+        {
+            const long Smoke = 6041;
+            var (unit, grenade, _, target) = Grenadier(new Vector3(0f, 18f, 0f));
+            var db = (Fdp.Toolkit.Tkb.TkbDatabase)_world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            var smoke = new Fdp.Interfaces.TkbTemplate("smoke grenade", Smoke);
+            smoke.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Smoke, CloudRadiusM = 8f, CloudSeconds = 75f, Indirect = true });
+            db.Register(smoke);
+            var type = new Fdp.Interfaces.TkbTemplate("Grenadier+smoke", 78);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Range = 300f },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { MuzzleVelocity = 15f, Range = 25f, AmmoGuid = unchecked((ulong)M67), ReloadSeconds = 1f,
+                    Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade,
+                    Loadout = { new() { AmmoGuid = unchecked((ulong)M67), Rounds = 4 }, new() { AmmoGuid = unchecked((ulong)Smoke), Rounds = 2 } } },
+            } });
+            db.Register(type);
+            _world.GetComponentRW<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit).TkbType = (Fdp.Core.TkbTypeId)78;
+            if (!_world.IsComponentTypeRegistered<AmmoLoadout>()) _world.RegisterComponent<AmmoLoadout>();
+            _world.AddComponent(grenade, AmmoLoadout.From(type.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>()!.Mounts[1].Loadout));
+            _world.GetComponentRW<WeaponState>(grenade).Ammo = 6;
+
+            Assert.Equal(1, AmmoChoice.MountIndexWithKind(_world, unit, Fdp.Toolkit.Tkb.Domain.WarheadKind.Smoke));
+            Assert.True(AmmoChoice.TypeCarries(_world, unit, Fdp.Toolkit.Tkb.Domain.WarheadKind.Smoke));
+
+            var channel = new WeaponChannel();
+            var point = new Vector3(0f, 12f, 0f);
+            Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), new FireAtPointParams { Point = point, Rounds = 1, Round = FireAtPointParams.RoundSmoke, Mount = 0 });
+            new FireAtPointExecutor().OnEnter(unit, ref channel, _world);
+            Assert.Empty(FireAtPointStep(unit, ref channel, now: 1d));                      // the switch: held
+            Assert.Equal(Smoke, AmmoChoice.LoadedAmmo(_world, grenade));
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            // the hidden-target throw holds while the smoke is in his hand (never smoke at an enemy)
+            Assert.False(HiddenTargetThrow.TryThrow(_world, unit, target));
+            Fdp.Toolkit.Behavior.Systems.WeaponDispatcherSystem.DrainSwitch(ref _world.GetComponentRW<AmmoLoadout>(grenade), 1.1f);
+            Assert.False(HiddenTargetThrow.TryThrow(_world, unit, target));                 // switched, still the smoke in hand
+
+            WeaponFireIntent[] shots = Array.Empty<WeaponFireIntent>();
+            for (int i = 0; i < 5 && shots.Length == 0; i++) shots = FireAtPointStep(unit, ref channel, now: 2d + i * 0.1);
+            var shot = Assert.Single(shots);
+            Assert.Equal(1, shot.WeaponIndex);
+            Assert.True(shot.AtPoint);
+            Assert.Equal(NodeStatus.Success, channel.Status);
+            Assert.Equal(M67, AmmoChoice.LoadedAmmo(_world, grenade));                     // the M67 goes back in his hand
+        }
+
         /// <summary>⭐ W-12e — the cases that must NOT throw: beyond the throw (30 m), a forgotten sighting, a friendly beside the
         /// target (inside the M67's lethal radius), the thrower's own spot, and a target that is SEEN (the rifle's business).</summary>
         [Theory]

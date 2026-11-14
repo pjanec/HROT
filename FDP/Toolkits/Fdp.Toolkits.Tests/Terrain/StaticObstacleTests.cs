@@ -158,6 +158,74 @@ public sealed class StaticObstacleTests
         }
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-6003</c> (city battle O-1, §9.9) — THE STREET OPENS: a wall across the world with an 8 m gate, the gate blocked by a concrete
+    /// roadblock. With the obstacle's prism in the terrain no path crosses (or only by its top, never the gate's ground); with the obstacle gone —
+    /// the world the bake builds after its removal — the path goes straight through the gate. 🔴 Red-proof: keep the roadblock in the "after"
+    /// world ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE6003_T1_ARoadblockedGate_OpensWhenTheObstacleIsGone()
+    {
+        const string Walled = """
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,60],"groundZ":0},"features":[
+              {"type":"Feature","properties":{"kind":"wall","label":"south","height":3.0,"material":"concrete","thickness":0.4},"geometry":{"type":"LineString","coordinates":[[30,-1],[30,26]]}},
+              {"type":"Feature","properties":{"kind":"wall","label":"north","height":3.0,"material":"concrete","thickness":0.4},"geometry":{"type":"LineString","coordinates":[[30,34],[30,61]]}}]}
+            """;
+        var open = TerrainWorldParser.Parse(Walled);
+        var blocked = TerrainObstacles.With(open, new[] { TerrainObstacles.PrismOf(new Vector3(30, 30, 0), MathF.PI / 2,
+            new ObstacleShape { Length = 8.4f, Width = 1f, Height = 1f }, M("concrete"), "obstacle:1") });
+
+        int Path(TerrainWorld world, Span<NavWaypoint> wps)
+        {
+            var nav = new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world) ?? throw new InvalidOperationException("no mesh");
+            return nav.PlanPath(new Vector3(20, 30, 0), new Vector3(40, 30, 0), wps, (uint)NavLayerMask.Infantry);
+        }
+        static bool ThroughTheGateOnTheGround(Span<NavWaypoint> wps, int n)
+        {
+            if (n < 2) return false;
+            var last = wps[n - 1].Position;
+            if (MathF.Abs(last.X - 40f) > 0.5f || MathF.Abs(last.Y - 30f) > 0.5f) return false;   // never reached the far side
+            for (int i = 0; i < n; i++) if (wps[i].Position.Z > 0.5f) return false;              // over the block's top is not the street
+            return true;
+        }
+
+        Span<NavWaypoint> wps = stackalloc NavWaypoint[64];
+        int before = Path(blocked, wps);
+        _out.WriteLine($"blocked: {before} waypoint(s)" + (before > 0 ? $", last {wps[before - 1].Position}" : ""));
+        Assert.False(ThroughTheGateOnTheGround(wps, before), "the roadblock must close the gate");
+        int after = Path(open, wps);
+        _out.WriteLine($"open: {after} waypoint(s)");
+        Assert.True(ThroughTheGateOnTheGround(wps, after), "with the roadblock gone the path goes through the gate");
+        Assert.True(after <= 3, $"straight through, got {after} waypoints");
+    }
+
+    /// <summary>⭐ <c>CE-6003</c> — a destructible type (<see cref="StaticObstacleDto.MaxHealth"/> &gt; 0) gets the ORDINARY Health from the
+    /// translator; MaxHealth 0 none (indestructible); a scenario's own Health (a damaged block) wins. 🔴 Red-proof: drop the Health write ⇒ red.</summary>
+    [Fact]
+    public void CE6003_T2_TheTranslator_GivesADestructibleTypeItsHealth()
+    {
+        using var repo = new EntityRepository();
+        repo.RegisterComponent<StaticObstacle>();
+        repo.RegisterComponent<ObstacleShape>();
+        repo.RegisterComponent<PhysicsCollider>();
+        repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        var block = new TkbTemplate("Concrete block", 8808);
+        block.AddDescriptor(new StaticObstacleDto { Length = 2f, Width = 1f, Height = 1f, Material = "concrete", MaxHealth = 600f });
+        var tough = new TkbTemplate("Monument", 1);
+        tough.AddDescriptor(new StaticObstacleDto { Length = 2f, Width = 1f, Height = 1f, Material = "concrete" });
+
+        var a = repo.CreateEntity(); new ObstacleTkbTranslator().Inject(repo, a, block);
+        Assert.Equal(600f, repo.GetComponent<Fdp.Toolkit.Combat.Components.Health>(a).Current);
+        Assert.Equal(600f, repo.GetComponent<Fdp.Toolkit.Combat.Components.Health>(a).Max);
+        var b = repo.CreateEntity(); new ObstacleTkbTranslator().Inject(repo, b, tough);
+        Assert.False(repo.HasComponent<Fdp.Toolkit.Combat.Components.Health>(b));
+        var c = repo.CreateEntity();
+        repo.AddComponent(c, new Fdp.Toolkit.Combat.Components.Health { Current = 120f, Max = 600f });
+        new ObstacleTkbTranslator().Inject(repo, c, block);
+        Assert.Equal(120f, repo.GetComponent<Fdp.Toolkit.Combat.Components.Health>(c).Current);
+    }
+
     [Fact]
     public void P7a_R6_TheTranslator_StampsMarkerShapeAndCollider_AndAnInstanceSizeWins()
     {

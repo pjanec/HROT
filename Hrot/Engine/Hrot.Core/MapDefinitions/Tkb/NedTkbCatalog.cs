@@ -18,6 +18,10 @@ namespace Hrot.Map.Definitions.Tkb
         public const ushort Russia = Hrot.Core.Tkb.CountryTable.Russia;
 
         /// <summary>⭐ M5 (DESIGN_Missiles_And_Ammo §2, §5) — a tank gun's loadout: its APFSDS, the HEAT-MP and the HE-FRAG.</summary>
+        /// <summary>⭐ <c>CE-7025</c> (IF-5) — a mortar's loadout: its HE bombs first (the round a plain mission fires), then its smoke bombs (what a
+        /// mission that asks for smoke loads).</summary>
+        private static List<(long, int)> MortarLoadout(long he, int heRounds, long smoke, int smokeRounds) => new() { (he, heRounds), (smoke, smokeRounds) };
+
         private static List<(long, int)> TankLoadout(long apfsds, int kinetic, int heat, int he)
             => new() { (apfsds, kinetic), (Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankHeatMp, heat), (Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankHeFrag, he) };
 
@@ -460,17 +464,17 @@ namespace Hrot.Map.Definitions.Tkb
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Mortar60, "60 mm mortar", 1,
                 new WeaponSystemDto { Portable = WeaponPortability.OneMan, MountKinds = MountKinds.Ground, DeploySeconds = 20f, PackSeconds = 15f, CarrySpeedFactor = 0.8f },
                 Laid(IndirectMount("60mm_M224", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb60mmMortarHe, Hrot.Core.Tkb.MunitionTkbCatalog.Mortar60mmHeName,
-                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 20, rangeM: 3490f, dispersionMils: 6f, reloadSeconds: 3f)),
+                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 20, rangeM: 3490f, dispersionMils: 6f, reloadSeconds: 3f) with { Loadout = MortarLoadout(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb60mmMortarHe, 20, Hrot.Core.Tkb.MunitionTkbCatalog.Tkb60mmMortarSmoke, 6) }),
                 LayingTurret(45f, 85f, pivotZ: 0.3f), new(0.2f, 2f, 60f), category: 10, report: Mortar60Report);
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Mortar81, "81 mm mortar", 2,
                 new WeaponSystemDto { Portable = WeaponPortability.TwoMan, MountKinds = MountKinds.Ground, DeploySeconds = 60f, PackSeconds = 45f, CarrySpeedFactor = 0.5f },
                 Laid(IndirectMount("81mm_M252", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb81mmMortarHe, Hrot.Core.Tkb.MunitionTkbCatalog.Mortar81mmHeName,
-                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 30, rangeM: 5600f, dispersionMils: 5f, reloadSeconds: 3f)),
+                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 30, rangeM: 5600f, dispersionMils: 5f, reloadSeconds: 3f) with { Loadout = MortarLoadout(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb81mmMortarHe, 30, Hrot.Core.Tkb.MunitionTkbCatalog.Tkb81mmMortarSmoke, 10) }),
                 LayingTurret(45f, 85f, pivotZ: 0.3f), new(0.3f, 2f, 80f), category: 10, report: Mortar81Report);
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Mortar120, "120 mm mortar", 3,
                 new WeaponSystemDto { Portable = WeaponPortability.TwoMan, MountKinds = MountKinds.Ground, DeploySeconds = 90f, PackSeconds = 60f, CarrySpeedFactor = 0.4f },
                 Laid(IndirectMount("120mm_M120", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmMortarHe, Hrot.Core.Tkb.MunitionTkbCatalog.Mortar120mmHeName,
-                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 20, rangeM: 7200f, dispersionMils: 4f, reloadSeconds: 6f)),
+                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 20, rangeM: 7200f, dispersionMils: 4f, reloadSeconds: 6f) with { Loadout = MortarLoadout(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmMortarHe, 20, Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmMortarSmoke, 6) }),
                 LayingTurret(45f, 85f, pivotZ: 0.3f), new(0.5f, 2f, 120f), category: 10, report: Mortar120Report);
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Howitzer105, "105 mm towed howitzer", 1,
                 new WeaponSystemDto { Portable = WeaponPortability.Static, MountKinds = MountKinds.Ground },   // emplaced: no towing yet (IF-G)
@@ -654,6 +658,54 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 4, Subcategory = 1 });
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-6006</c> (showcase world, DESIGN_City_Battle_Showcase §6 <c>Bulldozer</c> / D-6; 🔒 user, 2026-11-13: <i>"no need to look armored,
+        /// just it should stand some shots as armored one would"</i>) — the BULLDOZER: a D9-class engineering dozer, tracked, NO weapon. Its brain
+        /// (ClearObstacle, B's CE-7012) is the behaviours lane's; this is the TYPE. Class <c>Bulldozer</c> 1.1.*.9.1 (a large tracked utility
+        /// vehicle). The crew stays abstract, as the tanks' (R-2009 B5).
+        /// <para>🛡 ARMOUR (📐 <c>ArmorModel</c>, <c>P = clamp((pen / armour − 0.8) / 0.4, 0, 1)</c>): 40 mm on the sides and rear, 50 on the front, 35 on
+        /// the roof — a steel cab and appliqué kit, ⛔ not a tank's. A rifle round (pen 5) and a 7.62 (pen ≤ 8) are 0 % at any face, the 12.7 AP (pen 25)
+        /// too (25/35 = 0.71 &lt; 0.8); the RPG-7 (pen 300 ≥ 1.2 × 50) is 100 % at every face. Health 1000: an RPG hit does 400 (its stated
+        /// <c>DamagePerHit</c>), so the third kills (3 × 400 ≥ 1000) and two do not (800), while <c>BlastSusceptibility</c> 0.1 keeps the
+        /// burst's blast on the hull from moving that arithmetic. The profile is the light-armour idea (the APC's, the pickup's) tuned by
+        /// parameters — no new armour mechanism.</para>
+        /// </summary>
+        private static void DefineBulldozer(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Engineer_Bulldozer;
+            builder
+                .DefineVehicle(type, "Bulldozer (D9-class)")
+                .WithVisual(type, v =>
+                {
+                    v.SymbolCode = "SFGPEVEE-------";   // 2525B ground equipment · vehicle · engineer · earthmover
+                    v.ColorHex = "#E3B01C";             // construction yellow
+                    v.Scale = 1.2f;
+                    v.ShowLabel = true;
+                })
+                .WithPhysics(type, p =>
+                {
+                    p.Mass = 49_000;   // a D9 (about 49 t)
+                    p.Length = 8.0f;   // with the blade
+                    p.Width = 4.3f;    // the blade's
+                    p.Height = 4.0f;   // the cab's ROPS
+                    p.MaxSpeed = 4.5f; p.MaxSpeedRev = 4.5f; p.Acceleration = 1.0f; p.TurnRate = 25f;
+                    p.Mobility = TerrainMobility.Tracked;
+                })
+                .WithCombat(type, c =>
+                {
+                    c.ArmorFront = 50; c.ArmorSide = 40; c.ArmorRear = 40; c.ArmorTop = 35;
+                    c.MaxHealth = 1000;
+                    c.BlastSusceptibility = 0.1f;
+                    c.EyeHeight = 3.2f;   // the operator in the cab
+                    c.SensorRange = 500;
+                })
+                .WithFaction(type, 1)
+                .WithBehavior(type)
+                .WithSignatures(type, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine))
+                // Large Tracked Utility Vehicle (1.1.*.9) · subcategory 1 = the bulldozer (HROT, EntityClassTable "Bulldozer")
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 9, Subcategory = 1 });
+        }
+
         public static void RegisterAll(TkbDatabase tkbDb)
         {
             var builder = new NedTkbBuilder(tkbDb);
@@ -781,6 +833,11 @@ namespace Hrot.Map.Definitions.Tkb
             // HMMWV — ⭐ 2026-10-31 two variants of ONE definition (Hmmwv): 102 crewed (as before), 111 with no crew
             Hmmwv(builder, TkbEntityTypes.Truck_HMMWV, "HMMWV (M2, crewed)", crewed: true);
             Hmmwv(builder, TkbEntityTypes.Truck_HMMWV_NoCrew, "HMMWV (M2, no crew)", crewed: false);
+            // ⭐ CE-7014 (City Battle R-2) — the HMMWV with a DRONE JAMMER: the crewed HMMWV plus the jammer's bubble; DIS subcategory 9 (HROT-local) tells it apart
+            Hmmwv(builder, TkbEntityTypes.Ew_DroneJammer, "HMMWV (drone jammer)", crewed: true);
+            builder.WithDisType(TkbEntityTypes.Ew_DroneJammer, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 6, Subcategory = 9 });
+            if (tkbDb.TryGetByType(TkbEntityTypes.Ew_DroneJammer, out var jammer) && jammer != null)
+                jammer.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.JammerDto { RadiusM = 400f });
             
             // T-72 (OPFOR)
             builder
@@ -955,6 +1012,28 @@ namespace Hrot.Map.Definitions.Tkb
                 })
                 .AsLandUnit(TkbEntityTypes.Unit_InfantryPlatoon, Hrot.Core.Tkb.UnitArm.Infantry, UnitedStates);
 
+            // ⭐ CE-7021 (City Battle §11 C-1a) — Infantry Company: a body-less commander over three platoon commanders (the support element
+            //   is authored beside them in a scenario: the company plays order the first three slots and leave any further one to its own task).
+            //   ⭐ No standing orders (lane default R-7000): the company's work is its task; a platoon's SOP already reacts to contact below it.
+            builder
+                .DefineVehicle(TkbEntityTypes.Unit_InfantryCompany, "Infantry Company")
+                .WithVisual(TkbEntityTypes.Unit_InfantryCompany, v =>
+                {
+                    v.IconName = "infantry_squad";
+                    v.SymbolCode = "SFGPUCI---E----"; // Company echelon
+                    v.ColorHex = "#0000FF";
+                    v.Scale = 1.8f;
+                })
+                .WithFaction(TkbEntityTypes.Unit_InfantryCompany, 1)
+                .WithBehavior(TkbEntityTypes.Unit_InfantryCompany)
+                .AsComposite(TkbEntityTypes.Unit_InfantryCompany, comp =>
+                {
+                    comp.Subordinates.Add(new TkbChildSlot { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Unit_InfantryPlatoon), Count = 3, Designation = TacticalDesignation.Wingman });
+                    comp.Echelon = "Company";
+                    comp.AutoCreateChildren = false;
+                })
+                .AsLandUnit(TkbEntityTypes.Unit_InfantryCompany, Hrot.Core.Tkb.UnitArm.Infantry, UnitedStates);
+
             // Tank Platoon (Auto-Spawning)
             builder
                 .DefineVehicle(TkbEntityTypes.Unit_TankPlatoon_Auto, "Tank Platoon (Auto Spawn)")
@@ -1043,6 +1122,8 @@ namespace Hrot.Map.Definitions.Tkb
                     },
                 });
             DefineFpvDrone(builder);   // ⭐ M7
+            DefineReconDrone(builder);   // ⭐ CE-7028
+            DefineBomberDrone(builder);  // ⭐ CE-7027
             DefineAttackPlane(builder);   // ⭐ Air Ops slice 4
             DefineAttackHelicopter(builder);   // ⭐ Air Ops slice 6a
             // ⭐⭐ CE-3281 (Sensing §8.6) — the aircraft are HEARD: rotors 3 km, jets 15 km (⚠ a fixed-wing engine is class Rotor — "an aircraft
@@ -1058,6 +1139,7 @@ namespace Hrot.Map.Definitions.Tkb
             //   weapon mount (Dispenser, below): the UH-60s, the AH-64, the A-10. ⚠ The F-16 and the C-130 have no combat block and no
             //   brain (nothing could release their flares), so they carry none yet.
             DefineSelfPropelledHowitzer(builder);   // ⭐ Indirect fire IF-1 (I8)
+            DefineBulldozer(builder);               // ⭐ CE-6006 — the engineering dozer
 
             // ⭐ IF-1 (I8, FM-1) — the ARTILLERY BATTERY: a body-less commander unit (class ArtilleryUnit 11.1.*.4) whose roster is its guns;
             //   a Strike to it resolves to ArtilleryUnitStrike (the behaviour lane's battery play). Three M109s, placed by hand (no auto spawn).
@@ -1180,21 +1262,32 @@ namespace Hrot.Map.Definitions.Tkb
             var car = new DISEntityType { Kind = 1, Domain = 1, Category = 81 };
             var feature = new DISEntityType { Kind = 5 };
             // ⭐ T-2 (CE-4429 G-3) — the sizes and materials are the CLUTTER table's (Fdp.Toolkit.Terrain.ClutterTypes): a baked clutter item and the live obstacle of the same name are one box of one material
-            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Car,           TkbEntityTypes.Obstacle_Car,           car);
-            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.SandbagWall,   TkbEntityTypes.Obstacle_SandbagWall,   feature);
-            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.ConcreteBlock, TkbEntityTypes.Obstacle_ConcreteBlock, feature);
-            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Crate,         TkbEntityTypes.Obstacle_Crate,         feature);
+            // ⭐ CE-6003 (city battle O-1, Peek and Fire §9.9) — every obstacle is DESTRUCTIBLE; MaxHealth in Fdp.Toolkit.Combat.ObstacleDamage's unit
+            //   (100 per kg of explosive at contact): a concrete block takes a 6 kg contact charge (the 8 kg demolition charge removes it; a 120 mm
+            //   mortar round, 3 kg, needs two direct hits; an 81 mm, five), a sandbag wall 3 kg, a parked car 1.5 kg (one tank HE round), a crate
+            //   0.6 kg. ⚠ Starter values to tune, like the sizes.
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Car,           TkbEntityTypes.Obstacle_Car,           car,     maxHealth: 150f);
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.SandbagWall,   TkbEntityTypes.Obstacle_SandbagWall,   feature, maxHealth: 300f);
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.ConcreteBlock, TkbEntityTypes.Obstacle_ConcreteBlock, feature, maxHealth: 600f);
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Crate,         TkbEntityTypes.Obstacle_Crate,         feature, maxHealth: 60f);
+            // ⭐ CE-6005 (city battle O-2, Peek and Fire §9.10) — the WRECK of a heavy vehicle: a box of car-body (sight 0) sized per instance from
+            //   the hulk, as tough as a concrete block (the 8 kg charge or a blade clears it); and the heavy types that leave one (tanks, the IFV —
+            //   a light car stays as it is). A host whose smaller catalogue lacks a type skips it.
+            RegisterObstacle(tkbDb, "Wreck", TkbEntityTypes.Obstacle_Wreck, 6.5f, 3.4f, 2.4f, "car-body", feature, maxHealth: 600f);
+            foreach (long heavy in new[] { TkbEntityTypes.Tank_M1Abrams, TkbEntityTypes.Tank_T72, TkbEntityTypes.IFV_Bradley })
+                if (tkbDb.TryGetByType(heavy, out var vehicle) && vehicle.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WreckObstacleDto>() == null)
+                    vehicle.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WreckObstacleDto { ObstacleType = TkbEntityTypes.Obstacle_Wreck });
         }
 
-        private static void RegisterObstacle(TkbDatabase tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Type type, long tkbType, DISEntityType dis)
-            => RegisterObstacle(tkbDb, type.Name, tkbType, type.Length, type.Width, type.Height, type.Material, dis);
+        private static void RegisterObstacle(TkbDatabase tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Type type, long tkbType, DISEntityType dis, float maxHealth)
+            => RegisterObstacle(tkbDb, type.Name, tkbType, type.Length, type.Width, type.Height, type.Material, dis, maxHealth);
 
         private static void RegisterObstacle(TkbDatabase tkbDb, string name, long type, float length, float width, float height, string material,
-                                             DISEntityType dis)
+                                             DISEntityType dis, float maxHealth)
         {
             var t = new TkbTemplate(name, type);
             t.DisType = dis;   // ⭐ CE-3148 — the TYPE only: ⛔ no TkbMasterDto, which would list an obstacle in the Add Entity picker as a sided unit
-            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.StaticObstacleDto { Length = length, Width = width, Height = height, Material = material });
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.StaticObstacleDto { Length = length, Width = width, Height = height, Material = material, MaxHealth = maxHealth });
             tkbDb.Register(t);
         }
 
@@ -1214,6 +1307,9 @@ namespace Hrot.Map.Definitions.Tkb
                 .DefineVehicle(type, "FPV drone")
                 .WithVisual(type, v => { v.SymbolCode = "SHAPMFQ-------"; v.ColorHex = "#4A4A4A"; v.Scale = 0.3f; v.ShowLabel = true; })
                 .WithFlight(type, LocomotionClass.Rotorcraft, flight)
+                // ⭐ CE-7026 (City Battle R-1a) — its four feet: a drone LANDED beside its operator (Airborne 0) can take off on its strike order
+                //   (RotorcraftModel takes off only a body with ground contacts; without them a landed drone stayed down for good)
+                .WithBodyGeometry(type, QuadcopterBody())
                 .WithCombat(type, c =>
                 {
                     c.MaxHealth = 10;
@@ -1228,6 +1324,78 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(type, 2)
                 .WithBehavior(type)
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 2, Category = 50 });   // air, 50 = unmanned (generic country)
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-7028</c> (City Battle §11 R-1c) — the RECON quadcopter: the FPV's airframe (30 m/s, nimble, the same four feet) with NO warhead
+        /// (it does not burst on impact), a 30-minute battery and a camera that sees 1 500 m. It orbits an area (<c>DroneRecon</c>); as a member of
+        /// its drone team's squad its sightings merge into the squad's pool, which the staff SPOTs up (the observer chain, unchanged).
+        /// </summary>
+        private static void DefineReconDrone(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Drone_Recon;
+            var flight = new FlightParamsDto { AccelMps2 = 15f, DetonatesOnImpact = false, EnduranceSeconds = 1800f };
+            builder
+                .DefineVehicle(type, "Recon drone")
+                .WithVisual(type, v => { v.SymbolCode = "SFAPMFQR------"; v.ColorHex = "#4A4A4A"; v.Scale = 0.3f; v.ShowLabel = true; })
+                .WithFlight(type, LocomotionClass.Rotorcraft, flight)
+                .WithBodyGeometry(type, QuadcopterBody())
+                .WithCombat(type, c =>
+                {
+                    c.MaxHealth = 10;
+                    c.BlastSusceptibility = 1f;
+                    c.EyeHeight = 0.1f;
+                    c.SensorRange = 1500;
+                })
+                .WithSignatures(type, new SignaturesDto { Acoustic = new AcousticSignatureDto { MovingAudibleRange = 300f, MovingClass = SoundSourceClass.Rotor } })
+                .WithFaction(type, 1)
+                .WithBehavior(type)
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 2, Category = 50, Subcategory = 2 });   // unmanned, 2 = recon (HROT-local)
+        }
+
+        /// <summary>⭐ <c>CE-7026</c> / <c>CE-7027</c> / <c>CE-7028</c> — the quadcopters' one airframe body: 0.35 m square, four fixed feet (a
+        /// drone landed beside its operator can take off; <c>RotorcraftModel</c> takes off only a body with ground contacts).</summary>
+        private static Fdp.Toolkit.Tkb.Domain.BodyGeometryDto QuadcopterBody() => new()
+        {
+            ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
+            Length = 0.35f, Width = 0.35f, Height = 0.15f, BodyCentreZ = 0f,
+            GroundContacts =
+            {
+                Wheel("foot front left",   0.12f,  0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
+                Wheel("foot front right",  0.12f, -0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
+                Wheel("foot rear left",   -0.12f,  0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
+                Wheel("foot rear right",  -0.12f, -0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
+            },
+        };
+
+        /// <summary>
+        /// ⭐ <c>CE-7027</c> (City Battle §11 R-1b) — the BOMBER quadcopter: the quadcopter airframe (30 m/s, nimble, four feet) with a DROP RACK of
+        /// two M67 grenades (a Bomb mount — the hover drop, <c>AirAttackProfile.HoverDrop</c>: it hovers 30 m over the point, drops one, flies back;
+        /// the operator sends it again while it has a grenade left), a 20-minute battery, a 1 500 m camera; it does not burst on impact. Hostile.
+        /// </summary>
+        private static void DefineBomberDrone(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Drone_Bomber;
+            var flight = new FlightParamsDto { AccelMps2 = 15f, DetonatesOnImpact = false, EnduranceSeconds = 1200f };
+            builder
+                .DefineVehicle(type, "Bomber drone")
+                .WithVisual(type, v => { v.SymbolCode = "SHAPMFQ-------"; v.ColorHex = "#4A4A4A"; v.Scale = 0.3f; v.ShowLabel = true; })
+                .WithFlight(type, LocomotionClass.Rotorcraft, flight)
+                .WithBodyGeometry(type, QuadcopterBody())
+                .WithCombat(type, c =>
+                {
+                    c.MaxHealth = 10;
+                    c.BlastSusceptibility = 1f;
+                    c.EyeHeight = 0.1f;
+                    c.SensorRange = 1500;
+                    c.Weapons.Add(new WeaponMount { WeaponType = "Grenade drop rack", Ammunition = 2, Range = 200f,
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbM67Grenade), Category = WeaponCategory.Bomb });
+                })
+                .WithSignatures(type, new SignaturesDto { Acoustic = new AcousticSignatureDto   // its grenades heard where they burst (CE-3281)
+                    { MovingAudibleRange = 300f, MovingClass = SoundSourceClass.Rotor, DetonationAudibleRange = 800f, DetonationClass = SoundSourceClass.Explosion } })
+                .WithFaction(type, 2)
+                .WithBehavior(type)
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 2, Category = 50, Subcategory = 3 });   // unmanned, 3 = bomber (HROT-local)
         }
 
         /// <summary>

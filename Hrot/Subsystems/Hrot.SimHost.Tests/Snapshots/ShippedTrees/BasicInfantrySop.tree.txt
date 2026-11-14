@@ -12,6 +12,7 @@ variable NearMissSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"NearMiss",
 parse (empty) -> ok
   c2080000-0000-0000-0000-0000000000a2 {"Kind":"AirThreat","Seconds":3}
   c2080000-0000-0000-0000-0000000000a3 {"ClearSeconds":10,"MinElevationDeg":80}
+  c7029000-0000-0000-0000-000000000021 {"Kind":"AirThreat","Seconds":3}
   c2080000-0000-0000-0000-000000000011 {"Kind":"Hit","Seconds":3}
   c2080000-0000-0000-0000-000000000016 {"Kind":"NearMiss","Seconds":3}
   c2080000-0000-0000-0000-000000000021 {"Kind":"FirstThreat","Seconds":3}
@@ -30,6 +31,10 @@ Selector c2080000-0000-0000-0000-000000000002 "Rows — first true wins"
     Condition c2080000-0000-0000-0000-0000000000a2 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"AirThreat","Seconds":3} "Air threat (fresh, 3 s)"
     Condition c2080000-0000-0000-0000-0000000000a3 call Hrot.AI.Behaviors.Brains.AirDefenceNodes.CanEngageAir p:EngageAircraftParams={"ClearSeconds":10,"MinElevationDeg":80} "Can engage aircraft"
     Action c2080000-0000-0000-0000-0000000000a4 sop React:EngageAircraft:UnderFire "React: EngageAircraft"
+  Sequence c7029000-0000-0000-0000-000000000020 "Drone → take cover"
+    # CE-7029 (City Battle R-1d): a LONE man under a drone takes overhead cover (else keeps moving) — the vehicle's own reaction (BasicVehicleSop's row). A man under command never gets here: his squad's SOP shelters him (SquadShelterFromAir).
+    Condition c7029000-0000-0000-0000-000000000021 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"AirThreat","Seconds":3} "Air threat (fresh, 3 s)"
+    Action c7029000-0000-0000-0000-000000000022 sop React:ShelterFromAir:UnderFire "React: ShelterFromAir"
   Sequence c2080000-0000-0000-0000-000000000010 "Hit → fight from cover"
     Condition c2080000-0000-0000-0000-000000000011 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"Hit","Seconds":3} "Hit (fresh, 3 s)"
     Action c2080000-0000-0000-0000-000000000012 sop React:FightFromCover:Hit "React: FightFromCover"

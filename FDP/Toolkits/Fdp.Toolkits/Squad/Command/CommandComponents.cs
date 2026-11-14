@@ -88,6 +88,16 @@ namespace Fdp.Toolkit.Squad.Command
         public uint Seq;
         /// <summary>⭐ <c>CE-2305</c> RQ-2 — what it is about (the casualty of a Casevac): a network id, since the picture is replicated (0 = none).</summary>
         public int SubjectNetId;
+        /// <summary>⭐ <c>CE-7025</c> (IF-5) — a FireSupport request's round (<see cref="FireSupportRound"/>): the report's
+        /// <see cref="ElementEquipment.Smoke"/> flag (a byte the wire already carries — no new field).</summary>
+        public FireSupportRound Round;
+    }
+
+    /// <summary>⭐ <c>CE-7025</c> (IF-5) — the round a FireSupport REQUEST asks for (the report's <see cref="ElementEquipment.Smoke"/> flag).</summary>
+    public enum FireSupportRound : byte
+    {
+        HighExplosive = 0,
+        Smoke = 1,
     }
 
     [InlineArray(CommandPicture.MaxRequests)]

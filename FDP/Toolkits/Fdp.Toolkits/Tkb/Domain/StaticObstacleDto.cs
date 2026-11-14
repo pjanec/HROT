@@ -26,5 +26,13 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>A wall-library material name (<c>Terrain/Data/materials.json</c>): <c>car-body</c>, <c>sandbags</c>, <c>concrete</c> …</summary>
         public string Material { get; init; } = "concrete";
+
+        /// <summary>
+        /// ⭐ <c>CE-6003</c> (city battle O-1) — the obstacle's hit points; &gt; 0 makes it DESTRUCTIBLE: the translator gives it the ordinary
+        /// <c>Health</c>, a blast drains it by <c>ObstacleDamage.BlastDamage</c> (charge kg × closeness: <c>DamagePerKg</c> per kg at contact),
+        /// and at 0 its Health owner removes the entity (<c>ObstacleRemovalSystem</c>) ⇒ the obstacle bake rebakes without it.
+        /// 0 = indestructible (no Health). 📄 docs/DESIGN_Peek_And_Fire.md §9.9.
+        /// </summary>
+        public float MaxHealth { get; init; }
     }
 }

@@ -28,7 +28,7 @@ namespace Hrot.SimHost.Tests
     /// ⭐ <c>CE-3160</c> / <c>CE-507</c> D2 (a) (R-264) — the first squad manoeuvre that RUNS, on the commander:
     /// <see cref="BoundingOverwatchBehavior"/>. 📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §6.
     /// </summary>
-    public class SquadManeuverTests : IDisposable
+    public partial class SquadManeuverTests : IDisposable
     {
         // Every world a test builds is disposed after it: an undisposed repository keeps its native maps, and the
         // suite's leaked worlds once reached the process's map limit (`OutOfMemoryException` in later classes).
@@ -1195,6 +1195,32 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 20; i++) s.Tick();
             Assert.Equal(run, s.Repo.GetComponent<BehaviorState>(s.Commander).InstanceId);   // not restarted
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
+
+        /// <summary>⭐⭐ <c>CE-7029</c> (City Battle R-1d) — the shipped squad SOP under a DRONE: the squad's <c>AirThreat</c> (a man sensed it) ⇒ React
+        /// <c>SquadShelterFromAir</c>, which PAUSES the task and sends EVERY man <c>ShelterFromAir</c>; while the drone is still sensed the reaction runs,
+        /// and <c>ClearSeconds</c> after the last sensing it ends and the task resumes. ✅ Red-proof: the squad SOP's drone row removed ⇒ the task stays.</summary>
+        [Fact]
+        public void CE7029_BasicSquadSop_ADroneOverTheSquad_EveryManTakesCover_ThenTheTaskResumes()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 20; i++) s.Tick();
+            Assert.Equal(BehaviorNames.BoundingOverwatch, s.TaskName);
+
+            s.Orders.Clear();
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.AirThreat);
+            for (int i = 0; i < SopReactionFrames + 2; i++) s.Tick();
+            Assert.Equal(BehaviorNames.SquadShelterFromAir, s.TaskName);
+            Assert.Equal(ReactionUrgency.UnderFire, s.Repo.GetComponent<BehaviorState>(s.Commander).Urgency);
+            foreach (var m in s.Members)
+                Assert.Contains(s.Orders, o => o.Entity == m && o.IntentId == BehaviorNames.ShelterFromAir);
+
+            for (int k = 0; k < 4; k++) { s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.AirThreat); Seconds(s, 2); }   // still overhead
+            Assert.Equal(BehaviorNames.SquadShelterFromAir, s.TaskName);
+            Seconds(s, SquadShelterFromAirBehavior.ClearSeconds + 1);                                                         // the sky clear
+            Assert.Equal(BehaviorNames.BoundingOverwatch, s.TaskName);
         }
 
         /// <summary>⭐ <c>CE-2358</c> (AQ102 G, R-2072) — a squad under a LIVE platoon lets its own contact rows stand aside (the platoon's
@@ -4196,7 +4222,8 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>⭐⭐ <c>CE-2276</c> E-2 (DA-59) — an OP forward at (0, 250): a SPOT 350 m from it changes nothing; one 250 m from it brings
-        /// it back to its <c>Back</c> point (0, −30), where it is a reserve (no sector) and is ordered once. ✅ Red-proof: the OP's 300 m
+        /// it back to its <c>Back</c> point (0, −30) — ⭐ <c>CE-7032</c> under BreakContact first, then, once back (Set), as a reserve there
+        /// (no sector), each ordered once. ✅ <c>CE-7032</c> red-proof: the withdrawal dropped ⇒ a SquadDefend at once, no BreakContact. ✅ Red-proof: the OP's 300 m
         /// ignored ⇒ the far SPOT brings it back.</summary>
         [Fact]
         public void CE2276_E2_AnEnemyNearTheOp_BringsItBack_AsAReserve()
@@ -4210,6 +4237,14 @@ namespace Hrot.SimHost.Tests
             p.Ticks(4);
             Assert.Equal(1, DefendOrders(p, p.Charlie));
             p.ReportSpot(p.Alpha, new Vector3(0f, 500f, 0f), 2);
+            p.Ticks(4);
+            // ⭐ CE-7032 — it WITHDRAWS first (BreakContact to its Back point: covered bounds), not a walk back under a SquadDefend
+            Assert.Equal(1, DefendOrders(p, p.Charlie));
+            Assert.Equal(1, p.OrdersTo(p.Charlie, BehaviorNames.BreakContact));
+            Assert.Equal<Vector3>(new Vector3(0, -30, 0), OrderTo<BreakContactParamsJsonDto>(p, p.Charlie, BehaviorNames.BreakContact).To);
+            p.Ticks(10);
+            Assert.Equal(1, p.OrdersTo(p.Charlie, BehaviorNames.BreakContact));   // once
+            p.ReportSet(p.Charlie);                                                // back
             p.Ticks(4);
             Assert.Equal(2, DefendOrders(p, p.Charlie));
             Assert.Equal<Vector3>(new Vector3(0, -30, 0), DefendOrderTo(p, p.Charlie).Position);
@@ -7698,6 +7733,52 @@ namespace Hrot.SimHost.Tests
             p.S.Repo.GetComponentRW<SimTransform>(ifv).Position = new Vector3(2f, 370f, 0f);
             for (int i = 0; i < 6 && result == null; i++) { p.Tick(); if (p.S.Finished(out var r)) result = r; }
             Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>⭐ <c>CE-7006</c> (R-7010; City Battle §11 C-5) — in contact, the carrier whose squad got out stays for it: an ARMED one
+        /// (its known type carries a weapon mount) fights from cover there, an unarmed one holds; quiet ⇒ both hold for the secure.
+        /// ✅ Red-proof: the armed check dropped (always Hold) ⇒ the IFV is never ordered to fight.</summary>
+        [Fact]
+        public void CE7006_PlatoonConvoy_InContact_AnArmedCarrierFightsFromCoverOverItsDismountedSquad_AnUnarmedOneHolds()
+        {
+            const int Truck = 9701, Ifv = 9702;
+            var p = new Platoon();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            db.Register(new Fdp.Interfaces.TkbTemplate("truck", Truck));
+            var armed = new Fdp.Interfaces.TkbTemplate("ifv", Ifv);
+            armed.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { InitialAmmunition = 100 } } });
+            db.Register(armed);
+            p.S.Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            if (!p.S.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) p.S.Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var truck = ConvoyVehicle(p.S, new Vector3(0f, 40f, 0f), 9001, 0, p.Alpha);
+            var ifv = ConvoyVehicle(p.S, new Vector3(0f, 15f, 0f), 9002, 0, p.Bravo);
+            p.S.Repo.AddComponent(truck, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)Truck });
+            p.S.Repo.AddComponent(ifv, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)Ifv });
+            ConvoyRoute(p.S, 9811, new Vector3(0f, 30f, 0f), new Vector3(0f, 380f, 0f));
+            p.S.StartSop("BasicPlatoonSop");
+            Convoy(p);
+            p.Ticks(6);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
+            Assert.Equal((1, 1), (p.OrdersTo(truck, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));
+
+            p.ReportSpot(p.Bravo, new Vector3(30f, 150f, 0f), 3);
+            p.Ticks(SopReactionFrames);
+            Embarkation.Disembark(p.S.Repo, p.Alpha);
+            Embarkation.Disembark(p.S.Repo, p.Bravo);
+            Reacting(p.S, p.Alpha, BehaviorNames.ReactToContact);
+            Reacting(p.S, p.Bravo, BehaviorNames.ReactToContact);
+            p.Ticks(3);
+            p.S.Pause(PlatoonConvoyBehavior.DefaultClearSeconds + 1);
+            p.Ticks(15);
+            Assert.Equal(BehaviorNames.PlatoonConvoy, p.S.TaskName);
+            Assert.Equal((0, 1), (p.OrdersTo(truck, BehaviorNames.VehicleFightFromCover), p.OrdersTo(ifv, BehaviorNames.VehicleFightFromCover)));
+            Assert.Equal((1, 0), (p.OrdersTo(truck, "Order.Hold"), p.OrdersTo(ifv, "Order.Hold")));
+            p.Ticks(10);
+            Assert.Equal(1, p.OrdersTo(ifv, BehaviorNames.VehicleFightFromCover));                                         // it stands: not re-sent
+
+            Reacting(p.S, p.Alpha, null);
+            Reacting(p.S, p.Bravo, null);
+            p.Ticks(3);
+            Assert.Equal((1, 1), (p.OrdersTo(truck, "Order.Hold"), p.OrdersTo(ifv, "Order.Hold")));                         // secure: both hold
         }
 
         /// <summary>⭐ <c>CE-2354</c> (DA-102 / DA-103) — nobody aboard after <see cref="PlatoonConvoyBehavior.RemountTimeoutSeconds"/>: the

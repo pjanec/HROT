@@ -81,6 +81,10 @@ namespace Hrot.AI.Behaviors.Brains
         public const float SurrenderHoldSeconds = 5f;
         /// <summary>⭐ <c>CE-2248</c> (§5n HD-1) — the share of his Routine pauses he takes his phone out for.</summary>
         public const float PhoneShare = 0.3f;
+        /// <summary>⭐ <c>CE-7030</c> / <c>CE-7031</c> (City Battle §3c) — watching: no nearer than this (m; a bold man's own); a hearing this
+        /// fresh (s) keeps him watching; the default film share; a bold man's alarm is this many times the ordinary.</summary>
+        public const float WatchMinMetres = 150f, BoldWatchMinMetres = 50f, DefaultFilmShare = 0.4f, BoldAlarmFactor = 2f;
+        public const double WatchFreshSeconds = 20.0;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct CivilianParams
@@ -99,6 +103,8 @@ namespace Hrot.AI.Behaviors.Brains
             public float RiotAt;
             // ⭐ CE-2241 ② (§5m PV-3)
             public float Attitude;
+            /// <summary>⭐ <c>CE-7030</c> / <c>CE-7031</c> — 0 = watching off.</summary>
+            public float WatchMaxMetres, FilmShare, BoldShare;
         }
 
         /// <summary>⭐ <c>CE-2238</c> — the rioter's working memory: the forces person he goes for, the point he last ran at, his blow's clock.</summary>
@@ -204,6 +210,9 @@ namespace Hrot.AI.Behaviors.Brains
             if (authored.Instigator) p.Instigator = 1;   // ⭐ CE-2238
             if (authored.RiotAt > 0f) p.RiotAt = authored.RiotAt;
             p.Attitude = Math.Clamp(authored.Attitude, -1f, 1f);   // ⭐ CE-2241 ② — 0 (the default) is a real value
+            p.WatchMaxMetres = Math.Max(0f, authored.WatchMaxMetres);                                       // ⭐ CE-7030
+            p.FilmShare = authored.FilmShare > 0f ? Math.Clamp(authored.FilmShare, 0f, 1f) : DefaultFilmShare;
+            p.BoldShare = Math.Clamp(authored.BoldShare, 0f, 1f);                                           // ⭐ CE-7031
             block = new CivilianBlackboard { Params = p };
         }
 
@@ -230,6 +239,8 @@ namespace Hrot.AI.Behaviors.Brains
                 .Activity<CivilianBlackboard, CivilianParams>(bb => bb.Params, Cower);
             builder.State("Casualty")
                 .Activity<CivilianBlackboard, CivilianParams>(bb => bb.Params, Casualty);
+            var watch = builder.State("Watch")   // ⭐ CE-7030
+                .Activity<CivilianBlackboard, CivilianParams>(bb => bb.Params, Watch);
             var gather = builder.State("Gather")
                 .Activity<CivilianBlackboard, CivilianParams, GatherState>(bb => bb.Params, bb => bb.Gather, Gather);
             var protest = builder.State("Protest")
@@ -239,7 +250,7 @@ namespace Hrot.AI.Behaviors.Brains
             var surrender = builder.State("Surrender")
                 .Activity<CivilianBlackboard, CivilianParams, SurrenderState>(bb => bb.Params, bb => bb.Surrender, Surrender);   // ⭐ CE-2241
 
-            foreach (var s in new[] { routine, alarmed, panic, shelter, cower, gather, protest, riot, surrender })
+            foreach (var s in new[] { routine, alarmed, panic, shelter, cower, gather, protest, riot, surrender, watch })
                 s.On(0).GoTo("Casualty").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Wounded).Polled().Priority(2);
             // ⭐ CE-2241 ① (§5h.3) — a man who committed a hostile act raises his hands while the forces cover him: ahead of every other
             //    way out (a wound still wins, priority 2)
@@ -247,6 +258,9 @@ namespace Hrot.AI.Behaviors.Brains
                 s.On(0).GoTo("Surrender").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Covered).Polled().Priority(1);
             surrender.On(0).GoTo("Alarmed").Guard<CivilianBlackboard, CivilianParams, SurrenderState>(bb => bb.Params, bb => bb.Surrender, Uncovered).Polled();
             routine.On(0).GoTo("Alarmed").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Frightened).Polled();
+            routine.On(0).GoTo("Watch").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Curious).Polled();       // ⭐ CE-7030
+            watch.On(0).GoTo("Alarmed").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Frightened).Polled();
+            watch.On(0).GoTo("Routine").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, NotCurious).Polled();
             routine.On(0).GoTo("Protest").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Protesting).Polled();   // ⭐ CE-2240
             protest.On(0).GoTo("Panic").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Panicked).Polled();
             protest.On(0).GoTo("Riot").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Rioting).Polled();   // ⭐ CE-2238
@@ -564,6 +578,21 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Running;
         }
 
+        /// <summary>⭐ <c>CE-7030</c> (City Battle §3c) — Watch: he stops where he is and looks on; a share of the watchers (fixed by who he is)
+        /// holds his phone up to film it. ⚠ He does not turn to face it: there is no facing request for a standing man (§5f ③'s limit).</summary>
+        [SharedAiAction]
+        public static NodeStatus Watch(ref CivilianParams p, Entity self, EntityRepository world)
+        {
+            CivilianMind.SetMode(world, self, CivilianMode.Watch);
+            LocomotionMoveTo.Stop(world, self);
+            if (Share(self, 0x27d4eb2fu) < p.FilmShare) Hold(world, self, HeldItemKind.Phone);
+            return NodeStatus.Running;
+        }
+
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.CivilianBehavior.Watch")]
+        public static void Deactivate_Watch(ref CivilianParams p, Entity self, EntityRepository world)
+            => PutAway(world, self, HeldItemKind.Phone);
+
         /// <summary>Leaving the onlookers: he stops; a next gathering starts with a walk.</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.CivilianBehavior.Gather")]
         public static void Deactivate_Gather(ref CivilianParams p, ref GatherState ws, Entity self, EntityRepository world)
@@ -842,7 +871,31 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>His fear has reached <see cref="CivilianParams.AlarmAt"/>.</summary>
         [SharedAiCondition]
         public static bool Frightened(ref CivilianParams p, Entity self, EntityRepository world)
-            => CivilianMind.FearOf(world, self) >= p.AlarmAt;
+            => CivilianMind.FearOf(world, self) >= p.AlarmAt * (Bold(in p, self) ? BoldAlarmFactor : 1f);   // ⭐ CE-7031 — a bold man holds longer
+
+        /// <summary>⭐ <c>CE-7031</c> — he is one of the bold share (fixed by who he is: the same man is bold every run and on every node).</summary>
+        public static bool Bold(in CivilianParams p, Entity self) => p.BoldShare > 0f && Share(self, 0x5bd1e995u) < p.BoldShare;
+
+        /// <summary>A fixed share in [0, 1) for <paramref name="self"/> and a salt — per man, never random per tick, the same on every node.</summary>
+        private static float Share(Entity self, uint salt) => (((uint)self.Index * 2654435761u) ^ salt) * 2654435761u / 4294967296f;
+
+        /// <summary>⭐ <c>CE-7030</c> (City Battle §3c) — CURIOUS: watching is on, he heard fighting within <see cref="WatchFreshSeconds"/>, it
+        /// came from no nearer than <see cref="WatchMinMetres"/> (a bold man <see cref="BoldWatchMinMetres"/>) and no farther than
+        /// <see cref="CivilianParams.WatchMaxMetres"/>, and it has not frightened him.</summary>
+        [SharedAiCondition]
+        public static bool Curious(ref CivilianParams p, Entity self, EntityRepository world)
+        {
+            if (p.WatchMaxMetres <= 0f || !world.HasComponent<CivilianState>(self) || !world.HasComponent<SimTransform>(self)) return false;
+            ref readonly var mind = ref world.GetComponentRO<CivilianState>(self);
+            if (mind.HasFrightFrom == 0 || mind.HeardAt <= 0d || world.SimulationTime - mind.HeardAt > WatchFreshSeconds) return false;
+            var at = world.GetComponentRO<SimTransform>(self).Position;
+            float d = Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(mind.FrightFrom.X, mind.FrightFrom.Y));
+            float min = Bold(in p, self) ? BoldWatchMinMetres : WatchMinMetres;
+            return d >= min && d <= p.WatchMaxMetres && !Frightened(ref p, self, world);
+        }
+
+        [SharedAiCondition]
+        public static bool NotCurious(ref CivilianParams p, Entity self, EntityRepository world) => !Curious(ref p, self, world);
 
         /// <summary>His fear has fallen below <see cref="CivilianParams.CalmBelow"/>.</summary>
         [SharedAiCondition]

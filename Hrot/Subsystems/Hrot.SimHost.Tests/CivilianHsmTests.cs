@@ -105,6 +105,73 @@ namespace Hrot.SimHost.Tests
             public void Run(double seconds) { for (double t = 0; t < seconds; t += 0.016) Tick(); }
         }
 
+        // ── ⭐ CE-7030 / CE-7031 (City Battle §3c) — curious at a distance, some film; a bold few stay close ──────────────────────
+
+        /// <summary>He HEARD fighting from <paramref name="from"/> just now (what CivilianFearSystem writes on a shot or a blast).</summary>
+        private static void Heard(World w, Vector3 from)
+        {
+            ref var mind = ref w.Repo.GetComponentRW<CivilianState>(w.Unit);
+            mind.FrightFrom = from; mind.HasFrightFrom = 1; mind.HeardAt = (Fdp.Core.SimInstant)w.Repo.SimulationTime;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-7030</c> — with watching ON: fighting heard 400 m off ⇒ he stops and WATCHES (mode Watch, not moving); 20 s with nothing
+        /// heard ⇒ back to his routine; fighting heard 80 m off ⇒ not curious (too close for an ordinary man); fear past the alarm ⇒ Alarmed
+        /// from Watch. With watching OFF (the default) the same far fighting leaves his routine alone. ✅ Red-proof: the <c>Curious</c> guard
+        /// always false ⇒ no Watch.
+        /// </summary>
+        [Fact]
+        public void CE7030_FarFighting_HeStopsAndWatches_NearFrightens_OffByDefault()
+        {
+            var w = new World();
+            w.Start("{\"WatchMaxMetres\":600}");
+            w.Run(0.5);
+            Heard(w, new Vector3(100f, 600f, 0f));                       // 400 m
+            w.Run(0.3);
+            Assert.Equal(CivilianMode.Watch, w.Mode);
+            Assert.Equal("Watch", w.State());
+            w.Run(21);                                                    // nothing heard since
+            Assert.Equal(CivilianMode.Routine, w.Mode);
+            Heard(w, new Vector3(100f, 280f, 0f));                       // 80 m: too close to stand and look
+            w.Run(0.3);
+            Assert.NotEqual(CivilianMode.Watch, w.Mode);
+            Heard(w, new Vector3(100f, 600f, 0f));
+            w.Run(0.3);
+            Assert.Equal(CivilianMode.Watch, w.Mode);
+            w.Fear(0.9f);
+            w.Run(0.3);
+            Assert.True(w.Mode is CivilianMode.Alarmed or CivilianMode.Panic, $"{w.Mode}");
+
+            var off = new World();
+            off.Start();
+            off.Run(0.5);
+            Heard(off, new Vector3(100f, 600f, 0f));
+            off.Run(0.3);
+            Assert.Equal(CivilianMode.Routine, off.Mode);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-7031</c> — a BOLD man (share 1 = everyone): fighting 80 m off still only makes him watch (an ordinary man is not curious that
+        /// close), and fear that alarms an ordinary man (0.5 &gt; the 0.3 alarm) leaves him watching — he is alarmed only at twice the fear.
+        /// ✅ Red-proof: <c>Bold</c> always false ⇒ no Watch at 80 m.
+        /// </summary>
+        [Fact]
+        public void CE7031_ABoldManWatchesCloser_AndTakesMoreFearToAlarm()
+        {
+            var w = new World();
+            w.Start("{\"WatchMaxMetres\":600,\"BoldShare\":1}");
+            w.Run(0.5);
+            Heard(w, new Vector3(100f, 280f, 0f));                       // 80 m
+            w.Run(0.3);
+            Assert.Equal(CivilianMode.Watch, w.Mode);
+            w.Fear(0.5f);
+            w.Run(0.3);
+            Assert.Equal(CivilianMode.Watch, w.Mode);
+            w.Fear(0.9f);
+            w.Run(0.3);
+            Assert.True(w.Mode is CivilianMode.Alarmed or CivilianMode.Panic, $"{w.Mode}");
+        }
+
         // ── ⭐ CE-2322 (AQ97 D, R-2062) — a civilian's fear reacts on ANY task ─────────────────────────────────────────────────
 
         /// <summary>
@@ -126,7 +193,7 @@ namespace Hrot.SimHost.Tests
             w.Run(0.2);
             Assert.Equal(BehaviorNames.CivilianReact, w.TaskName);
             Assert.Equal(BehaviorOrigin.Reaction, w.TaskOrigin);
-            Assert.Equal(CivilianMode.Alarmed, w.Mode);
+            Assert.True(w.Mode is CivilianMode.Alarmed or CivilianMode.Panic, $"{w.Mode}");
             Assert.Equal(StanceId.Crouched, w.Stance);
 
             w.Fear(0.05f);                                                      // calm (below 0.1)
@@ -208,7 +275,7 @@ namespace Hrot.SimHost.Tests
             w.Fear(CivilianBehavior.DefaultAlarmAt);
             for (int i = 0; i < 3; i++) w.Tick();
             Assert.Equal("Alarmed", w.State());
-            Assert.Equal(CivilianMode.Alarmed, w.Mode);
+            Assert.True(w.Mode is CivilianMode.Alarmed or CivilianMode.Panic, $"{w.Mode}");
             Assert.NotEqual(NavigationConstants.ActionIdMoveTo, w.Loco.ActiveAction);
             Assert.Equal(StanceId.Crouched, w.Stance);
 

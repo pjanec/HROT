@@ -34,5 +34,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>A drill phase is complete after this long even if a mover never arrives (s); 0 = 90.</summary>
         [JsonPropertyName("PhaseTimeoutSeconds")]
         public float PhaseTimeoutSeconds;
+
+        /// <summary>⭐ <c>CE-7009</c> (lane default R-7009) — a man down is carried this far straight back, away from the threat (the collection
+        /// point; the showcase's 150 m), instead of to the nearest cover; 0 = off (cover).</summary>
+        [JsonPropertyName("EvacuateMetres")]
+        public float EvacuateMetres;
     }
 }

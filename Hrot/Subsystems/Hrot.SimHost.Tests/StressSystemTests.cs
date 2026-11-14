@@ -247,6 +247,25 @@ namespace Hrot.SimHost.Tests
             return log.ToString();
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-7008</c> (City Battle §3a) — CAN A SQUAD BE PINNED FOR EVER? A man with NO nerve, alone and outnumbered, stressed to 0.9 by
+        /// fire that then stops: the first 30 s nothing changes (+0.03 / s against −0.03 / s — still under fire as far as he knows), then the
+        /// quiet doubles his calm and he comes down — below 0.3 within two minutes. ✅ Red-proof: the quiet term dropped ⇒ he stays at 0.9.
+        /// </summary>
+        [Fact]
+        public void CE7008_AManPinnedWithNoNerve_ComesDownOnceTheFireStops()
+        {
+            var e = Man(0f, nerve: 0f, obedience: 0f);
+            for (int i = 0; i < 3; i++) Contact(e, armed: true);
+            Assert.Equal(1f, StressModel.Reach(_w, e), 3);
+            SetLevel(e, 0.9f, 0.0);
+            _w.GetComponentRW<Stress>(e).LastStimulusAt = (Fdp.Core.SimInstant)0.0;
+            for (int t = 1; t <= 30; t++) StressModel.Step(_w, e, t);
+            Assert.InRange(Level(e), 0.85f, 0.95f);                 // the first half-minute: no change
+            for (int t = 31; t <= 150; t++) StressModel.Step(_w, e, t);
+            Assert.True(Level(e) < 0.3f, $"level {Level(e)} after two quiet minutes");
+        }
+
         /// <summary>TS-4 — time calms him 0.03 / s; ⭐ cover doubles it and his leader within 20 m doubles it again.</summary>
         [Fact]
         public void CE2270_TimeCalmsHim_CoverDoublesIt_HisLeaderNearDoublesItAgain()

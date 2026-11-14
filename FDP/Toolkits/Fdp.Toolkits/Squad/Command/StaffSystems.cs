@@ -548,6 +548,8 @@ namespace Fdp.Toolkit.Squad.Command
                     {
                         FromNetId = from, Kind = (RequestKind)r.Subtype, At = r.At, ReceivedAt = now, Seq = r.Seq,
                         SubjectNetId = subject.IsNull ? 0 : CommandPictureOps.NetIdOf(repo, subject),
+                        Round = (RequestKind)r.Subtype == RequestKind.FireSupport && (r.Equipment & ElementEquipment.Smoke) != 0
+                            ? FireSupportRound.Smoke : FireSupportRound.HighExplosive,   // ⭐ CE-7025
                     };
                     break;
             }

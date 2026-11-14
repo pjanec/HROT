@@ -74,6 +74,7 @@ namespace Fdp.Toolkit.Squad.Systems
                     Coordinate(repo, commander, tick, now);
             // ⭐ CE-2123 S2 — a member hit or shot at ⇒ its squad is under fire.
             SquadSensing.UnderFire(repo, _gateOnAuthority);
+            SquadSensing.AirThreat(repo, _gateOnAuthority);   // ⭐ CE-7029 — a member senses a drone ⇒ its squad does
             Changes.Rounds(repo, _gateOnAuthority, now);         // ⭐ CE-2283 — a man's place untenable, fire from beyond (sniper)
         }
 

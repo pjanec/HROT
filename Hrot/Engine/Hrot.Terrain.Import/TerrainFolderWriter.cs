@@ -89,7 +89,7 @@ internal static class TerrainFolderWriter
         w.WriteEndObject();
     }
 
-    public static void WriteTerrainJson(string path, string name, string worldFile, UtmFrame frame, double swX, double swY, string? netFile, double anchorX, double anchorY)
+    public static void WriteTerrainJson(string path, string name, string worldFile, UtmFrame frame, double swX, double swY, string? netFile, double anchorX, double anchorY, string? roadsFile = null)
     {
         var (lat, lon) = Utm.ToGeodetic(frame.E0 + swX, frame.N0 + swY, frame.Zone, frame.South);
         using var ms = new MemoryStream();
@@ -107,6 +107,7 @@ internal static class TerrainFolderWriter
             w.WriteEndObject();
             w.WriteString("name", name);
             w.WriteString("world", worldFile);
+            if (roadsFile != null) { w.WriteStartArray("roadNetworks"); w.WriteStringValue(roadsFile); w.WriteEndArray(); }   // ⭐ CE-6001 — the vehicles' road graph, from the same net
             if (netFile != null)
             {
                 w.WriteStartObject("sumoNet");

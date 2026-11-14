@@ -97,6 +97,8 @@ namespace Fdp.Toolkit.Squad.Command
         IndirectFire = 16,
         /// <summary>⭐ <c>CE-2309</c> (HQ-2) — it can fire at aircraft (a ZU-23, a MANPADS team).</summary>
         AirDefence = 32,
+        /// <summary>⭐ <c>CE-7025</c> (IF-5) — SMOKE: on a FireSupport REQUEST, the round asked for is smoke (a screen, not HE).</summary>
+        Smoke = 64,
     }
 
     /// <summary>⭐ <c>CE-2291</c> — a status colour (SITREP strength / ammo, CB-37): GREEN full … BLACK combat ineffective.</summary>

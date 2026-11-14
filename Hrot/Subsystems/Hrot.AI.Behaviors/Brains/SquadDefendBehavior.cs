@@ -36,6 +36,8 @@ namespace Hrot.AI.Behaviors.Brains
         public DefencePosts Posts;
         /// <summary>⭐ <c>CE-2306</c> (DA-96) — an ambush's initiating charge (its network id; 0 = not an ambush).</summary>
         public int InitiatedBy;
+        /// <summary>⭐ <c>CE-7007</c> — shoot and move: seconds at one post in contact before he changes (0 = off).</summary>
+        public float ShootAndMove;
     }
 
     /// <summary>⭐ <c>CE-2275</c> D-2f (DA-5, DA-46) — the authored fighting positions of a <c>SquadDefend</c> order (from
@@ -109,6 +111,8 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed double LastSense[Capacity];
         /// <summary>⭐ <c>CE-2304</c> — when each man was last sent to a new post (DA-38's count waits <see cref="SquadDefendPlay.DisplacedGraceSeconds"/>).</summary>
         public fixed double MovedAt[Capacity];
+        /// <summary>⭐ <c>CE-7007</c> — when each man began his stay at his current post in contact (shoot and move counts from here; −∞ none).</summary>
+        public fixed double DwellFrom[Capacity];
         /// <summary>⭐ <c>CE-2304</c> (DA-58) — 1 once each man has stood within <see cref="SquadDefendPlay.PostRadius"/> of his post since he was
         /// last sent to one (Set counts it).</summary>
         public fixed byte Reached[Capacity];
@@ -290,6 +294,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Order = Defaults(authored.Position, authored.SearchRadius, authored.Speed);
             block.Order.Authored = AuthoredPosts.From(authored.Posts);   // ⭐ D-2f (DA-46)
             block.Order.InitiatedBy = authored.InitiatedBy.Ref.NetworkId;      // ⭐ CE-2306 (DA-96)
+            block.Order.ShootAndMove = authored.ShootAndMoveSeconds;           // ⭐ CE-7007
             block.State = default;
         }
 
@@ -385,7 +390,7 @@ namespace Hrot.AI.Behaviors.Brains
         public PlayStart Start(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx, Span<MemberPartitionInput> partition)
         {
             for (int i = 0; i < ctx.Roster.Count; i++) partition[i] = new MemberPartitionInput(1f, 0f);
-            unsafe { for (int i = 0; i < DefencePosts.Capacity; i++) { p.Posts.PostOf[i] = DefencePosts.None; p.Posts.MovedAt[i] = double.NegativeInfinity; } }
+            unsafe { for (int i = 0; i < DefencePosts.Capacity; i++) { p.Posts.PostOf[i] = DefencePosts.None; p.Posts.MovedAt[i] = double.NegativeInfinity; p.Posts.DwellFrom[i] = double.NegativeInfinity; } }
             p.Posts.Hunter = DefencePosts.None;   // ⭐ CE-2359
             return SquadManeuverRunner.AnyLive(in ctx) ? PlayStart.Go : PlayStart.Fail;
         }
@@ -400,6 +405,7 @@ namespace Hrot.AI.Behaviors.Brains
             Displace(ref p, ref ws, in ctx);
             Flanked(ref p, ref ws, in ctx);
             Hunt(ref p, ref ws, in ctx);
+            ShootAndMove(ref p, ref ws, in ctx);   // ⭐ CE-7007
             Round(ref p, ref ws, in ctx);
         }
 
@@ -891,6 +897,35 @@ namespace Hrot.AI.Behaviors.Brains
                 p.Posts.PostOf[i] = (byte)alternate;
                 p.Posts.MovedAt[i] = ctx.Now;
                 p.Posts.Reached[i] = 0;
+                ws.Reissue = 1;
+                Report(in ctx, p.Posts.Point(alternate), ProgressKind.Displacing);
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-7007</c> (City Battle §3a — active defence: "not just sitting in cover") — SHOOT AND MOVE: while the squad holds a contact,
+        /// a man who has stood at his post for his dwell (<see cref="SquadDefendParams.ShootAndMove"/> × 1 – 1.6, seeded by his entity so
+        /// the squad does not move as one) takes his alternate post and reports Displacing; a man with no alternate stays. The clock starts
+        /// when he is at his post in contact, and again at each move. Off when <see cref="SquadDefendParams.ShootAndMove"/> is 0. Nothing here
+        /// writes another entity: the post plan is the squad's own, the move an order the runner sends.
+        /// </summary>
+        private static unsafe void ShootAndMove(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            if (p.ShootAndMove <= 0f) return;
+            bool contact = ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander).Contacts.Count > 0;
+            for (int i = 0; i < ctx.Roster.Count && i < DefencePosts.Capacity; i++)
+            {
+                if (!ctx.Live(i, out var m) || p.Posts.PostOf[i] == DefencePosts.None || i == p.Posts.Hunter) continue;
+                if (!contact || p.Posts.Reached[i] == 0) { p.Posts.DwellFrom[i] = double.NegativeInfinity; continue; }
+                if (double.IsNegativeInfinity(p.Posts.DwellFrom[i])) { p.Posts.DwellFrom[i] = ctx.Now; continue; }
+                float spread = 1f + 0.6f * ((uint)m.Index * 2654435761u >> 24) / 255f;   // per man, fixed: 1 … 1.6
+                if (ctx.Now - p.Posts.DwellFrom[i] < p.ShootAndMove * spread) continue;
+                int alternate = AlternateOf(ref p, in ctx, i);
+                if (alternate < 0) { p.Posts.DwellFrom[i] = ctx.Now; continue; }
+                p.Posts.PostOf[i] = (byte)alternate;
+                p.Posts.MovedAt[i] = ctx.Now;
+                p.Posts.Reached[i] = 0;
+                p.Posts.DwellFrom[i] = double.NegativeInfinity;
                 ws.Reissue = 1;
                 Report(in ctx, p.Posts.Point(alternate), ProgressKind.Displacing);
             }

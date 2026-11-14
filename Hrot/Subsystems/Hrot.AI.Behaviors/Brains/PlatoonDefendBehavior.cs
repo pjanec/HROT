@@ -49,6 +49,8 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Falling;
         /// <summary>⭐ E-3a (DA-66) — the fall-back point (made at plan time when the order has none).</summary>
         public Vector3 FallBackTo;
+        /// <summary>⭐ <c>CE-7007</c> — handed to every squad's <c>SquadDefend</c> (s; 0 = off).</summary>
+        public float ShootAndMove;
         /// <summary>⭐ E-4 (DA-85, DA-90) — 1 once the area's survey was asked (battle positions) · when (sim s).</summary>
         public byte Asked;
         public SimInstant AskedAt;
@@ -65,6 +67,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ E-2 (DA-60) — 1 = this line squad was turned to a flank (once).</summary>
         public fixed byte Flank[Capacity];
         /// <summary>⭐ E-2 (DA-59) — where the OP comes back to.</summary>
+        /// <summary>⭐ <c>CE-7032</c> — 1 while this (former) OP is withdrawing under BreakContact to its Back point (it defends there after).</summary>
+        public fixed byte Withdrawing[Capacity];
         public fixed float BackX[Capacity];
         public fixed float BackY[Capacity];
         public fixed float BackZ[Capacity];
@@ -176,6 +180,7 @@ namespace Hrot.AI.Behaviors.Brains
             plan.SearchRadius = authored.SearchRadius;
             plan.Speed = authored.Speed;
             plan.FallBackTo = authored.FallBackTo;
+            plan.ShootAndMove = authored.ShootAndMoveSeconds;   // ⭐ CE-7007
             if (SectorSplit.Norm(authored.Right - authored.Left) > 0f)
                 plan.Area = new EngagementArea
                 {
@@ -210,7 +215,7 @@ namespace Hrot.AI.Behaviors.Brains
                 .OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, HoldTheLine)
                 .Activity<PlatoonDefendBlackboard, PlatoonDefencePlan, PlatoonDefendState>(bb => bb.Plan, bb => bb.Keep, KeepDefence));
             root.Child("Ready", c => ready = c.InRegion(0)
-                .OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, HoldTheLine)
+                .OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, LineReady)
                 .Activity<PlatoonDefendBlackboard, PlatoonDefencePlan, PlatoonDefendState>(bb => bb.Plan, bb => bb.Keep, KeepDefence));
             root.Child("Engage", c => engage = c.InRegion(0)
                 .OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, OpenFire)
@@ -394,17 +399,31 @@ namespace Hrot.AI.Behaviors.Brains
                     p.Casevac[slot] = 0;
                     p.Dirty[slot] = 1;
                 }
+                if (p.Withdrawing[slot] == 2 && CasevacAnswers.Returned(world, self, slot))   // ⭐ CE-7032 — back: it defends there now
+                {
+                    p.Withdrawing[slot] = 0;
+                    p.Dirty[slot] = 1;
+                }
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, squad)) continue;   // ⭐ E-2 (DA-62) — a dirty slot goes again
                 p.Dirty[slot] = 0;
                 var json = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+                if (p.Withdrawing[slot] != 0 && p.Falling == 0)   // ⭐ CE-7032 (City Battle §3a) — the OP withdraws under cover, not a walk
+                {
+                    p.Withdrawing[slot] = 2;
+                    CommandOrders.Assign(world, self, squad, BehaviorNames.BreakContact,
+                                         JsonSerializer.Serialize(new BreakContactParamsJsonDto { To = p.Point(slot), Speed = p.Speed }, json), newOrder: true);
+                    Sector(ref p, slot, world, squad);
+                    ws.Orders++;
+                    continue;
+                }
                 if (p.Falling != 0 && p.Role[slot] == PlatoonDefencePlan.Line)   // ⭐ E-3a (DA-68) — the line bounds back
                     CommandOrders.Assign(world, self, squad, BehaviorNames.BreakContact,
                                          JsonSerializer.Serialize(new BreakContactParamsJsonDto { To = p.FallBackTo, Speed = p.Speed }, json), newOrder: true);
                 else
                 {
                     var order = p.Falling != 0   // ⭐ E-3a (DA-69) — the reserve (and an OP) covers at the fall-back point
-                        ? new SquadDefendParamsJsonDto { Position = p.FallBackTo, SearchRadius = p.Radius[slot], Speed = p.Speed }
-                        : new SquadDefendParamsJsonDto { Position = p.Point(slot), SearchRadius = p.Radius[slot], Speed = p.Speed };
+                        ? new SquadDefendParamsJsonDto { Position = p.FallBackTo, SearchRadius = p.Radius[slot], Speed = p.Speed, ShootAndMoveSeconds = p.ShootAndMove }
+                        : new SquadDefendParamsJsonDto { Position = p.Point(slot), SearchRadius = p.Radius[slot], Speed = p.Speed, ShootAndMoveSeconds = p.ShootAndMove };
                     CommandOrders.Assign(world, self, squad, BehaviorNames.SquadDefend, JsonSerializer.Serialize(order, json), newOrder: true);
                 }
                 Sector(ref p, slot, world, squad);
@@ -450,6 +469,19 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Success;
         }
 
+        /// <summary>⭐ <c>CE-7023</c> (City Battle §11 C-1b) — Ready's entry: the line holds as before (<see cref="HoldTheLine"/>), and the platoon
+        /// reports PROGRESS Set to ITS superior — a company's base of fire waits for exactly that (a platoon's defence never ends, so the
+        /// task-end Set the staff composes would never come). A top platoon has no superior: the report is dropped by the staff.</summary>
+        [SharedAiAction]
+        public static NodeStatus LineReady(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
+        {
+            HoldTheLine(ref p, self, world);
+            SimInstant now = (SimInstant)CommandPictureOps.Now(world);
+            ReportQueue.Enqueue(world, self, new CommandReport { Kind = ReportKind.Progress, Subtype = (byte)ProgressKind.Set, At = p.Position, ObservedAt = now },
+                                now + CommandNodes.ReportDelaySeconds);
+            return NodeStatus.Success;
+        }
+
         /// <summary>Engage's entry: the line fires at will (it reaches every man, PC-6); the reserve keeps returning fire only.</summary>
         [SharedAiAction]
         public static NodeStatus OpenFire(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
@@ -492,13 +524,16 @@ namespace Hrot.AI.Behaviors.Brains
         public static bool OpThreatened(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
             => p.Controls != 0 && p.Made != 0 && p.Falling == 0 && ThreatenedOp(ref p, self, world) >= 0;
 
-        /// <summary>OpBack's entry (DA-59): the OP goes back to its <c>Back</c> point and becomes a reserve; <c>KeepDefence</c> orders it.</summary>
+        /// <summary>OpBack's entry (DA-59): the OP goes back to its <c>Back</c> point and becomes a reserve; <c>KeepDefence</c> orders it —
+        /// ⭐ <c>CE-7032</c> first a <c>BreakContact</c> to that point (the squad's covered bounds: its own retreat search picks each cover),
+        /// then, once that has ended (Set or TaskFailed), its <c>SquadDefend</c> there.</summary>
         [SharedAiAction]
         public static unsafe NodeStatus BringOpBack(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
         {
             int slot = ThreatenedOp(ref p, self, world);
             if (slot < 0) return NodeStatus.Success;
             p.Set(slot, PlatoonDefencePlan.Reserve, new Vector3(p.BackX[slot], p.BackY[slot], p.BackZ[slot]), p.Radius[slot]);
+            p.Withdrawing[slot] = 1;   // ⭐ CE-7032 — it fights its way back first (BreakContact: covered bounds), then defends there
             p.Dirty[slot] = 1;
             return NodeStatus.Success;
         }

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD — every decision APPROVED by the user in chat (2026-11-13, §10 D-1…D-17, D-R); F-0 (fix the flaky behaviours) first
-updated: 2026-11-13 (rev 4: §11 the brains items split into buildable rows from measurement (CE-7021…7034); CIV-3 found built)
-current-answer: the whole file — §2 the picture · §3 phases (overlapping) · §3a momentum · §3b the air gate · §3c civilians · §4 forces · §5 the breach drill · §6 classes · §7 sequences · §8 who runs what · §9 the parallel rules · §11 the work · §12 testing
+updated: 2026-11-13 (rev 9: merge — rev 4: §11 the brains items split into buildable rows from measurement (CE-7021…7034); CIV-3 found built) · (rev 8: §4c the skeleton and its variants, CE-6010 / CE-6011 built; §4a platoons of six squads + keys) · (rev 7: §4b lethality settings, CE-6008 built) · (rev 6: §4a the force macros, CE-6009 built) · (rev 5: §11 O-2 CE-6005 built — Peek and Fire §9.10) · (rev 4: §11 O-1 CE-6003 built — as built in Peek and Fire §9.9) · (rev 3: §9 points at the as-built parallel rule, §11 every item a tracker row in Area S, W/B lanes)
+current-answer: the whole file — §2 the picture · §3 phases (overlapping) · §3a momentum · §3b the air gate · §3c civilians · §4 forces · §4a the force macros (as built) · §4b lethality settings (as built) · §4c the skeleton + variants (as built) · §5 the breach drill · §6 classes · §7 sequences · §8 who runs what · §9 the parallel rules · §11 the work · §12 testing
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -18,7 +18,8 @@ related-designs:
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the air assault, the air defence and the strike aircraft used in phase 3
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars, smoke and the observer chain the recon quadcopter joins
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS room / building clearing the platoons use in phase 4
-  - docs/blueprints/RESUME_Coordinator_Destructible_Buildings.md — OWNS the breach / collapse path the obstacle removal (§11 O-1) reuses
+  - docs/blueprints/RESUME_Coordinator_Destructible_Buildings.md — OWNS the breach / collapse path; the obstacle removal (§11 O-1) shares its scaled distance (BreachRule), not its rows
+  - docs/DESIGN_Peek_And_Fire.md — OWNS static obstacles as terrain (§9, R-242…R-244); §9.9 is the AS-BUILT obstacle removal (CE-6003): the blast law, the Health owner's teardown, the blade's seam
 -->
 
 # DESIGN — the city battle showcase: ~1 000 men taking and holding a town, decided by their own commanders
@@ -67,7 +68,7 @@ the obstacle bake / placement / avoidance classes (`StaticObstacleBakeSystem`, `
 ![The battle at a glance](city-battle-overview.svg)
 
 *What the picture shows that prose hid:* the battle is THREE bands the attack must cross — the open fields (where both sides' drones make a dead
-zone), the ring road (the defenders' main line, roadblocked), the old town behind the river (the inner ring, the town hall). Each phase line is a
+zone), the ring road (the defenders' main line, roadblocked), the old town (the inner ring, the town hall) with the river BEHIND it from the attacker's side, the hill and the reserve beyond. Each phase line is a
 scripted trigger; everything between two lines is a company commander's problem. The air assault skips the bands and lands on the objective.
 
 ## 3. The phases — the scripted top, OVERLAPPING, and nothing below it
@@ -167,6 +168,8 @@ so no aircraft and no company has to remember it; and a refused air request is n
 
 ## 3c. Civilians — the town is alive when the attack starts, and then it PANICS *(🔒 user, `2026-11-13`)*
 
+⭐ **As built `2026-11-13` (showcase-brains, CE-7030 / CE-7031):** watching and boldness are civilian params — `WatchMaxMetres` (fighting heard 150 m … it ⇒ Watch: stop, look, `FilmShare` 0.4 film), `BoldShare` (a bold man watches down to 50 m and is alarmed at twice the fear); **0 = off** (lane default R-7003: watching and boldness are opt-in civilian params, so no existing civilian scenario changes) — the showcase's civilian macro sets them. ⚠ A watcher does not turn to face the fighting (no facing request for a standing man).
+
 🔒 *"civilians panicking and evacuating when attack starts is a good idea, add it please"* — then: *"evacuation can hardly be organized under attack"* ·
 *"its sheer panic i guess"* · *"people close to the warfight should simply start running away or trying to hide"* · *"exactly people are curious and start fleeing only if the danger is close (and even then some cracy filmers stay)"*. ⇒ ⭐ **no organised evacuation**: sheer panic — run from the shooting, hide, vanish (R-4035: a panicking civilian hides in a
 building whose door can be opened and disappears after a while inside; never flees indefinitely).
@@ -177,7 +180,7 @@ building whose door can be opened and disappears after a while inside; never fle
 | civilians who hear the fighting **far away** | **curious**: stop and watch, some walk to a corner / a balcony with a view and film with a phone — until the danger comes close (their fear crosses the alarm threshold), then panic | ⛔ new: a **Watch** mode in `CivilianHsm`, entered from Routine when violence is heard but fear stays below `AlarmAt` (today a distant fight leaves him in Routine; curiosity is drawn only by a casualty within 80 m, CIV-3) |
 | **a few "crazy filmers"** (≈ 5 %) | stay and film even close to the fighting — flee only when hurt or when an explosion lands very close | ⛔ new: a per-civilian **boldness** trait (a scenario-set share) that raises his alarm threshold; ⚠ a phone held up at 150 m can be mistaken for a weapon by a soldier (`ua-armed-identify`) — the engine holds fire on a Neutral (AW-20), so it is tension, not a massacre |
 | a crowd in a street or the square | **fear spreads**: one panics, the people around him panic — the panic travels through the town as a wave, ahead of the fighting | ✅ CIV-3 BUILT (`CrowdSystem.cs:400-421`, measured 2026-11-13 — the Civilians design §5f still says ready-to-build) — ⭐ the one civilian piece to build |
-| a driver near the fighting | panics: stops, leaves the car, runs (the abandoned car stays where it stopped — street clutter, not an obstacle) | ⚠ to check: the traffic → civilian handoff (Civilians related: AQ93 §8 — SUMO pedestrians that panic are handed to the civilian HSM) |
+| a driver near the fighting | panics: stops, leaves the car, runs (the abandoned car stays where it stopped — street clutter, not an obstacle) | ✅ BUILT `2026-11-13` (CE-7011): `TrafficPanicSystem` gives a SUMO car up as it gives a HIT car up (K7 / AQ93 §8.7 G4: our stopped car, its driver out in panic) when a shot or a burst is within `DriverPanicMetres` 25 m — no damage, at most 2 cars a frame, each once (lane default R-7005) |
 | a civilian in a soldier's line of fire | the shot is held (AW-20) | ✅ built |
 
 ## 4. The forces *(≈ 1 050 men, ≈ 50 vehicles, ≈ 10 aircraft — the Scale Rig budget, R-4192; more later if the speed allows)*
@@ -202,6 +205,95 @@ showcase demonstrates the engine's speed WITH the recorder running; the budget (
 ⭐ **Repeatable, and not always the same** — the parallel programme's **deterministic mode** (R-4207) makes a seed repeat exactly (the best
 seeds are the ones filmed); **scenario variants** (the existing `$variant` / variant forms, Scenario Macros §17) vary what each run starts from:
 the defender layout, the roadblock set, where the air defence and the MANPADS teams stand, the civilians' density.
+
+## 4a. The force macros — as built *(`CE-6009`, showcase-world, `2026-11-13`)*
+
+```mermaid
+graph TD
+  MC["macros/city-battle/mech-company (side)"] --> P1["rifle-platoon instance '1st Platoon' (Args.side ← side)"]
+  MC --> P2["rifle-platoon '2nd Platoon'"]
+  MC --> P3["rifle-platoon '3rd Platoon'"]
+  MC --> SUP["support element: Tank Section 301 → 2 × M1 · 4 × Bradley"]
+  MC -.->|"⏳ EMPTY until CE-7002"| CC["company commander"]
+  P1 --> PL["platoon 305 @Platoon (name)"] --> SQ["6 × squad 302 (CE-6010; was 3)"] --> MEN["6 men each: leader, MG, grenadier 2004, 3 riflemen 2002"]
+  DC["macros/city-battle/defender-company (side = Hostile)"] --> MP["3 × militia-platoon (2003 fighters)"]
+  DC --> TEC["2 × technical 104"]
+  TRG["a Trigger: InsertMacro (2nd wave, reserve)"] -->|"EntityCreationRequest → expander → ELM"| P1
+```
+*What the picture shows that prose hid:* every unit of the battle is one of FOUR content files on the existing machinery — the company is
+three NESTED platoon instances whose `side` arg is bound to the company's (`MacroInstance.Args.side ← side`, measured: it reaches every man), and
+the company commander's place is deliberately empty. No code.
+
+| decision | why |
+|---|---|
+| **kit = which macro** (`rifle-platoon` 2002 soldiers · `militia-platoon` 2003 fighters); **side** and **name** are params; the **entry point** is the instance's anchor (`at` of `InsertMacro`, or where the scenario places it) | ⭐ params bind FLAT fields only (§4.0 of Scenario Macros); a TKB type per role as a param is not a proven binding — a second file is |
+| **no company commander entity** — the platoons are top-level until CE-7002 | ⛔ a placeholder would be a platoon (305) commanding platoons: its plays (`PlatoonAttack`…) expect squads — wrong orders, not an empty slot. CE-7002 adds its type and sets the platoons' `UnitSubordinate` in these files |
+| **the support element holds the attachments** (a tank section 301 for the tanks; the IFVs top-level) | `CommandPicture.MaxSubordinates = 6` (§4): the company commander will see 3 platoons + the tank section + room |
+| ⛔ SUPERSEDED by CE-6010 (§4c): ~~three squads abreast, ≈ 22 entities a platoon~~ — now SIX squads of six in two rows of three, 15 m apart, platoons 60 m apart; each platoon takes a `key` (its RefKey) and a company passes `p1..p3` down | ≈ 43 entities a platoon, ≈ 139 a mechanised company (`CityBattleMacrosTests`) |
+
+⚠ **Found, filed `CE-6015`:** the command hierarchy (`UnitSubordinate`) does NOT reach SimHost or the Player for ANY platoon — a scenario-loaded
+one included (📐 `pc-attack-dry` in the in-process twin at 8 s: 15 of 15 wired on CGF, 0 on SimHost and the Player). The brains run on CGF, so
+the battle plays; what reads the hierarchy elsewhere (the command display on the Player, `DESIGN_Command_Display.md` §7) sees none.
+Rails: `Hrot.SimHost.Tests.CityBattleMacrosTests` (M1–M3) · `Hrot.ClusterRunner.Integration.Tests.MacroPlatoonScenarioTests` on
+`scenarios/showcases/city-battle/features/macro-platoon`.
+
+## 4b. Lethality as scenario settings — as built *(`CE-6008`, showcase-world, `2026-11-13`)*
+
+```mermaid
+graph TD
+  T["a scenario Trigger (ScenarioTime 0): SetSkillAmplifier {side, tiers −2…+2}"] -->|"CGF: SkillVerbs → World Environment"| A["SkillAmplifier (per side)"]
+  A -->|"ProficiencyFillSystem, every man with a brain"| P["CombatProficiency.SideTiers (replicated)"]
+  P -->|"the node resolving the shot"| S["HitModel.Sigma × ProficiencyOf.SpreadFactor (2.5 … 1.0 … 0.65)"]
+  S --> H["hits per round"]
+  D["drone count"] -->|"content: entities / macros / variants"| C["the scenario file"]
+  B["drone battery: FlightParams.EnduranceSeconds"]:::gap -.->|"TKB only (NoScenario) — CE-6016"| X["no scenario knob"]
+  R["armour: CombatPlatformDef (TKB)"]:::gap -.->|"TKB only; R-4018: a scenario names no TKB — CE-6016"| X
+  classDef gap stroke:#c00,stroke-dasharray:4
+```
+*What the picture shows that prose hid:* of the four knobs, ONE (accuracy) already IS a scenario setting end to end and one (drone count) is just
+content; the other two have NO path from a scenario file today — the dashed edges.
+
+| knob | as built | why |
+|---|---|---|
+| **accuracy** | ✅ a 0 s trigger with `SetSkillAmplifier` per side — no code. Feature `features/lethality-accuracy`: two identical lanes, Friend +2 vs Hostile −2 | ⭐ the existing mechanism (SR-100); it moves a man's proficiency by preset steps, so the spread goes ×0.65 … ×2.5 and every other proficiency effect (exposure, delay) follows |
+| **drone count** | ✅ content — the number of drone entities a scenario / macro / variant places | nothing to expose |
+| **battery, armour** | ⛔ NOT exposed — filed `CE-6016` | both live only in the TKB (`FlightParams` is `NoScenario`; `CombatTkb.PlatformOf`); a scenario-level scale needs a NEW recorded-unmanaged World Environment component (lean: `LethalitySettings { DroneEnduranceScale, ArmourScale }`) — a new id in `GlobalComponentIds.cs`, which the parallel programme is editing ⇒ held for CE-6012's merge |
+
+Rail: `Hrot.ClusterRunner.Integration.Tests.LethalityAccuracyScenarioTests`.
+
+## 4c. The skeleton and its variants — as built *(`CE-6010`, `CE-6011`, showcase-world, `2026-11-13`)*
+
+```mermaid
+graph TD
+  GEN["scripts/city_battle_scenario.py (+ city_battle_macros.py)"] --> SCN["scenarios/showcases/city-battle/city-battle/scenario.json"]
+  SCN --> ATK["attacker: A Coy, B Coy = mech-company (p1..p3 = A1..A3 / B1..B3) · air-assault rifle-platoon + 4 UH-60 · A-10, AH-64 parked · mortars, drones, Javelins, engineers + bulldozer, HQ + jammer HMMWVs"]
+  SCN --> DEF["defender: 1/2/3 Coy + reserve = defender-company (D11.. / DR1..) — Positions: 3 places each · hill: mortars, ZU-23, 2 Stinger, 2 Igla — Positions"]
+  SCN --> RB["3 × roadblock macro on the ring-road crossings — Presence 0.6 each"]
+  SCN --> CIV["200 civilians on the west belt + old town streets — Presence 0.7 each (Civilian 1 always)"]
+  SCN --> TOP["intent only: PL A–D, 2 sectors, 3 objectives, 11 triggers"]
+  TOP -->|"t = 0: Order '@D11' PlatoonDefend at '@D11' (where the variant put it)"| DEF
+  TOP -->|"5 / 8 min: Order '@A1..3' / '@B1..3' PlatoonAttack PL B"| ATK
+  TOP -->|"reached PL B OR 15 / 18 min: PlatoonAttack PL C"| ATK
+  TOP -->|"20 min: InsertMacro mech-company (W1..W3) + Order"| ATK
+  TOP -->|"town hall held OR 28 min: reserve PlatoonAttack the square · held OR 45 min: EndExercise"| DEF
+```
+*What the picture shows that prose hid:* every order reaches a platoon by a KEY the company macro passes down (`p1` → `MacroInstance.Args.key` → the
+platoon's `RefKey`) — a GUID of a macro child cannot be named in the file (the load refuses it, measured) — and the defenders defend WHERE THEY STAND
+(`Position: "@D11"`), so a variant that moves a company needs no second trigger.
+
+| decision | why |
+|---|---|
+| ⭐ **EVERY place in ONE table, named by role** (`ANCHORS` in `scripts/city_battle_scenario.py`: `attack-A`, `defence-1`, `roadblock-N`, `square`, `hill`, `wave-entry` …; `ALTERNATIVES`, `PHASE_LINES`, `SECTORS`, `CIVILIAN_AREAS` beside it) | ⏳ the town is being REDRAWN (radial roads, no ring road — coordinator, `2026-11-13`): re-anchoring the battle edits that block only, then regenerates. ⚠ The current anchors are the OLD town's (ring-road crossings) |
+| **its own leaf folder** `showcases/city-battle/city-battle/` (not `showcases/city-battle/scenario.json`) | ⛔ measured: a folder holding a `scenario.json` HIDES the `features/` beside it — `ScenarioFolderIndex` never enters a scenario folder, so `macro-platoon` stopped resolving |
+| **a platoon is SIX squads of six** (36 men; was three) | the order of battle at ≈ 1 050 needs it — the squad stays at six (a squad leader's `CommandPicture` holds 6, `CommandComponents.cs:116`); six squads is the platoon's own limit |
+| **the scripted top: "the earlier of two"** = `Compound Or [ObjectiveStatus Achieved, ScenarioTime]` | the existing predicates express it (no new mechanism); ⚠ "one side < 30 %" and "a quiet sector for 3 min" (pressure) have no predicate — CE-6018 |
+| **the roadblock is a macro** (`city-battle/roadblock`: 2 blocks, 2 cars, 2 MG nests behind sandbags, an AT team) | one `Presence` roll keeps or drops a crossing's WHOLE roadblock |
+| **recording** = the cluster default (`ClusterMaster.RecordLiveRuns = true`) | ⛔ a scenario cannot declare it — it is a run setting (Scale Rig Q-3); the rail asserts it is ON and the files grow |
+
+📐 **Measured** (in-process, four hosts in one thread, Debug, 4-core VM, nothing else running): 6 661 entities on CGF (1 840 of them doors), 274 + 462
+soldiers + 200 civilians, 32 vehicles, 14 aircraft (8 FPVs); OperatingLive 9.5 s after boot; every node complete at sim ≈ 32 s; **≈ 370 ms per frame**
+(all four hosts) in the steady minute; recording 6.5 MB (SimHost) + 10.2 MB (CGF) per minute. ⚠ 844 soldiers with the 2nd wave, not 1 050.
+Rails: `CityBattleSkeletonTests` (CE-6010, CE-6011 twin) · `Hrot.SimHost.Tests.CityBattleVariantsTests` (V1, V2).
 
 ## 5. The roadblock breach drill — removal is mandatory
 
@@ -255,6 +347,107 @@ classDiagram
 *What the picture shows that prose hid:* only ONE new echelon (the company) sits in the existing chain; everything else new is a leaf the company
 commander calls (bulldozer, drone team) or a world rule (obstacle health, wrecks). The platoon, squad and soldier levels are reused unchanged.
 
+## 6a. The company as built *(showcase-brains, `2026-11-13`; CE-7021…CE-7024, CE-7005 — obligation ⑤)*
+
+```mermaid
+classDiagram
+  direction LR
+  class Unit_InfantryCompany {
+    <<TKB 306, NEW>>
+    3 x Unit_InfantryPlatoon · echelon Company
+    no standing orders
+  }
+  class CompanyAttackBehavior {
+    <<NEW HSM CompanyAttack>>
+    CPlan · CSupport · CAssault · CNext · CConsolidate · CWon
+    CBreaking · CBroke · watch: CRelieve · CAbort
+    Tempo(): 0.5 x fires · 1 x reserve · 1.5 x bypass
+  }
+  class CompanyDefendBehavior {
+    <<NEW HSM CompanyDefend>>
+    KPlan · KHold · KFallBack · watch: KReinforce
+  }
+  class PlatoonAttackBehavior { <<existing>> }
+  class PlatoonDefendBehavior { <<existing>> Ready entry now LineReady: reports PROGRESS Set up }
+  class CommandOrders { <<existing>> Assign · Stands · StillRunning }
+  class ReportQueue { <<existing>> REQUEST FireSupport up }
+  Unit_InfantryCompany ..> CompanyAttackBehavior : runs
+  Unit_InfantryCompany ..> CompanyDefendBehavior : runs
+  CompanyAttackBehavior --> CommandOrders : PlatoonAttack · PlatoonDefend
+  CompanyDefendBehavior --> CommandOrders : PlatoonDefend
+  CompanyAttackBehavior --> ReportQueue : tempo fires
+  CommandOrders ..> PlatoonAttackBehavior
+  CommandOrders ..> PlatoonDefendBehavior
+```
+*What the picture shows that prose hid:* the company adds NO new order type below it — it speaks only the two platoon plays that already exist, and
+the one change below it is that a platoon's defence now reports Set when its line is ready (the base of fire's signal; a defence never ends, so the
+task-end Set never came).
+
+| as built | deviation from §6 / the handoff, and why |
+|---|---|
+| roles by slot: 0 assault, 1 base of fire, 2 reserve, 3+ keep their own task | — |
+| objectives = four fixed params `Objective1…4` | ⭐ lane default R-7000: the intent payload is a flat struct like every platoon play's |
+| the company has NO standing orders | ⭐ lane default R-7000 (the handoff said `BasicCompanySop`): its work is its task; the platoons' SOP reacts below it |
+| the base of fire 250 m short of the objective, the reserve 400 m; each next objective measured from the previous one | — |
+| tempo: ½ deadline ⇒ REQUEST FireSupport on the objective · 1× ⇒ the reserve attacks beside the assault · 1.5× ⇒ bypass (never the last) | the smoke round comes with CE-7025; until then the request is plain fire support |
+| defend: the reserve goes in FIRST; the company falls back only when half the blocks fail with the reserve already in (the block it reinforced counts as held) | ⭐ measured on the bench: with two blocks one failure is already "half", so the first rule fell back before the reserve could act |
+| ⭐ CE-7004 — the LOCAL COUNTERATTACK (`CompanyDefend` region 1, `KCounter`, checked before `KReinforce`): a block LOST (its platoon gone or `TaskFailed`) with the reserve free and ≥ 70 % (Green / Amber) ⇒ the reserve `PlatoonAttack`s the block's point; its Set ⇒ it defends the block; once per defence. A block merely failing (Black, falling back) is reinforced as before | ⭐ lane default R-7008: "lost" (gone / gave it up) ≠ "failing" (Black / falling back), so the handoff's counterattack and the existing reinforcement each keep their trigger |
+| ⭐ CE-7007: shoot and move is opt-in below the company (`ShootAndMoveSeconds`, 0 = off) and on by default at 25 s in `CompanyDefend` — the company hands it to its platoons, they to their squads | ⭐ lane default R-7002: shoot and move is opt-in below the company, so every existing defence scenario keeps its behaviour |
+| the puppet bench (CE-7022) = the drills' existing one-frame `Platoon` fixture with its members as platoons (`SquadManeuverTests.Company.cs`) | no new harness was needed: the fixture never cared what echelon its members were |
+
+## 6b. Smoke from the guns as built *(showcase-brains, `2026-11-13`; CE-7025, CE-7003 — obligation ⑤)*
+
+```mermaid
+sequenceDiagram
+  participant C as CompanyAttack (tempo)
+  participant HQ as SupportCommand
+  participant B as ArtilleryUnitStrike (battery)
+  participant G as gun: FireAtPoint executor
+  C->>HQ: REQUEST FireSupport · Equipment Smoke flag (half the deadline)
+  HQ->>B: Strike · Smoke true (never the helicopter: smoke is the guns' only)
+  B->>G: FireAtPoint · round 1 (per gun, the member order)
+  G->>G: AmmoChoice.IndexOfKind(Smoke) · LoadIndex = one reload (Reloading)
+  G-->>G: fires the smoke bomb: an AreaEffectCloud where it lands (existing)
+```
+*What the picture shows that prose hid:* nothing NEW carries the round on the wire — the request rides the report's existing equipment byte
+(`ElementEquipment.Smoke`), the gun's params the last padding byte of its 32-byte channel params; the gun switches rounds with the weapon brain's
+own one-reload rule, so a mission that does not ask for smoke reloads HE the same way.
+
+| as built | why |
+|---|---|
+| smoke bombs 60 / 81 / 120 mm = TKB 6047 / 6048 / 6049: cloud 15 / 20 / 25 m, 90 s, the HE charges | Indirect Fire IF-5's round, starter values |
+| each mortar mount carries a loadout: its HE first, then a third as many smoke bombs | a plain mission still fires entry 0 (HE) — unchanged |
+| `StrikeOrder.Smoke` → battery `Round` → `MemberOrder.Round` → `FireAtPoint` `round` → the executor loads it | one field per hop, the existing chain |
+| a smoke REQUEST is the `ElementEquipment.Smoke` flag | ⭐ lane default R-7001: a request's `Count` is already 1 in production, so it could not carry the round |
+
+## 6c. The bulldozer's `ClearObstacle` as built *(showcase-brains, `2026-11-13`; CE-7012 — obligation ⑤)*
+
+```mermaid
+sequenceDiagram
+  participant D as ClearObstacle (dozer brain, parallel phase)
+  participant L as LocomotionChannel (its own)
+  participant Bus as bus → batch buffer
+  participant O as obstacle owner: HealthApplication + ObstacleRemoval (CE-6003)
+  D->>D: Face = ObstacleDamage.NearestPoint(box, dozer)
+  alt farther than ContactMetres (6 m)
+    D->>L: MoveTo StandOffMetres (4 m) in front of the face
+  else blade on it
+    D->>Bus: ObstacleDamage.Damage(Max / PushSeconds × dt) each tick
+    Bus-->>O: DamageAssessedEvent (next tick)
+    O->>O: Health → 0 ⇒ DestroyEntityCommand ⇒ rebake (existing)
+  end
+  D-->>D: obstacle gone (or Health ≤ 0) ⇒ Success
+```
+*What the picture shows that prose hid:* the dozer never writes the obstacle — the push is the damage EVENT, which inside the phase rides the batch's
+buffer (`FdpEventBus.Publish` → `BatchContext.Commands`), so CE-6003's owner, removal and rebake are reused by construction (R-4212).
+
+| as built | why |
+|---|---|
+| `ClearObstacle` params `Obstacle` (link), `Speed` (0 = 4), `PushSeconds` (0 = 10) | ⭐ lane default R-7004: ANY obstacle in 10 s of contact (the push is the obstacle's `Health.Max / 10` per second) — the handoff's frame |
+| contact = hull centre within 6 m of the nearest face; the drive stops 4 m short | half a dozer + the blade; no new shape kit for the dozer |
+| `StaticObstacle` + `ObstacleShape` added to `BrainReads` | declared stable reads — nobody writes them in the phase |
+| ⏳ the company ORDERING it after smoke (CE-7003's rest) | not built here — CE-7003 |
+
 ## 7. Sequences
 
 ```mermaid
@@ -300,14 +493,14 @@ graph TD
   BT -->|"orders = events / command buffer"| TIR["TacticalIntentResolutionSystem (existing)"]
   SIM["SimHost (muscle)"] --> OHS["AreaEffectSystem + HealthApplicationSystem (existing): blasts + blade push drain an obstacle's Health"]
   OHS -->|"Health ≤ 0 → destroy (CE-6003)"| REM["StaticObstacleBakeSystem (existing): the set changed → rebake world + cover + navmesh tiles"]
-  SIM --> WRK["WreckObstacleSystem (NEW): a destroyed heavy vehicle → obstacle entity (ELM, multi-frame)"]
+  SIM --> WRK["WreckObstacleSystem (BUILT CE-6005, HealthApplication capability): a destroyed heavy vehicle → obstacle entity (ELM, multi-frame)"]
   SIM --> DRN["DroneImpactSystem (existing) + bomber drop (NEW)"]
   SIM --> JAM["JammerSystem (NEW): drones inside a bubble lose link"]
   SCN["Scenario rules (existing triggers)"] -->|"InsertMacro → creation requests → ELM (multi-frame, acked)"| WAVE["2nd wave / reserve"]
 ```
 *What the picture shows that prose hid:* every NEW system is a SimHost or CGF system in an EXISTING scheduled place — none needs a new host or a
 private loop; and every cross-entity effect (an order, a removal, a new wreck, a wave) leaves its system as an event, a command-buffer write or an
-ELM creation — the shapes §9 requires. ⚠ Which node destroys a dead obstacle (its owner) — CE-6003 measures it; the bake runs on every node.
+ELM creation — the shapes §9 requires. ✅ Which node destroys a dead obstacle: the node that owns its Health (`HealthOwnership.AppliesHere`), through the one teardown (`DestroyEntityCommand`) — CE-6003, [Peek and Fire §9.9](../../DESIGN_Peek_And_Fire.md); the bake runs on every node.
 
 ## 9. The parallel contract — the AS-BUILT rule binds every new system *(user, 2026-11-13; superseded my own paraphrase the same day)*
 
@@ -361,18 +554,18 @@ B's CE-7012 (the bulldozer's ClearObstacle) stands on them.
 
 | id | row | what | reuses | lane |
 |---|---|---|---|---|
-| T-1 | **CE-6001** | **the town** — an authored layout of the terrain-authoring blocks (old town + square + town hall, residential belt, industrial edge, ring road, fields, hill) + a river + two bridges, fixed seed, hand-adjusted, saved as a terrain | Terrain Authoring §8, §12, §18f–§18k (the random-terrain pipeline, recipes, block layout, bridges as road); ⛔ no OSM | W |
+| T-1 | **CE-6001** | **the town** — an authored layout of the terrain-authoring blocks (old town + square + town hall, residential belt, industrial edge, ring road, fields, hill) + a river + two bridges, fixed seed, hand-adjusted, saved as a terrain | Terrain Authoring §8, §12, §18f–§18k (the random-terrain pipeline, recipes, block layout, bridges as road); ⛔ no OSM | W · ✅ **AS BUILT `2026-11-13`** — NEW CODE only for an authored TOWN PLAN input (`assets/terrain-plans/city-battle.plan.json` → the same synth ground writer, importer, recipe blocks, Bridge features and `TerrainBake.SaveAs`; [Terrain Authoring §18l](../../DESIGN_Terrain_Authoring.md)): 1 500 m square, 58 blocks / 448 houses, river + two bridges, hill, ring road arc, town hall on the square; loads cold 25.7 s / warm 3.2 s; rails `TownPlanRails`, scenario `features/town-loads` |
 | T-2 | **CE-6002** | D-R ✅: water impassable to ground units — ⭐ MEASURE first (Terrain Authoring §10 left it open), fix only if water is walkable | navmesh bake, `TerrainWorld.SurfaceTypeAt`, `RubbleMound` (CE-3438) | W |
-| O-1 | **CE-6003** | **obstacle removal**: an obstacle type carries `Health`; the existing blast damage reaches it; at ≤ 0 the obstacle entity is destroyed ⇒ the existing obstacle bake rebakes sight, fire and navmesh on every node | `AreaEffectSystem` (Health in reach), `HealthApplicationSystem`, `StaticObstacleBakeSystem`, the obstacle types 8806–8809 | W |
+| O-1 | **CE-6003** ✅ BUILT `2026-11-13` | **obstacle removal**: an obstacle type carries `Health` (TKB `MaxHealth`); a blast drains it by charge × closeness (⚠ DEVIATION, measured: NOT the person / hull law — it gave a block the same 80 hp for every warhead); at ≤ 0 its Health owner removes it through the ELM teardown ⇒ the existing obstacle bake rebakes sight, fire and navmesh on every node; the blade's seam is `ObstacleDamage.Damage` per tick of contact (CE-7012). As built: [Peek and Fire §9.9](../../DESIGN_Peek_And_Fire.md) | `AreaEffectSystem` (+ `AssessObstacle`), `HealthApplicationSystem`, NEW `ObstacleRemovalSystem` + `ObstacleDamage`, `StaticObstacleBakeSystem`, the obstacle types 8806–8809 | W |
 | O-1b | **CE-6004** | the obstacle bake's 0.5 s WALL-CLOCK debounce (R-244) under the deterministic stepped run — measure; a removal must land at the same tick at every thread count | `StaticObstacleBake.cs:52,167`, `stepped-hash.py` — ⏳ with CE-6012 | W |
-| O-2 | **CE-6005** | wreck → obstacle for heavy vehicles (tanks, IFVs), created through the ELM (multi-frame, acked) | `Health.Current ≤ 0` (as `WreckSpawnSystem` reads it), the obstacle types, the bake | W |
-| V-1a | **CE-6006** | the **bulldozer** type: catalogue entry (engineering type, tracked mobility, no weapon), an armour profile (small arms bounce, a few RPG hits kill) | `TkbEntityTypes`, `NedTkbCatalog`, `ArmorModel` | W |
-| V-1b | **CE-6007** | the bulldozer's **3-D model** (tracked chassis, engine block, cab, articulated blade — NOT armoured-looking), gallery thumbnail — the ONE UI-side item the user allowed | `ShapeKit`, `VisualFamily`, `scripts/thumbnails.py` | W |
-| L-1 | **CE-6008** | lethality as scenario settings (drone count + battery, accuracy, armour) | the existing parameters | W |
-| M-1 | **CE-6009** | company / platoon macros (side, kit, entry point); the waves inserted by trigger | Scenario Macros, `InsertMacro` | W |
-| B-0 | **CE-6010** | the scenario skeleton `showcases/city-battle`: the forces of §4 by macro, prepared positions (sandbags, roadblocks), the 5 km fog, recording ON, civilians placed; the scripted top of §3 | everything above | W |
+| O-2 | **CE-6005** ✅ BUILT `2026-11-13` | wreck → obstacle for heavy vehicles (M1, T-72, Bradley — `WreckObstacleDto`), created through the ELM (multi-frame, acked) by the dead vehicle's Health owner, ONCE (an alive→dead crossing); a SEPARATE obstacle (type 8819, 600 hp) on the hulk, which stays. As built: [Peek and Fire §9.10](../../DESIGN_Peek_And_Fire.md) | `Health.Current ≤ 0` (as `WreckSpawnSystem` reads it), the creation request, the obstacle bake, CE-6003's removal | W |
+| V-1a | **CE-6006** | the **bulldozer** type: catalogue entry (engineering type, tracked mobility, no weapon), an armour profile (small arms bounce, a few RPG hits kill) | `TkbEntityTypes`, `NedTkbCatalog`, `ArmorModel` | | W · ✅ **AS BUILT `2026-11-13`**: type `Engineer_Bulldozer = 112` (class `Bulldozer` 1.1.*.9.1, tracked, no weapon, crew abstract); armour 50 / 40 / 40 / 35 mm, health 1000 ⇒ small arms and the 12.7 AP are 0 %, the RPG-7 100 % at 400 ⇒ the third kills ([Armour Hit Model](../vehicle-tactics/DESIGN_Armour_Hit_Model.md), "bulldozer's profile") |
+| V-1b | **CE-6007** | the bulldozer's **3-D model** (tracked chassis, engine block, cab, articulated blade — NOT armoured-looking), gallery thumbnail — the ONE UI-side item the user allowed | `ShapeKit`, `VisualFamily`, `scripts/thumbnails.py` | | W · ✅ **AS BUILT `2026-11-13`**: a new family `Bulldozer` + `ShapeKits.Bulldozer` (tracks with a high rear sprocket, hood in FRONT, open ROPS cab, blade on push arms with rams, rear ripper; the blade is drawn lowered, not articulated) — [Map 3-D §6al](../../DESIGN_Map_3D_Mode.md); thumbnail in the atlas |
+| L-1 | **CE-6008** ✅ BUILT `2026-11-13` — as built §4b | lethality as scenario settings (drone count + battery, accuracy, armour): accuracy = the side skill amplifier by trigger, drone count = content; battery + armour have no scenario path ⇒ CE-6016 | the existing parameters | W |
+| M-1 | **CE-6009** ✅ BUILT `2026-11-13` — as built §4a | company / platoon macros (side, kit, entry point); the waves inserted by trigger | Scenario Macros, `InsertMacro` | W |
+| B-0 | **CE-6010** ✅ BUILT `2026-11-13` — as built §4c | the scenario skeleton `showcases/city-battle`: the forces of §4 by macro, prepared positions (sandbags, roadblocks), the 5 km fog, recording ON, civilians placed; the scripted top of §3 | everything above | W |
 | — | **CE-6012** | the world lane's code meets the parallel checks: CE-6003 / CE-6005's rails and the feature scenarios rerun with the three checks once the lane is merged with `exp/threaded-build`; then CE-6004 | the checks | W |
-| V-A | **CE-6011** | variants: defender layout, roadblock set, AA / MANPADS positions, civilian density (D-16) | `$variant`, variant forms (Scenario Macros §17) | W |
+| V-A | **CE-6011** ✅ BUILT `2026-11-13` — as built §4c | variants: defender layout, roadblock set, AA / MANPADS positions, civilian density (D-16) | `$variant`, variant forms (Scenario Macros §17) | W |
 | F-0 | **CE-7001** | ⭐ FIRST in B — fix what the grind stands on: CE-2341 · CE-2304 · PL-1 / CE-2264 · CE-3361 · CE-2232 | the existing behaviours | B |
 | C-1 | **CE-7002** | `CompanyCommander`: attack (base of fire / assault / reserve, phase lines, reserve commit) + defend (a block per platoon, fall back); ⚠ `CommandPicture.MaxSubordinates = 6` ⇒ the support element | PlatoonAttack / Defend, EQS, declared reads | B |
 | C-1a | **CE-7021** | the company echelon exists: type, template, standing orders, a picture sized for a company | the platoon template + `AssignSopEvent` | B |
@@ -380,28 +573,28 @@ B's CE-7012 (the bulldozer's ClearObstacle) stands on them.
 | C-1b | **CE-7023** | `CompanyAttack` | `PlatoonAttackBehavior` | B |
 | C-1c | **CE-7024** | `CompanyDefend` | `PlatoonDefendBehavior` | B |
 | C-2 | **CE-7003** | support calls — fires, smoke, bulldozer / engineers at a roadblock, drone tasking | SupportCommand, the observer chain | B |
-| C-3 | **CE-7004** | local counterattack, asking the battalion for more — ⭐ MUST-HAVE (§3a) | — | B |
+| C-3 | **CE-7004** 🔶 counterattack BUILT `2026-11-14` (§6a) | local counterattack, asking the battalion for more — ⭐ MUST-HAVE (§3a). ⏳ asking the battalion for more is not built (no battalion commander yet) | — | B |
 | C-4 | **CE-7005** | tempo: every company order carries a deadline; escalate at 50 % / 100 % — never "wait" | the HSM's phase timers | B |
-| C-5 | **CE-7006** | the mounted / dismounted handoff | `SquadDismount`, `VehicleFightFromCover` | B |
+| C-5 | **CE-7006** 🔶 BUILT `2026-11-14` (the carriers' half) | the mounted / dismounted handoff. As built: in the convoy's contact (`PlatoonConvoy` CContact) the carrier whose squad got out stays for it — an ARMED one (its known type's weapon suite has a mount, `TemplateArms.KnownArmed`) is assigned `VehicleFightFromCover` there, its gun over the dismounted squad; an unarmed or unknown one holds as before; secure / remount hold all (lane default R-7010). ⏳ Left: stopping SHORT of the objective (the last covered point ≤ 300 m) — today the squads get out where the contact finds them | `SquadDismount`, `VehicleFightFromCover` | B |
 | A-1 | **CE-7007** | active defence: shoot and move between a squad's posts; outposts withdraw | `SquadDefend`, the fall-back | B |
 | A-1b | **CE-7032** | outposts withdraw along a planned route (today: one `Back` point) | `BringOpBack` | B |
 | A-2 | **CE-7008** | suppression wears off, leaders rally — first a rail proving whether a squad can be pinned forever | stress, `SquadRecover` | B |
-| A-3 | **CE-7009** | casualty evacuation | `CasualtyCare`, the held-figure carry | B |
+| A-3 | **CE-7009** 🔶 BUILT `2026-11-14` (opt-in) | casualty evacuation. As built: `EvacuateMetres` on `CasualtyCare` / `ReactToContact` (0 = off): the medic carries the man that far straight back, AWAY from the squad's top contact, instead of to the nearest cover (`SquadRecover`'s destination path; each casualty his own point). ⚠ Lane default R-7009: OPT-IN, so every existing drill stays cover-first — and the squad SOP's reaction passes no params, so the showcase needs a way to set 150 (⏳ for the user: a squad-level default, or the SOP reaction's params) | `CasualtyCare`, the held-figure carry | B |
 | G-A | **CE-7010** | the air gate in `SupportCommand` (§3b) | `SupportCommandBehavior`, air defence | B |
-| CV-1 | **CE-7011** | civilians (§3c): Watch (CE-7030), boldness (CE-7031), and a driver who panics from noise, not only when hit (`TrafficPanic.cs:187-200` covers a hit car). ⭐ CIV-3 fear-spreads is ALREADY BUILT (`CrowdSystem.cs:400-421`, measured 2026-11-13) | `CivilianHsm`, the phone held item | B |
+| CV-1 | **CE-7011** ✅ BUILT `2026-11-13` (Watch, boldness, the noise-panicked driver) | civilians (§3c): Watch (CE-7030), boldness (CE-7031), and a driver who panics from noise, not only when hit (`TrafficPanic.cs:187-200` covers a hit car). ⭐ CIV-3 fear-spreads is ALREADY BUILT (`CrowdSystem.cs:400-421`, measured 2026-11-13) | `CivilianHsm`, the phone held item | B |
 | CV-1a | **CE-7030** | `CivilianMode.Watch`: curious at a distance, some film | `CivilianBehavior`, the phone | B |
 | CV-1b | **CE-7031** | the boldness trait (≈ 5 % filmers) | civilian params | B |
-| V-2 | **CE-7012** | `ClearObstacle`: drive to the blocker, blade down, push → CE-6003 | vehicle drive behaviours | B |
+| V-2 | **CE-7012** ✅ BUILT `2026-11-13` (§6c) | `ClearObstacle`: drive to the blocker, blade down, push → CE-6003 | vehicle drive behaviours | B |
 | R-1 | **CE-7013** | drone team: operator + stock + battery; Bomber and Recon quadcopters; recon joins the observer chain | FPV drone, `DroneImpactSystem`, `PersonObserveFire` | B |
-| R-1a | **CE-7026** | the operator launches (a drone born through the ELM; ⛔ no launch exists — drones are placed airborne) | FPV type + dive brain | B |
-| R-1b | **CE-7027** | the bomber quadcopter (drop) | the impact path | B |
-| R-1c | **CE-7028** | the recon quadcopter → SPOT → FireSupport → the battery | `StaffComposerSystem`, `PersonObserveFire` | B |
-| R-2 | **CE-7014** | anti-drone reaction + the jammer | `ua-drone-shelter` | B |
-| R-2a | **CE-7029** | infantry take cover from drones (vehicles already do) | `ShelterFromAir` | B |
+| R-1a | **CE-7026** ✅ BUILT `2026-11-13` | the operator launches. ⚠ DEVIATION (lane default R-7007): no runtime creation — his STOCK is authored drones landed beside him (`DroneOperator { Drone1…4, Location, IntervalSeconds }`); a launch is his ORDER (`AirPlatformStrike` on the area — the FPV's Dive takes off, searches, picks, dives); one in the air at a time, the next 20 s after the last is gone; the FPV type got its four feet (a landed drone had no ground contacts and could never take off) | FPV type + dive brain | B |
+| R-1b | **CE-7027** ✅ BUILT `2026-11-14` | the bomber quadcopter (drop). As built: type 408 `Drone_Bomber` (two M67s on a drop rack); `AirAttackProfile.HoverDrop` — hovers 30 m over the point, drops one on the hover release cue, flies back; the operator re-sends it while it has rounds ([FPV Drone §5d](../vehicle-tactics/DESIGN_FPV_Drone.md)) | the impact path | B |
+| R-1c | **CE-7028** ✅ BUILT `2026-11-13` | the recon quadcopter → SPOT → FireSupport → the battery. As built: NEW type 407 `Drone_Recon` (the FPV airframe, no warhead, 30-min battery, 1 500 m camera, feet) + NEW `DroneRecon { Location, RadiusM, HeightAgl }` (circles the area at 80 m; battery or an enemy jammer ⇒ down where it is); the operator sends an UNARMED stock drone to watch, an armed one to strike. ⭐ The chain needs no new code: a drone that is a member of its team's squad merges into the squad pool, the staff SPOTs it and asks FireSupport on an indirect-fire element (`StaffComposerSystem.ComposeSupport`) | `StaffComposerSystem`, `PersonObserveFire` | B |
+| R-2 | **CE-7014** ✅ BUILT `2026-11-13` | anti-drone reaction + the jammer. As built: the reaction is CE-7029 (men) + `ShelterFromAir` (vehicles); the JAMMER is a TKB descriptor `JammerDto { RadiusM }` (NEW type 113 `Ew_DroneJammer`, the crewed HMMWV with a 400 m bubble); `DroneJamming` rebuilds the bubbles in the brains' serial pre-pass (`BrainPhase.PrepareToolkitFrame`) and the FPV's dive reads it: inside an ENEMY bubble the link is lost (`BatteryOut` = jammed) and it comes down where it is (lane default R-7006) | `ua-drone-shelter` | B |
+| R-2a | **CE-7029** ✅ BUILT `2026-11-13` | infantry take cover from drones (vehicles already do). As built: a man's `AirThreat` edge is re-raised on his commander (`SquadSensing.AirThreat`, serial, once per squad a frame; a man aboard skipped — the vehicle shelters); `BasicSquadSop`'s new drone row (above "under a platoon") reacts `SquadShelterFromAir` — every live man is sent `ShelterFromAir`, held until 10 s after the last sensing, then the task resumes; a LONE man's `BasicInfantrySop` row reacts `ShelterFromAir` himself (a man under command never does, R-2062) | `ShelterFromAir`, `SquadSensing` | B |
 | S-1 | **CE-2278** *(existing)* | smoke rounds — ⭐ MUST-HAVE on the breach drill's critical path | indirect fire | B |
 | S-1b | **CE-7025** | smoke ROUNDS from the mortars (IF-5) and a FireSupport request that names smoke — ⛔ no smoke round exists today | Indirect Fire IF-5, `SupportCommandBehavior` | B |
 | S-2 | **CE-7015** | unit morale / rout — ⭐ MUST-HAVE; ⛔ waits for the user's AQ101 E-3 / E-4 decision | stress | B |
-| S-3 | **CE-7016** | AI-chosen landing zone for the air assault | `ua-air-assault`, EQS | B |
+| S-3 | **CE-7016** 🔶 the query BUILT `2026-11-14` | AI-chosen landing zone for the air assault. As built: NEW EQS filter `OpenGroundTest` (no solid's box within 25 m, slope < 10° across ±5 m) + NEW template `FindLandingZone` (rings 300–800 m round the objective, open ground only, scored beyond the known threats' reach and near the aircraft) — the handoff's default. ⏳ the air assault ASKING it (its LZ is still authored, `ua-air-assault` `RouteHold` Unload) | `ua-air-assault`, EQS | B |
 | B-1 | **CE-7017** | the full battle on CE-6010's skeleton + the dynamism gate (§12 ⑤) | everything | B |
 | — | **CE-7033** | the dynamism gate as a tool, read from a recording | the recorder | B |
 | — | **CE-7034** | company vs company on a town slice, with deadlines (§12 ④ / ④a) | — | B |

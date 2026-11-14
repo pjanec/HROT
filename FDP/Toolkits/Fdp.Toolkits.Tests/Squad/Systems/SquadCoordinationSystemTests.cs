@@ -135,6 +135,35 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             Assert.Equal(new[] { (commander, SensorChange.SquadUnderFire) }, edges.Select(e => (e.Unit, e.What)));
         }
 
+        /// <summary>⭐ <c>CE-7029</c> — a member's <c>AirThreat</c> edge is his squad's: re-raised on his commander as <c>AirThreat</c>, ONCE however
+        /// many men sensed the drone; a man aboard a vehicle (the vehicle shelters) and a man in no squad raise nothing. ✅ Red-proof: the system not
+        /// calling <c>SquadSensing.AirThreat</c> ⇒ no edge on the commander.</summary>
+        [Fact]
+        public void CE7029_AMemberSensesADrone_ItsSquadDoes_Once()
+        {
+            var commander = Squad(owned: true);
+            var second = _repo.CreateEntity();
+            _repo.AddComponent(second, new TargetMemory());
+            _repo.AddComponent(second, new UnitSubordinate { Commander = commander });
+            UnitRoster.Add(ref _repo.GetComponentRW<UnitRoster>(commander), second);
+            var system = new SquadCoordinationSystem();
+            EdgesAfter(() => system.Execute(_repo, 0.016f));   // the first merge's SquadContact
+            var loner = _repo.CreateEntity();
+
+            _repo.Bus.Publish(new SensorChangedEvent { Unit = MemberOf(commander), What = SensorChange.AirThreat });
+            _repo.Bus.Publish(new SensorChangedEvent { Unit = second, What = SensorChange.AirThreat });
+            _repo.Bus.Publish(new SensorChangedEvent { Unit = loner, What = SensorChange.AirThreat });
+            _repo.Bus.SwapBuffers();
+            Assert.Equal(new[] { (commander, SensorChange.AirThreat) },
+                         EdgesAfter(() => system.Execute(_repo, 0.016f)).Where(e => e.Unit == commander || e.Unit == loner).Select(e => (e.Unit, e.What)));
+
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            _repo.AddComponent(second, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag());
+            _repo.Bus.Publish(new SensorChangedEvent { Unit = second, What = SensorChange.AirThreat });
+            _repo.Bus.SwapBuffers();
+            Assert.DoesNotContain(EdgesAfter(() => system.Execute(_repo, 0.016f)), e => e.Unit == commander && e.What == SensorChange.AirThreat);
+        }
+
         /// <summary>⭐ <c>CE-1056</c> I-2d (Squad Tactics §5a) — a CARRIER's Hit or NearMiss edge raises <c>SquadUnderFire</c> on the
         /// commander of the members it carries, once per commander (an enclosed passenger is never hit itself, R-271); an empty
         /// carrier raises nothing.</summary>

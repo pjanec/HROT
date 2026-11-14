@@ -740,6 +740,73 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal("BasicSquadSop", squad.GetDescriptor<BehaviorProfileDto>()!.DefaultSop);   // ⭐ CE-2358 (AQ102 G) — every squad type, by default
         }
 
+        /// <summary>⭐ <c>CE-7028</c> — the RECON drone: a rotorcraft with feet, NO weapon (the operator sends it to watch), a 30-minute battery, a
+        /// 1 500 m camera, and it does not burst on impact.</summary>
+        [Fact]
+        public void CE7028_TheReconDrone_HasNoWeapon_ALongBattery_AndFeet()
+        {
+            var db = BuildDatabase();
+            var recon = db.GetByType(TkbEntityTypes.Drone_Recon)!;
+            Assert.True(recon.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>() is not { Mounts.Count: > 0 });
+            var flight = recon.GetDescriptor<Fdp.Toolkit.Tkb.Domain.FlightParamsDto>()!;
+            Assert.Equal(1800f, flight.EnduranceSeconds);
+            Assert.False(flight.DetonatesOnImpact);
+            Assert.Equal(4, recon.GetDescriptor<Fdp.Toolkit.Tkb.Domain.BodyGeometryDto>()!.GroundContacts.Count);
+        }
+
+        /// <summary>⭐ <c>CE-7027</c> — the BOMBER drone: a rotorcraft with feet and a drop rack (a Bomb mount) of two M67s, a 20-minute battery,
+        /// and it does not burst on impact (it drops and comes back).</summary>
+        [Fact]
+        public void CE7027_TheBomberDrone_CarriesADropRackOfTwoGrenades_AndFeet()
+        {
+            var db = BuildDatabase();
+            var bomber = db.GetByType(TkbEntityTypes.Drone_Bomber)!;
+            var mount = Assert.Single(bomber.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>()!.Mounts);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb, mount.Category);
+            Assert.Equal(2, mount.InitialAmmunition);
+            Assert.Equal(Hrot.Core.Tkb.MunitionTkbCatalog.TkbM67Grenade, (long)mount.AmmoGuid);
+            var flight = bomber.GetDescriptor<Fdp.Toolkit.Tkb.Domain.FlightParamsDto>()!;
+            Assert.False(flight.DetonatesOnImpact);
+            Assert.Equal(1200f, flight.EnduranceSeconds);
+            Assert.Equal(4, bomber.GetDescriptor<Fdp.Toolkit.Tkb.Domain.BodyGeometryDto>()!.GroundContacts.Count);
+        }
+
+        /// <summary>⭐ <c>CE-7026</c> / <c>CE-7014</c> (City Battle R-1a, R-2) — the FPV drone has FEET (four ground contacts: a drone landed beside its
+        /// operator can take off on its strike order); the jammer type 113 is the crewed HMMWV carrying a 400 m <c>JammerDto</c>, its DIS told apart
+        /// from the HMMWV's by its subcategory.</summary>
+        [Fact]
+        public void CE7026_CE7014_TheFpvHasFeet_TheJammerIsAHmmwvWithA400mBubble()
+        {
+            var db = BuildDatabase();
+            var fpv = db.GetByType(TkbEntityTypes.Drone_Fpv)!;
+            Assert.Equal(4, fpv.GetDescriptor<Fdp.Toolkit.Tkb.Domain.BodyGeometryDto>()!.GroundContacts.Count);
+            var jammer = db.GetByType(TkbEntityTypes.Ew_DroneJammer)!;
+            var hmmwv = db.GetByType(TkbEntityTypes.Truck_HMMWV)!;
+            Assert.Equal(400f, jammer.GetDescriptor<Fdp.Toolkit.Tkb.Domain.JammerDto>()!.RadiusM);
+            Assert.Null(hmmwv.GetDescriptor<Fdp.Toolkit.Tkb.Domain.JammerDto>());
+            Assert.Equal((hmmwv.DisType.Kind, hmmwv.DisType.Domain, hmmwv.DisType.Category), (jammer.DisType.Kind, jammer.DisType.Domain, jammer.DisType.Category));
+            Assert.NotEqual(hmmwv.DisType.Subcategory, jammer.DisType.Subcategory);
+        }
+
+        /// <summary>⭐ <c>CE-7021</c> (City Battle §11 C-1a) — the INFANTRY COMPANY: a land unit of the infantry arm at company echelon whose roster
+        /// is three platoon commanders, a brain with NO standing orders (lane default R-7000: its work is its task).</summary>
+        [Fact]
+        public void CE7021_TheInfantryCompany_IsThreePlatoons()
+        {
+            var db = BuildDatabase();
+            var company = db.GetByType(TkbEntityTypes.Unit_InfantryCompany)!;
+            var platoon = db.GetByType(TkbEntityTypes.Unit_InfantryPlatoon)!;
+            var roster = Assert.Single(company.GetDescriptor<TkbCompositionDef>()!.Subordinates);
+            Assert.Equal((TkbEntityTypes.Unit_InfantryPlatoon, 3), (roster.TkbType, roster.Count));
+            Assert.Equal("Company", company.GetDescriptor<TkbCompositionDef>()!.Echelon);
+            Assert.Equal((platoon.DisType.Kind, platoon.DisType.Domain, platoon.DisType.Country, platoon.DisType.Category),
+                         (company.DisType.Kind, company.DisType.Domain, company.DisType.Country, company.DisType.Category));
+            Assert.NotEqual(platoon.DisType.Subcategory, company.DisType.Subcategory);
+            var brain = company.GetDescriptor<BehaviorProfileDto>();
+            Assert.NotNull(brain);
+            Assert.True(string.IsNullOrEmpty(brain!.DefaultSop));
+        }
+
         /// <summary>
         /// ⭐ R-2019 D-M2 (AE3; DESIGN_Armour_Hit_Model §7.5) — every catalogued VEHICLE that declares a combat platform STATES its blast
         /// susceptibility (none left to the side-armour fallback): the soft skins take it all, the MBTs nothing, the light armour between.
@@ -1211,6 +1278,23 @@ namespace Hrot.Map.Common.Tests
             Assert.True(ej.SeatX > 0f, "the cockpit is ahead of the CG");
             var chute = db.GetByType(TkbEntityTypes.Infantry_Pilot)!.GetDescriptor<ParachuteDto>()!;
             Assert.Equal((Fdp.Toolkit.Motion.CanopyKind.Round, 1.5f), (chute.Canopy, chute.OpenSeconds));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-6005</c> (city battle O-2, Peek and Fire §9.10) — the WRECK obstacle type (8819: a car-body box, 600 hp — the 8 kg charge clears
+        /// it, CE-6003) and the heavy types that leave one (M1, T-72, Bradley); a light car (the HMMWV) does not. 🔴 Red-proof: drop the Bradley
+        /// from the heavy list ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE6005_TheHeavyTypes_LeaveAWreckObstacle_ALightCarDoesNot()
+        {
+            var db = BuildDatabase();
+            var wreck = db.GetByType(TkbEntityTypes.Obstacle_Wreck).GetDescriptor<StaticObstacleDto>()!;
+            Assert.Equal(("car-body", 600f), (wreck.Material, wreck.MaxHealth));
+            Assert.Null(db.GetByType(TkbEntityTypes.Obstacle_Wreck).GetDescriptor<TkbMasterDto>());   // never in the Add Entity picker
+            foreach (var heavy in new[] { TkbEntityTypes.Tank_M1Abrams, TkbEntityTypes.Tank_T72, TkbEntityTypes.IFV_Bradley })
+                Assert.Equal(TkbEntityTypes.Obstacle_Wreck, db.GetByType(heavy).GetDescriptor<WreckObstacleDto>()?.ObstacleType);
+            Assert.Null(db.GetByType(TkbEntityTypes.Truck_HMMWV).GetDescriptor<WreckObstacleDto>());
         }
 
         private static TkbDatabase BuildDatabase()

@@ -107,10 +107,11 @@ public static class TerrainBake
     /// <param name="newName">the new terrain's name (terrain.json <c>name</c>, door-key prefix)</param>
     /// <param name="resolveTerrainDefinition">terrain name → its <c>terrain.json</c>; when it finds none and <c>&lt;target&gt;/source/base</c> is that terrain's kept ground (a re-save after the original is gone), that copy is the base</param>
     /// <param name="bakeNavtiles">bake the overlay's tiles at save (the base's are copied either way)</param>
+    /// <param name="bridgeNet">⭐ CE-6001 (§18k) — the host's builder of the bridges' SUMO net (<c>Hrot.Traffic.BridgeNetBuilder</c>), the SAME one the live overlay's compile gets; null ⇒ the bridges are road for the vehicles' net only (and only if the base declares one)</param>
     /// <param name="unique">⭐ T-3 part 2 — the host's generator of unique houses (null ⇒ the shipped templates), the same the editor's live overlay uses</param>
     /// <param name="afterPartWritten">test seam: called with the <c>.part</c> folder once it is complete, before the swap (a throw there is a failed save)</param>
     public static TerrainSaveResult SaveAs(string sourceScenarioDir, string targetFolder, string newName, Func<string, string?> resolveTerrainDefinition,
-        IEnumerable<string?>? recipeRoots = null, bool bakeNavtiles = true, Action<string>? afterPartWritten = null, IUniqueBuildings? unique = null)
+        IEnumerable<string?>? recipeRoots = null, bool bakeNavtiles = true, Action<string>? afterPartWritten = null, IUniqueBuildings? unique = null, IBridgeNet? bridgeNet = null)
     {
         if (string.IsNullOrWhiteSpace(newName) || newName.IndexOfAny(new[] { '/', '\\' }) >= 0 || newName.Contains("..")) throw new ArgumentException($"'{newName}' is not a terrain name.", nameof(newName));
         string target = Path.GetFullPath(targetFolder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), part = target + ".part";
@@ -124,7 +125,7 @@ public static class TerrainBake
         string baseFolder = Path.GetDirectoryName(Path.GetFullPath(baseDef))!;
 
         // ① the source compiled first: its overlay is current
-        var compiled = OverlayCompiler.Compile(dom, sourceScenarioDir, Resolve, bakeNavtiles, recipeRoots, unique);
+        var compiled = OverlayCompiler.Compile(dom, sourceScenarioDir, Resolve, bakeNavtiles, recipeRoots, unique, bridgeNet);
         string overlayFolder = Path.Combine(sourceScenarioDir, OverlayCompiler.FolderName);
 
         if (Directory.Exists(part)) Directory.Delete(part, true);
@@ -191,6 +192,22 @@ public static class TerrainBake
                     CopyTree(overlayTiles, Path.Combine(part, NavTileCache.TerrainFolderName), _ => false);
                 }
                 summaryParts.Read(overlayJson, JsonNode.Parse(File.ReadAllText(Path.Combine(overlayFolder, TerrainOverlayHeader.FileName)))!.AsObject());
+
+                // ④b ⭐ CE-6001 (§18k T-7a, "a bridge is road in BOTH nets", for every SAVED terrain): the overlay's bridge segments are appended to the saved road network (base segment indices stay),
+                //   and the overlay's SUMO net — the base net plus the bridge edges — is the saved terrain's net
+                if (overlay.Header.HasRoads && definition.RoadNetworks.Count > 0)
+                {
+                    string roadsPath = Path.Combine(part, definition.RoadNetworks[0]);
+                    var roadsJson = JsonNode.Parse(File.ReadAllText(roadsPath)) as JsonObject;
+                    var bridgeRoads = JsonNode.Parse(File.ReadAllText(Path.Combine(overlayFolder, TerrainOverlayHeader.RoadsFileName))) as JsonObject;
+                    if (roadsJson?["segments"] is JsonArray all && bridgeRoads?["segments"] is JsonArray extra)
+                    {
+                        foreach (var seg in extra) all.Add(seg!.DeepClone());
+                        File.WriteAllText(roadsPath, roadsJson.ToJsonString());
+                    }
+                }
+                if (overlay.Header.SumoNet is { Length: > 0 } overlayNet && definition.SumoNet is { } baseNet && File.Exists(Path.Combine(overlayFolder, overlayNet)))
+                    File.Copy(Path.Combine(overlayFolder, overlayNet), Path.Combine(part, baseNet.File), overwrite: true);
             }
 
             // ⑤ terrain.json: the new name + where it came from

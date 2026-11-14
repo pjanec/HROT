@@ -100,6 +100,13 @@ namespace Fdp.Toolkit.Combat
             return late <= 0d ? 0 : (int)Math.Round(late / stepDt);
         }
 
+        /// <summary>⭐ <c>CE-7027</c> (City Battle R-1b) — a carrier slower than this over the ground HOVERS (a bomber quadcopter): it has no
+        /// track to release along, so it drops when the bomb would land within <see cref="HoverToleranceM"/> of the target.</summary>
+        public const float HoverMps = 1.5f;
+
+        /// <summary>⭐ <c>CE-7027</c> — how far from the target a hovering carrier's drop may land (m).</summary>
+        public const float HoverToleranceM = 2f;
+
         /// <summary>A carrier more than this past its release point has missed the pass (it does not drop late).</summary>
         public const float MissedPassSeconds = 0.5f;
 
@@ -108,6 +115,12 @@ namespace Fdp.Toolkit.Combat
         /// within <see cref="CrossTrackToleranceM"/> to the side. One bomb per pass is the action's round count (or its cooldown).</summary>
         public static bool ReleaseNow(Vector3 p, Vector3 v, Vector3 target, Func<float, float, float>? ground, float dt = DefaultDt)
         {
+            if (new Vector2(v.X, v.Y).Length() < HoverMps)
+            {
+                // ⭐ CE-7027 — a HOVERING carrier: no pass to time — drop when it stands over the target
+                var (impact, _) = Impact(p, Launch(v), ground, dt);
+                return new Vector2(target.X - impact.X, target.Y - impact.Y).Length() <= HoverToleranceM;
+            }
             var (_, cross, seconds) = Cue(p, v, target, ground, dt);
             return seconds <= 0.5f * dt && seconds > -MissedPassSeconds && MathF.Abs(cross) <= CrossTrackToleranceM;
         }

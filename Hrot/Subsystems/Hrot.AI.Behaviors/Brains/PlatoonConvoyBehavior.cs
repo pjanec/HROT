@@ -33,7 +33,7 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public const int Capacity = CommandPicture.MaxSubordinates;
         public const byte PhasePlan = 0, PhaseMove = 1, PhaseContact = 2, PhaseSecure = 3, PhaseRemount = 4;
-        public const byte VehicleNone = 0, VehicleRoute = 1, VehicleHold = 2;
+        public const byte VehicleNone = 0, VehicleRoute = 1, VehicleHold = 2, VehicleFight = 3;
 
         public int RouteNet;
         public Vector3 RouteEnd;
@@ -48,7 +48,7 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed byte OnFoot[Capacity];
         /// <summary>1 = the squad's order of this phase is still to be given.</summary>
         public fixed byte Dirty[Capacity];
-        /// <summary>The order this run last gave the slot's vehicle: <see cref="VehicleNone"/>, <see cref="VehicleRoute"/>, <see cref="VehicleHold"/>.</summary>
+        /// <summary>The order this run last gave the slot's vehicle: <see cref="VehicleNone"/>, <see cref="VehicleRoute"/>, <see cref="VehicleHold"/>, <see cref="VehicleFight"/>.</summary>
         public fixed byte VehicleOrder[Capacity];
         /// <summary>DA-102 — how many casualty recoveries the squad was sent on in this remount.</summary>
         public fixed byte Recovers[Capacity];
@@ -252,8 +252,9 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>The slot's vehicle: on the route in CMove; in CContact left to drive on as it does (its own SOP pushes through a kill
-        /// zone, CE-2307) unless a squad it carries has a man out — then it waits for them; held in CSecure and CRemount. A vehicle running
-        /// its own reaction is left to it.</summary>
+        /// zone, CE-2307) unless a squad it carries has a man out — then it stays for them: ⭐ CE-7006 (R-7010) an ARMED carrier fights from
+        /// cover there (<c>VehicleFightFromCover</c>, its gun over the dismounted squad), any other holds; held in CSecure and CRemount. A
+        /// vehicle running its own reaction is left to it.</summary>
         private static unsafe void KeepVehicle(ref ConvoyPlan p, ref ConvoyKeep ws, int slot, int n, Entity self, EntityRepository world, JsonSerializerOptions json)
         {
             var v = p.VehicleOf(slot);
@@ -265,7 +266,10 @@ namespace Hrot.AI.Behaviors.Brains
             switch (p.Phase)
             {
                 case ConvoyPlan.PhaseMove: want = ConvoyPlan.VehicleRoute; break;
-                case ConvoyPlan.PhaseContact: want = CarriesDismounted(ref p, v, n, self, world) ? ConvoyPlan.VehicleHold : ConvoyPlan.VehicleNone; break;
+                case ConvoyPlan.PhaseContact:
+                    want = !CarriesDismounted(ref p, v, n, self, world) ? ConvoyPlan.VehicleNone
+                         : TemplateArms.KnownArmed(world, v) ? ConvoyPlan.VehicleFight : ConvoyPlan.VehicleHold;
+                    break;
                 default: want = ConvoyPlan.VehicleHold; break;
             }
             if (want == ConvoyPlan.VehicleNone) return;
@@ -277,6 +281,8 @@ namespace Hrot.AI.Behaviors.Brains
                 if (CommandOrders.StillRunning(world, self, v, BehaviorNames.FollowRoute, order)) return;
                 CommandOrders.Assign(world, self, v, BehaviorNames.FollowRoute, order, newOrder: true);
             }
+            else if (want == ConvoyPlan.VehicleFight)
+                CommandOrders.Assign(world, self, v, BehaviorNames.VehicleFightFromCover, "{}", newOrder: true);
             else CommandOrders.Order(world, self, v, "Hold", "{}", newOrder: true);
             ws.Orders++;
         }

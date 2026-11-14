@@ -46,6 +46,10 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("FallBackTo")]
         public PointLink FallBackTo;
 
+        /// <summary>⭐ <c>CE-7007</c> — handed to every squad's <c>SquadDefend</c>: shoot and move between its posts (s; 0 = off).</summary>
+        [JsonPropertyName("ShootAndMoveSeconds")]
+        public float ShootAndMoveSeconds;
+
         /// <summary>⭐ DA-51 — each squad's role and point; none ⇒ every squad on the line at <see cref="Position"/>, and with three or
         /// more the last is the reserve, behind.</summary>
         [JsonPropertyName("Squads")]

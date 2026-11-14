@@ -92,6 +92,7 @@ namespace Fdp.Toolkit.Behavior
         {
             Fdp.Toolkit.Utility.DecisionCadence.Of(repo).PrepareFrame(repo);
             Fdp.Toolkit.Replication.Utilities.PartIndex.PrepareFrame(repo);   // a unit's parts (its sensors) — read by every brain
+            Fdp.Toolkit.Motion.DroneJamming.PrepareFrame(repo);               // ⭐ CE-7014 — the jammer bubbles a drone's brain reads
         }
     }
 }

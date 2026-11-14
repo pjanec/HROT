@@ -77,5 +77,19 @@ namespace Hrot.Map.Definitions.Behavior
         /// threshold (<c>RiotAt − 0.5 × Attitude</c>: −1 never riots). Default 0.</summary>
         [JsonPropertyName("Attitude")]
         public float Attitude;
+
+        /// <summary>⭐ <c>CE-7030</c> (City Battle §3c) — fighting heard up to this far off (m), and no nearer than 150 m (50 m for a bold man),
+        /// makes him stop and WATCH; 0 = off (his routine goes on, as before).</summary>
+        [JsonPropertyName("WatchMaxMetres")]
+        public float WatchMaxMetres;
+
+        /// <summary>⭐ <c>CE-7030</c> — the share of watchers who film it with a phone (0 … 1); 0 = 0.4 when watching is on.</summary>
+        [JsonPropertyName("FilmShare")]
+        public float FilmShare;
+
+        /// <summary>⭐ <c>CE-7031</c> (§3c) — the share of civilians who are BOLD (0 … 1, by who he is): a bold man watches down to 50 m and is
+        /// alarmed only at twice the fear. 0 = none.</summary>
+        [JsonPropertyName("BoldShare")]
+        public float BoldShare;
     }
 }

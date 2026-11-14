@@ -48,6 +48,10 @@ namespace Hrot.AI.Behaviors.Brains
         public byte HasDestination;
         /// <summary>1 ⇒ the medic keeps carrying him at the point: Done when he CARRIES him there, not when he lies there.</summary>
         public byte Keep;
+        /// <summary>⭐ <c>CE-7009</c> (City Battle §3a "losses become movement"; lane default R-7009) — EVACUATE: &gt; 0 ⇒ the medic carries him
+        /// this far straight back, AWAY from the squad's top contact (the handoff's 150 m collection point), instead of to the nearest cover;
+        /// 0 = off (cover, as before). No contact ⇒ cover as before.</summary>
+        public float EvacuateMetres;
     }
 
     /// <summary>
@@ -96,6 +100,18 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 ws.ThreatId = contact.EntityId;
                 ws.ThreatPoint = new Vector3(contact.PositionX, contact.PositionY, contact.PositionZ);
+            }
+            // ⭐ CE-7009 — evacuation: the collection point EvacuateMetres back from the casualty, away from the threat (a destination, as SquadRecover's)
+            if (p.EvacuateMetres > 0f && p.HasDestination == 0 && ws.ThreatId != 0)
+            {
+                var at = ctx.At(casualtyEntity);
+                var away = new Vector2(at.X - ws.ThreatPoint.X, at.Y - ws.ThreatPoint.Y);
+                if (away.LengthSquared() > 1e-4f)
+                {
+                    away = Vector2.Normalize(away) * p.EvacuateMetres;
+                    p.Destination = new Vector3(at.X + away.X, at.Y + away.Y, at.Z);
+                    p.HasDestination = 1;
+                }
             }
             for (int i = 0; i < ctx.Roster.Count; i++)
                 partition[i] = i == medic ? new MemberPartitionInput(0.1f, 1f) : new MemberPartitionInput(1f, 0.1f);
@@ -321,6 +337,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Order = Defaults(authored.Speed);
             if (authored.CoverSearchRadius > 0f) block.Order.CoverSearchRadius = authored.CoverSearchRadius;
             block.Order.Casualty = authored.Casualty.Ref.Resolve(world);
+            block.Order.EvacuateMetres = Math.Max(0f, authored.EvacuateMetres);   // ⭐ CE-7009
             block.State = default;
         }
 
