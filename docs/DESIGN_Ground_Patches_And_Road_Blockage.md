@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD after §9 — the critical review's decisions are RULED (R-4232…R-4235, 2026-11-14) and §9.5 re-cuts the slices with every fix; ⭐ where §9 and an earlier row disagree, §9 wins. Was: READY-TO-BUILD P-1…P-4 — ✅ APPROVED 2026-11-14 (R-4228 G-1…G-3, R-4229 G-7…G-10, R-4230 G-12, R-4231 road corridors G-21…G-25); P-5 the ground-shaping tool and P-6 ditches ✅ approved in principle, ⚠ their UI mockup before dispatch; §4d binds the later terrain-editor design
+build-state: READY-TO-BUILD after §9 — the critical review's decisions are RULED (R-4232…R-4235, 2026-11-14) and §9.5 re-cuts the slices with every fix; ⭐ where §9 and an earlier row disagree, §9 wins. Was: READY-TO-BUILD P-1…P-4 — ✅ APPROVED 2026-11-14 (R-4228 G-1…G-3, R-4229 G-7…G-10, R-4230 G-12, R-4231 road corridors G-21…G-25); P-5 the ground-shaping tool and P-6 ditches ✅ approved in principle, their mockup UX/ground-shaping-and-ditches.svg (2026-11-14); §4d binds the later terrain-editor design
 updated: 2026-11-14
 current-answer: ⭐ §9 the critical review (read FIRST — it overrides the rows it names) · the whole file — §1 the request, §2 INVENTORY, §3 the diagrams, §4 decisions, §4a the ground-shaping tool (P-5), §4b road corridors at import (P-1), §4c ditches (P-6), §4c-1 crater cover and foxholes, §4d ready for the terrain editor, §5 slices, §6 acceptance
 stale-below: nothing
@@ -8,6 +8,8 @@ known-rot: none
 known-conflict: DESIGN_Terrain_Height.md TH-C ("a building stands on the LOWEST ground under its footprint") — overturned for a building that carries a pad, once G-2 is ruled
 related-designs:
   - DESIGN_Vehicle_Breaching.md — builds on P-0, R-4232 and P-2 here: a crushed roadblock re-opens its road; a breach is read at query time
+  - PLAN_Dynamic_Terrain.md — OWNS the programme's task list (P-0…P-6 here, B-1…B-6 there), its order and its gates
+  - UX/ground-shaping-and-ditches.svg — the mockup of P-5 and P-6 (the Earthworks picks, the Ground area, the Ditch, the Foxhole)
   - DESIGN_Terrain_Height.md — OWNS the height grid (TH-A/TH-B), its tiles (§9, CE-4365) and TH-C; this design adds the pad and the patched tiles
   - DESIGN_Terrain_Authoring.md — OWNS TA-4 (flatten under houses is required), L-5 (the house's pad field), S-5, and §18 the compiled overlay every node loads; P-2 here is its S-5
   - DESIGN_Terrain_Import_UTM.md — OWNS the importer (§11) every pipeline goes through, and §8 runtime destruction (breaches, collapses) whose path the crater rides
@@ -343,9 +345,23 @@ in the compile and the live overlay. ⇒ the later design is about the USER-FRIE
    draws no heights, nothing to rebuild. ⚠ Not yet measured: what a single placed house shows during the wait (a block shows its outline,
    U-3) — P-3 measures it and, if the house is invisible meanwhile, keeps its ghost drawn until the bake commits. 🔒 User, `2026-11-14`:
    *"when I am placing the house, I will see it buried into the hill. But after a while … will I see the terrain flattened?"*
-4. **P-4**: a bomb on open ground makes a crater on every query node within one bake; a wheeled vehicle routes round it, a tracked one through a
-   small one; seek before / after the blast shows / removes it; a scenario saved after the blast reloads it; `HROT_PARALLEL_SIM=1` +
+0. **P-0** *(added `2026-11-14`)*: the height store's tiles are separate arrays — patching one tile copies that tile only, and a steady read
+   allocates 0 B (a rail, R-2084); the bake publishes its dirty rectangles on EVERY host (editor, cluster node, display node — a rail each), and
+   only the navmesh tiles and 3-D chunks inside them rebuild; under a barrage (a breach or crater every 0.5 s for 30 s) the bake still commits
+   within the latency cap (a rail).
+4. **P-4** *(⚠ corrected `2026-11-14` to R-4232 / R-4233 — it said "a tracked one through a small one")*: a bomb on open ground makes a crater
+   whose ground height, sight, fire and cover answers come from the `CraterIndex` in the SAME tick on every terrain-holding node (a standalone
+   brain included); EVERY vehicle routes round it, infantry crosses; the navmesh and the 3-D mesh follow within one bake; seek before / after the
+   blast shows / removes it; a scenario saved after the blast reloads it; the rim is cover only after `coverAfterSeconds`; `HROT_PARALLEL_SIM=1` +
    `HROT_READ_CHECK=1` + `stepped-hash.py --threads 1,4,8` equal; the swap's time measured under a barrage.
+5. **P-5** *(added `2026-11-14`)*: a Ground area raising a hill 5 m across a road: the road's corridor re-levels (G-24), our road-graph vehicles
+   drive it with no blocker, and after save + reload SUMO's net z equals the store's under every road point (V-25); the grade read-out warns over
+   15 %; a house inside the area keeps its pad (an island, V-28); two overlapping shapes — the newest wins; the editor shows it in ONE live bake;
+   the frame matches [the mockup](UX/ground-shaping-and-ditches.svg) (R-4146).
+6. **P-6** *(added `2026-11-14`)*: an anti-tank ditch closes every vehicle route across it and infantry crosses; a man prone in a 1 m ditch is
+   hidden by the ground from a shooter on the level at 100 m (TH-D); the cover query finds the ditch's floor points, a pair facing each bank
+   (V-30); a ditch drawn across a road stops at the corridor (G-29); a Foxhole gives its all-round points and a defending squad takes its posts
+   in foxholes with no new behaviour (V-29); on a 2 m grid the tool warns that a foxhole will not form (G-37); the frames match the mockup.
 
 ## 7. Design docs checked
 
