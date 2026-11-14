@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — §7 (the critical review, 2026-11-14) found the root cause elsewhere and changes the record; READY-TO-BUILD once the user rules §7.3's six decisions, then §7.4's slices (after the ground-patch design's P-0)
+build-state: READY-TO-BUILD — §7.3 approved 2026-11-14 (D-5 revised: no switch); §7.4's slices after the ground-patch design's P-0; §7.6 the bulldozer's order (lean, awaiting the user)
 updated: 2026-11-14
 current-answer: §7 FIRST (the review — it overrides what it names), then §1, §3, §4 and §6 where §7 leaves them standing
 stale-below: §5 slices — replaced by §7.4
@@ -246,7 +246,7 @@ re-cut) already exists for panels; only the building key and one grid filter shu
 | **V-22** C | **UTM §8 T-4 (proposal) has any heavy or fast vehicle fell lone trees, AI included** — contradicts B-D1; trees are missing from the barrier list | `DESIGN_Terrain_Import_UTM.md` §8 T-4 | §7.3 D-6 |
 | — | ✅ **non-issue: two nodes cannot decide one break** — a hull moves only on the node owning its `SimTransform` (`CarKinematicsSystem.cs:186`); several Muscles each own their record and every node reads the union (the `BuildingDamage` precedent); player input reaches the Muscle one hop late (acceptable) | | |
 
-### 7.3 Decisions for the user — each with a lean
+### 7.3 Decisions — ✅ approved (user `2026-11-14`: *"Approved."*), D-5 revised
 
 | # | question | ⭐ lean | why / what would change it |
 |---|---|---|---|
@@ -254,7 +254,7 @@ re-cut) already exists for panels; only the building key and one grid filter shu
 | **D-2** | free walls block AI hulls too once the guard sees them (V-1) — an AI behaviour change | ⭐ **yes** — an AI hull is held and backs out at a garden wall like at a building | it was a defect; the navmesh already routes them round, so it is rare. The AI corner rule (no record) is unchanged |
 | **D-3** | how the speed into a wall is measured (V-8) | ⭐ **ram OR push**: a ram = the attempted step's speed into it ≥ the row's minimum; a push = full throttle held in contact for the row's seconds (the bulldozer's model). A tank's building BUMP is a ram only | a hull resting against a wall could otherwise never break it |
 | **D-4** | walls ≤ 0.5 m (V-7) | ⭐ **a panel top is never a hull's surface** — a low wall is met: wheeled vehicles hold, armour breaks it by the rule | a HMMWV hopping onto a sandbag wall is wrong; climbing a KERB (ground, not a panel) is unchanged |
-| **D-5** | forbid breaching per scenario (V-18) | ⭐ **yes**: a recorded unmanaged rules component (on / off) set by a 0 s trigger verb, and an instructor toggle; default ON | the established knob shape (City Battle §4b) |
+| **D-5** ✅ (revised) | forbid breaching per scenario (V-18) | ⛔ **no switch in v1 — the same rules everywhere** | 🔒 user, `2026-11-14`: *"Instructor toggling the breaching per scenario is not necessary. Might come later, but not for now. I think it could be easier if the rules are the same everywhere."* |
 | **D-6** | lone trees (V-22) | ⭐ **trees follow B-D1**: a possessed heavy vehicle fells a lone tree (a tank, an IFV); AI hulls route round; the bulldozer on order — UTM §8 T-4 amended and linked both ways | one rule for "a vehicle breaks what it meets" |
 
 ### 7.4 Slices — replace §5
@@ -264,8 +264,8 @@ re-cut) already exists for panels; only the building key and one grid filter shu
 | **B-0** | the ground-patch design's **P-0** (dirty rectangles on every host, a bake latency cap) |
 | **B-1** | the hull SEES free panels (V-1, D-2, D-4); the hull purpose ignores building-panel breaches (V-5); the gate = Manual + live possession (V-4); replay gate (V-14). Rails: possessed and AI hulls held at a garden wall; possess → release → corner ⇒ no record; a tank at its own bump stays out |
 | **B-2** | one record for wall groups (D-1): free-wall lines keyed (V-11), the grid indexes every panel (blasts breach free walls, B-D7), the Passage rule for low walls (V-6), Passages in `FineAreas` (V-10), multi-panel cuts (V-12), drawing on every node (V-16) |
-| **B-3** | the contact rule: ram or push (D-3), the cut's size (V-9), the query-time guard and no speed zero (V-3), `BatchContext` plumbing and serial find-or-create (V-15), the straddle and rear contact (V-21), feedback event / sound / HUD cue (V-17), the scenario switch (D-5), trees (D-6) |
-| **B-4** | the bulldozer: a point order, the Muscle decides (V-13) |
+| **B-3** | the contact rule: ram or push (D-3), the cut's size (V-9), the query-time guard and no speed zero (V-3), `BatchContext` plumbing and serial find-or-create (V-15), the straddle and rear contact (V-21), feedback event / sound / HUD cue (V-17), trees (D-6) — ⛔ no scenario switch (D-5) |
+| **B-4** | the bulldozer: §7.6 — the order gains a point, the Muscle decides (V-13) |
 | **B-5** | the AI uses a breach: layout invalidation ⇒ a `Gap` portal, clearing re-plans, cover refreshed (V-19) |
 
 ### 7.5 Acceptance — added to §6
@@ -277,3 +277,40 @@ re-cut) already exists for panels; only the building key and one grid filter shu
 15. Possess → release → the AI holds at a corner ⇒ no record (V-4); a replay of a possessed break writes nothing (V-14).
 16. A barrage on the showcase town: record count, bake latency and frame budget stated and met (V-20).
 17. A display node and the Replay Browser draw the gap (V-16); the player hears and sees the break, and the HUD says *too strong* at a wall it cannot break (V-17).
+
+### 7.6 The bulldozer's order — one order, an entity OR a point *(lean, `2026-11-14`)*
+
+🔒 User, `2026-11-14`: *"Would you change the clearing command for the bulldozer to point to a world location instead of an entity? What would be the solution here?"*
+
+| claim | code — how it is | design |
+|---|---|---|
+| the order names an entity only | `ClearObstacleOrder.Obstacle` is an `EntityLink` (`ClearObstacleBehavior.cs:136`) | City Battle §6c (as built) |
+| success and the push are entity-shaped | done = the entity gone or `Health ≤ 0`; the push = `Health.Max / PushSeconds` per second (`:78-100`) | §6c, R-7004 |
+| the company's call already holds the roadblock ENTITY | `C->>B: Order: ClearObstacle(roadblock)` | City Battle §6c sequence |
+| walls are not entities and must not become ones | a wall is a panel of the terrain world; a breach is a record per wall group (D-1) | UTM §8, D-1 |
+| destruction is decided on the Muscle, the brain only drives | R-4196, UTM §8.2 B-12 | V-13 |
+
+```mermaid
+sequenceDiagram
+  participant I as Instructor / company call
+  participant B as ClearObstacle (dozer brain)
+  participant M as Muscle contact rule (B-3)
+  participant D as damage table (every node)
+  I->>B: ClearObstacle { Obstacle } or { At }
+  B->>B: Resolve: Obstacle set => today's path. Else an obstacle within 3 m of At => that obstacle. Else the panels within 3 m => a wall cut at At
+  B->>B: wall cut: drive to the stand-off on the dozer's side, blade on the wall, sets Cutting { At } on itself (replicated)
+  M->>M: dozer in contact with a panel within a blade's width of At, Cutting set, pushed PushSeconds => a blade-wide full-height Passage
+  M->>D: the breach (the same record and follow-up as a player's break)
+  B->>D: done when a Passage covers At; fail when no barrier is there or past a timeout
+```
+*What it shows: the brain only drives and sets a marker; the Muscle cuts with the same contact rule a player's tank uses, so there is one breach
+writer. A point that lands on an obstacle becomes today's entity order, so one click "clear here" works for both.*
+
+| | |
+|---|---|
+| **Decision (lean)** | ⭐ **keep ONE order and ADD a point**: `ClearObstacleOrder` gains `At` (a world point) beside `Obstacle`. An entity given ⇒ today, unchanged (the company's roadblock call keeps working). Only a point given ⇒ the resolver looks there: an obstacle within 3 m ⇒ that obstacle; else the wall panels within 3 m ⇒ a wall cut at that point. The dozer sets a replicated `Cutting { At }` marker while its blade is on; the Muscle's contact rule (B-3, D-3's push) cuts blade-wide and full-height (a Passage, V-6) after `PushSeconds`; success = a Passage covers the point |
+| Rejected: point only | the company's call holds the entity, and "the roadblock is gone" is an exact success test; a point would lose both |
+| Rejected: a second behaviour `CutWall` | two drive-to-face-and-push implementations of one task (the shared-and-unified rule) |
+| Rejected: walls as entities | thousands of entities for one rare order; the breach record (D-1) already names the wall |
+| Rejected: the brain writes the breach | destruction is Muscle-only (V-13) |
+| Open | the 3 m pick radius and a timeout (lean 60 s) are tunables in the order, 0 = default |
