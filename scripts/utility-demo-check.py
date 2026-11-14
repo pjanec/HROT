@@ -4323,7 +4323,7 @@ def run_morale_barrage(c, timeout):
     Engaged as pc-defend-dry is (the squads' Set + a SPOT inside the EA); then the Blue spotter's missions land on the line. Reports the
     sim times of the first near miss (UnderFire), the first broken man, and the fall-back (a line squad ordered BreakContact), and how many
     of the line's eight men were broken / down then. Judge: GREEN falls back while most men are alive; VETERAN holds for the window."""
-    green = "green" in (sys.argv[1] if len(sys.argv) > 1 else "")
+    green = any("morale-barrage-green" in x for x in sys.argv)
     ids = ids_by_name()
     pl = ids.get("Red Platoon")
     names = {9310: "Red Squad 1", 9320: "Red Squad 2", 9330: "Red Reserve"}
