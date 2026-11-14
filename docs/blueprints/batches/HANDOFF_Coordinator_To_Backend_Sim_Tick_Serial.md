@@ -1,5 +1,5 @@
 <!--STATUS
-state: HELD — NOT dispatched (user 2026-11-13: "we need to do design not any building lane; buildiong lane is for building"); the coordinator writes the designs first, then this is re-dispatched as a build-only batch
+state: HELD — its BUILD items T-3, T-4, T-6 … T-11 moved to HANDOFF_Coordinator_To_Backend_Threaded_Fixes.md (2026-11-14); T-1 / T-2 are the coordinator's design work; T-5 waits for T-1
 updated: 2026-11-13
 current-answer: the whole file
 related-designs:
