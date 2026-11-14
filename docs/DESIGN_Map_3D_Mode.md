@@ -7,13 +7,14 @@ updated: 2026-10-23 (§6ac middle-button pan, the 2-D helper grid, the cursor's 
   §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
-current-answer: ⭐ §6ak bodies and doors at scale (instancing, screen-size bands, the pick on input — ✅ BUILT 2026-11-14, as built in §6ak.6; ⛔ its targets NOT met with the gizmos drawn — §6ak.6 correction, CE-4580) · §6ab filming (CE-3289) · §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
+current-answer: ⭐ §6am unit cards hidden behind terrain, one card per unit (CE-4582, READY-TO-BUILD 2026-11-14) · ⭐ §6ak bodies and doors at scale (instancing, screen-size bands, the pick on input — ✅ BUILT 2026-11-14, as built in §6ak.6; ⛔ its targets NOT met with the gizmos drawn — §6ak.6 correction, CE-4580) · §6ab filming (CE-3289) · §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
   with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §6m the carried / dragged, wounded, seated riders, the jump down · §6n weapon systems, gunners, launchers, mortars and guns, trails, the drone, the attack plane, rotors · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists…)"* is overtaken: `PipelineTarget.FlatOnly` now exists (AQ93 §12.4, R-4058) — a primitive carrying it is culled by the 3-D triage whatever else it says; `Map2D` itself still means both modes (§7). · earlier: ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - docs/DESIGN_People_Display.md — OWNS the card's mind-state and health rows (§7e U20, §7f U21); §6am here makes every unit text a row of the card and hides the card behind terrain
   - docs/DESIGN_Map_View_Filter.md — OWNS the map's view filter (CE-4388): what is on screen and close enough to draw, decided ONCE per entity before any gizmo rule, in 2-D and 3-D
   - docs/DESIGN_Terrain_World.md §10a — the 2-D plan at 5.5 km (CE-4376), the 2-D sibling of §6ah
   - docs/DESIGN_Scale_Rig.md §5.2 N-5 — OWNS the sim side of the 5.5 km terrain (the per-tile navmesh bake, BuildRegion); hands the editor's whole-soup build to §6ah here
@@ -791,7 +792,7 @@ It adopts the camera entity's pose and mode once when the scenario opens (`MapCa
 | **M10** | the camera entity (V-12..V-15) — **what it stores** | ✅ **APPROVED (U17): one camera entity for the map, in both modes**: look-at point, distance, yaw, pitch and the mode. The 2-D map is simply that camera at pitch −90°, north up. An ordinary spatial entity (U7), owned by the host, saved with the scenario, created on the first camera move — so a saved scenario reopens the map where it was looking, in the mode it was in | 3-D pose only (rev 2's lean) — two camera states for one map · no entity at all — simpler, but drops V-12's "saveable to scenario" |
 | **M11** | network viewer (V-18) | ⭐ an IG node with the map in 3-D — nothing extra | a dedicated viewer node — IG already is one |
 | **M12** | the 2-D ↔ 3-D switch (U15) | ⭐ an **animated camera move** pivoting at the overhead pose (§3.3): both swaps happen where 2-D and 3-D look the same | a hard cut — the user asked for animation · morphing orthographic into perspective — needless; overhead perspective at matched height is close enough |
-| **M13** | labels in 3-D (U16) | ⭐ a screen-space `LabelOverlay3D` pass after the 3-D pass: the existing `Text` / `EntityBadge` primitives, anchors resolved with Z, lifted to the top of the entity's 3-D body, projected by `MapCamera3D.WorldToScreen`, drawn by the 2-D renderer's screen-space text code (extracted, one implementation). Far labels hide by the primitives' own `MinZoomLod` / `MaxZoomLod`, using an equivalent zoom = pixels per metre at the label's distance. Drawn always on top first (name-tag style); hiding labels behind buildings by a ray test is a later option; decluttering overlaps later | 3-D text meshes (billboarded geometry in the scene) — a second text renderer, unreadable at distance · a new label primitive — every gizmo would have to change |
+| **M13** | labels in 3-D (U16) | ⚠ **its "drawn always on top" is SUPERSEDED for the default by §6am (CE-4582, 2026-11-14): depth-tested, a toggle restores on-top.** ⭐ a screen-space `LabelOverlay3D` pass after the 3-D pass: the existing `Text` / `EntityBadge` primitives, anchors resolved with Z, lifted to the top of the entity's 3-D body, projected by `MapCamera3D.WorldToScreen`, drawn by the 2-D renderer's screen-space text code (extracted, one implementation). Far labels hide by the primitives' own `MinZoomLod` / `MaxZoomLod`, using an equivalent zoom = pixels per metre at the label's distance. Drawn always on top first (name-tag style); hiding labels behind buildings by a ray test is a later option; decluttering overlaps later | 3-D text meshes (billboarded geometry in the scene) — a second text renderer, unreadable at distance · a new label primitive — every gizmo would have to change |
 | **M14** | the entity card (U19, U20) | ⭐ **a small canvas per entity**: a 4th anchoring mode `CoordinateSpace.EntityCard`; the card **exists iff a visible primitive targets it**; rows by `ZIndex`, row 0 card-wide; card-local pixels, `ScreenPercent` = % of the card; frame, health bar and name are **ordinary gizmos** (`EntityCardFrameGizmo`, re-targeted `HealthBarGizmo`, `EntityNameGizmo`); one `EntityCardRenderer` for 2-D and 3-D asking the camera for the screen point; **no new primitive kind**; loose text unchanged (§3.6) | dedicated `CardHeader` / `CardBar` shapes (rev 6) — U20: a header is not needed and shapes would be card-only · absolute card pixels per gizmo — independent gizmos would collide · a card drawn by the terminal from ECS — not network-capable, not extensible |
 | **M15** | entity colour (U19) | ✅ **APPROVED (U22)**: `EntityAppearance { ColorRgba }`, built **like affiliation** (`EntityInfo.ForceId`, §3.7): `[PerInstanceValue]`, TKB default `VisualData.ColorHex` stamped only if absent, saved in the scenario, its own `Reliable`/`TransientLocal` descriptor arm (`R-136` §4.1), changeable at runtime through the `"Color"` attribute | writing the override into `VisualData` — illegal under R-136 (TKB-derived, §3 ②) · a command to set it — §5: unreconstructible by a late joiner |
 | **M16** | side colours | ⭐ **one palette**: friend / opposing / neutral colours defined once, looked up by `ForceId` (the card frame, placement ghost) and by the 2525 affiliation letter (the symbol renderer) | ⚠ today there are **three** mappings and they disagree: IG's `ResolvedStyleConstants.cs:29-67` (by `ForceId`; its `ResolvedStyle.Tint` is read by no renderer), `EntityPlacementGizmo.cs:278-283` (by the placement JSON) and `MilStd2525Renderer.cs:84-96` (by symbol code). The 2-D map's entity shape ignores side altogether — fixed cyan (`EntityPresentationGizmoShared.cs:247`) |
@@ -4021,6 +4022,167 @@ Rails: `BulldozerModelRail` — the type resolves to the family, kit and size (r
 the real frame under `xvfb-run -a` draws side, front and rear three-quarter and top views beside a T-72 and a rifleman for scale, then the dozer alone for the gallery
 (`HROT_RAIL_SHOTS`, never git). The thumbnail is `scripts/thumbnails.py --add-image … --name "Bulldozer (D9-class)"` (atlas page 1, slot 4/1; `EntityTypeCatalogTests` pin the picker line
 and the atlas count).
+
+### 6am. CE-4582 — unit cards hidden behind terrain; one card per unit, every unit text a row of it *(coordinator, `2026-11-14`; build-state: READY-TO-BUILD)*
+
+🔒 User, `2026-11-14`: *"option A with drawing trees after the cards. Selected unit card always visible is ok. toggle is ok if it could be added to
+layers panel"* · *"the whole label needs to be handled like that"* · *"the layer panel offers 'Entities' checkbox but has no effect in 3d map"* ·
+*"why stress goes from separate gizmo that makes no sense it should be optional part of the label card"* · *"no stress only floating bars and
+similar free floating stuff; this should be part of the entity card … check also other gizmos"* · *"no the design must happen here"* (the
+coordinator). Task: [CE-4582](blueprints/Blueprint_Issues_Tracker.md). Mockup: [labels-behind-terrain.svg](UX/labels-behind-terrain.svg)
+(`scripts/gen-labels-behind-terrain-mockup.py`).
+
+![unit cards behind terrain](UX/labels-behind-terrain.svg)
+
+#### INVENTORY *(2026-11-14, `coordinator`)*
+
+| query | total | found |
+|---|---|---|
+| `scripts/cbm.sh search_graph '{"name_pattern":".*(EntityCard\|LabelOverlay\|CardRenderer\|TreeLayer\|Forest\|Vegetation\|DepthTest\|RenderTexture\|MapCanvas3D\|Scene3D).*","label":"Class"}'` | 6 | `EntityCard`, `EntityCardRow`, `EntityCards` (Fdp.Diagnostics.Contracts — the card API), `EntityCardFrameGizmo`, `EntityCardRenderer` (GizmoMap — layout + draw, 0 B warm, CE-1478 P4), `LabelOverlay3D` (`RaylibGizmoSink3D.cs:83`) |
+| grep the frame: `MapCanvas.Draw` → `DrawLayers3D` (every layer's `Draw3D` between ONE `BeginMode` / `EndMode`) → `DrawOverlays` (each layer's `DrawOverlay`, in layer order) | — | `MapCanvas.cs:121-205`; the cards and place labels are drawn in `DebugGizmoLayer.DrawOverlay` (`:213-240`): `LabelOverlay3D.Draw`, then `Cards.Draw(Renderer3D.Cards, CardAnchor3D)` — raylib 2-D after `EndMode3D`, depth test off, the depth buffer of the 3-D pass still bound (nothing clears it before the next frame) |
+| grep the trees: `TerrainChunks3D.Draw` (`:358-385`) | — | per visible chunk: ground (`:377`), objects = buildings and walls (`:378`), then the vegetation part — `ChunkTrees` near, `ChunkCanopy` far (`:380-381`, §6ai) — each its OWN mesh |
+| grep the binding (Raylib-cs 7.0.2): depth, stencil, framebuffer entry points | — | ✅ `rlEnableDepthTest` / `rlDisableDepthMask`, `rlColorMask`, `rlLoadFramebuffer`, `rlLoadTextureDepth`, `rlFramebufferAttach`, `rlBlitFramebuffer` · ⛔ **no stencil, no depth function, no GL proc address** |
+| grep the card rows: `draw.Card(net, layer)` | 8 gizmos | frame row 0, `BOUNTY` / health row 10, mind state 11–12, name 20, overhead mark 45, concealed 46, effect 50, editor label (`EntityCardGizmos`, `HealthBarGizmo`, `MindStateGizmo`, `OverheadMarkGizmo`, `ConcealedItemGizmo`, `EffectStateGizmo`, `EntityEditorLabelGizmo`) — each row on its OWN layer |
+| grep free text at a unit (`DrawText` with no `Card`) | 8 sites | `ActionStatusGizmo:57`, `UtilityDecisionGizmo:30`, `StanceGizmo:30`, `EntityRotationGizmo:60`, `PeekAndFireGizmo:60`, `SquadGizmo:40` / `:54`, `CommandPictureGizmo:46` / `:93`, `EffectStateGizmo:39` (its fallback) — re-verified on `coordinator` |
+| grep the body pass and the Entities row | — | `EntityBodyLayer3D` reads no layer mask; the Entities row is mask bit 0 (`LayerControlGizmo.cs:104`); the selection is `SelectionState.IsSelected` (`EntityBodyLayer3D.cs:160`) |
+⚠ Graph coverage not checkable through the CLI.
+
+#### Classes
+
+```mermaid
+classDiagram
+  class EntityCards {
+    <<existing, Fdp.Diagnostics.Contracts>>
+    Card(draw, netId, layer) EntityCard
+    LabelsLayer : byte NEW (= DebugTraceLayers.Labels, 11)
+  }
+  class EntityCard {
+    <<existing>>
+    Row(order)
+    inert when layer != LabelsLayer and LabelsLayer is off NEW
+  }
+  class EntityCardRenderer {
+    <<existing, GizmoMap>>
+    Layout(...) / Draw(...)
+    Occlusion : CardOcclusion NEW
+    AlwaysOnTop : Func~long,bool~ NEW
+  }
+  class LabelOverlay3D {
+    <<existing>>
+    Draw(labels, camera, lift)
+  }
+  class CardOcclusion {
+    <<NEW, Fdp.Presentation Vis3D>>
+    Begin(camera, view) / End()
+    DepthOf(anchor) float
+    Mode : Off / SceneDepth / Occluders
+  }
+  class OccluderDepthPass {
+    <<NEW, step 2>>
+    depth texture, half size
+    Draw(chunks ground + objects)
+  }
+  class TerrainChunks3D {
+    <<existing>>
+    Draw() ground, objects, trees
+    DrawOccluders() NEW
+  }
+  class DebugGizmoLayer {
+    <<existing>>
+    DrawOverlay() labels + cards
+  }
+  class EntityBodyLayer3D {
+    <<existing>>
+    honours Units.Entities NEW
+  }
+  class LayerControlGizmo {
+    <<existing>>
+    Units.HideLabelsBehindTerrain NEW
+  }
+  EntityCards --> EntityCard
+  DebugGizmoLayer --> LabelOverlay3D
+  DebugGizmoLayer --> EntityCardRenderer
+  EntityCardRenderer ..> CardOcclusion : wraps the draw
+  LabelOverlay3D ..> CardOcclusion : wraps the draw
+  CardOcclusion ..> OccluderDepthPass : step 2 samples
+  OccluderDepthPass ..> TerrainChunks3D : DrawOccluders
+  LayerControlGizmo ..> CardOcclusion : the toggle
+```
+*What it shows that prose hid: the occlusion is ONE wrapper both overlay drawers pass through (cards and place text), not a change to either
+drawer; and the orphan fix lives in the card API every gizmo already calls (`EntityCards.Card`), so no gizmo can forget it — by construction, on
+every host, in 2-D and 3-D, in-process and on a remote IG.*
+
+#### One 3-D frame
+
+```mermaid
+sequenceDiagram
+  participant M as MapCanvas
+  participant T as TerrainChunks3D
+  participant O as OccluderDepthPass (step 2)
+  participant G as DebugGizmoLayer.DrawOverlay
+  participant X as CardOcclusion
+  participant R as EntityCardRenderer / LabelOverlay3D
+  M->>T: Draw3D - ground, objects, trees (unchanged)
+  Note over O,T: step 2 only, when the toggle is on and a card is drawn
+  O->>T: DrawOccluders - ground + objects, depth only, half size
+  M->>G: DrawOverlay (after EndMode3D)
+  G->>X: Begin(camera) - step 1 depth test on / step 2 the occluder shader
+  G->>R: place labels, then cards - each at its anchor's depth
+  R->>X: DepthOf(anchor) per card / label
+  Note over R: the selected unit's card is drawn after End(), test off
+  G->>X: End() - depth test off, shader off
+```
+*What it shows: nothing in the 3-D pass moves in step 1 — the cards test against the depth buffer the pass left behind; step 2 adds ONE
+depth-only draw of the occluders, and the cards then test against it instead, so trees never take part.*
+
+#### Who draws what, each frame
+
+```mermaid
+graph TD
+  PACK[MapInteractionPack - composes the canvas] --> CAN[MapCanvas.Draw - every frame]
+  CAN --> TER[TerrainLayer3D.Draw3D - TerrainChunks3D]
+  CAN --> BOD[EntityBodyLayer3D.Draw3D - reads Units.Entities NEW]
+  CAN --> GZ[DebugGizmoLayer.DrawOverlay]
+  GZ --> OCC[CardOcclusion]
+  OCC -.step 2.-> OP[OccluderDepthPass - DrawOccluders]
+  GZ --> LBL[LabelOverlay3D - place text]
+  GZ --> CRD[EntityCardRenderer - cards]
+  HOST[host gizmos - every node] --> API[EntityCards.Card - orphan rule NEW]
+  API --> FRAME[primitive frame - in-process or DDS]
+  FRAME --> GZ
+  FLAT[2-D map - MapCanvas.DrawLayers2D]:::nodepth -.no occlusion in 2-D.-> CRD
+  classDef nodepth stroke:#c80,color:#c80,stroke-dasharray: 5 5
+```
+*What it shows: the orphan rule and the moved rows act on the HOST, so 2-D and 3-D and a remote IG get them by construction; the occlusion acts
+only in the 3-D overlay — the dashed edge: the 2-D map has no terrain in front of anything and is unchanged.*
+
+#### Decisions — the user's (CE-4582), and how each is carried
+
+| # | decision | how | why / rejected |
+|---|---|---|---|
+| **D-1** | **a card / place label is depth-tested at its ANCHOR's depth, per pixel** (the user's A) | `CardOcclusion.DepthOf(anchor)` = the anchor's window depth under the 3-D projection; the card is drawn in 2-D with `rlPushMatrix` + a z translate that maps the 2-D ortho depth to that value, `rlEnableDepthTest`, `rlDisableDepthMask`; the leader line the same | ⛔ B (a ray per label, CPU — the UI thread is the bottleneck, §6ak); ⛔ C (read-back — no GL interop; it stalls) |
+| **D-2** | **the whole stack hides together** | one card per unit (it already is, keyed by network id): every row is drawn at the card's ONE anchor depth ⇒ the frame, the bar, the stress rows are cut by the same line | — |
+| **D-3** | **trees never hide a card** (the user's "trees after the cards") | ⛔ a draw-order change cannot do it: with no stencil and no depth function in the binding, a card drawn before the trees is painted over by any tree nearer than the ground behind it (even a tree BEHIND the unit). ⭐ **step 2: an occluder depth pass** — ground + objects only (no vegetation), depth-only into a half-size depth texture (`rlLoadFramebuffer` + `rlLoadTextureDepth` + `rlFramebufferAttach`), the coarsest ground level; the card shader samples it and discards a fragment whose anchor depth is behind it; the hardware depth test is OFF in step 2 | ⭐ **step 1 (D-1 alone) ships first**: trees in FRONT of a unit cut its card like any obstacle. ⭐ Step 2 is built behind a MEASURED budget: ≤ 1.0 ms added on the user's Windows machine at §6ak.5's whole-terrain and street views. Over budget ⇒ the builder keeps step 1, reports the numbers, and the user decides |
+| **D-4** | **the selected unit's card is always visible** | `EntityCardRenderer.AlwaysOnTop(netId)` — the host's selection (`SelectionState`, as §6ak D-7's Full body) passed as a delegate like `LabelLift`; those cards are drawn after `CardOcclusion.End()` | — |
+| **D-5** | **a toggle**: Units ▸ *Hide labels behind terrain*, ON by default; OFF = today (M13, on top) | `LayerControlGizmo` Units row (`DebugTraceLayers.HideLabelsBehindTerrain`, the next free bit), read by `CardOcclusion.Mode` | supersedes M13's "on top" for the default only |
+| **D-6** | **no orphan card**: a row on any layer but Labels draws only while Labels is on | `EntityCards.Card(net, layer)` returns an INERT card when `layer != LabelsLayer && !draw.IsLayerActive(LabelsLayer)` — ONE rule, in the API every gizmo calls; `LabelsLayer` defined once in Contracts, `DebugTraceLayers.Labels` = it | ⛔ filtering in the renderer: the renderer is in GizmoMap and would need the layer meaning; ⛔ per gizmo: eight copies |
+| **D-7** | **no free per-unit text: each becomes a row of ITS unit's card, on its own layer** | the 8 sites of the INVENTORY → `draw.Card(net, <its layer>).Row(n)`; a line ABOUT a member is drawn on the member's card (`SquadGizmo:54` E/R, `CommandPictureGizmo:93` progress), the leader's own lines on his; `EffectStateGizmo:39`'s fallback stays only for an entity with no network id (it has no card) | rows: Squad command 60–61, Actions 70–71, Utility 72, Unit details 80–81 (after the existing 10–50), mockup B |
+| **D-8** | **text at a PLACE stays free, but is depth-tested the same way** | the place labels go through `LabelOverlay3D`, inside the same `CardOcclusion` scope (anchor = the place) | the CE-4582 list (cover-slot heat, slot numbers, contacts, requests, waypoints, EQS scores, exposure, fuze, charge, named points, sectors, danger areas, grid, shape-done) — unchanged gizmos |
+| **D-9** | **the 3-D bodies honour Units ▸ Entities**; a hidden body is not pickable | `EntityBodyLayer3D.Draw3D` reads `ctx.VisibleLayersMask` bit 0; the pick index records only drawn boxes (§6ak D-6) ⇒ not pickable by construction | — |
+| **D-10** | **0 B per steady frame** (R-2084) | `DepthOf` is arithmetic; the occluder pass reuses its framebuffer (re-created only on a resize or a new window, as `EnsureWireSphere`) | rail: `GC.GetAllocatedBytesForCurrentThread` across a steady frame |
+
+#### Acceptance
+
+1. A frame rail (`xvfb-run -a`): a unit beyond a ridge — its card's pixels below the ridge line are not drawn, above it they are; a unit in
+   front — whole; the selected unit beyond the ridge — whole; toggle OFF — whole (today).
+2. Labels off + Mind state on ⇒ no card (rail on the host frame: zero `EntityCard` primitives for that unit).
+3. Each moved row appears on the right card with its layer: the leader's `SQUAD n ph` on the leader, a member's `E… R…` on the member; its
+   layer off ⇒ the row gone, the card stays.
+4. Entities off ⇒ no body drawn, a click there picks nothing.
+5. A place label behind the ridge is cut the same way.
+6. Step 2 (if within budget): a unit inside a wood keeps its whole card; the numbers in the report; the fallback (a framebuffer that is not
+   complete) draws step 1 and logs once.
+7. 0 B steady frame; language-neutral (R-4221) on every moved row.
 
 ## 7. NOT VERIFIED — say so before it is built on
 
