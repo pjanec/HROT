@@ -821,6 +821,7 @@ class Program
         }
         finally
         {
+            orchestrator.StopSimWorker();   // ⭐ CE-4574 (X-5) — no step runs while the API host and then the subsystems tear down
             clusterApiHost?.Dispose();
             orchestrator.Shutdown();
             if (windowCtrl?.IsLocalWindowOpen == true)

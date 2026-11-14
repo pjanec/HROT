@@ -64,6 +64,36 @@ public sealed class PerEntityRuleTests
         public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
     }
 
+    /// <summary>⭐ CE-4568 (X-6) — the shape of <c>ObjectiveHost.Enter</c>: add an own component, then take its authority, in one call.</summary>
+    private struct AddWithAuthorityJob : IEntityBatchJob
+    {
+        public EntityRepository Repo;
+        public void Execute(Entity e, int index, BatchContext ctx)
+        {
+            if (!Repo.HasComponent<Tag>(e)) { Repo.AddComponent(e, new Tag { From = index }); Repo.SetAuthority<Tag>(e, true); }
+        }
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4568 (X-6) — in a phase, the authority on a component the job just ADDED rides the batch right after the add: after the phase the
+    /// component is there and owned. 📐 It threw "component is not present" (the add was deferred, the authority write was not), so a trigger
+    /// created at run time — the instructor's End, a game-master rule — faulted every tick and never ran. 🔴 Red-proof: no deferral in
+    /// <c>SetAuthority</c> ⇒ the phase throws.
+    /// </summary>
+    [Fact]
+    public void X6_AnAddThenItsAuthority_InAPhase_LandTogether()
+    {
+        FdpWorkerPool.Resize(4);
+        using var w = World(300, out var list);
+        ParallelEntities.Run(w, list, list.Length, new AddWithAuthorityJob { Repo = w });
+        for (int i = 0; i < list.Length; i++)
+        {
+            Assert.True(w.HasComponent<Tag>(list[i]));
+            Assert.True(w.HasAuthority<Tag>(list[i]));
+        }
+    }
+
     private static EntityRepository World(int n, out Entity[] list)
     {
         var w = new EntityRepository();

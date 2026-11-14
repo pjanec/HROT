@@ -1639,6 +1639,13 @@ thread count, so not a race in the sense of a lost write: the thread count chang
 ⭐ The gate: `stepped-hash.py --chunk 40` — 6 runs at 1 / 4 / 8 threads, STATE EQUAL with every switch off AND with every phase on
 (`HROT_PARALLEL_SIM=1`). ⚠ A paused preview entry that slips one step (Windows V-4) does not reproduce on Linux (32 runs, all 240 steps).
 
+⭐ **The paused entry takes ZERO steps — checked by the gate itself** *(CE-4570, X-4, `2026-11-14`)*. After `/preview/enter {startPaused}`
+the gate waits a second of real frames and FAILS the run if the world's clock is not at 0 before the first `/sim/step`. A slipped step is
+then named as the ENTRY's, never mistaken for a step of the run (`scripts/stepped-hash.py`). 📐 Linux: still not reproduced, 0 extra steps
+in 49 runs (both kernels). ⏳ Windows V-4 measured it with the switch off, always: the next Windows run of the gate localises it. Read, not
+proven: `POST /sim/step` decides "from edit" with the time facade's mode and "in preview" with the preview adapter, two readers that may
+disagree for a frame (status D-X4a).
+
 ## 18. ⭐⭐⭐ `CE-4087` — **A LATE SIMHOST AND A SWALLOWED PLAY: who is in the step set, and a time command is never silent** *(AS-BUILT `2026-10-28`, backend)*
 
 📐 **The measured report (the `CE-4080` run, `2026-10-28`).** Orchestrator + CGF + SimHost started back to back and a live load posted at once: the

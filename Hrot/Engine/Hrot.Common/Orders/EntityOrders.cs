@@ -86,20 +86,19 @@ namespace Hrot.Common.Orders
         public OrderResult Move(int unit, double? lat = null, double? lon = null, float? x = null, float? y = null,
             float? speed = null, float? arrivalRadius = null, string? roadUse = null)
         {
-            // ⭐ CE-2143 (D4-A) — the MOVE order's DTO (MoveOrder: Location [lat, lon], Speed, ArrivalRadius, RoadUse), never a
-            //   behaviour: the unit picks how it moves (§8). Without a transform, x/y travel as [y, x] (OrderGeo's fallback).
+            // ⭐ CE-2143 (D4-A) — the MOVE order's DTO (MoveOrder: Location, Speed, ArrivalRadius, RoadUse), never a behaviour: the unit
+            //   picks how it moves (§8). ⭐ CE-4575 — Location is local metres [x, y, 0] (S0 item 5, OrderPoints): x/y as given; lat/lon through
+            //   this node's frame. ⛔ It wrote the retired geodetic [lat, lon] (and [y, x] without a frame), which the brain could not parse —
+            //   the order was dropped while the route answered ok.
             JsonArray location;
-            if (lat is double la && lon is double lo) location = new JsonArray(la, lo);
-            else if (x is float px && y is float py)
+            if (lat is double la && lon is double lo)
             {
-                if (_geo != null && _geo.HasFrame)   // CE-4396: a local-only frame falls back like no transform
-                {
-                    var (gLat, gLon, _) = _geo.ToGeodetic(new System.Numerics.Vector3(px, py, 0f));
-                    location = new JsonArray(gLat, gLon);
-                }
-                else location = new JsonArray((double)py, (double)px);
+                if (_geo == null || !_geo.HasFrame)   // CE-4396: a local-only frame has no geodetic origin
+                    return OrderResult.Refused(OrderRefusal.BadRequest, "lat/lon needs a node with a geographic frame; give x, y (local metres).");
+                location = OrderPoints.Of(_geo.ToCartesian(la, lo, 0));
             }
-            else return OrderResult.Refused(OrderRefusal.BadRequest, "A move needs lat+lon or x+y.");
+            else if (x is float px && y is float py) location = OrderPoints.Of(new System.Numerics.Vector2(px, py));
+            else return OrderResult.Refused(OrderRefusal.BadRequest, "A move needs x+y (local metres) or lat+lon.");
 
             var p = new JsonObject { ["Location"] = location };
             if (speed is float s) p["Speed"] = s;
@@ -151,6 +150,10 @@ namespace Hrot.Common.Orders
             if (malformed.Count > 0)
                 return OrderResult.Refused(OrderRefusal.BadRequest,
                     $"{order.Name}: {string.Join("; ", System.Linq.Enumerable.Select(malformed, m => $"{m.Field.Name} {m.Why}"))}.");
+            // ⭐ CE-4575 — the receiver's own parse, here: an order the brain would drop ("params did not parse") is refused, named, instead of
+            //   answered ok (the same DTO and options the unit's ingress deserializes with)
+            try { System.Text.Json.JsonSerializer.Deserialize(json, order.Dto, Fdp.Toolkit.Behavior.BehaviorParams.JsonOptions); }
+            catch (System.Text.Json.JsonException e) { return OrderResult.Refused(OrderRefusal.BadRequest, $"The {order.Name} params do not parse: {e.Message}"); }
             if (!TryAddress(unit, out var entity, out var refused)) return refused;
             var r = OrderMenu.Resolve(_world.GetDisType(entity), order.Name);
             if (r.Outcome != Hrot.Core.Tkb.OrderResolution.Resolved) return OrderResult.Refused(OrderRefusal.NotFulfilled, r.Detail);

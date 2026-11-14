@@ -43,6 +43,44 @@ namespace Fdp.Core.Tests.Diagnostics
 
         // ── Tests ─────────────────────────────────────────────────────────────
 
+        private sealed class Said { public string Text = ""; public int Count; }
+
+        /// <summary>
+        /// ⭐ CE-4565 (X-10; CLAUDE.md HOT PATH) — a steady tick's capture builds NO text: 0 B with a managed event (kept as is) or none, and for an
+        /// unmanaged event only its box; the summary is built when the history is READ, with the same text as before. 🔴 Red-proof: the summary
+        /// built in <c>Capture</c> again (<c>SummaryOf(evt)</c> per event) ⇒ hundreds of bytes per tick.
+        /// </summary>
+        [Fact]
+        public void X10_ASteadyCapture_BuildsNoText_TheSummaryIsBuiltOnRead()
+        {
+            using var bus = new FdpEventBus();
+            bus.Register<WorldEvent>();
+            bus.RegisterManaged<Said>();
+            var svc = new DiagnosticEventHistoryService();
+            var said = new Said { Text = "contact", Count = 3 };
+            for (int warm = 0; warm < 3; warm++) { bus.PublishManaged(said); bus.Publish(new WorldEvent { Value = 7 }); bus.SwapBuffers(); svc.Capture("World", bus, 1); }
+
+            bus.PublishManaged(said); bus.SwapBuffers();                                     // a managed event only
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            svc.Capture("World", bus, 2);
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+
+            bus.SwapBuffers();                                                               // no event
+            before = GC.GetAllocatedBytesForCurrentThread();
+            svc.Capture("World", bus, 3);
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+
+            bus.Publish(new WorldEvent { Value = 7 }); bus.SwapBuffers();                    // an unmanaged event: its box, no text
+            before = GC.GetAllocatedBytesForCurrentThread();
+            svc.Capture("World", bus, 4);
+            Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 1, 32);
+
+            var history = svc.GetHistory();
+            Assert.Equal("Value:7", history[^1].Summary);                                     // built on read, the same text
+            Assert.Equal("Text:contact  Count:3", history[^2].Summary);
+        }
+
+
         [Fact]
         public void GetHistory_After600Pushes_Returns500()
         {

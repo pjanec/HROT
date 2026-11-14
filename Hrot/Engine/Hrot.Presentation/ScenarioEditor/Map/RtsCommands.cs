@@ -122,18 +122,13 @@ namespace Hrot.ScenarioEditor.Map
             return new OrderResult(OrderRefusal.BadRequest, $"{order.Name} needs the order form.", string.Empty, string.Empty);
         }
 
-        /// <summary>The clicked point as an order's geodetic point (without a transform, [y, x] — OrderGeo's fallback).</summary>
+        /// <summary>The clicked point as an order's point.</summary>
         private JsonArray Point(Vector2 at) => OrderPoint(_world, at);
 
-        /// <summary>⭐ <c>CE-1213</c> — a world point as an order's geodetic point, for any front-end (the first-person command wheel
-        /// too): <c>[lat, lon]</c>, or <c>[y, x]</c> without a transform (OrderGeo's fallback).</summary>
-        public static JsonArray OrderPoint(EntityRepository world, Vector2 at)
-        {
-            var geo = world.HasSingletonManaged<IGeographicTransform>() ? world.GetSingletonManaged<IGeographicTransform>() : null;
-            if (geo == null || !geo.HasFrame) return new JsonArray((double)at.Y, (double)at.X);
-            var (lat, lon, _) = geo.ToGeodetic(new Vector3(at.X, at.Y, 0f));
-            return new JsonArray(lat, lon);
-        }
+        /// <summary>⭐ <c>CE-1213</c> — a world point as an order's point, for any front-end (the first-person command wheel too): local metres
+        /// <c>[x, y, 0]</c> (⭐ CE-4575 — <see cref="Hrot.Common.Orders.OrderPoints"/>; ⛔ it wrote the geodetic <c>[lat, lon]</c> that S0 item 5
+        /// retired, so a ground-click move was dropped on the brain).</summary>
+        public static JsonArray OrderPoint(EntityRepository world, Vector2 at) => Hrot.Common.Orders.OrderPoints.Of(at);
 
         private Entity EntityAt(Vector2 worldXY)
         {

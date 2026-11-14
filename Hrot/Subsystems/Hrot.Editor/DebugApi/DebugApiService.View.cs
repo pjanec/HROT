@@ -13,9 +13,13 @@ namespace Hrot.Editor.DebugApi
     /// </summary>
     public sealed partial class DebugApiService
     {
+        /// <remarks>⭐ CE-4571 (X-7) — a UI-side route (<see cref="DebugApiRouteSides"/>): it reads the SHOWN world (A on the threaded editor, the
+        /// one world otherwise), the world the map draws and publishes its view under. ⛔ It read the sim's world: threaded, the telemetry was never
+        /// found (<i>"no map canvas"</i>) and the in-view walk read S from the UI thread.</remarks>
         public JsonNode GetView(int limit)
         {
-            var view = ViewTelemetry.Of(_world);
+            var world = ShownWorld;
+            var view = ViewTelemetry.Of(world);
             var result = new JsonObject();
             if (view is null)
             {
@@ -40,7 +44,7 @@ namespace Hrot.Editor.DebugApi
                 if (view.ZoomFovDeg is { } z) result["zoomFovDeg"] = MathF.Round(z, 1);
 
                 var units = new JsonArray();
-                foreach (var u in ViewReader.InView(_world, view, limit))
+                foreach (var u in ViewReader.InView(world, view, limit))
                     units.Add(new JsonObject
                     {
                         ["networkId"] = u.NetworkId, ["name"] = u.Name, ["distance"] = MathF.Round(u.Distance, 1),
@@ -56,7 +60,7 @@ namespace Hrot.Editor.DebugApi
             var (primary, all) = SelectionOf(ShownWorld, ShownMap);
             result["selection"] = all;
             result["primary"] = primary;
-            if (ViewControl.Of(_world)?.Following is { } follow)   // ⭐ CE-1293 (UC-10) — the unit the camera follows
+            if (ViewControl.Of(world)?.Following is { } follow)   // ⭐ CE-1293 (UC-10) — the unit the camera follows
             {
                 result["following"] = NetworkIdOrNull(follow.Unit);
                 result["followDistance"] = MathF.Round(follow.Distance, 2);
@@ -71,7 +75,7 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public (JsonNode? Result, string? Error) FollowUnit(int? networkId, float? distance)
         {
-            if (ViewControl.Of(_world) is not { } view)
+            if (ViewControl.Of(ShownWorld) is not { } view)   // ⭐ CE-4571 — the map is registered under the world it draws
                 return (null, "No map canvas draws this world (a headless host): there is no camera to follow with.");
             if (networkId is not { } id)
             {
@@ -106,6 +110,6 @@ namespace Hrot.Editor.DebugApi
         }
 
         private int? NetworkIdOrNull(Entity e)
-            => e != Entity.Null && _entityMap.TryGetNetworkId(e, out var id) ? id : null;
+            => e != Entity.Null && ShownMap.TryGetNetworkId(e, out var id) ? id : null;   // ⭐ CE-4571 — an entity of the shown world
     }
 }

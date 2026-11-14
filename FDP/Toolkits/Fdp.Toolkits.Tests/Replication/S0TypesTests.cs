@@ -159,6 +159,18 @@ namespace Fdp.Toolkits.Tests.Replication
             Assert.Contains("\"Ref\":\"@Crossroads\"", Json(resolved));
         }
 
+        /// <summary>⭐ CE-4575 (X-9) — a point reads as the send-time check accepts it: <c>[x, y]</c> (z = 0) or <c>[x, y, z]</c>; anything else
+        /// is LOUD. 🔴 Red-proof: the options' three-number <c>Vector3</c> reader back ⇒ <c>[30, -40]</c> throws.</summary>
+        [Fact]
+        public void PointLink_ReadsTwoOrThreeNumbers_AndRefusesAnythingElse()
+        {
+            Assert.Equal(new Vector3(30, -40, 0), (Vector3)Read<PointLink>("[30, -40]"));
+            Assert.Equal(new Vector3(30, -40, 2), (Vector3)Read<PointLink>("{\"Local\":[30, -40, 2]}"));
+            Assert.Throws<JsonException>(() => Read<PointLink>("[1]"));
+            Assert.Throws<JsonException>(() => Read<PointLink>("[1, 2, 3, 4]"));
+            Assert.Throws<JsonException>(() => Read<PointLink>("[\"a\", \"b\"]"));
+        }
+
         // ── AreaLink ──────────────────────────────────────────────────────────────────────────────────────────────────
 
         [Fact]

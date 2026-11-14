@@ -98,15 +98,38 @@ public sealed class DebugApiOrdersTests
         Assert.Equal(400, status);
         Assert.Contains("Move", error);
 
-        // ⭐ CE-2176 — a point is [lat, lon]: a local [y, x] is refused, named, here — 📐 live it was accepted and then thrown on by the
-        //   brain's geo transform, and the order vanished without a word
+        // ⭐ CE-2176 / CE-4575 — a point the receiver would throw on is refused, named, here (📐 live it was accepted, then dropped on the brain
+        //   without a word). ⛔ SUPERSEDED: "a point is [lat, lon], a local [y, x] is out of range" — S0 item 5 made every point local metres.
         (_, status, error, _) = svc.PostOrder(UnitId, new JsonObject
         {
-            ["kind"] = "Move", ["params"] = new JsonObject { ["Location"] = new JsonArray(-195.0, 720.0) },
+            ["kind"] = "Move", ["params"] = new JsonObject { ["Location"] = new JsonArray(1.0) },
         });
         Assert.Equal(400, status);
         Assert.Contains("Location", error);
-        Assert.Contains("out of range", error);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4575 (X-9) — the route's DOCUMENTED move form <c>{kind:'move', x, y}</c> LANDS: the soldier runs his class's move (the brain
+    /// parsed it), and a point that would not parse answers 400, never ok. 📐 The route wrote the geodetic <c>[lat, lon]</c> S0 item 5 retired
+    /// (and <c>[y, x]</c> without a frame); the brain's three-number reader threw — <i>"dropped 'PersonMove' … params did not parse"</i> —
+    /// while the route answered ok. 🔴 Red-proof: <c>EntityOrders.Move</c> writing <c>[y, x]</c> again ⇒ PersonMove never becomes active.
+    /// </summary>
+    [Fact]
+    public void X9_TheDocumentedMoveForm_Lands_AndAnUnparseablePointIsRefused()
+    {
+        using var h = new EditorHarness(productionBehaviors: true);
+        var svc = h.BuildDebugApiService();
+        Unit(h, UnitId, ForceId.Friend, Vector3.Zero);
+        var (_, status, error, _) = svc.PostOrder(UnitId, new JsonObject { ["kind"] = "move", ["x"] = 30f, ["y"] = -40f });
+        Assert.Null(error);
+        Assert.Equal(200, status);
+        h.PumpFrames(4);
+        // the soldier's class ran ITS move — still running, or already ended (this world drives no navigation); a dropped order leaves none
+        Assert.Equal(BehaviorNames.PersonMove, svc.GetOrder(UnitId)["behavior"]?.GetValue<string>());
+
+        (_, status, error, _) = svc.PostOrder(UnitId, new JsonObject { ["kind"] = "Move", ["params"] = new JsonObject { ["Location"] = new JsonArray("a", "b") } });
+        Assert.Equal(400, status);
+        Assert.Contains("Location", error);
     }
 
     [Fact]

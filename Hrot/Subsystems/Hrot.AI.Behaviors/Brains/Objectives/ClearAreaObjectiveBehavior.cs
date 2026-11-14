@@ -39,6 +39,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         public static NodeStatus Tick(ref Block b, Entity self, EntityRepository world)
         {
             var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run);
+            if (!f.Ready) return NodeStatus.Running;   // ⭐ CE-4568 — its components land at the merge; it begins next tick
             if (f.Reset) { b.ClearFor = 0; b.LastEnemy = 0; }   // SR-114: a reset clears the working state
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             if (f.Evaluate)

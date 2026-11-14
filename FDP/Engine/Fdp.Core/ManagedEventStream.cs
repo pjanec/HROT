@@ -58,6 +58,9 @@ namespace Fdp.Core
         // The interface requires the READ buffer count.
         int IEventStreamInspector.Count => _front.Count;
 
+        /// <inheritdoc/>
+        public object ReadItem(int index) => _front[index]!;
+
         public IEnumerable<object> InspectReadBuffer()
         {
             foreach (var item in _front)

@@ -990,6 +990,7 @@ forget the presentation, because the bootstrap builds it from the one parameter.
 | ⭐ the run controls of a staged host read the orchestration MIRROR (`PresentationEventBus`, `UiClusterView`) | `NodeRunControls.For(node)` picks it — every host, by construction |
 | ⭐ proof: `HROT_WORLD_GUARD=1` silent on an editor session and a player + server session | the guard names every UI read of S and every off-thread write |
 | ⭐⭐ non-world state crosses ONLY as a readout (sim → UI) or an uplink (UI → sim), both immutable, a new one only on change | the editor's session / Run-to / review readouts and the deploy flow use the one channel; the 3-D map's build the uplink |
+| ⭐⭐ **SHUTDOWN ORDER** (CE-4574, X-5, `2026-11-14`): the sim worker is STOPPED and JOINED before anything it touches is disposed — `SubsystemOrchestrator.Shutdown` calls `StopSimWorker` first (the runner's `finally` calls it before the API host goes); `StagedPresentation.Dispose` joins its own worker and a host step after `_stop` does nothing. ⛔ No timeout on the join (it logs after 5 s and keeps waiting) | 📐 the worker kept publishing through the shutdown into a staging world being freed ⇒ `AccessViolationException` in `SyncPresentationCore` on every editor exit. Rail `OneSimWorkerTests.X5_*` (start → play → shutdown × 20) |
 
 ### 15.5 As built *(`2026-11-13`)*
 

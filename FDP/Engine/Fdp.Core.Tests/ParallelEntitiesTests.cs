@@ -75,6 +75,55 @@ public sealed class ParallelEntitiesTests
         return (sb.ToString(), string.Join(",", log));
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-7036 (X-2) — two worlds' phases of the SAME job type run at once on two threads (two test classes, a second in-process node): each
+    /// gets its own result. 📐 The runner was one per job type per process (it holds the job, the entities and the batch contexts), so the
+    /// concurrent phases overwrote each other — the drill and SOP suites under HROT_PARALLEL_SIM=1 failed 10–23 rotating tests in one run.
+    /// 🔴 Red-proof: the runner back to one static instance ⇒ the threads' results differ from the reference.
+    /// </summary>
+    [Fact]
+    public void X2_TheSameJobType_OnTwoWorlds_OnTwoThreads_AtOnce_GivesEachItsOwnResult()
+    {
+        try
+        {
+            FdpWorkerPool.Resize(4);
+            ParallelEntities.Mode = SimulationMode.Deterministic;
+            string reference = RunOnce();
+            var results = new string[4][];
+            var faults = new Exception?[4];
+            var threads = new Thread[4];
+            for (int t = 0; t < threads.Length; t++)
+            {
+                int k = t;
+                results[k] = new string[25];
+                // a corrupted phase THROWS (an index past a batch) — caught here, so the rail fails on its own instead of aborting the run
+                threads[k] = new Thread(() =>
+                {
+                    try { for (int i = 0; i < results[k].Length; i++) results[k][i] = RunOnce(); }
+                    catch (Exception ex) { faults[k] = ex; }
+                });
+            }
+            foreach (var th in threads) th.Start();
+            foreach (var th in threads) th.Join();
+            for (int t = 0; t < faults.Length; t++)
+                Assert.True(faults[t] is null, $"thread {t}: a concurrent phase of the same job type threw — {faults[t]?.GetType().Name}: {faults[t]?.Message}");
+            for (int t = 0; t < results.Length; t++)
+                for (int i = 0; i < results[t].Length; i++)
+                    Assert.True(reference == results[t][i], $"thread {t}, run {i}: a concurrent phase of the same job type changed this world's result");
+        }
+        finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); ParallelEntities.Mode = SimulationMode.Deterministic; }
+
+        static string RunOnce()
+        {
+            using var w = World(2000, out var target, out var list);
+            var log = new List<int>();
+            ParallelEntities.Run(w, list, list.Length, new TheJob { Repo = w, Target = target, Log = log });
+            var sb = new System.Text.StringBuilder();
+            foreach (var e in w.Query().With<Counter>().Build()) sb.Append(e.Index).Append(':').Append(w.GetComponentRO<Counter>(e).V).Append(',');
+            return sb.Append('|').Append(string.Join(",", log)).ToString();
+        }
+    }
+
     [Fact]
     public void P0_TheResult_IsTheSame_At1_2_4_8Threads_InDeterministicMode()
     {

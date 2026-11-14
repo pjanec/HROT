@@ -124,6 +124,35 @@ public sealed class TheBrainAndViewRoutesAnswerTests : IDisposable
         Assert.Equal(2000L, _svc.GetSelection()["primary"]!.GetValue<long>());
     }
 
+    /// <summary>⭐ CE-4571 (X-7) — threaded, the map draws (and publishes its view under) the SHOWN world A, not the sim's S: <c>GET /view</c>
+    /// reads A — its camera, its units in view, their ids from A's map — and <c>POST /view/follow</c> finds the map drawing A. 🔴 Red-proof:
+    /// <c>GetView</c> reading <c>_world</c> again ⇒ <i>"no map canvas"</i> (camera null).</summary>
+    [Fact]
+    public void X7_TheViewRoutes_ReadTheShownWorld_NotTheSims()
+    {
+        using var shown = new EntityRepository();
+        shown.RegisterComponent<SimTransform>();
+        shown.RegisterComponent<NetworkIdentity>();
+        shown.RegisterComponent<SelectionState>();
+        shown.RegisterComponent<CullingState>();
+        var shownMap = new NetworkEntityMap();
+        var e = shown.CreateEntity();
+        shownMap.Register(4000, e);
+        shown.AddComponent(e, new NetworkIdentity(4000));
+        shown.AddComponent(e, new SimTransform { Position = new Vector3(0, 50, 0), Rotation = Quaternion.Identity });
+        _svc.PresentationWorld = shown;
+        _svc.PresentationMap = shownMap;
+        ViewTelemetry.Publish(shown, new ViewSnapshot("FPS", Vector3.Zero, Vector3.UnitY, 90f, 0f, 0f, 45f, new Vector2(1600, 900),
+            null, null, e, AimTarget: 4000, ZoomFovDeg: null, PublishedAtSeconds: 0));
+
+        var view = _svc.GetView(50);
+        Assert.Equal("FPS", view["mode"]!.GetValue<string>());
+        Assert.Equal(4000, view["possessed"]!.GetValue<int>());                       // the id from A's map
+        Assert.Equal(4000, Assert.Single(view["inView"]!.AsArray())!["networkId"]!.GetValue<int>());
+        var (_, error) = _svc.FollowUnit(4000, null);
+        Assert.Contains("No map canvas", error);                                      // no map draws A here: the refusal names the camera, not "not found"
+    }
+
     /// <summary>⭐ CE-1451 — <c>GET /view</c> says a 3-D request is waiting on the map's background build and what that build is doing (what the 2-D map's "Building 3-D map…" shows).
     /// 🔴 Red-proof: drop <c>["pending3D"]</c> from <c>GetView</c> ⇒ red.</summary>
     [Fact]

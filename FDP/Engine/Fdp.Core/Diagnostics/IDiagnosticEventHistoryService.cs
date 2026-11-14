@@ -12,7 +12,16 @@ namespace Fdp.Core.Diagnostics
         string TypeName,
         bool IsManaged,
         string Summary,
-        object? RawEvent);
+        object? RawEvent)
+    {
+        // ⭐ CE-4565 (X-10) — built on the first read when not given (the history passes null: no text per tick)
+        private string? _summary = Summary;
+        public string Summary
+        {
+            get => _summary ??= DiagnosticEventHistoryService.SummaryOf(RawEvent);
+            init => _summary = value;
+        }
+    }
 
     /// <summary>
     /// Headless service that maintains a thread-safe circular buffer of the most-recent

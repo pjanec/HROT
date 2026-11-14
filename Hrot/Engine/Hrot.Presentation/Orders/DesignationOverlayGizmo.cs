@@ -40,23 +40,22 @@ public sealed class DesignationOverlayGizmo : IEntityStatefulGizmo
         if (view is not EntityRepository world || OrderDesignations.Of(world) is not { } store) return;
         if (!world.HasSingletonManaged<NetworkEntityMap>() || !world.IsComponentTypeRegistered<SimTransform>()) return;
         var map = world.GetSingletonManaged<NetworkEntityMap>()!;
-        var geo = world.HasSingletonManaged<IGeographicTransform>() ? world.GetSingletonManaged<IGeographicTransform>() : null;
         foreach (var unit in _selected())
         {
             if (unit.IsNull || !world.IsAlive(unit) || !world.HasComponent<SimTransform>(unit) || !map.TryGetNetworkId(unit, out int id))
                 continue;
             var from = world.GetComponentRO<SimTransform>(unit).Position;
             foreach (var (kind, value) in store.Of(id))
-                DrawOne(world, map, geo, draw, from, kind, value);
+                DrawOne(world, map, draw, from, kind, value);
         }
     }
 
-    private static void DrawOne(EntityRepository world, NetworkEntityMap map, IGeographicTransform? geo, IDebugDrawBuilder draw,
+    private static void DrawOne(EntityRepository world, NetworkEntityMap map, IDebugDrawBuilder draw,
         Vector3 from, DesignationKind kind, JsonNode value)
     {
         if (kind == DesignationKind.MapPoint)
         {
-            if (PointOf(value, geo) is not { } at) return;
+            if (PointOf(value) is not { } at) return;
             draw.DrawLine(from, at, PointColor, 2f, style: LineStyle.Dashed);
             draw.DrawSphere(at, 3f, PointColor, thickness: 2f, sizeMode: SizeMode.WorldMeters);
             return;
@@ -85,14 +84,10 @@ public sealed class DesignationOverlayGizmo : IEntityStatefulGizmo
         }
     }
 
-    /// <summary>A designated point in world metres: geodetic <c>[lat, lon]</c> through the transform; without one, <c>[y, x]</c>
-    /// (OrderGeo's fallback, as <c>MenuOrders</c> writes it).</summary>
-    public static Vector3? PointOf(JsonNode value, IGeographicTransform? geo)
-    {
-        if (value is not JsonArray { Count: >= 2 } a) return null;
-        double p0 = a[0]!.GetValue<double>(), p1 = a[1]!.GetValue<double>();
-        return geo is { HasFrame: true } ? geo.ToCartesian(p0, p1, 0) : new Vector3((float)p1, (float)p0, 0f);
-    }
+    /// <summary>A designated point in world metres — local <c>[x, y(, z)]</c>, as <c>MenuOrders</c> writes it (⭐ CE-4575 —
+    /// <see cref="Hrot.Common.Orders.OrderPoints"/>; ⛔ it read the retired geodetic <c>[lat, lon]</c>, so a designation drew in the wrong place).</summary>
+    public static Vector3? PointOf(JsonNode value)
+        => Hrot.Common.Orders.OrderPoints.TryRead(value, out var at) ? at : null;
 
     public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos) { }
     public void OnDragUpdate(Vector3 worldPos) { }

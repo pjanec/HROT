@@ -27,7 +27,9 @@ namespace Fdp.Core
             SetLifecycleState = 10,
             AddEmptyComponentUnmanaged = 11,
             // Ruling 14 — a surgical field write: Entity + TypeID + ByteOffset + Size + Data.
-            SetUnmanagedComponentField = 12
+            SetUnmanagedComponentField = 12,
+            // ⭐ CE-4568 (X-6) — an authority bit on a component added in the same batch: Entity + TypeID + 1 byte (has authority)
+            SetAuthority = 13
         }
         
         // Simple byte buffer for command stream
@@ -321,6 +323,21 @@ namespace Fdp.Core
         }
 
         /// <summary>
+        /// ⭐ CE-4568 (X-6) — records an authority change on <paramref name="typeId"/> (unmanaged or managed: one id space), played after the ops before it
+        /// (so after the add it follows). 📐 Rule code adds its control components and takes their authority in one call
+        /// (<c>ObjectiveHost.Enter</c>); in a per-entity phase the add is deferred into the batch, so the direct authority write threw
+        /// "component is not present" — a trigger created at run time (the instructor's End, a game-master rule) never ran.
+        /// </summary>
+        public void SetAuthority(Entity entity, int typeId, bool hasAuthority)
+        {
+            EnsureCapacity(1 + 8 + 4 + 1);
+            _buffer[_position++] = (byte)OpCode.SetAuthority;
+            WriteEntity(entity);
+            WriteInt(typeId);
+            _buffer[_position++] = hasAuthority ? (byte)1 : (byte)0;
+        }
+
+        /// <summary>
         /// Records a SetLifecycleState command.
         /// </summary>
         public void SetLifecycleState(Entity entity, EntityLifecycle state)
@@ -545,6 +562,15 @@ namespace Fdp.Core
                         break;
                     }
                     
+                    case OpCode.SetAuthority:
+                    {
+                        Entity entity = ReadEntity(ref readPos, entityRemap);
+                        int typeId = ReadInt(ref readPos);
+                        bool has = _buffer[readPos++] != 0;
+                        if (repo.IsAlive(entity)) repo.SetAuthority(entity, typeId, has);
+                        break;
+                    }
+
                     default:
                         throw new InvalidOperationException($"Unknown opcode: {op}");
                 }

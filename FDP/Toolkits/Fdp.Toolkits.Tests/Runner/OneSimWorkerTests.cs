@@ -80,5 +80,61 @@ namespace Fdp.Toolkits.Tests.Runner
             }
             finally { orch.Stop(); }
         }
+
+        private sealed class Disposable : ISubsystem, ISimSteppedSubsystem
+        {
+            private int _inStep;
+            public volatile bool Disposed;
+            public int StepsAfterShutdown, ShutdownDuringStep, Steps;
+            public string Name => "disposable";
+            public Vector4 TitleBarColor => Vector4.Zero;
+            public void Initialize(SubsystemConfig config) { }
+            public void Update(float deltaTime) { }
+            public void DrawWorld() { }
+            public void DrawUI() { }
+            public void UseHostSimWorker() { }
+            public bool SimStepOnHostWorker()
+            {
+                Interlocked.Exchange(ref _inStep, 1);
+                if (Disposed) Interlocked.Increment(ref StepsAfterShutdown);
+                Thread.Sleep(2);                                // a step takes time: the window a shutdown used to land in
+                Interlocked.Increment(ref Steps);
+                Interlocked.Exchange(ref _inStep, 0);
+                return true;
+            }
+            public void Shutdown()
+            {
+                if (Volatile.Read(ref _inStep) == 1) Interlocked.Increment(ref ShutdownDuringStep);
+                Disposed = true;                                // the worlds are gone from here on
+                Thread.Sleep(5);                                // … and a step that still ran would touch them
+            }
+        }
+
+        /// <summary>
+        /// ⭐ CE-4574 (X-5; docs/DESIGN_Threaded_Presentation.md §15) — <see cref="SubsystemOrchestrator.Shutdown"/> STOPS and JOINS the sim worker
+        /// before any subsystem disposes its worlds: no step is in flight when a Shutdown starts, and none runs after it. 📐 The editor crashed on
+        /// exit (<c>AccessViolationException</c> in <c>SyncPresentationCore</c> during <c>StagingWorlds.Publish</c>): the worker was still
+        /// publishing into a staging world the shutdown had freed. Start → play → shutdown, twenty times.
+        /// 🔴 Red-proof: <c>Shutdown</c> without <c>StopSimWorker</c> ⇒ steps during / after the shutdown.
+        /// </summary>
+        [Fact]
+        public void X5_Shutdown_StopsAndJoinsTheSimWorker_BeforeAnySubsystemDisposes()
+        {
+            for (int round = 0; round < 20; round++)
+            {
+                var s = new Disposable();
+                var orch = new SubsystemOrchestrator(new ISubsystem[] { s });
+                orch.Initialize();
+                orch.StartSimWorker(null);
+                var until = DateTime.UtcNow.AddSeconds(5);
+                while (Volatile.Read(ref s.Steps) < 3 && DateTime.UtcNow < until) { orch.Update(0.016f); Thread.Sleep(1); }
+                Assert.True(s.Steps >= 3, "the worker never stepped");
+                orch.Shutdown();
+                Thread.Sleep(10);                               // a worker that outlived the shutdown would step again in here
+                Assert.Equal(0, s.ShutdownDuringStep);
+                Assert.Equal(0, s.StepsAfterShutdown);
+                Assert.False(orch.SimWorkerAlive);
+            }
+        }
     }
 }

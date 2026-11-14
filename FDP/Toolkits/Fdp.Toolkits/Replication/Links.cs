@@ -335,7 +335,7 @@ namespace Fdp.Toolkit.Replication
             switch (reader.TokenType)
             {
                 case JsonTokenType.Null:       return default;
-                case JsonTokenType.StartArray: return new PointLink(JsonSerializer.Deserialize<Vector3>(ref reader, options));
+                case JsonTokenType.StartArray: return new PointLink(ReadLocal(ref reader));
                 case JsonTokenType.String:     return new PointLink(default, LinkJson.Spec(reader.GetString(), nameof(PointLink)));
                 case JsonTokenType.StartObject:
                     Vector3 local = default; RefSpec spec = default;
@@ -344,7 +344,7 @@ namespace Fdp.Toolkit.Replication
                         if (reader.TokenType != JsonTokenType.PropertyName) continue;
                         string name = reader.GetString()!;
                         reader.Read();
-                        if (name.Equals("Local", StringComparison.OrdinalIgnoreCase)) local = JsonSerializer.Deserialize<Vector3>(ref reader, options);
+                        if (name.Equals("Local", StringComparison.OrdinalIgnoreCase)) local = ReadLocal(ref reader);
                         else if (name.Equals("Ref", StringComparison.OrdinalIgnoreCase) && reader.TokenType == JsonTokenType.String)
                             spec = LinkJson.Spec(reader.GetString(), nameof(PointLink));
                         else reader.Skip();
@@ -353,6 +353,26 @@ namespace Fdp.Toolkit.Replication
                 default:
                     throw new JsonException($"PointLink: unexpected {reader.TokenType} (a point is [x, y, z], \"@Key\" or an entity GUID).");
             }
+        }
+
+        /// <summary>
+        /// ⭐ CE-4575 (X-9) — local metres <c>[x, y]</c> or <c>[x, y, z]</c> (z = 0: the mover puts it on the surface), the form every sender
+        /// writes and the send-time check accepts (<c>OrderMenu.MalformedIn</c>). 📐 It went through the options' <c>Vector3</c> reader, which
+        /// takes exactly three numbers ⇒ a two-number point passed the sender's check and then threw on the brain while the order answered ok.
+        /// </summary>
+        private static Vector3 ReadLocal(ref Utf8JsonReader reader)
+        {
+            if (reader.TokenType != JsonTokenType.StartArray) throw new JsonException("PointLink: a local point is [x, y] or [x, y, z] (metres).");
+            Span<float> v = stackalloc float[3];
+            int n = 0;
+            while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+            {
+                if (reader.TokenType != JsonTokenType.Number || n == 3)
+                    throw new JsonException("PointLink: a local point is [x, y] or [x, y, z] (metres).");
+                v[n++] = reader.GetSingle();
+            }
+            if (n < 2) throw new JsonException("PointLink: a local point is [x, y] or [x, y, z] (metres).");
+            return new Vector3(v[0], v[1], n == 3 ? v[2] : 0f);
         }
 
         public override void Write(Utf8JsonWriter writer, PointLink value, JsonSerializerOptions options)

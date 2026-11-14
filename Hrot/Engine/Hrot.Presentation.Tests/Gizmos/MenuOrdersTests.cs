@@ -410,6 +410,22 @@ public sealed class MenuOrdersTests : IDisposable
         _ = mi;
     }
 
+    /// <summary>⭐ CE-4575 (X-9) — the HTTP / MCP move (<c>EntityOrders.Move</c>) sends its point as local metres <c>[x, y, 0]</c>, the form
+    /// the brain reads (S0 item 5); lat/lon on a node with no geographic frame is refused, never guessed. 🔴 Red-proof: the old
+    /// <c>[y, x]</c> fallback back ⇒ the published Location is <c>[-40,30]</c>.</summary>
+    [Fact]
+    public void X9_TheMoveSendsLocalMetres_AndLatLonWithoutAFrameIsRefused()
+    {
+        var orders = new EntityOrders(_w, _map, geo: null);
+        var sent = orders.Move(UnitId, x: 30f, y: -40f);
+        Assert.True(sent.Accepted, sent.Detail);
+        Assert.Contains("\"Location\":[30,-40,0]", sent.JsonParams);
+
+        var refused = orders.Move(UnitId, lat: 50.0, lon: 14.0);
+        Assert.Equal(OrderRefusal.BadRequest, refused.Refusal);
+        Assert.Contains("geographic frame", refused.Detail);
+    }
+
     /// <summary>⭐ CE-1230 (docs/designs/gizmos-1/canvas-context-menu-design.md §11 OM-2, OM-3, R-1019) — the map's (and so the ORBAT
     /// tree's) menu embarks and disembarks: a man on foot offers "Embark…", which picks the vehicle on the map and boards him; aboard, he
     /// offers "Disembark", which sends him out of the vehicle he is in; a vehicle offers neither. ✅ Red-proof: the Embark handler not

@@ -626,6 +626,40 @@ asset, which component types it reads and whether the entity is the unit itself 
 ⚠ Not yet measured: the per-read cost of that check on the hot path (the tracer counted ~10⁹ accesses per run) — a static "parallel phase active"
 flag checked first keeps serial code near free; to measure before the build. ⭐ **Measured (CE-4454): §18.3** — flag off no measurable cost; own +1.5–2.7 ns; another entity cheaper than today.
 
+#### 18.2a ⭐ As built — who declares, and the rail that keeps it true *(CE-7035, X-1, `2026-11-14`)*
+
+| | |
+|---|---|
+| ⭐⭐ **the phase that READS declares** — the brains' phase through `BrainPhase.Contribute(key, …, declareReads)`: the toolkit's `BrainReads` (library behaviours, helpers, generated code) and the AI assembly's `AiBrainReads` (types above the toolkit: `RoutePlan`), contributed by `CgfBehaviorSetup.LoadFromAiAssembly` — the one loader every host and test goes through | ⛔ never relying on another phase's declaration: 📐 `WeaponState` was declared only by the weapon dispatcher's phase, so the brains read it undeclared wherever that phase did not run (the drills: 78 / 244 red under the check) |
+| ⭐ a cross read is a TICK-START read unless nothing in the phase writes the type (then a job's stable read, `IStableReads`) | the 17 squad-play reads added are tick-start reads: `WeaponState` is written in the phase (`AimAndFireExecutor`), and a stable read is correct only for a type proven unwritten |
+| ⭐⭐ **the permanent rail** — `DrillsUnderTheReadCheckTests` runs `SquadManeuverTests` in a child test run with `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` (the check is fixed per process) and names every undeclared type | red-proved: `DoorState` undeclared ⇒ *"5 drill(s) red … undeclared cross reads of: DoorState"* |
+| ⏭ the target is unchanged: the GENERATOR emits each asset's set (table above); the hand lists stand for it until then | |
+
+#### 18.2b ⭐ As built — a phase's runner is per calling THREAD *(CE-7036, X-2, `2026-11-14`)*
+
+⛔ `ParallelEntities.Run` used ONE runner per job type for the process (`Runner<TJob>.Instance`: the running phase's job, entities, batch
+contexts). Two worlds running the same phase on two threads at once — two test classes, a second in-process node — overwrote each other
+mid-phase: 📐 the drill + SOP suites under `HROT_PARALLEL_SIM=1` in one run, 9–23 rotating reds, each class alone green. ⭐ Now a runner per
+calling thread (`[ThreadStatic]`, 0 B in the steady state; a phase begun inside another of the same type gets a fresh one); the pool already
+served a concurrent caller (its batches run inline). Rail `ParallelEntitiesTests.X2_*` (four threads, the same job type, red-proved: the shared
+runner throws). After: the combined filter 297 / 297 five runs in a row.
+
+#### 18.2c ⭐ As built — an authority bit on a component added in the phase rides the batch *(CE-4568, X-6, `2026-11-14`)*
+
+⛔ `SetAuthority` on a component the job had just added threw "component is not present": the add was deferred into the batch's buffer,
+the authority write was not. 📐 `ObjectiveHost.Enter` (every rule's first tick) adds its control components and takes their authority. A rule
+spawned at run time, such as the instructor's End (a one-shot `EndExercise` trigger) or a game-master rule, therefore faulted every tick and
+never ran: *"End exercise does nothing"* on the threaded editor (its step faults are caught). The serial editor, with the parallel phases on,
+died on the unhandled exception. ⭐ Now an authority change on a component that is absent during a phase is recorded in the same buffer
+(`EntityCommandBuffer.SetAuthority`) and played right after the add. Outside a phase a missing component is still an error. Rail
+`PerEntityRuleTests.X6_*`, red-proved. Live: a one-shot End trigger ends the exercise (*"exercise closing (Ended by the instructor)"*) with
+the threaded editor and with it off.
+⭐ **And the rule's first tick waits** (the authority fix alone only moved the throw a line down). `ObjectiveHost.Enter` then read
+`ObjectiveStatus` by `ref`, and an own pending add is never served by `ref` (E-3). Now, on the tick that ADDS a rule's components in a phase,
+`Enter` returns `Frame.Ready = false`; every kind (20 call sites) answers `Running` and begins on the next tick. 📐 The rule suites under
+`HROT_PARALLEL_SIM=1`: 121 / 190 red at the base (every runtime-created rule faulted) → 26 red; with the phase off, 190 / 190 before and after.
+The 26 left are timing and refusal-text differences of the rules under the phase (CE-3448).
+
 ### 18.3 ⭐ As measured — the cost of the per-read cross-entity check *(branch `exp/read-check`, CE-4454; status: [`STATUS_Read_Check.md`](blueprints/batches/STATUS_Read_Check.md); the design is §18.2 above)*
 
 ⭐ **Affordable as designed: the check lives in the repository's own read path; no separate view type is needed for cost.**

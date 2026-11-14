@@ -51,6 +51,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         {
             // Hold: this kind closes itself (its state is Pending between bounties, which the host would not evaluate)
             var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run, ObjectiveHost.CloseMode.Hold);
+            if (!f.Ready) return NodeStatus.Running;   // ⭐ CE-4568 — its components land at the merge; it begins next tick
             if (f.Reset) { b.Armed = 1; b.Started = 0; b.Waiting = 0; }
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             bool live = s.Closed == 0 && s.State is ObjectiveState.Active or ObjectiveState.Pending;
