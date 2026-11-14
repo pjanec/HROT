@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19
+updated: 2026-11-14 (§8e the battalion's reserve, CE-4587)
 build-state: BUILT — CC-A ✅ CC-B ✅ CC-C ✅ CC-E ✅ CC-D ✅ BUILT 2026-10-19 (§8a; cc-platoon-bound passes live, all five end conditions); CE-2288 (one read route over every behaviour slot) ✅ BUILT 2026-10-19 (§8a, end); CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 ✅ APPROVED (R-2045); CC-16 ✅ APPROVED with its follow-up CE-2288 (R-2050)
-current-answer: §1 the example · §1a where each piece lives (by scope) · §7a who reports, which order, autonomy · §7b mission plans and sub-behaviours · §7c reports on the debug HTTP · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
+current-answer: ⭐ §8e the battalion's reserve (READY-TO-BUILD 2026-11-14) · §1 the example · §1a where each piece lives (by scope) · §7a who reports, which order, autonomy · §7b mission plans and sub-behaviours · §7c reports on the debug HTTP · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
 stale-below: nothing.
 known-rot: ⛔ 2026-10-27 (CE-1410, R-1042): the shipped trees named here as `*.btree.json` (Library/Sop · Library/Tactics · Demos/HillAttack) are C#-built since — `Hrot.AI.Behaviors/Brains/{BasicInfantrySop,BasicSquadSop,BasicPlatoonSop,BasicVehicleSop,CivilianInertPilotSops,LibraryTactics,DangerCrossing,HillAttackTrees}.cs`, same names, ids and AssetIds (blueprints/DESIGN_Behavior_Self_Registration.md §10d); `.btree.json` is what the EDITOR saves. Read those file paths as history. · ✅ RESOLVED 2026-10-19 — ROE crosses nodes by backend's BR-13 (CE-3251, wire kind 2) and the reporting requirements by CE-2299 (wire kind 3, §8a); ⚠ CC-11's Initiative must join RoeDirectiveJson when it joins Roe. WAS: ⛔ 2026-10-18 (measured in the hand-off audit) — CC-2 and CC-11 copy the ROE pattern, and the ROE pattern is LOCAL ONLY: `SetRoeEvent` is a local bus event applied by `RoeSystem` on the node that raised it, and nothing forwards it to the node that owns the subordinate's brain (an order does cross: `TacticalIntentEgressTranslator` forwards an `AssignTacticalIntentEvent` whose target's brain is not here as a `TacticalIntentRequest`). ⇒ a superior whose brain runs on another node than its subordinate's sets ROE, `Initiative` and reporting requirements with no effect. CB-42 (requirements inside the order) had that property and CC-2 lost it. Fix asked of backend as BR-13 (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md §4, `CE-2299`); the two INVENTORY rows below now say so.
 known-conflict: CC-12's "the raw report stream is GET /events" is revised by docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md PC-11 (lean: Building Clearing §5a's SquadReportLog, since the /events ring holds 500 events of every type) · docs/designs/group-maneuvers/DESIGN_Building_Clearing.md CB-33 (reported contacts into the commander's TargetMemory) and CB-42 (requirements inside the order, stamped by the ingress) are revised by CC-1 and CC-2
@@ -826,3 +826,108 @@ air, the live rung (the demo ladder, step 8).
 | ⭐ **HQ-10** *(new, `CE-2314`)* | the HQ (type 305) carries `BasicPlatoonSop`; a subordinate's SPOT paused `SupportCommand` for `PlatoonHold` — its AH-64, A-10 and reserve were ordered to hold (`uc-urban-battle`, 305 s) | the hold row also asks `SupportCommandBehavior.NotCommandingSupport` (as AT-13 / DA-55): an HQ answers reports, it does not hold on them |
 | the chain, end to end | `uc-request-chain` 9/9 once (a launch heard at 1075 m ⇒ SPOT ⇒ FireSupport ⇒ the AH-64), a coin-flip on demo-city (HQ-1's 1 km on the heard estimate; the terrain allows ~1.1 km) | unchanged |
 | dry rungs | `uc-request-chain-dry` 9/9 (the attack: the cell's crew killed) · `uc-a10-zu23-dry` 7/7 (HQ-7) · `uc-reinforce-dry` 6/6 (HQ-9; the staff's strength is REAL — faked SITREPs never make it Red) | unchanged |
+
+## 8e. The battalion's reserve — a company asks for more, and the HQ sends its reserve *(`CE-4587`, CE-7004 ②, coordinator, `2026-11-14`; build-state: READY-TO-BUILD)*
+
+🔒 User, `2026-11-14`: *"design 3"* — the City Battle showcase's C-3, *"local counterattack, asking the battalion for more — ⭐ MUST-HAVE"*
+([showcase §3a, §11 C-3](DESIGN_City_Battle_Showcase.md)); the counterattack half is built (showcase §6a, R-7008), this is the other half.
+
+**INVENTORY** *(`2026-11-14`, read on `showcase-brains` — the newest brains)*
+
+| query | found |
+|---|---|
+| `git grep RequestKind.Reinforce` (all `*.cs`, tests excluded) | ONE producer — the staff, `StaffSystems.cs:317-327` (HQ-5: Red / Black + a fresh element within 300 m ⇒ REQUEST Reinforce at its centre, once per 180 s, to its superior) — and ONE consumer, `SupportCommandBehavior.cs:117-135` (HQ-8) |
+| `SupportCommandBehavior.Free` (`:165-177`) + `CommandOrders.Busy` (`CommandNodes.cs:66-76`) | "free" = alive, of the kind, not the requester, and not running an order THIS HQ's run gave — ⛔ a unit ordered by a scenario TRIGGER is never busy to the HQ, so today the HQ may send a company that is holding its own sector |
+| HQ-8's order (`:126-131`) | `PlatoonDefend` for a unit of units, else `SquadDefend` — ⛔ a COMPANY (a unit of platoons) would get `PlatoonDefend` and treat its platoons as squads |
+| `SupportCommandParamsJsonDto` | two air-defence fields; no notion of a reserve |
+| `CompanyDefendParamsJsonDto` (CE-7024) | `Position`, `Threat`, `Frontage`, `Depth`, `Speed`, `ShootAndMoveSeconds` — a company can be ordered to hold a line |
+| the showcase skeleton (`scripts/city_battle_scenario.py`, CE-6010, `showcase-world`) | ⛔ no defender HQ at all; the defender's companies are four macro instances whose PLATOONS are ordered directly by triggers (`PlatoonDefend` at 0 s, the reserve's `PlatoonAttack` in phase 5); the attacker's "Battalion HQ" is a HMMWV with no task |
+| `scripts/cbm.sh search_graph '{"name_pattern":".*(Battalion|Reserve|SupportCommand|Reinforce).*","label":"Class"}'` | no battalion commander class; `SupportCommandBehavior` and its DTO; the platoon / company reserve logic lives inside `PlatoonDefend` (DA-61) and `CompanyDefend` (`KReinforce`, `KCounter`) |
+⚠ Graph coverage not checkable through the CLI.
+
+| the decision rests on | code | design |
+|---|---|---|
+| a company already ASKS (its staff, the same rule as a platoon's) | ✅ `StaffSystems.cs:317-327` runs for every commander with a superior | ✅ HQ-5 |
+| an HQ already ANSWERS with a free ground unit | ✅ `SupportCommandBehavior.cs:117-135` | ✅ HQ-6, HQ-8 |
+| "free" does not mean "held in reserve" | ✅ `Free` + `Busy` above | ⛔ searched §8d and Defend & Attack (DA-61 is the platoon's OWN reserve), no battalion-reserve record |
+| the proven solution: a battalion commander keeps a DESIGNATED reserve and commits it to a threatened sector; companies do not strip each other | — | adopted: it is what makes the ask safe (an engaged company is never pulled) and what the showcase already authors ("Reserve Coy (D)") |
+
+```mermaid
+classDiagram
+  direction LR
+  class StaffComposerSystem { <<existing>> HQ-5 REQUEST Reinforce, unchanged }
+  class SupportCommandParamsJsonDto { <<EXTENDED>> + Reserve : roster slots (bit mask), 0 = any free ground unit }
+  class SupportCommand { <<EXTENDED>> HQ-8 answer: from the Reserve slots when set; the order by ECHELON }
+  class Echelon { <<NEW static, one helper>> DepthOf(unit) : 0 squad · 1 platoon · 2 company }
+  class CompanyDefend { <<existing, CE-7024>> Position · Threat · Frontage · Depth }
+  class PlatoonDefend { <<existing>> }
+  class SquadDefend { <<existing>> }
+  class CommandPicture { <<existing>> Requests · Elements (the threat for CompanyDefend) }
+  StaffComposerSystem ..> CommandPicture : the request reaches the HQ's picture
+  SupportCommand ..> SupportCommandParamsJsonDto
+  SupportCommand ..> Echelon
+  SupportCommand ..> CompanyDefend : company
+  SupportCommand ..> PlatoonDefend : platoon
+  SupportCommand ..> SquadDefend : squad
+  SupportCommand ..> CommandPicture : oldest Reinforce · nearest element = Threat
+```
+*What it shows that prose hid: the whole feature is two changes inside ONE existing task (which units may answer, and which play they get);
+the ask, the picture, the plays and the busy rule are reused as they are — no battalion commander class, no new request kind.*
+
+```mermaid
+sequenceDiagram
+  participant C2 as 2 Coy (CompanyDefend)
+  participant ST as its staff (StaffComposerSystem)
+  participant HQ as Battalion HQ (D) (SupportCommand)
+  participant R as Reserve Coy (D)
+  C2->>C2: its own reserve first (KReinforce / KCounter, built)
+  ST->>HQ: REQUEST Reinforce at 2 Coy's centre (Red, contact within 300 m)
+  HQ->>HQ: the oldest Reinforce · a FREE unit among the Reserve slots
+  HQ->>HQ: Echelon.DepthOf(R) = company · Threat = the nearest element in its picture
+  HQ->>R: CompanyDefend {Position: the request's point, Threat}
+  Note over HQ,R: R now runs the HQ's order ⇒ busy ⇒ never sent twice
+  ST->>HQ: a second ask 180 s later (still Red)
+  HQ->>HQ: no free reserve ⇒ the request waits
+```
+*What it shows: the reserve goes ONCE; a company that keeps bleeding keeps asking, and the ask simply waits — no loop, no stripping of
+another sector.*
+
+```mermaid
+graph TD
+  SCN[showcase scenario - city_battle_scenario.py] --> BHQ[Battalion HQ D - body-less unit, SupportCommand Reserve slot 3]
+  BHQ --> C1[1 Coy D - CompanyDefend]
+  BHQ --> C2[2 Coy D - CompanyDefend]
+  BHQ --> C3[3 Coy D - CompanyDefend]
+  BHQ --> RC[Reserve Coy D - no order until committed]
+  BHQ --> MOR[Hill mortars - Battery, FireSupport HQ-7]
+  BRAIN[CGF brain tick, every frame] --> BHQ
+  STAFF[StaffComposerSystem, every frame] --> C2
+  TRG[phase 5 trigger]:::script -.replaces the HQ's order - intent first.-> RC
+  classDef script stroke:#c80,color:#c80,stroke-dasharray: 5 5
+```
+*What it shows: who runs it each frame — the HQ's task in the brain tick, the asks in the staff — and the one override: the scripted phase-5
+counterattack (dashed) replaces whatever the HQ gave the reserve; the scripted top keeps its intent (showcase §3).*
+
+| # | decision | why | rejected |
+|---|---|---|---|
+| **HQ-10** | **the ask is unchanged** — a company asks as a platoon does (HQ-5); the company's own reserve is used first by its own play | one ask path for every echelon (ruling 9) | a company-only "ask the battalion" node — a second producer of the same request |
+| **HQ-11** | **a designated reserve**: `SupportCommand.Reserve` = the roster slots (bit mask) held back; set ⇒ Reinforce is answered ONLY from them; 0 ⇒ today's "any free ground unit" | an engaged company is never pulled off its sector; every existing HQ scenario keeps its behaviour (`uc-reinforce-dry`, `uc-urban-battle`) | "any unit not in contact" — strips a quiet sector the enemy may hit next; "busy if it has any order" — the trigger-ordered reserve would never be free |
+| **HQ-12** | **the order matches the echelon**: `Echelon.DepthOf` (one helper, replacing `IsUnitOfUnits`) ⇒ squad `SquadDefend` 40 m · platoon `PlatoonDefend` 60 m · company `CompanyDefend` {Position = the request's point, Threat = the HQ picture's nearest fresh element to it, else zero (north)} | a company handed `PlatoonDefend` treats its platoons as squads | a "reinforce" play of its own — `CompanyDefend` already holds a line with a reserve and a fall-back |
+| **HQ-13** | **once per reserve**: a committed reserve runs the HQ's order ⇒ `Busy`; none free ⇒ the request waits (asked again every 180 s by HQ-5) | the existing busy rule, no new state | — |
+| **HQ-14** | **the script wins**: a trigger's order to the reserve replaces the HQ's | intent from the top (showcase §3) | the HQ refusing a scripted order — the script is the exercise's author |
+| **HQ-15** | **the showcase wiring** (content, the lane that owns the skeleton): a body-less **Battalion HQ (D)** running `SupportCommand {Reserve: the reserve company's slot}` with the four companies and the hill mortars in its roster; each line company runs **`CompanyDefend`** at its line instead of the per-platoon triggers; the reserve company starts with NO order | the company echelon (CE-7021…7024) exists and the skeleton never used it | keeping the per-platoon triggers — then no company asks and no reserve answers |
+
+**Acceptance**
+
+1. A rail on the drills bench: an HQ with `Reserve` = slot 3 and four companies; slot 1 goes Red in contact ⇒ slot 3 gets `CompanyDefend` at
+   slot 1's centre with the nearest element as its threat; slots 0 and 2 (holding, trigger-ordered) are never chosen.
+2. A second Red ask while slot 3 is committed ⇒ no order (it waits); `Reserve` = 0 ⇒ today's behaviour (the existing `SupportCommand` rails
+   unchanged and green).
+3. A platoon reserve gets `PlatoonDefend`, a squad `SquadDefend` (HQ-8 kept).
+4. `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` on every new rail (the HQ reads its roster's busy state and its own picture only).
+5. Live, the showcase: a defender company that goes Red brings the reserve company across the river; recorded in the dynamism report.
+
+**Design docs checked:** §8d here — applies (owns HQ-5…HQ-9; this extends HQ-8) · [City Battle §3a / §6a / §11 C-3](DESIGN_City_Battle_Showcase.md) —
+applies (the requirement; the counterattack half as built) · [Defend & Attack DA-61 / DA-65](DESIGN_Defend_And_Attack_Position.md) — does not
+apply: the PLATOON's own reserve inside `PlatoonDefend` · the showcase skeleton (§4c) — applies: the wiring gap HQ-15 closes.
+

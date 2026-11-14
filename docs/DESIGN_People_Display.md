@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - docs/DESIGN_Map_3D_Mode.md — §6am OWNS the card's occlusion behind terrain, the no-orphan-card rule (a row other than Labels draws only while Labels is on) and the free per-unit text moved into the card (CE-4582)
   - docs/DESIGN_Civilians_And_Crowd_Control.md — OWNS the data: §5h–§5l (armed people, escalation, riot, bomber), §7.7–§7.16 (gesture, armament, hands, pick-up, laid-down, pistol, stations, charge, held item); its §8 holds ui's U-1…U-6 and the cloud (U-4) — THIS document is ui's U-7…U-16 for the same programme.
   - docs/DESIGN_Map_3D_Mode.md — OWNS the block figure, its poses and kits (§6m carriage, §6n weapons, §6o faces, §6q outfits, §6r the shader surface).
   - docs/DESIGN_Visual_Effects.md — OWNS EffectLayer and ProjectileLayer (what lies on the ground, bursts, puffs).

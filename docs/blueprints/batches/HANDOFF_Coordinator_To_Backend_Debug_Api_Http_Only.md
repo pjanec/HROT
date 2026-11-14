@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — DEFERRED, not dispatched to a lane yet: start only AFTER the parallelization programme is merged (it touches the same debug-API code); re-stamped 2026-11-13 (rule 1a)
+state: LIVE — ⭐ DISPATCHED 2026-11-14 through HANDOFF_Coordinator_To_Backend_Http_Api.md part A (the programme is merged); ⚠ that file overrides "Where to work": on `backend`, not `exp/debug-http`
 updated: 2026-11-13
 current-answer: the whole file
 related-designs:
