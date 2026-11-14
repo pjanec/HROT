@@ -63,6 +63,10 @@ namespace Hrot.SimHost.Tests
                 // ⭐ the type's injury band, as InjuryTkbTranslator stamps it on every node (a civilian's InjuryDefDto defaults)
                 if (!Repo.IsComponentTypeRegistered<InjuryThresholds>()) Repo.RegisterComponent<InjuryThresholds>();
                 Repo.AddComponent(Unit, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+                // ⭐ CE-7035 (civilian half) — production creates his CivilianState in the SERIAL CivilianFearSystem, before the brains
+                //   (CivilianFearSystem.IsAfraidKind → CivilianMind.Ensure); this fixture never runs that system, so under HROT_PARALLEL_SIM=1
+                //   the HSM's own Ensure was a structural change inside the parallel phase ("missing CivilianState"). The same one call here.
+                CivilianMind.Ensure(Repo, Unit);
                 Tick();
             }
 
@@ -71,7 +75,11 @@ namespace Hrot.SimHost.Tests
                 _time += 0.016;
                 Repo.SetSingleton(new GlobalTime { TotalTime = _time, DeltaTime = 0.016f, TimeScale = 1f, FrameNumber = ++_frame });
                 Repo.SetSimulationTime((float)_time);
+                // ⭐ CE-7035 — the kernel's order (as ScenarioRulesTests.ObjWorld): version, swap, and the last-tick view before the brains;
+                //   without it a declared cross-entity read under HROT_READ_CHECK=1 has no tick-start copy to be served from
+                if (Fdp.Core.ParallelReadCheck.HasDeclarations) Repo.Tick();
                 Repo.Bus.SwapBuffers();
+                if (Fdp.Core.ParallelReadCheck.HasDeclarations) Repo.CaptureLastTick();
                 _ingress.Execute(Repo, 0.016f);
                 _brain.Execute(Repo, 0.016f);
                 Repo.FlushCommandBuffers();

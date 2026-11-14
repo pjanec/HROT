@@ -628,6 +628,8 @@ flag checked first keeps serial code near free; to measure before the build. ⭐
 
 #### 18.2a ⭐ As built — who declares, and the rail that keeps it true *(CE-7035, X-1, `2026-11-14`)*
 
+⭐ **The civilian half** *(behaviors, `2026-11-14`)*: `CivilianHsmTests.World` now ensures `CivilianState` before the brains (as the serial `CivilianFearSystem` does in production) and takes the kernel's last-tick view each tick; five more reads were real and are declared in `BrainReads` — a forces man's `WeaponPosture` and `AmmoLoadout` (covered / a baton round), a `VehicleParams`, a lying `BallisticProjectile`, an `EffectState` — plus `WeaponAmmo` (CE-4610's SITREP ammo). 📐 `CivilianHsmTests` 29 / 29 under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`.
+
 | | |
 |---|---|
 | ⭐⭐ **the phase that READS declares** — the brains' phase through `BrainPhase.Contribute(key, …, declareReads)`: the toolkit's `BrainReads` (library behaviours, helpers, generated code) and the AI assembly's `AiBrainReads` (types above the toolkit: `RoutePlan`), contributed by `CgfBehaviorSetup.LoadFromAiAssembly` — the one loader every host and test goes through | ⛔ never relying on another phase's declaration: 📐 `WeaponState` was declared only by the weapon dispatcher's phase, so the brains read it undeclared wherever that phase did not run (the drills: 78 / 244 red under the check) |
