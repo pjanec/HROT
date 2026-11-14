@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — dispatched, not started
+state: LIVE — re-dispatched to `backend` 2026-11-14, not started
 updated: 2026-11-14
 current-answer: the whole file
 related-designs:
@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): AUTONOMOUS — the threaded branch's fixes: declared reads, determinism, the bugs the lanes met
 
-**For:** a backend VM lane. **From:** coordinator. **Dispatched at `c09648f4b`** — scope frozen.
+**For:** a backend VM lane. **From:** coordinator. **Dispatched at `c09648f4b`, RE-DISPATCHED at `c1a231dc7`** (rule 1a: re-pointed to `backend`, not started) — scope frozen at `c1a231dc7`.
 🔒 User, `2026-11-14`: *"Yes pls lets prepare the batch for those fixes. The lanes mentioned that determinism rails fail because squad behavior
 does not declare what components it reads, this should be included as well."* All items are FIXES (a root cause found and repaired at its
 source) — ⛔ no new design: a fix that would change a contract (a component set, a phase's order, a public route) STOPS that item and is reported.
