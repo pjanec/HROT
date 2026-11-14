@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — ⛔ the critical review (§17) found 15 gaps, two of them ADJUST approved X-1 / X-3 (SV-2, SV-4) and two BIND NOW (SV-1, SV-11); leans for the user · the FUTURE half of the aggregate programme; approved: S-1…S-5 (R-4248), S-6…S-9 (R-4249), X-1…X-5 (R-4250); leans NOT accepted: M-1…M-4 (§14), N-1…N-4 (§15), P-3…P-5 (§16), D-P1…D-P7 (§16a), the resolution policy (§16b); not built — its "binds NOW" items ride the FusionSquad's slices (DESIGN_Aggregate_Squad.md §7)
+build-state: DESIGN — the critical review §17 RULED (R-4252); open leans: M-1…M-4 (§14), N-1…N-4 (§15), P-3…P-5 (§16), D-P1…D-P7 (§16a), §16b (as adjusted by §17.1) · the FUTURE half of the aggregate programme; approved: S-1…S-5 (R-4248), S-6…S-9 (R-4249), X-1…X-5 (R-4250); leans NOT accepted: M-1…M-4 (§14), N-1…N-4 (§15), P-3…P-5 (§16), D-P1…D-P7 (§16a), the resolution policy (§16b); not built — its "binds NOW" items ride the FusionSquad's slices (DESIGN_Aggregate_Squad.md §7)
 updated: 2026-11-14 (split out of DESIGN_Aggregate_Squad.md — coordinator; section numbers kept, the ledger cites them)
 current-answer: the whole file — §10 scope and use cases · §12 vehicles (combined-arms units) · §13 de-aggregation (what binds now) · §14 movement · §15 sensors · §16 placing the men · §16a de-aggregation as a process · §16b who decides the resolution
 stale-below: §16 P-1 / P-2 (superseded by §16a, marked inline)
@@ -99,7 +99,7 @@ and its REAL vehicles, long before every man is created.*
 
 | # | binds NOW — cheap (lean) | why |
 |---|---|---|
-| ⭐ **X-1** | **the UNIT entity persists across every resolution; its resolution is a run-time FIELD (`AggregateSquad.Resolution`), and the order routing tries `<Resolution><Class><Order>` first** (`FusionInfantrySquadAttack`, then `InfantrySquadAttack`) — the TKB type only gives the DEFAULT resolution. ⚠ **This adjusts approved D-1**: its class `AggregateInfantrySquad` / TKB 307 becomes a preset, not the routing key | a resolution in the TYPE cannot switch without replacing the entity, which would break its identity, its subordinate links and its reports |
+| ⭐ **X-1** | **the UNIT entity persists across every resolution; its resolution is a run-time FIELD (`AggregateUnit.Resolution`), and the order routing tries `<Resolution><Class><Order>` first** (`FusionInfantrySquadAttack`, then `InfantrySquadAttack`) — the TKB type only gives the DEFAULT resolution. ⚠ **This adjusts approved D-1**: its class `AggregateInfantrySquad` / TKB 307 becomes a preset, not the routing key | a resolution in the TYPE cannot switch without replacing the entity, which would break its identity, its subordinate links and its reports |
 | ⭐ **X-2** | **the unit keeps its CURRENT ORDER (name + params)**, not only the behaviour it resolved to — on a switch it RE-RESOLVES the same order under the new resolution (a stochastic platoon's attack becomes the real `PlatoonAttack` ordering its new squads) | D-1's order-aware bookkeeping already records the order on the commander's side; the receiver keeping its own is the same field |
 | ⭐ **X-3** | **children come from the TKB composite with STABLE keys `<unit>/<slot>`** — the same unit disaggregated twice gives the same children | identity continuity for reports, recordings, replay and the after-action review |
 | **X-4** | the mapping rules, written once: men left ⇒ which slots live (deterministic order: the MG crew and the leader last), health / ammo split by slot, positions inside the frontage by the existing formation / post planners, stress from suppression; back: sums and the centroid | consistent both ways; S-5 keeps the expected losses equal |
@@ -266,7 +266,7 @@ invisible to its tactics and its commanders.*
 | ⛔ a small close-combat exercise (a platoon in a village) | everything physical — the policy simply never aggregates |
 | ⛔ replay | it shows what was RECORDED; resolution is not changed in replay |
 
-## 17. ⛔ The critical review — `2026-11-14` *(the multi-resolution reviewer; ✔ re-read by the coordinator)*
+## 17. ⛔ The critical review — `2026-11-14` *(the multi-resolution reviewer; ✔ re-read by the coordinator)* — ✅ ALL RULED by the user one by one (R-4252); §17.1 the rulings
 
 | # | finding | evidence | ⭐ lean |
 |---|---|---|---|
@@ -280,8 +280,28 @@ invisible to its tactics and its commanders.*
 | **SV-8** | the performance governor is WALL-clock ⇒ splits differ per machine, the stepped hash diverges | CLAUDE.md F-3 | a budget in sim terms (entities, steps) or a recorded operator decision |
 | **SV-9** | **trainees see men appear** — a tank's optics reach 2–3 km: an empty village, one fusion man at 1.4 km, nine men at 400 m; a drone 3 km away sees nothing | §16b bands | bands from the focus entity's SENSOR footprint (optics range, camera frustum); the split ("observable") and merge ("unobserved") tests from the same model |
 | **SV-10** | a switch restarts the play from Start (plan, survey, phase 1); only `Order.*` orders can be re-resolved | §13 X-2 | the play PHASE in the X-4 mapping; a unit under a concrete-name order cannot switch |
-| **SV-11** | two owners of the men count (`UnitHoldings` and `AggregateSquad.Men`); the component is named "Squad" though S-6 makes it any echelon | §12 | ⭐ **binds NOW**: one owner (SV-1's slot table); rename `AggregateSquad` → `AggregateUnit` before it is recorded |
+| **SV-11** | two owners of the men count (`UnitHoldings` and `AggregateUnit.Men`); the component is named "Squad" though S-6 makes it any echelon | §12 | ⭐ **binds NOW**: one owner (SV-1's slot table); rename `AggregateUnit` → `AggregateUnit` before it is recorded |
 | **SV-12** | some "binds now" items may be premature (M-3, N-4 fields nothing writes yet; P-3's shape with the planners' inputs unmeasured); "a later field is a migration" was never measured | §14, §15, §16 | ⏳ MEASURE what the recorder does when an unmanaged struct grows; if it tolerates it, defer M-3 / N-4 / P-3 |
 | **SV-13** | network and display timing — the creating node owns the men; the `Resolution` field and the men's activation reach a display node at different times (both or neither shown for a few frames) | `DefaultEntityCreationRequestProcessor :358-360` | the display keys off the men being ACTIVE; name the creating node and the men's ownership groups |
 | **SV-14** | an instructor pin vs the policy (a forced split while engaged; a forced merge in front of a trainee) has no precedence rule | §16b | instructor > author > automatic, with a refusal reason through `InteractionOutcomes.Refused` (`TacticalIntentResolutionSystem.cs:150`) |
 | **SV-15** | the policy is list-shaped, not a small setting like `SetSkillAmplifier` (`SkillVerbs.cs:41-65`); recorded components are unmanaged | §16b | an unmanaged policy struct; detail areas as references to area entities, fixed capacity |
+
+### 17.1 The rulings *(user, `2026-11-14`, one by one — R-4252; they override the rows they name above)*
+
+| # | ruled |
+|---|---|
+| SV-1 ✅ | a fixed PER-SLOT table on the unit (alive / dead, health, ammo) — the single truth; Present derived; a FusionSquad decides deterministically WHICH slot each lost man was, names it in that loss's `ManDownedEvent`; the dead stay dead across splits |
+| SV-2 ✅ | a unit that can switch keeps ONE resolution-neutral type and class (`InfantrySquad`); the resolution is an explicit INPUT to the resolver and the fit check, looked up in a (class, resolution, order) → behaviour TABLE — never string concatenation; the FusionSquad TKB type is a PRESET, not a class (adjusts X-1, D-1) |
+| SV-3 ✅ | the unit's composite lists the PHYSICAL slots; the fusion soldier is a per-resolution stand-in chosen by the SV-2 table, never a slot |
+| SV-4 ✅ | soldiers created by a split: transient requests (⇒ the existing `ScenarioIgnoreTag`, never saved) carrying an EXPLICIT identity `EntityGuidDerivation.Derive(unit, "child:<slot>")` — kept by the creation system (`CreateEntityRequestSystem.cs:363-375`); no new flag (adjusts X-3) |
+| SV-5 ✅ | the planner's OUTPUT bound now: a unit component of planned posts per slot (position, window, watch, stance); the physical defence reads it as AUTHORED posts (D-2f); the planning step takes count / origin / area + roles and tier from the slot table, runs as its own step during Planning; the per-planner split is built with the stochastic slice |
+| SV-6 ✅ | a "Held" lifecycle participant acknowledges a created soldier only at the handover, registered unbounded; creation latency measured per echelon into the lead time |
+| SV-7 ✅ | the full roster of live slots is created and held; the latest slot table applies at the handover (slots that died meanwhile removed that tick); a Materialising → Aggregate edge removes the held soldiers when the trigger is withdrawn — logged, never seen |
+| SV-8 ✅ | the performance GOVERNOR stays DOCUMENTED, NOT implemented (🔒 user: *"keep it documented, as unimplemented addition, do not implement"*); if ever built: a deterministic cap (at most N physical soldiers), never frame time |
+| SV-9 ✅ | FIXED distance bands now (🔒 user: *"use B now, keep the A as future improvement (our terrains are small now, smaller than any sensor range - entities will be almost always physical)"*); bands from the focus's sensor footprint documented as the future improvement |
+| SV-10 ✅ | on a switch the re-resolved play restarts from the CURRENT situation (most plays plan from where the unit is; the defence takes SV-5's posts); phase mapping only where a play proves it needs it; a unit under an UNTYPED order cannot switch (refused with the reason) |
+| SV-11 ✅ | the component is **`AggregateUnit`** (not "Squad"); Present derived from the slot table, never stored twice |
+| SV-12 ✅ | ✔ measured: a recording refuses playback when a recorded component's layout changed (`FlightRecorder/SchemaValidator.cs`); only JSON documents migrate ⇒ the bound fields STAY, and a RULE: every field the stochastic slice may need exists in `AggregateUnit` before the FusionSquad ships recordings — a later addition is a deliberate, versioned break |
+| SV-13 ✅ | the AI node creates the soldiers; the normal per-type ownership split (no special case); displays follow ENTITY ACTIVITY, never the resolution field (🔒 user: *"nothing special needed"*) |
+| SV-14 ✅ | 🔒 user: *"ignore that trainee see the expansion. on instructor order winds always"* — an instructor's pin / split / merge is carried out AT ONCE (observed or in contact), logged; the author's policy ranks above the automatic manager |
+| SV-15 ✅ | the policy is an unmanaged fixed-size component on the World Environment (bands, lead time, merge margin, quiet time, the dormant cap) set by `SetResolutionPolicy`; detail areas are ordinary AREA entities marked "detail area" |

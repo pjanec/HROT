@@ -23,7 +23,7 @@ related-designs:
 
 ⭐ **Names (✅ user, `2026-11-14`: "perfect, fusion & stochastic" — R-4247):** *aggregate squad* = the umbrella; **FusionSquad** = this
 design (one fighter, the `FusionSoldier`, carries the whole squad); **StochasticUnit** = the later one with no member, resolved by probability, at ANY echelon (S-6; a "StochasticSquad" is its squad case).
-In code: `AggregateSquad.Resolution = Fusion | Stochastic`, the member's type `FusionSoldier`.
+In code: `AggregateUnit.Resolution = Fusion | Stochastic`, the member's type `FusionSoldier`.
 
 ## 1. The request
 
@@ -62,7 +62,7 @@ classDiagram
     UnitRoster · CommandPicture · BehaviorState
     the virtual commander: orders in, reports out
   }
-  class AggregateSquad {
+  class AggregateUnit {
     <<NEW unmanaged component on the unit>>
     Represents : men authored
     Men : float, men left
@@ -97,17 +97,17 @@ classDiagram
   class SquadInputs { <<existing, EXTENDED>> OwnStrength from UnitStrength }
   class ThreatDanger { <<existing, EXTENDED>> danger x men }
   SquadUnit "1" o-- "1" Representative : roster
-  SquadUnit *-- AggregateSquad
+  SquadUnit *-- AggregateUnit
   AggregateResolution <|.. ByFusionSoldier
   AggregateResolution <|.. ByStochastic
-  UnitStrength ..> AggregateSquad
+  UnitStrength ..> AggregateUnit
   CombatEffective ..> UnitStrength
   StaffSystems ..> UnitStrength
   ObjectiveCensus ..> UnitStrength
   SquadInputs ..> UnitStrength
   ThreatDanger ..> UnitStrength
 ```
-*What it shows that prose hid: the squad's state lives on the UNIT (`AggregateSquad`), not on the member — so every reader (strength, colour,
+*What it shows that prose hid: the squad's state lives on the UNIT (`AggregateUnit`), not on the member — so every reader (strength, colour,
 census, ratios, threat) goes through ONE seam (`UnitStrength`) and does not care whether a representative or a probability model fills it. That is
 the open door to the fully aggregated squad.*
 
@@ -126,7 +126,7 @@ sequenceDiagram
   U->>S: SPOT / CONTACT, unchanged pipeline
   R->>T: WeaponChoice picks the RPG mount (armour)
   T->>R: coax rounds hit, Health falls, capped at 2 men a hit (D-6)
-  R->>U: AggregateSquad.Men = Represents x Health / Max
+  R->>U: AggregateUnit.Men = Represents x Health / Max
   U->>S: SITREP colour from UnitStrength
   S->>P: Amber, the platoon reacts as for a real squad
 ```
@@ -155,7 +155,7 @@ same field with no member (dashed) — nothing downstream changes.*
 | # | decision | ⭐ lean | why | rejected |
 |---|---|---|---|---|
 | **D-1** ⚠ *(adjusted by §13 X-1, R-4250: the routing key is `<Resolution><Class><Order>` from a run-time field; the TKB type below is only a preset)* | how an aggregate squad gets its OWN version of a play | ⭐ **the order routing, staged** (`Order.<name>` → `<Class><Order>`; class `AggregateInfantrySquad` = `11.1.*.1.2.2`, TKB 307, more specific than `InfantrySquad`, falls back to it) — FIRST make the order bookkeeping order-aware (record the order + its resolved name, the CE-4307 sender-side precedent) and fix the three readers that compare a behaviour hash (`StillRunning` / `Gave`, `NotDefending`, `HoldsFirm`), THEN move the platoons' squad orders one by one (Defend first) | it is what the routing was built for (R-273), the user's model ("orders will be translated to whatever the unit can do"), and the staging also fixes a latent bug (a squad given `Order.Hold` breaks contact today — `HoldsFirm` misses `InfantrySquadHold`) | a dispatch inside each behaviour (a second mechanism for one concept) · moving every call site at once (CE-2346 / CE-2359 return) |
-| **D-2** | where the squad's state lives | ⭐ **on the UNIT**: `AggregateSquad { Represents, Men, Suppression }`; ONE seam `UnitStrength.Of` feeds `CombatEffective`, `StrengthOf`, the census, `SquadEnemyStrengthRatio`, `ThreatDanger`, target weights (FPV, spotter) and seats; v1 writes `Men` from the representative's health | the open door to the fully aggregated squad (user): a probability resolver writes the same field | state on the member only (the no-member squad would have nowhere to keep it) |
+| **D-2** | where the squad's state lives | ⭐ **on the UNIT**: `AggregateUnit { Represents, Men, Suppression }`; ONE seam `UnitStrength.Of` feeds `CombatEffective`, `StrengthOf`, the census, `SquadEnemyStrengthRatio`, `ThreatDanger`, target weights (FPV, spotter) and seats; v1 writes `Men` from the representative's health | the open door to the fully aggregated squad (user): a probability resolver writes the same field | state on the member only (the no-member squad would have nowhere to keep it) |
 | **D-3** | where the one member stands | ⭐ **where the squad's firepower decides**: in a defence with a threat area, the MG's post — the longest view down it (D-2h's view fan over the candidate posts, run for the lone man); all round, coverage rank 0 + the lone man's guard round (DL-4, already built); in a march, the lead; elsewhere what the play gives its first element | the MG is the squad's base of fire (DA-48, DA-19); the member carries it | the centre of the posts (an unaimed compromise) · the leader's post (the unit is the leader) |
 | **D-4** ⛔ SUPERSEDED by D-4′ below (user, `2026-11-14`: rotate the weapons) | firing the squad's weapons | ~~v1: one fire stream, scaled~~ | — | — |
 | **D-5** | the plays that fail with one man | ⭐ **make them work with one man** (they fail for a REAL squad's last man too): fire and movement (Start `live < 1`; an empty half is skipped, not a failure), break contact's smoke (the mover throws it when nobody covers); **aggregate versions only where one man cannot mean the squad**: suppress-and-manoeuvre's assault and `ClearBuilding` (§5) | R-4244: no hack into the half logic — a play either works with one man or is replaced | — |
@@ -272,7 +272,7 @@ together that requires really two targets at the same time."*
 |---|---|---|
 | **A-0** | the real-squad defects CE-4605…CE-4609 (they make every squad better, and the aggregate rests on the same plays) | — |
 | **A-1** | D-1 staged, routing `<Resolution><Class><Order>` first (X-1): order-aware bookkeeping + the three hash readers; then `Order.Defend`, … one order at a time | A-0 (CE-4609) |
-| **A-2** | the type (TKB 307 `FusionInfantrySquad` + `FusionSoldier`) as a PRESET of the run-time resolution (X-1); `AggregateSquad { Resolution, Represents, Men, Suppression, Posture, Frontage, Formation, Depth, Heading, Activity }` + `UnitHoldings` (system types incl. sensors; S-1, S-7, M-3, N-4) and `AggregateStateSystem` (§11); `UnitStrength` and its readers (D-2), seats (D-8), role (D-9); the unit keeps its CURRENT ORDER (X-2); children keyed `<unit>/<slot>` (X-3) | — |
+| **A-2** | ⭐ (adjusted by the stochastic review, R-4252) the squad keeps its NEUTRAL type (`InfantrySquad`); "FusionSquad" is a PRESET of the run-time resolution, the `FusionSoldier` a per-resolution stand-in chosen by the (class, resolution, order) table — never a slot or a class (SV-2, SV-3); `AggregateUnit { Resolution, Represents, Suppression, Posture, Frontage, Formation, Depth, Heading, Activity }` + `UnitHoldings` (system types incl. sensors) + the PER-SLOT table (alive / dead, health, ammo — Present derived, SV-1) + the planned-posts component (SV-5); the copy pass (§11, R-D7); `UnitStrength` (R-D4); seats (D-8); role (D-9); the unit's `CurrentOrder` (R-D11 / X-2); ⚠ the SV-12 rule: every `AggregateUnit` field the stochastic slice may need exists before the first recording | — |
 | **A-3** | the combat model: the weapon rotation (D-4′ R-1…R-3) with a target per weapon and the view / body as data (D-4″ F-1…F-4), damage cap and burst frontage (D-6), squad nerve (D-7), the MG post (D-3), fire and movement / break contact with one man (D-5) | A-2 |
 | **A-4** | the aggregate plays: assault, ClearBuilding | A-1, A-2 |
 | **A-5** | the command-hierarchy scenario on aggregates (battalion → squads, ~80 entities; vehicles, mortars, drones real) + `Strength` / `QuietArea` objective kinds + the battalion reserve (CE-4589) + live checks and the dynamism measure (CE-7033) | A-3, A-4 |
@@ -307,7 +307,7 @@ classDiagram
     SquadDrillState · SquadLeadership
     SimTransform (centroid of the men)
   }
-  class AggregateSquad {
+  class AggregateUnit {
     <<NEW, unmanaged, recorded, replicated>>
     Resolution : Fusion / Stochastic
     Represents · Men · Suppression
@@ -337,16 +337,16 @@ classDiagram
   }
   class StochasticResolver {
     <<later>>
-    writes AggregateSquad, UnitHoldings, SimTransform
+    writes AggregateUnit, UnitHoldings, SimTransform
   }
-  SquadUnit *-- AggregateSquad
+  SquadUnit *-- AggregateUnit
   SquadUnit *-- UnitHoldings
   SquadUnit o-- "1" FusionSoldier : roster
   AggregateStateSystem ..> FusionSoldier : Health, mounts, stress, stance
-  AggregateStateSystem ..> AggregateSquad : writes
+  AggregateStateSystem ..> AggregateUnit : writes
   AggregateStateSystem ..> UnitHoldings : writes Ammo
   ThreatMatrixAssignmentSystem ..> UnitHoldings : Fusion, one element per slot
-  StochasticResolver ..> AggregateSquad : later
+  StochasticResolver ..> AggregateUnit : later
 ```
 *What it shows that prose hid: the commander keeps EVERYTHING it has today (it still runs the squad brain, reports and takes orders); it only
 GAINS two state components (S-1) and one system that copies the running resolution into them — and the existing `Assignment` table, indexed by
@@ -354,7 +354,7 @@ GAINS two state components (S-1) and one system that copies the running resoluti
 
 | area | change | why / basis |
 |---|---|---|
-| **new components** | `AggregateSquad { Resolution, Represents, Men, Suppression, Posture, Frontage }` · `UnitHoldings` (S-7; fixed slots: system type, count, minimum crew, readiness, ammo — weapons now, vehicles later) — unmanaged, `DataPolicy.Default` (recorded, saved, seek-safe); replicated so display nodes and the Player show strength (W-10) | S-1, D-2; CLAUDE.md "new components": unmanaged when recorded |
+| **new components** | `AggregateUnit { Resolution, Represents, Men, Suppression, Posture, Frontage }` · `UnitHoldings` (S-7; fixed slots: system type, count, minimum crew, readiness, ammo — weapons now, vehicles later) — unmanaged, `DataPolicy.Default` (recorded, saved, seek-safe); replicated so display nodes and the Player show strength (W-10) | S-1, D-2; CLAUDE.md "new components": unmanaged when recorded |
 | **authored where** | the squad's TKB type `FusionInfantrySquad` (307, a variant of 302): `Represents` and the arsenal from its composite (1 leader + 9 riflemen ⇒ rifles 7, LMG 1, RPG 1, grenades); one `FusionSoldier` slot | measured precedent: `AsLandUnit(…, variant)` (`NedTkbCatalog.cs:1055`) |
 | **new system** | `AggregateStateSystem` — per unit in the parallel phase: reads ITS soldier (a declared read), writes ITSELF: `Men = Represents × Health / Max`, ammo per slot from the soldier's mounts, `Suppression` from the soldier's stress, posture from its stance | the parallel rule (write your own entity, declare the read) |
 | **existing systems** | `ThreatMatrixAssignmentSystem`: `Assignment` indexed by element — a man (real squad) or an arsenal slot (FusionSquad) · `UnitCentroidSystem`: unchanged for Fusion (the centroid IS the soldier), skips a Stochastic unit · `CombatEffective` / `StrengthOf` / census / ratio / threat read `UnitStrength` (D-2) | F-4, D-2 |
