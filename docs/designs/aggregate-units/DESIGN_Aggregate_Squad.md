@@ -407,3 +407,53 @@ GAINS two state components (S-1) and one system that copies the running resoluti
 | **R-D13** ✅ | D-3's limits (V-18) | documented as v1 limits; a rail for the volume of fire while moving |
 
 ## 10, 12–16b. ➜ moved to [DESIGN_Stochastic_Units_And_Resolution.md](DESIGN_Stochastic_Units_And_Resolution.md) *(same section numbers)*
+
+## 18. CE-4613 — `UnitStrength`, the one strength seam *(behaviors, `2026-11-14` · build-state: BUILDING · R-D4)*
+
+### 18.0 INVENTORY *(grep `StrengthOf( · FightingMembers( · StandingMembers( · SquadEnemyStrengthRatio · MinEffective(` outside tests; `search_graph` `.*(Strength|CombatEffective|Census).*`; ⚠ coverage not checkable through the CLI)*
+
+| reader | counts | after |
+|---|---|---|
+| `StaffSystems.StrengthOf` (`:416-424`) — the SITREP colour (CB-37) | members fighting ÷ roster (a platoon: SQUADS) | ⭐ `UnitStrength.Of(unit).Colour` — Present ÷ Authorized in MEN at every echelon (R-D4) |
+| `CombatEffective.FightingMembers / StandingMembers` — slot logic (`PlatoonDefend` baseline, `SlotFailing`) | roster MEMBERS | unchanged — they answer "how many of my members", not "how strong"; for a squad of soldiers they equal `Present` |
+| `SquadEnemyStrengthRatio` (`SquadInputs.cs:250`) | Σ each live man's own DANGER | each man's danger × `UnitStrength.MenOf(man)` (1 today ⇒ identical; a FusionSquad's pool later) |
+| `ObjectiveCensus` (men in an area) | bodies | each body × `MenOf` (1 today ⇒ identical) |
+
+### 18.1 Classes and sequence
+
+```mermaid
+classDiagram
+  class UnitStrength { <<NEW readonly struct, Fdp.Toolkit.Squad>> +float Present · +int Authorized · +float Fraction · +StatusColour Colour · +Of(view, unit, standing) · +MenOf(view, body) float }
+  class CombatEffective { <<existing>> IsInTheFight · FightingMembers · StandingMembers · MinEffective }
+  class StaffSystems { <<existing>> StrengthOf → UnitStrength.Of(unit).Colour }
+  class SquadInputs { <<existing>> SquadEnemyStrengthRatio: own danger × MenOf }
+  class ObjectiveCensus { <<existing, AI>> men × MenOf }
+  UnitStrength ..> CombatEffective : in the fight / standing, per body
+  StaffSystems ..> UnitStrength
+  SquadInputs ..> UnitStrength
+  ObjectiveCensus ..> UnitStrength
+```
+
+```mermaid
+sequenceDiagram
+  participant R as reader (a SITREP, a utility input)
+  participant U as UnitStrength.Of(platoon)
+  participant S as each squad (recursion, ≤ MaxDepth)
+  participant M as each soldier
+  R->>U: Of(platoon)
+  U->>S: Of(squad)
+  S->>M: MenOf(soldier) · in the fight?
+  M-->>S: Present += 1 if fighting · Authorized += 1
+  S-->>U: (Present, Authorized) of the squad
+  U-->>R: Σ over squads → Colour = Present ÷ Authorized vs 0.9 / 0.7, Black when not in the fight
+```
+
+*What the pictures show that prose hid: ONE recursion owns "how many men", and every reader asks it — the per-body weight (`MenOf`) is the single
+place a FusionSquad or a StochasticUnit plugs in later.*
+
+### 18.2 Decisions *(lane decisions — for the user's review)*
+
+| # | decision | why |
+|---|---|---|
+| **R-2091** | ⭐ `CombatEffective.IsInTheFight` for a unit OF UNITS keeps its rule (≥ `MinEffective` of its subunits in the fight); only a unit of SOLDIERS uses `ceil(Present) ≥ MinEffective(Authorized)` — which IS today's rule there | R-D4's sentence read literally makes a 36-man platoon effective with 4 men: `MinEffective` caps at 4, a SQUAD's rule. The colour already moves to men (R-D4); Black stays "too few subunits left to fight" |
+| **R-2092** | ⭐ `FightingMembers` / `StandingMembers` stay MEMBER counts; strength questions go through `UnitStrength` | `PlatoonDefend`'s baseline and `SlotFailing` compare members with members (DA-67); switching them to men would compare a squad's men with its old member count |

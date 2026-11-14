@@ -32,7 +32,13 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>⭐ <c>CE-4612</c> (R-2090) — was <paramref name="id"/> minted HERE (a commander's or a start's, <see cref="For"/> /
         /// <see cref="ForStart"/>)? Then nobody waits for an outcome reply to it; a station's own request id (v4) is answered as before.</summary>
-        public static bool IsMinted(Guid id) => id != Guid.Empty && id.Version == 8;
+        public static bool IsMinted(Guid id)
+        {
+            if (id == Guid.Empty) return false;
+            Span<byte> b = stackalloc byte[16];
+            id.TryWriteBytes(b);
+            return (b[7] >> 4) == 8;   // the version nibble (Guid.Version is .NET 9+; this assembly is net8.0)
+        }
 
         private static ulong Mix(ulong a, ulong b, ulong c, ulong d, ulong h)
         {
