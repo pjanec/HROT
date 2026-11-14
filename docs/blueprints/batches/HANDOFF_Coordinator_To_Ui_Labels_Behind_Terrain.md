@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — dispatched, not started
+state: ⛔ HELD — do NOT start: the coordinator writes the design first (user, 2026-11-14: "no the design must happen here"); this file will be re-stamped as build-only
 updated: 2026-11-14
 current-answer: the whole file
 related-designs:
