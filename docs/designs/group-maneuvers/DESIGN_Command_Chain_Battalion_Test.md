@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — the user approved the shape (2026-11-14: a small REAL-squad scenario proves the command chain; the FusionSquad later); the builder measures and decides the remaining coordinates and tunables (autonomous), recording each as a lane ruling
+build-state: BUILDING (behaviors, 2026-11-14 — §4a as built) — the user approved the shape (2026-11-14: a small REAL-squad scenario proves the command chain; the FusionSquad later); the builder measures and decides the remaining coordinates and tunables (autonomous), recording each as a lane ruling
 updated: 2026-11-14 (first version — coordinator)
 current-answer: the whole file
 stale-below: nothing
@@ -129,6 +129,17 @@ engine is new except the prerequisites (CE-4589, CE-4610, CE-4614, CE-7033).*
 | **cc-battalion** (base) | as above | the whole chain end to end |
 | **cc-battalion-stall** | block 2 + one squad | Blue's TEMPO: fires at ½ deadline, the reserve at 1×, the bypass at 1.5× — each after the Set / failure that precedes it |
 | **cc-battalion-collapse** | block 1 thin, the company reserve weak | Red: block 1 LOST ⇒ counterattack; the company Red ⇒ Reinforce ⇒ the battalion reserve arrives |
+
+## 4a. As built *(behaviors, `2026-11-14`)*
+
+| | built |
+|---|---|
+| generator | `scripts/gen-chain-scenarios.py` → `scenarios/demos/platoons-and-vehicles/cc-battalion{,-stall,-collapse}` (62 men each; 2 IFVs, 2 × 81 mm with gunner + loader) |
+| coordinates | Objective 1 = the office cluster **(425, 425)** · Objective 2 = the shop column **(645, 445)** (220 m apart) · Blue assembles at (150, 405), the IFVs on the start line x ≈ 265 · the outpost at (335, 400) · the Red battalion reserve at (720, 620) |
+| tunables (R-2097, lane decision) | `CompanyAttack.DeadlineSeconds` = 180 (the lean) · `CompanyDefend` Frontage 160, Depth 220 · the end trigger: `HoldArea` 120 s / `Strength` < 0.3 / 900 s · phase lines `ReachArea` PL 1 by 330 s, PL 2 by 630 s |
+| the check | `scripts/utility-demo-check.py` `run_cc_battalion` (the chain §3.2 judged in order and caused) + `Dynamism` (CE-7033) |
+
+⭐ **R-2096** *(lane decision — for the user's review)*: **`CompanyDefend` builds a LINE** — its blocks stand ACROSS the threat with the reserve and the fall-back behind (`CompanyBehaviors.cs` ~:613-625) — not two blocks in depth as §3.1 drew them. ⇒ Red's company is a line facing west AT Objective 1 (two blocks across the street, its reserve 110 m behind), its fall-back ON Objective 2; "block 1" in §3.2 is a block of that line, "block 2" its depth. Every CompanyDefend feature the chain needs is kept (a LOST block counter-attacked once, Red ⇒ Reinforce, the fall-back). The IFVs overwatch from the start line on their own SOP, outside the company (a vehicle in a platoon's roster is untested there). Would change: a `CompanyDefend` that can hold blocks in depth.
 
 ## 5. Acceptance
 

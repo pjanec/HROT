@@ -2585,10 +2585,17 @@ def _geo_origin(scenario):
 
 
 def geo_of(scenario, x, y):
-    """⭐ CE-2176 IF-4 — an order's Location is a GEODETIC point [lat, lon] (PickableGeoPoint) once the cluster has a geo transform —
+    """⭐⭐ CE-7038 — SUPERSEDED by CE-2433: a Strike's Location is LOCAL metres [x, y, z] again (the wire is local ENU, AQ107). ⇒ this returns
+    the local point; the geodetic inverse below is kept only as `_geodetic_of` for a route that still asks for one.
+    ⛔ HISTORY: CE-2176 IF-4 — an order's Location is a GEODETIC point [lat, lon] (PickableGeoPoint) once the cluster has a geo transform —
     and every terrain declares an origin. A local [y, x] there reads as latitude -195°: WGS84Transform.ToCartesian throws and the
     order is dropped without a word. This is that transform's inverse (local ENU → ECEF → geodetic, WGS84), so the point the brain
     gets back is the local one asked for."""
+    return [float(x), float(y), 0.0]
+
+
+def _geodetic_of(scenario, x, y):
+    """The local → geodetic inverse (WGS84) the CE-2176 IF-4 era needed."""
     o = _geo_origin(scenario)
     if o is None:
         return [y, x]
@@ -5651,6 +5658,201 @@ def run_ts_three_defenders(c, timeout):
          f"(3) the Fanatic never breaks and fires back (peak {story['Fanatic'][0]:.2f}, fired {story['Fanatic'][4]}, tasks {story['Fanatic'][3]})")
 
 
+# ── CE-7033 — THE DYNAMISM MEASURE: is the battle moving? (DESIGN_City_Battle_Showcase.md §3a momentum; Battalion Test §5 acceptance 2) ──────
+
+class Dynamism:
+    """⭐ CE-7033 — read from a live run over HTTP: ① the share of men (each counted as the men it stands for — UnitStrength.MenOf, 1 per
+    soldier today, R-D8) that moved more than MOVED_M in each WINDOW_S of sim time, ② contacts per minute (CONTACT + SPOT reports with men,
+    from /squad/reports), ③ each phase line reached by its deadline (the scenario's ReachArea objectives: Achieved, never Failed). A window
+    below the locked thresholds is a RED ROW — the battle went static. ⭐ Generic: any scenario's check feeds it its men and reads report()."""
+    WINDOW_S, MOVED_M = 300.0, 50.0
+
+    def __init__(self, men):
+        self.men = list(men)          # network ids of the men (soldiers) to track
+        self.track = {m: [] for m in self.men}
+
+    @staticmethod
+    def men_of(nid):
+        return 1.0                   # ⚠ the one seam a FusionSquad body plugs in at (UnitStrength.MenOf, R-D8); a soldier is one man today
+
+    def sample(self, t):
+        for m in self.men:
+            p = position(m)
+            if p:
+                self.track[m].append((t, p[0], p[1]))
+
+    def windows(self, t_from, t_to):
+        rows = []
+        w = t_from
+        while w + self.WINDOW_S <= t_to + 1e-6:
+            moved = total = 0.0
+            for m, pts in self.track.items():
+                inside = [q for q in pts if w <= q[0] <= w + self.WINDOW_S]
+                if len(inside) < 2:
+                    continue
+                total += self.men_of(m)
+                x0, y0 = inside[0][1], inside[0][2]
+                if max(math.hypot(q[1] - x0, q[2] - y0) for q in inside) > self.MOVED_M:
+                    moved += self.men_of(m)
+            rows.append((w, w + self.WINDOW_S, moved / total if total else 0.0))
+            w += self.WINDOW_S
+        return rows
+
+    @staticmethod
+    def contacts_per_minute(reports, t_from, t_to):
+        n = sum(1 for r in reports if r.get("kind") in ("Contact", "Spot") and (r.get("count") or 0) > 0
+                and t_from <= (r.get("seenAt") or -1) <= t_to)
+        return n / max((t_to - t_from) / 60.0, 1e-6)
+
+    @staticmethod
+    def phase_lines(objectives):
+        rows = []
+        for o in (objectives or {}).get("objectives") or []:
+            if o.get("kind") == "ReachArea":
+                rows.append((o.get("title"), o.get("state"), o.get("changedAt")))
+        return rows
+
+    def report(self, c, reports, objectives, t_from, t_to, moved_min=None, contacts_min=None):
+        """Prints the measure; with thresholds, each window under them is a FAILED row (the battle went static)."""
+        wins = self.windows(t_from, t_to)
+        cpm = self.contacts_per_minute(reports, t_from, t_to)
+        print(f"   DYNAMISM (CE-7033) {t_from:.0f}–{t_to:.0f} s: moved > {self.MOVED_M:.0f} m per {self.WINDOW_S:.0f} s window "
+              + " · ".join(f"[{a:.0f}–{b:.0f}] {s * 100:.0f} %" for a, b, s in wins) + f" · contacts {cpm:.2f}/min")
+        for title, state, at in self.phase_lines(objectives):
+            print(f"   phase line '{title}': {state} at {at}")
+            c.ok(state != "Failed", f"DYNAMISM: phase line '{title}' not missed ({state})")
+        if moved_min is not None:
+            for a, b, s in wins:
+                c.ok(s >= moved_min, f"DYNAMISM: [{a:.0f}–{b:.0f}] {s * 100:.0f} % of the men moved > {self.MOVED_M:.0f} m (≥ {moved_min * 100:.0f} %)")
+        if contacts_min is not None:
+            c.ok(cpm >= contacts_min, f"DYNAMISM: {cpm:.2f} contacts / min (≥ {contacts_min})")
+        return wins, cpm
+
+
+# ── CE-4615 — THE COMMAND CHAIN ON A BATTALION SLICE (DESIGN_Command_Chain_Battalion_Test.md §3.2) ────────────────────────────────
+
+# the dynamism thresholds, set from the first three clean base runs and then LOCKED (Battalion Test §5.2) — None = measure only
+CC_MOVED_MIN = None
+CC_CONTACTS_MIN = None
+
+
+def _reports_of(log, frm=None, kind=None, subtype=None, after=-1.0):
+    return [r for r in log if (frm is None or r.get("from") == frm) and (kind is None or r.get("kind") == kind)
+            and (subtype is None or r.get("subtype") == subtype) and (r.get("seenAt") or -1) > after]
+
+
+def run_cc_battalion(c, timeout):
+    """⭐ CE-4615 — cc-battalion / -stall / -collapse (Battalion Test §3.2, §4): the chain judged IN ORDER and CAUSED — each arrow is found
+    in the reports log, the units' tasks and the bursts, and must come AFTER the one it is caused by (a report precedes the order it triggers;
+    the fire lands on a REPORTED point; a phase line reached BY a report). Then the dynamism measure (CE-7033). Sampled every ~15 s wall."""
+    variant = "collapse" if any("collapse" in x for x in sys.argv) else "stall" if any("stall" in x for x in sys.argv) else "base"
+    ids = ids_by_name()
+    need = ["Blue Battalion HQ", "Blue Company", "Blue 1st Platoon", "Blue 2nd Platoon", "Blue 3rd Platoon", "Blue Mortar Section",
+            "Red Battalion HQ", "Red Company", "Red 1st Platoon", "Red 2nd Platoon", "Red 3rd Platoon", "Red Battalion Reserve", "Red Outpost"]
+    if not c.ok(all(ids.get(n) for n in need), f"the battalion slice is loaded ({[n for n in need if not ids.get(n)] or 'all units'})"):
+        return
+    u = {n: ids[n] for n in need}
+    men = [nid for n, nid in ids.items() if n and (" Leader" in n or " Rifleman" in n or "Gunner" in n or "Loader" in n)]
+    dyn = Dynamism(men)
+    call("POST", "/sim/play", {})
+    t_play = sim_time() or 0.0
+    first = {}          # (unit name, task) → first sim time seen
+    window = float(os.environ.get("CC_SECONDS", "900"))
+    shooters = {ids.get(n) for n in ids if n and n.startswith("Blue Mortar")}
+    bursts = {}
+    ended = None
+    end_wall = time.time() + window * 4 + 600
+    last_dyn = -1e9
+    while time.time() < end_wall:
+        t = sim_time() or 0.0
+        for n, nid in u.items():
+            k = task_name(nid)
+            if k and (n, k) not in first:
+                first[(n, k)] = t
+                print(f"   t={t:6.1f}  {n}: {k}", flush=True)
+        if t - last_dyn >= 15.0:
+            dyn.sample(t); last_dyn = t
+        for d in _detonations():
+            if d.get("shooter") in shooters and d.get("burst") and d.get("seq") not in bursts:
+                bursts[d.get("seq")] = (t, d.get("burst"))
+        objs = data(call("GET", "/objectives")) or {}
+        for o in objs.get("objectives") or []:
+            if o.get("title") in ("Blue holds Objective 2", "Red below 30 %") and o.get("state") == "Achieved" and not ended:
+                ended = (o.get("title"), t)
+        if ended or t - t_play >= window:
+            break
+        time.sleep(5.0)
+    t_end = sim_time() or 0.0
+    log = squad_reports(last=4000)
+    objectives = data(call("GET", "/objectives")) or {}
+    print(f"   ran {t_end - t_play:.0f} s of sim · ended by {ended or 'time'} · reports {len(log)} · mortar bursts {len(bursts)}")
+    kinds = {}
+    for r in log:
+        kinds[(r.get("kind"), r.get("subtype"))] = kinds.get((r.get("kind"), r.get("subtype")), 0) + 1
+    print(f"   report kinds: {sorted(kinds.items(), key=str)}")
+
+    def task_at(name, *tasks, after=-1.0):
+        ts = [v for (n, k), v in first.items() if n == name and k in tasks and v > after]
+        return min(ts) if ts else None
+
+    arrows = []   # (label, t or None, caused-by ok, evidence)
+
+    # ① the outpost SPOTs, then withdraws (BreakContact) — after its SPOT
+    spot = _reports_of(log, frm=u["Red Outpost"], kind="Spot")
+    t_spot = spot[0]["seenAt"] if spot else None
+    t_brk = task_at("Red Outpost", "BreakContact", after=t_spot or -1)
+    arrows.append(("① outpost SPOT → BreakContact", t_brk, t_spot is not None and t_brk is not None, f"SPOT {t_spot}, BreakContact {t_brk}"))
+    # ② the base of fire Sets, THEN the assault is ordered
+    bset = _reports_of(log, frm=u["Blue 2nd Platoon"], kind="Progress", subtype="Set")
+    t_bset = bset[0]["seenAt"] if bset else None
+    t_assault = task_at("Blue 1st Platoon", "PlatoonAttack", after=t_bset or 1e9)
+    arrows.append(("② base of fire Set → the assault", t_assault, t_bset is not None and t_assault is not None, f"Set {t_bset}, PlatoonAttack {t_assault}"))
+    # ③ REQUEST FireSupport from the company → mortar bursts AFTER it, near the reported point
+    req = _reports_of(log, frm=u["Blue Company"], kind="Request", subtype="FireSupport")
+    t_req = req[0]["seenAt"] if req else None
+    near = None
+    if req:
+        p = req[0].get("at") or [0, 0, 0]
+        after = [(bt, b) for bt, b in sorted(bursts.values(), key=lambda x: x[0]) if bt >= t_req]
+        near = min((math.hypot(b[0] - p[0], b[1] - p[1]) for _, b in after), default=None)
+    arrows.append(("③ REQUEST FireSupport → bursts on the reported point", t_req, near is not None and near <= 120,
+                   f"request {t_req} at {req[0].get('at') if req else None}, nearest later burst {near if near is None else round(near)} m"))
+    # ④ a Red block LOST (TaskFailed / Black) → the company reserve counter-attacks
+    lost = [r for n in ("Red 1st Platoon", "Red 2nd Platoon") for r in _reports_of(log, frm=u[n])
+            if (r.get("kind") == "Progress" and r.get("subtype") == "TaskFailed") or (r.get("kind") == "Sitrep" and r.get("strength") == "Black")]
+    t_lost = min((r["seenAt"] for r in lost), default=None)
+    t_ca = task_at("Red 3rd Platoon", "PlatoonAttack", after=t_lost or 1e9)
+    arrows.append(("④ a Red block LOST → the counter-attack", t_ca, t_lost is not None and t_ca is not None, f"lost {t_lost}, counter-attack {t_ca}"))
+    # ⑤ SITREP Red → REQUEST Reinforce from the company ⑥ → the battalion reserve ordered (PlatoonDefend: it is a platoon)
+    red = [r for r in _reports_of(log, frm=u["Red Company"], kind="Sitrep") if r.get("strength") in ("Red", "Black")]
+    rr = _reports_of(log, frm=u["Red Company"], kind="Request", subtype="Reinforce")
+    t_rr = rr[0]["seenAt"] if rr else None
+    arrows.append(("⑤ Red company RED → REQUEST Reinforce", t_rr, t_rr is not None, f"SITREP red {red[0]['seenAt'] if red else None}, request {t_rr}"))
+    t_res = task_at("Red Battalion Reserve", "PlatoonDefend", "CompanyDefend", after=t_rr or 1e9)
+    arrows.append(("⑥ the battalion reserve sent", t_res, t_rr is not None and t_res is not None, f"request {t_rr}, reserve ordered {t_res}"))
+    # ⑦ Blue's tempo (deadline 180 s from the order at 30 s): the reserve committed, the bypass — after the fires
+    t_order = task_at("Blue Company", "CompanyAttack") or 30.0
+    t_blue_res = task_at("Blue 3rd Platoon", "PlatoonAttack", after=t_order)
+    arrows.append(("⑦ the Blue reserve committed (tempo)", t_blue_res, t_blue_res is not None and (t_req is None or t_blue_res >= t_req),
+                   f"order {t_order}, fires asked {t_req}, reserve attacks {t_blue_res}"))
+    pls = _reports_of(log, frm=u["Blue Company"], kind="Progress", subtype="PhaseLine")
+    arrows.append(("phase line reached BY a report (PROGRESS PhaseLine)", pls[0]["seenAt"] if pls else None, bool(pls),
+                   f"{[(r.get('phaseLine'), r.get('seenAt')) for r in pls]}"))
+    # ⑧ the end
+    arrows.append(("⑧ the end (objective held / Red < 30 %)", ended[1] if ended else None, ended is not None, f"{ended}"))
+
+    print("   THE CHAIN (sim s):")
+    for label, t, ok, ev in arrows:
+        print(f"     {'✓' if ok else '·'} {label:<55} {t if t is None else round(t, 1)!s:>7}   {ev}")
+    required = {"base": ["①", "②", "③", "⑤", "⑥", "phase", "⑧"],
+                "stall": ["②", "③", "⑦"],
+                "collapse": ["④", "⑤", "⑥"]}[variant]
+    for label, t, ok, ev in arrows:
+        if any(label.startswith(r) for r in required):
+            c.ok(ok, f"[{variant}] {label}: {ev}")
+    dyn.report(c, log, objectives, t_play, t_end, CC_MOVED_MIN if variant == "base" else None, CC_CONTACTS_MIN if variant == "base" else None)
+
+
 SCENARIOS = {"ua-posture": run_posture, "il-idle-life": run_il_idle_life, "ts-fire-discipline": run_ts_fire_discipline, "ts-aggression": run_ts_aggression, "ts-house-defenders": run_ts_house_defenders, "ts-three-defenders": run_ts_three_defenders, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -5747,7 +5949,7 @@ SCENARIOS = {"ua-posture": run_posture, "il-idle-life": run_il_idle_life, "ts-fi
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "uc-urban-battle": run_uc_urban_battle, "ua-eject": run_eject, "ua-car-bomb": run_car_bomb, "ua-m2-engage": run_m2_engage, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter, "morale-barrage-green": run_morale_barrage, "morale-barrage-veteran": run_morale_barrage}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "uc-urban-battle": run_uc_urban_battle, "ua-eject": run_eject, "ua-car-bomb": run_car_bomb, "ua-m2-engage": run_m2_engage, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter, "morale-barrage-green": run_morale_barrage, "morale-barrage-veteran": run_morale_barrage, "cc-battalion": run_cc_battalion, "cc-battalion-stall": run_cc_battalion, "cc-battalion-collapse": run_cc_battalion}
 
 
 def main():
