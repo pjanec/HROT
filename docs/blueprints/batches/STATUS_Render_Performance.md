@@ -21,11 +21,11 @@ related-designs:
 | G-2 · CE-4556 | the body layer fills the batch | ✅ `029427648` |
 | G-3 · CE-4557 | the screen-size bands | ✅ `6aaf70d30` |
 | G-4 · CE-4558 | the pick on input, through the drawn boxes | ✅ `6aaf70d30` |
-| G-5 · CE-4559 | the 2-D terrain layer from a cache | ✅ (this commit) |
+| G-5 · CE-4559 | the 2-D terrain layer from a cache | ✅ `dd2a90ee2` |
 | G-6 · CE-4560 | sound sources within hearing | ✅ `6aaf70d30` |
 | G-7 · CE-4561 | the message log's visible rows | ✅ `6aaf70d30` |
 | G-8 · CE-4562 | the proof on this machine | ⬜ |
-| G-9 · CE-4562 | the as-built into Map 3D §6ak | ⬜ |
+| G-9 · CE-4562 | the as-built into Map 3D §6ak | ✅ (this commit) — §6ak BUILT, §6ak.1 as built, §6ak.6 the deviations and the measured result; People Display §7g |
 
 ## GATES
 
@@ -39,6 +39,24 @@ related-designs:
 
 The UI thread at the whole-terrain pose (10 s sampled): `EntityBodyLayer3D.Draw3D` 48 % (parts 32 %, doors 13 %), the staged pull 25 % (of it
 `StatelessGizmoSystem` 17 %), the pick 8 %, sound 4.5 %, the terrain ≈ 3 %.
+
+## GATES — ⭐ the final measurement (after G-1 … G-8, `fefaabc37`; Release, hidden, uncapped, `rp.py`, three 2-s windows)
+
+| pose | before | after | target | UI thread | GPU 3-D | bodies |
+|---|---|---|---|---|---|---|
+| whole terrain | 91 · 91 · 88 ms | **21.8 · 22.4 · 22.3 ms** | ≤ 33 ms ✅ | 97 % | 52 % | 1 call · 29 far · 1 091 hidden · 6 911 doors hidden |
+| street | 42 · 36 · 31 ms | **15.4 · 15.9 · 15.8 ms** | ≤ 16.7 ms ✅ | 97 % | 31 % | none in view at this pose |
+| 2-D map | 43 · 30 · 23 ms | **12.4 · 12.5 · 12.1 ms** | — | — | 14 % | — |
+
+| gate | result |
+|---|---|
+| the new rails (`BodyScaleFrameRail` 7, `AudioTests.CE4560_*`, `MessageLogCostRail.ASteadyLog_*`, `Map3DTests.CE1073_*`) | ✅ all green on this machine's GL (hidden window, NOT skipped); each red-proved by a compiling mutation (the batch's mapping, the pick walk, the search rate, the log's change check, the cache's transform) |
+| `Hrot.Presentation.Tests` whole, Debug, `--no-build` | 24 failed / 2 116 passed / 11 skipped — ⭐ **0 new against the base** `d103a02be` (25 there: the same 24 + `CE1073`, fixed here). The 24 predate this branch (rules, debrief, storage, catalogue, director, the wire-sphere and demo-city frame rails …) |
+| `Fdp.Presentation.Tests` whole | 5 failed / 836 — the same 5 at the base |
+| `Map3DFrameRail` + `BodyScaleFrameRail` (frame rails, real GL) | 52 / 54 + 7 / 7 — the 2 reds are the base's (`CE4388_TheCachedWireSphere…`, `CE1227_V_DemoCity…`, no bodies drawn in either) |
+| 0 B per steady frame (body layer + batch) | ✅ the rail; ⚠ once, in one whole-suite run, one frame of the 20 allocated 6 KB (passed in the next whole-suite run and every class run) — OPEN |
+| the threaded 1 000-man session, `HROT_WORLD_GUARD=1` | see G-8 below |
+| `tracker-counts.py --check` | ✅ |
 
 ## GATES — after G-1 … G-4 (before G-5 … G-7; `rp.py`, the same poses)
 
@@ -82,3 +100,11 @@ after this run, A-9), sound 12 % (G-6), effects 11 %, ImGui 9 %, the message log
 | (this run) `BodyScaleFrameRail.cs` was committed in `029427648` with its comments double-encoded (a PowerShell `Get-Content`/`Set-Content` round trip in the cs-CZ code page) | re-encoded | — |
 
 ## OPEN
+
+| # | what | evidence | lean |
+|---|---|---|---|
+| O-1 | ⚠ **the editor crashes on SHUTDOWN** — `AccessViolationException` in `EntityRepository.SyncPresentationCore` (the sim worker's `StagingWorlds.Publish`), once in `NativeChunkTable<TkbIdentity>` | in the BASE run of this branch (before any change, `rp/base`), in last night's core-utilisation runs (`s1on`, `dcon`) and in this run's sessions — always after `/shutdown`, never during a step | pre-existing; a native-memory race between the sim worker's publish and the world's disposal — backend, a tracker row needs an id from the coordinator's block |
+| O-2 | the steady-frame allocation rail allocated once (6 KB in one of 20 frames) in one whole-suite run | passed in the next whole-suite run and in every class run | a one-time growth inside `DrawParts` when other suites ran first — watch; not reproduced |
+| O-3 | the Mermaid blocks of Map 3D §6ak.1 were not run through `scripts/mermaid-check.mjs` | no Node on this machine | the coordinator's VM, before merge |
+| O-4 | what is left of the frame is spread thin | whole terrain: the staged pull (the gizmo system 8–14 %), the effects' sphere draws (`EffectLayer.Draw3D` 11–17 %, mostly native: a blend-mode flush per flash), ImGui ≈ 10 % | the next round, if the targets tighten |
+| O-5 | a door hidden for its size (< 2 px) is not pickable (A-9) | — | nobody aims at a 2-px door; the free camera re-picks when it moves closer |

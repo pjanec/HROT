@@ -484,6 +484,13 @@ the label card. It needs to be just short. Otherwise, it would overlap too much 
 | **U21c** | ✅ **people AND vehicles** (alive, a person not inside a vehicle); ✅ **hidden whenever the card is shown** — the card already carries the health bar (user, `2026-10-24`) | ⛔ people only, and ⛔ *"under the card when both show"* — SUPERSEDED by the user the same day |
 | **U21d** | 3-D only | 2-D — the symbol view already has the card; ask if wanted |
 
+### 7g. As built — a figure at a distance *(`CE-4557`, Windows session, `2026-11-14`; ⭐ Map 3D §6ak — [`DESIGN_Map_3D_Mode.md`](DESIGN_Map_3D_Mode.md) §6ak.6)*
+
+The figure is drawn as this document describes from **12 px** tall on screen up. Below that a man is ONE lit box: the bounds of his own figure's parts
+in his stance (standing, crouched, prone — a dead man lies), × 0.5 across, in his outfit's main colour with the camouflage's tones averaged in;
+below **1.5 px** nothing. The selected man and the operator's own are always the full figure. The face, details, stains, held items and gestures are
+Full-band only; the look itself is unchanged (the instanced picture equals the per-draw one — `BodyScaleFrameRail`).
+
 ## 8. Gaps for the other lanes *(sent as findings)*
 
 | # | gap | lean | owner |
