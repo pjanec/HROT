@@ -20,10 +20,9 @@ related-designs:
 
 # DESIGN — the aggregate squad: a squad unit with ONE representative member *(R-4244)*
 
-⭐ **Names (lean, 2026-11-14):** *aggregate squad* = the umbrella; **avatar squad** = this design (one body — the squad's AVATAR — carries
-everything); **abstract squad** = the later probabilistic one with no member. In code: `AggregateSquad.Resolution = Avatar | Abstract`, the
-member's type `SquadAvatar`. 🔒 User: *"something that will differentiate the single all-in-one man from a truly aggregated squad with
-probabilistic calculations only."*
+⭐ **Names (✅ user, `2026-11-14`: "perfect, fusion & stochastic" — R-4247):** *aggregate squad* = the umbrella; **FusionSquad** = this
+design (one fighter, the `FusionSoldier`, carries the whole squad); **StochasticSquad** = the later one with no member, resolved by probability.
+In code: `AggregateSquad.Resolution = Fusion | Stochastic`, the member's type `FusionSoldier`.
 
 ## 1. The request
 
@@ -83,11 +82,11 @@ classDiagram
     <<seam>>
     Detect · ResolveLosses
   }
-  class ByRepresentative {
+  class ByFusionSoldier {
     <<v1>>
     real sensors, weapons, damage
   }
-  class ByProbability {
+  class ByStochastic {
     <<later>>
     no member, attrition over unit points
   }
@@ -98,8 +97,8 @@ classDiagram
   class ThreatDanger { <<existing, EXTENDED>> danger x men }
   SquadUnit "1" o-- "1" Representative : roster
   SquadUnit *-- AggregateSquad
-  AggregateResolution <|.. ByRepresentative
-  AggregateResolution <|.. ByProbability
+  AggregateResolution <|.. ByFusionSoldier
+  AggregateResolution <|.. ByStochastic
   SquadMen ..> AggregateSquad
   CombatEffective ..> SquadMen
   StaffSystems ..> SquadMen
@@ -144,7 +143,7 @@ graph TD
   MU --> DMG[HealthApplication - the per-hit cap]
   DMG --> MEN[AggregateMenSystem - serial: Men from Health]
   MEN --> SEAM[SquadMen read by CombatEffective, StaffSystems, census, ratios, threat]
-  LATER[ByProbability resolver]:::later -.writes Men, no member.-> MEN
+  LATER[ByStochastic resolver]:::later -.writes Men, no member.-> MEN
   classDef later stroke:#888,color:#888,stroke-dasharray: 5 5
 ```
 *What it shows: the one new per-frame system writes the unit's `Men` from the representative's health; a later probabilistic resolver writes the
@@ -229,12 +228,12 @@ together that requires really two targets at the same time."*
 
 | what assumes ONE target per entity | code | with F-1 |
 |---|---|---|
-| the fire channel (one action, one target) | `ChannelComponents.cs:29`, `AimAndFireParams.Target` | unchanged — the behaviour still issues ONE action with a main target; only the avatar's executor branch fires each weapon at its own target (the main one for weapons with none) |
-| the squad's fire distribution | `ThreatMatrixAssignmentSystem` → `SquadCognitiveState.Assignment`, by roster place; read only through `SquadAssignment.TargetOf` (`SquadAssignment.cs:18`) | the SOURCE of per-weapon targets: the avatar's slots are one per WEAPON instead of one per man (the fire elements, F-4) |
+| the fire channel (one action, one target) | `ChannelComponents.cs:29`, `AimAndFireParams.Target` | unchanged — the behaviour still issues ONE action with a main target; only the fusion soldier's executor branch fires each weapon at its own target (the main one for weapons with none) |
+| the squad's fire distribution | `ThreatMatrixAssignmentSystem` → `SquadCognitiveState.Assignment`, by roster place; read only through `SquadAssignment.TargetOf` (`SquadAssignment.cs:18`) | the SOURCE of per-weapon targets: the fusion soldier's slots are one per WEAPON instead of one per man (the fire elements, F-4) |
 | `WeaponPosture` — what the entity is aimed at + the active weapon | `WeaponPosture.cs:31-40`: replicated, saved, read by the 3-D figure, `LookFollowSystem`, the kinematics' body turn, `ForceLevels` / `EscalationLadder`, `Covering` | ⚠ the risk: it keeps the MAIN target (what the figure faces, what is saved and sent); the per-weapon targets stay internal — else the figure would flip its aim every round |
 | the per-shot guards: friendly / neutral on the line, ROE, the muzzle mask, the force level | `AimAndFireExecutor.cs:255-290`, `ForceLevels.LevelFor` | must take the FIRING weapon's target — contained in the one executor |
-| the aim clock and the chosen weapon | `AimTimer` / `EngagementMount` in the channel state | per weapon, in the avatar's fixed table (no allocation, R-2084) |
-| real soldiers | — | unchanged: every branch above is behind the avatar's marker |
+| the aim clock and the chosen weapon | `AimTimer` / `EngagementMount` in the channel state | per weapon, in the fusion soldier's fixed table (no allocation, R-2084) |
+| real soldiers | — | unchanged: every branch above is behind the fusion soldier's marker |
 
 ## 5. Every squad behaviour with ONE member *(analysis of design + code, no runs)*
 
