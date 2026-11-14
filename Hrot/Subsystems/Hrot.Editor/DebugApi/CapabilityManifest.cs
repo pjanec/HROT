@@ -154,7 +154,7 @@ public static class CapabilityManifest
             return Hrot.Presentation.DebugApi.DebugCapabilities.ArchitectureDiagnostics;
 
         // ⭐ Always available, by construction: they describe or end the host itself.
-        if (path is "/" or "/status" or "/shutdown" or "/capabilities") return "host";
+        if (path is "/" or "/status" or "/shutdown" or "/capabilities" or "/help") return "host";   // ⭐ CE-4525 — /help too
 
         return null;   // ⛔ unclassified — the rail names it
     }
@@ -177,7 +177,6 @@ public static class CapabilityManifest
             ["hint"]    = doc.Hint,
         };
 
-        if (doc.NotATool)     o["notATool"]     = true;
         if (doc.ManualVerify) o["manualVerify"] = true;
 
         if (doc.Params is { Length: > 0 })
@@ -261,8 +260,7 @@ public static class CapabilityManifest
             };
 
             // ⭐⭐⭐ HN-030: THE AGENT-FACING DOC, emitted from the SAME route table as the description above.
-            //    ⇒ `tools/ai-debug-mcp/tool-catalog.mjs` is GENERATED from this dump instead of being a
-            //    hand-maintained mirror of the same routes. 📄 MCP_Integration.md § Follow-up.
+            //    ⇒ GET /capabilities and GET /help render the SAME doc (CE-4525), never a committed copy.
             // ⛔ Absent rather than empty when a route carries no doc: EveryRouteIsDocumentedTests fails in
             //    that case, so a null here is a defect the gate names — not a shape a consumer must handle.
             if (DebugApiRouteDocs.ByRoute.TryGetValue((method, template), out var doc))

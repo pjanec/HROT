@@ -558,8 +558,7 @@ namespace Hrot.Editor
 
         // ── AI-debug API (MCP) host — ported from feat/ai-debug-api. Enabled by setting the
         //    HROT_DEBUG_API_PORT environment variable to a port number; off otherwise, so it costs
-        //    nothing in normal runs. The MCP server (tools/ai-debug-mcp) is an out-of-process client
-        //    of this loopback HttpListener. See docs/MCP_Integration.md.
+        //    nothing in normal runs. Agents drive it over plain HTTP (GET /help, CE-4525). See docs/MCP_Integration.md.
         private Hrot.Editor.DebugApi.MainThreadJobQueue? _debugApiJobQueue;
 
         // ⭐ CE-4038 (docs/DESIGN_Film_Director.md) — the film director: one runner, two remotes (the /director/* routes, the Director panel)
@@ -1824,8 +1823,7 @@ namespace Hrot.Editor
             }
 
             // ── 8b. AI-debug API (MCP) host — ported from feat/ai-debug-api. Works headless. Enabled only
-            //    when HROT_DEBUG_API_PORT names a port, so it costs nothing in normal runs; the MCP server
-            //    (tools/ai-debug-mcp) is an out-of-process client of this loopback HttpListener.
+            //    when HROT_DEBUG_API_PORT names a port, so it costs nothing in normal runs; agents drive it over plain HTTP (GET /help).
             //    Full surface: the behavior-trace tracer and the record/replay controller are wired below
             //    (own instances, dedicated to the API). See docs/MCP_Integration.md.
             {

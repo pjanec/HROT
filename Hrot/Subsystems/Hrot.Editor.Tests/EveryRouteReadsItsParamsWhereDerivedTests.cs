@@ -76,7 +76,7 @@ public sealed class EveryRouteReadsItsParamsWhereDerivedTests
     /// <summary>The findings for one route: wrong place, a path value not in the template, an undocumented key.</summary>
     internal static IEnumerable<string> Findings(Reads r, RouteDoc? doc)
     {
-        bool readsQuery = r.Method is "GET" or "DELETE";
+        bool readsQuery = ParamLocations.ForMethod(r.Method) == ParamLocations.Query;   // the ONE derivation (AgentGuide renders it too)
         var path = TemplateParam.Matches(r.Template).Select(x => x.Groups[1].Value).ToHashSet(StringComparer.Ordinal);
         string at = $"{r.Method} {r.Template}";
         if (readsQuery && r.Body.Count > 0) yield return $"{at}: reads body key(s) {string.Join(", ", r.Body)} — a {r.Method} takes the query";

@@ -14,6 +14,9 @@ related-designs:
   - docs/DESIGN_Agent_Shared_View.md — OWNS the routes for what the operator sees (/view, /selection, /marks) and for debugging one unit live and over a recording; a line goes here when they are built
 -->
 
+> ⛔ **HISTORY note (R-4223, CE-4528, `2026-11-14`)** — the Node MCP server (`tools/ai-debug-mcp`: its tool catalog, generated `SKILL.md`, skill parts and generators) named in this document is **removed**. The debug API is plain HTTP and describes itself: `GET /help` (or `Hrot.ClusterRunner --help-api` before anything is started) and `GET /capabilities` — [`DESIGN_Debug_Api_Http_Only.md`](DESIGN_Debug_Api_Http_Only.md). Every mention of the server, its tools or its generated files below is HISTORY; tool names map to routes in `GET /help`.
+
+
 # RUNBOOK — debugging a running HROT cluster over plain HTTP
 
 > 🔒 **User, `2026-09-04`, on why this exists:** *"i would like you to start writing a runbook … giving

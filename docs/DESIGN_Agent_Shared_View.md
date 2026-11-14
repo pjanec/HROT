@@ -24,6 +24,9 @@ related-designs:
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS the sensors and target memory that the existing /entities/{id}/sensors and /memory routes read
 -->
 
+> ⛔ **HISTORY note (R-4223, CE-4528, `2026-11-14`)** — the Node MCP server (`tools/ai-debug-mcp`: its tool catalog, generated `SKILL.md`, skill parts and generators) named in this document is **removed**. The debug API is plain HTTP and describes itself: `GET /help` (or `Hrot.ClusterRunner --help-api` before anything is started) and `GET /capabilities` — [`DESIGN_Debug_Api_Http_Only.md`](DESIGN_Debug_Api_Http_Only.md). Every mention of the server, its tools or its generated files below is HISTORY; tool names map to routes in `GET /help`.
+
+
 # Agent Shared View — the agent sees what the operator sees, and debugs what the operator debugs
 
 🔒 **User, `2026-10-23`:** *"I need the new decision history ring and maybe even the aggregated brain view be made easily accessible to

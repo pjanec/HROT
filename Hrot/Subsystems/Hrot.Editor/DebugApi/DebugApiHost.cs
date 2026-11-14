@@ -204,7 +204,7 @@ namespace Hrot.Editor.DebugApi
         /// <see cref="Error"/> string.
         /// </param>
         private readonly record struct RouteResult(
-            int Status, JsonNode? Data, string? Error, JsonNode? Hint = null, JsonNode? Fault = null);
+            int Status, JsonNode? Data, string? Error, JsonNode? Hint = null, JsonNode? Fault = null, string? Text = null);
 
         private static RouteResult Ok(JsonNode? data) => new(200, data, null);
 
@@ -404,7 +404,7 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>
         /// ⭐⭐⭐ <b>The manifest as a JSON string, for <c>--mode dump-api</c></b> — the artefact
-        /// <c>tools/ai-debug-mcp</c> generates its catalog from.
+        /// what the route table IS, with no world started (GET /help's text is <see cref="HelpText"/>).
         ///
         /// <para>⭐ The DESCRIPTION half *(endpoints + their <see cref="RouteDoc"/>s)* is all the generator
         /// reads, and it is host-independent. ⚠ The AVAILABILITY half is deliberately reported as
@@ -438,6 +438,39 @@ namespace Hrot.Editor.DebugApi
             //   JsonSerializer attaches it. 📌 Which is why the HTTP path, which serializes the same nodes
             //   through JsonSerializer, never hit this.
             return JsonSerializer.Serialize(manifest, FdpJsonOptionsRegistry.Indented);
+        }
+
+        /// <summary>⭐ CE-4525 — the agent guide (<see cref="AgentGuide"/>) over the full route table; <paramref name="available"/> marks what a
+        /// host cannot serve now (null: <c>--help-api</c>, no host).</summary>
+        public static string HelpText(Func<string, bool?>? available) => AgentGuide.Render(EnumerateRouteTemplates(), available, HelpAppendix());
+
+        /// <summary>Sections other owners render into the guide (CE-4586's environment variables join here).</summary>
+        internal static IEnumerable<string> HelpAppendix() => Array.Empty<string>();
+
+        /// <summary>⭐ The editor's capability cells: one node, every editor capability wired (the same set <c>GET /capabilities</c> reports).</summary>
+        private static Dictionary<string, bool> EditorCapabilities() => new(StringComparer.Ordinal)
+        {
+            [Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead]        = true,
+            [Hrot.Presentation.DebugApi.DebugCapabilities.EntityMap]        = true,
+            [Hrot.Presentation.DebugApi.DebugCapabilities.TimeDrive]        = true,
+            [Hrot.Presentation.DebugApi.DebugCapabilities.Panels]           = true,
+            [Hrot.Presentation.DebugApi.DebugCapabilities.GizmoFrame]       = true,
+            [Hrot.Presentation.DebugApi.DebugCapabilities.Preview]          = true,
+            [Hrot.Presentation.DebugApi.DebugCapabilities.EditorAuthoring]  = true,
+            // ⭐ HN-029: the editor is a ONE-NODE cluster and its own ClusterMaster reads the bus the composition root hands over
+            [Hrot.Presentation.DebugApi.DebugCapabilities.ScenarioLoad]     = true,
+            // ⭐ CE-4002: the editor runs the ONE OrchestratorCore in-process (R-215) — the master's roster and the cancel bus
+            [Hrot.Presentation.DebugApi.DebugCapabilities.ClusterRoster]    = true,
+            [Hrot.Presentation.DebugApi.DebugCapabilities.ClusterCancel]    = true,
+        };
+
+        /// <summary>⭐ CE-4525 — can THIS host serve <paramref name="capability"/> now: the current perspective's measured cell on a cluster, the
+        /// editor's cells otherwise; null when the key is not measured (unmarked in the guide).</summary>
+        private bool? Available(string capability)
+        {
+            if (_dispatcher is { } d)
+                return d.CurrentPerspective is { } p && d.Matrix().TryGetValue(p, out var row) && row.TryGetValue(capability, out var on) ? on : null;
+            return EditorCapabilities().TryGetValue(capability, out var e) ? e : null;
         }
 
         private void BuildRoutes()
@@ -483,25 +516,11 @@ namespace Hrot.Editor.DebugApi
                     _dispatcher,
                     // ⭐ Editor mode: one context, and every cell is measured from the service being
                     //   constructible with those deps at all.
-                    _dispatcher is null
-                        ? new Dictionary<string, bool>(StringComparer.Ordinal)
-                          {
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead]        = true,
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.EntityMap]        = true,
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.TimeDrive]        = true,
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.Panels]           = true,
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.GizmoFrame]       = true,
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.Preview]          = true,
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.EditorAuthoring]  = true,
-                              // ⭐ HN-029: the editor is a ONE-NODE cluster and its own ClusterMaster reads
-                              //   the bus the composition root hands over ⇒ it can request a transition.
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.ScenarioLoad]     = true,
-                              // ⭐ CE-4002: the editor runs the ONE OrchestratorCore in-process (R-215), so it holds
-                              //   the master's roster and the bus a cancel travels on.
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.ClusterRoster]    = true,
-                              [Hrot.Presentation.DebugApi.DebugCapabilities.ClusterCancel]    = true,
-                          }
-                        : null)))));
+                    _dispatcher is null ? EditorCapabilities() : null)))));
+
+            // ⭐⭐ CE-4525 (H-3) — GET /help: the agent guide, prose + every route rendered from the route docs, each marked when THIS host
+            //   cannot serve it now. Plain text (markdown), not the JSON envelope: it is read, not parsed.
+            _routes.Add(new("GET", "/help", _ => Task.FromResult(new RouteResult(200, null, null, Text: HelpText(Available))), NeedsService: false));
 
             // Group B — entities (with optional ?component= and ?near= filters)
             _routes.Add(new("GET", "/entities", ctx =>
@@ -2936,6 +2955,17 @@ namespace Hrot.Editor.DebugApi
                 //    endpoint could not advise a caller that had been served but had asked the wrong
                 //    question — the envelope was structurally incapable of saying "ok, but…". 📐 That is why
                 //    `/logs?limit=400` could return the whole unfiltered ring in silence.
+                if (result.Text is { } text && result.Error is null)
+                {
+                    // ⭐ CE-4525 — a READ for people and agents (GET /help): plain UTF-8 markdown, not a JSON string in the envelope
+                    var raw = Encoding.UTF8.GetBytes(text);
+                    ctx.Response.StatusCode = result.Status;
+                    ctx.Response.ContentType = "text/markdown; charset=utf-8";
+                    ctx.Response.ContentLength64 = raw.Length;
+                    await ctx.Response.OutputStream.WriteAsync(raw, 0, raw.Length).ConfigureAwait(false);
+                    ctx.Response.Close();
+                    return;
+                }
                 var envelope = result.Error is null
                     ? new ApiResponse(true, Data: result.Data, Hint: result.Hint)
                     : new ApiResponse(false, Error: result.Error, Hint: result.Hint, Fault: result.Fault);
@@ -3069,8 +3099,8 @@ namespace Hrot.Editor.DebugApi
     /// <param name="Fault">
     /// ⭐⭐⭐ <c>CE-190</c> — the throw site, frames and inner chain of an unhandled exception, so an MCP
     /// caller can locate a 500 instead of only reading its message. Null on every non-500 response.
-    /// ⭐ It reaches the agent with no client change: <c>ai-debug-mcp/src/index.mjs:296</c> spreads the
-    /// whole envelope into the tool's error payload.
+    /// ⭐ It reaches the agent with no client change: the envelope carries it (⛔ HISTORY: the retired MCP server spread the
+    /// whole envelope into its tool error payload).
     /// </param>
     public record ApiResponse(bool Ok, JsonNode? Data = null, string? Error = null, bool? Awaited = null, JsonNode? Hint = null, JsonNode? Fault = null);
 }

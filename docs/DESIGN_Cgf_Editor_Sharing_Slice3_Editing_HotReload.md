@@ -26,6 +26,9 @@ known-conflict: ⚠ SHARES the DebugApi surface with the PARALLEL MCP-authoring 
   route file; the coordinator serializes the generated catalog/SKILL.md. CONSUMES Hrot.Editor.AiShared;
   must NOT modify it beyond additive wiring — coordinate with the variable-model lane.
 -->
+
+> ⛔ **HISTORY note (R-4223, CE-4528, `2026-11-14`)** — the Node MCP server (`tools/ai-debug-mcp`: its tool catalog, generated `SKILL.md`, skill parts and generators) named in this document is **removed**. The debug API is plain HTTP and describes itself: `GET /help` (or `Hrot.ClusterRunner --help-api` before anything is started) and `GET /capabilities` — [`DESIGN_Debug_Api_Http_Only.md`](DESIGN_Debug_Api_Http_Only.md). Every mention of the server, its tools or its generated files below is HISTORY; tool names map to routes in `GET /help`.
+
 # DESIGN — **cgf==editor slice 3 (CE-011): editing + hot reload on CGF**
 
 > 🎯 CE-009 made CGF **open** assets; this makes CGF **edit** them. Take the windows' native editing

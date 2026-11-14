@@ -4,28 +4,16 @@ using System.Collections.Generic;
 namespace Hrot.Editor.DebugApi
 {
     /// <summary>
-    /// ⭐⭐⭐ <b>THE AGENT-FACING DOC OF EVERY ENDPOINT, keyed by the route that serves it.</b>
-    /// 📄 <c>MCP_Integration.md</c> § *"Follow-up — GENERATE `tool-catalog.mjs` from the routes"* *(`HN-030`)*.
+    /// ⭐⭐⭐ <b>THE AGENT-FACING DOC OF EVERY ENDPOINT, keyed by the route that serves it</b> — the ONE source <c>GET /capabilities</c> and
+    /// <c>GET /help</c> render (docs/DESIGN_Debug_Api_Http_Only.md §3, R-4223). <c>EveryRouteIsDocumentedTests</c> keeps it and the route
+    /// table together; <c>EveryRouteReadsItsParamsWhereDerivedTests</c> keeps each handler reading the params documented here, where derived.
     ///
-    /// <para>⭐⭐ <b>This replaced a hand-maintained mirror in another language.</b> The content below was MOVED
-    /// from <c>tools/ai-debug-mcp/tool-catalog.mjs</c>, not rewritten — it was already correct; what was wrong
-    /// was that nothing tied it to the routes. ⇒ <c>GET /capabilities</c> now emits it and the JS catalog is
-    /// GENERATED from that dump.</para>
+    /// <para>⛔⛔ <b>Why a keyed table and not an argument on each <c>_routes.Add</c> call.</b> <c>BuildRoutes</c> is already long and these
+    /// docs are longer; inlining them would bury the route ORDER, which matters. What makes drift impossible is ENFORCEMENT (the rails above),
+    /// not proximity.</para>
     ///
-    /// <para>⛔⛔ <b>Why a keyed table and not an argument on each <c>_routes.Add</c> call.</b> ⚠ Proximity was
-    /// the goal *(and it is the real argument for doing this at all)*, but <c>BuildRoutes</c> is already 535
-    /// lines and these docs are ~1000 more; inlining them would make one method ~1500 lines and bury the route
-    /// ORDER, which matters *(see the <c>/perspectives</c> vs <c>/perspective</c> note there)*. ⭐⭐ What makes
-    /// drift impossible is not proximity but ENFORCEMENT: <c>EveryRouteIsDocumentedTests</c> fails when a route
-    /// has no entry here, so the two cannot move apart. ⚠ Stated as a trade, not as the obviously-right answer
-    /// — an inline-per-route variant is a legitimate follow-up if the extra length is preferred.</para>
-    ///
-    /// <para>⭐ <b>Ordered and grouped to mirror the route table</b>, so the two read side by side.</para>
-    ///
-    /// <para>⚠⚠ <b>One tool is NOT here and cannot be:</b> <c>start_simulation</c> spawns the runner process
-    /// from inside the MCP server and has no HTTP endpoint at all. ⇒ the generator MERGES a small JS-side
-    /// supplement, and that supplement is the one thing generation cannot police — which is why the
-    /// reconciliation rail still exists.</para>
+    /// <para>⛔ HISTORY: the content was moved here from the retired MCP server's hand-kept JS catalog (HN-030); the server is removed
+    /// (CE-4526).</para>
     /// </summary>
     internal static class DebugApiRouteDocs
     {
@@ -36,12 +24,11 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/shutdown")] = new RouteDoc(
             Tool:    "stop_simulation",
             Group:   "A — Lifecycle & status",
-            Summary: "Shut down the runner gracefully via POST /shutdown, then hard-kill if needed.",
-            Returns: "The /shutdown envelope, or { note: \"runner already gone\" }",
-            Hint:    "No params. Example: stop_simulation({})",
+            Summary: "Shut down the runner gracefully (the process exits after answering).",
+            Returns: "{ ok: true }",
+            Hint:    "No params.",
             Notes: new[]
             {
-                "MCP-side lifecycle tool — also calls the /shutdown HTTP endpoint.",
                 "Always call when done to avoid orphan runner processes.",
             },
             ExampleArgsJson: "{}",
@@ -80,6 +67,19 @@ namespace Hrot.Editor.DebugApi
             },
             ExampleArgsJson: "{}",
             ExampleGist: "check runner liveness and sim state"),
+
+        [("GET", "/help")] = new RouteDoc(
+            Tool:    "get_help",
+            Group:   "A — Lifecycle & status",
+            Summary: "This guide: the mental model, workflows, gotchas and every route (METHOD /path, where each param goes), rendered from the route docs; a route this host cannot serve now is marked.",
+            Returns: "text/markdown (not the JSON envelope)",
+            Hint:    "No params. Before a process is started: Hrot.ClusterRunner --help-api prints the same text.",
+            Notes: new[]
+            {
+                "READ THIS FIRST on a host you have not driven before; GET /capabilities is the same table as JSON plus the per-perspective matrix.",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "read the agent guide of the build you are talking to"),
 
         [("GET", "/capabilities")] = new RouteDoc(
             Tool:    "get_capabilities",
@@ -3860,17 +3860,14 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"x\":100,\"y\":0,\"z\":50}",
             ExampleGist: "convert local ECS position (100,0,50) to geographic coords"),
 
-        // ⭐⭐ DOCUMENTED, DELIBERATELY NOT A TOOL. The endpoint is real and reachable; it is simply the same
-        //    operation as continue_from_breakpoint({step:true}), and shipping two tools for one action is how
-        //    an agent-facing surface becomes ambiguous. ⛔ Without NotATool the "every route is documented"
-        //    rail could only be satisfied by inventing a tool nobody wants.
+        // ⭐ The same operation as POST /breakpoints/continue {step:true} — documented like every route (CE-4526: there are no tools to
+        //   keep it out of; its Hint names the equivalent).
         [("POST", "/breakpoints/step")] = new RouteDoc(
-            Tool:    "(none — use continue_from_breakpoint with step:true)",
+            Tool:    "step_breakpoint",
             Group:   "G — Breakpoints",
             Summary: "Resume the debugger by exactly one step. Identical to POST /breakpoints/continue {step:true}.",
             Returns: "{ wasPaused, action, isPaused, note }",
-            Hint:    "Use continue_from_breakpoint({step:true}) instead — this route exists but is not exposed as a separate tool.",
-            NotATool: true),
+            Hint:    "The same as POST /breakpoints/continue {\"step\":true}."),
     };
     }
 }

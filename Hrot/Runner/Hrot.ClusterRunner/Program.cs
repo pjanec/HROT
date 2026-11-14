@@ -47,6 +47,13 @@ class Program
 {
     static async Task<int> Main(string[] args)
     {
+        // ⭐ CE-4525 (H-3) — the agent guide with no world started: the same text GET /help serves, minus what a host can do now
+        if (Array.IndexOf(args, "--help-api") >= 0)
+        {
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+            Console.Out.Write(Hrot.Editor.DebugApi.DebugApiHost.HelpText(available: null));
+            return 0;
+        }
         // ⭐ N-14 (CE-4476, §19) — every HROT process opts out of Windows' power throttling (a windowless node ran at ~half speed, CE-4453) and
         //   turns console QuickEdit off (a click froze every write); a no-op off Windows; HROT_ECOQOS=1 keeps Windows' default.
         bool optedOut = Fdp.Core.Threading.WindowsScheduling.OptOutProcess();
@@ -114,12 +121,11 @@ class Program
 
         // ── Dump-api mode: print the debug-API manifest and exit ────────────────────────────────
         //
-        // ⭐⭐⭐ HN-030: this is what `tools/ai-debug-mcp` generates its tool catalog from, so the catalog
-        //    stops being a hand-maintained mirror of these routes. 📄 MCP_Integration.md § Follow-up.
+        // ⭐ HN-030: the route table + docs as JSON, offline (the same as GET /capabilities' description half). For people and agents,
+        //   --help-api prints the guide (CE-4525).
         //
         // ⭐ Boots NOTHING — no DDS, no window, no world. DebugApiHost.EnumerateRouteTemplates only builds
-        //   closures, so the whole API can describe itself in-process in milliseconds. ⇒ `npm run gen:skill`
-        //   can regenerate from source without an editor running.
+        //   closures, so the whole API can describe itself in-process in milliseconds.
         // ⛔ Ask a LIVE GET /capabilities for what a given host can DO; a dump answers only what the API IS.
         if (config.RequestedSubsystems.Contains("dump-api"))
         {

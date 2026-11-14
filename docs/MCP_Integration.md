@@ -33,6 +33,9 @@ related-designs:
   - docs/DESIGN_Entity_Control.md — OWNS the order routes (/entities/{id}/order, /orders, /sitrep, /possess) and the /entities/command payload fix (CE-3168)
   - docs/DESIGN_Agent_Shared_View.md — OWNS the shared-view, brain-debug and replay routes added 2026-10-23 (R-1029); its AV-11 / R-1030 rules that EVERY route change regenerates the catalog and skill here in the same commit, guarded by a catalog rail (CE-1268)
 -->
+
+> ⛔ **HISTORY note (R-4223, CE-4528, `2026-11-14`)** — the Node MCP server (`tools/ai-debug-mcp`: its tool catalog, generated `SKILL.md`, skill parts and generators) named in this document is **removed**. The debug API is plain HTTP and describes itself: `GET /help` (or `Hrot.ClusterRunner --help-api` before anything is started) and `GET /capabilities` — [`DESIGN_Debug_Api_Http_Only.md`](DESIGN_Debug_Api_Http_Only.md). Every mention of the server, its tools or its generated files below is HISTORY; tool names map to routes in `GET /help`.
+
 # AI-debug API + MCP server — integration status
 
 > ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](blueprints/DESIGN_Map_Picking_Unification.md):** `[MapPickableWorldLocation]` is deleted too: the schema marks a `PickableGeoPoint` member `picker:worldLocation` and an `EntityRef` member `picker:entity` by TYPE.
@@ -391,7 +394,7 @@ one through `NodeBootstrapper:194-200`; ExCon through `ExConSubsystem:332`)*. �
 | ⛔ **CGF has no edit-load handler** | ⇒ an *edit* load in `--mode all` is PARTIAL *(SimHost loads, CGF does not)*. ⭐ Declared, not crashed; the content diff therefore uses **live**. A CGF-lane follow-up *(`UXI-37` ruling 65)* |
 | ⚠ **`OwnershipUpdate` strict-mode violation** | 📐 During a cluster live load: *"Unmanaged event type 'OwnershipUpdate' (ID: 9030) was published without being explicitly registered"* in `NedReplication`. ⛔ **Newly OBSERVABLE, not newly introduced** — no cluster live load was possible here before. ⚠ Non-fatal *(the load completed with all 8 entities)*; editor-side is unaffected *(`OfflineNetworkFactory`, no NedReplication)* |
 
-## ⭐⭐⭐ BUILT — the catalog is GENERATED from the routes *(`HN-030`, `2026-08-24`)*
+## ⛔ HISTORY — the catalog was GENERATED from the routes *(`HN-030`, `2026-08-24`; superseded by R-4223 — no catalog, `GET /help` renders the route docs live)*
 
 📌 **Filed `2026-08-24` (user), built the same day.** ⛔ `tools/ai-debug-mcp/tool-catalog.mjs` **was** a
 hand-maintained mirror of the HTTP routes — the exact *"hand-authored vs derived"* rot the `/capabilities`
