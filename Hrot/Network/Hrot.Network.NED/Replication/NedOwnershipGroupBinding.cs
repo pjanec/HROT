@@ -122,6 +122,7 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtBuildingDamage, GlobalComponentIds.BuildingDamage);
         // ⭐ CE-4591 (P-4) — no group: the node that decided a cell's craters keeps its ground-damage entity (the breach's shape); the mapping makes it INGRESSIBLE.
         map.RegisterMapping((long)EDescriptorType.dtGroundDamage, GlobalComponentIds.GroundDamage);
+        map.RegisterMapping((long)EDescriptorType.dtTreeDamage, GlobalComponentIds.TreeDamage);   // ⭐ CE-4603 (B-6) — the same shape
         // ⭐ CE-3136 P-7a — no group: the obstacle's creator keeps it. The mapping makes ObstacleShape INGRESSIBLE, so its
         //   [PerInstanceValue] holds a ghost until the box has arrived (MandatoryComponentResolver). 📄 docs/DESIGN_Peek_And_Fire.md §9.
         map.RegisterMapping((long)EDescriptorType.dtObstacleShape, GlobalComponentIds.ObstacleShape);

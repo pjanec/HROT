@@ -113,6 +113,8 @@ namespace Fdp.Toolkit.Terrain
         public const int ContactBreach = 5102;
         /// <summary>⭐ CE-4591 (P-4) — <c>CraterEvent</c>: a burst made a crater (5103 free by a census, <c>2026-11-14</c>).</summary>
         public const int Crater = 5103;
+        /// <summary>⭐ CE-4603 (B-6) — <c>TreeFellEvent</c>: a lone trunk was felled (5104 free by a census, <c>2026-11-14</c>).</summary>
+        public const int TreeFell = 5104;
     }
 
     /// <summary>

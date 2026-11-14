@@ -102,6 +102,7 @@
     <EmbeddedResource Include="Terrain\Data\breaches.json" LogicalName="Fdp.Toolkit.Terrain.breaches.json" />
     <EmbeddedResource Include="Terrain\Data\contact-breach.json" LogicalName="Fdp.Toolkit.Terrain.contact-breach.json" />   <!-- CE-4600 B-3 -->
     <EmbeddedResource Include="Terrain\Data\craters.json" LogicalName="Fdp.Toolkit.Terrain.craters.json" />   <!-- CE-4591 P-4 -->
+    <EmbeddedResource Include="Terrain\Data\trees.json" LogicalName="Fdp.Toolkit.Terrain.trees.json" />   <!-- CE-4603 B-6 -->
     <EmbeddedResource Include="Tkb\Reference\Data\ammo.json" LogicalName="Fdp.Toolkit.Tkb.Reference.ammo.json" />
     <EmbeddedResource Include="Tkb\Reference\Data\weapons.json" LogicalName="Fdp.Toolkit.Tkb.Reference.weapons.json" />
     <EmbeddedResource Include="Tkb\Reference\Data\coefficients.json" LogicalName="Fdp.Toolkit.Tkb.Reference.coefficients.json" />

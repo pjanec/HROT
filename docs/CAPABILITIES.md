@@ -129,7 +129,7 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
   tangent plane retired ([Geo Origin §6](DESIGN_Geo_Origin.md), R-4197; CE-4396) ⏳ building
 - **Trees and woods:** a wood hides what is inside it (sight lost per metre among the trees, from the air too), forbids wheeled vehicles
   and slows tracked ones, and stops some rounds; a lone tree is a trunk that blocks. Drawn as trees near and a canopy far. (R-4190; CE-4369,
-  CE-4377) ✅ — felling a lone tree 📐 (§2b)
+  CE-4377) ✅ — felling a lone tree ✅ (§2b)
 - **Destructible buildings:** a blast or a penetrating hit breaches a wall — a hole to see and shoot through, or a passage to walk through;
   a heavy bomb close by collapses the whole building into rubble and kills the people inside. The navmesh follows in the background and
   only the paths through the changed tiles replan; breaches are saved, replicated and drawn on every host. (R-4188; CE-4391, CE-4392)
@@ -169,6 +169,9 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   `CE4599_*`) ✅
 - **Every breach is a way in for the AI** — a gap by a blast, a tank or the bulldozer is a gap infantry walks through and the AI uses as a way
   into a building. (B-5, CE-4602) 📐
+- **Lone trees can be felled:** a bomb or a shell fells the lone trees round it, and a player driving a tank or an IFV fells one by ramming or
+  pushing it; sight and fire pass at once on every node, the tree disappears from every view and the way opens; saved with the scenario.
+  (B-6, CE-4603, R-4241; rails `TreeFellingTests`, `TreeFellingBakeTests`) ✅
 - **The bulldozer clears on order:** point at a roadblock, a wall or a lone tree and the bulldozer pushes it away, cuts a gap or fells it.
   (B-4, CE-4601, R-4242) 📐
 - **Lone trees are felled** by a player's tank, a blast or the bulldozer; AI vehicles drive round them. (B-6, CE-4603, R-4241) 📐

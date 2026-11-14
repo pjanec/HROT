@@ -193,6 +193,9 @@ namespace Hrot.NED.Descriptors
         //   → every node; the receiver's DoorStates.Craters unions every such entity. 184 measured free on backend, ui, behaviors, coordinator 2026-11-14 (the highest in use was 183).
         //   ⚠ the toolkit states it too (GroundDamageSystem.DescriptorOrdinal; a rail pins it).
         dtGroundDamage                = 184,
+        // ⭐ CE-4603 (B-6; docs/DESIGN_Vehicle_Breaching.md §7.7) — one cell's felled lone trunks, the node that felled them → every node (DoorStates.Trees). 185 measured free
+        //   on every lane 2026-11-14. ⚠ the toolkit states it too (TreeDamageSystem.DescriptorOrdinal; a rail pins it).
+        dtTreeDamage                  = 185,
         // etc., all known descriptor types here
     }
 

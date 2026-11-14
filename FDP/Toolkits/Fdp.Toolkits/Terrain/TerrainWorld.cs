@@ -649,6 +649,7 @@ namespace Fdp.Toolkit.Terrain
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
             var dmg = doors?.Damage;   // ⭐ CE-4391 S-2 — collapsed buildings: their pieces are skipped, their rubble crossed
+            var felled = doors?.Trees;
             int rubbleCount = dmg?.RubbleArray.Length ?? 0;
             using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
             for (int k = 0; k < cand.PieceCount + rubbleCount; k++)
@@ -661,6 +662,7 @@ namespace Fdp.Toolkit.Terrain
                     if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                     prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                     if (dmg != null && prism.Building >= 0 && dmg.Collapsed(prism.Building)) continue;
+                    if (felled != null && felled.Felled(prism)) continue;   // ⭐ CE-4603 (B-6) — a felled trunk is gone for this view
                 }
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
                 foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
@@ -833,6 +835,7 @@ namespace Fdp.Toolkit.Terrain
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
             var dmg = doors?.Damage;   // ⭐ CE-4391 S-2 — collapsed buildings: their pieces are skipped, their rubble crossed
+            var felled = doors?.Trees;
             int rubbleCount = dmg?.RubbleArray.Length ?? 0;
             using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
             for (int k = 0; k < cand.PieceCount + rubbleCount; k++)
@@ -845,6 +848,7 @@ namespace Fdp.Toolkit.Terrain
                     if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                     prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                     if (dmg != null && prism.Building >= 0 && dmg.Collapsed(prism.Building)) continue;
+                    if (felled != null && felled.Felled(prism)) continue;   // ⭐ CE-4603 (B-6) — a felled trunk is gone for this view
                 }
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
                 foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
@@ -982,6 +986,7 @@ namespace Fdp.Toolkit.Terrain
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
             var dmg = doors?.Damage;   // ⭐ CE-4391 S-2 — collapsed buildings: their pieces are skipped, their rubble crossed
+            var felled = doors?.Trees;
             int rubbleCount = dmg?.RubbleArray.Length ?? 0;
             using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
             for (int k = 0; k < cand.PieceCount + rubbleCount; k++)
@@ -994,6 +999,7 @@ namespace Fdp.Toolkit.Terrain
                     if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                     prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                     if (dmg != null && prism.Building >= 0 && dmg.Collapsed(prism.Building)) continue;
+                    if (felled != null && felled.Felled(prism)) continue;   // ⭐ CE-4603 (B-6) — a felled trunk is gone for this view
                 }
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
                 foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation

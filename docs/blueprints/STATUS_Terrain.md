@@ -35,6 +35,8 @@ related-designs:
 | [R-5019](RULINGS.md) | `craters.json` starting values (radius 0.8 / depth 0.35 / rim 0.08 m per ∛kg; none below 0.5 kg or for an air burst; large from 3 m; cover after 30 / 60 s) | a playtest |
 | [R-5020](RULINGS.md) | the crater "index" is the view's table on `DoorStates` (not a world singleton — R-219); every world now has live state | a caller that needs craters without a view |
 | [R-5021](RULINGS.md) | a crater on a crater does not deepen it (overlaps combine by the minimum) | a barrage that must dig deeper |
+| [R-5022](RULINGS.md) | `trees.json`: a blast fells lone trunks within 1.2 m per ∛kg, from 2 kg | a playtest |
+| [R-5023](RULINGS.md) | a trunk is felled by a contact row's `trees` flag (tank, IFV), not its strength | trunks only a tank should fell |
 | [R-5012](RULINGS.md) | D-3's road-to-façade ramp is the two skirts meeting; D-4 and V-18 left to their own steps | a step between a road and a house on a real town |
 
 ## 2. Tasks
@@ -51,7 +53,8 @@ related-designs:
 | **B-3** CE-4600 — a player's vehicle breaks barriers | 🟡 core built; ⛔ B-3b (dust, crash sound, HUD cue + mockup), barrage numbers (with P-4) | [Breaching §7.10](../DESIGN_Vehicle_Breaching.md); rails `CE4600_*` (red-proved); kinematics 110/0 under the parallel checks |
 | **P-3** CE-4597 — scenario house pads + *Save terrain as* | ✅ built | [Ground §9.10](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `TerrainWorldMergeTests.CE4597_*`, `TerrainBakeTests.CE4597_*` (red-proved) |
 | **P-4** CE-4591 — craters, parts 1–2 + the wire | 🟡 built: the record, the rule, the cratered ground the same tick (D-1), the bake cache on every node (V-6), the dirty discs (V-4), nav areas closed to vehicles (D-2), the road cut (G-10), `dtGroundDamage` 184; + part 3: saved in `TerrainObjects["#ground"]` (merge, load), the rim as cover after the gases (G-35, live from the view); + re-grounding of owned entities (V-8), `RoadHeights` over a crater (V-20); ⛔ open: the decal (V-11, ui), a vehicle stranded in a new crater (V-12), stepped-hash | [Ground §9.11](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `CraterTests`, `CraterBakeTests`, `EntityGroundDamageTranslatorTests`, `BridgeClosureTests.CE4591_*` |
-| next | **B-6** (P-4's decal V-11 / V-12 / stepped-hash stay open) | |
+| **B-6** CE-4603 — lone trees felled | ✅ built | [Breaching §7.11](../DESIGN_Vehicle_Breaching.md); rails `TreeFellingTests`, `TreeFellingBakeTests` (red-proved); debt CE-5000 (one record system, not three) |
+| next | **B-4** CE-4601 — the bulldozer cuts on order (behaviors lane per the plan; this lane builds it) | |
 
 ## 3. Gates
 
@@ -79,6 +82,7 @@ related-designs:
 | P-4: red-proofs | `MakeCrater` dropped · the query's ground back to the cache · `NavDoorways.Craters` dropped · `AddCraters` dropped | each turns its rail red (the navmesh one only on a SHALLOW crater — a deep bowl's walls are already over the vehicle slope) |
 | P-4 part 3 | `Fdp.Toolkits.Tests --filter CraterTests\|CoverGeneratorAndLosTests\|TerrainEqsTests\|StaticObstacleTests\|BuildingDamageSaveTests\|ScenarioMerge`; `Hrot.Core.Tests --filter TerrainObjectRequestsTests\|ScenarioLoadStep` | 95 / 0, 45 / 0; 4 / 0 |
 | P-4 re-ground + roads | `--filter TerrainHeightTests\|CraterTests\|RoutePlanner` | 46 / 0 |
+| B-6 | toolkit `--filter TreeFellingTests\|CraterTests\|TerrainChunkTrees\|Woods\|CarKinematicsSystemTests\|ContactBreach` · SimHost `TreeFellingBakeTests\|CraterBakeTests\|StaticObstacleBakeTests\|BuildingDamageBakeTests\|EntityGroundDamage\|BridgeClosure` | 139 / 0 · 36 / 0 |
 
 ⚠ Not yet run: `stepped-hash.py --threads 1,4,8`, drawing rails under Xvfb (nothing drawn changed), the full solution build.
 

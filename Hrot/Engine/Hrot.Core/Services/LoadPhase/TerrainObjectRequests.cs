@@ -142,4 +142,33 @@ public static class TerrainObjectRequests
             }
         return requests;
     }
+
+    /// <summary>⭐ <c>CE-4603</c> (B-6) — the saved felled trunks as creation requests: one <see cref="TreeDamage"/> entity per cell (16 each), untargeted (the loader's); none on a re-commit.</summary>
+    public static List<EntityCreationRequest> ForTrees(EntityRepository world, IReadOnlyList<(int X, int Y)> trees, INetworkIdAllocator idAllocator)
+    {
+        if (idAllocator == null) throw new ArgumentNullException(nameof(idAllocator));
+        var requests = new List<EntityCreationRequest>();
+        if (trees == null || trees.Count == 0) return requests;
+        if (world.IsComponentTypeRegistered<TreeDamage>())
+            foreach (var _ in world.Query().With<TreeDamage>().WithLifecycle(Fdp.Core.EntityLifecycle.All).Build()) return requests;
+        var byCell = new SortedDictionary<(int X, int Y), List<(int X, int Y)>>();
+        foreach (var t in trees)
+        {
+            var cell = TreeDamages.CellOf(t);
+            if (!byCell.TryGetValue(cell, out var l)) byCell[cell] = l = new List<(int X, int Y)>();
+            l.Add(t);
+        }
+        foreach (var ((cx, cy), list) in byCell)
+            for (int start = 0; start < list.Count; start += TreeDamage.Capacity)
+            {
+                var d = new TreeDamage { CellX = cx, CellY = cy };
+                for (int i = start; i < list.Count && i < start + TreeDamage.Capacity; i++) TreeDamages.Add(ref d, list[i], out _);
+                requests.Add(new EntityCreationRequest
+                {
+                    RequestId = Guid.NewGuid(), TkbType = (Fdp.Core.TkbTypeId)TreeDamages.TkbType, PreAllocatedNetworkId = idAllocator.AllocateId(), IsTransient = true,
+                    InitialComponents = new List<object> { new SimTransform { Position = GroundDamages.Anchor(cx, cy, 0f), Rotation = Quaternion.Identity }, d },
+                });
+            }
+        return requests;
+    }
 }

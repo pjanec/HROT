@@ -66,6 +66,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     private IReadOnlyList<EntityCreationRequest>? _pendingRequests;
     private IReadOnlyDictionary<string, Fdp.Toolkit.Terrain.SavedBuildingDamage>? _pendingBuildingDamage;   // ⭐ CE-4391 S-4 — the scenario's saved building damage
     private IReadOnlyList<Fdp.Toolkit.Terrain.Crater>? _pendingCraters;   // ⭐ CE-4591 (P-4) — the scenario's saved craters
+    private IReadOnlyList<(int X, int Y)>? _pendingTrees;   // ⭐ CE-4603 (B-6) — the scenario's felled trunks
     private IReadOnlyDictionary<string, Fdp.Toolkit.Terrain.TerrainDoorState>? _pendingDoorStates;   // ⭐ 5e — the scenario's TerrainObjects
     private Guid? _pendingTransactionId;
     private string? _pendingDescription;   // ⭐ CE-3288 — the file's Header.Description, stamped resident at Commit (§4d)
@@ -132,6 +133,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         _pendingDoorStates    = null;
         _pendingBuildingDamage = null;
         _pendingCraters = null;
+        _pendingTrees = null;
         _pendingTransactionId = null;
         _pendingDescription   = null;
         _pendingName = _pendingHash = _pendingArgs = _pendingHeaderJson = null;
@@ -205,7 +207,8 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         else
             _pendingRequests = _extractor.Extract(_serializer, extractJson, _idAllocator, _remapper);
         _pendingDoorStates    = Fdp.Toolkit.Terrain.TerrainObjectsSection.ReadDoors(json);   // ⭐ 5e — applied when the doors are created
-        _pendingCraters = Fdp.Toolkit.Terrain.TerrainObjectsSection.ReadCraters(json);   // ⭐ CE-4591 — a malformed row refuses the load here, on every node
+        _pendingCraters = Fdp.Toolkit.Terrain.TerrainObjectsSection.ReadCraters(json);
+        _pendingTrees = Fdp.Toolkit.Terrain.TerrainObjectsSection.ReadTrees(json);   // ⭐ CE-4603   // ⭐ CE-4591 — a malformed row refuses the load here, on every node
         _pendingBuildingDamage = Fdp.Toolkit.Terrain.TerrainObjectsSection.ReadBuildingDamage(json);   // ⭐ CE-4391 S-4 — a malformed entry refuses the load here, on every node, with nothing created
         _pendingDescription   = ScenarioDescription.Read(json);   // ⭐ CE-3288 — held by the world so a save writes it back
         _pendingHeaderJson    = ScenarioDescription.HeaderJsonOf(json);   // ⭐ CE-4210 MA-4 — the macro header, held the same way
@@ -275,6 +278,10 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
                 // ⭐ CE-4591 (P-4) — the saved craters, one ground-damage entity per cell (owned by this loading node, as the breaches)
                 if (_pendingCraters is { Count: > 0 })
                     foreach (var request in TerrainObjectRequests.ForCraters(world, _pendingCraters, _idAllocator))
+                        Publish(world, request);
+                // ⭐ CE-4603 (B-6) — the felled trunks, one tree-damage entity per cell
+                if (_pendingTrees is { Count: > 0 })
+                    foreach (var request in TerrainObjectRequests.ForTrees(world, _pendingTrees, _idAllocator))
                         Publish(world, request);
             }
 

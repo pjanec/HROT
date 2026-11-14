@@ -41,7 +41,11 @@ namespace Fdp.Toolkit.Terrain
     /// <summary>⭐ <c>CE-4600</c> — <c>contact-breach.json</c> (the file's own comment is the reference): who breaks what by contact.</summary>
     public sealed class ContactBreachTable
     {
-        public sealed record Row(string Name, bool Tracked, float MinMassKg, float SmallMaxStrength, bool Building, float MinRamSpeedMs, float PushSeconds, float SpeedKept, float CostHealth);
+        public sealed record Row(string Name, bool Tracked, float MinMassKg, float SmallMaxStrength, bool Building, float MinRamSpeedMs, float PushSeconds, float SpeedKept, float CostHealth)
+        {
+            /// <summary>⭐ CE-4603 (B-6) — this row fells a lone tree trunk by ram or push.</summary>
+            public bool Trees { get; init; }
+        }
 
         public IReadOnlyList<Row> Rows { get; init; } = Array.Empty<Row>();
         public float CutMarginM { get; init; } = 0.5f;
@@ -67,7 +71,8 @@ namespace Fdp.Toolkit.Terrain
             foreach (var r in root.GetProperty("rows").EnumerateArray())
                 rows.Add(new Row(r.GetProperty("name").GetString() ?? "", r.GetProperty("tracked").GetBoolean(), r.GetProperty("minMassKg").GetSingle(),
                     r.GetProperty("smallMaxStrength").GetSingle(), r.GetProperty("building").GetBoolean(), r.GetProperty("minRamSpeedMs").GetSingle(),
-                    r.GetProperty("pushSeconds").GetSingle(), r.GetProperty("speedKept").GetSingle(), r.GetProperty("costHealth").GetSingle()));
+                    r.GetProperty("pushSeconds").GetSingle(), r.GetProperty("speedKept").GetSingle(), r.GetProperty("costHealth").GetSingle())
+                    { Trees = r.TryGetProperty("trees", out var t) && t.GetBoolean() });
             return new ContactBreachTable
             {
                 Rows = rows, CutMarginM = root.GetProperty("cutMarginM").GetSingle(), MinDriveThroughM = root.GetProperty("minDriveThroughM").GetSingle(),
@@ -120,6 +125,7 @@ namespace CarKinem.Controllers
             public Entity Vehicle;
             public readonly List<BuildingDamageEvent> Breaches = new();
             public int ObstacleIndex = -1;
+            public (int X, int Y)? Tree;   // ⭐ CE-4603 — a felled trunk's key
             public ContactBreachEvent Cue;
             public bool HasCue;
         }
@@ -136,7 +142,7 @@ namespace CarKinem.Controllers
         {
             speedKept = 1f;
             var table = ContactBreachTable.Shared;
-            if (!Identify(world, in hit, hereZ, out int key, out int panel, out int obstacle, out float strength)) return false;
+            if (!Identify(world, in hit, hereZ, out int key, out int panel, out int obstacle, out float strength, out var tree)) return false;
             int me = vehicle.Index;
 
             // ⭐ V-3 / V-21 — a barrier this hull broke a moment ago: it passes (the record is on its way), and a stub of it is part of the same break
@@ -154,7 +160,7 @@ namespace CarKinem.Controllers
             bool building = panel >= 0 && world.Panels[panel].Building >= 0;
             float into = MathF.Max(0f, -Vector2.Dot(velocity, hit.Normal));   // ⭐ B-D2 — only the speed INTO it
 
-            if (row == null || (building && !row.Building) || (!building && strength > row.SmallMaxStrength))
+            if (row == null || (building && !row.Building) || (tree != null ? !row.Trees : !building && strength > row.SmallMaxStrength))
             {
                 Cue(repo, vehicle, key, ContactBreachKind.TooStrong, hit.At, hereZ, 0f);
                 return false;
@@ -188,6 +194,7 @@ namespace CarKinem.Controllers
             s_push.TryRemove(me, out _);
             var broke = NewPending(vehicle);
             if (panel >= 0) Cut(world, table, in hull, panel, hit.At, fwd, vehicle, broke.Breaches);
+            else if (tree != null) broke.Tree = tree;   // ⭐ CE-4603 (B-6) — the trunk is felled
             else broke.ObstacleIndex = obstacle;
             broke.Cue = Make(vehicle, ContactBreachKind.Broke, hit.At, hereZ, 1f); broke.HasCue = true;
             s_grace[me] = new Contact(key, GraceSeconds);
@@ -201,12 +208,23 @@ namespace CarKinem.Controllers
         /// index); its contact <paramref name="key"/> and STRENGTH = resistance per metre × thickness × height (B-D3). False: nothing breakable (a solid building, a door).
         /// </summary>
         public static bool Identify(TerrainWorld world, in BarrierHit hit, float hereZ, out int key, out int panel, out int obstacle, out float strength)
+            => Identify(world, in hit, hereZ, out key, out panel, out obstacle, out strength, out _);
+
+        /// <summary>⭐ CE-4603 (B-6) — and a lone tree trunk (<paramref name="tree"/> = its key; its contact key a hash of it).</summary>
+        public static bool Identify(TerrainWorld world, in BarrierHit hit, float hereZ, out int key, out int panel, out int obstacle, out float strength, out (int X, int Y)? tree)
         {
-            key = 0; panel = -1; obstacle = -1; strength = 0f;
+            key = 0; panel = -1; obstacle = -1; strength = 0f; tree = null;
             int pi = hit.Rise ? world.SolidUnder(hit.At.X, hit.At.Y, hereZ) : hit.Piece;
             if ((uint)pi >= (uint)world.Prisms.Count) return false;
             var prism = world.Prisms[pi];
             float perMetre = prism.Material?.ResistanceMmRhaPerMetre ?? 1500f;
+            if (prism.Kind == TerrainPrismKind.Tree)
+            {
+                var k = TreeDamages.KeyOf(prism);
+                tree = k;
+                key = (int)((2u << 29) | ((uint)(k.X * 73856093 ^ k.Y * 19349663) & 0x1FFFFFFFu));
+                return true;
+            }
             if (prism.Panel >= 0)
             {
                 panel = prism.Panel;
@@ -321,6 +339,7 @@ namespace CarKinem.Controllers
                         Fdp.Toolkit.Combat.ObstacleDamage.Damage(repo, ob, hp + 1f, p.Vehicle);   // crushed: the obstacle's whole Health
                         break;
                     }
+            if (p.Tree is { } t && repo.Bus.IsRegistered<TreeFellEvent>()) repo.Bus.Publish(new TreeFellEvent { X = t.X, Y = t.Y, By = p.Vehicle });   // ⭐ CE-4603
             if (p.HasCue && repo.Bus.IsRegistered<ContactBreachEvent>()) repo.Bus.Publish(p.Cue);
         }
     }

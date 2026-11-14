@@ -68,7 +68,10 @@ namespace Fdp.Toolkit.Terrain
     {
         private readonly byte[] _states;
 
-        private DoorStates(byte[] states, BuildingDamageTable? damage = null, CraterTable? craters = null) { _states = states; Damage = damage; Craters = craters; }
+        private DoorStates(byte[] states, BuildingDamageTable? damage = null, CraterTable? craters = null, FelledTrees? trees = null) { _states = states; Damage = damage; Craters = craters; Trees = trees; }
+
+        /// <summary>⭐ <c>CE-4603</c> (B-6) — the lone trunks this view has felled (null = none): sight, fire and the hull skip them at query time.</summary>
+        public FelledTrees? Trees { get; }
 
         /// <summary>
         /// ⭐⭐ <c>CE-4591</c> (P-4, D-1) — the craters of this view (the union of every <see cref="GroundDamage"/> entity), or null when it holds none: the
@@ -115,7 +118,8 @@ namespace Fdp.Toolkit.Terrain
             //   own stamp, so a breach written this frame forces a rebuild of IT and of nothing else, and an unchanged frame hands back the same instance.
             var damage = world.Panels.Count > 0 ? BuildingDamageTable.Of(view, world) : null;   // ⭐ CE-4599 — free walls too
             var craters = CraterTable.Of(view);   // ⭐ CE-4591 (D-1) — the craters, the same way: their own stamp, the same instance while unchanged
-            if (!ReferenceEquals(r.Damage, damage) || !ReferenceEquals(r.Craters, craters)) r = t_last = new DoorStates(r._states, damage, craters);   // a new instance over the SAME door array
+            var trees = FelledTrees.Of(view);   // ⭐ CE-4603 (B-6) — the felled trunks, the same way
+            if (!ReferenceEquals(r.Damage, damage) || !ReferenceEquals(r.Craters, craters) || !ReferenceEquals(r.Trees, trees)) r = t_last = new DoorStates(r._states, damage, craters, trees);   // a new instance over the SAME door array
             Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Of, t0);
             return r;
         }

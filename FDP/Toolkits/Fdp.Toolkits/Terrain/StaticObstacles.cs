@@ -119,9 +119,13 @@ namespace Fdp.Toolkit.Terrain
         /// view's own craters to it — D-1), its <see cref="TerrainWorld.HeightCraters"/> which they are (the navmesh's crater areas).
         /// </summary>
         public static TerrainWorld With(TerrainWorld terrain, IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, CraterTable? craters)
+            => With(terrain, obstacles, damage, craters, null);
+
+        /// <summary>⭐ <c>CE-4603</c> (B-6) — and the view's FELLED lone trunks left out of the pieces (the navmesh and the drawing follow; sight / fire / the hull skip them at query time already).</summary>
+        public static TerrainWorld With(TerrainWorld terrain, IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, CraterTable? craters, FelledTrees? trees)
         {
             bool overlay = damage != null && damage.NavHash != 0;
-            if (obstacles.Count == 0 && !overlay && craters == null) return terrain;
+            if (obstacles.Count == 0 && !overlay && craters == null && trees == null) return terrain;
             var prisms = new List<TerrainPrism>(terrain.Prisms.Count + obstacles.Count);
             var walkables = terrain.Walkables;
             IReadOnlyList<int> bakedCollapse = terrain.BakedCollapsed;
@@ -174,6 +178,7 @@ namespace Fdp.Toolkit.Terrain
                     bakedCollapse = collapsed;
                 }
             }
+            if (trees != null) prisms.RemoveAll(p => trees.Felled(p));   // ⭐ CE-4603 — a bake, never a frame: allocation is fine here
             prisms.AddRange(obstacles);
             var min = terrain.BoundsMin; var max = terrain.BoundsMax;
             foreach (var o in obstacles) { min = Vector2.Min(min, o.Min); max = Vector2.Max(max, o.Max); }

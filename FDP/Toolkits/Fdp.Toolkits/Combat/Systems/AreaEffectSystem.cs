@@ -277,6 +277,7 @@ namespace Fdp.Toolkit.Combat.Systems
             BreachDoors(repo, in evt, w, burst, terrain, doors, record);
             BreachWalls(repo, in evt, w, burst, terrain, doors, record);   // ⭐ CE-4391 S-1 (B-5) — the walls, by the same detonation
             MakeCrater(repo, in evt, w, burst, terrain, record);           // ⭐ CE-4591 (P-4) — the ground, by the same detonation
+            FellTrees(repo, in evt, w, burst, terrain, doors, record);     // ⭐ CE-4603 (B-6) — the lone trunks, by the same detonation
             log.Add(record);
         }
 
@@ -442,6 +443,29 @@ namespace Fdp.Toolkit.Combat.Systems
             record.Crater = string.Create(System.Globalization.CultureInfo.InvariantCulture,
                 $"crater r {crater.Radius:0.##} m, depth {crater.Depth:0.##} m at {crater.Centre.X:0.#}, {crater.Centre.Y:0.#}");
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-4603</c> (B-6; 📄 docs/DESIGN_Vehicle_Breaching.md §7.7, UTM T-4 / T-6) — a burst with explosive in it fells every LONE trunk whose centre is within
+        /// <c>trees.json</c>'s radius of it (<see cref="TreeFellTable"/>), each as a <see cref="TreeFellEvent"/> its <see cref="TreeDamageSystem"/> writes. A trunk already felled in
+        /// this view is skipped. ⛔ A kinetic round or a non-lethal warhead fells none.
+        /// </summary>
+        private void FellTrees(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst, TerrainWorld? terrain, DoorStates? doors, DetonationRecord record)
+        {
+            if (terrain == null || w.ExplosiveKg <= 0f || NonLethalEffectOf(w.Kind) != HitEffect.Kinetic || !repo.Bus.IsRegistered<TreeFellEvent>()) return;
+            float radius = TreeFellTable.Shared.Radius(w.ExplosiveKg);
+            if (radius <= 0f) return;
+            _trees.Clear();
+            LoneTrees.Near(terrain, new Vector2(burst.X, burst.Y), radius, _trees);
+            var felled = doors?.Trees;
+            for (int i = 0; i < _trees.Count; i++)
+            {
+                var key = TreeDamages.KeyOf(terrain.Prisms[_trees[i]]);
+                if (felled != null && felled.Contains(key)) continue;
+                repo.Bus.Publish(new TreeFellEvent { X = key.X, Y = key.Y, By = evt.Shooter });
+                record.TreesFelled++;
+            }
+        }
+        private readonly List<int> _trees = new();
 
         private void BreachWalls(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst,
             TerrainWorld? terrain, DoorStates? doors, DetonationRecord record)

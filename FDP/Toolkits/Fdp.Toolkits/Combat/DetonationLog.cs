@@ -48,6 +48,8 @@ namespace Fdp.Toolkit.Combat
         public List<string> BuildingBreaches { get; } = new();
         /// <summary>⭐ <c>CE-4591</c> (P-4) — the crater this burst made (<c>"crater r R m, depth D m at x, y"</c>), or null.</summary>
         public string? Crater { get; set; }
+        /// <summary>⭐ <c>CE-4603</c> (B-6) — how many lone trunks this burst felled.</summary>
+        public int TreesFelled { get; set; }
         /// <summary>⭐ <c>CE-3117</c> — every fragment ray, in target order (what the map draws).</summary>
         public List<DetonationRayRecord> Rays { get; } = new();
     }

@@ -169,6 +169,21 @@ namespace Hrot.NED.Descriptors
         [DdsManaged] public List<DdsCrater> Craters;
     }
 
+    // ⭐ CE-4603 (B-6) — one cell's felled lone trunks (their centimetre keys), the felling node → every node. Reliable + TransientLocal + KeepLast(1).
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityTreeDamage
+    {
+        [DdsKey]
+        public int EntityId;
+        public int CellX;
+        public int CellY;
+        /// <summary>X0, Y0, X1, Y1, … — each felled trunk's centre in centimetres.</summary>
+        [DdsManaged] public List<int> Trunks;
+    }
+
     // ⭐ Weapon systems WS-1 (W-C, R-136; docs/designs/weapons/DESIGN_Weapon_Systems.md §2) — a weapon system's deploy state (Stowed ·
     //   Deploying · Deployed · Packing), published by the node owning dtWeaponSystemState (its brain group) on change and applied on every
     //   other node (the drawing and the fire gate read it). Reliable + TransientLocal + KeepLast(1) keyed by entity, like the door: a late

@@ -583,3 +583,32 @@ Rails: `CarKinematicsSystemTests.CE4600_*` — a possessed tank breaks a brick g
 zero); a creeping tank and a possessed car stop (the car told *too strong* once); a tank resting at the wall breaks it by push; a tank bumps a
 building open and stays out, an IFV is told *too strong*; an IFV breaks a hedge and a fence, not a brick wall; an IFV crushes sandbags through the
 obstacle-damage path — red-proved (the hook off ⇒ 7 of 8 red). The kinematics suite is 110 / 0 under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1`.
+
+### 7.11 As built — B-6: lone trees felled *(`terrain` lane, `2026-11-14`, CE-4603)*
+
+```mermaid
+graph TD
+  BLAST[AreaEffectSystem.FellTrees - trees.json radius - LoneTrees index] --> EV[TreeFellEvent 5104]
+  HULL[ContactBreach - a tank / IFV row with trees - ram or push] --> EV
+  EV --> SYS[TreeDamageSystem - one entity per cell x deciding node]
+  SYS --> REC[TreeDamage 492 - centimetre keys - dtTreeDamage 185 - TerrainObjects #trees]
+  REC --> VIEW[DoorStates.Trees - FelledTrees]
+  VIEW --> Q[sight / fire / hull skip the trunk - the same tick]
+  VIEW --> BK[the bake - TerrainObstacles.With drops it - navmesh + drawing - its box dirty]
+```
+*What it shows that prose hid: the crater's path (P-4) carries a second record kind unchanged — the same writer shape, the same view seam, the same bake
+cache — so the only NEW decisions are who fells (the fellers on the left) and the key (a position, never a piece index).*
+
+| claim | code — as built | design |
+|---|---|---|
+| the record keyed by position | `TreeDamage` (component 492, unmanaged, NoScenario): cell + up to 16 trunks as centimetre box centres (`TreeDamages.KeyOf`) — a piece index renumbers when the overlay re-sorts | D-6 |
+| the query-time skip | `FelledTrees` on `DoorStates.Trees`; the three segment loops of `TerrainWorld` (sight, `QuerySight`, fire / hull) skip a felled `Tree` piece — the same tick, on every node | R-4232's rule |
+| blasts | `AreaEffectSystem.FellTrees`: every lone trunk within `trees.json`'s radius (`LoneTrees.Near` — a per-world 16 m index, never a scan); none for a kinetic or non-lethal round | UTM T-4, T-6 |
+| a player's hull | `ContactBreach`: `Identify` names a `Tree` piece; a row with `"trees": true` (tank, IFV) fells it by ram or push; the follow-up publishes `TreeFellEvent`; ⛔ an AI hull never reaches the rule (B-D1) | D-6 |
+| the bake, every node | `StaticObstacleBakeSystem` adds `FelledTrees.Hash`; `TerrainObstacles.With(…, trees)` drops the trunks (navmesh obstacle and the drawing's tree go with it); `TerrainResidency.TreeDirt` dirties a 4 m box per trunk felled or standing again | §7.7 |
+| wire, save, seek | `dtTreeDamage` (185) egress / ingress; `TerrainObjects["#trees"] = { "felled": [[xCm, yCm], …] }` (merge = union, load = one entity per cell, the loader's); a seek restores the records and the bake follows | §7.7 |
+| ⚠ debt | the record writer and the view-table cache are a third copy of `BuildingDamage`'s / `GroundDamage`'s — filed as [CE-5000](blueprints/Blueprint_Issues_Tracker.md) | ruling 9 |
+
+⭐ **Lane decisions (for the user's review):** [R-5022](blueprints/RULINGS.md) `trees.json` starting values; [R-5023](blueprints/RULINGS.md) a row's `trees` flag fells a trunk (not its wood
+strength). Rails: `TreeFellingTests` (the same-tick skip, a bomb's radius, the contact rule's rows, the save) and `TreeFellingBakeTests` (the bake drops the trunk, its box is dirty, a seek
+restores it; the ordinal pinned; the wire round-trips) — red-proved (the skip, the `FellTrees` call).

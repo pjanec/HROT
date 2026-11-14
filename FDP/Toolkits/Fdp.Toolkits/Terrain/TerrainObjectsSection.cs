@@ -47,7 +47,8 @@ namespace Fdp.Toolkit.Terrain
                 }
             var damage = WriteBuildingDamage(repo, terrain);
             var craters = WriteCraters(repo);
-            if (doors.Count == 0 && damage.Count == 0 && craters.Count == 0) return null;
+            var trees = WriteTrees(repo);
+            if (doors.Count == 0 && damage.Count == 0 && craters.Count == 0 && trees.Count == 0) return null;
 
             var section = new JsonObject();
             foreach (var (key, state) in doors)
@@ -55,7 +56,69 @@ namespace Fdp.Toolkit.Terrain
             foreach (var (key, d) in damage)
                 section[key] = BuildingDamageJson.Write(d);
             if (craters.Count > 0) section[GroundKey] = CratersJson(craters);
+            if (trees.Count > 0) section[TreesKey] = TreesJson(trees);
             return section;
+        }
+
+        /// <summary>⭐ <c>CE-4603</c> (B-6) — the entry that holds the felled lone trunks: <c>"#trees": { "felled": [[xCm, yCm], …] }</c>.</summary>
+        public const string TreesKey = "#trees";
+        private const string FelledProperty = "felled";
+
+        private static List<(int X, int Y)> WriteTrees(EntityRepository repo)
+        {
+            var list = new List<(int X, int Y)>();
+            if (!repo.IsComponentTypeRegistered<TreeDamage>()) return list;
+            foreach (var e in repo.Query().With<TreeDamage>().Build())
+            {
+                if (!TreeDamageSystem.OwnsDamage(repo, e)) continue;
+                var d = repo.GetComponentRO<TreeDamage>(e);
+                for (int i = 0; i < d.Count && i < TreeDamage.Capacity; i++) list.Add(d.Get(i));
+            }
+            list.Sort();
+            for (int i = list.Count - 1; i > 0; i--) if (list[i] == list[i - 1]) list.RemoveAt(i);
+            return list;
+        }
+
+        private static JsonObject TreesJson(List<(int X, int Y)> trees)
+        {
+            var arr = new JsonArray();
+            foreach (var (x, y) in trees) arr.Add(new JsonArray(x, y));
+            return new JsonObject { [FelledProperty] = arr };
+        }
+
+        /// <summary>True when <paramref name="entry"/> is the felled-trees entry.</summary>
+        public static bool IsTreesEntry(JsonNode? entry) => entry is JsonObject o && o[FelledProperty] is JsonArray;
+
+        /// <summary>⭐ <c>CE-4603</c> — the felled trunks saved in <paramref name="dom"/> (sorted). ⛔ A malformed row fails loudly.</summary>
+        public static IReadOnlyList<(int X, int Y)> ReadTrees(JsonObject dom)
+        {
+            var list = new List<(int X, int Y)>();
+            if (Of(dom) is not { } section || section[TreesKey] is not JsonObject entry || entry[FelledProperty] is not JsonArray rows) return list;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                if (rows[i] is not JsonArray r || r.Count != 2)
+                    throw new InvalidOperationException($"[Scenario] {Name}['{TreesKey}'].felled[{i}] is not [xCm, yCm].");
+                try { list.Add((r[0]!.GetValue<int>(), r[1]!.GetValue<int>())); }
+                catch (Exception e) when (e is FormatException or InvalidOperationException or NullReferenceException)
+                { throw new InvalidOperationException($"[Scenario] {Name}['{TreesKey}'].felled[{i}] is malformed: {e.Message}", e); }
+            }
+            list.Sort();
+            for (int i = list.Count - 1; i > 0; i--) if (list[i] == list[i - 1]) list.RemoveAt(i);
+            return list;
+        }
+
+        public static IReadOnlyList<(int X, int Y)> ReadTrees(string json)
+            => JsonNode.Parse(json) is JsonObject dom ? ReadTrees(dom) : Array.Empty<(int, int)>();
+
+        /// <summary>⭐ CE-4603 — two slices' felled-trees entries: the union.</summary>
+        public static JsonObject MergeTrees(JsonObject a, JsonObject b)
+        {
+            var list = new List<(int X, int Y)>();
+            list.AddRange(ReadTrees(new JsonObject { [Name] = new JsonObject { [TreesKey] = a.DeepClone() } }));
+            list.AddRange(ReadTrees(new JsonObject { [Name] = new JsonObject { [TreesKey] = b.DeepClone() } }));
+            list.Sort();
+            for (int i = list.Count - 1; i > 0; i--) if (list[i] == list[i - 1]) list.RemoveAt(i);
+            return TreesJson(list);
         }
 
         /// <summary>

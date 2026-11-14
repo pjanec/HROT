@@ -196,6 +196,12 @@ public static class ScenarioMergeCore
                         mergedTerrainObjects[kv.Key] = Fdp.Toolkit.Terrain.TerrainObjectsSection.MergeCraters(haveG, mineG);
                         continue;
                     }
+                    if (mergedTerrainObjects[kv.Key] is JsonObject haveT && kv.Value is JsonObject mineT
+                        && Fdp.Toolkit.Terrain.TerrainObjectsSection.IsTreesEntry(haveT) && Fdp.Toolkit.Terrain.TerrainObjectsSection.IsTreesEntry(mineT))
+                    {
+                        mergedTerrainObjects[kv.Key] = Fdp.Toolkit.Terrain.TerrainObjectsSection.MergeTrees(haveT, mineT);   // ⭐ CE-4603
+                        continue;
+                    }
                     if (mergedTerrainObjects.ContainsKey(kv.Key))
                         throw new InvalidOperationException(
                             $"Terrain object '{kv.Key}' appears in two slices (node {s.OriginNodeId}) — a door's state is saved only by its owner; refusing to pick one.");
