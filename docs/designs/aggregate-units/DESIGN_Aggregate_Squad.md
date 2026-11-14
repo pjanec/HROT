@@ -196,6 +196,29 @@ while the target is the same, so the member's volume of fire becomes the SUM of 
 | ⭐ **why squad vs squad comes out right** | the shooter's volume is the sum of its weapons (R-1, R-2); each aimed round has about one man's hit chance (as at a real man); each rifle hit removes about one man (health 25 per man, D-6) ⇒ the exchange tracks a real one with nothing new; suppression the same (near misses on the one body) |
 | rejected | one scaled stream (the superseded D-4 — loses the weapon mix) · a second fire channel (simultaneous fire; per-mount tasks were rejected for turrets, Weapon Layers :215) |
 
+## 4b. D-4″ — each weapon its own target; the view and the body as DATA; one model for both kinds of squad *(lean; 🔒 user, `2026-11-14`)*
+
+🔒 User, `2026-11-14`: *"can't each weapon has its own target? Also the sensors, the field of view, the aggregated squad will need to have some
+aggregated field of view, and maybe we could somehow also fake the body, that the weapon is not really tied to the body location. Maybe this could
+be made data driven so it fits both the multi-soldier squad as well as single power soldier squad … the situation when there are infantry and tanks
+together that requires really two targets at the same time."*
+
+| claim | code — how it is | design |
+|---|---|---|
+| the field of view is already DATA, default all round | `SensorCapabilitiesDto.FieldOfViewDegrees = 360` (`Tkb/Domain/SensorCapabilitiesDto.cs:30`) | Sensors |
+| each weapon already has its own muzzle OFFSET from the body (data) | `MuzzleOffsetX/Y/Z` per mount (`Combat/Muzzle.cs:37, :55`), the shot starts along the aim line (`FireProcessingSystem.cs:305-309`) | CE-3059 |
+| the body TURNS before a person fires beyond its twist limit | `BodyAim.HoldsFire` — a person, not embarked, off-body > `HumanGait.MaxAimTwist` (`BodyAim.cs:34-38`) | — |
+| the aim is per TARGET; a weapon change keeps it | `aim.Restarted(p.Target, stance)` (`AimAndFireExecutor.cs:197-198`) | CE-2323 |
+| one channel, one target per entity | `ChannelComponents.cs:29` | Weapon Layers :205-215 |
+
+| | the lean |
+|---|---|
+| ⭐ **F-1 — each weapon its own TARGET and AIM, fired in rotation** | the representative keeps, per weapon, a target and that target's aim clock (a small fixed table on the entity — no allocation); the squad's fire distribution assigns them (the RPG to the tank, the rifles and LMG to the infantry); D-4′'s rotation then fires the next weapon that is ready AT ITS OWN target. ⇒ two targets "at once", interleaved round by round — at aggregate scale indistinguishable from simultaneous fire — through ONE channel and ONE entity |
+| ⭐ **F-2 — the view is data** | the representative's type authors the squad's view: all round (360°, the default) or the squad's sector; range as a soldier's |
+| ⭐ **F-3 — the body is data** | each weapon's muzzle offset places it across the squad's frontage (the MG on the flank); the body's twist limit becomes a per-type value (all round for the representative ⇒ it never turns to fire); ⏳ optional later: each round's origin drawn within the frontage |
+| ⭐⭐ **F-4 — ONE model for both kinds of squad** | the squad's weapons are a table of **fire elements** — weapon, target, aim, origin. A real squad: one element per man (his weapon, his target, his body). The aggregate squad: one element per weapon type, all on the one representative. The fire distribution assigns TARGETS TO ELEMENTS in both — so it does not care which kind of squad it serves |
+| rejected | each weapon a separate self-controlled weapon-system entity with its own brain (the sentry-gun pattern — simultaneous, but +3 entities a squad and a brain each) · one target at a time (D-4′ R-4's deferral — the user: infantry with tanks needs two targets) |
+
 ## 5. Every squad behaviour with ONE member *(analysis of design + code, no runs)*
 
 | behaviour | one member — what happens | verdict |
@@ -233,7 +256,7 @@ while the target is the same, so the member's volume of fire becomes the SUM of 
 | **A-0** | the real-squad defects CE-4605…CE-4609 (they make every squad better, and the aggregate rests on the same plays) | — |
 | **A-1** | D-1 staged: order-aware bookkeeping + the three hash readers; then `Order.Defend`, … one order at a time | A-0 (CE-4609) |
 | **A-2** | the type (TKB 307 + the representative type), `AggregateSquad` on the unit, `SquadMen` and its readers (D-2), seats (D-8), role (D-9) | — |
-| **A-3** | the combat model: the weapon rotation (D-4′ R-1…R-3), damage cap and burst frontage (D-6), squad nerve (D-7), the MG post (D-3), fire and movement / break contact with one man (D-5) | A-2 |
+| **A-3** | the combat model: the weapon rotation (D-4′ R-1…R-3) with a target per weapon and the view / body as data (D-4″ F-1…F-4), damage cap and burst frontage (D-6), squad nerve (D-7), the MG post (D-3), fire and movement / break contact with one man (D-5) | A-2 |
 | **A-4** | the aggregate plays: assault, ClearBuilding | A-1, A-2 |
 | **A-5** | the command-hierarchy scenario on aggregates (battalion → squads, ~80 entities; vehicles, mortars, drones real) + `Strength` / `QuietArea` objective kinds + the battalion reserve (CE-4589) + live checks and the dynamism measure (CE-7033) | A-3, A-4 |
 
