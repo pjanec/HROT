@@ -268,7 +268,7 @@ namespace Fdp.Toolkit.Utility
             {
                 var member = roster.SubordinateEntities[m];
                 if (!ctx.Repo.IsAlive(member) || Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(ctx.Repo, member)) continue;
-                own += Fdp.Toolkit.Perception.ThreatDanger.OwnStrength(ctx.Repo, member);
+                own += Fdp.Toolkit.Perception.ThreatDanger.OwnStrength(ctx.Repo, member) * Fdp.Toolkit.Squad.UnitStrength.MenOf(ctx.Repo, member);   // ⭐ CE-4613 — per man, not per body
             }
 
             float total = enemy + own;

@@ -52,7 +52,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             s_men.Clear();
             MenOf(world, e, s_men);
             int n = 0;
-            foreach (var m in s_men) if (area.Contains(world, world.GetComponentRO<SimTransform>(m).Position)) n++;
+            foreach (var m in s_men) if (area.Contains(world, world.GetComponentRO<SimTransform>(m).Position)) n += Fdp.Toolkit.Squad.UnitStrength.WholeMenOf(world, m);   // ⭐ CE-4613 — men, not bodies
             s_men.Clear();
             return n;
         }
@@ -70,7 +70,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 var theirs = world.GetComponentRO<EntityInfo>(e).ForceId;
                 if (enemySide != ForceId.Neutral ? theirs != enemySide : !KillZone.Hostile(subjectSide, theirs)) continue;
                 if (!IsMan(world, e) || !area.Contains(world, world.GetComponentRO<SimTransform>(e).Position)) continue;
-                n++;
+                n += Fdp.Toolkit.Squad.UnitStrength.WholeMenOf(world, e);   // ⭐ CE-4613
             }
             return n;
         }
@@ -95,7 +95,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 if (world.GetComponentRO<EntityInfo>(e).ForceId != side) continue;
                 if (!IsMan(world, e) || !area.Contains(world, world.GetComponentRO<SimTransform>(e).Position)) continue;
                 into?.Add(e);
-                n++;
+                n += Fdp.Toolkit.Squad.UnitStrength.WholeMenOf(world, e);   // ⭐ CE-4613
             }
             return n;
         }
@@ -160,7 +160,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             {
                 if (world.GetComponentRO<EntityInfo>(e).ForceId != side) continue;
                 if (CombatEffective.IsUnit(world, e) || !world.IsAlive(e) || Injury.IsInTheFight(world, e)) continue;
-                n++;
+                n += Fdp.Toolkit.Squad.UnitStrength.WholeMenOf(world, e);   // ⭐ CE-4613
             }
             return n;
         }

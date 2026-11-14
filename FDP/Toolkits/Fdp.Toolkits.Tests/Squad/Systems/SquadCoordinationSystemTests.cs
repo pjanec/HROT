@@ -8,6 +8,7 @@ using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Squad;
 using Fdp.Toolkit.Squad.Systems;
+using Fdp.Toolkit.Squad.Command;
 using Xunit;
 
 namespace Fdp.Toolkits.Tests.Squad.Systems
@@ -435,6 +436,35 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             Assert.False(CombatEffective.IsInTheFight(_repo, bravo));
             Assert.False(CombatEffective.IsInTheFight(_repo, platoon));  // one squad of three
             Assert.Equal(1, CombatEffective.FightingMembers(_repo, platoon));
+        }
+
+        /// <summary>⭐⭐ <c>CE-4613</c> (R-D4; Aggregate Squad §18) — <see cref="UnitStrength"/>: a squad's Present / Authorized are its men in the fight / its
+        /// roster (its colour exactly the old members-fighting share); a platoon SUMS its squads' men (R-D4 — no longer counts squads); Black once out of
+        /// the fight; and a steady read allocates nothing (R-2084). ✅ Red-proofs: the platoon's sum counting squads (members) ⇒ the platoon asserts red ·
+        /// a dead man counted present ⇒ the squad asserts red.</summary>
+        [Fact]
+        public void CE4613_UnitStrength_ASquadIsItsMen_APlatoonTheSumOfItsSquadsMen_AndAReadAllocatesNothing()
+        {
+            var w = TacticalDesignation.Wingman;
+            var (alpha, a) = Designated(w, w, w, w);
+            var (bravo, b) = Designated(w, w, w, w);
+            var platoon = Platoon(alpha, bravo);
+            var full = UnitStrength.Of(_repo, alpha);
+            Assert.Equal((4f, 4), (full.Present, full.Authorized));
+            Assert.Equal(StatusColour.Green, UnitStrength.ColourOf(_repo, alpha));
+            Kill(a[0]);
+            var hit = UnitStrength.Of(_repo, alpha);
+            Assert.Equal((3f, 4), (hit.Present, hit.Authorized));
+            Assert.Equal(StatusColour.Amber, Fdp.Toolkit.Squad.Command.StaffComposerSystem.StrengthOf(_repo, alpha));   // 0.75 — as before
+            Kill(b[0]); Kill(b[1]);
+            var p = UnitStrength.Of(_repo, platoon);
+            Assert.Equal((5f, 8), (p.Present, p.Authorized));
+            Assert.Equal(StatusColour.Red, UnitStrength.ColourOf(_repo, platoon));   // 5 / 8 men — counted by squads it read Green (both in the fight)
+            Kill(a[1]); Kill(a[2]); Kill(b[2]);
+            Assert.Equal(StatusColour.Black, UnitStrength.ColourOf(_repo, platoon));
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++) { _ = UnitStrength.Of(_repo, platoon); _ = UnitStrength.ColourOf(_repo, alpha); }
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
         }
 
         /// <summary>⭐ <c>CE-2262</c> — a unit with NO roster is taken as in the fight (nothing to judge by — as before); a roster that

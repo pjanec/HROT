@@ -413,14 +413,12 @@ namespace Fdp.Toolkit.Squad.Command
 
         /// <summary>A unit's strength as a colour: GREEN ≥ 90 % of its members fighting, AMBER ≥ 70 %, RED while still combat
         /// effective, BLACK once it is not (CB-37).</summary>
+        /// <remarks>⭐ <c>CE-4613</c> (R-D4) — through the one strength seam, <see cref="UnitStrength"/>: in MEN at every echelon (a platoon by its men, not
+        /// its squads); for a squad of soldiers the same share as before.</remarks>
         public static StatusColour StrengthOf(ISimulationView view, Entity unit)
         {
             if (!view.HasComponent<UnitRoster>(unit)) return StatusColour.ColourUnknown;
-            int count = view.GetComponentRO<UnitRoster>(unit).Count;
-            if (count == 0) return StatusColour.Black;
-            if (!CombatEffective.IsInTheFight(view, unit)) return StatusColour.Black;
-            float f = CombatEffective.FightingMembers(view, unit) / (float)count;
-            return f >= GreenFraction ? StatusColour.Green : f >= AmberFraction ? StatusColour.Amber : StatusColour.Red;
+            return UnitStrength.ColourOf(view, unit);
         }
 
         /// <returns>How many reports went (CE-4518: summed by the caller — the phase writes no shared counter).</returns>
