@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → `behaviors`: the command-chain showcase's prerequisites
 
-**For:** the `behaviors` lane (ids `CE-2000`…, `R-2000`…). **From:** coordinator. **Dispatched at `e891fda6a`**; ⛔ scope FROZEN there — later
+**For:** the `behaviors` lane (ids `CE-2000`…, `R-2000`…). **From:** coordinator. **Dispatched at `de10fc69a`** *(re-stamped under rule 1a, unstarted: features first)*; ⛔ scope FROZEN there — later
 documents are FYI; one that invalidates an item ⇒ STOP that item and report it, do the rest (R-106). ⭐ The showcase-brains lane is retired
 (user: only behaviors, backend, ui, coordinator and terrain remain) — its open rows taken here are cross-lane, said.
 
