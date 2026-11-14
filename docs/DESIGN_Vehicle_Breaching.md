@@ -645,3 +645,15 @@ blast use, so the record writers stay single.*
 ⭐ **Lane decisions (for the user's review):** [R-5024](blueprints/RULINGS.md), [R-5025](blueprints/RULINGS.md). Rails: `ClearObstacleBehaviorTests.CE4601_*` (a wall point:
 drive, mark, the Muscle cuts, success, the mark cleared, the gap open and the rest standing; a trunk felled; open ground fails; a point by a roadblock is the roadblock) — red-proved
 (no `Mark` ⇒ both red); `BladeCutWireTests` (the ordinals, the round trip).
+
+### 7.13 As built — B-5: every breach is a way in *(`terrain` lane, `2026-11-14`, CE-4602)*
+
+| claim | code — as built | design |
+|---|---|---|
+| a passage is a portal | `BuildingLayout.AppendBreachPortals`: a `Gap` portal for every PASSAGE in the view's damage on the building's walls, between the rooms on its two sides (outside ⇒ `RoomB = −1`, its face), at the passage's centre — skipped where an opening already is (a door, a gap); none for a collapsed building | V-19 |
+| read at QUERY time, not cached | the cached `BuildingLayout` stays the authored one; `WorldSurveySolve` appends the breach portals from `DoorStates.Damage` on each survey — a passage made this tick is a way in for the next survey, a seek back removes it; ⛔ no `BuildingLayoutCache.Invalidate` needed (the §7.2 V-19 fix it named) | R-4232's rule |
+| the clearing enters by it | `RoomOrder.Next` already accepts a `Gap` from outside; the survey now carries one, so a `ClearBuilding` on a doorless house enters by the tank's breach / the charge's / the bulldozer's cut | V-19 |
+| a running clearing re-plans | each room step reads a fresh survey (the passage appears in the next one); cover points round a passage follow the bake (the provider is rebuilt on every bake) | V-19 |
+| ⚠ not here | sound through a passage (`SoundPaths` reads the cached layout's portals) — a later item | — |
+
+Rails: `BreachEntryTests` (a doorless house: no way in; a passage ⇒ a Gap from outside in the survey, and the room order enters by it) — red-proved (no `AppendBreachPortals` ⇒ red).

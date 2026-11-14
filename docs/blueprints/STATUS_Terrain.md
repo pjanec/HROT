@@ -57,7 +57,8 @@ related-designs:
 | **P-4** CE-4591 — craters, parts 1–2 + the wire | 🟡 built: the record, the rule, the cratered ground the same tick (D-1), the bake cache on every node (V-6), the dirty discs (V-4), nav areas closed to vehicles (D-2), the road cut (G-10), `dtGroundDamage` 184; + part 3: saved in `TerrainObjects["#ground"]` (merge, load), the rim as cover after the gases (G-35, live from the view); + re-grounding of owned entities (V-8), `RoadHeights` over a crater (V-20); ⛔ open: the decal (V-11, ui), a vehicle stranded in a new crater (V-12), stepped-hash | [Ground §9.11](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `CraterTests`, `CraterBakeTests`, `EntityGroundDamageTranslatorTests`, `BridgeClosureTests.CE4591_*` |
 | **B-6** CE-4603 — lone trees felled | ✅ built | [Breaching §7.11](../DESIGN_Vehicle_Breaching.md); rails `TreeFellingTests`, `TreeFellingBakeTests` (red-proved); debt CE-5000 (one record system, not three) |
 | **B-4** CE-4601 — the bulldozer clears at a point | ✅ built (cross-lane into behaviors' `ClearObstacleBehavior`, said) | [Breaching §7.12](../DESIGN_Vehicle_Breaching.md); rails `ClearObstacleBehaviorTests.CE4601_*` (red-proved), `BladeCutWireTests`; SimHost 42 / 0 under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` |
-| next | **B-5** CE-4602 — every breach is a way in for the AI | |
+| **B-5** CE-4602 — every breach is a way in for the AI | ✅ built | [Breaching §7.13](../DESIGN_Vehicle_Breaching.md); rail `BreachEntryTests` (red-proved) |
+| next | **P-5** CE-4592 — the ground-shaping tool (mockup fidelity) | |
 
 ## 3. Gates
 
@@ -86,6 +87,7 @@ related-designs:
 | P-4 part 3 | `Fdp.Toolkits.Tests --filter CraterTests\|CoverGeneratorAndLosTests\|TerrainEqsTests\|StaticObstacleTests\|BuildingDamageSaveTests\|ScenarioMerge`; `Hrot.Core.Tests --filter TerrainObjectRequestsTests\|ScenarioLoadStep` | 95 / 0, 45 / 0; 4 / 0 |
 | P-4 re-ground + roads | `--filter TerrainHeightTests\|CraterTests\|RoutePlanner` | 46 / 0 |
 | B-6 | toolkit `--filter TreeFellingTests\|CraterTests\|TerrainChunkTrees\|Woods\|CarKinematicsSystemTests\|ContactBreach` · SimHost `TreeFellingBakeTests\|CraterBakeTests\|StaticObstacleBakeTests\|BuildingDamageBakeTests\|EntityGroundDamage\|BridgeClosure` | 139 / 0 · 36 / 0 |
+| B-5 | toolkit `--filter WorldSurvey\|BuildingLayout\|SoundPath\|Building` · SimHost `BreachEntryTests\|ClearBuilding\|RoomOrder` | 138 / 0 · 3 / 0 |
 
 ⚠ Not yet run: `stepped-hash.py --threads 1,4,8`, drawing rails under Xvfb (nothing drawn changed), the full solution build.
 

@@ -168,7 +168,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   sight and fire pass at once, every node draws the gap, and a gap cut to the ground is walkable after the bake. (B-2, CE-4599, R-4236; rails
   `CE4599_*`) ✅
 - **Every breach is a way in for the AI** — a gap by a blast, a tank or the bulldozer is a gap infantry walks through and the AI uses as a way
-  into a building. (B-5, CE-4602) 📐
+  into a building. (B-5, CE-4602; rail `BreachEntryTests`) ✅
 - **Lone trees can be felled:** a bomb or a shell fells the lone trees round it, and a player driving a tank or an IFV fells one by ramming or
   pushing it; sight and fire pass at once on every node, the tree disappears from every view and the way opens; saved with the scenario.
   (B-6, CE-4603, R-4241; rails `TreeFellingTests`, `TreeFellingBakeTests`) ✅

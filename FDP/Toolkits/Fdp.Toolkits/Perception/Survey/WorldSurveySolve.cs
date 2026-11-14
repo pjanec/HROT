@@ -16,6 +16,8 @@ namespace Fdp.Toolkit.Perception.Survey
     /// </summary>
     public static class WorldSurveySolve
     {
+        [ThreadStatic] private static List<BuildingPortal>? t_breachPortals;   // ⭐ CE-4602 — per thread, reused
+
         /// <summary>A ray is stopped where what it crossed lets less than this through (the terrain's sight threshold).</summary>
         public const float SightThreshold = 0.5f;
 
@@ -135,6 +137,16 @@ namespace Fdp.Toolkit.Perception.Survey
                         Indoors = r.Indoors, Corners = new[] { r.C0.X, r.C0.Y, r.C1.X, r.C1.Y, r.C2.X, r.C2.Y, r.C3.X, r.C3.Y },
                     });
                 }
+                // ⭐ CE-4602 (B-5) — and every PASSAGE in this view is a way in (a Gap portal; query time, the layout itself is the authored one)
+                var breachPortals = t_breachPortals ??= new List<BuildingPortal>();
+                breachPortals.Clear();
+                layout.AppendBreachPortals(world, doors?.Damage, breachPortals);
+                foreach (var p in breachPortals)
+                    payload.Portals.Add(new SurveyPortal
+                    {
+                        Building = b, Kind = (byte)p.Kind, RoomA = p.RoomA, RoomB = p.RoomB, X = p.Centre.X, Y = p.Centre.Y, Z = p.Centre.Z,
+                        Width = p.Width, SillZ = p.SillZ, HeadZ = p.HeadZ, Walkable = true, Face = p.Face, IsDoor = false, DoorKey = "", DoorState = 0,
+                    });
                 foreach (var p in layout.Portals)
                     payload.Portals.Add(new SurveyPortal
                     {

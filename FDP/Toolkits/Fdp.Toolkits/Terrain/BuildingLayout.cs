@@ -334,10 +334,46 @@ namespace Fdp.Toolkit.Terrain
             return inside == 0 ? 0f : covered / (float)inside;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4602</c> (B-5; 📄 docs/DESIGN_Vehicle_Breaching.md §7.2 V-19) — EVERY BREACH IS A WAY IN: a <see cref="BuildingPortalKind.Gap"/> portal for each PASSAGE
+        /// in <paramref name="damage"/> on this building's walls (a tank's bump, a charge, the bulldozer's cut), between the rooms on its two sides, at its centre — appended
+        /// to <paramref name="into"/>. Read at QUERY time from the view's damage (R-4232's rule), never baked into the cached layout: a passage made this tick is a way
+        /// in for the next survey, a seek back takes it away. A passage over an existing opening adds nothing new (the opening is already a portal).
+        /// </summary>
+        public void AppendBreachPortals(TerrainWorld world, BuildingDamageTable? damage, List<BuildingPortal> into)
+        {
+            if (damage == null || Solid || damage.Collapsed(Building)) return;
+            foreach (var w in damage.Passages())
+            {
+                if ((uint)w.Panel >= (uint)world.Panels.Count) continue;
+                var panel = world.Panels[w.Panel];
+                if (panel.Building != Building) continue;
+                int L = IndexOfLevel(Levels, panel.BaseZ);
+                if (L < 0) continue;
+                float len = panel.Length;
+                if (len < 1e-3f) continue;
+                var dir = (panel.B - panel.A) / len;
+                var normal = new Vector2(-dir.Y, dir.X);
+                float off = panel.Thickness / 2f + PortalProbe;
+                float mid = (w.From + w.To) / 2f;
+                bool covered = false;
+                foreach (var o in panel.Openings) if (mid >= o.At && mid <= o.At + o.Width && o.Kind != TerrainOpeningKind.Window) { covered = true; break; }
+                if (covered) continue;
+                var c2 = panel.A + dir * mid;
+                int ra = SideRoom(this, c2 + normal * off, L), rb = SideRoom(this, c2 - normal * off, L);
+                if (ra == rb) continue;
+                if (ra < 0) (ra, rb) = (rb, ra);
+                int face = -1;
+                if (rb < 0)
+                    for (int f = 0; f < Faces.Count; f++) if (Faces[f].Panel == w.Panel) { face = f; break; }
+                into.Add(new BuildingPortal(BuildingPortalKind.Gap, ra, rb, new Vector3(c2, (w.Bottom + w.Top) / 2f), w.To - w.From, w.Bottom, w.Top, -1, face));
+            }
+        }
+
         private static int SideRoom(BuildingLayout layout, Vector2 p, int level)
             => layout.Contains(p) ? layout.RoomNear(p, level, 0.5f) : -1;
 
-        private static int IndexOfLevel(List<float> levels, float z)
+        private static int IndexOfLevel(IReadOnlyList<float> levels, float z)
         {
             for (int i = 0; i < levels.Count; i++) if (MathF.Abs(levels[i] - z) < LevelTolerance) return i;
             return -1;
