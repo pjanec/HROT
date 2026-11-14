@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD after the ground-patch design's P-0 (dirty rectangles on every host, a bake latency cap) — B-1 first (reproduce the slip-through)
+build-state: DESIGN — §7 (the critical review, 2026-11-14) found the root cause elsewhere and changes the record; READY-TO-BUILD once the user rules §7.3's six decisions, then §7.4's slices (after the ground-patch design's P-0)
 updated: 2026-11-14
-current-answer: the whole file — §1 the request, §2 INVENTORY, §3 the diagrams, §4 decisions, §5 slices, §6 acceptance
-stale-below: nothing
-known-rot: none
+current-answer: §7 FIRST (the review — it overrides what it names), then §1, §3, §4 and §6 where §7 leaves them standing
+stale-below: §5 slices — replaced by §7.4
+known-rot: §2's "free-standing walls" row (they are wall PANELS with no building, not prisms — §7 V-2) and "⚠ the user's drives through" row (the cause is not the corner probes — §7 V-1) · §3.2's "open to the hull at once" (§7 V-3) · B-D5/B-D6/B-D7 `WallDamage` (§7 V-2) · B-D9 (§7 V-1) · B-D1's gate "a player's ManualDrive" (§7 V-4) · B-D11's order shape and deciding node (§7 V-13)
 known-conflict: none
 related-designs:
   - designs/motion-models/DESIGN_Motion_Domains.md — §5f OWNS the hull guard (`HullClearance`, a hull never enters a building, hold and back out, R-3025); this design adds the possessed-only break-through at the guard's refusal and closes its thin-wall holes
@@ -196,3 +196,84 @@ if not, B-2 gives imported walls one at import (D-4 of the ground-patch design: 
 8. **The bulldozer** (B-D11): ordered to clear a garden wall at a point, it opens a blade-wide gap and infantry and vehicles route through it; the same bulldozer driving past and holding at a corner breaches nothing (a rail).
 9. **No cost** (B-D12): every break above leaves the breaking vehicle's Health unchanged (a rail).
 10. `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` on every rail; the 1 / 4 / 8-thread stepped hash equal on a breach scenario.
+
+## 7. Critical review *(2026-11-14 — three independent reviewers: distribution/replay/threads · geometry/navmesh/movement · people/AI/scale; the surprising claims re-measured by the coordinator)*
+
+### 7.1 What the review changed — the picture
+
+```mermaid
+graph TD
+  subgraph today[measured today]
+    FW[free wall / fence / hedge] -->|AddPanel, Building = -1<br/>TerrainWorldParser.cs:186-206| PNL[a wall PANEL]
+    PNL -->|IsClosedBarrier needs a building<br/>TerrainWorldQuery.cs:289| BLIND[hull guard: not a barrier]
+    PNL -->|a panel keeps the ground<br/>TerrainWorld.cs:323| BLIND2[hull guard: no rise]
+    PNL -->|CrossingBreached keys on the panel| QT[sight / fire breach: ALREADY works]
+    PNL -->|BuildingPanelGrid skips Building < 0| NOBLAST[blasts never breach it]
+  end
+  BLIND --> CAUSE[every hull passes every garden wall:<br/>the user's observation]:::bad
+  BLIND2 --> CAUSE
+  classDef bad stroke:#c33,color:#c33
+```
+*What it shows that §2 hid: a garden wall is already a wall panel. The hull guard is blind to it on both of its tests, so the cause of "possessed
+vehicles drive through garden walls" is not the corner probes (B-D9). And everything a breach needs (the record, the query-time pass, the
+re-cut) already exists for panels; only the building key and one grid filter shut free walls out.*
+
+### 7.2 Findings — most severe first *(C = confirmed in code, S = suspected)*
+
+| # | finding | evidence | fix |
+|---|---|---|---|
+| **V-1** C | ⭐⭐ **the hull guard does not see free walls at all** — any hull, AI included, passes any garden wall, fence or hedge whose chord it cuts; AI hulls rarely do only because the vehicle navmesh routes them round | `IsClosedBarrier` = panel **with a building** (`TerrainWorldQuery.cs:289-290`); `SurfaceZ`: a panel never takes the ground (`TerrainWorld.cs:323-324`); every guard rail tests buildings (`CarKinematicsSystemTests.cs:793-985`) | a HULL barrier meaning: any panel blocks a hull (its own trace purpose — ⛔ not the blast meaning W-7′). B-D9's edge probes and swept step are not the cause; drop them unless B-1 then still reproduces a slip |
+| **V-2** C | ⭐⭐ **`WallDamage` would duplicate a working mechanism** — `WallBreach` keys on the global panel, `CrossingBreached` and the bake's re-cut (`TerrainObstacles.With`, `StaticObstacles.cs:124-138`) group by panel and never filter on the building | `BuildingDamage.Building` is the only building-keyed part (`BuildingDamageSystem.cs:99`); `BuildingPanelGrid.cs:80` skips `Building < 0` | ONE record: the damage record of a **wall group** — a building OR a free-wall line (§7.3 D-1); the grid indexes every panel ⇒ B-D7 becomes one deleted filter |
+| **V-3** C | ⭐⭐ **after a break the hull is held for the bake's latency, and the hash cannot match** — the guard reads the baked `TerrainWorld` (replaced on commit, `TerrainResidency.cs:626`) after a 0.5 s WALL-CLOCK quiet period; `SurfaceZ` has no damage input; a sandbag's prism stays until removal ⇒ dispose ⇒ rebake; the refusal zeroes the speed (`CarKinematicsSystem.cs:740-747`) | `StaticObstacleBake.cs:52, 166-167`; `HullClearance.cs:73-85` | R-4232 for the hull: the guard reads the breach table at QUERY time (the `DoorStates.Damage` table, built in the serial pre-pass, plus the breaches this node decided this tick); an obstacle with `Health ≤ 0` or in teardown is skipped; a break costs speed, never a zero |
+| **V-4** C | **"has `ManualDrive`" ≠ "a player drives"** — release leaves the component on the hull ⇒ a once-possessed AI tank breaches at every corner hold | `Possession.LetGoOfManual` keeps `ManualDrive` (`Possession.cs:323`), only the mode returns to `None` | gate on the Manual branch (`CarKinematicsSystem.cs:235`) AND a live possession; a rail: possess → release → corner hold ⇒ no record |
+| **V-5** C | **the tank can drive into its own bump** — the hull trace uses `TracePurpose.Fire`, which skips breached panel crossings | `HullClearance.cs:83`; `TerrainWorld.cs:891` | the hull purpose (V-1) ignores breaches in BUILDING panels (R-3025: a hull never enters); it honours free-wall breaches it is wide enough for |
+| **V-6** C | **a garden-wall breach is never walkable** — `Passage` needs ≥ 1.8 m high; hedge 1.5, fence 1.6, garden walls ~1 m ⇒ always a `Hole`; the bake re-cuts Passages only ⇒ acceptance 6 fails by construction | `BreachRule.cs:121`, `breaches.json:10`, `FeatureKinds.cs:16`, `StaticObstacles.cs:125` | `Classify`: a cut from the panel's base to its TOP is a Passage at the minimum width, whatever the wall's height |
+| **V-7** C | **walls up to 0.5 m are climbed, not met** — a panel top within reach becomes the surface; `VehicleMaxStepM` 0.5 and the probe at 0.5 m pass over it | `TerrainWorld.cs:330`; `CarKinematicsSystem.cs:948, 952` | §7.3 D-4 |
+| **V-8** C | **a hull resting against a wall can never break it** — each refused step zeroes the speed ⇒ creep up, then floor it: the speed into the wall stays ≈ accel × dt | `CarKinematicsSystem.cs:744` | §7.3 D-3 (ram OR push) |
+| **V-9** C | **a hull-wide cut is narrower than the vehicle navmesh routes** (agent radius 1.8 m ⇒ ≥ 3.6 m + cells; an M1 is 3.66 m) and too narrow for a crossing at an angle (the jambs hold it) | `RecastNavmeshBaker.cs:79-88`; `VehicleParams.cs:35` (`Width` is the only width) | cut = the hull footprint's projection on the panel at the crossing angle + a margin, and ≥ 2 × the vehicle radius + 2 cells for a drive-through |
+| **V-10** S | a narrow free-wall breach bakes at the coarse 0.3 m cell (fine cells only over buildings and doors; CE-3111 measured a 0.8–0.9 m opening failing) — `bd-destruction` proves building walls only | `RecastNavmeshFactory.cs:210-221` | every Passage's rectangle joins `FineAreas` |
+| **V-11** C | **no stable key per free wall** — a line's segments share one label (`key/0`), imports may have none; panel indices renumber on overlay re-sort | `FeatureKinds.cs:69`, `TerrainWorldParser.cs:204-206` | key = (line label, segment rank); a label given at import; the commit-time remap `BuildingDamage` already has |
+| **V-12** S | a cut at a joint or corner touches two panels; `BarrierHit` returns one | — | `BarrierHit` returns every panel the cut rectangle overlaps; one clipped breach each |
+| **V-13** C | **B-D11's bulldozer would decide destruction on the Brain**, and its order cannot name a wall — `ClearObstacleBehavior` runs in the CGF brain; destruction is Muscle-only (UTM §8.2 B-12, R-4196); the order is an `EntityLink` (`ClearObstacleBehavior.cs:136`); the push is Health-based (`:93`) and walls have none | — | the order gains a world POINT; the brain drives to it; the Muscle's contact step decides the cut (the same contact rule as a player, by a "cutting" flag the task sets); success = a Passage at the point |
+| **V-14** C | **no replay gate** — `CarKinematicsSystem` has none (`ObstacleRemovalSystem.cs:33`, `BuildingDamageSystem.cs:86` do) ⇒ a replayed possession could re-decide breaches | grep: no `ReplayState` in `CarKinematicsSystem.cs` | the break decision and its follow-up gate on replay; a rail |
+| **V-15** C | **B-D10's follow-up has nowhere to go** — `MoveJob.Execute` drops the `BatchContext` | — | pass it through; the follow-up finds-or-creates the owned record SERIALLY (two hulls, one wall, one tick ⇒ one entity); the in-phase read is the pre-pass table (D-26) |
+| **V-16** C | **display nodes, the player and the Replay Browser keep drawing the wall whole** — the re-cut is in the bake, which applies damage only where a navmesh factory exists | `TerrainResidency.cs:562` | the CE-4392 analogue: the 3-D chunk and the 2-D plan draw from the record on every node |
+| **V-17** C | **the player gets no feedback** — no impact sound (`SoundSources`), no effect, no HUD cue; "held" and "broke it" look the same until the mesh rebuilds; nothing says which walls a vehicle can break; AI hearing gets nothing | — | a `ContactBreachEvent` ⇒ dust effect + crash sound (heard by AI) + a HUD contact cue: *breaking / too strong for this vehicle* |
+| **V-18** C | **no way to forbid breaching per scenario** — `contact-breach.json` is per deployment | City Battle §4b precedent (`SetSkillAmplifier` via a trigger verb) | §7.3 D-5 |
+| **V-19** S | **infantry do not know a tank's Passage is an entry** — clearing enters by `EntryDoor`; `BuildingLayoutCache.Invalidate` has no production caller; a running clearing never re-plans; EQS cover (`ICoverProvider`) is rebuilt only on a bake | `ClearBuildingBehavior.cs:67` (a `Gap` portal exists as a concept) | slice B-5: breach ⇒ layout invalidated ⇒ a `Gap` portal; a rail: `ClearBuilding` with no door picks the tank's breach |
+| **V-20** C | **a barrage**: one record per wall group hit, every breach resets the bake's quiet period (starvation until P-0's cap); acceptance 5 is one Mk-82 | `StaticObstacleBake.cs:165-167` | an acceptance row: a barrage on the showcase town — entity count, bake latency, frame budget |
+| **V-21** S | a straddle at an angle: the edge probes meet the stub, the speed is below the threshold, and the Manual path has no `HullRecovery` ⇒ stuck; reversing and the barrel's overhang are unspecified | — | a stub touching the hull's own fresh breach breaks at any speed; contact by the hull's REAR counts for small barriers (never the building bump); the barrel is drawn, never tested |
+| **V-22** C | **UTM §8 T-4 (proposal) has any heavy or fast vehicle fell lone trees, AI included** — contradicts B-D1; trees are missing from the barrier list | `DESIGN_Terrain_Import_UTM.md` §8 T-4 | §7.3 D-6 |
+| — | ✅ **non-issue: two nodes cannot decide one break** — a hull moves only on the node owning its `SimTransform` (`CarKinematicsSystem.cs:186`); several Muscles each own their record and every node reads the union (the `BuildingDamage` precedent); player input reaches the Muscle one hop late (acceptable) | | |
+
+### 7.3 Decisions for the user — each with a lean
+
+| # | question | ⭐ lean | why / what would change it |
+|---|---|---|---|
+| **D-1** | one damage record or two (V-2) | ⭐ **ONE** — `BuildingDamage` becomes the record of a **wall group** (a building or a free-wall line, its `TerrainObjectKey` the label); `WallDamage` withdrawn | free walls are already panels; two records = two re-cuts, two wire types, two save sections. Renamed (if at all) by Roslyn, never by text |
+| **D-2** | free walls block AI hulls too once the guard sees them (V-1) — an AI behaviour change | ⭐ **yes** — an AI hull is held and backs out at a garden wall like at a building | it was a defect; the navmesh already routes them round, so it is rare. The AI corner rule (no record) is unchanged |
+| **D-3** | how the speed into a wall is measured (V-8) | ⭐ **ram OR push**: a ram = the attempted step's speed into it ≥ the row's minimum; a push = full throttle held in contact for the row's seconds (the bulldozer's model). A tank's building BUMP is a ram only | a hull resting against a wall could otherwise never break it |
+| **D-4** | walls ≤ 0.5 m (V-7) | ⭐ **a panel top is never a hull's surface** — a low wall is met: wheeled vehicles hold, armour breaks it by the rule | a HMMWV hopping onto a sandbag wall is wrong; climbing a KERB (ground, not a panel) is unchanged |
+| **D-5** | forbid breaching per scenario (V-18) | ⭐ **yes**: a recorded unmanaged rules component (on / off) set by a 0 s trigger verb, and an instructor toggle; default ON | the established knob shape (City Battle §4b) |
+| **D-6** | lone trees (V-22) | ⭐ **trees follow B-D1**: a possessed heavy vehicle fells a lone tree (a tank, an IFV); AI hulls route round; the bulldozer on order — UTM §8 T-4 amended and linked both ways | one rule for "a vehicle breaks what it meets" |
+
+### 7.4 Slices — replace §5
+
+| slice | builds |
+|---|---|
+| **B-0** | the ground-patch design's **P-0** (dirty rectangles on every host, a bake latency cap) |
+| **B-1** | the hull SEES free panels (V-1, D-2, D-4); the hull purpose ignores building-panel breaches (V-5); the gate = Manual + live possession (V-4); replay gate (V-14). Rails: possessed and AI hulls held at a garden wall; possess → release → corner ⇒ no record; a tank at its own bump stays out |
+| **B-2** | one record for wall groups (D-1): free-wall lines keyed (V-11), the grid indexes every panel (blasts breach free walls, B-D7), the Passage rule for low walls (V-6), Passages in `FineAreas` (V-10), multi-panel cuts (V-12), drawing on every node (V-16) |
+| **B-3** | the contact rule: ram or push (D-3), the cut's size (V-9), the query-time guard and no speed zero (V-3), `BatchContext` plumbing and serial find-or-create (V-15), the straddle and rear contact (V-21), feedback event / sound / HUD cue (V-17), the scenario switch (D-5), trees (D-6) |
+| **B-4** | the bulldozer: a point order, the Muscle decides (V-13) |
+| **B-5** | the AI uses a breach: layout invalidation ⇒ a `Gap` portal, clearing re-plans, cover refreshed (V-19) |
+
+### 7.5 Acceptance — added to §6
+
+11. An AI hull and a possessed HMMWV meet a garden wall and hold; neither leaves a record (V-1, D-2).
+12. A possessed IFV creeping onto sandbags then held at full throttle breaks them by push; a ram at speed loses speed but is never zeroed, and the guard opens in the same tick (V-3, V-8).
+13. A possessed M1 bumping a building wall at any angle never enters the breach it made (V-5).
+14. A 1.0 m garden-wall breach and a 1.5 m hedge breach are walkable (V-6); a drive-through gap routes vehicles (V-9).
+15. Possess → release → the AI holds at a corner ⇒ no record (V-4); a replay of a possessed break writes nothing (V-14).
+16. A barrage on the showcase town: record count, bake latency and frame budget stated and met (V-20).
+17. A display node and the Replay Browser draw the gap (V-16); the player hears and sees the break, and the HUD says *too strong* at a wall it cannot break (V-17).
