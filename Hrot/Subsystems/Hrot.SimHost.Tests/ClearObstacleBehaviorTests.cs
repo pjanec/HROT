@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Fbt;
 using Fdp.Core;
@@ -148,6 +149,99 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Failure, Step(ref q));
             Assert.Equal(0f, q.Pushed);
             Assert.Equal(100f, _w.GetComponentRO<Health>(man).Current);
+        }
+    
+        // ── ⭐ CE-4601 (B-4; docs/DESIGN_Vehicle_Breaching.md §7.6) — the point order ──────────────────────────────────────────
+
+        /// <summary>A field with a 1.8 m brick garden wall along x = 0 (y −20..20) and a lone oak at (0, 30).</summary>
+        private const string Field = """
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[-60,-60,60,60],"groundZ":0},"features":[
+             {"type":"Feature","properties":{"kind":"wall","label":"Garden","height":1.8,"thickness":0.3,"material":"brick"},"geometry":{"type":"LineString","coordinates":[[0,-20],[0,20]]}},
+             {"type":"Feature","properties":{"kind":"tree","label":"oak"},"geometry":{"type":"Point","coordinates":[0,30]}}]}
+            """;
+
+        private TerrainWorld Terrain()
+        {
+            var t = TerrainWorldParser.Parse(Field, "range");
+            _w.SetSingletonManaged(t);
+            return t;
+        }
+
+        /// <summary>One frame of the point order with the Muscle's cut and a stand-in for the record writers (each event written straight into a record entity).</summary>
+        private NodeStatus CutStep(ref ClearObstacleParams p, DozerCutSystem cut, TerrainWorld t)
+        {
+            var status = Step(ref p);
+            cut.Execute(_w, Dt);
+            _w.Bus.SwapBuffers();
+            foreach (var ev in _w.Bus.Read<BuildingDamageEvent>().ToArray())
+            {
+                var d = new BuildingDamage { Building = ev.Building };
+                BuildingDamages.Add(ref d, ev.Breach, t);
+                var e = _w.CreateEntity(); _w.AddComponent(e, d); _w.SetManagedComponent(e, new TerrainObjectKey { Key = BuildingDamages.KeyOf(t, ev.Building) });
+            }
+            foreach (var ev in _w.Bus.Read<TreeFellEvent>().ToArray())
+            {
+                var d = new TreeDamage(); (d.CellX, d.CellY) = TreeDamages.CellOf((ev.X, ev.Y)); TreeDamages.Add(ref d, (ev.X, ev.Y), out _);
+                var e = _w.CreateEntity(); _w.AddComponent(e, d);
+            }
+            return status;
+        }
+
+        private ClearObstacleParams PointOrder(Vector3 at)
+        {
+            var block = new ClearObstacleBehavior.ClearObstacleBlackboard();
+            ClearObstacleBehavior.Resolve(new ClearObstacleOrder { At = at, PushSeconds = 3f }, ref block, _w, _dozer);
+            return block.Clear;
+        }
+
+        /// <summary>
+        /// ⭐⭐ B-4 — "clear HERE" on a garden wall: the resolver names the WALL, the dozer drives to the point, marks its blade (<see cref="BladeCut"/>), the Muscle cuts a
+        /// blade-wide full-height Passage after the push (the one breach writer's event), the order succeeds and the mark is cleared. 🔴 Red-proof: drop the
+        /// <c>Mark</c> call ⇒ nothing is cut and the order times out.
+        /// </summary>
+        [Fact]
+        public void CE4601_APointOnAWall_DrivesThere_MarksTheBlade_TheMuscleCutsAPassage_AndTheOrderSucceeds()
+        {
+            var t = Terrain();
+            var p = PointOrder(new Vector3(0f, 1f, 0f));   // ⚠ not the origin: a zero At means "no point" (the order DTO's zero-default rule)
+            Assert.Equal(BladeCutTarget.Wall, p.Target);
+            var cut = new DozerCutSystem();
+            NodeStatus status = NodeStatus.Running;
+            bool marked = false;
+            for (int i = 0; i < 200 && status == NodeStatus.Running; i++)
+            {
+                status = CutStep(ref p, cut, t);
+                marked |= _w.HasComponent<BladeCut>(_dozer) && _w.GetComponentRO<BladeCut>(_dozer).Active == 1;
+            }
+            Assert.Equal(NodeStatus.Success, status);
+            Assert.True(marked);
+            Assert.Equal(1, cut.Cuts);
+            Assert.Equal(0, _w.GetComponentRO<BladeCut>(_dozer).Active);
+            Assert.False(t.SegmentBlocked(new Vector3(-5f, 1f, 1f), new Vector3(5f, 1f, 1f), DoorStates.Of(_w, t)));   // the gap is open
+            Assert.True(t.SegmentBlocked(new Vector3(-5f, 10f, 1f), new Vector3(5f, 10f, 1f), DoorStates.Of(_w, t)));   // the rest of the wall stands
+        }
+
+        /// <summary>⭐ B-4 — a point on the lone oak fells it (the trunk wins over nothing); a point on open ground fails at once; a point beside a roadblock is that roadblock.</summary>
+        [Fact]
+        public void CE4601_APointOnATrunk_FellsIt_OpenGroundFails_AndAPointByARoadblockClearsTheRoadblock()
+        {
+            var t = Terrain();
+            var p = PointOrder(new Vector3(0.5f, 30.5f, 0f));
+            Assert.Equal(BladeCutTarget.Tree, p.Target);
+            var cut = new DozerCutSystem();
+            NodeStatus status = NodeStatus.Running;
+            for (int i = 0; i < 200 && status == NodeStatus.Running; i++) status = CutStep(ref p, cut, t);
+            Assert.Equal(NodeStatus.Success, status);
+            Assert.True(DoorStates.Of(_w, t).Trees!.Count == 1);
+
+            var none = PointOrder(new Vector3(30f, -40f, 0f));
+            Assert.Equal(BladeCutTarget.None, none.Target);
+            Assert.Equal(NodeStatus.Failure, ClearObstacleBehavior.Clear(ref none, _dozer, _w));
+
+            var block = Roadblock();
+            var at = PointOrder(new Vector3(1.5f, 0f, 0f));
+            Assert.Equal(block, at.Obstacle);
+            Assert.Equal(BladeCutTarget.None, at.Target);
         }
     }
 }

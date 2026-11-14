@@ -184,6 +184,22 @@ namespace Hrot.NED.Descriptors
         [DdsManaged] public List<int> Trunks;
     }
 
+    // ⭐ CE-4601 (B-4) — a bulldozer's blade-cut marker (BladeCut), published by the owner of dtBladeCut (the Brain group) on change, applied on every other node.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityBladeCut
+    {
+        [DdsKey]
+        public int EntityId;
+        public byte Active;
+        public byte Target;
+        public float AtX;
+        public float AtY;
+        public float AtZ;
+        public float PushSeconds;
+    }
+
     // ⭐ Weapon systems WS-1 (W-C, R-136; docs/designs/weapons/DESIGN_Weapon_Systems.md §2) — a weapon system's deploy state (Stowed ·
     //   Deploying · Deployed · Packing), published by the node owning dtWeaponSystemState (its brain group) on change and applied on every
     //   other node (the drawing and the fire gate read it). Reliable + TransientLocal + KeepLast(1) keyed by entity, like the door: a late

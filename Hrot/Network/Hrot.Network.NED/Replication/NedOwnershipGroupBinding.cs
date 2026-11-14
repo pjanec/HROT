@@ -95,6 +95,8 @@ public static class NedOwnershipGroupBinding
         // ⭐ CE-2121 — body stance (was "dormant"): the Brain group's request and the Muscle group's report, so each crosses
         //   the wire from the node that owns its GROUP (the Muscle never owns the entity's lifecycle). 📄 Decision Layer §3.3g.
         map.RegisterMapping((long)EDescriptorType.dtStanceIntent, GlobalComponentIds.StanceIntent);
+        // ⭐ CE-4601 (B-4) — the dozer's blade-cut marker: the Brain group's, read by the Muscle that cuts
+        map.RegisterMapping((long)EDescriptorType.dtBladeCut, GlobalComponentIds.BladeCut);
 
         // Perception group descriptor.
         map.RegisterMapping((long)EDescriptorType.dtEqsResult, GlobalComponentIds.EqsCognitiveBuffer);

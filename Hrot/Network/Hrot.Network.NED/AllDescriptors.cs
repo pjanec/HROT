@@ -196,6 +196,9 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-4603 (B-6; docs/DESIGN_Vehicle_Breaching.md §7.7) — one cell's felled lone trunks, the node that felled them → every node (DoorStates.Trees). 185 measured free
         //   on every lane 2026-11-14. ⚠ the toolkit states it too (TreeDamageSystem.DescriptorOrdinal; a rail pins it).
         dtTreeDamage                  = 185,
+        // ⭐ CE-4601 (B-4; docs/DESIGN_Vehicle_Breaching.md §7.6) — a bulldozer's blade-cut marker, Brain group → the Muscle that cuts. 186 measured free on every lane
+        //   2026-11-14. ⚠ BladeCutTranslators state it; a rail pins it.
+        dtBladeCut                    = 186,
         // etc., all known descriptor types here
     }
 

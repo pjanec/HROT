@@ -54,6 +54,7 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.ActorCapabilityState);
         // Animation intents (dormant: no production host composes animation replication — design §1.5).
         brain.SetBit(GlobalComponentIds.StanceIntent);
+        brain.SetBit(GlobalComponentIds.BladeCut);   // ⭐ CE-4601 (B-4) — the dozer's brain marks where its blade cuts (dtBladeCut); the Muscle reads it
         brain.SetBit(GlobalComponentIds.AnimationMontageQueue);
         // ⭐ CE-513 / R-180 — an animation channel crosses nodes, so it is split: the Brain owns the REQUEST.
         brain.SetBit(GlobalComponentIds.AnimationChannel);

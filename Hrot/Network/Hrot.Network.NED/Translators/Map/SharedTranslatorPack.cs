@@ -85,6 +85,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-4591 (P-4) — a ground cell's craters, the node that decided them → every node (each node's DoorStates.Craters unions every such entity).
             yield return new EntityGroundDamageEgressTranslator(participant);
             yield return new EntityGroundDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            // ⭐ CE-4601 (B-4) — a bulldozer's blade-cut marker, its brain → the Muscle that cuts.
+            yield return new EntityBladeCutEgressTranslator(participant);
+            yield return new EntityBladeCutIngressTranslator(participant, entityMap);
             // ⭐ CE-4603 (B-6) — a cell's felled lone trunks, the felling node → every node (DoorStates.Trees).
             yield return new EntityTreeDamageEgressTranslator(participant);
             yield return new EntityTreeDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);

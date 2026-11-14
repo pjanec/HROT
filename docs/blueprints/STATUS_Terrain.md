@@ -37,6 +37,8 @@ related-designs:
 | [R-5021](RULINGS.md) | a crater on a crater does not deepen it (overlaps combine by the minimum) | a barrage that must dig deeper |
 | [R-5022](RULINGS.md) | `trees.json`: a blast fells lone trunks within 1.2 m per ∛kg, from 2 kg | a playtest |
 | [R-5023](RULINGS.md) | a trunk is felled by a contact row's `trees` flag (tank, IFV), not its strength | trunks only a tank should fell |
+| [R-5024](RULINGS.md) | the dozer's cut is a Muscle system reading its marker and blade position, not the hull guard's contact | a dozer that must break what it drives into |
+| [R-5025](RULINGS.md) | a zero `At` is "no point" (the DTO's zero-default rule) | a flag field instead |
 | [R-5012](RULINGS.md) | D-3's road-to-façade ramp is the two skirts meeting; D-4 and V-18 left to their own steps | a step between a road and a house on a real town |
 
 ## 2. Tasks
@@ -54,7 +56,8 @@ related-designs:
 | **P-3** CE-4597 — scenario house pads + *Save terrain as* | ✅ built | [Ground §9.10](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `TerrainWorldMergeTests.CE4597_*`, `TerrainBakeTests.CE4597_*` (red-proved) |
 | **P-4** CE-4591 — craters, parts 1–2 + the wire | 🟡 built: the record, the rule, the cratered ground the same tick (D-1), the bake cache on every node (V-6), the dirty discs (V-4), nav areas closed to vehicles (D-2), the road cut (G-10), `dtGroundDamage` 184; + part 3: saved in `TerrainObjects["#ground"]` (merge, load), the rim as cover after the gases (G-35, live from the view); + re-grounding of owned entities (V-8), `RoadHeights` over a crater (V-20); ⛔ open: the decal (V-11, ui), a vehicle stranded in a new crater (V-12), stepped-hash | [Ground §9.11](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `CraterTests`, `CraterBakeTests`, `EntityGroundDamageTranslatorTests`, `BridgeClosureTests.CE4591_*` |
 | **B-6** CE-4603 — lone trees felled | ✅ built | [Breaching §7.11](../DESIGN_Vehicle_Breaching.md); rails `TreeFellingTests`, `TreeFellingBakeTests` (red-proved); debt CE-5000 (one record system, not three) |
-| next | **B-4** CE-4601 — the bulldozer cuts on order (behaviors lane per the plan; this lane builds it) | |
+| **B-4** CE-4601 — the bulldozer clears at a point | ✅ built (cross-lane into behaviors' `ClearObstacleBehavior`, said) | [Breaching §7.12](../DESIGN_Vehicle_Breaching.md); rails `ClearObstacleBehaviorTests.CE4601_*` (red-proved), `BladeCutWireTests`; SimHost 42 / 0 under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` |
+| next | **B-5** CE-4602 — every breach is a way in for the AI | |
 
 ## 3. Gates
 

@@ -173,7 +173,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   pushing it; sight and fire pass at once on every node, the tree disappears from every view and the way opens; saved with the scenario.
   (B-6, CE-4603, R-4241; rails `TreeFellingTests`, `TreeFellingBakeTests`) ✅
 - **The bulldozer clears on order:** point at a roadblock, a wall or a lone tree and the bulldozer pushes it away, cuts a gap or fells it.
-  (B-4, CE-4601, R-4242) 📐
+  (B-4, CE-4601, R-4242; rails `ClearObstacleBehaviorTests.CE4601_*`) ✅ — the order and the cut; 📐 the map's "clear here" gesture
 - **Lone trees are felled** by a player's tank, a blast or the bulldozer; AI vehicles drive round them. (B-6, CE-4603, R-4241) 📐
 - **Everything is recorded:** every change is replicated to every node, saved with the scenario, restored on seek and replay, the same at
   any thread count. 📐

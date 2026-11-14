@@ -612,3 +612,36 @@ cache — so the only NEW decisions are who fells (the fellers on the left) and 
 ⭐ **Lane decisions (for the user's review):** [R-5022](blueprints/RULINGS.md) `trees.json` starting values; [R-5023](blueprints/RULINGS.md) a row's `trees` flag fells a trunk (not its wood
 strength). Rails: `TreeFellingTests` (the same-tick skip, a bomb's radius, the contact rule's rows, the save) and `TreeFellingBakeTests` (the bake drops the trunk, its box is dirty, a seek
 restores it; the ordinal pinned; the wire round-trips) — red-proved (the skip, the `FellTrees` call).
+
+### 7.12 As built — B-4: the bulldozer clears at a point *(`terrain` lane, `2026-11-14`, CE-4601)*
+
+```mermaid
+sequenceDiagram
+  participant I as Instructor / company call
+  participant R as ClearObstacleBehavior.Resolve (order time)
+  participant B as Clear / Cut (dozer brain, per-entity phase)
+  participant M as DozerCutSystem (Muscle, serial)
+  participant W as BuildingDamageSystem / TreeDamageSystem
+  I->>R: ClearObstacleOrder { Obstacle } or { At, PickRadius, TimeoutSeconds }
+  R->>R: an obstacle within the pick radius ⇒ Obstacle (today's path) · else a standing lone trunk ⇒ Tree · else the nearest wall panel ⇒ Wall · adds an inactive BladeCut
+  B->>B: drive to half a hull before the point · blade there ⇒ BladeCut { Active, Target, At, PushSeconds } (its own component)
+  M->>M: an active BladeCut whose blade is at the point for PushSeconds (on the node that owns dtWorldPos)
+  M->>W: BuildingDamageEvent (blade-wide, full-height Passage) or TreeFellEvent
+  B->>B: done when a Passage covers the point (or the trunk is felled) in its view · fails past the timeout · clears the marker
+```
+*What it shows that prose hid: the brain never decides destruction — it sets ONE marker on itself; the Muscle cuts through the same event the player's break and a
+blast use, so the record writers stay single.*
+
+| claim | code — as built | design |
+|---|---|---|
+| one order, an entity or a point | `ClearObstacleOrder` gains `At`, `PickRadius` (0 = 3 m), `TimeoutSeconds` (0 = 60 s); an entity given ⇒ unchanged | §7.6, R-4242 |
+| the resolver | `Resolve`: an obstacle's face within the radius ⇒ that obstacle; else a standing lone trunk (`LoneTrees`, not felled in the view) ⇒ a fell; else `DozerCutSystem.NearestPanel` ⇒ a wall cut; nothing ⇒ Failure on the first tick | §7.6 |
+| the brain marks, the Muscle cuts | `BladeCut` (component 491, Brain group, `dtBladeCut` 186) set by the brain's `Cut` once its blade is within reach; `DozerCutSystem` (in `DamageAssessmentModule`, on the node owning `dtWorldPos`) counts the blade's time at the point and publishes the cut | V-13, B-D11 |
+| success | `DozerCutSystem.PassageAt`: the nearest wall open at the point just above its base and at a man's height in the brain's view (a collapse counts); a trunk felled in the view | §7.6 |
+| parallel-safe | the resolver adds the marker inactive at order time; the per-entity tick only SETS its own component (no structural change in the phase); runs green under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` | R-4212 |
+| ⚠ deviation | the cut is NOT the hull guard's contact rule (§7.6's diagram said "the Muscle's contact rule (B-3)"): an AI hull at its arrival stops stepping into the wall, so the contact never fires — the Muscle cuts from the marker and the blade's position instead. One writer still: the same breach / fell events | R-5024 |
+| ⚠ a zero `At` | is "no point" (the order DTO's zero-default rule): a point exactly at the terrain's origin cannot be ordered | R-5025 |
+
+⭐ **Lane decisions (for the user's review):** [R-5024](blueprints/RULINGS.md), [R-5025](blueprints/RULINGS.md). Rails: `ClearObstacleBehaviorTests.CE4601_*` (a wall point:
+drive, mark, the Muscle cuts, success, the mark cleared, the gap open and the rest standing; a trunk felled; open ground fails; a point by a roadblock is the roadblock) — red-proved
+(no `Mark` ⇒ both red); `BladeCutWireTests` (the ordinals, the round trip).

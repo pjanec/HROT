@@ -151,7 +151,9 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Terrain.CraterEvent>();
         // ⭐ CE-4603 (B-6) — the lone trunks one node felled in one cell (dtTreeDamage), read by every view's DoorStates.Trees; the local "a trunk was felled"
         world.RegisterComponent<Fdp.Toolkit.Terrain.TreeDamage>();
-        world.RegisterEvent<Fdp.Toolkit.Terrain.TreeFellEvent>();   // ⭐ CE-4600 (B-3) — a vehicle broke a barrier / met one too strong
+        world.RegisterEvent<Fdp.Toolkit.Terrain.TreeFellEvent>();
+        // ⭐ CE-4601 (B-4) — a bulldozer's blade-cut marker (Brain group, dtBladeCut): written by its ClearObstacle point order, read by the Muscle's DozerCutSystem
+        world.RegisterComponent<Fdp.Toolkit.Terrain.BladeCut>();   // ⭐ CE-4600 (B-3) — a vehicle broke a barrier / met one too strong
         // ⭐ CE-3136 P-7a — static obstacles (a parked car, a sandbag wall …): terrain every node bakes. Shared: every node derives the
         //   marker from the TKB and receives the box (EntityObstacleShape). 📄 docs/DESIGN_Peek_And_Fire.md §9.
         world.RegisterComponent<Fdp.Toolkit.Terrain.StaticObstacle>();
