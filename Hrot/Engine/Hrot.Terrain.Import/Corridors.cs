@@ -24,9 +24,11 @@ internal static class Corridors
         var (edges, junctions) = Read(netPath, ax, ay);
         var junctionAt = junctions.ToDictionary(j => j.Id, j => j.At);
         var corridors = new List<RoadCorridor>(edges.Count);
+        int offGround = 0;
         foreach (var e in edges)
         {
             if (e.Lanes.Count == 0) continue;
+            if (e.OffGround) { offGround++; continue; }   // ⭐ V-15 (G-22) — a bridge or a tunnel levels nothing
             var first = e.Lanes[0].Shape; var last = e.Lanes[^1].Shape;
             Vector2[] line = first.Length == last.Length ? first.Select((p, i) => (p + last[i]) * 0.5f).ToArray() : first;
             if (line.Length < 2) continue;
@@ -44,13 +46,22 @@ internal static class Corridors
         var locked = RoadCorridors.Level(z, cols, rows, Vector2.Zero, 1f, corridors, flat, houses, cr);
         rep.RoadCorridors = cr.Corridors; rep.RoadJunctions = cr.Junctions; rep.RoadPostsLevelled = cr.PostsLevelled;
         rep.RoadPostsKeptNatural = cr.PostsKeptNatural; rep.RoadPostsUnderHouses = cr.PostsUnderHouses;
+        if (offGround > 0)
+            rep.Warnings.Add($"{offGround} road edges are a bridge or a tunnel (OSM bridge / tunnel / layer) — no corridor levelled under them (information, G-22)");
         if (cr.PostsUnderHouses > 0)
             rep.Warnings.Add($"{cr.PostsUnderHouses} road posts lie inside a house footprint — the road keeps its natural cross-slope there (information, D-3)");
         return locked;
     }
 
     internal sealed record Lane(Vector2[] Shape, float Width);
-    internal sealed record Edge(string Id, string From, string To, List<Lane> Lanes);
+    internal sealed record Edge(string Id, string From, string To, List<Lane> Lanes)
+    {
+        /// <summary>⭐ V-15 — a bridge or a tunnel (the OSM tag kept by netconvert's <c>--osm.extra-attributes</c>), or any edge on another LAYER than the ground's.</summary>
+        public bool OffGround { get; set; }
+    }
+
+    /// <summary>⭐ V-15 — whether an OSM tag value says yes (<c>bridge=yes</c>, <c>=viaduct</c>, <c>tunnel=culvert</c> …): anything but empty / <c>no</c>.</summary>
+    internal static bool Says(string? value) => !string.IsNullOrEmpty(value) && value != "no";
     internal sealed record Junction(string Id, Vector2 At, Vector2[] Shape);
 
     internal static (List<Edge> Edges, List<Junction> Junctions) Read(string netPath, double ax, double ay)
@@ -75,6 +86,13 @@ internal static class Corridors
                     if (r.GetAttribute("shape") is not { } shape) break;
                     float w = float.TryParse(r.GetAttribute("width"), NumberStyles.Float, CultureInfo.InvariantCulture, out var wd) ? wd : 3.2f;
                     current.Lanes.Add(new Lane(Points(shape, ax, ay), w));
+                    break;
+                case "param":
+                    // ⭐ V-15 — the edge's kept OSM tags (after its lanes)
+                    if (current == null) break;
+                    string? key = r.GetAttribute("key"), value = r.GetAttribute("value");
+                    if ((key is "bridge" or "tunnel" && Says(value)) || (key == "layer" && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int layer) && layer != 0))
+                        current.OffGround = true;
                     break;
                 case "junction":
                     current = null;

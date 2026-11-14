@@ -38,6 +38,9 @@ public sealed class NetconvertRoadBuilder : IRoadBuilder
         // the cleanup SUMO's own OSM import recommends (tools/osmBuild.py): simplified geometry, guessed ramps and signals, joined junctions
         "--geometry.remove", "--ramps.guess", "--junctions.join", "--tls.guess-signals", "--tls.discard-simple", "--tls.join",
         "--output.street-names", "--output.original-names",
+        // ⭐ CE-4403 (V-15, G-22) — keep the OSM bridge / tunnel / layer tags as edge params: the importer gives a raised or buried edge NO corridor (the valley under a
+        //   bridge stays, a tunnel's line is not carved); only these three, so the net does not carry every OSM attribute
+        "--osm.all-attributes", "true", "--osm.extra-attributes", "bridge,tunnel,layer",
         "--no-warnings",
         "-o", netFile,
     };

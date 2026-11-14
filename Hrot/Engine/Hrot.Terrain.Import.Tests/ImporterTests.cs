@@ -248,6 +248,29 @@ public class ImporterTests : IDisposable
         Assert.InRange(L(44, 4.0) - L(44, 0), -0.02, 0.02);
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4403</c> part 2 (V-15, G-22) — a BRIDGE over a 4 m valley levels nothing (the valley under it stays; reported as information), while the same edge without the
+    /// tag fills it toward its profile; a <c>layer</c> other than 0 counts as off the ground too. 🔴 Red-proof: drop the <c>OffGround</c> skip ⇒ the bridge fills the valley.
+    /// </summary>
+    [Fact]
+    public async Task CE4403_ABridgeOverAValley_LevelsNothingUnderIt()
+    {
+        static float Valley(double x, double y) => (float)(10 - 4 * Math.Max(0, 1 - Math.Abs(x) / 20));   // 4 m deep at x = 0, 40 m wide
+        string Net(string param) => TwoLaneNet.Replace("</edge>", param + "</edge>");
+        var bridge = new MiniSet { Ground = Valley, Net = true, NetXml = Net("<param key=\"bridge\" value=\"yes\"/>") };
+        var (_, wb, rb) = await Import(bridge);
+        float Lb(double x, double y) => wb.Height!.Sample((float)(x - bridge.MinX), (float)(y - bridge.MinY));
+        Assert.Equal(0, rb.RoadCorridors);
+        Assert.Contains(rb.Warnings, w => w.Contains("bridge or a tunnel"));
+        Assert.InRange(Lb(0, 0), 5.97, 6.03);                            // the valley floor under the bridge
+        var layered = new MiniSet { Ground = Valley, Net = true, NetXml = Net("<param key=\"layer\" value=\"1\"/>") };
+        Assert.Equal(0, (await Import(layered, "layered")).Item3.RoadCorridors);
+        var road = new MiniSet { Ground = Valley, Net = true, NetXml = TwoLaneNet };
+        var (_, wr, rr) = await Import(road, "road");
+        Assert.Equal(1, rr.RoadCorridors);
+        Assert.True(wr.Height!.Sample((float)(0 - road.MinX), (float)(0 - road.MinY)) > 6.5f, "an ordinary road fills toward its smoothed profile");
+    }
+
     // ---- openings
     [Fact]
     public async Task OpeningsOnWalls_ArePlaced_NoisyOnesWithin06m_TheHeadingIgnored_FarOnesDropped()
