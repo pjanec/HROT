@@ -190,12 +190,37 @@ namespace Fdp.Toolkit.Runner
                 Update(dt);
         }
 
-        /// <summary>Shuts down all subsystems in reverse order.</summary>
+        /// <summary>
+        /// Shuts down all subsystems in reverse order — ⭐ CE-4574 (X-5) after the sim worker has STOPPED and been JOINED, so no step is in flight
+        /// while a subsystem disposes its worlds. 📐 The worker kept stepping through the shutdown and published into a staging world being
+        /// freed (<c>AccessViolationException</c> in <c>SyncPresentationCore</c> during <c>StagingWorlds.Publish</c>, the editor's exit).
+        /// </summary>
         public void Shutdown()
         {
+            StopSimWorker();
             for (int i = _subsystems.Count - 1; i >= 0; i--)
                 _subsystems[i].Shutdown();
         }
+
+        /// <summary>
+        /// ⭐ CE-4574 — ends the sim worker: it finishes the step it is in, runs no other, and this returns once the thread has ended. Idempotent;
+        /// a no-op without a worker. ⛔ No timeout: disposing worlds under a step that is still running is the crash this prevents.
+        /// </summary>
+        public void StopSimWorker()
+        {
+            var worker = _simWorker;
+            if (worker == null) return;
+            _simWorkerStopping = true;
+            if (worker == System.Threading.Thread.CurrentThread) return;   // a shutdown asked from a step: the loop ends after it
+            if (!worker.Join(5000))
+            {
+                Console.WriteLine("[N-13] waiting for the sim worker to finish its step before the shutdown …");
+                worker.Join();
+            }
+        }
+
+        /// <summary>Is the sim worker thread still running?</summary>
+        public bool SimWorkerAlive => _simWorker is { IsAlive: true };
 
         // ── Map-ownership switching ───────────────────────────────────────────
 
@@ -246,6 +271,7 @@ namespace Fdp.Toolkit.Runner
         private readonly object _simDtLock = new();
         private double _simPendingDt;
         private long _simWorkerFaults;
+        private volatile bool _simWorkerStopping;
 
         /// <summary>The kernels run on the host's one sim worker (<see cref="StartSimWorker"/>).</summary>
         public bool SimOnWorker => _simWorker != null;
@@ -275,7 +301,7 @@ namespace Fdp.Toolkit.Runner
         private void SimWorkerLoop()
         {
             Fdp.Core.Threading.WindowsScheduling.OptOutCurrentThread();   // ⭐ N-14 — the sim thread
-            while (_running)
+            while (_running && !_simWorkerStopping)
             {
                 bool did = false;
                 try

@@ -264,7 +264,7 @@ public sealed class StagedPresentation : IDisposable
     /// <summary>The host's sim worker: one step of the pending time; false when there was none.</summary>
     public bool StepOnHostWorker()
     {
-        if (!_hostWorker || !_composed) return false;
+        if (!_hostWorker || !_composed || _stop) return false;
         if (!_workerArmed) { _workerArmed = true; WorldGuard.Arm(Sim, World, Environment.CurrentManagedThreadId); }
         float dt = TakePendingDt();
         if (dt <= 0f) return false;
@@ -319,10 +319,17 @@ public sealed class StagedPresentation : IDisposable
         $"[STAGING] published {Staging.Published} · skipped {Staging.Skipped} · pulled {Staging.Pulled} · last publish {Staging.LastPublishMs:F2} ms (max {Staging.MaxPublishMs:F2}) · last pull {Staging.LastPullMs:F2} ms · jobs run {Jobs.Executed} (faults {Jobs.Faults}) · step faults {Faults} · guard hits {WorldGuard.DistinctHits}");
 
     /// <summary>Stops this object's own worker (a host worker is the host's).</summary>
+    /// <remarks>⭐ CE-4574 (X-5) — the own worker is JOINED before the worlds go (no timeout: a step still running would publish into a freed
+    /// staging world). A host worker is stopped by its host first (<c>SubsystemOrchestrator.Shutdown</c> → <c>StopSimWorker</c>); a host step
+    /// that still arrives after this finds <c>_stop</c> and does nothing.</remarks>
     public void Dispose()
     {
         _stop = true;
-        _ownWorker?.Join(2000);
+        if (_ownWorker is { } w && w != Thread.CurrentThread && !w.Join(5000))
+        {
+            Console.WriteLine("[STAGED] waiting for the sim worker to finish its step before the worlds are disposed …");
+            w.Join();
+        }
         Staging?.Dispose();
         World.Dispose();
     }
