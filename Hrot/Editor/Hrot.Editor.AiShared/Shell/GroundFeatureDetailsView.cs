@@ -195,6 +195,8 @@ public sealed class GroundFeatureDetailsView : IDetailsViewInstance
     {
         var p = DitchPresets.Of(mode)!.Value;
         float depth = f.Pad > 0f ? f.Pad : p.Depth;
+        // ⭐ G-37 — the honest limit, first: on a coarse grid the ditch / foxhole does not form
+        if (_keyCtx?.Base.Height is { } grid && GroundEffect.CoarseGridWarning(grid.CellSize) is { } coarse) _effect.Add(("form/warning", coarse, null, true));
         string stance = depth >= 1.5f ? "stand" : depth >= 0.9f ? "crouch" : depth >= 0.45f ? "prone" : "none";
         if (mode == "foxhole")
         {

@@ -167,6 +167,7 @@ namespace Hrot.ScenarioEditor.Tools
             DrawingMenu.Attach(gizmo.Session, _tools);   // ⭐ B-17 P2 — right-click = the drawing menu; the too-few reason on the hint line
             ActiveGizmoId = id;
             ActiveGizmo   = gizmo;
+            gizmo.Underlay = request.Underlay;   // ⭐ CE-4592 — a ground shape's tint, drawn under the shape
             _gizmos?.Register(id, gizmo);
             return ToolActivationOutcome.Armed;
         }
@@ -286,5 +287,6 @@ namespace Hrot.ScenarioEditor.Tools
         int MinPoints = 3,
         Action? OnDisarmed = null,
         bool Closed = true,
-        Action<List<object>>? Born = null);
+        Action<List<object>>? Born = null,
+        Action<Fdp.Toolkit.Diagnostics.Gizmos.IDebugDrawBuilder, IReadOnlyList<System.Numerics.Vector2>>? Underlay = null);   // ⭐ CE-4592 — drawn under the shape (a ground shape's tint)
 }

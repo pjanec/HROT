@@ -177,10 +177,10 @@ s.glyph(G["MOUND"], DPX + 10, DPY + 8, EARTH, 13); s.text(DPX + 30, DPY + 20, "G
 s.text(DPX + 10, DPY + 44, "Mode", C.SUB, 11.5); seg(s, DPX + 58, DPY + 30, ["Level", "Raise", "Lower"], 1, 11.5)
 badge(s, DPX + 286, DPY + 34)
 s.text(DPX + 10, DPY + 72, "Raise by", C.SUB, 11.5); s.field(DPX + 62, DPY + 58, 62, "2.5 m")
-s.text(DPX + 136, DPY + 72, "Skirt", C.SUB, 11.5); s.field(DPX + 168, DPY + 58, 52, "8 m")
+s.text(DPX + 136, DPY + 72, "skirt 4 m", C.NOTE, 11.5)   # as built: a read-out (derived, R-5026)
 s.text(DPX + 10, DPY + 92, "1.2 ha · Enter ends", C.NOTE, 11)
 s.note(BX, BY + BH + 18, ["The polygon is the existing area tool (U-7). NEW: the tint of the CHANGE (the 2-D map draws no heights today — P-3),",
-                          "the dashed skirt, the two ISLANDS outlined white, the Mode row in the draw panel, and the hint lines on the shared ghost",
+                          "the dashed skirt, the two ISLANDS outlined white, the Mode row in the draw panel, and the hint lines (AS BUILT: in the draw panel, under its rows)",
                           "backdrop: amber over ~15 % (G-19 — shown, never refused), else green ( steepest road grade 6 % — roads follow; … ).",
                           "Newest wins where shapes overlap (V-28). Our road graph and navmesh follow at once; SUMO's cars and the drawn road",
                           "ribbon keep the old z until save + reload (V-25)."], C.NOTE, 11.5)
@@ -194,8 +194,8 @@ LX, CC = CX + 12, CX + 84
 s.text(LX, CY + 76, "Mode", C.TXT, 12.5)
 seg(s, CC, CY + 62, ["Level to Z", "Raise by dZ", "Lower by dZ", "Crater"], 1)
 s.form_row(LX, CY + 94, "Raise by", 72, "field", 90, "2.5 m"); s.text(CC + 100, CY + 108, "dZ — Level reads  Level to  [212.0 m]", C.NOTE, 10.5)
-s.form_row(LX, CY + 122, "Skirt", 72, "field", 90, "8 m"); s.text(CC + 100, CY + 136, "the blend to natural ground", C.NOTE, 10.5)
-s.form_row(LX, CY + 150, "Seed", 72, "field", 90, "—", dis=True); s.text(CC + 100, CY + 164, "none: a shape is exact", C.NOTE, 10.5)
+s.text(LX, CY + 136, "Skirt", C.TXT, 12.5); s.text(CC, CY + 136, "7.5 m", C.TXT, 12); s.text(CC + 44, CY + 136, "the blend to natural ground", C.NOTE, 10.5)   # as built: a read-out (R-5026)
+# as built: no Seed row — a shape's seed is its draw order
 section(s, LX, CY + 182, "Effect", CX + CW - 12)
 EF = [(FA.WARNING, C.PEND, "steepest road grade 18 % — over 15 %", C.PEND), (G["MOUND"], EARTH, "area 1.2 ha · raised 2.5 m", C.TXT),
       (FA.LOCK, C.SUB, "kept out: 1 house + skirt · 1 road corridor", C.TXT), (FA.LAYERS, C.VIOLET, "drawn over Raise 1 — the newest wins (V-28)", C.TXT),
@@ -241,9 +241,9 @@ s.window(EX, EY, EW, EH, "Details — Ditch 1")
 s.tabs(EX + 6, EY + 26, EW - 12, [("Ditch", G["DIG"], C.ORANGE)], 0)
 LX, CC = EX + 12, EX + 92
 s.text(LX, EY + 76, "Preset", C.TXT, 12.5); seg(s, CC, EY + 62, ["Ditch", "Anti-tank ditch", "Foxhole"], 0, 11.5)
-s.form_row(LX, EY + 94, "Width", 80, "field", 80, "2.0 m")
-s.form_row(LX, EY + 122, "Depth", 80, "field", 80, "1.2 m")
-s.form_row(LX, EY + 150, "Bank slope", 80, "field", 80, "45°"); s.text(CC + 90, EY + 164, "walls ≤ 60°: infantry climb", C.NOTE, 10.5)
+s.text(LX, EY + 136, "Width", C.TXT, 12.5); s.text(CC, EY + 136, "2.0 m", C.TXT, 12); s.text(CC + 44, EY + 136, "the preset's", C.NOTE, 10.5)   # as built: a read-out
+s.form_row(LX, EY + 94, "Depth", 80, "field", 80, "1.2 m")
+s.text(LX, EY + 164, "Bank slope", C.TXT, 12.5); s.text(CC, EY + 164, "48°", C.TXT, 12); s.text(CC + 34, EY + 164, "walls ≤ 60°: infantry climb", C.NOTE, 10.5)   # as built: a read-out
 section(s, LX, EY + 182, "Effect", EX + EW - 12)
 DF = [(FA.SHIELD, COVER, "cover: crouch along both banks", "(floor points, a pair facing each bank — V-30)"),
       (G["CAR"], C.RED, "vehicles: wheeled closed · tracked closed", "(every vehicle avoids a ditch area — D-2)"),

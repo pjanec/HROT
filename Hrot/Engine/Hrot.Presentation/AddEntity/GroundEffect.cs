@@ -30,6 +30,16 @@ public sealed class GroundEffect
     /// <summary>The obstacle quads of a ditch after the road cut (0 for a non-ditch).</summary>
     public int ObstacleParts { get; private init; }
     public bool IsDitch { get; private init; }
+    /// <summary>The base height grid's post spacing (m).</summary>
+    public float GridCell { get; private init; }
+
+    /// <summary>⭐ G-37 — a ditch or foxhole on a grid coarser than this will not form (at 1 m posts a foxhole is a ≈ 3 × 3 m dip; on a coarser grid nothing reads as a hole).</summary>
+    public const float CoarseGrid = 1.5f;
+    /// <summary>⭐ G-37 — the honest limit: a ditch / foxhole whose grid is coarser than <see cref="CoarseGrid"/>.</summary>
+    public bool WillNotForm => IsDitch && GridCell > CoarseGrid;
+
+    /// <summary>The G-37 warning for a ditch / foxhole on <paramref name="cell"/>-metre posts, or null when it forms.</summary>
+    public static string? CoarseGridWarning(float cell) => cell > CoarseGrid ? $"the grid is {cell:0.#} m: it will not form here (G-37)" : null;
     public ulong Key { get; private init; }
 
     public bool OverGrade => RoadGrade > GroundShapes.GradeWarning;
@@ -101,7 +111,7 @@ public sealed class GroundEffect
         return new GroundEffect
         {
             CellMin = mins.ToArray(), CellDelta = deltas.ToArray(), CellSize = step, RoadGrade = grade, Area = area, Change = change,
-            HousesKept = houses, RoadsKept = overlay.RoadCorridors.Count, ObstacleParts = obstacles, IsDitch = ditch, Key = KeyOf(mode, value, points),
+            HousesKept = houses, RoadsKept = overlay.RoadCorridors.Count, ObstacleParts = obstacles, IsDitch = ditch, GridCell = @base.Height.CellSize, Key = KeyOf(mode, value, points),
         };
     }
 }

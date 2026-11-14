@@ -336,6 +336,7 @@ public sealed class TerrainDrawPanel
     public static (string Line1, bool Warn, string Line2) Hints(GroundEffect fx)
     {
         string kept = $"kept out: {Plural(fx.HousesKept, "house")}, {Plural(fx.RoadsKept, "road corridor")}";
+        if (fx.WillNotForm) return (GroundEffect.CoarseGridWarning(fx.GridCell)!, true, kept);   // ⭐ G-37 — said before it is drawn, never refused
         if (fx.IsDitch) return (fx.RoadsKept > 0 ? "stops at the road — G-29" : "no road crossed", fx.RoadsKept > 0, kept);
         if (fx.RoadsKept == 0) return ("no road reached", false, kept);
         string g = $"steepest road grade {fx.RoadGrade * 100f:0} %";

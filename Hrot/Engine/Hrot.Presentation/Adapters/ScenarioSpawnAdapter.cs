@@ -422,6 +422,8 @@ namespace Hrot.UI.Common.Adapters
                 Closed:     feature is not { Shape: Hrot.UI.Common.AddEntity.TerrainShape.Line },
                 // ⭐ the commit reads what the drawing panel holds (kind, height / width, recipe, density, seed): ONE object, so the panel and the entity cannot disagree
                 Born:       drawOptions is null ? null : drawOptions.Born,
+                // ⭐ CE-4592 (P-5 2b, mockup B) — a ground area / ditch tints the height CHANGE it makes under the shape while it is drawn (the ONE effect the panel's hint reads)
+                Underlay:   drawOptions is { IsGround: true } or { IsDitch: true } ? (draw, pts) => Hrot.ScenarioEditor.Gizmos.GroundTintDraw.Draw(draw, drawOptions.EffectOf(pts, TerrainContext?.Invoke())) : null,
                 // ⭐ Clears this adapter's mirror when the tool tears itself down — exactly what the
                 //   prior inline `onRemove` did. ⛔ Dropping it would leave `_activeSequenceId` stale and
                 //   make the next arm unregister a gizmo that is already gone.
