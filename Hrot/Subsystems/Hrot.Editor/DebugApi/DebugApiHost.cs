@@ -2186,7 +2186,7 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("POST", "/editor/commands/{commandId}/invoke", ctx => RunMainResult(s =>
             {
                 var (result, error, hintCategory) =
-                    s.InvokeEditorCommand(ctx.RouteValue("commandId"), ctx.Body, ctx.Query("scope"));   // N-15 — ?scope=shell
+                    s.InvokeEditorCommand(ctx.RouteValue("commandId"), ctx.Body, ctx.Body?["scope"]?.GetValue<string>());   // N-15 — {"scope":"shell"}; ⭐ CE-4523 a POST reads its body (was ?scope=)
                 if (error == null) return Ok(result);
                 if (error.StartsWith("No editor-command dispatcher", StringComparison.Ordinal))
                     return Fail(503, error, hintCategory);

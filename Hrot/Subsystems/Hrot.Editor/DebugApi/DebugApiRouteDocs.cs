@@ -878,6 +878,7 @@ namespace Hrot.Editor.DebugApi
             Params: new RouteParam[]
             {
                 new("reset", "string", false, "true = zero the counters after answering"),
+                new("enable", "string", false, "true / false = switch the per-query timing on or off before answering"),
             },
             Notes: new[]
             {
@@ -1531,6 +1532,9 @@ namespace Hrot.Editor.DebugApi
             {
                 new("startPaused", "boolean", false, "Start the dry run paused"),
                 new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingPreview"),
+                new("args", "object", false, "CE-4326 — a run setup applied in place on every node (the scenario's parameter values)"),
+                new("variant", "number", false, "CE-4326 — the variant (seed) of the run setup"),
+                new("preset", "string", false, "CE-4326 — a named preset of the open scenario"),
             },
             Notes: new[]
             {
@@ -1674,6 +1678,8 @@ namespace Hrot.Editor.DebugApi
             Params: new RouteParam[]
             {
                 new("name", "string", true, "Scenario file name to save as"),
+                new("onlyGuids", "array", false, "CE-4210 — entity GUIDs: write only those (Save selection as macro)"),
+                new("header", "object", false, "CE-4210 — the macro header object, with onlyGuids"),
             },
             ExampleArgsJson: "{\"name\":\"my-scenario\"}",
             ExampleGist: "save current world as my-scenario"),
@@ -1910,11 +1916,6 @@ namespace Hrot.Editor.DebugApi
                 new("networkId", "number", true, "Network id of the entity"),
                 new("path", "string", true, "The variable's name, as list_entity_variables reports it"),
                 new("asset", "string", false, "Blueprint NAME or asset Guid; omit when the entity carries exactly one"),
-                new("owner", "string", false, "⭐ CE-1320 — task · sop · paused · blueprint: write ANY behaviour slot instead of a blueprint variable by name", EnumJson: "[\"task\",\"sop\",\"paused\",\"blueprint\"]"),
-                new("behaviour", "string", false, "With owner: the behaviour / blueprint name (needed when two slots match)"),
-                new("role", "string", false, "With owner: params · variables (default variables)", EnumJson: "[\"params\",\"variables\"]"),
-                new("part", "string", false, "With owner: a node's working-state or hosted-child slot, by its label (as get_entity_slots lists it)"),
-                new("paramsJson", "string", false, "With owner, instead of path/value: a whole parameter set applied through the behaviour's own parser (the start record takes it too)"),
             },
             Notes: new[]
             {
@@ -1935,6 +1936,12 @@ namespace Hrot.Editor.DebugApi
                 new("path", "string", true, "The variable's name"),
                 new("value", "any", true, "The new value, in the same JSON shape the read reports (a number for a numeric variable, [x,y,z] for a vector)"),
                 new("asset", "string", false, "Blueprint NAME or asset Guid; omit when the entity carries exactly one"),
+                new("owner", "string", false, "⭐ CE-1320 — task · sop · paused · blueprint: write ANY behaviour slot instead of a blueprint variable by name", EnumJson: "[\"task\",\"sop\",\"paused\",\"blueprint\"]"),
+                new("behaviour", "string", false, "With owner: the behaviour / blueprint name (needed when two slots match)"),
+                new("role", "string", false, "With owner: params · variables (default variables)", EnumJson: "[\"params\",\"variables\"]"),
+                new("part", "string", false, "With owner: a node's working-state or hosted-child slot, by its label (as get_entity_slots lists it)"),
+                new("paramsJson", "string", false, "With owner, instead of path/value: a whole parameter set applied through the behaviour's own parser (the start record takes it too)"),
+                new("behavior", "string", false, "With owner: the US spelling of behaviour (either is read)"),
             },
             Notes: new[]
             {
