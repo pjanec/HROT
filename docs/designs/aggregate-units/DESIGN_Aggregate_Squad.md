@@ -271,7 +271,7 @@ together that requires really two targets at the same time."*
 |---|---|---|
 | **A-0** | the real-squad defects CE-4605…CE-4609 (they make every squad better, and the aggregate rests on the same plays) | — |
 | **A-1** | D-1 staged: order-aware bookkeeping + the three hash readers; then `Order.Defend`, … one order at a time | A-0 (CE-4609) |
-| **A-2** | the type (TKB 307 `FusionInfantrySquad` + `FusionSoldier`), `AggregateSquad` + `SquadArsenal` on the unit and `AggregateStateSystem` (§11, S-1), `SquadMen` and its readers (D-2), seats (D-8), role (D-9) | — |
+| **A-2** | the type (TKB 307 `FusionInfantrySquad` + `FusionSoldier`), `AggregateSquad` + `UnitHoldings` on the unit and `AggregateStateSystem` (§11, S-1), `SquadMen` and its readers (D-2), seats (D-8), role (D-9) | — |
 | **A-3** | the combat model: the weapon rotation (D-4′ R-1…R-3) with a target per weapon and the view / body as data (D-4″ F-1…F-4), damage cap and burst frontage (D-6), squad nerve (D-7), the MG post (D-3), fire and movement / break contact with one man (D-5) | A-2 |
 | **A-4** | the aggregate plays: assault, ClearBuilding | A-1, A-2 |
 | **A-5** | the command-hierarchy scenario on aggregates (battalion → squads, ~80 entities; vehicles, mortars, drones real) + `Strength` / `QuietArea` objective kinds + the battalion reserve (CE-4589) + live checks and the dynamism measure (CE-7033) | A-3, A-4 |
@@ -341,9 +341,9 @@ classDiagram
     Represents · Men · Suppression
     Posture · Frontage
   }
-  class SquadArsenal {
-    <<NEW, unmanaged, fixed 6 slots>>
-    per weapon type: Count · MinCrew · Ammo
+  class UnitHoldings {
+    <<NEW, unmanaged, fixed slots, S-7>>
+    per system type: Count · MinCrew · Readiness · Ammo
   }
   class FusionSoldier {
     <<NEW TKB type, the one member>>
@@ -365,15 +365,15 @@ classDiagram
   }
   class StochasticResolver {
     <<later>>
-    writes AggregateSquad, SquadArsenal, SimTransform
+    writes AggregateSquad, UnitHoldings, SimTransform
   }
   SquadUnit *-- AggregateSquad
-  SquadUnit *-- SquadArsenal
+  SquadUnit *-- UnitHoldings
   SquadUnit o-- "1" FusionSoldier : roster
   AggregateStateSystem ..> FusionSoldier : Health, mounts, stress, stance
   AggregateStateSystem ..> AggregateSquad : writes
-  AggregateStateSystem ..> SquadArsenal : writes Ammo
-  ThreatMatrixAssignmentSystem ..> SquadArsenal : Fusion, one element per slot
+  AggregateStateSystem ..> UnitHoldings : writes Ammo
+  ThreatMatrixAssignmentSystem ..> UnitHoldings : Fusion, one element per slot
   StochasticResolver ..> AggregateSquad : later
 ```
 *What it shows that prose hid: the commander keeps EVERYTHING it has today (it still runs the squad brain, reports and takes orders); it only
@@ -382,10 +382,24 @@ GAINS two state components (S-1) and one system that copies the running resoluti
 
 | area | change | why / basis |
 |---|---|---|
-| **new components** | `AggregateSquad { Resolution, Represents, Men, Suppression, Posture, Frontage }` · `SquadArsenal` (6 fixed slots: weapon type, count, minimum crew, ammo) — unmanaged, `DataPolicy.Default` (recorded, saved, seek-safe); replicated so display nodes and the Player show strength (W-10) | S-1, D-2; CLAUDE.md "new components": unmanaged when recorded |
+| **new components** | `AggregateSquad { Resolution, Represents, Men, Suppression, Posture, Frontage }` · `UnitHoldings` (S-7; fixed slots: system type, count, minimum crew, readiness, ammo — weapons now, vehicles later) — unmanaged, `DataPolicy.Default` (recorded, saved, seek-safe); replicated so display nodes and the Player show strength (W-10) | S-1, D-2; CLAUDE.md "new components": unmanaged when recorded |
 | **authored where** | the squad's TKB type `FusionInfantrySquad` (307, a variant of 302): `Represents` and the arsenal from its composite (1 leader + 9 riflemen ⇒ rifles 7, LMG 1, RPG 1, grenades); one `FusionSoldier` slot | measured precedent: `AsLandUnit(…, variant)` (`NedTkbCatalog.cs:1055`) |
 | **new system** | `AggregateStateSystem` — per unit in the parallel phase: reads ITS soldier (a declared read), writes ITSELF: `Men = Represents × Health / Max`, ammo per slot from the soldier's mounts, `Suppression` from the soldier's stress, posture from its stance | the parallel rule (write your own entity, declare the read) |
 | **existing systems** | `ThreatMatrixAssignmentSystem`: `Assignment` indexed by element — a man (real squad) or an arsenal slot (FusionSquad) · `UnitCentroidSystem`: unchanged for Fusion (the centroid IS the soldier), skips a Stochastic unit · `CombatEffective` / `StrengthOf` / census / ratio / threat read `SquadMen` (D-2) | F-4, D-2 |
 | **behaviours (the squad brain on this entity)** | the SOP and the reports unchanged · the plays: the D-5 one-man fixes (generic, every squad) · the two aggregate plays as `FusionInfantrySquad<Order>` (assault, ClearBuilding) through the class routing (D-1) — every other order falls back to `InfantrySquad<Order>` | D-1, D-5 |
 | **ownership** | the unit stays on CGF (brain); the soldier's `Health` is in the brain group (`HrotOwnershipGroups.cs:53, :171-175`) ⇒ the copy is brain-local | measured |
 | **StochasticSquad, later** | the SAME components; no soldier; a `StochasticResolver` writes them and moves the unit's `SimTransform` itself | S-1…S-4 |
+
+## 12. Vehicles in the stochastic mode — combined-arms units, not single vehicles *(leans; 🔒 user, `2026-11-14`: "in the stochastic mode, how would we handle the vehicles? no individual vehicles, but stochastic higher level constructs (an aggregated stochastic unit representing some stochastic squad AND vehicles?)")*
+
+**The proven solution:** a constructive unit is a HOLDING of men and systems by type (a mechanised platoon ≈ 30 men + 4 IFVs as ONE unit);
+attrition is resolved per PAIRING of firing system type × target type (a killer–victim table: rifles → men, an ATGM → IFVs, a 25 mm → both);
+movement follows the unit's state (mounted: road speed; dismounted: walking; the slowest part limits it). The leaf of a stochastic force is
+usually the platoon or the company, because the vehicles belong there.
+
+| # | lean | why |
+|---|---|---|
+| **S-6** | the stochastic resolution is a unit of ANY echelon — squad, platoon, company; its subunits do not exist (it is the leaf), and the commander above it runs unchanged because it reports like that echelon ⇒ the name is **StochasticUnit** (a "StochasticSquad" is its squad case; R-4247's FusionSquad unchanged) | vehicles belong to platoons; the command chain above any leaf is unchanged (reports + `SquadMen`-style strength) |
+| **S-7** | ⭐ **binds NOW**: the unit's state is a `UnitHoldings` table — men + SYSTEM TYPES (rifles, MGs, ATGMs, IFVs, tanks, mortars), each with count, readiness and ammo — instead of a squad-only `UnitHoldings`; the FusionSquad v1 fills only its infantry weapons | renaming before it is built and replicated costs nothing; after, a migration |
+| **S-8** | the killer–victim factors are DERIVED from the same TKB weapon data the fusion and real resolutions use (penetration vs armour through `ArmorModel`, dispersion, rate of fire) — an ATGM's chance against an IFV is ONE number in every resolution | S-5's single calibration, extended to vehicles |
+| **S-9** | mounted / dismounted is the unit's POSTURE (speed, exposure, which systems fire) | the mounted infantry fight's essence, without seats |
