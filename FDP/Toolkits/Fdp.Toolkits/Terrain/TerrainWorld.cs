@@ -197,6 +197,9 @@ namespace Fdp.Toolkit.Terrain
         public IReadOnlyList<TerrainWalkable> Walkables { get; init; } = Array.Empty<TerrainWalkable>();
         public IReadOnlyList<TerrainSurface> Surfaces { get; init; } = Array.Empty<TerrainSurface>();
 
+        /// <summary>⭐ <c>CE-4592</c> (P-5, G-14) — the authored GROUND shapes of this world (an overlay's), applied to the height grid where it is merged (before the pads, G-18).</summary>
+        public IReadOnlyList<GroundShape> GroundShapes { get; init; } = Array.Empty<GroundShape>();
+
         /// <summary>⭐ Stage 1 — every wall/fence panel with its openings and material; each is ALSO expanded into
         /// <see cref="Prisms"/> (its solid pieces), so consumers that only know prisms see doorways and windows as gaps.
         /// 📄 docs/DESIGN_Building_Interiors.md §2, §3a, §3c.</summary>

@@ -35,6 +35,9 @@ namespace Fdp.Toolkit.Terrain
     public struct TerrainFeature
     {
         public const byte House = 1, Wall = 2, Fence = 3, Hedge = 4, Wood = 5, Tree = 6, Scrub = 7, Clutter = 8, Water = 9, Bridge = 10, Scatter = 11, Lane = 12;
+        /// <summary>⭐ CE-4592 (P-5, G-14) — a GROUND shape: <see cref="Template"/> = its mode (<c>level</c> / <c>raise</c> / <c>lower</c>), <see cref="Pad"/> = the level's Z or the change's dZ,
+        /// <see cref="Seed"/> = its DRAW ORDER (the newest — the highest — wins where shapes overlap, V-28). The skirt is derived (G-3's walkable rule).</summary>
+        public const byte Ground = 13;
 
         /// <summary>One of the kind constants above; 0 and anything unknown are ignored.</summary>
         public byte Kind;

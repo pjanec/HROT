@@ -1,3 +1,4 @@
+using System.Numerics;
 using System;
 using System.IO;
 using System.Linq;
@@ -379,6 +380,57 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.InRange(b.Height!.Sample(28f, 46f), 5.59f, 5.61f);             // the base is unchanged
             Assert.InRange(m.Height.Sample(68f, 46f), 13.59f, 13.61f);            // the house with no pad: untouched slope
             Assert.Equal(TerrainWorldMerge.PadHeights(b.Height, o)!.Sample(24f, 43f), m.Height.Sample(24f, 43f));   // the same answer every merge
+        }
+    
+        // ── ⭐ CE-4592 (P-5; docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4a G-14, G-18, V-28) — authored ground shapes ─────────────────────────────
+
+        private static TerrainWorld FlatBase()
+        {
+            int n = 201;
+            return new TerrainWorld { Name = "flat", BoundsMin = new Vector2(-100f), BoundsMax = new Vector2(100f), Height = new TerrainHeightGrid(new Vector2(-100f), 1f, n, n, new float[n * n]) };
+        }
+
+        private static TerrainWorld ShapeOverlay(params System.Text.Json.Nodes.JsonObject[] features)
+        {
+            var doc = new System.Text.Json.Nodes.JsonObject { ["type"] = "FeatureCollection", ["features"] = new System.Text.Json.Nodes.JsonArray(features.Select(f => (System.Text.Json.Nodes.JsonNode)f).ToArray()) };
+            return TerrainWorldParser.Parse(doc.ToJsonString(), "overlay");
+        }
+
+        private static System.Text.Json.Nodes.JsonObject Ground(string key, string mode, float value, uint order, params Vector2[] square)
+            => FeatureExpander.OfKind(TerrainFeature.Ground, key, mode, 0f, value, order, Vector2.Zero, square, FlatBase(), new TerrainAssets(), Array.Empty<string?>())[0];
+
+        private static Vector2[] Square(float cx, float cy, float half) => new[] { new Vector2(cx - half, cy - half), new Vector2(cx + half, cy - half), new Vector2(cx + half, cy + half), new Vector2(cx - half, cy + half) };
+
+        /// <summary>
+        /// ⭐ G-14 — a Raise 5 m square compiled (the ONE expander), parsed and merged: inside +5, the skirt blends to the natural ground (≥ 1.5 × 5 = 7.5 m), outside
+        /// untouched; a Level shape sets its height; where two overlap the NEWEST (the higher order) wins whichever is listed first (V-28). 🔴 Red-proof: drop
+        /// <c>GroundShapes.Apply</c> from the merge ⇒ the hill is gone.
+        /// </summary>
+        [Fact]
+        public void CE4592_AGroundShape_RaisesLevelsAndBlends_AndTheNewestWins()
+        {
+            var merged = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(Ground("g1", "raise", 5f, 1, Square(0f, 0f, 10f))));
+            Assert.Equal(5f, merged.GroundHeightAt(0f, 0f), 3);
+            Assert.Equal(5f, merged.GroundHeightAt(9.5f, 0f), 3);
+            float mid = merged.GroundHeightAt(10f + 3.75f, 0f);
+            Assert.InRange(mid, 0.5f, 4.5f);                       // in the skirt
+            Assert.Equal(0f, merged.GroundHeightAt(10f + 8f, 0f), 3);   // past the 7.5 m skirt
+
+            var both = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(Ground("b", "level", 2f, 2, Square(5f, 0f, 6f)), Ground("a", "raise", 5f, 1, Square(0f, 0f, 10f))));
+            Assert.Equal(2f, both.GroundHeightAt(5f, 0f), 3);       // the level (order 2) is the newest: it wins over the raise
+            Assert.Equal(5f, both.GroundHeightAt(-8f, 0f), 3);
+        }
+
+        /// <summary>⭐ V-28 / G-18 — a house inside a raised area keeps its ground (an island with a metre's margin); an unknown mode fails at the compile.</summary>
+        [Fact]
+        public void CE4592_AHouseInsideAShape_IsAnIsland_AndAnUnknownModeFails()
+        {
+            const string House = """{ "type": "Feature", "properties": { "kind": "building", "label": "H", "building": { "footprint": [[0,0],[6,0],[6,6],[0,6]], "storeys": [ { "height": 3, "walls": [ { "from": [0,0], "to": [6,0] }, { "from": [6,0], "to": [6,6] }, { "from": [6,6], "to": [0,6] }, { "from": [0,6], "to": [0,0] } ] } ] } }, "geometry": { "type": "Point", "coordinates": [-3, -3] } }""";
+            var house = (System.Text.Json.Nodes.JsonObject)System.Text.Json.Nodes.JsonNode.Parse(House)!;
+            var merged = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(house, Ground("g1", "raise", 4f, 1, Square(0f, 0f, 15f))));
+            Assert.Equal(0f, merged.GroundHeightAt(0f, 0f), 3);     // the house's floor
+            Assert.Equal(4f, merged.GroundHeightAt(10f, 10f), 3);   // the hill round it
+            Assert.Throws<ArgumentException>(() => Ground("bad", "dig", 1f, 1, Square(0f, 0f, 2f)));
         }
     }
 }

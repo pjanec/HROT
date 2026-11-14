@@ -340,3 +340,132 @@ namespace Fdp.Toolkit.Terrain
         }
     }
 }
+
+namespace Fdp.Toolkit.Terrain
+{
+    /// <summary>⭐ <c>CE-4592</c> (P-5, G-14) — what a ground shape does inside its polygon.</summary>
+    public enum GroundShapeMode : byte
+    {
+        /// <summary>The ground at <see cref="GroundShape.Value"/> (cut and fill).</summary>
+        Level = 0,
+        /// <summary>The natural ground + <see cref="GroundShape.Value"/>.</summary>
+        Raise = 1,
+        /// <summary>The natural ground − <see cref="GroundShape.Value"/>.</summary>
+        Lower = 2,
+    }
+
+    /// <summary>⭐ <c>CE-4592</c> — one authored ground shape: its mode, polygon (terrain-local), value and DRAW ORDER (the newest wins where shapes overlap, V-28).</summary>
+    public readonly record struct GroundShape(GroundShapeMode Mode, Vector2[] Polygon, float Value, uint Order, string Label);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4592</c> (P-5; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4a G-14, G-18, §9.3 V-28) — THE ground-shape rule, beside the pads' (<see cref="GroundPatches"/>,
+    /// which only cut): a shape LEVELS, RAISES or LOWERS the ground inside its polygon and blends back to the natural ground over a skirt (G-3's walkable rule: at least
+    /// <see cref="GroundPatches.MinSkirt"/>, 1.5 × the largest change); shapes apply in DRAW ORDER (the newest wins where they overlap — V-28: the author sees which); every
+    /// building footprint (+ <see cref="IslandMargin"/>) is an ISLAND the shape leaves alone (it never pushes the ground into a house — G-18). Returns a new grid sharing every
+    /// untouched tile. + − × ÷ √ only (V-10).
+    /// </summary>
+    public static class GroundShapes
+    {
+        /// <summary>The margin round a building a shape leaves at the natural ground (m).</summary>
+        public const float IslandMargin = 1f;
+
+        public static GroundShapeMode ModeOf(string mode, string where) => mode switch
+        {
+            "level" => GroundShapeMode.Level,
+            "raise" or "" => GroundShapeMode.Raise,
+            "lower" => GroundShapeMode.Lower,
+            _ => throw new ArgumentException($"[Terrain] {where}: unknown ground mode '{mode}' (level, raise, lower)."),
+        };
+
+        /// <summary>The target height a shape gives a post whose natural ground is <paramref name="natural"/>.</summary>
+        public static float Target(in GroundShape s, float natural) => s.Mode switch
+        {
+            GroundShapeMode.Level => s.Value,
+            GroundShapeMode.Raise => natural + s.Value,
+            _ => natural - s.Value,
+        };
+
+        /// <summary>The shape's skirt over <paramref name="grid"/>: ≥ 4 m and 1.5 × the largest change inside it.</summary>
+        public static float SkirtOf(in GroundShape s, TerrainHeightGrid grid)
+        {
+            if (s.Mode != GroundShapeMode.Level) return MathF.Max(GroundPatches.MinSkirt, GroundPatches.SkirtPerMetreOfCut * MathF.Abs(s.Value));
+            var (min, max) = Box(s.Polygon);
+            float change = 0f;
+            for (float y = min.Y; y <= max.Y; y += grid.CellSize)
+                for (float x = min.X; x <= max.X; x += grid.CellSize)
+                    if (PolygonMath.Contains(s.Polygon, new Vector2(x, y))) change = MathF.Max(change, MathF.Abs(grid.Sample(x, y) - s.Value));
+            return MathF.Max(GroundPatches.MinSkirt, GroundPatches.SkirtPerMetreOfCut * change);
+        }
+
+        /// <summary>A NEW grid with <paramref name="shapes"/> applied in draw order (null / none ⇒ <paramref name="grid"/> itself).</summary>
+        public static TerrainHeightGrid? Apply(TerrainHeightGrid? grid, IReadOnlyList<GroundShape> shapes, IReadOnlyList<Vector2[]>? islands)
+        {
+            if (grid == null || shapes.Count == 0) return grid;
+            var ordered = new List<GroundShape>(shapes);
+            ordered.Sort((a, b) => a.Order != b.Order ? a.Order.CompareTo(b.Order) : string.CompareOrdinal(a.Label, b.Label));
+            var skirts = new float[ordered.Count];
+            var min = new Vector2(float.MaxValue); var max = new Vector2(float.MinValue);
+            for (int i = 0; i < ordered.Count; i++)
+            {
+                skirts[i] = SkirtOf(ordered[i], grid);
+                var (a, b) = Box(ordered[i].Polygon);
+                min = Vector2.Min(min, a - new Vector2(skirts[i])); max = Vector2.Max(max, b + new Vector2(skirts[i]));
+            }
+            var origin = grid.Origin; float cell = grid.CellSize;
+            int c0 = (int)MathF.Floor((min.X - origin.X) / cell), r0 = (int)MathF.Floor((min.Y - origin.Y) / cell);
+            int c1 = (int)MathF.Ceiling((max.X - origin.X) / cell), r1 = (int)MathF.Ceiling((max.Y - origin.Y) / cell);
+            var near = new List<Vector2[]>();
+            if (islands != null)
+                foreach (var f in islands)
+                {
+                    var (a, b) = Box(f);
+                    if (b.X + IslandMargin >= min.X && a.X - IslandMargin <= max.X && b.Y + IslandMargin >= min.Y && a.Y - IslandMargin <= max.Y) near.Add(f);
+                }
+            return grid.Patched(c0, r0, c1, r1, (c, r, z) =>
+            {
+                var p = new Vector2(origin.X + c * cell, origin.Y + r * cell);
+                foreach (var f in near)
+                    if (PolygonMath.Contains(f, p) || DistanceToPolygon(f, p) <= IslandMargin) return z;   // an island: the house's ground stays
+                float natural = z, h = z;
+                for (int i = 0; i < ordered.Count; i++)
+                {
+                    var s = ordered[i];
+                    float w = Weight(s.Polygon, p, skirts[i]);
+                    if (w <= 0f) continue;
+                    h = h + (Target(in s, natural) - h) * w;   // newest last: it overrides where it reaches fully
+                }
+                return h;
+            });
+        }
+
+        /// <summary>1 inside the polygon, a smoothstep down to 0 over <paramref name="skirt"/> outside it.</summary>
+        private static float Weight(Vector2[] poly, Vector2 p, float skirt)
+        {
+            if (PolygonMath.Contains(poly, p)) return 1f;
+            float d = DistanceToPolygon(poly, p);
+            if (d >= skirt) return 0f;
+            float t = 1f - d / skirt;
+            return t * t * (3f - 2f * t);
+        }
+
+        private static float DistanceToPolygon(Vector2[] poly, Vector2 p)
+        {
+            float best = float.MaxValue;
+            for (int i = 0; i < poly.Length; i++)
+            {
+                var a = poly[i]; var b = poly[(i + 1) % poly.Length];
+                var ab = b - a; float l2 = ab.LengthSquared();
+                float t = l2 > 1e-9f ? Math.Clamp(Vector2.Dot(p - a, ab) / l2, 0f, 1f) : 0f;
+                best = MathF.Min(best, Vector2.Distance(p, a + ab * t));
+            }
+            return best;
+        }
+
+        private static (Vector2 Min, Vector2 Max) Box(Vector2[] poly)
+        {
+            var min = new Vector2(float.MaxValue); var max = new Vector2(float.MinValue);
+            foreach (var v in poly) { min = Vector2.Min(min, v); max = Vector2.Max(max, v); }
+            return (min, max);
+        }
+    }
+}

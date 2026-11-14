@@ -39,6 +39,7 @@ related-designs:
 | [R-5023](RULINGS.md) | a trunk is felled by a contact row's `trees` flag (tank, IFV), not its strength | trunks only a tank should fell |
 | [R-5024](RULINGS.md) | the dozer's cut is a Muscle system reading its marker and blade position, not the hull guard's contact | a dozer that must break what it drives into |
 | [R-5025](RULINGS.md) | a zero `At` is "no point" (the DTO's zero-default rule) | a flag field instead |
+| [R-5026](RULINGS.md) | a ground shape uses G-14's field mapping (mode / value / draw order in `Seed`, skirt derived); no sibling component until P-6 | a shape needing its own skirt or heading |
 | [R-5012](RULINGS.md) | D-3's road-to-façade ramp is the two skirts meeting; D-4 and V-18 left to their own steps | a step between a road and a house on a real town |
 
 ## 2. Tasks
@@ -58,7 +59,8 @@ related-designs:
 | **B-6** CE-4603 — lone trees felled | ✅ built | [Breaching §7.11](../DESIGN_Vehicle_Breaching.md); rails `TreeFellingTests`, `TreeFellingBakeTests` (red-proved); debt CE-5000 (one record system, not three) |
 | **B-4** CE-4601 — the bulldozer clears at a point | ✅ built (cross-lane into behaviors' `ClearObstacleBehavior`, said) | [Breaching §7.12](../DESIGN_Vehicle_Breaching.md); rails `ClearObstacleBehaviorTests.CE4601_*` (red-proved), `BladeCutWireTests`; SimHost 42 / 0 under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` |
 | **B-5** CE-4602 — every breach is a way in for the AI | ✅ built | [Breaching §7.13](../DESIGN_Vehicle_Breaching.md); rail `BreachEntryTests` (red-proved) |
-| next | **P-5** CE-4592 — the ground-shaping tool (mockup fidelity) | |
+| **P-5** CE-4592 part 1 — ground shapes, the data path | 🟡 built: kind Ground, compile, parse, `GroundShapes.Apply` at merge (islands, newest wins); ⛔ open: corridors (G-24), the overlay SUMO net (G-16), grade read-out (G-19), the UI + mockup | [Ground §9.12](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `TerrainWorldMergeTests.CE4592_*` (red-proved) |
+| next | **P-5 part 2** — the UI (Earthworks picks, Details, grade) to the mockup; then **P-6** | |
 
 ## 3. Gates
 

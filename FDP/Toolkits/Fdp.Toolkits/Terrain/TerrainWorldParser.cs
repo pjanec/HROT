@@ -99,6 +99,7 @@ namespace Fdp.Toolkit.Terrain
             var prisms = sink.Prisms;
             var walkables = sink.Walkables;
             var surfaces = new List<TerrainSurface>();
+            var groundShapes = new List<GroundShape>();   // ⭐ CE-4592 (P-5)
             // ⭐ O-2 (CE-4416) — "structure": "<key>" groups slab / ramp / polygon-building parts into ONE collapsible TerrainBuilding (no panels)
             var structures = new Dictionary<string, StructureAcc>(StringComparer.Ordinal);
             int StructureOf(JsonObject p, string where, IReadOnlyList<Vector2> plan, float minZ, float maxZ)
@@ -282,6 +283,16 @@ namespace Fdp.Toolkit.Terrain
                         }
                         break;
                     }
+                    case "ground":
+                    {
+                        // ⭐ CE-4592 (P-5, G-14) — an authored ground SHAPE (level / raise / lower an area); applied to the height grid where the world is merged
+                        var mode = GroundShapes.ModeOf((string?)props["mode"] ?? "raise", where);
+                        float value = props["value"] is JsonNode vn ? ReadFloat(vn, where + ".value") : 0f;
+                        uint order = props["order"] is JsonNode on ? on.GetValue<uint>() : 0u;
+                        foreach (var ring in OuterRings(geometry, geomType, where))
+                            groundShapes.Add(new GroundShape(mode, Flatten(ring), value, order, (string?)props["label"] ?? ""));
+                        break;
+                    }
                     case "surface":
                     {
                         string surface = (string?)props["surface"]
@@ -317,7 +328,7 @@ namespace Fdp.Toolkit.Terrain
                     }
                     default:
                         throw new ArgumentException(
-                            $"Terrain world {where}: unknown kind '{kind}' (building, wall, fence, tree, prism, slab, ramp, surface).");
+                            $"Terrain world {where}: unknown kind '{kind}' (building, wall, fence, tree, prism, slab, ramp, surface, ground).");
                 }
             }
 
@@ -364,6 +375,7 @@ namespace Fdp.Toolkit.Terrain
                 Prisms = prisms,
                 Walkables = walkables,
                 Surfaces = surfaces,
+                GroundShapes = groundShapes,   // ⭐ CE-4592 (P-5)
                 Panels = sink.Panels,
                 Buildings = sink.Buildings,
                 Doors = sink.Doors,

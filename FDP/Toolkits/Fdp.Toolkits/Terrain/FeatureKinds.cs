@@ -51,6 +51,8 @@ namespace Fdp.Toolkit.Terrain
                     return Bridge(key, points, pad > 0 ? pad : DefaultBridgeWidth, where);
                 case TerrainFeature.Scatter:
                     return Scatter(key, TerrainRecipe.Find(template, recipeRoots), seed, pad, points, baseWorld, where);
+                case TerrainFeature.Ground:
+                    return new[] { Ground(key + "/0", template, pad, seed, points, where) };
                 default:
                     throw new ArgumentException($"[Terrain] {where}: unknown feature kind {kind}.");
             }
@@ -58,10 +60,10 @@ namespace Fdp.Toolkit.Terrain
 
         /// <summary>True for the kinds that carry a shape (a polyline beside the component): they are the line and area kinds.</summary>
         public static bool NeedsShape(byte kind) => kind is TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge or TerrainFeature.Wood or TerrainFeature.Scrub or TerrainFeature.Water or TerrainFeature.Lane
-                                                       or TerrainFeature.Bridge or TerrainFeature.Scatter;
+                                                       or TerrainFeature.Bridge or TerrainFeature.Scatter or TerrainFeature.Ground;
 
         /// <summary>True when <paramref name="kind"/> is one this expander knows (the others are ignored by a caller, as before).</summary>
-        public static bool IsKnown(byte kind) => kind is >= TerrainFeature.House and <= TerrainFeature.Lane;
+        public static bool IsKnown(byte kind) => kind is >= TerrainFeature.House and <= TerrainFeature.Ground;
 
         // ── lines ─────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -79,6 +81,15 @@ namespace Fdp.Toolkit.Terrain
         }
 
         // ── areas ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>⭐ CE-4592 (P-5, G-14) — a ground shape's part: <c>{"kind":"ground","mode":…,"value":…,"order":…}</c> over its polygon.</summary>
+        private static JsonObject Ground(string label, string mode, float value, uint order, IReadOnlyList<Vector2> points, string where)
+        {
+            if (points.Count < 3) throw new ArgumentException($"[Terrain] {where}: a ground shape needs at least three points (got {points.Count}).");
+            GroundShapes.ModeOf(mode, where);   // an unknown mode fails here, at the compile, naming the feature
+            var props = new JsonObject { ["kind"] = "ground", ["mode"] = mode.Length == 0 ? "raise" : mode, ["value"] = Round(value), ["order"] = order, ["label"] = label };
+            return Feature(props, new JsonObject { ["type"] = "Polygon", ["coordinates"] = new JsonArray(Ring(points)) });
+        }
 
         private static JsonObject Area(string surface, string label, IReadOnlyList<Vector2> points, float? density, string where)
         {

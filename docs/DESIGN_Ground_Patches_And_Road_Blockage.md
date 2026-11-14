@@ -786,3 +786,28 @@ and infantry crosses, a display node bakes it, its disc is the dirty rectangle, 
 road cuts it, a small one beside it does not, a seek back re-opens it; `EntityGroundDamageTranslatorTests` — the ordinal pinned, the sample round-trips byte for
 byte and the replica's view is cratered. Not yet (part 3): the save section, cover after
 `coverAfterSeconds` (G-35 / V-13), the decal (V-11), re-grounding (V-8 / V-12), `RoadHeights` (V-20), the stepped hash.
+
+### 9.12 As built — P-5, part 1: ground shapes (the data path) *(`terrain` lane, `2026-11-14`, CE-4592)*
+
+```mermaid
+graph TD
+  ENT[a scenario TerrainFeature, Kind Ground 13 - Template mode, Pad value, Seed draw order - its EditablePolyline] --> EXP[FeatureExpander.OfKind - ONE expansion, save and live]
+  EXP --> PART[overlay part kind ground - mode, value, order]
+  PART --> PARSE[TerrainWorldParser - TerrainWorld.GroundShapes]
+  PARSE --> MERGE[TerrainWorldMerge - GroundShapes.Apply over the base grid, then the pads G-18]
+  MERGE --> NODE[every node's merged world, the editor's live bake, Save terrain as]
+```
+*What it shows that prose hid: a ground shape is one more feature KIND on the path every terrain feature already takes — no new entity, no new storage —
+and the merge orders it before the pads, so a house placed on a shaped hill gets its pad on the shaped ground.*
+
+| claim | code — as built | design |
+|---|---|---|
+| a Ground feature, fields by kind | `TerrainFeature.Ground` (13): `Template` = `level` / `raise` / `lower`, `Pad` = Z / dZ, `Seed` = the DRAW ORDER; the skirt is derived (≥ 4 m, 1.5 × the largest change — G-3's walkable rule) | G-14 (R-5026: the sibling `GroundFeature` of V-27 waits for P-6's widths / depths) |
+| one rule, newest wins | `GroundShapes.Apply`: shapes in draw order, each blends its target over its skirt (smoothstep); the newest overrides where it reaches fully | V-28 |
+| houses are islands | every building footprint of base and overlay + 1 m keeps the natural ground (a shape never pushes the ground into a house) | G-18, V-28 |
+| the order of patches | `Merge`: shapes → pads on the shaped ground; craters at runtime over the result | G-18, G-32 |
+| never a blocker | a shape feeds neither the road blockage nor a navmesh area — the navmesh follows the heights by its slope limit | G-15 |
+| ⚠ not yet | road corridors re-levelled under a shape (G-24), the overlay's elevated SUMO net copy (G-16; *Save terrain as* re-elevates already, P-3), the grade read-out (G-19), the UI (the Earthworks picks, Details, the height tint — mockup) | part 2 |
+
+⭐ **Lane decision (for the user's review):** [R-5026](blueprints/RULINGS.md). Rails: `TerrainWorldMergeTests.CE4592_*` (raise / level / blend, the newest wins, a house is an island, an unknown mode fails) —
+red-proved (no `GroundShapes.Apply` in the merge ⇒ both red).

@@ -31,6 +31,16 @@ namespace Fdp.Toolkit.Terrain
             return pads == null ? height : GroundPatches.Apply(height, pads);
         }
 
+        /// <summary>⭐ CE-4592 (V-28) — every building footprint of both worlds: a ground shape leaves them (and a margin) as islands, never pushing the ground into a house.</summary>
+        private static List<Vector2[]>? IslandsOf(TerrainWorld @base, TerrainWorld overlay)
+        {
+            if (overlay.GroundShapes.Count == 0) return null;
+            var list = new List<Vector2[]>(@base.Buildings.Count + overlay.Buildings.Count);
+            foreach (var b in @base.Buildings) if (b.Footprint.Length >= 3) list.Add(b.Footprint);
+            foreach (var b in overlay.Buildings) if (b.Footprint.Length >= 3) list.Add(b.Footprint);
+            return list;
+        }
+
         public static TerrainWorld Merge(TerrainWorld @base, TerrainWorld overlay)
         {
             if (@base == null) throw new ArgumentNullException(nameof(@base));
@@ -111,7 +121,7 @@ namespace Fdp.Toolkit.Terrain
                 BoundsMin = overlayHasParts ? Vector2.Min(@base.BoundsMin, overlay.BoundsMin) : @base.BoundsMin,
                 BoundsMax = overlayHasParts ? Vector2.Max(@base.BoundsMax, overlay.BoundsMax) : @base.BoundsMax,
                 GroundZ = @base.GroundZ,
-                Height = PadHeights(@base.Height, overlay),
+                Height = PadHeights(GroundShapes.Apply(@base.Height, overlay.GroundShapes, IslandsOf(@base, overlay)), overlay),   // ⭐ CE-4592 (G-18) — shapes, then pads on the shaped ground
                 Warnings = warnings,
                 Prisms = prisms,
                 Walkables = walkables,
