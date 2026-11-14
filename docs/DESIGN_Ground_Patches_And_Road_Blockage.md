@@ -2,7 +2,7 @@
 state: LIVE
 build-state: READY-TO-BUILD P-1…P-4 — ✅ APPROVED 2026-11-14 (R-4228 G-1…G-3, R-4229 G-7…G-10, R-4230 G-12, R-4231 road corridors G-21…G-25); P-5 the ground-shaping tool and P-6 ditches ✅ approved in principle, ⚠ their UI mockup before dispatch; §4d binds the later terrain-editor design
 updated: 2026-11-14
-current-answer: the whole file — §1 the request, §2 INVENTORY, §3 the diagrams, §4 decisions, §4a the ground-shaping tool (P-5), §4b road corridors at import (P-1), §4c ditches (P-6), §4d ready for the terrain editor, §5 slices, §6 acceptance
+current-answer: the whole file — §1 the request, §2 INVENTORY, §3 the diagrams, §4 decisions, §4a the ground-shaping tool (P-5), §4b road corridors at import (P-1), §4c ditches (P-6), §4c-1 crater cover and foxholes, §4d ready for the terrain editor, §5 slices, §6 acceptance
 stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_Terrain_Height.md TH-C ("a building stands on the LOWEST ground under its footprint") — overturned for a building that carries a pad, once G-2 is ruled
@@ -284,6 +284,22 @@ by the ground itself; ⛔ the automatic cover points come only from building / w
 | **G-28** | **a ditch is an OBSTACLE-class patch**: a navmesh area priced per mover by width × depth (the crater rule, `craters.json` beside a ditch table): infantry passes (a small cost); an anti-tank ditch (≥ ~3 m wide, ≥ ~1.5 m deep) closes tracked and wheeled; a shallow one closes wheeled only | it is what a ditch is for | a terrain-class patch (no area — vehicles would drive through an anti-tank ditch) |
 | **G-29** | a ditch NEVER cuts a road corridor (G-24) — it stops at the corridor; a roadside ditch runs beside it | no hidden road closure; a culvert is a later item | — |
 
+## 4c-1. Crater cover after the gases clear, and foxholes *(user `2026-11-14`)*
+
+🔒 User, `2026-11-14`: *"soldiers can use the crater as a cover as well after some time when the gases from the explosion have already
+ventilated. Also, please think about foxholes … Foxhole is basically just a very short ditch in this case, and maybe not so deep."*
+
+📐 Measured: an HE blast leaves NO timed hazard (`AreaEffectSystem.cs:100-125` requests a cloud only for `Irritant` and venting smoke rounds) ·
+cover points are built once with the bake and immutable (`TerrainCoverProvider`) · infantry walks ≤ 60° and steps 0.4 m, vehicles ≤ 20° and 0.3 m
+(`RecastNavmeshBaker.cs:68-89`) · the height grid is 1 m on imported terrains, coarser on older `.asc` ones.
+
+| # | lean | why | rejected |
+|---|---|---|---|
+| **G-35** | **a crater becomes cover after its gases clear**: each crater entry carries `BornAt` (sim time, recorded ⇒ replay agrees); its rim cover points carry `AvailableAt = BornAt + coverAfterSeconds` (by size, `craters.json`, e.g. 60 s) and the cover query skips a point before it — the ground still hides a man already in it (TH-D) | data, not a new hazard system; the immutable provider stays immutable | a gas cloud per HE blast (a second hazard system for one delay) |
+| **G-36** | **a foxhole is a Ditch preset**: *Foxhole* ≈ 2 m long × 1.5 m wide × 1.0 m deep, placed by a CLICK with a heading (the point tool) — a short Line·Lower patch; ONE cover point facing its heading, stance by depth (≈ 1 m ⇒ crouch); defending squads take their posts from cover points ⇒ they use foxholes with no new behaviour; a line of fighting positions is the terrain-editor design's (CE-4594) | the same feature, the same patch; the posts already come from cover | a separate foxhole kind |
+| **G-37** | **the honest limit**: at 1 m posts a foxhole is a ≈ 3 × 3 m dip with sloped sides — coarse, but it blocks sight and gives cover; on a grid coarser than ~1.5 m the tool warns it will not form; a finer local inset is the separate sparse-inset idea (CE-4012), not here | the user accepted the coarseness | carving below the grid's resolution |
+| **G-38** | **passability by slope, no special case**: a dip / foxhole's walls (~45°) are walkable for infantry (≤ 60°) and closed to vehicles (≤ 20°) by the bake itself; only a ditch or crater big enough to matter gets a priced obstacle area (G-28, G-9) | the navmesh already says it | an obstacle area for every small hole |
+
 ## 4d. Ready for the terrain editor — what this design fixes NOW so later tools fit *(user `2026-11-14`)*
 
 🔒 User, `2026-11-14`: *"we might need some tool to define where the forest area is … create walls along a defined line … plant trees and various
@@ -309,9 +325,9 @@ in the compile and the live overlay. ⇒ the later design is about the USER-FRIE
 | **P-1** | CE-4403 | G-1…G-4 + **the road corridors G-21…G-25** — `GroundPatch` / `GroundPatches`, the importer's order, `NetElevation` after; a demo terrain re-imported (`scale-rig-scale-1-1000`'s hills) | backend |
 | **P-2** | CE-4590 | G-10 — `RoadBlockage` (the bridge folded in), static blockers into the H12 feed, our road graph cut + re-plan | backend (traffic) |
 | **P-3** | CE-4403 (S-5) | G-5, G-6, G-20 (*Save terrain as* writes the patched store + re-elevates the net) — the overlay's pads, `TerrainWorldMerge` patching, `WithTiles` | backend |
-| **P-6** | CE-4593 | G-26…G-29 — the Ditch feature, its cover points (`TerrainCoverProvider` ground-cover source, craters too), its navmesh area; the line tool + Details (mockup first) | backend + ui |
+| **P-6** | CE-4593 | G-26…G-29 + G-36…G-38 (the Foxhole preset) — the Ditch feature, its cover points (`TerrainCoverProvider` ground-cover source, craters too), its navmesh area; the line tool + Details (mockup first) | backend + ui |
 | **P-5** | CE-4592 | G-14…G-19 — the Ground feature, its live bake, the overlay's elevated net copy; the UI pick + Details + grade warning (mockup first) | backend + ui |
-| **P-4** | CE-4591 | G-6…G-9, G-11 — `GroundDamage`, `CraterRule` + `craters.json`, the bake + nav areas + filter prices, re-grounding, the wire, save; a barrage demo | backend (+ ui: the 3-D ground chunks of a dirty rectangle rebuild, `TerrainChunks3D`) |
+| **P-4** | CE-4591 | G-6…G-9, G-11, G-35 (crater cover after `coverAfterSeconds`) — `GroundDamage`, `CraterRule` + `craters.json`, the bake + nav areas + filter prices, re-grounding, the wire, save; a barrage demo | backend (+ ui: the 3-D ground chunks of a dirty rectangle rebuild, `TerrainChunks3D`) |
 
 ## 6. Acceptance
 
