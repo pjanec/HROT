@@ -126,7 +126,7 @@ public static class TerrainBake
         string baseFolder = Path.GetDirectoryName(Path.GetFullPath(baseDef))!;
 
         // ① the source compiled first: its overlay is current
-        var compiled = OverlayCompiler.Compile(dom, sourceScenarioDir, Resolve, bakeNavtiles, recipeRoots, unique, bridgeNet);
+        var compiled = OverlayCompiler.Compile(dom, sourceScenarioDir, Resolve, bakeNavtiles, recipeRoots, unique, bridgeNet, reElevateNet);   // ⭐ CE-4592 (G-16)
         string overlayFolder = Path.Combine(sourceScenarioDir, OverlayCompiler.FolderName);
 
         if (Directory.Exists(part)) Directory.Delete(part, true);

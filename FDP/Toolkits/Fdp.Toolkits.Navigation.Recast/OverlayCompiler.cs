@@ -26,7 +26,13 @@ public static class OverlayCompiler
     /// <param name="resolveTerrainDefinition">terrain name → the path of its <c>terrain.json</c>, or null</param>
     /// <param name="bakeNavtiles">false skips the navmesh bake (a terrain with no navmesh to speak of): the overlay then has no <c>navtiles/</c> and a node bakes its tiles at load</param>
     /// <param name="recipeRoots">where <c>&lt;id&gt;.recipe.json</c> is looked up; null = beside the terrain's assets tree, then the NAS</param>
-    public static OverlayCompileResult Compile(JsonObject scenarioDom, string scenarioDir, Func<string, string?> resolveTerrainDefinition, bool bakeNavtiles = true, IEnumerable<string?>? recipeRoots = null, IUniqueBuildings? unique = null, IBridgeNet? bridgeNet = null)
+    /// <summary>
+    /// ⭐ <c>CE-4592</c> (P-5; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4a G-16) — and, when the overlay CHANGES THE GROUND (a ground shape, a padded house) on a terrain with a SUMO net,
+    /// a RE-ELEVATED net copy written into the overlay (the bridge net when there is one, else the base's) through the caller's <paramref name="reElevateNet"/> (FDP cannot see
+    /// <c>Hrot.Terrain.InputSet.NetElevation</c>) — so SUMO's cars drive the shaped ground after save + reload (V-25: not while editing). Null ⇒ the base net, as before.
+    /// </summary>
+    public static OverlayCompileResult Compile(JsonObject scenarioDom, string scenarioDir, Func<string, string?> resolveTerrainDefinition, bool bakeNavtiles = true, IEnumerable<string?>? recipeRoots = null,
+        IUniqueBuildings? unique = null, IBridgeNet? bridgeNet = null, Action<string, Func<double, double, double>>? reElevateNet = null)
     {
         string finalDir = Path.Combine(scenarioDir, FolderName), partDir = finalDir + ".part";
         if (Directory.Exists(partDir)) Directory.Delete(partDir, true);
@@ -152,6 +158,22 @@ public static class OverlayCompiler
             }
             else foreach (var p in plans) bridgeRows.Add(new JsonObject { ["key"] = p.Key, ["snapped"] = false });
 
+            // ⭐ CE-4592 (G-16) — the ground the overlay changes reaches SUMO: the net re-elevated over the merged heights, kept in the overlay
+            if (reElevateNet != null && definition.SumoNet is { } sumo && ChangesTheGround(features))
+            {
+                string netName = Path.GetFileName(sumo.File), netPath = Path.Combine(partDir, netName);
+                if (sumoNetName == null && File.Exists(Path.Combine(terrainFolder, sumo.File))) File.Copy(Path.Combine(terrainFolder, sumo.File), netPath, overwrite: true);
+                if (File.Exists(netPath))
+                {
+                    var merged = TerrainWorldMerge.Merge(baseWorld, TerrainWorldParser.Parse(world.ToJsonString(), terrainName + "/overlay", assets));
+                    if (merged.Height is { } shaped && !ReferenceEquals(shaped, baseWorld.Height))
+                    {
+                        reElevateNet(netPath, (x, y) => shaped.Sample((float)(x - sumo.AnchorX), (float)(y - sumo.AnchorY)));
+                        sumoNetName = netName;
+                    }
+                }
+            }
+
             string baseHash = TerrainContentHash.OfTerrain(definitionPath);
             string contentHash = TerrainContentHash.OfOverlay(partDir, baseHash);
             var header = new JsonObject
@@ -217,5 +239,13 @@ public static class OverlayCompiler
             list.Add(new Vector2(origin.X + (float)(p["X"]?.GetValue<double>() ?? 0.0), origin.Y + (float)(p["Y"]?.GetValue<double>() ?? 0.0)));
         }
         return list.ToArray();
+    }
+
+    /// <summary>⭐ CE-4592 — true when a compiled part changes the ground: a ground shape, or a house standing on a pad.</summary>
+    private static bool ChangesTheGround(List<JsonObject> features)
+    {
+        foreach (var f in features)
+            if (f["properties"] is JsonObject p && ((string?)p["kind"] == "ground" || ((string?)p["kind"] == "building" && p["pad"] is not null))) return true;
+        return false;
     }
 }

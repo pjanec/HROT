@@ -119,5 +119,32 @@ namespace Fdp.Toolkit.Terrain.Tests
             foreach (var p in Directory.GetFiles(dir, "*", SearchOption.AllDirectories)) d[Path.GetRelativePath(dir, p).Replace('\\', '/')] = File.ReadAllBytes(p);
             return d;
         }
+    
+        /// <summary>
+        /// ⭐ <c>CE-4592</c> (P-5, G-16) — a Raise shape on a terrain with a SUMO net: the overlay carries the net RE-ELEVATED over the shaped ground (the caller's hook sees the hill
+        /// under the road) and its header names it; a scenario that does not touch the ground writes no net copy. 🔴 Red-proof: skip <c>ChangesTheGround</c> ⇒ no net in the overlay.
+        /// </summary>
+        [Fact]
+        public void CE4592_AShapeOnATerrainWithANet_PutsAReElevatedNetInTheOverlay()
+        {
+            using var f = new OverlayFixture();
+            f.WithSlopeAndNet();
+            float sampled = float.NaN; int calls = 0;
+            var hill = OverlayFixture.Feature(TerrainFeature.Ground, 200f, 200f, "raise", pad: 5f, seed: 1, points: new[] { (-10f, -10f), (10f, -10f), (10f, 10f), (-10f, 10f) });
+            var r = OverlayCompiler.Compile(f.Scenario(("c1000000-0000-4000-8000-000000000003", hill)), f.ScenarioDir, f.Resolve, false, new[] { f.Recipes },
+                reElevateNet: (net, ground) => { calls++; sampled = (float)ground(200.0, 200.0); Assert.True(File.Exists(net)); });
+            Assert.True(r.Wrote);
+            Assert.Equal(1, calls);
+            Assert.Equal(0.2f * 200f + 5f, sampled, 2);                                   // the slope + the 5 m raise
+            var header = (JsonObject)JsonNode.Parse(File.ReadAllText(Path.Combine(f.Overlay, TerrainOverlayHeader.FileName)))!;
+            Assert.Equal("base-t.net.xml", (string?)header["sumoNet"]);
+            Assert.True(File.Exists(Path.Combine(f.Overlay, "base-t.net.xml")));
+
+            calls = 0;
+            var wall = OverlayFixture.Feature(TerrainFeature.Wall, 100f, 100f, points: new[] { (0f, 0f), (10f, 0f) });
+            OverlayCompiler.Compile(f.Scenario(("c1000000-0000-4000-8000-000000000004", wall)), f.ScenarioDir, f.Resolve, false, new[] { f.Recipes },
+                reElevateNet: (net, ground) => calls++);
+            Assert.Equal(0, calls);
+        }
     }
 }
