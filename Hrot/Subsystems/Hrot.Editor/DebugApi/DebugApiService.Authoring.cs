@@ -765,11 +765,18 @@ namespace Hrot.Editor.DebugApi
                       + "entity that is not here is refused rather than queued against nothing.",
                         DebugApiHints.Entity);
 
-            _world.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand
+            // ⭐ CE-4572 (X-8) — ONE step of the editor's history, as the component edit is (D-38, CE-3386): the step's "before" is the world now,
+            //   with the entity; its "after" is taken when Undo runs, once the queued teardown has landed. Edit records it; Live / Preview nothing.
+            Fdp.Toolkit.Replication.Edits.EditSteps.Begin(_world, "Delete entity");
+            try
             {
-                NetworkId = networkId,
-                Reason    = "mcp-authoring-delete",
-            });
+                _world.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand
+                {
+                    NetworkId = networkId,
+                    Reason    = "mcp-authoring-delete",
+                });
+            }
+            finally { Fdp.Toolkit.Replication.Edits.EditSteps.End(_world); }
 
             return (new JsonObject
             {

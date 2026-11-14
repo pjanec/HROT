@@ -222,6 +222,27 @@ public sealed class TheWriteRoutesAskTheOwnerTests
         history.Undo();
         Assert.Equal(0f, node.World.GetComponent<SimTransform>(node.Entity).Position.X, precision: 3);
     }
+    /// <summary>⭐ CE-4572 (X-8) — an HTTP <c>DELETE /entities/{id}</c> is ONE step of the editor's history in Edit (like the component edit,
+    /// D-38): undo after the teardown lands brings the entity back; outside Edit nothing is recorded. 🔴 Red-proof: the bracket removed from
+    /// <c>DeleteEntity</c> ⇒ no step (<c>CanUndo</c> false).</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void X8_A_delete_is_one_undo_step_in_edit_mode(bool editMode)
+    {
+        using var node = new Node(ownsSimTransform: true, simTransformIsNetworked: false);
+        var history = new Hrot.Presentation.Edits.EditHistory();
+        EditSteps.Install(node.World, new Hrot.Presentation.Edits.WorldUndoRecorder(history, new Fdp.Toolkit.Replay.WorldSnapshotRing(maxDepth: 8), () => editMode));
+
+        var (_, error, _) = node.Service.DeleteEntity(NetworkId);
+        Assert.Null(error);
+        node.World.DestroyEntity(node.Entity);                     // the ELM teardown, a tick later
+        Assert.Equal(editMode, history.CanUndo);
+        if (!editMode) return;
+        history.Undo();
+        Assert.True(node.World.IsAlive(node.Entity), "undo after the HTTP delete did not bring the entity back");
+    }
+
     // ── CE-2380 part 1 — the OUTCOME of the request comes back to the node that asked ───────
 
     private sealed class OneShotSource : Hrot.Map.Common.Systems.IUpdateEntityAttributeRequestSource
