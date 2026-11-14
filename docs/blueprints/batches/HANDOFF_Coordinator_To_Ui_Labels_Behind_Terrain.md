@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → `ui`: unit labels hidden behind terrain, one card per unit, no free-floating unit text (CE-4582)
 
-**For:** the `ui` lane. **From:** coordinator. **Dispatched at `<sha>`**; ⛔ **scope FROZEN there** — later documents are FYI; one that
+**For:** the `ui` lane. **From:** coordinator. **Dispatched at `c59a92d81`**; ⛔ **scope FROZEN there** — later documents are FYI; one that
 invalidates an item ⇒ STOP that item and report it (R-106). ⭐ Autonomous, no questions: the decisions are the user's (below); what is left open is
 decided the closest way and named in the report.
 🔒 User, `2026-11-14`: *"the ui lane can take the labels hiding behind obstacles"*. The task and every decision are in
