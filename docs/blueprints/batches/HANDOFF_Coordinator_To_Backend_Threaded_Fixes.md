@@ -3,8 +3,8 @@ state: LIVE — dispatched, not started
 updated: 2026-11-14
 current-answer: the whole file
 related-designs:
-  - ../../DESIGN_Parallel_Simulation.md (on exp/threaded-build) — ⭐ §18.2 the declared mask (what the last-tick view copies; "the generator emits each asset's cross reads" is the target, `BrainReads` the hand list today), §18.5 / §18.6 the brain and squad phases
-  - ../../DESIGN_Threaded_Simulation_Presentation.md (on exp/threaded-build) — §0a / §15 the threaded node, the staging, the sim worker
+  - ../../DESIGN_Parallel_Simulation.md (merged into coordinator) — ⭐ §18.2 the declared mask (what the last-tick view copies; "the generator emits each asset's cross reads" is the target, `BrainReads` the hand list today), §18.5 / §18.6 the brain and squad phases
+  - ../../DESIGN_Threaded_Simulation_Presentation.md (merged into coordinator) — §0a / §15 the threaded node, the staging, the sim worker
   - ../blueprints/DESIGN_Time_Architecture.md — §17 stepped mode
   - NOTE_Coordinator_To_Ui_Threaded_Editor_Limitations.md — L-1 … L-4 as the lanes met them
   - HANDOFF_Coordinator_To_Backend_Sim_Tick_Serial.md — the HELD batch these build items come from; its design items (T-1, T-2) stay with the coordinator
@@ -25,8 +25,10 @@ a test. Commit + push per item, by path; tick its tracker row.
 
 ## Where to work
 
-A NEW branch **`exp/threaded-fixes`** from **`origin/exp/threaded-build`** (`592744961` or newer — the unified branch). Push
-`chore: started threaded fixes at <sha>`. Status file `docs/blueprints/batches/STATUS_Threaded_Fixes.md`.
+⭐ **RE-POINTED `2026-11-14` (rule 1a — not started):** the lane branch **`backend`**, after merging **`origin/coordinator`** at the
+re-dispatch sha below or newer — `exp/threaded-build` is MERGED into `coordinator` (`e4af862f6`) and frozen. 🔒 User, `2026-11-14`: *"we are now
+out of experimental phase so we could merge the threaded build aggregation branch into coordinator branch and from that time on to continue
+developing in usual lane-specific branches"*. ⛔ No `exp/threaded-fixes`. Push `chore: started threaded fixes at <sha>`. Status file `docs/blueprints/batches/STATUS_Threaded_Fixes.md`.
 
 ## The work, in this order
 
