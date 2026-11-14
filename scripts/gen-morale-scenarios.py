@@ -4,7 +4,7 @@ scenarios/demos/platoons-and-vehicles/morale-barrage-{green,veteran}/scenario.js
 
 pc-defend-dry's Red platoon (three squads of four, OBJ at (121,157) on cqb-village, facing south) + a Blue 81 mm mortar section
 (uc-request-chain's battery: two tubes and their crews, ManWeapon) ~200 m south-east, which the check orders onto the line once the
-crews have manned the tubes (a Strike, open sheaf). The check (utility-demo-check.py --launch morale-barrage-<x>) engages the platoon the way pc-defend-dry's
+crews have manned the tubes (a Strike, converged on Squad 1). The check (utility-demo-check.py --launch morale-barrage-<x>) engages the platoon the way pc-defend-dry's
 does (the squads' Set + a SPOT inside the engagement area); the barrage does the rest.
 Green = Militia, nerve 0.15 · Veteran = Veteran, nerve 0.9. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md DA-67 (CE-7015).
 """
@@ -53,7 +53,7 @@ def main():
         doc["header"]["description"] = (
             f"What: CE-7015 / CE-4584 (AQ101 §R, R-4227) - on cqb-village, pc-defend-dry's 'Red Platoon' (three squads of four, {prof}, nerve {nerve}) "
             "defends OBJ at (121,157) facing south; a Blue 81 mm mortar section at (280,30) fires on it, a barrage the check orders "
-            "once its crews man the tubes (a Strike: open sheaf across both line squads, 10 bombs a tube). The check engages the platoon (the squads' Set and a SPOT inside the engagement area, as pc-defend-dry). "
+            "once its crews man the tubes (a Strike converged on Squad 1, 10 bombs a tube). The check engages the platoon (the squads' Set and a SPOT inside the engagement area, as pc-defend-dry). "
             "Judge: the bursts near-miss the line's men (UnderFire, stress rises); "
             + ("a GREEN platoon's men break and it FALLS BACK (BreakContact) while still mostly alive. " if v == "green"
                else "a VETERAN platoon's line HOLDS (no BreakContact) under the same fire. ")

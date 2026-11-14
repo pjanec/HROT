@@ -4338,12 +4338,13 @@ def run_morale_barrage(c, timeout):
         call("POST", f"/entities/{sq[k]}/reports", {"kind": "Progress", "subtype": "Set"})
     wait_for(lambda: False, 3, every=1.0)
     call("POST", f"/entities/{sq[9320]}/reports", {"kind": "Spot", "at": [120, 60, 0], "count": 3, "size": "Team"})   # inside the EA: Engage
-    # the barrage: once the crews man the tubes (ua-indirect-fire's precedent), the battery's Strike on the line — an open sheaf across
-    #   both line squads (x 80 and 121), ten bombs a tube, danger close (its own crew ~260 m off)
+    # the barrage: once the crews man the tubes (ua-indirect-fire's precedent), the battery's Strike on Squad 1 (x 121) — converged, ten
+    #   bombs a tube, danger close (its own crew ~260 m off). ⚠ measured: an open 45 m sheaf across both squads put 20 bursts near
+    #   neither (none within 11.8 m; Green peak stress 0.73, one man broken) — the fall-back needs ONE of the two line squads failing
     crews = [ids.get("Mortar Man 1"), ids.get("Mortar Man 2")]
     c.ok(wait_for(lambda: all("IsEmbarkedTag" in comps(m) for m in crews), 90), "the mortar crews man their tubes")
-    c.ok(_if_order(ids.get("Insurgent Mortar"), "Strike", {"Location": geo_of(scenario_of_argv(), 100, 156), "Rounds": 10, "Sheaf": "Open",
-                                                         "SheafWidthM": 45, "DangerClose": True}), "the battery takes the barrage (Strike)")
+    c.ok(_if_order(ids.get("Insurgent Mortar"), "Strike", {"Location": geo_of(scenario_of_argv(), 120.8, 156), "Rounds": 10,
+                                                         "Sheaf": "Converged", "DangerClose": True}), "the battery takes the barrage (Strike)")
     t0 = sim_time() or 0.0
     first = {}
     shooters = {ids.get("Mortar Man 1"), ids.get("Mortar Man 2"), ids.get("Mortar Tube 1"), ids.get("Mortar Tube 2")}
@@ -4364,7 +4365,9 @@ def run_morale_barrage(c, timeout):
             if d.get("shooter") not in shooters or not b or d.get("seq") in seen:
                 continue
             seen.add(d.get("seq"))
-            under = sum(1 for p in pos if p and math.hypot(b[0] - p[0], b[1] - p[1]) <= near_m)
+            dists = [math.hypot(b[0] - p[0], b[1] - p[1]) for p in pos if p]
+            first["closest"] = round(min([first.get("closest", 1e9)] + dists), 1)
+            under = sum(1 for x in dists if x <= near_m)
             if under and "underFire" not in first:
                 first["underFire"] = (round(t, 1), under, round(max((s.get("Level") or 0) for s in stress), 2))
         first["bursts"] = len(seen)
@@ -4377,7 +4380,7 @@ def run_morale_barrage(c, timeout):
         time.sleep(2.0)
     print(f"   sim since engaged: {round((sim_time() or 0.0) - t0, 1)} s · first near miss (t, men under fire) {first.get('underFire')} · "
           f"first broken (t, broken, down) {first.get('broken')} · fall-back (t, broken, down) {first.get('fallBack')} · "
-          f"battery bursts {first.get('bursts')} · peak line stress {first.get('maxStress')}")
+          f"battery bursts {first.get('bursts')} (closest to a line man {first.get('closest')} m) · peak line stress {first.get('maxStress')}")
     c.ok("underFire" in first, f"the bursts near-miss the line's men (a battery burst within {near_m:.1f} m: {first.get('underFire')})")
     if green:
         c.ok("fallBack" in first and first["fallBack"][2] < 4, f"the GREEN platoon falls back while most of its line is alive ({first.get('fallBack')})")
