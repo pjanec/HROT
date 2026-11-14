@@ -1,10 +1,11 @@
 <!--STATUS
 state: LIVE — MEASUREMENTS, not a design (user, 2026-11-14: "No hurry in handoffs and design. Let's measure first. Let's make sure that we understand all the weak points.")
 updated: 2026-11-14
-current-answer: ⭐⭐ §8 THE DECISION (one member, R-4244) · ⭐ §4 the second sweep — the REPRESENTATIVE-MEMBER shape, which retires most of §1 · §5 the assets (vehicles, fires, air, drones, AT) · §6 calibration numbers · §7 still unknown; §1–§3 the first sweep (a squad with NO members)
+current-answer: ⭐⭐⭐ the DESIGN is DESIGN_Aggregate_Squad.md (built on this) · ⭐⭐ §8 THE DECISION (one member, R-4244) · ⭐ §4 the second sweep — the REPRESENTATIVE-MEMBER shape, which retires most of §1 · §5 the assets (vehicles, fires, air, drones, AT) · §6 calibration numbers · §7 still unknown; §1–§3 the first sweep (a squad with NO members)
 stale-below: §4's "TWO members = the two fire teams" lean — SUPERSEDED by §8 (one member); §1's W-1, W-2, W-4, W-6, W-7 assume a squad with NO members — the §4 shape removes them (kept as the record of why)
 known-rot: none
 related-designs:
+  - DESIGN_Aggregate_Squad.md — ⭐ THE DESIGN built on these measurements (decisions D-1…D-9, every behaviour with one member, slices)
   - ../group-maneuvers/DESIGN_City_Battle_Showcase.md — §12 the test ladder this would add a rung to (between ② the puppet bench and ③ the dry twins)
   - ../group-maneuvers/DESIGN_Command_Chain_Example.md — the order-down / report-up seam the stand-in rests on; §8e the battalion's reserve
   - ../../DESIGN_Scenario_Rules.md — §10.2 the objective kinds that count men (ObjectiveCensus)
@@ -65,7 +66,7 @@ pseudo-realistic battle, enough for that simple level of constructive simulation
 | a member needs only data to be a full participant: sensors (`SensorCapabilitiesDto` → receptor, eye, `TargetMemory`), several built-in mounts (rifle, LMG, an RPG-class mount; the Bradley's 25 mm + TOW precedent), `Health`, a collider | `PerceptionTkbTranslator.cs:33-110`, `CombatTkbTranslator.cs:86-125`, `AimAndFireExecutor.cs:114-121` (a built-in mount fires as the platform — no gunner) |
 | its memory feeds the squad's contact pool unchanged ⇒ SPOT, CONTACT, fire-support and reinforce requests flow again | `SquadPerceptionMergeSystem.cs:47-95` |
 | as a PERSON (Pedestrian class) it gets stance exposure, blast near misses, `UnderFire`, `Stress` — suppression and rout for free | `RaycastSolverSystem.cs:287-298`, `AreaEffectSystem.cs:177, :544-547`, `StressSystem.cs:374` |
-| ✔ the drills split a squad into TWO halves and FAIL when a half is empty | `FireAndMovementBehavior.cs:100-104` (`if (!any) return Failure`) ⇒ ONE member breaks bounding, rush and break contact; ⭐ **TWO members = the two fire teams** keep them working |
+| ✔ the drills split a squad into TWO halves and FAIL when a half is empty | `FireAndMovementBehavior.cs:100-104` (`if (!any) return Failure`) ⇒ ONE member breaks fire and movement and suppress-and-manoeuvre (⚠ corrected by the third sweep: bounding and break contact WORK with one man — empty gates pass; DESIGN_Aggregate_Squad.md §5); ⭐ **TWO members = the two fire teams** keep them working |
 | firepower and toughness are data: `RateOfFire` × n, `Health` = n × 25 (a soldier is 25, a rifle hit 25 ⇒ one rifle hit ≈ one man) | `WeaponSuiteDto.cs:141`, `AimAndFireExecutor.cs:315`, `NedTkbBuilder.cs:279`, `NedTkbCatalog.cs:87` |
 | the walker moves an entity with no stance / injury / animation (every read defaults); a bare Pedestrian entity is already in a test | `CarKinematicsSystem.cs:203-212`, `CarKinematicsSystemTests.cs:496-527` |
 | a squad authored with no men has NO roster (lazy) ⇒ "in the fight for ever"; with two members the roster is real | `UnitHierarchySystem.cs:170-172` |
