@@ -4324,6 +4324,7 @@ def run_morale_barrage(c, timeout):
     sim times of the first near miss (UnderFire), the first broken man, and the fall-back (a line squad ordered BreakContact), and how many
     of the line's eight men were broken / down then. Judge: GREEN falls back while most men are alive; VETERAN holds for the window."""
     green = any("morale-barrage-green" in x for x in sys.argv)
+    scenario_of_argv = lambda: "morale-barrage-green" if green else "morale-barrage-veteran"
     ids = ids_by_name()
     pl = ids.get("Red Platoon")
     names = {9310: "Red Squad 1", 9320: "Red Squad 2", 9330: "Red Reserve"}
@@ -4337,6 +4338,12 @@ def run_morale_barrage(c, timeout):
         call("POST", f"/entities/{sq[k]}/reports", {"kind": "Progress", "subtype": "Set"})
     wait_for(lambda: False, 3, every=1.0)
     call("POST", f"/entities/{sq[9320]}/reports", {"kind": "Spot", "at": [120, 60, 0], "count": 3, "size": "Team"})   # inside the EA: Engage
+    # the barrage: once the crews man the tubes (ua-indirect-fire's precedent), the battery's Strike on the line — an open sheaf across
+    #   both line squads (x 80 and 121), ten bombs a tube, danger close (its own crew ~260 m off)
+    crews = [ids.get("Mortar Man 1"), ids.get("Mortar Man 2")]
+    c.ok(wait_for(lambda: all("IsEmbarkedTag" in comps(m) for m in crews), 90), "the mortar crews man their tubes")
+    c.ok(_if_order(ids.get("Insurgent Mortar"), "Strike", {"Location": geo_of(scenario_of_argv(), 100, 156), "Rounds": 10, "Sheaf": "Open",
+                                                         "SheafWidthM": 45, "DangerClose": True}), "the battery takes the barrage (Strike)")
     t0 = sim_time() or 0.0
     first = {}
     shooters = {ids.get("Mortar Man 1"), ids.get("Mortar Man 2"), ids.get("Mortar Tube 1"), ids.get("Mortar Tube 2")}

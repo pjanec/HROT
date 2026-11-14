@@ -7,7 +7,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "cqb-village",
-  "description": "What: CE-7015 / CE-4584 (AQ101 \u00a7R, R-4227) - on cqb-village, pc-defend-dry's 'Red Platoon' (three squads of four, Veteran, nerve 0.9) defends OBJ at (121,157) facing south; a Blue 81 mm mortar section at (280,30) fires on it, a planned barrage (ArtilleryUnitStrike, open sheaf across both line squads, 10 bombs a tube). The check engages the platoon (the squads' Set and a SPOT inside the engagement area, as pc-defend-dry). Judge: the bursts near-miss the line's men (UnderFire, stress rises); a VETERAN platoon's line HOLDS (no BreakContact) under the same fire. Report the sim times. Check: python3 scripts/utility-demo-check.py --launch morale-barrage-veteran. \ud83d\udcc4 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md DA-67 (CE-7015)"
+  "description": "What: CE-7015 / CE-4584 (AQ101 \u00a7R, R-4227) - on cqb-village, pc-defend-dry's 'Red Platoon' (three squads of four, Veteran, nerve 0.9) defends OBJ at (121,157) facing south; a Blue 81 mm mortar section at (280,30) fires on it, a barrage the check orders once its crews man the tubes (a Strike: open sheaf across both line squads, 10 bombs a tube). The check engages the platoon (the squads' Set and a SPOT inside the engagement area, as pc-defend-dry). Judge: the bursts near-miss the line's men (UnderFire, stress rises); a VETERAN platoon's line HOLDS (no BreakContact) under the same fire. Report the sim times. Check: python3 scripts/utility-demo-check.py --launch morale-barrage-veteran. \ud83d\udcc4 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md DA-67 (CE-7015)"
  },
  "entities": {
   "c2276d00-0000-4000-8000-000000009300": {
@@ -619,22 +619,6 @@
    "EntityInfo": {
     "Name": "Insurgent Mortar",
     "ForceId": "Friend"
-   },
-   "Behavior": {
-    "Name": "ArtilleryUnitStrike",
-    "Origin": "Superior",
-    "Params": {
-     "Location": [
-      100,
-      156,
-      0
-     ],
-     "Rounds": 10,
-     "Sheaf": "Open",
-     "SheafWidthM": 45,
-     "Control": "WhenReady",
-     "DangerClose": true
-    }
    }
   },
   "c7015000-0000-4000-8000-000000009801": {
