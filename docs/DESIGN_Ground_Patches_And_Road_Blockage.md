@@ -682,7 +682,7 @@ classDiagram
     pending list · capacity 16 · owner only · no replay
   }
   class GroundDamage {
-    <<NEW unmanaged component 493, recorded>>
+    <<NEW unmanaged component 490, recorded>>
     CellX, CellY, Count
     X Y Radius Depth Rim BornAt Kind [16]
   }
@@ -819,7 +819,8 @@ red-proved (no `GroundShapes.Apply` in the merge ⇒ both red).
 | the 7th group | `TerrainPickCatalog.Earthworks` last in `Groups`; Level / Raise / Lower are AREA tools (the existing drawing tool) placing a `TerrainFeature` of kind Ground; the mountain glyph (`terrain/source`) | mockup panel A |
 | the rest listed, greyed with the item that brings them | Crater (V-14, a saved crater record), Ditch, Anti-tank ditch, Foxhole (P-6) | mockup panel A |
 | born | `TerrainBirth.GroundShape`: a raise 2 m, a lower 1 m, a level at the clicked ground (the placed transform's Z); the draw order = the authoring moment in seconds since 2026 (the newest wins) | G-14, V-28 |
-| ⚠ not yet (part 2b) | the Details *Effect* read-out (grade, area, kept out, the SUMO line), the grade warning over 15 % (G-19), the 2-D tint of the height change while drawing, and the frame-vs-mockup fidelity rails | mockup panels B, C, F |
+| ⭐ the grade read-out (the function) | `GroundShapes.SteepestRoadGrade(world, roads, shape)`: the steepest rise ÷ run along every road segment within the shape's reach, on the merged ground; `GradeWarning` = 15 % — rail `TerrainWorldMergeTests.CE4592_TheGradeReadOut…` | G-19 |
+| ⚠ not yet (part 2b) | the Details *Effect* panel that SHOWS it (grade, area, kept out, the SUMO line), the 2-D tint of the height change while drawing, and the frame-vs-mockup fidelity rails | mockup panels B, C, F |
 
 ### 9.14 As built — P-6, part 1: ditches and foxholes *(`terrain` lane, `2026-11-14`, CE-4593)*
 

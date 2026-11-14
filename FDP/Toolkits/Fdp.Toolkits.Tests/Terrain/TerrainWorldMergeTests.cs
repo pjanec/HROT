@@ -481,5 +481,31 @@ namespace Fdp.Toolkit.Terrain.Tests
             var fox = cover.Where(p => MathF.Abs(p.PositionY + 40f) < 0.1f && MathF.Abs(p.PositionX) < 0.1f).ToList();
             Assert.Equal(4, fox.Count);
         }
+    
+        /// <summary>
+        /// ⭐ G-19 — a road running straight across a 5 m hill: the shape's steepest road grade is the skirt's (5 m over ≈ 7.5 m, smoothstepped — over the 15 % warning); a road
+        /// 60 m away reads 0; a gentle 0.5 m rise stays under the warning.
+        /// </summary>
+        [Fact]
+        public void CE4592_TheGradeReadOut_WarnsForAHillAcrossARoad()
+        {
+            var b = new global::CarKinem.Road.RoadNetworkBuilder();
+            b.AddNode(new Vector2(-50f, 0f), 0f); b.AddNode(new Vector2(50f, 0f), 0f); b.AddNode(new Vector2(-50f, 60f), 0f); b.AddNode(new Vector2(50f, 60f), 0f);
+            b.AddSegment(new Vector2(-50f, 0f), new Vector2(100f, 0f), new Vector2(50f, 0f), new Vector2(100f, 0f), laneWidth: 3.5f, laneCount: 2, startNodeIdx: 0, endNodeIdx: 1);
+            b.AddSegment(new Vector2(-50f, 60f), new Vector2(100f, 0f), new Vector2(50f, 60f), new Vector2(100f, 0f), laneWidth: 3.5f, laneCount: 2, startNodeIdx: 2, endNodeIdx: 3);
+            var roads = b.Build(cellSize: 10f, gridWidth: 20, gridHeight: 20);
+            try
+            {
+                var hill = Ground("g", "raise", 5f, 1, Square(0f, 0f, 10f));
+                var merged = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(hill));
+                var shape = merged.GroundShapes[0];
+                Assert.True(GroundShapes.SteepestRoadGrade(merged, in roads, in shape) > GroundShapes.GradeWarning);
+                var gentle = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(Ground("h", "raise", 0.5f, 1, Square(0f, 0f, 10f))));
+                Assert.True(GroundShapes.SteepestRoadGrade(gentle, in roads, gentle.GroundShapes[0]) < GroundShapes.GradeWarning);
+                var far = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(Ground("f", "raise", 5f, 1, Square(0f, -60f, 5f))));
+                Assert.Equal(0f, GroundShapes.SteepestRoadGrade(far, in roads, far.GroundShapes[0]));
+            }
+            finally { roads.Dispose(); }
+        }
     }
 }

@@ -82,10 +82,11 @@ namespace Hrot.AI.Behaviors.Brains
             };
             // ⭐⭐ CE-4601 (B-4; 📄 docs/DESIGN_Vehicle_Breaching.md §7.6, R-4242) — no entity, a POINT: an obstacle within the pick radius ⇒ that obstacle (today's path);
             //   else a standing lone trunk ⇒ felled; else the nearest wall panel ⇒ a blade-wide cut. Nothing there ⇒ the order fails at its first tick.
-            if (block.Clear.Obstacle.IsNull && order.At != Vector3.Zero)
+            Vector3 point = order.At.Local;
+            if (block.Clear.Obstacle.IsNull && point != Vector3.Zero)
             {
                 block.Clear.Pointed = 1;
-                block.Clear.At = order.At;
+                block.Clear.At = point;
                 Resolve(ref block.Clear, world);
                 // the marker exists from the order on (inactive): the tick only SETS its own component — no structural change inside the parallel phase (R-4212 / D-31)
                 if (block.Clear.Target != BladeCutTarget.None && world.IsComponentTypeRegistered<BladeCut>() && !world.HasComponent<BladeCut>(self))
@@ -277,7 +278,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>⭐ CE-4601 (B-4, §7.6) — clear HERE instead of an entity (zero = no point): an obstacle within <see cref="PickRadius"/> of it, else a lone trunk, else the wall.</summary>
         [System.Text.Json.Serialization.JsonPropertyName("At")]
-        public Vector3 At;
+        public Fdp.Toolkit.Replication.PointLink At;   // ⭐ S0 — an authored place is a PointLink (a picked point, a param, a reference)
 
         /// <summary>⭐ B-4 — how far from <see cref="At"/> a target is looked for (m); 0 = 3.</summary>
         [System.Text.Json.Serialization.JsonPropertyName("PickRadius")]

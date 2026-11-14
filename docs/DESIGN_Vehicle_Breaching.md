@@ -591,7 +591,7 @@ graph TD
   BLAST[AreaEffectSystem.FellTrees - trees.json radius - LoneTrees index] --> EV[TreeFellEvent 5104]
   HULL[ContactBreach - a tank / IFV row with trees - ram or push] --> EV
   EV --> SYS[TreeDamageSystem - one entity per cell x deciding node]
-  SYS --> REC[TreeDamage 492 - centimetre keys - dtTreeDamage 185 - TerrainObjects #trees]
+  SYS --> REC[TreeDamage 489 - centimetre keys - dtTreeDamage 185 - TerrainObjects #trees]
   REC --> VIEW[DoorStates.Trees - FelledTrees]
   VIEW --> Q[sight / fire / hull skip the trunk - the same tick]
   VIEW --> BK[the bake - TerrainObstacles.With drops it - navmesh + drawing - its box dirty]
@@ -601,7 +601,7 @@ cache — so the only NEW decisions are who fells (the fellers on the left) and 
 
 | claim | code — as built | design |
 |---|---|---|
-| the record keyed by position | `TreeDamage` (component 492, unmanaged, NoScenario): cell + up to 16 trunks as centimetre box centres (`TreeDamages.KeyOf`) — a piece index renumbers when the overlay re-sorts | D-6 |
+| the record keyed by position | `TreeDamage` (component 489, unmanaged, NoScenario): cell + up to 16 trunks as centimetre box centres (`TreeDamages.KeyOf`) — a piece index renumbers when the overlay re-sorts | D-6 |
 | the query-time skip | `FelledTrees` on `DoorStates.Trees`; the three segment loops of `TerrainWorld` (sight, `QuerySight`, fire / hull) skip a felled `Tree` piece — the same tick, on every node | R-4232's rule |
 | blasts | `AreaEffectSystem.FellTrees`: every lone trunk within `trees.json`'s radius (`LoneTrees.Near` — a per-world 16 m index, never a scan); none for a kinetic or non-lethal round | UTM T-4, T-6 |
 | a player's hull | `ContactBreach`: `Identify` names a `Tree` piece; a row with `"trees": true` (tank, IFV) fells it by ram or push; the follow-up publishes `TreeFellEvent`; ⛔ an AI hull never reaches the rule (B-D1) | D-6 |

@@ -94,6 +94,7 @@ related-designs:
 | B-6 | toolkit `--filter TreeFellingTests\|CraterTests\|TerrainChunkTrees\|Woods\|CarKinematicsSystemTests\|ContactBreach` · SimHost `TreeFellingBakeTests\|CraterBakeTests\|StaticObstacleBakeTests\|BuildingDamageBakeTests\|EntityGroundDamage\|BridgeClosure` | 139 / 0 · 36 / 0 |
 | B-5 | toolkit `--filter WorldSurvey\|BuildingLayout\|SoundPath\|Building` · SimHost `BreachEntryTests\|ClearBuilding\|RoomOrder` | 138 / 0 · 3 / 0 |
 | P-5 part 2a | `Hrot.Presentation.Tests --filter TerrainAuthoringPickerTests\|TerrainBirth\|AddEntity` | 96 / 1 — the 1 is pre-existing (`CE2138_*`, a TKB type from behaviors' CE-7014) |
+| regression, full (T1/T2) | `Fdp.Toolkits.Tests` + `Hrot.SimHost.Tests`, `--no-build` after a SimHost rebuild | toolkit 5052 / 11 → fixed here: the ids 492 / 493 clashed with TEST-local structs (`GroundDamage` → 490, `TreeDamage` → 489), `ClearObstacleOrder.At` is a `PointLink` (the S0 authored-types rail); the 5 S0 rails pre-existing; `MissionDirector…`, `BinaryMerger…Allocates…` pass alone (flaky under the full run). SimHost 2767 / 9 → fixed here: the damage module's system count (12 → 16) and the Brain group's descriptors (+ `dtBladeCut`); pre-existing (code this lane never touched): Hrot.Gameplay DDS placement, ReplayBrowser → Orchestrator, the UTM zone of the committed terrains, the AirArmedSearch hosting snapshot (272 → 288, `PointLink` untouched here), a civilian HSM flake |
 
 ⚠ Not yet run: `stepped-hash.py --threads 1,4,8`, drawing rails under Xvfb (nothing drawn changed), the full solution build.
 

@@ -1286,14 +1286,14 @@ namespace Fdp.Core
         public const int BuildingDamage = 485;
 
         /// <summary><c>GroundDamage</c> — ⭐ CE-4591 (P-4, docs/DESIGN_Ground_Patches_And_Road_Blockage.md G-7, V-7): the craters ONE deciding node made in ONE ground cell, on a
-        /// runtime entity that node owns; recorded, replicated (<c>dtGroundDamage</c>, 184). NoScenario (a save section carries the craters). ⚠ 493 taken by the `terrain` lane from the TOP of the
-        /// free part of the coordinator / new-lane block (486–493 free on every lane 2026-11-14; the block allocates upward, so the top keeps clear of it).</summary>
-        public const int GroundDamage = 493;
+        /// runtime entity that node owns; recorded, replicated (<c>dtGroundDamage</c>, 184). NoScenario (a save section carries the craters). ⚠ 490: the `terrain` lane's ids come from the free part of the
+        /// coordinator / new-lane block (486–491; 492 and 493 are held by TEST-local structs — VariantFormsTests, WorldKeyframesTests — and a process-wide registry refuses two
+        /// types on one id: measured, the full toolkit suite failed "KeyframeTestPos and GroundDamage both declare 493"). 486–491 are used only by Fdp.Core.Tests' private types.</summary>
+        public const int GroundDamage = 490;
 
         /// <summary><c>TreeDamage</c> — ⭐ CE-4603 (B-6, docs/DESIGN_Vehicle_Breaching.md §7.7): the lone trunks ONE deciding node felled in ONE ground cell (centimetre positions), on a runtime
-        /// entity that node owns; recorded, replicated (<c>dtTreeDamage</c>, 185). NoScenario (the <c>TerrainObjects["#trees"]</c> entry carries them). ⚠ 492: the `terrain` lane takes the
-        /// coordinator / new-lane block from its top down (493 GroundDamage).</summary>
-        public const int TreeDamage = 492;
+        /// entity that node owns; recorded, replicated (<c>dtTreeDamage</c>, 185). NoScenario (the <c>TerrainObjects["#trees"]</c> entry carries them). ⚠ 489 (see GroundDamage's note: 492 / 493 are test-held).</summary>
+        public const int TreeDamage = 489;
 
         /// <summary><c>BladeCut</c> — ⭐ CE-4601 (B-4, docs/DESIGN_Vehicle_Breaching.md §7.6): a bulldozer's "my blade is cutting HERE" marker — set by its brain's
         /// <c>ClearObstacle</c> point order, read by the Muscle's <c>DozerCutSystem</c>. Brain group, replicated (<c>dtBladeCut</c>, 186). ⚠ 491 (terrain lane, top-down).</summary>

@@ -483,6 +483,43 @@ namespace Fdp.Toolkit.Terrain
             });
         }
 
+        /// <summary>⭐ CE-4592 (G-19) — a road grade above this (a fraction) is warned about: SUMO ignores slope, but our off-road vehicles meet the navmesh's limit.</summary>
+        public const float GradeWarning = 0.15f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4592</c> (P-5; 📄 §4a G-19) — STEEPNESS IS SHOWN, NOT ENFORCED: the steepest grade (rise ÷ run) along any road segment of <paramref name="roads"/> that passes
+        /// within <paramref name="shape"/>'s reach (its polygon + skirt), measured on <paramref name="world"/>'s ground (the merged world WITH the shape) every
+        /// <paramref name="stepMetres"/> m. 0 when no road passes. The Details read-out shows it and warns over <see cref="GradeWarning"/>.
+        /// </summary>
+        public static float SteepestRoadGrade(TerrainWorld world, in global::CarKinem.Road.RoadNetworkBlob roads, in GroundShape shape, float stepMetres = 2f)
+        {
+            if (!roads.Segments.IsCreated || world.Height == null) return 0f;
+            float skirt = SkirtOf(shape, world.Height);
+            var (min, max) = Box(shape.Polygon);
+            min -= new Vector2(skirt); max += new Vector2(skirt);
+            float steepest = 0f;
+            for (int i = 0; i < roads.Segments.Length; i++)
+            {
+                var seg = roads.Segments[i];
+                var lo = Vector2.Min(seg.P0, seg.P1); var hi = Vector2.Max(seg.P0, seg.P1);
+                if (hi.X < min.X || lo.X > max.X || hi.Y < min.Y || lo.Y > max.Y) continue;
+                float length = MathF.Max(seg.Length, Vector2.Distance(seg.P0, seg.P1));
+                int n = Math.Max(1, (int)MathF.Ceiling(length / stepMetres));
+                var prev = global::CarKinem.Road.RoadGraphNavigator.EvaluateHermite(0f, seg.P0, seg.T0, seg.P1, seg.T1);
+                float prevZ = world.GroundHeightAt(prev.X, prev.Y);
+                for (int k = 1; k <= n; k++)
+                {
+                    var p = global::CarKinem.Road.RoadGraphNavigator.EvaluateHermite((float)k / n, seg.P0, seg.T0, seg.P1, seg.T1);
+                    float z = world.GroundHeightAt(p.X, p.Y);
+                    float run = Vector2.Distance(p, prev);
+                    bool inReach = p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y;
+                    if (run > 1e-3f && inReach) steepest = MathF.Max(steepest, MathF.Abs(z - prevZ) / run);
+                    prev = p; prevZ = z;
+                }
+            }
+            return steepest;
+        }
+
         /// <summary>1 inside the polygon, a smoothstep down to 0 over <paramref name="skirt"/> outside it.</summary>
         private static float Weight(Vector2[] poly, Vector2 p, float skirt)
         {
