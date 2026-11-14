@@ -740,6 +740,20 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal("BasicSquadSop", squad.GetDescriptor<BehaviorProfileDto>()!.DefaultSop);   // ⭐ CE-2358 (AQ102 G) — every squad type, by default
         }
 
+        /// <summary>⭐ <c>CE-7028</c> — the RECON drone: a rotorcraft with feet, NO weapon (the operator sends it to watch), a 30-minute battery, a
+        /// 1 500 m camera, and it does not burst on impact.</summary>
+        [Fact]
+        public void CE7028_TheReconDrone_HasNoWeapon_ALongBattery_AndFeet()
+        {
+            var db = BuildDatabase();
+            var recon = db.GetByType(TkbEntityTypes.Drone_Recon)!;
+            Assert.True(recon.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>() is not { Mounts.Count: > 0 });
+            var flight = recon.GetDescriptor<Fdp.Toolkit.Tkb.Domain.FlightParamsDto>()!;
+            Assert.Equal(1800f, flight.EnduranceSeconds);
+            Assert.False(flight.DetonatesOnImpact);
+            Assert.Equal(4, recon.GetDescriptor<Fdp.Toolkit.Tkb.Domain.BodyGeometryDto>()!.GroundContacts.Count);
+        }
+
         /// <summary>⭐ <c>CE-7026</c> / <c>CE-7014</c> (City Battle R-1a, R-2) — the FPV drone has FEET (four ground contacts: a drone landed beside its
         /// operator can take off on its strike order); the jammer type 113 is the crewed HMMWV carrying a 400 m <c>JammerDto</c>, its DIS told apart
         /// from the HMMWV's by its subcategory.</summary>

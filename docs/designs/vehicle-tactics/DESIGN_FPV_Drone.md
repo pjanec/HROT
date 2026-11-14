@@ -212,6 +212,14 @@ him; he launches one at a time by ORDERING it (`AirPlatformStrike` on the area, 
 is gone. ⚠ The FPV type now carries a `BodyGeometryDto` with four feet: `RotorcraftModel` takes off only a body with ground contacts, so before this a
 landed FPV stayed down for good. ⛔ No runtime creation (lane default R-7007).
 
+## 5c. The recon drone — as built `2026-11-13` (showcase-brains, CE-7028 — obligation ⑤)
+
+⭐ §1's *"reconnaissance drones … later"*: type 407 `Drone_Recon` (this airframe with no warhead, `DetonatesOnImpact` false, a 30-minute battery, a
+1 500 m camera, the same feet) and `DroneRecon` (Brains/DroneReconBehavior.cs): to the point, then the search orbit (the point 30° ahead on a 150 m
+circle) at 80 m; its battery's end or an enemy jammer (§5a) ⇒ down where it is. ⭐ It joins the OBSERVER CHAIN by membership, not by code: a member
+of its team's squad, its memory merges into the squad pool, which the staff SPOTs up (`StaffComposerSystem`). `DroneOperator` (§5b) sends an
+unarmed stock drone to watch, an armed one to strike.
+
 ## 6. As-built `2026-10-14` (backend, handoff B11 — the Muscle half)
 
 The design carries **15 classes** (§2) and **1 sequence** (§3); the Muscle half is built, the Brain half (`FpvAttackNodes`, `FpvAttackParams`,

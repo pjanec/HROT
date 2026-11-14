@@ -1122,6 +1122,7 @@ namespace Hrot.Map.Definitions.Tkb
                     },
                 });
             DefineFpvDrone(builder);   // ⭐ M7
+            DefineReconDrone(builder);   // ⭐ CE-7028
             DefineAttackPlane(builder);   // ⭐ Air Ops slice 4
             DefineAttackHelicopter(builder);   // ⭐ Air Ops slice 6a
             // ⭐⭐ CE-3281 (Sensing §8.6) — the aircraft are HEARD: rotors 3 km, jets 15 km (⚠ a fixed-wing engine is class Rotor — "an aircraft
@@ -1333,6 +1334,44 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(type, 2)
                 .WithBehavior(type)
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 2, Category = 50 });   // air, 50 = unmanned (generic country)
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-7028</c> (City Battle §11 R-1c) — the RECON quadcopter: the FPV's airframe (30 m/s, nimble, the same four feet) with NO warhead
+        /// (it does not burst on impact), a 30-minute battery and a camera that sees 1 500 m. It orbits an area (<c>DroneRecon</c>); as a member of
+        /// its drone team's squad its sightings merge into the squad's pool, which the staff SPOTs up (the observer chain, unchanged).
+        /// </summary>
+        private static void DefineReconDrone(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Drone_Recon;
+            var flight = new FlightParamsDto { AccelMps2 = 15f, DetonatesOnImpact = false, EnduranceSeconds = 1800f };
+            builder
+                .DefineVehicle(type, "Recon drone")
+                .WithVisual(type, v => { v.SymbolCode = "SFAPMFQR------"; v.ColorHex = "#4A4A4A"; v.Scale = 0.3f; v.ShowLabel = true; })
+                .WithFlight(type, LocomotionClass.Rotorcraft, flight)
+                .WithBodyGeometry(type, new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
+                {
+                    ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
+                    Length = 0.35f, Width = 0.35f, Height = 0.15f, BodyCentreZ = 0f,
+                    GroundContacts =
+                    {
+                        Wheel("foot front left",   0.12f,  0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
+                        Wheel("foot front right",  0.12f, -0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
+                        Wheel("foot rear left",   -0.12f,  0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
+                        Wheel("foot rear right",  -0.12f, -0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
+                    },
+                })
+                .WithCombat(type, c =>
+                {
+                    c.MaxHealth = 10;
+                    c.BlastSusceptibility = 1f;
+                    c.EyeHeight = 0.1f;
+                    c.SensorRange = 1500;
+                })
+                .WithSignatures(type, new SignaturesDto { Acoustic = new AcousticSignatureDto { MovingAudibleRange = 300f, MovingClass = SoundSourceClass.Rotor } })
+                .WithFaction(type, 1)
+                .WithBehavior(type)
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 2, Category = 50, Subcategory = 2 });   // unmanned, 2 = recon (HROT-local)
         }
 
         /// <summary>

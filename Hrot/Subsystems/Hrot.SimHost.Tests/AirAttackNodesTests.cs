@@ -1284,6 +1284,44 @@ namespace Hrot.SimHost.Tests
                 $"straight down: dest {dest}, at {here}");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-7028</c> (City Battle R-1c) — the RECON drone circles the area at its height (150 m round the point, it does not hover on it,
+        /// it never dives), and at its battery's end comes down where it is. ✅ Red-proof: the orbit steered at the point ⇒ it hovers on it ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE7028_AReconDrone_CirclesTheArea_ThenItsBatteryBringsItDown()
+        {
+            var drone = SpawnDrone(new Vector3(-600f, 0f, 60f), enduranceSeconds: 60f);
+            var p = new DroneReconParams { Point = Vector3.Zero, RadiusM = 150f, HeightAgl = 80f };
+            float minR = float.MaxValue, maxR = 0f, swept = 0f, last = float.NaN, maxZ = 0f;
+            int frame = 0;
+            for (; frame < 60 * 59; frame++)
+            {
+                _w.SetSingleton(new GlobalTime { TotalTime = frame * Dt });
+                DroneReconBehavior.Recon(ref p, drone, _w);
+                FlyDrone(drone);
+                var at = _w.GetComponentRO<SimTransform>(drone).Position;
+                if (frame > 60 * 30)
+                {
+                    float r = new Vector2(at.X, at.Y).Length();
+                    minR = MathF.Min(minR, r); maxR = MathF.Max(maxR, r); maxZ = MathF.Max(maxZ, at.Z);
+                    float b = MathF.Atan2(at.Y, at.X);
+                    if (!float.IsNaN(last)) { float d = b - last; if (d > MathF.PI) d -= 2f * MathF.PI; if (d < -MathF.PI) d += 2f * MathF.PI; swept += d; }
+                    last = b;
+                }
+            }
+            Assert.InRange(minR, 100f, 200f);
+            Assert.InRange(maxR, 100f, 200f);
+            Assert.True(MathF.Abs(swept) > MathF.PI / 2f, $"it went round: {swept:F2} rad");
+            Assert.True(maxZ > 60f, $"at its height: {maxZ:F0} m");
+            Assert.Equal(0, p.Down);
+            for (; frame < 60 * 62; frame++) { _w.SetSingleton(new GlobalTime { TotalTime = frame * Dt }); DroneReconBehavior.Recon(ref p, drone, _w); FlyDrone(drone); }
+            Assert.Equal(1, p.Down);
+            var here = _w.GetComponentRO<SimTransform>(drone).Position;
+            var dest = MoveOf(drone).Destination;
+            Assert.True(new Vector2(dest.X - here.X, dest.Y - here.Y).Length() < 1f && dest.Z <= 0.01f, $"straight down: dest {dest}, at {here}");
+        }
+
         /// <summary>⭐ <c>CE-7026</c> (City Battle R-1a) — a LANDED drone (its feet on the ground, <c>Airborne</c> 0) given a strike on a point takes off
         /// and flies to search it — the operator's launch. ✅ Red-proof: the drone type without ground contacts ⇒ it stays down ⇒ red.</summary>
         [Fact]

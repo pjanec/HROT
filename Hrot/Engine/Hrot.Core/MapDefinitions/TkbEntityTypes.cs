@@ -194,6 +194,9 @@ namespace Hrot.Map.Common
         /// <summary>⭐ Air Ops slice 6a (DESIGN_Air_Operations §7a, AW-5) — an AH-64-class ATTACK HELICOPTER: a Rotorcraft with a chin M134
         /// turret (mount 0) and a fixed-forward Hydra-70 rocket pod (mount 1, munition 6025).</summary>
         public const long Heli_AH64 = 406;
+        /// <summary>⭐ <c>CE-7028</c> (City Battle §11 R-1c) — a RECON quadcopter: the FPV's airframe with no warhead, a 30-minute battery and its
+        /// camera; it orbits an area (<c>DroneRecon</c>) and, as a member of its team's squad, its sightings reach the observer chain. ⛔ A permanent wire value.</summary>
+        public const long Drone_Recon = 407;
 
         // Composite Units
         public const long Unit_TankPlatoon = 301;

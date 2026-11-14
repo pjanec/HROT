@@ -85,14 +85,24 @@ namespace Hrot.AI.Behaviors.Brains
                 if ((p.Launched & (1 << k)) != 0) continue;
                 var drone = Stock(in p, k);
                 if (!Flying(world, drone)) { p.Launched |= (byte)(1 << k); continue; }   // lost before it flew: skip it
-                CommandOrders.Assign(world, self, drone, BehaviorNames.AirPlatformStrike,
-                    JsonSerializer.Serialize(new StrikeOrder { Location = p.Point }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed), newOrder: true);
+                // ⭐ CE-7028 — an UNARMED drone (no mount: the recon quadcopter) is sent to watch the area; an armed one to strike it
+                if (Unarmed(world, drone))
+                    CommandOrders.Assign(world, self, drone, BehaviorNames.DroneRecon,
+                        JsonSerializer.Serialize(new DroneReconOrder { Location = p.Point }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed), newOrder: true);
+                else
+                    CommandOrders.Assign(world, self, drone, BehaviorNames.AirPlatformStrike,
+                        JsonSerializer.Serialize(new StrikeOrder { Location = p.Point }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed), newOrder: true);
                 p.Launched |= (byte)(1 << k);
                 p.Current = k;
                 return NodeStatus.Running;
             }
             return NodeStatus.Success;
         }
+
+        /// <summary>⭐ CE-7028 — a drone whose KNOWN type carries no weapon mount (the recon quadcopter); an unknown type keeps the strike.</summary>
+        private static bool Unarmed(EntityRepository world, Entity drone)
+            => Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(world, drone, out var t)
+               && t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>() is not { Mounts.Count: > 0 };
 
         private static Entity Stock(in DroneOperatorParams p, int k) => k switch { 0 => p.Drone0, 1 => p.Drone1, 2 => p.Drone2, _ => p.Drone3 };
 

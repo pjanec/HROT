@@ -265,6 +265,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string SquadShelterFromAir = "SquadShelterFromAir";
         /// <summary>⭐ <c>CE-7026</c> (City Battle §11 R-1a) — a drone operator launches his stock's drones one at a time at an area.</summary>
         public const string DroneOperator = "DroneOperator";
+        /// <summary>⭐ <c>CE-7028</c> (City Battle §11 R-1c) — a recon drone circles an area and watches it.</summary>
+        public const string DroneRecon = "DroneRecon";
         /// <summary>⭐ <c>CE-2347</c> (R-2069, Defend &amp; Attack §11a) — the platoon rides a route: the squads in their vehicles, a halt on
         /// contact, secure when it is quiet, remount and carry on.</summary>
         public const string PlatoonConvoy = "PlatoonConvoy";

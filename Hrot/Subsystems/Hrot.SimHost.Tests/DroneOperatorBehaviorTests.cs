@@ -96,5 +96,32 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Success, last);
             Assert.Equal(2, _orders.Count(o => o.IntentId == BehaviorNames.AirPlatformStrike));   // the lost one never ordered
         }
+    
+        /// <summary>⭐ <c>CE-7028</c> — an UNARMED stock drone (the recon quadcopter: no mount) is sent to WATCH the area (<c>DroneRecon</c>), an armed one
+        /// to strike it. ✅ Red-proof: the mount test dropped ⇒ the recon drone gets a strike ⇒ red.</summary>
+        [Fact]
+        public void CE7028_AnUnarmedDrone_IsSentToWatch_AnArmedOneToStrike()
+        {
+            const long Recon = 9501, Fpv = 9502;
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            db.Register(new Fdp.Interfaces.TkbTemplate("recon", Recon));
+            var fpv = new Fdp.Interfaces.TkbTemplate("fpv", Fpv);
+            fpv.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { InitialAmmunition = 1 } } });
+            db.Register(fpv);
+            _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) _w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            _w.AddComponent(_drones[0], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)Recon });
+            _w.AddComponent(_drones[1], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)Fpv });
+            var p = new DroneOperatorParams
+            {
+                Drone0 = _drones[0], Drone1 = _drones[1], Drone2 = Entity.Null, Drone3 = Entity.Null,
+                Point = new Vector3(300f, 200f, 0f), IntervalSeconds = 1f, Current = DroneOperatorBehavior.None,
+            };
+            Step(ref p);
+            Assert.Equal(BehaviorNames.DroneRecon, Assert.Single(_orders, o => o.Entity == _drones[0]).IntentId);
+            _w.GetComponentRW<Health>(_drones[0]).Current = 0f;
+            for (int i = 0; i < 4; i++) Step(ref p);
+            Assert.Equal(BehaviorNames.AirPlatformStrike, Assert.Single(_orders, o => o.Entity == _drones[1]).IntentId);
+        }
     }
 }

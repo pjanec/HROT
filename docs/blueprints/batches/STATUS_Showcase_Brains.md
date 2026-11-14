@@ -27,7 +27,8 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | 10 | CE-7012 `ClearObstacle` (the bulldozer) | ✅ | `Brains/ClearObstacleBehavior.cs`; City Battle §6c |
 | 8 | CE-7014 the jammer · CE-7029 infantry take cover from drones | ✅ · ✅ | `JammerDto` + type 113 `Ew_DroneJammer`; `DroneJamming` (serial pre-pass index) read by the FPV's dive (FPV Drone §5a) · |
 | 8b | CE-7026 the operator launches | ✅ (R-7007: an order to his authored stock; the FPV got feet) | `DroneOperator`; FPV Drone §5b |
-| 8c | CE-7029 infantry take cover from drones | ✅ | `SquadSensing.AirThreat` → `BasicSquadSop` drone row → `SquadShelterFromAir`; a lone man's `BasicInfantrySop` row |
+| 8c | CE-7028 the recon drone joins the observer chain | ✅ | type 407 `Drone_Recon`, `DroneRecon` orbit; the chain by squad membership (no new code); FPV Drone §5c |
+| 8d | CE-7029 infantry take cover from drones | ✅ | `SquadSensing.AirThreat` → `BasicSquadSop` drone row → `SquadShelterFromAir`; a lone man's `BasicInfantrySop` row |
 | 9 | CE-7030 Watch · CE-7031 boldness · CE-7011 | ✅ · ✅ · ✅ (the noise-panicked driver: `TrafficPanicSystem.Deafened`, R-7005) | `CivilianBehavior` Watch state; civilians design §5f CIV-3 marked BUILT |
 
 ## 2. The gates
@@ -54,6 +55,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | CE-7029: `SquadCoordinationSystemTests` 21 / 21 · `SquadManeuverTests.CE7029_*`, `BasicInfantrySopTests.CE7029_*` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`); clean build: drills 275 / 275 `PAR=1` · 328 / 328 `PAR=0`; alone, `PAR=1` and `=0`: `BasicInfantrySopTests` 18 / 18 · `BasicVehicleSopTests` 4 / 4 · `ShippedTreesAreCSharpTests` 31 / 31 | red-proofs: the system not raising it ⇒ red · the squad row's sense changed ⇒ red · the lone row on the wrong sense ⇒ red. ⚠ Mixed in ONE `PAR=1` run with the drills, the SOP classes give 10–23 ROTATING reds — PRE-EXISTING (the base before CE-7029 in a clean worktree: 23, 20) ⇒ **CE-7036**; six shipped-tree snapshots red on the base (`0926ff85c` re-filed groups) re-recorded (group line only) |
 | CE-7014: `AirAttackNodesTests` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) 22 / 22; clean build: `Fdp.Toolkits.Tests` Motion + Combat + Squad 798 / 798 · drills + drones 297 / 297 both ways · `Hrot.Core.Tests` 366 / 367 (the pre-existing geo red) | red-proof: the jammed check off ⇒ the enemy-jammer case red |
 | CE-7026: `DroneOperatorBehaviorTests` + `AirAttackNodesTests` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) 24 / 24 · `NedTkbBuilderCombatTests.CE7026_CE7014_*`; clean build: drills + drones + operator 299 / 299 both ways · Fdp Motion 70 / 70 · `Hrot.Core.Tests` 367 / 368 (the pre-existing geo red) | red-proofs: the in-the-air wait dropped ⇒ red · one FPV foot removed ⇒ red |
+| CE-7028: `AirAttackNodesTests` + `DroneOperatorBehaviorTests` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) 26 / 26 · `NedTkbBuilderCombatTests.CE7028_*`; clean build: drills + drones + operator 301 / 301 both ways · `Hrot.Core.Tests` 368 / 369 (the pre-existing geo red) | red-proofs: the orbit steered at the point ⇒ red · the operator's mount test off ⇒ red. ⚠ found on the way: the first cut sent an UNKNOWN-type drone to watch (no template ⇒ "no mount") — narrowed to a known type with no mount |
 | `tracker-counts.py --check` · `rulings-check.py` | OK · 607 / 607 |
 
 ## 3. The morning report
