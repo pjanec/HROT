@@ -1422,6 +1422,17 @@ moving together, the last bound's element 1–6 m past the far side, the march t
 fired. Rail `SquadManeuverTests.CE2161_TheMarch_AsksForOpenGround_OnlyWhenTheOrderSaysSo`. ⚠ The field's far side is the march's
 objective here (no cover on test-town's south-west to end the field earlier).
 
+⭐ **`CE-4583` — the SHELLED area, BUILT `2026-11-14` (showcase-brains; AQ101 §R D, R-2071 E-4, R-4227).** A new kind `DangerAreaKind.Shelled = 7`
+(`DangerAreaKinds.Shelled` on bit 0 — the wire carries the kinds as a SIGNED byte, so `1 << 7` does not fit; `DangerAreaKindsOf.BitOf` is the one mapping; the `Wants` bound takes it). `ShelledAreaSystem` (beside `AreaEffectSystem`, the Muscle) notes every burst with an
+area effect into `ShelledAreas` (per world): a burst merges with a point within 15 m; 3 bursts within 60 s make it shelled; 2 min with no
+burst and it is forgotten. A shelled point is a 25 m circle handed to the classifier through the GAS seam (`GasFootprint.Kind`, one run
+detection for both — no copy), rated threat 1 as gas is, so D3 holds or crosses. The march's route sensor now always asks for it (with the
+crossings; open ground still only when ordered). ⚠ **Deviation from AQ101 §R D ("the squad pool keeps burst heat")**: the heat is on the node
+that SOLVES the danger areas — the solve runs on the Muscle with the navmesh, the squad pool lives on the brain (a new wire would carry it),
+the bursts are local on the Muscle, and the gas precedent is node-level the same way. Per world beside `DetonationLog`, not a component (no id
+left in the lane blocks) ⇒ a checkpoint restore forgets at most 2 min of shelling. ⏭ No navigation area cost (routing round it: backend).
+Rail `DangerAlongRouteClassifierTests.CE4583_ThreeBurstsInAMinute_MakeOneShelledArea_TwoDoNot_AndItCoolsAfterTwoMinutes`.
+
 ### 7.8 The demos — one per drill, each checked over HTTP *(behaviors, `2026-10-13`; build-state: DESIGN — not built; the scenario slices R-e, F-e, X-d)*
 
 ⭐ **The rule for all three:** a demo is DONE when its checker in `scripts/utility-demo-check.py` passes against a fresh

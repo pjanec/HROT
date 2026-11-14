@@ -53,6 +53,7 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.TurretPose>();           // BatteryFireMissionPlay.Plan — a gun's pose
             ParallelReadCheck.DeclareUnmanaged<SimVelocity>();                                        // SquadAirborneExitBehavior.Plan — the carrier's velocity
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.CarrierSeats>();       // an HSM action on the carrier's seats (embark / dismount)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.Stress>();             // ⭐ CE-7015 — a platoon asks whether its men are broken (CombatEffective.IsStanding; the stress job writes it in its own phase)
         }
     }
 }

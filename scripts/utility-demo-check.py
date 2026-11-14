@@ -4301,6 +4301,56 @@ def _roe(nid):
     return ((data(call("GET", f"/entities/{nid}/state")) or {}).get("roeEffective") or {}).get("fire")
 
 
+def _comp(nid, name):
+    d = data(call("GET", f"/entities/{nid}")) or {}
+    return (d.get("Components") or d.get("components") or {}).get(name)
+
+
+def run_morale_barrage(c, timeout):
+    """⭐ CE-7015 / CE-4584 (AQ101 §R C + E, R-4227) — morale-barrage-green / -veteran: pc-defend-dry's platoon under a mortar barrage.
+    Engaged as pc-defend-dry is (the squads' Set + a SPOT inside the EA); then the Blue spotter's missions land on the line. Reports the
+    sim times of the first near miss (UnderFire), the first broken man, and the fall-back (a line squad ordered BreakContact), and how many
+    of the line's eight men were broken / down then. Judge: GREEN falls back while most men are alive; VETERAN holds for the window."""
+    green = "green" in (sys.argv[1] if len(sys.argv) > 1 else "")
+    ids = ids_by_name()
+    pl = ids.get("Red Platoon")
+    names = {9310: "Red Squad 1", 9320: "Red Squad 2", 9330: "Red Reserve"}
+    sq = {k: ids.get(n) for k, n in names.items()}
+    line = [ids.get(f"{n} {r}") for n in (names[9310], names[9320]) for r in ("Leader", "Rifleman 1", "Rifleman 2", "Rifleman 3")]
+    if not c.ok(pl and None not in sq.values() and None not in line, f"the platoon, its squads and its eight line men are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: all(task_name(s) == "SquadDefend" for s in sq.values()), 30), "every squad SquadDefends its point")
+    for k in (9310, 9320):
+        call("POST", f"/entities/{sq[k]}/reports", {"kind": "Progress", "subtype": "Set"})
+    wait_for(lambda: False, 3, every=1.0)
+    call("POST", f"/entities/{sq[9320]}/reports", {"kind": "Spot", "at": [120, 60, 0], "count": 3, "size": "Team"})   # inside the EA: Engage
+    t0 = sim_time() or 0.0
+    first = {}
+    window = max(timeout, 240.0)
+    end = time.time() + window
+    while time.time() < end:
+        t = (sim_time() or 0.0) - t0
+        stress = [_comp(m, "Stress") or {} for m in line]
+        broken = sum(1 for s in stress if s.get("Broken"))
+        down = sum(1 for m in line if ((_comp(m, "Health") or {}).get("Current") or 1) <= 0)
+        under = sum(1 for m in line if _comp(m, "UnderFire"))
+        if under and "underFire" not in first: first["underFire"] = (round(t, 1), under)
+        if broken and "broken" not in first: first["broken"] = (round(t, 1), broken, down)
+        fell = [k for k in (9310, 9320) if task_name(sq[k]) == "BreakContact"]
+        if fell and "fallBack" not in first:
+            first["fallBack"] = (round(t, 1), broken, down)
+            if green: break
+        time.sleep(2.0)
+    print(f"   sim since engaged: {round((sim_time() or 0.0) - t0, 1)} s · first near miss (t, men under fire) {first.get('underFire')} · "
+          f"first broken (t, broken, down) {first.get('broken')} · fall-back (t, broken, down) {first.get('fallBack')}")
+    c.ok("underFire" in first, "the bursts near-miss the line's men (UnderFire)")
+    if green:
+        c.ok("fallBack" in first and first["fallBack"][2] < 4, f"the GREEN platoon falls back while most of its line is alive ({first.get('fallBack')})")
+    else:
+        c.ok("fallBack" not in first, f"the VETERAN platoon holds under the same fire ({first.get('fallBack')})")
+
+
 def run_pc_defend_dry(c, timeout):
     """⭐ CE-2276 E-1 — pc-defend-dry (DESIGN_Platoon_Attack_Defend_Clear §12.2 A; DESIGN_Defend_And_Attack_Position §8d)."""
     ids = ids_by_name()
@@ -5657,7 +5707,7 @@ SCENARIOS = {"ua-posture": run_posture, "il-idle-life": run_il_idle_life, "ts-fi
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "uc-urban-battle": run_uc_urban_battle, "ua-eject": run_eject, "ua-car-bomb": run_car_bomb, "ua-m2-engage": run_m2_engage, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "uc-urban-battle": run_uc_urban_battle, "ua-eject": run_eject, "ua-car-bomb": run_car_bomb, "ua-m2-engage": run_m2_engage, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter, "morale-barrage-green": run_morale_barrage, "morale-barrage-veteran": run_morale_barrage}
 
 
 def main():

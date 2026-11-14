@@ -41,8 +41,9 @@ namespace Fdp.Toolkit.Squad.DangerArea
             planner.World = terrain;                                // ⭐ CE-1034 H3 — the route's road legs on the real ground
 
             // ⭐ CE-3227 (§7.3d-B G-2/G-4) — the tear gas this node holds; with gas on the map a node with no road graph still answers
-            Span<GasFootprint> gas = stackalloc GasFootprint[MaxGasClouds];
-            int gasCount = GasFootprints.Of(repo, gas);
+            Span<GasFootprint> gas = stackalloc GasFootprint[MaxGasClouds + ShelledAreas.Capacity];
+            int gasCount = GasFootprints.Of(repo, gas.Slice(0, MaxGasClouds));
+            gasCount += ShelledAreas.Footprints(repo, gas.Slice(gasCount));   // ⭐ CE-4583 — the shelled areas, through the same seam
 
             // ⭐ C6 — lease the graph for the whole plan + classify: a terrain commit may publish a new one meanwhile.
             using var lease = roads?.Borrow();

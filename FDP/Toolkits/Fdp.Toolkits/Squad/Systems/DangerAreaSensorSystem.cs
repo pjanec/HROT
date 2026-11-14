@@ -166,7 +166,7 @@ namespace Fdp.Toolkit.Squad.Systems
                 ref var buffer = ref repo.GetComponentRW<DangerAreaCognitiveBuffer>(child);
                 var span = buffer.GetSpanRW();
                 for (int i = 0; i < buffer.Count && i < span.Length; i++)
-                    span[i].ThreatRating = span[i].Kind == DangerAreaKind.GasCloud ? 1f   // ⭐ CE-3227 (§7.3d-B G-5) — the gas IS the threat
+                    span[i].ThreatRating = span[i].Kind is DangerAreaKind.GasCloud or DangerAreaKind.Shelled ? 1f   // ⭐ CE-3227 (§7.3d-B G-5) — the gas IS the threat; ⭐ CE-4583 — so is the shelling
                         : memory && repo.HasComponent<TargetMemory>(unit)
                         ? ThreatOn(repo, unit, in span[i])
                         : pooled && repo.HasComponent<SquadCognitiveState>(unit)

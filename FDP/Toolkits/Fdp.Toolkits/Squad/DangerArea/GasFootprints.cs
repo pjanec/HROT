@@ -15,6 +15,10 @@ namespace Fdp.Toolkit.Squad.DangerArea
     /// </summary>
     public readonly record struct GasFootprint(long CloudId, Vector2 From, Vector2 To, float Radius, float BaseZ, float TopZ)
     {
+        /// <summary>⭐ <c>CE-4583</c> — the area a route run inside it becomes: <see cref="DangerAreaKind.GasCloud"/> (a cloud) or
+        /// <see cref="DangerAreaKind.Shelled"/> (<see cref="ShelledAreas"/>) — one footprint, one run detection, for both.</summary>
+        public DangerAreaKind Kind { get; init; } = DangerAreaKind.GasCloud;
+
         /// <summary>Is <paramref name="p"/> inside the footprint (the capsule, within its height band)?</summary>
         public bool Contains(Vector3 p)
         {

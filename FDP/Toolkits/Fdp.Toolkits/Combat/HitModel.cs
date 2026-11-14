@@ -126,6 +126,24 @@ namespace Fdp.Toolkit.Combat
             return Math.Clamp(MathF.Atan(radius / range) / sigma, 0f, 1f);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4584</c> (AQ101 §R C, R-4227) — <b>the ONE near miss</b>: <paramref name="unit"/> is being fired at, close by — it gets a
+        /// <see cref="Events.NearMissEvent"/> (which the brain's <c>NearMissSensingSystem</c> turns into <c>SensorChange.NearMiss</c>, here or across
+        /// the DDS <c>NearMiss</c> topic on a split cluster) and is stamped <see cref="UnderFire"/> (its aim spoiled). Both callers use it: a round
+        /// passing (<c>BallisticsSystem</c>) and a shell bursting within 2 × its injury radius (<c>AreaEffectSystem</c>). ⛔ Never a copy of these
+        /// two calls. <paramref name="at"/> is the closest point of the fire to the unit; <paramref name="origin"/> where it was fired from, when
+        /// known (no shooter identity — a man under fire knows where from, not by whom).
+        /// </summary>
+        public static void NearMiss(EntityRepository repo, Fdp.Interfaces.IEntityCommandBuffer cmd, Entity unit, Vector3 at, Vector3? origin)
+        {
+            cmd.PublishEvent(new Events.NearMissEvent
+            {
+                Unit = unit, X = at.X, Y = at.Y, Z = at.Z,
+                OriginX = origin?.X ?? 0f, OriginY = origin?.Y ?? 0f, OriginZ = origin?.Z ?? 0f, HasOrigin = origin.HasValue,
+            });
+            StampUnderFire(repo, unit, Now(repo));   // ⭐ AQ85 E — a near miss suppresses (spoils its aim)
+        }
+
         /// <summary>⭐ E — stamps <see cref="UnderFire"/> on <paramref name="unit"/> at <paramref name="now"/> (no-op when unregistered).</summary>
         public static void StampUnderFire(EntityRepository repo, Entity unit, double now)
         {
