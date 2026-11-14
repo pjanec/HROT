@@ -477,28 +477,16 @@ namespace Fdp.Toolkit.Terrain
             }
             if (!repo.IsComponentTypeRegistered<GroundDamage>()) return null;
 
-            if (ReferenceEquals(repo, t_repo) && t_stamp.HoldsSinceTaken(repo, typeof(GroundDamage))
-                && repo.ComponentsAddedOf(ComponentType<GroundDamage>.ID) == t_added)
-            {
-                if (repo.StructuralChanges == t_structural) return t_last;
-                if (StillAlive(repo)) { t_structural = repo.StructuralChanges; return t_last; }
-            }
+            if (ViewTableCache<GroundDamage>.Holds(repo)) return t_last;   // ⭐ CE-5000 — the one stamp cache
 
             var list = t_scratch ??= new List<Crater>(32);
             list.Clear();
-            t_entityCount = 0;
-            var query = ReferenceEquals(repo, t_queryRepo) ? t_query!
-                : (t_query = repo.Query().With<GroundDamage>().WithLifecycle(EntityLifecycle.All).Build());
-            t_queryRepo = repo;
-            foreach (var e in query)
+            foreach (var e in ViewTableCache<GroundDamage>.Begin(repo))
             {
                 Collect(repo.GetComponentRO<GroundDamage>(e), list);
-                var ents = t_entities ??= new Entity[8];
-                if (t_entityCount == ents.Length) Array.Resize(ref t_entities, ents.Length * 2);
-                t_entities![t_entityCount++] = e;
+                ViewTableCache<GroundDamage>.Read(e);
             }
-            t_stamp.Take(repo); t_repo = repo; t_structural = repo.StructuralChanges;
-            t_added = repo.ComponentsAddedOf(ComponentType<GroundDamage>.ID);
+            ViewTableCache<GroundDamage>.Taken(repo);
 
             list.Sort(Order);
             Dedupe(list);   // two nodes may both hold one crater (a re-send): one is enough
@@ -527,24 +515,9 @@ namespace Fdp.Toolkit.Terrain
             for (int i = 0; i < n; i++) { var c = d.Get(i); if (c.Radius > 0f) into.Add(c); }
         }
 
-        private static bool StillAlive(EntityRepository repo)
-        {
-            for (int k = 0; k < t_entityCount; k++)
-                if (!repo.IsAlive(t_entities![k]) || !repo.HasComponent<GroundDamage>(t_entities[k])) return false;
-            return true;
-        }
-
-        [ThreadStatic] private static Fdp.Toolkit.Replication.Utilities.FrameStamp t_stamp;
-        [ThreadStatic] private static EntityRepository? t_repo;
         [ThreadStatic] private static CraterTable? t_last;
         [ThreadStatic] private static List<Crater>? t_scratch;
-        [ThreadStatic] private static Entity[]? t_entities;
-        [ThreadStatic] private static int t_entityCount;
-        [ThreadStatic] private static long t_structural;
-        [ThreadStatic] private static long t_added;
         [ThreadStatic] private static int t_builds;
-        [ThreadStatic] private static EntityRepository? t_queryRepo;
-        [ThreadStatic] private static EntityQuery? t_query;
 
         /// <summary>How many times THIS thread rebuilt the table and found it changed (rails).</summary>
         internal static int TableBuildsOnThisThread => t_builds;

@@ -120,23 +120,15 @@ namespace Fdp.Toolkit.Terrain
                 return Make(scratch);
             }
             if (!repo.IsComponentTypeRegistered<TreeDamage>()) return null;
-            if (ReferenceEquals(repo, t_repo) && t_stamp.HoldsSinceTaken(repo, typeof(TreeDamage)) && repo.ComponentsAddedOf(ComponentType<TreeDamage>.ID) == t_added)
-            {
-                if (repo.StructuralChanges == t_structural) return t_last;
-                if (StillAlive(repo)) { t_structural = repo.StructuralChanges; return t_last; }
-            }
+            if (ViewTableCache<TreeDamage>.Holds(repo)) return t_last;   // ⭐ CE-5000 — the one stamp cache
             var list = t_scratch ??= new List<(int, int)>(32);
-            list.Clear(); t_entityCount = 0;
-            var query = ReferenceEquals(repo, t_queryRepo) ? t_query! : (t_query = repo.Query().With<TreeDamage>().WithLifecycle(EntityLifecycle.All).Build());
-            t_queryRepo = repo;
-            foreach (var e in query)
+            list.Clear();
+            foreach (var e in ViewTableCache<TreeDamage>.Begin(repo))
             {
                 Collect(repo.GetComponentRO<TreeDamage>(e), list);
-                var ents = t_entities ??= new Entity[8];
-                if (t_entityCount == ents.Length) Array.Resize(ref t_entities, ents.Length * 2);
-                t_entities![t_entityCount++] = e;
+                ViewTableCache<TreeDamage>.Read(e);
             }
-            t_stamp.Take(repo); t_repo = repo; t_structural = repo.StructuralChanges; t_added = repo.ComponentsAddedOf(ComponentType<TreeDamage>.ID);
+            ViewTableCache<TreeDamage>.Taken(repo);
             list.Sort();
             for (int i = list.Count - 1; i > 0; i--) if (list[i] == list[i - 1]) list.RemoveAt(i);
             if (t_last is { } last && last.Same(list)) return last;
@@ -165,23 +157,8 @@ namespace Fdp.Toolkit.Terrain
             for (int i = 0; i < n; i++) into.Add(d.Get(i));
         }
 
-        private static bool StillAlive(EntityRepository repo)
-        {
-            for (int k = 0; k < t_entityCount; k++)
-                if (!repo.IsAlive(t_entities![k]) || !repo.HasComponent<TreeDamage>(t_entities[k])) return false;
-            return true;
-        }
-
-        [ThreadStatic] private static Fdp.Toolkit.Replication.Utilities.FrameStamp t_stamp;
-        [ThreadStatic] private static EntityRepository? t_repo;
         [ThreadStatic] private static FelledTrees? t_last;
         [ThreadStatic] private static List<(int, int)>? t_scratch;
-        [ThreadStatic] private static Entity[]? t_entities;
-        [ThreadStatic] private static int t_entityCount;
-        [ThreadStatic] private static long t_structural;
-        [ThreadStatic] private static long t_added;
-        [ThreadStatic] private static EntityRepository? t_queryRepo;
-        [ThreadStatic] private static EntityQuery? t_query;
     }
 
     /// <summary>
