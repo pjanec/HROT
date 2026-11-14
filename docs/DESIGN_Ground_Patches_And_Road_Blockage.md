@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — leans G-1…G-12 for the user (the three rulings are G-2, G-9, G-12); slices P-1 … P-4
+build-state: READY-TO-BUILD — ✅ APPROVED 2026-11-14 (R-4228 G-1…G-3, R-4229 G-7…G-10, R-4230 G-12; the other leans with them); slices P-1 … P-4
 updated: 2026-11-14
 current-answer: the whole file — §1 the request, §2 INVENTORY, §3 the diagrams, §4 decisions, §5 slices, §6 acceptance
 stale-below: nothing
@@ -195,7 +195,7 @@ graph TD
 *What it shows: pads cost nothing at run time (import and load only); craters cost one background bake per burst of blasts; the dashed edge — a
 display-only node never bakes (the B-12 gate), it draws the crater from the record.*
 
-## 4. Decisions — leans for the user (⭐ = the three rulings asked)
+## 4. Decisions — ✅ APPROVED `2026-11-14` (user: *"Approved"* — R-4228, R-4229, R-4230)
 
 | # | lean | why | rejected |
 |---|---|---|---|
@@ -203,7 +203,7 @@ display-only node never bakes (the B-12 gate), it draws the crater from the reco
 | **G-2** ⭐ | **a house carrying a pad stands ON its pad**; TH-C stays for walls, fences and houses without a pad | the user's complaint; TH-C chose the lowest ground only because nothing levelled the ground | the lowest ground as the pad (buries the uphill side — today) · the highest (deep cuts on every slope) |
 | G-3 | the pad's height = the MEAN ground under the footprint; the skirt = 4 m smoothstep to the natural ground; cut or fill capped at 3 m — beyond it the house keeps TH-C (a retaining wall is a later item); overlapping skirts blend by weight into one terrace; patches in canonical (key) order | cut-and-fill balances; 4 m keeps a door reachable and the slope under the navmesh limit; the cap keeps a cliff house from carving a quarry | a per-node recomputed pad (float drift) |
 | G-4 | **at import**: `TerrainImporter` reads the buildings FIRST, `HeightStage` applies their pads before the store is written, the buildings stand at their pad, and `NetElevation` (shared, `Hrot.Terrain.InputSet`) re-elevates the road net over the flattened store | every pipeline passes the importer — one place; roads must follow the pads | flattening in the OSM pipeline (misses the random and scale terrains) |
-| G-5 | **scenario-placed houses** (Terrain Authoring S-5): the pad is computed once at SAVE by the `OverlayCompiler` and stored in the overlay; `TerrainWorldMerge` patches the base's tiles; the editor's live bake shows it while editing | §18: compile at save, load everywhere — the pad is bytes, never recomputed | patching at every node's load from the feature (recompute drift) |
+| G-5 | **scenario-placed houses** (Terrain Authoring S-5): the house IS an entity — `TerrainFeature {Kind House, Template, HeadingDeg, Pad}` + its `SimTransform`; the pad is NOT an entity of its own but that house's `Pad` value plus its template footprint. At SAVE the `OverlayCompiler` expands it (`FeatureExpander.House`, today: `baseZ` = TH-C on the base, `pad` written when non-zero, unused) into the overlay: the building at `baseZ = pad` AND a pad part (footprint, Z, skirt); `TerrainWorldMerge` patches the base's tiles; the editor's live bake shows it while editing. ⭐ **Auto vs authored:** `PadMode` (a byte beside `Pad`: Auto · Authored · Off), default Auto = `GroundPatches.PadOf` (the mean, G-3) at save; Authored keeps the typed height; Off = TH-C. ⭐ **ONE pad rule:** the block fit's *Level houses on pads* (`TerrainBlock.LevelPads`, today the ground at the house's CENTRE, `FeatureExpander.cs:150`) calls the same `PadOf` | §18: compile at save, load everywhere — the pad is bytes, never recomputed; 📐 measured `2026-11-14`: two pad rules exist today (block: centre height; single house: none), and `Pad = 0` doubles as "none" — a real pad at 0 m would be lost | patching at every node's load from the feature (recompute drift) · `Pad = 0` as "none" (a terrain at sea level) |
 | G-6 | `TerrainHeightTiles.WithTiles(replaced)`: a new store sharing every untouched tile with its base (copy-on-write, R-218) | a crater copies ~1 MB of a 121 MB grid | copying the whole grid per bake |
 | G-7 | **a crater is a RECORD**: `GroundDamage` (unmanaged, capacity 16, recorded, replicated, saved like `BuildingDamage`), decided by the MUSCLE in `AreaEffectSystem` from the warhead's explosive mass by `CraterRule` + `craters.json` (data: radius, depth, rim by kg, none below a threshold, none on water or a building floor) | the breach path, proven: replicated, saved, seek-safe | heights over the wire · a crater per node from the detonation event (a missed event diverges) |
 | G-8 | **seek**: nothing new — the restored records rebake (§3.3); the ground lags a seek by one bake, the decal does not | measured on breaches | a "crater timeline" |
