@@ -27,30 +27,30 @@ or designed already. ⛔ NOT here: the FusionSquad itself (A-2…A-5) and the or
 `git fetch origin coordinator behaviors`; on `behaviors`, `git merge origin/coordinator`; restore the test projects you will run; push
 `chore: started command-chain prerequisites at <sha>`. Read the design sections each item cites before touching it (R-129).
 
-## 1. The items — in this order
+## 1. The items — in this order *(re-ordered under rule 1a, unstarted — user: "i need something that is not a bug fix, can i start from point 8 right away?": the FEATURES first)*
 
 | # | row | what | design basis |
 |---|---|---|---|
-| 1 | **CE-7035** | the drill fixture registers the brain phase's declared reads, so `HROT_READ_CHECK=1` runs on the drill suite (83 false reds today); the civilian fixture too | `STATUS_Showcase_Brains.md` §2–§3 |
-| 2 | **CE-7037** | the stepped gate on `city-battle` runs a different number of steps per run — find what advances the clock outside `/sim/step`; restore or replace the gate's missing default scenario | tracker row |
-| 3 | **CE-4605** | ⭐ the six drills split the squad by roster SLOT, dead men included ⇒ suppress-and-manoeuvre reports Success with nobody having assaulted: split the LIVE men by rank in ONE shared helper for all six (`ComputePartitionInputs` callers) | Aggregate Squad §6, §17 V-11 / R-D12 |
-| 4 | **CE-4606** | a two-man squad with one down livelocks in casualty care (`MedicFor` skips the leader) — fall back to the leader | §6 |
-| 5 | **CE-4607** | a convoy never finishes when a squad's only man is down — fix the ARRIVAL test only (`LiveMen` counting the down man is deliberate, for seats) | §6, §17 (refined) |
-| 6 | **CE-4608** | a relieved assault squad keeps clearing — give it `SquadDefend` at the foothold (Building Clearing §6a) | §6 |
-| 7 | **CE-7038** | a battery strike that can never fire runs silently — refuse it with the reason | tracker row |
-| 8 | **CE-4612** | orders as TYPED state: inventory → `CurrentOrder` → order ids → readers migrated one by one → `OrderKind` extended (steps ①–⑤; ⛔ not the routing). Closes **CE-4609** by construction | §17.2 R-D11 A′ |
-| 9 | **CE-4613** | `UnitStrength` (Present, Authorized) for real units at every echelon; every reader through it; IDENTICAL results for existing squads | §17.2 R-D4 |
-| 10 | **CE-4614** | the objective kinds `Strength` and `QuietArea` | tracker row; Scenario Rules §10.2 |
-| 11 | **CE-4589** | the battalion's reserve: `SupportCommand.Reserve`, the order by echelon (`CompanyDefend` for a company) | Command Chain §8e |
-| 12 | **CE-4610** | the reports commanders read but nobody sends (FallingBack, PhaseLine, ObjectiveSecure, FireLifted, LACE, ammo colour): per report, PRODUCE it where the design names a sender, or DROP the reader with the reason; and reconcile Building Clearing CB-3 vs CB-51 | §6; `DESIGN_Platoon_Attack_Defend_Clear.md:163, :199, :203` |
+| 1 | **CE-4612** | orders as TYPED state: inventory → `CurrentOrder` → order ids → readers migrated one by one → `OrderKind` extended (steps ①–⑤; ⛔ not the routing). Closes **CE-4609** by construction | §17.2 R-D11 A′ |
+| 2 | **CE-4613** | `UnitStrength` (Present, Authorized) for real units at every echelon; every reader through it; IDENTICAL results for existing squads | §17.2 R-D4 |
+| 3 | **CE-4614** | the objective kinds `Strength` and `QuietArea` | tracker row; Scenario Rules §10.2 |
+| 4 | **CE-4589** | the battalion's reserve: `SupportCommand.Reserve`, the order by echelon (`CompanyDefend` for a company) | Command Chain §8e |
+| 5 | **CE-4610** | the reports commanders read but nobody sends (FallingBack, PhaseLine, ObjectiveSecure, FireLifted, LACE, ammo colour): per report, PRODUCE it where the design names a sender, or DROP the reader with the reason; and reconcile Building Clearing CB-3 vs CB-51 | §6; `DESIGN_Platoon_Attack_Defend_Clear.md:163, :199, :203` |
+| 6 | **CE-7035** | the drill fixture registers the brain phase's declared reads, so `HROT_READ_CHECK=1` runs on the drill suite (83 false reds today); the civilian fixture too | `STATUS_Showcase_Brains.md` §2–§3 |
+| 7 | **CE-7037** | the stepped gate on `city-battle` runs a different number of steps per run — find what advances the clock outside `/sim/step`; restore or replace the gate's missing default scenario | tracker row |
+| 8 | **CE-4605** | ⭐ the six drills split the squad by roster SLOT, dead men included ⇒ suppress-and-manoeuvre reports Success with nobody having assaulted: split the LIVE men by rank in ONE shared helper for all six (`ComputePartitionInputs` callers) | Aggregate Squad §6, §17 V-11 / R-D12 |
+| 9 | **CE-4606** | a two-man squad with one down livelocks in casualty care (`MedicFor` skips the leader) — fall back to the leader | §6 |
+| 10 | **CE-4607** | a convoy never finishes when a squad's only man is down — fix the ARRIVAL test only (`LiveMen` counting the down man is deliberate, for seats) | §6, §17 (refined) |
+| 11 | **CE-4608** | a relieved assault squad keeps clearing — give it `SquadDefend` at the foothold (Building Clearing §6a) | §6 |
+| 12 | **CE-7038** | a battery strike that can never fire runs silently — refuse it with the reason | tracker row |
 
 ⭐ A decision a design leaves open is yours: decide by the claim table (code + design columns), record it as an `R-2xxx` ruling marked
 *"lane decision — for the user's review"*, and fold the as-built into the owning design (obligation ⑤).
 
 ## 2. Gates
 
-T-1 first (the feature's own suites: `SquadManeuverTests`, the SOP suites, `CompanyBehaviors` rails, `SupportCommand` rails, the objective suites);
-every behaviour rail with `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` (after item 1) + `HROT_WORLD_GUARD=1`; each new rail red-proved by a
-compiling mutation; `stepped-hash.py --threads 1,4,8` on the scenarios the changes touch (after item 2); 0 B per steady frame for `UnitStrength`
+⚠ Until CE-7035 (now item 6) lands, `HROT_READ_CHECK=1` runs on the NEW rails only, not the whole drill suite (its fixture gives 83 false reds); until CE-7037 (item 7) lands, the stepped hash runs on the small scenarios only. T-1 first (the feature's own suites: `SquadManeuverTests`, the SOP suites, `CompanyBehaviors` rails, `SupportCommand` rails, the objective suites);
+every behaviour rail with `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + `HROT_WORLD_GUARD=1`; each new rail red-proved by a
+compiling mutation; `stepped-hash.py --threads 1,4,8` on the scenarios the changes touch ; 0 B per steady frame for `UnitStrength`
 (R-2084). Report per the gate-report contract (CLAUDE.md rule 8): one row per gate, `--no-build` column, reds proven pre-existing at a base sha,
 ids allocated, designs updated.
