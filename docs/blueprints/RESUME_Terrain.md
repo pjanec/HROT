@@ -24,7 +24,7 @@ related-designs:
 | next | every task has a first build; the OPEN parts in STATUS §2 "next" — start with P-5 part 2b (Details *Effect*, grade G-19, the 2-D tint, mockup fidelity) |
 | open | B-3b (V-17 feedback consumers), P-1's V-15/D-4/CE-4402 |
 | open from P-1 | V-15, D-4, CE-4402 (re-import) — see STATUS |
-| open from P-0 | stepped-hash 1/4/8 not run; no per-host rail (one system, no host gate left) |
+| open from P-0 | stepped-hash run 1/4/8: equal (bt-mortar-roof, roadblock-blast; STATUS §3) |
 
 ## 2. Decisions taken (lane rulings, for the user's review)
 
