@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → `ui`: BUILD unit cards hidden behind terrain, one card per unit (CE-4582, Map 3D §6am)
 
-**For:** the `ui` lane. **From:** coordinator. **Dispatched at `<sha>`**; ⛔ **scope FROZEN there** — later documents are FYI; one that
+**For:** the `ui` lane. **From:** coordinator. **Dispatched at `af9b916ed`**; ⛔ **scope FROZEN there** — later documents are FYI; one that
 invalidates an item ⇒ STOP that item and report it (R-106). ⭐ Autonomous, no questions. 🔒 User, `2026-11-14`: *"the ui lane can take the labels
 hiding behind obstacles"* · *"no the design must happen here"* — ⭐ **the design is done: [Map 3D §6am](../../DESIGN_Map_3D_Mode.md). You
 BUILD it; a deviation is folded back into §6am (obligation ⑤), never decided silently.**
