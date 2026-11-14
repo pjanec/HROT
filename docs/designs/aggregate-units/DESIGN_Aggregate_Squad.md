@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — every FusionSquad decision approved (R-4244…R-4247, R-4250's X-1 / X-2 / X-3); its slices §7 carry the stochastic design's "binds now" items; ⏳ the critical review §17 first
+build-state: DESIGN — the critical review (§17) found 18 gaps; R-D1…R-D13 are leans for the user; NOT ready to build until they are ruled
 updated: 2026-11-14 (first version — coordinator)
-current-answer: the FusionSquad — §1 the request · §4–§4b decisions (all approved) · §5 every behaviour with one member · §6 real-squad defects · §7 slices · §8 acceptance · §11 the commander entity's delta; the stochastic future is DESIGN_Stochastic_Units_And_Resolution.md — §1 the request · §2 INVENTORY · §3 diagrams · §4 decisions · §5 every squad behaviour with one member · §6 real-squad defects found · §7 slices · §8 acceptance · §9 design docs checked
+current-answer: ⭐ §17 the critical review (read FIRST) · the FusionSquad — §1 the request · §4–§4b decisions (all approved) · §5 every behaviour with one member · §6 real-squad defects · §7 slices · §8 acceptance · §11 the commander entity's delta; the stochastic future is DESIGN_Stochastic_Units_And_Resolution.md — §1 the request · §2 INVENTORY · §3 diagrams · §4 decisions · §5 every squad behaviour with one member · §6 real-squad defects found · §7 slices · §8 acceptance · §9 design docs checked
 stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_Squad_Tactics.md §7.6.3 ("fire and movement ends … a half gone") — D-5 changes it for a squad down to one man; folded there when built
@@ -361,5 +361,49 @@ GAINS two state components (S-1) and one system that copies the running resoluti
 | **behaviours (the squad brain on this entity)** | the SOP and the reports unchanged · the plays: the D-5 one-man fixes (generic, every squad) · the two aggregate plays as `FusionInfantrySquad<Order>` (assault, ClearBuilding) through the class routing (D-1) — every other order falls back to `InfantrySquad<Order>` | D-1, D-5 |
 | **ownership** | the unit stays on CGF (brain); the soldier's `Health` is in the brain group (`HrotOwnershipGroups.cs:53, :171-175`) ⇒ the copy is brain-local | measured |
 | **StochasticSquad, later** | the SAME components; no soldier; a `StochasticResolver` writes them and moves the unit's `SimTransform` itself | S-1…S-4 |
+
+## 17. ⛔ The critical review — `2026-11-14` *(three independent reviewers — engine, tactics / command chain, multi-resolution; the decisive claims re-read by the coordinator ✔)*
+
+### 17.1 Findings, most severe first
+
+| # | finding | evidence | 
+|---|---|---|
+| **V-1** ✔ | **volume fire deletes a FusionSquad in seconds** — a rifle / MG round is already ≤ 1 man (25), so D-6's per-hit cap never binds; a coax at ~10 rounds/s and ~30 % on ONE body never re-aims between men ⇒ ~3 men/s, Black in ~3 s | `HealthApplicationSystem.cs:126`; aim restarts only on a target change (`AimAndFireExecutor.cs:197-198`) |
+| **V-2** ✔ | **a burst is many hits** — one event per body part + blast, each applied alone ⇒ a 125 mm HE burst empties 9 men despite the cap | `AreaEffectSystem.cs:253-262`, `HealthApplicationSystem.cs:126-128` |
+| **V-3** ✔ | **the frontage hook (`PresentedAreaM2`) makes the body EQUIPMENT** — it loses blast near-miss suppression (D-7 needs it), the person wound law and the part split; and the burst's reach is measured from the body's centre, not across the frontage | `AreaEffectSystem.cs:533, :544-547, :178-179` |
+| **V-4** ✔ | **the focus-fire cap is 2** — only 2 of the fusion soldier's weapon elements get the one enemy body; a real squad puts only 2 of 9 men on a FusionSquad | `GreedyMatrixAssigner.cs:51`; `ThreatMatrixAssignmentSystem` `maxMembers = roster.Count` (`:61-112`), no weapon dimension in its score; `SquadAssignment.TargetOf` one index (`:41-44`) |
+| **V-5** | **strength denominators are roster counts** (1 for a FusionSquad) ⇒ Green until nearly wiped out; one stress break routs all 9 | `StaffSystems.StrengthOf :418-422`, `CombatEffective.MinEffective`, `PlatoonDefend` Baseline `:321, :618` |
+| **V-6** | **the kill authority breaks** — `ManDownedEvent` only when the body leaves the fight ⇒ 9 men killed score 1 kill (AAR, score, objectives) | `ManDowned.cs:16-18`, `MeasuresEvidence.cs:96-99`, `BountyBehavior.cs:101-106` |
+| **V-7** | **"no injury model" is not off by default** — a person-type variant inherits injury thresholds (incapacitated + bleed-out with men left) and body zones (a leg hit slows the whole squad; a catastrophic zone zeroes health) | `Injury.cs:31-40`, `BleedOutSystem.cs:36-58`, `HealthApplicationSystem.cs:131-146` |
+| **V-8** | **the aggregate assault / ClearBuilding double-count against REAL defenders** — the abstract exchange AND their real fire both take men; killing specific real men from the exchange breaks the parallel rule unless it goes through damage commands | §5 |
+| **V-9** | **A-5 can pass by the clock** — the company's support call and reserve commit are timed (0.5× / 1× deadline, `CompanyBehaviors.cs:276-283`); phase-line reports have no producer (CE-4610); the company commander (CE-7002) and the battalion reserve (CE-4589) are not A-5 needs; the dynamism measure counts men | §7, tracker |
+| **V-10** | **A-1 is bigger than three hash readers** — 18 production `CommandOrders.Assign` sites in 9 files; more readers of concrete names / hashes: `CommandVerbs.cs:130`, `UrbanMovementBehavior.cs:240, :260`, the order journal (`CommandNodes.cs:45`), the replay `PredicateCompiler`; each new `InfantrySquad<Order>` alias changes the active hash and reopens CE-2359 through `NotDefending` | grep |
+| **V-11** | **the dead-slot split (CE-4605) is in SIX plays** (`ComputePartitionInputs(Roster.Count)`), and D-5's "skip an empty half" would mask it | FireAndMovement :67, BoundingOverwatch :119, BreakContact `SquadContactBehaviors.cs:195, :201`, DangerCrossing :87, SuppressAndManeuver |
+| **V-12** | **where the new system runs is contradicted** (§3.3 "AggregateMenSystem, serial, after HealthApplication on the Muscle" vs §11 "parallel phase"); in code Health is a Brain-group component applied serially at the head of Simulation on the brain node | `HrotOwnershipGroups.cs:53`, `CoreInfrastructureCapabilities.cs:53-90` |
+| **V-13** | **F-1's per-weapon table has no home** — the channel state is 32 bytes, 28 used; `OnEnter` resets the aim per action | `BehaviorConstants.cs:13`, `AimAndFireExecutor.cs:59, :873-893` |
+| **V-14** | **the rotation flips `WeaponPosture.ActiveMount` every round** — sent on the wire, the 3-D figure swaps weapons each shot | `AimAndFireExecutor.cs:103`, `WeaponPostureOf.cs:109-115` |
+| **V-15** | **ammo duplicated and capped** — `UnitHoldings.Ammo` duplicates `WeaponAmmo` (already per mount, Brain-group, replicated) whose `MaxMounts = 4` ✔ (`WeaponAmmo.cs:17`); the new components are absent from `HrotOwnershipGroups` | — |
+| **V-16** | **replicating `Men` is a second copy** — every node can derive it from the replicated Health × Represents | `EntityDamageIngressTranslator.cs:80-94` |
+| **V-17** | **`SquadMen` in hot paths** — `ThreatDanger.Of` per (self, target) would hop target → commander → state: undeclared reads; the int / float rounding is undefined | `StandardInputs.cs:183-191`, `CombatEffective.cs:59-68` |
+| **V-18** | **D-3's limits** — one body cannot be base of fire AND assault; the MG's post leaves other sectors unseen | by design |
+| ✔ | §6's real-squad defects CE-4605…CE-4609 all CONFIRMED by an independent read (CE-4607 refined: `LiveMen` counting the down man is deliberate — fix only the arrival test) | — |
+
+### 17.2 Decisions the review raises — leans for the user
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **R-D1** | the loss model under volume fire (V-1, V-2) | ⭐ **a fusion soldier is a DISPERSED target**: each hit on it makes the shooter RE-AIM (the aim clock restarts, as a real squad's next man would), and the events of one source in one frame are COALESCED before D-6's cap — the existing aim and damage paths, no new attrition model |
+| **R-D2** | frontage (V-3) | a fusion-only `Frontage` read by the PERSON path (the body stays a person); a burst's reach widened by frontage / 2; the casualty share = the burst's area ∩ the frontage — ⛔ not `PresentedAreaM2` |
+| **R-D3** | the focus cap (V-4) | fusion elements are exempt; the cap is weighted by the target's `SquadMen`; the score gets a weapon dimension (× the `WeaponChoice` score); `TargetOf(self, element)` |
+| **R-D4** | strength (V-5, V-17) | the `SquadMen` seam carries BOTH numerator and denominator (`Represents`); colour from the fraction, "in the fight" while ≥ 1 man; reads declared, ref-only, an allocation rail |
+| **R-D5** | kills (V-6) | one `ManDownedEvent` per WHOLE man lost (when `floor(Men)` drops), with the hit's attribution, from the serial owner |
+| **R-D6** | injury (V-7) | the FusionSoldier type has NO injury definition and NO body zones (a flat plan); a rail asserts it |
+| **R-D7** | where things run (V-12, V-13, V-14) | the copy runs in ONE named per-unit phase after the weapon and stress phases, Health / `WeaponState` / stress as stable reads; the per-weapon table is a component on the soldier (Brain group, `NoScenario` like `WeaponChannel`, reset by `OnEnter`); `WeaponPosture` keeps the MAIN element's mount |
+| **R-D8** | state duplication (V-15, V-16) | ammo stays in `WeaponAmmo` (its cap raised, or the soldier's weapons fit 4); `Men` is DERIVED from Health in v1 — no new replicated copy until the stochastic slice; the new components get their ownership bits |
+| **R-D9** | the aggregate assault / ClearBuilding vs real men (V-8) | the abstract exchange only against aggregate or empty occupants; against REAL defenders the fusion soldier fights through today's paths |
+| **R-D10** | A-5 (V-9) | needs CE-4610 (the missing reports), CE-7002, CE-4589; its checks require the reserve to be CAUSED by a Red / Black report and each phase line to be reached BY a report; the dynamism measure weighted by `SquadMen` |
+| **R-D11** | A-1 (V-10) | first a full inventory of every reader of concrete names / hashes; the routed alias REPORTS the concrete play's hash (one "runs order X" predicate), so no reader changes meaning |
+| **R-D12** | the plays (V-11) | partition the LIVE men in the one shared helper (all six plays) BEFORE D-5's empty-half rule |
+| **R-D13** | D-3's limits (V-18) | documented as v1 limits; a rail for the volume of fire while moving |
 
 ## 10, 12–16b. ➜ moved to [DESIGN_Stochastic_Units_And_Resolution.md](DESIGN_Stochastic_Units_And_Resolution.md) *(same section numbers)*
